@@ -54,6 +54,7 @@ pub(super) fn collect_state_call_blockers(
             StateCallLowering::InlineLeaf
                 | StateCallLowering::InlineBranching
                 | StateCallLowering::InlineExpansion
+                | StateCallLowering::DispatchLoop
         ) && !needs_runtime_dispatch
             && scheduled_state_contains_key(state_schedule, state_call.source_key)
             && scheduled_state_contains_key(state_schedule, state_call.target_key)
@@ -95,6 +96,16 @@ pub(super) fn collect_state_call_blockers(
                     proof_scope_suffix(input, state_call.source_key)
                 ),
             )),
+        StateCallLowering::DispatchLoop => blockers.insert(blocker(
+            "state calls",
+            &format!(
+                "{} statement {} is a tail self-call stamped DispatchLoop but its \
+                 state was not scheduled for dispatch{}; the loop rewrite never ran",
+                source_name,
+                state_call.statement_index,
+                proof_scope_suffix(input, state_call.source_key)
+            ),
+        )),
         StateCallLowering::Unresolved => blockers.insert(blocker(
             "state calls",
             &format!(
@@ -142,11 +153,7 @@ fn unresolved_call_is_wire_encode(
     input: &EmissionPlanningInput<'_>,
     state_call: &StateCall,
 ) -> bool {
-    statement_has_wire_encode_lowering(
-        input,
-        state_call.source_key,
-        state_call.statement_index,
-    )
+    statement_has_wire_encode_lowering(input, state_call.source_key, state_call.statement_index)
 }
 
 pub(super) fn statement_has_wire_encode_lowering(

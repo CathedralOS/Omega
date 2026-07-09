@@ -860,19 +860,33 @@ invisible to a pump; real fix = outbound WndProc entry stubs (extern brief §12.
    prints the edge at the site. NEW DEV TOOL: `omega-run` bin
    (omega-compiler) -- compile+run a .omg natively, `--both` adds interp
    agreement; the probe workflow's missing one-shot harness.
-   STEP 2 (2026-07-10e): the flow-level rewrite is IMPLEMENTED
-   (runtime_flow/builder.rs, gated OMEGA_TAILCALL_LOOP=1; is_self_receiver
-   now rides RuntimeStateCallEdge; tail_self_call_qualifies pins the four
-   load-bearing legs: self receiver / same machine / only call / bare-call
-   unguarded terminal). Gated because NOT SUFFICIENT alone: the
-   INLINE-BRANCHING expansion still consumes the cyclic flow and selection's
-   resolve_leaf_binding_expression_handle overflows on the self-referential
-   loop-carried rebind (no cycle guard; crash-stack-verified via the .ips
-   report). STEP 3 (the completing move): plan-level
-   StateCallLowering::DispatchLoop stamped on qualified tail self-calls so
-   every inline path (branching expansion, leaf bindings, statement
-   re-emission) skips them -- then un-gate, promote the pending canary,
-   and probe the STATEMENT spelling (mkall_copy's class) as the follow-on.
+   STEPS 2+3 DONE — TAIL-CALL-TO-LOOP LANDED END TO END (2026-07-10h).
+   GENUINE call recursion (the natural accumulator spelling) now compiles
+   and runs natively: promoted canary
+   calls/runtime_tail_self_call_accumulator_exit (native 70 == interp 70,
+   differential + suite). The three pieces:
+   (1) PLAN: StateCallLowering::DispatchLoop stamped by the plan's
+   tail-self-call predicate (self receiver + same machine + NO operations
+   + single unguarded bare-call Terminal — the call is TRANSITION-EMBEDDED,
+   role TransitionArgument, zero ops); every inline path skips the variant
+   by construction (pattern matches on Inline*), which dissolved the
+   leaf-binding substitution overflow. Runtime-bodies also skips it (no
+   body op, no callee splice) — that one skip silenced BOTH downstream
+   blockers (the body blocker and the state-values sweep, which gates on
+   runtime_body_has_statement).
+   (2) FLOW: the rewrite keys on the edge's is_dispatch_loop bit (plan
+   authority); plan/flow predicate drift is a LOUD error. The env gate is
+   gone.
+   (3) ARGUMENTS: statement_call_arguments now descends into the
+   terminal's TARGET_VALUE — a terminal-embedded call has no operation and
+   no transition arguments, and without this leg the loop carried NO
+   rebinds and the emitted binary SPUN FOREVER (n stayed 4; caught by the
+   backend report showing zero argument writes on the cycle edge).
+   FOLLOW-ONS: the STATEMENT spelling (mkall_copy's class — unit machines,
+   slice-1 predicate deliberately rejects it); relaxing the no-operations
+   leg (prior statements before the tail call). The wrapper's rda/mkall
+   iterative restructures could eventually rewrite in the natural
+   recursive spelling.
    INVESTIGATION ITEM 2: enumerate the dispatch return-write's missing
    shapes against the ~13-canary regression list (binary operands,
    slice-element results, aliases, multi-arm) -- each is its own bounded

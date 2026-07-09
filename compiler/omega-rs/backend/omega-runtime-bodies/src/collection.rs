@@ -425,6 +425,16 @@ fn append_state_call_body_operation(
     type_references: &mut TypeReferenceTable,
     visiting: &mut BodyVisitingStates,
 ) {
+    if state_call.lowering == StateCallLowering::DispatchLoop {
+        // The tail-call-to-loop rewrite replaced this call with an ENTRY
+        // TRANSITION in the runtime flow: no body op, no callee splice, no
+        // result operation. The transition's target_arguments carry the
+        // rebound params and the loop's leaf terminal delivers the result;
+        // any body op here would re-emit callee work (the double-execution
+        // hazard the comment below guards) and re-trip the value blockers
+        // on the dead terminal.
+        return;
+    }
     if state_call.lowering == StateCallLowering::InlineLeaf {
         operations.insert(body_operation(
             state_call.source_key,

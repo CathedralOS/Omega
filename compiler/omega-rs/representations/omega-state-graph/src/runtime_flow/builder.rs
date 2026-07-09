@@ -307,19 +307,20 @@ impl<'plan> RuntimeFlowBuilder<'plan> {
         // receivers -- a DIFFERENT instance; non-tail calls; transitive
         // cycles) keeps the loud rejection.
         if self.call_target_recurses_into(call_edge.target_key, control_key) {
-            // DEVELOPMENT GATE (OMEGA_TAILCALL_LOOP=1): the flow-level rewrite
-            // below is CORRECT but NOT SUFFICIENT alone -- the inline-branching
-            // expansion (which runs alongside dispatch routing; the known
-            // duplication wart) still consumes the recursive structure and
-            // OVERFLOWS in selection's leaf-binding substitution
-            // (resolve_leaf_binding_expression_handle has no cycle guard; the
-            // loop-carried rebind `n := n - 1` self-references). The full fix
-            // adds a plan-level StateCallLowering::DispatchLoop so every
-            // inline path skips qualified tail self-calls; until that lands,
-            // the default stays the loud rejection.
-            if std::env::var_os("OMEGA_TAILCALL_LOOP").is_some()
-                && self.tail_self_call_qualifies(call_edge, control_key, segment, call_edges.len())
+            // Plan/flow drift check: a DispatchLoop-stamped edge that fails
+            // the structural predicate here means the plan's tail-self-call
+            // predicate and this one disagree -- refuse loudly rather than
+            // rewrite on a shape only one side believes in.
+            if call_edge.is_dispatch_loop
+                && !self.tail_self_call_qualifies(call_edge, control_key, segment, call_edges.len())
             {
+                return Err(Diagnostic::error(format!(
+                    "{} was stamped DispatchLoop by the state-call plan but fails \
+                     the flow builder's tail-self-call predicate -- plan/flow drift",
+                    self.state_key_display(control_key)
+                )));
+            }
+            if call_edge.is_dispatch_loop {
                 if std::env::var_os("OMEGA_DEBUG_TAILCALL").is_some() {
                     eprintln!(
                         "TAILCALL: rewriting m{} s{} stmt {} as entry-transition loop",
@@ -626,6 +627,17 @@ impl<'plan> RuntimeFlowBuilder<'plan> {
             }
             if transition.expressions.guard.is_valid()
                 && let Some(arguments) = self.first_call_arguments(transition.expressions.guard)
+            {
+                return arguments;
+            }
+            // A TERMINAL-embedded call (`state step(..) -> i32 { self.sum(n -
+            // 1, acc + n) }`): the call lives in the terminal's TARGET_VALUE.
+            // Without this leg the tail-call-to-loop rewrite's transition
+            // carried NO target arguments -- params never rebound and the
+            // emitted loop spun forever (probed 2026-07-10h: n stayed 4).
+            if transition.expressions.target_value.is_valid()
+                && let Some(arguments) =
+                    self.first_call_arguments(transition.expressions.target_value)
             {
                 return arguments;
             }

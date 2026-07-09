@@ -16,7 +16,8 @@ use std::process::Command;
 fn main() {
     let mut args = std::env::args().skip(1).collect::<Vec<_>>();
     let both = args.iter().any(|a| a == "--both");
-    args.retain(|a| a != "--both");
+    let keep = args.iter().any(|a| a == "--keep");
+    args.retain(|a| a != "--both" && a != "--keep");
     let Some(main_path) = args.first() else {
         eprintln!("usage: omega-run [--both] <main.omg>");
         std::process::exit(2);
@@ -79,6 +80,10 @@ fn main() {
         }
     }
 
-    let _ = std::fs::remove_dir_all(&build_dir);
+    if keep {
+        eprintln!("build dir kept: {}", build_dir.display());
+    } else {
+        let _ = std::fs::remove_dir_all(&build_dir);
+    }
     std::process::exit(native_code);
 }

@@ -284,6 +284,16 @@ pub enum StateCallLowering {
     InlineLeaf,
     InlineBranching,
     InlineExpansion,
+    /// A SELF-RECEIVER tail call back into the call's own machine entry
+    /// (`state step(..) -> i32 { self.sum(n - 1, acc + n) }`): lowered as
+    /// the entry-transition LOOP by the runtime-flow builder (the
+    /// tail-call-to-loop transform), NEVER inline -- the inline paths
+    /// (branching expansion, leaf bindings, statement re-emission) must
+    /// skip it, or the cyclic structure overflows selection's leaf-binding
+    /// substitution (probed 2026-07-10e). Stamped by the plan's
+    /// tail-self-call predicate; the flow builder re-checks the same
+    /// predicate and errors loudly on drift.
+    DispatchLoop,
     #[default]
     Unresolved,
 }
