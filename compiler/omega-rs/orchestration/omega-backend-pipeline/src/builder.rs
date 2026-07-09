@@ -134,11 +134,31 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
             )
         },
     ));
-    let runtime_state_call_edges = dispatch_state_call_edges(state_calls.as_ref(), &control_flow);
-    let runtime_flow = if runtime_state_call_edges.is_empty() {
-        seed_runtime_flow
-    } else {
-        Arc::new(record_backend_phase(
+    // FIXPOINT (2026-07-08l): dispatch edges and the state-call plan feed each
+    // other -- `dispatch_state_call_edges` filters on `required`, which the
+    // plan computes from the runtime flow, which is built from the edges. One
+    // round bakes the SEED flow's under-approximated `required` into the edge
+    // set: a root-level call routes, but the callee's INTERIOR calls (e.g.
+    // create_dir_all -> mkall_walk -> mkall_copy) are only marked required by
+    // the rebuild AFTER the edges were fixed, so looping interior callees
+    // never dispatched. Iterate until the edge set stabilizes -- monotone
+    // (flow states only grow, so `required` only grows, so edges only grow;
+    // equal COUNT therefore means equal SET) and bounded by the static call
+    // count, so it terminates; an empty first round breaks immediately (the
+    // old zero-edge short-circuit). Rebuilding the plan each round also
+    // re-lowers every call against the clone graph (the historical stale
+    // InlineBranching double-lowering fix).
+    let mut runtime_flow = seed_runtime_flow;
+    let mut state_calls = state_calls;
+    let mut previous_edge_count = 0usize;
+    loop {
+        let runtime_state_call_edges =
+            dispatch_state_call_edges(state_calls.as_ref(), &control_flow);
+        if runtime_state_call_edges.len() == previous_edge_count {
+            break;
+        }
+        previous_edge_count = runtime_state_call_edges.len();
+        runtime_flow = Arc::new(record_backend_phase(
             &mut phase_timings,
             "runtime flow/state calls",
             || {
@@ -148,16 +168,8 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
                     &runtime_state_call_edges,
                 )
             },
-        )?)
-    };
-    // Rebuild the state-call plan against the dispatched runtime flow whenever any
-    // call dispatched. The cover-check short-circuit left a dispatched value call's
-    // lowering stale (still InlineBranching) so it would double-lower; rebuilding
-    // re-lowers every call against the clone graph.
-    let state_calls = if runtime_state_call_edges.is_empty() {
-        state_calls
-    } else {
-        Arc::new(record_backend_phase(
+        )?);
+        state_calls = Arc::new(record_backend_phase(
             &mut phase_timings,
             "state calls",
             || {
@@ -170,8 +182,10 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
                     workers.clone(),
                 )
             },
-        ))
-    };
+        ));
+    }
+    let runtime_flow = runtime_flow;
+    let state_calls = state_calls;
     let state_dispatch = record_backend_phase(&mut phase_timings, "state dispatch", || {
         build_state_dispatch_plan_with_workers(
             Arc::new(StateDispatchContext::from_runtime_flow(Arc::clone(

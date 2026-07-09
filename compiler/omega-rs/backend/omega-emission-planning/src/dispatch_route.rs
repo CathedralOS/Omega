@@ -16,7 +16,7 @@ pub(crate) fn state_call_routed_to_dispatch(
     input: &EmissionPlanningInput<'_>,
     state_call: &StateCall,
 ) -> bool {
-    input.runtime_flow.edges.iter().any(|(_, edge)| {
+    let routed = input.runtime_flow.edges.iter().any(|(_, edge)| {
         edge.from.machine == state_call.source_key.machine
             && edge.from.state == state_call.source_key.state
             && edge.statement_index == state_call.statement_index
@@ -25,5 +25,33 @@ pub(crate) fn state_call_routed_to_dispatch(
                 omega_state_graph::RuntimeTransitionTarget::State { key, .. }
                     if key.machine == state_call.target_key.machine
             )
-    })
+    });
+    if !routed && std::env::var_os("OMEGA_DEBUG_DISPATCH_ROUTE").is_some() {
+        let from_state_edges = input
+            .runtime_flow
+            .edges
+            .iter()
+            .filter(|(_, edge)| {
+                edge.from.machine == state_call.source_key.machine
+                    && edge.from.state == state_call.source_key.state
+            })
+            .count();
+        let from_machine_edges = input
+            .runtime_flow
+            .edges
+            .iter()
+            .filter(|(_, edge)| edge.from.machine == state_call.source_key.machine)
+            .count();
+        eprintln!(
+            "dispatch_route MISS: src machine {} state {} stmt {} -> target machine {}              (edges from same state: {}, same machine: {}, total: {})",
+            state_call.source_key.machine.arena_index(),
+            state_call.source_key.state.arena_index(),
+            state_call.statement_index,
+            state_call.target_key.machine.arena_index(),
+            from_state_edges,
+            from_machine_edges,
+            input.runtime_flow.edges.len(),
+        );
+    }
+    routed
 }
