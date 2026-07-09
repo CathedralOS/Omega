@@ -102,17 +102,12 @@ fn tail_self_call(context: &StateCallPlanningContext, call: &CollectedStateCall)
         return false;
     };
     // The bare-terminal spelling is TRANSITION-EMBEDDED: the call lives in
-    // the terminal's target_value, and the state has NO operations at all.
-    // Any operation means prior work (a let, a mutation, another call) the
-    // rewrite would skip -- reject those shapes.
-    let has_operations = context
-        .control_flow
-        .operations
-        .span(state.operations)
-        .is_some_and(|operations| !operations.is_empty());
-    if has_operations {
-        return false;
-    }
+    // the terminal's target_value. PRIOR operations are fine -- they are
+    // dispatch-case work that runs BEFORE the loop edge every iteration
+    // (pinned by the prior-ops leg of the accumulator canary). A prior op
+    // that is itself a STATE CALL makes the state multi-call; the flow
+    // builder's call_count leg rejects that shape (falling back to the
+    // classic cycle rejection), so no operation scan is needed here.
     // Exactly one transition: an unguarded Terminal whose value IS the bare
     // recursive call (the loop's leaf terminal delivers the result; any
     // wrapper expression would be skipped work).

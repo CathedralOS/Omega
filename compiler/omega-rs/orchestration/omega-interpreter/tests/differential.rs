@@ -182,6 +182,8 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("calls/runtime_dispatch_result_field_binding_exit", 70),
     ("calls/runtime_dispatch_result_alias_read_exit", 70),
     ("calls/runtime_tail_self_call_accumulator_exit", 70),
+    ("calls/runtime_tail_self_call_prior_ops_exit", 70),
+    ("calls/runtime_statement_tail_self_call_exit", 70),
     ("calls/runtime_dispatch_slice_element_terminal_exit", 70),
     ("calls/runtime_dispatch_result_field_terminal_exit", 70),
     ("calls/runtime_dispatch_result_guard_subject_exit", 70),
