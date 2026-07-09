@@ -664,6 +664,9 @@ decreases remaining
   the state-granular call-result fence that let the drop through silently
   -- remains with the fs lane (TASKS_FS Observations, 2026-07-10k): this
   serve removes the LIVE escape, the fence fix removes the CLASS.
+  [OWNERSHIP CORRECTION 2026-07-11: no parallel agent is running, so the
+  fs-lane handoff was a wait on nobody -- taken back by this thread. See
+  the RECURSIVE ENTRY VALUE-ARM item below.]
 
 - **MACHINEINDEXED BLAST-RADIUS SWEEP 2026-07-10m: clean, one intersection
   canary, one filed face.** Probes of the new variant's surfaces all hold:
@@ -680,6 +683,24 @@ decreases remaining
   identically (an early canary draft failed 73/73) -- accepted-but-
   surprising, no divergence, belongs to the literal-out-of-range /
   type-carrying-constants design pile.
+
+- **[ ] RECURSIVE machine's ENTRY value arm: NO return-write is selected for
+  ANY terminal shape (diagnosed 2026-07-11a; supersedes the termination
+  canaries' "param-field row" framing).** Probes: a NON-recursive machine
+  with a `-> card.power` value arm compiles fine (param-struct-field
+  terminals ARE served); a RECURSIVE machine (transition-arg self-recursion,
+  measure-proved) with even a LITERAL value arm (`false -> 7`) hits the
+  call-result fence -- the fence's "supported shapes" list is irrelevant
+  because the dispatched path never attempts the write at all. param_carry
+  works because its terminal lives in a SIBLING state; the unserved row is
+  the SELF-LOOPING ENTRY's own value arm. The inline-branching expansion
+  path handles Terminal edges (expansions.rs builds them with bindings);
+  the DISPATCH-LOOP path for recursive machines is where the terminal-value
+  write goes missing. NEXT: find where dispatch-loop cases select
+  terminal-value writes for CallResultReturn edges and why the looping
+  entry's value arm is skipped; serving it unparks BOTH
+  pending/termination/custom_ranking_* canaries. This thread's work (no
+  parallel agent is running -- the fs-lane deferral is retracted).
 
 - **[ ] Float types accept a domain clause that means nothing (found
   2026-07-10).** `f: f32 in Saturating` compiles; both legs run plain IEEE
