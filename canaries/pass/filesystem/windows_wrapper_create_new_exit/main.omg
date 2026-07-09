@@ -6,8 +6,9 @@
 // O_CREAT (0x100) | O_EXCL (0x400). Discriminating: the SECOND create_new on an
 // existing file must return Error{AlreadyExists} (proves O_EXCL took effect and
 // the first call did NOT truncate) -- the exact data-loss hazard the fence
-// guarded. Windows-gated + native-only (the interpreter still decodes darwin
-// flag numerology; a per-target interp decode is the follow-up rung).
+// guarded. Windows-gated, DIFFERENTIAL: the interpreter decodes the HOST's
+// flag numerology (host_open_flags, mirroring the provides values), so interp
+// and native agree -- and the differential is the drift guard on that mirror.
 // exits: 70 ok; 71 create_new not Ok; 72 close nonzero; 73 second create_new
 // not Error; 74 kind not AlreadyExists.
 use omega::language::std::filesystem;

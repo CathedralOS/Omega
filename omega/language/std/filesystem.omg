@@ -406,7 +406,9 @@ machine Filesystem::create(&mut self, path: &[u8] in Path) -> OpenResult {
 // (438). An existing path yields `Error { kind: AlreadyExists }`.
 machine Filesystem::create_new(&mut self, path: &[u8] in Path) -> OpenResult {
     self.create_mode = 438;
-    self.open_flags = FilesystemHost::O_RDWR | FilesystemHost::O_CREATE | FilesystemHost::O_EXCL;
+    self.open_flags = FilesystemHost::O_RDWR
+        | (1 << FilesystemHost::O_CREATE_BIT)
+        | (1 << FilesystemHost::O_EXCL_BIT);
     let fd: i32 = self.host.open_create(path, self.open_flags, self.create_mode);
     transition fd >= 0 { true -> ok(fd) _ -> err() }
     state ok(&mut self, fd: i32) -> OpenResult { OpenResult::Ok { file: File { fd: fd } } }
@@ -442,18 +444,19 @@ machine Filesystem::open_with(&mut self, path: &[u8] in Path, options: OpenOptio
     let wronly: i32 = wbit & (rbit ^ 1);
     let rdwr: i32 = (wbit & rbit) << 1;
     // The single-bit FLAGS (O_APPEND/O_TRUNC/O_CREAT/O_EXCL) differ per target,
-    // so each is the SELECTED TARGET's flag VALUE gated by a branch-free mask:
-    // a bool 0/1 becomes an all-ones/zero mask via `<<31 >>31` (arithmetic
-    // shift), then `& VALUE` selects the flag or 0. (D8: exact-arith rejects
-    // `*`/`+` on bool casts; `<<`/`>>`/`&` carry no overflow obligation.)
-    let append_flag: i32 = (((options.append as i32) << 31) >> 31) & FilesystemHost::O_APPEND;
-    let truncate_flag: i32 = (((options.truncate as i32) << 31) >> 31) & FilesystemHost::O_TRUNC;
+    // so each is a bool shifted into the SELECTED TARGET's bit position:
+    // `(bool as i32) << O_XXX_BIT` is the flag (bit set) or 0. (D8: exact-arith
+    // rejects `*`/`+` on bool casts; `<<` carries no overflow obligation, and a
+    // shift of a small positive agrees between the native i32 backend and the
+    // i64 interpreter.)
+    let append_flag: i32 = (options.append as i32) << FilesystemHost::O_APPEND_BIT;
+    let truncate_flag: i32 = (options.truncate as i32) << FilesystemHost::O_TRUNC_BIT;
     // Creating opens: O_CREAT when `create` OR `create_new`; O_EXCL only for
     // `create_new`. Routed through `open_create`, which SUBSUMES `open` (with no
     // O_CREAT it behaves exactly like it), so existing-file opens are unchanged.
     let creating: i32 = (options.create as i32) | (options.create_new as i32);
-    let creat_flag: i32 = ((creating << 31) >> 31) & FilesystemHost::O_CREATE;
-    let excl_flag: i32 = (((options.create_new as i32) << 31) >> 31) & FilesystemHost::O_EXCL;
+    let creat_flag: i32 = creating << FilesystemHost::O_CREATE_BIT;
+    let excl_flag: i32 = (options.create_new as i32) << FilesystemHost::O_EXCL_BIT;
     // The composed word lands in a FIELD (host-call scalar-arg idiom).
     self.open_flags = wronly | rdwr | append_flag | truncate_flag | creat_flag | excl_flag;
     self.create_mode = 438;

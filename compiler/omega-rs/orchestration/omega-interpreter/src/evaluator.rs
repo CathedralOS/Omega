@@ -1,4 +1,46 @@
 use crate::InterpretOutcome;
+
+/// Per-target open-flag BIT POSITIONS, mirroring the `FilesystemHost` open-flag
+/// provides values in `omega/language/std/filesystem_host.omg` (the single
+/// source of truth; the wrapper composes flag words from them at compile time).
+/// The differential oracle compiles for `host()` and runs ON the host, so the
+/// host's flag numerology matches the substituted program -- selecting by
+/// `cfg!(target_os)` needs no target threading. The differential fs canaries
+/// (create_new/open_with) are the drift guard against this table diverging from
+/// the .omg source. Access mode (O_WRONLY 1 / O_RDWR 2, mask 0x3) is universal.
+mod host_open_flags {
+    #[cfg(target_os = "windows")]
+    pub const O_CREAT_BIT: i32 = 8;
+    #[cfg(target_os = "windows")]
+    pub const O_EXCL_BIT: i32 = 10;
+    #[cfg(target_os = "windows")]
+    pub const O_TRUNC_BIT: i32 = 9;
+    #[cfg(target_os = "windows")]
+    pub const O_APPEND_BIT: i32 = 3;
+
+    #[cfg(target_os = "macos")]
+    pub const O_CREAT_BIT: i32 = 9;
+    #[cfg(target_os = "macos")]
+    pub const O_EXCL_BIT: i32 = 11;
+    #[cfg(target_os = "macos")]
+    pub const O_TRUNC_BIT: i32 = 10;
+    #[cfg(target_os = "macos")]
+    pub const O_APPEND_BIT: i32 = 3;
+
+    #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
+    pub const O_CREAT_BIT: i32 = 6;
+    #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
+    pub const O_EXCL_BIT: i32 = 7;
+    #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
+    pub const O_TRUNC_BIT: i32 = 9;
+    #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
+    pub const O_APPEND_BIT: i32 = 10;
+
+    pub const fn o_creat(flags: i32) -> bool { (flags >> O_CREAT_BIT) & 1 != 0 }
+    pub const fn o_excl(flags: i32) -> bool { (flags >> O_EXCL_BIT) & 1 != 0 }
+    pub const fn o_trunc(flags: i32) -> bool { (flags >> O_TRUNC_BIT) & 1 != 0 }
+    pub const fn o_append(flags: i32) -> bool { (flags >> O_APPEND_BIT) & 1 != 0 }
+}
 use crate::value::{Cell, Value};
 use omega_core::arithmetic::ArithmeticDomain;
 use omega_core::symbols::SymbolHandle;
@@ -2387,8 +2429,9 @@ impl<'program> Evaluator<'program> {
             }
             "open_create" => {
                 // `open(path, flags, mode)` with O_CREAT (Rust `File::create_new`,
-                // `OpenOptions.create`/`.create_new`). darwin flags: O_CREAT=0x200
-                // (512), O_EXCL=0x800(2048). This adds the O_EXCL/EEXIST atomic
+                // `OpenOptions.create`/`.create_new`). Flag bits are the HOST's
+                // (host_open_flags, mirroring the per-target provides values). This
+                // adds the O_EXCL/EEXIST atomic
                 // create-new guard + create-mode recording; every other flag bit
                 // (O_TRUNC/O_APPEND/access/EACCES/ENOENT) is handled by the shared
                 // `virtual_open_flags`, so `open_create` cleanly SUBSUMES `open`.
@@ -2398,13 +2441,13 @@ impl<'program> Evaluator<'program> {
                 let exists = self.virtual_files.contains_key(&path)
                     || self.virtual_dirs.contains(&path)
                     || self.virtual_char_devices.contains(&path);
-                if (flags & 512) != 0 && (flags & 2048) != 0 && exists {
+                if host_open_flags::o_creat(flags) && host_open_flags::o_excl(flags) && exists {
                     self.virtual_errno = 17; // EEXIST (O_CREAT|O_EXCL, path present)
                     -1
                 } else {
                     // Whether this call actually creates the file (records the mode
                     // AFTER the open so the create's own access is not gated by it).
-                    let created = (flags & 512) != 0 && !exists;
+                    let created = host_open_flags::o_creat(flags) && !exists;
                     let fd = self.virtual_open_flags(path.clone(), flags);
                     if fd >= 0 && created {
                         self.virtual_perms.insert(path, mode & 0o777);
@@ -3328,10 +3371,10 @@ impl<'program> Evaluator<'program> {
     /// Returns a fresh fd, or -1 if the path is absent and O_CREAT is not set.
     fn virtual_open_flags(&mut self, path: Vec<u8>, flags: i32) -> i32 {
         let exists = self.virtual_files.contains_key(&path);
-        let o_creat = flags & 0x200 != 0;
-        let o_trunc = flags & 0x400 != 0;
-        let o_append = flags & 0x8 != 0;
-        let writable = flags & 0x3 != 0; // O_WRONLY | O_RDWR
+        let o_creat = host_open_flags::o_creat(flags);
+        let o_trunc = host_open_flags::o_trunc(flags);
+        let o_append = host_open_flags::o_append(flags);
+        let writable = flags & 0x3 != 0; // O_WRONLY | O_RDWR (universal)
         // Opening a directory for writing is EISDIR (Rust `ErrorKind::IsADirectory`).
         // Checked before the ENOENT test so a dir path (never in `virtual_files`)
         // reports the more specific kind.
