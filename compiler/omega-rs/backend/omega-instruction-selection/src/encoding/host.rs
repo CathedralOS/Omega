@@ -164,9 +164,11 @@ pub fn encode_entry_arguments_slice_descriptor_write_bytes(
     byte_length: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
     match architecture {
-        Architecture::Aarch64 => Err(Diagnostic::error(
-            "AArch64 MVP encoder cannot bind entry arguments yet (the entry prologue is x86_64-only)",
-        )),
+        Architecture::Aarch64 => aarch64::encode_entry_arguments_slice_descriptor_write_bytes(
+            descriptor_offset,
+            spill_offset,
+            byte_length,
+        ),
         Architecture::X86_64 => x86_64::encode_entry_arguments_slice_descriptor_write_bytes(
             descriptor_offset,
             spill_offset,

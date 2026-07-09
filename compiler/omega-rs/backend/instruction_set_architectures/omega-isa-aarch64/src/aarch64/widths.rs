@@ -1112,6 +1112,13 @@ pub fn runtime_storage_copy_machine_indexed_frame_index_offset(
     }
 }
 
+/// Entry `args: &[u8]` descriptor write: the frame pair (8) + the spill
+/// address add (4) + ptr store (4) + the padded length immediate (8) + len
+/// store (4).
+pub fn entry_arguments_slice_descriptor_write_width() -> usize {
+    28
+}
+
 pub fn runtime_text_line_read_import_width(_byte_capacity: usize, target_offset: usize) -> usize {
     116 + line_read_descriptor_store_extra(target_offset)
 }
