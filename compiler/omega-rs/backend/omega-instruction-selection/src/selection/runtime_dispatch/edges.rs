@@ -339,7 +339,7 @@ fn select_runtime_dispatch_call_result_return(
     // a frame-place target under the callee's dispatch context would resolve
     // against the wrong frame, and the frame case is the slot path's job.
     let (target_region, target_offset, byte_size) = if let Some(slot) =
-        input.runtime_storage.assignment_value_result_slot_any_dispatch(
+        input.runtime_storage.state_call_result_slot_any_role(
             call_result.call_source_key,
             call_result.statement_index,
         ) {

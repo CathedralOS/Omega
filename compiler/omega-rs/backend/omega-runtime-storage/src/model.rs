@@ -171,6 +171,31 @@ impl RuntimeStoragePlan {
             })
     }
 
+    /// Any-role sibling of `assignment_value_result_slot_any_dispatch`: the
+    /// call-result slot for a statement REGARDLESS of the call's role
+    /// (TransitionArgument / CallArgument / TransitionGuard results live in
+    /// role-tagged slots the AssignmentValue-only lookup misses -- a
+    /// dispatched callee's terminal return-write must still find them).
+    /// AssignmentValue slots are preferred for determinism when a statement
+    /// somehow carries both. NOTE: `CallResultReturn` carries no call
+    /// ORDINAL, so a statement with TWO dispatched calls cannot be
+    /// disambiguated here yet (plan-shape gap, recorded in TASKS_FS #7).
+    pub fn state_call_result_slot_any_role(
+        &self,
+        source_key: StateKey,
+        statement_index: usize,
+    ) -> Option<&RuntimeFrameSlot> {
+        self.assignment_value_result_slot_any_dispatch(source_key, statement_index)
+            .or_else(|| {
+                self.frame_slots.iter().find_map(|(_, slot)| {
+                    (Self::source_matches(slot.source_key, source_key)
+                        && slot.statement_index == statement_index
+                        && matches!(slot.kind, RuntimeFrameSlotKind::StateCallResult { .. }))
+                    .then_some(slot)
+                })
+            })
+    }
+
     pub fn call_result_slot_by_ordinal(
         &self,
         dispatch_index: u32,

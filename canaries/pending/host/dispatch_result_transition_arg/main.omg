@@ -1,0 +1,35 @@
+// PENDING (2026-07-09b, live unfenced silent-wrong): a dispatched value
+// call's result consumed as a TRANSITION ARGUMENT
+// (`true -> check(self.count(3, 0, 0))`) does not deliver natively
+// (native 71 vs interp 70). Two suspects, in order: (1) ORDERING -- the
+// continuation target's argument materialization runs at the CALLER's call
+// edge (before the callee executes), not at the callee-terminal edge where
+// the result exists; the runtime-flow builder has `continuation_arguments`
+// machinery for exactly this, so the wiring for TransitionArgument-role
+// calls is the gap. (2) the return-write slot lookup was AssignmentValue-
+// only -- widened to any role 2026-07-09 (state_call_result_slot_any_role)
+// but insufficient alone. NOTE ALSO: CallResultReturn carries no call
+// ORDINAL, so a statement with two dispatched calls cannot be disambiguated
+// by the terminal return-write (plan-shape gap).
+// PROMOTE to pass/calls (differential) when it delivers 70/70.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine Main::count(&mut self, i: usize, j: usize, acc: i32 in Wrapping)
+terminates { decreases (j, i) -> Nat::BoundedDistance; }
+-> i32
+{
+    transition j < i {
+        true -> count(i, j + 1, acc + 4)
+        false -> leaf(acc)
+    }
+    state leaf(&mut self, acc: i32 in Wrapping) -> i32 { acc }
+}
+machine Main::main(&mut self) {
+    // The dispatched call's result rides a TRANSITION ARGUMENT into check().
+    transition true { true -> check(self.count(3, 0, 0)) _ -> bad() }
+    state check(&mut self, n: i32) {
+        transition n == 12 { true -> good() _ -> bad() }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}
