@@ -84,13 +84,20 @@ results in Omega. Interpreter = full-parity reference oracle for everything.
    reversed-operand shape alone and two-calls-two-states structure alone
    (both pass; repros preserved in the session scratchpad). Adjacent-
    statement contradiction (stmt-2 self-read resolves @24 correctly) rules
-   out a per-expression memo. NEXT: instrument the WriteRuntimeStorageBinary
-   BUILD site (print expr/place/dispatch for the backward splice); audit
-   guards' `per_instance_base` (TABLE-only — blind to inline bases; if any
-   prelude-let write routes through the guards conjunction path, that is
-   the hole). Std-callee distinguishers vs passing repros: 7 entry lets,
-   Wrapping casts, the failing statement's forward twin folding an operand
-   to a literal. When fixed: re-sweep after_2026 to natural spelling.
+   out a per-expression memo. SHARPENED 2026-07-10w (VOP instrumentation
+   committed, env-gated OMEGA_DEBUG_RECEIVER): every value-operand PLACE
+   resolution is CORRECT (`self.subsecond → @24`,
+   `self.now_keep.subsecond → @8`, both right) — yet the fresh report
+   shows TWO wrong emissions (backward splice stmts 3 and 8: `@8 >= @8`,
+   `@0 - @0`), exactly the statements with `earlier` on the LEFT and
+   `self` on the RIGHT, and in both the self operand EQUALS the earlier
+   operand. SUBSTITUTION-MATCH signature, not resolution: hypothesis —
+   the prelude binding substitution (resolve_branch_prelude_binding_
+   expression_handle / symbol_matches_table_path) mis-matches the bare
+   callee `self` root against the `earlier` param binding, operand-order
+   dependent. NEXT: instrument symbol_matches_table_path for ["self"]
+   path hits; diff the substituted trees of stmt 2 (correct twin) vs
+   stmt 3 (wrong). Then re-sweep after_2026 to natural spelling.
 
 3. **Receiver slice 2** — non-entry callers need recursive caller-base
    resolution (the context chain's parent bases compose); fenced until then.
