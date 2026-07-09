@@ -3411,6 +3411,31 @@ fn append_runtime_storage_load(
 /// mirroring how the x86_64 backend sizes `idiv`/`sar`/`cmp` to the operands.
 /// Every arm emits the same byte count for either width, so
 /// `runtime_binary_operation_width` stays width-independent.
+/// Narrow SIGNED divide/modulo operands may arrive ZERO-extended (the
+/// guard-subject load path), so a 32-bit `sdiv` would divide i8 -20 as 236.
+/// Sign-extend both to the operation width first -- idempotent when they are
+/// already sign-extended (the storage-write path); unsigned division is
+/// correct zero-extended and skips this. Mirrors the x86_64
+/// `append_integer_divide_modulo_core` fix.
+fn append_narrow_signed_division_operand_extension(
+    bytes: &mut Vec<u8>,
+    signed: bool,
+    byte_size: usize,
+    left_register: u8,
+    right_register: u8,
+) {
+    if !signed {
+        return;
+    }
+    for register in [left_register, right_register] {
+        match byte_size {
+            1 => bytes.extend(encode_sign_extend_byte_to_w(register, register)),
+            2 => bytes.extend(encode_sign_extend_halfword_to_w(register, register)),
+            _ => {}
+        }
+    }
+}
+
 fn append_runtime_binary_operation(
     bytes: &mut Vec<u8>,
     destination_register: u8,
@@ -3476,6 +3501,20 @@ fn append_runtime_binary_operation(
         // Arithmetic (sign-filling) right shift for a signed `>>`, sized to the
         // operands so a narrow operand's sign bit fills correctly.
         StateGuardOperator::ShiftRight => {
+            // A narrow signed value may arrive ZERO-extended (guard-subject
+            // loads); ASR fills from bit 31/63, so extend the VALUE register to
+            // the operation width first (idempotent when already extended).
+            if byte_size == 1 {
+                bytes.extend(encode_sign_extend_byte_to_w(
+                    destination_register,
+                    destination_register,
+                ));
+            } else if byte_size == 2 {
+                bytes.extend(encode_sign_extend_halfword_to_w(
+                    destination_register,
+                    destination_register,
+                ));
+            }
             bytes.extend(if narrow {
                 encode_asrv_w_register(
                     destination_register,
@@ -3500,6 +3539,13 @@ fn append_runtime_binary_operation(
         }
         StateGuardOperator::Divide | StateGuardOperator::DivideUnsigned => {
             let signed = matches!(operator, StateGuardOperator::Divide);
+            append_narrow_signed_division_operand_extension(
+                bytes,
+                signed,
+                byte_size,
+                destination_register,
+                right_register,
+            );
             bytes.extend(encode_division(
                 signed,
                 narrow,
@@ -3510,6 +3556,13 @@ fn append_runtime_binary_operation(
         }
         StateGuardOperator::Modulo | StateGuardOperator::ModuloUnsigned => {
             let signed = matches!(operator, StateGuardOperator::Modulo);
+            append_narrow_signed_division_operand_extension(
+                bytes,
+                signed,
+                byte_size,
+                destination_register,
+                right_register,
+            );
             bytes.extend(encode_division(
                 signed,
                 narrow,
@@ -3703,7 +3756,7 @@ fn runtime_binary_compare_byte_size(
 /// Width to pass to `append_runtime_binary_operation`. Comparisons produce a
 /// `bool`, so the target width is not the compared-operands' width — derive it
 /// from the operands instead. All other operations share the target's width.
-fn runtime_binary_operation_byte_size(
+pub(in crate::aarch64) fn runtime_binary_operation_byte_size(
     operands: &impl RuntimeValueOperandSource,
     operator: StateGuardOperator,
     left: RuntimeValueOperandHandle,
