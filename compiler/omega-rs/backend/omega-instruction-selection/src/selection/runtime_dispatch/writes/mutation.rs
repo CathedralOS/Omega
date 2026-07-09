@@ -21,20 +21,19 @@ use super::super::super::bindings::{
     resolve_runtime_alias_binding_handle, strip_mutable_expression,
 };
 use super::super::super::storage_places::{
-    resolve_runtime_storage_arithmetic_domain, resolve_runtime_storage_is_signed,
-    resolve_runtime_storage_place, resolve_runtime_storage_place_is_bounded_byte_buffer,
-    resolve_runtime_storage_primitive_type, runtime_storage_target_is_atomic,
-};
-use omega_checked_trees::types::PrimitiveType;
-use super::super::super::storage_places::{
     resolve_runtime_assignment_value_call_result_place,
     resolve_runtime_assignment_value_call_result_place_by_ordinal,
     resolve_runtime_call_argument_call_result_place,
     resolve_runtime_call_argument_call_result_place_by_ordinal,
     resolve_runtime_frame_base_indexed_target, resolve_runtime_frame_fixed_indexed_target,
-    resolve_runtime_frame_indexed_target,
-    resolve_runtime_machine_double_indexed_source, resolve_runtime_machine_indexed_target,
-    resolve_runtime_pointee_slot_offset, resolve_runtime_transition_argument_call_result_place,
+    resolve_runtime_frame_indexed_target, resolve_runtime_machine_double_indexed_source,
+    resolve_runtime_machine_indexed_target, resolve_runtime_pointee_slot_offset,
+    resolve_runtime_transition_argument_call_result_place,
+};
+use super::super::super::storage_places::{
+    resolve_runtime_storage_arithmetic_domain, resolve_runtime_storage_is_signed,
+    resolve_runtime_storage_place, resolve_runtime_storage_place_is_bounded_byte_buffer,
+    resolve_runtime_storage_primitive_type, runtime_storage_target_is_atomic,
 };
 use super::super::guards::static_guard_conjunct_summary_in_table;
 use super::super::text_writes::{
@@ -66,6 +65,7 @@ pub(in crate::selection) use frame_slots::{
 };
 pub(super) use normalization::simplify_runtime_expression_with_state_locals;
 use normalization::{normalize_runtime_mutation_expression, resolve_runtime_mutation_target};
+use omega_checked_trees::types::PrimitiveType;
 use operators::{
     builtin_runtime_call_operator, runtime_binary_operator, supports_scalar_integer_write,
 };
@@ -406,8 +406,7 @@ fn resolve_static_inline_branching_call_expression_value_with_branch(
                 .state_names_by_key_cloned(expansion.branch_key);
             (expansion.branch_key.state == call.target_symbol
                 || branch_state.as_str() == &*call.target)
-                && receiver_machine
-                    .is_none_or(|machine| expansion.branch_key.machine == machine)
+                && receiver_machine.is_none_or(|machine| expansion.branch_key.machine == machine)
                 && expansion.target_value.is_valid()
                 && leaf_expansion_bindings_match_call_arguments(input, expansion, call)
         })
@@ -1015,11 +1014,13 @@ pub(super) fn select_runtime_resolved_target_value_source_mutation_writes(
                         source_place.region,
                         omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame
                     );
-                    kinds.push(SelectedInstructionKind::AppendRuntimeMachineBoundedBufferSource {
-                        target_byte_offset: target_place.byte_offset,
-                        source_byte_offset: source_place.byte_offset,
-                        source_in_frame,
-                    });
+                    kinds.push(
+                        SelectedInstructionKind::AppendRuntimeMachineBoundedBufferSource {
+                            target_byte_offset: target_place.byte_offset,
+                            source_byte_offset: source_place.byte_offset,
+                            source_in_frame,
+                        },
+                    );
                 } else {
                     all_segments_resolved = false;
                     break;
@@ -1080,8 +1081,7 @@ pub(super) fn select_runtime_resolved_target_value_source_mutation_writes(
         // multi-site stays correct: all sites share the callee's local slots
         // and splice contiguity keeps each site's values live at its own
         // Mutation op.
-        let (value_machine, value_state) =
-            input.control_flow.state_names_by_key_cloned(branch_key);
+        let (value_machine, value_state) = input.control_flow.state_names_by_key_cloned(branch_key);
         select_runtime_resolved_target_value_source_mutation_writes(
             input,
             dispatch_index,
@@ -1816,8 +1816,13 @@ pub(super) fn select_runtime_resolved_target_value_source_mutation_writes(
     // dropped the operand domains (`self.v: u8 in Saturating = a * b`, a,b folded
     // to 100), so the target's declared domain is the authoritative signal -- the
     // store must write 255, not the wrapped low byte. See task #39.
-    let value =
-        clamp_constant_to_target_domain(input, dispatch_index, target_source_key, resolved_target, value);
+    let value = clamp_constant_to_target_domain(
+        input,
+        dispatch_index,
+        target_source_key,
+        resolved_target,
+        value,
+    );
     if let Some(pointer_target) = resolve_runtime_pointee_slot_offset(
         input,
         dispatch_index,
@@ -2434,10 +2439,9 @@ fn saturating_integer_bounds(primitive: PrimitiveType) -> Option<(i64, i64)> {
         PrimitiveType::U32 => Some((0, u32::MAX as i64)),
         PrimitiveType::I64 | PrimitiveType::Isize => Some((i64::MIN, i64::MAX)),
         PrimitiveType::U64 | PrimitiveType::Usize | PrimitiveType::Addr => Some((0, i64::MAX)),
-        PrimitiveType::Bool
-        | PrimitiveType::F32
-        | PrimitiveType::F64
-        | PrimitiveType::String => None,
+        PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64 | PrimitiveType::String => {
+            None
+        }
     }
 }
 

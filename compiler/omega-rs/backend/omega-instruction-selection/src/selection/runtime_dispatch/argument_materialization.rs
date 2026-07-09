@@ -91,7 +91,10 @@ pub(super) fn select_runtime_dispatch_argument_materialization(
         }
         ranges.iter().enumerate().any(|(i, (target, _))| {
             ranges.iter().enumerate().any(|(j, (_, sources))| {
-                i != j && sources.iter().any(|source| ranges_overlap(*target, *source))
+                i != j
+                    && sources
+                        .iter()
+                        .any(|source| ranges_overlap(*target, *source))
             })
         })
     };
@@ -117,10 +120,7 @@ pub(super) fn select_runtime_dispatch_argument_materialization(
         {
             eprintln!(
                 "materialize param `{}` -> target dispatch {} offset {} size {}",
-                parameter.name,
-                target_dispatch_index,
-                slot.byte_offset,
-                slot.byte_size,
+                parameter.name, target_dispatch_index, slot.byte_offset, slot.byte_size,
             );
         }
         let Some(slot) = runtime_parameter_slot(input, target_dispatch_index, parameter) else {
@@ -178,7 +178,8 @@ pub(super) fn select_runtime_dispatch_argument_materialization(
         // write the variant's tag ordinal into the parameter's tag word. (Payload
         // variants arrive as `StructLiteral` and are handled below; a `Name` that
         // resolves to a variant is necessarily the no-payload form.)
-        if let Some(tag_value) = enum_variant_value_in_table(&input.layouts, expressions, argument) {
+        if let Some(tag_value) = enum_variant_value_in_table(&input.layouts, expressions, argument)
+        {
             selected_instructions.push(SelectedInstruction {
                 kind: SelectedInstructionKind::WriteRuntimeStorageInteger {
                     target_region: RuntimeStorageRegion::RuntimeFrame,
@@ -250,9 +251,7 @@ pub(super) fn select_runtime_dispatch_argument_materialization(
                         statement_index,
                         transition_call_argument_rank,
                     )
-                    .and_then(|state_call| {
-                        input.control_flow.state_by_key(state_call.target_key)
-                    })
+                    .and_then(|state_call| input.control_flow.state_by_key(state_call.target_key))
                     .is_some_and(|target_state| target_state.name == call.target)
             })
         } else {
@@ -270,27 +269,31 @@ pub(super) fn select_runtime_dispatch_argument_materialization(
                 argument_source_key.state.arena_index(),
                 statement_index,
                 source_dispatch_index,
-                ranked_place.as_ref().map(|place| (place.region, place.byte_offset, place.byte_count)),
+                ranked_place.as_ref().map(|place| (
+                    place.region,
+                    place.byte_offset,
+                    place.byte_count
+                )),
             );
         }
         if matches!(expressions.expression(argument), ExpressionNode::Call(_))
             && let Some(place) = ranked_place
-            .or_else(|| {
-                resolve_runtime_transition_argument_call_result_place(
-                    input,
-                    source_dispatch_index,
-                    argument_source_key,
-                    statement_index,
-                )
-            })
-            .or_else(|| {
-                resolve_runtime_call_argument_call_result_place(
-                    input,
-                    source_dispatch_index,
-                    argument_source_key,
-                    statement_index,
-                )
-            })
+                .or_else(|| {
+                    resolve_runtime_transition_argument_call_result_place(
+                        input,
+                        source_dispatch_index,
+                        argument_source_key,
+                        statement_index,
+                    )
+                })
+                .or_else(|| {
+                    resolve_runtime_call_argument_call_result_place(
+                        input,
+                        source_dispatch_index,
+                        argument_source_key,
+                        statement_index,
+                    )
+                })
         {
             if place.byte_count != slot.byte_size {
                 continue;
@@ -649,8 +652,9 @@ pub(super) fn select_runtime_dispatch_argument_materialization(
                         .struct_field_at_offset(struct_literal.fields, offset)
                         .clone();
                     // Find the matching layout entry for this field name.
-                    let Some((_, field_offset, field_size)) =
-                        variant_fields.iter().find(|(name, _, _)| *name == field.name)
+                    let Some((_, field_offset, field_size)) = variant_fields
+                        .iter()
+                        .find(|(name, _, _)| *name == field.name)
                     else {
                         continue;
                     };
@@ -678,18 +682,20 @@ pub(super) fn select_runtime_dispatch_argument_materialization(
                     let mut field_slot = slot.clone();
                     field_slot.byte_offset = frame_offset;
                     field_slot.byte_size = *field_size;
-                    if let Some(kind) = select_runtime_frame_slot_value_write_in_table_with_source_anchor(
-                        input,
-                        source_dispatch_index,
-                        argument_source_key,
-                        statement_index,
-                        expressions,
-                        &field_slot,
-                        field.value,
-                        &static_values,
-                        runtime_value_operands,
-                        frame_offset,
-                    ) {
+                    if let Some(kind) =
+                        select_runtime_frame_slot_value_write_in_table_with_source_anchor(
+                            input,
+                            source_dispatch_index,
+                            argument_source_key,
+                            statement_index,
+                            expressions,
+                            &field_slot,
+                            field.value,
+                            &static_values,
+                            runtime_value_operands,
+                            frame_offset,
+                        )
+                    {
                         selected_instructions.push(SelectedInstruction {
                             kind,
                             source_key,
@@ -1305,23 +1311,22 @@ fn resolve_prior_local_initializers_in_table(
             // declaration still FOLDS: its frame-slot write may use a stale static
             // value for field operands, so re-evaluating at transition time with the
             // current (unchanged) field values is the reliable path.
-            let block_fold = local_initializer_is_pure_place(
-                initial_value,
-                &input.program.expression_table,
-            ) || initializer_reads_field_reassigned_after_decl(
-                input,
-                source_key,
-                statement_index,
-                expressions,
-                expression,
-                initial_value,
-            );
+            let block_fold =
+                local_initializer_is_pure_place(initial_value, &input.program.expression_table)
+                    || initializer_reads_field_reassigned_after_decl(
+                        input,
+                        source_key,
+                        statement_index,
+                        expressions,
+                        expression,
+                        initial_value,
+                    );
             if block_fold
                 && let Some((local_symbol, local_name)) =
                     local_root_identity(expressions, expression)
             {
-                let has_local_storage_slot = input.runtime_storage.frame_slots.iter().any(
-                    |(_, slot)| {
+                let has_local_storage_slot =
+                    input.runtime_storage.frame_slots.iter().any(|(_, slot)| {
                         state_key_matches_statement_source(slot.source_key, source_key)
                             && matches!(
                                 slot.kind,
@@ -1331,8 +1336,7 @@ fn resolve_prior_local_initializers_in_table(
                                 && local_symbol.is_valid()
                                 && slot.symbol == local_symbol)
                                 || slot.name == local_name)
-                    },
-                );
+                    });
                 if has_local_storage_slot {
                     return expression;
                 }

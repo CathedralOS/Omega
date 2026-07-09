@@ -186,12 +186,10 @@ fn emit_runtime_frame_slot_runtime_subslice_descriptor_write_in_table(
             // An inclusive end (`a..=b`) is the exclusive end `b + 1`; folding
             // it here keeps every emission path on half-open ranges. A RUNTIME
             // inclusive end would need a +1 at runtime — decline for now.
-            Some(SubsliceBound::Literal(end)) if range.end_inclusive => {
-                match end.checked_add(1) {
-                    Some(end) => Some(SubsliceBound::Literal(end)),
-                    None => return false,
-                }
-            }
+            Some(SubsliceBound::Literal(end)) if range.end_inclusive => match end.checked_add(1) {
+                Some(end) => Some(SubsliceBound::Literal(end)),
+                None => return false,
+            },
             Some(_) if range.end_inclusive => return false,
             Some(end) => Some(end),
             None => return false,
@@ -283,7 +281,9 @@ fn resolve_subslice_bound(
     allow_machine_region: bool,
 ) -> Option<SubsliceBound> {
     if let ExpressionNode::Integer(value) = expressions.expression(bound) {
-        return usize::try_from(value.value_i64()?).ok().map(SubsliceBound::Literal);
+        return usize::try_from(value.value_i64()?)
+            .ok()
+            .map(SubsliceBound::Literal);
     }
     let place = resolve_runtime_storage_place_in_table(
         input,
@@ -471,9 +471,9 @@ fn emit_runtime_descriptor_subslice(
     // target.len = end - start, where an open end means "to the window's end".
     let target_len_offset = slot.byte_offset + len_offset;
     let push_len_binary = |runtime_value_operands: &mut Arena<RuntimeValueOperand>,
-                               selected_instructions: &mut SelectedInstructionSink,
-                               left: RuntimeValueOperand,
-                               right: RuntimeValueOperand| {
+                           selected_instructions: &mut SelectedInstructionSink,
+                           left: RuntimeValueOperand,
+                           right: RuntimeValueOperand| {
         let left = runtime_value_operands.insert(left);
         let right = runtime_value_operands.insert(right);
         selected_instructions.push(SelectedInstruction {

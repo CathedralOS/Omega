@@ -53,6 +53,42 @@ pub(crate) fn collect_contained_receiver_blockers(
             continue;
         };
 
+        // PER-INSTANCE DISPATCH (TASKS_FS "Stolen work #2", gated
+        // OMEGA_RECEIVER_DISPATCH=1): a call whose receiver base the pipeline
+        // RESOLVED (entry-machine caller, named receiver, path resolves via
+        // the shared omega_layout::field_path_offset walk -- the same
+        // predicate compute_receiver_bases applies) is SERVED: the dispatch
+        // clone runs on the receiver's true storage, so the wrong-instance
+        // hazard this fence guards is gone. The predicate is re-derived here
+        // rather than read from receiver_bases because the fence iterates
+        // CALLS, not dispatch cases; the shared walk keeps the two in
+        // agreement by construction.
+        if std::env::var_os("OMEGA_RECEIVER_DISPATCH").is_some()
+            && state_call.source_key.machine == input.entry_key.machine
+        {
+            let segments = input
+                .state_calls
+                .receiver_path_segments
+                .span(state_call.receiver_path)
+                .unwrap_or(&[]);
+            let walk_segments = match segments.first() {
+                Some(root) if root.as_str() == "self" => &segments[1..],
+                _ => segments,
+            };
+            let resolved = if walk_segments.is_empty() {
+                omega_layout::field_path_offset(
+                    input.layouts,
+                    source_layout.fields,
+                    std::slice::from_ref(&state_call.receiver_name),
+                )
+            } else {
+                omega_layout::field_path_offset(input.layouts, source_layout.fields, walk_segments)
+            };
+            if resolved.is_some() {
+                continue;
+            }
+        }
+
         // The receiver's FIELD path: the plan's root->leaf spelled segments
         // with the `self` root stripped. Matched by NAME throughout: receiver
         // symbols and layout field symbols live in different arenas, so

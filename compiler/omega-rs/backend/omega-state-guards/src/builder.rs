@@ -6,8 +6,8 @@ use crate::{
 };
 use omega_checked_trees::CheckedTrees;
 use omega_checked_trees::expression::{
-    BinaryExpression, BinaryOperator, Expression, ExpressionHandle, ExpressionNode, ExpressionTable,
-    TableBinaryExpression,
+    BinaryExpression, BinaryOperator, Expression, ExpressionHandle, ExpressionNode,
+    ExpressionTable, TableBinaryExpression,
 };
 use omega_checked_trees::machine::Machine;
 use omega_control_flow::{ControlFlowPlan, StateKey};
@@ -25,6 +25,7 @@ pub fn build_state_guard_plan(
     layouts: &LayoutPlan,
     runtime_storage: &RuntimeStoragePlan,
     entry_machine: SymbolHandle,
+    receiver_bases: &[Option<usize>],
 ) -> StateGuardPlan {
     let guard_capacity = state_dispatch.edges.len();
     let mut plan = StateGuardPlan {
@@ -62,6 +63,7 @@ pub fn build_state_guard_plan(
                 &mut plan.operands,
                 layouts,
                 runtime_storage,
+                receiver_bases,
                 entry_machine,
                 machine,
                 &mut normalized_expressions,
@@ -190,6 +192,7 @@ fn build_state_guard(
     operand_arena: &mut Arena<crate::StateGuardOperand>,
     layouts: &LayoutPlan,
     runtime_storage: &RuntimeStoragePlan,
+    receiver_bases: &[Option<usize>],
     entry_machine: SymbolHandle,
     source_machine: &Machine,
     normalized_expressions: &mut ExpressionTable,
@@ -223,6 +226,7 @@ fn build_state_guard(
         guard_expressions,
         layouts,
         runtime_storage,
+        receiver_bases,
         entry_machine,
         source,
         source_machine.symbol,
@@ -339,8 +343,7 @@ fn normalized_guard_expression(
     // ("operand did not resolve to storage"). Fold it to its literal here so
     // the guard classifies as a plain CompareStaticValue, exactly like the
     // instruction-selection folds of `arr.len` in subject/operand positions.
-    let simplified_guard =
-        fold_fixed_array_len_operands(program, source_machine, simplified_guard);
+    let simplified_guard = fold_fixed_array_len_operands(program, source_machine, simplified_guard);
     // The guard lowering supports a full DNF (a top-level disjunction of
     // conjunction-of-comparison clauses), but `simplify_expression` leaves an
     // `And` CONTAINING an `Or` un-lowerable: `boolean_and` distributes
@@ -382,7 +385,9 @@ fn fold_fixed_array_len_operands(
         }
         Expression::Member(ref member) if member.member.as_str() == "len" => {
             match self_field_fixed_array_len(program, source_machine, &member.receiver) {
-                Some(length) => Expression::Integer(omega_core::literals::IntegerLiteral::from_value(length)),
+                Some(length) => {
+                    Expression::Integer(omega_core::literals::IntegerLiteral::from_value(length))
+                }
                 None => expression,
             }
         }
@@ -391,12 +396,11 @@ fn fold_fixed_array_len_operands(
                 && path.len() == 3
                 && path.members()[0].as_str() == "self" =>
         {
-            match machine_field_fixed_array_len(
-                program,
-                source_machine,
-                path.members()[1].as_str(),
-            ) {
-                Some(length) => Expression::Integer(omega_core::literals::IntegerLiteral::from_value(length)),
+            match machine_field_fixed_array_len(program, source_machine, path.members()[1].as_str())
+            {
+                Some(length) => {
+                    Expression::Integer(omega_core::literals::IntegerLiteral::from_value(length))
+                }
                 None => expression,
             }
         }

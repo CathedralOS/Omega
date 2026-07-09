@@ -28,9 +28,7 @@ use super::super::writes::{
     RuntimeStaticValues, emit_runtime_frame_slot_slice_descriptor_write_in_table,
     runtime_frame_slot_target_expression, select_runtime_frame_slot_value_write_in_table,
 };
-use super::mutation::{
-    select_runtime_resolved_mutation_write_in_table_with_scratch,
-};
+use super::mutation::select_runtime_resolved_mutation_write_in_table_with_scratch;
 use super::prelude::{BranchPreludeSelectionScratch, select_runtime_branch_preludes_for_operation};
 use crate::selection::host_operations::select_host_call;
 use crate::selection::instruction_sink::SelectedInstructionSink;
@@ -604,10 +602,22 @@ fn fold_straight_line_prior_local_names(
     match expressions.expression(expression).clone() {
         ExpressionNode::Binary(binary) => {
             let left = fold_straight_line_prior_local_names(
-                input, state_key, dispatch_index, expressions, binary.left, bindings, statement_bound,
+                input,
+                state_key,
+                dispatch_index,
+                expressions,
+                binary.left,
+                bindings,
+                statement_bound,
             );
             let right = fold_straight_line_prior_local_names(
-                input, state_key, dispatch_index, expressions, binary.right, bindings, statement_bound,
+                input,
+                state_key,
+                dispatch_index,
+                expressions,
+                binary.right,
+                bindings,
+                statement_bound,
             );
             if left == binary.left && right == binary.right {
                 return expression;
@@ -622,7 +632,13 @@ fn fold_straight_line_prior_local_names(
         }
         ExpressionNode::Unary(unary) => {
             let operand = fold_straight_line_prior_local_names(
-                input, state_key, dispatch_index, expressions, unary.operand, bindings, statement_bound,
+                input,
+                state_key,
+                dispatch_index,
+                expressions,
+                unary.operand,
+                bindings,
+                statement_bound,
             );
             if operand == unary.operand {
                 return expression;
@@ -636,7 +652,13 @@ fn fold_straight_line_prior_local_names(
         }
         ExpressionNode::Cast(cast) => {
             let value = fold_straight_line_prior_local_names(
-                input, state_key, dispatch_index, expressions, cast.value, bindings, statement_bound,
+                input,
+                state_key,
+                dispatch_index,
+                expressions,
+                cast.value,
+                bindings,
+                statement_bound,
             );
             if value == cast.value {
                 return expression;
@@ -651,7 +673,13 @@ fn fold_straight_line_prior_local_names(
         }
         ExpressionNode::Mutable(inner) => {
             let resolved = fold_straight_line_prior_local_names(
-                input, state_key, dispatch_index, expressions, inner, bindings, statement_bound,
+                input,
+                state_key,
+                dispatch_index,
+                expressions,
+                inner,
+                bindings,
+                statement_bound,
             );
             if resolved == inner {
                 return expression;
@@ -716,8 +744,7 @@ fn fold_straight_line_prior_local_names(
             if has_slot {
                 return expression;
             }
-            let initializer =
-                expressions.copy_from(&input.program.expression_table, initial_value);
+            let initializer = expressions.copy_from(&input.program.expression_table, initial_value);
             let bound = resolve_straight_line_binding_expression_handle(
                 &input.runtime_branching_calls.expressions,
                 expressions,
@@ -725,7 +752,13 @@ fn fold_straight_line_prior_local_names(
                 bindings,
             );
             fold_straight_line_prior_local_names(
-                input, state_key, dispatch_index, expressions, bound, bindings, local_index,
+                input,
+                state_key,
+                dispatch_index,
+                expressions,
+                bound,
+                bindings,
+                local_index,
             )
         }
         _ => expression,
@@ -1167,7 +1200,6 @@ fn select_runtime_straight_line_inline_state_call(
         &mut StateBodyVisitStack::with_capacity(input.control_flow.states.len()),
     );
 }
-
 
 #[allow(clippy::too_many_arguments)]
 fn select_runtime_straight_line_leaf_state_call_writes(
@@ -1762,4 +1794,3 @@ fn leaf_local_initializer_handle(
             .then(|| table.copy_from(&input.program.expression_table, local_data.initial_value))
     })
 }
-

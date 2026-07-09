@@ -94,7 +94,12 @@ pub(crate) fn collect_reentrant_value_call_blockers(
     // an edge to EVERY machine owning a state with that symbol (a fence may
     // overblock; it must never underblock).
     for (_, machine) in input.control_flow.machines.iter() {
-        for state in input.control_flow.states.span(machine.states).unwrap_or(&[]) {
+        for state in input
+            .control_flow
+            .states
+            .span(machine.states)
+            .unwrap_or(&[])
+        {
             for transition in input
                 .control_flow
                 .transitions
@@ -145,12 +150,9 @@ pub(crate) fn collect_reentrant_value_call_blockers(
         // effects run correctly there, so only its spliced interior is
         // checked. A spliced (self/sibling/free) target is checked itself.
         let skip_start = !spliced_route(call.receiver_name.as_str());
-        let Some(reached) = first_broken_walk_reached(
-            input,
-            call.target_key.machine,
-            skip_start,
-            &edges,
-        ) else {
+        let Some(reached) =
+            first_broken_walk_reached(input, call.target_key.machine, skip_start, &edges)
+        else {
             continue;
         };
         // One diagnostic per call site: several expansions/edges can reach

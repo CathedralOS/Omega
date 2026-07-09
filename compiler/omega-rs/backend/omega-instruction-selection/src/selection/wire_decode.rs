@@ -31,7 +31,7 @@ use omega_abstract_operations::{
 };
 use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 use omega_checked_trees::statement::StatementNode;
-use omega_checked_trees::wire::{WireMember, WireScalarEncoding, wire_varint_bytes, WirePlacement};
+use omega_checked_trees::wire::{WireMember, WirePlacement, WireScalarEncoding, wire_varint_bytes};
 use omega_control_flow::StateKey;
 use omega_core::symbols::SymbolHandle;
 
@@ -260,12 +260,14 @@ pub(super) fn select_wire_decode_call(
     let plan = input.program.wire_schema_plan(schema.symbol);
     if let Some(placements) = plan {
         let agrees = placements.len() == fields.len()
-            && placements.iter().zip(fields.iter()).all(|(placement, field)| {
-                let field_is_varint =
-                    matches!(field.content, WireReadContent::Scalar { .. });
-                placement.tag() == field.number
-                    && matches!(placement, WirePlacement::Varint { .. }) == field_is_varint
-            });
+            && placements
+                .iter()
+                .zip(fields.iter())
+                .all(|(placement, field)| {
+                    let field_is_varint = matches!(field.content, WireReadContent::Scalar { .. });
+                    placement.tag() == field.number
+                        && matches!(placement, WirePlacement::Varint { .. }) == field_is_varint
+                });
         if !agrees {
             debug_assert!(false, "derived wire plan disagrees with the schema walk");
             return false;
@@ -306,10 +308,13 @@ pub(super) fn select_wire_decode_call(
                 let child_plan = input.program.wire_schema_plan(*child_schema);
                 if let Some(placements) = child_plan {
                     let agrees = placements.len() == children.len()
-                        && placements.iter().zip(children.iter()).all(|(placement, child)| {
-                            placement.tag() == child.number
-                                && matches!(placement, WirePlacement::Varint { .. })
-                        });
+                        && placements
+                            .iter()
+                            .zip(children.iter())
+                            .all(|(placement, child)| {
+                                placement.tag() == child.number
+                                    && matches!(placement, WirePlacement::Varint { .. })
+                            });
                     if !agrees {
                         debug_assert!(
                             false,
@@ -502,9 +507,8 @@ fn collect_field_reads(
             if base.byte_count != repeated.max_count * repeated.element.byte_size {
                 return None;
             }
-            let count_name = omega_checked_trees::wire::wire_repeated_count_field_name(
-                field.name.as_str(),
-            );
+            let count_name =
+                omega_checked_trees::wire::wire_repeated_count_field_name(field.name.as_str());
             let count_handle = expressions.insert(ExpressionNode::Member(
                 omega_checked_trees::expression::TableMemberExpression {
                     receiver,
@@ -578,7 +582,9 @@ fn collect_field_reads(
             continue;
         }
 
-        let primitive = input.program.primitive_type_reference(field.type_reference)?;
+        let primitive = input
+            .program
+            .primitive_type_reference(field.type_reference)?;
         let encoding = WireScalarEncoding::for_primitive(primitive)?;
         let place = resolve_runtime_storage_place_in_table(
             input,
