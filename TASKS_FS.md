@@ -1091,6 +1091,30 @@ currently DECORATIVE (`build_freestanding_abi_plan` ignores the label), so they
 must be REGISTERED as real target names BEFORE the check switches on, else it
 wrongly rejects them. See Open-work #4.
 
+## Stolen work (claimed from TASKS_TIME.md, 2026-07-10g)
+
+Per Zach's work-stealing directive (claim-first, survey-first): the time
+lane's last commit is 2026-07-07 and its thread is now on recursion
+territory (TASKS.md), so these two items — both needing exactly the
+macOS/arm64 host this lane runs on — are CLAIMED here:
+
+- [ ] **STOLEN #T1 — native confirmation of time rung 10 (darwin/aarch64
+  bindings).** TASKS_TIME #10 landed the darwin rows (_clock_gettime_nsec_np,
+  clockid injection, aarch64 constant-result encoder) with a compile-only
+  pin (time/cross_darwin_time_host) and the honest note "Native
+  confirmation still needs a Mac." This host IS the Mac: run the native
+  time canaries + the elapsed_timer sample natively, promote/adjust
+  per-target expectations (the windows canary's FILETIME brackets don't
+  apply to darwin's unix-epoch 10^9 rows), and record results in
+  TASKS_TIME #10.
+- [ ] **STOLEN #T2 — the fs↔time interop canary (TASKS_TIME #9's ready
+  leg).** `SystemTime::from_unix_seconds` consumed from Metadata
+  timestamps — the time-side surface is "ready and canaried"; the fs-side
+  native `read_metadata` row WORKS on darwin (this lane's metadata
+  canaries). Write the interop canary on the macOS leg now; the
+  windows leg stays blocked on fs open-work #2's stat rows (as TASKS_TIME
+  notes).
+
 ## Observations (not fs, flagged for Zach)
 
 - RETURN-WRITE FENCE gap (2026-07-10k, from the arithmetic thread -- YOUR

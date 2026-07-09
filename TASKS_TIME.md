@@ -653,7 +653,9 @@ boundary trait TimeHost {
    Exit proves elapsed >= slept; native prints the real measurement
    (observed "elapsed milliseconds: 00052"). The stopwatch sample stays
    simulated-tick.
-9. [ ] **Filesystem interop** — `SystemTime::from_unix_seconds` consumed from
+9. [ ] **Filesystem interop** — [CLAIMED by the fs lane 2026-07-10g per
+   Zach's work-stealing directive; see TASKS_FS.md "Stolen work". The
+   macOS leg lands there; windows leg stays on fs open-work #2.] — `SystemTime::from_unix_seconds` consumed from
    `Metadata` timestamps; later, fs-side `modified() -> SystemTime` parity
    (coordinate with the fs workstream; their file, their call). NOTE
    2026-07-09: NATIVE verification is blocked on the fs thread's windows
@@ -679,6 +681,8 @@ boundary trait TimeHost {
     aarch64-target-truth only because aarch64 == darwin today; if
     linux_arm64 ever binds a CALL-shaped frequency the routing must become
     PlatformCallData-driven (flagged in the predicate doc).
+    [NATIVE-CONFIRMATION CLAIMED by the fs lane 2026-07-10g (it has the
+    Mac); results will be recorded here. See TASKS_FS.md "Stolen work".]
     VERIFIED: cross-compile canary `time/cross_darwin_time_host`
     (compile-only pin for macos_arm64 from any host; backend_report shows
     all five ops with correct per-target shapes); windows battery untouched
