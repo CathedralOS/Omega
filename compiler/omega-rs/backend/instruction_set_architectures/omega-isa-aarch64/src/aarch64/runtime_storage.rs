@@ -3645,11 +3645,15 @@ fn append_runtime_text_equals_operand(
 /// head plus 12 bytes per literal byte), independent of the flag -- mirroring
 /// the x86_64 encoder's same-width carrier branch.
 ///
-/// Register use: the place address setup lands the descriptor address in x16
-/// (clobbering x17/x19/x20/x21/x26 on the indexed paths, exactly like the
-/// corresponding load operands); ptr/len/byte scratch come from the pool,
-/// and `destination` is only written after the setup. The operand is built as
-/// the LEFT side of its compare, so nothing live sits in those registers yet.
+/// Register use: the place address setup lands the descriptor address in x15
+/// -- NOT x16: a binary WRITE holds its target base in x16 across operand
+/// evaluation, and the old x16 setup sent the store to a wild address (the
+/// case-literal terminal's staged z write landed relative to the STRING
+/// descriptor page; the machine-target field store only survived by an
+/// offset-0 accident). Mirrors the frame-indexed operand precedent (the
+/// transition-arg slice-sum SIGSEGV). Indexed setups still clobber
+/// x17/x19/x21/x26 scratch; the operand is built as the LEFT side of its
+/// pair, so nothing live sits in those yet.
 fn append_runtime_text_equals_literal_operand(
     runtime_value_operands: &impl RuntimeValueOperandSource,
     bytes: &mut Vec<u8>,
@@ -3669,27 +3673,27 @@ fn append_runtime_text_equals_literal_operand(
     // Descriptor address -> x16. The relocated page materialization sits at
     // the operand start (the relocation planner targets it there).
     if let Some((_, byte_offset, _)) = runtime_value_operands.storage(place) {
-        bytes.extend(encode_adrp_placeholder(16));
-        bytes.extend(encode_add_page_offset_placeholder(16));
-        append_add_constant_to_x_register(bytes, 16, byte_offset)?;
+        bytes.extend(encode_adrp_placeholder(15));
+        bytes.extend(encode_add_page_offset_placeholder(15));
+        append_add_constant_to_x_register(bytes, 15, byte_offset)?;
     } else if let Some((pointer_byte_offset, field_byte_offset, _)) =
         runtime_value_operands.pointee(place)
     {
         // x16 = frame base (relocated page pair), then the stored pointer.
         // The descriptor sits in the POINTEE at the field offset -- never
         // read the pointer slot's own bytes as a descriptor.
-        bytes.extend(encode_adrp_placeholder(16));
-        bytes.extend(encode_add_page_offset_placeholder(16));
-        append_runtime_storage_load(bytes, 16, 16, pointer_byte_offset, 8, "runtime text pointee")?;
+        bytes.extend(encode_adrp_placeholder(15));
+        bytes.extend(encode_add_page_offset_placeholder(15));
+        append_runtime_storage_load(bytes, 15, 15, pointer_byte_offset, 8, "runtime text pointee")?;
         if field_byte_offset > 0 {
-            append_add_constant_to_x_register(bytes, 16, field_byte_offset)?;
+            append_add_constant_to_x_register(bytes, 15, field_byte_offset)?;
         }
     } else if let Some((descriptor_offset, index_offset, element_byte_size, field_byte_offset, _)) =
         runtime_value_operands.frame_indexed(place)
     {
         append_runtime_frame_index_target_address(
             bytes,
-            16,
+            15,
             descriptor_offset,
             index_offset,
             element_byte_size,
@@ -3702,7 +3706,7 @@ fn append_runtime_text_equals_literal_operand(
     {
         append_runtime_frame_base_index_target_address(
             bytes,
-            16,
+            15,
             base_byte_offset,
             index_offset,
             element_byte_size,
@@ -3720,7 +3724,7 @@ fn append_runtime_text_equals_literal_operand(
     {
         append_runtime_frame_fixed_index_target_address(
             bytes,
-            16,
+            15,
             descriptor_offset,
             element_index,
             element_byte_size,
@@ -3734,14 +3738,14 @@ fn append_runtime_text_equals_literal_operand(
 
     if place_is_bounded_buffer {
         // Owned carrier `{len@0, bytes@8}`: the bytes ADDRESS is computed
-        // (x16 + 8, not a stored pointer) and the length is read at offset 0.
+        // (x15 + 8, not a stored pointer) and the length is read at offset 0.
         // Width-identical to the descriptor path (one `add` + one `ldr` vs two
         // `ldr`s), so branch offsets and the operand width are unchanged.
-        bytes.extend(encode_add_x_immediate(ptr_register, 16, 8)?);
-        bytes.extend(encode_load_x_from_x(len_register, 16, 0)?);
+        bytes.extend(encode_add_x_immediate(ptr_register, 15, 8)?);
+        bytes.extend(encode_load_x_from_x(len_register, 15, 0)?);
     } else {
-        bytes.extend(encode_load_x_from_x(ptr_register, 16, 0)?);
-        bytes.extend(encode_load_x_from_x(len_register, 16, 8)?);
+        bytes.extend(encode_load_x_from_x(ptr_register, 15, 0)?);
+        bytes.extend(encode_load_x_from_x(len_register, 15, 8)?);
     }
 
     // result = 0; a length mismatch is unequal text. The b.ne also means an
