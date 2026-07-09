@@ -16056,6 +16056,7 @@ fn runtime_tick_count_monotonic_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+#[cfg(windows)]
 #[test]
 fn runtime_gui_memory_dc_blit_exit_canary_runs() {
     // The first windowed-tier pixel proof: CreateCompatibleDC(0) + StretchDIBits of an 8x8
@@ -26236,7 +26237,15 @@ fn domain_operator_selection_records_builtin_fallback_when_fact_unproven() {
 /// `pass_canaries_compile` on windows hosts only; their `_canary_runs` twins
 /// are `#[cfg(windows)]`-gated the same way.
 #[cfg_attr(not(windows), allow(dead_code))]
-const WINDOWS_HOST_PASS_CANARIES: &[&str] = &["capabilities/windows_provides_import_exit"];
+const WINDOWS_HOST_PASS_CANARIES: &[&str] = &[
+    "capabilities/windows_provides_import_exit",
+    // gdi32 memory-DC blit: the canary IS the windows pixel path
+    // (CreateCompatibleDC + StretchDIBits); on darwin the Gui provider
+    // substitution swaps in MacosGui, which has no dc_create -- a
+    // permanent macOS resolution red until it was windows-gated
+    // (2026-07-11r; was a named suite-baseline member).
+    "host/runtime_gui_memory_dc_blit_exit",
+];
 
 #[test]
 fn pass_canaries_compile() {
@@ -28331,7 +28340,6 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "host/runtime_tick_count_monotonic_exit",
     "host/runtime_user32_key_state_exit",
     "host/runtime_tick_paced_marquee_exit",
-    "host/runtime_gui_memory_dc_blit_exit",
     "host/runtime_gui_window_blit_exit",
     "host/runtime_gui_window_lifecycle_exit",
     "host/runtime_gui_foreground_window_exit",
