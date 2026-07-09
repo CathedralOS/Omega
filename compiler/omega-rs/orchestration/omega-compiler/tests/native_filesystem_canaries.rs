@@ -275,13 +275,15 @@ fn sample_file_journal_exits_7() {
 
 // The `note_vault` CLI SAMPLE (samples/cli/systems/note_vault) -- file_journal's
 // WRAPPER-layer counterpart, now the FULL wrapper surface: create_dir_all ->
-// create_new -> write -> append x2 -> metadata_path -> read_all ->
-// open_with{write,truncate} compaction -> copy -> read_dir_count audit ->
-// remove -> remove_dir_all teardown, tallying its 12 verified steps. Runs
-// from a temp cwd so the vault tree lands there. Both engines
-// probe-verified at 12 when the dir-walk extension landed (2026-07-09).
+// create_new -> write -> append x2 -> metadata_path -> modified-time
+// BRIDGE into std::time (from_unix_seconds -> duration_since(now) Ok +
+// sane gap) -> read_all -> open_with{write,truncate} compaction -> copy ->
+// read_dir_count audit -> remove -> remove_dir_all teardown, tallying its
+// 14 verified steps. Runs from a temp cwd so the vault tree lands there.
+// Both engines probe-verified: 12 at the dir-walk extension (2026-07-09),
+// 14 at the time-bridge extension (2026-07-10j).
 #[test]
-fn sample_note_vault_exits_12() {
+fn sample_note_vault_exits_14() {
     let main_path = repo_root().join("samples/cli/systems/note_vault/main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-vault-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
@@ -297,7 +299,7 @@ fn sample_note_vault_exits_12() {
         .output()
         .expect("run");
     let _ = std::fs::remove_dir_all(&build_dir);
-    assert_eq!(out.status.code(), Some(12), "note_vault should verify all 12 steps and exit 12");
+    assert_eq!(out.status.code(), Some(14), "note_vault should verify all 14 steps and exit 14");
 }
 
 // The arm64 FLOAT-ARGUMENT calling convention: Math::round_nearest(x: f64) -> i64
