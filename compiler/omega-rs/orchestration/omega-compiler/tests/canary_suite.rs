@@ -174,6 +174,49 @@ machine build(b: &mut Build) {
 // syscall host-call path + ELF emission are validated by the emitted bytes. Guards
 // the genericized host-call pipeline (x86_64 now has both win32-import and
 // linux-syscall host calls).
+/// The float-comparison and text-`!=` x86_64 encoder arms were implemented
+/// and byte-reviewed from an arm64 host, where the suite cannot RUN x86
+/// output. Pin the compile level: both canaries must keep cross-compiling to
+/// a linux_x64 ELF, so an x86-side selection/emission refusal cannot hide
+/// behind this host's aarch64-only runtime. (Their runtime behavior is
+/// pinned natively on aarch64 + the interpreter by their own suite tests.)
+#[test]
+fn linux_x64_recent_encoder_canaries_compile() {
+    for canary_name in [
+        "arithmetic/runtime_float_compare_bool_exit",
+        "text/runtime_text_not_equals_exit",
+    ] {
+        let canary = pass_canary(canary_name);
+        let scratch = std::env::temp_dir().join(format!(
+            "omega-x64-enc-{}-{}",
+            canary_name.replace('/', "-"),
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&scratch);
+        let src_dir = scratch.join("src");
+        fs::create_dir_all(&src_dir).expect("scratch src dir");
+        fs::copy(canary.join("main.omg"), src_dir.join("main.omg")).expect("copy canary");
+        fs::write(
+            src_dir.join("build.omg"),
+            "target linux_x64 {\n    boundary omega::host::contracts\n    boundary omega::host::targets::linux\n}\n",
+        )
+        .expect("write build manifest");
+        compile(CompileOptions {
+            root_path: src_dir.join("main.omg"),
+            build_dir: Some(scratch.join("out")),
+            target_name: Some("linux_x64".to_owned()),
+            write_output: true,
+        })
+        .unwrap_or_else(|error| {
+            panic!("{canary_name} should cross-compile for linux_x64: {error:?}")
+        });
+        let elf =
+            fs::read(scratch.join("out").join("omega-program")).expect("linux_x64 ELF emitted");
+        assert_eq!(&elf[0..4], b"\x7fELF", "ELF magic for {canary_name}");
+        let _ = fs::remove_dir_all(&scratch);
+    }
+}
+
 #[test]
 fn linux_x64_cli_mvp_emits_elf_with_syscalls() {
     let sample = sample_project("cli/basics/cli_mvp");
