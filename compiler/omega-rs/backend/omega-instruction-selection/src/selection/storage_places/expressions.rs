@@ -222,17 +222,13 @@ fn storage_path_member_case_variant(
     index: usize,
 ) -> Option<&Identifier> {
     match table.expression(expression) {
-        ExpressionNode::Mutable(target) => {
-            storage_path_member_case_variant(table, *target, index)
-        }
+        ExpressionNode::Mutable(target) => storage_path_member_case_variant(table, *target, index),
         ExpressionNode::Indexed(indexed) => {
             storage_path_member_case_variant(table, indexed.collection, index)
         }
-        ExpressionNode::Call(call) => storage_path_member_case_variant(
-            table,
-            slice_view_call_receiver_handle(call)?,
-            index,
-        ),
+        ExpressionNode::Call(call) => {
+            storage_path_member_case_variant(table, slice_view_call_receiver_handle(call)?, index)
+        }
         ExpressionNode::Member(member) => {
             let receiver_len = storage_path_len(table, member.receiver)?;
             if index == receiver_len {

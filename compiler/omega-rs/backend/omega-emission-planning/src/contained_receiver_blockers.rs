@@ -3,7 +3,9 @@ use crate::blocker;
 use omega_backend_report_types::EmissionBlocker;
 use omega_core::arena::{Arena, HandleSpan};
 use omega_core::symbols::SymbolHandle;
-use omega_layout::{DataShape, FieldLayout, LayoutPlan, MachineLayout};
+use omega_layout::{
+    FieldLayout, LayoutPlan, MachineLayout, field_data_layout_fields, field_machine_layout,
+};
 
 /// Contained-machine method dispatch resolves the receiver's storage region by
 /// TYPE: `nested_machine_storage_offset` (instruction selection, machine_owned.rs)
@@ -130,15 +132,16 @@ pub(crate) fn collect_contained_receiver_blockers(
         }
 
         // Direct-field receiver: the original lenient compare.
-        let Some(receiver_field) = input
-            .layouts
-            .fields
-            .span(source_layout.fields)
-            .and_then(|fields| {
-                fields
-                    .iter()
-                    .find(|field| field.name == state_call.receiver_name)
-            })
+        let Some(receiver_field) =
+            input
+                .layouts
+                .fields
+                .span(source_layout.fields)
+                .and_then(|fields| {
+                    fields
+                        .iter()
+                        .find(|field| field.name == state_call.receiver_name)
+                })
         else {
             // A PARAM or LOCAL receiver (`meta.is_file()` where `meta` is a
             // state param): dispatch's by-TYPE walk can only reach FIELDS, so
@@ -155,9 +158,7 @@ pub(crate) fn collect_contained_receiver_blockers(
                      the call would read another instance's storage (or ZII), never \
                      `{}` itself. Copy `{}` into a field of the caller's data and \
                      call through that field, or inline the method's expression.",
-                    state_call.receiver_name,
-                    state_call.receiver_name,
-                    state_call.receiver_name,
+                    state_call.receiver_name, state_call.receiver_name, state_call.receiver_name,
                 ),
             ));
             continue;
@@ -197,25 +198,9 @@ fn receiver_path_offset(
     source_layout: &MachineLayout,
     field_segments: &[omega_checked_trees::name::Identifier],
 ) -> Option<usize> {
-    let mut fields_span = source_layout.fields;
-    let mut offset = 0usize;
-    for (position, segment) in field_segments.iter().enumerate() {
-        let field = layouts
-            .fields
-            .span(fields_span)?
-            .iter()
-            .find(|field| field.name == *segment)?;
-        offset += field.offset;
-        if position + 1 < field_segments.len() {
-            // Descend the intermediate hop -- a contained sub-machine OR a plain
-            // nested record (`p: PairD`). Data descent matches the backend's
-            // storage walk so this prediction stays accurate.
-            fields_span = field_machine_layout(layouts, field)
-                .map(|machine_layout| machine_layout.fields)
-                .or_else(|| field_data_layout_fields(layouts, field))?;
-        }
-    }
-    Some(offset)
+    // The SHARED walk (omega_layout::field_path_offset): per-instance
+    // dispatch resolution and this fence agree by construction.
+    omega_layout::field_path_offset(layouts, source_layout.fields, field_segments)
 }
 
 fn spelled_path(segments: &[omega_checked_trees::name::Identifier]) -> String {
@@ -226,10 +211,7 @@ fn spelled_path(segments: &[omega_checked_trees::name::Identifier]) -> String {
         .join(".")
 }
 
-fn machine_layout_by_symbol(
-    layouts: &LayoutPlan,
-    machine: SymbolHandle,
-) -> Option<&MachineLayout> {
+fn machine_layout_by_symbol(layouts: &LayoutPlan, machine: SymbolHandle) -> Option<&MachineLayout> {
     layouts
         .machine_layouts
         .iter()
@@ -316,43 +298,4 @@ fn first_type_match_offset_in_span(
     }
 
     None
-}
-
-fn field_machine_layout<'plan>(
-    layouts: &'plan LayoutPlan,
-    field: &FieldLayout,
-) -> Option<&'plan MachineLayout> {
-    layouts
-        .machine_layouts
-        .iter()
-        .find(|(_, machine_layout)| {
-            machine_layout.symbol == field.type_symbol
-                || machine_layout.name.as_str() == field.type_name.as_ref()
-                || machine_layout
-                    .attached_data
-                    .as_deref()
-                    .is_some_and(|attached_data| attached_data == field.type_name.as_ref())
-        })
-        .map(|(_, machine_layout)| machine_layout)
-}
-
-/// The field span of a plain-DATA field's layout (`p: PairD` -> `PairD`'s
-/// record fields / a case-bearing shape's common fields). KEEP IN LOCKSTEP with
-/// the identical helper in instruction selection's machine_owned.rs.
-fn field_data_layout_fields(
-    layouts: &LayoutPlan,
-    field: &FieldLayout,
-) -> Option<HandleSpan<FieldLayout>> {
-    let data_layout = layouts
-        .data_layouts
-        .iter()
-        .find(|(_, data_layout)| {
-            data_layout.symbol == field.type_symbol
-                || data_layout.name.as_str() == field.type_name.as_ref()
-        })
-        .map(|(_, data_layout)| data_layout)?;
-    match &data_layout.shape {
-        DataShape::Record { fields } => Some(*fields),
-        DataShape::Enum { common_fields, .. } => Some(*common_fields),
-    }
 }

@@ -11,30 +11,30 @@ use omega_state_guards::{StateGuardKind, StateGuardOperator};
 
 use super::super::storage_places::{
     clamp_runtime_case_comparison_operands, clamp_runtime_case_comparison_operands_in_table,
-    resolve_binary_operand_arithmetic_domain_in_table,
     classify_scalar_value_type_in_table, enum_variant_value, enum_variant_value_in_table,
+    resolve_binary_operand_arithmetic_domain_in_table,
     resolve_runtime_frame_base_indexed_target_in_table,
     resolve_runtime_frame_fixed_indexed_target_in_table,
     resolve_runtime_frame_indexed_is_fat_slice_in_table,
+    resolve_runtime_frame_indexed_primitive_type_in_table,
     resolve_runtime_frame_indexed_target_in_table, resolve_runtime_machine_indexed_target_in_table,
     resolve_runtime_pointee_fixed_indexed_target_in_table,
     resolve_runtime_pointee_slot_offset_in_table, resolve_runtime_storage_is_signed_in_table,
-    resolve_runtime_frame_indexed_primitive_type_in_table, resolve_runtime_storage_place,
-    resolve_runtime_storage_place_in_table,
+    resolve_runtime_storage_place, resolve_runtime_storage_place_in_table,
     resolve_runtime_storage_place_is_bounded_byte_buffer_in_table,
     resolve_runtime_storage_place_is_fat_slice_in_table,
     resolve_runtime_storage_primitive_type_in_table,
     resolve_runtime_transition_guard_call_result_place, static_elided_local_value_in_table,
     static_fixed_array_len_in_table,
 };
-use omega_checked_trees::types::PrimitiveType;
+use super::writes::resolve_runtime_text_equals_operand_in_table;
 use omega_abstract_operations::{
     RuntimeValueOperand, RuntimeValueOperandHandle, SelectedInstructionKind, TargetDataObjectHandle,
 };
+use omega_checked_trees::types::PrimitiveType;
 use omega_runtime_text::places::{
     expression_place_eq_across_tables, expression_place_eq_table_tree,
 };
-use super::writes::resolve_runtime_text_equals_operand_in_table;
 use std::sync::Arc;
 
 struct RuntimeTextLiteralGuard {
@@ -70,8 +70,10 @@ pub(super) fn select_runtime_leaf_branch_guards(
         .span(expansion.bindings)
         .unwrap_or(&[]);
     let mut resolved_expressions = ExpressionTable::with_expression_capacity(8);
-    let copied_guard = resolved_expressions
-        .copy_from(&input.runtime_branching_calls.expressions, expansion.resolved_guard);
+    let copied_guard = resolved_expressions.copy_from(
+        &input.runtime_branching_calls.expressions,
+        expansion.resolved_guard,
+    );
     let resolved_guard = crate::selection::bindings::resolve_leaf_binding_expression_handle(
         &input.runtime_branching_calls.expressions,
         &mut resolved_expressions,
@@ -862,15 +864,14 @@ fn runtime_text_equals_literal_guard_in_table(
         BinaryOperator::NotEqual => StateGuardOperator::NotEqual,
         _ => return None,
     };
-    let (place_expression, literal) = if let Some(literal) =
-        expressions.string_literal_value(binary.left)
-    {
-        (binary.right, literal)
-    } else if let Some(literal) = expressions.string_literal_value(binary.right) {
-        (binary.left, literal)
-    } else {
-        return None;
-    };
+    let (place_expression, literal) =
+        if let Some(literal) = expressions.string_literal_value(binary.left) {
+            (binary.right, literal)
+        } else if let Some(literal) = expressions.string_literal_value(binary.right) {
+            (binary.left, literal)
+        } else {
+            return None;
+        };
     // An owned `[u8; N]` carrier is excluded from the String/slice `place_is_string`
     // gate by design (its `{len, bytes}` layout is not a `{ptr, len}` descriptor),
     // so resolve its storage place to a `Storage` ADDRESS operand directly and flag
@@ -1434,8 +1435,11 @@ pub(super) fn runtime_storage_guard_in_table(
     let self_tag_place = |operand: omega_checked_trees::expression::ExpressionHandle| {
         crate::selection::storage_places::resolve_machine_owned_self_case_tag_place_in_table(
             &input.layouts,
+            crate::selection::receiver_base::dispatch_receiver_base(input, dispatch_index),
             input.entry_key.machine,
-            callee_key.map(|key| key.machine).unwrap_or(source_key.machine),
+            callee_key
+                .map(|key| key.machine)
+                .unwrap_or(source_key.machine),
             expressions,
             operand,
         )
@@ -1724,16 +1728,17 @@ fn resolve_runtime_value_operand_in_table(
         // Divide/modulo run at the operand width (not modular), so a signed idiv
         // misreads a large UNSIGNED dividend; switch to the unsigned op for unsigned
         // operands, mirroring the ordered-comparison signedness adjustment above.
-        if matches!(operator, StateGuardOperator::Divide | StateGuardOperator::Modulo)
-            && guard_operands_unsigned_in_table(
-                input,
-                dispatch_index,
-                source_key,
-                expressions,
-                binary.left,
-                binary.right,
-            )
-        {
+        if matches!(
+            operator,
+            StateGuardOperator::Divide | StateGuardOperator::Modulo
+        ) && guard_operands_unsigned_in_table(
+            input,
+            dispatch_index,
+            source_key,
+            expressions,
+            binary.left,
+            binary.right,
+        ) {
             operator = unsigned_arithmetic_operator(operator);
         }
         // A right shift's signedness is decided by the SHIFTED VALUE (left
@@ -1923,7 +1928,6 @@ fn resolve_runtime_value_operand_in_table(
         );
     }
 
-
     if let Some(indexed_target) = resolve_runtime_frame_fixed_indexed_target_in_table(
         input,
         dispatch_index,
@@ -1961,13 +1965,9 @@ fn resolve_runtime_value_operand_in_table(
     // inline-leaf arm guard `s.len > 0` whose `s` substitutes to a caller
     // local `let s = self.arr.as_slice()` that storage elided (no frame slot,
     // hence no slice descriptor with a runtime len to read).
-    if let Some(length) = static_fixed_array_len_in_table(
-        input,
-        dispatch_index,
-        source_key,
-        expressions,
-        expression,
-    ) {
+    if let Some(length) =
+        static_fixed_array_len_in_table(input, dispatch_index, source_key, expressions, expression)
+    {
         return Some(runtime_value_operands.insert(RuntimeValueOperand::Immediate(length)));
     }
 
@@ -2097,7 +2097,14 @@ fn comparison_operands_unsigned_in_table(
             | StateGuardOperator::GreaterOrEqual
             | StateGuardOperator::Less
             | StateGuardOperator::LessOrEqual
-    ) && guard_operands_unsigned_in_table(input, dispatch_index, source_key, expressions, left, right)
+    ) && guard_operands_unsigned_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        left,
+        right,
+    )
 }
 
 /// True when either guard operand resolves to an UNSIGNED integer storage place
@@ -2111,17 +2118,22 @@ fn guard_operands_unsigned_in_table(
     left: ExpressionHandle,
     right: ExpressionHandle,
 ) -> bool {
-    let signed =
-        resolve_runtime_storage_is_signed_in_table(input, dispatch_index, source_key, expressions, left)
-            .or_else(|| {
-                resolve_runtime_storage_is_signed_in_table(
-                    input,
-                    dispatch_index,
-                    source_key,
-                    expressions,
-                    right,
-                )
-            });
+    let signed = resolve_runtime_storage_is_signed_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        left,
+    )
+    .or_else(|| {
+        resolve_runtime_storage_is_signed_in_table(
+            input,
+            dispatch_index,
+            source_key,
+            expressions,
+            right,
+        )
+    });
     signed == Some(false)
 }
 
@@ -2238,7 +2250,10 @@ fn runtime_text_input_buffer_data_for_text_place_in_table(
                 .iter()
                 .filter(|(_, buffer)| {
                     runtime_text_buffer_matches_table_expression(
-                        input, buffer, expressions, expression,
+                        input,
+                        buffer,
+                        expressions,
+                        expression,
                     )
                 })
                 .map(|(_, buffer)| buffer)

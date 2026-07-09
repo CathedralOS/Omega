@@ -10,6 +10,7 @@ mod instruction_sink;
 mod lookups;
 mod runtime_dispatch;
 mod state_bodies;
+mod receiver_base;
 mod storage_places;
 mod wire_decode;
 mod wire_encode;
