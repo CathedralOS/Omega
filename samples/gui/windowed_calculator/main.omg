@@ -9,9 +9,11 @@
 // Keyboard:
 //   digits 0-9, numpad + - * /, Enter or =, Backspace, C, S for sign, M memory add,
 //   R memory recall, Escape to close.
+// GUI-subsystem app: the console surface is exit + a status line for terminal
+// runs (invisible from Finder). No stdin — a windowed app must never block on
+// a console.
 boundary trait Console {
     machine write_line(text: String);
-    machine read_line(out_line: &mut String);
     machine exit_process(return_code: i32);
 }
 boundary trait Clock { machine sleep(milliseconds: u32); }
@@ -87,12 +89,9 @@ data Main {
     button_lx: i32 [0..=15];
     button_ly: i32 [0..=8];
     shade: i32;
-    pause: String;
 }
 
 machine Main::main(&mut self) {
-    self.console.write_line("windowed_calculator: software-rendered calculator window");
-
     // "#32770\0" -- the predefined dialog class. The earlier window samples
     // used "STATIC\0", but that is a control class and does not behave like a
     // real top-level app window in practice.

@@ -10,9 +10,11 @@
 // loop runs inside DispatchMessageW) -- normal for a single-threaded pump.
 // (Careful wording: the harness's annotation parser substring-matches the annotation phrase
 // anywhere in this comment and would auto-run this app on a garbage exit code.)
+// GUI-subsystem app: the console surface is exit + a status line for terminal
+// runs (invisible from Finder). No stdin — a windowed app must never block on
+// a console.
 boundary trait Console {
     machine write_line(text: String);
-    machine read_line(out_line: &mut String);
     machine exit_process(return_code: i32);
 }
 boundary trait Clock { machine sleep(milliseconds: u32); }
@@ -57,10 +59,8 @@ data Main {
     i: i32 [0..=4096];
     c: i32;
     px: i32;
-    pause: String;
 }
 machine Main::main(&mut self) {
-    self.console.write_line("window_app: standalone software-rendered app -- drag the window; ESC closes it");
     // "#32770\0" -- the predefined dialog class. Unlike the STATIC control
     // class, this behaves like a draggable top-level app window in practice.
     self.cls[0] = 35;
@@ -202,14 +202,10 @@ machine Main::main(&mut self) {
     }
     state closed(&mut self) {
         self.console.write_line("window closed -- goodbye (exit 0)");
-        self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
         self.console.exit_process(0);
     }
     state bad(&mut self) {
         self.console.write_line("FAIL: window/DC creation failed or a blit failed while alive (exit 1)");
-        self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
         self.console.exit_process(1);
     }
 }
