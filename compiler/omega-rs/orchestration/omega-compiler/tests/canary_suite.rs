@@ -16402,6 +16402,32 @@ fn runtime_float_compare_bool_exit_canary_runs() {
 }
 
 #[test]
+fn zii_default_string_equality_exit_canary_runs() {
+    // ZII default strings ARE the empty string through content equality;
+    // the non-empty-literal leg must not dereference the null pointer.
+    let canary = pass_canary("text/zii_default_string_equality_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-ziistr-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("zii string equality canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("zii string equality canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "zii string equality canary should pass all three legs (exit 70), got {:?}",
+        output.status.code(),
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn equatable_sum_stale_payload_exit_canary_runs() {
     // Synthesized sum equality is tag-aware: stale bytes from a longer
     // variant reassigned away must not leak into ==.
@@ -27155,6 +27181,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "text/case_literal_texteq_terminal_exit",
     "text/runtime_text_equals_boolean_operand_exit",
     "text/runtime_text_not_equals_exit",
+    "text/zii_default_string_equality_exit",
     "text/runtime_text_equals_value_positions_exit",
     "control_flow/runtime_case_member_dispatch_exit",
     "control_flow/runtime_local_boolean_or_value_exit",
