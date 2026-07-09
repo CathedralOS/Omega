@@ -12,7 +12,7 @@
 // const-folder" TASKS entry: the cast-retag spelling (`0 as u32 in
 // Wrapping`) blocks the folder's literal window entirely, so the same
 // source now exercises the RUNTIME operand path -- which had this hole.
-// exit 71 = >> wrong; 72 = / wrong; 73 = % wrong.
+// exit 71 = >> wrong; 72 = / wrong; 73 = % wrong; 74 = wrapped-as-RIGHT wrong.
 boundary trait Console { machine exit_process(return_code: i32); }
 data Main { console: Console; out: u32; outd: u32; outm: u32; }
 machine Main::main(&mut self) {
@@ -35,12 +35,24 @@ machine Main::main(&mut self) {
     }
     state chkm(&mut self) {
         transition self.outm == 2 {
-            true -> good()
+            true -> rightleg()
             _ -> wrong_mod()
+        }
+    }
+    // The wrapped node as the RIGHT operand: register staging differs (the
+    // right operand evaluates into its own home with the right scratch pool),
+    // so the truncation must apply per-node regardless of side.
+    state rightleg(&mut self) {
+        let a: u32 in Wrapping = (0 as u32 in Wrapping) - 2;
+        let r: u32 in Wrapping = 5 + (a / 1000000000);
+        transition r == 9 {
+            true -> good()
+            _ -> wrong_right()
         }
     }
     state good(&mut self)       { self.console.exit_process(70); }
     state wrong_shift(&mut self){ self.console.exit_process(71); }
     state wrong_div(&mut self)  { self.console.exit_process(72); }
     state wrong_mod(&mut self)  { self.console.exit_process(73); }
+    state wrong_right(&mut self){ self.console.exit_process(74); }
 }
