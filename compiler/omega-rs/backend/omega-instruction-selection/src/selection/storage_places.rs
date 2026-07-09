@@ -794,6 +794,32 @@ pub(super) fn resolve_runtime_storage_is_signed_in_table(
             .and_then(|name| PrimitiveType::from_name(name.as_str()))?;
         return Some(target.is_signed_integer());
     }
+    // A nested BINARY operand has the signedness of its own operands (one
+    // witness, left first -- mixed signedness classes are checker-rejected):
+    // `(a / b) % k` must pick the unsigned modulo when `a` is u32, or a
+    // high-bit dividend runs the signed idiv and yields a negative remainder.
+    // (Re-applied 2026-07-10: an earlier attempt was reverted as "ineffective"
+    // because the ARG-materialization path was ALSO broken then and masked
+    // this fix; that path has since been repaired, leaving only the fused
+    // guard-subject resolution, which this recursion completes.)
+    if let ExpressionNode::Binary(binary) = expressions.expression(expression) {
+        return resolve_runtime_storage_is_signed_in_table(
+            input,
+            dispatch_index,
+            source_key,
+            expressions,
+            binary.left,
+        )
+        .or_else(|| {
+            resolve_runtime_storage_is_signed_in_table(
+                input,
+                dispatch_index,
+                source_key,
+                expressions,
+                binary.right,
+            )
+        });
+    }
     let descriptor = resolve_runtime_storage_leaf_descriptor_in_table(
         input,
         dispatch_index,
