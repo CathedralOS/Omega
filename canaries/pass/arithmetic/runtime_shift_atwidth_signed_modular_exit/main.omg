@@ -1,0 +1,61 @@
+// RUN CANARY (exit 70) + interpreter differential. Wrapping `<<` by a count
+// at/above the operand width is MODULAR ZERO (shift-domain ruling): the
+// result is x * 2^n (mod 2^w), which is 0 once n >= w. PROMOTED from
+// canaries/pending/arithmetic/shift_amount_at_or_above_width_divergence,
+// where it sat as an "undecided divergence" repro: x86 hardware masks the
+// shl count to the register width (40 & 31 = 8 -> 256), aarch64's LSLV
+// masks it mod 64, and the interpreter's old i64 shift masked at 64 only.
+// All three now conform -- the interp is uniformly modular, and both ISAs
+// clamp at/above-width counts to zero after the hardware-masked shift
+// (aarch64: cmp+csel xzr; x86_64: cmp r11,#width + cmovae zero,
+// byte-verified via the linux_x64 clamp-bytes pin).
+//
+// Legs: the original i32 WRITE-path repro (runtime count in a field), then
+// u32 shifts in OPERAND position -- `(b << c) + 5` nests the shl under the
+// add, where the shl runs at the NODE width and hardware-masks its count --
+// with counts 40 (above 32) and 70 (above 64 too, so LSLV/64-bit forms also
+// mask it).
+// exits: 71 = i32 write leg masked-to-width (the old x86 hardware result);
+// 99 = i32 write leg neither 0 nor 256; 72/73 = operand leg count 40/70
+// not modular.
+
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; n: i32 in Wrapping; }
+machine Main::main(&mut self) {
+    self.n = 40;
+    let a: i32 in Wrapping = 1;
+    let y: i32 in Wrapping = a << self.n;
+    transition y == 0 {
+        true  -> operand_count40()
+        false -> diagnose_write()
+    }
+    state diagnose_write(&mut self) {
+        transition y == 256 {
+            true  -> masked_to_width()
+            false -> weird()
+        }
+    }
+    state operand_count40(&mut self) {
+        let b: u32 in Wrapping = (1 as u32 in Wrapping);
+        let c: u32 in Wrapping = (40 as u32 in Wrapping);
+        let r: u32 in Wrapping = (b << c) + 5;
+        transition r == 5 {
+            true  -> operand_count70()
+            false -> wrong_operand40()
+        }
+    }
+    state operand_count70(&mut self) {
+        let b: u32 in Wrapping = (1 as u32 in Wrapping);
+        let c: u32 in Wrapping = (70 as u32 in Wrapping);
+        let r: u32 in Wrapping = (b << c) + 5;
+        transition r == 5 {
+            true  -> good()
+            false -> wrong_operand70()
+        }
+    }
+    state good(&mut self)            { self.console.exit_process(70); }
+    state masked_to_width(&mut self) { self.console.exit_process(71); }
+    state wrong_operand40(&mut self) { self.console.exit_process(72); }
+    state wrong_operand70(&mut self) { self.console.exit_process(73); }
+    state weird(&mut self)           { self.console.exit_process(99); }
+}

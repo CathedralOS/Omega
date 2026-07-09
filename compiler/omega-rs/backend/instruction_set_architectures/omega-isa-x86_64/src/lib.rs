@@ -5627,6 +5627,19 @@ pub fn runtime_storage_binary_write_width(
         // (see append_wrapping_signed_divide_modulo). Unsigned uses the *Unsigned
         // operators and cannot overflow, so it falls through.
         wrapping_signed_divide_modulo_width(byte_size, operator == StateGuardOperator::Modulo)
+    } else if domain == ArithmeticDomain::Wrapping && operator == StateGuardOperator::ShiftLeft {
+        // Modular Wrapping `<<`: the plain shift + the at-width count clamp.
+        // Same operand-derived byte size as the emission arm.
+        runtime_binary_operation_width(
+            operator,
+            runtime_binary_operation_byte_size(
+                runtime_value_operands,
+                operator,
+                left,
+                right,
+                byte_size,
+            ),
+        ) + WRAPPING_SHIFT_LEFT_CLAMP_WIDTH
     } else if is_float {
         runtime_float_binary_operation_width(operator)
     } else {
@@ -5708,12 +5721,15 @@ fn wrapping_signed_divide_modulo_width(byte_size: usize, want_remainder: bool) -
 /// Saturating take the TYPE_MIN/-1 clamp fixup and under Wrapping the idiv
 /// #DE guard (unsigned div/mod use the *Unsigned operators, never overflow,
 /// and fall through; Trapping div/mod fall through -- `idiv` traps on
-/// overflow and /0, which IS Trapping semantics).
+/// overflow and /0, which IS Trapping semantics). Wrapping SHIFT-LEFT takes
+/// the modular at-width count clamp (shift-domain ruling: `x << n` is
+/// x * 2^n mod 2^w, but the hardware `shl` masks the count instead).
 enum OperandDomainOperation {
     AddSub { domain: ArithmeticDomain, operands_signed: bool },
     Multiply { domain: ArithmeticDomain, operands_signed: bool },
     SaturatingSignedDivMod { want_remainder: bool },
     WrappingSignedDivMod { want_remainder: bool },
+    WrappingShiftLeft { operands_signed: bool },
 }
 
 fn operand_position_domain_operation(
@@ -5743,6 +5759,9 @@ fn operand_position_domain_operation(
         ) if operands_signed => Some(OperandDomainOperation::WrappingSignedDivMod {
             want_remainder: operator == StateGuardOperator::Modulo,
         }),
+        (StateGuardOperator::ShiftLeft, ArithmeticDomain::Wrapping) => {
+            Some(OperandDomainOperation::WrappingShiftLeft { operands_signed })
+        }
         _ => None,
     }
 }
@@ -5857,6 +5876,20 @@ pub fn encode_runtime_storage_binary_write(
             byte_size,
             operator == StateGuardOperator::Modulo,
         )?;
+    } else if domain == ArithmeticDomain::Wrapping && operator == StateGuardOperator::ShiftLeft {
+        // Modular Wrapping `<<` (shift-domain ruling): the hardware shl masks
+        // the count to the op width, so clamp at/above-TYPE-width counts to 0
+        // (matches interp + aarch64). The store's truncation remains the
+        // in-range wrap.
+        let operation_byte_size = runtime_binary_operation_byte_size(
+            runtime_value_operands,
+            operator,
+            left,
+            right,
+            byte_size,
+        );
+        append_runtime_binary_operation(&mut bytes, operator, operation_byte_size)?;
+        append_wrapping_shift_left_clamp(&mut bytes, operation_byte_size);
     } else {
         append_runtime_binary_operation(
             &mut bytes,
@@ -7356,6 +7389,11 @@ pub fn runtime_value_operand_width(
                 OperandDomainOperation::WrappingSignedDivMod { want_remainder } => {
                     wrapping_signed_divide_modulo_width(byte_width, want_remainder)
                 }
+                OperandDomainOperation::WrappingShiftLeft { .. } => {
+                    runtime_binary_operation_width(operator, byte_width)
+                        + WRAPPING_SHIFT_LEFT_CLAMP_WIDTH
+                        + wrapping_node_width_extension_width(byte_width)
+                }
             }
         } else {
             // Use the SAME byte_size the emission picks (runtime_binary_operation_byte_size):
@@ -7372,9 +7410,7 @@ pub fn runtime_value_operand_width(
                 (
                     Some((omega_core::arithmetic::ArithmeticDomain::Wrapping, _)),
                     Some(width),
-                ) if width < 8 => {
-                    if width == 4 { 3 } else { 4 }
-                }
+                ) if width < 8 => wrapping_node_width_extension_width(width),
                 _ => 0,
             };
             runtime_binary_operation_width(
@@ -7589,6 +7625,14 @@ fn append_runtime_value_operand(
                 OperandDomainOperation::WrappingSignedDivMod { want_remainder } => {
                     append_wrapping_signed_divide_modulo(bytes, byte_width, want_remainder)?;
                 }
+                OperandDomainOperation::WrappingShiftLeft { operands_signed } => {
+                    // Width-correct shl (the hardware masks the count mod the op
+                    // width) + the modular at-width clamp + the node-width
+                    // extension the parent contract requires.
+                    append_runtime_binary_operation(bytes, operator, byte_width)?;
+                    append_wrapping_shift_left_clamp(bytes, byte_width);
+                    append_wrapping_node_width_extension(bytes, byte_width, operands_signed);
+                }
             }
         } else {
             // Comparisons use the operand width; other nested binaries do not carry
@@ -7613,15 +7657,7 @@ fn append_runtime_value_operand(
                 && let Some(byte_width) = runtime_value_operands.binary_byte_width(operand)
                 && byte_width < 8
             {
-                match (byte_width, operands_signed) {
-                    (1, false) => bytes.extend([0x4d, 0x0f, 0xb6, 0xd2]), // movzx r10, r10b
-                    (2, false) => bytes.extend([0x4d, 0x0f, 0xb7, 0xd2]), // movzx r10, r10w
-                    (4, false) => bytes.extend([0x45, 0x89, 0xd2]),       // mov r10d, r10d
-                    (1, true) => bytes.extend([0x4d, 0x0f, 0xbe, 0xd2]),  // movsx r10, r10b
-                    (2, true) => bytes.extend([0x4d, 0x0f, 0xbf, 0xd2]),  // movsx r10, r10w
-                    (4, true) => bytes.extend([0x4d, 0x63, 0xd2]),        // movsxd r10, r10d
-                    _ => {}
-                }
+                append_wrapping_node_width_extension(bytes, byte_width, operands_signed);
             }
         }
         append_mov_reg_reg(bytes, destination, Reg64::R10);
@@ -8277,6 +8313,53 @@ fn append_runtime_binary_operation(
         }
     }
     Ok(())
+}
+
+/// Wrapping `<<` count clamp (shift-domain ruling): Wrapping shift-left is
+/// MODULAR -- x * 2^n (mod 2^w) -- so a count at/above the TYPE width yields
+/// 0, but the hardware `shl` masks the count to the op width instead
+/// (40 & 31 = 8). The FULL count survives in r11 (the shift arm only copies
+/// it to cl), so compare it UNSIGNED against the bit width and cmov zero
+/// over the shifted result -- a negative signed count is huge unsigned and
+/// clamps, exactly like the interpreter's `count as u64 >= width`. rax is
+/// scratch mid-operation, as in the div/setcc arms.
+fn append_wrapping_shift_left_clamp(bytes: &mut Vec<u8>, byte_size: usize) {
+    bytes.extend([0x31, 0xc0]); // xor eax, eax
+    bytes.extend([0x49, 0x83, 0xfb, (byte_size * 8) as u8]); // cmp r11, width_bits
+    bytes.extend([0x4c, 0x0f, 0x43, 0xd0]); // cmovae r10, rax
+}
+
+/// Bytes of [`append_wrapping_shift_left_clamp`]: xor (2) + cmp (4) + cmov (4).
+const WRAPPING_SHIFT_LEFT_CLAMP_WIDTH: usize = 10;
+
+/// A nested WRAPPING binary hands its PARENT the width-wrapped VALUE in r10
+/// (the interpreter wraps AT THE NODE, decision 17; the store-truncation
+/// shortcut only holds at the WRITE): extend r10 from the node's width by the
+/// node's signedness. No-op at full width.
+fn append_wrapping_node_width_extension(
+    bytes: &mut Vec<u8>,
+    byte_width: usize,
+    operands_signed: bool,
+) {
+    match (byte_width, operands_signed) {
+        (1, false) => bytes.extend([0x4d, 0x0f, 0xb6, 0xd2]), // movzx r10, r10b
+        (2, false) => bytes.extend([0x4d, 0x0f, 0xb7, 0xd2]), // movzx r10, r10w
+        (4, false) => bytes.extend([0x45, 0x89, 0xd2]),       // mov r10d, r10d
+        (1, true) => bytes.extend([0x4d, 0x0f, 0xbe, 0xd2]),  // movsx r10, r10b
+        (2, true) => bytes.extend([0x4d, 0x0f, 0xbf, 0xd2]),  // movsx r10, r10w
+        (4, true) => bytes.extend([0x4d, 0x63, 0xd2]),        // movsxd r10, r10d
+        _ => {}
+    }
+}
+
+/// Bytes of [`append_wrapping_node_width_extension`]: 4, except 3 for the
+/// width-4 forms and 0 at full width.
+fn wrapping_node_width_extension_width(byte_width: usize) -> usize {
+    match byte_width {
+        4 => 3,
+        1 | 2 => 4,
+        _ => 0,
+    }
 }
 
 /// Floating-point binary op (f64/f32) that reuses the integer operand pipeline:
@@ -9430,6 +9513,71 @@ mod atomic_tests {
             assert_eq!(bytes[rex_index + 2], cmpxchg_opcode, "CMPXCHG opcode");
             assert_eq!(bytes[rex_index + 3], 0x96, "ModRM [r14+disp32], r10");
             assert_eq!(&bytes[rex_index + 4..], &0x24i32.to_le_bytes());
+        }
+    }
+}
+
+#[cfg(test)]
+mod wrapping_shift_clamp_tests {
+    use super::*;
+
+    #[test]
+    fn clamp_compares_the_full_count_and_cmovs_zero() {
+        for &byte_size in &[1usize, 2, 4, 8] {
+            let mut bytes = Vec::new();
+            append_wrapping_shift_left_clamp(&mut bytes, byte_size);
+            assert_eq!(
+                bytes.len(),
+                WRAPPING_SHIFT_LEFT_CLAMP_WIDTH,
+                "width mismatch for the {byte_size}-byte clamp"
+            );
+            assert_eq!(&bytes[0..2], &[0x31, 0xc0], "xor eax, eax");
+            // The FULL count in r11 (not the cl copy): a count with set high
+            // bits (i64 2^32+1, or a negative signed count) must still clamp.
+            assert_eq!(&bytes[2..5], &[0x49, 0x83, 0xfb], "cmp r11, imm8");
+            assert_eq!(bytes[5] as usize, byte_size * 8, "width_bits immediate");
+            assert_eq!(&bytes[6..10], &[0x4c, 0x0f, 0x43, 0xd0], "cmovae r10, rax");
+        }
+    }
+
+    #[test]
+    fn wrapping_shl_sequence_shifts_then_clamps_without_touching_the_count() {
+        // The write-path pair: width-correct shl (hardware masks the count
+        // mod 32) followed by the modular clamp reading the intact r11.
+        let mut bytes = Vec::new();
+        append_runtime_binary_operation(&mut bytes, StateGuardOperator::ShiftLeft, 4)
+            .expect("shl");
+        append_wrapping_shift_left_clamp(&mut bytes, 4);
+        assert_eq!(
+            bytes,
+            vec![
+                0x44, 0x89, 0xd9, // mov ecx, r11d (count copy; r11 stays intact)
+                0x41, 0xd3, 0xe2, // shl r10d, cl
+                0x31, 0xc0, // xor eax, eax
+                0x49, 0x83, 0xfb, 32, // cmp r11, 32
+                0x4c, 0x0f, 0x43, 0xd0, // cmovae r10, rax
+            ]
+        );
+        assert_eq!(
+            bytes.len(),
+            runtime_binary_operation_width(StateGuardOperator::ShiftLeft, 4)
+                + WRAPPING_SHIFT_LEFT_CLAMP_WIDTH,
+            "emission and width accounting must agree"
+        );
+    }
+
+    #[test]
+    fn node_width_extension_width_stays_in_lockstep() {
+        for &byte_width in &[1usize, 2, 4, 8] {
+            for &operands_signed in &[false, true] {
+                let mut bytes = Vec::new();
+                append_wrapping_node_width_extension(&mut bytes, byte_width, operands_signed);
+                assert_eq!(
+                    bytes.len(),
+                    wrapping_node_width_extension_width(byte_width),
+                    "extension width mismatch at {byte_width} bytes (signed: {operands_signed})"
+                );
+            }
         }
     }
 }
