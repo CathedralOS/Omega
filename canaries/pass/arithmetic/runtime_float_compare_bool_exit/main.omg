@@ -1,0 +1,60 @@
+// RUN CANARY (exit 70) + interpreter differential. Float COMPARISONS in
+// value/write position (bool let + bool field store): before the FCMP/CSET-
+// pattern arms landed, the aarch64 float write path received the TARGET
+// width (bool = 1) for its FMOV loads and refused loudly ("only supports
+// 4/8-byte FMOV") -- and had no comparison operators at all. NEGATIVE
+// operands are the semantic pin: IEEE doubles compared as raw unsigned bits
+// reverse order for negatives (-1.5 > -2.5 is TRUE numerically, FALSE
+// bitwise), so a bit-compare regression fails leg 1/2 immediately. Legs:
+// 71 = f64 negative `>` into a let; 72 = f64 negative `<` into a field
+// store; 73 = f32 `>` (4-byte FMOV width); 74 = f64 `==`/`!=` pair.
+// (x86_64's float write path fences these loudly -- the twin arms are not
+// implemented there yet; this canary is the aarch64 + interp pin.)
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main {
+    console: Console;
+    a: f64; b: f64;
+    a32: f32; b32: f32;
+    okf: bool;
+}
+machine Main::main(&mut self) {
+    self.a = 0.0 - 1.5;
+    self.b = 0.0 - 2.5;
+    self.a32 = 3.5;
+    self.b32 = 2.5;
+    self.build();
+}
+machine Main::build(&mut self) {
+    let gt: bool = self.a > self.b;
+    transition gt {
+        true -> st()
+        _ -> wrong_gt()
+    }
+    state st(&mut self) {
+        self.okf = self.b < self.a;
+        transition self.okf {
+            true -> f32leg()
+            _ -> wrong_lt()
+        }
+    }
+    state f32leg(&mut self) {
+        let w: bool = self.a32 > self.b32;
+        transition w {
+            true -> eqleg()
+            _ -> wrong_f32()
+        }
+    }
+    state eqleg(&mut self) {
+        let eq: bool = self.a == self.a;
+        let ne: bool = self.a != self.b;
+        transition eq && ne {
+            true -> good()
+            _ -> wrong_eq()
+        }
+    }
+    state good(&mut self)     { self.console.exit_process(70); }
+    state wrong_gt(&mut self) { self.console.exit_process(71); }
+    state wrong_lt(&mut self) { self.console.exit_process(72); }
+    state wrong_f32(&mut self){ self.console.exit_process(73); }
+    state wrong_eq(&mut self) { self.console.exit_process(74); }
+}

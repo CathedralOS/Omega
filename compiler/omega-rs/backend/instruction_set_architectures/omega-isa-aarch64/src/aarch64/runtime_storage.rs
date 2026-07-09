@@ -699,7 +699,22 @@ pub fn encode_runtime_storage_binary_write(
         right,
     )?;
     if is_float {
-        append_runtime_float_binary_operation(&mut bytes, byte_size, 17, operator, 26)?;
+        // Comparisons run at the OPERAND width (a bool target is 1 byte, but
+        // the FMOV/FCMP need the f32/f64 width); arithmetic keeps the target
+        // width, which equals the operand width for float targets.
+        append_runtime_float_binary_operation(
+            &mut bytes,
+            runtime_binary_operation_byte_size(
+                runtime_value_operands,
+                operator,
+                left,
+                right,
+                byte_size,
+            ),
+            17,
+            operator,
+            26,
+        )?;
     } else if saturating_or_trapping
         && matches!(
             operator,
@@ -4209,6 +4224,43 @@ fn append_runtime_float_binary_operation(
         // Unary, carried with both operands = x (the x86_64 table's shape):
         // sqrt(operand1) into slot 0.
         StateGuardOperator::Sqrt => bytes.extend(encode_float_sqrt(byte_size, 0, 1)?),
+        // COMPARISON into a 0/1 GPR result (`let ok: bool = self.a > self.b`
+        // with float operands): FCMP at the OPERAND width, then the integer
+        // write path's materialization pattern (MOVZ 0 / negated skip /
+        // MOVZ 1) using the guard path's float-aware conditions -- ordered
+        // comparisons are FALSE on unordered inputs, matching x86 `ucomis*`
+        // and the interpreter. The result is already integer bits in the
+        // GPR, so the trailing FMOV-back is skipped (early return).
+        // Unsigned spellings normalize to the signed conditions first: float
+        // NZCV conditions carry no signedness. Width tracked by
+        // runtime_float_binary_operation_width -- MUST stay in lockstep.
+        StateGuardOperator::Equal
+        | StateGuardOperator::NotEqual
+        | StateGuardOperator::Greater
+        | StateGuardOperator::GreaterOrEqual
+        | StateGuardOperator::Less
+        | StateGuardOperator::LessOrEqual
+        | StateGuardOperator::GreaterUnsigned
+        | StateGuardOperator::GreaterOrEqualUnsigned
+        | StateGuardOperator::LessUnsigned
+        | StateGuardOperator::LessOrEqualUnsigned => {
+            let ordered_operator = match operator {
+                StateGuardOperator::GreaterUnsigned => StateGuardOperator::Greater,
+                StateGuardOperator::GreaterOrEqualUnsigned => StateGuardOperator::GreaterOrEqual,
+                StateGuardOperator::LessUnsigned => StateGuardOperator::Less,
+                StateGuardOperator::LessOrEqualUnsigned => StateGuardOperator::LessOrEqual,
+                other => other,
+            };
+            bytes.extend(encode_float_compare(byte_size, 0, 1)?);
+            bytes.extend(encode_movz_w(left_register, 0));
+            bytes.extend(encode_conditional_branch_for_operator_bytes(
+                ordered_operator,
+                8,
+                true,
+            )?);
+            bytes.extend(encode_movz_w(left_register, 1));
+            return Ok(());
+        }
         _ => {
             return Err(Diagnostic::error(format!(
                 "AArch64 MVP encoder cannot lower runtime float binary operator `{operator:?}` yet"

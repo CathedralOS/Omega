@@ -16351,6 +16351,32 @@ fn custom_ranking_struct_view_canary_runs() {
 }
 
 #[test]
+fn runtime_float_compare_bool_exit_canary_runs() {
+    // Float comparisons in value/write position (FCMP + materialized 0/1 at
+    // operand width). Negative doubles pin the numeric-vs-bitwise ordering.
+    let canary = pass_canary("arithmetic/runtime_float_compare_bool_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-fcmpbool-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("float compare bool canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("float compare bool canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "float compare bool canary should pass all legs (exit 70), got {:?}",
+        output.status.code(),
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn case_literal_texteq_field_store_exit_canary_runs() {
     // Text equality as a case-literal payload field in a FIELD STORE --
     // promoted from the fail tier when the literal-RHS TextEqualsLiteral arm
@@ -26828,6 +26854,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "control_flow/sum_mixed_width_payload_layout",
     "control_flow/sum_field_storage_roundtrip",
     "control_flow/sum_payload_cast_operand_field_exit",
+    "arithmetic/runtime_float_compare_bool_exit",
     "text/case_literal_texteq_field_store_exit",
     "text/runtime_text_equals_value_positions_exit",
     "control_flow/runtime_case_member_dispatch_exit",
