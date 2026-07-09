@@ -1,0 +1,35 @@
+// Signed division's ONE overflowing corner (TYPE_MIN / -1), fused into GUARD
+// operands (decision 17): Saturating clamps the quotient to TYPE_MAX and
+// takes `MIN % -1 == 0`; Wrapping wraps back to TYPE_MIN (aarch64 `sdiv`
+// does this naturally; the x86_64 fused idiv would hardware-trap without its
+// divisor guard -- this canary is what pins that guard in operand position).
+// Values are built through runtime FIELDS so the fold never sees them; the
+// interpreter resolves the same corner at the operation node.
+// Directions: i8 sat MIN/-1 -> 127, i8 sat MIN%-1 -> 0, i8 wrap MIN/-1 ->
+// -128. Exit 70.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main {
+    console: Console;
+    a: i8 in Saturating;
+    b: i8 in Saturating;
+    aw: i8 in Wrapping;
+    bw: i8 in Wrapping;
+}
+machine Main::main(&mut self) {
+    // MIN built at runtime: -127 - 1 (both steps in range, no clamp engaged).
+    self.a = 0 - 127;
+    self.a = self.a - 1;
+    self.b = 0 - 1;
+    transition (self.a / self.b == 127) { true -> mod_zero() _ -> bad() }
+    state mod_zero(&mut self) {
+        transition (self.a % self.b == 0) { true -> wrap_min() _ -> bad() }
+    }
+    state wrap_min(&mut self) {
+        self.aw = 0 - 127;
+        self.aw = self.aw - 1;
+        self.bw = 0 - 1;
+        transition (self.aw / self.bw == 0 - 128) { true -> good() _ -> bad() }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

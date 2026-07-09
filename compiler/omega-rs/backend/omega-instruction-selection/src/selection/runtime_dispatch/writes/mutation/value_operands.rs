@@ -680,14 +680,10 @@ pub(super) fn resolve_runtime_value_operand(
             // Non-table value-operand path: float detection not wired here yet;
             // float arithmetic via this fallback stays a known gap.
             is_float: false,
-            // The plain integer arm ignores the width; a Saturating/Trapping
+            // The plain integer arm ignores the width; a non-Exact
             // operand needs its REAL operand width for the width-correct op +
             // clamp bounds.
-            byte_width: if matches!(
-                domain_signedness.0,
-                omega_core::arithmetic::ArithmeticDomain::Saturating
-                    | omega_core::arithmetic::ArithmeticDomain::Trapping
-            ) {
+            byte_width: if domain_signedness.0 != omega_core::arithmetic::ArithmeticDomain::Exact {
                 crate::selection::runtime_dispatch::guards::runtime_value_compare_byte_size(
                     runtime_value_operands,
                     left,
