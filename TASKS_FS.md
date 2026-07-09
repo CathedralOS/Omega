@@ -68,118 +68,30 @@ results in Omega. Interpreter = full-parity reference oracle for everything.
 
 ## Open work
 
-0. ~~efi red family~~ — **RESOLVED 2026-07-11t (diagnosis corrected:
-   NOT a regression).** The efi milestone canaries are HOST-FORMAT
-   dependent by construction: no target block and no registered
-   uefi_x64 target — on the Windows sessions the PE image came from
-   the HOST format + build.omg's subsystem-10/freestanding facts; on
-   aarch64 the vtable/host-call encoder shapes have no lowering
-   (hardcoded width 0). The two compile-failing members moved to
-   WINDOWS_HOST_PASS_CANARIES and the three byte-asserting test fns
-   are cfg(windows) — same class and precedent as the gdi32 blit
-   canary. **The suite is 0-FAILURE on macOS for the first time.**
-   RESOLVED SAME DAY (2026-07-11u): `uefi_x64` is REGISTERED in the
-   compiler's name table (X86_64 + Coff/PE32+; the subsystem-10/
-   freestanding facts stay build.omg's, exactly as on a windows host —
-   the name was already load-bearing in landed source per D15). Every
-   efi canary's build.omg declares `target uefi_x64 {}` for frontier
-   validation; the three byte-asserting tests are UN-GATED and compile
-   with the explicit target (image reads pinned to the PE name); the
-   two former windows-host members moved to
-   CROSS_TARGET_PASS_CANARIES, compiled on EVERY host. Cross-compiled
-   from this Mac: magic 0x20b, subsystem 10 — the boot-verified image
-   shape. Suite: 769/0.
-
-1. ~~build.omg compiler-side gate~~ — **COMPLETE 2026-07-11j/k** (owner
-   answers #2–#5 in commit 14e02026e; implementation bc086f0a3 +
-   0bc474e81). Current shape: std FilesystemHost declares
-   `effects filesystem_io` rows (36 methods); the gate allows transitive
-   {filesystem_io, stdout_io, stderr_io} DECLARED on the build machine
-   (`effects` clause), refuses everything else with teaching messages
-   (row-less boundary → host_boundary hint); effectful builds run the
-   granted entry (RealUnscoped — owner de-scoped permissions), staging
-   real assets at compile time; console writes are SERVED and flushed
-   to the compiler's real streams (failure included). Build machine =
-   free `build(b: &mut Build)` or ONE attached `<Component>::build`
-   with the `b: &mut Build` single-param signature (name alone captured
-   builder-pattern machines; eventual rule = "declared in build.omg",
-   needs machine source-file plumbing — OPEN item). Pins:
-   tests/build_config_granted.rs, fail/build/* (2),
-   granted_build_serves_console_and_rejects_other_boundaries.
-   OMEGA_DEBUG_BUILD_CONFIG dumps the gate. Owner follow-up: Q11 (std
-   console boundary).
-
-2. ~~reversed-operand receiver residual~~ — CLOSED 2026-07-10y
-   (dynamic per-machine resolved_machine_base + attached-data
-   equivalence at the sweep sites; a/b shuffle fully retired;
-   runtime_system_time_after_2026_exit at natural spelling).
-
-3. ~~Per-instance receivers, ALL routes~~ — **COMPLETE 2026-07-11b→l**
-   (dispatch-table composition e0c718793; self-call inheritance
-   16c3816f5; inline chain-walk recovery 9ac48266e; leaf-write scoped
-   keys 465b82bbf + d8ff50e89's account_ledger fix; spliced-code fence
-   visibility d8ff50e89; param-binding serve c94fb49ea; interp
-   re-borrow collapse cd271c670). Current semantics: receiver identity
-   composes through the parent-context chain (dispatch), a bounded
-   call-chain walk with per-position PARAM ENVIRONMENTS (inline +
-   spliced code, `&mut` args bind params to absolute bases, re-borrows
-   forward), and the fence mirrors the walk (MachineAnchor with
-   poisoning; serve-or-refuse: every shape delivers per-instance or
-   refuses with guidance). Table indexed by ARENA index (1-based).
-   Pins: ~12 canaries under calls/ + the dungeon; fail pins for the
-   ambiguous shapes. Residual (needs a natural repro): args spelled in
-   a DEEPER callee state colliding same-machine names ride the
-   leaf-write name fallback.
-
-4. **Windows-session bundle** (needs a Windows host): verify the stat-row
+1. **Windows-session bundle** (needs a Windows host): verify the stat-row
    migration natively; WINDOWS_IMPORT_ROWS migration into provides files;
    Win32 rows for the no-msvcrt ops; file_journal-on-windows recheck;
    WndProc entry stubs (title-bar close).
 
-5. **linux** — binding tables are structural-only until a target host exists.
+2. **linux** — binding tables are structural-only until a target host exists.
 
-6. **Authored-bindings interp story** — OWNER_QUESTIONS.md #10 (native-only
-   imports today; differential skips).
+3. **Authored-bindings interp story** — OWNER_QUESTIONS.md #10 (native-only
+   imports today; differential skips). Also pending: Q11 (std console
+   boundary for build.omg), Q12 (byte-level stdin spelling — the samples
+   baseline's stdin trio waits on it).
 
-7. **[CLAIMED from TASKS_TIME 2026-07-11n]** D14 fires E+F — **LANDED
-   2026-07-11n**: u64 literals in LET initializers (fire E; the native
-   static resolver + interpreter were already bits-capable) and
-   EQUALITY guards against u64-classed places (fire F; ==/!= only,
-   ordering stays refused sign-blind; the guard-side resolver gained
-   the bits fallback, sound under the gate; the walker recurses through
-   the multi-arm desugar's `(subject) == true` nesting — that nesting
-   cost the debug cycle). Pins:
-   arithmetic/runtime_u64_literal_let_guard_exit (exact u64::MAX
-   round-trip, differential),
-   fail/arithmetic/u64_literal_into_i64_rejected,
-   fail/arithmetic/u64_literal_ordering_guard_rejected. The saturating_*
-   twins LANDED 2026-07-11o: Instant::saturating_add/subtract (clamp to
-   the new Instant::MAX / Instant::EPOCH consts — MAX's u64 seconds is
-   fire D) + SystemTime::saturating_add/subtract (SystemTime::MAX /
-   SystemTime::MIN; i64 literals, incl. the -9223372036854775808 MIN
-   spelling probe-verified), mirroring Duration's saturate idioms
-   exactly. Pin: time/runtime_saturating_time_arith_exit (seven exact
-   legs, fire-F guards on the extremes, differential). TASKS_TIME item
-   6's deliberate gap is CLOSED — the claim completes. FOLLOW-ON claim
-   (render item 9, interpreter domain, 2026-07-11p): the Gui/Input
-   headless stub was already semantically complete — the gap was the
-   10M step budget vs window_demo's ~40M software-rendered frames;
-   OMEGA_INTERP_STEP_BUDGET overrides it and
-   omega-interpreter/tests/gui_headless.rs pins interp exit 0 ==
-   native exit 0 for the untouched flagship sample.
+4. **Recorded residuals, need a natural repro before work:** (a)
+   deeper-callee-state SAME-machine name collisions ride the leaf-write
+   name fallback (receiver epic's last theoretical gap); (b) typed
+   machines carry no source file (fine until a second consumer after
+   is_build_machine needs one); (c) console-less programs default-exit 1
+   natively vs 0 interpreted (divergent only for a run canary of that
+   shape).
 
-8. ~~Machine source-file plumbing~~ — **RESOLVED 2026-07-11m without a
-   representation change**: per-file item attribution already exists at
-   the SYNTAX stage (AssembledSyntax.files → root_items), so the
-   compiler collects the build.omg-root machine names there and threads
-   the list to the gate; is_build_machine = name (`build`/`::build`)
-   AND declared-in-build.omg (the param-signature interim retired;
-   syntax machine names are already full paths — `Stager::build`).
-   Pins: build_config_granted (positive),
-   pass/build/runtime_main_source_builder_is_ordinary_exit (a
-   `Maker::build(b: &mut Build)` in MAIN source stays an ordinary
-   runtime machine). Typed machines still carry no source file — fine
-   until a second consumer needs one.
+(Closed arcs live in the git log and their canary headers — recent
+pointers: receivers e0c718793→cd271c670; build.omg bc086f0a3/0bc474e81/
+a09d23932; D14+twins 721175a1d/93b2127a3; gui headless 3528b9f5d;
+tick rows 50a339aa0; uefi_x64 cross-target 3915d1cec/631fa6e28.)
 
 ## Design decisions (ratified; user reviews later)
 
