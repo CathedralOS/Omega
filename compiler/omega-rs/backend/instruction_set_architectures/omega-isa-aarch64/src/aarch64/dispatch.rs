@@ -9,7 +9,8 @@ use super::primitives::{
     encode_conditional_branch_higher, encode_conditional_branch_higher_or_same,
     encode_conditional_branch_less, encode_conditional_branch_less_or_equal,
     encode_conditional_branch_lower, encode_conditional_branch_lower_or_same,
-    encode_conditional_branch_not_equal, encode_float_compare, encode_float_move_from_gpr,
+    encode_conditional_branch_not_equal, encode_conditional_branch_plus, encode_float_compare,
+    encode_float_move_from_gpr,
     encode_load_w_from_x, encode_load_x_from_x, encode_move_x_register, encode_movz_w,
     encode_sign_extend_byte_to_w, encode_sign_extend_halfword_to_w, encode_store_x_to_x,
     encode_unconditional_branch,
@@ -155,12 +156,28 @@ pub fn encode_dispatch_guard_compare_static_bytes(
         StateGuardOperator::NotEqual => encode_conditional_branch_equal(skip_byte_distance)?,
         StateGuardOperator::Greater => encode_conditional_branch_less_or_equal(skip_byte_distance)?,
         StateGuardOperator::GreaterOrEqual => encode_conditional_branch_less(skip_byte_distance)?,
+        // Float `<`/`<=` skip on PL/HI, true on unordered (IEEE: comparisons
+        // with NaN are false) -- see encode_conditional_branch_for_operator_bytes.
+        StateGuardOperator::Less if is_float => {
+            encode_conditional_branch_plus(skip_byte_distance)?
+        }
+        StateGuardOperator::LessOrEqual if is_float => {
+            encode_conditional_branch_higher(skip_byte_distance)?
+        }
         StateGuardOperator::Less => encode_conditional_branch_greater_or_equal(skip_byte_distance)?,
         StateGuardOperator::LessOrEqual => encode_conditional_branch_greater(skip_byte_distance)?,
         // Unsigned comparisons skip on the negated UNSIGNED condition (cf. the x86
         // jcc skip-branches: LessUnsigned->jae, GreaterUnsigned->jbe, etc.).
         StateGuardOperator::LessUnsigned => {
             encode_conditional_branch_higher_or_same(skip_byte_distance)?
+        }
+        // Float `>`/`>=` skip on the SIGNED complements LE/LT: the unsigned
+        // skips LS/LO are false on unordered (FCMP sets C+V on NaN).
+        StateGuardOperator::GreaterUnsigned if is_float => {
+            encode_conditional_branch_less_or_equal(skip_byte_distance)?
+        }
+        StateGuardOperator::GreaterOrEqualUnsigned if is_float => {
+            encode_conditional_branch_less(skip_byte_distance)?
         }
         StateGuardOperator::GreaterUnsigned => {
             encode_conditional_branch_lower_or_same(skip_byte_distance)?
