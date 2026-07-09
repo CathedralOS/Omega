@@ -16514,6 +16514,32 @@ fn sum_payload_cast_operand_field_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_branching_callee_chain_exit_canary_runs() {
+    // Statement calls into a dispatching entry (incl. sub-state chained) --
+    // the 2026-07-04 refusal, closed by the branch-call expansion rungs.
+    let canary = pass_canary("calls/runtime_branching_callee_chain_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-brchain-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("branching callee chain canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("branching callee chain canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "branching callee chain canary should count both dispatched hits (exit 70), got {:?}",
+        output.status.code(),
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn recursive_result_bind_first_arg_canary_runs() {
     // The bind-first pairing (`let r = self.countdown(..); let d =
     // self.plus1(r);`) in a multi-call composition: a recursive value-call
@@ -26856,6 +26882,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "capabilities/runtime_provides_value_exit",
     "expressions/runtime_qualified_case_value_exit",
     "calls/recursive_result_bind_first_arg",
+    "calls/runtime_branching_callee_chain_exit",
     "calls/runtime_inline_recursive_walk_exit",
     "calls/runtime_value_call_direct_recursive_walk_exit",
     "calls/runtime_value_call_statement_recursive_walk_exit",

@@ -1,0 +1,38 @@
+// RUN CANARY (exit 70) + interpreter differential. STATEMENT CALLS into a
+// machine whose ENTRY is a BRANCHING (dispatching) state, passing arguments
+// -- including the sub-state-chained second call. This exact shape was
+// refused in 2026-07-04's survey ("native emission needs guarded state-call
+// expansion"; the scope spike predicted a new planned expansion through
+// planner + emitter) and was carried in TASKS.md until a 2026-07-12 re-probe
+// showed the intervening branch-call expansion rungs closed it: both calls
+// dispatch on their payload case, the shared `hit` sub-state increments a
+// Wrapping counter, and the caller observes hits == 2. exit 72 = a call's
+// dispatch or effect was dropped.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Rec { case A(v: i32); case B(v: i32); case C(v: i32); }
+data Main { console: Console; hits: u32 in Wrapping; }
+machine Main::check(&mut self, r: Rec) {
+    transition r {
+        Rec::A { v } -> hit(v)
+        Rec::C { v } -> hit(v)
+        _ -> done()
+    }
+    state hit(&mut self, v: i32) {
+        self.hits = self.hits + 1;
+        transition true { true -> done() }
+    }
+    state done(&mut self) { }
+}
+machine Main::main(&mut self) {
+    self.check(Rec::A { v: 1 });
+    transition true { true -> next() }
+    state next(&mut self) {
+        self.check(Rec::C { v: 3 });
+        transition self.hits == 2 {
+            true -> good()
+            _ -> wrong()
+        }
+    }
+    state good(&mut self)  { self.console.exit_process(70); }
+    state wrong(&mut self) { self.console.exit_process(72); }
+}
