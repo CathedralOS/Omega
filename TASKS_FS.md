@@ -1122,23 +1122,16 @@ wrongly rejects them. See Open-work #4.
   differential now runs PAST both (dual_accumulator sample test green;
   supported-canaries progresses beyond RUN_CANARIES line 33) . Credit the
   arithmetic/const-fold thread.
-- ⚠️ NEW panic-at-first BLOCKER (2026-07-09g, A/B-verified on clean HEAD with
-  fs changes stashed — the TIME lane's territory, NOT this thread's):
-  `interpreter_matches_native_on_supported_canaries` now dies at
-  `host/runtime_tick_count_monotonic_exit` (RUN_CANARIES line ~285) because
-  `Clock.tick_count` has NO NATIVE LOWERING for aarch64/MachO — the canary +
-  its registration landed on main via d7c0ac73a (2026-07-01, the time
-  worktree's "tick_count runs end-to-end" commit), whose native lowering is
-  presumably windows-first. Its canary_suite test fails on macOS the same
-  way. SECOND-ORDER COST persists: everything AFTER line ~285 in
-  RUN_CANARIES is unverified on macOS hosts while this stands (same masking
-  class that hid "open_create never compiled on darwin arm64" for days).
-  Options for the time lane: land the aarch64 lowering, or gate the canary's
-  differential/suite registration per-target, or make the differential
-  collect-all-failures instead of panic-at-first (repeat ask). (6 GUI/input
-  samples in native_filesystem_canaries also fail, but those are the KNOWN
-  effectful-arm fence on `MacosInput::key_state`/`MacosGui::msg_peek` value
-  calls, per the fence doctrine above — expected, not a regression.)
+- ✅ RESOLVED (2026-07-10d, by the parallel thread's 2b3441b8c — the repeat
+  collect-all ask, delivered): the differential umbrella no longer
+  panics at the first native-blocked canary — compile failures print as a
+  native-blocked bucket (the canary suite owns that signal) and the
+  mismatch assert runs over everything runnable. VERIFIED on this host:
+  `-p omega-interpreter --test differential` is 12/12 GREEN with
+  tick_count riding the bucket; the masking class that hid "open_create
+  never compiled on darwin arm64" is structurally closed. The tick_count
+  aarch64 native lowering itself remains the time lane's (its
+  canary_suite test still fails on macOS — known, theirs).
 
 ## Coordination
 
