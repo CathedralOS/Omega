@@ -475,7 +475,8 @@ pub(super) fn resolve_runtime_storage_place_in_table(
 
     resolve_machine_owned_place_in_table(
         &input.layouts,
-        crate::selection::receiver_base::receiver_base_for(input, dispatch_index, source_key.machine),
+        input,
+        dispatch_index,
         input.entry_key.machine,
         source_key.machine,
         expressions,
@@ -610,7 +611,8 @@ fn fixed_array_length_of_receiver_in_table(
 
     if let Some(target) = resolve_machine_owned_collection_in_table(
         &input.layouts,
-        crate::selection::receiver_base::receiver_base_for(input, dispatch_index, source_key.machine),
+        input,
+        dispatch_index,
         input.entry_key.machine,
         source_key.machine,
         expressions,
@@ -1371,7 +1373,8 @@ fn resolve_runtime_storage_leaf_descriptor_in_table(
         // leaf type descriptor through that path instead.
         if let Some(collection) = resolve_machine_owned_collection_in_table(
             &input.layouts,
-            crate::selection::receiver_base::receiver_base_for(input, dispatch_index, source_key.machine),
+            input,
+            dispatch_index,
             input.entry_key.machine,
             source_key.machine,
             expressions,
@@ -1390,6 +1393,7 @@ fn resolve_runtime_storage_leaf_descriptor_in_table(
         if path.member_index(0).is_some() {
             let array = resolve_elided_local_slice_view_array(
                 input,
+                dispatch_index,
                 source_key,
                 path.head_symbol(),
                 path.member(0)?,
@@ -1542,7 +1546,8 @@ pub(super) fn resolve_fixed_array_length_in_table(
 
     let collection = resolve_machine_owned_collection_in_table(
         &input.layouts,
-        crate::selection::receiver_base::receiver_base_for(input, dispatch_index, source_key.machine),
+        input,
+        dispatch_index,
         input.entry_key.machine,
         source_key.machine,
         expressions,
@@ -2171,6 +2176,7 @@ pub(super) fn resolve_runtime_machine_double_indexed_source_in_table(
     }
     let collection = resolve_machine_owned_collection_with_const_prefix_in_table(
         input,
+        dispatch_index,
         source_key,
         expressions,
         inner_indexed.collection,
@@ -2293,6 +2299,7 @@ pub(super) fn resolve_runtime_machine_indexed_target_in_table(
     }
     let collection = resolve_machine_owned_collection_with_const_prefix_in_table(
         input,
+        dispatch_index,
         source_key,
         expressions,
         indexed.collection,
@@ -2378,13 +2385,15 @@ pub(super) fn resolve_runtime_machine_indexed_target(
 /// (`rows[2].data`) keep their existing path.
 fn resolve_machine_owned_collection_with_const_prefix_in_table(
     input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
     source_key: StateKey,
     expressions: &ExpressionTable,
     expression: ExpressionHandle,
 ) -> Option<MachineOwnedCollectionTarget> {
     if let Some(collection) = resolve_machine_owned_collection_in_table(
         &input.layouts,
-        None, // receiver override: collection paths are phase 3 (no dispatch ctx here)
+        input,
+        dispatch_index,
         input.entry_key.machine,
         source_key.machine,
         expressions,
@@ -2411,6 +2420,7 @@ fn resolve_machine_owned_collection_with_const_prefix_in_table(
 
     let base = resolve_machine_owned_collection_with_const_prefix_in_table(
         input,
+        dispatch_index,
         source_key,
         expressions,
         inner.collection,
@@ -2872,7 +2882,8 @@ fn resolve_runtime_fixed_indexed_place_in_table(
 
     let collection = match resolve_machine_owned_collection_in_table(
         &input.layouts,
-        crate::selection::receiver_base::receiver_base_for(input, dispatch_index, source_key.machine),
+        input,
+        dispatch_index,
         input.entry_key.machine,
         source_key.machine,
         expressions,
@@ -2893,6 +2904,7 @@ fn resolve_runtime_fixed_indexed_place_in_table(
             }
             resolve_elided_local_slice_view_array(
                 input,
+                dispatch_index,
                 source_key,
                 path.head_symbol(),
                 path.member(0)?,
@@ -3204,6 +3216,7 @@ fn see_through_as_slice_view(
 /// resolves against the underlying array instead of the unmaterialized view.
 fn resolve_elided_local_slice_view_array(
     input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
     source_key: StateKey,
     head_symbol: SymbolHandle,
     head_name: &Identifier,
@@ -3212,7 +3225,8 @@ fn resolve_elided_local_slice_view_array(
     let underlying = see_through_as_slice_view(&input.program.expression_table, initializer);
     resolve_machine_owned_collection_in_table(
         &input.layouts,
-        None, // receiver override: collection paths are phase 3 (no dispatch ctx here)
+        input,
+        dispatch_index,
         input.entry_key.machine,
         source_key.machine,
         &input.program.expression_table,

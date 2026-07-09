@@ -22,7 +22,8 @@ pub(in crate::selection) struct MachineOwnedCollectionTarget {
 
 pub(in crate::selection) fn resolve_machine_owned_place(
     layouts: &LayoutPlan,
-    receiver_base: Option<usize>,
+    input: &crate::InstructionSelectionInput<'_>,
+    dispatch_index: u32,
     entry_machine: SymbolHandle,
     source_machine: SymbolHandle,
     expression: &Expression,
@@ -34,7 +35,8 @@ pub(in crate::selection) fn resolve_machine_owned_place(
     let (machine_base_offset, root_field, suffix, suffix_start_index) =
         root_machine_field_layout_from_path(
             layouts,
-            receiver_base,
+            input,
+            dispatch_index,
             entry_machine,
             source_machine,
             path,
@@ -59,7 +61,8 @@ pub(in crate::selection) fn resolve_machine_owned_place(
 /// blocker in emission planning.
 pub(in crate::selection) fn resolve_machine_owned_self_case_tag_place_in_table(
     layouts: &LayoutPlan,
-    receiver_base: Option<usize>,
+    input: &crate::InstructionSelectionInput<'_>,
+    dispatch_index: u32,
     entry_machine: SymbolHandle,
     source_machine: SymbolHandle,
     expressions: &ExpressionTable,
@@ -78,8 +81,13 @@ pub(in crate::selection) fn resolve_machine_owned_self_case_tag_place_in_table(
     if !is_case_bearing {
         return None;
     }
-    let machine_base_offset =
-        resolved_machine_base(receiver_base, layouts, entry_machine, source_machine)?;
+    let machine_base_offset = resolved_machine_base(
+        input,
+        dispatch_index,
+        layouts,
+        entry_machine,
+        source_machine,
+    )?;
     Some(RuntimeStoragePlace {
         region: RuntimeStorageRegion::Machine,
         byte_offset: machine_base_offset,
@@ -89,7 +97,8 @@ pub(in crate::selection) fn resolve_machine_owned_self_case_tag_place_in_table(
 
 pub(in crate::selection) fn resolve_machine_owned_place_in_table(
     layouts: &LayoutPlan,
-    receiver_base: Option<usize>,
+    input: &crate::InstructionSelectionInput<'_>,
+    dispatch_index: u32,
     entry_machine: SymbolHandle,
     source_machine: SymbolHandle,
     expressions: &ExpressionTable,
@@ -99,7 +108,8 @@ pub(in crate::selection) fn resolve_machine_owned_place_in_table(
     let (machine_base_offset, root_field, suffix_start_index) =
         root_machine_field_layout_from_table_path(
             layouts,
-            receiver_base,
+            input,
+            dispatch_index,
             entry_machine,
             source_machine,
             &path,
@@ -113,7 +123,8 @@ pub(in crate::selection) fn resolve_machine_owned_place_in_table(
 
 pub(in crate::selection) fn resolve_machine_owned_collection_in_table(
     layouts: &LayoutPlan,
-    receiver_base: Option<usize>,
+    input: &crate::InstructionSelectionInput<'_>,
+    dispatch_index: u32,
     entry_machine: SymbolHandle,
     source_machine: SymbolHandle,
     expressions: &ExpressionTable,
@@ -123,7 +134,8 @@ pub(in crate::selection) fn resolve_machine_owned_collection_in_table(
     let (machine_base_offset, root_field, suffix_start_index) =
         root_machine_field_layout_from_table_path(
             layouts,
-            receiver_base,
+            input,
+            dispatch_index,
             entry_machine,
             source_machine,
             &path,
@@ -179,7 +191,8 @@ pub(in crate::selection) fn resolve_machine_owned_collection_in_table(
 
 fn root_machine_field_layout_from_table_path<'path, 'layout>(
     layouts: &'layout LayoutPlan,
-    receiver_base: Option<usize>,
+    input: &crate::InstructionSelectionInput<'_>,
+    dispatch_index: u32,
     entry_machine: SymbolHandle,
     source_machine: SymbolHandle,
     path: &'path StorageNamePath<'_>,
@@ -188,8 +201,13 @@ fn root_machine_field_layout_from_table_path<'path, 'layout>(
 
     if table_path_targets_source_machine(path, source_machine) {
         let field_name = path.member(1)?;
-        let machine_base_offset =
-            resolved_machine_base(receiver_base, layouts, entry_machine, source_machine)?;
+        let machine_base_offset = resolved_machine_base(
+            input,
+            dispatch_index,
+            layouts,
+            entry_machine,
+            source_machine,
+        )?;
         if let Some(machine_layout) = layouts
             .machine_layouts
             .iter()
@@ -207,6 +225,8 @@ fn root_machine_field_layout_from_table_path<'path, 'layout>(
 
         let (machine_base_offset, root_field) = machine_field_layout_by_symbol_or_name(
             layouts,
+            input,
+            dispatch_index,
             entry_machine,
             path.member_symbol(1),
             field_name,
@@ -217,7 +237,8 @@ fn root_machine_field_layout_from_table_path<'path, 'layout>(
     let root_name = path.member(0)?;
     let (machine_base_offset, root_field) = root_machine_field_layout(
         layouts,
-        receiver_base,
+        input,
+        dispatch_index,
         entry_machine,
         source_machine,
         path.head_symbol(),
@@ -228,14 +249,16 @@ fn root_machine_field_layout_from_table_path<'path, 'layout>(
 
 fn root_machine_field_layout_from_path<'path, 'layout>(
     layouts: &'layout LayoutPlan,
-    receiver_base: Option<usize>,
+    input: &crate::InstructionSelectionInput<'_>,
+    dispatch_index: u32,
     entry_machine: SymbolHandle,
     source_machine: SymbolHandle,
     path: &'path NamePath,
 ) -> Option<(usize, &'layout FieldLayout, &'path [Identifier], usize)> {
     root_machine_field_layout_from_parts(
         layouts,
-        receiver_base,
+        input,
+        dispatch_index,
         entry_machine,
         source_machine,
         path.members(),
@@ -246,7 +269,8 @@ fn root_machine_field_layout_from_path<'path, 'layout>(
 
 fn root_machine_field_layout_from_parts<'path, 'layout>(
     layouts: &'layout LayoutPlan,
-    receiver_base: Option<usize>,
+    input: &crate::InstructionSelectionInput<'_>,
+    dispatch_index: u32,
     entry_machine: SymbolHandle,
     source_machine: SymbolHandle,
     members: &'path [Identifier],
@@ -261,8 +285,13 @@ fn root_machine_field_layout_from_parts<'path, 'layout>(
         let [field_name, rest @ ..] = suffix else {
             return None;
         };
-        let machine_base_offset =
-            resolved_machine_base(receiver_base, layouts, entry_machine, source_machine)?;
+        let machine_base_offset = resolved_machine_base(
+            input,
+            dispatch_index,
+            layouts,
+            entry_machine,
+            source_machine,
+        )?;
         if let Some(machine_layout) = layouts
             .machine_layouts
             .iter()
@@ -280,6 +309,8 @@ fn root_machine_field_layout_from_parts<'path, 'layout>(
 
         let (machine_base_offset, root_field) = machine_field_layout_by_symbol_or_name(
             layouts,
+            input,
+            dispatch_index,
             entry_machine,
             self_field_symbol,
             field_name,
@@ -289,7 +320,8 @@ fn root_machine_field_layout_from_parts<'path, 'layout>(
 
     let (machine_base_offset, root_field) = root_machine_field_layout(
         layouts,
-        receiver_base,
+        input,
+        dispatch_index,
         entry_machine,
         source_machine,
         root_symbol,
@@ -316,7 +348,8 @@ fn path_targets_source_machine(
 
 fn root_machine_field_layout<'plan>(
     layouts: &'plan LayoutPlan,
-    receiver_base: Option<usize>,
+    input: &crate::InstructionSelectionInput<'_>,
+    dispatch_index: u32,
     entry_machine: SymbolHandle,
     source_machine: SymbolHandle,
     root_symbol: SymbolHandle,
@@ -324,7 +357,8 @@ fn root_machine_field_layout<'plan>(
 ) -> Option<(usize, &'plan FieldLayout)> {
     root_machine_field_layout_for_machine(
         layouts,
-        receiver_base,
+        input,
+        dispatch_index,
         entry_machine,
         source_machine,
         root_symbol,
@@ -334,7 +368,8 @@ fn root_machine_field_layout<'plan>(
 
 fn root_machine_field_layout_for_machine<'plan>(
     layouts: &'plan LayoutPlan,
-    receiver_base: Option<usize>,
+    input: &crate::InstructionSelectionInput<'_>,
+    dispatch_index: u32,
     entry_machine: SymbolHandle,
     source_machine: SymbolHandle,
     root_symbol: SymbolHandle,
@@ -342,20 +377,29 @@ fn root_machine_field_layout_for_machine<'plan>(
 ) -> Option<(usize, &'plan FieldLayout)> {
     root_machine_field_layout_in_machine(
         layouts,
-        receiver_base,
+        input,
+        dispatch_index,
         entry_machine,
         source_machine,
         root_symbol,
         root_name,
     )
     .or_else(|| {
-        root_machine_field_layout_by_symbol_or_name(layouts, entry_machine, root_symbol, root_name)
+        root_machine_field_layout_by_symbol_or_name(
+            layouts,
+            input,
+            dispatch_index,
+            entry_machine,
+            root_symbol,
+            root_name,
+        )
     })
 }
 
 fn root_machine_field_layout_in_machine<'plan>(
     layouts: &'plan LayoutPlan,
-    receiver_base: Option<usize>,
+    input: &crate::InstructionSelectionInput<'_>,
+    dispatch_index: u32,
     entry_machine: SymbolHandle,
     source_machine: SymbolHandle,
     root_symbol: SymbolHandle,
@@ -368,13 +412,20 @@ fn root_machine_field_layout_in_machine<'plan>(
         .map(|(_, machine_layout)| machine_layout)?;
     let root_field =
         field_layout_by_symbol_or_name(layouts, machine_layout.fields, root_symbol, root_name)?;
-    let machine_base_offset =
-        resolved_machine_base(receiver_base, layouts, entry_machine, source_machine)?;
+    let machine_base_offset = resolved_machine_base(
+        input,
+        dispatch_index,
+        layouts,
+        entry_machine,
+        source_machine,
+    )?;
     Some((machine_base_offset, root_field))
 }
 
 fn root_machine_field_layout_by_symbol_or_name<'plan>(
     layouts: &'plan LayoutPlan,
+    input: &crate::InstructionSelectionInput<'_>,
+    dispatch_index: u32,
     entry_machine: SymbolHandle,
     root_symbol: SymbolHandle,
     root_name: &Identifier,
@@ -389,14 +440,21 @@ fn root_machine_field_layout_by_symbol_or_name<'plan>(
                 root_symbol,
                 root_name,
             )?;
-            let machine_base_offset =
-                machine_storage_offset(layouts, entry_machine, machine_layout.symbol)?;
+            let machine_base_offset = resolved_machine_base(
+                input,
+                dispatch_index,
+                layouts,
+                entry_machine,
+                machine_layout.symbol,
+            )?;
             Some((machine_base_offset, root_field))
         })
 }
 
 fn machine_field_layout_by_symbol_or_name<'plan>(
     layouts: &'plan LayoutPlan,
+    input: &crate::InstructionSelectionInput<'_>,
+    dispatch_index: u32,
     entry_machine: SymbolHandle,
     field_symbol: SymbolHandle,
     field_name: &Identifier,
@@ -411,8 +469,13 @@ fn machine_field_layout_by_symbol_or_name<'plan>(
                     .span(machine_layout.fields)?
                     .iter()
                     .find(|field| field.symbol == field_symbol)?;
-                let machine_base_offset =
-                    machine_storage_offset(layouts, entry_machine, machine_layout.symbol)?;
+                let machine_base_offset = resolved_machine_base(
+                    input,
+                    dispatch_index,
+                    layouts,
+                    entry_machine,
+                    machine_layout.symbol,
+                )?;
                 Some((machine_base_offset, root_field))
             })
     {
@@ -428,8 +491,13 @@ fn machine_field_layout_by_symbol_or_name<'plan>(
                 .span(machine_layout.fields)?
                 .iter()
                 .find(|field| field.name == *field_name)?;
-            let machine_base_offset =
-                machine_storage_offset(layouts, entry_machine, machine_layout.symbol)?;
+            let machine_base_offset = resolved_machine_base(
+                input,
+                dispatch_index,
+                layouts,
+                entry_machine,
+                machine_layout.symbol,
+            )?;
             Some((machine_base_offset, root_field))
         })
 }
@@ -452,13 +520,18 @@ fn field_layout_by_symbol_or_name<'plan>(
 /// work #2"), else the historical first-type-match walk. The entry machine
 /// itself never carries an override (its base is 0 either way).
 fn resolved_machine_base(
-    receiver_base: Option<usize>,
+    input: &crate::InstructionSelectionInput<'_>,
+    dispatch_index: u32,
     layouts: &LayoutPlan,
     entry_machine: SymbolHandle,
     source_machine: SymbolHandle,
 ) -> Option<usize> {
     if entry_machine != source_machine
-        && let Some(base) = receiver_base
+        && let Some(base) = crate::selection::receiver_base::receiver_base_for(
+            input,
+            dispatch_index,
+            source_machine,
+        )
     {
         return Some(base);
     }
