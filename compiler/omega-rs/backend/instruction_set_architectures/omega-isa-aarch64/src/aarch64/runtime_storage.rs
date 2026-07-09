@@ -2161,6 +2161,134 @@ fn append_runtime_frame_fixed_index_target_address(
     Ok(())
 }
 
+/// Fixed-shape element-address recipe for the dual/double-indexed encoders:
+/// unlike `append_runtime_machine_index_target_address` (whose adds/loads are
+/// value-dependent in width), every element here is a fixed 4-byte instruction,
+/// so the positions of the relocated `adrp` pairs are REGION-DEPENDENT
+/// CONSTANTS -- which is what the relocation-offset helpers (which only see the
+/// regions, never the offsets) require. Shape:
+///
+///   mov  x20, <base>                      (4)  index base default
+///   [frame index: adrp/add x20]           (8)  frame base (RELOCATED)
+///   ldr  w17, [x20, #index_offset]        (4)  zero-extended 32-bit index
+///   movz x26, #element_byte_size          (4)
+///   mul  x26, x17, x26                    (4)
+///   add  <base>, <base>, x26              (4)
+///   add  <base>, <base>, #(array + field) (4)  unconditional (#0 is valid)
+///
+/// The index offset must fit the LDR scaled immediate and the combined
+/// array+field offset must fit the ADD immediate; both fail LOUDLY otherwise.
+fn append_fixed_shape_index_element_address(
+    bytes: &mut Vec<u8>,
+    base_register: u8,
+    index_region: omega_target_operations::RuntimeStorageRegion,
+    index_offset: usize,
+    element_byte_size: usize,
+    combined_byte_offset: usize,
+) -> Result<(), Diagnostic> {
+    if element_byte_size > 0xffff {
+        return Err(Diagnostic::error(format!(
+            "AArch64 MVP encoder cannot scale a runtime index by element size \
+             `{element_byte_size}` yet"
+        )));
+    }
+    bytes.extend(encode_move_x_register(20, base_register));
+    if index_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame {
+        bytes.extend(encode_adrp_placeholder(20));
+        bytes.extend(encode_add_page_offset_placeholder(20));
+    }
+    bytes.extend(encode_load_w_from_x(17, 20, index_offset, 4)?);
+    bytes.extend(encode_movz(26, element_byte_size as u16));
+    bytes.extend(encode_mul_x_register(26, 17, 26));
+    bytes.extend(encode_add_x_register(
+        base_register,
+        base_register,
+        26,
+    ));
+    bytes.extend(encode_add_x_immediate(
+        base_register,
+        base_register,
+        combined_byte_offset,
+    )?);
+    Ok(())
+}
+
+/// Copy `machine[j] -> machine[i]` where BOTH indices are runtime values
+/// (`arr[i] = arr[j]`): compute the source element address (fixed shape,
+/// stashed in x24), compute the target element address (a second relocated
+/// machine base), then chunk-copy through x17. Historically this op was
+/// silently DROPPED on aarch64 (the zero-width emission hole); the layout
+/// guard now makes any regression loud.
+#[allow(clippy::too_many_arguments)]
+pub fn encode_runtime_storage_copy_machine_indexed_to_machine_indexed(
+    source_base_byte_offset: usize,
+    source_index_offset: usize,
+    source_index_region: omega_target_operations::RuntimeStorageRegion,
+    source_element_byte_size: usize,
+    source_field_byte_offset: usize,
+    target_base_byte_offset: usize,
+    target_index_offset: usize,
+    target_index_region: omega_target_operations::RuntimeStorageRegion,
+    target_element_byte_size: usize,
+    target_field_byte_offset: usize,
+    byte_count: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::with_capacity(
+        super::widths::runtime_storage_copy_machine_indexed_to_machine_indexed_width(
+            source_index_region,
+            target_index_region,
+            byte_count,
+        ),
+    );
+    // Source element address -> x16 -> stash x24.
+    bytes.extend(encode_adrp_placeholder(16));
+    bytes.extend(encode_add_page_offset_placeholder(16));
+    append_fixed_shape_index_element_address(
+        &mut bytes,
+        16,
+        source_index_region,
+        source_index_offset,
+        source_element_byte_size,
+        source_base_byte_offset + source_field_byte_offset,
+    )?;
+    bytes.extend(encode_move_x_register(24, 16));
+    // Target element address -> x16 (the second relocated machine base sits at
+    // `..second_base_offset`, a region-dependent constant).
+    bytes.extend(encode_adrp_placeholder(16));
+    bytes.extend(encode_add_page_offset_placeholder(16));
+    append_fixed_shape_index_element_address(
+        &mut bytes,
+        16,
+        target_index_region,
+        target_index_offset,
+        target_element_byte_size,
+        target_base_byte_offset + target_field_byte_offset,
+    )?;
+    // Chunk-copy source (x24) -> target (x16) through x17.
+    for_each_runtime_copy_chunk(0, 0, byte_count, |offset, chunk_size| {
+        match chunk_size {
+            8 => {
+                bytes.extend(encode_load_x_from_x(17, 24, offset)?);
+                bytes.extend(encode_store_x_to_x(17, 16, offset)?);
+            }
+            _ => {
+                bytes.extend(encode_load_w_from_x(17, 24, offset, chunk_size)?);
+                bytes.extend(encode_store_w_to_x(17, 16, offset, chunk_size)?);
+            }
+        }
+        Ok(())
+    })?;
+    debug_assert_eq!(
+        bytes.len(),
+        super::widths::runtime_storage_copy_machine_indexed_to_machine_indexed_width(
+            source_index_region,
+            target_index_region,
+            byte_count,
+        )
+    );
+    Ok(bytes)
+}
+
 fn append_runtime_machine_index_target_address(
     bytes: &mut Vec<u8>,
     base_byte_offset: usize,

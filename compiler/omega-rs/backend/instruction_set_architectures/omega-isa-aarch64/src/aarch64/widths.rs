@@ -828,6 +828,71 @@ pub fn entry_argument_register_write_width() -> usize {
     12
 }
 
+/// Fixed-shape indexed-element address width (see
+/// `append_fixed_shape_index_element_address`): mov + [frame adrp pair] +
+/// index ldr + movz + mul + add-register + add-immediate.
+fn fixed_shape_index_element_address_width(
+    index_region: omega_target_operations::RuntimeStorageRegion,
+) -> usize {
+    24 + if index_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame {
+        8
+    } else {
+        0
+    }
+}
+
+/// Chunk pairs the dual-indexed copy emits (one load + one store each),
+/// mirroring `for_each_runtime_copy_chunk`'s split rule from offset 0.
+fn runtime_copy_chunk_pair_count(byte_count: usize) -> usize {
+    let eights = byte_count / 8;
+    let remainder = byte_count % 8;
+    eights
+        + usize::from(remainder >= 4)
+        + usize::from(remainder % 4 >= 2)
+        + usize::from(remainder % 2 == 1)
+}
+
+/// Width of the dual runtime-indexed copy `arr[i] = arr[j]`: two relocated
+/// machine-base pairs, two fixed-shape element addresses, the x24 stash, and
+/// one load/store pair per copy chunk.
+pub fn runtime_storage_copy_machine_indexed_to_machine_indexed_width(
+    source_index_region: omega_target_operations::RuntimeStorageRegion,
+    target_index_region: omega_target_operations::RuntimeStorageRegion,
+    byte_count: usize,
+) -> usize {
+    8 + fixed_shape_index_element_address_width(source_index_region)
+        + 4
+        + 8
+        + fixed_shape_index_element_address_width(target_index_region)
+        + 8 * runtime_copy_chunk_pair_count(byte_count)
+}
+
+/// Offset of the SECOND relocated machine-base `adrp` inside the dual-indexed
+/// copy (the target half): the first base pair (8) + the source element
+/// address + the x24 stash (4).
+pub fn runtime_storage_copy_machine_indexed_to_machine_indexed_second_base_offset(
+    source_index_region: omega_target_operations::RuntimeStorageRegion,
+) -> usize {
+    8 + fixed_shape_index_element_address_width(source_index_region) + 4
+}
+
+/// Offset of a FRAME-resident index's relocated `adrp` pair inside the
+/// dual-indexed copy: each side's pair sits after its machine-base pair plus
+/// the leading `mov x20`.
+pub fn runtime_storage_copy_machine_indexed_frame_index_offset(
+    source_index_region: omega_target_operations::RuntimeStorageRegion,
+    is_target_side: bool,
+) -> usize {
+    if is_target_side {
+        runtime_storage_copy_machine_indexed_to_machine_indexed_second_base_offset(
+            source_index_region,
+        ) + 8
+            + 4
+    } else {
+        8 + 4
+    }
+}
+
 pub fn runtime_text_line_read_import_width(_byte_capacity: usize, target_offset: usize) -> usize {
     116 + line_read_descriptor_store_extra(target_offset)
 }
