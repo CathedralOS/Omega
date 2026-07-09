@@ -18,8 +18,11 @@
 //! Portable by construction: real files ride `std::fs::File` behind the same
 //! synthetic-fd table shape the virtual fs uses (no libc, no raw handles), so
 //! the provider works wherever the compiler runs. The op-name set mirrors the
-//! virtual dispatcher one-for-one; ops outside the core subset report
-//! ENOTSUP and -1 (loud, never silently wrong) until a later slice.
+//! virtual dispatcher one-for-one. FULL OP PARITY as of 2026-07-10m: every
+//! op the virtual fs serves, the real provider serves too (unix-gated where
+//! std requires it: symlink/permissions/chown; ENOTSUP on other hosts) --
+//! so a build program tested hermetically cannot hit a refusal surprise in
+//! real mode on the same host family.
 
 use super::{EvalResult, ExpressionHandle, Frame, Value, host_open_flags};
 use std::collections::BTreeMap;
@@ -191,6 +194,20 @@ fn positioned_write(file: &mut std::fs::File, offset: i64, bytes: &[u8]) -> std:
     outcome
 }
 
+/// Parent-canonical resolution: ALWAYS canonicalize the parent and re-attach
+/// the leaf, never the full path -- the no-follow variant's resolver (the
+/// leaf may be a symlink the op must inspect, not traverse).
+fn resolve_parent_for_check(path: &Path) -> Option<PathBuf> {
+    let parent = path.parent()?;
+    let name = path.file_name()?;
+    let parent = if parent.as_os_str().is_empty() {
+        Path::new(".").canonicalize().ok()?
+    } else {
+        parent.canonicalize().ok()?
+    };
+    Some(parent.join(name))
+}
+
 /// Resolve a path to its REAL location for the grant check: canonicalize the
 /// path itself when it exists, else canonicalize its parent and re-attach the
 /// leaf (the create/new-file case). `None` when even the parent does not
@@ -257,23 +274,7 @@ impl<'program> super::Evaluator<'program> {
                     || host_open_flags::o_append(flags);
                 match self.authorized_path(&path, wants_write) {
                     Some(path) => {
-                        let mut options = std::fs::OpenOptions::new();
-                        options
-                            .read(access == 0 || access == 2)
-                            .write(access == 1 || access == 2)
-                            .append(host_open_flags::o_append(flags))
-                            .truncate(host_open_flags::o_trunc(flags))
-                            .create(host_open_flags::o_creat(flags));
-                        if host_open_flags::o_creat(flags) && host_open_flags::o_excl(flags) {
-                            options.create_new(true);
-                        }
-                        #[cfg(unix)]
-                        if host_open_flags::o_creat(flags) && method == "open_create" {
-                            use std::os::unix::fs::OpenOptionsExt;
-                            options.mode(mode & 0o7777);
-                        }
-                        #[cfg(not(unix))]
-                        let _ = mode; // windows: creation mode has no direct analogue
+                        let options = open_options_for(flags, mode, method == "open_create");
                         self.real_result_fd(options.open(&path), path)
                     }
                     None => -1,
@@ -542,7 +543,12 @@ impl<'program> super::Evaluator<'program> {
             }
             "read_metadata" | "read_symlink_metadata" => {
                 let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
-                let looked_up = match self.authorized_path(&path, false) {
+                let authorized = if method == "read_symlink_metadata" {
+                    self.authorized_path_no_follow(&path, false)
+                } else {
+                    self.authorized_path(&path, false)
+                };
+                let looked_up = match authorized {
                     Some(path) => {
                         if method == "read_metadata" {
                             std::fs::metadata(path)
@@ -583,25 +589,315 @@ impl<'program> super::Evaluator<'program> {
                 }
             }
             "errno" => i64::from(self.real_fs_mut().errno),
-            // NEXT-SLICE ops (the *at family, locks, ownership, permissions,
-            // times, links, canonicalize): loud not-supported, never silently
-            // wrong. Listed by name so the fall-through `_` stays "not a
-            // filesystem op".
-            "open_at"
-            | "unlink_at"
-            | "lock_file"
-            | "set_file_permissions"
-            | "set_permissions"
-            | "set_file_times"
-            | "change_owner"
-            | "change_owner_no_follow"
-            | "change_file_owner"
-            | "hard_link"
-            | "symlink"
-            | "read_link"
-            | "canonicalize" => {
-                self.real_fs_mut().errno = ENOTSUP;
-                -1
+            "canonicalize" => {
+                // `realpath(path, buf)`: NUL-terminated resolved path into the
+                // buffer; non-zero success flag, 0 (NULL) + errno on failure --
+                // the virtual contract's shape.
+                let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
+                match self.authorized_path(&path, false) {
+                    Some(path) => match std::fs::canonicalize(&path) {
+                        Ok(resolved) => {
+                            let mut bytes = resolved.to_string_lossy().into_owned().into_bytes();
+                            bytes.push(0);
+                            self.write_fs_buffer(arguments.get(1).copied(), frame, &bytes);
+                            1
+                        }
+                        Err(error) => {
+                            self.real_fs_mut().errno = io_errno(&error);
+                            0
+                        }
+                    },
+                    None => 0,
+                }
+            }
+            "hard_link" => {
+                // `link(original, link)`: real inodes, unlike the virtual
+                // byte-copy approximation. Read authority on the original,
+                // write authority on the new name.
+                let original = self.eval_fs_bytes(arguments.first().copied(), frame)?;
+                let link = self.eval_fs_bytes(arguments.get(1).copied(), frame)?;
+                match (
+                    self.authorized_path(&original, false),
+                    self.authorized_path(&link, true),
+                ) {
+                    (Some(original), Some(link)) => {
+                        self.real_result_unit(std::fs::hard_link(original, link))
+                    }
+                    _ => -1,
+                }
+            }
+            "symlink" => {
+                // `symlink(target, linkpath)`: the TARGET is stored verbatim
+                // (never dereferenced here), so only the link path needs write
+                // authority. Unix-only in std; elsewhere ENOTSUP.
+                let target = self.eval_fs_bytes(arguments.first().copied(), frame)?;
+                let link = self.eval_fs_bytes(arguments.get(1).copied(), frame)?;
+                match self.authorized_path(&link, true) {
+                    Some(link) => {
+                        #[cfg(unix)]
+                        {
+                            self.real_result_unit(std::os::unix::fs::symlink(
+                                real_path(&target),
+                                link,
+                            ))
+                        }
+                        #[cfg(not(unix))]
+                        {
+                            let _ = (target, link);
+                            self.real_fs_mut().errno = ENOTSUP;
+                            -1
+                        }
+                    }
+                    None => -1,
+                }
+            }
+            "read_link" => {
+                // `readlink(path, buf, count)`: target bytes into the buffer,
+                // returns the count written.
+                let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
+                let count = self.eval_fs_scalar(arguments.get(2).copied(), frame)? as usize;
+                match self.authorized_path_no_follow(&path, false) {
+                    Some(path) => match std::fs::read_link(&path) {
+                        Ok(target) => {
+                            let bytes = target.to_string_lossy().into_owned().into_bytes();
+                            let n = bytes.len().min(count);
+                            self.write_fs_buffer(arguments.get(1).copied(), frame, &bytes[..n]);
+                            n as i64
+                        }
+                        Err(error) => {
+                            self.real_fs_mut().errno = io_errno(&error);
+                            -1
+                        }
+                    },
+                    None => -1,
+                }
+            }
+            "set_permissions" => {
+                // `chmod(path, mode)`: metadata mutation = write authority.
+                let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
+                let mode = self.eval_fs_scalar(arguments.get(1).copied(), frame)? as u32;
+                match self.authorized_path(&path, true) {
+                    Some(path) => {
+                        #[cfg(unix)]
+                        {
+                            use std::os::unix::fs::PermissionsExt;
+                            self.real_result_unit(std::fs::set_permissions(
+                                path,
+                                std::fs::Permissions::from_mode(mode & 0o7777),
+                            ))
+                        }
+                        #[cfg(not(unix))]
+                        {
+                            let _ = (path, mode);
+                            self.real_fs_mut().errno = ENOTSUP;
+                            -1
+                        }
+                    }
+                    None => -1,
+                }
+            }
+            "set_file_permissions" => {
+                // `fchmod(fd, mode)`: by descriptor; no re-authorization (the
+                // fd entered through an authorized open).
+                let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
+                let mode = self.eval_fs_scalar(arguments.get(1).copied(), frame)? as u32;
+                let real = self.real_fs_mut();
+                match real.files.get_mut(&fd) {
+                    Some(entry) => {
+                        #[cfg(unix)]
+                        {
+                            use std::os::unix::fs::PermissionsExt;
+                            match entry
+                                .file
+                                .set_permissions(std::fs::Permissions::from_mode(mode & 0o7777))
+                            {
+                                Ok(()) => 0,
+                                Err(error) => {
+                                    real.errno = io_errno(&error);
+                                    -1
+                                }
+                            }
+                        }
+                        #[cfg(not(unix))]
+                        {
+                            let _ = (entry, mode);
+                            real.errno = ENOTSUP;
+                            -1
+                        }
+                    }
+                    None => {
+                        real.errno = EBADF;
+                        -1
+                    }
+                }
+            }
+            "set_file_times" => {
+                // `futimens(fd, times)`: two packed timespecs (atime, mtime);
+                // the model (virtual and real alike) applies the MODIFIED time
+                // -- times[1].tv_sec at byte offset 16.
+                let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
+                let times = self.eval_fs_bytes(arguments.get(1).copied(), frame)?;
+                let mtime_secs = times
+                    .get(16..24)
+                    .map(|bytes| i64::from_le_bytes(bytes.try_into().unwrap()))
+                    .unwrap_or(0);
+                let real = self.real_fs_mut();
+                match real.files.get_mut(&fd) {
+                    Some(entry) => {
+                        let stamp = if mtime_secs >= 0 {
+                            std::time::UNIX_EPOCH
+                                + std::time::Duration::from_secs(mtime_secs as u64)
+                        } else {
+                            std::time::UNIX_EPOCH
+                        };
+                        match entry.file.set_modified(stamp) {
+                            Ok(()) => 0,
+                            Err(error) => {
+                                real.errno = io_errno(&error);
+                                -1
+                            }
+                        }
+                    }
+                    None => {
+                        real.errno = EBADF;
+                        -1
+                    }
+                }
+            }
+            "lock_file" => {
+                // `flock(fd, op)`: LOCK_SH=1 LOCK_EX=2 LOCK_NB=4 LOCK_UN=8,
+                // served by std's advisory file locks on the real handle.
+                let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
+                let operation = self.eval_fs_scalar(arguments.get(1).copied(), frame)? as i32;
+                let real = self.real_fs_mut();
+                match real.files.get(&fd) {
+                    Some(entry) => real_lock(&entry.file, operation, &mut real.errno),
+                    None => {
+                        real.errno = EBADF;
+                        -1
+                    }
+                }
+            }
+            "change_owner" | "change_owner_no_follow" => {
+                // `chown`/`lchown(path, uid, gid)`: -1 leaves the component
+                // alone (None). Metadata mutation = write authority.
+                let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
+                let uid = self.eval_fs_scalar(arguments.get(1).copied(), frame)? as i32;
+                let gid = self.eval_fs_scalar(arguments.get(2).copied(), frame)? as i32;
+                let authorized = if method == "change_owner_no_follow" {
+                    self.authorized_path_no_follow(&path, true)
+                } else {
+                    self.authorized_path(&path, true)
+                };
+                match authorized {
+                    Some(path) => {
+                        #[cfg(unix)]
+                        {
+                            let owner = (uid >= 0).then_some(uid as u32);
+                            let group = (gid >= 0).then_some(gid as u32);
+                            let outcome = if method == "change_owner_no_follow" {
+                                std::os::unix::fs::lchown(path, owner, group)
+                            } else {
+                                std::os::unix::fs::chown(path, owner, group)
+                            };
+                            self.real_result_unit(outcome)
+                        }
+                        #[cfg(not(unix))]
+                        {
+                            let _ = (path, uid, gid);
+                            self.real_fs_mut().errno = ENOTSUP;
+                            -1
+                        }
+                    }
+                    None => -1,
+                }
+            }
+            "change_file_owner" => {
+                // `fchown(fd, uid, gid)`: by descriptor.
+                let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
+                let uid = self.eval_fs_scalar(arguments.get(1).copied(), frame)? as i32;
+                let gid = self.eval_fs_scalar(arguments.get(2).copied(), frame)? as i32;
+                let real = self.real_fs_mut();
+                match real.files.get(&fd) {
+                    Some(entry) => {
+                        #[cfg(unix)]
+                        {
+                            let owner = (uid >= 0).then_some(uid as u32);
+                            let group = (gid >= 0).then_some(gid as u32);
+                            match std::os::unix::fs::fchown(&entry.file, owner, group) {
+                                Ok(()) => 0,
+                                Err(error) => {
+                                    real.errno = io_errno(&error);
+                                    -1
+                                }
+                            }
+                        }
+                        #[cfg(not(unix))]
+                        {
+                            let _ = (entry, uid, gid);
+                            real.errno = ENOTSUP;
+                            -1
+                        }
+                    }
+                    None => {
+                        real.errno = EBADF;
+                        -1
+                    }
+                }
+            }
+            "unlink_at" => {
+                // `unlinkat(dirfd, name, flags)`: resolve against the dirfd's
+                // OPENED path (the same trick read_dir rides -- std has no fd
+                // relative ops); flags & AT_REMOVEDIR(0x80) removes a dir.
+                let dirfd = self.eval_fs_fd(arguments.first().copied(), frame)?;
+                let name = self.eval_fs_bytes(arguments.get(1).copied(), frame)?;
+                let flags = self.eval_fs_scalar(arguments.get(2).copied(), frame)? as i32;
+                let joined = match self.real_fs_mut().files.get(&dirfd) {
+                    Some(entry) => entry.path.join(real_path(&name)),
+                    None => {
+                        self.real_fs_mut().errno = EBADF;
+                        return Ok(Some(Value::Int(-1)));
+                    }
+                };
+                let joined_bytes = joined.to_string_lossy().into_owned().into_bytes();
+                match self.authorized_path(&joined_bytes, true) {
+                    Some(path) => {
+                        if flags & 0x80 != 0 {
+                            self.real_result_unit(std::fs::remove_dir(path))
+                        } else {
+                            self.real_result_unit(std::fs::remove_file(path))
+                        }
+                    }
+                    None => -1,
+                }
+            }
+            "open_at" => {
+                // `openat(dirfd, name, flags)`: join against the dirfd's opened
+                // path, then the ordinary open (same flag decode + grants).
+                let dirfd = self.eval_fs_fd(arguments.first().copied(), frame)?;
+                let name = self.eval_fs_bytes(arguments.get(1).copied(), frame)?;
+                let flags = self.eval_fs_scalar(arguments.get(2).copied(), frame)? as i32;
+                let joined = match self.real_fs_mut().files.get(&dirfd) {
+                    Some(entry) => entry.path.join(real_path(&name)),
+                    None => {
+                        self.real_fs_mut().errno = EBADF;
+                        return Ok(Some(Value::Int(-1)));
+                    }
+                };
+                let joined_bytes = joined.to_string_lossy().into_owned().into_bytes();
+                let access = flags & 0x3;
+                let wants_write = access == 1
+                    || access == 2
+                    || host_open_flags::o_creat(flags)
+                    || host_open_flags::o_trunc(flags)
+                    || host_open_flags::o_append(flags);
+                match self.authorized_path(&joined_bytes, wants_write) {
+                    Some(path) => {
+                        let options = open_options_for(flags, 0, false);
+                        self.real_result_fd(options.open(&path), path)
+                    }
+                    None => -1,
+                }
             }
             _ => return Ok(None),
         };
@@ -618,12 +914,37 @@ impl<'program> super::Evaluator<'program> {
     /// `None` means REFUSED with errno already set: EACCES outside the
     /// granted roots, ENOENT when the path's parent does not even resolve.
     fn authorized_path(&mut self, path_bytes: &[u8], write: bool) -> Option<PathBuf> {
+        self.authorized_path_with_follow(path_bytes, write, true)
+    }
+
+    /// The NO-FOLLOW variant for symlink-INSPECTING ops (read_link,
+    /// read_symlink_metadata, lchown): full canonicalization would resolve
+    /// the final symlink and the op would run on its TARGET (read_link on
+    /// the target is EINVAL; lstat would report the wrong file -- probed
+    /// 2026-07-10m). Resolution goes parent-canonical + reattached leaf, so
+    /// the grant check still compares real locations while the leaf link
+    /// itself stays the operand.
+    fn authorized_path_no_follow(&mut self, path_bytes: &[u8], write: bool) -> Option<PathBuf> {
+        self.authorized_path_with_follow(path_bytes, write, false)
+    }
+
+    fn authorized_path_with_follow(
+        &mut self,
+        path_bytes: &[u8],
+        write: bool,
+        follow: bool,
+    ) -> Option<PathBuf> {
         let path = real_path(path_bytes);
         let real = self.real_fs_mut();
         let Some(grants) = &real.grants else {
             return Some(path); // unscoped: full process authority
         };
-        let Some(resolved) = resolve_for_check(&path) else {
+        let resolved = if follow {
+            resolve_for_check(&path)
+        } else {
+            resolve_parent_for_check(&path)
+        };
+        let Some(resolved) = resolved else {
             real.errno = ENOENT;
             return None;
         };
@@ -694,5 +1015,75 @@ impl<'program> super::Evaluator<'program> {
             .map(|duration| duration.as_secs() as i64)
             .unwrap_or(0);
         self.write_fs_stat(argument, frame, mode, size, mtime_secs);
+    }
+}
+
+/// The shared OpenOptions decode for `open`/`open_create`/`open_at`: access
+/// mode from the low bits, flag bits via the host mirror, and (unix,
+/// open_create only) the creation mode.
+fn open_options_for(flags: i32, mode: u32, apply_creation_mode: bool) -> std::fs::OpenOptions {
+    let access = flags & 0x3;
+    let mut options = std::fs::OpenOptions::new();
+    options
+        .read(access == 0 || access == 2)
+        .write(access == 1 || access == 2)
+        .append(host_open_flags::o_append(flags))
+        .truncate(host_open_flags::o_trunc(flags))
+        .create(host_open_flags::o_creat(flags));
+    if host_open_flags::o_creat(flags) && host_open_flags::o_excl(flags) {
+        options.create_new(true);
+    }
+    #[cfg(unix)]
+    if host_open_flags::o_creat(flags) && apply_creation_mode {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(mode & 0o7777);
+    }
+    #[cfg(not(unix))]
+    let _ = (mode, apply_creation_mode);
+    options
+}
+
+/// `flock(fd, op)` against std's advisory file locks. LOCK_SH=1 LOCK_EX=2
+/// LOCK_NB=4 LOCK_UN=8; a non-blocking miss is EWOULDBLOCK(35), matching the
+/// virtual model.
+fn real_lock(file: &std::fs::File, operation: i32, errno: &mut i32) -> i64 {
+    const EWOULDBLOCK: i32 = 35;
+    let non_blocking = operation & 4 != 0;
+    let outcome = if operation & 8 != 0 {
+        file.unlock()
+    } else if operation & 2 != 0 {
+        if non_blocking {
+            match file.try_lock() {
+                Ok(()) => Ok(()),
+                Err(_) => {
+                    *errno = EWOULDBLOCK;
+                    return -1;
+                }
+            }
+        } else {
+            file.lock()
+        }
+    } else if operation & 1 != 0 {
+        if non_blocking {
+            match file.try_lock_shared() {
+                Ok(()) => Ok(()),
+                Err(_) => {
+                    *errno = EWOULDBLOCK;
+                    return -1;
+                }
+            }
+        } else {
+            file.lock_shared()
+        }
+    } else {
+        *errno = 22; // EINVAL: no operation bit
+        return -1;
+    };
+    match outcome {
+        Ok(()) => 0,
+        Err(error) => {
+            *errno = io_errno(&error);
+            -1
+        }
     }
 }
