@@ -192,6 +192,13 @@ pub(crate) fn validate_type_reference_handle(
     diagnostics: &mut Vec<Diagnostic>,
     owner: TypeReferenceOwner<'_>,
 ) {
+    // Q9 ruling: see the twin call in the with_type_parameters entry.
+    crate::arithmetic_domains::check_range_under_non_exact_domain(
+        program,
+        type_reference,
+        owner,
+        diagnostics,
+    );
     validate_type_reference_handle_with_context(
         program,
         type_reference,
@@ -211,6 +218,15 @@ pub(crate) fn validate_type_reference_handle_with_type_parameters(
     owner: TypeReferenceOwner<'_>,
     type_parameters: &[TypeParameter],
 ) {
+    // Q9 ruling: a range constraint under a non-Exact domain is ill-formed
+    // (checked once per declared handle; the accessors walk nested
+    // Reference/Constrained spellings transitively).
+    crate::arithmetic_domains::check_range_under_non_exact_domain(
+        program,
+        type_reference,
+        owner,
+        diagnostics,
+    );
     validate_type_reference_handle_with_context(
         program,
         type_reference,
@@ -259,6 +275,13 @@ fn validate_type_reference_handle_with_context(
             validate_type_constraints_node(program, *base_type, *constraints, diagnostics, owner);
         }
         TypeReferenceNode::FixedArray { element_type, .. } => {
+            // Element spelling of the Q9 rule (`[u8 [0..=9] in Wrapping; 3]`).
+            crate::arithmetic_domains::check_range_under_non_exact_domain(
+                program,
+                *element_type,
+                owner,
+                diagnostics,
+            );
             validate_type_reference_handle_with_context(
                 program,
                 *element_type,

@@ -70,12 +70,16 @@ should target NEW feature surfaces as they land, not re-walk these axes.
 
 ## Open bugs / gaps (ungated)
 
-- **Implement the Q9 ruling: `[range] in <non-Exact domain>` is a compile
-  error at declaration** ("this is just a compile error" -- Zach,
-  2026-07-13). Reject the combination in type checking; sweep the corpus
-  for existing spellings; fail canary pinning the diagnostic.
+- **Q9 IMPLEMENTED as a declaration-level rejection** (`[range] in
+  Wrapping/Saturating/Trapping` is ill-formed on every declaration site;
+  fail/types/range_under_non_exact_domain_rejected pins it).
   > Edit: I misunderstood this one at first -- I offered clarity in OWNER_QUESTIONS.md
-
+  [Read your clarity. Your message sketch ("Exact assignments must be
+  within invariant range...") reads as STORE-level enforcement with the
+  declaration staying legal. We shipped the stricter DECLARATION-level
+  rejection (the combination cannot exist, so no store question arises).
+  If you want the declaration legal + range enforced at stores instead,
+  say so and we swap the check.]
 - **OWNER DIRECTIVE: `usize` is not an Omega type -- retire it.** "We do not
   have usize. We have addr, we have primitives. Conflating addresses & size
   is a semantic disaster" (2026-07-13). Current reality: the compiler

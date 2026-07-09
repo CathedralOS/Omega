@@ -28146,6 +28146,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "layouts/plan_laid_dynamic_plan",
     "layouts/plan_laid_policy_without_plan_machine",
     "control_flow/if_statement_retired",
+    "types/range_under_non_exact_domain_rejected",
     "control_flow/transition_fall_through_bool",
     "control_flow/transition_fall_through_value_match",
     "calls/abs_call_argument_rejected",

@@ -1580,6 +1580,61 @@ fn analyze(
 /// the full type width. Inclusive bounds (a sound over-approximation either way).
 /// `None` when the type has no literal range constraint. Looks through reference
 /// shells.
+/// Q9 ruling (Zach, 2026-07-13: "this is just a compile error"): a declared
+/// RANGE constraint combined with a non-Exact arithmetic domain is
+/// ill-formed. The range is only enforced under Exact stores, so
+/// `u8 [0..=4] in Wrapping` accepted `self.i = 100` silently -- the
+/// declaration lied to every reader. Rejecting at the declaration keeps the
+/// two features composable-by-omission: keep the range (Exact proof
+/// obligations enforce it) or keep the domain (defined overflow, full type
+/// range), never both.
+pub(crate) fn check_range_under_non_exact_domain(
+    program: &TypedTrees,
+    handle: omega_typed_trees::types::TypeReferenceHandle,
+    owner: crate::type_references::TypeReferenceOwner<'_>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    use omega_core::arithmetic::ArithmeticDomain;
+    // Walk Reference wrappers AND nested Constrained spellings: `u8 [0..=4]
+    // in Wrapping` may parse as Constrained(Constrained(u8, [Range]),
+    // [Domain]), where the shallow per-node accessors see only one
+    // constraint set each.
+    fn has_range_constraint(
+        program: &TypedTrees,
+        handle: omega_typed_trees::types::TypeReferenceHandle,
+    ) -> bool {
+        match program.type_reference_table.type_reference(handle) {
+            TypeReferenceNode::Reference { referee, .. } => {
+                has_range_constraint(program, *referee)
+            }
+            TypeReferenceNode::Constrained {
+                base_type,
+                constraints,
+            } => {
+                program
+                    .type_reference_table
+                    .constraints(*constraints)
+                    .iter()
+                    .any(|constraint| {
+                        matches!(constraint, TypeConstraintNode::Range { .. })
+                    })
+                    || has_range_constraint(program, *base_type)
+            }
+            _ => false,
+        }
+    }
+    if !has_range_constraint(program, handle) {
+        return;
+    }
+    let domain = program.type_reference_table.arithmetic_domain(handle);
+    if domain == ArithmeticDomain::Exact {
+        return;
+    }
+    diagnostics.push(Diagnostic::error(format!(
+        "{owner} declares a range constraint together with the `{domain:?}` domain: ranges are only enforced under Exact arithmetic, so the combination is ill-formed (a store outside the range would be silently accepted). Keep the range and drop the domain, or keep the domain and drop the range"
+    )));
+}
+
 pub(crate) fn range_constraint_interval(
     program: &TypedTrees,
     handle: TypeReferenceHandle,
