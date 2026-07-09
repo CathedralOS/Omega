@@ -134,6 +134,41 @@ pub fn interpret(checked: &CheckedTrees, stdin: &[u8]) -> InterpretOutcome {
     evaluator::run(&checked.typed, stdin)
 }
 
+/// How the interpreter serves a program's `Filesystem` capability.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum FilesystemAccess {
+    /// The deterministic in-memory filesystem (the default; the differential
+    /// oracle). Hermetic: no real disk is ever touched.
+    #[default]
+    Virtual,
+    /// The REAL host filesystem, UNSCOPED (build.omg rung 1, TASKS_FS
+    /// open-work #3): fs ops act on real paths with the invoking process's
+    /// authority. For build-time programs the compiler runs on the developer's
+    /// own tree -- the same trust as `build.rs`. Grant/scope enforcement
+    /// (read: source tree, write: build dir) is the next rung; the variant
+    /// name telegraphs the current absence of scoping.
+    RealUnscoped,
+}
+
+/// Options for [`interpret_with_options`]. `Default` reproduces [`interpret`]
+/// exactly (hermetic virtual filesystem).
+#[derive(Clone, Copy, Debug, Default)]
+pub struct InterpretOptions {
+    pub filesystem: FilesystemAccess,
+}
+
+/// [`interpret`] with explicit [`InterpretOptions`] -- the build.omg entry:
+/// build programs run INTERPRETED with a real filesystem so they can stage
+/// assets themselves, while every differential/test path keeps the hermetic
+/// default.
+pub fn interpret_with_options(
+    checked: &CheckedTrees,
+    stdin: &[u8],
+    options: InterpretOptions,
+) -> InterpretOutcome {
+    evaluator::run_with_options(&checked.typed, stdin, options)
+}
+
 /// CONST EVALUATION (comptime stage 1): evaluate the zero-argument machine
 /// `machine_name` at compile time, returning its terminal value width-adjusted
 /// to the machine's declared integer return type (TARGET widths -- the same
