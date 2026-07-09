@@ -1,0 +1,34 @@
+// RUN CANARY (exit 70) -- CALL-BOUND LOCAL TERMINAL through a
+// double-nested second instance (served 2026-07-11f): Main holds TWO
+// Mids, each Mid TWO Tallys; mid1.run() binds `let total =
+// self.t2.drain(3,0)` then returns via the BARE value terminal
+// `transition { _ -> (total) }`. The terminal lives in the state's TAIL
+// SEGMENT (split at the drain call) -- the return-write's control-flow
+// lookup must normalize to segment 0 or the value expression vanishes
+// (this shape was the "no selected return-write" frontier fence).
+// mid1{t1:1,t2:2}: 3 iterations of +2 = 6 -> exit 70.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Tally { count: i32 in Wrapping; }
+machine Tally::drain(&mut self, n: i32, acc: i32 in Wrapping)
+terminates { decreases n -> Nat::Descending; }
+-> i32 in Wrapping
+{
+    transition n > 0 { true -> drain(n - 1, acc + self.count) false -> leaf(acc) }
+    state leaf(&mut self, acc: i32 in Wrapping) -> i32 in Wrapping { acc }
+}
+data Mid { t1: Tally; t2: Tally; }
+machine Mid::run(&mut self) -> i32 in Wrapping {
+    let total: i32 in Wrapping = self.t2.drain(3, 0);
+    transition { _ -> (total) }
+}
+data Main { console: Console; mid1: Mid; mid2: Mid; }
+machine Main::main(&mut self) {
+    self.mid1.t1.count = 1;
+    self.mid1.t2.count = 2;
+    self.mid2.t1.count = 3;
+    self.mid2.t2.count = 4;
+    let total: i32 in Wrapping = self.mid1.run();
+    transition total == 6 { true -> good() _ -> bad(total) }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self, total: i32 in Wrapping) { self.console.exit_process(71); }
+}

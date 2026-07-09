@@ -396,6 +396,7 @@ fn select_runtime_dispatch_call_result_return(
         )
     } else if let Some(place) = assignment_target_machine_place(
         input,
+        edge.target_dispatch_index,
         call_result.call_source_key,
         call_result.statement_index,
     ) {
@@ -1039,6 +1040,7 @@ fn select_dispatch_binary_terminal_return(
 /// under the callee's dispatch context would read the wrong frame).
 fn assignment_target_machine_place(
     input: &InstructionSelectionInput<'_>,
+    caller_dispatch_index: u32,
     call_source_key: StateKey,
     statement_index: usize,
 ) -> Option<crate::selection::storage_places::RuntimeStoragePlace> {
@@ -1053,9 +1055,14 @@ fn assignment_target_machine_place(
             omega_control_flow::OperationExpressionRefs::Assignment { target, .. } => Some(target),
             _ => None,
         })?;
+    // Resolve under the CALLER's dispatch case (the return edge's target),
+    // not a dummy index: the caller may be a non-first instance whose fields
+    // sit at a composed receiver base (`self.total` on the SECOND Mid is
+    // mid2+8, not the by-type first-Mid pick -- probed native 71 vs interp
+    // 70 on the double-nested field-binding shape).
     resolve_runtime_storage_place_in_table(
         input,
-        0,
+        caller_dispatch_index,
         call_source_key,
         &input.control_flow.expressions,
         target,
@@ -1070,7 +1077,15 @@ fn terminal_target_value_expression(
     source_key: StateKey,
     edge_order: usize,
 ) -> Option<ExpressionHandle> {
-    let state = input.control_flow.state_by_key(source_key)?;
+    // A state SPLIT at dispatched-call boundaries carries its real transition
+    // on the TAIL segment, but only the unsplit state (segment 0) exists in
+    // the control-flow plan -- normalize, or a value terminal after a call
+    // (`let total = self.t2.drain(..); transition { _ -> (total) }`) finds no
+    // state and the return-write silently vanishes (then fences loudly).
+    let state = input.control_flow.state_by_key(StateKey {
+        segment_index: 0,
+        ..source_key
+    })?;
     let transition = input
         .control_flow
         .transitions
@@ -1085,7 +1100,11 @@ fn static_terminal_target_value(
     source_key: StateKey,
     edge_order: usize,
 ) -> Option<i64> {
-    let state = input.control_flow.state_by_key(source_key)?;
+    // Segment normalization: see terminal_target_value_expression.
+    let state = input.control_flow.state_by_key(StateKey {
+        segment_index: 0,
+        ..source_key
+    })?;
     let transition = input
         .control_flow
         .transitions
