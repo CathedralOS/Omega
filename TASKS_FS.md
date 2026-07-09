@@ -457,11 +457,17 @@ the next attempt is mechanical:
   behavior-preserving: interpreter runs the decode (coverage 68/0 + differential
   11/0), canary_suite 711/0, samples_compile the 4 documented pre-existing
   windows fails only. THE SINGLE DECODE SITE is now the migration target.
-- BLOCKED on [[value-machine-computed-index-miscompile]]: the whole migration
-  needs `stat_buf[ST_*_OFF + k]` (a non-literal index) inside `decode_metadata`,
-  which native-miscompiles today. FIX THAT codegen bug FIRST (it is a general
-  silent miscompile, not fs-specific -- receiver-base threading for indexed reads
-  in value machines).
+- BLOCKED on [[value-machine-computed-index-miscompile]]: the migration needs
+  `stat_buf[ST_*_OFF + k]` (a computed index) inside the `decode_metadata` VALUE
+  machine. The parallel thread's commit c3bbe7bb0 fixed the BARE local/field
+  index case (hoist the value machine's Expression-return), but the PURE-CONST
+  binary sub-case still native-miscompiles (reads 0) -- and `ST_*_OFF + k`
+  substitutes to `24 + 0` (both-literal), so it IS that sub-case. Confirmed
+  natively 2026-07-08. Remaining fix (in the parallel thread's hoist area):
+  hoist pure-const binary indices too AND type the index temp as usize in
+  `infer_hoist_temp_type` (else it's a Unit layout error). Left to that thread to
+  avoid colliding on freshly-committed code; the corrected dependency is recorded
+  in the memory + `canaries/pending/backend/value_machine_computed_index_self_array`.
 - THEN re-land (all prototyped+verified this session, reverted as commit
   72b1b112a's revert): (1) per-target ST_*_OFF provides + interp
   `host_stat_offsets` cfg mirror with DISTINCT synthetic tail offsets for

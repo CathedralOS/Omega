@@ -1,0 +1,33 @@
+// PENDING repro (NOT run by the pass harness) -- the REMAINING sub-case of the
+// value-machine computed-index miscompile after c3bbe7bb0. That commit hoists a
+// value machine's Expression-statement return so a BARE local/field index
+// (`self.buf[j]`, `self.buf[self.i]`) now delivers. But a PURE-CONST BINARY index
+// still reads OFFSET 0 in a value machine: `index_is_hoistable_computed` leaves
+// both-integer-literal binaries "for the const fold", and that fold does not run
+// in the value-machine terminal-return path (a plain machine folds it fine).
+//
+// This is NOT a corner case -- it BLOCKS the fs per-target stat-offset migration:
+// the decode reads `stat_buf[FilesystemHost::ST_*_OFF + <literal k>]`, and V2
+// substitutes ST_*_OFF to a LITERAL (e.g. 24), so `24 + k` is a both-literal
+// binary = exactly this shape. Native only; the interpreter masks it.
+//
+// exits 99 when correct, 0 when the bug is present. Run natively:
+//   omega --build-dir <dir> main.omg && <dir>/omega-program.exe ; echo $?
+//
+// FIX OPTIONS (see [[value-machine-computed-index-miscompile]]): (a) let
+// index_is_hoistable_computed hoist pure-const binaries too (infer_hoist_temp_type
+// must type a both-integer index temp as usize); (b) const-fold the index in the
+// value-machine Expression-return path like plain machines do.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Probe { buf: [u8; 16]; }
+machine Probe::fill(&mut self) -> i64 {
+    self.buf[5] = 99;
+    transition true { _ -> go() }
+    state go(&mut self) -> i64 { self.buf[4 + 1] as i64 }
+}
+data Main { console: Console; probe: Probe; out: i64; ncode: i32; }
+machine Main::main(&mut self) {
+    self.out = self.probe.fill();
+    self.ncode = self.out as i32;
+    self.console.exit_process(self.ncode);
+}
