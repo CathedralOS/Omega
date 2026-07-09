@@ -68,6 +68,31 @@ convention (the Cathedral OS does, system-wide -- see
 `wiki/cathedral_alignment.md`) require the property on their surface types;
 nothing imposes it on programs that do not care.
 
+### What a zeroed value is, concretely
+
+Whether or not a type declares `[zero_init]`, a never-written value has
+exact, runtime-verified semantics -- identical in the interpreter and in
+native emission. Each row is pinned by a differential canary, so a
+regression fails the suite rather than shipping:
+
+| Zeroed value            | Reads as                                            | Pinned by |
+|-------------------------|-----------------------------------------------------|-----------|
+| scalar field / element  | `0` (any width, any nesting depth)                  | `core/zii_default_composite_exit` |
+| sum (`data ... case`)   | the FIRST case, with zeroed payload                 | `core/zii_default_composite_exit` |
+| `String`                | the empty string: `== ""` holds, `== "x"` is false, and the null data pointer is never dereferenced | `text/zii_default_string_equality_exit` |
+| `String` at a host call | marshals as the empty string (no dereference)       | `text/zii_string_host_write_exit` |
+
+Two consequences worth designing around:
+
+- The first `case` of a sum is its zero-state. Order cases so that the
+  first is the safe "nothing yet" meaning (`[zero_init]` verifies the
+  stronger payload-free form of this).
+- Reassigning a sum from a longer case to a shorter one leaves the longer
+  payload's tail bytes stale in storage. No language surface can observe
+  them: destructuring reads only the active case, and synthesized equality
+  compares the tag and then only the active case's payload
+  (`traits/equatable_sum_stale_payload_exit`).
+
 ## Default Layout
 
 Default data layout is compiler-controlled.
