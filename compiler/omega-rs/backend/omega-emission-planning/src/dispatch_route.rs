@@ -12,10 +12,33 @@ use omega_state_calls::StateCall;
 /// return through the clone terminal's `CallResultReturn`. The splice-only
 /// hazards (all-arms execution, once-not-per-iteration interiors) do not
 /// apply, so the splice fences exempt dispatched calls.
+#[allow(dead_code)] // Dormant: re-wire per-shape once the dispatch return-write gaps close (TASKS_FS #7).
 pub(crate) fn state_call_routed_to_dispatch(
     input: &EmissionPlanningInput<'_>,
     state_call: &StateCall,
 ) -> bool {
+    if std::env::var_os("OMEGA_DEBUG_DISPATCH_ROUTE").is_some() {
+        for (_, edge) in input.runtime_flow.edges.iter() {
+            let matches = edge.from.machine == state_call.source_key.machine
+                && edge.from.state == state_call.source_key.state
+                && edge.statement_index == state_call.statement_index
+                && matches!(
+                    edge.target,
+                    omega_state_graph::RuntimeTransitionTarget::State { key, .. }
+                        if key.machine == state_call.target_key.machine
+                );
+            if matches {
+                eprintln!(
+                    "dispatch_route MATCH: src m{} s{} seg{} stmt {} -> edge target {:?}",
+                    edge.from.machine.arena_index(),
+                    edge.from.state.arena_index(),
+                    edge.from.segment_index,
+                    edge.statement_index,
+                    edge.target,
+                );
+            }
+        }
+    }
     let routed = input.runtime_flow.edges.iter().any(|(_, edge)| {
         edge.from.machine == state_call.source_key.machine
             && edge.from.state == state_call.source_key.state
