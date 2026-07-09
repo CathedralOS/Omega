@@ -5100,7 +5100,16 @@ impl<'program> Evaluator<'program> {
                     .program
                     .expression_table
                     .name_path_members(path.members);
-                // `self.field` spelled as a two-member path.
+                // `self.field` spelled as a two-member path. NOTE: this route
+                // also witnesses INDEXED element reads -- trace-verified
+                // 2026-07-10n: a RUNTIME-indexed `self.sarr[i]` reaches this
+                // witness as a Name([self, sarr]) whose field type peels to
+                // the ELEMENT primitive + the ARRAY's domain via
+                // primitive_type_reference/arithmetic_domain (a CONST-indexed
+                // `self.sarr[1]` arrives as a true Indexed node and returns
+                // None from the fallthrough -- its sibling operand's witness
+                // covers the pair via `.or()`). Pinned by
+                // pass/slices/runtime_saturating_array_element_guard_exit.
                 if members.len() == 2 && members[0].as_str() == "self" {
                     return self.attached_field_scalar_type(frame, members[1].as_str());
                 }
