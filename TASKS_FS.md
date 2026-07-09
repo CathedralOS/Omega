@@ -92,33 +92,36 @@ results in Omega. Interpreter = full-parity reference oracle for everything.
    Debug instrumentation kept env-gated (OMEGA_DEBUG_RECEIVER + the BTW
    binary-write entry prints).
 
-3. **Receiver slice 2** — non-entry callers. TWO attempts reverted
+3. **Receiver slice 2** — non-entry callers. Two attempts reverted
    (2026-07-10z naive composition; 2026-07-11a entry-rooted instance
-   paths), both regressing the dungeon oracle — and the second attempt's
-   report diff found the REAL conflict: a COORDINATE-SYSTEM mismatch.
-   The base computations walk DATA-field offsets
-   (omega_layout::field_path_offset over data fields), but machine
-   storage is laid out in MACHINE-LAYOUT coordinates
-   (machine_storage_offset / nested_machine_storage_offset over machine
-   layouts + owned data). The two coincide for plain attached-data
-   nesting (why slice 1 holds green) and DIVERGE where machines carry
-   owned data or layouts spread (the dungeon: working reads @0/@4112
-   where the data-path walk says game.view=4096 — the crash was reads
-   through the wrong coordinate system, not wrong instances). NEXT
-   DESIGN: compute receiver bases in machine-layout coordinates — a
-   receiver-path-directed variant of nested_machine_storage_offset
-   (walk machine layouts hop by hop, selecting the SPECIFIC field per
-   hop instead of first-type-match) — then the slice-1 table, the
-   inline composition, and the by-type fallback all live in ONE
-   coordinate system. Verify slice 1's simple cases still resolve
-   identically (they must, definitionally), dungeon canaries as the
-   oracle, then the slice2 probe (scratchpad/slice2 — note its two
-   frontier shapes below need their own serves first for end-to-end).
-   Frontier shapes found while probing (pre-existing loud fences, repro
-   scratchpad/slice2): (a) a dispatched callee forwarding its own
-   call-bound LOCAL as terminal; (b) the field-carrier restructure
-   through a nested receiver (outer field-read terminal return-write
-   does not serve).
+   paths). ROOT CAUSE NOW CONFIRMED from the dungeon's layout plan
+   (omega-run --keep, backend_report machine layouts) — it is OVERRIDE
+   OVER-APPLICATION, not the coordinate-system mismatch first suspected:
+   the dungeon receivers (`GameView`, `CommandParser`, `Console`) are
+   ZERO-SIZE machines (`attached GameView, size 0`). The receiver has NO
+   storage, so EVERY machine-storage read inside its clones is
+   CALLER-owned (spliced `&mut self.console` args, prelude lets: Game's
+   console@0/dungeon@0/output@4112). Attempt #2's per-context base
+   (["game","view"] → 0+4096) was arithmetically consistent as a path
+   walk — but view@4096 is a zero-size field aliasing `input@4096:
+   String`, and applying it per-CONTEXT shifted the CALLER's reads
+   wholesale (+4096: @0/@8/@4088 → @4096/@4104/@8184 in the report
+   diff) → garbage → crash. Slice 1 never exposed this: caller = entry
+   → caller base 0, so over-application was invisible. DESIGN RULES for
+   attempt #3: (a) the receiver-base override is per-STATEMENT, scoped
+   to reads the CALLEE owns (statement source machine == dispatched
+   callee, or member path resolving in the callee's layout) — NEVER
+   per-context/per-clone; (b) caller-stamped statements compose with
+   the CALLER's own base (recursively — the caller may itself be a
+   non-first instance; dungeon caller Game sits at Main.game@0 so its
+   base is 0 naturally); (c) zero-size receivers need no override at
+   all (no self reads exist) — skip them, they're pure behavior.
+   Dungeon canaries stay the acceptance oracle; then the slice2 probe
+   (scratchpad/slice2). Frontier shapes found while probing
+   (pre-existing loud fences, repro scratchpad/slice2): (a) a
+   dispatched callee forwarding its own call-bound LOCAL as terminal;
+   (b) the field-carrier restructure through a nested receiver (outer
+   field-read terminal return-write does not serve).
 
 4. **Windows-session bundle** (needs a Windows host): verify the stat-row
    migration natively; WINDOWS_IMPORT_ROWS migration into provides files;
