@@ -651,11 +651,20 @@ invisible to a pump; real fix = outbound WndProc entry stubs (extern brief §12.
    (dispatch 1, offset 0) while the reader resolves under the caller
    segment's context (dispatch 4, offset 4) -- different slots, result
    still ZII. `state_call_result_slot_for_dispatch` (new, dispatch-keyed)
-   is wired to key on `edge.continuation_dispatch_index`, but the loop
-   plan does NOT populate continuation_dispatch_index on terminal edges
-   (traced 0) -- NEXT STEP: populate it in loop_plan/collection.rs (or
-   resolve the continuation state's dispatch case at selection), then the
-   keyed lookup connects writer to reader. Parked
+   keys on `edge.TARGET_dispatch_index` (2026-07-09d -- the clone-terminal
+   RETURN edge ENTERS the caller's next segment; continuation is None
+   there), and the full selection chain now TRACES CORRECT end to end:
+   leaf `acc` (frame+36, clone case) -> shared slot (frame+4, case 4) ->
+   reader copy under case 4 -> check's param. Writer and reader agree on
+   the slot -- yet the program still exits 71, and a KEYSTONE-shaped
+   direct terminal (`false -> acc`, no leaf state) fails identically as a
+   transition arg. The residual is RUNTIME-side or reader-materialization
+   ordering, invisible to selection traces -- next diagnostic is emitted-
+   code inspection (backend_report) or a runtime memory probe. WORKING
+   IDIOM (user-facing, both pinned green): bind the call to a LET first
+   (`let n = self.count(..); ... -> check(n)`) or use guard-subject
+   position (the F canary) -- the direct call-in-transition-arg spelling
+   is the only broken reader. Parked
    `pending/host/dispatch_result_transition_arg` (native 71/interp 70);
    also recorded: `CallResultReturn` carries no call ORDINAL (two
    dispatched calls in one statement cannot be disambiguated -- plan-shape
