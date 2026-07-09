@@ -63,12 +63,6 @@ target, enum payloads) bias which vertical slices get picked next.
 - **Same-type receiver aliasing** — CLAIMED by the fs lane (TASKS_FS.md
   "Stolen work #2"); per-instance receiver phases have been landing. Retire
   pending/time/value_machine_receiver_field_postentry when their arc closes.
-- **Native-emission gap (clean refusal): state-calls into a BRANCHING callee
-  entry with arguments.** Interp supports it; native refuses ("needs guarded
-  state-call expansion"). Scope spike says NOT small: needs a new planned
-  expansion threaded through planner + emitter
-  (omega-emission-planning/state_call_blockers taxonomy). Workaround: inline
-  the second dispatch or enter through a non-branching state.
 - **Float `is_float` on nested operand paths: not silently reachable
   (probed 2026-07-12).** Nested float binaries serve in write-value,
   transition-arg, and spliced-mutation positions (pinned:
