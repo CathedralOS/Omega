@@ -1132,6 +1132,7 @@ fn first_numeric_some(text: &str) -> Option<i32> {
 fn interpreter_matches_native_on_supported_canaries() {
     let mut matched: Vec<String> = Vec::new();
     let mut skipped: Vec<(String, String)> = Vec::new();
+    let mut native_blocked: Vec<(String, String)> = Vec::new();
     let mut mismatches: Vec<String> = Vec::new();
 
     for (name, expected_code) in RUN_CANARIES {
@@ -1154,15 +1155,32 @@ fn interpreter_matches_native_on_supported_canaries() {
             continue;
         }
 
-        let (native_code, native_stdout, native_stderr) = compile_and_run_native(name, &main_path);
+        // A native COMPILE failure is a host-support gap the canary suite
+        // already reports (this host's expected-red rows); there is nothing
+        // for the oracle to compare, so record it and keep sweeping -- the
+        // old panic here let the first blocked member MASK every member
+        // after it in list order (tick_count hid the whole gui/collections
+        // tail on this host).
+        let (native_code, native_stdout, native_stderr) =
+            match try_compile_and_run_native(name, &main_path) {
+                Ok(native) => native,
+                Err(failure) => {
+                    let first_line = failure.lines().next().unwrap_or("").to_owned();
+                    native_blocked.push((name.to_string(), first_line));
+                    continue;
+                }
+            };
 
         // Native is the source of truth, but sanity-check the suite's documented code too:
-        // if native disagrees with the recorded expected code the corpus drifted.
-        assert_eq!(
-            native_code, *expected_code,
-            "{name}: native exit {native_code} != suite-recorded expected {expected_code} \
-             (RUN_CANARIES is stale)"
-        );
+        // if native disagrees with the recorded expected code the corpus drifted --
+        // collected (not an instant panic) so one drifted member cannot mask the rest.
+        if native_code != *expected_code {
+            mismatches.push(format!(
+                "{name}: native exit {native_code} != suite-recorded expected {expected_code} \
+                 (RUN_CANARIES is stale)"
+            ));
+            continue;
+        }
 
         let mut local_failures = Vec::new();
         if outcome.exit_code != native_code {
@@ -1194,12 +1212,19 @@ fn interpreter_matches_native_on_supported_canaries() {
     }
 
     eprintln!(
-        "\ndifferential oracle over {} RUN canaries:\n  {} matched (interp==native)\n  {} skipped (interpreter unsupported)\n  {} MISMATCH",
+        "\ndifferential oracle over {} RUN canaries:\n  {} matched (interp==native)\n  {} skipped (interpreter unsupported)\n  {} native-blocked (host compile failure; the canary suite owns these)\n  {} MISMATCH",
         RUN_CANARIES.len(),
         matched.len(),
         skipped.len(),
+        native_blocked.len(),
         mismatches.len(),
     );
+    if !native_blocked.is_empty() {
+        eprintln!("\nnative-blocked members (no oracle comparison possible on this host):");
+        for (name, reason) in &native_blocked {
+            eprintln!("  {name}: {reason}");
+        }
+    }
     eprintln!("\ntop unsupported constructs (interpreter skips):");
     for (reason, count) in summarize_reasons(&skipped, 15) {
         eprintln!("  {count:>3}  {reason}");
@@ -1665,6 +1690,19 @@ fn compile_and_run_native(canary_name: &str, main_path: &Path) -> (i32, Vec<u8>,
     compile_and_run_native_with_stdin(canary_name, main_path, b"")
 }
 
+/// Like [`compile_and_run_native`], but a NATIVE COMPILE failure returns
+/// `Err(first diagnostic)` instead of panicking. The RUN-canary umbrella uses
+/// this so one host-blocked member (e.g. a missing platform-call lowering on
+/// this target) cannot abort the sweep and MASK every member after it -- the
+/// canary suite already owns the compile-failure signal; the differential's
+/// job is interp-vs-native agreement wherever native CAN run.
+fn try_compile_and_run_native(
+    canary_name: &str,
+    main_path: &Path,
+) -> Result<(i32, Vec<u8>, Vec<u8>), String> {
+    try_compile_and_run_native_with_stdin(canary_name, main_path, b"")
+}
+
 /// Compile + run the native binary with the given stdin; returns
 /// `(exit code, stdout bytes, stderr bytes)`.
 fn compile_and_run_native_with_stdin(
@@ -1672,6 +1710,19 @@ fn compile_and_run_native_with_stdin(
     main_path: &Path,
     stdin: &[u8],
 ) -> (i32, Vec<u8>, Vec<u8>) {
+    try_compile_and_run_native_with_stdin(canary_name, main_path, stdin).unwrap_or_else(
+        |failure| panic!("{canary_name}: native compile failed:\n{failure}"),
+    )
+}
+
+/// The fallible core of [`compile_and_run_native_with_stdin`]: `Err(joined
+/// diagnostics)` on a native COMPILE failure; run/spawn problems still panic
+/// (they are harness environment errors, not target-support gaps).
+fn try_compile_and_run_native_with_stdin(
+    canary_name: &str,
+    main_path: &Path,
+    stdin: &[u8],
+) -> Result<(i32, Vec<u8>, Vec<u8>), String> {
     let build_dir = std::env::temp_dir().join(format!(
         "omega-interp-diff-{}-{}",
         canary_name.replace(['/', '\\'], "_"),
@@ -1679,18 +1730,15 @@ fn compile_and_run_native_with_stdin(
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
+    if let Err(diagnostics) = compile(CompileOptions {
         root_path: main_path.to_path_buf(),
         build_dir: Some(build_dir.clone()),
         target_name: None,
         write_output: true,
-    })
-    .unwrap_or_else(|diagnostics| {
-        panic!(
-            "{canary_name}: native compile failed:\n{}",
-            join_diagnostics(&diagnostics)
-        )
-    });
+    }) {
+        let _ = fs::remove_dir_all(&build_dir);
+        return Err(join_diagnostics(&diagnostics));
+    }
 
     let mut child = Command::new(build_dir.join(executable_name()))
         .stdin(Stdio::piped())
@@ -1712,7 +1760,7 @@ fn compile_and_run_native_with_stdin(
     let stdout = output.stdout.clone();
     let stderr = output.stderr.clone();
     let _ = fs::remove_dir_all(&build_dir);
-    (code, stdout, stderr)
+    Ok((code, stdout, stderr))
 }
 
 fn join_diagnostics(diagnostics: &[omega_core::diagnostics::Diagnostic]) -> String {

@@ -680,6 +680,32 @@ decreases remaining
   real program hits it), and Wrapping signed div MIN/-1 fused would #DE on
   x86 (store-position guards it).
 
+- **DIFFERENTIAL UNMASKING + U64 SATURATION 2026-07-09e.** Converted the
+  differential RUN-canary umbrella from first-panic to COLLECT-ALL: a native
+  compile failure is now a printed `native-blocked` bucket (the canary suite
+  owns that signal; nothing to compare) instead of a panic that aborted the
+  sweep -- the old flow COLLECTED mismatches but the tick_count abort fired
+  BEFORE the final assert, so collected mismatches were never reported (the
+  serial-umbrella masking pattern again, this time hiding a real one). The
+  RUN_CANARIES-stale check is likewise collected, not panicked.
+  UNMASKED IMMEDIATELY: arithmetic/runtime_saturating_wide_boundaries_exit
+  interp 83 vs native 70 -- the interpreter had NO unsigned-64 saturating
+  story since the canary was added (integer_bounds cannot express u64::MAX in
+  an i64 pair, and a landing seam cannot recover overflow after the wrap:
+  u64 MAX+5 arrives as 4 with the evidence gone). Fixed at the eval_binary
+  NODE path: 64-bit unsigned views the Value::Int bit patterns as u64 and
+  computes/clamps/traps in i128 against [0, u64::MAX]; signed keeps the
+  existing i128 arm. Differential umbrella now FULLY GREEN on this host
+  (662 matched / 3 native-blocked: tick x2 + gui_memory_dc_blit / 0
+  mismatch) -- first time, and the failure-set diff workflow now applies to
+  the differential too.
+  STILL QUEUED (operand-position domain family, small): Saturating signed
+  div/mod MIN/-1 and x86 Wrapping signed div MIN/-1 (#DE) fused in operand
+  position -- same write-path-reuse pattern as 2026-07-09d; aarch64's
+  append_saturating_signed_divide_modulo needs the same register
+  parameterization (it hardcodes x17/x26/x9). Also x86 64-bit sat/trap MUL
+  parity (needs the 128-bit imul form; aarch64 has MULH arms).
+
 - **[ ] Range constraint + non-Exact domain = the range is a LIE (found 2026-07-06).**
   `i: usize [0..=4] in Wrapping` accepts `self.i = 100` -- the range enforces only under the
   EXACT domain ("Wrapping stays permissive" was scoped to source-type narrowing, but it also
