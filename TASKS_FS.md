@@ -461,8 +461,30 @@ invisible to a pump; real fix = outbound WndProc entry stubs (extern brief §12.
    NEXT: layout maps (stat normalization) -- superseded in practice by the
    shipped ST_*_OFF value rows; revisit only if a declarative map earns its
    keep -- WINDOWS_IMPORT_ROWS migration (authored import rows in the
-   provides files replacing the Rust table), the let-local dispatch face,
-   interp story for authored bindings.
+   provides files replacing the Rust table; NEEDS A WINDOWS SESSION to
+   runtime-verify), the let-local dispatch face, interp story for authored
+   bindings.
+   ⚠️ LET-LOCAL FACE WIDENED (2026-07-08g): `Filesystem::open_with` (Rust
+   OpenOptions) turned out NATIVELY UNCOMPILABLE in value-call position --
+   invisible until its FIRST caller (the new coverage canary; unreachable
+   machine bodies are never lowered, and the raw-seam OpenOptions canaries
+   hand-compute ints). A MachineOwned write in a value-called machine plans
+   only TRIVIAL values: compound-over-locals, RMW-over-local, and even
+   RMW-over-PARAM-MEMBER all refuse with the loud "needs runtime storage
+   write lowering" (never a miscompile; copy's complex perm_mode write
+   lowers because its value reads only FIELDS). The interpreter runs the
+   full six-leg OpenOptions matrix to 70. Parked:
+   `canaries/pending/host/wrapper_open_with_matrix` (write+create / read /
+   truncate / append / create_new-exists / read-absent); promote to
+   pass/filesystem + differential when the write-value lowering lands --
+   the same face also still blocks host-call args reading locals under
+   duplicated dispatch (rung-2 note). LESSON (coverage doctrine): zero-caller
+   std machines are UNVERIFIED code -- "compiles as part of std" means
+   nothing; every wrapper method needs at least one calling canary. The
+   audit list of remaining zero-caller methods: lock family (lock/
+   lock_shared/try_lock/try_lock_shared/unlock), set_times, set_owner
+   family, symlink_metadata, metadata(File), read_dir_count/nth/stats/
+   is_empty + create_dir_all/remove_dir_all (darwin-runnable wrappers).
    ⚠️ BRIEF DRIFT noted (not touched -- freestanding thread's call): the
    extern brief revised `VtableSlot(index)` to `VtableField(field)`
    (field model, decided 2026-07-04) AFTER the parse landed; the

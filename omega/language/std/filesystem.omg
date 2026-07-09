@@ -472,6 +472,13 @@ machine Filesystem::open_with(&mut self, path: &[u8] in Path, options: OpenOptio
     let creat_flag: i32 = creating << FilesystemHost::O_CREATE_BIT;
     let excl_flag: i32 = (options.create_new as i32) << FilesystemHost::O_EXCL_BIT;
     // The composed word lands in a FIELD (host-call scalar-arg idiom).
+    // ⚠️ KNOWN GAP: in a VALUE-CALL dispatch context this machine does not
+    // lower natively yet -- a MachineOwned write whose VALUE is any compound
+    // expression (over locals, or even param members) hits "needs runtime
+    // storage write lowering" (probed 2026-07-08: single-expression, stepwise
+    // RMW over locals, and RMW over param members all refuse; the refusal is
+    // loud, never a miscompile). The interpreter runs it faithfully. See
+    // canaries/pending/host/wrapper_open_with_matrix + TASKS_FS.
     self.open_flags = wronly | rdwr | append_flag | truncate_flag | creat_flag | excl_flag
         | FilesystemHost::O_BINARY;
     let fd: i32 = self.host.open_create(path, self.open_flags, 438);
@@ -479,6 +486,8 @@ machine Filesystem::open_with(&mut self, path: &[u8] in Path, options: OpenOptio
     state ok(&mut self, fd: i32) -> OpenResult { OpenResult::Ok { file: File { fd: fd } } }
     state err(&mut self) -> OpenResult { let kind: ErrorKind = self.last_error(); OpenResult::Error { kind: kind } }
 }
+
+
 
 // Open an existing file for appending (Rust `OpenOptions::new().append(true)`).
 // Writes land at end-of-file; opening a missing path fails (no O_CREAT).
