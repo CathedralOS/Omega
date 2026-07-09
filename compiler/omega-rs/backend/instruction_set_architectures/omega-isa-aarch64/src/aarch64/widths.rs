@@ -834,6 +834,29 @@ pub fn runtime_text_line_read_syscall_width(
         + line_read_descriptor_store_extra(target_offset)
 }
 
+/// Width of the owned `[u8; N]` carrier line read (import binding): the
+/// relocated region `adrp`+`add` (8) + the fixed bytes-base add (4) + cursor
+/// setup (8) + the 80-byte read loop (byte-identical to the descriptor flavor)
+/// + the `subs` + len-word store epilogue (8). Every element is fixed width,
+/// so the total is a constant -- which keeps the import-call relocation offset
+/// constant too (the planner has no target_offset to hand).
+pub fn runtime_text_line_read_carrier_import_width() -> usize {
+    108
+}
+
+/// The syscall flavor swaps the 4-byte `bl` for the syscall-number immediate
+/// plus `svc` (4), so it grows by exactly the immediate's width.
+pub fn runtime_text_line_read_carrier_syscall_width(syscall_number: u32) -> usize {
+    104 + unsigned_immediate_width(u64::from(syscall_number)) + 4
+}
+
+/// Offset of the import `bl` inside the carrier line read: the 12-byte
+/// prologue (adrp + add + bytes-base add) + cursor setup (8) + the three
+/// syscall-argument moves (12).
+pub fn runtime_text_line_read_carrier_import_call_offset() -> usize {
+    32
+}
+
 pub fn runtime_text_line_read_import_target_address_offset() -> usize {
     100
 }

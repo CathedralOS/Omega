@@ -1363,10 +1363,22 @@ pub fn runtime_text_line_read_width(
     match architecture {
         Architecture::Aarch64 => match binding {
             HostBindingMechanism::Import { .. } => {
-                aarch64::runtime_text_line_read_import_width(byte_capacity, target_offset)
+                if is_bounded_buffer {
+                    aarch64::runtime_text_line_read_carrier_import_width()
+                } else {
+                    aarch64::runtime_text_line_read_import_width(byte_capacity, target_offset)
+                }
             }
             HostBindingMechanism::Syscall { number, .. } => {
-                aarch64::runtime_text_line_read_syscall_width(byte_capacity, *number, target_offset)
+                if is_bounded_buffer {
+                    aarch64::runtime_text_line_read_carrier_syscall_width(*number)
+                } else {
+                    aarch64::runtime_text_line_read_syscall_width(
+                        byte_capacity,
+                        *number,
+                        target_offset,
+                    )
+                }
             }
             // read_line is never vtable-bound; 0 = the refuse-to-emit convention.
             HostBindingMechanism::VtableSlot { .. } => 0,
@@ -1422,7 +1434,15 @@ pub fn runtime_text_line_read_import_call_offset(
     is_bounded_buffer: bool,
 ) -> usize {
     match architecture {
-        Architecture::Aarch64 => aarch64::runtime_text_line_read_import_call_offset(),
+        // The carrier prologue adds a fixed bytes-base `add` after the region
+        // materialization, shifting the `bl` by 4 (28 -> 32).
+        Architecture::Aarch64 => {
+            if is_bounded_buffer {
+                aarch64::runtime_text_line_read_carrier_import_call_offset()
+            } else {
+                aarch64::runtime_text_line_read_import_call_offset()
+            }
+        }
         // x86_64 ReadFile call rel32 displacement (shifted for the carrier prologue).
         Architecture::X86_64 => {
             if is_bounded_buffer {
