@@ -885,6 +885,17 @@ stay visible, not because they're next):**
   semantics, inline asm beyond `asm { jmp state(...) }` (CR3/MSR/port-IO
   contracts). **Concrete near-term driver: the Cathedral first-boot ladder** —
   see the "Cathedral first-boot ladder" and "MILESTONE-2 ladder" sections above.
+  - ⚠️ **SEQUENCING LANDMINE (from TASKS_FS.md D15).** `uefi_x64` and
+    `demo_target` are NOT in `from_omega_target_name`
+    (`compiler/omega-rs/foundation/omega-target/src/lib.rs` — the closed set is
+    `linux_{arm64,x64}` / `macos_arm64` / `windows_x64` / `cross_platform_cli` /
+    `local_unchecked`). Freestanding `provides` labels are currently DECORATIVE
+    (`build_freestanding_abi_plan` ignores the label). D15 decided "unknown
+    `provides` target = error" but is NOT yet implemented. **Whoever implements
+    that check MUST register the freestanding target names FIRST**, or it will
+    reject Cathedral's `uefi_x64 provides SimpleTextOutput over
+    TextOutputProtocol` boot blocks the moment it switches on. Cross-ref:
+    TASKS_FS.md "Q4 / D15" + its Open-work #4.
 - [ ] **Build-time evaluation (const eval + trait generators).** Effect-free machines in
   constant positions; `default machine` bodies with `Self::fields` member
   reflection expanded per conformance. Direction frozen (no macros, no #run);
