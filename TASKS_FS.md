@@ -9,13 +9,17 @@
 > **WORKING RULES.** Consult `wiki/language_guide/*` before language features;
 > ZII / arena / `Handle` / `HandleSpan`; full human-word op names (C symbols
 > only in per-target binding tables); every fix ships a canary that RUNS and
-> asserts. Gates per iteration: canary_suite (judge by FAILURE-SET diff vs the
-> named baseline below, never raw counts), native_filesystem_canaries (macOS
-> 88/0), samples_compile (BOTH test fns -- compile set AND documented-exit
-> set; skipping it hid the account_ledger silent-wrong for four pushes,
-> 2026-07-11g), omega-interpreter coverage + differential + `run_canary_list`
-> drift guard (run IMMEDIATELY after every rebase), real_fs. Push every iteration:
-> fetch → rebase → survival-grep your recent symbols → re-verify → push.
+> asserts. Gates per iteration: canary_suite (expected-GREEN on macOS since
+> 2026-07-11t — any failure is a regression), native_filesystem_canaries
+> (macOS 88/0), samples_compile (BOTH test fns -- compile set AND
+> documented-exit set; skipping it hid the account_ledger silent-wrong for
+> four pushes, 2026-07-11g), omega-interpreter coverage + differential +
+> `run_canary_list` drift guard (run IMMEDIATELY after every rebase),
+> real_fs. PLUS the explicit ISA unit runs (`-p omega-isa-aarch64 -p
+> omega-isa-x86_64`) when touching encoders/widths — workspace-root cargo
+> test does NOT cover them (they rotted for days once behind a green
+> suite). Push every iteration: fetch → rebase → survival-grep → re-verify
+> → push, with rebase and push in SEPARATE calls (three recorded slips).
 
 ## North star
 
