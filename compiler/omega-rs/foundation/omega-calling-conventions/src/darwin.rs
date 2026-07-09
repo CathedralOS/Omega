@@ -119,6 +119,13 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         darwin_import("ObjectiveC", "send_scalar4", "_objc_msgSend", &policy),
         // Scalar + NSSize (2 doubles → v0,v1) for `initWithCGImage:size:`.
         darwin_import("ObjectiveC", "send_image_size", "_objc_msgSend", &policy),
+        // Runtime byte-buffer string send (`initWithUTF8String:` over the samples'
+        // title bytes, NUL-terminated by construction). Shares `_objc_msgSend`.
+        darwin_import("ObjectiveC", "send_byte_string", "_objc_msgSend", &policy),
+        // The pump's autorelease-pool scope: dequeued NSEvents are autoreleased and
+        // the pump runs outside any Cocoa-managed pool, so without a pool they leak.
+        darwin_import("ObjectiveC", "pool_push", "_objc_autoreleasePoolPush", &policy),
+        darwin_import("ObjectiveC", "pool_pop", "_objc_autoreleasePoolPop", &policy),
         // CoreGraphics geometry: a `CGRect` (4 doubles) is passed as an HFA in
         // v0–v3 (`_CG*` routes to CoreGraphics via `darwin_import_library`). The
         // run-verified proof that 4 doubles land in v0–v3.
@@ -130,6 +137,10 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         darwin_import("CoreGraphics", "bitmap_context", "_CGBitmapContextCreate", &policy),
         darwin_import("CoreGraphics", "bitmap_context_image", "_CGBitmapContextCreateImage", &policy),
         darwin_import("CoreGraphics", "image_width", "_CGImageGetWidth", &policy),
+        // Blit-lifecycle releases: the per-frame context and CGImage snapshot are
+        // Create-rule owned; without these every presented frame leaks both.
+        darwin_import("CoreGraphics", "context_release", "_CGContextRelease", &policy),
+        darwin_import("CoreGraphics", "image_release", "_CGImageRelease", &policy),
         // `Input.key_state` backing: `CGEventSourceKeyState(state_id, keycode) -> bool`.
         darwin_import("CoreGraphics", "event_source_key_state", "_CGEventSourceKeyState", &policy),
         // `Clock::sleep(milliseconds)` → libc `poll(NULL, 0, milliseconds)`: with
@@ -572,6 +583,29 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         [host_operation("ObjectiveC", "send_image_size")],
         PlatformCallData::None,
     );
+    // Runtime byte-buffer string send (`initWithUTF8String:` over title bytes).
+    insert_platform_lowering(
+        plan,
+        "ObjectiveC",
+        "send_byte_string",
+        [host_operation("ObjectiveC", "send_byte_string")],
+        PlatformCallData::None,
+    );
+    // The pump's autorelease-pool scope (push returns the token pop consumes).
+    insert_platform_lowering(
+        plan,
+        "ObjectiveC",
+        "pool_push",
+        [host_operation("ObjectiveC", "pool_push")],
+        PlatformCallData::None,
+    );
+    insert_platform_lowering(
+        plan,
+        "ObjectiveC",
+        "pool_pop",
+        [host_operation("ObjectiveC", "pool_pop")],
+        PlatformCallData::None,
+    );
     // `CoreGraphics::rect_max_x/y(x, y, w, h) -> f64` → `CGRectGetMaxX`/`MaxY`: the
     // 4-double CGRect marshals as an HFA into v0–v3; the CGFloat result is in d0.
     insert_platform_lowering(
@@ -615,6 +649,21 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         "CoreGraphics",
         "image_width",
         [host_operation("CoreGraphics", "image_width")],
+        PlatformCallData::None,
+    );
+    // Blit-lifecycle releases (Create-rule drops for the per-frame context/image).
+    insert_platform_lowering(
+        plan,
+        "CoreGraphics",
+        "context_release",
+        [host_operation("CoreGraphics", "context_release")],
+        PlatformCallData::None,
+    );
+    insert_platform_lowering(
+        plan,
+        "CoreGraphics",
+        "image_release",
+        [host_operation("CoreGraphics", "image_release")],
         PlatformCallData::None,
     );
     insert_platform_lowering(

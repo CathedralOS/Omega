@@ -504,6 +504,45 @@ pub(super) fn select_host_operation_operands(
                 _ => HandleSpan::empty(),
             }
         }
+        (HostCapability::ObjectiveC, HostOperation::MsgSendByteString) => {
+            // `r = send_byte_string(recv, sel, text) -> _objc_msgSend(recv, sel,
+            // byte*)`. operand[0] result; [1] recv → x0; [2] sel → x1; [3] the
+            // ADDRESS of a runtime byte buffer → x2 (unlike `send_string`, whose
+            // C-string is a compile-time literal materialized like an fs path).
+            // The callee reads to the first NUL; the buffer is NUL-terminated by
+            // construction at the call sites.
+            let result = first_scalar_argument_operand(input, host_call, dispatch_index);
+            let recv = scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 1);
+            let sel = scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 2);
+            let text = address_argument_operand_at(input, host_call, dispatch_index, alias_context, 3);
+            match (result, recv, sel, text) {
+                (Some(result), Some(recv), Some(sel), Some(text)) => {
+                    operands
+                        .insert_many([operand(result), operand(recv), operand(sel), operand(text)])
+                }
+                _ => HandleSpan::empty(),
+            }
+        }
+        (HostCapability::ObjectiveC, HostOperation::PoolPush) => {
+            // `pool = pool_push() -> _objc_autoreleasePoolPush()`. NO args; just the
+            // result place (the pool token in x0), like `color_space_rgb`.
+            match first_scalar_argument_operand(input, host_call, dispatch_index) {
+                Some(result) => operands.insert_many([operand(result)]),
+                None => HandleSpan::empty(),
+            }
+        }
+        (HostCapability::ObjectiveC, HostOperation::PoolPop) => {
+            // `_ = pool_pop(pool) -> _objc_autoreleasePoolPop(pool)`: one scalar arg
+            // (the push token → x0). A void C call; the result place is scratch.
+            let result = first_scalar_argument_operand(input, host_call, dispatch_index);
+            let pool = scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 1);
+            match (result, pool) {
+                (Some(result), Some(pool)) => {
+                    operands.insert_many([operand(result), operand(pool)])
+                }
+                _ => HandleSpan::empty(),
+            }
+        }
         (HostCapability::CoreGraphics, HostOperation::RectMaxX | HostOperation::RectMaxY) => {
             // `r = rect_max_x(x, y, w, h) -> _CGRectGetMaxX({x,y,w,h})`. The CGRect's
             // 4 doubles marshal as an HFA into v0–v3 (four consecutive
@@ -572,10 +611,15 @@ pub(super) fn select_host_operation_operands(
         }
         (
             HostCapability::CoreGraphics,
-            HostOperation::BitmapContextImage | HostOperation::ImageWidth,
+            HostOperation::BitmapContextImage
+            | HostOperation::ImageWidth
+            | HostOperation::ContextRelease
+            | HostOperation::ImageRelease,
         ) => {
-            // `img = bitmap_context_image(ctx)` / `w = image_width(img)`: one
-            // pointer arg (→ x0), result in x0. operand[0]=result, [1]=the ptr.
+            // `img = bitmap_context_image(ctx)` / `w = image_width(img)` /
+            // `_ = context_release(ctx)` / `_ = image_release(img)`: one
+            // pointer arg (→ x0), result in x0 (scratch for the void releases).
+            // operand[0]=result, [1]=the ptr.
             let result = first_scalar_argument_operand(input, host_call, dispatch_index);
             let arg = scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 1);
             match (result, arg) {
