@@ -32,6 +32,15 @@ from all of them.
    doesn't change fuck-all") reads as rejecting even the bare spelling —
    but the enforced error + the corpus sweep + runtime_loop_* canaries
    currently BLESS bare loop-backs. Confirm or extend.
+   [Main lane, so the cost is on the table: a "banned" answer tears out
+   ~12 pass canaries pinning the spelling (the termination/measure family
+   + recursive-walk + loop_{accumulator,rotation} + the just-landed
+   bind-first serve), the entry-reentry `decreases` proof surface (its
+   only current consumer), the recursive-clone specialization, and the
+   unserved-recursive-result sweep, plus corpus rewrites (proofs, std fs
+   mkall, dungeon parser) into explicit sub-state self-transition loops.
+   Pre-scoped in TASKS.md; teardown starts on the answer. We read your
+   comment as YES-banned and are holding only for this confirmation.]
 6. **Mutual value-call cycles** (their review item 2): `A calls B calls A`
    (the dungeon's find_item_at/find_item_after pair) still compiles — the
    cycle check does not see value calls. Kill (needs the value-call cycle
