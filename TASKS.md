@@ -134,9 +134,20 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
   main (pre-existing cast-family gap, separately tracked). samples_compile's
   remaining reds are all loud pre-existing fences (float Min/Max,
   machine-indexed binary write, tick_count lowering, gui/stdin/uefi).
-  STILL OPEN (loud, pre-existing): aarch64 carrier `read_line`
-  ("AArch64 owned `[u8; N]` carrier read_line is not implemented") -- the 4
-  runtime_stdin_* canaries; same family, next candidate.
+  FOLLOW-UP LANDED 2026-07-08: aarch64 carrier `read_line` (import + syscall
+  bindings). The descriptor/carrier split is a target-shape enum inside the ONE
+  shared encoder (`RuntimeTextReadTarget`, read.rs) -- the byte-at-a-time CRLF
+  read loop is byte-identical; only the prologue (carrier: region base + a
+  FIXED 4-byte bytes-base add, keeping the `bl` reloc offset a constant 32) and
+  the epilogue (carrier: `subs x20,#8` + len-word store; no NUL --
+  length-delimited, mirroring x86's `mov [r14-8], r15`) differ. Descriptor
+  reserves capacity-1 for its NUL; carrier uses all N bytes (x86 parity). The
+  reloc planner was already carrier-aware + arch-agnostic. Suite: 642 pass /
+  60 fail, ZERO new, 10 fixed (the 4 runtime_stdin_*, both contained-loop
+  command-branch carriers, gui window lifecycle, user32 key_state,
+  text_storage_carrier, value_call_entry_host_state_payload). Remaining suite
+  reds are the pre-existing non-carrier families (aarch64 double-indexed
+  encoders, float Min/Max, the cast family, ...).
 
 - **[x] Post-entry-state CHAINED lets in a value callee -- FIXED 2026-07-08.** A
   value callee whose POST-ENTRY state computes a let reading a PRIOR post-entry

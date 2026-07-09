@@ -299,33 +299,45 @@ pub fn encode_runtime_text_line_read(
     is_bounded_buffer: bool,
 ) -> Result<Vec<u8>, Diagnostic> {
     match architecture {
-        Architecture::Aarch64 => {
-            if is_bounded_buffer {
-                return Err(Diagnostic::error(
-                    "AArch64 owned `[u8; N]` carrier read_line is not implemented (x86_64 only)",
-                ));
-            }
-            match binding {
-                HostBindingMechanism::Import { .. } => {
+        Architecture::Aarch64 => match binding {
+            HostBindingMechanism::Import { .. } => {
+                if is_bounded_buffer {
+                    aarch64::encode_runtime_text_line_read_carrier_import(
+                        target_offset,
+                        byte_capacity,
+                    )
+                } else {
                     aarch64::encode_runtime_text_line_read_import(target_offset, byte_capacity)
                 }
-                HostBindingMechanism::Syscall {
-                    number,
-                    number_register,
-                    supervisor_call,
-                    ..
-                } => aarch64::encode_runtime_text_line_read_syscall(
-                    target_offset,
-                    byte_capacity,
-                    *number,
-                    *number_register,
-                    *supervisor_call,
-                ),
-                HostBindingMechanism::VtableSlot { .. } => Err(Diagnostic::error(
-                    "read_line cannot be vtable-bound",
-                )),
             }
-        }
+            HostBindingMechanism::Syscall {
+                number,
+                number_register,
+                supervisor_call,
+                ..
+            } => {
+                if is_bounded_buffer {
+                    aarch64::encode_runtime_text_line_read_carrier_syscall(
+                        target_offset,
+                        byte_capacity,
+                        *number,
+                        *number_register,
+                        *supervisor_call,
+                    )
+                } else {
+                    aarch64::encode_runtime_text_line_read_syscall(
+                        target_offset,
+                        byte_capacity,
+                        *number,
+                        *number_register,
+                        *supervisor_call,
+                    )
+                }
+            }
+            HostBindingMechanism::VtableSlot { .. } => Err(Diagnostic::error(
+                "read_line cannot be vtable-bound",
+            )),
+        },
         Architecture::X86_64 => match binding {
             HostBindingMechanism::Import { .. } => {
                 if is_bounded_buffer {
