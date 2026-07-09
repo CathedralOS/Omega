@@ -41,9 +41,11 @@ should target NEW feature surfaces as they land, not re-walk these axes.
   explicit sub-state self-transition loops.
 - **Float domain clauses (Q8):** `f: f32 in Saturating` compiles but means
   nothing (both engines run plain IEEE). Reject or define.
+  > Owner: Deferred, until a float domain pass. This has been labbed out some, but needs a serious language document detailing all compiler-supported float domains.
 - **Range under non-Exact (Q9):** `i: usize [0..=4] in Wrapping` accepts
   `self.i = 100` — the range only enforces under Exact. Ill-formed, or
   wrap/clamp into range at stores?
+  > Owner: usize is not a fucking thing in Omega. Why does this keep coming up? I will fucking kill you. We do not have usize. We have addr, we have primitives. Conflating addresses & size is a semantic disaster. I dont even understand what the fuck self.i = 100; conveys here -- its a fucking array? This is just a compile error, why are you wasting my time.
 - **Underspecified numeric-range ops (design thesis, flagged for Zach):**
   shift-amount >= width and float-to-int out-of-range are the same shape —
   behavior undefined outside a range, native and interp diverge, neither
