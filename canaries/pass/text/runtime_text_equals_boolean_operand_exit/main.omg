@@ -1,0 +1,51 @@
+// RUN CANARY (exit 70) + interpreter differential. Text equality NESTED in a
+// boolean `&&`, all four order x target combinations. The RIGHT-operand legs
+// are the pin: the TextEqualsLiteral operand encoder briefly used FIXED x15
+// for its descriptor address (the x16-clobber fix), which is the RIGHT
+// scratch pool's FIRST pick -- ptr_register was also x15 and its load
+// destroyed the address before the len read, so `flag && (name == "x")`
+// silently read garbage while the LEFT order survived (x15 was the len
+// register there, a read-then-write last use). The address register is now
+// DRAWN FROM THE POOL as a fourth pick, making collision impossible by
+// construction. `shift` keeps the String off machine offset 0.
+// exits: 71 = field/left; 72 = let/right; 73 = field/right; 74 = let/left.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; shift: u64; name: String; flag: bool; okf: bool; }
+machine Main::main(&mut self) {
+    self.name = "omega";
+    self.flag = true;
+    self.build();
+}
+machine Main::build(&mut self) {
+    self.okf = (self.name == "omega") && self.flag;
+    transition self.okf {
+        true -> leg2()
+        _ -> wrong_field_left()
+    }
+    state leg2(&mut self) {
+        let a: bool = self.flag && (self.name == "omega");
+        transition a {
+            true -> leg3()
+            _ -> wrong_let_right()
+        }
+    }
+    state leg3(&mut self) {
+        self.okf = self.flag && (self.name == "omega");
+        transition self.okf {
+            true -> leg4()
+            _ -> wrong_field_right()
+        }
+    }
+    state leg4(&mut self) {
+        let b: bool = (self.name == "omega") && self.flag;
+        transition b {
+            true -> good()
+            _ -> wrong_let_left()
+        }
+    }
+    state good(&mut self)             { self.console.exit_process(70); }
+    state wrong_field_left(&mut self) { self.console.exit_process(71); }
+    state wrong_let_right(&mut self)  { self.console.exit_process(72); }
+    state wrong_field_right(&mut self){ self.console.exit_process(73); }
+    state wrong_let_left(&mut self)   { self.console.exit_process(74); }
+}

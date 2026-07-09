@@ -16402,6 +16402,33 @@ fn runtime_float_compare_bool_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_text_equals_boolean_operand_exit_canary_runs() {
+    // Texteq nested in a boolean AND, both operand orders x both targets;
+    // the right-operand legs pin the pool-drawn address register (a fixed
+    // x15 collided with the right pool's first pick and read garbage).
+    let canary = pass_canary("text/runtime_text_equals_boolean_operand_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-texteqbool-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("texteq boolean-operand canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("texteq boolean-operand canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "texteq boolean-operand canary should pass all four legs (exit 70), got {:?}",
+        output.status.code(),
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn case_literal_texteq_terminal_exit_canary_runs() {
     // Text equality as a case-literal payload field in a value-machine
     // TERMINAL: the write rides the binary write's own target arms into the
@@ -27006,6 +27033,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "arithmetic/runtime_wrapping_operand_truncation_exit",
     "text/case_literal_texteq_field_store_exit",
     "text/case_literal_texteq_terminal_exit",
+    "text/runtime_text_equals_boolean_operand_exit",
     "text/runtime_text_equals_value_positions_exit",
     "control_flow/runtime_case_member_dispatch_exit",
     "control_flow/runtime_local_boolean_or_value_exit",

@@ -3645,15 +3645,17 @@ fn append_runtime_text_equals_operand(
 /// head plus 12 bytes per literal byte), independent of the flag -- mirroring
 /// the x86_64 encoder's same-width carrier branch.
 ///
-/// Register use: the place address setup lands the descriptor address in x15
-/// -- NOT x16: a binary WRITE holds its target base in x16 across operand
-/// evaluation, and the old x16 setup sent the store to a wild address (the
-/// case-literal terminal's staged z write landed relative to the STRING
-/// descriptor page; the machine-target field store only survived by an
-/// offset-0 accident). Mirrors the frame-indexed operand precedent (the
-/// transition-arg slice-sum SIGSEGV). Indexed setups still clobber
-/// x17/x19/x21/x26 scratch; the operand is built as the LEFT side of its
-/// pair, so nothing live sits in those yet.
+/// Register use: the place address setup lands the descriptor address in the
+/// FOURTH pool scratch -- never x16 (a binary WRITE holds its target base
+/// there; the old x16 setup sent the store to a wild address) and never a
+/// FIXED register that a pool may also hand out: a fixed x15 collided with
+/// the RIGHT pool's first pick, so `ptr_register` was also x15 and its load
+/// destroyed the address before the len read (texteq as the RIGHT operand of
+/// `&&` read garbage; LEFT position survived only because x15 was the len
+/// register there -- a read-then-write last use). Drawing ptr/len/byte/addr
+/// from the pool makes collision impossible by construction. Indexed setups
+/// still clobber x19/x21 scratch; both pools exclude x17/x26, so the
+/// sibling operand's home is never touched.
 fn append_runtime_text_equals_literal_operand(
     runtime_value_operands: &impl RuntimeValueOperandSource,
     bytes: &mut Vec<u8>,
@@ -3663,7 +3665,8 @@ fn append_runtime_text_equals_literal_operand(
     literal: &str,
     place_is_bounded_buffer: bool,
 ) -> Result<(), Diagnostic> {
-    let [ptr_register, len_register, byte_scratch, ..] = *scratch_registers else {
+    let [ptr_register, len_register, byte_scratch, address_register, ..] = *scratch_registers
+    else {
         return Err(Diagnostic::error(
             "AArch64 MVP encoder ran out of scratch registers for runtime text literal equality",
         ));
@@ -3673,27 +3676,27 @@ fn append_runtime_text_equals_literal_operand(
     // Descriptor address -> x16. The relocated page materialization sits at
     // the operand start (the relocation planner targets it there).
     if let Some((_, byte_offset, _)) = runtime_value_operands.storage(place) {
-        bytes.extend(encode_adrp_placeholder(15));
-        bytes.extend(encode_add_page_offset_placeholder(15));
-        append_add_constant_to_x_register(bytes, 15, byte_offset)?;
+        bytes.extend(encode_adrp_placeholder(address_register));
+        bytes.extend(encode_add_page_offset_placeholder(address_register));
+        append_add_constant_to_x_register(bytes, address_register, byte_offset)?;
     } else if let Some((pointer_byte_offset, field_byte_offset, _)) =
         runtime_value_operands.pointee(place)
     {
         // x16 = frame base (relocated page pair), then the stored pointer.
         // The descriptor sits in the POINTEE at the field offset -- never
         // read the pointer slot's own bytes as a descriptor.
-        bytes.extend(encode_adrp_placeholder(15));
-        bytes.extend(encode_add_page_offset_placeholder(15));
-        append_runtime_storage_load(bytes, 15, 15, pointer_byte_offset, 8, "runtime text pointee")?;
+        bytes.extend(encode_adrp_placeholder(address_register));
+        bytes.extend(encode_add_page_offset_placeholder(address_register));
+        append_runtime_storage_load(bytes, address_register, address_register, pointer_byte_offset, 8, "runtime text pointee")?;
         if field_byte_offset > 0 {
-            append_add_constant_to_x_register(bytes, 15, field_byte_offset)?;
+            append_add_constant_to_x_register(bytes, address_register, field_byte_offset)?;
         }
     } else if let Some((descriptor_offset, index_offset, element_byte_size, field_byte_offset, _)) =
         runtime_value_operands.frame_indexed(place)
     {
         append_runtime_frame_index_target_address(
             bytes,
-            15,
+            address_register,
             descriptor_offset,
             index_offset,
             element_byte_size,
@@ -3706,7 +3709,7 @@ fn append_runtime_text_equals_literal_operand(
     {
         append_runtime_frame_base_index_target_address(
             bytes,
-            15,
+            address_register,
             base_byte_offset,
             index_offset,
             element_byte_size,
@@ -3724,7 +3727,7 @@ fn append_runtime_text_equals_literal_operand(
     {
         append_runtime_frame_fixed_index_target_address(
             bytes,
-            15,
+            address_register,
             descriptor_offset,
             element_index,
             element_byte_size,
@@ -3741,11 +3744,11 @@ fn append_runtime_text_equals_literal_operand(
         // (x15 + 8, not a stored pointer) and the length is read at offset 0.
         // Width-identical to the descriptor path (one `add` + one `ldr` vs two
         // `ldr`s), so branch offsets and the operand width are unchanged.
-        bytes.extend(encode_add_x_immediate(ptr_register, 15, 8)?);
-        bytes.extend(encode_load_x_from_x(len_register, 15, 0)?);
+        bytes.extend(encode_add_x_immediate(ptr_register, address_register, 8)?);
+        bytes.extend(encode_load_x_from_x(len_register, address_register, 0)?);
     } else {
-        bytes.extend(encode_load_x_from_x(ptr_register, 15, 0)?);
-        bytes.extend(encode_load_x_from_x(len_register, 15, 8)?);
+        bytes.extend(encode_load_x_from_x(ptr_register, address_register, 0)?);
+        bytes.extend(encode_load_x_from_x(len_register, address_register, 8)?);
     }
 
     // result = 0; a length mismatch is unequal text. The b.ne also means an
