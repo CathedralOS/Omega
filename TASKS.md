@@ -261,6 +261,19 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
     flavor (machine pair into x15 at the CONSTANT +32 -- NOT x21, the
     fixed-width load's offset scratch, which cost one probe crash); record
     inserts the machine reloc @32; width +8 for machine. Suite 696/12.
+    ENTRY-ARGS + TEST PORTABILITY landed 2026-07-09: the `args: &[u8]`
+    slice-descriptor write (28-byte fixed shape over the already-landed
+    register spills; entry_run_args_bytes runs natively) and two
+    windows-authored test expectations made host-portable (trapping-overflow
+    accepts unix signal-kill `code()==None` -- the brk trap VERIFIED live,
+    the !=70 silent-wrap guard intact; atomics_cross cfg-gates the PE run to
+    windows hosts, keeping the aarch64 LSE ELF byte checks everywhere).
+    SUITE STATE 700/9 on the arm64 host (was 101 at session baseline). The
+    remaining 9 are all OTHER-WORKSTREAM or BY-DESIGN: efi x3 (Cathedral
+    track, pre-baseline), tick_count x2 (time agent's darwin boundary row),
+    gui_memory_dc_blit (render track's darwin surface),
+    array_adjacent_index (the documented 64-bit saturating/trapping
+    limitation), + the two umbrella tests that clear with their members.
     Remaining after that: tick/time host lowering
     (runtime_local_string_comparison_value 79!=78), tick/time host lowering,
     the frame-source machine-indexed write, and the entry-args spill.

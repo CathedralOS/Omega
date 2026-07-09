@@ -233,17 +233,23 @@ fn atomics_cross_platform_emits_real_atomics() {
         write_output: true,
     })
     .expect("atomics_cross should compile for windows_x64");
-    let output = Command::new(win_dir.join("omega-program.exe"))
-        .output()
-        .expect("windows_x64 atomics_cross should run");
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected fetch_add(5) old==10/counter==15 then compare_exchange(15,99) \
-         prior==15/counter==99 (exit 70); got {:?}\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
-    );
+    // Only a windows host can execute the PE; elsewhere the windows_x64 build
+    // is compile-verified and the aarch64 ELF instruction checks below carry
+    // the semantic weight.
+    #[cfg(windows)]
+    {
+        let output = Command::new(win_dir.join("omega-program.exe"))
+            .output()
+            .expect("windows_x64 atomics_cross should run");
+        assert_eq!(
+            output.status.code(),
+            Some(70),
+            "expected fetch_add(5) old==10/counter==15 then compare_exchange(15,99) \
+             prior==15/counter==99 (exit 70); got {:?}\n{}",
+            output.status.code(),
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
     let _ = fs::remove_dir_all(&win_dir);
 
     // --- linux_arm64: cross-emit + disassemble-by-bytes ---
@@ -15951,9 +15957,12 @@ fn runtime_trapping_overflow_traps_canary_runs() {
         Some(70),
         "Trapping overflow must abort before the clean exit -- exit 70 means it silently wrapped"
     );
+    // Windows reports the trap as a negative NTSTATUS exit code
+    // (STATUS_ILLEGAL_INSTRUCTION); unix hosts terminate on the signal
+    // (SIGILL/SIGTRAP), where `code()` is None.
     assert!(
-        code.is_some_and(|code| code < 0),
-        "expected a crash status (ud2 -> STATUS_ILLEGAL_INSTRUCTION), got {code:?}"
+        code.is_none() || code.is_some_and(|code| code < 0),
+        "expected a crash status (ud2/brk -> illegal-instruction kill), got {code:?}"
     );
     let _ = fs::remove_dir_all(&build_dir);
 }
