@@ -315,7 +315,7 @@ impl<'plan> RuntimeFlowBuilder<'plan> {
         // A value-position call (`let n = count(..)`) carries a call-result slot;
         // its callee clone writes the terminal value back there when it returns.
         // A statement call (`count(..)`) discards the result -> no slot.
-        let call_result = if self.statement_call_is_value(control_key, call_edge.statement_index) {
+        let call_result = if call_edge.is_value {
             Some(crate::CallResultReturn {
                 call_source_key: control_key,
                 statement_index: call_edge.statement_index,
@@ -470,29 +470,6 @@ impl<'plan> RuntimeFlowBuilder<'plan> {
             }
         }
         omega_core::arena::HandleSpan::empty()
-    }
-
-    /// Whether the dispatched call at `statement_index` is a VALUE-position call
-    /// (`let n = f(..)`, whose operation carries the call in a value/expression
-    /// position) rather than a discarded statement call (`f(..)`, an
-    /// `OperationKind::Call`). Only value calls return into a call-result slot.
-    fn statement_call_is_value(&self, state_key: StateKey, statement_index: usize) -> bool {
-        let Ok(state) = self.state_flow_by_key(state_key) else {
-            return false;
-        };
-        self.control_flow
-            .operations
-            .span(state.operations)
-            .into_iter()
-            .flatten()
-            .filter(|operation| operation.statement_index == statement_index)
-            .any(|operation| {
-                matches!(
-                    operation.expressions,
-                    omega_control_flow::OperationExpressionRefs::Assignment { .. }
-                        | omega_control_flow::OperationExpressionRefs::Expression(_)
-                )
-            })
     }
 
     /// The argument span of the first call expression reachable from `expression`

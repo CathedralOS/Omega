@@ -639,13 +639,29 @@ invisible to a pump; real fix = outbound WndProc entry stubs (extern brief §12.
    (`true -> check(self.count(..))`) is another LIVE silent-wrong (native
    71): widening the return-write slot lookup to any role
    (`state_call_result_slot_any_role`, kept -- documented and needed) was
-   insufficient alone; prime suspect is ORDERING -- the continuation
-   target's argument materializes at the CALLER's call edge, before the
-   callee runs; the builder's `continuation_arguments` machinery exists
-   but the TransitionArgument wiring is the gap. Parked
-   `pending/host/dispatch_result_transition_arg` with the diagnosis; also
-   recorded: `CallResultReturn` carries no call ORDINAL (two dispatched
-   calls in one statement cannot be disambiguated -- plan-shape gap).
+   insufficient alone; the ordering theory was WRONG; the traced
+   root (2026-07-09c, two instrumented sides): the clone terminal carried
+   NO CallResultReturn at all -- `statement_call_is_value` sniffed
+   Assignment/Expression OPERATIONS and a transition-embedded call has no
+   operation at its statement. FIXED: `RuntimeStateCallEdge.is_value` is
+   now set AUTHORITATIVELY from the plan's role (!= Statement) in the
+   router and the builder heuristic is deleted. The write side now RUNS --
+   and exposed the SECOND gap, still open: call-result slots are
+   DUPLICATED PER DISPATCH CONTEXT and the writer picks first-match
+   (dispatch 1, offset 0) while the reader resolves under the caller
+   segment's context (dispatch 4, offset 4) -- different slots, result
+   still ZII. `state_call_result_slot_for_dispatch` (new, dispatch-keyed)
+   is wired to key on `edge.continuation_dispatch_index`, but the loop
+   plan does NOT populate continuation_dispatch_index on terminal edges
+   (traced 0) -- NEXT STEP: populate it in loop_plan/collection.rs (or
+   resolve the continuation state's dispatch case at selection), then the
+   keyed lookup connects writer to reader. Parked
+   `pending/host/dispatch_result_transition_arg` (native 71/interp 70);
+   also recorded: `CallResultReturn` carries no call ORDINAL (two
+   dispatched calls in one statement cannot be disambiguated -- plan-shape
+   gap). Safety: suite A/B zero new failures with the partial landed (the
+   newly-stamped terminals write first-match slots; no green canary
+   reads those paths yet).
    REMAINING SHAPES to matrix: transition-arg ordering (above), effectful
    entries (the parked acceptance canary -- likely the entry-op
    splice/dispatch interaction, not the return-write), alias/slice-element

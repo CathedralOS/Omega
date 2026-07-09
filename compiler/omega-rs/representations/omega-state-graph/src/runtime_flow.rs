@@ -102,6 +102,14 @@ pub struct RuntimeStateCallEdge {
     pub source_key: StateKey,
     pub statement_index: usize,
     pub target_key: StateKey,
+    /// Whether the call is VALUE-position (role != Statement in the state-call
+    /// plan: AssignmentValue / CallArgument / TransitionArgument /
+    /// TransitionGuard). Authoritative from the plan -- the builder's old
+    /// operation-sniffing heuristic missed TRANSITION-embedded calls
+    /// (`true -> check(self.count(..))` has no Assignment/Expression op at the
+    /// statement), so their clone terminals carried no CallResultReturn and the
+    /// caller read a never-written slot.
+    pub is_value: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

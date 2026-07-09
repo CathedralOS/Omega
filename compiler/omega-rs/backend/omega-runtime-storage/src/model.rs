@@ -180,6 +180,29 @@ impl RuntimeStoragePlan {
     /// somehow carries both. NOTE: `CallResultReturn` carries no call
     /// ORDINAL, so a statement with TWO dispatched calls cannot be
     /// disambiguated here yet (plan-shape gap, recorded in TASKS_FS #7).
+    /// Dispatch-keyed sibling of `state_call_result_slot_any_role`: call-result
+    /// slots are duplicated per dispatch context (a segmented caller has one
+    /// per segment case), and a clone terminal's return-write must hit the
+    /// slot of the CONTINUATION it returns into -- `continuation_dispatch_index`
+    /// on the terminal edge -- or the writer and the reader (who resolves under
+    /// the continuation's context) touch DIFFERENT slots (probed: write hit
+    /// dispatch 1 offset 0, read used dispatch 4 offset 4; the transition-arg
+    /// result arrived as ZII).
+    pub fn state_call_result_slot_for_dispatch(
+        &self,
+        dispatch_index: u32,
+        source_key: StateKey,
+        statement_index: usize,
+    ) -> Option<&RuntimeFrameSlot> {
+        self.frame_slots.iter().find_map(|(_, slot)| {
+            (slot.dispatch_index == dispatch_index
+                && Self::source_matches(slot.source_key, source_key)
+                && slot.statement_index == statement_index
+                && matches!(slot.kind, RuntimeFrameSlotKind::StateCallResult { .. }))
+            .then_some(slot)
+        })
+    }
+
     pub fn state_call_result_slot_any_role(
         &self,
         source_key: StateKey,
