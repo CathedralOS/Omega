@@ -1,4 +1,5 @@
 mod arithmetic_domains;
+mod call_cycles;
 mod calls;
 mod contract_entailment;
 mod data;
@@ -70,6 +71,8 @@ pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
     validate_trait_requirements(program, &mut diagnostics);
     validate_data_conformances(program, &symbols, &mut diagnostics);
     validate_data_field_types(program, &symbols, &mut diagnostics);
+    // Q6 ruling: machine call cycles are banned regardless of boundedness.
+    call_cycles::validate_machine_call_cycles(program, &symbols, &mut diagnostics);
     data::validate_zero_reachable_field_ranges(program, &mut diagnostics);
     properties::validate_data_properties(program, &symbols, &mut diagnostics);
     // Bare-payload-case `==` (decision 11) is checked on the RESOLVED trees,

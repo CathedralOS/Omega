@@ -321,7 +321,7 @@ pub(crate) fn validate_call_node(
 /// compute(item: &Item) -> i32 { ... }`), or None. The parser names a free
 /// machine's implicit entry state `entry`; explicit entry states matching the
 /// call target name win first.
-fn free_machine_entry_state<'program>(
+pub(crate) fn free_machine_entry_state<'program>(
     program: &'program TypedTrees,
     symbols: &TopLevelSymbols<'program>,
     target: &str,
