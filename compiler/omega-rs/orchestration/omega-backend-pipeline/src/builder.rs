@@ -315,7 +315,6 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
         &runtime_flow,
         &backend_plan.state_calls,
         &backend_plan.layouts,
-        backend_plan.entry_key.machine,
     );
     backend_plan.state_guards = record_backend_phase(&mut phase_timings, "state guards", || {
         build_state_guard_plan(
@@ -821,62 +820,127 @@ fn state_call_target_loops(
     )
 }
 
-/// See `BackendPlan::receiver_bases`. Slice-1 scope: the minting caller must
-/// be the ENTRY machine (deeper chains would need the caller's own base --
-/// recursive resolution, a later slice) and the receiver must be a named
-/// non-`self` path that resolves through `omega_layout::field_path_offset`
-/// (the SAME walk the contained-receiver fence predicts with).
+/// See `BackendPlan::receiver_bases`. Slice-2 scope: bases COMPOSE through
+/// the parent-context chain (`context_call_sites` carries the minting
+/// caller's own context), so NON-entry callers serve too: a context's base
+/// is its parent's base plus the receiver path's offset within the CALLER's
+/// machine layout (`omega_layout::field_path_offset`, the walk the
+/// contained-receiver fence agrees with by consulting this very table).
+/// Conservative edges, all of which leave the entry `None` (= the by-type
+/// fallback, exactly today's behavior, and the fence keeps refusing what it
+/// refused): `self`/static/empty receivers, a parent that itself did not
+/// compose, and an unresolvable path. ZERO-SIZE callee machines emit `None`
+/// deliberately -- the receiver owns no storage, so every machine-storage
+/// read in its clones is CALLER-owned and an override could only
+/// mis-rebase them (the dungeon regression of attempt #2, 2026-07-11a).
 fn compute_receiver_bases(
     runtime_flow: &omega_state_graph::RuntimeFlowPlan,
     state_calls: &StateCallPlan,
     layouts: &omega_layout::LayoutPlan,
-    entry_machine: omega_core::symbols::SymbolHandle,
 ) -> Vec<Option<usize>> {
-    runtime_flow
-        .states
-        .iter()
-        .map(|(_, state)| {
-            let (call_key, statement_index) = *runtime_flow
-                .context_call_sites
-                .get(state.context.0 as usize)?;
-            if statement_index == usize::MAX {
-                return None; // ROOT context: the entry machine itself
-            }
-            if call_key.machine != entry_machine {
-                return None; // slice 1: entry-machine callers only
-            }
-            let state_call = state_calls
-                .calls
-                .iter()
-                .map(|(_, call)| call)
-                .find(|call| {
-                    call.source_key == call_key && call.statement_index == statement_index
-                })?;
-            let receiver_name = state_call.receiver_name.as_str();
-            if receiver_name.is_empty() || receiver_name == "self" {
-                return None; // self/static receiver: entry storage
-            }
-            let segments = state_calls
-                .receiver_path_segments
-                .span(state_call.receiver_path)
-                .unwrap_or(&[]);
-            let field_segments = match segments.first() {
-                Some(root) if root.as_str() == "self" => &segments[1..],
-                _ => segments,
-            };
-            let caller_layout = layouts
-                .machine_layouts
-                .iter()
-                .find(|(_, machine_layout)| machine_layout.symbol == call_key.machine)
-                .map(|(_, machine_layout)| machine_layout)?;
-            if field_segments.is_empty() {
-                return omega_layout::field_path_offset(
-                    layouts,
-                    caller_layout.fields,
-                    std::slice::from_ref(&state_call.receiver_name),
+    let machine_layout_of = |machine: omega_core::symbols::SymbolHandle| {
+        layouts
+            .machine_layouts
+            .iter()
+            .find(|(_, machine_layout)| machine_layout.symbol == machine)
+            .map(|(_, machine_layout)| machine_layout)
+    };
+
+    // Per-CONTEXT absolute bases (entry-frame byte offsets), parent-first:
+    // a context's parent is always minted before it, so one forward scan
+    // sees every parent finished.
+    let sites = &runtime_flow.context_call_sites;
+    let mut context_bases: Vec<Option<usize>> = vec![None; sites.len()];
+    if let Some(root) = context_bases.first_mut() {
+        *root = Some(0); // ROOT: the entry machine's own region.
+    }
+    for index in 1..sites.len() {
+        let (call_key, statement_index, parent) = sites[index];
+        let Some(parent_base) = context_bases.get(parent.0 as usize).copied().flatten() else {
+            continue;
+        };
+        let Some(state_call) = state_calls
+            .calls
+            .iter()
+            .map(|(_, call)| call)
+            .find(|call| call.source_key == call_key && call.statement_index == statement_index)
+        else {
+            continue;
+        };
+        let receiver_name = state_call.receiver_name.as_str();
+        if receiver_name.is_empty() || receiver_name == "self" {
+            continue; // self/static receiver: keep the by-type fallback
+        }
+        let Some(caller_layout) = machine_layout_of(call_key.machine) else {
+            continue;
+        };
+        let segments = state_calls
+            .receiver_path_segments
+            .span(state_call.receiver_path)
+            .unwrap_or(&[]);
+        let field_segments = match segments.first() {
+            Some(root) if root.as_str() == "self" => &segments[1..],
+            _ => segments,
+        };
+        let offset_in_caller = if field_segments.is_empty() {
+            omega_layout::field_path_offset(
+                layouts,
+                caller_layout.fields,
+                std::slice::from_ref(&state_call.receiver_name),
+            )
+        } else {
+            omega_layout::field_path_offset(layouts, caller_layout.fields, field_segments)
+        };
+        context_bases[index] = offset_in_caller.map(|offset| parent_base + offset);
+        if std::env::var_os("OMEGA_DEBUG_RECEIVER").is_some() {
+            eprintln!(
+                "CTXBASE: ctx {index} site m{} s{} seg{} stmt {statement_index} parent {} \
+                 (base {parent_base}) receiver {receiver_name} -> {:?}",
+                call_key.machine.arena_index(),
+                call_key.state.arena_index(),
+                call_key.segment_index,
+                parent.0,
+                context_bases[index],
+            );
+        }
+    }
+    if std::env::var_os("OMEGA_DEBUG_RECEIVER").is_some() {
+        for index in 1..sites.len() {
+            if context_bases[index].is_none() {
+                let (call_key, statement_index, parent) = sites[index];
+                eprintln!(
+                    "CTXBASE: ctx {index} UNRESOLVED site m{} s{} seg{} stmt {statement_index} \
+                     parent {}",
+                    call_key.machine.arena_index(),
+                    call_key.state.arena_index(),
+                    call_key.segment_index,
+                    parent.0,
                 );
             }
-            omega_layout::field_path_offset(layouts, caller_layout.fields, field_segments)
-        })
-        .collect()
+        }
+    }
+
+    // Emit indexed by ARENA INDEX (== dispatch_index; 1-based, 0 = the
+    // invalid handle), NOT by iteration position -- every consumer looks up
+    // `receiver_bases[dispatch_index]`. The positional collect() this
+    // replaces was off by one and masked only because adjacent clone states
+    // usually share a context (caught 2026-07-11b by the non-entry probe).
+    let mut bases: Vec<Option<usize>> = vec![None; runtime_flow.states.len() + 1];
+    for (handle, state) in runtime_flow.states.iter() {
+        let index = handle.arena_index() as usize;
+        if index >= bases.len() {
+            bases.resize(index + 1, None);
+        }
+        let Some(base) = context_bases.get(state.context.0 as usize).copied().flatten() else {
+            continue;
+        };
+        let Some(machine_layout) = machine_layout_of(state.key.machine) else {
+            continue;
+        };
+        if machine_layout.layout.size == 0 {
+            continue; // zero-size receiver: nothing to serve (see above)
+        }
+        bases[index] = Some(base);
+    }
+    bases
 }

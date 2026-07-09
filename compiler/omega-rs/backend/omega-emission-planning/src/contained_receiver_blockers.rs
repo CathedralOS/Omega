@@ -106,6 +106,46 @@ pub(crate) fn collect_contained_receiver_blockers(
             }
         }
 
+        // SLICE 2 (NON-entry callers), DISPATCH route only: serve exactly when
+        // the pipeline COMPOSED a base for EVERY clone this call minted -- the
+        // per-dispatch table is the single prediction site, consulted directly
+        // (no re-derived predicate): every runtime-flow state whose context
+        // was minted by THIS call must carry `Some` in `receiver_bases`, and
+        // at least one such state must exist. Zero-size receivers emit `None`
+        // there by design and fall through to the by-type compare below
+        // (single-instance zero-size receivers pass it; that route needs no
+        // base at all).
+        if state_call.source_key.machine != input.entry_key.machine
+            && crate::dispatch_route::state_call_routed_to_dispatch(input, state_call)
+        {
+            let mut minted_any = false;
+            let mut all_composed = true;
+            for (handle, state) in input.runtime_flow.states.iter() {
+                let Some((call_key, statement_index, _)) = input
+                    .runtime_flow
+                    .context_call_sites
+                    .get(state.context.0 as usize)
+                else {
+                    continue;
+                };
+                if *call_key != state_call.source_key
+                    || *statement_index != state_call.statement_index
+                {
+                    continue;
+                }
+                minted_any = true;
+                all_composed &= input
+                    .receiver_bases
+                    .get(handle.arena_index() as usize)
+                    .copied()
+                    .flatten()
+                    .is_some();
+            }
+            if minted_any && all_composed {
+                continue;
+            }
+        }
+
         // The receiver's FIELD path: the plan's root->leaf spelled segments
         // with the `self` root stripped. Matched by NAME throughout: receiver
         // symbols and layout field symbols live in different arenas, so

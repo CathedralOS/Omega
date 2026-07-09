@@ -28,12 +28,15 @@ pub struct RuntimeFlowPlan {
     pub cycles: Arena<RuntimeCycle>,
     pub cycle_states: Arena<RuntimeState>,
     /// Per-context MINTING CALL SITE, indexed by `CallContext.0`: the caller
-    /// state + statement whose dispatched call minted the context. Entry 0
+    /// state + statement whose dispatched call minted the context, plus the
+    /// CONTEXT THE CALLER RAN IN (its parent -- always minted earlier, so a
+    /// forward scan can compose child bases from finished parents). Entry 0
     /// (ROOT) is the invalid key. This is the receiver-identity thread for
     /// per-instance dispatch (TASKS_FS "Stolen work #2"): downstream
     /// consumers look up the minting StateCall's receiver path and resolve
-    /// the callee's TRUE storage base, instead of the first-type-match walk.
-    pub context_call_sites: Vec<(StateKey, usize)>,
+    /// the callee's TRUE storage base -- composed through the parent chain
+    /// for non-entry callers -- instead of the first-type-match walk.
+    pub context_call_sites: Vec<(StateKey, usize, CallContext)>,
 }
 
 impl RuntimeFlowPlan {
@@ -48,8 +51,8 @@ impl RuntimeFlowPlan {
             edges: Arena::with_capacity(edge_capacity),
             cycles: Arena::with_capacity(cycle_capacity),
             cycle_states: Arena::with_capacity(cycle_state_capacity),
-            // Index 0 == ROOT: no minting call.
-            context_call_sites: vec![(StateKey::default(), usize::MAX)],
+            // Index 0 == ROOT: no minting call (self-parented placeholder).
+            context_call_sites: vec![(StateKey::default(), usize::MAX, CallContext::ROOT)],
         }
     }
 }
