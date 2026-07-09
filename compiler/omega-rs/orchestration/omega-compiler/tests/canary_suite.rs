@@ -16351,6 +16351,32 @@ fn custom_ranking_struct_view_canary_runs() {
 }
 
 #[test]
+fn runtime_recursive_result_roles_exit_canary_runs() {
+    // Recursive value-call results consumed as GUARD subjects and TRANSITION
+    // ARGUMENTS (the aggregate sweep's role coverage beyond let bindings).
+    let canary = pass_canary("termination/runtime_recursive_result_roles_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-recroles-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("recursive result roles canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("recursive result roles canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected both recursive-result roles to deliver (exit 70), got {:?}",
+        output.status.code(),
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_trapping_guard_overflow_traps_canary_runs() {
     // Trapping arithmetic in OPERAND position must TRAP: `u8 in Trapping`
     // 200+100 overflows at the guard's fused add, so the process dies before
@@ -26595,6 +26621,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "termination/custom_ranking_order_compile",
     "termination/custom_ranking_field_countdown_compile",
     "termination/custom_ranking_struct_view",
+    "termination/runtime_recursive_result_roles_exit",
     "domains/contracts_domain_membership_surface",
     "domains/domain_operator_spelling_selected",
     "domains/domain_operator_proven_fact_selects_meaning",
@@ -27589,6 +27616,10 @@ const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
     },
     PendingCanary {
         path: "arithmetic/unsigned_min_max_wrapping_local_divergence",
+        expectation: PendingCanaryExpectation::CurrentlyAccepts,
+    },
+    PendingCanary {
+        path: "calls/recursive_result_bind_first_arg",
         expectation: PendingCanaryExpectation::CurrentlyAccepts,
     },
     PendingCanary {
