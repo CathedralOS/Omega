@@ -583,317 +583,42 @@ decreases remaining
   silently resolving the first field -- graduates from silent-wrong repro to
   fence-pinned, retire when per-instance dispatch (rung 3) lands.
 
-- **EXPRESSION-DOMAIN SESSION 2026-07-09c: interp node-level domains + the
-  fused-operand fence.** Started from the fs agent's parked
-  interp_saturating_param_carry repro (interp computed transition-arg
-  arithmetic WIDE, exit 71 vs native 70). Two coupled findings + fixes:
-  1. **INTERPRETER (fixed):** the oracle's wide-compute + coerce-at-LANDING
-     model cannot represent an expression whose own domain differs from its
-     landing slot (`leaf(acc: i8 in Saturating) -> i8 { acc + 50 }` -- the
-     add must saturate even though `-> i8`/`let n: i8` land Exact). Fix in
-     evaluator.rs: Frame's `unsigned64_locals` name-set GENERALIZED to
-     `scalar_locals: BTreeMap<name, (PrimitiveType, ArithmeticDomain)>`
-     (seeded at bind_frame params + LocalData lets; expression_is_unsigned64
-     now derives from it -- one classification store instead of two), a new
-     `expression_scalar_type` witness resolver (Name/self.field/Cast(=Exact,
-     no domain clause)/Unary/Binary one-witness recursion), and eval_binary
-     applies Saturating/Trapping to Add/Sub/Mul AT THE NODE in i128 (also
-     fixes 64-bit signed saturation, which i64 landing seams cannot express).
-  2. **NATIVE (silent miscompile found, fenced loudly):** arithmetic FUSED
-     into a guard operand (`transition (sat_a + sat_b == 127)`) encoded as
-     the PLAIN op -- Saturating read the unclamped 150 (wrong arm, silent);
-     Trapping never trapped (200+100 u8 sailed past its check, silent).
-     Probes: all four saturating directions wrong natively; Wrapping fused is
-     CORRECT (byte-width compare truncation IS the wrap). Fix:
-     `ValueOperand::Binary` now carries `arithmetic_domain` (resolved at all
-     8 construction sites via a shared witness resolver in storage_places;
-     min/max builtin + synthesized bool-compare sites are Exact by
-     construction), and emission planning's new operand_domain_blockers
-     (arena sweep -- no instruction kind can smuggle one past it; guard
-     compares get state attribution) refuses SATURATING Add/Sub/Mul with a
-     store-first workaround message. Div/Mod stay fused (operand-width op
-     already matches domain semantics; MIN/-1 idiv-trap face documented in
-     the blocker). TRAPPING deliberately NOT fenced: value-identical for
-     non-overflowing inputs and the corpus uses `in Trapping` pervasively
-     (fencing broke binary_search/mandelbrot/enum_struct_payload/
-     guarded_computed_index) -- the missed-trap gap is parked as
-     pending/arithmetic/runtime_trapping_guard_overflow with the interp leg
-     pinned by interpreter_traps_on_pending_trapping_guard_overflow.
-  Canaries: PROMOTED pass/arithmetic/runtime_saturating_param_carry_exit
-  (differential 70/70 -- both legs now agree); NEW
-  fail/arithmetic/guard_saturating_operand_rejected (pins the blocker);
-  PARKED pending/arithmetic/runtime_saturating_expression_domain_exit
-  (interp-correct/native-fenced; promote with the operand-position lowering)
-  + runtime_trapping_guard_overflow (above);
-  runtime_narrow_signed_guard_ops_exit fields switched to plain i8 (its
-  Saturating declarations were incidental; subject is signedness).
-  OPEN follow-up (queued, both ISAs): real operand-position
-  Saturating/Trapping lowering -- LANDED 2026-07-09d, see the next entry;
-  the fence is gone and both pending canaries are promoted. Note the
-  backend report now renders fused domains (`Add/8 in Trapping`).
-  Suite: failure set IDENTICAL to the known 7 (efi x3 Cathedral, tick x2
-  time, gui_memory_dc_blit render, pass umbrella); differential green
-  through its list until the pre-existing tick_count first-failure stop
-  (baseline-verified); zero warnings.
-
-- **OPERAND-POSITION DOMAIN LOWERING 2026-07-09d: the fused-operand fence
-  retired into a feature.** Saturating/Trapping Add/Sub/Mul now lower
-  correctly IN OPERAND POSITION (fused under guard compares / nested operand
-  trees) on BOTH ISAs, by reusing each backend's proven binary-WRITE domain
-  sequences:
-  - `ValueOperand::Binary` gained `operands_signed` (resolved from the same
-    declared-type witness as `arithmetic_domain`; the storage_places witness
-    helper now returns the pair), and its `byte_width` is the REAL operand
-    width when the domain is Saturating/Trapping (still 8 otherwise --
-    bit-identical plain paths). New `binary_arithmetic_domain` accessor on
-    RuntimeValueOperandSource (both impls).
-  - x86_64: the operand evaluator's Binary arm dispatches to the write path's
-    `append_width_integer_add_sub` + `append_arithmetic_domain_clamp`
-    (flag-driven, r10/r11 -- same registers the operand path already uses)
-    and `append_saturating_trapping_multiply`; width twin mirrors. 64-bit
-    sat/trap MUL stays a loud error (pre-existing x86 gap; aarch64 has MULH
-    arms -- parity item for the x86 thread).
-  - aarch64: `append_saturating_trapping_arithmetic` is now
-    REGISTER-PARAMETRIC (dest/rhs/scratch[4]; the write path passes
-    17/26/[15,14,13,12] -- byte-identical to the old hardcoded registers,
-    proven by the unchanged suite), and the operand evaluator's Binary arm
-    calls it at the evaluator-assigned dest/rhs with the remaining scratch.
-    widths.rs operand-width twin mirrors via
-    `saturating_trapping_arithmetic_width`.
-  - Fence unwound: emission planning's operand_domain_blockers DELETED,
-    fail/arithmetic/guard_saturating_operand_rejected retired. PROMOTED:
-    pass/arithmetic/runtime_saturating_expression_domain_exit (5 directions;
-    differential 70/70) and pass/arithmetic/runtime_trapping_guard_overflow_
-    traps (native brk/SIGTRAP asserted by its suite test, no clean exit;
-    differential-EXCLUDED with the interp leg pinned by
-    interpreter_traps_on_trapping_guard_overflow).
-  Verified: suite failure set identical to the known 7; differential green
-  through its list to the pre-existing tick_count stop; 9 touched-crate test
-  suites green; zero warnings. The aarch64 legs run natively on this host;
-  the x86 legs ride the shared write-path helpers (already canary-proven on
-  x86) plus the encode/width debug_assert -- Windows agent's next suite run
-  confirms.
-  REMAINING operand-position domain edges (parked, small): Saturating signed
-  div/mod MIN/-1 in operand position still rides the plain idiv/sdiv (x86
-  would #DE-trap instead of clamping to MAX; store-position handles it via
-  append_saturating_signed_divide_modulo -- same reuse pattern applies if a
-  real program hits it), and Wrapping signed div MIN/-1 fused would #DE on
-  x86 (store-position guards it).
-
-- **DIFFERENTIAL UNMASKING + U64 SATURATION 2026-07-09e.** Converted the
-  differential RUN-canary umbrella from first-panic to COLLECT-ALL: a native
-  compile failure is now a printed `native-blocked` bucket (the canary suite
-  owns that signal; nothing to compare) instead of a panic that aborted the
-  sweep -- the old flow COLLECTED mismatches but the tick_count abort fired
-  BEFORE the final assert, so collected mismatches were never reported (the
-  serial-umbrella masking pattern again, this time hiding a real one). The
-  RUN_CANARIES-stale check is likewise collected, not panicked.
-  UNMASKED IMMEDIATELY: arithmetic/runtime_saturating_wide_boundaries_exit
-  interp 83 vs native 70 -- the interpreter had NO unsigned-64 saturating
-  story since the canary was added (integer_bounds cannot express u64::MAX in
-  an i64 pair, and a landing seam cannot recover overflow after the wrap:
-  u64 MAX+5 arrives as 4 with the evidence gone). Fixed at the eval_binary
-  NODE path: 64-bit unsigned views the Value::Int bit patterns as u64 and
-  computes/clamps/traps in i128 against [0, u64::MAX]; signed keeps the
-  existing i128 arm. Differential umbrella now FULLY GREEN on this host
-  (662 matched / 3 native-blocked: tick x2 + gui_memory_dc_blit / 0
-  mismatch) -- first time, and the failure-set diff workflow now applies to
-  the differential too.
-  STILL QUEUED (operand-position domain family, small): Saturating signed
-  div/mod MIN/-1 and x86 Wrapping signed div MIN/-1 (#DE) fused in operand
-  position -- same write-path-reuse pattern as 2026-07-09d; aarch64's
-  append_saturating_signed_divide_modulo needs the same register
-  parameterization (it hardcodes x17/x26/x9). Also x86 64-bit sat/trap MUL
-  parity (needs the 128-bit imul form; aarch64 has MULH arms).
-
-- **WRAPPING NODE SEMANTICS + PROMOTION-AWARE WITNESS 2026-07-09f.** Probing
-  the queued div/mod edges surfaced a LIVE interp divergence first: WRAPPING
-  arithmetic fused into a guard (`(au + bu == 44)`, u8 200+100) -- native's
-  byte-width compare IS the wrap (44), but the interp compared the wide 300
-  full-width (exit 71 vs 70; no landing seam exists guard-direct). Fix: the
-  eval_binary node arm now also WRAPS Add/Sub/Mul to the declared width under
-  Wrapping (congruence-preserving for +/-/* chains, so truncating each
-  intermediate agrees with native's wide-compute + width-sensitive-op
-  truncation everywhere). That fix immediately tripped
-  runtime_mixed_width_sign_exit and exposed a WRONG CONVENTION in the witness
-  resolver: first-non-Exact-witness mistypes mixed-WIDTH promotions (u8+i32
-  runs at i32; wrapping at the u8 witness turned 300 into 44). The Binary arm
-  of expression_scalar_type now picks the WIDER operand witness (promotion
-  rank via a new integer_primitive_byte_width; equal widths keep left --
-  add/sub/mul bits agree across signedness at one width, and mixed DOMAIN
-  classes are checker-rejected). New canary
-  pass/arithmetic/runtime_wrapping_expression_guard_exit (3 wrap directions,
-  native 70, differential 70/70 + suite runs test). Differential umbrella
-  green: 665 matched / 3 native-blocked / 0 mismatch.
-  BACKEND NOTE (same convention, milder): the selection-side witness
-  (resolve_binary_operand_arithmetic_domain_in_table) keeps first-witness for
-  domain (mixed domains checker-rejected) and its WIDTH already promotes via
-  runtime_value_compare_byte_size (max of operand sizes); SIGNEDNESS of a
-  mixed-sign Sat/Trap operand pair is first-witness best-guess -- exotic,
-  flagged here rather than guessed at.
-  STILL QUEUED: operand-position div/mod MIN/-1 -- LANDED 2026-07-09g; x86
-  64-bit sat/trap MUL parity -- LANDED 2026-07-09h. The decision-17 domain
-  lowering family is CLOSED on both ISAs, in both store and operand
-  position, at every width.
-
-- **OPERAND-POSITION DIV/MOD MIN/-1 2026-07-09g: the domain family closed.**
-  Signed division's one overflowing corner now resolves correctly when FUSED
-  into guard operands, on all three legs:
-  - x86_64: the operand Binary dispatch was refactored around a shared
-    `operand_position_domain_operation` classifier (ONE dispatch consumed by
-    both the emission arm and its width twin -- they can no longer drift) and
-    gained SaturatingSignedDivMod (TYPE_MIN/-1 clamp fixup) and
-    WrappingSignedDivMod (the idiv #DE guard; the byte-width compare
-    truncates the negated value exactly as the write path's store would).
-  - aarch64: `append_saturating_signed_divide_modulo` is register-parametric
-    (write path passes 17/26/9, byte-identical); the operand arm calls it for
-    signed Saturating div/mod. Wrapping needs no arm (`sdiv` wraps
-    naturally); Trapping div/mod keep the pre-existing per-ISA divergence
-    (x86 idiv faults, aarch64 sdiv does not -- write-path-consistent).
-  - interp: eval_binary's node path resolves signed div/mod MIN/-1 per
-    domain (wrap/clamp/trap; /0 keeps the trap), and the CALLER now resolves
-    scalar_type for Divide/Modulo too (it was Add/Sub/Mul-only, so the div
-    arm never fired -- caught because the modulo direction passed
-    coincidentally: wide MIN%-1 is 0 anyway; the omega-run --both probe
-    harness the fs lane built made the per-direction bisect one command).
-  Construction sites now record the REAL byte_width for every non-Exact
-  Binary operand (Wrapping included). New canary
-  pass/arithmetic/runtime_divide_min_edge_guard_exit (sat MIN/-1 -> MAX,
-  sat MIN%-1 -> 0, wrap MIN/-1 -> MIN; differential 70/70 + suite test).
-  Suite failure set identical to the known 7; ISA crate tests green; zero
-  warnings. [RETRACTED 2026-07-10: the omega-run exit-code note below was a
-  FALSE FLAG -- the tool exits 201 on divergence exactly as documented;
-  the "exit 0" reads were this thread's own $?-after-pipe mistake (tail's
-  exit code, the long-documented shell landmine). Direct invocation
-  verified.]
-
-- **X86 64-BIT SAT/TRAP MULTIPLY 2026-07-09h: the domain family's last gap.**
-  `append_saturating_trapping_multiply` byte_size==8 arms landed via the
-  128-bit ONE-OPERAND forms (RDX:RAX), mirroring aarch64's MULH witnesses:
-  signed overflow iff RDX != RAX>>63 (49-byte branchless clamp selecting
-  MIN/MAX by the true product sign left^right; 20-byte trap), unsigned iff
-  RDX != 0 (26-byte clamp to all-ones; 16-byte trap). Scratch: rax/rdx
-  (clobbered by the multiply anyway) + r9/r15 (free after operand
-  evaluation); r11 is preserved by the one-operand form and keeps serving as
-  the right operand. Width twin returns the four constants. Serves BOTH the
-  write path and operand position through the existing dispatches.
-  VERIFICATION without an x86 host: cross-compiled probes for `windows_x64`
-  from this arm64 host (a build.omg `target` block is how targets enter the
-  frontier) -- emission's width debug_asserts pass, and the full 49/26-byte
-  sequences were byte-matched inside the emitted COFF object; the trapping
-  arms compile the same way. Native+interp legs verified on aarch64
-  (omega-run --both). wide_boundaries gained smul_guard/umul_guard
-  directions (fused 64-bit sat mul in guard operands, exits 88/89 on
-  failure) -- differential 70/70. NOTE: this also un-fences 64-bit
-  saturating-mul programs on Windows hosts (the write path previously
-  refused them loudly there; the Windows agent's next suite run confirms
-  runtime behavior).
-
-- **SHIFT-LEFT UNDER DOMAINS 2026-07-09i: one fix, one design flag.** Sweeping
-  the operator space after the domain family closed: `<<` was the one
-  remaining overflow-capable operator (bitwise/shr cannot exceed the width).
-  (1) FIXED: Wrapping shl fused in a guard diverged exactly like the wrapping
-  add (native's byte-width compare IS the wrap; the interp compared 272
-  full-width). The interp Wrapping node arm + the caller's scalar_type
-  resolution now include ShiftLeft;
-  runtime_wrapping_expression_guard_exit gained the shl direction (17<<4 ==
-  16; differential 70/70).
-  (2) PARKED (design): `<<` on a SATURATING type diverges three ways -- no
-  backend implements saturating shl anywhere (the plain op wraps, store or
-  operand position), while the interp's landing seam clamps stores
-  generically (native 72 vs interp 70 on the probe). Neither behavior was
-  deliberate. The owner call: shifts as domain-governed operators (native
-  clamp sequences x2 ISAs x2 positions + interp node arm) OR shifts as
-  wrap-only operators (checker rejects `<<` on Saturating/Trapping loudly +
-  the interp seam stops clamping shl). Parked as
-  pending/arithmetic/shl_saturating_domain_divergence with both expected
-  exits documented; sibling of the count-at-or-above-width parking.
-
-- **S2 CAST RETAG IN THE INTERP WITNESS 2026-07-09j.** Completeness sweep of
-  the domain-witness sources found the interp's Cast arm HARDCODED Exact
-  ("as T carries no domain clause") -- but decision-17 S2 casts DO
-  (`x as u8 in Saturating`; the checked-trees cast node carries `.domain`,
-  which the backend witness already read). Verified first that the CAST
-  CONVERSION itself is a retag, not a clamp (probe: `300 as u8 in Saturating`
-  truncates to 44 on BOTH legs -- design-correct per chapter 8 / the
-  arithmetic_domain_cast_exit canary; the retag governs the arithmetic the
-  value joins). The live divergence was the retag FUSED under a guard
-  (`(a as u8 in Saturating) + b == 255`: native clamped via its witness,
-  interp compared the wide 300 -- exit 71). Fixes: the interp Cast witness
-  returns `cast.domain`, and the promotion tie-break now prefers the
-  NON-EXACT side at equal widths (an S2 retag on the right operand of a
-  plain-left pair; checker-legal programs agree either way, this is
-  robustness). arithmetic_domain_cast_exit gained the fused-guard direction
-  (differential 70/70; already a RUN member). Domain-witness sources now
-  covered end to end: fields, params, lets, casts, nested nodes, promotions.
-
-- **PENDING-CANARY AUDIT 2026-07-10 (post-domain-arc, via omega-run --both):**
-  all 11 parked repros behave EXACTLY as their headers document -- no drift
-  from the node-level-domain / operand-position-lowering arc. Notables:
-  shift_amount_at_or_above_width agrees 72/72 on this host (aarch64 LSLV
-  matches the interp; the parked divergence is vs x86's 32-bit count mask,
-  unchanged); dead_trapping_let still splits by design (native DCE elides
-  the dead trap -> 7, interp traps -- #65 abort-as-effect territory);
-  const-fold family + unsigned_min_max unchanged (type-carrying-constants
-  design); receiver-field + tail_self_call fail loudly with their
-  documented diagnostics (the latter is the fs lane's active step-2 work).
-  ALSO CONFIRMED this tick: the language has NO unary minus
-  (UnaryOperator = LogicalNot only; negation is `0 - x`, which rides the
-  binary domain machinery) -- the domain operator space is complete with no
-  hidden unary path.
-
-- **SAMPLE: led_mixer 2026-07-10 (the domain arc's idiomatic showcase).**
-  samples/cli/arithmetic/led_mixer -- brightness math where the TYPE does the
-  clamping: saturating u8 channel (add up / dim down / gamma multiply all
-  clamp), a plain sensor reading joining via the S2 retag, the ambient check
-  computed FUSED in its guard (the operand-position clamp, no stored
-  intermediate), and a Wrapping frame counter that rolls by design.
-  Expected exit: 70; verified native + interp; guarded permanently by
-  samples_compile + the documented-exit runner. The "samples as we go"
-  artifact for the whole 2026-07-09 domain arc.
-
-- **PASS-UMBRELLA COLLECT-ALL 2026-07-10b: fourth umbrella, two unmasked
-  regressions.** pass_canaries_compile converted from first-panic to
-  collect-all (the same masking pattern as the differential/fail/serial
-  umbrellas before it). It immediately surfaced two canaries the efi-first
-  panic had hidden: termination/custom_ranking_{field_countdown_compile,
-  struct_view} -- authored 2026-05-27, GREEN six weeks, loudly regressed by
-  the fs lane's 2026-07-09 return-write fence (correctly: their value-call
-  terminal is a PARAM-STRUCT-FIELD read, `false -> card.power`, an unserved
-  matrix row whose execution would ZII the caller's result). Both PARKED at
-  pending/termination/* with PROMOTE notes; the matrix-row ask is filed in
-  TASKS_FS Observations. The umbrella now reports exactly the 5 host-blocked
-  members (efi x2, tick x2, gui blit); suite failure set unchanged at the
-  known 7. [CORRECTION 2026-07-10c: "every serial umbrella is now
-  collect-all" was FALSE when written -- the fail-fragment and pending-gaps
-  umbrellas were still first-panic; converted the next tick, see below.]
-
-- **PENDING DRIFT-CHECK REPOPULATED + LAST TWO UMBRELLAS 2026-07-10c.**
-  Verifying the prior tick's "every umbrella is collect-all" claim found it
-  FALSE (corrected above): fail_canaries_reject_with_expected_diagnostic_
-  fragment and pending_canaries_reproduce_known_gaps were still first-panic
-  -- both now collect-all (nothing was hiding in either; the pattern's
-  find-rate drops to 4 of 6). The bigger find: ACTIVE_PENDING_CANARIES had
-  drifted EMPTY while 13 parked repros sat on disk unwatched -- the suite's
-  own pending-drift infrastructure (CurrentlyAccepts /
-  CurrentlyRejects{fragment}) was checking nothing, and every drift recheck
-  this whole arc was a manual omega-run sweep. Repopulated with all 13
-  (expectations mirror the headers; all pin green first pass). A parked
-  repro graduating now fails the suite with a PROMOTE instruction instead
-  of waiting for the next manual audit. The compile-only check cannot see
-  the runtime divergences (headers + periodic omega-run sweeps still own
-  those), but accepts-vs-rejects drift is now automatic.
-
-- **PENDING RUNTIME DRIFT-CHECK 2026-07-10d: the corpus is fully
-  self-watching.** The canary suite's repopulated pending list pins compile
-  accepts-vs-rejects; the new differential test
-  pending_runtime_divergences_hold pins the RUNTIME legs -- all 9
-  compiling parked divergences' exact (native exit, interp exit-or-trap)
-  pairs, collect-all, mutation-tested (a flipped expectation is caught and
-  named). A fix landing on either side (a const-fold repair, a design call
-  implemented, an ISA change) now fails loudly with a promote signal; the
-  manual omega-run sweeps become confirmation, not discovery. Both lists
-  cross-reference the canary headers as the source of truth.
+- **DOMAIN-SEMANTICS ARC 2026-07-09c .. 2026-07-10d — COMPLETE (compacted;
+  full session records live in the git log, commits cd42934d5..b9fd93b6f).**
+  Decision-17 arithmetic domains now hold at every width, in store AND
+  operand position, on both ISAs and the interpreter, with every behavior
+  differential-pinned:
+  * INTERP: node-level domain application (scalar_locals typed-name map,
+    promotion-aware expression_scalar_type witness incl. S2 cast retags and
+    non-Exact tie-break; i128/u128 wide compute; Wrapping wraps at the node
+    incl. shl; signed div/mod MIN/-1 per domain; u64 saturation).
+  * NATIVE: ValueOperand::Binary carries (arithmetic_domain, operands_signed,
+    real byte_width); operand-position clamp/trap via the register-parametric
+    write-path sequences (aarch64) and a shared classifier feeding emission +
+    width twins (x86); signed div/mod MIN/-1 fixups + the x86 idiv #DE guard;
+    x86 64-bit sat/trap MUL via the 128-bit one-operand forms (byte-verified
+    in a cross-compiled COFF object from this host).
+  * TEST INFRA: all six serial umbrellas are COLLECT-ALL (four conversions
+    found real hidden failures: an interp u64-sat bug behind the
+    differential's tick_count stop, and two return-write-fence regressions
+    behind the pass umbrella's efi stop -- parked at pending/termination/*,
+    matrix-row ask filed with the fs lane); ACTIVE_PENDING_CANARIES
+    repopulated (was EMPTY, 13 repros unwatched) and
+    pending_runtime_divergences_hold pins the 9 compiling divergences' exact
+    exit pairs (mutation-tested). The parked ledger is self-watching on both
+    the compile and runtime axes.
+  * ARTIFACTS: canaries (saturating/wrapping/div-min-edge/trapping-guard
+    expression families, all differential members), the led_mixer sample,
+    and the arithmetic_domains_implementation_map status header (landed
+    surfaces + open edges).
+  * Corrections on the record: the omega-run exit-code flag was retracted
+    (this thread's $?-after-pipe misread); "every umbrella is collect-all"
+    was claimed one tick early.
+  OPEN from this arc (design-gated, owner calls): saturating/trapping
+  SHIFT-LEFT (pending/arithmetic/shl_saturating_domain_divergence), float
+  types accepting meaningless domain clauses (next entry), shift counts
+  at/above width (cross-arch), range-under-non-Exact, type-carrying
+  constants, abort-as-effect #65.
 
 - **[ ] Float types accept a domain clause that means nothing (found
   2026-07-10).** `f: f32 in Saturating` compiles; both legs run plain IEEE
