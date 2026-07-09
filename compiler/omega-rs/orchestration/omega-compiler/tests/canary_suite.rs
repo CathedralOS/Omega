@@ -20876,6 +20876,39 @@ fn runtime_nonentry_second_receiver_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// RECEIVER SLICE 2, SELF-CALL HOP: the dispatching caller is reached
+// through a machine-to-machine SELF call (Main -> holder.run() ->
+// self.step() -> second.drain()). Self-call contexts inherit the parent's
+// composed base, so the named-receiver hop downstream keeps composing.
+#[test]
+fn runtime_selfcall_chain_second_receiver_exit_canary_runs() {
+    let canary = pass_canary("calls/runtime_selfcall_chain_second_receiver_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-selfcall-chain-second-receiver-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("self-call chain second-receiver canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("self-call chain second-receiver canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the SECOND receiver's storage through a self-call hop (21 -> exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // A dispatched value call whose terminal reads THROUGH a `&mut` ALIAS
 // (`-> acc`, acc: &mut i32): pins that the result is the pointee value,
 // never the pointer bits (the last unprobed return-write shape).

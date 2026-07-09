@@ -110,12 +110,13 @@ results in Omega. Interpreter = full-parity reference oracle for everything.
    slice-1 shapes because adjacent clone states share a context. Pin:
    calls/runtime_nonentry_second_receiver_exit (Holder-under-Main,
    second Tally, 21→70; wrong-instance delivers 300 / out-of-region
-   writes). Still open in this lane: SELF-call chain composition
-   (a non-entry caller reached via `self.helper()` chains — contexts
-   under self-call parents stay `None`, fence keeps refusing) and the
-   INLINE route for non-entry callers (receiver_base_for's unique-call
-   recovery is still entry-restricted; relax with the same
-   caller-base composition). Probe corpus: scratchpad/slice2 — its two
+   writes). Self-call chain composition
+   landed 2026-07-11c (a self-call context INHERITS its parent's
+   composed base when attached data matches; pin:
+   calls/runtime_selfcall_chain_second_receiver_exit). Still open in
+   this lane: the INLINE route for non-entry callers
+   (receiver_base_for's unique-call recovery is still
+   entry-restricted; relax with the same caller-base composition). Probe corpus: scratchpad/slice2 — its two
    frontier return-write shapes still stand: (a) a dispatched callee
    forwarding its own call-bound LOCAL as terminal; (b) the
    field-carrier restructure through a nested receiver.

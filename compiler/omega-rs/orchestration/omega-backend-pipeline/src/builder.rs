@@ -868,12 +868,35 @@ fn compute_receiver_bases(
             continue;
         };
         let receiver_name = state_call.receiver_name.as_str();
-        if receiver_name.is_empty() || receiver_name == "self" {
-            continue; // self/static receiver: keep the by-type fallback
-        }
         let Some(caller_layout) = machine_layout_of(call_key.machine) else {
             continue;
         };
+        if receiver_name == "self" {
+            // A machine-to-machine SELF call (D10) runs on the CALLER's own
+            // region: inherit the parent's composed base -- this is what lets
+            // a named-receiver dispatch reached THROUGH self-call hops
+            // (`holder.run()` -> `self.step()` -> `second.drain()`) keep
+            // composing. Only when the attached data genuinely matches;
+            // anything else keeps the by-type fallback.
+            let same_data = machine_layout_of(state_call.target_key.machine)
+                .is_some_and(|callee_layout| {
+                    callee_layout.attached_data.is_some()
+                        && callee_layout.attached_data == caller_layout.attached_data
+                });
+            if same_data {
+                context_bases[index] = Some(parent_base);
+                if std::env::var_os("OMEGA_DEBUG_RECEIVER").is_some() {
+                    eprintln!(
+                        "CTXBASE: ctx {index} self-inherit parent {} (base {parent_base})",
+                        parent.0,
+                    );
+                }
+            }
+            continue;
+        }
+        if receiver_name.is_empty() {
+            continue; // static/receiverless: keep the by-type fallback
+        }
         let segments = state_calls
             .receiver_path_segments
             .span(state_call.receiver_path)
