@@ -429,6 +429,23 @@ pub enum HostOperation {
     /// the mixed scalar-plus-2-float call that wraps a `CGImage` for display.
     /// Shares the `_objc_msgSend` symbol.
     MsgSendImageSize,
+    /// `ObjectiveC::send_byte_string(recv, sel, text: &[u8]) -> u64` → `objc_msgSend`
+    /// with one RUNTIME byte-buffer pointer argument (`recv`→x0, `sel`→x1, ptr→x2).
+    /// For `initWithUTF8String:` over runtime bytes (the samples' window titles),
+    /// which `send_string`'s compile-time CString literal argument cannot express.
+    /// The callee reads to the first NUL, so the buffer must be NUL-terminated by
+    /// construction; tighten to a proven CString domain once the reference-domain
+    /// mint lands. Shares the `_objc_msgSend` symbol.
+    MsgSendByteString,
+    /// `ObjectiveC::pool_push() -> u64` → libobjc `objc_autoreleasePoolPush`: opens
+    /// an autorelease-pool scope and returns its token. No args. The gui event pump
+    /// runs outside any Cocoa-managed pool, so dequeued autoreleased NSEvents would
+    /// otherwise leak every frame.
+    PoolPush,
+    /// `ObjectiveC::pool_pop(pool: u64) -> u64` → libobjc `objc_autoreleasePoolPop`:
+    /// closes the pool scope opened by `pool_push`, draining every object
+    /// autoreleased inside it (a void C call; the result register is scratch).
+    PoolPop,
     /// `CoreGraphics::rect_max_x(x, y, w, h) -> f64` → `CGRectGetMaxX`. Takes a
     /// `CGRect` = 4 doubles passed as an HFA in v0–v3, returns `origin.x +
     /// size.width` (v0 + v2) as a `CGFloat` in d0. The run-verified proof that 4
@@ -455,6 +472,15 @@ pub enum HostOperation {
     /// `CoreGraphics::image_width(img) -> i64` → `CGImageGetWidth`: the width of a
     /// `CGImageRef` (a `size_t` in x0). Used to run-verify the blit path.
     ImageWidth,
+    /// `CoreGraphics::context_release(ctx) -> u64` → `CGContextRelease`: drops the
+    /// blit's per-frame bitmap context (Create-rule ownership from
+    /// `CGBitmapContextCreate`). One ptr arg; a void C call — the result register
+    /// is scratch. Without it every presented frame leaks a CGContext.
+    ContextRelease,
+    /// `CoreGraphics::image_release(img) -> u64` → `CGImageRelease`: drops the
+    /// per-frame CGImage snapshot (Create-rule ownership from
+    /// `CGBitmapContextCreateImage`). Same shape as `context_release`.
+    ImageRelease,
     /// `CoreGraphics::event_source_key_state(state_id, keycode) -> u64` →
     /// `CGEventSourceKeyState(CGEventSourceStateID, CGKeyCode)`: is a physical key
     /// currently down? Two scalar args (state_id → x0, keycode → x1), returns a BOOL
@@ -575,12 +601,17 @@ impl HostOperation {
             "send_rect" => Self::MsgSendRect,
             "send_scalar4" => Self::MsgSendScalar4,
             "send_image_size" => Self::MsgSendImageSize,
+            "send_byte_string" => Self::MsgSendByteString,
+            "pool_push" => Self::PoolPush,
+            "pool_pop" => Self::PoolPop,
             "rect_max_x" => Self::RectMaxX,
             "rect_max_y" => Self::RectMaxY,
             "color_space_rgb" => Self::ColorSpaceRgb,
             "bitmap_context" => Self::BitmapContext,
             "bitmap_context_image" => Self::BitmapContextImage,
             "image_width" => Self::ImageWidth,
+            "context_release" => Self::ContextRelease,
+            "image_release" => Self::ImageRelease,
             "event_source_key_state" => Self::EventSourceKeyState,
             "sleep" => Self::Sleep,
             "sleep_poll" => Self::SleepPoll,
@@ -660,12 +691,17 @@ impl HostOperation {
             Self::MsgSendRect => "send_rect",
             Self::MsgSendScalar4 => "send_scalar4",
             Self::MsgSendImageSize => "send_image_size",
+            Self::MsgSendByteString => "send_byte_string",
+            Self::PoolPush => "pool_push",
+            Self::PoolPop => "pool_pop",
             Self::RectMaxX => "rect_max_x",
             Self::RectMaxY => "rect_max_y",
             Self::ColorSpaceRgb => "color_space_rgb",
             Self::BitmapContext => "bitmap_context",
             Self::BitmapContextImage => "bitmap_context_image",
             Self::ImageWidth => "image_width",
+            Self::ContextRelease => "context_release",
+            Self::ImageRelease => "image_release",
             Self::EventSourceKeyState => "event_source_key_state",
             Self::Sleep => "sleep",
             Self::SleepPoll => "sleep_poll",
