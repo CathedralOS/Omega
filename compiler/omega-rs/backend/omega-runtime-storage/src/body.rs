@@ -882,6 +882,30 @@ fn branch_transition_target_key(
 }
 
 #[allow(clippy::too_many_arguments)]
+pub(super) fn append_state_call_result_slot_for_plan(
+    context: &RuntimeStorageContext,
+    plan: &mut RuntimeStoragePlan,
+    next_frame_offset: &mut usize,
+    dispatch_index: u32,
+    source_key: StateKey,
+    statement_index: usize,
+    role: StateCallRole,
+    call_ordinal: usize,
+    target_key: StateKey,
+) {
+    append_state_call_result_slot(
+        context,
+        plan,
+        next_frame_offset,
+        dispatch_index,
+        source_key,
+        statement_index,
+        role,
+        call_ordinal,
+        target_key,
+    )
+}
+
 fn append_state_call_result_slot(
     context: &RuntimeStorageContext,
     plan: &mut RuntimeStoragePlan,

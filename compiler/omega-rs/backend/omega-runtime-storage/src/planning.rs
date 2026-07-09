@@ -88,8 +88,149 @@ pub fn build_runtime_storage_plan_with_workers(
         }
     }
 
+    append_unserved_recursive_call_result_slots(&context, &mut plan);
     reserve_frame_scratch_region(&mut plan);
     plan
+}
+
+/// A DISPATCHED value call to an ENTRY-REENTERING callee (`true ->
+/// weaken(...)` looping back to the callee's own entry) carries NO body
+/// operation anywhere, so the per-body ops-driven allocation never creates
+/// its call-result slot and the dispatch-edge write bails at `slot None`
+/// (the recursive-entry value-arm fence). Allocate those slots HERE, after
+/// the per-body merge, where the FULL slot set is visible: any call that
+/// already has a slot (dual_accumulator's recursion), or that binds to a
+/// FIELD (delivered by the edge write's machine-place fallback, which a
+/// slot would HIJACK -- multi_arm), is skipped. Per-body heuristics for the
+/// same purpose failed four different ways (marker-op visibility, coverage
+/// mismatches, fallback hijack, served-shape overlap); only the merged view
+/// answers "is this call actually unserved". The slot is placed in the
+/// caller's CONTINUATION segment's dispatch namespace (the return edge
+/// targets it and the caller's read executes there), at that namespace's
+/// current extent.
+fn append_unserved_recursive_call_result_slots(
+    context: &RuntimeStorageContext,
+    plan: &mut RuntimeStoragePlan,
+) {
+    use omega_state_calls::StateCallRole;
+
+    let callee_reenters_its_entry = |target_key: omega_control_flow::StateKey| -> bool {
+        context
+            .control_flow
+            .states
+            .iter()
+            .filter(|(_, state)| state.key.machine == target_key.machine)
+            .any(|(_, state)| {
+                context
+                    .control_flow
+                    .transitions
+                    .span(state.transitions)
+                    .into_iter()
+                    .flatten()
+                    .any(|transition| {
+                        matches!(
+                            &transition.target,
+                            omega_control_flow::PlannedTransitionTarget::State { key, .. }
+                                if key.machine == target_key.machine
+                                    && key.state == target_key.state
+                        )
+                    })
+            })
+    };
+
+    // Collect first: allocation mutates the plan we are scanning.
+    let mut unserved: Vec<(
+        omega_control_flow::StateKey,
+        usize,
+        StateCallRole,
+        usize,
+        omega_control_flow::StateKey,
+        u32,
+    )> = Vec::new();
+    for (_, state_call) in context.state_calls.calls.iter() {
+        if !matches!(
+            state_call.role,
+            StateCallRole::AssignmentValue
+                | StateCallRole::CallArgument
+                | StateCallRole::TransitionArgument
+                | StateCallRole::TransitionGuard
+        ) {
+            continue;
+        }
+        if !callee_reenters_its_entry(state_call.target_key) {
+            continue;
+        }
+        // A slot anywhere means the call is served; a FIELD-bound result is
+        // served slotless via the machine-place fallback.
+        if plan
+            .state_call_result_slot_any_role(state_call.source_key, state_call.statement_index)
+            .is_some()
+        {
+            continue;
+        }
+        if state_call.role == StateCallRole::AssignmentValue
+            && !context.state_storage.locals.iter().any(|(_, local)| {
+                local.source_key.machine == state_call.source_key.machine
+                    && local.source_key.state == state_call.source_key.state
+                    && local.statement_index == state_call.statement_index
+            })
+        {
+            continue;
+        }
+        // The continuation segment's dispatch namespace: find the body whose
+        // key is the caller's state at segment_index + 1 (fall back to the
+        // call segment's own body when the caller has no continuation).
+        let continuation_dispatch = context
+            .runtime_bodies
+            .bodies
+            .iter()
+            .find(|(_, body)| {
+                body.key.machine == state_call.source_key.machine
+                    && body.key.state == state_call.source_key.state
+                    && body.key.segment_index == state_call.source_key.segment_index + 1
+            })
+            .or_else(|| {
+                context.runtime_bodies.bodies.iter().find(|(_, body)| {
+                    body.key.machine == state_call.source_key.machine
+                        && body.key.state == state_call.source_key.state
+                        && body.key.segment_index == state_call.source_key.segment_index
+                })
+            })
+            .map(|(_, body)| body.dispatch_index);
+        let Some(dispatch_index) = continuation_dispatch else {
+            continue;
+        };
+        unserved.push((
+            state_call.source_key,
+            state_call.statement_index,
+            state_call.role,
+            state_call.call_ordinal,
+            state_call.target_key,
+            dispatch_index,
+        ));
+    }
+
+    for (source_key, statement_index, role, call_ordinal, target_key, dispatch_index) in unserved {
+        // Extend that dispatch namespace's frame from its current extent.
+        let mut next_frame_offset = plan
+            .frame_slots
+            .iter()
+            .filter(|(_, slot)| slot.dispatch_index == dispatch_index)
+            .map(|(_, slot)| slot.byte_offset + slot.byte_size)
+            .max()
+            .unwrap_or(0);
+        super::body::append_state_call_result_slot_for_plan(
+            context,
+            plan,
+            &mut next_frame_offset,
+            dispatch_index,
+            source_key,
+            statement_index,
+            role,
+            call_ordinal,
+            target_key,
+        );
+    }
 }
 
 fn reserve_frame_scratch_region(plan: &mut RuntimeStoragePlan) {
