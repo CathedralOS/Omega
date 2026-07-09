@@ -485,6 +485,17 @@ fn select_runtime_dispatch_call_result_return(
         return;
     }
 
+    // SLICE-ELEMENT terminals (`-> s[j]`) are NOT served: an attempt to emit
+    // CopyRuntimeFrameIndexedToRuntimeStorage here CRASHED at runtime -- the
+    // kind's encoder/relocation ignore `target_region` (built for machine-
+    // field mutation targets), so a frame result slot stored into machine
+    // memory (probed 2026-07-09l, reverted same-session). Serving this shape
+    // needs the kind made region-parametric across encoders + relocation
+    // walkers + widths (encoder-thread work). The WORKAROUND is canonical:
+    // bind the element to a FIELD first (`self.picked = s[j]; -> self.picked`
+    // -- the field-read terminal path). The call-result blocker keeps the
+    // direct spelling loud.
+
     // CASE/STRUCT-LITERAL terminal (`-> IoResult::Ok { count: n }`,
     // `-> UnitResult::Ok`): zero the whole result slot (construction
     // zero-initializes unnamed fields -- ZII), write the case TAG (enums), and
