@@ -281,7 +281,7 @@ fn sample_file_journal_exits_7() {
 // from a temp cwd so the vault tree lands there. Both engines
 // probe-verified at 12 when the dir-walk extension landed (2026-07-09).
 #[test]
-fn sample_note_vault_exits_9() {
+fn sample_note_vault_exits_12() {
     let main_path = repo_root().join("samples/cli/systems/note_vault/main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-vault-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
