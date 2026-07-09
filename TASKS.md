@@ -632,6 +632,19 @@ decreases remaining
   was, the shape is guarded end to end now. The suite has ZERO ignored
   tests.
 
+- **[ ] LOCAL-array indexed element as a VALUE-CALL ARG reads wrong natively
+  (found 2026-07-10h auditing another untracked "tracked separately"
+  comment).** The field-array twin passes; the simple local
+  read-into-let-compare passes; but `self.double(arr[i])` with a LOCAL
+  array returns as if the arg were ZII (native 72 = doubled 0, interp 70
+  correct). Parked at pending/slices/local_array_element_value_operand
+  (distinct exits map the directions; registered in BOTH drift lists).
+  NEXT TICK: bisect the arg-materialization of frame-local indexed
+  elements vs the machine-storage form the passing twin uses. Same audit
+  also re-verified: the contained-machine "aliases to the first" comment
+  IS tracked (receiver-aliasing item), and the simple local-array read
+  gap the old comment described has healed.
+
 - **[ ] Float types accept a domain clause that means nothing (found
   2026-07-10).** `f: f32 in Saturating` compiles; both legs run plain IEEE
   arithmetic (overflow -> inf), so nothing diverges -- but the DECLARATION is
