@@ -57,6 +57,11 @@ pub(crate) fn collect_reentrant_value_call_blockers(
                         | StateCallRole::TransitionArgument
                         | StateCallRole::TransitionGuard
                 )
+                // Dispatched calls are exempt (real dispatch cases; loops are
+                // real back-edges) -- see dispatch_route. A looping callee
+                // (mkall_copy's terminates walk) routes to dispatch, so its
+                // value caller must not be fenced for reaching it.
+                && !crate::dispatch_route::state_call_routed_to_dispatch(input, call)
         })
         .map(|(_, call)| call)
         .collect();

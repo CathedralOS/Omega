@@ -47,6 +47,14 @@ pub(crate) fn collect_value_call_arm_effect_blockers(
         if !callee_machine.is_valid() {
             continue;
         }
+        // A call that ROUTED TO DISPATCH is exempt: its arms are REAL dispatch
+        // cases that run exactly once when selected -- the all-arms/re-emission
+        // hazard is splice-only. This is what lets a LOOPING effectful callee
+        // (read_dir_count) value-call natively: the loop already forced the
+        // dispatch route; only the fence lagged behind.
+        if crate::dispatch_route::state_call_routed_to_dispatch(input, state_call) {
+            continue;
+        }
         let entry_state = state_call.target_key.state;
 
         let effectful_arm = input
