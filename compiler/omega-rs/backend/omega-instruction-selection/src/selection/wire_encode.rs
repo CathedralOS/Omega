@@ -33,9 +33,9 @@ use omega_abstract_operations::{
 };
 use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 use omega_checked_trees::statement::StatementNode;
-use omega_checked_trees::wire::{WireFieldEncoding, WireMember, WirePlacement, wire_varint_bytes};
 use omega_control_flow::StateKey;
 use omega_core::symbols::SymbolHandle;
+use omega_checked_trees::wire::{WireFieldEncoding, WireMember, WirePlacement, wire_varint_bytes};
 
 use super::storage_places::{RuntimeStoragePlace, resolve_runtime_storage_place_in_table};
 
@@ -125,13 +125,9 @@ pub(super) fn select_wire_encode_call(
     let out_root = copied_place_argument(input, &mut expressions, *out_argument);
     let written_root = copied_place_argument(input, &mut expressions, *written_argument);
 
-    let Some(out_place) = resolve_runtime_storage_place_in_table(
-        input,
-        dispatch_index,
-        source_key,
-        &expressions,
-        out_root,
-    ) else {
+    let Some(out_place) =
+        resolve_runtime_storage_place_in_table(input, dispatch_index, source_key, &expressions, out_root)
+    else {
         return false;
     };
     let Some(written_place) = resolve_runtime_storage_place_in_table(
@@ -204,20 +200,17 @@ pub(super) fn select_wire_encode_call(
     let plan = input.program.wire_schema_plan(schema.symbol);
     if let Some(placements) = plan {
         let agrees = placements.len() == fields.len()
-            && placements
-                .iter()
-                .zip(fields.iter())
-                .all(|(placement, field)| {
-                    let field_is_varint = matches!(
-                        field.content,
-                        WireFieldContent::Direct {
-                            encoding: WireFieldEncoding::Scalar(_),
-                            ..
-                        }
-                    );
-                    placement.tag() == field.number
-                        && matches!(placement, WirePlacement::Varint { .. }) == field_is_varint
-                });
+            && placements.iter().zip(fields.iter()).all(|(placement, field)| {
+                let field_is_varint = matches!(
+                    field.content,
+                    WireFieldContent::Direct {
+                        encoding: WireFieldEncoding::Scalar(_),
+                        ..
+                    }
+                );
+                placement.tag() == field.number
+                    && matches!(placement, WirePlacement::Varint { .. }) == field_is_varint
+            });
         if !agrees {
             debug_assert!(false, "derived wire plan disagrees with the schema walk");
             return false;
@@ -289,20 +282,19 @@ pub(super) fn select_wire_encode_call(
                 // block emission rather than overrun the frame.
                 let staging_worst = max_count * element.max_varint_length();
                 let scratch_base = input.runtime_storage.wire_scratch_base;
-                if scratch_base == 0 || input.runtime_storage.wire_scratch_size < 16 + staging_worst
+                if scratch_base == 0
+                    || input.runtime_storage.wire_scratch_size < 16 + staging_worst
                 {
                     return false;
                 }
                 let staging_offset = scratch_base + 16;
                 let cursor_offset = scratch_base + 8;
 
-                push(
-                    SelectedInstructionKind::WriteRuntimeStorageAddressToRuntimeFrame {
-                        source_region: RuntimeStorageRegion::RuntimeFrame,
-                        source_offset: staging_offset,
-                        target_offset: scratch_base,
-                    },
-                );
+                push(SelectedInstructionKind::WriteRuntimeStorageAddressToRuntimeFrame {
+                    source_region: RuntimeStorageRegion::RuntimeFrame,
+                    source_offset: staging_offset,
+                    target_offset: scratch_base,
+                });
                 push(SelectedInstructionKind::WriteRuntimeStorageInteger {
                     target_region: RuntimeStorageRegion::RuntimeFrame,
                     byte_offset: cursor_offset,
@@ -345,13 +337,10 @@ pub(super) fn select_wire_encode_call(
                 let child_plan = input.program.wire_schema_plan(*child_schema);
                 if let Some(placements) = child_plan {
                     let agrees = placements.len() == children.len()
-                        && placements
-                            .iter()
-                            .zip(children.iter())
-                            .all(|(placement, child)| {
-                                placement.tag() == child.number
-                                    && matches!(placement, WirePlacement::Varint { .. })
-                            });
+                        && placements.iter().zip(children.iter()).all(|(placement, child)| {
+                            placement.tag() == child.number
+                                && matches!(placement, WirePlacement::Varint { .. })
+                        });
                     if !agrees {
                         debug_assert!(
                             false,
@@ -374,11 +363,13 @@ pub(super) fn select_wire_encode_call(
                         else {
                             unreachable!("collection admits only scalar children");
                         };
-                        wire_varint_bytes(child.number as u64).len() + scalar.max_varint_length()
+                        wire_varint_bytes(child.number as u64).len()
+                            + scalar.max_varint_length()
                     })
                     .sum();
                 let scratch_base = input.runtime_storage.wire_scratch_base;
-                if scratch_base == 0 || input.runtime_storage.wire_scratch_size < 16 + staging_worst
+                if scratch_base == 0
+                    || input.runtime_storage.wire_scratch_size < 16 + staging_worst
                 {
                     return false;
                 }
@@ -389,13 +380,11 @@ pub(super) fn select_wire_encode_call(
                 // staging cursor (the descriptor's len slot) = 0, then the
                 // child's fields through the ordinary appends. NO era varint
                 // -- the era rides only the top-level envelope (decision 10).
-                push(
-                    SelectedInstructionKind::WriteRuntimeStorageAddressToRuntimeFrame {
-                        source_region: RuntimeStorageRegion::RuntimeFrame,
-                        source_offset: staging_offset,
-                        target_offset: scratch_base,
-                    },
-                );
+                push(SelectedInstructionKind::WriteRuntimeStorageAddressToRuntimeFrame {
+                    source_region: RuntimeStorageRegion::RuntimeFrame,
+                    source_offset: staging_offset,
+                    target_offset: scratch_base,
+                });
                 push(SelectedInstructionKind::WriteRuntimeStorageInteger {
                     target_region: RuntimeStorageRegion::RuntimeFrame,
                     byte_offset: cursor_offset,
@@ -507,8 +496,9 @@ fn collect_field_appends(
             if base.byte_count != repeated.max_count * repeated.element.byte_size {
                 return None;
             }
-            let count_name =
-                omega_checked_trees::wire::wire_repeated_count_field_name(field.name.as_str());
+            let count_name = omega_checked_trees::wire::wire_repeated_count_field_name(
+                field.name.as_str(),
+            );
             let count_handle = expressions.insert(ExpressionNode::Member(
                 omega_checked_trees::expression::TableMemberExpression {
                     receiver,
@@ -582,9 +572,7 @@ fn collect_field_appends(
         let encoding = if input.program.is_borrowed_byte_slice(field.type_reference) {
             WireFieldEncoding::Text
         } else {
-            let primitive = input
-                .program
-                .primitive_type_reference(field.type_reference)?;
+            let primitive = input.program.primitive_type_reference(field.type_reference)?;
             WireFieldEncoding::for_primitive(primitive)?
         };
         let place = resolve_runtime_storage_place_in_table(

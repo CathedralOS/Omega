@@ -12,10 +12,10 @@ use super::runtime_text::{
 use crate::selection::storage_places::{
     resolve_fixed_array_length_in_table, resolve_runtime_storage_place_in_table,
 };
+use omega_checked_trees::expression::{ExpressionNode, ExpressionTable};
 use omega_abstract_operations::{
     AbstractDataObject, AbstractDataObjectHandle, InstructionOperand, InstructionOperandKind,
 };
-use omega_checked_trees::expression::{ExpressionNode, ExpressionTable};
 use omega_core::arena::{Arena, Handle, HandleSpan};
 
 pub(super) fn select_host_operation_operands(
@@ -132,8 +132,7 @@ pub(super) fn select_host_operation_operands(
             // operands = [result place, vk argument]: both must resolve or the
             // encoder hard-errors (no silent zero result / zero vk).
             let result = first_scalar_argument_operand(input, host_call, dispatch_index);
-            let argument =
-                scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 1);
+            let argument = scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 1);
             match (result, argument) {
                 (Some(result), Some(argument)) => {
                     operands.insert_many([operand(result), operand(argument)])
@@ -171,26 +170,14 @@ pub(super) fn select_host_operation_operands(
             let first_declared = usize::from(host_call.has_result);
             let kinds: Option<Vec<InstructionOperandKind>> = (first_declared..arity)
                 .map(|index| {
-                    scalar_argument_operand_at(
-                        input,
-                        host_call,
-                        dispatch_index,
-                        alias_context,
-                        index,
-                    )
-                    .or_else(|| {
-                        address_argument_operand_at(
-                            input,
-                            host_call,
-                            dispatch_index,
-                            alias_context,
-                            index,
-                        )
-                    })
+                    scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, index)
+                        .or_else(|| address_argument_operand_at(input, host_call, dispatch_index, alias_context, index))
                 })
                 .collect();
             match kinds {
-                Some(kinds) => operands.insert_many(result.into_iter().chain(kinds).map(operand)),
+                Some(kinds) => operands.insert_many(
+                    result.into_iter().chain(kinds).map(operand),
+                ),
                 None => HandleSpan::empty(),
             }
         }
@@ -307,7 +294,9 @@ pub(super) fn select_host_operation_operands(
             let result = first_scalar_argument_operand(input, host_call, dispatch_index);
             let arg = float_argument_operand_at(input, host_call, dispatch_index, alias_context, 1);
             match (result, arg) {
-                (Some(result), Some(arg)) => operands.insert_many([operand(result), operand(arg)]),
+                (Some(result), Some(arg)) => {
+                    operands.insert_many([operand(result), operand(arg)])
+                }
                 _ => HandleSpan::empty(),
             }
         }
@@ -321,7 +310,9 @@ pub(super) fn select_host_operation_operands(
             let result = first_scalar_argument_operand(input, host_call, dispatch_index);
             let arg = float_argument_operand_at(input, host_call, dispatch_index, alias_context, 1);
             match (result, arg) {
-                (Some(result), Some(arg)) => operands.insert_many([operand(result), operand(arg)]),
+                (Some(result), Some(arg)) => {
+                    operands.insert_many([operand(result), operand(arg)])
+                }
                 _ => HandleSpan::empty(),
             }
         }
@@ -358,7 +349,10 @@ pub(super) fn select_host_operation_operands(
                 _ => HandleSpan::empty(),
             }
         }
-        (HostCapability::ObjectiveC, HostOperation::GetClass | HostOperation::RegisterSelector) => {
+        (
+            HostCapability::ObjectiveC,
+            HostOperation::GetClass | HostOperation::RegisterSelector,
+        ) => {
             // Value-returning `p = get_class(name) -> _objc_getClass(name)` /
             // `sel = register_selector(name) -> _sel_registerName(name)`. operand[0]
             // the u64 result place (Class/SEL pointer in x0), operand[1] the
@@ -376,10 +370,8 @@ pub(super) fn select_host_operation_operands(
             // Value-returning `r = send(recv, sel) -> _objc_msgSend(recv, sel)`.
             // operand[0] result (id/scalar in x0); [1] recv → x0; [2] sel → x1.
             let result = first_scalar_argument_operand(input, host_call, dispatch_index);
-            let recv =
-                scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 1);
-            let sel =
-                scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 2);
+            let recv = scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 1);
+            let sel = scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 2);
             match (result, recv, sel) {
                 (Some(result), Some(recv), Some(sel)) => {
                     operands.insert_many([operand(result), operand(recv), operand(sel)])
@@ -392,19 +384,14 @@ pub(super) fn select_host_operation_operands(
             // operand[0] result; [1] recv → x0; [2] sel → x1; [3] the scalar
             // int/ptr/BOOL argument → x2. All three args are plain scalar values.
             let result = first_scalar_argument_operand(input, host_call, dispatch_index);
-            let recv =
-                scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 1);
-            let sel =
-                scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 2);
-            let arg =
-                scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 3);
+            let recv = scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 1);
+            let sel = scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 2);
+            let arg = scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 3);
             match (result, recv, sel, arg) {
-                (Some(result), Some(recv), Some(sel), Some(arg)) => operands.insert_many([
-                    operand(result),
-                    operand(recv),
-                    operand(sel),
-                    operand(arg),
-                ]),
+                (Some(result), Some(recv), Some(sel), Some(arg)) => {
+                    operands
+                        .insert_many([operand(result), operand(recv), operand(sel), operand(arg)])
+                }
                 _ => HandleSpan::empty(),
             }
         }
@@ -413,18 +400,14 @@ pub(super) fn select_host_operation_operands(
             // operand[0] result; [1] recv → x0; [2] sel → x1; [3] the NUL-terminated
             // C-string arg pointer → x2 (materialized like an fs path).
             let result = first_scalar_argument_operand(input, host_call, dispatch_index);
-            let recv =
-                scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 1);
-            let sel =
-                scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 2);
+            let recv = scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 1);
+            let sel = scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 2);
             let text = path_pointer_operand(input, host_call, dispatch_index, alias_context, 3);
             match (result, recv, sel, text) {
-                (Some(result), Some(recv), Some(sel), Some(text)) => operands.insert_many([
-                    operand(result),
-                    operand(recv),
-                    operand(sel),
-                    operand(text),
-                ]),
+                (Some(result), Some(recv), Some(sel), Some(text)) => {
+                    operands
+                        .insert_many([operand(result), operand(recv), operand(sel), operand(text)])
+                }
                 _ => HandleSpan::empty(),
             }
         }
@@ -435,10 +418,8 @@ pub(super) fn select_host_operation_operands(
             // v0,v1,v2,v3). The two register counters advance independently, so the
             // interleaving in this operand list does not affect placement.
             let result = first_scalar_argument_operand(input, host_call, dispatch_index);
-            let recv =
-                scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 1);
-            let sel =
-                scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 2);
+            let recv = scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 1);
+            let sel = scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 2);
             let x = float_argument_operand_at(input, host_call, dispatch_index, alias_context, 3);
             let y = float_argument_operand_at(input, host_call, dispatch_index, alias_context, 4);
             let w = float_argument_operand_at(input, host_call, dispatch_index, alias_context, 5);
@@ -478,10 +459,8 @@ pub(super) fn select_host_operation_operands(
             // b, c, d)`. Six scalar args in list order → x0,x1,x2,x3,x4,x5. For the
             // event pump's nextEventMatchingMask:untilDate:inMode:dequeue:.
             let result = first_scalar_argument_operand(input, host_call, dispatch_index);
-            let recv =
-                scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 1);
-            let sel =
-                scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 2);
+            let recv = scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 1);
+            let sel = scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 2);
             let a = scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 3);
             let b = scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 4);
             let c = scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 5);
@@ -507,12 +486,9 @@ pub(super) fn select_host_operation_operands(
             // w/h are FLOATS (the NSSize → v0,v1) — the two register counters are
             // independent. operand[0]=result, then [recv, sel, image, w, h].
             let result = first_scalar_argument_operand(input, host_call, dispatch_index);
-            let recv =
-                scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 1);
-            let sel =
-                scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 2);
-            let image =
-                scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 3);
+            let recv = scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 1);
+            let sel = scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 2);
+            let image = scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 3);
             let w = float_argument_operand_at(input, host_call, dispatch_index, alias_context, 4);
             let h = float_argument_operand_at(input, host_call, dispatch_index, alias_context, 5);
             match (result, recv, sel, image, w, h) {
@@ -536,19 +512,14 @@ pub(super) fn select_host_operation_operands(
             // The callee reads to the first NUL; the buffer is NUL-terminated by
             // construction at the call sites.
             let result = first_scalar_argument_operand(input, host_call, dispatch_index);
-            let recv =
-                scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 1);
-            let sel =
-                scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 2);
-            let text =
-                address_argument_operand_at(input, host_call, dispatch_index, alias_context, 3);
+            let recv = scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 1);
+            let sel = scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 2);
+            let text = address_argument_operand_at(input, host_call, dispatch_index, alias_context, 3);
             match (result, recv, sel, text) {
-                (Some(result), Some(recv), Some(sel), Some(text)) => operands.insert_many([
-                    operand(result),
-                    operand(recv),
-                    operand(sel),
-                    operand(text),
-                ]),
+                (Some(result), Some(recv), Some(sel), Some(text)) => {
+                    operands
+                        .insert_many([operand(result), operand(recv), operand(sel), operand(text)])
+                }
                 _ => HandleSpan::empty(),
             }
         }
@@ -564,8 +535,7 @@ pub(super) fn select_host_operation_operands(
             // `_ = pool_pop(pool) -> _objc_autoreleasePoolPop(pool)`: one scalar arg
             // (the push token → x0). A void C call; the result place is scratch.
             let result = first_scalar_argument_operand(input, host_call, dispatch_index);
-            let pool =
-                scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 1);
+            let pool = scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 1);
             match (result, pool) {
                 (Some(result), Some(pool)) => {
                     operands.insert_many([operand(result), operand(pool)])
@@ -609,18 +579,13 @@ pub(super) fn select_host_operation_operands(
             // framebuffer POINTER (address of the `[i32;N]` field), the rest are
             // integer/pointer scalars. Result (CGContextRef) in x0.
             let result = first_scalar_argument_operand(input, host_call, dispatch_index);
-            let data =
-                address_argument_operand_at(input, host_call, dispatch_index, alias_context, 1);
+            let data = address_argument_operand_at(input, host_call, dispatch_index, alias_context, 1);
             let w = scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 2);
             let h = scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 3);
-            let bpc =
-                scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 4);
-            let stride =
-                scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 5);
-            let space =
-                scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 6);
-            let info =
-                scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 7);
+            let bpc = scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 4);
+            let stride = scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 5);
+            let space = scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 6);
+            let info = scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 7);
             match (result, data, w, h, bpc, stride, space, info) {
                 (
                     Some(result),
@@ -656,8 +621,7 @@ pub(super) fn select_host_operation_operands(
             // pointer arg (→ x0), result in x0 (scratch for the void releases).
             // operand[0]=result, [1]=the ptr.
             let result = first_scalar_argument_operand(input, host_call, dispatch_index);
-            let arg =
-                scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 1);
+            let arg = scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 1);
             match (result, arg) {
                 (Some(result), Some(arg)) => operands.insert_many([operand(result), operand(arg)]),
                 _ => HandleSpan::empty(),
@@ -669,10 +633,8 @@ pub(super) fn select_host_operation_operands(
             // x0, keycode → x1) in list order, BOOL result (0/1) in x0.
             // operand[0]=result, [1]=state_id, [2]=keycode.
             let result = first_scalar_argument_operand(input, host_call, dispatch_index);
-            let state_id =
-                scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 1);
-            let keycode =
-                scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 2);
+            let state_id = scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 1);
+            let keycode = scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 2);
             match (result, state_id, keycode) {
                 (Some(result), Some(state_id), Some(keycode)) => {
                     operands.insert_many([operand(result), operand(state_id), operand(keycode)])
@@ -741,13 +703,7 @@ pub(super) fn select_host_operation_operands(
                                 expression,
                             )
                         })
-                        .zip(address_argument_operand_at(
-                            input,
-                            host_call,
-                            dispatch_index,
-                            alias_context,
-                            2,
-                        ));
+                        .zip(address_argument_operand_at(input, host_call, dispatch_index, alias_context, 2));
                     if let Some((length, address)) = fixed_array {
                         operands.insert_many([
                             operand(result),
@@ -779,20 +735,16 @@ pub(super) fn select_host_operation_operands(
                             operand(pointer),
                             operand(length),
                         ])
-                    } else if let Some((length, address)) = alias_resolved_fixed_array_length_at(
-                        input,
-                        host_call,
-                        dispatch_index,
-                        alias_context,
-                        2,
-                    )
-                    .zip(address_argument_operand_at(
-                        input,
-                        host_call,
-                        dispatch_index,
-                        alias_context,
-                        2,
-                    )) {
+                    } else if let Some((length, address)) =
+                        alias_resolved_fixed_array_length_at(
+                            input,
+                            host_call,
+                            dispatch_index,
+                            alias_context,
+                            2,
+                        )
+                        .zip(address_argument_operand_at(input, host_call, dispatch_index, alias_context, 2))
+                    {
                         // LAST RESORT -- a fixed-array FIELD forwarded through a
                         // value-call param (`fs.write_all(path, self.bin_src)` ->
                         // the wrapper's `write(fd, bytes)`): a fixed array only in
@@ -819,10 +771,8 @@ pub(super) fn select_host_operation_operands(
             // buffer capacity as `count` (keeps the backend from deriving it).
             let result = first_scalar_argument_operand(input, host_call, dispatch_index);
             let fd = scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 1);
-            let buffer =
-                address_argument_operand_at(input, host_call, dispatch_index, alias_context, 2);
-            let count =
-                scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 3);
+            let buffer = address_argument_operand_at(input, host_call, dispatch_index, alias_context, 2);
+            let count = scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 3);
             match (result, fd, buffer, count) {
                 (Some(result), Some(fd), Some(buffer), Some(count)) => operands.insert_many([
                     operand(result),
@@ -839,12 +789,9 @@ pub(super) fn select_host_operation_operands(
             // operand[0]=result, [1]=fd, [2]=buffer POINTER, [3]=count, [4]=offset.
             let result = first_scalar_argument_operand(input, host_call, dispatch_index);
             let fd = scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 1);
-            let buffer =
-                address_argument_operand_at(input, host_call, dispatch_index, alias_context, 2);
-            let count =
-                scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 3);
-            let offset =
-                scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 4);
+            let buffer = address_argument_operand_at(input, host_call, dispatch_index, alias_context, 2);
+            let count = scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 3);
+            let offset = scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 4);
             match (result, fd, buffer, count, offset) {
                 (Some(result), Some(fd), Some(buffer), Some(count), Some(offset)) => operands
                     .insert_many([
@@ -865,8 +812,7 @@ pub(super) fn select_host_operation_operands(
             // offset is arg 3.
             let result = first_scalar_argument_operand(input, host_call, dispatch_index);
             let fd = scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 1);
-            let offset =
-                scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 3);
+            let offset = scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 3);
             let data = find_data_object(input, host_call);
             match (result, fd, offset) {
                 (Some(result), Some(fd), Some(offset)) if data.is_valid() => {
@@ -902,8 +848,7 @@ pub(super) fn select_host_operation_operands(
             // Same as `read` without the count -- keyed by an open descriptor.
             let result = first_scalar_argument_operand(input, host_call, dispatch_index);
             let fd = scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 1);
-            let buffer =
-                address_argument_operand_at(input, host_call, dispatch_index, alias_context, 2);
+            let buffer = address_argument_operand_at(input, host_call, dispatch_index, alias_context, 2);
             match (result, fd, buffer) {
                 (Some(result), Some(fd), Some(buffer)) => {
                     operands.insert_many([operand(result), operand(fd), operand(buffer)])
@@ -927,8 +872,7 @@ pub(super) fn select_host_operation_operands(
             // variadic (stack-passed on arm64) and would be dropped.
             let result = first_scalar_argument_operand(input, host_call, dispatch_index);
             let path = path_pointer_operand(input, host_call, dispatch_index, alias_context, 1);
-            let second =
-                scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 2);
+            let second = scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 2);
             match (result, path, second) {
                 (Some(result), Some(path), Some(second)) => {
                     operands.insert_many([operand(result), operand(path), operand(second)])
@@ -945,11 +889,9 @@ pub(super) fn select_host_operation_operands(
             // runtime SUBSLICE name is not (that is the pending NUL-termination
             // seam, so native `remove_dir_all` awaits it -- the interpreter runs it).
             let result = first_scalar_argument_operand(input, host_call, dispatch_index);
-            let dirfd =
-                scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 1);
+            let dirfd = scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 1);
             let name = path_pointer_operand(input, host_call, dispatch_index, alias_context, 2);
-            let flags =
-                scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 3);
+            let flags = scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 3);
             match (result, dirfd, name, flags) {
                 (Some(result), Some(dirfd), Some(name), Some(flags)) => operands.insert_many([
                     operand(result),
@@ -967,12 +909,9 @@ pub(super) fn select_host_operation_operands(
             // (buffer capacity), [4]=position POINTER (in/out i64 cursor).
             let result = first_scalar_argument_operand(input, host_call, dispatch_index);
             let fd = scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 1);
-            let buffer =
-                address_argument_operand_at(input, host_call, dispatch_index, alias_context, 2);
-            let count =
-                scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 3);
-            let position =
-                address_argument_operand_at(input, host_call, dispatch_index, alias_context, 4);
+            let buffer = address_argument_operand_at(input, host_call, dispatch_index, alias_context, 2);
+            let count = scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 3);
+            let position = address_argument_operand_at(input, host_call, dispatch_index, alias_context, 4);
             match (result, fd, buffer, count, position) {
                 (Some(result), Some(fd), Some(buffer), Some(count), Some(position)) => operands
                     .insert_many([
@@ -991,10 +930,8 @@ pub(super) fn select_host_operation_operands(
             // [2]=buffer POINTER (kernel writes the target there), [3]=count.
             let result = first_scalar_argument_operand(input, host_call, dispatch_index);
             let path = path_pointer_operand(input, host_call, dispatch_index, alias_context, 1);
-            let buffer =
-                address_argument_operand_at(input, host_call, dispatch_index, alias_context, 2);
-            let count =
-                scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 3);
+            let buffer = address_argument_operand_at(input, host_call, dispatch_index, alias_context, 2);
+            let count = scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 3);
             match (result, path, buffer, count) {
                 (Some(result), Some(path), Some(buffer), Some(count)) => operands.insert_many([
                     operand(result),
@@ -1018,8 +955,7 @@ pub(super) fn select_host_operation_operands(
             // [2]=buffer POINTER (the kernel writes the 144-byte stat record).
             let result = first_scalar_argument_operand(input, host_call, dispatch_index);
             let path = path_pointer_operand(input, host_call, dispatch_index, alias_context, 1);
-            let buffer =
-                address_argument_operand_at(input, host_call, dispatch_index, alias_context, 2);
+            let buffer = address_argument_operand_at(input, host_call, dispatch_index, alias_context, 2);
             match (result, path, buffer) {
                 (Some(result), Some(path), Some(buffer)) => {
                     operands.insert_many([operand(result), operand(path), operand(buffer)])
@@ -1049,8 +985,7 @@ pub(super) fn select_host_operation_operands(
             // same fd + one-scalar shape. operand[0]=result, then the two scalars.
             let result = first_scalar_argument_operand(input, host_call, dispatch_index);
             let fd = scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 1);
-            let length =
-                scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 2);
+            let length = scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 2);
             match (result, fd, length) {
                 (Some(result), Some(fd), Some(length)) => {
                     operands.insert_many([operand(result), operand(fd), operand(length)])
@@ -1065,10 +1000,8 @@ pub(super) fn select_host_operation_operands(
             // then the three scalar args.
             let result = first_scalar_argument_operand(input, host_call, dispatch_index);
             let fd = scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 1);
-            let offset =
-                scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 2);
-            let whence =
-                scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 3);
+            let offset = scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 2);
+            let whence = scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 3);
             match (result, fd, offset, whence) {
                 (Some(result), Some(fd), Some(offset), Some(whence)) => operands.insert_many([
                     operand(result),
@@ -1092,10 +1025,8 @@ pub(super) fn select_host_operation_operands(
             // [2]=uid/flags, [3]=gid/mode.
             let result = first_scalar_argument_operand(input, host_call, dispatch_index);
             let path = path_pointer_operand(input, host_call, dispatch_index, alias_context, 1);
-            let uid =
-                scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 2);
-            let gid =
-                scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 3);
+            let uid = scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 2);
+            let gid = scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 3);
             match (result, path, uid, gid) {
                 (Some(result), Some(path), Some(uid), Some(gid)) => operands.insert_many([
                     operand(result),
@@ -1179,7 +1110,9 @@ fn select_gui_operation_operands(
 
     let kinds: Option<Vec<InstructionOperandKind>> = match operation {
         // dc_create() -> CreateCompatibleDC(NULL): [result].
-        HostOperation::DcCreate if arity == 1 => [scalar(0), imm(0)].into_iter().collect(),
+        HostOperation::DcCreate if arity == 1 => {
+            [scalar(0), imm(0)].into_iter().collect()
+        }
         // foreground_window() -> GetForegroundWindow(): [result], no args.
         HostOperation::ForegroundWindow if arity == 1 => [scalar(0)].into_iter().collect(),
         // get_dc(hwnd) -> GetDC(hwnd): [result, hwnd].
@@ -1211,10 +1144,10 @@ fn select_gui_operation_operands(
             scalar(5), // y
             scalar(6), // width
             scalar(7), // height
-            imm(0),    // hWndParent
-            imm(0),    // hMenu
-            imm(0),    // hInstance (NULL works for the system STATIC class)
-            imm(0),    // lpParam
+            imm(0), // hWndParent
+            imm(0), // hMenu
+            imm(0), // hInstance (NULL works for the system STATIC class)
+            imm(0), // lpParam
         ]
         .into_iter()
         .collect(),
@@ -1483,7 +1416,8 @@ fn subslice_path_pointer(
         return None;
     };
     let start = if range.start.is_valid() {
-        let ExpressionNode::Integer(start) = input.host_calls.expressions.expression(range.start)
+        let ExpressionNode::Integer(start) =
+            input.host_calls.expressions.expression(range.start)
         else {
             return None;
         };
@@ -1586,8 +1520,9 @@ fn aliased_literal_data_object(
     let HostCallArgumentKind::Expression(expression) = &argument.kind else {
         return None;
     };
-    let mut expressions =
-        ExpressionTable::with_expression_capacity(alias_context.aliases.len().saturating_add(4));
+    let mut expressions = ExpressionTable::with_expression_capacity(
+        alias_context.aliases.len().saturating_add(4),
+    );
     let copied_aliases = RuntimeAliasBuffer::copy_from_bindings(
         alias_context.alias_expressions,
         alias_context.aliases,
@@ -1613,11 +1548,9 @@ fn aliased_literal_data_object(
     // CONTAINED-receiver value call, whose alias binding resolves the param to
     // the CALLER's key, matching where the static-string collector keyed the
     // literal's data object.
-    if let Some((handle, _)) =
-        input.data.objects.iter().find(|(_, object)| {
-            object.source_key == resolved.source_key && object_bytes_match(object)
-        })
-    {
+    if let Some((handle, _)) = input.data.objects.iter().find(|(_, object)| {
+        object.source_key == resolved.source_key && object_bytes_match(object)
+    }) {
         return Some((handle, bytes.len()));
     }
     // Fallback for a SELF value call (`self.doit("lit")` -> `self.raw.open(path)`):
@@ -1659,8 +1592,9 @@ fn alias_resolved_place_at(
     let HostCallArgumentKind::Expression(expression) = &argument.kind else {
         return None;
     };
-    let mut expressions =
-        ExpressionTable::with_expression_capacity(alias_context.aliases.len().saturating_add(4));
+    let mut expressions = ExpressionTable::with_expression_capacity(
+        alias_context.aliases.len().saturating_add(4),
+    );
     let copied_aliases = RuntimeAliasBuffer::copy_from_bindings(
         alias_context.alias_expressions,
         alias_context.aliases,
@@ -1710,8 +1644,9 @@ fn alias_resolved_fixed_array_length_at(
     let HostCallArgumentKind::Expression(expression) = &argument.kind else {
         return None;
     };
-    let mut expressions =
-        ExpressionTable::with_expression_capacity(alias_context.aliases.len().saturating_add(4));
+    let mut expressions = ExpressionTable::with_expression_capacity(
+        alias_context.aliases.len().saturating_add(4),
+    );
     let copied_aliases = RuntimeAliasBuffer::copy_from_bindings(
         alias_context.alias_expressions,
         alias_context.aliases,
@@ -1758,8 +1693,9 @@ fn alias_resolved_integer_at(
     let HostCallArgumentKind::Expression(expression) = &argument.kind else {
         return None;
     };
-    let mut expressions =
-        ExpressionTable::with_expression_capacity(alias_context.aliases.len().saturating_add(4));
+    let mut expressions = ExpressionTable::with_expression_capacity(
+        alias_context.aliases.len().saturating_add(4),
+    );
     let copied_aliases = RuntimeAliasBuffer::copy_from_bindings(
         alias_context.alias_expressions,
         alias_context.aliases,

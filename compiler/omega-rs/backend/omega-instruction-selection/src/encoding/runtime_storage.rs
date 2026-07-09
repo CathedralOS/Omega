@@ -212,12 +212,9 @@ pub fn encode_atomic_fetch_add(
     delta: RuntimeValueOperandHandle,
 ) -> Result<Vec<u8>, Diagnostic> {
     match architecture {
-        Architecture::Aarch64 => aarch64::encode_atomic_fetch_add(
-            runtime_value_operands,
-            target_offset,
-            byte_size,
-            delta,
-        ),
+        Architecture::Aarch64 => {
+            aarch64::encode_atomic_fetch_add(runtime_value_operands, target_offset, byte_size, delta)
+        }
         Architecture::X86_64 => {
             x86_64::encode_atomic_fetch_add(runtime_value_operands, target_offset, byte_size, delta)
         }
@@ -591,10 +588,9 @@ pub fn encode_runtime_machine_bounded_buffer_literal_append(
             target_byte_offset,
             literal,
         ),
-        Architecture::X86_64 => x86_64::encode_runtime_machine_bounded_buffer_literal_append(
-            target_byte_offset,
-            literal,
-        ),
+        Architecture::X86_64 => {
+            x86_64::encode_runtime_machine_bounded_buffer_literal_append(target_byte_offset, literal)
+        }
     }
 }
 
@@ -1215,21 +1211,19 @@ pub fn encode_runtime_storage_copy_machine_indexed_to_machine_indexed(
                 byte_count,
             )
         }
-        Architecture::X86_64 => {
-            x86_64::encode_runtime_storage_copy_machine_indexed_to_machine_indexed(
-                source_base_byte_offset,
-                source_index_offset,
-                source_index_region,
-                source_element_byte_size,
-                source_field_byte_offset,
-                target_base_byte_offset,
-                target_index_offset,
-                target_index_region,
-                target_element_byte_size,
-                target_field_byte_offset,
-                byte_count,
-            )
-        }
+        Architecture::X86_64 => x86_64::encode_runtime_storage_copy_machine_indexed_to_machine_indexed(
+            source_base_byte_offset,
+            source_index_offset,
+            source_index_region,
+            source_element_byte_size,
+            source_field_byte_offset,
+            target_base_byte_offset,
+            target_index_offset,
+            target_index_region,
+            target_element_byte_size,
+            target_field_byte_offset,
+            byte_count,
+        ),
     }
 }
 

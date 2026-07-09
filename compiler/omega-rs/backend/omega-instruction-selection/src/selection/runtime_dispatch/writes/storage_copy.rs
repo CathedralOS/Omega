@@ -3,15 +3,16 @@ use omega_checked_trees::expression::{Expression, ExpressionHandle, ExpressionTa
 use omega_control_flow::StateKey;
 
 use super::super::super::storage_places::{
-    resolve_runtime_frame_base_double_indexed_source,
-    resolve_runtime_frame_base_double_indexed_source_in_table,
     resolve_runtime_frame_fixed_indexed_target,
     resolve_runtime_frame_fixed_indexed_target_in_table, resolve_runtime_frame_indexed_target,
     resolve_runtime_frame_indexed_target_in_table,
     resolve_runtime_frame_indexed_target_near_slot_in_table,
+    resolve_runtime_frame_base_double_indexed_source,
+    resolve_runtime_frame_base_double_indexed_source_in_table,
     resolve_runtime_machine_double_indexed_source,
-    resolve_runtime_machine_double_indexed_source_in_table, resolve_runtime_machine_indexed_target,
-    resolve_runtime_machine_indexed_target_in_table, resolve_runtime_pointee_fixed_indexed_target,
+    resolve_runtime_machine_double_indexed_source_in_table,
+    resolve_runtime_machine_indexed_target, resolve_runtime_machine_indexed_target_in_table,
+    resolve_runtime_pointee_fixed_indexed_target,
     resolve_runtime_pointee_fixed_indexed_target_in_table, resolve_runtime_pointee_slot_offset,
     resolve_runtime_pointee_slot_offset_in_table, resolve_runtime_storage_place,
     resolve_runtime_storage_place_in_table,
@@ -47,9 +48,12 @@ pub(in crate::selection::runtime_dispatch) fn runtime_storage_copy(
     if matches!(
         target_place.region,
         RuntimeStorageRegion::RuntimeFrame | RuntimeStorageRegion::Machine
-    ) && let Some(pointee) =
-        resolve_runtime_pointee_slot_offset(input, dispatch_index, value_source_key, value)
-        && pointee.pointee_byte_size == target_place.byte_count
+    ) && let Some(pointee) = resolve_runtime_pointee_slot_offset(
+        input,
+        dispatch_index,
+        value_source_key,
+        value,
+    ) && pointee.pointee_byte_size == target_place.byte_count
         && pointee.pointee_byte_size > 0
     {
         return Some(SelectedInstructionKind::CopyRuntimePointeeToRuntimeFrame {

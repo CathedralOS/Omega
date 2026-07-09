@@ -1252,29 +1252,12 @@ macOS/arm64 host this lane runs on — are CLAIMED here:
   - GATED OMEGA_RECEIVER_DISPATCH=1 and doubly dormant: the fence still
     refuses every affected program at emission planning, so the override
     paths are unreachable in normal compiles. All gates green.
-  PHASE 3 PLUMBING LANDED (2026-07-10q, still gated): the CONSOLIDATED
-  table. BackendPlan.receiver_bases (Vec<Option<usize>>, indexed by
-  dispatch index) is computed ONCE in the pipeline builder
-  (compute_receiver_bases — the slice-1 predicate, env-gated) and
-  threaded to ALL consumers: the guards crate (build_state_guard_plan →
-  guard_operands → resolve_guard_operand_layout — the whole param chain),
-  selection (InstructionSelectionInput.receiver_bases;
-  receiver_base.rs is now a pure table lookup — the phase-2 local
-  computation is deleted), emission planning
-  (EmissionPlanningInput.receiver_bases), and the fence (served-ness
-  skip re-deriving the same predicate via the shared walk). One
-  prediction site, no copies.
-  ⚠️ END-TO-END PROBE FAILS (expected-class): with the gate on, the
-  repro COMPILES (fence relaxes) but exits native 3 vs interp 70 — the
-  override chain has a wrong-resolution hole somewhere (guards sites
-  82/139 still use the by-type walk internally? the machine_owned
-  override misses a path? clone dedup?). The GATE keeps it dormant;
-  default gates are green (suite known-7, fs 88/0, differential 13/13).
-  PHASE 4 (next): debug the divergence with omega-run --keep + the
-  backend report (do the sum-clone dispatch cases carry distinct
-  contexts/bases? which step exits 3?); wire guards' internal sites to
-  the passed receiver_bases (currently threaded but UNUSED there —
-  likely the hole); then un-gate, promote, sweep workarounds.
+  PHASE 3 (next): the state-guards sibling (its crate lacks the
+  state-calls dep — thread the COMPUTED base from the dispatch-loop
+  layer, sites 82/139 override, 113 sweep stays); gate the fence on the
+  same served-ness predicate; end-to-end probe under the gate; un-gate;
+  promote pending/time/value_machine_receiver_field_postentry + a
+  machine-flavor twin; sweep the a/b shuffle workarounds.
 
 ## Observations (not fs, flagged for Zach)
 

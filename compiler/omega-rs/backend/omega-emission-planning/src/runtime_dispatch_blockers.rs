@@ -193,7 +193,6 @@ fn decomposed_guard_can_emit(
         input.state_guards,
         input.layouts,
         input.runtime_storage,
-        input.receiver_bases,
         input.entry_key.machine,
         source_key,
         source_key.machine,

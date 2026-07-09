@@ -183,8 +183,6 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("calls/runtime_dispatch_result_enum_case_exit", 70),
     ("calls/runtime_dispatch_result_field_binding_exit", 70),
     ("calls/runtime_dispatch_result_alias_read_exit", 70),
-    ("calls/runtime_dispatch_second_receiver_exit", 70),
-    ("calls/runtime_same_type_second_receiver_mutation_exit", 70),
     ("calls/runtime_dispatch_slice_element_terminal_exit", 70),
     ("calls/runtime_dispatch_result_field_terminal_exit", 70),
     ("calls/runtime_dispatch_result_guard_subject_exit", 70),

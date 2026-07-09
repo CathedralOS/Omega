@@ -19,16 +19,17 @@ use omega_state_values::StateValuePlan;
 use omega_target::NativeTarget;
 use omega_target_operations::{InstructionPlan, TargetDataPlan};
 
-mod authored_import_blockers;
 mod builder;
-mod call_result_blockers;
 mod contained_receiver_blockers;
-mod descriptor_argument_blockers;
+mod call_result_blockers;
 mod dispatch_route;
+mod descriptor_argument_blockers;
+mod authored_import_blockers;
+mod reentrant_value_call_blockers;
+mod value_call_arm_effect_blockers;
 mod guard_expression_support;
 mod host_argument_blockers;
 mod host_binding_blockers;
-mod reentrant_value_call_blockers;
 mod required_emission_verification;
 mod runtime_dispatch_blockers;
 mod runtime_text_blockers;
@@ -39,7 +40,6 @@ mod state_codegen_blockers;
 mod state_guard_blockers;
 mod storage_blockers;
 mod unlowered_guard_blockers;
-mod value_call_arm_effect_blockers;
 
 pub use builder::build_emission_plan;
 
@@ -49,8 +49,6 @@ pub struct EmissionPlanningInput<'plan> {
     pub host_abi: &'plan HostAbiPlan,
     pub host_calls: &'plan HostCallPlan,
     pub state_calls: &'plan StateCallPlan,
-    /// See BackendPlan::receiver_bases (per-instance receiver dispatch).
-    pub receiver_bases: &'plan [Option<usize>],
     pub state_storage: &'plan StateStoragePlan,
     pub state_values: &'plan StateValuePlan,
     pub data: &'plan TargetDataPlan,
