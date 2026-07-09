@@ -5053,9 +5053,16 @@ impl<'program> Evaluator<'program> {
         frame: &Frame,
     ) -> Option<(PrimitiveType, ArithmeticDomain)> {
         match self.program.expression_table.expression(expression) {
+            // A cast witnesses its target width AND its decision-17 S2
+            // domain retag (`x as u8 in Saturating` -- the retag is what lets
+            // the value join saturating arithmetic; without a written domain
+            // the node carries Exact). The retag must reach fused arithmetic
+            // (`(a as u8 in Saturating) + b` in a GUARD has no landing seam);
+            // hardcoding Exact here let the wide 300 through while native's
+            // witness read the retag and clamped.
             ExpressionNode::Cast(cast) => Some((
                 self.cast_target_primitive(cast.target_type)?,
-                ArithmeticDomain::Exact,
+                cast.domain,
             )),
             ExpressionNode::Mutable(inner) => self.expression_scalar_type(*inner, frame),
             ExpressionNode::Unary(unary) => self.expression_scalar_type(unary.operand, frame),
@@ -5073,7 +5080,17 @@ impl<'program> Evaluator<'program> {
                     (Some(left), Some(right)) => {
                         let left_width = integer_primitive_byte_width(left.0).unwrap_or(8);
                         let right_width = integer_primitive_byte_width(right.0).unwrap_or(8);
-                        Some(if right_width > left_width { right } else { left })
+                        Some(if right_width > left_width {
+                            right
+                        } else if left_width > right_width
+                            || left.1 != ArithmeticDomain::Exact
+                        {
+                            left
+                        } else {
+                            // Equal widths, left Exact: prefer the side that
+                            // carries a domain (an S2 retag on the right).
+                            right
+                        })
                     }
                     (left, right) => left.or(right),
                 }

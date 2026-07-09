@@ -17,8 +17,15 @@ machine Main::main(&mut self) {
     self.b = 100;
     let c: u8 in Saturating = (self.a as u8 in Saturating) + self.b;
     transition c == 255 {
-        true -> good()
+        true -> fused()
         _ -> bad()
+    }
+    state fused(&mut self) {
+        // The retag must also reach arithmetic FUSED under a guard compare
+        // (no landing seam): the interpreter's cast witness used to hardcode
+        // Exact and compare the wide 300 while native read the retag and
+        // clamped.
+        transition ((self.a as u8 in Saturating) + self.b == 255) { true -> good() _ -> bad() }
     }
     state good(&mut self) { self.console.exit_process(70); }
     state bad(&mut self) { self.console.exit_process(71); }
