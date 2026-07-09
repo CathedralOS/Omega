@@ -1,0 +1,87 @@
+// RUN CANARY (exit 70) + interpreter differential. At/above-width Wrapping
+// shifts reaching INDEXED, POINTEE, and EXACT-COUNT spellings -- the
+// slice-B tail audit (2026-07-14) found all of these already correct
+// because the planner routes non-Exact binary VALUES through the operand
+// path (whose domain machinery clamps on both ISAs) rather than fusing
+// them into the indexed/pointee binary-write kinds, whose encoders carry no
+// domain and would hardware-mask. This canary PINS that routing: if the
+// planner ever starts fusing wrapping shifts into those kinds, these legs
+// trip the differential immediately -- thread the domain through the kind
+// encoders when that happens. (Double-indexed targets refuse binary values
+// loudly at compile today; no silent path exists.)
+//
+// The exact-count legs pin the witness side: the node's domain comes from
+// the LHS (its declared type), so a plain-Exact count under a Wrapping
+// value still clamps (slice-A exemption spelling at an at-width count).
+// exits: 71 = machine-indexed u64 <<; 72 = machine-indexed i32 >> (signed
+// sign-fill); 73 = frame-local indexed u64 <<; 74 = pointee u64 <<;
+// 75 = exact-count u64 <<; 76 = exact-count i32 >>.
+
+boundary trait Console { machine exit_process(return_code: i32); }
+data Holder { slot: u64; }
+data Main { console: Console; arr: [u64; 4]; sarr: [i32; 4]; h: Holder; k: u64; ks: i32; }
+machine Main::write_slot(&mut self, target: &mut Holder) {
+    let a: u64 in Wrapping = (1 as u64 in Wrapping);
+    let c: u64 in Wrapping = (70 as u64 in Wrapping);
+    target.slot = a << c;
+}
+machine Main::main(&mut self) {
+    let a: u64 in Wrapping = (1 as u64 in Wrapping);
+    let c: u64 in Wrapping = (70 as u64 in Wrapping);
+    self.arr[1] = a << c;
+    transition self.arr[1] == 0 {
+        true  -> indexed_shr()
+        false -> bad_machine_indexed_shl()
+    }
+    state indexed_shr(&mut self) {
+        let n: i32 in Wrapping = (0 as i32 in Wrapping) - 2;
+        let c2: i32 in Wrapping = (40 as i32 in Wrapping);
+        self.sarr[2] = n >> c2;
+        transition self.sarr[2] == (0 as i32 in Wrapping) - 1 {
+            true  -> frame_indexed()
+            false -> bad_machine_indexed_shr()
+        }
+    }
+    state frame_indexed(&mut self) {
+        let arr2: [u64; 4] = [7, 7, 7, 7];
+        let a2: u64 in Wrapping = (1 as u64 in Wrapping);
+        let c3: u64 in Wrapping = (70 as u64 in Wrapping);
+        arr2[2] = a2 << c3;
+        transition arr2[2] == 0 {
+            true  -> pointee()
+            false -> bad_frame_indexed()
+        }
+    }
+    state pointee(&mut self) {
+        self.write_slot(self.h);
+        transition self.h.slot == 0 {
+            true  -> exact_count_shl()
+            false -> bad_pointee()
+        }
+    }
+    state exact_count_shl(&mut self) {
+        self.k = 70;
+        let a3: u64 in Wrapping = (1 as u64 in Wrapping);
+        let s: u64 in Wrapping = a3 << self.k;
+        transition s == 0 {
+            true  -> exact_count_shr()
+            false -> bad_exact_shl()
+        }
+    }
+    state exact_count_shr(&mut self) {
+        self.ks = 40;
+        let n2: i32 in Wrapping = (0 as i32 in Wrapping) - 2;
+        let t: i32 in Wrapping = n2 >> self.ks;
+        transition t == (0 as i32 in Wrapping) - 1 {
+            true  -> good()
+            false -> bad_exact_shr()
+        }
+    }
+    state good(&mut self)                    { self.console.exit_process(70); }
+    state bad_machine_indexed_shl(&mut self) { self.console.exit_process(71); }
+    state bad_machine_indexed_shr(&mut self) { self.console.exit_process(72); }
+    state bad_frame_indexed(&mut self)       { self.console.exit_process(73); }
+    state bad_pointee(&mut self)             { self.console.exit_process(74); }
+    state bad_exact_shl(&mut self)           { self.console.exit_process(75); }
+    state bad_exact_shr(&mut self)           { self.console.exit_process(76); }
+}

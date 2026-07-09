@@ -16568,6 +16568,34 @@ fn runtime_shift_right_atwidth_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_shift_atwidth_indexed_targets_exit_canary_runs() {
+    // Pins the planner routing that keeps at-width Wrapping shifts correct
+    // for indexed/pointee targets and Exact-count spellings: the value
+    // travels the (clamped) operand path, never the domain-less indexed
+    // binary-write kinds.
+    let canary = pass_canary("arithmetic/runtime_shift_atwidth_indexed_targets_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-shlidx-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("indexed-targets shift canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("indexed-targets shift canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "indexed-targets shift canary should pass all legs (exit 70), got {:?}",
+        output.status.code(),
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_wrapping_operand_truncation_exit_canary_runs() {
     // Nested Wrapping binaries in operand position hand the parent the
     // width-wrapped value (>> / % legs pin the sign/width-sensitive reads).
@@ -27854,6 +27882,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "arithmetic/runtime_shift_count_domain_exit",
     "arithmetic/runtime_shift_atwidth_signed_modular_exit",
     "arithmetic/runtime_shift_right_atwidth_exit",
+    "arithmetic/runtime_shift_atwidth_indexed_targets_exit",
     "arithmetic/runtime_wrapping_operand_truncation_exit",
     "text/case_literal_texteq_field_store_exit",
     "text/case_literal_texteq_terminal_exit",
