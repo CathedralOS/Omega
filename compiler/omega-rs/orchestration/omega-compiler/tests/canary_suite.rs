@@ -16402,6 +16402,32 @@ fn runtime_float_compare_bool_exit_canary_runs() {
 }
 
 #[test]
+fn equatable_sum_stale_payload_exit_canary_runs() {
+    // Synthesized sum equality is tag-aware: stale bytes from a longer
+    // variant reassigned away must not leak into ==.
+    let canary = pass_canary("traits/equatable_sum_stale_payload_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-sumstale-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("sum stale-payload equality canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("sum stale-payload equality canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "sum stale-payload equality canary should hold a == b (exit 70), got {:?}",
+        output.status.code(),
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_text_not_equals_exit_canary_runs() {
     // Text != in value + guard positions; the equal-strings leg is the pin
     // (the negation flag was ignored and != behaved as == on both ISAs).
@@ -26994,6 +27020,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "time/runtime_sleep_for_exit",
     "parser/deep_nesting_within_limit",
     "traits/boundary_trait_effects_host_call",
+    "traits/equatable_sum_stale_payload_exit",
     "traits/dyn_trait_object_dispatch",
     "capabilities/uses_caller_folder",
     "capabilities/acquires_filesystem_authority",
