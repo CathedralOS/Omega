@@ -1,0 +1,85 @@
+// std::time rung 10 NATIVE CONFIRMATION on darwin/aarch64 (claimed by the
+// fs lane 2026-07-10g -- it has the Mac; see TASKS_FS.md "Stolen work"):
+// `_clock_gettime_nsec_np` serves BOTH reads via clockid injection
+// (monotonic CLOCK_UPTIME_RAW = 8, wall CLOCK_REALTIME = 0), and the
+// aarch64 CONSTANT-RESULT encoder serves frequency/units with no call at
+// all. The darwin calibration constants are asserted EXACTLY -- they are
+// the darwin lowering rows themselves: nanosecond units (10^9 for both
+// monotonic frequency and wall units) and a unix epoch offset of 0.
+// The sibling runtime_time_host_native_exit asserts the WINDOWS rows
+// (FILETIME 10^7 / 11_644_473_600) and is #[cfg(windows)]-gated; this one
+// is #[cfg(target_os = "macos")]-gated.
+//
+// Real-clock assertions are INEQUALITIES: monotonic strictly advances
+// across a 30ms sleep; wall-clock sanity brackets unix SECONDS between
+// 2026-01-01 (1_767_225_600) and ~2076 (3_350_000_000) -- a zeroed result
+// fails low, an undivided nanosecond raw (~10^18) fails high.
+// Expected exit: 70.
+use omega::language::std::time_host;
+
+boundary trait Console { machine exit_process(return_code: i32); }
+
+data Main {
+    console: Console;
+    host: TimeHost;
+    first_ticks: u64;
+    second_ticks: u64;
+    frequency: u64;
+    wall_raw: u64;
+    wall_units: u64;
+    wall_offset: u64;
+    unix_seconds: u64;
+}
+
+machine Main::main(&mut self) {
+    self.first_ticks = self.host.monotonic_ticks();
+    self.host.sleep(30);
+    self.second_ticks = self.host.monotonic_ticks();
+    // 30ms of CLOCK_UPTIME_RAW nanoseconds: strictly greater, never equal.
+    transition self.second_ticks > self.first_ticks {
+        true -> check_frequency()
+        false -> fail_monotonic()
+    }
+    state check_frequency(&mut self) {
+        self.frequency = self.host.monotonic_ticks_per_second();
+        transition self.frequency == 1000000000 {
+            true -> check_units()
+            false -> fail_frequency()
+        }
+    }
+    state check_units(&mut self) {
+        self.wall_units = self.host.wall_clock_units_per_second();
+        transition self.wall_units == 1000000000 {
+            true -> check_offset()
+            false -> fail_units()
+        }
+    }
+    state check_offset(&mut self) {
+        self.wall_offset = self.host.wall_clock_epoch_offset_seconds();
+        transition self.wall_offset == 0 {
+            true -> check_wall_lower()
+            false -> fail_offset()
+        }
+    }
+    state check_wall_lower(&mut self) {
+        self.wall_raw = self.host.wall_clock_raw();
+        self.unix_seconds = self.wall_raw / 1000000000;
+        transition self.unix_seconds > 1767225600 {
+            true -> check_wall_upper()
+            false -> fail_wall_low()
+        }
+    }
+    state check_wall_upper(&mut self) {
+        transition self.unix_seconds < 3350000000 {
+            true -> good()
+            false -> fail_wall_high()
+        }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state fail_monotonic(&mut self) { self.console.exit_process(1); }
+    state fail_frequency(&mut self) { self.console.exit_process(2); }
+    state fail_units(&mut self) { self.console.exit_process(3); }
+    state fail_offset(&mut self) { self.console.exit_process(4); }
+    state fail_wall_low(&mut self) { self.console.exit_process(5); }
+    state fail_wall_high(&mut self) { self.console.exit_process(6); }
+}

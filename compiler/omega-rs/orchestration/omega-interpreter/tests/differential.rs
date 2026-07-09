@@ -923,6 +923,14 @@ const EXCLUDED_RUN_CANARIES: &[(&str, &str)] = &[
         "NATIVE-ONLY (windows-gated run test): asserts the WINDOWS calibration constants (10^7 / 11_644_473_600) and real-clock inequalities; the interpreter's virtual clock reports 1000/0 and exits 3 by design (its exact values are pinned by time/runtime_time_host_virtual_exit)",
     ),
     (
+        "time/runtime_fs_mtime_system_time_interop_exit",
+        "macos-gated dual test (interp oracle + native run, both 70, asserted in its canary_suite test): the mtime decode reads DARWIN stat offsets, so a windows-host differential run would decode garbage; the windows leg waits on fs open-work #2's stat rows",
+    ),
+    (
+        "time/runtime_time_host_native_darwin_exit",
+        "NATIVE-ONLY (macos-gated run test): asserts the DARWIN calibration constants (10^9 units, offset 0) and real-clock inequalities; the interpreter's virtual clock reports 1000/0 and exits 2 by design (pinned by time/runtime_time_host_virtual_exit)",
+    ),
+    (
         "targets/entry_run_args_bytes",
         "NATIVE-ONLY: the entry prologue binds `args: &[u8]` over the spilled platform argument registers; the interpreter has no entry-argument notion yet",
     ),

@@ -1,0 +1,84 @@
+// fs <-> time INTEROP (TASKS_TIME #9's ready leg, claimed by the fs lane
+// 2026-07-10g): a real file's Metadata mtime, decoded at the darwin stat
+// offset (st_mtimespec.tv_sec, i64 @48 -- the native_metadata_modified
+// idiom) and bridged through SystemTime::from_unix_seconds, is comparable
+// with Time::system_time_now(): now.duration_since(modified) must be Ok
+// (a just-created file is never in the future), the gap must be sane, and
+// the bridged mtime must be a real timestamp (>= the virtual model's
+// 10^9 constant; a zeroed decode fails).
+//
+// ENGINE-AGNOSTIC assertions so BOTH engines exit 70 on a macOS host: the
+// interpreter's virtual fs stamps mtime = 10^9 (2001) and its virtual
+// wall clock reads 2026-01-01, so the gap is ~767M seconds; native's gap
+// is ~0. Both are Ok, < 10^9 seconds, with mtime >= 10^9. The decode
+// offset is DARWIN's, so the canary is macos-gated in the suite and
+// differential-excluded with a reason (the windows leg waits on fs
+// open-work #2's stat rows, exactly as TASKS_TIME #9 records).
+// Expected exit: 70.
+use omega::language::std::filesystem_host;
+use omega::language::std::time;
+
+boundary trait Console { machine exit_process(return_code: i32); }
+
+data Main {
+    console: Console;
+    fs: FilesystemHost;
+    time: Time;
+    mode: i32;
+    fd: i32;
+    n: i64;
+    rc: i64;
+    buffer: [u8; 144];
+    mtime: i64;
+    // `a` must be the FIRST SystemTime field: dispatch resolves contained
+    // receivers by TYPE and picks the first instance (the sibling
+    // system_time_after_2026 canary's a/b shuffle idiom).
+    a: SystemTime;
+    b: SystemTime;
+    modified: SystemTime;
+    now_keep: SystemTime;
+    diff: SystemTimeDifference;
+}
+
+machine Main::main(&mut self) {
+    self.mode = 438;
+    self.fd = self.fs.create("/tmp/omega_time_interop.txt", self.mode);
+    self.n = self.fs.write(self.fd, "interop");
+    self.n = self.fs.close(self.fd);
+    self.rc = self.fs.read_metadata("/tmp/omega_time_interop.txt", &mut self.buffer);
+    self.n = self.fs.remove("/tmp/omega_time_interop.txt");
+    transition self.rc == 0 { true -> decode() _ -> bad(71) }
+    state decode(&mut self) {
+        self.mtime = (self.buffer[48] as i64)
+            | ((self.buffer[49] as i64) << 8)
+            | ((self.buffer[50] as i64) << 16)
+            | ((self.buffer[51] as i64) << 24)
+            | ((self.buffer[52] as i64) << 32)
+            | ((self.buffer[53] as i64) << 40)
+            | ((self.buffer[54] as i64) << 48)
+            | ((self.buffer[55] as i64) << 56);
+        self.modified = SystemTime::from_unix_seconds(self.mtime);
+        self.now_keep = self.time.system_time_now();
+        self.a = self.now_keep;
+        self.b = self.modified;
+        self.diff = self.a.duration_since(self.b);
+        transition self.diff {
+            SystemTimeDifference::Ok { duration } -> check_gap(duration)
+            SystemTimeDifference::Backwards { amount } -> bad_backwards(amount)
+            SystemTimeDifference::Unmeasured -> bad(73)
+        }
+    }
+    state check_gap(&mut self, duration: Duration) {
+        // Native: ~0s (just created). Interp: ~767M s (2001 -> 2026 virtual
+        // constants). Both < 10^9; a garbage decode blows the bound.
+        transition duration.seconds < 1000000000 { true -> check_mtime() _ -> bad(74) }
+    }
+    state check_mtime(&mut self) {
+        // A real timestamp: >= the virtual model's 10^9 (2001) constant;
+        // native darwin is ~1.77e9. A zeroed decode fails here.
+        transition self.mtime >= 1000000000 { true -> good() _ -> bad(75) }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self, code: i32) { self.console.exit_process(code); }
+    state bad_backwards(&mut self, amount: Duration) { self.console.exit_process(72); }
+}

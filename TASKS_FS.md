@@ -1098,8 +1098,11 @@ lane's last commit is 2026-07-07 and its thread is now on recursion
 territory (TASKS.md), so these two items — both needing exactly the
 macOS/arm64 host this lane runs on — are CLAIMED here:
 
-- [ ] **STOLEN #T1 — native confirmation of time rung 10 (darwin/aarch64
-  bindings).** TASKS_TIME #10 landed the darwin rows (_clock_gettime_nsec_np,
+- [x] **STOLEN #T1 — DONE (2026-07-10g). Native confirmation of time rung
+  10 on this Mac: new macos-gated canary
+  time/runtime_time_host_native_darwin_exit (exit 70; exact darwin
+  constants, real-clock inequalities), wrapper canaries + elapsed_timer
+  sample all native-green. Results recorded in TASKS_TIME #10.** TASKS_TIME #10 landed the darwin rows (_clock_gettime_nsec_np,
   clockid injection, aarch64 constant-result encoder) with a compile-only
   pin (time/cross_darwin_time_host) and the honest note "Native
   confirmation still needs a Mac." This host IS the Mac: run the native
@@ -1107,8 +1110,11 @@ macOS/arm64 host this lane runs on — are CLAIMED here:
   per-target expectations (the windows canary's FILETIME brackets don't
   apply to darwin's unix-epoch 10^9 rows), and record results in
   TASKS_TIME #10.
-- [ ] **STOLEN #T2 — the fs↔time interop canary (TASKS_TIME #9's ready
-  leg).** `SystemTime::from_unix_seconds` consumed from Metadata
+- [x] **STOLEN #T2 — macOS LEG DONE (2026-07-10g).
+  time/runtime_fs_mtime_system_time_interop_exit: real mtime ->
+  from_unix_seconds -> duration_since(now) Ok, both engines 70 (dual
+  macos-gated suite test; the contained-receiver first-field shuffle
+  idiom applied). Windows leg stays on fs open-work #2.** `SystemTime::from_unix_seconds` consumed from Metadata
   timestamps — the time-side surface is "ready and canaried"; the fs-side
   native `read_metadata` row WORKS on darwin (this lane's metadata
   canaries). Write the interop canary on the macOS leg now; the
