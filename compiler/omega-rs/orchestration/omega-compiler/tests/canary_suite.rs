@@ -16060,6 +16060,33 @@ fn runtime_saturating_expression_domain_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_wrapping_expression_guard_exit_canary_runs() {
+    // Wrapping arithmetic fused into guard operands: the byte-width compare
+    // IS the wrap natively (u8 200+100 compares as 44); the differential
+    // oracle pins the interpreter's node-level wrap to the same exits.
+    let canary = pass_canary("arithmetic/runtime_wrapping_expression_guard_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-wrapexpr-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("wrapping expression-guard canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("wrapping expression-guard canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected all three wrapped guard directions to hold (exit 70), got {:?}",
+        output.status.code(),
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_trapping_guard_overflow_traps_canary_runs() {
     // Trapping arithmetic in OPERAND position must TRAP: `u8 in Trapping`
     // 200+100 overflows at the guard's fused add, so the process dies before

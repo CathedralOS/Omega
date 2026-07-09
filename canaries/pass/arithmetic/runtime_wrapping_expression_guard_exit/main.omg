@@ -1,0 +1,33 @@
+// Wrapping arithmetic fused into GUARD operands (decision 17): the result
+// never lands in a typed slot, so the wrap must happen at the operation /
+// compare width, not at a landing seam. Natively the fused op computes wide
+// and the BYTE-WIDTH compare truncates -- which IS the wrap; the interpreter
+// must wrap at the node (its comparisons are full-width). Operands are
+// FIELDS so the fold never sees them.
+// Directions: u8 add wrap (200+100 = 300 -> 44), i8 sub wrap (-100-50 =
+// -150 -> 106), u8 mul wrap (100*3 = 300 -> 44). Exit 70.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main {
+    console: Console;
+    au: u8 in Wrapping;
+    bu: u8 in Wrapping;
+    ai: i8 in Wrapping;
+    bi: i8 in Wrapping;
+}
+machine Main::main(&mut self) {
+    self.au = 200;
+    self.bu = 100;
+    transition (self.au + self.bu == 44) { true -> sub_wrap() _ -> bad() }
+    state sub_wrap(&mut self) {
+        self.ai = 0 - 100;
+        self.bi = 50;
+        transition (self.ai - self.bi == 106) { true -> mul_wrap() _ -> bad() }
+    }
+    state mul_wrap(&mut self) {
+        self.au = 100;
+        self.bu = 3;
+        transition (self.au * self.bu == 44) { true -> good() _ -> bad() }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}
