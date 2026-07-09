@@ -21,6 +21,7 @@ use super::super::super::bindings::{
     resolve_runtime_alias_binding_handle, strip_mutable_expression,
 };
 use super::super::super::storage_places::{
+    resolve_binary_write_arithmetic_domain,
     resolve_runtime_storage_arithmetic_domain, resolve_runtime_storage_is_signed,
     resolve_runtime_storage_place, resolve_runtime_storage_place_is_bounded_byte_buffer,
     resolve_runtime_storage_primitive_type, runtime_storage_target_is_atomic,
@@ -2333,18 +2334,13 @@ fn select_runtime_binary_mutation_write(
 
     // Decision 17 (operand-driven): the arithmetic domain comes from the operands'
     // types (Exact neutral); signedness from whichever operand is an integer place.
-    let domain = resolve_runtime_storage_arithmetic_domain(
+    let domain = resolve_binary_write_arithmetic_domain(
         input,
         dispatch_index,
         value_source_key,
         left_expression,
-    )
-    .combine(resolve_runtime_storage_arithmetic_domain(
-        input,
-        dispatch_index,
-        value_source_key,
         right_expression,
-    ));
+    );
     let target_signed =
         resolve_runtime_storage_is_signed(input, dispatch_index, value_source_key, left_expression)
             .or_else(|| {

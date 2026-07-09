@@ -1086,6 +1086,55 @@ fn resolve_expression_arithmetic_domain_witness_in_table(
     (domain, signed)
 }
 
+/// The fused binary WRITE's domain witness: both operand expressions combined
+/// (Exact neutral), seeing through NESTED binary operands. The leaf place
+/// resolver returns Exact for a binary node (a binary is not a place), so the
+/// old per-operand-place combine silently dropped the domain whenever an
+/// operand was itself arithmetic -- `(a + b) + 50` at u8-Saturating lowered
+/// the OUTER add PLAIN and the store truncated the unclamped value (49, not
+/// 255). Same recursive witness the operand-position lowering uses, so write
+/// and operand sites can never disagree.
+pub(in crate::selection) fn resolve_binary_write_arithmetic_domain_in_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    expressions: &ExpressionTable,
+    left: ExpressionHandle,
+    right: ExpressionHandle,
+) -> omega_core::arithmetic::ArithmeticDomain {
+    resolve_binary_operand_arithmetic_domain_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        left,
+        right,
+    )
+    .0
+}
+
+/// Non-table sibling of [`resolve_binary_write_arithmetic_domain_in_table`]
+/// for the older `&Expression` write path.
+pub(super) fn resolve_binary_write_arithmetic_domain(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    left: &Expression,
+    right: &Expression,
+) -> omega_core::arithmetic::ArithmeticDomain {
+    let mut delegated_expressions = ExpressionTable::default();
+    let left_handle = delegated_expressions.insert_tree(left);
+    let right_handle = delegated_expressions.insert_tree(right);
+    resolve_binary_write_arithmetic_domain_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        &delegated_expressions,
+        left_handle,
+        right_handle,
+    )
+}
+
 /// The arithmetic domain (`T in Wrapping/Saturating/Trapping`, decision 17) of a
 /// storage PLACE — read from the `Constrained` wrapper the layout builder records
 /// on the slot/field descriptor. Used at the binary-write site to decide whether
