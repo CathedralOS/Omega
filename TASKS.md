@@ -724,10 +724,26 @@ decreases remaining
   result plumbing is missing) or fence the omission loudly; serving it
   unparks BOTH pending/termination/custom_ranking_* canaries. This
   thread's work (no parallel agent is running).
-  METHOD NOTE: two instrumentation rounds printed nothing because of the
-  stale-CLI landmine (again) and a wrong guess about which planner walk is
-  live -- the allocator BACKTRACE resolved it in one run; prefer
-  backtrace-at-the-known-sink over guessing walk sites.
+  TWO FIX ATTEMPTS 2026-07-11c, both reverted (tree green at the known 7):
+  (1) MARKER OP (DispatchedCallResultSlot emitted at the dispatched-call
+  gate, consumed only by slot allocation): the recursive repro compiled AND
+  delivered 70/70 both legs (literal + param-field terminals), and both
+  termination canaries compiled -- but SEVEN dispatch-result canaries went
+  wrong-value: the op's mere PRESENCE flips negative-space statement
+  predicates in instruction selection (matches!(kind, LocalStorage|HostCall|
+  Mutation) style all/any checks around runtime_dispatch.rs:660/1079); a
+  new op kind cannot be made invisible to unknown consumers. Slot sets were
+  UNCHANGED (dedup worked) -- the breakage is purely op-visibility.
+  (2) STORAGE-SIDE SWEEP (entry body allocates slots for value calls that
+  no body's StateCall/Inline op covers): recursive-FIELD terminal 70/70,
+  but recursive-LITERAL regressed to native 71 and multi_arm STAYED broken
+  -- so (a) at least one multi_arm call is NOT op-covered by my match
+  (role/ordinal mismatch?) and (b) slot dispatch_index/frame-rebase
+  semantics matter in a way `any_role` does not paper over. NEXT ATTEMPT
+  NEEDS FIRST: how per-body plans MERGE (offset rebase per dispatch body vs
+  shared frame), and a dump of multi_arm's ops vs state_calls to see the
+  uncovered call. The termination canaries remain parked + drift-pinned;
+  no partial fix is worth shipping against seven silent wrong-values.
 
 - **[ ] Float types accept a domain clause that means nothing (found
   2026-07-10).** `f: f32 in Saturating` compiles; both legs run plain IEEE
