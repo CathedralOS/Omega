@@ -244,6 +244,15 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
     (runtime_text_storage_compare_{failure,delimiter}_branch_offset) and the
     width fn gain literal_len on the aarch64 arms; the record's two reloc
     positions (literal @0, source @8) are unchanged by the fixed-shape head.
+    HOST-ARG DROP FIXED 2026-07-09: selection deliberately signals an
+    unresolvable host-call argument with an EMPTY operand span ("so the
+    architecture encoder hard-errors" -- its own comment); x86's encoder
+    honors that (reject -> width 0 -> layout's loud refusal) but aarch64
+    emitted a bare `bl` that DROPPED the argument (`exit_process(a+b)`
+    silently exited garbage since before this session's baseline). The shared
+    aarch64 width arm now returns 0 for an empty operand span, mirroring the
+    x86 contract; both fail-canaries reject again (computed_host_arg +
+    value_call_as_host_arg; suite 691/16, fs 86/86).
     Remaining after that: tick/time host lowering
     (runtime_local_string_comparison_value 79!=78), tick/time host lowering,
     the frame-source machine-indexed write, and the entry-args spill.

@@ -27,6 +27,16 @@ pub fn host_call_sequence_width<T: InstructionOperandLike>(
 ) -> usize {
     match architecture {
         Architecture::Aarch64 => {
+            // Selection signals an UNRESOLVABLE argument (or buffer) with an
+            // EMPTY operand span so the architecture encoder hard-errors (see
+            // select_host_operation_operands). x86_64's encoder rejects such a
+            // call and this width becomes 0, tripping layout's loud zero-byte
+            // host-call refusal; the aarch64 encoder would happily emit a bare
+            // `bl` that DROPS the argument (`exit_process(a + b)` silently
+            // exited garbage). Mirror the x86_64 contract.
+            if operands.is_empty() {
+                return 0;
+            }
             // Constant-result ops (std::time calibration) have their own
             // no-call layout; keyed here exactly as in the encoder routing.
             if operation_key.lowers_to_constant_result()
