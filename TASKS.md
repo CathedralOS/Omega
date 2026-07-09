@@ -571,6 +571,18 @@ decreases remaining
   works). NOTE for report readers: backend_report renders convert widths in BYTES
   (`as i8->i8` = an 8-byte u64 identity convert, NOT i8).
 
+- **PENDING-CANARY RECHECK 2026-07-09** (after the session's aarch64 arc):
+  const-fold divide/shift miscompiles + unsigned_min_max_wrapping still
+  diverge (all parked on the type-carrying-constants design ✓);
+  float_to_int and shift-at-width divergences gained AARCH64 DATA POINTS in
+  their headers -- both are now NATIVE-vs-NATIVE cross-arch divergences
+  (FCVTZS saturates / LSLV masks at 64, each matching the interp against
+  x86), sharpening the pending design call; and
+  time/value_machine_receiver_field_postentry now fails LOUDLY with the
+  receiver-fence diagnostic (the parallel agent's rung work) instead of
+  silently resolving the first field -- graduates from silent-wrong repro to
+  fence-pinned, retire when per-instance dispatch (rung 3) lands.
+
 - **[ ] Range constraint + non-Exact domain = the range is a LIE (found 2026-07-06).**
   `i: usize [0..=4] in Wrapping` accepts `self.i = 100` -- the range enforces only under the
   EXACT domain ("Wrapping stays permissive" was scoped to source-type narrowing, but it also

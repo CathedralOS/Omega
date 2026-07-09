@@ -8,6 +8,10 @@
 //   interp = 71 (n == -1): eval does `f.trunc() as i64` (Rust SATURATES to
 //            i64::MAX = 0x7FFFFFFFFFFFFFFF), truncated to i32 = -1.
 // Both are garbage (the value is out of range), but they differ.
+// AARCH64 DATA POINT (2026-07-09, probe exit 99): FCVTZS SATURATES (like
+// Rust/interp's i64 saturation, unlike x86's integer-indefinite), so the
+// divergence is now also NATIVE-vs-NATIVE across architectures -- the design
+// decision must pick trap/saturate/obligation, not "match native".
 //
 // UNIFIED DESIGN QUESTION (with shift-amount-out-of-range-divergence): both are
 // UNDERSPECIFIED numeric-range operations -- a shift by >= the operand width, and
