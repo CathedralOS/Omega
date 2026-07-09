@@ -67,6 +67,17 @@ fn native_dirs_still_passes() { assert_pass("native_dirs"); }
 fn native_read_dir_iter_still_passes() { assert_pass("native_read_dir_iter"); }
 #[test]
 fn native_flock_still_passes() { assert_pass("native_flock"); }
+// The WRAPPER lock family (lock/lock_shared/try_lock/try_lock_shared/unlock,
+// Rust File::lock parity) + metadata(File) (the fstat wrapper) -- first
+// runtime coverage (both were zero-caller). flock has no msvcrt equivalent,
+// so this lives here (macOS-gated) like native_flock, not in the differential
+// RUN_CANARIES. Exit-coded (70 = full single-fd lock cycle + meta.len check);
+// the interpreter leg was probe-verified at 70 when this landed.
+#[test]
+fn wrapper_lock_metadata_exit_runs() {
+    let (code, _) = compile_run("wrapper_lock_metadata_exit");
+    assert_eq!(code, Some(70), "wrapper lock/metadata cycle should exit 70");
+}
 #[test]
 fn native_at_ops_passes() { assert_pass("native_at_ops"); }
 #[test]
