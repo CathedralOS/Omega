@@ -5192,26 +5192,42 @@ impl<'program> Evaluator<'program> {
         let r = self.arithmetic_operand_int(&right)?;
         // Saturating/Trapping ADD/SUB/MUL clamp/trap at the OPERATION itself
         // (decision 17): compute WIDE in i128 -- two in-bounds operands cannot
-        // overflow it, and it also covers 64-bit signed saturation, which the
-        // i64 landing seams cannot express -- then apply the domain to the
-        // exact mathematical result. Other domains and operators keep the wide
-        // i64 compute + landing-seam coercion.
+        // overflow it, and it also covers the 64-bit widths, which the i64
+        // landing seams cannot express (a wrapped u64 MAX+5 arrives at the
+        // seam as 4 with the overflow evidence gone; only the node, holding
+        // BOTH operands, can clamp). 64-bit UNSIGNED views its `Value::Int`
+        // bit patterns as u64 and clamps to [0, u64::MAX]. Other domains and
+        // operators keep the wide i64 compute + landing-seam coercion.
         if let Some((ty, domain @ (ArithmeticDomain::Saturating | ArithmeticDomain::Trapping))) =
             scalar_type
         {
             if matches!(operator, Add | Subtract | Multiply) {
-                if let Some((min, max)) = integer_bounds(ty) {
+                let bounds_and_wide = if primitive_is_unsigned64(Some(ty)) {
+                    let (lu, ru) = (l as u64 as i128, r as u64 as i128);
+                    let wide = match operator {
+                        Add => lu + ru,
+                        Subtract => lu - ru,
+                        Multiply => lu * ru,
+                        _ => unreachable!(),
+                    };
+                    Some((0i128, u64::MAX as i128, wide))
+                } else if let Some((min, max)) = integer_bounds(ty) {
                     let wide = match operator {
                         Add => l as i128 + r as i128,
                         Subtract => l as i128 - r as i128,
                         Multiply => l as i128 * r as i128,
                         _ => unreachable!(),
                     };
+                    Some((min as i128, max as i128, wide))
+                } else {
+                    None
+                };
+                if let Some((min, max, wide)) = bounds_and_wide {
                     return match domain {
                         ArithmeticDomain::Saturating => {
-                            Ok(Value::Int(wide.clamp(min as i128, max as i128) as i64))
+                            Ok(Value::Int(wide.clamp(min, max) as i64))
                         }
-                        ArithmeticDomain::Trapping if wide < min as i128 || wide > max as i128 => {
+                        ArithmeticDomain::Trapping if wide < min || wide > max => {
                             trap(format!(
                                 "arithmetic overflow in Trapping domain: {wide} is out of range for {ty:?}"
                             ))
