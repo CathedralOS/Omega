@@ -571,10 +571,44 @@ invisible to a pump; real fix = outbound WndProc entry stubs (extern brief §12.
    looping-callee test with the fence predicates (effectful-arm callees,
    re-entrant spliced interiors → dispatch); keep the proven splice for
    pure/simple callees (code-size: clones duplicate dispatch cases per
-   call site, splice stays inline). No new analysis: the fences already
-   compute exactly these predicates at emission planning -- the work is
-   moving/refactoring their evaluation EARLIER (to state-graph routing) so
-   a positive becomes a route, not a refusal. (b) receiver storage: dispatched clones are
+   call site, splice stays inline).
+   ⚠️ CHOOSER INTEL (2026-07-08l, corrects "no new analysis needed"): the
+   chooser is `dispatch_state_call_edges`
+   (omega-backend-pipeline/src/builder.rs) and its comment records that
+   NAIVE widening was ALREADY TRIED: "dispatching NON-looping value calls
+   broadly regresses ~13 canaries -- the inline-branching value path
+   handles shapes (binary operands, reference/slice-element results,
+   aliases, multi-arm) the dispatch RETURN-WRITE does not yet serve"
+   (memory [[inline-branching-value-runtime-guard]]). So targeted routing
+   of FENCE-REFUSED shapes is safe (error → attempt, no green canary can
+   regress), but those shapes may then hit the same return-write gaps as
+   NEW loud errors -- the return-write shape coverage is the real second
+   half of the feature.
+   INVESTIGATION ITEM 1 — RESOLVED (ii) AND LANDED (2026-07-08l): the
+   fences over-applied to dispatched calls. New shared helper
+   `dispatch_route::state_call_routed_to_dispatch` (emission-planning) --
+   EVIDENCE-based: a runtime-flow call edge exists for the call's source
+   state + statement targeting the callee's machine, so the fences can
+   never drift from the router. Both `value_call_arm_effect_blockers` and
+   `reentrant_value_call_blockers` now exempt dispatched calls (their arms
+   are real dispatch cases running once; loops are real back-edges; the
+   all-arms/once-not-per-iteration hazards are splice-only). RESULT: the
+   dir-walk probe's read_dir_count/read_dir_nth effectful-arm refusals are
+   GONE (the looping callees were already dispatch-routed; only the fences
+   lagged). All gates green; suite failure-set zero new; the fence fail
+   canaries still fire (their probe callees do not loop).
+   ⚠️ INVESTIGATION ITEM 1b (the remaining fence in the reduced dir-walk
+   probe): `mkall_walk`'s value call to `mkall_copy` did NOT route to
+   dispatch despite mkall_copy's entry-recursion loop -- the suspect is the
+   `state_call.required` filter in dispatch_state_call_edges (mkall_walk is
+   itself interior to create_dir_all's dispatched instance; its call may
+   not be marked `required`). Next step: trace `required` for interior
+   calls; if that's it, the fix is marking calls inside dispatched
+   machines required (or dropping the filter for looping callees).
+   INVESTIGATION ITEM 2: enumerate the dispatch return-write's missing
+   shapes against the ~13-canary regression list (binary operands,
+   slice-element results, aliases, multi-arm) -- each is its own bounded
+   sub-task once routing sends real consumers through. (b) receiver storage: dispatched clones are
    keyed by StateKey; the CONTAINED receiver's region/offset must thread
    into the clone's dispatch -- this INTERSECTS the known deep
    receiver-storage-through-dispatch fix (contained same-type aliasing /
