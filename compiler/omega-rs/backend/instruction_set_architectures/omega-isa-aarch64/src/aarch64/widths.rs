@@ -465,8 +465,9 @@ fn saturating_signed_divide_modulo_width(byte_size: usize, want_remainder: bool)
 /// (16) with NO trailing FMOV (the 0/1 result is already in the GPR). MUST
 /// stay in lockstep with `append_runtime_float_binary_operation`.
 /// Width twin of `append_runtime_binary_operation_with_domain`: the plain op
-/// width plus the WRAPPING `<<` modular count clamp (CMP #width + CSEL = 8).
-/// MUST stay in lockstep.
+/// width plus the WRAPPING shift fix -- `<<` / logical `>>` take the modular
+/// zero clamp (CMP #width + CSEL = 8), arithmetic `>>` the count saturation
+/// (CMP #width + CSINV = 8). MUST stay in lockstep.
 pub(in crate::aarch64) fn runtime_binary_operation_width_with_domain(
     operator: StateGuardOperator,
     byte_size: usize,
@@ -474,7 +475,12 @@ pub(in crate::aarch64) fn runtime_binary_operation_width_with_domain(
 ) -> usize {
     runtime_binary_operation_width(operator, byte_size)
         + if domain == omega_core::arithmetic::ArithmeticDomain::Wrapping
-            && operator == StateGuardOperator::ShiftLeft
+            && matches!(
+                operator,
+                StateGuardOperator::ShiftLeft
+                    | StateGuardOperator::ShiftRight
+                    | StateGuardOperator::ShiftRightLogical
+            )
         {
             8
         } else {

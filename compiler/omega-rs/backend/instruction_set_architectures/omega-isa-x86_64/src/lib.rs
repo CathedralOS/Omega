@@ -5627,9 +5627,21 @@ pub fn runtime_storage_binary_write_width(
         // (see append_wrapping_signed_divide_modulo). Unsigned uses the *Unsigned
         // operators and cannot overflow, so it falls through.
         wrapping_signed_divide_modulo_width(byte_size, operator == StateGuardOperator::Modulo)
-    } else if domain == ArithmeticDomain::Wrapping && operator == StateGuardOperator::ShiftLeft {
-        // Modular Wrapping `<<`: the plain shift + the at-width count clamp.
-        // Same operand-derived byte size as the emission arm.
+    } else if domain == ArithmeticDomain::Wrapping
+        && matches!(
+            operator,
+            StateGuardOperator::ShiftLeft
+                | StateGuardOperator::ShiftRight
+                | StateGuardOperator::ShiftRightLogical
+        )
+    {
+        // Wrapping shifts: the plain shift + the at-width count fix. Same
+        // operand-derived byte size as the emission arm.
+        let fix = if operator == StateGuardOperator::ShiftRight {
+            WRAPPING_SHIFT_RIGHT_COUNT_SATURATE_WIDTH
+        } else {
+            WRAPPING_SHIFT_ZERO_CLAMP_WIDTH
+        };
         runtime_binary_operation_width(
             operator,
             runtime_binary_operation_byte_size(
@@ -5639,7 +5651,7 @@ pub fn runtime_storage_binary_write_width(
                 right,
                 byte_size,
             ),
-        ) + WRAPPING_SHIFT_LEFT_CLAMP_WIDTH
+        ) + fix
     } else if is_float {
         runtime_float_binary_operation_width(operator)
     } else {
@@ -5721,15 +5733,17 @@ fn wrapping_signed_divide_modulo_width(byte_size: usize, want_remainder: bool) -
 /// Saturating take the TYPE_MIN/-1 clamp fixup and under Wrapping the idiv
 /// #DE guard (unsigned div/mod use the *Unsigned operators, never overflow,
 /// and fall through; Trapping div/mod fall through -- `idiv` traps on
-/// overflow and /0, which IS Trapping semantics). Wrapping SHIFT-LEFT takes
-/// the modular at-width count clamp (shift-domain ruling: `x << n` is
-/// x * 2^n mod 2^w, but the hardware `shl` masks the count instead).
+/// overflow and /0, which IS Trapping semantics). Wrapping SHIFTS take the
+/// at-width count fix (shift-domain ruling: shifts are value operations --
+/// x * 2^n mod 2^w and floor(x / 2^n) -- but the hardware masks the count
+/// instead): `<<` and logical `>>` clamp the result to zero, arithmetic `>>`
+/// saturates the count to width-1 (= the sign-fill shift).
 enum OperandDomainOperation {
     AddSub { domain: ArithmeticDomain, operands_signed: bool },
     Multiply { domain: ArithmeticDomain, operands_signed: bool },
     SaturatingSignedDivMod { want_remainder: bool },
     WrappingSignedDivMod { want_remainder: bool },
-    WrappingShiftLeft { operands_signed: bool },
+    WrappingShift { operands_signed: bool },
 }
 
 fn operand_position_domain_operation(
@@ -5759,9 +5773,12 @@ fn operand_position_domain_operation(
         ) if operands_signed => Some(OperandDomainOperation::WrappingSignedDivMod {
             want_remainder: operator == StateGuardOperator::Modulo,
         }),
-        (StateGuardOperator::ShiftLeft, ArithmeticDomain::Wrapping) => {
-            Some(OperandDomainOperation::WrappingShiftLeft { operands_signed })
-        }
+        (
+            StateGuardOperator::ShiftLeft
+            | StateGuardOperator::ShiftRight
+            | StateGuardOperator::ShiftRightLogical,
+            ArithmeticDomain::Wrapping,
+        ) => Some(OperandDomainOperation::WrappingShift { operands_signed }),
         _ => None,
     }
 }
@@ -5876,11 +5893,19 @@ pub fn encode_runtime_storage_binary_write(
             byte_size,
             operator == StateGuardOperator::Modulo,
         )?;
-    } else if domain == ArithmeticDomain::Wrapping && operator == StateGuardOperator::ShiftLeft {
-        // Modular Wrapping `<<` (shift-domain ruling): the hardware shl masks
-        // the count to the op width, so clamp at/above-TYPE-width counts to 0
-        // (matches interp + aarch64). The store's truncation remains the
-        // in-range wrap.
+    } else if domain == ArithmeticDomain::Wrapping
+        && matches!(
+            operator,
+            StateGuardOperator::ShiftLeft
+                | StateGuardOperator::ShiftRight
+                | StateGuardOperator::ShiftRightLogical
+        )
+    {
+        // Wrapping shifts (shift-domain ruling): the hardware masks the count
+        // to the op width, so fix at/above-TYPE-width counts -- << and logical
+        // >> clamp the result to 0, arithmetic >> saturates the count to
+        // width-1 (sign-fill) BEFORE the sar (matches interp + aarch64). The
+        // store's truncation remains the in-range wrap.
         let operation_byte_size = runtime_binary_operation_byte_size(
             runtime_value_operands,
             operator,
@@ -5888,8 +5913,13 @@ pub fn encode_runtime_storage_binary_write(
             right,
             byte_size,
         );
+        if operator == StateGuardOperator::ShiftRight {
+            append_wrapping_shift_right_count_saturate(&mut bytes, operation_byte_size);
+        }
         append_runtime_binary_operation(&mut bytes, operator, operation_byte_size)?;
-        append_wrapping_shift_left_clamp(&mut bytes, operation_byte_size);
+        if operator != StateGuardOperator::ShiftRight {
+            append_wrapping_shift_zero_clamp(&mut bytes, operation_byte_size);
+        }
     } else {
         append_runtime_binary_operation(
             &mut bytes,
@@ -7389,9 +7419,14 @@ pub fn runtime_value_operand_width(
                 OperandDomainOperation::WrappingSignedDivMod { want_remainder } => {
                     wrapping_signed_divide_modulo_width(byte_width, want_remainder)
                 }
-                OperandDomainOperation::WrappingShiftLeft { .. } => {
+                OperandDomainOperation::WrappingShift { .. } => {
+                    let fix = if operator == StateGuardOperator::ShiftRight {
+                        WRAPPING_SHIFT_RIGHT_COUNT_SATURATE_WIDTH
+                    } else {
+                        WRAPPING_SHIFT_ZERO_CLAMP_WIDTH
+                    };
                     runtime_binary_operation_width(operator, byte_width)
-                        + WRAPPING_SHIFT_LEFT_CLAMP_WIDTH
+                        + fix
                         + wrapping_node_width_extension_width(byte_width)
                 }
             }
@@ -7625,12 +7660,18 @@ fn append_runtime_value_operand(
                 OperandDomainOperation::WrappingSignedDivMod { want_remainder } => {
                     append_wrapping_signed_divide_modulo(bytes, byte_width, want_remainder)?;
                 }
-                OperandDomainOperation::WrappingShiftLeft { operands_signed } => {
-                    // Width-correct shl (the hardware masks the count mod the op
-                    // width) + the modular at-width clamp + the node-width
-                    // extension the parent contract requires.
+                OperandDomainOperation::WrappingShift { operands_signed } => {
+                    // Width-correct shift (the hardware masks the count mod the
+                    // op width) + the at-width fix (arithmetic >> saturates the
+                    // count BEFORE the sar; << and logical >> zero-clamp after)
+                    // + the node-width extension the parent contract requires.
+                    if operator == StateGuardOperator::ShiftRight {
+                        append_wrapping_shift_right_count_saturate(bytes, byte_width);
+                    }
                     append_runtime_binary_operation(bytes, operator, byte_width)?;
-                    append_wrapping_shift_left_clamp(bytes, byte_width);
+                    if operator != StateGuardOperator::ShiftRight {
+                        append_wrapping_shift_zero_clamp(bytes, byte_width);
+                    }
                     append_wrapping_node_width_extension(bytes, byte_width, operands_signed);
                 }
             }
@@ -8315,22 +8356,40 @@ fn append_runtime_binary_operation(
     Ok(())
 }
 
-/// Wrapping `<<` count clamp (shift-domain ruling): Wrapping shift-left is
-/// MODULAR -- x * 2^n (mod 2^w) -- so a count at/above the TYPE width yields
-/// 0, but the hardware `shl` masks the count to the op width instead
-/// (40 & 31 = 8). The FULL count survives in r11 (the shift arm only copies
-/// it to cl), so compare it UNSIGNED against the bit width and cmov zero
-/// over the shifted result -- a negative signed count is huge unsigned and
-/// clamps, exactly like the interpreter's `count as u64 >= width`. rax is
-/// scratch mid-operation, as in the div/setcc arms.
-fn append_wrapping_shift_left_clamp(bytes: &mut Vec<u8>, byte_size: usize) {
+/// Wrapping `<<` / logical `>>` zero clamp (shift-domain ruling): both are
+/// value operations -- x * 2^n (mod 2^w) and floor(x / 2^n) -- so a count
+/// at/above the TYPE width yields 0, but the hardware `shl`/`shr` mask the
+/// count to the op width instead (40 & 31 = 8). The FULL count survives in
+/// r11 (the shift arm only copies it to cl), so compare it UNSIGNED against
+/// the bit width and cmov zero over the shifted result -- a negative signed
+/// count is huge unsigned and clamps, exactly like the interpreter's
+/// `count as u64 >= width`. rax is scratch mid-operation, as in the
+/// div/setcc arms.
+fn append_wrapping_shift_zero_clamp(bytes: &mut Vec<u8>, byte_size: usize) {
     bytes.extend([0x31, 0xc0]); // xor eax, eax
     bytes.extend([0x49, 0x83, 0xfb, (byte_size * 8) as u8]); // cmp r11, width_bits
     bytes.extend([0x4c, 0x0f, 0x43, 0xd0]); // cmovae r10, rax
 }
 
-/// Bytes of [`append_wrapping_shift_left_clamp`]: xor (2) + cmp (4) + cmov (4).
-const WRAPPING_SHIFT_LEFT_CLAMP_WIDTH: usize = 10;
+/// Bytes of [`append_wrapping_shift_zero_clamp`]: xor (2) + cmp (4) + cmov (4).
+const WRAPPING_SHIFT_ZERO_CLAMP_WIDTH: usize = 10;
+
+/// Arithmetic `>>` count saturation: floor(x / 2^n) SIGN-FILLS for an
+/// at/above-width count, and a post-fix cannot recover the sign once the
+/// hardware-masked `sar` has consumed the value -- so saturate the COUNT to
+/// width-1 first (`sar` by width-1 IS the sign-fill). Runs BEFORE the plain
+/// shift arm, which copies the (now saturated) r11 into cl. rax is scratch.
+fn append_wrapping_shift_right_count_saturate(bytes: &mut Vec<u8>, byte_size: usize) {
+    let width_bits = (byte_size * 8) as u8;
+    bytes.push(0xb8); // mov eax, imm32
+    bytes.extend(u32::from(width_bits - 1).to_le_bytes());
+    bytes.extend([0x49, 0x83, 0xfb, width_bits]); // cmp r11, width_bits
+    bytes.extend([0x4c, 0x0f, 0x43, 0xd8]); // cmovae r11, rax
+}
+
+/// Bytes of [`append_wrapping_shift_right_count_saturate`]: mov (5) + cmp (4)
+/// + cmov (4).
+const WRAPPING_SHIFT_RIGHT_COUNT_SATURATE_WIDTH: usize = 13;
 
 /// A nested WRAPPING binary hands its PARENT the width-wrapped VALUE in r10
 /// (the interpreter wraps AT THE NODE, decision 17; the store-truncation
@@ -9525,10 +9584,10 @@ mod wrapping_shift_clamp_tests {
     fn clamp_compares_the_full_count_and_cmovs_zero() {
         for &byte_size in &[1usize, 2, 4, 8] {
             let mut bytes = Vec::new();
-            append_wrapping_shift_left_clamp(&mut bytes, byte_size);
+            append_wrapping_shift_zero_clamp(&mut bytes, byte_size);
             assert_eq!(
                 bytes.len(),
-                WRAPPING_SHIFT_LEFT_CLAMP_WIDTH,
+                WRAPPING_SHIFT_ZERO_CLAMP_WIDTH,
                 "width mismatch for the {byte_size}-byte clamp"
             );
             assert_eq!(&bytes[0..2], &[0x31, 0xc0], "xor eax, eax");
@@ -9547,7 +9606,7 @@ mod wrapping_shift_clamp_tests {
         let mut bytes = Vec::new();
         append_runtime_binary_operation(&mut bytes, StateGuardOperator::ShiftLeft, 4)
             .expect("shl");
-        append_wrapping_shift_left_clamp(&mut bytes, 4);
+        append_wrapping_shift_zero_clamp(&mut bytes, 4);
         assert_eq!(
             bytes,
             vec![
@@ -9561,7 +9620,34 @@ mod wrapping_shift_clamp_tests {
         assert_eq!(
             bytes.len(),
             runtime_binary_operation_width(StateGuardOperator::ShiftLeft, 4)
-                + WRAPPING_SHIFT_LEFT_CLAMP_WIDTH,
+                + WRAPPING_SHIFT_ZERO_CLAMP_WIDTH,
+            "emission and width accounting must agree"
+        );
+    }
+
+    #[test]
+    fn arithmetic_shr_saturates_the_count_before_the_sar() {
+        // The pre-fix: at/above-width counts become width-1, so the sar
+        // itself produces the sign-fill. cmovae writes r11 (the count),
+        // NOT r10 (the value).
+        let mut bytes = Vec::new();
+        append_wrapping_shift_right_count_saturate(&mut bytes, 4);
+        append_runtime_binary_operation(&mut bytes, StateGuardOperator::ShiftRight, 4)
+            .expect("sar");
+        assert_eq!(
+            bytes,
+            vec![
+                0xb8, 31, 0, 0, 0, // mov eax, 31 (width-1)
+                0x49, 0x83, 0xfb, 32, // cmp r11, 32
+                0x4c, 0x0f, 0x43, 0xd8, // cmovae r11, rax (count, not value)
+                0x44, 0x89, 0xd9, // mov ecx, r11d (saturated count copy)
+                0x41, 0xd3, 0xfa, // sar r10d, cl
+            ]
+        );
+        assert_eq!(
+            bytes.len(),
+            WRAPPING_SHIFT_RIGHT_COUNT_SATURATE_WIDTH
+                + runtime_binary_operation_width(StateGuardOperator::ShiftRight, 4),
             "emission and width accounting must agree"
         );
     }

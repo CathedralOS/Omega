@@ -3884,10 +3884,28 @@ fn append_runtime_binary_operation_with_domain(
     byte_size: usize,
     domain: omega_core::arithmetic::ArithmeticDomain,
 ) -> Result<(), Diagnostic> {
+    let wrapping = domain == omega_core::arithmetic::ArithmeticDomain::Wrapping;
+    if wrapping && operator == StateGuardOperator::ShiftRight {
+        // Arithmetic `>>` is floor(x / 2^n): an at/above-width count must
+        // SIGN-FILL, and a post-fix cannot recover the sign once the masked
+        // shift consumed the value -- so saturate the COUNT first. CSINV
+        // turns at/above-width counts into ~0, which ASRV masks to the form
+        // width - 1 (31/63): exactly the sign-fill shift. Clobbers the rhs
+        // register (dead after the operation, as on x86_64).
+        let width_bits = u32::try_from(byte_size * 8).unwrap_or(64);
+        bytes.extend(encode_compare_x_immediate(rhs_register, width_bits)?);
+        // LO (unsigned <): in-range counts keep rhs; otherwise NOT(XZR).
+        bytes.extend(encode_csinv_x(rhs_register, rhs_register, 31, 0b0011));
+    }
     append_runtime_binary_operation(bytes, destination_register, operator, rhs_register, byte_size)?;
-    if domain == omega_core::arithmetic::ArithmeticDomain::Wrapping
-        && operator == StateGuardOperator::ShiftLeft
+    if wrapping
+        && matches!(
+            operator,
+            StateGuardOperator::ShiftLeft | StateGuardOperator::ShiftRightLogical
+        )
     {
+        // `<<` and logical `>>` both yield ZERO at/above-width (modular /
+        // floor-division semantics); the hardware masks the count instead.
         let width_bits = u32::try_from(byte_size * 8).unwrap_or(64);
         bytes.extend(encode_compare_x_immediate(rhs_register, width_bits)?);
         // HS (unsigned >=): count at or above the width selects XZR.

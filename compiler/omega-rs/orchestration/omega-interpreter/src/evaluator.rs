@@ -3965,8 +3965,10 @@ impl<'program> Evaluator<'program> {
                     || self.expression_is_unsigned64(binary.right, frame));
                 // Non-Exact ADD/SUB/MUL apply their domain at the OPERATION
                 // node (native emits the clamping/trapping/wrapping-width
-                // sequence itself), and signed DIV/MOD resolve the MIN/-1
-                // corner there, so resolve the expression's declared scalar
+                // sequence itself), signed DIV/MOD resolve the MIN/-1
+                // corner there, and Wrapping SHIFTS need the type WIDTH for
+                // their at/above-width count semantics (modular zero /
+                // sign-fill), so resolve the expression's declared scalar
                 // type for the operators the domains cover.
                 let scalar_type = if matches!(
                     binary.operator,
@@ -3976,6 +3978,7 @@ impl<'program> Evaluator<'program> {
                         | BinaryOperator::Divide
                         | BinaryOperator::Modulo
                         | BinaryOperator::ShiftLeft
+                        | BinaryOperator::ShiftRight
                 ) {
                     self.expression_scalar_type(handle, frame)
                 } else {
@@ -5342,7 +5345,7 @@ impl<'program> Evaluator<'program> {
         // truncating each intermediate agrees with native's wide-compute +
         // width-sensitive-op truncation everywhere.
         if let Some((ty, ArithmeticDomain::Wrapping)) = scalar_type {
-            if matches!(operator, Add | Subtract | Multiply | ShiftLeft) {
+            if matches!(operator, Add | Subtract | Multiply | ShiftLeft | ShiftRight) {
                 let wide = match operator {
                     Add => l.wrapping_add(r),
                     Subtract => l.wrapping_sub(r),
@@ -5359,6 +5362,20 @@ impl<'program> Evaluator<'program> {
                             0
                         } else {
                             l.wrapping_shl(r as u32)
+                        }
+                    }
+                    // The `>>` half of the same ruling: x >> n is
+                    // floor(x / 2^n) at every count, so a count >= the
+                    // type's width is 0 for a logical shift and the
+                    // sign-fill (0 or -1) for an arithmetic one. Hardware
+                    // masks the count instead; both ISAs clamp to match.
+                    ShiftRight => {
+                        if (r as u64) >= primitive_bit_width(ty) {
+                            if unsigned_operands || l >= 0 { 0 } else { -1 }
+                        } else if unsigned_operands {
+                            ((l as u64).wrapping_shr(r as u32)) as i64
+                        } else {
+                            l.wrapping_shr(r as u32)
                         }
                     }
                     _ => unreachable!(),

@@ -277,6 +277,39 @@ fn linux_x64_wrapping_shl_clamp_bytes_present() {
             .any(|window| window == operand_clamp_then_extend),
         "the operand-position clamp + node-width extension must be emitted"
     );
+
+    // Arithmetic `>>` (the shr at-width canary): the count SATURATION
+    // (mov eax,width-1 + cmp r11,#width + cmovae r11,rax -- the count
+    // register, not the value) followed by the plain mov-ecx + sar, at both
+    // widths.
+    let shr = pass_canary("arithmetic/runtime_shift_right_atwidth_exit");
+    fs::copy(shr.join("main.omg"), src_dir.join("main.omg")).expect("copy shr canary");
+    let out3 = scratch.join("out3");
+    compile(CompileOptions {
+        root_path: src_dir.join("main.omg"),
+        build_dir: Some(out3.clone()),
+        target_name: Some("linux_x64".to_owned()),
+        write_output: true,
+    })
+    .expect("at-width shr canary should cross-compile for linux_x64");
+    let elf3 = fs::read(out3.join("omega-program")).expect("linux_x64 ELF emitted");
+    let saturate_sar_32 = [
+        0xb8, 31, 0, 0, 0, 0x49, 0x83, 0xfb, 32, 0x4c, 0x0f, 0x43, 0xd8, // saturate count
+        0x44, 0x89, 0xd9, 0x41, 0xd3, 0xfa, // mov ecx, r11d + sar r10d, cl
+    ];
+    let saturate_sar_64 = [
+        0xb8, 63, 0, 0, 0, 0x49, 0x83, 0xfb, 64, 0x4c, 0x0f, 0x43, 0xd8, // saturate count
+        0x4c, 0x89, 0xd9, 0x49, 0xd3, 0xfa, // mov rcx, r11 + sar r10, cl
+    ];
+    for (name, sequence) in [
+        ("32-bit", &saturate_sar_32[..]),
+        ("64-bit", &saturate_sar_64[..]),
+    ] {
+        assert!(
+            elf3.windows(sequence.len()).any(|window| window == sequence),
+            "the {name} arithmetic >> count-saturate + sar must be emitted"
+        );
+    }
     let _ = fs::remove_dir_all(&scratch);
 }
 
@@ -16509,6 +16542,32 @@ fn runtime_shift_atwidth_signed_modular_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_shift_right_atwidth_exit_canary_runs() {
+    // Wrapping >> at/above-width counts: logical -> 0, arithmetic ->
+    // sign-fill (floor-division semantics; hardware masks the count).
+    let canary = pass_canary("arithmetic/runtime_shift_right_atwidth_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-shratw-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("at-width shr canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("at-width shr canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "at-width shr canary should pass all legs (exit 70), got {:?}",
+        output.status.code(),
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_wrapping_operand_truncation_exit_canary_runs() {
     // Nested Wrapping binaries in operand position hand the parent the
     // width-wrapped value (>> / % legs pin the sign/width-sensitive reads).
@@ -27794,6 +27853,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "arithmetic/runtime_float_nested_operand_exit",
     "arithmetic/runtime_shift_count_domain_exit",
     "arithmetic/runtime_shift_atwidth_signed_modular_exit",
+    "arithmetic/runtime_shift_right_atwidth_exit",
     "arithmetic/runtime_wrapping_operand_truncation_exit",
     "text/case_literal_texteq_field_store_exit",
     "text/case_literal_texteq_terminal_exit",

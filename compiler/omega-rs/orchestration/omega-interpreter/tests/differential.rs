@@ -54,6 +54,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("arithmetic/runtime_float_nested_operand_exit", 70),
     ("arithmetic/runtime_shift_count_domain_exit", 70),
     ("arithmetic/runtime_shift_atwidth_signed_modular_exit", 70),
+    ("arithmetic/runtime_shift_right_atwidth_exit", 70),
     ("arithmetic/runtime_wrapping_operand_truncation_exit", 70),
     ("text/case_literal_texteq_field_store_exit", 70),
     ("text/case_literal_texteq_terminal_exit", 70),
