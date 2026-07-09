@@ -1,0 +1,32 @@
+// RUN CANARY (exit 70) -- PARAM RECEIVER, SINGLE-INSTANCE FAMILY: a
+// spliced helper calls through a `&mut Tally` param when exactly ONE
+// Tally instance exists -- the by-type walk's pick is provably the
+// passed instance (the multi-instance spelling is fenced loudly;
+// fail/calls/param_receiver_multi_instance_rejected). only.count = 9
+// delivered through the param -> exit 70.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Tally { count: i32 in Wrapping; }
+machine Tally::get(&mut self) -> i32 in Wrapping {
+    transition true { true -> done(self.count) }
+    state done(&mut self, value: i32) -> i32 { value }
+}
+data Holder { only: Tally; }
+machine Holder::probe(&mut self, t: &mut Tally) -> i32 in Wrapping {
+    let v: i32 in Wrapping = t.get();
+    transition true { true -> done(v) }
+    state done(&mut self, v: i32) -> i32 { v }
+}
+machine Holder::run(&mut self) -> i32 in Wrapping {
+    
+    self.only.count = 9;
+    let v: i32 in Wrapping = self.probe(&mut self.only);
+    transition true { true -> done(v) }
+    state done(&mut self, v: i32) -> i32 { v }
+}
+data Main { console: Console; holder: Holder; flag: i32 in Wrapping; }
+machine Main::main(&mut self) {
+    self.flag = self.holder.run();
+    transition self.flag == 9 { true -> good() _ -> bad() }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

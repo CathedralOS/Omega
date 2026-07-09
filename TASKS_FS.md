@@ -126,8 +126,18 @@ results in Omega. Interpreter = full-parity reference oracle for everything.
    examines SPLICED-LIVE calls (liveness fixpoint from the entry;
    serve = composed source-machine base + unique-in-family final hop +
    resolvable path, mirroring the walk; param/local receivers in
-   spliced code stay un-fenced -- they resolve via binding
-   substitution, recorded residual). Pin:
+   spliced code CLOSED 2026-07-11h: the by-type walk is EXACT for a
+   single-instance family (pass pin:
+   calls/runtime_param_receiver_single_instance_exit) and read the
+   FIRST instance regardless of the argument for multi-instance
+   families (silent-wrong 7-for-9; now fenced loudly, fail pin:
+   fail/calls/param_receiver_multi_instance_rejected). SERVE design
+   recorded for later: the receiver chain walk follows param BINDINGS
+   -- at each descent compute machine-typed `&mut` params' receiver
+   offsets from the call's ARGUMENTS (relative to the caller's base)
+   and carry them as the position's param environment; a
+   param-receiver hop resolves through that environment; applies to
+   receiver_base.rs + the fence mirror in lockstep). Pin:
    fail/calls/ambiguous_spliced_second_receiver_rejected (two
    same-family calls in one state: `second` blocked loudly; was
    silent-wrong 7-for-9 native). SAME-DAY REGRESSION FIX rolled in: the
