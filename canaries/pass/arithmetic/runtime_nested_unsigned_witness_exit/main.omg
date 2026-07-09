@@ -1,0 +1,45 @@
+// A NESTED binary operand carries its operands' UNSIGNEDNESS (one witness):
+// `(a / b) % k` with a high-bit u32 dividend must run the UNSIGNED divide AND
+// modulo -- the signed idiv reads 3000000000 as negative and yields a negative
+// remainder. The witness must recurse through the nested node in GUARD
+// position (fused, no temp) exactly as the arg-materialization path types its
+// temp slot. Also pins the sibling consumers of the same witness: an ordered
+// compare of a nested quotient (unsigned `>`ping, not signed), and a logical
+// (not arithmetic) shift-right of one. Operands are FIELDS (fold-proof; the
+// verification landmines on the TASKS item apply: positive expected values
+// only). Exit 70.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main {
+    console: Console;
+    a: u32;
+    b: u32;
+    r: u32;
+}
+machine Main::main(&mut self) {
+    // Fused guard: unsigned 3000000000 / 1 % 100 = 0 (signed: rem -96).
+    self.a = 3000000000;
+    self.b = 1;
+    transition ((self.a / self.b) % 100 == 0) { true -> stored() _ -> bad1() }
+    state stored(&mut self) {
+        // The arg-materialization flavor of the same shape.
+        self.r = (self.a / self.b) % 100;
+        transition self.r == 0 { true -> ordered() _ -> bad2() }
+    }
+    state ordered(&mut self) {
+        // Ordered compare of a nested quotient: unsigned 1500000000 > 1000
+        // (signed reading of the dividend would divide negative -> false).
+        self.b = 2;
+        transition ((self.a / self.b) > 1000) { true -> shifted() _ -> bad3() }
+    }
+    state shifted(&mut self) {
+        // Logical shift-right of a nested quotient: 3000000000/1 >> 1 =
+        // 1500000000 (arithmetic sar of the negative reading differs).
+        self.b = 1;
+        transition ((self.a / self.b) >> 1 == 1500000000) { true -> good() _ -> bad4() }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad1(&mut self) { self.console.exit_process(71); }
+    state bad2(&mut self) { self.console.exit_process(72); }
+    state bad3(&mut self) { self.console.exit_process(73); }
+    state bad4(&mut self) { self.console.exit_process(74); }
+}

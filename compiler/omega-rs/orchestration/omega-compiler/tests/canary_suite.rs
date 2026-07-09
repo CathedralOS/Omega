@@ -16116,6 +16116,35 @@ fn runtime_divide_min_edge_guard_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_nested_unsigned_witness_exit_canary_runs() {
+    // A nested binary operand carries its operands' unsignedness: high-bit
+    // u32 `(a / b) % k` runs unsigned div+mod fused in a guard, the stored
+    // flavor agrees, ordered compares of a nested quotient compare unsigned,
+    // and `>>` of one shifts logically. The signed encodings all diverge on
+    // the high-bit dividend.
+    let canary = pass_canary("arithmetic/runtime_nested_unsigned_witness_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-nestuns-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("nested unsigned witness canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("nested unsigned witness canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected all four nested-unsigned directions to hold (exit 70), got {:?}",
+        output.status.code(),
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_trapping_guard_overflow_traps_canary_runs() {
     // Trapping arithmetic in OPERAND position must TRAP: `u8 in Trapping`
     // 200+100 overflows at the guard's fused add, so the process dies before

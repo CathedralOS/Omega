@@ -41,6 +41,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("arithmetic/runtime_saturating_expression_domain_exit", 70),
     ("arithmetic/runtime_wrapping_expression_guard_exit", 70),
     ("arithmetic/runtime_divide_min_edge_guard_exit", 70),
+    ("arithmetic/runtime_nested_unsigned_witness_exit", 70),
     ("arithmetic/runtime_unsigned_high_bit_u32_ops_exit", 70),
     ("arithmetic/runtime_unsigned_min_max_exit", 88),
     ("arithmetic/runtime_integer_casts_exit", 70),
