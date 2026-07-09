@@ -189,8 +189,7 @@ fn local_initial_value_is_call(
     input: &InstructionSelectionInput<'_>,
     initial_value: ExpressionHandle,
 ) -> bool {
-    let ExpressionNode::Call(call) = input.program.expression_table.expression(initial_value)
-    else {
+    let ExpressionNode::Call(call) = input.program.expression_table.expression(initial_value) else {
         return false;
     };
     // Slice-VIEW calls (`as_slice`/`as_mut_slice`) are NOT result-producing value

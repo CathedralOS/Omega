@@ -2,27 +2,27 @@ use crate::InstructionSelectionInput;
 use crate::selection::runtime_dispatch::text_writes::string_literal_data_handle;
 use crate::selection::runtime_dispatch::writes::mutation::operators::supports_scalar_integer_write;
 use crate::selection::storage_places::{
-    enum_variant_value_in_table, resolve_runtime_frame_base_double_indexed_source_in_table,
-    resolve_runtime_frame_base_indexed_target_in_table,
+    enum_variant_value_in_table, resolve_runtime_frame_base_indexed_target_in_table,
     resolve_runtime_frame_fixed_indexed_target_in_table,
     resolve_runtime_frame_indexed_target_in_table,
     resolve_runtime_frame_indexed_target_near_slot_in_table,
+    resolve_runtime_frame_base_double_indexed_source_in_table,
     resolve_runtime_machine_double_indexed_source_in_table,
     resolve_runtime_machine_indexed_target_in_table,
     resolve_runtime_pointee_fixed_indexed_target_in_table,
-    resolve_runtime_pointee_slot_offset_in_table,
-    resolve_runtime_storage_arithmetic_domain_in_table, resolve_runtime_storage_place_in_table,
-    resolve_runtime_storage_primitive_type_in_table, static_fixed_array_len_in_table,
+    resolve_runtime_pointee_slot_offset_in_table, resolve_runtime_storage_arithmetic_domain_in_table,
+    resolve_runtime_storage_place_in_table, resolve_runtime_storage_primitive_type_in_table,
+    static_fixed_array_len_in_table,
 };
 use omega_abstract_operations::{
     RuntimeStorageRegion, RuntimeValueOperand, SelectedInstructionKind, StateGuardOperator,
 };
+use omega_layout::ENUM_TAG_BYTES;
 use omega_checked_trees::expression::{
     ExpressionHandle, ExpressionNode, ExpressionTable, TableNamePath,
 };
 use omega_control_flow::StateKey;
 use omega_core::arena::{Arena, HandleSpan};
-use omega_layout::ENUM_TAG_BYTES;
 
 use super::super::static_values::{
     RuntimeStaticValues, resolve_runtime_static_integer_value_in_table,

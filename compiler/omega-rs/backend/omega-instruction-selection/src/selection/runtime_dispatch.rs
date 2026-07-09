@@ -121,7 +121,8 @@ fn select_field_default_writes(
 
     if let Some(initial_value) = entry_machine_field_initial_value(input, field.symbol)
         && matches!(field.layout.size, 1 | 2 | 4 | 8)
-        && let Some(value) = constant_default_value(input, initial_value, field.layout.size)
+        && let Some(value) =
+            constant_default_value(input, initial_value, field.layout.size)
     {
         selected_instructions.push(SelectedInstruction {
             kind: SelectedInstructionKind::WriteRuntimeStorageInteger {
@@ -138,10 +139,7 @@ fn select_field_default_writes(
     // Recurse into a nested `data` record so its own field defaults are emitted at the
     // accumulated offset. References/slices/arrays of data are skipped: their storage
     // is not the inlined record bytes, so a default would not land on real fields.
-    if !matches!(
-        field.type_descriptor,
-        omega_layout::TypeLayoutDescriptor::Named { .. }
-    ) {
+    if !matches!(field.type_descriptor, omega_layout::TypeLayoutDescriptor::Named { .. }) {
         return;
     }
     let Some((_, nested_layout)) = input
@@ -233,7 +231,7 @@ fn select_entry_argument_register_writes(
                     slot.kind,
                     omega_runtime_storage::RuntimeFrameSlotKind::Parameter
                 ) && slot.source_key == input.entry_key)
-                    .then_some(slot.byte_offset)
+                .then_some(slot.byte_offset)
             });
         let Some(descriptor_offset) = descriptor_offset else {
             return;
@@ -274,7 +272,7 @@ fn select_entry_argument_register_writes(
                 slot.kind,
                 omega_runtime_storage::RuntimeFrameSlotKind::Parameter
             ) && slot.source_key == input.entry_key)
-                .then_some((slot.byte_offset, slot.byte_size))
+            .then_some((slot.byte_offset, slot.byte_size))
         })
         .collect();
     parameter_slots.sort_unstable();
@@ -506,11 +504,12 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
                         operation.statement_index,
                     ) {
                         let alias_bindings = runtime_aliases.bindings();
-                        let alias_context =
-                            (!alias_bindings.is_empty()).then_some(RuntimeAliasResolutionContext {
+                        let alias_context = (!alias_bindings.is_empty()).then_some(
+                            RuntimeAliasResolutionContext {
                                 aliases: alias_bindings,
                                 alias_expressions: &runtime_alias_expressions,
-                            });
+                            },
+                        );
                         select_host_call(
                             input,
                             host_call,
@@ -622,8 +621,10 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
                     operation,
                 ) && {
                     // Case A: the caller's own LocalStorage for this statement.
-                    let has_caller_local =
-                        operations.iter().skip(operation_index + 1).any(|later| {
+                    let has_caller_local = operations
+                        .iter()
+                        .skip(operation_index + 1)
+                        .any(|later| {
                             matches!(
                                 later.kind,
                                 RuntimeDispatchBodyOperationKind::LocalStorage { .. }
@@ -647,8 +648,8 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
                     // OWN value call splices the nested callee's ops (a third
                     // key) BETWEEN the callee's entry ops and its store (face
                     // #5: `self.flag = self.helper.check(1)` in the callee).
-                    let has_callee_local =
-                        state_call_target_key(operation).is_some_and(|target_key| {
+                    let has_callee_local = state_call_target_key(operation).is_some_and(
+                        |target_key| {
                             operations
                                 .iter()
                                 .skip(operation_index + 1)
@@ -661,7 +662,8 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
                                             | RuntimeDispatchBodyOperationKind::Mutation { .. }
                                     ) && later.source_key == target_key
                                 })
-                        });
+                        },
+                    );
                     has_caller_local || has_callee_local
                 };
                 if defers_to_local_initializer {
@@ -1106,7 +1108,9 @@ fn fire_ready_deferred_leaf_expansions(
     }
 }
 
-fn state_call_target_key(operation: &RuntimeDispatchBodyOperation) -> Option<StateKey> {
+fn state_call_target_key(
+    operation: &RuntimeDispatchBodyOperation,
+) -> Option<StateKey> {
     match operation.kind {
         RuntimeDispatchBodyOperationKind::StateCall { target_key, .. }
         | RuntimeDispatchBodyOperationKind::InlineStateCall { target_key, .. }

@@ -116,16 +116,14 @@ fn source_state_is_dispatched(input: &EmissionPlanningInput<'_>, source_key: Sta
 /// reliably tie back to the call site (see module docs). The absence of ANY
 /// transition for a state that is supposed to hand off to a callee is the
 /// unambiguous "the call produced no instructions" failure.
-fn source_state_emits_transition(input: &EmissionPlanningInput<'_>, source_key: StateKey) -> bool {
-    input
-        .instructions
-        .code
-        .instructions
-        .iter()
-        .any(|(_, instruction)| {
-            state_key_matches(instruction.source_key, source_key)
-                && instruction_is_dispatch_transition(&instruction.kind)
-        })
+fn source_state_emits_transition(
+    input: &EmissionPlanningInput<'_>,
+    source_key: StateKey,
+) -> bool {
+    input.instructions.code.instructions.iter().any(|(_, instruction)| {
+        state_key_matches(instruction.source_key, source_key)
+            && instruction_is_dispatch_transition(&instruction.kind)
+    })
 }
 
 /// Selected instruction kinds that realize a hand-off to a continuation/callee:

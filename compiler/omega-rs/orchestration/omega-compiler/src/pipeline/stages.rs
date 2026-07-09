@@ -256,12 +256,7 @@ fn substitute_native_gui_provider(
                 continue;
             };
             let members = definition.members;
-            for member in source_storage
-                .syntax_trees
-                .tables
-                .items
-                .data_members(members)
-            {
+            for member in source_storage.syntax_trees.tables.items.data_members(members) {
                 let omega_syntax_trees::item::DataMember::Field(field) = member else {
                     continue;
                 };
@@ -415,7 +410,6 @@ pub(super) fn control_flow_to_backend_plan(
 
 fn plan_emission(plan: &omega_backend_plan::BackendPlan) -> omega_artifacts::EmissionPlan {
     build_emission_plan(&EmissionPlanningInput {
-        receiver_bases: &plan.receiver_bases,
         target: plan.target,
         entry_key: plan.entry_key,
         host_abi: &plan.host_abi,

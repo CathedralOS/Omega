@@ -30,13 +30,13 @@ use omega_runtime_bodies::{RuntimeDispatchBodyOperation, RuntimeDispatchBodyOper
 pub(crate) use static_values::RuntimeStaticValues;
 use static_values::invalidate_runtime_static_value_in_table;
 
-pub(in crate::selection::runtime_dispatch) use mutation::{
-    resolve_runtime_text_equals_operand_in_table, select_runtime_convert_mutation_write_in_table,
-    signedness_adjusted_operator, signedness_adjusted_operator_for_operands,
-};
 pub(in crate::selection) use mutation::{
     runtime_frame_slot_target_expression, select_runtime_frame_slot_value_write_in_table,
     select_runtime_frame_slot_value_write_in_table_with_source_anchor,
+};
+pub(in crate::selection::runtime_dispatch) use mutation::{
+    resolve_runtime_text_equals_operand_in_table, select_runtime_convert_mutation_write_in_table,
+    signedness_adjusted_operator, signedness_adjusted_operator_for_operands,
 };
 pub(in crate::selection) use slice_descriptors::emit_runtime_frame_slot_slice_descriptor_write_in_table;
 pub(super) use storage_copy::{
@@ -370,6 +370,7 @@ fn select_runtime_storage_resolved_mutation_write_in_mutable_table(
     // NOTHING, and every element frame slot silently stayed zeroed natively.
     if let ExpressionNode::ArrayLiteral(elements) = *expressions.expression(value) {
         let mut emitted = false;
+        let mut any_element_failed = false;
         for offset in 0..elements.count() {
             let element = expressions.expression_handle_at_offset(elements, offset);
             let element_index = expressions.insert(ExpressionNode::Integer(
@@ -380,7 +381,7 @@ fn select_runtime_storage_resolved_mutation_write_in_mutable_table(
                     collection: target,
                     index: element_index,
                 }));
-            emitted |= select_runtime_storage_resolved_mutation_write_in_mutable_table(
+            let element_emitted = select_runtime_storage_resolved_mutation_write_in_mutable_table(
                 input,
                 dispatch_index,
                 operation_source_key,
@@ -396,12 +397,32 @@ fn select_runtime_storage_resolved_mutation_write_in_mutable_table(
                 runtime_value_operands,
                 selected_instructions,
             );
+            any_element_failed |= !element_emitted;
+            emitted |= element_emitted;
+        }
+        // PARTIAL construction (some elements landed, this one didn't) is a
+        // silent ZII element at runtime -- poison so emission planning
+        // rejects it loudly. A FULLY-unserved literal stays a plain `false`:
+        // the caller may still serve the whole value by another strategy.
+        // Gated on NO aliases: a call-SUBSTITUTED literal (a value-call
+        // terminal spliced through the caller) legitimately defers computed
+        // members to the call's own delivery machinery, so partiality at this
+        // level is not final there (constructor_computed_field's `a: n/100`);
+        // the call-terminal position has its own poison in the branch
+        // cascade. A SITE-SPELLED literal has no later server.
+        if emitted && any_element_failed && aliases.is_empty() {
+            push_unlowered_literal_field_poison(
+                operation_source_key,
+                statement_index,
+                selected_instructions,
+            );
         }
         return emitted;
     }
 
     if let ExpressionNode::StructLiteral(struct_literal) = expressions.expression(value).clone() {
         let mut emitted = false;
+        let mut any_field_failed = false;
         // Constructing a CASE (`Command::Move { steps: 70 }`) writes the i32
         // tag prefix before the payload fields. The payload fields then write
         // through the same member path as record fields (their offsets are
@@ -439,7 +460,7 @@ fn select_runtime_storage_resolved_mutation_write_in_mutable_table(
                         member: field_name,
                         case_variant: None,
                     }));
-                emitted |= select_runtime_storage_resolved_mutation_write_in_mutable_table(
+                let zero_emitted = select_runtime_storage_resolved_mutation_write_in_mutable_table(
                     input,
                     dispatch_index,
                     operation_source_key,
@@ -455,6 +476,8 @@ fn select_runtime_storage_resolved_mutation_write_in_mutable_table(
                     runtime_value_operands,
                     selected_instructions,
                 );
+                any_field_failed |= !zero_emitted;
+                emitted |= zero_emitted;
             }
         }
         for offset in 0..struct_literal.fields.count() {
@@ -483,7 +506,7 @@ fn select_runtime_storage_resolved_mutation_write_in_mutable_table(
                 member: field.name,
                 case_variant,
             }));
-            emitted |= select_runtime_storage_resolved_mutation_write_in_mutable_table(
+            let field_emitted = select_runtime_storage_resolved_mutation_write_in_mutable_table(
                 input,
                 dispatch_index,
                 operation_source_key,
@@ -497,6 +520,25 @@ fn select_runtime_storage_resolved_mutation_write_in_mutable_table(
                 resolved_segment_expressions,
                 static_values,
                 runtime_value_operands,
+                selected_instructions,
+            );
+            any_field_failed |= !field_emitted;
+            emitted |= field_emitted;
+        }
+        // PARTIAL construction (the tag and/or sibling fields landed, this
+        // field didn't) is a silent ZII field at runtime -- the field-store
+        // texteq face (`self.stored = Msg::Pong { y: 5, z: self.name ==
+        // "omega" }` ran native 72 / interp 70). Poison so emission planning
+        // rejects it with the bind-to-a-`let` diagnostic. A FULLY-unserved
+        // literal stays a plain `false`: the caller may still serve the whole
+        // value by another strategy.
+        // Same no-aliases gate as the array arm: call-substituted literals
+        // defer computed members to the call's delivery machinery (partial
+        // here is not final); site-spelled literals have no later server.
+        if emitted && any_field_failed && aliases.is_empty() {
+            push_unlowered_literal_field_poison(
+                operation_source_key,
+                statement_index,
                 selected_instructions,
             );
         }
@@ -822,6 +864,36 @@ fn state_names(
     key: omega_control_flow::StateKey,
 ) -> (Identifier, Identifier) {
     input.control_flow.state_names_by_key_cloned(key)
+}
+
+/// Push the `UnloweredCaseLiteralField` POISON for a literal decomposition
+/// whose construction went PARTIAL: siblings (and/or the case tag) landed but
+/// one member's write emitted nothing, so at runtime the member silently reads
+/// ZII 0 (first the cast-in-payload face, then text-equality payloads, on two
+/// separate cascades). Emission planning rejects the marker with the
+/// bind-to-a-`let` diagnostic; the marker is zero bytes and the partial writes
+/// never encode. Mirrors the branch-side construction cascade's poison
+/// (branches/mutation.rs).
+fn push_unlowered_literal_field_poison(
+    operation_source_key: StateKey,
+    statement_index: usize,
+    selected_instructions: &mut SelectedInstructionSink,
+) {
+    selected_instructions.push(SelectedInstruction {
+        kind: SelectedInstructionKind::EvaluateDispatchGuard {
+            guard_lowering:
+                omega_abstract_operations::StateGuardLowering::UnloweredCaseLiteralField,
+            operator: omega_abstract_operations::StateGuardOperator::Equal,
+            storage_region: omega_abstract_operations::RuntimeStorageRegion::Machine,
+            byte_offset: 0,
+            byte_size: 0,
+            expected_value: 0,
+            has_storage: false,
+            is_float: false,
+        },
+        source_key: operation_source_key,
+        source_statement: statement_index,
+    });
 }
 
 /// Write the i32 CASE TAG of a case construction (`target = Type::Case { .. }`)

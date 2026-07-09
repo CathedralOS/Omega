@@ -621,6 +621,24 @@ decreases remaining
   "has no operand lowering"); the pass canary keeps the served cast shape green. If
   text equality later gains operand-position lowering, the fail canary flips loudly
   -- rewrite it to another unloweable shape or promote, don't drop the poison.
+  EXTENDED same day: the FIELD-STORE position (`self.stored = Msg::Pong { .. }`)
+  routes through a THIRD cascade (mod.rs's struct-literal decomposition -- the
+  branch poison and the tree-cascade zero-emission check both miss it because the
+  decomposition happens a level up) with the same OR-away; same face reproduced
+  (native 72 / interp 70). Poisoned via `push_unlowered_literal_field_poison` on
+  PARTIAL constructions only (tag/siblings landed, a member didn't) -- a
+  fully-unserved literal still returns false so whole-value fallback strategies
+  keep working. The ARRAY-literal element loop got the same partiality poison.
+  Pinned: fail/control_flow/case_literal_unlowered_field_store_rejected.
+
+- **[ ] TextEquals has NO value/store-position lowering (found via the poison
+  work).** `self.ok = self.name == "x"` hits the mutation blocker;
+  `let ok: bool = ...` alias-folds back and poisons; only GUARD position works
+  (`transition self.name == "x"`). `ValueOperand::TextEquals` exists and lowers in
+  both ISAs for guards -- wiring it into the mutation-write value paths (binary
+  write with a TextEquals operand result) would serve the bool-materialization
+  spelling everywhere. Until then every spelling is LOUD (blocker or poison), so
+  this is a feature gap, not a soundness hole.
 
 - **PENDING-CANARY RECHECK 2026-07-09** (after the session's aarch64 arc):
   const-fold divide/shift miscompiles + unsigned_min_max_wrapping still

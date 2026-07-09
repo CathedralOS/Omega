@@ -28,7 +28,6 @@ pub(super) fn collect_state_guard_blockers(
             input.state_guards,
             input.layouts,
             input.runtime_storage,
-            input.receiver_bases,
             input.entry_key.machine,
             guard.source,
             guard.source.machine,

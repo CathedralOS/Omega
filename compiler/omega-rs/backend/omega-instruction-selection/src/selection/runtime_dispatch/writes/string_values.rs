@@ -259,13 +259,11 @@ pub(super) fn select_runtime_string_mutation_write_in_table(
     // `target_place.byte_offset`, which for a frame slot at offset 0 collided with
     // the machine-storage region base -- corrupting unrelated state.
     match target_place.region {
-        RuntimeStorageRegion::RuntimeFrame => {
-            Some(SelectedInstructionKind::WriteRuntimeFrameString {
-                byte_offset: target_place.byte_offset,
-                data,
-                byte_length: value.len(),
-            })
-        }
+        RuntimeStorageRegion::RuntimeFrame => Some(SelectedInstructionKind::WriteRuntimeFrameString {
+            byte_offset: target_place.byte_offset,
+            data,
+            byte_length: value.len(),
+        }),
         RuntimeStorageRegion::Machine => Some(SelectedInstructionKind::WriteRuntimeMachineString {
             byte_offset: target_place.byte_offset,
             data,

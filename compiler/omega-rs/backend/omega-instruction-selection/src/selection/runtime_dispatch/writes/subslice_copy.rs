@@ -10,9 +10,7 @@ use super::super::super::storage_places::{
 };
 use super::fixed_array_slices::{FixedArraySliceSource, literal_fixed_array_slice_source_in_table};
 use crate::selection::instruction_sink::SelectedInstructionSink;
-use omega_abstract_operations::{
-    RuntimeStorageRegion, SelectedInstruction, SelectedInstructionKind,
-};
+use omega_abstract_operations::{RuntimeStorageRegion, SelectedInstruction, SelectedInstructionKind};
 
 /// Materialize a RANGE subslice of a literal fixed array (`arr[a..b]` /
 /// `arr.as_slice()[a..b]`) as a fat `{ptr, len}` descriptor written into a
