@@ -10,9 +10,12 @@
 //     delivers correctly.
 //   * Only the POST-ENTRY chained let -- a let referencing a PRIOR post-entry
 //     let -- miscomputes. So the prior-let value is not materialized before the
-//     dependent let reads it in a non-entry state (the #2B deferral/contiguity
-//     treatment that entry-state locals get is not applied to post-entry
-//     states).
+//     dependent let reads it in a non-entry state.
+// ROOT (backend_report): `q`/`scaled` get NO frame slot (only `rem` does);
+// local_data_requires_storage elides them because the liveness scan ignores
+// LocalData initializer VALUES, and the fold that would inline them does not run
+// for a spliced post-entry state. Fix belongs on the FOLDING side -- keeping the
+// slot instead shifts offsets and regresses unrelated canaries (tried+reverted).
 // Promote to a passing RUN canary (exit 2) when the fix lands.
 boundary trait Console { machine exit_process(return_code: i32); }
 data Main { console: Console; }

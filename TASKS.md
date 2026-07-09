@@ -118,16 +118,27 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
       threading to `emit` (variant returning rem straight from `work` still
       fails). The prior-let VALUE is not materialized before the dependent let
       reads it in a non-entry state.
-  So the fix = extend the deferred-entry-locals materialization (the #2B
-  deferral/contiguity treatment) to POST-ENTRY states of a value callee. Not the
-  eager-eval-zero shape. The simple post-entry case (lets reading only params)
-  is already covered by the passing canary
-  calls/runtime_value_callee_post_entry_lets_exit (swap_digits=24); this pending
-  repro is the prior-let-dependency face. Fix candidate area: the value-callee
-  inline expansion / runtime-bodies local collection
-  (omega-runtime-bodies/src/collection.rs LocalStorage/LocalData handling +
-  omega-runtime-branching expansions) -- entry-state local ordering vs
-  post-entry.
+  ROOT CAUSE PINNED 2026-07-08 (backend_report on ez2c): the intermediate
+  locals `q` (stmt 0) and `scaled` (stmt 1) get NO frame slot -- only `rem`
+  (stmt 2, the terminal-returned local) does. `local_data_requires_storage`
+  (omega-state-storage/src/collection.rs) ELIDES q/scaled because the final
+  liveness scan `statement_references_local` does NOT inspect LocalData (`let`)
+  initializer VALUES -- so `q` being read by `let scaled = q*freq` is invisible.
+  Elided locals are meant to FOLD into their uses; that substitution runs for a
+  STRAIGHT-LINE state but NOT for a value callee's spliced POST-ENTRY state, so
+  the dependent `let` reads the elided local's ZII (native 0; interp right).
+  ⚠️ The obvious state-storage fix (keep the slot for a computed local read by a
+  later `let`) is FRAGILE and was REVERTED: keeping ANY extra slot SHIFTS frame
+  offsets and regressed 6 canaries + the dungeon differential (exit 71!=70).
+  So the fix belongs on the FOLDING side, NOT slot-keeping: make the post-entry
+  splice apply the SAME alias substitution straight-line states get (the
+  resolve_runtime_alias_binding / bindings.rs fold that inlines an elided
+  local's initializer into its use), so q/scaled fold into scaled/rem inside the
+  spliced `work` body. Area: omega-runtime-branching expansions + the
+  instruction-selection alias binding. The simple post-entry case (lets reading
+  only params) already works (passing canary
+  calls/runtime_value_callee_post_entry_lets_exit, swap_digits=24); this pending
+  repro is the prior-LET-dependency face.
 - **[x] NESTED-value-call transition guard read the nested result's PRE-STORE ZII
   TAG natively — FIXED 2026-07-08.** NOT a splice-ordering bug: a bare-call binding
   (`let since = self.checked_subtract(..)`) whose local ALSO has a LocalStorage
