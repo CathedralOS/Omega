@@ -761,9 +761,11 @@ decreases remaining
   pass/arithmetic/runtime_divide_min_edge_guard_exit (sat MIN/-1 -> MAX,
   sat MIN%-1 -> 0, wrap MIN/-1 -> MIN; differential 70/70 + suite test).
   Suite failure set identical to the known 7; ISA crate tests green; zero
-  warnings. NOTE for the fs lane: omega-run --both printed DIVERGENCE but
-  exited 0 through a pipe -- worth checking its exit-code plumbing (201
-  documented).
+  warnings. [RETRACTED 2026-07-10: the omega-run exit-code note below was a
+  FALSE FLAG -- the tool exits 201 on divergence exactly as documented;
+  the "exit 0" reads were this thread's own $?-after-pipe mistake (tail's
+  exit code, the long-documented shell landmine). Direct invocation
+  verified.]
 
 - **X86 64-BIT SAT/TRAP MULTIPLY 2026-07-09h: the domain family's last gap.**
   `append_saturating_trapping_multiply` byte_size==8 arms landed via the
