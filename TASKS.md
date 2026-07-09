@@ -57,18 +57,22 @@ should target NEW feature surfaces as they land, not re-walk these axes.
   mixed-domain check and the domain merge -- `wrapped << self.k` resolves
   with the LHS domain (pinned: arithmetic/runtime_shift_count_domain_exit);
   Exact-lhs shifts keep their proof obligation; u32 wrapping at count 40 is
-  already 0 on aarch64+interp (modular). Slice B PARTIAL (2026-07-13):
-  the interp is now uniformly MODULAR (was count-masked at 64-bit only) and
-  aarch64 clamps Wrapping << at-width counts to 0 (CMP #width + CSEL XZR in
-  the domain-aware binary-op wrapper; write + operand paths; at-width legs
-  added to the slice-A canary). REMAINING -- x86's count clamp (hardware
-  masks mod width; the parked shift-at-width canary retires with it);
-  Wrapping >> at-width semantics (logical -> 0, arithmetic -> sign-fill;
-  define + implement both engines); the indexed/pointee binary-write kinds
-  carry NO domain field, so wrapping shifts into indexed targets still mask
-  -- thread the domain or route through the storage kind. Slice C:
-  Saturating/Trapping shl (clamp/trap on shifted-out bits; the
-  shl_saturating parked canary).
+  already 0 on aarch64+interp (modular). Slice B DONE for `<<`
+  (2026-07-14): all three engines are modular (count >= width -> 0). Interp
+  uniformly modular; aarch64 CMP+CSEL-XZR clamp (write + operand paths);
+  x86_64 cmp-r11+cmovae-zero clamp (write path + a WrappingShiftLeft arm in
+  the shared OperandDomainOperation dispatch, which also fixed the nested
+  at-width case that hardware-masked before). Byte-pinned via the linux_x64
+  clamp-bytes test; the parked divergence canary is PROMOTED to
+  pass/arithmetic/runtime_shift_atwidth_signed_modular_exit (i32 write leg +
+  u32 operand legs, counts 40/70). REMAINING -- slice B tail: Wrapping >>
+  at-width semantics (logical -> 0, arithmetic -> sign-fill; define +
+  implement both engines + both positions); the indexed/pointee binary-write
+  kinds carry NO domain field, so wrapping shifts into indexed targets still
+  hardware-mask on both ISAs -- thread the domain or route through the
+  storage kind; align the selection-level domain witness to lhs-only for
+  shifts. Slice C: Saturating/Trapping shl (clamp/trap on shifted-out bits;
+  the shl_saturating parked canary).
 - **FLOAT-TO-INT half still open (no ruling).** `1e300 as i32`: aarch64
   FCVTZS + interp saturate to i32::MAX; x86 CVTTSD2SI gives the 0x80000000
   "integer indefinite". Parked cast divergence stays in the drift ledger.
