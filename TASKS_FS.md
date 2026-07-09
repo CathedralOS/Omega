@@ -545,6 +545,51 @@ invisible to a pump; real fix = outbound WndProc entry stubs (extern brief §12.
    after #2's design).
 5. [ ] Title-bar context-menu Close → outbound WndProc entry stubs (§12.4).
 6. [ ] linux binding tables (structural → tested) when a target is available.
+7. [ ] **CALL-WITH-RETURN — SCOPED (2026-07-08k), ready for a focused
+   session.** The reframing discovery: the feature ALREADY EXISTS for
+   statement-dispatched calls. The state-graph runtime-flow builder
+   (omega-state-graph/src/runtime_flow/builder.rs) clones callees per
+   CallContext, SEGMENTS the calling state at each call (`segment_index`;
+   the call returns into the next segment of the same state, sharing its
+   frame), threads a `continuation` per clone, and — for VALUE-position
+   statement calls (`let n = f(..)`) — stamps `CallResultReturn
+   { call_source_key, statement_index }` on the clone's TERMINAL edge so
+   the terminal value writes back to the caller's call-result slot. The
+   dispatch-loop plan (omega-runtime-dispatch-loop) already carries
+   `continuation`/`call_result` per edge, and emission consumes them
+   (runtime-storage call_result_slot_by_ordinal etc.). Pinned by
+   `calls/runtime_looping_value_return_exit` -- which is ALREADY a
+   CONTAINED-receiver value call (`let n = self.m.count(s, 0)`): a callee
+   that LOOPS (self-transition) dispatches with result delivery TODAY (the
+   "value-return-in-dispatch keystone"). So a route CHOOSER already exists:
+   looping callees → dispatch, straight-line callees → splice.
+   THE GAP: the chooser sends non-looping callees to the SPLICE route
+   (runtime dispatch bodies) even when their shape trips the splice fences
+   (effectful arms, re-entrant interiors, all-arms). The feature work is
+   WIDENING THE CHOOSER, not new machinery.
+   MECHANICAL PLAN: (a) routing policy -- extend the existing
+   looping-callee test with the fence predicates (effectful-arm callees,
+   re-entrant spliced interiors → dispatch); keep the proven splice for
+   pure/simple callees (code-size: clones duplicate dispatch cases per
+   call site, splice stays inline). No new analysis: the fences already
+   compute exactly these predicates at emission planning -- the work is
+   moving/refactoring their evaluation EARLIER (to state-graph routing) so
+   a positive becomes a route, not a refusal. (b) receiver storage: dispatched clones are
+   keyed by StateKey; the CONTAINED receiver's region/offset must thread
+   into the clone's dispatch -- this INTERSECTS the known deep
+   receiver-storage-through-dispatch fix (contained same-type aliasing /
+   param receivers); doing both in one session is the natural cut.
+   (c) argument delivery: the builder's `target_arguments` materialization
+   already handles statement-call args; receiver-call args ride the same
+   path once routed. (d) the fences then RELAX to routing (fence sites
+   become route-to-dispatch sites; fail canaries flip to run canaries --
+   the dir-walk pending matrix is the acceptance test, minus (e)).
+   (e) NOT covered: rda's genuine recursion (the builder's static
+   recursion check rejects it) -- rda needs the entry-recursion loop
+   restructure separately (mkall precedent, two recursion sites).
+   NO DESIGN FORK IDENTIFIED: routing policy has a natural answer
+   (fences → routes), cost tradeoff is implementation judgment. Estimated
+   as one focused session for (a)+(c)+(d) with (b) as the risk item.
 
 ## Design decisions (ratified; user reviews later)
 
