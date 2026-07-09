@@ -1323,9 +1323,26 @@ macOS/arm64 host this lane runs on — are CLAIMED here:
   the correct statements may be served by prelude SUBSTITUTION (receiver
   spliced into the member chain) rather than my receiver_base_for, with
   stmt 3's RHS falling through both. Evidence: omega-run --keep report
-  lines 1133–1136 (this build: /var/folders/.../omega-run-65230). NEXT:
-  dump the substituted prelude expressions for the backward splice,
-  find which resolution path stmt 3's RHS takes, close it, re-sweep.
+  lines 1133–1136. SESSION 2026-07-10v NARROWED IT: receiver_base_for is
+  CORRECT every time — OMEGA_DEBUG_RECEIVER (now committed, env-gated)
+  logs `inline base Some(0)/dispatch 1 (now_keep)` ×37 and `Some(16)/
+  dispatch 3 (epoch_2026)` ×41, no ambiguity, no misses — yet the
+  emitted backward stmt-3 RHS reads @8 (= base 0 + 8, the FORWARD
+  receiver's field): that ONE operand's place comes from a path that
+  never consults the resolver. Ruled out: reversed-operand shape alone
+  (minimal repro passes) and two-calls-two-states structure alone
+  (extended repro passes — both preserved in scratchpad/revop).
+  Contradictory clue: backward stmt-2's self-read resolves @24 (correct)
+  while stmt-3's reads @8 — same splice, adjacent statements — so NOT a
+  simple per-expression memo. NEXT: instrument the binary-write BUILD
+  site (where left/right places pair into WriteRuntimeStorageBinary) to
+  print (expr, place, dispatch) for the backward splice; audit guards'
+  per_instance_base (table-only — blind to inline bases; if any
+  prelude-let write routes through the guards conjunction path, that is
+  the hole). Distinguishing features of the std callee vs the passing
+  repros: 7 entry lets, Wrapping casts on stmts 4/5, and the failing
+  statement's FORWARD twin having a folded-literal operand (fwd stmt-3
+  LHS folds to 0).
   Also remaining: non-entry callers (slice 2); ambiguous multi-call
   states stay fenced by design.
 

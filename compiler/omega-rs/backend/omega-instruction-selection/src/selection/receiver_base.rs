@@ -57,6 +57,15 @@ pub(in crate::selection) fn receiver_base_for(
         .iter()
         .find(|(handle, _)| handle.arena_index() == dispatch_index)
         .map(|(_, state)| state)?;
+    if std::env::var_os("OMEGA_DEBUG_RECEIVER").is_some() {
+        eprintln!(
+            "RB: dispatch {} case m{} s{} vs source m{}",
+            dispatch_index,
+            state.key.machine.arena_index(),
+            state.key.state.arena_index(),
+            source_machine.arena_index(),
+        );
+    }
     if state.key.machine == source_machine {
         return dispatch_receiver_base(input, dispatch_index);
     }
@@ -75,6 +84,9 @@ pub(in crate::selection) fn receiver_base_for(
             continue;
         }
         if found.is_some() {
+            if std::env::var_os("OMEGA_DEBUG_RECEIVER").is_some() {
+                eprintln!("RB: -> AMBIGUOUS (dispatch {dispatch_index})");
+            }
             return None; // ambiguous: two calls to the same callee machine
         }
         found = Some(call);
@@ -106,5 +118,15 @@ pub(in crate::selection) fn receiver_base_for(
             std::slice::from_ref(&call.receiver_name),
         );
     }
-    omega_layout::field_path_offset(input.layouts, caller_layout.fields, field_segments)
+    let resolved =
+        omega_layout::field_path_offset(input.layouts, caller_layout.fields, field_segments);
+    if std::env::var_os("OMEGA_DEBUG_RECEIVER").is_some() {
+        eprintln!(
+            "RB: -> inline base {:?} (dispatch {}, receiver {})",
+            resolved,
+            dispatch_index,
+            call.receiver_name.as_str(),
+        );
+    }
+    resolved
 }
