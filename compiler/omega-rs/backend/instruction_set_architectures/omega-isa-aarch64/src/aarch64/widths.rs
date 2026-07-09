@@ -455,9 +455,11 @@ fn saturating_trapping_arithmetic_width(
     let sign_extend = if target_signed { 8 } else { 0 };
     // Wide op: ADD/SUB/MUL Xd,Xn,Xm.
     let wide_op = 4;
-    // Each of the two bound checks: MOVZ+MOVK*3 bound (16) + CMP (4) + b.cond (4)
-    // + (MOV clamp OR BRK trap) (4) = 28 bytes.
-    let clamp_or_trap = 2 * 28;
+    // Each bound check: MOVZ+MOVK*3 bound (16) + CMP (4) + b.cond (4)
+    // + (MOV clamp OR BRK trap) (4) = 28 bytes. Signed targets check both
+    // bounds; unsigned overflow in ONE direction per operator (subtract
+    // down, add/mul up), so they take a single check.
+    let clamp_or_trap = if target_signed { 2 * 28 } else { 28 };
     sign_extend + wide_op + clamp_or_trap
 }
 

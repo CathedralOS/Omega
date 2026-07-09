@@ -16623,6 +16623,33 @@ fn runtime_sat_nested_operand_domain_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_sat_unsigned_onedirection_exit_canary_runs() {
+    // Narrow unsigned Saturating ops clamp in the one direction each
+    // operator can overflow; the mul leg pins the UNSIGNED upper compare
+    // (a 2^63+ u32 product read signed-negative and clamped to 0 before).
+    let canary = pass_canary("arithmetic/runtime_sat_unsigned_onedirection_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-satdir-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("one-direction saturating canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("one-direction saturating canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "one-direction saturating canary should pass all legs (exit 70), got {:?}",
+        output.status.code(),
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_wrapping_operand_truncation_exit_canary_runs() {
     // Nested Wrapping binaries in operand position hand the parent the
     // width-wrapped value (>> / % legs pin the sign/width-sensitive reads).
@@ -27989,6 +28016,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "arithmetic/runtime_shift_right_atwidth_exit",
     "arithmetic/runtime_shift_atwidth_indexed_targets_exit",
     "arithmetic/runtime_sat_nested_operand_domain_exit",
+    "arithmetic/runtime_sat_unsigned_onedirection_exit",
     "arithmetic/runtime_wrapping_operand_truncation_exit",
     "text/case_literal_texteq_field_store_exit",
     "text/case_literal_texteq_terminal_exit",
