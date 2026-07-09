@@ -1,5 +1,36 @@
 # Tasks — GUI samples on macOS (native, no C shim)
 
+> ## Quality pass (2026-07-08, interactive session) — "tech proven" ≠ "meets bar".
+> The fire-29 result regressed and its UX was below standard; both fixed:
+> - **Fence collision (build break):** the 2026-07-07 value-call effect fence
+>   rejected `MacosGui::msg_peek` + `MacosInput::key_state` (arm-state mutations),
+>   so NO gui sample compiled natively. Restructured both to the fence-blessed
+>   shape (effects in entry bodies, pure terminal-value arms; key_state's VK map
+>   is a pure value-called helper — nested value calls verified by probe).
+> - **Insane padding:** NSImageView's DEFAULT imageScaling only scales DOWN (the
+>   64×64 frame floated in the middle); now NSImageScaleAxesIndependently
+>   (StretchDIBits parity). The Win32 outer-size fudge (+16/+39) baked into the
+>   samples became real content padding through `initWithContentRect:`; the
+>   provider now shaves it, so content == the Win32 client area (256²/512²).
+> - **Window quality:** title honored (`initWithUTF8String:` over the sample's
+>   bytes via new `send_byte_string` op), window centered, app activated
+>   (`activateIgnoringOtherApps:` — the documented gotcha, previously unwired,
+>   without which the keyWindow focus gate never passed).
+> - **Leaks:** blit now releases its CGContext/CGImage/NSImage (new
+>   `context_release`/`image_release` ops + cached `release` selector); msg_peek
+>   cycles a rolling autorelease pool (new `pool_push`/`pool_pop` ops) and uses
+>   window_create-cached date/mode/selectors instead of rebuilding (and leaking
+>   an NSString) per peek. RSS is flat over 1800+ frames (was ~1MB/s growth).
+> - **Console divorced:** the gui samples' `[press Enter to close]` read_line
+>   pauses and startup banners are gone (Console is now write_line + exit only);
+>   `Subsystem::Gui` on Mach-O targets now ALSO lays out a launchable
+>   `build/<name>.app` bundle (Info.plist + PkgInfo + ad-hoc-signed exe copy),
+>   so a Finder launch never routes through Terminal. PE behavior unchanged.
+> - **Calculator keys:** MacosInput's VK map now covers everything the
+>   calculator polls (digits, ops, Enter, Backspace, C/M/R/S, `=`), not just
+>   ESC/arrows. NOTE: physical-keyboard verification is human-only (synthetic
+>   CGEventPost needs Accessibility trust the test shell lacks).
+
 > # ✅ GOAL ACHIEVED (fire 29) — ALL FOUR gui samples run natively on macOS/aarch64.
 > `window_demo` (renders 60 frames → exit 0), `window_app`, `windowed_calculator`, and
 > `image_viewer` (loads img*.bmp, software-blits) all compile to a native mach-o and run
