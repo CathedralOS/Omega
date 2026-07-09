@@ -13,7 +13,7 @@
 // exit 72 = z dropped/wrong (the old silent face); 73 = tag/dispatch wrong.
 boundary trait Console { machine exit_process(return_code: i32); }
 data Msg { case Ping(x: i32); case Pong(y: i32, z: bool); }
-data Main { console: Console; name: String; stored: Msg; }
+data Main { console: Console; shift: u64; name: String; stored: Msg; }
 machine Main::main(&mut self) {
     self.name = "omega";
     self.build();
