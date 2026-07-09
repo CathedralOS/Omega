@@ -77,6 +77,15 @@ impl<'plan> RuntimeFlowBuilder<'plan> {
         }
     }
 
+    /// Record the minting call site for `context` (parallel to the plan's
+    /// `context_call_sites`; ROOT stays the invalid placeholder).
+    fn record_context_call_site(&mut self, context: CallContext, site: (StateKey, usize)) {
+        let index = context.0 as usize;
+        debug_assert_eq!(self.runtime_flow.context_call_sites.len(), index);
+        let _ = index;
+        self.runtime_flow.context_call_sites.push(site);
+    }
+
     /// The continuation a clone in `context` returns to on termination.
     fn entry_continuation(&self, context: CallContext) -> crate::RuntimeTransitionTarget {
         self.context_entry_continuation
@@ -334,6 +343,7 @@ impl<'plan> RuntimeFlowBuilder<'plan> {
             omega_core::arena::HandleSpan::empty(),
             call_result,
         )?;
+        self.record_context_call_site(callee_context, (control_key, call_edge.statement_index));
         let call_target = crate::RuntimeTransitionTarget::State {
             key: call_edge.target_key,
             context: callee_context,
