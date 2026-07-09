@@ -44,6 +44,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("arithmetic/runtime_nested_unsigned_witness_exit", 70),
     ("slices/runtime_local_array_element_value_operand_exit", 70),
     ("slices/runtime_machine_array_element_fused_call_arg_exit", 70),
+    ("slices/runtime_saturating_array_element_guard_exit", 70),
     ("arithmetic/runtime_unsigned_high_bit_u32_ops_exit", 70),
     ("arithmetic/runtime_unsigned_min_max_exit", 88),
     ("arithmetic/runtime_integer_casts_exit", 70),

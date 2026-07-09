@@ -665,6 +665,22 @@ decreases remaining
   -- remains with the fs lane (TASKS_FS Observations, 2026-07-10k): this
   serve removes the LIVE escape, the fence fix removes the CLASS.
 
+- **MACHINEINDEXED BLAST-RADIUS SWEEP 2026-07-10m: clean, one intersection
+  canary, one filed face.** Probes of the new variant's surfaces all hold:
+  double machine-indexed fused operands (the clobber stress -- the
+  scratch-list discipline holds), unbounded elements loudly prover-rejected,
+  element-ranged doubles provable, and SATURATING array elements fused in
+  guards clamp correctly on BOTH legs -- the predicted interp witness
+  asymmetry was WRONG (a BINTRACE probe showed the witness resolving
+  (U8, Saturating) for indexed elements through the declared-array route).
+  New canary pass/slices/runtime_saturating_array_element_guard_exit pins
+  the MachineIndexed x operand-domain intersection (differential 70/70).
+  FILED FACE (const-fold family): comparing u8 arithmetic against the
+  unrepresentable literal 256 truncates at byte width on BOTH legs
+  identically (an early canary draft failed 73/73) -- accepted-but-
+  surprising, no divergence, belongs to the literal-out-of-range /
+  type-carrying-constants design pile.
+
 - **[ ] Float types accept a domain clause that means nothing (found
   2026-07-10).** `f: f32 in Saturating` compiles; both legs run plain IEEE
   arithmetic (overflow -> inf), so nothing diverges -- but the DECLARATION is

@@ -16198,6 +16198,33 @@ fn runtime_machine_array_element_fused_call_arg_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_saturating_array_element_guard_exit_canary_runs() {
+    // Saturating machine-array elements fused in guard operands: the
+    // MachineIndexed operand variant and the operand-domain lowering
+    // intersecting (hoisted element + `Add in Saturating` bool write).
+    let canary = pass_canary("slices/runtime_saturating_array_element_guard_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-satarr-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("saturating array-element guard canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("saturating array-element guard canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected both saturating-element guard directions to hold (exit 70), got {:?}",
+        output.status.code(),
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_trapping_guard_overflow_traps_canary_runs() {
     // Trapping arithmetic in OPERAND position must TRAP: `u8 in Trapping`
     // 200+100 overflows at the guard's fused add, so the process dies before
