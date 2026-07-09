@@ -728,6 +728,21 @@ decreases remaining
   70/70; suite run tests; drift entries retired). Suite failure set
   identical to the known 7 throughout.
 
+- **[ ] Bind-first pairing after the recursive serve: missing result->local
+  COPY, composition-dependent (found 2026-07-11e sweeping the serve's role
+  surface; parked at pending/calls/recursive_result_bind_first_arg, both
+  drift lists).** GUARD-subject and TRANSITION-ARG recursive results
+  deliver (pinned: pass/termination/runtime_recursive_result_roles_exit,
+  differential 70/70). But the nested-call fence's own prescribed spelling
+  (`let r = self.countdown(..); self.plus1(r);`) natively misdelivers in a
+  MULTI-CALL composition (exit 73; interp 70): the earlier calls' swept
+  slots satisfy the call-result fence, while `r`'s result-slot -> local
+  copy is never emitted and the inline arg reads garbage. The SAME shape
+  isolated fences LOUDLY -- the silent face needs the composition. NEXT:
+  find where served calls emit the call-result->local copy and why the
+  swept-slot + arg-forced-local pairing misses it; reconcile the
+  composition-dependent fencing.
+
 - **[ ] Float types accept a domain clause that means nothing (found
   2026-07-10).** `f: f32 in Saturating` compiles; both legs run plain IEEE
   arithmetic (overflow -> inf), so nothing diverges -- but the DECLARATION is

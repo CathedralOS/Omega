@@ -1,0 +1,40 @@
+// PENDING (2026-07-11e, NATIVE silent-wrong at the recursive-serve's edge):
+// in a MULTI-CALL composition (guard-subject + transition-arg recursive
+// calls in earlier states), a LATER state's bind-first pairing
+// (`let r = self.countdown(..); let d = self.plus1(r);`) natively
+// misdelivers (exit 73; interp 70) -- the earlier calls' swept slots let
+// the call-result fence pass, but the result-slot -> local copy for `r` is
+// never emitted and plus1 reads garbage. The SAME callarg shape ISOLATED
+// (fewer calls) fences LOUDLY instead -- the silent face needs the
+// composition, so this canary keeps all three directions.
+// NEXT: find where served calls emit the call-result->local copy and why
+// the swept-slot + arg-forced-local pairing misses it; reconcile the
+// composition-dependent fencing.
+// PROMOTE (pass/calls + differential, expected 70/70) when the copy lands.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+data Cnt { n: usize; }
+measure Cnt::Order(n: usize) -> usize { n }
+machine Main::countdown(&mut self, c: Cnt)
+terminates { decreases c.n -> Cnt::Order; }
+-> usize
+{
+    transition c.n > 0 { true -> countdown(Cnt { n: c.n - 1 }) false -> 5 }
+}
+machine Main::plus1(&mut self, v: usize [0..=100]) -> usize { v + 1 }
+machine Main::main(&mut self) {
+    // TransitionArgument role: recursive result forwarded as an arg.
+    transition self.countdown(Cnt { n: 3 }) == 5 { true -> fwd(self.countdown(Cnt { n: 2 })) _ -> bad_guard() }
+    state fwd(&mut self, v: usize) {
+        transition v == 5 { true -> callarg() _ -> bad_fwd() }
+    }
+    state callarg(&mut self) {
+        let r: usize = self.countdown(Cnt { n: 1 });
+        let d: usize = self.plus1(r);
+        transition d == 6 { true -> good() _ -> bad_callarg() }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad_guard(&mut self) { self.console.exit_process(71); }
+    state bad_fwd(&mut self) { self.console.exit_process(72); }
+    state bad_callarg(&mut self) { self.console.exit_process(73); }
+}
