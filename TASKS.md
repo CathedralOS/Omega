@@ -290,6 +290,15 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
     #[cfg(windows)]-listed (no target block to cross-compile against). The
     pass umbrella now stops honestly at the efi/vtable cluster (Cathedral
     track). fail_canaries umbrella GREEN; suite 705/7.
+    HYGIENE 2026-07-09: the dead aarch64-width mirror chain in
+    omega-instruction-selection (orphaned by the text-compare port) removed;
+    zero build warnings. SAMPLES STATE: the call-with-return arc also cleared
+    the gui samples' side-effecting-arm fence (all four compile);
+    samples_compile is down to 5 members, all other-track (tick_marquee =
+    time row, stdin x3 = lattice kernel API, uefi_hello = the efi host-arg
+    cluster). Value re-guard idiom scan: remaining min/max clamps in samples
+    are INDEX derivations (binary_search_viz, windowed_calculator), not
+    element-value guards -- no further element-range conversions warranted.
     64-BIT SATURATING/TRAPPING landed 2026-07-09 (was the documented
     limitation): add/sub now use the FLAGS like x86 -- ADDS/SUBS set C/V, and
     the clamp is branchless (signed: movz MIN + b.vc + `csinv x17,x14,x14,PL`

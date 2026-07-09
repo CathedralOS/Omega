@@ -243,46 +243,6 @@ pub fn runtime_text_storage_compare_delimiter_branch_offset(
     }
 }
 
-fn aarch64_runtime_text_descriptor_load_pair_width(byte_offset: usize) -> usize {
-    aarch64_data_offset_load_width(byte_offset, 8)
-        + aarch64_data_offset_load_width(byte_offset + 8, 8)
-}
-
-fn aarch64_data_offset_load_width(byte_offset: usize, byte_size: usize) -> usize {
-    if aarch64_data_offset_encodable(byte_offset, byte_size) {
-        4
-    } else {
-        4 + aarch64_add_constant_width(byte_offset) + 4
-    }
-}
-
-fn aarch64_data_offset_encodable(byte_offset: usize, byte_size: usize) -> bool {
-    match byte_size {
-        1 => byte_offset <= 4095,
-        4 => byte_offset.is_multiple_of(4) && byte_offset / 4 <= 4095,
-        8 => byte_offset.is_multiple_of(8) && byte_offset / 8 <= 4095,
-        _ => false,
-    }
-}
-
-fn aarch64_add_constant_width(value: usize) -> usize {
-    if value == 0 {
-        0
-    } else if value <= 4095 {
-        4
-    } else {
-        aarch64_unsigned_immediate_width(value as u64) + 4
-    }
-}
-
-fn aarch64_unsigned_immediate_width(value: u64) -> usize {
-    let high_nonzero_halfwords = (1..4)
-        .filter(|halfword_shift| ((value >> (halfword_shift * 16)) & 0xffff) != 0)
-        .count();
-
-    4 + high_nonzero_halfwords * 4
-}
-
 pub fn runtime_storage_compare_width(
     architecture: Architecture,
     left_offset: usize,
