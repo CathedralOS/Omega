@@ -988,11 +988,8 @@ pub fn runtime_machine_bounded_buffer_write_width(
     literal: &str,
 ) -> usize {
     match architecture {
-        // aarch64 carrier write is unimplemented (errors at encode); reuse the
-        // x86_64 width as a placeholder so layout reservation does not panic.
-        Architecture::Aarch64 | Architecture::X86_64 => {
-            x86_64::runtime_machine_bounded_buffer_write_width(literal)
-        }
+        Architecture::Aarch64 => aarch64::runtime_machine_bounded_buffer_write_width(literal),
+        Architecture::X86_64 => x86_64::runtime_machine_bounded_buffer_write_width(literal),
     }
 }
 

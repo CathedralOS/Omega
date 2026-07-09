@@ -581,6 +581,23 @@ pub fn runtime_machine_string_write_width(byte_length: usize) -> usize {
     24 + unsigned_immediate_width(byte_length as u64)
 }
 
+/// Width of the owned `[u8; N]` byte-carrier write (see
+/// `runtime_storage::encode_runtime_machine_bounded_buffer_write`): `adrp`+`add`
+/// for the base (8), the length immediate + its `str` (len word), then per
+/// content byte a `movz` immediate + `strb`. Every element is a 4-byte AArch64
+/// instruction, so the total is inherently 4-aligned -- unlike the x86_64 width
+/// (variable-length instructions with inline immediate bytes) it previously
+/// borrowed, which produced non-instruction-aligned branch distances.
+pub fn runtime_machine_bounded_buffer_write_width(literal: &str) -> usize {
+    8 + unsigned_immediate_width(literal.len() as u64)
+        + 4
+        + literal
+            .as_bytes()
+            .iter()
+            .map(|byte| unsigned_immediate_width(u64::from(*byte)) + 4)
+            .sum::<usize>()
+}
+
 pub fn runtime_frame_string_write_width(byte_length: usize) -> usize {
     runtime_machine_string_write_width(byte_length)
 }

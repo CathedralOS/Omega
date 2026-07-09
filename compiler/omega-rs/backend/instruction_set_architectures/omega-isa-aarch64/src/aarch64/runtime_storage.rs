@@ -27,7 +27,8 @@ use super::primitives::{
     encode_lslv_x_register, encode_lsrv_x_register, encode_move_x_register, encode_movz,
     encode_movz_w,
     encode_msub_w_register, encode_msub_x_register, encode_mul_x_register, encode_orr_x_register,
-    encode_sdiv_w_register, encode_sdiv_x_register, encode_store_w_to_x, encode_store_w17_to_x16,
+    encode_sdiv_w_register, encode_sdiv_x_register, encode_store_byte_w_to_x, encode_store_w_to_x,
+    encode_store_w17_to_x16,
     encode_store_x_to_x, encode_store_x17_to_x16, encode_sub_x_register, encode_udiv_w_register,
     encode_udiv_x_register,
 };
@@ -38,6 +39,7 @@ use super::widths::{
     runtime_frame_indexed_address_to_runtime_frame_write_width,
     runtime_frame_indexed_binary_write_width, runtime_frame_indexed_integer_write_width,
     runtime_frame_indexed_string_write_width, runtime_frame_string_write_width,
+    runtime_machine_bounded_buffer_write_width,
     runtime_machine_indexed_integer_write_width, runtime_machine_indexed_string_write_width,
     runtime_machine_integer_write_width, runtime_machine_string_write_width,
     runtime_pointee_address_to_runtime_frame_write_width, runtime_pointee_binary_write_width,
@@ -993,6 +995,41 @@ pub fn encode_runtime_frame_string_write(
     bytes.extend(encode_store_x17_to_x16(byte_offset)?);
     append_unsigned_immediate(&mut bytes, 17, byte_length as u64);
     bytes.extend(encode_store_x17_to_x16(byte_offset + 8)?);
+    Ok(bytes)
+}
+
+/// Write a string literal into an owned `[u8; N]` byte carrier held directly in
+/// machine storage (`self.buffer = "150"`). The carrier is `{ len: u64, bytes:
+/// [u8; N] }`: store the length word at `[base + off]`, then each literal byte
+/// inline at `[base + off + 8 + i]`. Content is immediate, so the base --
+/// materialized by the leading `adrp`+`add` placeholder pair, patched to the
+/// machine storage base by the relocation pass (the single
+/// `insert_data_address_at_instruction_start` reloc, arch-shared with the string
+/// writes) -- is the only relocation, mirroring the x86_64 carrier write.
+///
+/// Every emitted element is a fixed 4-byte AArch64 instruction (immediates live
+/// in the instruction word, not as inline data bytes), so the sequence is
+/// inherently instruction-aligned. Previously this op errored at encode while its
+/// layout width borrowed the x86_64 (odd) width, so a forward branch skipping the
+/// block that contained it computed a non-4-aligned distance and failed with a
+/// misleading "b.ne target is not instruction aligned".
+pub fn encode_runtime_machine_bounded_buffer_write(
+    byte_offset: usize,
+    literal: &str,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::with_capacity(runtime_machine_bounded_buffer_write_width(literal));
+    bytes.extend(encode_adrp_placeholder(16)); // x16 = machine storage base (reloc @ start)
+    bytes.extend(encode_add_page_offset_placeholder(16));
+    append_unsigned_immediate(&mut bytes, 17, literal.len() as u64);
+    bytes.extend(encode_store_x_to_x(17, 16, byte_offset)?); // [base + off] = len word
+    for (index, byte) in literal.as_bytes().iter().enumerate() {
+        append_unsigned_immediate(&mut bytes, 17, u64::from(*byte));
+        bytes.extend(encode_store_byte_w_to_x(17, 16, byte_offset + 8 + index)?);
+    }
+    debug_assert_eq!(
+        bytes.len(),
+        runtime_machine_bounded_buffer_write_width(literal)
+    );
     Ok(bytes)
 }
 
