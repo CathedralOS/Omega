@@ -6,15 +6,11 @@
 // exits with that count (so a partial failure exits with fewer than 7 and the
 // harness assertion catches it).
 //
-// This drives the raw value-returning seam directly — the layer that IS
-// native-correct today. The ergonomic `Filesystem` wrapper (result enums, `File`)
-// is interpreter-complete and its payload-FREE native results work
-// (`exists`/`last_error`), but its payload-CARRYING native results
-// (`OpenResult::Ok{file}`, `UnitResult::Error{kind}`, …) await a codegen fix for
-// the value-call transition-guard ordering (see TASKS_FS.md). A runnable NATIVE
-// sample therefore exercises the seam, which is proven correct by the
-// native_filesystem_canaries harness; the wrapper is covered by the interpreter
-// fs coverage suite.
+// This drives the raw value-returning seam directly. (HISTORY: when written,
+// the ergonomic wrapper's payload-carrying native results awaited a codegen
+// fix; that landed 2026-07-07/08 and the wrapper is native-correct end to end
+// now -- its own sample is `note_vault`, this sample's wrapper-layer
+// counterpart. Together they document both layers' idioms.)
 //
 // Expected exit: 7.
 
