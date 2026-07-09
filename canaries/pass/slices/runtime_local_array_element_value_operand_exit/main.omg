@@ -1,0 +1,30 @@
+// A LOCAL array's runtime-indexed element in VALUE-OPERAND positions: as a
+// value-call arg (`self.double(arr[i])`) and read-then-forwarded as a
+// transition arg. The FIELD-array twin
+// (runtime_field_array_element_value_operand_exit) always passed; the LOCAL
+// form natively doubled the INDEX instead of the element (d = i + arr[i]) --
+// the aarch64 indexed-operand address helpers hardcoded x17 as index scratch,
+// clobbering the LEFT operand's result while addressing the RIGHT one
+// (x86_64 was immune: it stashes the left result on the stack). Fixed
+// 2026-07-10i by parameterizing the helpers' index/scale scratch; operand
+// arms pick from their scratch list. Distinct exits per direction (72
+// value-call arg, 73 forwarded); differential-pinned at 70/70.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; idx: usize; }
+machine Main::double(&mut self, v: i32 [0..=100]) -> i32 { v + v }
+machine Main::main(&mut self) {
+    self.idx = 1;
+    transition self.idx < 3 { true -> read_elem(self.idx) _ -> bad() }
+    state read_elem(&mut self, i: usize [0..=2]) {
+        let arr: [i32; 3] = [10, 20, 30];
+        let d: i32 = self.double(arr[i]);
+        transition d == 40 { true -> fwd(arr[i]) _ -> bad_call() }
+    }
+    state fwd(&mut self, e: i32) {
+        transition e == 20 { true -> good() _ -> bad_fwd() }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+    state bad_call(&mut self) { self.console.exit_process(72); }
+    state bad_fwd(&mut self) { self.console.exit_process(73); }
+}

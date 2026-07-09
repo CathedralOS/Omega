@@ -1409,6 +1409,8 @@ pub fn encode_runtime_frame_indexed_string_write(
         index_offset,
         element_byte_size,
         field_byte_offset,
+        17,
+        26,
     )?;
     bytes.extend(encode_adrp_placeholder(17));
     bytes.extend(encode_add_page_offset_placeholder(17));
@@ -1512,6 +1514,8 @@ pub fn encode_runtime_frame_indexed_address_to_runtime_frame_write(
         index_offset,
         element_byte_size,
         field_byte_offset,
+        17,
+        26,
     )?;
     append_store_x_to_x_offset(&mut bytes, 16, 20, target_offset)?;
     Ok(bytes)
@@ -1568,6 +1572,8 @@ pub fn encode_runtime_frame_base_indexed_address_to_runtime_frame_write(
         index_offset,
         element_byte_size,
         field_byte_offset,
+        17,
+        26,
     )?;
     append_store_x_to_x_offset(&mut bytes, 16, 20, target_offset)?;
     Ok(bytes)
@@ -1619,6 +1625,8 @@ pub fn encode_runtime_frame_indexed_integer_write(
         index_offset,
         element_byte_size,
         field_byte_offset,
+        17,
+        26,
     )?;
     match byte_size {
         1 | 2 | 4 => {
@@ -1661,6 +1669,8 @@ pub fn encode_runtime_frame_base_indexed_integer_write(
         index_offset,
         element_byte_size,
         field_byte_offset,
+        17,
+        26,
     )?;
     match byte_size {
         1 | 2 | 4 => {
@@ -1751,6 +1761,8 @@ pub fn encode_runtime_frame_indexed_binary_write(
         index_offset,
         element_byte_size,
         field_byte_offset,
+        17,
+        26,
     )?;
     append_runtime_value_operand(
         runtime_value_operands,
@@ -1806,6 +1818,8 @@ pub fn encode_runtime_frame_base_indexed_binary_write(
         index_offset,
         element_byte_size,
         field_byte_offset,
+        17,
+        26,
     )?;
     append_runtime_value_operand(
         runtime_value_operands,
@@ -1919,6 +1933,8 @@ pub fn encode_runtime_storage_copy_to_runtime_frame_indexed(
         index_offset,
         element_byte_size,
         field_byte_offset,
+        17,
+        26,
     )?;
     append_add_constant_to_x_register(&mut bytes, 20, source_offset)?;
 
@@ -1954,6 +1970,8 @@ pub fn encode_runtime_storage_copy_from_runtime_frame_indexed(
         index_offset,
         element_byte_size,
         field_byte_offset,
+        17,
+        26,
     )?;
     append_add_constant_to_x_register(&mut bytes, 20, target_offset)?;
 
@@ -1989,6 +2007,8 @@ pub fn encode_runtime_storage_copy_from_runtime_frame_indexed_to_runtime_storage
         index_offset,
         element_byte_size,
         field_byte_offset,
+        17,
+        26,
     )?;
     bytes.extend(encode_adrp_placeholder(20));
     bytes.extend(encode_add_page_offset_placeholder(20));
@@ -2147,6 +2167,8 @@ pub fn encode_runtime_storage_copy_from_runtime_frame_indexed_to_runtime_pointee
         index_offset,
         element_byte_size,
         source_field_byte_offset,
+        17,
+        26,
     )?;
     // x20 = target pointer value (`*(frame[pointer])`), then + target field.
     bytes.extend(encode_load_x_from_x(20, 20, pointer_byte_offset)?);
@@ -2375,6 +2397,8 @@ fn append_runtime_frame_index_target_address(
     index_offset: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
+    index_scratch: u8,
+    scale_scratch: u8,
 ) -> Result<(), Diagnostic> {
     append_runtime_frame_index_target_address_with_index_region(
         bytes,
@@ -2384,6 +2408,8 @@ fn append_runtime_frame_index_target_address(
         index_offset,
         element_byte_size,
         field_byte_offset,
+        index_scratch,
+        scale_scratch,
     )
 }
 
@@ -2399,6 +2425,8 @@ fn append_runtime_frame_index_target_address_with_index_region(
     index_offset: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
+    index_scratch: u8,
+    scale_scratch: u8,
 ) -> Result<(), Diagnostic> {
     bytes.extend(encode_adrp_placeholder(20));
     bytes.extend(encode_add_page_offset_placeholder(20));
@@ -2414,9 +2442,9 @@ fn append_runtime_frame_index_target_address_with_index_region(
     };
     // Index is a 32-bit value: load it zero-extended so high bytes of the
     // adjacent slot can't be spliced into the index (see helper doc comment).
-    append_fixed_width_load_index_w_from_x_offset(bytes, 17, index_base, index_offset, 21);
-    append_scale_x_register_by_constant(bytes, 26, 17, element_byte_size)?;
-    bytes.extend(encode_add_x_register(address_register, address_register, 26));
+    append_fixed_width_load_index_w_from_x_offset(bytes, index_scratch, index_base, index_offset, 21);
+    append_scale_x_register_by_constant(bytes, scale_scratch, index_scratch, element_byte_size)?;
+    bytes.extend(encode_add_x_register(address_register, address_register, scale_scratch));
     append_add_constant_to_x_register(bytes, address_register, field_byte_offset)?;
     Ok(())
 }
@@ -3029,6 +3057,13 @@ fn append_runtime_machine_index_target_address(
     Ok(())
 }
 
+/// `index_scratch`/`scale_scratch` are parameters because this runs in TWO
+/// register climates: write-TARGET address setup (pre-operands; 17/26 are
+/// free -- the historical hardcodes) and OPERAND-position evaluation, where
+/// hardcoded 17 CLOBBERED the left operand's result while addressing the
+/// right one (`self.double(arr[i])` doubled the INDEX: d = i + arr[i] -- the
+/// local-array value-operand ZII/garbage divergence; x86_64 is immune because
+/// it stashes the left result on the stack).
 fn append_runtime_frame_base_index_target_address(
     bytes: &mut Vec<u8>,
     address_register: u8,
@@ -3036,6 +3071,8 @@ fn append_runtime_frame_base_index_target_address(
     index_offset: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
+    index_scratch: u8,
+    scale_scratch: u8,
 ) -> Result<(), Diagnostic> {
     bytes.extend(encode_adrp_placeholder(20));
     bytes.extend(encode_add_page_offset_placeholder(20));
@@ -3043,9 +3080,9 @@ fn append_runtime_frame_base_index_target_address(
     append_add_constant_to_x_register(bytes, address_register, base_byte_offset)?;
     // Index is a 32-bit value: load it zero-extended so high bytes of the
     // adjacent slot can't be spliced into the index.
-    append_load_data_from_x_offset(bytes, 17, 20, index_offset, 4, 19)?;
-    append_scale_x_register_by_constant(bytes, 26, 17, element_byte_size)?;
-    bytes.extend(encode_add_x_register(address_register, address_register, 26));
+    append_load_data_from_x_offset(bytes, index_scratch, 20, index_offset, 4, 19)?;
+    append_scale_x_register_by_constant(bytes, scale_scratch, index_scratch, element_byte_size)?;
+    bytes.extend(encode_add_x_register(address_register, address_register, scale_scratch));
     append_add_constant_to_x_register(bytes, address_register, field_byte_offset)?;
     Ok(())
 }
@@ -3100,6 +3137,26 @@ fn append_runtime_value_operand(
         byte_size,
     )) = runtime_value_operands.frame_indexed(operand)
     {
+        // Index/scale scratch from the OPERAND scratch list: the historical
+        // hardcoded 17/26 clobbered the left operand's already-computed
+        // result (x17) while addressing the RIGHT operand of a fused binary
+        // (`self.double(arr[i])` doubled the index instead of the element --
+        // the local-array value-operand divergence; x86_64 is immune, it
+        // stashes the left result on the stack). Exclude the helper's
+        // internal registers (15 address, 19/20/21 bases/offset scratch) and
+        // this operand's own destination.
+        let mut scratch_picks = scratch_registers
+            .iter()
+            .copied()
+            .filter(|register| !matches!(register, 15 | 19 | 20 | 21))
+            .filter(|register| *register != destination_register);
+        let (Some(index_scratch), Some(scale_scratch)) =
+            (scratch_picks.next(), scratch_picks.next())
+        else {
+            return Err(Diagnostic::error(
+                "AArch64 MVP encoder ran out of scratch registers for an indexed operand",
+            ));
+        };
         append_runtime_frame_index_target_address(
             bytes,
             // x15, NOT x16: the caller may hold its own address in x16 across
@@ -3112,6 +3169,8 @@ fn append_runtime_value_operand(
             index_offset,
             element_byte_size,
             field_byte_offset,
+            index_scratch,
+            scale_scratch,
         )?;
         match byte_size {
             1 | 2 | 4 => bytes.extend(encode_load_w_from_x(
@@ -3136,6 +3195,26 @@ fn append_runtime_value_operand(
         byte_size,
     )) = runtime_value_operands.frame_base_indexed(operand)
     {
+        // Index/scale scratch from the OPERAND scratch list: the historical
+        // hardcoded 17/26 clobbered the left operand's already-computed
+        // result (x17) while addressing the RIGHT operand of a fused binary
+        // (`self.double(arr[i])` doubled the index instead of the element --
+        // the local-array value-operand divergence; x86_64 is immune, it
+        // stashes the left result on the stack). Exclude the helper's
+        // internal registers (15 address, 19/20/21 bases/offset scratch) and
+        // this operand's own destination.
+        let mut scratch_picks = scratch_registers
+            .iter()
+            .copied()
+            .filter(|register| !matches!(register, 15 | 19 | 20 | 21))
+            .filter(|register| *register != destination_register);
+        let (Some(index_scratch), Some(scale_scratch)) =
+            (scratch_picks.next(), scratch_picks.next())
+        else {
+            return Err(Diagnostic::error(
+                "AArch64 MVP encoder ran out of scratch registers for an indexed operand",
+            ));
+        };
         append_runtime_frame_base_index_target_address(
             bytes,
             // x15, NOT x16: the caller may hold its own address in x16 across
@@ -3148,6 +3227,8 @@ fn append_runtime_value_operand(
             index_offset,
             element_byte_size,
             field_byte_offset,
+            index_scratch,
+            scale_scratch,
         )?;
         match byte_size {
             1 | 2 | 4 => bytes.extend(encode_load_w_from_x(
@@ -3525,6 +3606,8 @@ fn append_runtime_text_equals_literal_operand(
             index_offset,
             element_byte_size,
             field_byte_offset,
+            17,
+            26,
         )?;
     } else if let Some((base_byte_offset, index_offset, element_byte_size, field_byte_offset, _)) =
         runtime_value_operands.frame_base_indexed(place)
@@ -3536,6 +3619,8 @@ fn append_runtime_text_equals_literal_operand(
             index_offset,
             element_byte_size,
             field_byte_offset,
+            17,
+            26,
         )?;
     } else if let Some((
         descriptor_offset,
@@ -4540,6 +4625,8 @@ mod tests {
                 0x40,
                 element_size,
                 field_offset,
+                17,
+                26,
             )
             .unwrap();
             assert_eq!(

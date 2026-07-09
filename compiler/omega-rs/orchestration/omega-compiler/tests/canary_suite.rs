@@ -16143,6 +16143,34 @@ fn runtime_nested_unsigned_witness_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_local_array_element_value_operand_exit_canary_runs() {
+    // A local array's runtime-indexed element as a value-call arg and a
+    // forwarded transition arg. The aarch64 indexed-operand address helpers
+    // used to clobber the left operand's result (hardcoded x17 index
+    // scratch) while addressing the right one -- d = i + arr[i].
+    let canary = pass_canary("slices/runtime_local_array_element_value_operand_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-localarr-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("local-array value-operand canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("local-array value-operand canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected both local-array value-operand directions to hold (exit 70), got {:?}",
+        output.status.code(),
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_trapping_guard_overflow_traps_canary_runs() {
     // Trapping arithmetic in OPERAND position must TRAP: `u8 in Trapping`
     // 200+100 overflows at the guard's fused add, so the process dies before
@@ -27379,10 +27407,6 @@ const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
     },
     PendingCanary {
         path: "arithmetic/unsigned_min_max_wrapping_local_divergence",
-        expectation: PendingCanaryExpectation::CurrentlyAccepts,
-    },
-    PendingCanary {
-        path: "slices/local_array_element_value_operand",
         expectation: PendingCanaryExpectation::CurrentlyAccepts,
     },
     PendingCanary {
