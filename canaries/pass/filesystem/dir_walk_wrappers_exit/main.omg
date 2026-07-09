@@ -1,15 +1,17 @@
-// PENDING -- the dir-walk WRAPPER family natively. STATUS 2026-07-09i: the
-// matrix COMPILES natively end to end and runs to exit 75 (native) vs 70
-// (interp): create_dir_all, the file writes, read_dir_count == 2, AND
-// read_dir_is_empty ALL PASS NATIVELY -- only remove_dir_all's iterative
-// drain misbehaves at native RUNTIME (the tree survives; the interpreter
-// runs the same drain correctly, so this is a native-vs-interp execution
-// divergence in rda_step/rda_drain under dispatch, not a design gap).
-// Diagnose via a minimal single-file drain probe + backend_report.
-// RESOLVED ALONG THE WAY (see TASKS_FS #7 for the full ledger): enum-case
-// terminal return-writes; the router's Nested loop-blindness; the
-// dual-indexed copy split (field-carrier idiom in mkall_put); rda's
-// call-recursion (iterative stack drain); the fence exemption (sound).
+// RUN CANARY (exit 70) -- the dir-walk WRAPPER family natively, END TO END:
+// create_dir_all (deep, via the dispatched mkall walkers) -> exists -> two
+// write_alls -> read_dir_count == 2 -> read_dir_is_empty NonEmpty ->
+// remove_dir_all (the iterative dirfd-stack drain) -> exists false.
+// PROMOTED from pending 2026-07-09k after a multi-iteration arc closed, in
+// order: the sound fence exemption for dispatch-routed calls; enum-case
+// terminal return-writes; the router's Nested loop-blindness; rda's
+// call-recursion (iterative drain); the dual-indexed field-carrier split;
+// the dirfd REWIND (getdirentries cursors are fd offsets); and the
+// entry_name NUL TERMINATION (a REUSED buffer left the previous longer
+// name's tail -- "b" over "f1.txt" read back "b1.txt" -> ENOENT at the
+// drain's parent-remove; the interp slices by length, so only native
+// diverged). macOS-gated (read_dir has no msvcrt row); the interpreter's
+// virtual fs is the oracle.
 use omega::language::std::filesystem;
 use omega::language::std::filesystem_host;
 boundary trait Console { machine exit_process(return_code: i32); }
