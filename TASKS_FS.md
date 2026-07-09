@@ -28,9 +28,10 @@ are the differential oracle. Value-position `match` desugars to tag arithmetic;
 `Value::Enum` carries `type_symbol` (ordinals resolve type-locally).
 
 **Native raw seam:**
-- **darwin/aarch64** — complete (54 canaries; create→flock breadth incl. variadic
-  `open_create`, deref-result `___error`, stack-marshalled mode). Runtime
-  re-confirmation pending on a real Mac. 2026-07-07: the week's value-call
+- **darwin/aarch64** — complete AND runtime-CONFIRMED on a real Mac
+  (2026-07-08c): native_filesystem_canaries 83/0 (create→flock breadth incl.
+  variadic `open_create`, deref-result `___error`, stack-marshalled mode, the
+  full wrapper incl. metadata payload). 2026-07-07: the week's value-call
   selection changes (deferral, pairing, hoist) cross-compile cleanly to
   macos_arm64 (five key canaries probe-verified via temp target blocks).
 - **windows/x86_64** — LIVE through msvcrt rows in `WINDOWS_IMPORT_ROWS` riding
@@ -288,9 +289,24 @@ invisible to a pump; real fix = outbound WndProc entry stubs (extern brief §12.
 
 ## Open work
 
-1. [ ] **macOS runtime confirmation + promotion** (needs a Mac): run
-   `canaries/run/filesystem/wrapper_metadata_repro` (expect PASS, len 5), promote
-   result-asserting wrapper canaries into `native_filesystem_canaries`.
+1. [x] **macOS runtime confirmation + promotion — ✅ DONE (2026-07-08c, real
+   macOS/aarch64 session).** `wrapper_metadata_repro` ran PASS (meta.len == 5)
+   and is PROMOTED to `canaries/pass/filesystem/native_wrapper_metadata` +
+   `native_wrapper_metadata_passes` in native_filesystem_canaries
+   (canaries/run/filesystem/ is now empty). The FULL macOS gate is GREEN for
+   the first time: 83/0 -- the 6 GUI/input failures (the fence-flag predicted
+   below) were fixed by making the darwin GUI std machines fence-conformant:
+   `MacosGui::msg_peek` arms are now PURE terminal returns (the `self.r32 = 1`
+   arm mutation moved to direct returns) and `MacosInput::key_state` split into
+   a PURE `map_keycode` value machine + effects (map value-call, CG query) in
+   the ENTRY -- the unmapped arm discards the harmless stray keycode-0 query.
+   This ALSO fixed 2 pre-existing suite failures on macOS
+   (`runtime_gui_window_lifecycle_exit`, `runtime_user32_key_state_exit`),
+   A/B-verified failure-set diff (101 -> 99, strict subset; the 99 are the
+   known pre-existing macOS-host set). Bonus confirmation: a nested SELF value
+   call in a value-called callee's ENTRY (`self.keycode =
+   self.map_keycode(vk)` inside value-called key_state) WORKS on darwin
+   native -- the self-receiver sibling of deferral face 5.
 2. [ ] **Portable per-OS VALUES — SETTLED (Zach, chat 2026-07-07), now
    engineering.** The Rust split, mapped onto our settled Binding-sum provides
    tables: (a) per-target `provides` files carry named VALUES (flag words) next

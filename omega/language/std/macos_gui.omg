@@ -168,13 +168,13 @@ machine MacosGui::msg_peek(&mut self, message: [u64; 6]) -> u32 {
     self.psel = self.objc.register_selector("nextEventMatchingMask:untilDate:inMode:dequeue:");
     self.mask = 4294967295;
     self.evt = self.objc.send_scalar4(self.app, self.psel, self.mask, self.date, self.mode, 1);
-    self.r32 = 0;
-    transition self.evt != 0 { true -> got() _ -> ret() }
-    state got(&mut self) -> u32 {
-        self.r32 = 1;
-        transition { _ -> ret() }
-    }
-    state ret(&mut self) -> u32 { self.r32 }
+    // PURE arms (terminal literal returns): a VALUE-called machine's non-entry
+    // states must carry no effects (value_call_arm_effect_blockers) -- the old
+    // `self.r32 = 1` arm mutation tripped the fence for every value-position
+    // caller (`let have = self.gui.msg_peek(..)`), so the arms RETURN directly.
+    transition self.evt != 0 { true -> got() _ -> none() }
+    state got(&mut self) -> u32 { 1 }
+    state none(&mut self) -> u32 { 0 }
 }
 
 // `Gui::msg_translate` — a Win32 keyboard pre-pass (WM_KEYDOWN → WM_CHAR). macOS
@@ -242,32 +242,41 @@ data MacosInput {
 }
 
 // Win32 VK -> macOS keycode: ESC 27->53, LEFT 37->123, RIGHT 39->124, UP 38->126,
-// DOWN 40->125 (the keys the gui samples poll). Anything else -> not-down.
-machine MacosInput::key_state(&mut self, virtual_key: u32) -> u64 {
-    self.keycode = 0;
-    transition virtual_key == 27 { true -> set_esc() _ -> t_left() }
-    state set_esc(&mut self) -> u64 { self.keycode = 53; transition { _ -> query() } }
+// DOWN 40->125 (the keys the gui samples poll). Anything else -> not-down. A PURE
+// value machine (terminal literal returns only) so `key_state` can value-call it
+// from its ENTRY under the effectful-arm fence.
+machine MacosInput::map_keycode(&mut self, virtual_key: u32) -> u64 {
+    transition virtual_key == 27 { true -> esc() _ -> t_left() }
+    state esc(&mut self) -> u64 { 53 }
     state t_left(&mut self) -> u64 {
-        transition virtual_key == 37 { true -> set_left() _ -> t_right() }
+        transition virtual_key == 37 { true -> left() _ -> t_right() }
     }
-    state set_left(&mut self) -> u64 { self.keycode = 123; transition { _ -> query() } }
+    state left(&mut self) -> u64 { 123 }
     state t_right(&mut self) -> u64 {
-        transition virtual_key == 39 { true -> set_right() _ -> t_up() }
+        transition virtual_key == 39 { true -> right() _ -> t_up() }
     }
-    state set_right(&mut self) -> u64 { self.keycode = 124; transition { _ -> query() } }
+    state right(&mut self) -> u64 { 124 }
     state t_up(&mut self) -> u64 {
-        transition virtual_key == 38 { true -> set_up() _ -> t_down() }
+        transition virtual_key == 38 { true -> up() _ -> t_down() }
     }
-    state set_up(&mut self) -> u64 { self.keycode = 126; transition { _ -> query() } }
+    state up(&mut self) -> u64 { 126 }
     state t_down(&mut self) -> u64 {
-        transition virtual_key == 40 { true -> set_down() _ -> unmapped() }
+        transition virtual_key == 40 { true -> down() _ -> unmapped() }
     }
-    state set_down(&mut self) -> u64 { self.keycode = 125; transition { _ -> query() } }
-    // No macOS keycode for this VK: report not-down (avoid querying keycode 0 = 'a').
+    state down(&mut self) -> u64 { 125 }
     state unmapped(&mut self) -> u64 { 0 }
-    state query(&mut self) -> u64 {
-        self.rc = self.cg.event_source_key_state(1, self.keycode);
-        transition { _ -> ret() }
-    }
+}
+
+// Effects live in the ENTRY (value_call_arm_effect_blockers doctrine): map the
+// VK via the pure machine above, query CGEventSourceKeyState once, then branch
+// to PURE arms. The query runs even for an unmapped VK (keycode 0 = 'a') --
+// CGEventSourceKeyState is a read-only poll, so the stray query is harmless;
+// the unmapped arm DISCARDS it and reports not-down (0), preserving the old
+// "never report a wrong key" contract.
+machine MacosInput::key_state(&mut self, virtual_key: u32) -> u64 {
+    self.keycode = self.map_keycode(virtual_key);
+    self.rc = self.cg.event_source_key_state(1, self.keycode);
+    transition self.keycode == 0 { true -> unmapped() _ -> ret() }
+    state unmapped(&mut self) -> u64 { 0 }
     state ret(&mut self) -> u64 { self.rc }
 }
