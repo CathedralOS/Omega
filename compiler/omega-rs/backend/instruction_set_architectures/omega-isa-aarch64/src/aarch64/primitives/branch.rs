@@ -77,6 +77,18 @@ pub(in crate::aarch64) fn encode_conditional_branch_lower(
 }
 
 /// `b.hi` (cond `0b1000`) — branch if unsigned higher.
+/// `B.PL` (N clear). After an `FCMP` this is the exact negation of the
+/// float `<` guard: false when a < b (N set), true for a >= b AND for
+/// unordered (NaN clears N) -- the IEEE skip condition for a `<` guard.
+pub(in crate::aarch64) fn encode_conditional_branch_plus(
+    byte_distance: isize,
+) -> Result<[u8; 4], Diagnostic> {
+    let instruction_distance = checked_instruction_distance(byte_distance, 19, "b.pl")?;
+    Ok(encode_instruction(
+        0x54000005 | ((instruction_distance as u32 & 0x7ffff) << 5),
+    ))
+}
+
 pub(in crate::aarch64) fn encode_conditional_branch_higher(
     byte_distance: isize,
 ) -> Result<[u8; 4], Diagnostic> {

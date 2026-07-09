@@ -156,9 +156,21 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
     Suite 667/35. STILL OPEN (loud): the frame-source machine-indexed write
     (machine_frame_index_dual_frame_write), the
     `WriteEntryArgumentsSliceDescriptor` spill, float NaN GUARD comparisons
-    (runtime_float_nan_comparison exits 71 -- IEEE unordered in guard
-    branches, pre-existing silent-wrong, SEPARATE from min/max), the cast
-    family, and the saturating/narrow-signed clusters.
+    FIXED 2026-07-08 (was the last known silent-wrong): float guards ride the
+    UNSIGNED operator pairing (the x86 ucomis convention); after FCMP,
+    unordered sets C+V, so the `<`/`<=` skips (HS/HI) were unordered-correct
+    for free but the `>`/`>=` skips (LS/LO) were FALSE on NaN -- the guard
+    took its true arm. Floats now skip on the SIGNED complements LE/LT
+    (unordered-true); also added PL/HI float arms for the signed Less/
+    LessOrEqual spellings and the B.PL primitive. Both mapping sites
+    (encode_conditional_branch_for_operator_bytes + the dispatch static
+    guard) branch on is_float. DEBUG RECIPE that found it: decode the
+    compare's final b.<cond> nibble from backend_report.txt against the
+    FCMP-unordered NZCV=0011 truth table, with a per-operator distinct-exit
+    probe. Suite 668/34. Remaining clusters: the cast family,
+    saturating/narrow-signed, string comparisons
+    (runtime_local_string_comparison_value 79!=78), tick/time host lowering,
+    the frame-source machine-indexed write, and the entry-args spill.
   - **[ ] (original map)**
     (now loud, was silent): `CopyRuntimeMachineIndexedToRuntimeMachineIndexed`
     (`arr[i]=arr[j]`), `CopyRuntimeMachineDoubleIndexedToRuntimeStorage` +

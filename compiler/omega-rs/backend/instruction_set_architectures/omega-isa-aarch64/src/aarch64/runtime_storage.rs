@@ -26,6 +26,7 @@ use super::primitives::{
     encode_conditional_branch_less, encode_conditional_branch_less_or_equal,
     encode_conditional_branch_higher_or_same, encode_conditional_branch_lower,
     encode_conditional_branch_lower_or_same, encode_conditional_branch_not_equal,
+    encode_conditional_branch_plus,
     encode_load_w_from_x, encode_load_x_from_x, encode_asrv_w_register, encode_asrv_x_register,
     encode_lslv_x_register, encode_lsrv_x_register, encode_move_x_register, encode_movz,
     encode_movz_w,
@@ -395,6 +396,7 @@ pub fn encode_runtime_storage_compare_bytes(
     bytes.extend(encode_conditional_branch_for_operator_bytes(
         operator,
         failure_branch_distance,
+        is_float,
     )?);
     debug_assert_eq!(
         bytes.len(),
@@ -451,6 +453,7 @@ pub fn encode_runtime_storage_value_compare_bytes(
     bytes.extend(encode_conditional_branch_for_operator_bytes(
         operator,
         failure_branch_distance,
+        false,
     )?);
     debug_assert_eq!(
         bytes.len(),
@@ -498,6 +501,7 @@ pub fn encode_runtime_value_compare(
     bytes.extend(encode_conditional_branch_for_operator_bytes(
         operator,
         failure_branch_distance,
+        false,
     )?);
     Ok(bytes)
 }
@@ -3715,6 +3719,7 @@ fn append_runtime_storage_result_write(
 fn encode_conditional_branch_for_operator_bytes(
     operator: StateGuardOperator,
     failure_branch_distance: isize,
+    is_float: bool,
 ) -> Result<[u8; 4], Diagnostic> {
     Ok(match operator {
         StateGuardOperator::Equal => encode_conditional_branch_not_equal(failure_branch_distance)?,
@@ -3724,6 +3729,19 @@ fn encode_conditional_branch_for_operator_bytes(
         }
         StateGuardOperator::GreaterOrEqual => {
             encode_conditional_branch_less(failure_branch_distance)?
+        }
+        // IEEE: every ordered comparison with NaN is false. After an FCMP,
+        // unordered sets C+V (NZCV 0011), so the INTEGER skip negations GE/GT
+        // are false on NaN -- the guard would wrongly take its true arm (LE/LT
+        // for Greater/GreaterOrEqual above fire on N!=V, so those are already
+        // unordered-correct, as are EQ/NE). Float `<` skips on PL (N clear)
+        // and `<=` on HI (C set, Z clear), both true on unordered -- matching
+        // the x86 `ucomis*` + parity-aware failure jumps and the interpreter.
+        StateGuardOperator::Less if is_float => {
+            encode_conditional_branch_plus(failure_branch_distance)?
+        }
+        StateGuardOperator::LessOrEqual if is_float => {
+            encode_conditional_branch_higher(failure_branch_distance)?
         }
         StateGuardOperator::Less => {
             encode_conditional_branch_greater_or_equal(failure_branch_distance)?
@@ -3740,6 +3758,18 @@ fn encode_conditional_branch_for_operator_bytes(
         }
         StateGuardOperator::LessOrEqualUnsigned => {
             encode_conditional_branch_higher(failure_branch_distance)?
+        }
+        // Float comparisons ride the UNSIGNED pairing (the x86 `ucomis*`
+        // convention). After FCMP, unordered sets C+V: the `<`/`<=` skips
+        // (HS/HI) fire on C and are unordered-correct for free, but the
+        // `>`/`>=` skips (LS/LO) are FALSE on unordered -- the guard wrongly
+        // took its true arm on NaN. The SIGNED complements LE/LT fire on
+        // N != V, which unordered sets, so floats skip on those instead.
+        StateGuardOperator::GreaterUnsigned if is_float => {
+            encode_conditional_branch_less_or_equal(failure_branch_distance)?
+        }
+        StateGuardOperator::GreaterOrEqualUnsigned if is_float => {
+            encode_conditional_branch_less(failure_branch_distance)?
         }
         StateGuardOperator::GreaterUnsigned => {
             encode_conditional_branch_lower_or_same(failure_branch_distance)?
