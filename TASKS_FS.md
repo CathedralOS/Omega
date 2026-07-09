@@ -1000,6 +1000,17 @@ wrongly rejects them. See Open-work #4.
 
 ## Observations (not fs, flagged for Zach)
 
+- ARITHMETIC-THREAD note (2026-07-09i, from fixing collateral): the new
+  operand-domain fence (cd42934d5) broke `samples/gui/windowed_calculator`
+  on main (digit_append's fused `(current*10 + digit) % 10000`); fixed
+  forward in this lane by stepping through Saturating FIELDS
+  (append_shift/append_sum). Two follow-ups for that thread: (1) the
+  fence diagnostic says "store into a `Saturating`-typed LOCAL or field"
+  but a let-LOCAL does NOT satisfy it (lets substitute into their uses;
+  probed 2026-07-09i) — either make let-landing count or drop "local"
+  from the message; (2) the diagnostic names no state/statement, which
+  made locating the site needle-in-haystack in a 1000-line sample —
+  thread the source attribution the other emission blockers carry.
 - samples_compile on Windows hosts has exactly 4 PRE-EXISTING failures
   (A/B-verified 2026-07-06, re-confirmed 2026-07-07): `cli__systems__file_journal`
   (uses `read_metadata` — the stat family is deliberately fenced on windows until
