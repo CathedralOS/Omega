@@ -409,6 +409,8 @@ data Filesystem {
     // discipline: a raw i32 rc, no cast -- a cast-valued MachineOwned write
     // does not lower in a dispatched arm).
     rda_close_rc: i32;
+    // read_dir_entry_fd's rewind rc (field discipline; an i64 seek result).
+    rd_seek_rc: i64;
     // mkall_put's byte carrier (the let-local dispatch face: a machine-indexed
     // write's LOCAL source does not resolve under a dispatched arm; a FIELD
     // source always does -- the canonical discipline).
@@ -1292,6 +1294,14 @@ machine Filesystem::read_dir_entry_fd(&mut self, dfd: i32, n: usize) -> DirEntry
     self.rd_off = 0;
     self.rd_recno = 0;
     self.rd_target = (n as usize in Wrapping) + 2;
+    // REWIND the directory fd before reading (2026-07-09j): the native
+    // getdirentries cursor is the FD OFFSET -- zeroing the basep out-param
+    // does not rewind it, so a second "first entry" read on the same fd
+    // returned End natively while the hermetic interpreter (which reads at
+    // the passed position) returned the entry. The drain's per-iteration
+    // first-entry re-reads depend on this. lseek(dfd, 0, SEEK_SET) is a
+    // no-op for the interpreter's model and rewinds the native cursor.
+    self.rd_seek_rc = self.host.seek(dfd, 0, 0);
     let total: i64 = self.host.read_dir(dfd, &mut self.dir_buf, 512, &mut self.rd_position);
     self.rd_total = total as usize in Wrapping;
     transition total > 0 { true -> rdef_walk() _ -> rdef_end() }
