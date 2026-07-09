@@ -1056,6 +1056,14 @@ wrongly rejects them. See Open-work #4.
   from the message; (2) the diagnostic names no state/statement, which
   made locating the site needle-in-haystack in a 1000-line sample —
   thread the source attribution the other emission blockers carry.
+  [RESOLVED 2026-07-09d by the arithmetic thread: the fence is RETIRED --
+  operand-position Saturating/Trapping Add/Sub/Mul now lower correctly on
+  both ISAs (write-path clamp/trap sequences reused at the operand
+  evaluator's registers), so both follow-ups are moot and the let-
+  substitution behavior is now harmless (the fused op carries its domain).
+  digit_append is reverted to the natural fused spelling; the append_*
+  staging fields are gone. See TASKS.md "OPERAND-POSITION DOMAIN LOWERING
+  2026-07-09d".]
 - samples_compile on Windows hosts has exactly 4 PRE-EXISTING failures
   (A/B-verified 2026-07-06, re-confirmed 2026-07-07): `cli__systems__file_journal`
   (uses `read_metadata` — the stat family is deliberately fenced on windows until
