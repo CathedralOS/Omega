@@ -604,23 +604,22 @@ decreases remaining
   at/above width (cross-arch), range-under-non-Exact, type-carrying
   constants, abort-as-effect #65.
 
-- **[ ] Write-side nested modulo under a Cast retag prints SIGNED yet runs
-  correct (found 2026-07-10e while extending the nested-unsigned canary).**
-  In runtime_nested_unsigned_witness_exit's write_go, the backend report
-  shows `(... DivideUnsigned/4 ...) Modulo/4 100` -- the nested div got the
-  unsigned swap, the nested MODULO did not (the value_operands swap should
-  recurse through my Binary-signedness fix; the Cast retag wrapper may be
-  interposing) -- yet the program exits 70 on both legs, likely because the
-  64-bit zero-extended temp makes the signed rem coincidentally correct at
-  this width. TWO questions: (1) why the write-side swap misses the nested
-  modulo (guards.rs's swap catches the same shape -- prints
-  ModuloUnsigned); (2) whether ANY width/value makes the signed encoding
-  observable (if yes: silent-wrong candidate; if provably no: document the
-  invariant). The canary pins current cross-leg behavior either way.
-  RELATED: const-prop'd IMMEDIATE operands defeat the signedness witness
-  entirely (a same-state probe emitted signed Modulo over immediates,
-  masked by its folded guard) -- that face belongs to the type-carrying-
-  constants design family (immediates carry no type).
+- **[x] Write-side "signed nested modulo" (filed 2026-07-10e) -- RESOLVED
+  2026-07-10f: a STALE-BINARY ARTIFACT, not a compiler bug.** Instrumenting
+  the signedness adjuster showed it resolving Some(false) and swapping
+  correctly while the report still printed signed -- because the report came
+  from a `./target/debug/omega` CLI binary predating the recursion fix:
+  `cargo test` rebuilds the LIB crates the tests link, NOT the omega-cli
+  binary, so raw `./target/debug/omega` probes after test-only cycles run
+  weeks-to-minutes stale code. With a fresh `cargo build`, EVERY face of the
+  filed question dissolves: the canary emits 3x ModuloUnsigned, and even the
+  const-prop'd same-state probe emits DivideUnsigned+ModuloUnsigned (the
+  "immediates defeat the witness" claim was the same artifact -- signedness
+  resolves on the ORIGINAL field-read expressions before substitution).
+  NEW VERIFICATION LANDMINE (recorded in memory): after any cargo-test-only
+  cycle, rebuild before trusting `./target/debug/omega` output; `cargo run
+  --bin omega-run` self-rebuilds and is exempt -- which is why the canary
+  passed 70/70 (fresh) while its report (stale) contradicted it.
 
 - **[ ] Float types accept a domain clause that means nothing (found
   2026-07-10).** `f: f32 in Saturating` compiles; both legs run plain IEEE

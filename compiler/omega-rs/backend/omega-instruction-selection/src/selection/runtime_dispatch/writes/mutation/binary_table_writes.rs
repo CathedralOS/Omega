@@ -620,7 +620,6 @@ pub(in crate::selection::runtime_dispatch) fn signedness_adjusted_operator_for_o
     let Some(unsigned) = unsigned_operator_form(operator) else {
         return operator;
     };
-
     let is_signed = resolve_runtime_storage_is_signed_in_table(
         input,
         dispatch_index,
