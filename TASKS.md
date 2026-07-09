@@ -64,8 +64,7 @@ should target NEW feature surfaces as they land, not re-walk these axes.
   (b) define one runtime semantic (e.g. mask counts mod width; saturate
   casts) and make both backends implement it; (c) per-target behavior
   (rejected by precedent: silent cross-arch divergence). Pick a/b/c.
-  > Owner: This is incoherent and you've provided 0 context. Shar is shift? What is amount? Update this so I can fucking make a call. Thx jackass.
-  [Rewritten above with the concrete programs and observed behavior.]
+  > Owner: Shift overflow is defined by the domain on which the operator is happening. If y is in wrapping, it has a domain where lhs should be wrapping, and rhs doesnt matter. If you mix domains here, the operator should not resolve to anything, its a compile error. If y is in saturating, domain should assume lhs is saturating, and rhs doesnt matter. Domain casts (x as Saturating) solve the case where we need to change domains, and its always explicit.
 
 ## Open bugs / gaps (ungated)
 
@@ -73,6 +72,7 @@ should target NEW feature surfaces as they land, not re-walk these axes.
   error at declaration** ("this is just a compile error" -- Zach,
   2026-07-13). Reject the combination in type checking; sweep the corpus
   for existing spellings; fail canary pinning the diagnostic.
+  > Edit: I misunderstood this one at first -- I offered clarity in OWNER_QUESTIONS.md
 
 - **OWNER DIRECTIVE: `usize` is not an Omega type -- retire it.** "We do not
   have usize. We have addr, we have primitives. Conflating addresses & size
