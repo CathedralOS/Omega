@@ -1,0 +1,50 @@
+// RUN CANARY (exit 70) + interpreter differential. R1a of the dependent-
+// types ladder (ch12): a state parameter's declared range may name a self
+// FIELD as its maximum -- `i: u32 [0..=self.count]` -- and the bound is
+// DISCHARGED, never trusted: the caller proves the argument at every
+// transition (route a: a co-located guard relating argument and field,
+// seen through the `== true` desugar; route b: the argument fits under the
+// field's own enforced minimum), and the callee's index proofs read the
+// range SUBSTITUTED through the field's store-enforced literal high
+// (count <= 11 always, so i <= 11 < 12 -- immune to mid-state
+// reassignment of the field). The exclusive sugar `[0..self.count]`
+// normalizes to `self.count - 1` at parse and a STRICT `<` guard
+// discharges it. Machinery: omega-typed-trees dependent_ranges (the one
+// recognizer), ProofConstraint::IntegerRangeSymbolicMax (the atom),
+// checker.rs dependent discharges, types.rs substitution, and the
+// type_references.rs gate that verifies the named field can discharge at
+// declaration time.
+// exits: 71 = guard-route leg wrong; 72 = exclusive-sugar leg wrong.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main {
+    console: Console;
+    items: [u8; 12];
+    count: u32 [0..=11];
+    j: u32;
+}
+machine Main::main(&mut self) {
+    self.count = 8;
+    self.items[6] = 7;
+    self.j = 6;
+    transition self.j <= self.count { true -> read(self.j) _ -> bad_guard() }
+    state read(&mut self, i: u32 [0..=self.count]) {
+        transition self.items[i] == 7 {
+            true -> strict()
+            _ -> bad_guard()
+        }
+    }
+    state strict(&mut self) {
+        // The exclusive sugar: [0..self.count] == [0..=self.count - 1];
+        // the STRICT guard supplies exactly the -1 offset.
+        transition self.j < self.count { true -> read_strict(self.j) _ -> bad_strict() }
+    }
+    state read_strict(&mut self, k: u32 [0..self.count]) {
+        transition self.items[k] == 7 {
+            true -> good()
+            _ -> bad_strict()
+        }
+    }
+    state good(&mut self)       { self.console.exit_process(70); }
+    state bad_guard(&mut self)  { self.console.exit_process(71); }
+    state bad_strict(&mut self) { self.console.exit_process(72); }
+}

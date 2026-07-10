@@ -1,5 +1,6 @@
 pub mod byte_predicates;
 pub mod data;
+pub mod dependent_ranges;
 pub mod domain;
 pub mod expression;
 pub mod identity;

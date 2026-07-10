@@ -88,39 +88,26 @@ header above for the verified spelling). Rungs, in payoff order:
   interval in LOCKSTEP to deepen). FOLLOW-ON for the rendering samples:
   sweep the linear-counter workarounds + re-guard states onto the direct
   spelling.
-- **R1 (symbolic atoms):** range endpoints + guard mints go value-vs-value
-  (`requires a.cols == b.rows`; `i: u64 [0..items.len]` as requires sugar).
-  DBM is already relational; this is surface + atom plumbing. Unblocks
-  matrix agreement + all relational bounds. SCOPED 2026-07-09 (main lane,
-  post-R0 probe): symbolic endpoints refuse at the PARSER today ("expected
-  integer literal", range-constraint endpoint parse); value-level
-  `requires` has NO surface (the keyword serves capabilities/traits only).
-  Rung R1a = symbolic UPPER endpoint on STATE PARAMS end-to-end. Evidence
-  from the probe pass: the INCLUSIVE form `[0..=self.count]` ALREADY
-  PARSES (range endpoints are full expressions; only the exclusive form's
-  parse-time `max-1` normalization demands a literal,
-  type_reference.rs:381 -- make it synthesize `Binary(max, Sub, 1)`), and
-  the loud fence ALREADY EXISTS (omega-validation type_references.rs
-  ~:552 rejects non-constant integer bounds). So R1a is pure DISCHARGE
-  work, gated on that fence admitting the scoped class (state params
-  only; HIGH bound symbolic, low stays literal). Enforcement-site
-  inventory (each must handle-or-keep-fencing): (1) caller-side
-  transition-arg range check -- LIVES IN OMEGA-PROOF (checker.rs ~:1670
-  `cannot prove transition argument ... satisfies bounded parameter`;
-  obligations carry LITERAL IntegerRange atoms via
-  integer_range_from_constraints), so a symbolic bound needs an atom
-  representation in the PROOF PLAN itself: this is the "atom plumbing"
-  and the deepest R1a piece. PARSER HALF LANDED 2026-07-09: the exclusive
-  form `[0..self.count]` now parses (synthesizes `max - 1` as a Binary;
-  type_reference.rs), so BOTH bracket forms reach the same loud
-  non-constant-bound fence (omega-validation type_references.rs ~:552,
-  scoped relaxation pending on the discharge work); (2) callee-side entry fact
-  (the param's range MINTS `i <= self.count` for the ordering facts);
-  (3) the index prover chains `i <= count` with count's own declared
-  range (expression_enforced_declared_range grows a relational leg);
-  (4) store-time re-checks + ZII gate unaffected (params are not stored;
-  low bound stays literal). Machine-signature `requires` and the
-  bracket-as-sugar desugar stage after R1a proves the atom plumbing.
+- **R1 (symbolic atoms): R1a LANDED (2026-07-09, main lane).** A state
+  parameter's range may name a self field as its maximum
+  (`i: u32 [0..=self.count]`; exclusive sugar normalizes to `- 1` at
+  parse). One recognizer (omega-typed-trees dependent_ranges) feeds three
+  policies in lockstep: the declaration gate (type_references.rs --
+  admits state params whose named field carries an enforced literal
+  Exact range, refuses fields/unranged/mistyped loudly), the proof atom
+  (ProofConstraint::IntegerRangeSymbolicMax; caller discharge at every
+  transition via co-located guard THROUGH the `== true` desugar, or the
+  field's declared-minimum floor; CALL arguments floor-only with a
+  route-hint refusal, self-receiver only), and the callee index prover
+  (range substituted through the field's store-enforced literal high --
+  immune to mid-state reassignment; params are immutable so no write
+  hole). Canaries: pass/dependent/runtime_dependent_param_range_exit +
+  4 fail shapes under fail/dependent/. REMAINING for R1 proper:
+  R1b relational callee facts (`i <= count` as an ordering fact the DBM
+  consumes -- unlocks guards inside the callee), value-vs-value guard
+  mints at range endpoints generally (`requires a.cols == b.rows`), and
+  machine-signature `requires` surface with the bracket-as-sugar
+  desugar. Cross-machine dependent params ride R4 (boundary witnesses).
 - **R3 (relational bounded-product):** ONE closed rule (`0<=a<=A, 0<=b =>
   a*b<=A*b`) over the polynomial engine -- needed only where operand ranges
   are NOT independently tight (x < w with wide w; i*stride via i < count).

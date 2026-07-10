@@ -548,12 +548,24 @@ fn validate_type_constraints_node(
                     // else is rejected rather than lied about. FLOAT ranges keep
                     // their own literal path (the proof side reads them as
                     // FloatRange), so they are exempt here.
+                    //
+                    // EXCEPTION (R1a, dependent ranges): a STATE PARAMETER may
+                    // carry a literal minimum with a `self.<field> [+/- k]`
+                    // maximum (`i: u32 [0..=self.count]`) -- the caller-side
+                    // proof plan mints a relational atom for it (checked at
+                    // every transition into the state) and the index prover
+                    // substitutes through the field's own enforced range, so
+                    // the bound is DISCHARGED, never silently unbounded. The
+                    // named field must exist on the machine's attached data and
+                    // itself carry an enforced literal integer range -- checked
+                    // here so an unranged/mistyped field name refuses at the
+                    // declaration instead of unproving every call site.
                     _ if primitive_type.accepts_integer_literal() => {
-                        diagnostics.push(Diagnostic::error(format!(
-                            "{owner} declares a range whose bound is not a constant integer \
-                             expression; a non-constant bound cannot be enforced (it would \
-                             silently behave unbounded)",
-                        )));
+                        if let Some(message) = dependent_state_parameter_range_error(
+                            program, &owner, *minimum, *maximum,
+                        ) {
+                            diagnostics.push(Diagnostic::error(message));
+                        }
                     }
                     _ => {}
                 }
@@ -664,4 +676,78 @@ pub(crate) fn type_reference_label(
     } else {
         "()".to_owned()
     }
+}
+
+/// R1a dependent-range gate for the non-constant-bound arm: `None` ACCEPTS
+/// (the range is the admissible dependent class on a machine state
+/// parameter, and its named field can actually discharge); `Some(message)`
+/// keeps refusing with the sharpest description available. Kept in lockstep
+/// with the proof plan's atom minting and the index prover's substitution
+/// through the shared `omega_typed_trees::dependent_ranges` recognizer.
+fn dependent_state_parameter_range_error(
+    program: &TypedTrees,
+    owner: &TypeReferenceOwner<'_>,
+    minimum: omega_typed_trees::expression::ExpressionHandle,
+    maximum: omega_typed_trees::expression::ExpressionHandle,
+    ) -> Option<String> {
+    let generic = || {
+        format!(
+            "{owner} declares a range whose bound is not a constant integer \
+             expression; a non-constant bound cannot be enforced (it would \
+             silently behave unbounded). A dependent maximum \
+             (`[0..=self.<field>]`) is supported on machine STATE PARAMETERS \
+             whose named field carries an enforced literal integer range"
+        )
+    };
+    if crate::arithmetic_domains::literal_i64(program, minimum).is_none() {
+        return Some(generic());
+    }
+    let Some(symbolic) = omega_typed_trees::dependent_ranges::symbolic_max_bound(
+        &program.expression_table,
+        maximum,
+    ) else {
+        return Some(generic());
+    };
+    let TypeReferenceOwner::StateParameter {
+        owner: StateSignatureOwner::Machine(machine_name),
+        ..
+    } = owner
+    else {
+        return Some(generic());
+    };
+    let field_is_dischargeable = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == *machine_name)
+        .and_then(|machine| machine.attached_data.as_ref())
+        .and_then(|attached| {
+            program
+                .data_definitions()
+                .iter()
+                .find(|data| data.name.as_str() == attached.as_str())
+        })
+        .and_then(|data| {
+            program.data_members(data).iter().find_map(|member| {
+                match member {
+                    omega_typed_trees::data::DataMember::Field(field)
+                        if field.name.as_str() == symbolic.field.as_str() =>
+                    {
+                        field.type_reference.is_valid().then_some(field.type_reference)
+                    }
+                    _ => None,
+                }
+            })
+        })
+        .and_then(|field_type| crate::arithmetic_domains::range_constraint_interval(program, field_type))
+        .is_some();
+    if !field_is_dischargeable {
+        return Some(format!(
+            "{owner} declares a dependent maximum naming `self.{}`, but that field does not \
+             carry an enforced literal integer range on the machine's attached data -- the \
+             bound could not be discharged at any call site. Range the field (`{}: u32 \
+             [0..=N]`, Exact) or spell a literal maximum",
+            symbolic.field, symbolic.field,
+        ));
+    }
+    None
 }

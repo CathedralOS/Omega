@@ -86,6 +86,103 @@ pub(super) fn expression_enforced_declared_range(
         return None;
     }
     enforced_range_of_type_reference(program, type_reference)
+        .or_else(|| dependent_range_substituted(program, machine, type_reference))
+}
+
+/// R1 dependent range (`i: u32 [0..=self.count]`): the SUBSTITUTED literal
+/// interval. The caller-side proof obligation established `i <= count@entry
+/// + offset`; `count`'s own enforced literal range holds at EVERY write
+/// (store-enforced), so `count@entry <= high(count)` and the substituted
+/// `(min, high(count) + offset)` is a true invariant of `i` -- immune to the
+/// field being reassigned after entry. `None` when the named field is
+/// unranged, non-Exact, or the arithmetic overflows (the index prover then
+/// reports its clean cannot-prove error).
+fn dependent_range_substituted(
+    program: &omega_typed_trees::TypedTrees,
+    machine: &Machine,
+    handle: TypeReferenceHandle,
+) -> Option<(i64, i64)> {
+    let (minimum, symbolic) = dependent_range_of_type_reference(program, handle)?;
+    let attached = machine.attached_data.as_ref()?;
+    let data = program
+        .data_definitions()
+        .iter()
+        .find(|data| data.name.as_str() == attached.as_str())?;
+    let field_type = program.data_members(data).iter().find_map(|member| {
+        match member {
+            omega_typed_trees::data::DataMember::Field(field)
+                if field.name.as_str() == symbolic.field.as_str() =>
+            {
+                field.type_reference.is_valid().then_some(field.type_reference)
+            }
+            _ => None,
+        }
+    })?;
+    // The field itself must be an enforced-integer-ranged place (same gate
+    // this module applies to any range an index proof may trust).
+    if primitive_of_type_reference(program, field_type).is_none_or(|primitive| {
+        !matches!(
+            primitive,
+            PrimitiveType::I8
+                | PrimitiveType::I16
+                | PrimitiveType::I32
+                | PrimitiveType::I64
+                | PrimitiveType::U8
+                | PrimitiveType::U16
+                | PrimitiveType::U32
+                | PrimitiveType::U64
+        )
+    }) {
+        return None;
+    }
+    let (_, field_high) = enforced_range_of_type_reference(program, field_type)?;
+    let substituted_high = field_high.checked_add(symbolic.offset)?;
+    (minimum <= substituted_high).then_some((minimum, substituted_high))
+}
+
+/// A Range constraint whose minimum literal-folds and whose maximum is the
+/// R1a-admissible symbolic shape, under Exact shells only (mirrors
+/// `enforced_range_of_type_reference`'s domain kill).
+fn dependent_range_of_type_reference(
+    program: &omega_typed_trees::TypedTrees,
+    handle: TypeReferenceHandle,
+) -> Option<(i64, omega_typed_trees::dependent_ranges::SymbolicMaxBound)> {
+    match program.type_reference_table.type_reference(handle) {
+        TypeReferenceNode::Reference { referee, .. } => {
+            dependent_range_of_type_reference(program, *referee)
+        }
+        TypeReferenceNode::Constrained {
+            base_type,
+            constraints,
+        } => {
+            let constraints = program.type_reference_table.constraints(*constraints);
+            if constraints.iter().any(|constraint| {
+                matches!(
+                    constraint,
+                    omega_typed_trees::types::TypeConstraintNode::ArithmeticDomain(domain)
+                        if *domain != omega_core::arithmetic::ArithmeticDomain::Exact
+                )
+            }) {
+                return None;
+            }
+            constraints
+                .iter()
+                .find_map(|constraint| match constraint {
+                    omega_typed_trees::types::TypeConstraintNode::Range { minimum, maximum } => {
+                        let minimum =
+                            program.expression_table.constant_integer_value(*minimum)?;
+                        let symbolic = omega_typed_trees::dependent_ranges::symbolic_max_bound(
+                            &program.expression_table,
+                            *maximum,
+                        )?;
+                        Some((minimum, symbolic))
+                    }
+                    _ => None,
+                })
+                .or_else(|| dependent_range_of_type_reference(program, *base_type))
+        }
+        _ => None,
+    }
 }
 
 fn enforced_range_of_type_reference(
