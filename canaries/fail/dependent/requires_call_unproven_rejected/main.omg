@@ -1,0 +1,20 @@
+// FAIL CANARY: calling a machine whose `requires` names field facts the
+// CALLER has not established refuses -- the contract prover demands the
+// fact at the call site ("establish it before the call"). NOTE the
+// current intake gap (recorded in TASKS.md's R1 remainder): an
+// incoming-ARM guard (`transition self.a <= self.b { true -> ... }`)
+// does not yet feed the contract prover, so even a guarded caller
+// refuses -- when that intake lands, this canary's sibling shape flips
+// to a pass canary and this one keeps the truly-unguarded refusal.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; a: u32; b: u32; out: i32; }
+machine Main::main(&mut self) {
+    self.a = 9;
+    self.b = 3;
+    self.helper();
+    self.console.exit_process(self.out);
+}
+machine Main::helper(&mut self) requires self.a <= self.b {
+    let diff: u32 = self.b - self.a;
+    self.out = diff as i32;
+}

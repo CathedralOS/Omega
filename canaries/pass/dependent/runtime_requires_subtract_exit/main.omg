@@ -1,0 +1,18 @@
+// RUN CANARY (exit 0) + interpreter differential. Channel (b) of the
+// relational subtraction rule: a machine-level `requires self.a <= self.b`
+// proves `self.b - self.a` non-negative in EXACT u32 -- the requires
+// conjunction is scanned for the ordering (display-spelling match; a
+// strict `<` gives floor 1), gated on BOTH operands' fields being
+// machine-wide preserved (requires speaks of MACHINE ENTRY; any write to
+// either field or any opaque call across the machine defeats the
+// bridge). At program entry the ZII state (a = 0, b = 0) satisfies the
+// contract, and the difference is 0.
+// Caller-side requires enforcement is real and strict:
+// fail/dependent/requires_call_unproven_rejected pins the refusal.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; a: u32; b: u32; out: i32; }
+machine Main::main(&mut self) requires self.a <= self.b {
+    let diff: u32 = self.b - self.a;
+    self.out = diff as i32;
+    self.console.exit_process(self.out);
+}
