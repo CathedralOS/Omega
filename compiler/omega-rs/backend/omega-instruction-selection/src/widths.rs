@@ -2468,6 +2468,7 @@ pub fn read_wire_byte_slice_width(
     read_offset: usize,
     ok_offset: usize,
     target_offset: usize,
+    predicate_mask: u8,
 ) -> usize {
     match architecture {
         Architecture::Aarch64 => aarch64::read_wire_byte_slice_width(
@@ -2476,6 +2477,7 @@ pub fn read_wire_byte_slice_width(
             read_offset,
             ok_offset,
             target_offset,
+            predicate_mask,
         ),
         Architecture::X86_64 => x86_64::read_wire_byte_slice_width(
             buffer_offset,
@@ -2483,6 +2485,7 @@ pub fn read_wire_byte_slice_width(
             read_offset,
             ok_offset,
             target_offset,
+            predicate_mask,
         ),
     }
 }
@@ -2539,17 +2542,20 @@ pub fn wire_decode_byte_slice_target_page_offset(
     buffer_offset: usize,
     buffer_length: usize,
     read_offset: usize,
+    predicate_mask: u8,
 ) -> usize {
     match architecture {
         Architecture::Aarch64 => aarch64::wire_decode_byte_slice_target_page_offset(
             buffer_offset,
             buffer_length,
             read_offset,
+            predicate_mask,
         ),
         Architecture::X86_64 => x86_64::wire_decode_byte_slice_target_page_offset(
             buffer_offset,
             buffer_length,
             read_offset,
+            predicate_mask,
         ),
     }
 }

@@ -4718,6 +4718,7 @@ pub fn encode_read_wire_byte_slice(
         read_offset,
         ok_offset,
         target_offset,
+        predicate_mask,
     ));
     append_wire_decode_prologue(&mut bytes, buffer_offset, read_offset)?;
 
@@ -4771,7 +4772,8 @@ pub fn encode_read_wire_byte_slice(
             buffer_length,
             read_offset,
             ok_offset,
-            target_offset
+            target_offset,
+            predicate_mask
         )
     );
     Ok(bytes)
@@ -4783,7 +4785,10 @@ pub fn read_wire_byte_slice_width(
     _read_offset: usize,
     _ok_offset: usize,
     _target_offset: usize,
+    predicate_mask: u8,
 ) -> usize {
+    // Threaded; the x86 validation sequences land with the promotion pin.
+    let _ = predicate_mask;
     // Prologue + success/value/shift init (10) + read loop + bounds&advance (21)
     // + target imm64 (10) + ptr store (7) + len store (7) + epilogue.
     wire_decode_prologue_width()
@@ -4802,7 +4807,9 @@ pub fn wire_decode_byte_slice_target_page_offset(
     _buffer_offset: usize,
     _buffer_length: usize,
     _read_offset: usize,
+    predicate_mask: u8,
 ) -> usize {
+    let _ = predicate_mask;
     wire_decode_prologue_width() + 10 + wire_varint_read_loop_width() + 21
 }
 

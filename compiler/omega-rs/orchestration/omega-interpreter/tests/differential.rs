@@ -75,6 +75,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("structs/deep_nested_write_paths_exit", 70),
     ("text/runtime_text_equals_value_positions_exit", 70),
     ("wire/runtime_wire_roundtrip_utf8_exit", 70),
+    ("wire/runtime_wire_utf8_edge_verdicts_exit", 70),
     ("slices/runtime_saturating_array_element_guard_exit", 70),
     ("arithmetic/runtime_unsigned_high_bit_u32_ops_exit", 70),
     ("arithmetic/runtime_unsigned_min_max_exit", 88),
@@ -1874,9 +1875,10 @@ const PENDING_RUNTIME_DIVERGENCES: &[(&str, i32, PendingInterpOutcome)] = &[
     ("calls/texteq_local_guard_read_divergence", 71, PendingInterpOutcome::Exit(70)),
     ("calls/texteq_local_arg_forward_divergence", 71, PendingInterpOutcome::Exit(70)),
     ("calls/trailing_state_mut_param_phase_divergence", 71, PendingInterpOutcome::Exit(70)),
-    // The INTERP now refuses (decode-boundary byte-predicate validation,
-    // 2026-07-16); native still accepts pending its validation sequence.
-    ("wire/utf8_decode_accepts_invalid_bytes", 71, PendingInterpOutcome::Exit(70)),
+    // BOTH aarch64 + interp now REFUSE (the aarch64 validator landed
+    // 2026-07-16); parked only for the x86_64 validation sequences --
+    // promote to a refuses-canary with them.
+    ("wire/utf8_decode_accepts_invalid_bytes", 70, PendingInterpOutcome::Exit(70)),
     ("arithmetic/const_fold_unsigned_divide_miscompile", 71, PendingInterpOutcome::Exit(70)),
     ("arithmetic/const_fold_unsigned_shift_right_miscompile", 71, PendingInterpOutcome::Exit(70)),
     ("arithmetic/float_to_int_overflow_divergence", 99, PendingInterpOutcome::Exit(71)),

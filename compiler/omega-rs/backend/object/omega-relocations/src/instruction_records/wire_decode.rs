@@ -89,6 +89,7 @@ pub(super) fn collect_wire_decode_relocations(
             read_offset,
             ok_region,
             target_region,
+            predicate_mask,
             ..
         } => {
             context.insert_data_address_at_instruction_start(
@@ -112,6 +113,7 @@ pub(super) fn collect_wire_decode_relocations(
                     *buffer_offset,
                     *buffer_length,
                     *read_offset,
+                    *predicate_mask,
                 ),
                 context.storage_region_symbol_handle(*target_region),
             );
