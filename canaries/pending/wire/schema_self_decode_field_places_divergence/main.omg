@@ -1,26 +1,22 @@
-// PENDING (found 2026-07-17 landing schemas-as-program-types): DECODE into
-// a value OF THE SCHEMA'S OWN TYPE reports verdict Sound natively but the
-// decoded values never land in the local's fields (d.x reads 0; the
-// interp roundtrips 3/4). Encode-FROM-self and plain value use are green
-// (pass/wire/runtime_wire_schema_as_value_type_exit); Sample-twin decode
-// into ordinary-data locals is green corpus-wide -- the gap is specific
-// to the value type being the NUMBERED definition itself, i.e. the decode
-// value-argument's member-place resolution with TWO same-named
-// definitions (wire schema + the dual-registered DataDefinition) in
-// scope. LIKELY: the place resolution walks the schema-symbol side, whose
-// members carry no layout, instead of the data definition the local was
-// laid out by. Hold: (73, Exit(70)).
-// RUN CANARY (exit 70) + interpreter differential. Chapter 20's "numbers
-// are inert schema facts" made REAL: a NUMBERED data is a plain program
-// type -- locals, field writes, guard arithmetic, ZII -- and its schema
-// machines encode/decode values OF THE TYPE ITSELF. The corpus-wide
-// Message/Sample twin pattern was FORCED (numbered datas never entered the
-// type namespace: "references unknown data type") until the wire lowering
-// gained dual registration (a numbered declaration lowers BOTH the wire
-// schema and a regular DataDefinition sharing the lowered type
-// references; Reserved/Version members are wire history, not fields).
-// Legs: value-type use; encode-from-self; decode-into-self roundtrip.
-// exits: 71 = value use wrong; 72 = encode wrong; 73 = roundtrip wrong.
+// PENDING (root-cause CORRECTED 2026-07-17 by disassembly -- the first
+// place-resolution hypothesis was WRONG): decode into a value of the
+// schema's own type is fine at the PLACE level; the compare after it is
+// what breaks. `transition d.x == 3` lowers with a CONSTANT left operand
+// (`mov x17, #0` in the emitted guard) -- the member-value tracking
+// carried the PRE-DECODE initialization `d.x = 0` ACROSS the decode call,
+// which it does not recognize as mutating `d` WHEN THE CALL'S TYPE
+// QUALIFIER EQUALS THE VALUE'S OWN TYPE (`Point::decode(&mut d)` with
+// `d: Point`). Exonerating probes: the SAMPLE-TWIN spelling
+// (PointMsg::decode with d: PointSample) invalidates correctly and its
+// field guard reads 3; the self-typed decode WITHOUT pre-init writes also
+// works (nothing stale to fold). The corpus never caught this because no
+// existing canary guard-reads a decoded field -- they all re-encode.
+// FIX: whatever tracker substitutes member values into guard operands must
+// invalidate the decode value argument's members (likely classifying
+// `Point::decode` as an attached-machine-ish call of Point and missing the
+// wire-schema mutation); the stale-fold capture family in
+// omega-state-values/simplify is adjacent but binds LOCALS, not members.
+// Hold: (73, Exit(70)).
 boundary trait Console { machine exit_process(return_code: i32); }
 data Point {
     0: x: u32;
