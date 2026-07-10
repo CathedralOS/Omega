@@ -153,12 +153,17 @@ results in Omega. Interpreter = full-parity reference oracle for everything.
    report BEFORE any boot); six-arg calls spill args 5-6 to
    [rsp+0x20]/[rsp+0x28]. Pinned by pass/targets/efi_out_param_call
    (GetMemoryMap's exact shape; dispatch + spill + address-operand
-   asserts, cross-target on every host). REMAINING for M2: (m2) the
-   runtime-offset borrow-recast smoke (`&self.map_buf[offset] as
-   &EfiMemoryDescriptor`, M2-ladder #3); (m3) Cathedral's source
-   still uses provisional syntax beyond the ladder (`let mut`, tuple
-   transitions, dot-imports, `and`) -- the ladder asks are the
-   compiler-side blockers, the spellings are theirs to settle. NOTE
+   asserts, cross-target on every host). M2 COMPILER RUNGS: 2 of 3
+   DONE (field model + out-param marshaling, both pinned cross-target).
+   (m2) the runtime-offset borrow-recast (`&self.map_buf[offset] as
+   &EfiMemoryDescriptor`) PROBED 2026-07-17: refuses at the PARSER
+   (`as` grammar takes no reference type) -- this is the main lane's
+   queued RECAST rung (TASKS.md programmable-layouts, settled SS5b,
+   behind their validate-mint work; checker borrow-recast form +
+   plan-tiling validator). NOT stealing mid-design; M2 is blocked on
+   exactly that rung now. (m3) Cathedral's remaining provisional
+   spellings (`let mut`, tuple transitions, dot-imports, `and`) are
+   surface decisions, not backend gaps. NOTE
    this lane also owns the adjacent x86_64 byte-op encoder follow-up
    (item 0 (x)) -- same encoder territory.
 
