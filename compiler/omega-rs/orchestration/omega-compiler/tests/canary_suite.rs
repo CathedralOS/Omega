@@ -18544,6 +18544,33 @@ fn runtime_interior_byte_recast_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_offset_byte_recast_exit_canary_runs() {
+    // Rung C1: the runtime-offset interior recast (the Cathedral stride
+    // substrate) -- footprint via the offset's enforced interval.
+    let canary = pass_canary("recast/runtime_offset_byte_recast_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-runtime-offset-recast-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime-offset recast canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime-offset recast canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the runtime-offset view to read 0x04030201 (exit 70), got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_f32_field_guard_exit_canary_runs() {
     // Plain f32 field guards: f32-pattern expectations, 4-byte compares.
     let canary = pass_canary("arithmetic/runtime_f32_field_guard_exit");
@@ -29101,6 +29128,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "dependent/runtime_bounded_product_index_exit",
     "recast/runtime_scalar_pun_shared_let_exit",
     "recast/runtime_interior_byte_recast_exit",
+    "recast/runtime_offset_byte_recast_exit",
     "arithmetic/runtime_f32_field_guard_exit",
     "collections/runtime_indexed_rmw_loop_exit",
     "collections/runtime_indexed_reduction_loop_exit",
@@ -29448,6 +29476,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "recast/recast_mut_fenced",
     "recast/recast_position_fenced",
     "recast/interior_recast_footprint_rejected",
+    "recast/runtime_offset_footprint_rejected",
     "control_flow/transition_fall_through_bool",
     "control_flow/transition_fall_through_value_match",
     "calls/abs_call_argument_rejected",

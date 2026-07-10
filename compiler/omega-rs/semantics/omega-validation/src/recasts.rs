@@ -287,15 +287,35 @@ fn interior_byte_region_source(
     let ExpressionNode::Indexed(indexed) = program.expression_table.expression(source) else {
         return None;
     };
-    let ExpressionNode::Integer(literal) =
-        program.expression_table.expression(indexed.index)
-    else {
-        return None;
+    // RUNG C1: a RUNTIME offset (`&self.buf[k] as &u32`) discharges through
+    // the index place's enforced interval -- its declared range (dependent
+    // maxima substitute through the field's own range) bounds the offset,
+    // so `high(k) + size(T) <= N` is the footprint check. The interval is
+    // store-enforced/caller-proved by the R1 machinery, so it is a true
+    // bound at every read.
+    let offset = match program.expression_table.expression(indexed.index) {
+        ExpressionNode::Integer(literal) => {
+            let offset = literal.value_i64()?;
+            if offset < 0 {
+                return None;
+            }
+            offset
+        }
+        _ => {
+            let raw = crate::places::declared_place_type_raw(
+                program,
+                machine,
+                Some(state),
+                indexed.index,
+            )?;
+            let interval = crate::arithmetic_domains::range_constraint_interval(program, raw)?;
+            let high = interval.high()?;
+            if interval.low().is_some_and(|low| low < 0) || high < 0 {
+                return None;
+            }
+            high
+        }
     };
-    let offset = literal.value_i64()?;
-    if offset < 0 {
-        return None;
-    }
     let collection_type = crate::places::declared_place_type(
         program,
         machine,

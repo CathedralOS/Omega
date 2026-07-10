@@ -1,0 +1,32 @@
+// RUN CANARY (exit 70) + interpreter differential. RUNG C1 of the §5b
+// recast ladder -- the Cathedral M2 stride substrate: an interior recast
+// at a RUNTIME offset (`&self.buf[off] as &u32` with `off: u32 [0..=8]`).
+// The footprint discharges through the OFFSET's enforced interval
+// (`high(off) + size(T) <= N` -- dependent maxima substitute through the
+// R1 machinery, so coupled/dependent offsets prove identically); the
+// operand-hoist EXEMPTS recast operands (the view must address buf[off],
+// not a copied byte); native lowers as
+// CopyRuntimeMachineIndexedToRuntimeStorage with the STATED byte count;
+// the interp assembles little-endian at the evaluated offset. A
+// too-wide offset range refuses at the declaration
+// (fail/recast/runtime_offset_footprint_rejected). Record targets
+// (EfiMemoryDescriptor) are the remaining C2 rung.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; buf: [u8; 12]; k: u32 [0..=8]; out: i32; }
+machine Main::main(&mut self) {
+    self.buf[4] = 1;
+    self.buf[5] = 2;
+    self.buf[6] = 3;
+    self.buf[7] = 4;
+    self.k = 4;
+    transition self.k == 4 { true -> read(self.k) _ -> bad() }
+    state read(&mut self, off: u32 [0..=8]) {
+        let v: &u32 = &self.buf[off] as &u32;
+        transition v == 67305985 {
+            true -> good()
+            _ -> bad()
+        }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self)  { self.console.exit_process(71); }
+}
