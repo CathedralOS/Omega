@@ -5,8 +5,8 @@
 // whole meaning-proof pipe applies unchanged per vector), cross-checks the
 // interpreter exit against the table below, and kernel-proves the claim.
 //
-// EOF rides omega2gamma's read_byte sentinel (-1), so the meaning route runs
-// in ℤ difference-pair mode; the digest stays within a byte for the grid.
+// End-of-input is `ByteRead::Eof` — ordinal 0, the ZII zero case of the std
+// console byte read (no sentinel; the owner ruling on OWNER_QUESTIONS #12).
 //
 // Expected exit: 0.
 // INPUT-GRID:
@@ -28,20 +28,22 @@ machine Main::main(&mut self) {
     transition { _ -> rd() }
 
     state rd(&mut self) {
-        let b: i32 in Wrapping = read_byte();
-        transition b < 0 {
-            true -> fin()
-            _ -> acc(b)
+        let r: ByteRead = self.console.read_byte();
+        transition r {
+            ByteRead::Byte { value } -> acc(value)
+            _ -> fin()
         }
     }
 
-    state acc(&mut self, b: i32 in Wrapping) {
+    state acc(&mut self, value: i32 [0..=255]) {
+        let b: i32 in Wrapping = value as i32 in Wrapping;
         self.sum = self.sum + b;
         self.n = self.n + 1;
         transition { _ -> rd() }
     }
 
     state fin(&mut self) {
-        self.console.exit_process(self.sum + self.n);
+        let digest: i32 in Wrapping = self.sum + self.n;
+        self.console.exit_process(digest);
     }
 }
