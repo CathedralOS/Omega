@@ -29122,6 +29122,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "dependent/dependent_field_unranged_rejected",
     "dependent/dependent_range_on_field_rejected",
     "dependent/dependent_call_arg_unproven_rejected",
+    "dependent/dependent_forward_after_write_rejected",
     "collections/deep_nested_runtime_indexed_write_rejected",
     "layouts/plan_laid_dynamic_plan",
     "layouts/plan_laid_policy_without_plan_machine",

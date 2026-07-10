@@ -247,13 +247,26 @@ fn check_bounded_call_argument(
             .as_ref()
             .is_none_or(|receiver| receiver.as_str() == "self");
         let argument_range = integer_range_for_call_argument(proof_plan, obligation);
+        // Route (c), as on transitions: a same-field tighter-or-equal
+        // dependent argument forwards (self-receiver keeps `self.<field>`
+        // the same place).
+        let argument_atom = symbolic_max_from_constraints(type_constraints(
+            proof_plan,
+            obligation.argument_constraints,
+        ));
+        let atom_proves = argument_atom.is_some_and(|(arg_min, arg_field, arg_offset)| {
+            arg_field.as_str() == max_field.as_str()
+                && arg_offset <= max_offset
+                && arg_min >= minimum
+        }) && state_preserves_field(proof_plan, obligation.machine.as_str(), obligation.state.as_str(), max_field);
         let proven = self_receiver
-            && argument_range.is_some_and(|range| {
-                range.minimum >= minimum
-                    && dependent_call_field_floor(proof_plan, obligation, max_field)
-                        .and_then(|floor| floor.checked_add(max_offset))
-                        .is_some_and(|cap| range.maximum <= cap)
-            });
+            && (atom_proves
+                || argument_range.is_some_and(|range| {
+                    range.minimum >= minimum
+                        && dependent_call_field_floor(proof_plan, obligation, max_field)
+                            .and_then(|floor| floor.checked_add(max_offset))
+                            .is_some_and(|cap| range.maximum <= cap)
+                }));
         if !proven {
             diagnostics.push(cannot_prove_dependent_call_bound(
                 proof_plan, obligation, minimum, max_field, max_offset,
@@ -320,12 +333,26 @@ fn check_bounded_transition_argument(
         symbolic_max_from_constraints(type_constraints(proof_plan, obligation.constraints))
     {
         let argument_range = guarded_integer_range_for_transition_argument(proof_plan, obligation);
-        let lower_proven = argument_range.minimum >= minimum;
-        let upper_proven =
-            guard_proves_dependent_upper(proof_plan, obligation, max_field, max_offset)
-                || dependent_field_floor(proof_plan, obligation, max_field)
-                    .and_then(|floor| floor.checked_add(max_offset))
-                    .is_some_and(|cap| argument_range.maximum <= cap);
+        // Route (c): the ARGUMENT is itself dependent-ranged on the SAME
+        // field with a tighter-or-equal bound (`i: [0..=self.count]`
+        // forwarded into `k: [0..=self.count]`; the exclusive sugar's -1
+        // offset forwards into the inclusive form). Transitions stay within
+        // one machine, so the field is the same place.
+        let argument_atom = symbolic_max_from_constraints(type_constraints(
+            proof_plan,
+            obligation.argument_constraints,
+        ));
+        let atom_proves = argument_atom.is_some_and(|(arg_min, arg_field, arg_offset)| {
+            arg_field.as_str() == max_field.as_str()
+                && arg_offset <= max_offset
+                && arg_min >= minimum
+        }) && state_preserves_field(proof_plan, obligation.machine.as_str(), obligation.state.as_str(), max_field);
+        let lower_proven = atom_proves || argument_range.minimum >= minimum;
+        let upper_proven = atom_proves
+            || guard_proves_dependent_upper(proof_plan, obligation, max_field, max_offset)
+            || dependent_field_floor(proof_plan, obligation, max_field)
+                .and_then(|floor| floor.checked_add(max_offset))
+                .is_some_and(|cap| argument_range.maximum <= cap);
         if !lower_proven || !upper_proven {
             diagnostics.push(cannot_prove_dependent_transition_bound(
                 proof_plan, obligation, minimum, max_field, max_offset,
@@ -1909,6 +1936,83 @@ fn dependent_call_field_floor(
     let field_type =
         crate::obligations::data_field_type_by_name(program, data, max_field.as_str())?;
     enforced_literal_range_minimum(program, field_type)
+}
+
+/// Route (c)'s soundness fence: the argument's own dependent atom speaks of
+/// the field AT THIS STATE'S ENTRY, while the new obligation speaks of the
+/// NEXT entry -- valid only if the field cannot have changed in between.
+/// Conservative whole-state scan: any assignment whose target path mentions
+/// the field, or ANY call statement/expression (a callee holding `&mut self`
+/// may write it; effect rows can refine this later), defeats the route --
+/// the other discharge routes (guard / floor) remain.
+fn state_preserves_field(
+    proof_plan: &ProofPlan,
+    machine_name: &str,
+    state_name: &str,
+    field: &Identifier,
+) -> bool {
+    use omega_typed_trees::statement::StatementNode;
+    let program = &proof_plan.program;
+    let Some(machine) = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == machine_name)
+    else {
+        return false;
+    };
+    let Some(state) = program
+        .machine_states(machine)
+        .iter()
+        .find(|state| state.name.as_str() == state_name)
+    else {
+        return false;
+    };
+    for statement in program.statement_table.statements(state.statement_nodes) {
+        match statement {
+            StatementNode::Assignment(assignment) => {
+                if expression_mentions_field(proof_plan, assignment.target, field)
+                    || expression_contains_call(proof_plan, assignment.value)
+                {
+                    return false;
+                }
+            }
+            StatementNode::Expression(expression) => {
+                if expression_contains_call(proof_plan, *expression) {
+                    return false;
+                }
+            }
+            StatementNode::LocalData(local) => {
+                if local.initial_value.is_valid()
+                    && expression_contains_call(proof_plan, local.initial_value)
+                {
+                    return false;
+                }
+            }
+            _ => {}
+        }
+    }
+    true
+}
+
+fn expression_mentions_field(
+    proof_plan: &ProofPlan,
+    expression: ExpressionHandle,
+    field: &Identifier,
+) -> bool {
+    if !expression.is_valid() {
+        return false;
+    }
+    match proof_plan.program.expression_table.expression(expression) {
+        ExpressionNode::Member(member) => {
+            member.member.as_str() == field.as_str()
+                || expression_mentions_field(proof_plan, member.receiver, field)
+        }
+        ExpressionNode::Mutable(inner) => expression_mentions_field(proof_plan, *inner, field),
+        ExpressionNode::Indexed(indexed) => {
+            expression_mentions_field(proof_plan, indexed.collection, field)
+        }
+        _ => false,
+    }
 }
 
 fn cannot_prove_dependent_call_bound(

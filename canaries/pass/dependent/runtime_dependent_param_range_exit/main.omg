@@ -14,7 +14,13 @@
 // checker.rs dependent discharges, types.rs substitution, and the
 // type_references.rs gate that verifies the named field can discharge at
 // declaration time.
-// exits: 71 = guard-route leg wrong; 72 = exclusive-sugar leg wrong.
+// A dependent param FORWARDS into a same-field, tighter-or-equal sibling
+// bound (route c: the argument's own atom), fenced on the state PRESERVING
+// the field (no writes to it, no opaque calls) -- the atom speaks of entry
+// values, and entry-to-entry bridging is only sound when nothing moved:
+// fail/dependent/dependent_forward_after_write_rejected pins the defeat.
+// exits: 71 = guard-route leg wrong; 72 = exclusive-sugar leg wrong;
+// 73 = forward leg wrong.
 boundary trait Console { machine exit_process(return_code: i32); }
 data Main {
     console: Console;
@@ -40,11 +46,20 @@ machine Main::main(&mut self) {
     }
     state read_strict(&mut self, k: u32 [0..self.count]) {
         transition self.items[k] == 7 {
-            true -> good()
+            true -> forwarded(k)
             _ -> bad_strict()
         }
     }
+    state forwarded(&mut self, f: u32 [0..=self.count]) {
+        // Route (c): k's own `[0..self.count]` atom (offset -1) forwards
+        // into the looser inclusive bound with no guard on this arm.
+        transition self.items[f] == 7 {
+            true -> good()
+            _ -> bad_forward()
+        }
+    }
     state good(&mut self)       { self.console.exit_process(70); }
+    state bad_forward(&mut self){ self.console.exit_process(73); }
     state bad_guard(&mut self)  { self.console.exit_process(71); }
     state bad_strict(&mut self) { self.console.exit_process(72); }
 }
