@@ -1,0 +1,19 @@
+// FAIL CANARY (rung B footprint): `&self.buf[9] as &u32` needs 4 bytes
+// at offset 9 of a 12-byte region -- the view would read past the buffer;
+// §5b rule 1 is byte-granular and refuses at the declaration.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; buf: [u8; 12]; out: i32; }
+machine Main::main(&mut self) {
+    // Little-endian u32 at bytes 4..8: 0x0400_0000 | 0x03_0000 | 0x0200 | 0x01 = 0x04030201.
+    self.buf[4] = 1;
+    self.buf[5] = 2;
+    self.buf[6] = 3;
+    self.buf[7] = 4;
+    let v: &u32 = &self.buf[9] as &u32;
+    transition v == 67305985 {
+        true -> good()
+        _ -> bad()
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self)  { self.console.exit_process(71); }
+}

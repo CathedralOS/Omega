@@ -1,0 +1,26 @@
+// RUN CANARY (exit 70) + interpreter differential. RUNG B of the §5b
+// recast ladder: an INTERIOR recast into a `[u8; N]` region at a STATIC
+// offset -- `&self.buf[4] as &u32` reads the little-endian u32 assembled
+// from bytes 4..8 (0x04030201 = 67305985) on BOTH engines. The judgment
+// is footprint-fits (`k + size(T) <= N`, byte-granular; buffers carry no
+// facts and scalar loads tolerate byte alignment); the native lowering
+// copies the STATED size from the element's address into the view slot
+// (CopyRuntimeStorage), and the interpreter assembles the bytes
+// little-endian. Reading past the region refuses at the declaration
+// (fail/recast/interior_recast_footprint_rejected). Rung C (the Cathedral
+// runtime-offset stride) builds on this footprint judgment.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; buf: [u8; 12]; out: i32; }
+machine Main::main(&mut self) {
+    self.buf[4] = 1;
+    self.buf[5] = 2;
+    self.buf[6] = 3;
+    self.buf[7] = 4;
+    let v: &u32 = &self.buf[4] as &u32;
+    transition v == 67305985 {
+        true -> good()
+        _ -> bad()
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self)  { self.console.exit_process(71); }
+}

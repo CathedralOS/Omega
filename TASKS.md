@@ -339,8 +339,14 @@ transition loop-backs unchanged (unmeasured, constant-stack, may diverge).
     arithmetic/runtime_f32_field_guard_exit). Promoted:
     pass/recast/runtime_scalar_pun_shared_let_exit. The fs lane's M2
     rung-3 blocker family continues at (B)/(C).
-  - **(B)** interior recast into a `[u8; N]` region at a static offset
-    (footprint-fits judgment + fact implication over the region).
+  - **(B) — LANDED (2026-07-09, scalar targets).** `&self.buf[4] as &u32`
+    serves both engines: footprint-fits judgment (`k + size(T) <= N`,
+    byte-granular, refuses past-the-buffer at the declaration), native
+    lowering = a stated-size CopyRuntimeStorage from the element's
+    address into the view slot, interp assembles little-endian. Pinned
+    pass/recast/runtime_interior_byte_recast_exit + the footprint fail
+    canary. RECORD targets (EfiMemoryDescriptor-shaped) remain with
+    rung C.
   - **(C)** the Cathedral shape — runtime offset strided by runtime
     `descriptor_size` (`&self.map_buf[offset] as &EfiMemoryDescriptor`),
     bounds discharge via the declared-range substrate + the alignment
