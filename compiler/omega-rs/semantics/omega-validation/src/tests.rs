@@ -186,7 +186,7 @@ fn refutes_constant_false_ensures_on_empty_proof_machine() {
 fn refutes_strict_order_asymmetry_between_requires_and_ensures() {
     let diagnostics = validate_contract_source(
         r#"
-    machine false_asymmetry(i: usize, j: usize)
+    machine false_asymmetry(i: u64, j: u64)
     requires
         i < j
     ensures
@@ -223,7 +223,7 @@ fn proves_entailment_ladder_on_empty_proof_machines() {
     {
     }
 
-    machine congruence_add(a: usize, b: usize)
+    machine congruence_add(a: u64, b: u64)
     requires
         a == b
     ensures
@@ -239,7 +239,7 @@ fn proves_entailment_ladder_on_empty_proof_machines() {
     {
     }
 
-    machine antisymmetry(a: usize, b: usize)
+    machine antisymmetry(a: u64, b: u64)
     requires
         a <= b
         b <= a
@@ -248,7 +248,7 @@ fn proves_entailment_ladder_on_empty_proof_machines() {
     {
     }
 
-    machine remainder_bound(a: usize)
+    machine remainder_bound(a: u64)
     ensures
         a % 2 in 0..=1
     {
@@ -299,7 +299,7 @@ fn stands_down_on_out_of_language_contracts() {
     // unprovable ensures must be ACCEPTED unchecked rather than rejected.
     validate_contract_source(
         r#"
-    machine uses_unknown_call(a: usize, b: usize)
+    machine uses_unknown_call(a: u64, b: u64)
     requires
         min(a, b) >= 1
     ensures
@@ -323,7 +323,7 @@ fn accepts_vacuous_ensures_under_contradictory_requires() {
     // refutation pass must stand down rather than reject a vacuous truth.
     validate_contract_source(
         r#"
-    machine vacuous_truth(i: usize, j: usize)
+    machine vacuous_truth(i: u64, j: u64)
     requires
         i < j
         j < i
@@ -384,10 +384,10 @@ fn proves_inductive_theorem_via_recursive_contract_and_decrease() {
     }
 
     machine Main::main(&mut self) {
-        let total: usize = self.gauss_sum(4, 0);
+        let total: u64 = self.gauss_sum(4, 0);
     }
 
-    machine Main::gauss_sum(&mut self, n: usize, acc: usize) -> usize
+    machine Main::gauss_sum(&mut self, n: u64, acc: u64) -> u64
     terminates {
         decreases n;
     }
@@ -414,10 +414,10 @@ fn refutes_inductive_false_twin_on_the_base_arm() {
     }
 
     machine Main::main(&mut self) {
-        let total: usize = self.gauss_sum(4, 0);
+        let total: u64 = self.gauss_sum(4, 0);
     }
 
-    machine Main::gauss_sum(&mut self, n: usize, acc: usize) -> usize
+    machine Main::gauss_sum(&mut self, n: u64, acc: u64) -> u64
     terminates {
         decreases n;
     }
@@ -451,10 +451,10 @@ fn rejects_inductive_step_false_twin_on_the_recursive_arm() {
     }
 
     machine Main::main(&mut self) {
-        let total: usize = self.gauss_sum(4, 0);
+        let total: u64 = self.gauss_sum(4, 0);
     }
 
-    machine Main::gauss_sum(&mut self, n: usize, acc: usize) -> usize
+    machine Main::gauss_sum(&mut self, n: u64, acc: u64) -> u64
     terminates {
         decreases n;
     }
@@ -491,10 +491,10 @@ fn no_induction_hypothesis_without_a_decreases_claim() {
     }
 
     machine Main::main(&mut self) {
-        let total: usize = self.gauss_sum(4, 0);
+        let total: u64 = self.gauss_sum(4, 0);
     }
 
-    machine Main::gauss_sum(&mut self, n: usize, acc: usize) -> usize
+    machine Main::gauss_sum(&mut self, n: u64, acc: u64) -> u64
     ensures
         result * 2 == acc * 2 + n * (n + 1)
     {
@@ -521,10 +521,10 @@ fn no_induction_hypothesis_when_the_call_site_decrease_is_undischarged() {
     }
 
     machine Main::main(&mut self) {
-        let total: usize = self.gauss_sum(4, 0);
+        let total: u64 = self.gauss_sum(4, 0);
     }
 
-    machine Main::gauss_sum(&mut self, n: usize, acc: usize) -> usize
+    machine Main::gauss_sum(&mut self, n: u64, acc: u64) -> u64
     terminates {
         decreases n;
     }
@@ -558,7 +558,7 @@ fn accepts_true_theorems_on_empty_proof_machines() {
     {
     }
 
-    machine less_than_transitive(a: usize, b: usize, c: usize)
+    machine less_than_transitive(a: u64, b: u64, c: u64)
     requires
         a < b
         b < c
@@ -1086,7 +1086,7 @@ mod provider_registry {
             r#"
             provider omega::host::WriteBytes : HostAbiCall;
 
-            boundary operator omega::host::write(handle: i64, length: usize) -> usize
+            boundary operator omega::host::write(handle: i64, length: u64) -> u64
             provider omega::host::WriteBytes
             requires
                 length > 0;
@@ -1127,7 +1127,7 @@ mod provider_registry {
             r#"
             provider omega::language::core::Slice : SliceIndexing;
 
-            boundary operator omega::language::core::index<T>(items: &[T], index: usize) -> T
+            boundary operator omega::language::core::index<T>(items: &[T], index: u64) -> T
             spelling []
             provider omega::language::core::Slice
             requires

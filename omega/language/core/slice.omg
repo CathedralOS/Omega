@@ -14,15 +14,15 @@
 // Boundary primitive provider for slice indexing/subslicing (Wave 0 #4).
 provider omega::language::core::slice_indexing : SliceIndexing;
 
-boundary operator Slice::Length<T>(items: &[T]) -> usize;
+boundary operator Slice::Length<T>(items: &[T]) -> u64;
 
-boundary operator Slice::index<T>(items: &[T], index: usize) -> T
+boundary operator Slice::index<T>(items: &[T], index: u64) -> T
 spelling []
 provider omega::language::core::slice_indexing
 requires
     index < items.len;
 
-boundary operator Slice::index_mut<T>(items: &mut [T], index: usize) -> &mut T
+boundary operator Slice::index_mut<T>(items: &mut [T], index: u64) -> &mut T
 requires
     index < items.len;
 
@@ -34,28 +34,28 @@ boundary operator Slice::tail_mut<T>(items: &mut [T]) -> &mut [T]
 requires
     items.len > 0;
 
-boundary operator Slice::from<T>(items: &[T], start: usize) -> &[T]
+boundary operator Slice::from<T>(items: &[T], start: u64) -> &[T]
 requires
     start <= items.len;
 
-boundary operator Slice::from_mut<T>(items: &mut [T], start: usize) -> &mut [T]
+boundary operator Slice::from_mut<T>(items: &mut [T], start: u64) -> &mut [T]
 requires
     start <= items.len;
 
-boundary operator Slice::to<T>(items: &[T], end: usize) -> &[T]
+boundary operator Slice::to<T>(items: &[T], end: u64) -> &[T]
 requires
     end <= items.len;
 
-boundary operator Slice::to_mut<T>(items: &mut [T], end: usize) -> &mut [T]
+boundary operator Slice::to_mut<T>(items: &mut [T], end: u64) -> &mut [T]
 requires
     end <= items.len;
 
-boundary operator Slice::range<T>(items: &[T], start: usize, end: usize) -> &[T]
+boundary operator Slice::range<T>(items: &[T], start: u64, end: u64) -> &[T]
 spelling [..]
 provider omega::language::core::slice_indexing
 requires
     start <= end && end <= items.len;
 
-boundary operator Slice::range_mut<T>(items: &mut [T], start: usize, end: usize) -> &mut [T]
+boundary operator Slice::range_mut<T>(items: &mut [T], start: u64, end: u64) -> &mut [T]
 requires
     start <= end && end <= items.len;

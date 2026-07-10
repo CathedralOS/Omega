@@ -1700,8 +1700,8 @@ fn primitive_constraints(name: &Identifier) -> ConstraintBuffer {
     // Every UNSIGNED primitive carries its type range as a proof fact -- the
     // lower half (`>= 0`) is what discharges index/bound obligations when a
     // guard supplies only the upper half (`idx < 3`). This list originally
-    // held just u32 and usize; the usize retirement's corpus sweep
-    // (usize -> u64) exposed the gap: a `u64` field lost its `>= 0` fact and
+    // held just u32 and usize (now retired); the retirement's corpus sweep
+    // exposed the gap: a `u64` field carried no `>= 0` fact and
     // previously-proving programs failed their bounded-parameter checks.
     // u64's maximum caps at i64::MAX -- the proof domain's integer width
     // (matching the old usize fact).
@@ -1710,7 +1710,7 @@ fn primitive_constraints(name: &Identifier) -> ConstraintBuffer {
         "u8" => Some((0, u8::MAX as i64)),
         "u16" => Some((0, u16::MAX as i64)),
         "u32" => Some((0, u32::MAX as i64)),
-        "u64" | "usize" => Some((0, i64::MAX)),
+        "u64" => Some((0, i64::MAX)),
         _ => None,
     };
     if let Some((minimum, maximum)) = range {

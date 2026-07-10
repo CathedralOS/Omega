@@ -17,13 +17,13 @@
 provider omega::language::core::array_views : DescriptorConstruction;
 
 // Length in elements: the static extent of the array. Cheap O(1) measure.
-boundary operator Array::Length<T>(items: &Array<T>) -> usize;
+boundary operator Array::Length<T>(items: &Array<T>) -> u64;
 
-boundary operator Array::index<T>(items: &Array<T>, index: usize) -> T
+boundary operator Array::index<T>(items: &Array<T>, index: u64) -> T
 requires
     index < items.len;
 
-boundary operator Array::index_mut<T>(items: &mut Array<T>, index: usize) -> &mut T
+boundary operator Array::index_mut<T>(items: &mut Array<T>, index: u64) -> &mut T
 requires
     index < items.len;
 

@@ -604,7 +604,7 @@ fn materializes_operator_result_owned_production_moves() {
     // and the static `String` path receiver is a type name, never a movable
     // place -- so exactly two moves appear, rooted at the written places.
     let source = r#"
-        boundary operator String::with_capacity(capacity: usize) -> String;
+        boundary operator String::with_capacity(capacity: u64) -> String;
 
         data Main {
             text: String;

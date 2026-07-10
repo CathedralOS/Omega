@@ -12,4 +12,4 @@
 // - custom numeric-like domains can define their own named rankings instead of
 //   pretending every ordering belongs directly to the data type
 
-operator Nat::Descending(value: usize) -> usize;
+operator Nat::Descending(value: u64) -> u64;

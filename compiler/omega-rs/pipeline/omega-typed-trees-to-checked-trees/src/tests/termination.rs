@@ -7,10 +7,10 @@ fn rejects_terminating_recursive_machine_without_decreases() {
     data Main {}
 
     machine Main::main(&mut self) {
-        let value: usize = self.countdown(2);
+        let value: u64 = self.countdown(2);
     }
 
-    machine Main::countdown(&mut self, remaining: usize) terminates {
+    machine Main::countdown(&mut self, remaining: u64) terminates {
         transition remaining > 0 {
             true -> self.countdown(remaining - 1)
             false -> 0
@@ -38,10 +38,10 @@ fn accepts_slice_range_surface_during_checked_lowering() {
     let source = r#"
     data Main {}
 
-    machine Main::main(&mut self) -> usize {
-        let values: [usize; 4] = [1, 2, 3, 4];
-        let view: &[usize] = values.as_slice();
-        let tail: &[usize] = view[1..];
+    machine Main::main(&mut self) -> u64 {
+        let values: [u64; 4] = [1, 2, 3, 4];
+        let view: &[u64] = values.as_slice();
+        let tail: &[u64] = view[1..];
         tail.len
     }
     "#;
@@ -62,10 +62,10 @@ fn accepts_terminating_countdown_machine_with_decreases() {
     data Main {}
 
     machine Main::main(&mut self) {
-        let value: usize = self.countdown(2);
+        let value: u64 = self.countdown(2);
     }
 
-    machine Main::countdown(&mut self, remaining: usize)
+    machine Main::countdown(&mut self, remaining: u64)
     terminates {
         decreases remaining -> Nat::Descending;
     }
@@ -93,14 +93,14 @@ fn accepts_terminating_distance_machine_with_decreases() {
     data Main {}
 
     machine Main::main(&mut self) {
-        let value: usize = self.walk(4, 0);
+        let value: u64 = self.walk(4, 0);
     }
 
-    machine Main::walk(&mut self, limit: usize, index: usize)
+    machine Main::walk(&mut self, limit: u64, index: u64)
     terminates {
         decreases (index, limit) -> Nat::BoundedDistance;
     }
-    -> usize
+    -> u64
     {
         transition index < limit {
             true -> self.walk(limit, index + 1)
@@ -132,14 +132,14 @@ fn accepts_terminating_slice_distance_machine_with_decreases() {
 
     machine Main::main(&mut self) {
         let view: &[Entry] = self.entries.as_slice();
-        let value: usize = self.walk(view, 0);
+        let value: u64 = self.walk(view, 0);
     }
 
-    machine Main::walk(&mut self, entries: &[Entry], index: usize)
+    machine Main::walk(&mut self, entries: &[Entry], index: u64)
     terminates {
         decreases (index, entries.len) -> Nat::BoundedDistance;
     }
-    -> usize
+    -> u64
     {
         transition index < entries.len {
             true -> self.walk(entries, index + 1)
@@ -164,10 +164,10 @@ fn rejects_terminating_countdown_machine_with_stalled_decrease() {
     data Main {}
 
     machine Main::main(&mut self) {
-        let value: usize = self.countdown(2);
+        let value: u64 = self.countdown(2);
     }
 
-    machine Main::countdown(&mut self, remaining: usize)
+    machine Main::countdown(&mut self, remaining: u64)
     terminates {
         decreases remaining -> Nat::Descending;
     }
@@ -207,14 +207,14 @@ fn rejects_terminating_slice_distance_machine_with_stalled_index() {
 
     machine Main::main(&mut self) {
         let view: &[Entry] = self.entries.as_slice();
-        let value: usize = self.walk(view, 0);
+        let value: u64 = self.walk(view, 0);
     }
 
-    machine Main::walk(&mut self, entries: &[Entry], index: usize)
+    machine Main::walk(&mut self, entries: &[Entry], index: u64)
     terminates {
         decreases (index, entries.len) -> Nat::BoundedDistance;
     }
-    -> usize
+    -> u64
     {
         transition index < entries.len {
             true -> self.walk(entries, index)
@@ -251,14 +251,14 @@ fn rejects_terminating_slice_length_order_without_supported_progress_shape() {
 
     machine Main::main(&mut self) {
         let view: &[Entry] = self.entries.as_slice();
-        let value: usize = self.walk(view, 0);
+        let value: u64 = self.walk(view, 0);
     }
 
-    machine Main::walk(&mut self, entries: &[Entry], index: usize)
+    machine Main::walk(&mut self, entries: &[Entry], index: u64)
     terminates {
         decreases entries -> Slice::Length;
     }
-    -> usize
+    -> u64
     {
         transition index < entries.len {
             true -> self.walk(entries, index + 1)
@@ -295,14 +295,14 @@ fn accepts_terminating_slice_length_order_with_shrinking_subslice() {
 
     machine Main::main(&mut self) {
         let view: &[Entry] = self.entries.as_slice();
-        let value: usize = self.walk(view);
+        let value: u64 = self.walk(view);
     }
 
     machine Main::walk(&mut self, entries: &[Entry])
     terminates {
         decreases entries -> Slice::Length;
     }
-    -> usize
+    -> u64
     {
         transition entries.len > 0 {
             true -> self.walk(entries[1..])
@@ -326,24 +326,24 @@ fn accepts_terminating_mutually_recursive_states_with_decreases() {
     let source = r#"
     data Main {}
 
-    machine Main::main(&mut self) -> usize {
+    machine Main::main(&mut self) -> u64 {
         transition {
             _ -> self.ping(4)
         }
     }
 
-    machine Main::ping(&mut self, remaining: usize)
+    machine Main::ping(&mut self, remaining: u64)
     terminates {
         decreases remaining -> Nat::Descending;
     }
-    -> usize
+    -> u64
     {
         transition remaining > 0 {
             true -> pong(remaining - 1)
             false -> 0
         }
 
-        state pong(&mut self, remaining: usize) -> usize {
+        state pong(&mut self, remaining: u64) -> u64 {
             transition remaining > 0 {
                 true -> ping(remaining - 1)
                 false -> 0
@@ -367,24 +367,24 @@ fn rejects_terminating_mutually_recursive_states_without_decrease() {
     let source = r#"
     data Main {}
 
-    machine Main::main(&mut self) -> usize {
+    machine Main::main(&mut self) -> u64 {
         transition {
             _ -> self.ping(4)
         }
     }
 
-    machine Main::ping(&mut self, remaining: usize)
+    machine Main::ping(&mut self, remaining: u64)
     terminates {
         decreases remaining -> Nat::Descending;
     }
-    -> usize
+    -> u64
     {
         transition remaining > 0 {
             true -> pong(remaining)
             false -> 0
         }
 
-        state pong(&mut self, remaining: usize) -> usize {
+        state pong(&mut self, remaining: u64) -> u64 {
             transition remaining > 0 {
                 true -> ping(remaining)
                 false -> 0
@@ -414,10 +414,10 @@ fn infers_default_nat_descending_for_plain_usize_decreases() {
     data Main {}
 
     machine Main::main(&mut self) {
-        let value: usize = self.countdown(2);
+        let value: u64 = self.countdown(2);
     }
 
-    machine Main::countdown(&mut self, remaining: usize)
+    machine Main::countdown(&mut self, remaining: u64)
     terminates {
         decreases remaining;
     }
@@ -452,14 +452,14 @@ fn infers_default_slice_length_for_plain_slice_decreases() {
 
     machine Main::main(&mut self) {
         let view: &[Entry] = self.entries.as_slice();
-        let value: usize = self.walk(view);
+        let value: u64 = self.walk(view);
     }
 
     machine Main::walk(&mut self, entries: &[Entry])
     terminates {
         decreases entries;
     }
-    -> usize
+    -> u64
     {
         transition entries.len > 0 {
             true -> self.walk(entries[1..])
@@ -484,14 +484,14 @@ fn infers_default_bounded_distance_for_plain_two_subject_tuple() {
     data Main {}
 
     machine Main::main(&mut self) {
-        let value: usize = self.walk(4, 0);
+        let value: u64 = self.walk(4, 0);
     }
 
-    machine Main::walk(&mut self, limit: usize, index: usize)
+    machine Main::walk(&mut self, limit: u64, index: u64)
     terminates {
         decreases (index, limit);
     }
-    -> usize
+    -> u64
     {
         transition index < limit {
             true -> self.walk(limit, index + 1)
@@ -516,14 +516,14 @@ fn accepts_explicit_named_bounded_distance_view() {
     data Main {}
 
     machine Main::main(&mut self) {
-        let value: usize = self.walk(4, 0);
+        let value: u64 = self.walk(4, 0);
     }
 
-    machine Main::walk(&mut self, limit: usize, index: usize)
+    machine Main::walk(&mut self, limit: u64, index: u64)
     terminates {
         decreases (index, limit) -> Nat::BoundedDistance;
     }
-    -> usize
+    -> u64
     {
         transition index < limit {
             true -> self.walk(limit, index + 1)
@@ -548,14 +548,14 @@ fn rejects_inverted_bounded_distance_with_naming_diagnostic() {
     data Main {}
 
     machine Main::main(&mut self) {
-        let value: usize = self.walk(4, 0);
+        let value: u64 = self.walk(4, 0);
     }
 
-    machine Main::walk(&mut self, limit: usize, index: usize)
+    machine Main::walk(&mut self, limit: u64, index: u64)
     terminates {
         decreases (limit, index);
     }
-    -> usize
+    -> u64
     {
         transition index < limit {
             true -> self.walk(limit, index + 1)
@@ -596,14 +596,14 @@ fn rejects_retired_subtraction_decreases_spelling_with_tuple_guidance() {
     data Main {}
 
     machine Main::main(&mut self) {
-        let value: usize = self.walk(4, 0);
+        let value: u64 = self.walk(4, 0);
     }
 
-    machine Main::walk(&mut self, limit: usize, index: usize)
+    machine Main::walk(&mut self, limit: u64, index: u64)
     terminates {
         decreases limit - index;
     }
-    -> usize
+    -> u64
     {
         transition index < limit {
             true -> self.walk(limit, index + 1)
@@ -645,10 +645,10 @@ fn rejects_named_bounded_distance_view_over_single_subject() {
     data Main {}
 
     machine Main::main(&mut self) {
-        let value: usize = self.countdown(2);
+        let value: u64 = self.countdown(2);
     }
 
-    machine Main::countdown(&mut self, remaining: usize)
+    machine Main::countdown(&mut self, remaining: u64)
     terminates {
         decreases remaining -> Nat::BoundedDistance;
     }
@@ -762,23 +762,23 @@ fn infers_default_nat_descending_for_plain_u32_decreases() {
 fn plain_decreases_never_selects_a_declared_measure_even_when_unique() {
     let source = r#"
     data Card {
-        power: usize;
+        power: u64;
     }
 
-    measure Card::PowerOrder(card: Card) -> usize { card.power }
+    measure Card::PowerOrder(card: Card) -> u64 { card.power }
 
     data Main {
     }
 
     machine Main::main(&mut self) {
-        let value: usize = self.weaken(Card { power: 3 });
+        let value: u64 = self.weaken(Card { power: 3 });
     }
 
     machine Main::weaken(&mut self, card: Card)
     terminates {
         decreases card;
     }
-    -> usize
+    -> u64
     {
         transition card.power > 0 {
             true -> self.weaken(Card { power: card.power - 1 })

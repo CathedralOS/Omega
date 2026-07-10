@@ -1,0 +1,6 @@
+// FAIL canary: `isize` retires with its unsigned twin (usize retirement) --
+// the pointer-width-signed spelling conflates the same axes. Signed 64-bit
+// arithmetic is i64.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; n: isize; }
+machine Main::main(&mut self) { self.console.exit_process(70); }

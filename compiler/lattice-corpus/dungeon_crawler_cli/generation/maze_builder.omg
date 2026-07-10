@@ -285,7 +285,7 @@ machine MazeBuilder::carve_room(
     branch_id: u32 in Wrapping
 ) {
     let room: &mut Room = self.room_mut(level, cell);
-    let index: usize in Wrapping = self.cell_index(cell);
+    let index: u64 in Wrapping = self.cell_index(cell);
     room.cell = cell;
     room.depth = depth;
     room.branch = branch_id;
@@ -431,7 +431,7 @@ machine MazeBuilder::next_unused_cell(
 machine MazeBuilder::cell_index(
     &mut self,
     cell: CellId
-    ) -> usize {
+    ) -> u64 {
     transition {
         cell == CellId::R00 -> 0
         cell == CellId::R01 -> 1

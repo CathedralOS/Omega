@@ -532,7 +532,7 @@ pub(crate) fn validate_wire_schema_call(
 ///   trailing String byte-copy needs no runtime bounds check -- the
 ///   byte-copy alone bounds against N at runtime and truncates content past
 ///   capacity;
-/// - the written argument is `&mut u64` (usize tolerated until retired).
+/// - the written argument is `&mut u64`.
 ///
 /// Places this scope cannot type (alias-fed or computed arguments) skip the
 /// value/out/written checks; instruction selection re-resolves every place
@@ -856,15 +856,13 @@ fn validate_wire_encode_call(
         }
     }
 
-    // Written argument: `&mut u64` (the byte count -- a size, so u64 per the
-    // usize retirement; `usize` stays accepted until the type dies).
+    // Written argument: `&mut u64` (the byte count -- a size, so u64).
     if let Some(written_type) =
         declared_place_type(program, current_machine, current_state, arguments[2])
         && !matches!(
             program.primitive_type_reference(written_type),
             Some(
                 omega_typed_trees::types::PrimitiveType::U64
-                    | omega_typed_trees::types::PrimitiveType::Usize
             )
         )
     {
@@ -1179,15 +1177,13 @@ fn validate_wire_decode_call(
         )));
     }
 
-    // Read argument: `&mut u64` (the consumed byte count; `usize` stays
-    // accepted until the type dies -- usize retirement).
+    // Read argument: `&mut u64` (the consumed byte count).
     if let Some(read_type) =
         declared_place_type(program, current_machine, current_state, arguments[2])
         && !matches!(
             program.primitive_type_reference(read_type),
             Some(
                 omega_typed_trees::types::PrimitiveType::U64
-                    | omega_typed_trees::types::PrimitiveType::Usize
             )
         )
     {
@@ -1440,13 +1436,10 @@ fn validate_repeated_value_field(
             )));
         }
         Some(count_field) => {
-            // u64 is the count type (a size); `usize` stays accepted until
-            // the type dies -- usize retirement.
             if !matches!(
                 program.primitive_type_reference(count_field.type_reference),
                 Some(
                     omega_typed_trees::types::PrimitiveType::U64
-                        | omega_typed_trees::types::PrimitiveType::Usize
                 )
             ) {
                 diagnostics.push(Diagnostic::error(format!(

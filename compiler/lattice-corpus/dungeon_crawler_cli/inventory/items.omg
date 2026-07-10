@@ -13,6 +13,6 @@ data InventoryItem {
 
 data Inventory {
     items: [InventoryItem; 32];
-    item_count: usize in Wrapping;
+    item_count: u64 in Wrapping;
     gold: u32 in Wrapping;
 }

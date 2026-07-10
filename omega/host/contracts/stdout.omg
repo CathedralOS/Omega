@@ -1,9 +1,9 @@
 use omega::host::contracts::types;
 
 capability Stdout {
-    entry write(buf: Slice<u8>) -> Result<usize, IOError> where {
+    entry write(buf: Slice<u8>) -> Result<u64, IOError> where {
         requires buf.initialized
-        requires buf.len <= usize.max
+        requires buf.len <= u64.max
         ensures result.Ok || result.Err
         boundary host
     }

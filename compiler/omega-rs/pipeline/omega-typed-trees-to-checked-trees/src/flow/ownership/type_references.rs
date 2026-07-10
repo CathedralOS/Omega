@@ -106,7 +106,6 @@ pub(in crate::flow::ownership) fn type_requires_ownership(
                     | omega_typed_trees::types::PrimitiveType::I32
                     | omega_typed_trees::types::PrimitiveType::U32
                     | omega_typed_trees::types::PrimitiveType::U64
-                    | omega_typed_trees::types::PrimitiveType::Usize
             )
         ),
         omega_typed_trees::types::TypeReferenceNode::DynamicTrait { .. }

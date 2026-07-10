@@ -1281,8 +1281,6 @@ fn scalar_primitive_rank(primitive: PrimitiveType) -> u8 {
         PrimitiveType::F64
         | PrimitiveType::I64
         | PrimitiveType::U64
-        | PrimitiveType::Usize
-        | PrimitiveType::Isize
         | PrimitiveType::Addr
         | PrimitiveType::String => 2,
     }
@@ -1309,7 +1307,7 @@ pub(super) fn resolve_runtime_storage_primitive_type(
 }
 
 /// Whether a storage TARGET is an atomic-typed place (`AtomicU32`/`AtomicU64`/
-/// `AtomicBool`/`AtomicUsize`). An RMW on such a place is lowered to a single
+/// `AtomicBool`/`AtomicU64`). An RMW on such a place is lowered to a single
 /// atomic instruction (`LOCK xadd`). Reads the RAW leaf descriptor name —
 /// atomics survive here as `Named{"Atomic*"}` (the `AtomicU32 -> u32` primitive
 /// mapping is applied only on demand by `descriptor_primitive_type`).

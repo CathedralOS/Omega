@@ -23,7 +23,6 @@ pub(super) fn expression_is_unsigned_integer(
                 | PrimitiveType::U16
                 | PrimitiveType::U32
                 | PrimitiveType::U64
-                | PrimitiveType::Usize
         )
     )
 }
@@ -83,7 +82,6 @@ pub(super) fn expression_enforced_declared_range(
             | PrimitiveType::U16
             | PrimitiveType::U32
             | PrimitiveType::U64
-            | PrimitiveType::Usize
     ) {
         return None;
     }

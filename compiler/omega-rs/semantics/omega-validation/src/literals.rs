@@ -104,7 +104,7 @@ fn u64_blessed_literals(program: &TypedTrees) -> Vec<ExpressionHandle> {
             };
             if matches!(
                 primitive,
-                PrimitiveType::U64 | PrimitiveType::Usize | PrimitiveType::Addr
+                PrimitiveType::U64 | PrimitiveType::Addr
             ) {
                 blessed.push(field.value);
             }
@@ -177,7 +177,7 @@ fn primitive_is_u64_classed(
 ) -> bool {
     matches!(
         program.primitive_type_reference(unwrapped),
-        Some(PrimitiveType::U64 | PrimitiveType::Usize | PrimitiveType::Addr)
+        Some(PrimitiveType::U64 | PrimitiveType::Addr)
     )
 }
 

@@ -90,7 +90,7 @@ fn materializes_checked_value_facts_for_machine_decreases() {
     let source = r#"
         data Main {}
 
-        machine Main::countdown(&mut self, remaining: usize)
+        machine Main::countdown(&mut self, remaining: u64)
         terminates {
             decreases remaining -> Nat::Descending;
         }

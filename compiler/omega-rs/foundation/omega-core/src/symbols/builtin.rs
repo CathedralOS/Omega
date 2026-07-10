@@ -1,6 +1,6 @@
 use super::{SymbolKind, SymbolNameRef};
 
-pub const BUILTIN_TYPE_COUNT: usize = 28;
+pub const BUILTIN_TYPE_COUNT: usize = 25;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BuiltinType {
@@ -25,10 +25,15 @@ impl BuiltinType {
     }
 
     pub fn ordinal(self) -> usize {
+        // POSITION in `builtin_type_symbols()` -- symbol handles are assigned
+        // in table order, so these MUST track that array. (The usize/isize
+        // retirement removed two entries above these and shifted them from
+        // 19/20/21; the builtin_type_ordinals_track_the_symbol_table unit
+        // test pins the coupling.)
         match self {
-            Self::UInt => 19,
-            Self::Int => 20,
-            Self::Real => 21,
+            Self::UInt => 18,
+            Self::Int => 19,
+            Self::Real => 20,
         }
     }
 }
@@ -70,13 +75,11 @@ pub fn builtin_type_symbols() -> [(SymbolKind, SymbolNameRef<'static>); BUILTIN_
         (SymbolKind::BuiltinType, SymbolNameRef::Static("i16")),
         (SymbolKind::BuiltinType, SymbolNameRef::Static("i32")),
         (SymbolKind::BuiltinType, SymbolNameRef::Static("i64")),
-        (SymbolKind::BuiltinType, SymbolNameRef::Static("isize")),
         (SymbolKind::BuiltinType, SymbolNameRef::Static("u8")),
         (SymbolKind::BuiltinType, SymbolNameRef::Static("u16")),
         (SymbolKind::BuiltinType, SymbolNameRef::Static("u32")),
         (SymbolKind::BuiltinType, SymbolNameRef::Static("u64")),
-        (SymbolKind::BuiltinType, SymbolNameRef::Static("usize")),
-        // `addr` -- a pointer-width ADDRESS type, distinct from `usize`/counts
+        // `addr` -- a pointer-width ADDRESS type, distinct from u64 counts
         // (index_count_and_address_model brief: address and count are separate
         // axes). Naive pointer-width for now (rides the 8-byte path); the
         // in-region/aligned capability discipline is a later rung.
@@ -112,7 +115,6 @@ pub fn builtin_type_symbols() -> [(SymbolKind, SymbolNameRef<'static>); BUILTIN_
         (SymbolKind::BuiltinType, SymbolNameRef::Static("AtomicBool")),
         (SymbolKind::BuiltinType, SymbolNameRef::Static("AtomicU32")),
         (SymbolKind::BuiltinType, SymbolNameRef::Static("AtomicU64")),
-        (SymbolKind::BuiltinType, SymbolNameRef::Static("AtomicUsize")),
     ]
 }
 
@@ -165,4 +167,27 @@ pub fn builtin_type_member_symbols(
                 SymbolNameRef::Static(member.name()),
             )
         })
+}
+
+#[cfg(test)]
+mod builtin_ordinal_tests {
+    use super::*;
+
+    #[test]
+    fn builtin_type_ordinals_track_the_symbol_table() {
+        // Symbol handles are assigned in builtin_type_symbols() order;
+        // BuiltinType::ordinal() hardcodes positions and silently breaks
+        // when the table gains or loses entries (the usize retirement
+        // shifted UInt/Int/Real by two and layout resolution failed with
+        // "unknown layout-bearing type `UInt`").
+        let table = builtin_type_symbols();
+        for builtin_type in [BuiltinType::UInt, BuiltinType::Int, BuiltinType::Real] {
+            assert_eq!(
+                table[builtin_type.ordinal()].1.as_str(),
+                builtin_type.name(),
+                "ordinal for {:?} does not match the symbol table position",
+                builtin_type
+            );
+        }
+    }
 }

@@ -19,7 +19,7 @@ ensures
 // L1: ordering transitivity over hypotheses.
 // Lean analog: `Nat.lt_trans : a < b -> b < c -> a < c`
 // Engine increment: stored-fact matching + transitive chaining.
-machine less_than_transitive(a: usize, b: usize, c: usize)
+machine less_than_transitive(a: u64, b: u64, c: u64)
 requires
     a < b
     b < c
@@ -30,7 +30,7 @@ ensures
 
 // Order asymmetry's positive face: strict order implies distinctness.
 // Lean analog: `Nat.ne_of_lt : a < b -> a != b`
-machine distinct_when_ordered(i: usize, j: usize)
+machine distinct_when_ordered(i: u64, j: u64)
 requires
     i < j
 ensures
@@ -42,7 +42,7 @@ ensures
 // L2: linear range arithmetic (interval addition).
 // Lean analog: `add_le_add : a <= b -> c <= d -> a + c <= b + d` (both bounds)
 // Engine increment: interval propagation through `+`.
-machine sum_of_bounded(a: usize, b: usize)
+machine sum_of_bounded(a: u64, b: u64)
 requires
     a in 1..=10
     b in 1..=10
@@ -55,7 +55,7 @@ ensures
 // L3: congruence -- equality respects function application.
 // Lean analog: `congrArg (fun n => n + 1) : a = b -> a + 1 = b + 1`
 // Engine increment: rewriting under stored equations.
-machine add_one_congruence(a: usize, b: usize)
+machine add_one_congruence(a: u64, b: u64)
 requires
     a == b
 ensures
@@ -67,7 +67,7 @@ ensures
 // L4: commutativity with no hypotheses.
 // Lean analog: `Nat.add_comm : a + b = b + a`
 // Engine increment: term normalization (canonical operand order).
-machine add_commutative(a: usize, b: usize)
+machine add_commutative(a: u64, b: u64)
 ensures
     a + b == b + a
 {
@@ -77,7 +77,7 @@ ensures
 // L5: nonlinear ranges (interval product of a variable with itself).
 // Lean analog: `Nat.mul_le_mul : a <= b -> c <= d -> a * c <= b * d`
 // Engine increment: interval products.
-machine square_bounded(a: usize)
+machine square_bounded(a: u64)
 requires
     a in 0..=10
 ensures
@@ -90,7 +90,7 @@ ensures
 
 // Antisymmetry of <=.
 // Lean analog: `Nat.le_antisymm : a <= b -> b <= a -> a = b`
-machine less_equal_antisymmetric(a: usize, b: usize)
+machine less_equal_antisymmetric(a: u64, b: u64)
 requires
     a <= b
     b <= a
@@ -101,7 +101,7 @@ ensures
 
 // Distributivity, a ring normalization fact.
 // Lean analog: `Nat.add_mul : (a + b) * c = a * c + b * c` (or `by ring`)
-machine multiply_distributes(a: usize, b: usize, c: usize)
+machine multiply_distributes(a: u64, b: u64, c: u64)
 ensures
     (a + b) * c == a * c + b * c
 {
@@ -109,7 +109,7 @@ ensures
 
 // Euclidean remainder bound.
 // Lean analog: `Nat.mod_lt : 0 < n -> a % n < n`
-machine remainder_bounded(a: usize)
+machine remainder_bounded(a: u64)
 ensures
     a % 2 in 0..=1
 {
