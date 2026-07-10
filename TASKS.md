@@ -68,6 +68,11 @@ should target NEW feature surfaces as they land, not re-walk these axes.
 
 ## Owner-gated holds (see OWNER_QUESTIONS.md)
 
+- **Q13 console convergence** — `platform` blocks vs boundary traits (the
+  console byte-op arc's last rung; the purity checker calls read_byte pure
+  because platform entries carry no effect rows -- refusal-guarded today).
+  Guide ch18 already PRESCRIBES the boundary-trait shape; on a ruling the
+  work is the std migration.
 - **FLOAT-TO-INT half still open (no ruling)** — migrated to
   OWNER_QUESTIONS.md item 10 (2026-07-09, per the consolidation directive).
   Parked cast divergence stays in the drift ledger until answered.
@@ -110,9 +115,10 @@ should target NEW feature surfaces as they land, not re-walk these axes.
   with the x15 precedent note). The poison stays as negative space for the
   NEXT unloweable payload-field shape; when one surfaces in authoring, give
   it the fail canary.
-- **Same-type receiver aliasing** — CLAIMED by the fs lane (TASKS_FS.md
-  "Stolen work #2"); per-instance receiver phases have been landing. Retire
-  pending/time/value_machine_receiver_field_postentry when their arc closes.
+- **Same-type receiver aliasing** — fs-lane arc, slice 1 landed (receivers
+  serve on both routes for entry-machine callers; ambiguous multi-call
+  states stay fenced -- e0c718793..cd271c670). Retire
+  pending/time/value_machine_receiver_field_postentry when the fence lifts.
 - **Float `is_float` on nested operand paths: not silently reachable
   (probed 2026-07-12).** Nested float binaries serve in write-value,
   transition-arg, and spliced-mutation positions (pinned:
@@ -121,6 +127,24 @@ should target NEW feature surfaces as they land, not re-walk these axes.
   poisoned. The `is_float: false` notes in the tree/branch resolvers stay as
   latent markers -- if a route change makes one reachable, the canary legs go
   loud. Wire on first real reproduction.
+
+## Platform verification sessions (host-gated; the retired TASKS_FS/TASKS_TIME lists fold in here, 2026-07-17)
+
+- **Windows session** (one session closes all of it): natively verify the
+  fs stat-row migration; migrate WINDOWS_IMPORT_ROWS into provides files;
+  Win32 rows for the no-msvcrt fs ops (pread/*at/link/read_dir/flock/
+  chown/futimens/realpath — loud "no native lowering" refusals today);
+  file_journal sample recheck; WndProc entry stubs (title-bar close); the
+  fs<->time mtime interop leg (time-side surface ready + canaried; rides
+  the stat rows). Also re-baseline the two cfg(windows) efi byte-pin
+  tests (proved stale via cross-target PE evidence, 2026-07-17).
+- **Linux session**: fs + time binding tables are structural-only until a
+  host exists. Time's monotonic/wall rows additionally need a timespec
+  composite lowering (clock_gettime writes {tv_sec, tv_nsec}; result =
+  sec * 1e9 + nsec) — buildable now with the byte-op composite pattern,
+  deferred because it would ship unverifiable.
+- Dormant residual: typed machines carry no source file (fine until a
+  second consumer after is_build_machine needs one).
 
 ## Programmable-layouts remainder (ch21/21/22; chapters are the spec)
 
