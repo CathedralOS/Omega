@@ -29242,6 +29242,14 @@ const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
         expectation: PendingCanaryExpectation::CurrentlyAccepts,
     },
     PendingCanary {
+        path: "calls/texteq_local_guard_read_divergence",
+        expectation: PendingCanaryExpectation::CurrentlyAccepts,
+    },
+    PendingCanary {
+        path: "calls/texteq_local_arg_forward_divergence",
+        expectation: PendingCanaryExpectation::CurrentlyAccepts,
+    },
+    PendingCanary {
         path: "arithmetic/const_fold_unsigned_divide_miscompile",
         expectation: PendingCanaryExpectation::CurrentlyAccepts,
     },
