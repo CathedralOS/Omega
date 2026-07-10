@@ -1,6 +1,6 @@
 mod classify;
 mod layout;
-mod values;
+pub(crate) mod values;
 
 use crate::StateGuardOperand;
 use classify::classify_guard_operand;

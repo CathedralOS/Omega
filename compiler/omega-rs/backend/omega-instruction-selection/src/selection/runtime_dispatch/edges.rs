@@ -1211,9 +1211,10 @@ fn select_dispatch_guard_instructions(
                         right_offset: clause.right_byte_offset,
                         byte_size: clause.byte_size,
                         operator,
-                        // Float operands inside an AND-conjunction clause are a
-                        // follow-on; single comparisons take the path below.
-                        is_float: false,
+                        // Place-vs-place float conjuncts stay a follow-on; the
+                        // clause carries float-kindedness for constant-float
+                        // compares.
+                        is_float: clause.is_float,
                     }
                 } else {
                     SelectedInstructionKind::EvaluateDispatchGuard {
@@ -1224,9 +1225,7 @@ fn select_dispatch_guard_instructions(
                         byte_size: clause.byte_size,
                         expected_value: clause.expected_value,
                         has_storage: clause.has_storage,
-                        // Float comparisons inside an AND-conjunction clause are a
-                        // follow-on; single-comparison guards take the path below.
-                        is_float: false,
+                        is_float: clause.is_float,
                     }
                 };
                 selected_instructions.push(SelectedInstruction {

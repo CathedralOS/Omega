@@ -18490,6 +18490,59 @@ fn runtime_bounded_product_index_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_scalar_pun_shared_let_exit_canary_runs() {
+    // The §5b shared scalar recast natively: bit-pun reads through the
+    // stated type (f32-of-pi + u32-as-i32 sign).
+    let canary = pass_canary("recast/runtime_scalar_pun_shared_let_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-recast-pun-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("scalar-pun recast canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("scalar-pun recast canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected both scalar puns to read through the stated types (exit 70), got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_f32_field_guard_exit_canary_runs() {
+    // Plain f32 field guards: f32-pattern expectations, 4-byte compares.
+    let canary = pass_canary("arithmetic/runtime_f32_field_guard_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-f32-guard-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("f32 field-guard canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("f32 field-guard canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the f32 field guard to compare at f32 width (exit 70), got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_computed_array_fill_via_temp_exit_canary_runs() {
     // The sound pattern for filling an array with computed values in a write-first loop: a computed
     // value goes to a field, then the field (a machine-resident source) is copied to the runtime-
@@ -29019,6 +29072,8 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "dependent/runtime_requires_guarded_call_exit",
     "dependent/runtime_sibling_len_index_exit",
     "dependent/runtime_bounded_product_index_exit",
+    "recast/runtime_scalar_pun_shared_let_exit",
+    "arithmetic/runtime_f32_field_guard_exit",
     "collections/runtime_indexed_rmw_loop_exit",
     "collections/runtime_indexed_reduction_loop_exit",
     "collections/runtime_array_max_and_sum_exit",
@@ -29760,10 +29815,6 @@ struct PendingCanary {
 const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
     PendingCanary {
         path: "arithmetic/array_field_default_silent",
-        expectation: PendingCanaryExpectation::CurrentlyAccepts,
-    },
-    PendingCanary {
-        path: "recast/scalar_pun_shared_let_native_zii",
         expectation: PendingCanaryExpectation::CurrentlyAccepts,
     },
     PendingCanary {

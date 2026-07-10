@@ -233,7 +233,17 @@ fn runtime_frame_operand_layout(
     };
 
     let (byte_offset, layout) = if suffix.is_empty() {
-        (root_byte_offset, root_layout)
+        // A `&scalar`-typed local (`let v: &f32 = ...`, the §5b recast
+        // carrier): the slot is pointer-wide, but reads THROUGH the view
+        // compare at the REFEREE's width/kind -- an 8-byte read of the
+        // 4-byte pattern compared as f64 was the recast pin's read-side
+        // divergence. Aggregate referees keep the slot layout (their reads
+        // resolve through suffixes).
+        (
+            root_byte_offset,
+            reference_scalar_referee_layout(&slot.type_descriptor, root_layout)
+                .unwrap_or(root_layout),
+        )
     } else if let Some(member_layout) =
         runtime_slice_descriptor_member_layout(slot, root_byte_offset, root_layout, suffix)
     {
@@ -273,6 +283,35 @@ fn runtime_slice_descriptor_member_layout(
             alignment: root_layout.alignment,
         },
     ))
+}
+
+/// The scalar REFEREE layout of a `Reference`-descriptored slot (`&f32` ->
+/// 4 bytes), peeling `Constrained` shells on both sides. `None` for
+/// non-references and aggregate referees.
+fn reference_scalar_referee_layout(
+    descriptor: &TypeLayoutDescriptor,
+    root_layout: TypeLayout,
+) -> Option<TypeLayout> {
+    let mut descriptor = descriptor;
+    while let TypeLayoutDescriptor::Constrained { base_type, .. } = descriptor {
+        descriptor = base_type.as_ref();
+    }
+    let TypeLayoutDescriptor::Reference { referee, .. } = descriptor else {
+        return None;
+    };
+    let mut referee = referee.as_ref();
+    while let TypeLayoutDescriptor::Constrained { base_type, .. } = referee {
+        referee = base_type.as_ref();
+    }
+    let TypeLayoutDescriptor::Named { name, .. } = referee else {
+        return None;
+    };
+    let size = omega_checked_trees::types::PrimitiveType::from_name(name.as_str())?
+        .scalar_byte_size()?;
+    Some(TypeLayout {
+        size,
+        alignment: root_layout.alignment,
+    })
 }
 
 fn is_slice_descriptor(descriptor: &TypeLayoutDescriptor) -> bool {

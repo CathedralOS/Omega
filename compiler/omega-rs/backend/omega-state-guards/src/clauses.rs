@@ -12,6 +12,10 @@ pub struct StateGuardClause {
     pub expected_value: i64,
     pub has_storage: bool,
     pub has_right_storage: bool,
+    /// The compare is FLOAT-kinded: one operand is a constant float
+    /// expression (the emission narrows f64 expectation bits by byte_size).
+    /// Place-vs-place float conjuncts remain a follow-on (false).
+    pub is_float: bool,
 }
 
 const INLINE_STATE_GUARD_CLAUSE_COUNT: usize = 4;

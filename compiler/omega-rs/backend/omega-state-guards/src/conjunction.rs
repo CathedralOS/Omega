@@ -251,6 +251,24 @@ fn lower_guard_leaf(
         .map(|operand| operand.resolved_value)
         .unwrap_or(0);
 
+    // FLOAT-kinded conjunct: one side is a constant float expression --
+    // the emission's FCMP path narrows the f64 expectation bits by the
+    // place's byte_size (f32-wide compares included). Found via
+    // `self.f > 3.14 && self.f < 3.15` on `f: f32` comparing raw f32
+    // pattern bytes against f64 literal bits on the INTEGER compare path
+    // (the conjunction splitter hardcoded is_float: false).
+    let is_float = match source_expressions.expression(normalized_expression) {
+        ExpressionNode::Binary(binary) => {
+            crate::operands::values::guard_operand_is_float_constant(
+                source_expressions,
+                binary.left,
+            ) || crate::operands::values::guard_operand_is_float_constant(
+                source_expressions,
+                binary.right,
+            )
+        }
+        _ => false,
+    };
     clauses.push(StateGuardClause {
         lowering,
         operator,
@@ -266,6 +284,7 @@ fn lower_guard_leaf(
         expected_value,
         has_storage: true,
         has_right_storage: right_place_operand.is_some(),
+        is_float,
     });
 
     Some(())
