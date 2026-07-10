@@ -1996,3 +1996,80 @@ fn executable_name() -> &'static str {
 fn executable_name() -> &'static str {
     "omega-program"
 }
+
+/// The BYTE-INPUT differential: input-taking programs previously only ran
+/// the oracle with EMPTY stdin (the registry's rows), so the byte-ARRIVAL
+/// paths of read_byte/write_byte were pinned per-engine but never
+/// cross-compared on the same input. Both engines get identical bytes; exit
+/// AND stdout must agree byte-for-byte (write_byte does no normalization).
+/// Vectors: the byte-echo canary + every INPUT-GRID row of the stdin
+/// samples (the rows are each sample's documented meaning table).
+#[test]
+fn interpreter_matches_native_on_byte_input_programs() {
+    let vectors: &[(&str, PathBuf, &[u8], i32)] = &[
+        (
+            "console_byte_echo",
+            pass_canary("host/runtime_console_byte_echo_exit").join("main.omg"),
+            b"AB",
+            201,
+        ),
+        // stdin_checksum INPUT-GRID
+        ("stdin_checksum", stdin_sample("stdin_checksum"), b"", 0),
+        ("stdin_checksum", stdin_sample("stdin_checksum"), b"A", 66),
+        ("stdin_checksum", stdin_sample("stdin_checksum"), b"AB", 133),
+        ("stdin_checksum", stdin_sample("stdin_checksum"), b"0", 49),
+        ("stdin_checksum", stdin_sample("stdin_checksum"), b"!!", 68),
+        // stdin_rot1 INPUT-GRID
+        ("stdin_rot1", stdin_sample("stdin_rot1"), b"", 0),
+        ("stdin_rot1", stdin_sample("stdin_rot1"), b"A", 1),
+        ("stdin_rot1", stdin_sample("stdin_rot1"), b"AB", 2),
+        ("stdin_rot1", stdin_sample("stdin_rot1"), b"ab ", 3),
+        // stdin_upper INPUT-GRID
+        ("stdin_upper", stdin_sample("stdin_upper"), b".", 0),
+        ("stdin_upper", stdin_sample("stdin_upper"), b"a.", 1),
+        ("stdin_upper", stdin_sample("stdin_upper"), b"hi.", 2),
+        ("stdin_upper", stdin_sample("stdin_upper"), b"Mix.", 3),
+        ("stdin_upper", stdin_sample("stdin_upper"), b"a z.", 3),
+    ];
+
+    for (name, main_path, stdin, expected_exit) in vectors {
+        let checked = compile_to_checked(main_path, None).unwrap_or_else(|diagnostics| {
+            panic!(
+                "{name}: compile to checked failed:\n{}",
+                join_diagnostics(&diagnostics)
+            )
+        });
+        let outcome = interpret(&checked, stdin);
+        assert!(
+            !outcome.is_error(),
+            "{name} stdin {:?}: interpreter declined: {:?}",
+            String::from_utf8_lossy(stdin),
+            outcome.error
+        );
+        assert_eq!(
+            outcome.exit_code,
+            *expected_exit,
+            "{name} stdin {:?}: interpreter exit vs the documented grid row",
+            String::from_utf8_lossy(stdin)
+        );
+
+        let (native_code, native_stdout, _) =
+            compile_and_run_native_with_stdin(name, main_path, stdin);
+        assert_eq!(
+            native_code,
+            *expected_exit,
+            "{name} stdin {:?}: native exit vs the documented grid row",
+            String::from_utf8_lossy(stdin)
+        );
+        assert_eq!(
+            String::from_utf8_lossy(&outcome.stdout),
+            String::from_utf8_lossy(&native_stdout),
+            "{name} stdin {:?}: stdout must agree byte-for-byte (interpreter left, native right)",
+            String::from_utf8_lossy(stdin)
+        );
+    }
+}
+
+fn stdin_sample(name: &str) -> PathBuf {
+    repo_root().join("samples").join(name).join("main.omg")
+}
