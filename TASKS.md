@@ -143,8 +143,13 @@ should target NEW feature surfaces as they land, not re-walk these axes.
 - **[ENGINEERING]** numeric intrinsics remainder: sin/cos need range reduction
   + a polynomial matching interp precision — a numerical mini-project.
 - **Nonlinear index `pixels[y*W+x]` -- ANSWERED: enabled by dependent types
-  eventually** (planned, huge, not in language docs yet). Until then the
-  linear-counter workaround stands; no axiom/octagon stopgap.
+  eventually.** NOW IN THE LANGUAGE DOCS (2026-07-15, owner-requested, NOT
+  settled): chapter_23_dependent_types.md (UX surface, static + dynamic
+  lowerings) + design_briefs/dependent_types.md (deep dive; systems fragment;
+  lifetimes interplay; Lean path; implementation lab agenda §8 -- rung R3 =
+  the ONE bounded-product entailment rule that discharges `y*W+x` and
+  `i*stride`). Until it lands the linear-counter workaround stands; no
+  axiom/octagon stopgap.
 
 ## Backend perf (deferred, post-1.0)
 
