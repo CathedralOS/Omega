@@ -51,7 +51,7 @@ data OpenResult {
 }
 data IoResult {
     case Error(kind: ErrorKind);
-    case Ok(count: usize);
+    case Ok(count: u64);
 }
 // A directory's composition summary (`read_dir_stats`). `entries` is the total
 // child count (excluding "." and ".."); `subdirs` counts children with dirent
@@ -59,9 +59,9 @@ data IoResult {
 // other types (symlinks, fifos, …). On a filesystem that reports DT_UNKNOWN,
 // `subdirs`/`files` undercount (see D-readdir).
 data DirStats [copy, zero_init] {
-    entries: usize;
-    subdirs: usize;
-    files: usize;
+    entries: u64;
+    subdirs: u64;
+    files: u64;
 }
 data DirStatsResult {
     case Error(kind: ErrorKind);
@@ -73,7 +73,7 @@ data DirStatsResult {
 // Self-contained (`[copy]`, the name embedded) so it outlives the read buffer.
 data DirEntry [copy, zero_init] {
     name: [u8; 256];
-    name_len: usize;
+    name_len: u64;
     is_dir: bool;
     is_file: bool;
 }
@@ -366,27 +366,27 @@ data Filesystem {
     // Scratch for `read_dir_count`: one buffer of packed darwin `dirent` records
     // plus the runtime-indexed cursor that walks them by `d_reclen`.
     dir_buf: [u8; 512];
-    rd_off: usize in Wrapping;
-    rd_total: usize in Wrapping;
+    rd_off: u64 in Wrapping;
+    rd_total: u64 in Wrapping;
     rd_count: i32 in Wrapping;
     rd_position: i64;
-    rd_idx: usize in Wrapping;
+    rd_idx: u64 in Wrapping;
     rd_lo: u8;
     rd_hi: u8;
-    rd_lou: usize in Wrapping;
-    rd_hiu: usize in Wrapping;
-    rd_reclen: usize in Wrapping;
+    rd_lou: u64 in Wrapping;
+    rd_hiu: u64 in Wrapping;
+    rd_reclen: u64 in Wrapping;
     // `read_dir_stats`: the record's `d_type` byte + the per-type tallies.
     rd_dtype: u8;
     rd_dirs: i32 in Wrapping;
     rd_files: i32 in Wrapping;
     // `read_dir_nth`: record cursor, the target record index (n + 2, skipping
     // "." and ".."), the extracted name buffer + its copy cursor.
-    rd_recno: usize in Wrapping;
-    rd_target: usize in Wrapping;
-    rd_namlen: usize in Wrapping;
-    rd_j: usize in Wrapping;
-    rd_ridx: usize in Wrapping;
+    rd_recno: u64 in Wrapping;
+    rd_target: u64 in Wrapping;
+    rd_namlen: u64 in Wrapping;
+    rd_j: u64 in Wrapping;
+    rd_ridx: u64 in Wrapping;
     rd_nb: u8;
     entry_name: [u8; 256];
     // `read_dir_nth` holds the fd-walk result across the descriptor close;
@@ -400,7 +400,7 @@ data Filesystem {
     // dispatch can lower). Depth-bounded at 16 nested directories (deeper
     // trees error cleanly); `rda_depth` counts stacked fds (0 = drained).
     rda_stack: [i32; 16];
-    rda_depth: usize;
+    rda_depth: u64;
     rda_fd: i32;
     // rda_step's verdict, read by rda_drain's entry transition: 1 = step done,
     // keep draining; 0 = all drained; -1 = error/overflow.
@@ -528,11 +528,11 @@ machine Filesystem::append(&mut self, path: &[u8] in Path) -> OpenResult {
 }
 
 // Read up to `count` bytes into `buffer`; returns the number read (0 = EOF).
-machine Filesystem::read(&mut self, file: File, buffer: &mut [u8], count: usize) -> IoResult {
+machine Filesystem::read(&mut self, file: File, buffer: &mut [u8], count: u64) -> IoResult {
     self.file_fd = file.fd;
     let n: i64 = self.host.read(self.file_fd, buffer, count);
     transition n >= 0 { true -> ok(n) _ -> err() }
-    state ok(&mut self, n: i64) -> IoResult { IoResult::Ok { count: n as usize } }
+    state ok(&mut self, n: i64) -> IoResult { IoResult::Ok { count: n as u64 } }
     state err(&mut self) -> IoResult { let kind: ErrorKind = self.last_error(); IoResult::Error { kind: kind } }
 }
 
@@ -541,18 +541,18 @@ machine Filesystem::write(&mut self, file: File, bytes: &[u8]) -> IoResult {
     self.file_fd = file.fd;
     let n: i64 = self.host.write(self.file_fd, bytes);
     transition n >= 0 { true -> ok(n) _ -> err() }
-    state ok(&mut self, n: i64) -> IoResult { IoResult::Ok { count: n as usize } }
+    state ok(&mut self, n: i64) -> IoResult { IoResult::Ok { count: n as u64 } }
     state err(&mut self) -> IoResult { let kind: ErrorKind = self.last_error(); IoResult::Error { kind: kind } }
 }
 
 // Read up to `count` bytes at absolute `offset` WITHOUT moving the cursor (Rust
 // `FileExt::read_at`) — a positioned read, so concurrent readers each track their
 // own offset. Returns the number read (0 = EOF at/after `offset`).
-machine Filesystem::read_at(&mut self, file: File, buffer: &mut [u8], count: usize, offset: i64) -> IoResult {
+machine Filesystem::read_at(&mut self, file: File, buffer: &mut [u8], count: u64, offset: i64) -> IoResult {
     self.file_fd = file.fd;
     let n: i64 = self.host.read_at(self.file_fd, buffer, count, offset);
     transition n >= 0 { true -> ok(n) _ -> err() }
-    state ok(&mut self, n: i64) -> IoResult { IoResult::Ok { count: n as usize } }
+    state ok(&mut self, n: i64) -> IoResult { IoResult::Ok { count: n as u64 } }
     state err(&mut self) -> IoResult { let kind: ErrorKind = self.last_error(); IoResult::Error { kind: kind } }
 }
 
@@ -562,7 +562,7 @@ machine Filesystem::write_at(&mut self, file: File, bytes: &[u8], offset: i64) -
     self.file_fd = file.fd;
     let n: i64 = self.host.write_at(self.file_fd, bytes, offset);
     transition n >= 0 { true -> ok(n) _ -> err() }
-    state ok(&mut self, n: i64) -> IoResult { IoResult::Ok { count: n as usize } }
+    state ok(&mut self, n: i64) -> IoResult { IoResult::Ok { count: n as u64 } }
     state err(&mut self) -> IoResult { let kind: ErrorKind = self.last_error(); IoResult::Error { kind: kind } }
 }
 
@@ -605,13 +605,13 @@ machine Filesystem::write_all(&mut self, path: &[u8] in Path, bytes: &[u8]) -> U
 // avoid an allocation in the std surface — pass a buffer at least as large as
 // the file, sized via `metadata().len`.) Like `write_all`, all raw ops run in
 // the entry so an open failure flows to Error via the `n >= 0` guard.
-machine Filesystem::read_all(&mut self, path: &[u8] in Path, buffer: &mut [u8], count: usize) -> IoResult {
+machine Filesystem::read_all(&mut self, path: &[u8] in Path, buffer: &mut [u8], count: u64) -> IoResult {
     self.read_flags = FilesystemHost::O_BINARY;
     let fd: i32 = self.host.open(path, self.read_flags);
     let n: i64 = self.host.read(fd, buffer, count);
     let rc: i32 = self.host.close(fd);
     transition n >= 0 { true -> ok(n) _ -> err() }
-    state ok(&mut self, n: i64) -> IoResult { IoResult::Ok { count: n as usize } }
+    state ok(&mut self, n: i64) -> IoResult { IoResult::Ok { count: n as u64 } }
     state err(&mut self) -> IoResult { let kind: ErrorKind = self.last_error(); IoResult::Error { kind: kind } }
 }
 
@@ -628,7 +628,7 @@ machine Filesystem::read_all(&mut self, path: &[u8] in Path, buffer: &mut [u8], 
 // truncates, and (2) on a source-open failure it still creates an empty `to`.
 // A faithful version (branch after the read; write only `buffer[0..n]`) lands
 // once the interpreter threads slices through states.
-machine Filesystem::copy(&mut self, from: &[u8] in Path, to: &[u8] in Path, buffer: &mut [u8], cap: usize) -> IoResult {
+machine Filesystem::copy(&mut self, from: &[u8] in Path, to: &[u8] in Path, buffer: &mut [u8], cap: u64) -> IoResult {
     // BINARY-SAFE on windows (2026-07-08): O_BINARY (32768 there, 0 on posix --
     // a per-target provides VALUE) keeps msvcrt from CRLF-translating reads or
     // stopping at a ^Z. The destination switches from `create` (msvcrt `_creat`
@@ -658,7 +658,7 @@ machine Filesystem::copy(&mut self, from: &[u8] in Path, to: &[u8] in Path, buff
     self.perm_mode = ((self.stat_buf[FilesystemHost::ST_MODE_OFF + 0] as u32) | ((self.stat_buf[FilesystemHost::ST_MODE_OFF + 1] as u32) << 8)) & 511;
     let chmodded: i32 = self.host.set_permissions(to, self.perm_mode);
     transition n >= 0 { true -> ok(n) _ -> err() }
-    state ok(&mut self, n: i64) -> IoResult { IoResult::Ok { count: n as usize } }
+    state ok(&mut self, n: i64) -> IoResult { IoResult::Ok { count: n as u64 } }
     state err(&mut self) -> IoResult { let kind: ErrorKind = self.last_error(); IoResult::Error { kind: kind } }
 }
 
@@ -886,7 +886,7 @@ machine Filesystem::create_dir_all(&mut self, path: &[u8] in Path) -> UnitResult
 // recurse in the ENTRY -- the only shape the `Nat::BoundedDistance` decreases
 // proof accepts. `path`'s domain survives the interleaved `mkall_step` call
 // because a SHARED parameter's declared domain is invariant (checker grant).
-machine Filesystem::mkall_walk(&mut self, path: &[u8] in Path, i: usize)
+machine Filesystem::mkall_walk(&mut self, path: &[u8] in Path, i: u64)
 terminates {
     decreases (i, path.len) -> Nat::BoundedDistance;
 }
@@ -917,18 +917,18 @@ terminates {
 // Create the ancestor prefix `path[0..i]` iff position i is a '/' separator.
 // Guards `i < path.len` INTERNALLY so the caller's recursion needs no
 // pre-established bound. Returns the `create_dir` rc (best-effort; ignored).
-machine Filesystem::mkall_step(&mut self, path: &[u8] in Path, i: usize) -> i32 {
+machine Filesystem::mkall_step(&mut self, path: &[u8] in Path, i: u64) -> i32 {
     transition i < path.len {
         true -> self.mkall_at(path, i)
         false -> mkall_noop()
     }
-    state mkall_at(&mut self, path: &[u8] in Path, i: usize) -> i32 {
+    state mkall_at(&mut self, path: &[u8] in Path, i: u64) -> i32 {
         transition path[i] == 47 {
             true -> self.mkall_mk(path, i)
             false -> mkall_noop()
         }
     }
-    state mkall_mk(&mut self, path: &[u8] in Path, i: usize) -> i32 {
+    state mkall_mk(&mut self, path: &[u8] in Path, i: u64) -> i32 {
         // The prefix must reach the native call NUL-TERMINATED: the copy
         // walk below fills the scratch and issues the mkdir. Oversized
         // prefixes skip their best-effort create (D-cda).
@@ -946,7 +946,7 @@ machine Filesystem::mkall_step(&mut self, path: &[u8] in Path, i: usize) -> i32 
 // chain selects arms correctly; value-call arm effects would be a compile
 // error by design). The byte writer also lays the C-string NUL at j == i,
 // so the mkdir fires on a complete prefix.
-machine Filesystem::mkall_copy(&mut self, path: &[u8] in Path, i: usize, j: usize)
+machine Filesystem::mkall_copy(&mut self, path: &[u8] in Path, i: u64, j: u64)
 terminates {
     decreases (j, i) -> Nat::BoundedDistance;
 }
@@ -963,24 +963,24 @@ terminates {
 // (cross-state facts do not travel to contract provers or index checks):
 // writes `path[j]` while j < i, and the NUL exactly at j == i. Out-of-range
 // steps (oversized prefixes) are no-ops -- the mkdir is best-effort (D-cda).
-machine Filesystem::mkall_put(&mut self, path: &[u8] in Path, i: usize, j: usize) {
+machine Filesystem::mkall_put(&mut self, path: &[u8] in Path, i: u64, j: u64) {
     transition j < i {
         true -> put_byte(path, i, j)
         false -> put_nul(j)
     }
-    state put_byte(&mut self, path: &[u8] in Path, i: usize, j: usize) {
+    state put_byte(&mut self, path: &[u8] in Path, i: u64, j: u64) {
         transition j < path.len {
             true -> put_byte_bounded(path, j)
             false -> put_done()
         }
     }
-    state put_byte_bounded(&mut self, path: &[u8] in Path, j: usize) {
+    state put_byte_bounded(&mut self, path: &[u8] in Path, j: u64) {
         transition j < 255 {
             true -> put_byte_write(path, j)
             false -> put_done()
         }
     }
-    state put_byte_write(&mut self, path: &[u8] in Path, j: usize) {
+    state put_byte_write(&mut self, path: &[u8] in Path, j: u64) {
         // Split through a FIELD: the DUAL-indexed frame-descriptor-to-machine
         // copy (`self.mkall_scratch[j] = path[j]`) has no single instruction
         // in the dispatched context, but both halves lower (frame-indexed
@@ -991,13 +991,13 @@ machine Filesystem::mkall_put(&mut self, path: &[u8] in Path, i: usize, j: usize
         self.mkall_scratch[j] = self.mkall_byte;
         transition { _ -> put_done() }
     }
-    state put_nul(&mut self, j: usize) {
+    state put_nul(&mut self, j: u64) {
         transition j < 255 {
             true -> put_nul_write(j)
             false -> put_done()
         }
     }
-    state put_nul_write(&mut self, j: usize) {
+    state put_nul_write(&mut self, j: u64) {
         self.mkall_scratch[j] = 0;
         transition { _ -> put_done() }
     }
@@ -1009,12 +1009,12 @@ machine Filesystem::mkall_put(&mut self, path: &[u8] in Path, i: usize, j: usize
 // the subslice is in bounds; called as a transition-target value call whose
 // arms hold no effects beyond this machine's own dispatch (statement-shape
 // sibling of mkall_step's original mkall_mk).
-machine Filesystem::mkall_issue(&mut self, i: usize) -> i32 {
+machine Filesystem::mkall_issue(&mut self, i: u64) -> i32 {
     transition i < 255 {
         true -> issue_mk(i)
         false -> issue_skip()
     }
-    state issue_mk(&mut self, i: usize) -> i32 {
+    state issue_mk(&mut self, i: u64) -> i32 {
         // let-bound, never a bare terminal host call (see Filesystem::close).
         let rc: i32 = self.host.create_dir_name(self.mkall_scratch[0..i], self.dir_mode);
         rc
@@ -1047,7 +1047,7 @@ machine Filesystem::read_dir_count(&mut self, path: &[u8] in Path) -> IoResult {
     state rd_read(&mut self, dfd: i32) -> IoResult {
         let total: i64 = self.host.read_dir(dfd, &mut self.dir_buf, 512, &mut self.rd_position);
         let closed: i32 = self.host.close(dfd);
-        self.rd_total = total as usize in Wrapping;
+        self.rd_total = total as u64 in Wrapping;
         transition total > 0 { true -> rd_walk() _ -> rd_empty() }
     }
     state rd_walk(&mut self) -> IoResult {
@@ -1059,8 +1059,8 @@ machine Filesystem::read_dir_count(&mut self, path: &[u8] in Path) -> IoResult {
         self.rd_lo = self.dir_buf[self.rd_idx];
         self.rd_idx = self.rd_off + 17;
         self.rd_hi = self.dir_buf[self.rd_idx];
-        self.rd_lou = self.rd_lo as usize in Wrapping;
-        self.rd_hiu = self.rd_hi as usize in Wrapping;
+        self.rd_lou = self.rd_lo as u64 in Wrapping;
+        self.rd_hiu = self.rd_hi as u64 in Wrapping;
         self.rd_reclen = (self.rd_hiu << 8) | self.rd_lou;
         self.rd_count = self.rd_count + 1;
         self.rd_off = self.rd_off + self.rd_reclen;
@@ -1072,7 +1072,7 @@ machine Filesystem::read_dir_count(&mut self, path: &[u8] in Path) -> IoResult {
         transition self.rd_count > 2 { true -> rd_ok() _ -> rd_empty() }
     }
     state rd_ok(&mut self) -> IoResult {
-        self.rd_lou = (self.rd_count - 2) as usize in Wrapping;
+        self.rd_lou = (self.rd_count - 2) as u64 in Wrapping;
         IoResult::Ok { count: self.rd_lou }
     }
     state rd_err(&mut self) -> IoResult {
@@ -1102,7 +1102,7 @@ machine Filesystem::read_dir_stats(&mut self, path: &[u8] in Path) -> DirStatsRe
     state rds_read(&mut self, dfd: i32) -> DirStatsResult {
         let total: i64 = self.host.read_dir(dfd, &mut self.dir_buf, 512, &mut self.rd_position);
         let closed: i32 = self.host.close(dfd);
-        self.rd_total = total as usize in Wrapping;
+        self.rd_total = total as u64 in Wrapping;
         transition total > 0 { true -> rds_walk() _ -> rds_empty() }
     }
     state rds_walk(&mut self) -> DirStatsResult {
@@ -1113,8 +1113,8 @@ machine Filesystem::read_dir_stats(&mut self, path: &[u8] in Path) -> DirStatsRe
         self.rd_lo = self.dir_buf[self.rd_idx];
         self.rd_idx = self.rd_off + 17;
         self.rd_hi = self.dir_buf[self.rd_idx];
-        self.rd_lou = self.rd_lo as usize in Wrapping;
-        self.rd_hiu = self.rd_hi as usize in Wrapping;
+        self.rd_lou = self.rd_lo as u64 in Wrapping;
+        self.rd_hiu = self.rd_hi as u64 in Wrapping;
         self.rd_reclen = (self.rd_hiu << 8) | self.rd_lou;
         self.rd_idx = self.rd_off + 20;
         self.rd_dtype = self.dir_buf[self.rd_idx];
@@ -1141,9 +1141,9 @@ machine Filesystem::read_dir_stats(&mut self, path: &[u8] in Path) -> DirStatsRe
     }
     state rds_ok(&mut self) -> DirStatsResult {
         DirStatsResult::Ok { stats: DirStats {
-            entries: (self.rd_count - 2) as usize in Wrapping,
-            subdirs: (self.rd_dirs - 2) as usize in Wrapping,
-            files: self.rd_files as usize in Wrapping,
+            entries: (self.rd_count - 2) as u64 in Wrapping,
+            subdirs: (self.rd_dirs - 2) as u64 in Wrapping,
+            files: self.rd_files as u64 in Wrapping,
         } }
     }
     state rds_empty(&mut self) -> DirStatsResult {
@@ -1169,18 +1169,18 @@ machine Filesystem::read_dir_stats(&mut self, path: &[u8] in Path) -> DirStatsRe
 // and ".." are the first two records of every real directory, so child n is record
 // n + 2. This is the name-bearing rung `remove_dir_all` (recurse subdirs / unlink
 // files by name) builds on.
-machine Filesystem::read_dir_nth(&mut self, path: &[u8] in Path, n: usize) -> DirEntryResult {
+machine Filesystem::read_dir_nth(&mut self, path: &[u8] in Path, n: u64) -> DirEntryResult {
     self.read_flags = 0;
     self.rd_position = 0;
     self.rd_off = 0;
     self.rd_recno = 0;
-    self.rd_target = (n as usize in Wrapping) + 2;
+    self.rd_target = (n as u64 in Wrapping) + 2;
     let dfd: i32 = self.host.open(path, self.read_flags);
     transition dfd >= 0 { true -> rdn_read(dfd) _ -> rdn_err() }
     state rdn_read(&mut self, dfd: i32) -> DirEntryResult {
         let total: i64 = self.host.read_dir(dfd, &mut self.dir_buf, 512, &mut self.rd_position);
         let closed: i32 = self.host.close(dfd);
-        self.rd_total = total as usize in Wrapping;
+        self.rd_total = total as u64 in Wrapping;
         transition total > 0 { true -> rdn_walk() _ -> rdn_end() }
     }
     state rdn_walk(&mut self) -> DirEntryResult {
@@ -1194,8 +1194,8 @@ machine Filesystem::read_dir_nth(&mut self, path: &[u8] in Path, n: usize) -> Di
         self.rd_lo = self.dir_buf[self.rd_idx];
         self.rd_idx = self.rd_off + 17;
         self.rd_hi = self.dir_buf[self.rd_idx];
-        self.rd_lou = self.rd_lo as usize in Wrapping;
-        self.rd_hiu = self.rd_hi as usize in Wrapping;
+        self.rd_lou = self.rd_lo as u64 in Wrapping;
+        self.rd_hiu = self.rd_hi as u64 in Wrapping;
         self.rd_reclen = (self.rd_hiu << 8) | self.rd_lou;
         self.rd_recno = self.rd_recno + 1;
         self.rd_off = self.rd_off + self.rd_reclen;
@@ -1206,8 +1206,8 @@ machine Filesystem::read_dir_nth(&mut self, path: &[u8] in Path, n: usize) -> Di
         self.rd_lo = self.dir_buf[self.rd_idx];
         self.rd_idx = self.rd_off + 19;
         self.rd_hi = self.dir_buf[self.rd_idx];
-        self.rd_lou = self.rd_lo as usize in Wrapping;
-        self.rd_hiu = self.rd_hi as usize in Wrapping;
+        self.rd_lou = self.rd_lo as u64 in Wrapping;
+        self.rd_hiu = self.rd_hi as u64 in Wrapping;
         self.rd_namlen = (self.rd_hiu << 8) | self.rd_lou;
         self.rd_idx = self.rd_off + 20;
         self.rd_dtype = self.dir_buf[self.rd_idx];
@@ -1289,11 +1289,11 @@ machine Filesystem::read_dir_is_empty(&mut self, path: &[u8] in Path) -> EmptyRe
 // core `remove_dir_all` drains through (it re-reads the same fd after each removal).
 // NOTE: the dirent walk here duplicates `read_dir_nth`'s (which opens+closes a
 // path); a future refactor should route `read_dir_nth` through this fd core.
-machine Filesystem::read_dir_entry_fd(&mut self, dfd: i32, n: usize) -> DirEntryResult {
+machine Filesystem::read_dir_entry_fd(&mut self, dfd: i32, n: u64) -> DirEntryResult {
     self.rd_position = 0;
     self.rd_off = 0;
     self.rd_recno = 0;
-    self.rd_target = (n as usize in Wrapping) + 2;
+    self.rd_target = (n as u64 in Wrapping) + 2;
     // REWIND the directory fd before reading (2026-07-09j): the native
     // getdirentries cursor is the FD OFFSET -- zeroing the basep out-param
     // does not rewind it, so a second "first entry" read on the same fd
@@ -1303,7 +1303,7 @@ machine Filesystem::read_dir_entry_fd(&mut self, dfd: i32, n: usize) -> DirEntry
     // no-op for the interpreter's model and rewinds the native cursor.
     self.rd_seek_rc = self.host.seek(dfd, 0, 0);
     let total: i64 = self.host.read_dir(dfd, &mut self.dir_buf, 512, &mut self.rd_position);
-    self.rd_total = total as usize in Wrapping;
+    self.rd_total = total as u64 in Wrapping;
     transition total > 0 { true -> rdef_walk() _ -> rdef_end() }
     state rdef_walk(&mut self) -> DirEntryResult {
         transition self.rd_off < 480 { true -> rdef_at() _ -> rdef_end() }
@@ -1316,8 +1316,8 @@ machine Filesystem::read_dir_entry_fd(&mut self, dfd: i32, n: usize) -> DirEntry
         self.rd_lo = self.dir_buf[self.rd_idx];
         self.rd_idx = self.rd_off + 17;
         self.rd_hi = self.dir_buf[self.rd_idx];
-        self.rd_lou = self.rd_lo as usize in Wrapping;
-        self.rd_hiu = self.rd_hi as usize in Wrapping;
+        self.rd_lou = self.rd_lo as u64 in Wrapping;
+        self.rd_hiu = self.rd_hi as u64 in Wrapping;
         self.rd_reclen = (self.rd_hiu << 8) | self.rd_lou;
         self.rd_recno = self.rd_recno + 1;
         self.rd_off = self.rd_off + self.rd_reclen;
@@ -1328,8 +1328,8 @@ machine Filesystem::read_dir_entry_fd(&mut self, dfd: i32, n: usize) -> DirEntry
         self.rd_lo = self.dir_buf[self.rd_idx];
         self.rd_idx = self.rd_off + 19;
         self.rd_hi = self.dir_buf[self.rd_idx];
-        self.rd_lou = self.rd_lo as usize in Wrapping;
-        self.rd_hiu = self.rd_hi as usize in Wrapping;
+        self.rd_lou = self.rd_lo as u64 in Wrapping;
+        self.rd_hiu = self.rd_hi as u64 in Wrapping;
         self.rd_namlen = (self.rd_hiu << 8) | self.rd_lou;
         self.rd_idx = self.rd_off + 20;
         self.rd_dtype = self.dir_buf[self.rd_idx];
@@ -1430,7 +1430,7 @@ machine Filesystem::remove_dir_all(&mut self, path: &[u8] in Path) -> UnitResult
 // is one `rda_step` STATEMENT call (the fence doctrine's prescribed shape:
 // a statement call from a dispatched state, verdict read from a field).
 // Returns 0 on success, -1 on error/fuel-exhaustion/depth overflow (> 16).
-machine Filesystem::rda_drain(&mut self, fuel: usize)
+machine Filesystem::rda_drain(&mut self, fuel: u64)
 terminates {
     decreases fuel;
 }
@@ -1460,7 +1460,7 @@ terminates {
 // dominating conjunct in its OWN incoming transition (facts do not travel).
 // The `step` param exists so the machine has entry arguments (uniform call
 // shape); it is unused.
-machine Filesystem::rda_step(&mut self, step: usize) {
+machine Filesystem::rda_step(&mut self, step: u64) {
     transition self.rda_depth == 0 { true -> rds_alldone() _ -> rds_read() }
 
     state rds_alldone(&mut self) { self.rda_verdict = 0; }
@@ -1575,10 +1575,10 @@ machine Filesystem::symlink(&mut self, target: &[u8] in Path, link: &[u8] in Pat
 // returning the number of target bytes written. (Rust returns a fresh `PathBuf`;
 // Omega fills a caller buffer to stay allocation-free — size it via
 // `metadata_path(link).len` or a generous fixed buffer.)
-machine Filesystem::read_link(&mut self, path: &[u8] in Path, buffer: &mut [u8], count: usize) -> IoResult {
+machine Filesystem::read_link(&mut self, path: &[u8] in Path, buffer: &mut [u8], count: u64) -> IoResult {
     let n: i64 = self.host.read_link(path, buffer, count);
     transition n >= 0 { true -> ok(n) _ -> err() }
-    state ok(&mut self, n: i64) -> IoResult { IoResult::Ok { count: n as usize } }
+    state ok(&mut self, n: i64) -> IoResult { IoResult::Ok { count: n as u64 } }
     state err(&mut self) -> IoResult { let kind: ErrorKind = self.last_error(); IoResult::Error { kind: kind } }
 }
 

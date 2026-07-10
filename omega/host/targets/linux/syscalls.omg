@@ -1,7 +1,7 @@
 use omega::host::targets::linux::types;
 
 capability LinuxSyscalls {
-    entry read(fd: i32, buffer: Slice<u8>, byte_count: usize) -> SyscallResult<usize, LinuxErrno> where {
+    entry read(fd: i32, buffer: Slice<u8>, byte_count: u64) -> SyscallResult<u64, LinuxErrno> where {
         requires fd == 0
         requires buffer.writable
         requires byte_count <= buffer.len
@@ -10,7 +10,7 @@ capability LinuxSyscalls {
         boundary host
     }
 
-    entry write(fd: i32, buffer: Slice<u8>, byte_count: usize) -> SyscallResult<usize, LinuxErrno> where {
+    entry write(fd: i32, buffer: Slice<u8>, byte_count: u64) -> SyscallResult<u64, LinuxErrno> where {
         requires fd == 1
         requires buffer.initialized
         requires byte_count <= buffer.len

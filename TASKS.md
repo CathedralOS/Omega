@@ -63,8 +63,14 @@ should target NEW feature surfaces as they land, not re-walk these axes.
   usize tolerated until the type dies) and a REAL proof gap -- only
   u32/usize carried type-level range facts, so u64/u8/u16 fields had no
   `>= 0` fact and proved weaker (primitive_constraints now covers the
-  unsigned family). NEXT: stage 3 chapters/wiki sweep, then the compiler
-  rejection + diagnostics purge + fail canary.
+  unsigned family). Stage 3 (wiki) + stage 4 (compiler
+  rejection: variants + builtins + AtomicUsize deleted, tolerances
+  collapsed, fail canaries types/usize_rejected + isize_rejected) landed
+  2026-07-15 -- the std/core/host/lattice-corpus .omg trees were swept too
+  (the recipe's inventory had missed them). FOLLOW-UP: region.omg's
+  allocate return + deallocate `address` parameter are ADDRESSES and should
+  be `addr` per the index/count/address brief -- move the trait, target
+  providers, and callers together (annotated at the site).
 
 - **Multi-arm TEXTEQ-valued locals drop silently on the leaf route (found
   2026-07-13 probing the fresh scoped-leaf-key surface; parked at

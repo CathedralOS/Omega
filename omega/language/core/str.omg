@@ -18,13 +18,13 @@
 
 // Owned text measures and operators.
 
-boundary operator String::Length(text: &String) -> usize;
+boundary operator String::Length(text: &String) -> u64;
 
-boundary operator String::Capacity(text: &String) -> usize;
+boundary operator String::Capacity(text: &String) -> u64;
 
 boundary operator String::as_view(text: &String) -> &string;
 
-boundary operator String::with_capacity(capacity: usize) -> String;
+boundary operator String::with_capacity(capacity: u64) -> String;
 
 boundary operator String::push_str(text: &mut String, value: &string) -> ()
 requires
@@ -94,14 +94,14 @@ ensures
 
 // Borrowed text window (`&string`) measures and operators.
 
-boundary operator Str::Length(text: &string) -> usize;
+boundary operator Str::Length(text: &string) -> u64;
 
 boundary operator Str::bytes(text: &string) -> &[u8];
 
-boundary operator Str::byte(text: &string, index: usize) -> u8
+boundary operator Str::byte(text: &string, index: u64) -> u8
 requires
     index < text.len;
 
-boundary operator Str::range(text: &string, start: usize, end: usize) -> &string
+boundary operator Str::range(text: &string, start: u64, end: u64) -> &string
 requires
     start <= end && end <= text.len;

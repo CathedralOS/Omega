@@ -35,23 +35,23 @@ machine Vec::push<T>(&mut self, value: T) {
 }
 
 // Length in elements. Cheap O(1) measure used by `requires`/`ensures`.
-boundary operator Vec::Length<T>(items: &Vec<T>) -> usize;
+boundary operator Vec::Length<T>(items: &Vec<T>) -> u64;
 
 // Capacity in elements; always at least the current length. Cheap O(1) measure.
-boundary operator Vec::Capacity<T>(items: &Vec<T>) -> usize
+boundary operator Vec::Capacity<T>(items: &Vec<T>) -> u64
 ensures
     result >= items.len;
 
 // Construct an empty vector with at least `capacity` worth of spare storage.
-boundary operator Vec::with_capacity<T>(capacity: usize) -> Vec<T>
+boundary operator Vec::with_capacity<T>(capacity: u64) -> Vec<T>
 ensures
     result.capacity >= capacity;
 
-boundary operator Vec::index<T>(items: &Vec<T>, index: usize) -> T
+boundary operator Vec::index<T>(items: &Vec<T>, index: u64) -> T
 requires
     index < items.len;
 
-boundary operator Vec::index_mut<T>(items: &mut Vec<T>, index: usize) -> &mut T
+boundary operator Vec::index_mut<T>(items: &mut Vec<T>, index: u64) -> &mut T
 requires
     index < items.len;
 

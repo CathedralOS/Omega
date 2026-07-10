@@ -66,9 +66,9 @@ machine InventorySystem::add_item(
 ) {
     // Sentinel search: an index past the 32-slot capacity means "not found".
     // (Option<T> case payloads are not runtime-ready yet; the old
-    // `Option<usize>` + `is_some()`/`unwrap()` spelling resolved to NOTHING and
+    // `Option<u64>` + `is_some()`/`unwrap()` spelling resolved to NOTHING and
     // silently bound 0 -- every pickup appended a fresh stack.)
-    let existing_index: usize = self.find_item(inventory, kind);
+    let existing_index: u64 = self.find_item(inventory, kind);
 
     transition existing_index < 32 {
         true -> increment_existing(inventory, kind, existing_index)
@@ -80,7 +80,7 @@ machine InventorySystem::add_item(
         &mut self,
         inventory: &mut Inventory,
         kind: ItemKind,
-        index: usize in Wrapping
+        index: u64 in Wrapping
     ) {
         transition index < 32 {
             true -> increment_item(&mut inventory.items[index], 1)
@@ -111,7 +111,7 @@ machine InventorySystem::append_item(
     kind: ItemKind
 ) {
     let items: &mut [InventoryItem] = inventory.items.as_mut_slice();
-    let index: usize in Wrapping = inventory.item_count;
+    let index: u64 in Wrapping = inventory.item_count;
 
     transition index < 32 {
         true -> append_item_at(inventory, items, kind, index)
@@ -124,7 +124,7 @@ machine InventorySystem::append_item(
         inventory: &mut Inventory,
         items: &mut [InventoryItem],
         kind: ItemKind,
-        index: usize in Wrapping
+        index: u64 in Wrapping
     ) {
         items[index] = InventoryItem { kind: kind, count: 1 };
         inventory.item_count = inventory.item_count + 1;
@@ -135,7 +135,7 @@ machine InventorySystem::find_item(
     &mut self,
     inventory: &Inventory,
     kind: ItemKind
-    ) -> usize {
+    ) -> u64 {
     let items: &[InventoryItem] = inventory.items.as_slice();
 
     match inventory.item_count > 0 {
@@ -148,8 +148,8 @@ machine InventorySystem::find_item_at(
     &mut self,
     items: &[InventoryItem],
     kind: ItemKind,
-    index: usize in Wrapping
-    ) -> usize {
+    index: u64 in Wrapping
+    ) -> u64 {
     transition index < items.len {
         true -> inspect_item(items, kind, index)
         false -> (32)
@@ -160,10 +160,10 @@ machine InventorySystem::find_item_at(
         &mut self,
         items: &[InventoryItem],
         kind: ItemKind,
-        index: usize in Wrapping
+        index: u64 in Wrapping
     ) {
         let found: bool = items[index].kind == kind;
-        let next_index: usize in Wrapping = index + 1;
+        let next_index: u64 in Wrapping = index + 1;
 
         match found {
             true -> index
@@ -176,8 +176,8 @@ machine InventorySystem::find_item_after(
     &mut self,
     items: &[InventoryItem],
     kind: ItemKind,
-    next_index: usize in Wrapping
-    ) -> usize {
+    next_index: u64 in Wrapping
+    ) -> u64 {
     let has_next: bool = next_index < items.len;
 
     match has_next {

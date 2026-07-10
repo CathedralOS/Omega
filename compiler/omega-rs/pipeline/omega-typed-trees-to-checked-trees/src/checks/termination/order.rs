@@ -147,7 +147,7 @@ impl RankingOrder {
                 if measure_parameter_is_natural(program, measure)
                     && expression_type_name(program, state, decreases)
                         .as_deref()
-                        .is_some_and(|name| natural_measure_names_match(name, "usize"))
+                        .is_some_and(|name| natural_measure_names_match(name, "u64"))
                 {
                     Some(Self::CustomNatDescending)
                 } else {
@@ -359,7 +359,7 @@ fn decreasing_value_kind(
 /// well-founded without a positivity interpretation, so they are treated as
 /// ambiguous and require the explicit `-> Order`.
 fn is_nat_like_type(name: &str) -> bool {
-    matches!(name, "usize" | "u8" | "u16" | "u32" | "u64" | "nat")
+    matches!(name, "u8" | "u16" | "u32" | "u64" | "nat")
 }
 
 fn state_parameter_of_expression<'program>(
@@ -442,30 +442,21 @@ fn find_declared_measure<'program>(
         .find(|measure| path_matches_path(program.measure_path_members(measure.name), order))
 }
 
-/// `usize` and `u64` are the SAME natural-measure class: the usize
-/// retirement (owner directive 2026-07-13 -- "we have addr, we have
-/// primitives") rewrites the corpus usize -> u64, and termination measures
-/// must accept both during and after the migration. `.len` projections and
-/// subtraction measures synthesize "usize" today; the class comparison
-/// keeps them matching u64-declared measures.
+/// `usize` is retired (parse-rejected); `u64` is the natural-measure name,
+/// synthesized for `.len` projections and subtraction measures alike, so the
+/// comparison is direct.
 fn natural_measure_names_match(left: &str, right: &str) -> bool {
-    fn is_natural(name: &str) -> bool {
-        matches!(name, "usize" | "u64")
-    }
-    left == right || (is_natural(left) && is_natural(right))
+    left == right
 }
 
 fn measure_return_is_natural(
     program: &omega_typed_trees::TypedTrees,
     measure: &MeasureDefinition,
 ) -> bool {
-    matches!(
-        program
-            .type_reference_table
-            .display_name(measure.return_type)
-            .as_str(),
-        "usize" | "u64"
-    )
+    program
+        .type_reference_table
+        .display_name(measure.return_type)
+        == "u64"
 }
 
 fn measure_parameter_is_natural(
@@ -473,13 +464,10 @@ fn measure_parameter_is_natural(
     measure: &MeasureDefinition,
 ) -> bool {
     measure.parameter.as_ref().is_some_and(|parameter| {
-        matches!(
-            program
-                .type_reference_table
-                .display_name(parameter.type_reference)
-                .as_str(),
-            "usize" | "u64"
-        )
+        program
+            .type_reference_table
+            .display_name(parameter.type_reference)
+            == "u64"
     })
 }
 
@@ -500,7 +488,7 @@ fn expression_type_name(
                 .map(|member| member.as_str()),
         ),
         ExpressionNode::Member(member) if member.member.as_str() == "len" => {
-            Some("usize".to_string())
+            Some("u64".to_string())
         }
         ExpressionNode::Member(member) => program
             .data_definitions()
@@ -525,7 +513,7 @@ fn expression_type_name(
                 omega_typed_trees::expression::BinaryOperator::Subtract
             ) =>
         {
-            Some("usize".to_string())
+            Some("u64".to_string())
         }
         _ => None,
     }

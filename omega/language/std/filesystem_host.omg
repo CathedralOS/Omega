@@ -27,11 +27,11 @@ boundary trait FilesystemHost {
     // lowering is pending (the variadic `mode` needs stack marshalling, D8-open);
     // fully modeled in the interpreter today.
     machine open_create(path: &[u8] in Path, flags: i32, mode: i32) -> i32 effects filesystem_io;
-    machine read(fd: i32, buffer: &mut [u8], count: usize) -> i64 effects filesystem_io;
+    machine read(fd: i32, buffer: &mut [u8], count: u64) -> i64 effects filesystem_io;
     machine write(fd: i32, bytes: &[u8]) -> i64 effects filesystem_io;
     // Positioned I/O (Rust `FileExt::read_at`/`write_at`): read/write at an
     // absolute `offset` WITHOUT moving the descriptor's cursor. `_pread`/`_pwrite`.
-    machine read_at(fd: i32, buffer: &mut [u8], count: usize, offset: i64) -> i64 effects filesystem_io;
+    machine read_at(fd: i32, buffer: &mut [u8], count: u64, offset: i64) -> i64 effects filesystem_io;
     machine write_at(fd: i32, bytes: &[u8], offset: i64) -> i64 effects filesystem_io;
     machine close(fd: i32) -> i32 effects filesystem_io;
     machine remove(path: &[u8] in Path) -> i32 effects filesystem_io;
@@ -62,7 +62,7 @@ boundary trait FilesystemHost {
     machine rename(from: &[u8] in Path, to: &[u8] in Path) -> i32 effects filesystem_io;
     machine hard_link(original: &[u8] in Path, link: &[u8] in Path) -> i32 effects filesystem_io;
     machine symlink(target: &[u8] in Path, link: &[u8] in Path) -> i32 effects filesystem_io;
-    machine read_link(path: &[u8] in Path, buffer: &mut [u8], count: usize) -> i64 effects filesystem_io;
+    machine read_link(path: &[u8] in Path, buffer: &mut [u8], count: u64) -> i64 effects filesystem_io;
     // Resolve `path` to its canonical absolute form (following every symlink) into
     // `buffer` (must be >= PATH_MAX = 1024), NUL-terminated (Rust `fs::canonicalize`
     // -> `realpath`). Returns the resolved-buffer pointer as an i64 (non-zero) on
@@ -75,7 +75,7 @@ boundary trait FilesystemHost {
     // return of 0 means end of directory. Records: d_reclen u16 @16,
     // d_namlen u16 @18, d_type u8 @20, d_name @21; advance by d_reclen. Walking
     // them needs runtime-indexed buffer reads (see TASKS_FS.md step 13).
-    machine read_dir(fd: i32, buffer: &mut [u8], count: usize, position: &mut i64) -> i64 effects filesystem_io;
+    machine read_dir(fd: i32, buffer: &mut [u8], count: u64, position: &mut i64) -> i64 effects filesystem_io;
     // Fill `buffer` (>= 144 bytes) with the path's `struct stat` record (Rust
     // `fs::metadata`). The Omega layer reads st_size/st_mode back out.
     machine read_metadata(path: &[u8] in Path, buffer: &mut [u8]) -> i32 effects filesystem_io;

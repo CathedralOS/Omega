@@ -48,7 +48,7 @@ pub fn primitive_layout(
             size: 8,
             alignment: 8,
         },
-        PrimitiveType::Usize | PrimitiveType::Isize | PrimitiveType::Addr => TypeLayout {
+        PrimitiveType::Addr => TypeLayout {
             size: pointer_size,
             alignment: pointer_alignment,
         },

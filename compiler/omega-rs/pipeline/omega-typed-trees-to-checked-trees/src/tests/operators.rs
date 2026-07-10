@@ -267,7 +267,7 @@ fn narrows_index_operator_candidates_by_receiver_type() {
 
     let mut program = omega_typed_trees::TypedTrees::default();
     let i32_type = named_type(&mut program, "i32");
-    let usize_type = named_type(&mut program, "usize");
+    let usize_type = named_type(&mut program, "u64");
     let type_parameter = program
         .type_reference_table
         .insert(TypeReferenceNode::Named {

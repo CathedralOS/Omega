@@ -1,5 +1,5 @@
 // PASS canary (ch17 "Atomics" / concurrency stage 1, M1): AtomicU32, AtomicU64,
-// AtomicBool, and AtomicUsize may be declared as data fields and read/written
+// AtomicBool, and AtomicU64 may be declared as data fields and read/written
 // like their underlying plain integer equivalents. No atomic OPS yet -- this
 // confirms the types are recognized, laid out (same width as the wrapped
 // primitive), and zero-initialized. Guard-ladder exit 70.
@@ -13,7 +13,7 @@ data Main {
     c32: AtomicU32;
     c64: AtomicU64;
     flag: AtomicBool;
-    sz: AtomicUsize;
+    sz: AtomicU64;
 }
 
 machine Main::main(&mut self) {

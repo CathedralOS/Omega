@@ -16,15 +16,18 @@
 // per target) and introduces `Vec<'r, T>` borrowing a region.
 //
 // The machines speak raw extents (`size`/`align` in bytes, addresses as
-// `usize`): the typed-container story sits ABOVE this boundary; the boundary
+// `u64`): the typed-container story sits ABOVE this boundary; the boundary
 // itself is exactly what a kernel arena or host malloc can honor.
 
 boundary trait Region {
-    machine allocate(size: usize, align: usize) -> usize
+    // TODO(usize-retirement follow-up): the RETURN and `address` below are
+    // ADDRESSES and should be `addr` (index_count_and_address_model brief) --
+    // needs the trait + target providers + callers moved together.
+    machine allocate(size: u64, align: u64) -> u64
     effects
         alloc;
 
-    machine deallocate(address: usize, size: usize, align: usize)
+    machine deallocate(address: u64, size: u64, align: u64)
     effects
         dealloc;
 }

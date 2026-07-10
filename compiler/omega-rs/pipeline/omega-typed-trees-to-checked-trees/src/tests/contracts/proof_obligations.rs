@@ -380,7 +380,7 @@ fn rejects_exit_ensures_fixed_indexed_boolean_expression_from_domain_fact_after_
 
         data Main {
             items: [Item; 2];
-            index: usize;
+            index: u64;
         }
 
         machine Main::mark_valid(&mut self, item: &mut Item)
@@ -470,7 +470,7 @@ fn accepts_exit_ensures_dynamic_indexed_scalar_member_expression_from_domain_fac
 
         data Main {
             entries: [Entry; 2];
-            index: usize;
+            index: u64;
         }
 
         machine Main::main(&mut self) -> i32
@@ -776,7 +776,7 @@ fn accepts_requires_dynamic_indexed_scalar_member_expression_from_domain_fact() 
 
         data Main {
             entries: [Entry; 2];
-            index: usize;
+            index: u64;
         }
 
         machine Main::accept(value: i32)
@@ -1043,6 +1043,7 @@ fn rejects_requires_dynamic_indexed_boolean_expression_from_domain_fact_after_mu
 
         data Main {
             items: [Item; 2];
+            index: u64 [0..=1];
         }
 
         machine Main::mark_valid(&mut self, item: &mut Item)
@@ -1113,7 +1114,7 @@ fn accepts_requires_dynamic_indexed_boolean_expression_from_domain_fact_across_d
         {
         }
 
-        machine Main::main(&mut self, index: usize)
+        machine Main::main(&mut self, index: u64)
         requires
             index < 2
         {
@@ -1142,7 +1143,7 @@ fn rejects_exit_ensures_dynamic_indexed_boolean_expression_from_domain_fact_afte
 
         data Main {
             items: [Item; 2];
-            index: usize;
+            index: u64;
         }
 
         machine Main::mark_valid(&mut self, item: &mut Item)
@@ -1206,7 +1207,7 @@ fn accepts_exit_ensures_dynamic_indexed_boolean_expression_from_domain_fact_acro
             item.tag = 0;
         }
 
-        machine Main::main(&mut self, index: usize) -> i32
+        machine Main::main(&mut self, index: u64) -> i32
         requires
             index < 2
         ensures

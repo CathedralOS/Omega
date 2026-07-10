@@ -5309,7 +5309,7 @@ impl<'program> Evaluator<'program> {
                 | PrimitiveType::I16
                 | PrimitiveType::I32
                 | PrimitiveType::I64
-                | PrimitiveType::Isize),
+               ),
                 domain @ (ArithmeticDomain::Wrapping
                 | ArithmeticDomain::Saturating
                 | ArithmeticDomain::Trapping),
@@ -5897,7 +5897,7 @@ fn integer_bounds(ty: PrimitiveType) -> Option<(i64, i64)> {
         PrimitiveType::U16 => Some((0, u16::MAX as i64)),
         PrimitiveType::I32 => Some((i32::MIN as i64, i32::MAX as i64)),
         PrimitiveType::U32 => Some((0, u32::MAX as i64)),
-        PrimitiveType::I64 | PrimitiveType::Isize => Some((i64::MIN, i64::MAX)),
+        PrimitiveType::I64 => Some((i64::MIN, i64::MAX)),
         _ => None,
     }
 }
@@ -5949,8 +5949,6 @@ fn wrap_to_width(raw: i64, ty: PrimitiveType) -> i64 {
         // u64 is still represented by the same bit pattern in i64).
         PrimitiveType::I64
         | PrimitiveType::U64
-        | PrimitiveType::Isize
-        | PrimitiveType::Usize
         | PrimitiveType::Addr => raw,
         // Non-integer primitives do not reach this path.
         PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64 | PrimitiveType::String => {
@@ -5983,8 +5981,6 @@ fn integer_primitive_byte_width(ty: PrimitiveType) -> Option<usize> {
         PrimitiveType::I32 | PrimitiveType::U32 => Some(4),
         PrimitiveType::I64
         | PrimitiveType::U64
-        | PrimitiveType::Isize
-        | PrimitiveType::Usize
         | PrimitiveType::Addr => Some(8),
         PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64 | PrimitiveType::String => {
             None
@@ -5995,7 +5991,7 @@ fn integer_primitive_byte_width(ty: PrimitiveType) -> Option<usize> {
 fn primitive_is_unsigned64(primitive: Option<PrimitiveType>) -> bool {
     matches!(
         primitive,
-        Some(PrimitiveType::U64 | PrimitiveType::Usize | PrimitiveType::Addr)
+        Some(PrimitiveType::U64 | PrimitiveType::Addr)
     )
 }
 

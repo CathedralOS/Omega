@@ -2,8 +2,8 @@
 // two synthesized entries -- the tagged grammar's DERIVED conformance
 // (design_briefs/programmable_layouts.md section 2b), never hand-written:
 //
-//   machine Schema::encode(&value, &mut out: [u8; N], &mut written: usize);
-//   machine Schema::decode(&mut value, &buffer: [u8; N], &mut read: usize,
+//   machine Schema::encode(&value, &mut out: [u8; N], &mut written: u64);
+//   machine Schema::decode(&mut value, &buffer: [u8; N], &mut read: u64,
 //                          &mut verdict: WireVerdict);
 //
 // The decode verdict is a dispatchable enum, not a forgettable flag. Invalid

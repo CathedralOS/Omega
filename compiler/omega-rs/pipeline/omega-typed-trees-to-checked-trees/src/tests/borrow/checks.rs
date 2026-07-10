@@ -677,7 +677,7 @@ fn rejects_mutating_call_through_owner_while_view_is_active() {
         }
 
         machine Main::read_alias(&self, entries: &[Entry]) {
-            let count: usize = entries.len;
+            let count: u64 = entries.len;
         }
     "#;
 
@@ -808,7 +808,7 @@ fn accepts_mutating_call_through_owner_on_disjoint_field() {
         }
 
         machine Main::read_alias(&self, entries: &[Entry]) {
-            let count: usize = entries.len;
+            let count: u64 = entries.len;
         }
     "#;
 
@@ -868,7 +868,7 @@ fn accepts_known_pure_mutable_receiver_call_while_view_is_active() {
         }
 
         machine Main::read_alias(&self, entries: &[Entry], value: i32) {
-            let count: usize = entries.len;
+            let count: u64 = entries.len;
         }
     "#;
 
@@ -966,9 +966,9 @@ fn accepts_recursive_slice_parameter_index_proof_from_guard() {
                 _ -> self.visit(entries, 0)
             }
 
-            state visit(&mut self, entries: &[Entry], index: usize) {
+            state visit(&mut self, entries: &[Entry], index: u64) {
                 let value: i32 = entries[index].value;
-                let next_index: usize = index + 1;
+                let next_index: u64 = index + 1;
                 let has_next: bool = next_index < entries.len;
 
                 transition {

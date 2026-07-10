@@ -1,0 +1,8 @@
+// FAIL canary: `usize` is RETIRED (owner directive 2026-07-13: "we do not
+// have usize. We have addr, we have primitives" -- conflating addresses and
+// sizes is a semantic disaster; index_count_and_address_model brief). Sizes,
+// counts, and indexes are u64; addresses are addr. The name no longer
+// resolves as a builtin type.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; n: usize; }
+machine Main::main(&mut self) { self.console.exit_process(70); }

@@ -124,7 +124,7 @@ fn primitive_byte_size(primitive: PrimitiveType) -> Option<i64> {
         PrimitiveType::I8 | PrimitiveType::U8 | PrimitiveType::Bool => 1,
         PrimitiveType::I16 | PrimitiveType::U16 => 2,
         PrimitiveType::I32 | PrimitiveType::U32 | PrimitiveType::F32 => 4,
-        PrimitiveType::I64 | PrimitiveType::U64 | PrimitiveType::F64 | PrimitiveType::Usize => 8,
+        PrimitiveType::I64 | PrimitiveType::U64 | PrimitiveType::F64 => 8,
         _ => return None,
     })
 }

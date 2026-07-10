@@ -153,8 +153,13 @@ mod tests {
 
         assert!(message.contains("ambiguous operator spelling `[]`"));
         assert!(message.contains("2 viable candidates"));
-        assert!(message.contains("root operator 10 params 2 contracts 1"));
-        assert!(message.contains("domain 12 operator 11 params 2 contracts 3"));
+        // Candidate details render by symbol display name (empty in this
+        // synthetic fixture); the stable fragments are the candidate KINDS.
+        // (The old "root operator 10 params 2 contracts 1" numeric form
+        // rotted silently -- this crate's unit tests are outside the root
+        // gate; caught during the usize-retirement sweep.)
+        assert!(message.contains("(builtin/root)"));
+        assert!(message.contains("owned by domain"));
     }
 
     #[test]

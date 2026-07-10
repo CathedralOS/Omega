@@ -602,13 +602,11 @@ pub enum PrimitiveType {
     I16,
     I32,
     I64,
-    Isize,
     String,
     U8,
     U16,
     U32,
     U64,
-    Usize,
     /// A pointer-width ADDRESS, distinct from `usize`/counts (address and count
     /// are separate axes; index_count_and_address_model brief). Naive
     /// pointer-width for now -- rides the 8-byte unsigned path.
@@ -625,13 +623,11 @@ impl PrimitiveType {
             "i16" => Some(Self::I16),
             "i32" => Some(Self::I32),
             "i64" => Some(Self::I64),
-            "isize" => Some(Self::Isize),
             "String" => Some(Self::String),
             "u8" => Some(Self::U8),
             "u16" => Some(Self::U16),
             "u32" => Some(Self::U32),
             "u64" => Some(Self::U64),
-            "usize" => Some(Self::Usize),
             "addr" => Some(Self::Addr),
             // Atomic types: same layout as their underlying primitives (C11
             // atomics; alignment is the same because we use plain aligned
@@ -639,7 +635,6 @@ impl PrimitiveType {
             "AtomicBool" => Some(Self::Bool),
             "AtomicU32" => Some(Self::U32),
             "AtomicU64" => Some(Self::U64),
-            "AtomicUsize" => Some(Self::Usize),
             _ => None,
         }
     }
@@ -653,13 +648,11 @@ impl PrimitiveType {
             Self::I16 => "i16",
             Self::I32 => "i32",
             Self::I64 => "i64",
-            Self::Isize => "isize",
             Self::String => "String",
             Self::U8 => "u8",
             Self::U16 => "u16",
             Self::U32 => "u32",
             Self::U64 => "u64",
-            Self::Usize => "usize",
             Self::Addr => "addr",
         }
     }
@@ -671,12 +664,10 @@ impl PrimitiveType {
                 | Self::I16
                 | Self::I32
                 | Self::I64
-                | Self::Isize
                 | Self::U8
                 | Self::U16
                 | Self::U32
                 | Self::U64
-                | Self::Usize
                 | Self::Addr
         )
     }
@@ -692,7 +683,7 @@ impl PrimitiveType {
     pub fn is_signed_integer(self) -> bool {
         !matches!(
             self,
-            Self::U8 | Self::U16 | Self::U32 | Self::U64 | Self::Usize | Self::Addr
+            Self::U8 | Self::U16 | Self::U32 | Self::U64 | Self::Addr
         )
     }
 
@@ -704,7 +695,7 @@ impl PrimitiveType {
             Self::Bool | Self::I8 | Self::U8 => Some(1),
             Self::I16 | Self::U16 => Some(2),
             Self::F32 | Self::I32 | Self::U32 => Some(4),
-            Self::F64 | Self::I64 | Self::U64 | Self::Usize | Self::Isize | Self::Addr => Some(8),
+            Self::F64 | Self::I64 | Self::U64 | Self::Addr => Some(8),
             Self::String => None,
         }
     }
@@ -718,12 +709,10 @@ impl PrimitiveType {
                 | Self::I16
                 | Self::I32
                 | Self::I64
-                | Self::Isize
                 | Self::U8
                 | Self::U16
                 | Self::U32
                 | Self::U64
-                | Self::Usize
                 | Self::Addr
         )
     }
