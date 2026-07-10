@@ -392,9 +392,18 @@ fn parse_host_provider_definition<'tokens, 'source>(
 ) -> ParseResult<'tokens, 'source, HostProviderDefinition> {
     let (target, input) = input.take_identifier()?;
     let input = input.take_contextual("provides")?;
-    let (boundary_trait, mut input) = parse_path_handle_span(input, |member| {
+    let (boundary_trait, input) = parse_path_handle_span(input, |member| {
         syntax_trees.items.append_identifier_path_member(member)
     })?;
+    // The FIELD MODEL's `over <Struct>` clause (extern brief SS12.1): names
+    // the vtable struct whose fn-ptr fields the arms bind. Optional -- the
+    // static mechanisms (Syscall/DllImport) and legacy VtableSlot need none.
+    let (vtable_struct, mut input) = if let Ok(rest) = input.take_contextual("over") {
+        let (name, rest) = rest.take_identifier()?;
+        (name, rest)
+    } else {
+        (omega_syntax_trees::identifier::Identifier::default(), input)
+    };
     input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
 
     let mut mapping_start = omega_core::arena::Handle::invalid();
@@ -426,6 +435,7 @@ fn parse_host_provider_definition<'tokens, 'source>(
         HostProviderDefinition {
             target,
             boundary_trait,
+            vtable_struct,
             mappings,
         },
         input,
@@ -467,10 +477,18 @@ fn parse_host_provider_binding<'tokens, 'source>(
             let input = input.take_punctuation(PunctuationKind::RightParen, ")")?;
             Ok((HostProviderMappingKind::DllImport { module, symbol }, input))
         }
+        // A BARE identifier (no `(`) is a VtableField arm: the RHS names a
+        // fn-ptr FIELD of the block's `over` struct (the field model, extern
+        // brief SS12.1). The over-clause requirement is enforced at
+        // extraction, where the block context is in hand.
+        _ if !input.at_punctuation(PunctuationKind::LeftParen) => {
+            Ok((HostProviderMappingKind::VtableField { field: case }, input))
+        }
         other => Err(input.error_here(format!(
             "unknown `provides` binding `{other}`: the compiler-known Binding sum is \
-             `Syscall(n)`, `DllImport(\"module\", \"symbol\")`, or `VtableSlot(n)`; \
-             a per-target VALUE row is a bare integer (`O_CREATE -> 32768`)"
+             `Syscall(n)`, `DllImport(\"module\", \"symbol\")`, `VtableSlot(n)`, or a \
+             bare fn-ptr FIELD name of the block's `over` struct; a per-target VALUE \
+             row is a bare integer (`O_CREATE -> 32768`)"
         ))),
     }
 }

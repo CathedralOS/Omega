@@ -128,6 +128,11 @@ fn machine_instruction_width(
             Some(HostBindingMechanism::VtableSlot { index }) => {
                 vtable_call_sequence_width(input.target.architecture, operands, *index)
             }
+            // The disp32 encoding is offset-independent: the field flavor's
+            // width is the slot flavor's width (index unused there).
+            Some(HostBindingMechanism::VtableField { .. }) => {
+                vtable_call_sequence_width(input.target.architecture, operands, 0)
+            }
             _ => host_call_sequence_width(
                 input.target.architecture,
                 host_operation.operation_key,

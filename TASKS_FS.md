@@ -128,24 +128,30 @@ results in Omega. Interpreter = full-parity reference oracle for everything.
    (ref_param_call_arg + direct_faces report-checks included). The
    cfg(windows) byte-pin twins need the next Windows session to
    re-baseline, but the same encoder path proves out cross-target.
-   THE REAL M2 WORK (their note agrees): the FIELD MODEL -- `provides
-   Trait over VtableStruct { method -> field }` (extern brief SS12.1,
-   decided 2026-07-04) has zero implementation; Cathedral is authored
-   in it. Recipe from today's survey: (1) syntax: provides block gains
-   the optional `over <Struct>` clause; arm RHS bare identifier ->
-   ProvidesBindingKind::VtableField { field } (RHS is already
-   expression syntax; VtableSlot parse stays for the existing
-   canaries). (2) resolution: over-struct + field names resolve; the
-   FIELD OFFSET comes from the layout plan (the byte-op
-   payload-offset precedent) -- normalize BOTH forms to a byte offset
-   (VtableSlot(n) = n x pointer_size) so one encoder serves.
-   (3) encoding: generalize encode_vtable_call_sequence's `index` to
-   the byte offset (calling-conventions lib.rs:988 is the
-   binding-kind -> mechanism seam; emission/host.rs:27 the dispatch).
-   (4) canary: the M1 greeting re-authored in the field model
-   (header-prefixed EfiSimpleTextOutput struct, output_string as a
-   NAMED field) pinning the SAME dispatch needle; then M2-ladder #1
-   (`&mut` out-params, get_memory_map's five) gets its canary. NOTE
+   THE FIELD MODEL LANDED (2026-07-17): `provides Trait over
+   VtableStruct { method -> field }` (extern brief SS12.1) serves end
+   to end -- `over` clause + bare-field arms parse
+   (HostProviderMappingKind::VtableField), the mechanism carries
+   table/field names, the backend's "vtable field offsets" pass
+   (omega-backend-pipeline builder) resolves byte offsets from the
+   LAYOUT PLAN before any phase copies bindings (unknown struct/field
+   = loud refusal; missing `over` clause = loud at merge), and
+   encode_win64_vtable_call_at_offset emits the dispatch. FOUND EN
+   ROUTE: relocations/data_addresses.rs gated operand-address fixup
+   offsets on `matches!(VtableSlot)` -- the field flavor's relocation
+   landed 2 bytes off and CORRUPTED the marshaling bytes (caught by
+   PE byte-diff vs the slot flavor; the semantic-matches!-gate class
+   of miss, unlike the compiler-enumerated exhaustiveness sites).
+   Pinned by pass/targets/efi_vtable_field_call: byte-identical
+   `mov rax,[rcx+8]; call rax` behind a leading header field, tested
+   CROSS-TARGET on every host (stronger than the cfg(windows) slot
+   twin) + CROSS_TARGET_PASS_CANARIES row. REMAINING for M2:
+   (m1) `&mut` out-params through the boundary call, MS-x64
+   (get_memory_map's five) -- needs its canary; (m2) the
+   runtime-offset borrow-recast smoke (`&self.map_buf[offset] as
+   &EfiMemoryDescriptor`, M2-ladder #3); (m3) Cathedral's actual
+   protocol structs may exercise shapes beyond one-field tables
+   (multi-arm over-blocks work; DllImport+field mixes untested). NOTE
    this lane also owns the adjacent x86_64 byte-op encoder follow-up
    (item 0 (x)) -- same encoder territory.
 

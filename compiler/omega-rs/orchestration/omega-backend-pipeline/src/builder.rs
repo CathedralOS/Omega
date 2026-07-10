@@ -112,6 +112,14 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
     let layouts = layouts?;
     let host_calls = host_calls?;
     let host_calls = Arc::new(host_calls);
+    // The FIELD MODEL's offset resolution (extern brief SS12.1): VtableField
+    // provides rows carried the vtable struct + field NAMES; the layout plan
+    // owns their byte offsets. Runs before any phase copies bindings out of
+    // the ABI plan; an unknown struct/field refuses the compile here.
+    let host_abi = record_backend_phase(&mut phase_timings, "vtable field offsets", || {
+        resolve_vtable_field_offsets(host_abi, &layouts)
+    })
+    .map_err(Diagnostic::error)?;
     let entry_key = control_flow
         .state_key_by_symbols(entry_point.machine_symbol, entry_point.state_symbol)
         .ok_or_else(|| Diagnostic::error("unknown runtime entry state"))?;
@@ -966,4 +974,72 @@ fn compute_receiver_bases(
         bases[index] = Some(base);
     }
     bases
+}
+
+/// Resolve every `VtableField` binding's byte offset from the layout plan
+/// (the field model, extern brief SS12.1): the provides row named a fn-ptr
+/// FIELD of its `over` struct; the struct's layout owns the offset. Programs
+/// with no field-model rows pass through untouched (the common case pays one
+/// scan). Unknown struct or field = a loud compile refusal -- the encoder
+/// must never see an unresolved mechanism.
+fn resolve_vtable_field_offsets(
+    host_abi: std::sync::Arc<omega_calling_conventions::HostAbiPlan>,
+    layouts: &omega_layout::LayoutPlan,
+) -> Result<std::sync::Arc<omega_calling_conventions::HostAbiPlan>, String> {
+    use omega_calling_conventions::HostBindingMechanism;
+
+    let needs_resolution = host_abi.bindings.iter().any(|(_, binding)| {
+        matches!(binding.mechanism, HostBindingMechanism::VtableField { .. })
+    });
+    if !needs_resolution {
+        return Ok(host_abi);
+    }
+
+    let mut plan = std::sync::Arc::try_unwrap(host_abi).unwrap_or_else(|shared| (*shared).clone());
+    let binding_handles: Vec<_> = plan.bindings.iter().map(|(handle, _)| handle).collect();
+    for handle in binding_handles {
+        let HostBindingMechanism::VtableField { table, field, .. } =
+            plan.bindings.get(handle).mechanism.clone()
+        else {
+            continue;
+        };
+        let Some(data_layout) = layouts
+            .data_layouts
+            .iter()
+            .find(|(_, data_layout)| data_layout.name.as_str() == table.as_ref())
+            .map(|(_, data_layout)| data_layout)
+        else {
+            return Err(format!(
+                "provides `over {table}`: no data layout for the vtable struct -- declare \
+                 `data {table} {{ ... }}` with its fn-ptr fields in spec order",
+            ));
+        };
+        let omega_layout::DataShape::Record { fields } = &data_layout.shape else {
+            return Err(format!(
+                "provides `over {table}`: the vtable struct must be a plain record of \
+                 fn-ptr fields (case-bearing data cannot be a foreign vtable)",
+            ));
+        };
+        let Some(field_layout) = layouts
+            .fields
+            .span(*fields)
+            .and_then(|candidates| {
+                candidates
+                    .iter()
+                    .find(|candidate| candidate.name.as_str() == field.as_ref())
+            })
+        else {
+            return Err(format!(
+                "provides `over {table}`: no field `{field}` in the vtable struct -- the \
+                 arm's RHS must name one of its declared fn-ptr fields",
+            ));
+        };
+        let resolved_offset = field_layout.offset;
+        plan.bindings.get_mut(handle).mechanism = HostBindingMechanism::VtableField {
+            table,
+            field,
+            byte_offset: resolved_offset,
+        };
+    }
+    Ok(std::sync::Arc::new(plan))
 }

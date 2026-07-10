@@ -21,6 +21,25 @@ pub fn encode_vtable_call_sequence<T: InstructionOperandLike>(
     }
 }
 
+/// The FIELD-MODEL flavor (extern brief SS12.1): the byte offset came from
+/// the vtable struct's layout via the backend's vtable-field pass.
+pub fn encode_vtable_call_sequence_at_offset<T: InstructionOperandLike>(
+    architecture: Architecture,
+    operands: &[T],
+    byte_offset: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::Aarch64 => Err(Diagnostic::error(
+            "AArch64 vtable-field dispatch is not implemented (x86_64 only)",
+        )),
+        Architecture::X86_64 => x86_64::encode_win64_vtable_call_at_offset(
+            operands,
+            i64::try_from(byte_offset)
+                .map_err(|_| Diagnostic::error("vtable field offset overflows i64"))?,
+        ),
+    }
+}
+
 pub fn encode_host_call_sequence<T: InstructionOperandLike>(
     architecture: Architecture,
     operation_key: HostOperationKey,

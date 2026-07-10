@@ -81,6 +81,21 @@ fn write_host_binding(output: &mut String, binding: &HostBinding) {
                 binding.boundary_policy
             ));
         }
+        HostBindingMechanism::VtableField {
+            table,
+            field,
+            byte_offset,
+        } => {
+            output.push_str(&format!(
+                "- {}.{} vtable field {}.{} (+{}) boundary `{}`\n",
+                binding.operation_key.capability_name(),
+                binding.operation_key.operation_name(),
+                table,
+                field,
+                byte_offset,
+                binding.boundary_policy
+            ));
+        }
         HostBindingMechanism::Syscall {
             name,
             number,

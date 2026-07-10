@@ -27,6 +27,13 @@ pub(super) fn encode_host_operation(
         Some(HostBindingMechanism::VtableSlot { index }) => {
             architecture::encode_vtable_call_sequence(input.target.architecture, operands, *index)
         }
+        Some(HostBindingMechanism::VtableField { byte_offset, .. }) => {
+            architecture::encode_vtable_call_sequence_at_offset(
+                input.target.architecture,
+                operands,
+                *byte_offset,
+            )
+        }
         _ => architecture::encode_host_call_sequence(
             input.target.architecture,
             operation_key,

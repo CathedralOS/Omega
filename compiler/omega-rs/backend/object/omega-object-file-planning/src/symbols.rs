@@ -74,7 +74,8 @@ pub(super) fn insert_object_symbols(
                 // address is a number (syscall) or read from the receiver at
                 // call time (vtable).
                 HostBindingMechanism::Syscall { .. }
-                | HostBindingMechanism::VtableSlot { .. } => None,
+                | HostBindingMechanism::VtableSlot { .. }
+                | HostBindingMechanism::VtableField { .. } => None,
             }
         }));
 

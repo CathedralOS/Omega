@@ -778,6 +778,17 @@ pub enum HostBindingMechanism {
     /// call rax`. The protocol struct IS the vtable (UEFI SimpleTextOutput:
     /// OutputString at slot 1 = +8). No import thunk, no relocation.
     VtableSlot { index: i64 },
+    /// The FIELD-MODEL flavor of vtable dispatch (extern brief SS12.1,
+    /// decided 2026-07-04): the fn-ptr FIELD of `table` named `field`;
+    /// `byte_offset` is resolved from the LAYOUT PLAN by the backend's
+    /// vtable-field pass (0 until then -- the encoder never sees an
+    /// unresolved mechanism because the pass runs before target-operation
+    /// building, and an unknown struct/field refuses the compile there).
+    VtableField {
+        table: Arc<str>,
+        field: Arc<str>,
+        byte_offset: usize,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -886,6 +897,10 @@ pub struct ProvidesRow {
     pub target_name: String,
     pub trait_name: String,
     pub method: String,
+    /// The `over <Struct>` clause's vtable struct (the field model, extern
+    /// brief SS12.1). EMPTY when the block had no over clause; REQUIRED for
+    /// `VtableField` bindings (the merge enforces it loudly).
+    pub vtable_struct: String,
     pub binding: ProvidesBindingKind,
 }
 
@@ -894,6 +909,10 @@ pub enum ProvidesBindingKind {
     Syscall { number: i64 },
     DllImport { module: String, symbol: String },
     VtableSlot { index: i64 },
+    /// Dispatch by fn-ptr FIELD of the row's `vtable_struct` (the field
+    /// model): the byte offset comes from the layout plan, resolved by the
+    /// backend pass -- no magic slot counts.
+    VtableField { field: String },
     /// A per-target named CONSTANT (`O_CREATE -> 32768`): carried on the row
     /// stream but never a call binding -- the const-resolution rung consumes
     /// it; the ABI merge skips it.
@@ -987,6 +1006,21 @@ pub fn merge_provides_rows(
             ProvidesBindingKind::Value { .. } => unreachable!("value rows skipped above"),
             ProvidesBindingKind::VtableSlot { index } => {
                 HostBindingMechanism::VtableSlot { index: *index }
+            }
+            ProvidesBindingKind::VtableField { field } => {
+                if row.vtable_struct.is_empty() {
+                    return Err(format!(
+                        "provides `{}::{}`: a bare-field binding (`{}`) needs the block's \
+                         `over <Struct>` clause naming the vtable struct whose fields it \
+                         indexes (the field model, extern brief SS12.1)",
+                        row.trait_name, row.method, field
+                    ));
+                }
+                HostBindingMechanism::VtableField {
+                    table: row.vtable_struct.as_str().into(),
+                    field: field.as_str().into(),
+                    byte_offset: 0,
+                }
             }
             ProvidesBindingKind::DllImport { module, symbol } => HostBindingMechanism::Import {
                 library: module.as_str().into(),

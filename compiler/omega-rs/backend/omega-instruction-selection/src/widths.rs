@@ -1350,7 +1350,8 @@ pub fn runtime_byte_read_width(architecture: Architecture, binding: &HostBinding
             HostBindingMechanism::Syscall { number, .. } => {
                 aarch64::runtime_byte_read_syscall_width(*number)
             }
-            HostBindingMechanism::VtableSlot { .. } => 0,
+            HostBindingMechanism::VtableSlot { .. }
+            | HostBindingMechanism::VtableField { .. } => 0,
         },
         Architecture::X86_64 => 0,
     }
@@ -1367,7 +1368,8 @@ pub fn runtime_byte_write_width(
             HostBindingMechanism::Syscall { number, .. } => {
                 aarch64::runtime_byte_write_syscall_width(*number)
             }
-            HostBindingMechanism::VtableSlot { .. } => 0,
+            HostBindingMechanism::VtableSlot { .. }
+            | HostBindingMechanism::VtableField { .. } => 0,
         },
         Architecture::X86_64 => 0,
     }
@@ -1401,7 +1403,8 @@ pub fn runtime_text_line_read_width(
                 }
             }
             // read_line is never vtable-bound; 0 = the refuse-to-emit convention.
-            HostBindingMechanism::VtableSlot { .. } => 0,
+            HostBindingMechanism::VtableSlot { .. }
+            | HostBindingMechanism::VtableField { .. } => 0,
         },
         Architecture::X86_64 => match binding {
             HostBindingMechanism::Import { .. } => {
@@ -1418,7 +1421,8 @@ pub fn runtime_text_line_read_width(
                     x86_64::runtime_text_line_read_syscall_width()
                 }
             }
-            HostBindingMechanism::VtableSlot { .. } => 0,
+            HostBindingMechanism::VtableSlot { .. }
+            | HostBindingMechanism::VtableField { .. } => 0,
         },
     }
 }
@@ -1435,7 +1439,8 @@ pub fn runtime_text_line_read_target_address_offset(
             HostBindingMechanism::Syscall { number, .. } => {
                 aarch64::runtime_text_line_read_syscall_target_address_offset(*number)
             }
-            HostBindingMechanism::VtableSlot { .. } => 0,
+            HostBindingMechanism::VtableSlot { .. }
+            | HostBindingMechanism::VtableField { .. } => 0,
         },
         Architecture::X86_64 => match binding {
             HostBindingMechanism::Import { .. } => {
@@ -1444,7 +1449,8 @@ pub fn runtime_text_line_read_target_address_offset(
             HostBindingMechanism::Syscall { .. } => {
                 x86_64::runtime_text_line_read_syscall_target_imm_offset()
             }
-            HostBindingMechanism::VtableSlot { .. } => 0,
+            HostBindingMechanism::VtableSlot { .. }
+            | HostBindingMechanism::VtableField { .. } => 0,
         },
     }
 }
