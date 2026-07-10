@@ -1340,6 +1340,39 @@ pub fn runtime_frame_base_indexed_address_target_frame_offset(
     }
 }
 
+/// Width of the ByteRead stdin read. X86_64 is not encoded yet (TASKS_FS
+/// #0a follow-up); 0 = the refuse-to-emit convention, matching the loud
+/// encoder Err.
+pub fn runtime_byte_read_width(architecture: Architecture, binding: &HostBindingMechanism) -> usize {
+    match architecture {
+        Architecture::Aarch64 => match binding {
+            HostBindingMechanism::Import { .. } => aarch64::runtime_byte_read_import_width(),
+            HostBindingMechanism::Syscall { number, .. } => {
+                aarch64::runtime_byte_read_syscall_width(*number)
+            }
+            HostBindingMechanism::VtableSlot { .. } => 0,
+        },
+        Architecture::X86_64 => 0,
+    }
+}
+
+/// Width of the stdout byte write; same conventions as the read.
+pub fn runtime_byte_write_width(
+    architecture: Architecture,
+    binding: &HostBindingMechanism,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 => match binding {
+            HostBindingMechanism::Import { .. } => aarch64::runtime_byte_write_import_width(),
+            HostBindingMechanism::Syscall { number, .. } => {
+                aarch64::runtime_byte_write_syscall_width(*number)
+            }
+            HostBindingMechanism::VtableSlot { .. } => 0,
+        },
+        Architecture::X86_64 => 0,
+    }
+}
+
 pub fn runtime_text_line_read_width(
     architecture: Architecture,
     byte_capacity: usize,

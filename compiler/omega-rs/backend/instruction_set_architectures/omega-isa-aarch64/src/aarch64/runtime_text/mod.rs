@@ -1,4 +1,5 @@
 mod append;
+mod byte_io;
 mod compare;
 mod read;
 mod write;
@@ -12,6 +13,10 @@ pub use append::{
     encode_runtime_text_stored_place_append_to_runtime_frame_indexed,
     encode_runtime_text_stored_place_append_to_runtime_pointee,
     encode_runtime_text_stored_suffix_append,
+};
+pub use byte_io::{
+    encode_runtime_byte_read_import, encode_runtime_byte_read_syscall,
+    encode_runtime_byte_write_import, encode_runtime_byte_write_syscall,
 };
 pub use compare::{encode_runtime_text_literal_compare, encode_runtime_text_storage_compare_bytes};
 pub use read::{

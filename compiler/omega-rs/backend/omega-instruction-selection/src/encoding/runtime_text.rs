@@ -289,6 +289,74 @@ pub fn encode_runtime_text_buffer_materialize_to_runtime_frame_indexed(
     }
 }
 
+/// One stdin byte into a `ByteRead` sum slot (std console `read_byte()`).
+/// X86_64 is not encoded yet (TASKS_FS #0a follow-up) -- loud by doctrine.
+pub fn encode_runtime_byte_read(
+    architecture: Architecture,
+    target_offset: usize,
+    payload_offset: usize,
+    binding: &HostBindingMechanism,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::Aarch64 => match binding {
+            HostBindingMechanism::Import { .. } => {
+                aarch64::encode_runtime_byte_read_import(target_offset, payload_offset)
+            }
+            HostBindingMechanism::Syscall {
+                number,
+                number_register,
+                supervisor_call,
+                ..
+            } => aarch64::encode_runtime_byte_read_syscall(
+                target_offset,
+                payload_offset,
+                *number,
+                *number_register,
+                *supervisor_call,
+            ),
+            HostBindingMechanism::VtableSlot { .. } => {
+                Err(Diagnostic::error("read_byte cannot be vtable-bound"))
+            }
+        },
+        Architecture::X86_64 => Err(Diagnostic::error(
+            "runtime byte read: x86_64 lowering not yet implemented (console read_byte serves aarch64 natively today)",
+        )),
+    }
+}
+
+/// One byte to stdout (std console `write_byte(b)`); same conventions as
+/// the read.
+pub fn encode_runtime_byte_write(
+    architecture: Architecture,
+    source_offset: usize,
+    binding: &HostBindingMechanism,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::Aarch64 => match binding {
+            HostBindingMechanism::Import { .. } => {
+                aarch64::encode_runtime_byte_write_import(source_offset)
+            }
+            HostBindingMechanism::Syscall {
+                number,
+                number_register,
+                supervisor_call,
+                ..
+            } => aarch64::encode_runtime_byte_write_syscall(
+                source_offset,
+                *number,
+                *number_register,
+                *supervisor_call,
+            ),
+            HostBindingMechanism::VtableSlot { .. } => {
+                Err(Diagnostic::error("write_byte cannot be vtable-bound"))
+            }
+        },
+        Architecture::X86_64 => Err(Diagnostic::error(
+            "runtime byte write: x86_64 lowering not yet implemented (console write_byte serves aarch64 natively today)",
+        )),
+    }
+}
+
 pub fn encode_runtime_text_line_read(
     architecture: Architecture,
     target_offset: usize,
