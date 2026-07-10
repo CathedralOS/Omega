@@ -562,8 +562,9 @@ domain Slice<u8>::NoNul { no_interior_nul(self) }   // per-element predicate
 domain Slice<u8>::Utf8  { utf8_ok(self) }           // sequence recogniser (below)
 ```
 
-`utf8_ok` is an ordinary machine, not a builtin. Recursion is banned (a machine
-self-call is a stack call), so a sequence walk is a **state machine that narrows
+`utf8_ok` is an ordinary machine, not a builtin. Measured recursion is legal
+(settled 2026-07-18; chapter 3) and a tail-recursive spelling lowers to the
+same loop — the idiomatic sequence walk remains a **state machine that narrows
 the slice** — slicing over indexing, no index variable:
 
 ```omega

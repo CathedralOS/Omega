@@ -187,6 +187,35 @@ header above for the verified spelling). Rungs, in payoff order:
   facts, Houdini inference. Needed when dependent facts cross
   sibling-machine calls.
 
+## Measured recursion — engineering (settled 2026-07-18; AMENDS the NO RECURSION directive)
+
+Owner-settled after the proofs exploration (record:
+design_briefs/mathematical_proofs.md par-2; chapters 3/8/10/18 + appendix
+updated). The rule: recursive CALL cycles are legal iff `decreases`-measured
+(both strata, all positions); unmeasured cycles remain the hard error;
+transition loop-backs unchanged (unmeasured, constant-stack, may diverge).
+`decreases` is the SOLE gate — tail is only a lowering guarantee. Rungs:
+
+- **MR1 — classifier + legality gate:** call-graph cycle detection already
+  exists (the recursion fences); repurpose reject-all into
+  measured-or-reject. Tail/non-tail classification, strict, clean errors
+  (`-> 3 * f(...)` names why it is not tail). The existing
+  machine_self_call_recursion_rejected fail canary becomes
+  "unmeasured-rejected"; add measured-tail pass canaries.
+- **MR2 — tail lowering:** desugar tail recursive calls onto the landed
+  loop-back machinery (same back-edge; loop-carried-arg staging fix already
+  pins the delivery). Differential canaries.
+- **MR3 — non-tail budget:** const depth budget obligation
+  (measure <= BUDGET at entry; spelling pinned at implementation), frame
+  region as machine-storage field ([Frame; BUDGET] + depth witness), layout
+  report line for the region size. Whole-program worst-case stack line in
+  the report (additive along call chains; mutual cycles need MR4).
+- **MR4 — mutual cycles:** joint (lexicographic) measures across the cycle;
+  the dungeon's find_item_at/find_item_after pair is the live test case
+  (currently absorbed by bounded clone specialization).
+- **MR5 — proof-stratum evaluation:** measured recursion under interpreter
+  fuel for compile-time proof machines (no lowering, no space rule).
+
 ## Owner-gated holds (see OWNER_QUESTIONS.md)
 
 - **Q13 console convergence** — `platform` blocks vs boundary traits (the

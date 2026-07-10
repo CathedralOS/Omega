@@ -68,6 +68,29 @@ overflow behavior.
 The same operator spelling can exist in both worlds. The operand types decide
 which proof rules apply.
 
+## Proof-Only Data
+
+`Nat` and its kin are proof-only types: unbounded, with no machine layout, no
+ZII obligation, and no runtime existence. A data type declares this with a
+property in the landed bracket surface (spelling provisional):
+
+```omega
+data Nat [unbounded] { ... }
+```
+
+Working rules:
+
+- A proof-only value may appear **only in fact positions** — `requires`,
+  `ensures`, `where` clauses, domain bodies — and in proof-stratum machine
+  bodies. It never has a size, an address, or a zero value.
+- A machine whose signature mentions a proof-only type is itself proof-only:
+  it is evaluated by the checker, never lowered.
+- A pure, total, measured machine over ordinary machine types is **dual-use**:
+  it runs at runtime *and* serves as a fact atom the engine reasons about.
+  Most theorems about `u64` code cite dual-use machines directly and never
+  need `Nat` at all; `Nat` appears when a claim is genuinely about unbounded
+  mathematics.
+
 ## Proof Views
 
 Runtime data often needs a mathematical view before it can be reasoned about.
@@ -83,7 +106,9 @@ Range(len)    finite index space
 These are proof-only views. They do not allocate at runtime. They let contracts
 talk about math without pretending that proof binders are runtime loops.
 
-Sorting is naturally expressed as:
+`Sorted` is an ordinary domain defined by a predicate machine (see Quantified
+Facts below); the views exist so contracts can talk about order and counting
+without inventing runtime loops. Sorting is naturally expressed as:
 
 ```omega
 machine Sort::bubble_sort_preserving(
@@ -137,25 +162,67 @@ Bag(items) stays equal to the explicit before value
 
 ## Quantified Facts
 
-Full sorting correctness requires global facts:
+> **Settled 2026-07-18: quantifiers are not keywords.** Universal claims over
+> all values are machine parameters (a theorem over `(n: u64)` is checked
+> symbolically once). Element-wise facts are element types and window facts
+> (chapter 7). Relational facts over sequences are **predicate machines** plus
+> one extraction lemma each. Existentials are witness-carrying out-params.
+> `forall`/`exists` remain parse errors; the quantified shape lives in the
+> engine, not the surface.
 
-```text
-every earlier index has a value <= every later index
-every value has the same count before and after sorting
+A relational property is defined by an ordinary measured machine:
+
+```omega
+machine sorted(items: &[i32]) -> bool
+terminates { decreases items -> Slice::Length; }
+{
+    transition items.len <= 1 {
+        true  -> true
+        false -> items[0] <= items[1] && sorted(items[1..])
+    }
+}
+
+domain [i32]::SortedAscending { sorted(self); }
 ```
 
-The language still needs a proof-level way to express those facts. That does
-not mean adding runtime loops. It means adding fact syntax, proof views, or
-foundation-library definitions that the checker understands.
+The definition is also the decider: an `as` mint runs it (or a loop the
+checker proves refines it) to establish the domain.
 
-Possible directions:
+Consuming the fact at an arbitrary index needs one **extraction lemma** per
+predicate — an induction, written once by the predicate's author:
 
-- `Seq<T>` and `Bag<T>` are compiler-known finite math objects.
-- Domains like `Sorted` are defined over proof views.
-- Advanced libraries can define reusable facts about `Seq`, `Bag`, `Range`, and
-  state graphs.
-- General quantifiers, if added, are proof-level binders in contracts/domains,
-  not executable machine control flow.
+```omega
+machine sorted_extracts(items: &[i32], i: u64, j: u64)
+requires sorted(items) == true && i < j && j < items.len
+ensures items[i] <= items[j]
+terminates { decreases j - i; }
+{ ... }
+```
+
+After that, the engine holds the quantified fact-shape natively and every use
+is mechanical, under two closed rules:
+
+- **Instantiation** happens only at index atoms in scope at the obligation —
+  deterministic, budgeted, never searched. A missing instance is a normal
+  "cannot prove" naming the index it needed.
+- **The delta rule**: extending a quantified fact by one element (a
+  validator's loop step, a table's append) costs one definitional unfold.
+  Loop invariants over sequences ride state arrival contracts (chapter 11).
+
+Instances injected by the lemma are ordinary atom-facts, so the
+difference-bound engine composes them — transitivity, everything-left-of-mid,
+min-at-ends are downstream chains, not further lemmas.
+
+## Induction Is Measured Recursion
+
+A proof-stratum machine recurses under the same rule as every machine: a
+`decreases` measure, checked at every cycle (chapter 3). Read as a proof, the
+machine *is* the induction: transition dispatch is the case analysis
+(exhaustiveness enforced — no missed constructor), the measured cycle is the
+appeal to the induction hypothesis, and a state's arrival contract (parameter
+facts plus state `requires`, chapter 11) is the hypothesis itself, proven at
+every in-edge. Nothing was added to the language to express induction; the
+state machine was already its shape.
 
 ## Termination Proofs
 
@@ -224,6 +291,68 @@ terminates {
 
 The important design boundary is that `terminates` is not an effect. It is a
 proof claim over control flow.
+
+## Citing Proofs
+
+A fact the engine cannot derive may be discharged by citing a proof machine's
+contract, instantiated at the operands. This is the only connection between
+proof-stratum theorems and runtime code, and it has no syntax of its own — a
+cited theorem is a fact like any other:
+
+```omega
+machine Walker::step(&mut self)
+requires self.n >= 1 && self.n <= 6148914691236517205
+ensures self.n == collatz_step(n0)    // refinement: the u64 op IS the ideal op
+stores self.n
+{ ... }
+```
+
+Working rules:
+
+- A theorem over parameters applies at any operands satisfying its
+  `requires` — instantiation is machine application, not search.
+- An `ensures` may equate a runtime place with a pure machine's result (a
+  *refinement* fact): the runtime operation provably computes the
+  mathematical function on the domain where its witnesses fit. Prove once
+  over the ideal type; embed per width by supplying each width's bound.
+- Runtime code that cites no proofs pays nothing and sees nothing.
+
+## Evidence And Trust
+
+Every fact carries an evidence class, and the classes roll up into the
+binary's trust report:
+
+```text
+engine        derived by the entailment engine (the default; unconditional)
+derivation    kernel-checked derivation record (unconditional)
+evaluated     decided by running a proof machine under a fuel budget
+external-run  a verified checker's recorded offline execution (attestation)
+assumed       accepted authority; no evidence
+```
+
+Rows below `evaluated` live in the build's proofs manifest (`Proofs.lock`),
+one row per accepted fact: the fact, its class, its artifacts (checker hash,
+run record, authority identity).
+
+Assumption rules:
+
+- **There is no inline `assume`.** Unproven facts exist only as
+  boundary-shaped manifest rows. Local "trust me" needs are already served
+  soundly by guards, `as` mints, and the Trapping domain.
+- **Grants flow from the root.** A dependency may *request* an assumption;
+  the final program links only if the root package's manifest accepts the
+  row by name and hash. No transitively inherited axioms.
+- **The engine can veto.** An assumption the engine can refute — one that
+  contradicts declared ranges, domains, or another accepted row — is a
+  compile error, not a warning.
+- **Deferral cannot ship.** A development-class row ("prove later") warns on
+  every build and is a hard error in any release artifact.
+- **Blast radius is reported.** The trust report names which conclusions
+  rest on which rows; facts derived without touching a row stay in the
+  unconditional class, visibly.
+- **Assumed runtime-decidable facts get oracle tripwires**: proof builds
+  instrument them, and a test run that witnesses a violation traps naming
+  the row that lied.
 
 ## Automation And Boundary
 

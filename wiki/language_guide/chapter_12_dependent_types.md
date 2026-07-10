@@ -381,6 +381,10 @@ This chapter is intentionally narrow:
   at a boundary decode is an ordinary `as` mint.
 - Chapter 11 owns the mutation discipline; a coupling update is an
   invariant window closed at the next consumption point.
+- Chapter 10 owns proof machines and evidence; a dependent contract may cite
+  a theorem — a fact justified by a proof machine, instantiated at the
+  operands — including refinement facts equating a runtime place with a pure
+  machine's result.
 - Chapter 13 owns the static lowering; const parameters are witnesses the
   compiler evaluates away.
 - Chapters 21/21 own layout and the recast borrow; dynamic strides are their
