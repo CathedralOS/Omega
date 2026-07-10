@@ -11,7 +11,9 @@
 // (fail/dependent/bounded_product_weak_coupling_rejected) -- landing
 // this rule EXPOSED and CLOSED a store-proof hole: bounded intervals
 // escaping declared ranges were never refused (a confirmed native OOB
-// read pinned the hole; the interp declined).
+// read pinned the hole; the interp declined). The DIRECT spelling
+// `pixels[y * self.cols + x]` (R3b) rides the same rule mirrored at the
+// hoist-temp range synthesis -- no explicit ranged temp needed.
 boundary trait Console { machine exit_process(return_code: i32); }
 data Main { console: Console; pixels: [u8; 12]; rows: u32; cols: u32; j: u32; k: u32; out: i32; }
 machine Main::main(&mut self) {
@@ -32,7 +34,12 @@ machine Main::walk(&mut self) requires self.rows * self.cols <= 12 {
     transition self.j < self.rows && self.k < self.cols { true -> read(self.j, self.k) _ -> miss() }
     state read(&mut self, y: u32 [0..self.rows], x: u32 [0..self.cols]) {
         let idx: u32 [0..=11] = y * self.cols + x;
-        self.out = self.pixels[idx] as i32;
+        transition self.pixels[idx] == 7 { true -> direct(y, x) _ -> miss() }
+    }
+    state direct(&mut self, y: u32 [0..self.rows], x: u32 [0..self.cols]) {
+        // R3b: the DIRECT spelling -- the hoist synthesis mirrors the
+        // product rule, so the temp's range carries the coupling bound.
+        self.out = self.pixels[y * self.cols + x] as i32;
     }
     state miss(&mut self) { self.out = 9; }
 }

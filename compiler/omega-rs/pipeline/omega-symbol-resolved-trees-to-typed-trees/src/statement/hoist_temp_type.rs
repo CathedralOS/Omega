@@ -393,6 +393,15 @@ fn computed_index_interval(
     left: ExpressionHandle,
     right: ExpressionHandle,
 ) -> Option<(i64, i64)> {
+    // R3b: the DIRECT product spelling `pixels[y * self.cols + x]` -- the
+    // typed-side bounded-product rule mirrored at the hoist synthesis, so
+    // the temp's range carries the coupling bound and the index prover
+    // discharges without an explicit ranged temp.
+    if let Some(interval) =
+        dependent_product_index_interval(lowerer, state, operator, left, right)
+    {
+        return Some(interval);
+    }
     let left = operand_declared_interval(lowerer, attached_data, state, left)?;
     let right = operand_declared_interval(lowerer, attached_data, state, right)?;
     match operator {
@@ -656,6 +665,172 @@ fn element_type_of(
             // element read; an inner element does not carry collection-level
             // constraints, so this span fully describes the element's domain.
             Some((element, constrained.constraints))
+        }
+        _ => None,
+    }
+}
+
+/// R3b: `a * self.Fb + c` with STRICT dependent params (`a < self.Fa`,
+/// `c < self.Fb`, resolved-tree recognizers) and the owning machine's
+/// `requires self.Fa * self.Fb <= K` coupling -> `(0, K - 1)`. Mirrors
+/// omega-validation's refine_dependent_product; kept in lockstep. The
+/// preservation gate is the typed-side rule's job at USE time -- the
+/// synthesized range is store-proved on the temp's own initializer, which
+/// re-runs the typed-side rule (a machine that writes the dims fails THAT
+/// proof, so a stale synthesis here never survives to an index).
+fn dependent_product_index_interval(
+    lowerer: &Lowerer,
+    state: &resolved::state::State,
+    operator: resolved::expression::BinaryOperator,
+    left: ExpressionHandle,
+    right: ExpressionHandle,
+) -> Option<(i64, i64)> {
+    if operator != resolved::expression::BinaryOperator::Add {
+        return None;
+    }
+    let expressions = &lowerer.source_trees.tables.bodies.expressions;
+    let ExpressionNode::Binary(product) = expressions.expression(left) else {
+        return None;
+    };
+    if product.operator != resolved::expression::BinaryOperator::Multiply {
+        return None;
+    }
+    let (a_expr, fb_expr) = {
+        let left_is_field = resolved_symbolic_max_bound(expressions, product.left)
+            .is_some_and(|(_, offset)| offset == 0);
+        if left_is_field {
+            (product.right, product.left)
+        } else {
+            (product.left, product.right)
+        }
+    };
+    let (fb, fb_offset) = resolved_symbolic_max_bound(expressions, fb_expr)?;
+    if fb_offset != 0 {
+        return None;
+    }
+    let fa = strict_dependent_param_field(lowerer, state, a_expr)?;
+    let c_field = strict_dependent_param_field(lowerer, state, right)?;
+    if c_field != fb {
+        return None;
+    }
+    let machine = lowerer
+        .source_trees
+        .machines
+        .iter()
+        .find(|machine| {
+            lowerer
+                .source_trees
+                .machine_state_handles(machine.storage.states)
+                .iter()
+                .any(|handle| {
+                    lowerer.source_trees.machine_state(*handle).symbol == state.symbol
+                })
+        })?;
+    let k = resolved_product_coupling(lowerer, machine, &fa, &fb)?;
+    let high = k.checked_sub(1)?;
+    (high >= 0).then_some((0, high))
+}
+
+/// The field a STRICT dependent PARAM names on the resolved trees: the
+/// expression is a bare param name whose declared range maximum is
+/// `self.<field> - 1`.
+fn strict_dependent_param_field(
+    lowerer: &Lowerer,
+    state: &resolved::state::State,
+    expression: ExpressionHandle,
+) -> Option<String> {
+    let expressions = &lowerer.source_trees.tables.bodies.expressions;
+    let ExpressionNode::Name(path) = expressions.expression(expression) else {
+        return None;
+    };
+    let [only] = expressions.name_path_members(path.members) else {
+        return None;
+    };
+    let parameter = parameter_type(lowerer.source_trees, state, only.as_str())?;
+    let TypeReference::Constrained(constrained) = parameter else {
+        return None;
+    };
+    let constraints = lowerer
+        .source_trees
+        .tables
+        .types
+        .constraints
+        .span_or_empty(constrained.constraints);
+    constraints.iter().find_map(|constraint| {
+        let TypeConstraint::Range { maximum, .. } = constraint else {
+            return None;
+        };
+        let (field, offset) = resolved_symbolic_max_bound(expressions, *maximum)?;
+        (offset == -1).then_some(field)
+    })
+}
+
+/// The owning machine's `requires self.Fa * self.Fb <= K` conjunct on the
+/// RESOLVED trees (either multiply order; strict `<` gives K - 1).
+fn resolved_product_coupling(
+    lowerer: &Lowerer,
+    machine: &resolved::machine::Machine,
+    fa: &str,
+    fb: &str,
+) -> Option<i64> {
+    let expressions = &lowerer.source_trees.tables.bodies.expressions;
+    for contract in lowerer.source_trees.machine_contracts(machine) {
+        if contract.kind != resolved::signature::SignatureContractKind::Requires {
+            continue;
+        }
+        for fact in lowerer.source_trees.proof_facts(contract.facts) {
+            let resolved::domain::ProofFact::Expression(expression) = fact else {
+                continue;
+            };
+            if let Some(k) =
+                resolved_product_conjunct(expressions, *expression, fa, fb)
+            {
+                return Some(k);
+            }
+        }
+    }
+    None
+}
+
+fn resolved_product_conjunct(
+    expressions: &resolved::expression::ExpressionTable,
+    guard: ExpressionHandle,
+    fa: &str,
+    fb: &str,
+) -> Option<i64> {
+    let ExpressionNode::Binary(binary) = expressions.expression(guard) else {
+        return None;
+    };
+    use resolved::expression::BinaryOperator;
+    match binary.operator {
+        BinaryOperator::And => resolved_product_conjunct(expressions, binary.left, fa, fb)
+            .or_else(|| resolved_product_conjunct(expressions, binary.right, fa, fb)),
+        BinaryOperator::LessOrEqual | BinaryOperator::Less => {
+            let ExpressionNode::Binary(product) = expressions.expression(binary.left) else {
+                return None;
+            };
+            if product.operator != BinaryOperator::Multiply {
+                return None;
+            }
+            let lhs = resolved_symbolic_max_bound(expressions, product.left)
+                .filter(|(_, offset)| *offset == 0)?
+                .0;
+            let rhs = resolved_symbolic_max_bound(expressions, product.right)
+                .filter(|(_, offset)| *offset == 0)?
+                .0;
+            let matches = (lhs == fa && rhs == fb) || (lhs == fb && rhs == fa);
+            if !matches {
+                return None;
+            }
+            let ExpressionNode::Integer(literal) = expressions.expression(binary.right) else {
+                return None;
+            };
+            let k = literal.value_i64()?;
+            if binary.operator == BinaryOperator::Less {
+                k.checked_sub(1)
+            } else {
+                Some(k)
+            }
         }
         _ => None,
     }
