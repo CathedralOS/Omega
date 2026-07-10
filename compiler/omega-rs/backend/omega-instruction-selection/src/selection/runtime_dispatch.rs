@@ -933,6 +933,35 @@ fn select_runtime_dispatch_local_initializer_write(
             });
             return;
         }
+        // RUNG C1: a RUNTIME offset (`&self.buf[k] as &u32`) -- the source
+        // address is base + k (byte elements), and the view copies the
+        // STATED size from it. The judged class guarantees the footprint
+        // (high(k) + size <= N via the R1 interval machinery).
+        if let Some(size) = target_size
+            && let Some(indexed) = crate::selection::storage_places::resolve_runtime_machine_indexed_target_in_table(
+                input,
+                dispatch_index,
+                resolved_initializer_source_key,
+                expressions,
+                source,
+            )
+        {
+            selected_instructions.push(SelectedInstruction {
+                kind: SelectedInstructionKind::CopyRuntimeMachineIndexedToRuntimeStorage {
+                    base_byte_offset: indexed.base_byte_offset,
+                    index_offset: indexed.index_offset,
+                    index_region: indexed.index_region,
+                    element_byte_size: indexed.element_byte_size,
+                    field_byte_offset: indexed.field_byte_offset,
+                    target_region: omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame,
+                    target_offset: slot.byte_offset,
+                    byte_count: size,
+                },
+                source_key,
+                source_statement: statement_index,
+            });
+            return;
+        }
     }
     let resolved_initializer = strip_recast_initializer(expressions, resolved_initializer);
     let wrote_slice = writes::emit_runtime_frame_slot_slice_descriptor_write_in_table(

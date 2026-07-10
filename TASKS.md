@@ -347,9 +347,20 @@ transition loop-backs unchanged (unmeasured, constant-stack, may diverge).
     pass/recast/runtime_interior_byte_recast_exit + the footprint fail
     canary. RECORD targets (EfiMemoryDescriptor-shaped) remain with
     rung C.
-  - **(C)** the Cathedral shape — runtime offset strided by runtime
-    `descriptor_size` (`&self.map_buf[offset] as &EfiMemoryDescriptor`),
-    bounds discharge via the declared-range substrate + the alignment
+  - **(C1) — LANDED (2026-07-09, scalar targets).** The runtime-offset
+    interior recast (`&self.buf[off] as &u32`): footprint discharges
+    through the offset's enforced interval (high(off)+size <= N; the R1
+    substitution machinery serves dependent/coupled offsets), the
+    operand-hoist EXEMPTS recast operands (the view addresses buf[off],
+    never a copied byte), native lowers as
+    CopyRuntimeMachineIndexedToRuntimeStorage at the STATED byte count,
+    interp assembles at the evaluated offset. Pinned
+    pass/recast/runtime_offset_byte_recast_exit + the footprint fail
+    canary.
+  - **(C2)** RECORD targets — `&self.map_buf[offset] as
+    &EfiMemoryDescriptor`: member reads through the view (base + offset
+    + field_off loads, both engines' member machinery), the stride
+    walk's `offset += descriptor_size` coupling, and the alignment
     question. Plan-tiling validation beyond fact-free shapes rides the
     L5 rung as before.
 - **L6+:** Bits placements + access classes (MMIO deriver); durability plan

@@ -5192,13 +5192,15 @@ impl<'program> Evaluator<'program> {
         else {
             return Ok(None);
         };
-        let ExpressionNode::Integer(literal) =
-            self.program.expression_table.expression(indexed.index)
-        else {
-            return Ok(None);
+        // Literal or RUNTIME offset (rung C1): both evaluate to the byte
+        // position the view starts at.
+        let offset_value = match self.program.expression_table.expression(indexed.index) {
+            ExpressionNode::Integer(literal) => literal.value_i64(),
+            _ => self
+                .eval_expression(indexed.index, frame)?
+                .as_int(),
         };
-        let Some(offset) = literal.value_i64().and_then(|value| usize::try_from(value).ok())
-        else {
+        let Some(offset) = offset_value.and_then(|value| usize::try_from(value).ok()) else {
             return Ok(None);
         };
         let Some(target) = target else {

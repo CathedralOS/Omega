@@ -302,7 +302,26 @@ fn rewrite_children(
             );
         }
         ExpressionNode::Cast(cast) => {
-            let value = hoist_child(lowerer, cast.value, hoisted, hoist_builtin_calls);
+            // A §5b RECAST re-views its operand PLACE's bytes -- hoisting a
+            // runtime-indexed operand into a value temp would destroy the
+            // place (the view must address `buf[k]`, not a copied byte;
+            // rung C1's runtime-offset judgment reads the raw Indexed
+            // shape). Deeper hoistables INSIDE the index still hoist via
+            // the index rewrite; only the top-level indexed READ is kept.
+            let value = if cast.form.is_recast()
+                && matches!(
+                    lowerer
+                        .symbol_resolved_trees
+                        .tables
+                        .bodies
+                        .expressions
+                        .expression(cast.value),
+                    ExpressionNode::Indexed(_)
+                ) {
+                cast.value
+            } else {
+                hoist_child(lowerer, cast.value, hoisted, hoist_builtin_calls)
+            };
             set_expression(
                 lowerer,
                 expression,
