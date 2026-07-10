@@ -1,7 +1,9 @@
+use super::super::lookups::find_host_binding;
 use super::super::offsets::external_call_relocation_kind;
 use super::context::InstructionRelocationContext;
-use omega_calling_conventions::HostBindingMechanism;
+use omega_calling_conventions::{HostBindingMechanism, HostOperation, HostOperationKey};
 use omega_object_file::{RelocationRecord, object_symbol_handle_by_name};
+use omega_target::Architecture;
 use omega_target_operations::{RuntimeTextReadSource, SelectedInstructionKind};
 
 /// Relocations for the console byte-op composites: the `adrp`+`add` pair at
@@ -21,6 +23,15 @@ pub(super) fn collect_runtime_byte_io_relocations(
         } => {
             let region_symbol = context.storage_region_symbol_handle(*target_region);
             context.insert_data_address_at_instruction_start(region_symbol);
+            // x86_64 first calls GetStdHandle(STD_INPUT_HANDLE); aarch64 reads
+            // fd 0 directly (no handle call). Mirrors the line-read collector.
+            if context.input.target.architecture == Architecture::X86_64 {
+                insert_get_std_handle_record(
+                    context,
+                    *operation_key,
+                    omega_instruction_selection::runtime_byte_read_get_std_handle_offset(),
+                );
+            }
             insert_import_call_record(
                 context,
                 *operation_key,
@@ -43,6 +54,13 @@ pub(super) fn collect_runtime_byte_io_relocations(
                 context.data_object_symbol_handle(*literal)
             };
             context.insert_data_address_at_instruction_start(address_symbol);
+            if context.input.target.architecture == Architecture::X86_64 {
+                insert_get_std_handle_record(
+                    context,
+                    *operation_key,
+                    omega_instruction_selection::runtime_byte_write_get_std_handle_offset(),
+                );
+            }
             insert_import_call_record(
                 context,
                 *operation_key,
@@ -76,6 +94,36 @@ fn insert_import_call_record(
             function_symbol_handle: context.function_symbol_handle,
             selected_instruction_index: context.selected_instruction_index,
             text_offset: context.selected_text_offset + call_offset_in_instruction,
+            byte_width: 4,
+            symbol_handle: object_symbol_handle_by_name(&context.input.object, symbol.as_ref()),
+            kind: external_call_relocation_kind(context.input.target.architecture),
+        });
+}
+
+/// The x86_64 GetStdHandle call record: the byte op's stream capability
+/// (Stdin/Stdout) resolves its own GetStdHandle import row; only Import
+/// bindings record (a syscall target never routes here).
+fn insert_get_std_handle_record(
+    context: &mut InstructionRelocationContext<'_, '_>,
+    operation_key: HostOperationKey,
+    fixup_offset_in_instruction: usize,
+) {
+    let get_std_handle_key =
+        HostOperationKey::new(operation_key.capability, HostOperation::GetStdHandle);
+    let Some(binding) = find_host_binding(context.input, get_std_handle_key) else {
+        return;
+    };
+    let HostBindingMechanism::Import { symbol, .. } = &binding.mechanism else {
+        return;
+    };
+    context
+        .relocation_plan
+        .record_set
+        .records
+        .insert(RelocationRecord {
+            function_symbol_handle: context.function_symbol_handle,
+            selected_instruction_index: context.selected_instruction_index,
+            text_offset: context.selected_text_offset + fixup_offset_in_instruction,
             byte_width: 4,
             symbol_handle: object_symbol_handle_by_name(&context.input.object, symbol.as_ref()),
             kind: external_call_relocation_kind(context.input.target.architecture),

@@ -318,9 +318,17 @@ pub fn encode_runtime_byte_read(
                 Err(Diagnostic::error("read_byte cannot be vtable-bound"))
             }
         },
-        Architecture::X86_64 => Err(Diagnostic::error(
-            "runtime byte read: x86_64 lowering not yet implemented (console read_byte serves aarch64 natively today)",
-        )),
+        Architecture::X86_64 => match binding {
+            HostBindingMechanism::Import { .. } => {
+                x86_64::encode_runtime_byte_read_import(target_offset, payload_offset)
+            }
+            HostBindingMechanism::Syscall { number, .. } => {
+                x86_64::encode_runtime_byte_read_syscall(target_offset, payload_offset, *number)
+            }
+            HostBindingMechanism::VtableSlot { .. } | HostBindingMechanism::VtableField { .. } => {
+                Err(Diagnostic::error("read_byte cannot be vtable-bound"))
+            }
+        },
     }
 }
 
@@ -351,9 +359,17 @@ pub fn encode_runtime_byte_write(
                 Err(Diagnostic::error("write_byte cannot be vtable-bound"))
             }
         },
-        Architecture::X86_64 => Err(Diagnostic::error(
-            "runtime byte write: x86_64 lowering not yet implemented (console write_byte serves aarch64 natively today)",
-        )),
+        Architecture::X86_64 => match binding {
+            HostBindingMechanism::Import { .. } => {
+                x86_64::encode_runtime_byte_write_import(source_offset)
+            }
+            HostBindingMechanism::Syscall { number, .. } => {
+                x86_64::encode_runtime_byte_write_syscall(source_offset, *number)
+            }
+            HostBindingMechanism::VtableSlot { .. } | HostBindingMechanism::VtableField { .. } => {
+                Err(Diagnostic::error("write_byte cannot be vtable-bound"))
+            }
+        },
     }
 }
 

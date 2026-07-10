@@ -1340,9 +1340,8 @@ pub fn runtime_frame_base_indexed_address_target_frame_offset(
     }
 }
 
-/// Width of the ByteRead stdin read. X86_64 is not encoded yet (TASKS_FS
-/// #0a follow-up); 0 = the refuse-to-emit convention, matching the loud
-/// encoder Err.
+/// Width of the ByteRead stdin read (0 = the refuse-to-emit convention for
+/// mechanisms the op can never bind to).
 pub fn runtime_byte_read_width(architecture: Architecture, binding: &HostBindingMechanism) -> usize {
     match architecture {
         Architecture::Aarch64 => match binding {
@@ -1353,7 +1352,12 @@ pub fn runtime_byte_read_width(architecture: Architecture, binding: &HostBinding
             HostBindingMechanism::VtableSlot { .. }
             | HostBindingMechanism::VtableField { .. } => 0,
         },
-        Architecture::X86_64 => 0,
+        Architecture::X86_64 => match binding {
+            HostBindingMechanism::Import { .. } => x86_64::runtime_byte_read_import_width(),
+            HostBindingMechanism::Syscall { .. } => x86_64::runtime_byte_read_syscall_width(),
+            HostBindingMechanism::VtableSlot { .. }
+            | HostBindingMechanism::VtableField { .. } => 0,
+        },
     }
 }
 
@@ -1371,7 +1375,12 @@ pub fn runtime_byte_write_width(
             HostBindingMechanism::VtableSlot { .. }
             | HostBindingMechanism::VtableField { .. } => 0,
         },
-        Architecture::X86_64 => 0,
+        Architecture::X86_64 => match binding {
+            HostBindingMechanism::Import { .. } => x86_64::runtime_byte_write_import_width(),
+            HostBindingMechanism::Syscall { .. } => x86_64::runtime_byte_write_syscall_width(),
+            HostBindingMechanism::VtableSlot { .. }
+            | HostBindingMechanism::VtableField { .. } => 0,
+        },
     }
 }
 
@@ -1455,21 +1464,32 @@ pub fn runtime_text_line_read_target_address_offset(
     }
 }
 
-/// Offset of the import call inside the ByteRead stdin read. X86_64 has no
-/// encoding yet (it refuses at emission), so 0 keeps callers total.
+/// Offset of the import call fixup inside the ByteRead stdin read (aarch64:
+/// the `bl` instruction; x86_64: the ReadFile rel32 bytes).
 pub fn runtime_byte_read_import_call_offset(architecture: Architecture) -> usize {
     match architecture {
         Architecture::Aarch64 => aarch64::runtime_byte_read_import_call_offset(),
-        Architecture::X86_64 => 0,
+        Architecture::X86_64 => x86_64::runtime_byte_read_read_file_offset(),
     }
 }
 
-/// Offset of the import call inside the stdout byte write; same conventions.
+/// Offset of the import call fixup inside the stdout byte write (aarch64: the
+/// `bl`; x86_64: the WriteFile rel32 bytes).
 pub fn runtime_byte_write_import_call_offset(architecture: Architecture) -> usize {
     match architecture {
         Architecture::Aarch64 => aarch64::runtime_byte_write_import_call_offset(),
-        Architecture::X86_64 => 0,
+        Architecture::X86_64 => x86_64::runtime_byte_write_write_file_offset(),
     }
+}
+
+/// x86_64-only: the GetStdHandle rel32 fixup inside the byte ops (aarch64 has
+/// no separate handle call; callers gate on architecture).
+pub fn runtime_byte_read_get_std_handle_offset() -> usize {
+    x86_64::runtime_byte_read_get_std_handle_offset()
+}
+
+pub fn runtime_byte_write_get_std_handle_offset() -> usize {
+    x86_64::runtime_byte_write_get_std_handle_offset()
 }
 
 pub fn runtime_text_line_read_import_call_offset(

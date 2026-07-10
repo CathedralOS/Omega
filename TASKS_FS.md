@@ -112,12 +112,19 @@ results in Omega. Interpreter = full-parity reference oracle for everything.
    non-entry state) hits "state values: CallArgument binary needs
    runtime value lowering" -- the samples route computed bytes through
    a field instead; give the local shape a lowering (or a better
-   diagnostic) when it next surfaces. REMAINING: (x) x86_64 byte-op
-   encoders (loud refusal today; windows rows registered incl.
-   GetStdHandle pairs). (c) The effect-rows unification for platform
-   entries (what BuildLog hand-spelling actually needs) -- separate
-   rung, may need owner input on platform-vs-boundary-trait
-   convergence.
+   diagnostic) when it next surfaces. x86_64 ENCODERS DONE
+   (2026-07-17): windows import flavor (GetStdHandle -10/-11 +
+   ReadFile/WriteFile, six-arg shadow shape) + linux syscall flavor
+   (read/write via the number table), same ZII design (pre-zeroed
+   slot; the conditional tag-1 store is the only count>0 write);
+   two-call relocation records (GetStdHandle + the op) mirror the
+   line-read collector. Pinned by
+   pass/host/cross_console_byte_targets (dual-target build.omg;
+   fragment asserts in the PE AND the ELF, from any host) + width
+   locks in the isa crate. REMAINING: (c) the effect-rows unification
+   for platform entries (what BuildLog hand-spelling actually needs)
+   -- separate rung, may need owner input on
+   platform-vs-boundary-trait convergence.
 
 0b. **[CLAIMED 2026-07-17, from TASKS.md NEXT PICK (owner priority
    2026-07-15)] Cathedral M2 unblock.** DIAGNOSIS (2026-07-17, this
