@@ -63,35 +63,11 @@ should target NEW feature surfaces as they land, not re-walk these axes.
 
 ## Owner-gated holds (see OWNER_QUESTIONS.md)
 
-- **Recursion scope -- RESOLVED by your OWNER_QUESTIONS answers ("machine
-  call cycles = banned... 'decreases' stuff is for states. States are not
-  recursion. They are transitions, jumps, goto... equal to a for loop").**
-  You asked "Am I missing nuance?" -- no: that distinction is exactly the
-  implementation reality. The bare `-> own_entry(args)` loop-back COMPILES
-  AS A TRANSITION (a jump with re-bound args, constant stack, no call
-  frame), so it is a for-loop under your ruling and STAYS, along with the
-  states-scoped `decreases` proof surface and its canaries. The pre-scoped
-  teardown dissolves into the two CALL-graph bans you confirmed, filed
-  below as engineering: mutual value-call cycles (Q6 "yes fucking banned")
-  and statement-position tail self-calls (Q7 "banned, go write this as
-  states").
-- **Float domain clauses -- ANSWERED (deferred).** Owner: deferred until a
-  float domain pass; prerequisite is "a serious language document detailing
-  all compiler-supported float domains." Until then `f32 in Saturating`
-  keeps compiling as plain IEEE. Filed under Big arcs: the float-domains
-  language document.
 - **FLOAT-TO-INT half still open (no ruling).** `1e300 as i32`: aarch64
   FCVTZS + interp saturate to i32::MAX; x86 CVTTSD2SI gives the 0x80000000
   "integer indefinite". Parked cast divergence stays in the drift ledger.
 
 ## Open bugs / gaps (ungated)
-
-- The MIN-idiom corruption CLOSED (2026-07-16): sat/trap narrow paths
-  never re-extend IMMEDIATE operands on either ISA; x86_64's flag-width
-  narrow add/sub migrated to the wide-op + shared-tail shape (the unsigned
-  tail direction-splits per operator: subtract clamps DOWNWARD through a
-  signed compare). Promoted: pass/arithmetic/runtime_sat_min_idiom_exit +
-  the linux_x64 byte pin. Item closes next condense.
 
 - **FS-LANE FOLLOW-THROUGH: texteq arm-locals still ZII for non-terminal
   consumers (found 2026-07-15 probing the just-closed leaf fix).** The
@@ -103,33 +79,6 @@ should target NEW feature surfaces as they land, not re-walk these axes.
   texteq_local_arg_forward_divergence. Fix direction: attach the collection
   to ALL sub-state expansions (or route non-terminal bodies through the
   leaf initializer writer), not just terminal ones.
-
-- **OWNER DIRECTIVE: `usize` is not an Omega type -- retire it** ("we have
-  addr, we have primitives", 2026-07-13). Recipe:
-  wiki/architecture/usize_retirement_execution.md (inventory: 380 .omg
-  files, ~15 compiler files, ~8 chapters; usize -> u64, addresses -> addr,
-  isize -> i64). Stages 1+2 DONE (2026-07-15): termination
-  accepts u64 naturals; the corpus is swept (380 files usize -> u64, the
-  isize canary -> i64/renamed; zero usize left in Omega code). The sweep
-  surfaced + fixed: wire byte-count/count-companion contracts (now u64,
-  usize tolerated until the type dies) and a REAL proof gap -- only
-  u32/usize carried type-level range facts, so u64/u8/u16 fields had no
-  `>= 0` fact and proved weaker (primitive_constraints now covers the
-  unsigned family). Stage 3 (wiki) + stage 4 (compiler
-  rejection: variants + builtins + AtomicUsize deleted, tolerances
-  collapsed, fail canaries types/usize_rejected + isize_rejected) landed
-  2026-07-15 -- the std/core/host/lattice-corpus .omg trees were swept too
-  (the recipe's inventory had missed them). The region.omg addr
-  follow-up landed 2026-07-15 (allocate -> addr, deallocate(address: addr);
-  stage-1 contract-only so no providers/callers existed yet; addr value
-  flow + the addr+u64 mixed op pinned by types/runtime_addr_value_flow_exit).
-  The retirement arc is COMPLETE -- item closes next condense.
-  Probe follow-through (2026-07-15): the addr ALGEBRA is fenced --
-  addr +/- count and addr - addr -> count work (pinned:
-  types/runtime_addr_algebra_exit); addr + addr / * / / / % / shifts
-  reject via a new arithmetic_domains rule (pinned:
-  fail/types/addr_plus_addr_rejected). The brief's capability rung
-  (in-region/aligned proofs on addr) stays future work.
 
 - **Const-folder width-blindness: latent, currently unreachable via the
   live spelling.** The 2026-07-04 miscompile class (`(0u32 - 2) >> 1` folding
@@ -202,7 +151,12 @@ with a real app-window story.
 - **Versioned data stage 3:** the era tag itself (+ decision 10's wire-era
   ride), era-tagged containers, migration chains / `replaces` / quiescence.
 - **Equatable synthesis:** a CALLABLE conformance surface is still open.
-- **Signed/unsigned residue:** sibling shape (2) only.
+- **Signed/unsigned residue, shape (2): trailing-state STALE READS of
+  threaded `&mut` param fields** (dungeon instrumentation, 2026-06; a
+  guard-subject read of `random.calls` in a state appended after a
+  mutating call saw the pre-call snapshot). Needs its minimal skeleton --
+  possibly already fixed by the fs lane's per-instance receiver phases;
+  probe and either pin green (close) or park the divergence.
 - **Concurrency model:** chapter 17 is a sketch; per-target declarations.
 - **Atomics remainder** beyond the landed stage-1 ops + memory model.
 - **Separate compilation / component artifact model.**
