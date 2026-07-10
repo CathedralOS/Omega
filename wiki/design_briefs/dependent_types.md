@@ -10,13 +10,49 @@ key citations at the bottom.
 
 ## 1. The problem
 
-Three concrete programs are blocked (chapter 23 opens with them): the UEFI
-memory-map walk (`i * stride` with runtime stride — Cathedral M2's recast
-consumes exactly this), row-major indexing `pixels[y*W+x]` (TASKS.md: "enabled
-by dependent types eventually"), and signatures whose result bounds are their
-arguments (`clamp -> out in min..=max`). All three reduce to one missing
-capability: **ranges, facts, and layouts may only name constants today; they
-need to name in-scope program values.**
+Three concrete programs are blocked today, all of them systems code:
+
+1. **The UEFI memory-map walk.** Firmware returns a buffer holding `count`
+   descriptors, each `stride` bytes wide — and stride is a RUNTIME value
+   larger than the descriptor struct you compiled against. Walking the buffer
+   at `i * stride` needs the proof `i*stride + stride <= len` where every
+   term is a runtime value. Striding by the compile-time struct size instead
+   is the classic firmware bug that corrupts every entry after the first —
+   and under this design it does not compile, because no fact ties that
+   constant to `len`. Cathedral M2's recast consumes exactly this shape.
+2. **Row-major indexing.** `pixels[y*W+x]` with `x < W` and `y < H` is in
+   bounds, but the proof needs `y*W + x < W*H` — a relation BETWEEN runtime
+   values, not a constant range. (TASKS.md: "enabled by dependent types
+   eventually".)
+3. **Signatures whose result bounds are their arguments.**
+   `clamp(value, min, max) -> out in min..=max` — today a bound must be a
+   constant.
+
+All three reduce to one missing capability: **ranges, facts, and layouts may
+only name constants today; they need to name in-scope program values.**
+Constant bounds cannot say it; dominating guards can establish some of it
+locally but cannot carry it across a signature.
+
+### The surface is already latent in the language
+
+Three existing constructs already depend on values, which is why the chapter
+can be declarative rather than inventive:
+
+- **A slice is a length traveling with data.** `items: &[u8]` carries
+  `.len`, and indexing obliges `index < items.len` — a fact naming a runtime
+  value. The fat descriptor (ch19) is the layout half; the length fact is
+  the proof half. Every rule in chapter 23 generalizes what slices already
+  do.
+- **A case payload's facts hold under the case fact.** Inside a
+  `P::One { v } ->` arm, `v` carries `One`'s declared payload range because
+  the arm proves which case is active (landed 2026-07-08). A fact valid
+  conditionally on another fact IS dependency.
+- **Const parameters already reach ranges and lengths.** Ch12's
+  `FixedBuffer<T, const N: u64>` puts a value in a layout; ch7's clamp
+  contract writes `ensures out in min..=max` over `const` parameters, and
+  ch7's own prose says bounds may name "compile-time or proof-visible
+  values." The feature is deleting the `const` restriction from that
+  sentence.
 
 ## 2. What dependent type theory actually contains — and what it costs
 
