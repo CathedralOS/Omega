@@ -186,8 +186,16 @@ with a real app-window story.
   pass/wire/runtime_wire_utf8_invalid_refused_exit with a linux_x64 ELF
   pin. NOTE for probe authors: multi-call VALUE MACHINES writing self
   fields trip the PINNED trailing-state phase bug -- inline states are the
-  reliable shape. (2) wire-schemas-as-
-  program-types. (3) runtime layout of wire values. (4) encoding families
+  reliable shape. (2) wire-schemas-as-program-types --
+  LANDED 2026-07-17 (a numbered data never entered the type namespace; the
+  wire lowering now dual-registers a regular DataDefinition from the
+  schema's current-era fields, so numbered datas are plain program types
+  and the Message/Sample twin pattern is optional; pinned:
+  runtime_wire_schema_as_value_type_exit) EXCEPT decode-INTO-self: the
+  verdict is Sound natively but decoded values never land in the local's
+  fields -- the value-argument member-place resolution with two same-named
+  definitions in scope; pinned
+  pending/wire/schema_self_decode_field_places_divergence (73, Exit(70)). (3) runtime layout of wire values. (4) encoding families
   beyond compact_binary v0 + version negotiation.
 - **Versioned data stage 3:** the era tag itself (+ decision 10's wire-era
   ride), era-tagged containers, migration chains / `replaces` / quiescence.

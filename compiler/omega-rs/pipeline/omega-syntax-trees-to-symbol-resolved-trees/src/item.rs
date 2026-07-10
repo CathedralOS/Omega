@@ -96,7 +96,14 @@ pub(crate) fn lower_item(
         }
         syntax::item::Item::WireData(wire_data) => {
             let wire_schema = lower_wire_schema(lowerer, syntax_trees, wire_data)?;
+            // Chapter 20: numbers are INERT schema facts -- a numbered data
+            // is ALSO a plain program type (see
+            // data_definition_from_wire_schema; the Message/Sample twin
+            // corpus pattern was forced by this line's absence).
+            let data_definition =
+                crate::wire::data_definition_from_wire_schema(lowerer, &wire_schema);
             lowerer.symbol_resolved_trees.wire_schemas.push(wire_schema);
+            lowerer.symbol_resolved_trees.data_definitions.push(data_definition);
         }
         // Consts exist only until symbol resolution: validated here, then
         // every `Type::NAME` use substitutes the initializer at expression
