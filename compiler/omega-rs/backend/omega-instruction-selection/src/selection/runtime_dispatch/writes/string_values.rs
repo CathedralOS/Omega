@@ -54,6 +54,15 @@ pub(in crate::selection) fn emit_runtime_frame_slot_text_comparison_write_in_tab
         binary.right,
     );
     let string_descriptor_size = input.runtime_abi.string_descriptor_size();
+    if std::env::var_os("OMEGA_DEBUG_CALL_RESULT").is_some() {
+        eprintln!(
+            "TEXTW: dispatch {dispatch_index} src m{} s{} left {:?} right {:?} (need {string_descriptor_size})",
+            value_source_key.machine.arena_index(),
+            value_source_key.state.arena_index(),
+            left_place.as_ref().map(|p| (p.byte_offset, p.byte_count)),
+            right_place.as_ref().map(|p| (p.byte_offset, p.byte_count)),
+        );
+    }
 
     let literal_buffer_and_place = if let Some(literal) =
         expressions.string_literal_value(binary.left)

@@ -79,6 +79,57 @@ pub(super) fn prelude_operations(
     output_operations.insert_many(kept)
 }
 
+// SUB-STATE bodies flattened by the leaf-expansion walk have no other
+// emission route: a non-leaf sub-state (one with its own nested transition)
+// gets neither a prelude (that covers only the callee ROOT) nor an
+// InlineLeaf expansion (those are for transition-free leaves), so its
+// arm-local `let` initializers vanish natively (the multiarm texteq
+// divergence). This collects EXACTLY those: call-free LocalData ops. The
+// two exclusions are load-bearing:
+//  * call-carrying statements re-emit the callee's nested expansions once
+//    per arm (the single-execution + dungeon 10-red regression), and
+//  * callers must SKIP the callee root (`branch_key == state_call.target_key`)
+//    or root-level captured-before-mutation locals re-initialize at
+//    terminal time (the trailing-local-return reset-before-return 7-red
+//    regression).
+// Known remaining gap (no observed shape yet): a chain of TWO nested
+// sub-states only collects the innermost body.
+pub(super) fn leaf_local_initializer_operations(
+    context: &RuntimeBranchingContext,
+    expressions: &mut ExpressionTable,
+    output_operations: &mut Arena<RuntimeLeafBranchOperation>,
+    source_key: StateKey,
+) -> HandleSpan<RuntimeLeafBranchOperation> {
+    let Some(state) = context.control_flow.state_by_key(source_key) else {
+        return HandleSpan::empty();
+    };
+    let Some(operations) = context.control_flow.operations.span(state.operations) else {
+        return HandleSpan::empty();
+    };
+
+    let kept: Vec<RuntimeLeafBranchOperation> = operations
+        .iter()
+        .filter(|operation| {
+            matches!(operation.kind, omega_control_flow::OperationKind::LocalData)
+                && state_call_for_operation(context, source_key, operation.statement_index)
+                    .is_none()
+                && host_call_for_statement(context, source_key, operation.statement_index)
+                    .is_none()
+        })
+        .map(|operation| RuntimeLeafBranchOperation {
+            source_key,
+            statement_index: operation.statement_index,
+            kind: leaf_operation_kind(
+                context,
+                expressions,
+                source_key,
+                operation.statement_index,
+            ),
+        })
+        .collect();
+    output_operations.insert_many(kept)
+}
+
 pub(super) fn leaf_operations(
     context: &RuntimeBranchingContext,
     expressions: &mut ExpressionTable,

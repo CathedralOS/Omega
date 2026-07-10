@@ -215,6 +215,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("calls/runtime_nested_local_terminal_second_instance_exit", 70),
     ("calls/runtime_nested_field_terminal_second_instance_exit", 70),
     ("calls/runtime_multiarm_same_named_locals_exit", 70),
+    ("calls/runtime_multiarm_texteq_local_exit", 70),
     ("calls/runtime_param_receiver_single_instance_exit", 70),
     ("calls/runtime_param_receiver_second_instance_exit", 70),
     ("calls/runtime_param_forward_chain_second_receiver_exit", 70),
@@ -1873,9 +1874,6 @@ const PENDING_RUNTIME_DIVERGENCES: &[(&str, i32, PendingInterpOutcome)] = &[
     // at 64 like the interp); the parked divergence is vs x86's 32-bit mask.
     ("arithmetic/unsigned_min_max_wrapping_local_divergence", 78, PendingInterpOutcome::Exit(77)),
     ("expressions/dead_trapping_let_not_elided", 7, PendingInterpOutcome::Traps),
-    // Multi-arm texteq-valued locals: leaf route emits no text compare;
-    // arm slots stay ZII (see the pending canary header). Interp correct.
-    ("calls/multiarm_texteq_local_divergence", 71, PendingInterpOutcome::Exit(70)),
 ];
 
 /// COLLECT-ALL runtime drift-check over the parked divergences above.
