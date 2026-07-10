@@ -820,44 +820,62 @@ mod tests {
     // paths and confirms the target-page adrp sits within the emitted bytes.
     #[test]
     fn byte_slice_decode_widths_match_encoded_bytes() {
+        use omega_core::byte_predicates::ByteSequencePredicate;
+        let all_predicates: u8 = ByteSequencePredicate::ALL
+            .iter()
+            .map(|p| p.mask_bit())
+            .fold(0, |m, b| m | b);
+        let masks = [
+            0u8,
+            ByteSequencePredicate::ValidUtf8.mask_bit(),
+            ByteSequencePredicate::NonEmpty.mask_bit(),
+            all_predicates,
+        ];
         for &buffer_offset in &[0usize, 4, 200, 5000] {
             for &buffer_length in &[2usize, 64, 4096] {
                 for &(read_offset, ok_offset, target_offset) in
                     &[(0usize, 8usize, 16usize), (40, 48, 56), (300, 308, 4096)]
                 {
-                    let bytes = encode_read_wire_byte_slice(
-                        buffer_offset,
-                        buffer_length,
-                        read_offset,
-                        ok_offset,
-                        RuntimeStorageRegion::Machine,
-                        target_offset,
-                    )
-                    .expect("aarch64 byte-slice decode should encode");
-                    let width = read_wire_byte_slice_width(
-                        buffer_offset,
-                        buffer_length,
-                        read_offset,
-                        ok_offset,
-                        target_offset,
-                    );
-                    assert_eq!(
-                        bytes.len(),
-                        width,
-                        "width mismatch for buffer_offset={buffer_offset} buffer_length={buffer_length} read={read_offset} ok={ok_offset} target={target_offset}"
-                    );
-                    // The target-page adrp pair must land inside the instruction
-                    // stream, before the two 8-byte descriptor stores + epilogue.
-                    let target_page = super::super::widths::wire_decode_byte_slice_target_page_offset(
-                        buffer_offset,
-                        buffer_length,
-                        read_offset,
-                    );
-                    assert!(
-                        target_page + 8 <= bytes.len(),
-                        "target-page offset {target_page} past end {} ", bytes.len()
-                    );
-                    assert_eq!(target_page % 4, 0, "aarch64 instructions are 4-byte aligned");
+                    for &predicate_mask in &masks {
+                        let bytes = encode_read_wire_byte_slice(
+                            buffer_offset,
+                            buffer_length,
+                            read_offset,
+                            ok_offset,
+                            RuntimeStorageRegion::Machine,
+                            target_offset,
+                            predicate_mask,
+                        )
+                        .expect("aarch64 byte-slice decode should encode");
+                        let width = read_wire_byte_slice_width(
+                            buffer_offset,
+                            buffer_length,
+                            read_offset,
+                            ok_offset,
+                            target_offset,
+                            predicate_mask,
+                        );
+                        assert_eq!(
+                            bytes.len(),
+                            width,
+                            "width mismatch for buffer_offset={buffer_offset} buffer_length={buffer_length} read={read_offset} ok={ok_offset} target={target_offset} mask={predicate_mask:#04b}"
+                        );
+                        // The target-page adrp pair must land inside the
+                        // instruction stream, before the two 8-byte descriptor
+                        // stores + epilogue.
+                        let target_page =
+                            super::super::widths::wire_decode_byte_slice_target_page_offset(
+                                buffer_offset,
+                                buffer_length,
+                                read_offset,
+                                predicate_mask,
+                            );
+                        assert!(
+                            target_page + 8 <= bytes.len(),
+                            "target-page offset {target_page} past end {} ", bytes.len()
+                        );
+                        assert_eq!(target_page % 4, 0, "aarch64 instructions are 4-byte aligned");
+                    }
                 }
             }
         }

@@ -7,11 +7,11 @@
 // gained dual registration (a numbered declaration lowers BOTH the wire
 // schema and a regular DataDefinition sharing the lowered type
 // references; Reserved/Version members are wire history, not fields).
-// Legs: value-type use; encode-from-self. (Decode-INTO-self is pinned
-// separately: pending/wire/schema_self_decode_field_places_divergence --
-// the verdict is Sound natively but the decoded values never land in the
-// self-typed local's fields.)
-// exits: 71 = value use wrong; 72 = encode wrong.
+// Legs: value-type use; encode-from-self; decode-into-self roundtrip
+// (restored when the wire-wide decode-then-let-compare fold was fixed:
+// the wire selection branches now clear the static-value table like every
+// other mutating call).
+// exits: 71 = value use wrong; 72 = encode wrong; 73 = roundtrip wrong.
 boundary trait Console { machine exit_process(return_code: i32); }
 data Point {
     0: x: u32;
@@ -42,11 +42,25 @@ machine Main::main(&mut self) {
         q.y = 4;
         Point::encode(&q, &mut self.buffer, &mut self.written);
         transition self.written == 5 {
-            true -> good()
+            true -> roundtrip()
             _ -> bad_encode()
+        }
+    }
+    state roundtrip(&mut self) {
+        let d: Point;
+        d.x = 0;
+        d.y = 0;
+        Point::decode(&mut d, &self.buffer, &mut self.read, &mut self.verdict);
+        let matches: bool = self.verdict == WireVerdict::Sound
+            && d.x == 3
+            && d.y == 4;
+        transition matches {
+            true -> good()
+            _ -> bad_roundtrip()
         }
     }
     state good(&mut self)         { self.console.exit_process(70); }
     state bad_value_use(&mut self){ self.console.exit_process(71); }
     state bad_encode(&mut self)   { self.console.exit_process(72); }
+    state bad_roundtrip(&mut self){ self.console.exit_process(73); }
 }

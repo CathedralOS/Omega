@@ -425,6 +425,16 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
                     operation.statement_index,
                     selected_instructions,
                 ) {
+                    // The synthesized wire call mutates its &mut arguments
+                    // OUTSIDE the assignment machinery that feeds
+                    // static_values: drop every recorded constant so later
+                    // reads come from live storage. Skipping this folded
+                    // `let m = d.x == 3` after a DECODE to the pre-decode
+                    // constant (the wire-wide decode-then-let-compare
+                    // divergence) -- plain machine calls invalidate through
+                    // their own selection; the wire branches were the only
+                    // call shapes that did not.
+                    runtime_static_values.clear();
                     continue;
                 }
                 if super::wire_decode::select_wire_decode_call(
@@ -434,6 +444,10 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
                     operation.statement_index,
                     selected_instructions,
                 ) {
+                    // See the wire-encode arm above: decode writes the
+                    // value's fields, the read cursor, and the verdict
+                    // through &mut arguments this walk cannot see.
+                    runtime_static_values.clear();
                     continue;
                 }
 
