@@ -2,15 +2,21 @@
 // JUDGED shared scalar recast -- `let v: &f32 = &self.bits as &f32` with
 // equal widths -- serves on the INTERPRETER (eval_recast bit-reinterprets:
 // 0x40490FDB reads as pi, u32 0xFFFFFFFF reads as i32 -1) but natively
-// the let's initializer WRITE vanishes: reference locals materialize by
-// copying the pointee VALUE into a pointer-sized frame slot, and the
-// write-planning value resolution has no arm for a recast Cast node, so
-// the slot stays ZII zero and the guard compares 0 (exit 71 at the first
-// leg). Note the guard operand layout ALSO reads the slot 8-bytes-wide
-// against an f64 literal for a stated &f32 -- the next rung must land
-// BOTH: (a) the let write byte-copies the source place's bytes, (b) reads
-// through the view use the STATED type's width/kind. Fixing (a) alone
-// leaves a 4-byte pattern under an 8-byte f64 compare (still 71).
+// the divergence is READ-side only now: fix (a) LANDED (2026-07-09) --
+// the recast strips to its source place at the initializer write
+// (strip_recast_initializer, runtime_dispatch.rs) and the slot receives
+// the source's bit pattern (report: write runtime_frame_storage@0
+// bytes 8 value 1078530011); en route, EIGHT backend cast-rebuild sites
+// that hardcoded CastForm::Value now forward the source form (the
+// recast-ness was silently erased in the alias/binding rebuilds).
+// REMAINING fix (b): reads through the view must use the STATED type's
+// width/kind -- the guards operand layout presents the SLOT width
+// (bytes 8) and float literals always encode as f64 bits (state-guards
+// operands/values.rs), so a &f32 guard compares 8 bytes via comisd
+// against f64 3.14 (still 71). The (b) legs: Reference-to-scalar slots
+// present the REFEREE width in operands/layout.rs; the literal encodes
+// f32 bits when the other operand is f32-stated; and the compare
+// emission needs a 4-byte float leg (comiss / fcmp s-regs) on BOTH ISAs.
 // hold: (71, Exit(70)) -- interp puns correctly, native reads ZII.
 boundary trait Console { machine exit_process(return_code: i32); }
 data Main {

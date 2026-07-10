@@ -646,7 +646,7 @@ fn fold_straight_line_prior_local_names(
                     value,
                     target_type: cast.target_type,
                     domain: cast.domain,
-                    form: omega_core::cast_form::CastForm::Value,
+                    form: cast.form,
                 },
             ))
         }
@@ -1539,7 +1539,7 @@ fn resolve_leaf_call_expression_handle(
                     value,
                     target_type: cast.target_type,
                     domain: cast.domain,
-                    form: omega_core::cast_form::CastForm::Value,
+                    form: cast.form,
                 },
             ))
         }

@@ -885,6 +885,15 @@ fn select_runtime_dispatch_local_initializer_write(
         resolved_initializer.expression,
     )
     .unwrap_or(resolved_initializer.expression);
+    // §5b recast initializer (`let v: &f32 = &self.bits as &f32`): the view
+    // is ADDRESS IDENTITY, and a reference-typed let materializes as a
+    // pointee-VALUE copy -- so the judged recast strips to its source place
+    // here and the write below copies the SOURCE's bytes at the source's
+    // width (the stated type drives READS through the view; the guards
+    // operand layout reads the referee width). Without the strip every
+    // write arm misses the Cast node and the slot stays ZII (the pinned
+    // native divergence).
+    let resolved_initializer = strip_recast_initializer(expressions, resolved_initializer);
     let wrote_slice = writes::emit_runtime_frame_slot_slice_descriptor_write_in_table(
         input,
         dispatch_index,
@@ -1053,6 +1062,22 @@ fn local_initializer_handle(
         .initial_value
         .is_valid()
         .then(|| table.copy_from(&input.program.expression_table, local_data.initial_value))
+}
+
+/// Strips a judged §5b recast (`Cast` with a recast form) to its source
+/// place. Value casts and every other shape pass through untouched.
+fn strip_recast_initializer(
+    expressions: &ExpressionTable,
+    initializer: ExpressionHandle,
+) -> ExpressionHandle {
+    match expressions.expression(initializer) {
+        omega_checked_trees::expression::ExpressionNode::Cast(cast)
+            if cast.form.is_recast() =>
+        {
+            cast.value
+        }
+        _ => initializer,
+    }
 }
 
 /// Extract the callee `target_key` from a StateCall-family operation, or
