@@ -10,7 +10,7 @@ machine Main::main(&mut self) -> i32 {
     self.entries[1].value = 12;
 
     let view: &[Entry] = self.entries.as_slice();
-    let index: usize = 1;
+    let index: u64 = 1;
     let chosen: Entry = view[index];
     chosen.value
 }

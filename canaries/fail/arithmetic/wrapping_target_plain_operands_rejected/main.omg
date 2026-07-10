@@ -14,7 +14,7 @@ machine Main::main(&mut self) {
     self.vals[2] = 30;
     transition { _ -> self.pick(self.vals, 2) }
 }
-machine Main::pick(&mut self, vals: [i32; 3], k: usize [0..=2]) {
+machine Main::pick(&mut self, vals: [i32; 3], k: u64 [0..=2]) {
     let v: i32 in Wrapping = vals[k] + 100;
     transition v == 130 {
         true -> yes()

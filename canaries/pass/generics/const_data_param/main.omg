@@ -1,7 +1,7 @@
-// Chapter 12 "Const And Proof Parameters": `data FixedBuffer<T, const N: usize>`
+// Chapter 12 "Const And Proof Parameters": `data FixedBuffer<T, const N: u64>`
 // accepts a const value parameter usable as a symbolic fixed-array length.
 
-data FixedBuffer<T, const N: usize> {
+data FixedBuffer<T, const N: u64> {
     items: [T; N];
 }
 

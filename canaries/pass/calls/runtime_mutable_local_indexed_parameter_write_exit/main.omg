@@ -17,7 +17,7 @@ machine Main::touch_tag(&mut self, item: &mut Item) {
 
 machine Main::main(&mut self) {
     let items: [Item; 2] = [Item { value: 1, tag: 1 }, Item { value: 2, tag: 2 }];
-    let index: usize = 0;
+    let index: u64 = 0;
     self.touch_tag(&mut items[index]);
 
     transition items[index].tag == 0 {

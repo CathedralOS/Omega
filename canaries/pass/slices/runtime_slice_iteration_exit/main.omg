@@ -20,12 +20,12 @@ machine Main::main(&mut self) {
     state sum_entries(
         &mut self,
         entries: &[Entry],
-        index: usize in Wrapping,
+        index: u64 in Wrapping,
         total: i32 in Wrapping
     ) {
         let current: Entry = entries[index];
         let next_total: i32 in Wrapping = total + 1;
-        let next_index: usize in Wrapping = index + 1;
+        let next_index: u64 in Wrapping = index + 1;
         let has_next: bool = next_index < entries.len;
 
         transition has_next {

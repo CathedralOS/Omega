@@ -12,7 +12,7 @@ data Val {
 data Main {
     console: Console;
     buffer: [u8; 32];
-    written: usize;
+    written: u64;
 }
 machine Main::main(&mut self) {
     let msg: Val = Val { v: 5 };

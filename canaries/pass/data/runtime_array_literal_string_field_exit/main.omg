@@ -35,7 +35,7 @@ machine Main::main(&mut self) {
         Room { number: 11, label: "expected" },
         Room { number: 22, label: "other" }
     ];
-    let zero: usize = 0;
+    let zero: u64 = 0;
     transition rooms[zero].number == 11 {
         true -> scalar_one()
         false -> fail()
@@ -46,7 +46,7 @@ machine Main::main(&mut self) {
             Room { number: 11, label: "expected" },
             Room { number: 22, label: "other" }
         ];
-        let one: usize = 1;
+        let one: u64 = 1;
         transition rooms[one].number == 22 {
             true -> string_zero()
             false -> fail()
@@ -58,7 +58,7 @@ machine Main::main(&mut self) {
             Room { number: 11, label: "expected" },
             Room { number: 22, label: "other" }
         ];
-        let zero: usize = 0;
+        let zero: u64 = 0;
         transition rooms[zero].label == "expected" {
             true -> string_one()
             false -> fail()
@@ -70,7 +70,7 @@ machine Main::main(&mut self) {
             Room { number: 11, label: "expected" },
             Room { number: 22, label: "other" }
         ];
-        let one: usize = 1;
+        let one: u64 = 1;
         transition rooms[one].label == "other" {
             true -> string_cross()
             false -> fail()
@@ -84,7 +84,7 @@ machine Main::main(&mut self) {
             Room { number: 11, label: "expected" },
             Room { number: 22, label: "other" }
         ];
-        let zero: usize = 0;
+        let zero: u64 = 0;
         transition rooms[zero].label == "other" {
             true -> fail()
             false -> pass()

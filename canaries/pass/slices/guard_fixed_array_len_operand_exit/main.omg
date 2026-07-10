@@ -18,7 +18,7 @@ machine Main::main(&mut self) {
     transition { _ -> self.view(4) }
 }
 
-machine Main::view(&mut self, hi: usize) {
+machine Main::view(&mut self, hi: u64) {
     transition hi <= self.arr.len {
         true -> ok()
         false -> bad()

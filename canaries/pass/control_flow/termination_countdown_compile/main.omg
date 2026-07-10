@@ -9,7 +9,7 @@ machine Main::main(&mut self) -> i32 {
     71
 }
 
-machine Main::countdown(&mut self, remaining: usize)
+machine Main::countdown(&mut self, remaining: u64)
 terminates {
     decreases remaining -> Nat::Descending;
 }

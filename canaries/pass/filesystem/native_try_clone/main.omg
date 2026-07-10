@@ -10,7 +10,7 @@ data Main {
     fs: FilesystemHost;
     mode: i32;
     rdonly: i32;
-    cap: usize;
+    cap: u64;
     fd1: i32;
     fd2: i32;
     n: i64;

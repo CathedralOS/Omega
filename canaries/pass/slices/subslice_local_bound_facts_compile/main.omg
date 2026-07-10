@@ -6,10 +6,10 @@ data Main {
     entries: [Entry; 4];
 }
 
-machine Main::main(&mut self) -> usize {
+machine Main::main(&mut self) -> u64 {
     let view: &[Entry] = self.entries.as_slice();
-    let start: usize = 1;
-    let end: usize = 3;
+    let start: u64 = 1;
+    let end: u64 = 3;
     let tail: &[Entry] = view[start..];
     let prefix: &[Entry] = view[..end];
     let middle: &[Entry] = view[start..end];

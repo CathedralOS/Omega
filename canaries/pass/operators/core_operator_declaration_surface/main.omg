@@ -1,4 +1,4 @@
-operator Slice::index<T>(items: &[T], index: usize) -> T
+operator Slice::index<T>(items: &[T], index: u64) -> T
 requires
     index < items.len;
 

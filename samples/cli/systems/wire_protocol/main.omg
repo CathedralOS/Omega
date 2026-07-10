@@ -37,7 +37,7 @@ data RoomHeaderValue {
 data SensorPacketValue {
     header: RoomHeaderValue;
     samples: [i32; 4];
-    samples_count: usize;
+    samples_count: u64;
     depth: i32;
 }
 
@@ -51,8 +51,8 @@ data WireVerdict {
 data Main {
     console: Console;
     buffer: [u8; 64];
-    written: usize;
-    read: usize;
+    written: u64;
+    read: u64;
     verdict: WireVerdict;
     pause: String;
 }

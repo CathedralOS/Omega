@@ -10,7 +10,7 @@ data Main {
     mode: i32;
     append_flags: i32;
     read_flags: i32;
-    cap: usize;
+    cap: u64;
     fd: i32;
     n: i64;
     rn: i64;

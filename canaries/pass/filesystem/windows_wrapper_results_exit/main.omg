@@ -73,7 +73,7 @@ machine Main::main(&mut self) {
             _ -> bad(75)
         }
     }
-    state check_count(&mut self, count: usize) {
+    state check_count(&mut self, count: u64) {
         transition count == 5 { true -> check_byte() _ -> bad(76) }
     }
     state check_byte(&mut self) {

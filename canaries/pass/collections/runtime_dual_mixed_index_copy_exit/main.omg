@@ -7,7 +7,7 @@ boundary trait Console {
 data Main {
     console: Console;
     arr: [i32; 4];
-    j: usize [0..=3];
+    j: u64 [0..=3];
 }
 machine Main::main(&mut self) {
     self.arr[1] = 21;
@@ -15,7 +15,7 @@ machine Main::main(&mut self) {
     self.j = 1;
     transition { _ -> self.shuffle(3, 2) }
 }
-machine Main::shuffle(&mut self, k: usize [0..=3], m: usize [0..=3]) {
+machine Main::shuffle(&mut self, k: u64 [0..=3], m: u64 [0..=3]) {
     self.arr[k] = self.arr[self.j];
     self.arr[self.j] = self.arr[m];
     transition self.arr[3] == 21 {

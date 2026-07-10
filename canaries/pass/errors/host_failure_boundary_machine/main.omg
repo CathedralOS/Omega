@@ -4,7 +4,7 @@
 // boundary-host machine shape type-checks cleanly.
 
 data Buffer {
-    len: usize;
+    len: u64;
 }
 
 data IOError {

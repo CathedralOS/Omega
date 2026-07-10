@@ -1,1 +1,1 @@
-a repeated wire field needs a `usize` count companion
+a repeated wire field needs a `u64` count companion

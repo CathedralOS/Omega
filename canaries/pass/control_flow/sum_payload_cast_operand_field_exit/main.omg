@@ -11,8 +11,8 @@
 // exit 71 = sibling y wrong; 72 = z wrong (the dropped-field face); 73 = tag.
 boundary trait Console { machine exit_process(return_code: i32); }
 data Msg { case Ping(x: i32); case Pong(y: i32, z: i8); }
-data Main { console: Console; k: usize; }
-machine Main::mk(&mut self, x: usize [0..=100]) -> Msg {
+data Main { console: Console; k: u64; }
+machine Main::mk(&mut self, x: u64 [0..=100]) -> Msg {
     transition true { true -> Msg::Pong { y: 5, z: (x as i8) % 10 } }
 }
 machine Main::main(&mut self) {

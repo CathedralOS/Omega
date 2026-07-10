@@ -33,14 +33,14 @@ data Report {
 
 data ReportValue {
     samples: [i32; 4];
-    samples_count: usize;
+    samples_count: u64;
     label: &[u8] in Utf8;
 }
 
 data Main {
     console: Console;
     buffer: [u8; 64];
-    written: usize;
+    written: u64;
 }
 
 machine Main::main(&mut self) {

@@ -4,7 +4,7 @@
 // strict order and rejects the direct contradiction. The requires set itself
 // is consistent, so this is not the vacuous-hypotheses case.
 
-machine false_order_asymmetry(i: usize, j: usize)
+machine false_order_asymmetry(i: u64, j: u64)
 requires
     i < j
 ensures

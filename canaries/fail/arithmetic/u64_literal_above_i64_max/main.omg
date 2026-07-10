@@ -1,6 +1,6 @@
 // FAIL canary: a u64-magnitude literal into a NON-u64-classed place is rejected
 // with a CLEAR diagnostic. Since D14 (anonymous literals) the literal PARSES and
-// a direct store into a u64/usize/addr place is ACCEPTED (see
+// a direct store into a u64/addr place is ACCEPTED (see
 // canaries/pass/arithmetic/runtime_u64_max_literal_exit); every other position
 // -- here an i64 target, whose 8-byte slot would silently reinterpret the bit
 // pattern as negative -- must still reject at the literal-width gate

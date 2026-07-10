@@ -16,7 +16,7 @@ data Box {
 data Finder {
     scratch: i32;
 }
-machine Finder::find(&self, container: Box, k: usize [0..=1]) -> i32 {
+machine Finder::find(&self, container: Box, k: u64 [0..=1]) -> i32 {
     let v: i32 = container.items[k].id;
     transition { _ -> v }
 }

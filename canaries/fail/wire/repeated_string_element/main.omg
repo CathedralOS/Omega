@@ -14,13 +14,13 @@ data NameList {
 
 data NameListValue {
     names: [String; 4];
-    names_count: usize;
+    names_count: u64;
 }
 
 data Main {
     console: Console;
     buffer: [u8; 64];
-    written: usize;
+    written: u64;
 }
 
 machine Main::main(&mut self) {

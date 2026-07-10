@@ -16,8 +16,8 @@ machine Main::main(&mut self) {
         _ -> check(entry_view, 0)
     }
 
-    state check(&mut self, entries: &[Entry], index: usize) {
-        let next_index: usize = index + 1;
+    state check(&mut self, entries: &[Entry], index: u64) {
+        let next_index: u64 = index + 1;
         let has_next: bool = next_index < entries.len;
 
         transition has_next {

@@ -14,7 +14,7 @@ use omega::language::std::filesystem_host;
 data Main {
     fs: FilesystemHost;
     rdonly: i32;
-    cap: usize;
+    cap: u64;
     fd: i32;
     rc: i32;
     code: i32;

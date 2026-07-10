@@ -133,7 +133,7 @@ machine Main::main(&mut self) {
         self.io_result = self.fs.read_all("omega_vault/notes/current/vault.txt", &mut self.back, 64);
         transition self.io_result { IoResult::Ok { count } -> readback_ck(count) _ -> done() }
     }
-    state readback_ck(&mut self, count: usize) {
+    state readback_ck(&mut self, count: u64) {
         transition count == 32 { true -> readback_head() _ -> done() }
     }
     state readback_head(&mut self) {
@@ -165,7 +165,7 @@ machine Main::main(&mut self) {
         self.io_result = self.fs.copy("omega_vault/notes/current/vault.txt", "omega_vault/notes/current/vault.bak", &mut self.scratch, 64);
         transition self.io_result { IoResult::Ok { count } -> backup_ck(count) _ -> done() }
     }
-    state backup_ck(&mut self, count: usize) {
+    state backup_ck(&mut self, count: u64) {
         transition count == 9 { true -> cleanup() _ -> done() }
     }
 
@@ -175,7 +175,7 @@ machine Main::main(&mut self) {
         self.io_result = self.fs.read_dir_count("omega_vault/notes/current");
         transition self.io_result { IoResult::Ok { count } -> audit_dir(count) _ -> done() }
     }
-    state audit_dir(&mut self, count: usize) {
+    state audit_dir(&mut self, count: u64) {
         transition count == 2 { true -> remove_one() _ -> done() }
     }
     state remove_one(&mut self) {

@@ -11,15 +11,15 @@ boundary trait Console {
 data Main {
     console: Console;
     arr: [i32; 5];
-    lo: usize;
-    hi: usize;
+    lo: u64;
+    hi: u64;
 }
 
 machine Main::main(&mut self) {
     self.lo = 1;
     self.hi = 4;
     let sub: &[i32] = self.arr[self.lo..self.hi];
-    let n: usize = sub.len;
+    let n: u64 = sub.len;
     transition n == 3 {
         true -> matched()
         false -> unmatched()

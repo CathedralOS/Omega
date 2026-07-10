@@ -2,7 +2,7 @@
 // any odd a, so `ensures a % 2 in 0..=0` is wrong. Accepted today; a built-in
 // euclidean remainder lemma must reject it.
 
-machine false_remainder_bounded(a: usize)
+machine false_remainder_bounded(a: u64)
 ensures
     a % 2 in 0..=0
 {

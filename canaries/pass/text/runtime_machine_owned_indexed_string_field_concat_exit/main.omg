@@ -15,7 +15,7 @@ data Main {
 }
 
 machine Main::main(&mut self) {
-    let index: usize = 1;
+    let index: u64 = 1;
     self.rooms[index].description = "prefix " + "omega";
 
     let room_slice: &[Room] = self.rooms.as_slice();

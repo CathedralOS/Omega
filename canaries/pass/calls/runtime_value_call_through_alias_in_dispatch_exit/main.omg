@@ -16,17 +16,17 @@ boundary trait Console {
 }
 
 data Level {
-    room_count: usize;
+    room_count: u64;
 }
 
 data Store {
 }
 
-machine Store::idx(&mut self, x: usize) -> usize {
+machine Store::idx(&mut self, x: u64) -> u64 {
     transition x { 0 -> 0  1 -> 1  2 -> 2  _ -> 3 }
 }
 
-machine Store::carve(&mut self, out: &mut Level, x: usize) {
+machine Store::carve(&mut self, out: &mut Level, x: u64) {
     // bare branching-call result through the &mut alias
     out.room_count = self.idx(x);
 }

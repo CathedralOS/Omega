@@ -8,7 +8,7 @@ boundary trait Console {
 data Main {
     console: Console;
 }
-machine Main::countdown(&mut self, remaining: usize) -> usize
+machine Main::countdown(&mut self, remaining: u64) -> u64
 terminates {
     decreases remaining;
 }
@@ -19,7 +19,7 @@ terminates {
     }
 }
 machine Main::main(&mut self) {
-    let value: usize = self.countdown(2);
+    let value: u64 = self.countdown(2);
     transition value == 7 {
         true -> yes()
         false -> no()

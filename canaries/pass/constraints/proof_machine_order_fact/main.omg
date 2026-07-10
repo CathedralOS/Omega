@@ -4,7 +4,7 @@
 // valid because the guarantee is discharged from the requirement, so the machine
 // is a pure proof artifact.
 
-machine distinct_indices(i: usize, j: usize)
+machine distinct_indices(i: u64, j: u64)
 requires
     i < j
 ensures

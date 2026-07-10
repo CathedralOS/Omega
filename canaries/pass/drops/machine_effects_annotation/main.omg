@@ -6,7 +6,7 @@
 // host-boundary trait machines.)
 
 data Pool {
-    size: usize;
+    size: u64;
 }
 
 machine Pool::grow(&mut self)

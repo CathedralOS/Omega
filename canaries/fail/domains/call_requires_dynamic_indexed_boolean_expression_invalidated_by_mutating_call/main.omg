@@ -9,7 +9,7 @@ domain Item::Valid {
 
 data Main {
     items: [Item; 2];
-    index: usize;
+    index: u64;
 }
 
 machine Main::mark_valid(&mut self, item: &mut Item)

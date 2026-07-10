@@ -22,8 +22,8 @@ data Main {
     console: Console;
     rows: [Row; 3];
     boards: [[Cell; 2]; 2];
-    i: usize [0..=2];
-    j: usize [0..=1];
+    i: u64 [0..=2];
+    j: u64 [0..=1];
     got: i32;
 }
 machine Main::main(&mut self) {
@@ -56,8 +56,8 @@ machine Main::main(&mut self) {
     state m3(&mut self) {
         self.boards[1][0] = Cell { x: 37, y: 90 };
         self.boards[0][0] = Cell { x: 5, y: 6 };
-        let bi: usize [0..=1] = 1;
-        let bj: usize [0..=1] = 0;
+        let bi: u64 [0..=1] = 1;
+        let bj: u64 [0..=1] = 0;
         self.got = self.boards[bi][bj].x;
         transition self.got == 37 {
             true -> m4()
@@ -65,8 +65,8 @@ machine Main::main(&mut self) {
         }
     }
     state m4(&mut self) {
-        let bi: usize [0..=1] = 1;
-        let bj: usize [0..=1] = 0;
+        let bi: u64 [0..=1] = 1;
+        let bj: u64 [0..=1] = 0;
         self.boards[bi][bj].y = 91;
         self.got = self.boards[1][0].y;
         transition self.got == 91 {

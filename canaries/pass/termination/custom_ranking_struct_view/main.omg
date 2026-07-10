@@ -11,15 +11,15 @@
 // slot written, nothing reads it -- rather than fencing.)
 boundary trait Console { machine exit_process(return_code: i32); }
 data Card {
-    power: usize;
+    power: u64;
 }
 
-measure Card::PowerOrder(card: Card) -> usize { card.power }
+measure Card::PowerOrder(card: Card) -> u64 { card.power }
 
 data Main { console: Console; }
 
 machine Main::main(&mut self) {
-    let value: usize = self.weaken(Card { power: 3 });
+    let value: u64 = self.weaken(Card { power: 3 });
     transition value == 0 { true -> good() _ -> bad() }
     state good(&mut self) { self.console.exit_process(70); }
     state bad(&mut self) { self.console.exit_process(71); }
@@ -29,7 +29,7 @@ machine Main::weaken(&mut self, card: Card)
 terminates {
     decreases card -> Card::PowerOrder;
 }
--> usize
+-> u64
 {
     transition card.power > 0 {
         true -> weaken(Card { power: card.power - 1 })

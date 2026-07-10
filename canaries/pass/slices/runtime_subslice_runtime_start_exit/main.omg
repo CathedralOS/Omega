@@ -1,5 +1,5 @@
 // Subslice with a RUNTIME start over a slice parameter (`sub[start..]` where
-// `start: usize` is only known at runtime). The descriptor pointer must be
+// `start: u64` is only known at runtime). The descriptor pointer must be
 // computed as ptr = sub.ptr + start*elem via the descriptor-indexed address op,
 // and len = sub.len - start as a storage-storage subtraction. The guard
 // `start < sub.len` proves the bound.
@@ -20,7 +20,7 @@ machine Main::main(&mut self) {
     }
 }
 
-machine Main::check(&mut self, sub: &[Entry], start: usize) {
+machine Main::check(&mut self, sub: &[Entry], start: u64) {
     transition start < sub.len {
         true -> self.verify(sub[start..])
         false -> bad()

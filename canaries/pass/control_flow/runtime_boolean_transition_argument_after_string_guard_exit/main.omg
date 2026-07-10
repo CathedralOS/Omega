@@ -17,7 +17,7 @@ data Main {
 }
 
 machine Main::main(&mut self) {
-    let index: usize = 1;
+    let index: u64 = 1;
     self.rooms[index].description = "deep room";
     self.rooms[index].exit_count = 2;
     self.copy = self.rooms[index];

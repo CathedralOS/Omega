@@ -4,7 +4,7 @@ data Entry {
 
 data Main {
     entries: [Entry; 4];
-    index: usize;
+    index: u64;
 }
 
 machine Main::main(&mut self) -> i32 {
@@ -13,7 +13,7 @@ machine Main::main(&mut self) -> i32 {
         _ -> choose(view, self.index)
     }
 
-    state choose(&mut self, entries: &[Entry], index: usize) -> i32 {
+    state choose(&mut self, entries: &[Entry], index: u64) -> i32 {
         let chosen: Entry = entries[index];
         chosen.value
     }

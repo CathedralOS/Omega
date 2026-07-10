@@ -3,7 +3,7 @@ boundary trait Console {
 }
 data CellId { case Empty; case R00; case R01; case R02; case R03; }
 data Room { cell: CellId; tag: i32; }
-data Level { rooms: [Room; 4]; room_count: usize; }
+data Level { rooms: [Room; 4]; room_count: u64; }
 data Builder { }
 data Main { console: Console; builder: Builder; level: Level; }
 
@@ -19,9 +19,9 @@ machine Main::main(&mut self) {
 machine Builder::build(&mut self, level: &mut Level) {
     level.room_count = 4;
     transition { _ -> carve_at(level, 0) }
-    state carve_at(&mut self, level: &mut Level, index: usize) {
+    state carve_at(&mut self, level: &mut Level, index: u64) {
         self.carve(level, 100 + index);
-        let next: usize = index + 1;
+        let next: u64 = index + 1;
         transition next < 4 { true -> carve_at(level, next) false -> {} }
     }
 }

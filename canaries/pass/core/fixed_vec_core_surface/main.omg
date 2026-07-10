@@ -2,7 +2,7 @@ use omega::language::core::fixed_vec;
 
 // Confirms the ALLOCATOR STORY STAGE 1 FixedVec surface is browsable end to
 // end: importing the core `fixed_vec` module brings in the generic
-// fixed-capacity vector data shape (`FixedVec<T, const N: usize>` — inline
+// fixed-capacity vector data shape (`FixedVec<T, const N: u64>` — inline
 // `[T; N]` storage plus a live length, no heap anywhere) and the
 // Length / push / pop / get / as_slice boundary contracts with their
 // proof-obligated requires/ensures, and the program type-checks cleanly.

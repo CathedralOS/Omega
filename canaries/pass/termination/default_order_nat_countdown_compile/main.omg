@@ -1,14 +1,14 @@
 data Main {}
 
 machine Main::main(&mut self) {
-    let value: usize = self.countdown(2);
+    let value: u64 = self.countdown(2);
 }
 
-machine Main::countdown(&mut self, remaining: usize)
+machine Main::countdown(&mut self, remaining: u64)
 terminates {
     decreases remaining;
 }
--> usize
+-> u64
 {
     transition remaining > 0 {
         true -> countdown(remaining - 1)

@@ -7,7 +7,7 @@ data Main {
 
 machine Main::main(&mut self) {
     let rooms: [Room; 1] = [Room { exit_count: 0 }];
-    let index: usize = 0;
+    let index: u64 = 0;
 
     rooms[index].exit_count = rooms[index].exit_count + 1;
 

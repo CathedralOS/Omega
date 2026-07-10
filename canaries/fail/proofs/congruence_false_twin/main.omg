@@ -3,7 +3,7 @@
 // engine that rewrites under equations and normalizes constants must reject
 // it.
 
-machine false_add_congruence(a: usize, b: usize)
+machine false_add_congruence(a: u64, b: u64)
 requires
     a == b
 ensures

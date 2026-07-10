@@ -12,7 +12,7 @@ data Main {
     rdonly: i32;
     zero: i64;
     seek_set: i32;
-    cap: usize;
+    cap: u64;
     fd: i32;
     n: i64;
     off: i64;

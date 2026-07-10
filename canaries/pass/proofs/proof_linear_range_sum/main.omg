@@ -2,7 +2,7 @@
 // each lie in 1..=10 then a + b lies in 2..=20. Lean analog: `add_le_add`
 // plus its lower-bound dual. Needs interval propagation through `+`.
 
-machine sum_of_bounded(a: usize, b: usize)
+machine sum_of_bounded(a: u64, b: u64)
 requires
     a in 1..=10
     b in 1..=10

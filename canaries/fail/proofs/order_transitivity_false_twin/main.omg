@@ -4,7 +4,7 @@
 // direct-asymmetry refutation cannot see it. Accepted today; a fact-chaining
 // entailment engine must reject it.
 
-machine false_transitive_order(a: usize, b: usize, c: usize)
+machine false_transitive_order(a: u64, b: u64, c: u64)
 requires
     a < b
     b < c

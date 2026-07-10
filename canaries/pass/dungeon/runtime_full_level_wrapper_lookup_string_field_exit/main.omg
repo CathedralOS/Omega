@@ -84,14 +84,14 @@ data Room {
     label: String;
     description: String;
     exits: [Exit; 4];
-    exit_count: usize;
+    exit_count: u64;
     event: RoomEvent;
     discovered: bool;
 }
 
 data Level {
     rooms: [Room; 16];
-    room_count: usize;
+    room_count: u64;
     start_cell: CellId;
     deepest_depth: u32;
 }
@@ -178,13 +178,13 @@ machine Lookup::find_room(
     state find_room_at(
         &mut self,
         rooms: &[Room],
-        room_count: usize,
+        room_count: u64,
         cell: CellId,
         out_room: &mut Room,
-        index: usize
+        index: u64
     ) {
         let found: bool = rooms[index].cell == cell;
-        let next_index: usize = index + 1;
+        let next_index: u64 = index + 1;
         let has_next: bool = next_index < room_count;
 
         transition {

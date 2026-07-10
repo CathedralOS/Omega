@@ -1,9 +1,9 @@
 use omega::language::std::option;
 
 data Main {
-    value: Option<usize>;
+    value: Option<u64>;
 }
 
-machine Main::main(&mut self, value: Option<usize>) {
+machine Main::main(&mut self, value: Option<u64>) {
     self.value = value;
 }

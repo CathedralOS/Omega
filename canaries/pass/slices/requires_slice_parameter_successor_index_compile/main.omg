@@ -5,7 +5,7 @@ data Entry {
 data Main {
 }
 
-machine Main::main(&mut self, entries: &[Entry], index: usize) -> i32
+machine Main::main(&mut self, entries: &[Entry], index: u64) -> i32
 requires
     index + 1 <= entries.len
 {

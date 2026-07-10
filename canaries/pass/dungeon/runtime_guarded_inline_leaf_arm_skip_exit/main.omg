@@ -27,7 +27,7 @@ machine Main::main(&mut self) {
 // arm (`1 -> store(20)`) must skip the remaining sibling arms; without the
 // forward skip-jump, the `_ -> store(30)` fallback would run too and clobber the
 // result to 30.
-machine Selector::pick(&mut self, choice: usize) {
+machine Selector::pick(&mut self, choice: u64) {
     transition choice {
         0 -> store(10)
         1 -> store(20)

@@ -2,7 +2,7 @@
 // Lean analog: `Nat.add_comm`. Needs term normalization (sorting commutative
 // operands into a canonical form), not value computation.
 
-machine add_commutative(a: usize, b: usize)
+machine add_commutative(a: u64, b: u64)
 ensures
     a + b == b + a
 {

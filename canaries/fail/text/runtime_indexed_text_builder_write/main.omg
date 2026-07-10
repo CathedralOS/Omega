@@ -8,7 +8,7 @@ data Main {
 machine Main::append_description_at(
     &mut self,
     rooms: &mut [Room],
-    index: usize,
+    index: u64,
     suffix: String
 ) {
     rooms[index].description = "prefix " + suffix;

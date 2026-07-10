@@ -16,8 +16,8 @@ data Main {
     console: Console;
     cube: [[[i32; 2]; 2]; 2];
     weird: [[[i32; 1]; 4]; 2];
-    k: usize [0..=1];
-    z: usize [0..=0];
+    k: u64 [0..=1];
+    z: u64 [0..=0];
     got: i32;
 }
 machine Main::main(&mut self) {

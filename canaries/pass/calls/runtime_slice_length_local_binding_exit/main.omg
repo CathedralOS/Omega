@@ -16,7 +16,7 @@ data Main {
 
 machine Main::main(&mut self) {
     let s: &[i32] = self.arr.as_slice();
-    let n: usize = s.len;
+    let n: u64 = s.len;
     transition n == 5 {
         true -> matched()
         false -> unmatched()

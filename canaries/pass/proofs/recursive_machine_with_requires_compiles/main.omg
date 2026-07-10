@@ -16,10 +16,10 @@ data Main {
 }
 
 machine Main::main(&mut self) {
-    let total: usize = self.gauss_sum(4, 0, 7);
+    let total: u64 = self.gauss_sum(4, 0, 7);
 }
 
-machine Main::gauss_sum(&mut self, n: usize, acc: usize, limit: usize) -> usize
+machine Main::gauss_sum(&mut self, n: u64, acc: u64, limit: u64) -> u64
 terminates {
     decreases n;
 }

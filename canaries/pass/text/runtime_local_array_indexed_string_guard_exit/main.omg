@@ -29,7 +29,7 @@ machine Main::main(&mut self) {
         Room { label: "" },
         Room { label: "" }
     ];
-    let empty_index: usize = 0;
+    let empty_index: u64 = 0;
 
     transition rooms[empty_index].label == "expected" {
         true -> fail()
@@ -46,9 +46,9 @@ machine Main::main(&mut self) {
         // write path); the GUARD reads the array directly so its place stays
         // base-indexed.
         let room_slice: &mut [Room] = rooms.as_mut_slice();
-        let write_index: usize = 1;
+        let write_index: u64 = 1;
         room_slice[write_index].label = "expected";
-        let index: usize = 1;
+        let index: u64 = 1;
         transition rooms[index].label == "expected" {
             true -> check_differ()
             false -> fail()
@@ -62,12 +62,12 @@ machine Main::main(&mut self) {
             Room { label: "" }
         ];
         let room_slice: &mut [Room] = rooms.as_mut_slice();
-        let write_index: usize = 2;
+        let write_index: u64 = 2;
         // Same length as the literal, differing only in the final byte, so
         // the inequality must come from the byte loop rather than the length
         // check.
         room_slice[write_index].label = "expectes";
-        let index: usize = 2;
+        let index: u64 = 2;
         transition rooms[index].label == "expected" {
             true -> fail()
             false -> pass()

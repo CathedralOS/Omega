@@ -3,7 +3,7 @@
 // the upper corner. Accepted today; interval arithmetic over `+` must reject
 // it.
 
-machine false_sum_of_bounded(a: usize, b: usize)
+machine false_sum_of_bounded(a: u64, b: u64)
 requires
     a in 1..=10
     b in 1..=10

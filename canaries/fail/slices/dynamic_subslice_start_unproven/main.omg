@@ -4,10 +4,10 @@ data Entry {
 
 data Main {
     entries: [Entry; 4];
-    start: usize;
+    start: u64;
 }
 
-machine Main::main(&mut self) -> usize {
+machine Main::main(&mut self) -> u64 {
     let view: &[Entry] = self.entries.as_slice();
     let tail: &[Entry] = view[self.start..];
     tail.len

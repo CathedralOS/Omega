@@ -25,7 +25,7 @@ data Entity {
 data Main {
     console: Console;
     entities: [Entity; 4];
-    idx: usize;
+    idx: u64;
 }
 
 machine Main::main(&mut self) {

@@ -2,7 +2,7 @@
 // Lean analog: `Nat.le_antisymm`. Needs combining two non-strict order facts
 // into an equation.
 
-machine less_equal_antisymmetric(a: usize, b: usize)
+machine less_equal_antisymmetric(a: u64, b: u64)
 requires
     a <= b
     b <= a

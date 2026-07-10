@@ -15,7 +15,7 @@ data Main {
 }
 
 machine Main::main(&mut self) {
-    let n: usize = (self.arr[1..4]).len;
+    let n: u64 = (self.arr[1..4]).len;
     transition n == 3 {
         true -> matched()
         false -> unmatched()

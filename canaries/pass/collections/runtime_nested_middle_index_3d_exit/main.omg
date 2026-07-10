@@ -10,7 +10,7 @@ boundary trait Console {
 data Main {
     console: Console;
     cube: [[[i32; 2]; 2]; 2];
-    b: usize [0..=1];
+    b: u64 [0..=1];
     got: i32;
 }
 machine Main::main(&mut self) {

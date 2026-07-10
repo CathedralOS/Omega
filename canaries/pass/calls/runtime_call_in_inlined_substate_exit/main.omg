@@ -20,7 +20,7 @@ data Room {
 
 data Level {
     rooms: [Room; 4];
-    room_count: usize;
+    room_count: u64;
 }
 
 data Builder {

@@ -1,4 +1,4 @@
-// A RANGE-TYPED LET carrying a computed index (`let m: usize [1..=4] =
+// A RANGE-TYPED LET carrying a computed index (`let m: u64 [1..=4] =
 // self.k + 1; self.arr[m]`) lowers on every face. Two coordinated pieces
 // (2026-07-07): state-storage keeps the local's SLOT when a computed-value
 // initializer is consumed as a runtime index (collection.rs carve-out), and
@@ -15,7 +15,7 @@ boundary trait Console {
 data Main {
     console: Console;
     arr: [i32; 5];
-    k: usize [0..=3];
+    k: u64 [0..=3];
     r: i32;
 }
 machine Main::main(&mut self) {
@@ -23,14 +23,14 @@ machine Main::main(&mut self) {
     self.arr[2] = 7;
     self.arr[3] = 42;
     self.k = 2;
-    let m: usize [1..=4] = self.k + 1;
+    let m: u64 [1..=4] = self.k + 1;
     self.r = self.arr[m];
     transition self.r == 42 {
         true -> f2()
         false -> no()
     }
     state f2(&mut self) {
-        let w: usize [1..=4] = self.k + 1;
+        let w: u64 [1..=4] = self.k + 1;
         self.arr[w] = 99;
         self.r = self.arr[3];
         transition self.r == 99 {
@@ -39,7 +39,7 @@ machine Main::main(&mut self) {
         }
     }
     state f3(&mut self) {
-        let g: usize [1..=4] = self.k + 1;
+        let g: u64 [1..=4] = self.k + 1;
         transition self.arr[g] == 99 {
             true -> f4()
             false -> no()
@@ -52,7 +52,7 @@ machine Main::main(&mut self) {
         }
     }
     state f4a(&mut self) {
-        let b: usize [0..=2] = self.k - 1;
+        let b: u64 [0..=2] = self.k - 1;
         self.r = self.arr[b];
         transition self.r == 5 {
             true -> f5()
@@ -60,7 +60,7 @@ machine Main::main(&mut self) {
         }
     }
     state f5(&mut self) {
-        let c: usize [0..=3] = self.k;
+        let c: u64 [0..=3] = self.k;
         self.r = self.arr[c];
         transition self.r == 7 {
             true -> yes()

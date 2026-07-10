@@ -12,12 +12,12 @@ data Main {
     console: Console;
 }
 
-machine Main::measure(&self, text: &[u8] in Utf8) -> usize {
+machine Main::measure(&self, text: &[u8] in Utf8) -> u64 {
     transition { _ -> (text.len) }
 }
 
 machine Main::main(&mut self) {
-    let n: usize = self.measure("hello");
+    let n: u64 = self.measure("hello");
     transition n == 5 {
         true -> good()
         _ -> bad()

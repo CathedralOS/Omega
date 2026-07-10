@@ -12,7 +12,7 @@ data Main {
     slots: [i64; sized()];
 }
 
-machine sized(n: i32) -> usize {
+machine sized(n: i32) -> u64 {
     transition {
         n > 0 -> 8
         _ -> 16

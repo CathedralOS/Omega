@@ -2,7 +2,7 @@
 // addition with no hypotheses. Lean analog: `Nat.add_mul` (also reachable via
 // `ring`). Needs polynomial normalization of both sides.
 
-machine multiply_distributes(a: usize, b: usize, c: usize)
+machine multiply_distributes(a: u64, b: u64, c: u64)
 ensures
     (a + b) * c == a * c + b * c
 {

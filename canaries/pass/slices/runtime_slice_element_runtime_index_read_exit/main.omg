@@ -16,13 +16,13 @@ machine Main::main(&mut self) {
         true -> pick(s, 1)
         false -> no()
     }
-    state pick(&mut self, s: &[i32], i: usize [0..=3]) {
+    state pick(&mut self, s: &[i32], i: u64 [0..=3]) {
         transition i < s.len {
             true -> go(s, i)
             false -> no()
         }
     }
-    state go(&mut self, s: &[i32], i: usize [0..=3]) {
+    state go(&mut self, s: &[i32], i: u64 [0..=3]) {
         self.got = s[i];
         transition self.got == 11 {
             true -> yes()

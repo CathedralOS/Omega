@@ -2,7 +2,7 @@
 // b <= a force a == b, so `ensures a != b` is unsatisfiable. Accepted today;
 // combining non-strict order facts into an equation must reject it.
 
-machine false_antisymmetric_distinct(a: usize, b: usize)
+machine false_antisymmetric_distinct(a: u64, b: u64)
 requires
     a <= b
     b <= a

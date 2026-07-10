@@ -29,7 +29,7 @@ data WireVerdict {
 data Main {
     console: Console;
     buffer: [u8; 64];
-    read: usize;
+    read: u64;
     verdict: WireVerdict;
 }
 

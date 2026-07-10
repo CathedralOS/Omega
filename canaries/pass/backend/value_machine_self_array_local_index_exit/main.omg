@@ -14,7 +14,7 @@ data Probe { buf: [u8; 16]; }
 machine Probe::fill(&mut self) -> i64 {
     self.buf[5] = 99;
     transition true { _ -> go() }
-    state go(&mut self) -> i64 { let j: usize = 4 + 1; self.buf[j] as i64 }
+    state go(&mut self) -> i64 { let j: u64 = 4 + 1; self.buf[j] as i64 }
 }
 data Main { console: Console; probe: Probe; out: i64; ncode: i32; }
 machine Main::main(&mut self) {

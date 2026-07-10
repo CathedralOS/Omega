@@ -10,7 +10,7 @@ machine Main::main(&mut self) -> i32 {
         _ -> 0
     }
 
-    state choose(&mut self, entries: &[Entry], index: usize) -> i32 {
+    state choose(&mut self, entries: &[Entry], index: u64) -> i32 {
         transition index + 1 <= entries.len {
             true -> accept(entries[index].value)
             false -> 0

@@ -9,7 +9,7 @@ data Main {
 machine Main::main(&mut self) {
     transition { _ -> self.pick(2) }
 }
-machine Main::pick(&mut self, k: usize [0..=2]) {
+machine Main::pick(&mut self, k: u64 [0..=2]) {
     let a: [i64; 3] = [11, 22, 33];
     let v: i64 = a[k];
     transition v == 33 {

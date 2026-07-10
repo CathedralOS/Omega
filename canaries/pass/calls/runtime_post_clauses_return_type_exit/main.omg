@@ -1,4 +1,4 @@
-// V5: `-> usize` AFTER the terminates clause, non-recursive -- the parser
+// V5: `-> u64` AFTER the terminates clause, non-recursive -- the parser
 // used to silently DROP the return type (the machine parsed as void).
 boundary trait Console {
     machine exit_process(return_code: i32);
@@ -6,9 +6,9 @@ boundary trait Console {
 data Main {
     console: Console;
 }
-machine Main::pick(&mut self, x: usize)
+machine Main::pick(&mut self, x: u64)
 terminates
--> usize
+-> u64
 {
     transition x > 0 {
         true -> 5
@@ -16,7 +16,7 @@ terminates
     }
 }
 machine Main::main(&mut self) {
-    let value: usize = self.pick(1);
+    let value: u64 = self.pick(1);
     transition value == 5 {
         true -> yes()
         false -> no()

@@ -1,6 +1,6 @@
-operator Slice::index<T>(items: &[T], index: usize) -> T;
+operator Slice::index<T>(items: &[T], index: u64) -> T;
 
-operator Slice::index<U>(items: &[U], index: usize) -> U;
+operator Slice::index<U>(items: &[U], index: u64) -> U;
 
 data Main {
 }

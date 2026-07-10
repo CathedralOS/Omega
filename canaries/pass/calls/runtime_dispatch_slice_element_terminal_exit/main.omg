@@ -10,7 +10,7 @@
 // pinned by calls/runtime_dispatch_machine_array_slice_arg_exit.
 boundary trait Console { machine exit_process(return_code: i32); }
 data Main { console: Console; nums: [i32; 4]; }
-machine Main::pick(&mut self, s: &[i32], i: usize, j: usize)
+machine Main::pick(&mut self, s: &[i32], i: u64, j: u64)
 terminates { decreases (j, i) -> Nat::BoundedDistance; }
 -> i32
 {
@@ -18,10 +18,10 @@ terminates { decreases (j, i) -> Nat::BoundedDistance; }
         true -> pick(s, i, j + 1)
         false -> leaf(s, j)
     }
-    state leaf(&mut self, s: &[i32], j: usize) -> i32 {
+    state leaf(&mut self, s: &[i32], j: u64) -> i32 {
         transition j < s.len { true -> leaf_go(s, j) _ -> leaf_zero() }
     }
-    state leaf_go(&mut self, s: &[i32], j: usize) -> i32 { s[j] }
+    state leaf_go(&mut self, s: &[i32], j: u64) -> i32 { s[j] }
     state leaf_zero(&mut self) -> i32 { 0 }
 }
 machine Main::main(&mut self) {

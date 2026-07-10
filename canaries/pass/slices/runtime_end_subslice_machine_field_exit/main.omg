@@ -18,7 +18,7 @@ data Entry {
 data Main {
     console: Console;
     entries: [Entry; 4];
-    k: usize;
+    k: u64;
 }
 
 machine Main::main(&mut self) {

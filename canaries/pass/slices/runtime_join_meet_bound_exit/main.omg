@@ -13,7 +13,7 @@ boundary trait Console {
 data Main {
     console: Console;
     arr: [i32; 4] in Trapping;
-    idx: usize;
+    idx: u64;
     flag: bool;
     r: i32 in Trapping;
 }

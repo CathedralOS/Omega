@@ -16,7 +16,7 @@ data Main {
 }
 
 machine Main::main(&mut self) {
-    let index: usize = 1;
+    let index: u64 = 1;
     self.rooms[index].exits[0].distance = 9;
     self.rooms[index].exits[1].distance = 4;
 

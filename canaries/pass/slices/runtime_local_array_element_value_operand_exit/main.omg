@@ -10,12 +10,12 @@
 // arms pick from their scratch list. Distinct exits per direction (72
 // value-call arg, 73 forwarded); differential-pinned at 70/70.
 boundary trait Console { machine exit_process(return_code: i32); }
-data Main { console: Console; idx: usize; }
+data Main { console: Console; idx: u64; }
 machine Main::double(&mut self, v: i32 [0..=100]) -> i32 { v + v }
 machine Main::main(&mut self) {
     self.idx = 1;
     transition self.idx < 3 { true -> read_elem(self.idx) _ -> bad() }
-    state read_elem(&mut self, i: usize [0..=2]) {
+    state read_elem(&mut self, i: u64 [0..=2]) {
         let arr: [i32; 3] = [10, 20, 30];
         let d: i32 = self.double(arr[i]);
         transition d == 40 { true -> fwd(arr[i]) _ -> bad_call() }

@@ -52,7 +52,7 @@ data WireVerdict {
 
 data Main {
     console: Console;
-    read: usize;
+    read: u64;
     verdict: WireVerdict;
 }
 

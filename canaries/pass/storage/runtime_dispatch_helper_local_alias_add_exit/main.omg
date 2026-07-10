@@ -25,7 +25,7 @@ machine Main::main(&mut self) {
         ],
         exit_count: 0
     }];
-    let from_index: usize in Wrapping = 0;
+    let from_index: u64 in Wrapping = 0;
 
     self.append_exit(&mut rooms[from_index], 1);
 
@@ -59,11 +59,11 @@ requires
     room.exit_count < room.exits.len
 {
     let exits: &mut [Exit] = room.exits.as_mut_slice();
-    let index: usize in Wrapping = room.exit_count;
+    let index: u64 in Wrapping = room.exit_count;
 
     exits[index] = Exit { destination: destination };
-    // Count in u32: `index + 1` is a `usize` (index type), so storing it into the
-    // u32 `exit_count` would be a usize->u32 narrowing (decision 17). Incrementing
+    // Count in u32: `index + 1` is a `u64` (index type), so storing it into the
+    // u32 `exit_count` would be a u64->u32 narrowing (decision 17). Incrementing
     // the `u32 in Wrapping` count directly keeps the store same-width.
     room.exit_count = room.exit_count + 1;
 }

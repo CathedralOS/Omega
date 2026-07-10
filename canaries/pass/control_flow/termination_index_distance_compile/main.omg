@@ -1,17 +1,17 @@
 data Main {
 }
 
-machine Main::main(&mut self) -> usize {
+machine Main::main(&mut self) -> u64 {
     transition {
         _ -> self.walk(4, 0)
     }
 }
 
-machine Main::walk(&mut self, limit: usize, index: usize)
+machine Main::walk(&mut self, limit: u64, index: u64)
 terminates {
     decreases (index, limit) -> Nat::BoundedDistance;
 }
--> usize
+-> u64
 {
     transition index < limit {
         true -> walk(limit, index + 1)

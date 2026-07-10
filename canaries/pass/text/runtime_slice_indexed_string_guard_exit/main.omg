@@ -23,9 +23,9 @@ data Main {
 }
 
 machine Main::main(&mut self) {
-    let match_index: usize = 1;
-    let differ_index: usize = 2;
-    let empty_index: usize = 0;
+    let match_index: u64 = 1;
+    let differ_index: u64 = 2;
+    let empty_index: u64 = 0;
     let room_slice: &mut [Room] = self.rooms.as_mut_slice();
     room_slice[match_index].name = "expected";
     // Same length as the literal, differing only in the final byte, so the
@@ -38,7 +38,7 @@ machine Main::main(&mut self) {
     }
 
     state check_match(&mut self) {
-        let index: usize = 1;
+        let index: u64 = 1;
         let room_slice: &mut [Room] = self.rooms.as_mut_slice();
         transition room_slice[index].name == "expected" {
             true -> check_differ()
@@ -47,7 +47,7 @@ machine Main::main(&mut self) {
     }
 
     state check_differ(&mut self) {
-        let index: usize = 2;
+        let index: u64 = 2;
         let room_slice: &mut [Room] = self.rooms.as_mut_slice();
         transition room_slice[index].name == "expected" {
             true -> fail()

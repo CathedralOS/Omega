@@ -9,10 +9,10 @@
 // Newlines between facts are accepted as proof-fact separators.
 
 data Items {
-    count: usize;
+    count: u64;
 }
 
-machine Items::check(&self, index: usize)
+machine Items::check(&self, index: u64)
 requires
     index < self.count
     index + 1 < self.count

@@ -17,7 +17,7 @@ data Main {
     never: Msg;
     arr: [u32; 4];
     nested: Outer;
-    i: usize [0..=3];
+    i: u64 [0..=3];
 }
 machine Main::main(&mut self) {
     self.i = 2;

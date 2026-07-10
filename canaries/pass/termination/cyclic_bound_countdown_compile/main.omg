@@ -1,31 +1,31 @@
 data Main {
 }
 
-machine Main::main(&mut self) -> usize {
+machine Main::main(&mut self) -> u64 {
     transition {
         _ -> self.step_a(6)
     }
 }
 
-machine Main::step_a(&mut self, remaining: usize)
+machine Main::step_a(&mut self, remaining: u64)
 terminates {
     decreases remaining -> Nat::Descending;
 }
--> usize
+-> u64
 {
     transition remaining > 0 {
         true -> step_b(remaining - 1)
         false -> 0
     }
 
-    state step_b(&mut self, remaining: usize) -> usize {
+    state step_b(&mut self, remaining: u64) -> u64 {
         transition remaining > 0 {
             true -> step_c(remaining - 1)
             false -> 0
         }
     }
 
-    state step_c(&mut self, remaining: usize) -> usize {
+    state step_c(&mut self, remaining: u64) -> u64 {
         transition remaining > 0 {
             true -> step_a(remaining - 1)
             false -> 0

@@ -16,7 +16,7 @@ machine Main::main(&mut self) {
     self.arr[2] = 30;
     transition { _ -> self.pick(self.arr, 1) }
 }
-machine Main::pick(&mut self, arr: [i32; 3], k: usize [0..=2]) {
+machine Main::pick(&mut self, arr: [i32; 3], k: u64 [0..=2]) {
     let v: i32 = arr[k];
     transition v == 20 {
         true -> yes()

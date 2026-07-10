@@ -167,7 +167,7 @@ machine Dungeon::move_to(
     self.current_cell = destination;
 }
 
-machine Dungeon::current_room_index(&mut self) -> usize {
+machine Dungeon::current_room_index(&mut self) -> u64 {
     self.room_index(self.current_cell)
 }
 
@@ -224,7 +224,7 @@ machine Dungeon::initialize(
 machine Dungeon::room_index(
     &mut self,
     cell: CellId
-    ) -> usize {
+    ) -> u64 {
     transition {
         cell == CellId::R00 -> 0
         cell == CellId::R01 -> 1

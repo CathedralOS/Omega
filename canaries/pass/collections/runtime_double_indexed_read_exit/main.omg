@@ -14,8 +14,8 @@ data Main {
     console: Console;
     grid: [[i32; 4]; 3];
     cube: [[[i32; 2]; 2]; 2];
-    i: usize [0..=2];
-    j: usize [0..=3];
+    i: u64 [0..=2];
+    j: u64 [0..=3];
     got: i32;
 }
 machine Main::main(&mut self) {
@@ -37,14 +37,14 @@ machine Main::main(&mut self) {
             false -> no()
         }
     }
-    state frame_indices(&mut self, fi: usize [0..=2], fj: usize [0..=3]) {
+    state frame_indices(&mut self, fi: u64 [0..=2], fj: u64 [0..=3]) {
         self.got = self.grid[fi][fj];
         transition self.got == 5 {
             true -> mixed(3)
             false -> no()
         }
     }
-    state mixed(&mut self, fj: usize [0..=3]) {
+    state mixed(&mut self, fj: u64 [0..=3]) {
         self.got = self.grid[self.i][fj];
         transition self.got == 9 {
             true -> deep()
@@ -52,8 +52,8 @@ machine Main::main(&mut self) {
         }
     }
     state deep(&mut self) {
-        let a: usize [0..=1] = 1;
-        let b: usize [0..=1] = 1;
+        let a: u64 [0..=1] = 1;
+        let b: u64 [0..=1] = 1;
         self.got = self.cube[1][a][b];
         transition self.got == 77 {
             true -> yes()

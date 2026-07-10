@@ -2,7 +2,7 @@ use platform::console;
 
 data Main {
     console: Console;
-    current_room: usize;
+    current_room: u64;
     fountain_used: bool;
     bat_defeated: bool;
     treasure_taken: bool;

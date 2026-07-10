@@ -12,8 +12,8 @@ boundary trait Console {
 data Main {
     console: Console;
     grid: [[i32; 4]; 3];
-    i: usize [0..=2];
-    j: usize [0..=3];
+    i: u64 [0..=2];
+    j: u64 [0..=3];
     v: i32;
     got: i32;
 }
@@ -43,7 +43,7 @@ machine Main::main(&mut self) {
             false -> no()
         }
     }
-    state frame_source(&mut self, fv: i32, fi: usize [0..=2], fj: usize [0..=3]) {
+    state frame_source(&mut self, fv: i32, fi: u64 [0..=2], fj: u64 [0..=3]) {
         self.grid[fi][fj] = fv;
         self.got = self.grid[2][0];
         transition self.got == 33 {

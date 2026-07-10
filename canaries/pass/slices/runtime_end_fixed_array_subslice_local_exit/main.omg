@@ -13,13 +13,13 @@ boundary trait Console {
 data Main {
     console: Console;
     arr: [i32; 5];
-    hi: usize;
+    hi: u64;
 }
 
 machine Main::main(&mut self) {
     self.hi = 4;
     let sub: &[i32] = self.arr[1..self.hi];
-    let n: usize = sub.len;
+    let n: u64 = sub.len;
     transition n == 3 {
         true -> matched()
         false -> unmatched()

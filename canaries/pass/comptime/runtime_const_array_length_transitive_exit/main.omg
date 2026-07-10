@@ -18,13 +18,13 @@ data Main {
     slots: [i64; table_size()];
 }
 
-machine base() -> usize {
+machine base() -> u64 {
     transition {
         _ -> 5
     }
 }
 
-machine table_size() -> usize {
+machine table_size() -> u64 {
     transition {
         _ -> (base() * 3 + 1)
     }

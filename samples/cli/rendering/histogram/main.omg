@@ -26,12 +26,12 @@ boundary trait Console {
 data Main {
     console: Console;
     pause: String;
-    samples: [usize; 8];
+    samples: [u64; 8];
     // Wrapping DECLARED: the tallies accumulate values read back OUT of the
     // histogram array, and array elements carry no range facts yet.
     histogram: [i32; 4] in Wrapping;
-    k: usize;
-    v: usize;
+    k: u64;
+    v: u64;
     tmp: i32 in Wrapping;
     result: i32 in Wrapping;
 }
