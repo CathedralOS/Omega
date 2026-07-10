@@ -142,6 +142,13 @@ Common requirements:
 - Effect requirements: a generic operation may be callable only when its
   effects fit the caller's context.
 
+`where` is one construct across the language: its facts hold at every
+observation of the declared thing. On a compile-time-known operand (a const
+parameter) that collapses to a single instantiation-time proof — this
+section. On runtime fields of a `data` declaration it is the default
+domain, maintained through invariant windows — see
+[Dependent Types](chapter_12_dependent_types.md).
+
 Traits are covered in the next chapter. Generics only need to provide a place
 for constraints to live.
 
