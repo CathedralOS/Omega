@@ -28,7 +28,7 @@ A serious, ergonomic `std::fs` with Rust parity: portable `Filesystem` wrapper
 `std::fs` over `std::sys`). Raw ops return syscall ints; the wrapper builds
 results in Omega. Interpreter = full-parity reference oracle for everything.
 
-## Current state (2026-07-11)
+## Current state (2026-07-17)
 
 - **Interpreter**: full Rust-parity fs; the hermetic virtual fs is the
   differential oracle. OPT-IN real filesystem (`interpret_with_options`,
@@ -37,147 +37,60 @@ results in Omega. Interpreter = full-parity reference oracle for everything.
   ops ride no-follow grant resolution). Granted build entry
   (`evaluate_build_machine_with_filesystem`) allows fs, rejects every other
   host boundary. Pins: tests/real_fs.rs (6, incl. the 14-step parity probe).
-- **macOS/aarch64**: the primary VERIFIED host right now. Full gates green:
-  fs canaries 88/0, differential green, suite at the named baseline-7.
-  Dir-walk wrapper family native end-to-end (`dir_walk_wrappers_exit`);
-  note_vault sample = 14 steps incl. the fs↔time bridge.
+- **macOS/aarch64**: the primary VERIFIED host. Full gates GREEN and
+  expected-green: canary_suite ~789/0, fs canaries 88/0, samples_compile
+  139/139 BOTH fns (the baseline-3 era ended when the stdin trio moved onto
+  the std byte ops), interpreter + differential 0 FAILED.
+- **std Console byte ops (Q11/Q12 arc, 2026-07-16..17)**: COMPLETE across
+  all flavors -- `read_byte() -> ByteRead` (std sum, Eof = ordinal 0 = the
+  ZII zero slot; sentinel vetoed) + `write_byte`; interpreter both
+  positions; aarch64 native (live-verified piped echo); x86_64 windows
+  import (GetStdHandle+ReadFile/WriteFile) + linux syscall flavors,
+  fragment-pinned cross-target (pass/host/cross_console_byte_targets).
+  Fences probe-swept and pinned (fail/host/console_byte_field_target_
+  rejected). Guide ch18 documents the prescribed boundary-trait shape.
+  Root-caused en route: value-returning `platform` entry calls silently
+  missed the host-call plan (expression_platform_receiver_type matched
+  boundary traits only -- fixed); the state-values blocker re-fired on the
+  bind-first shape (byte composites joined its satisfied list -- fixed).
+- **Cathedral M2 (NEXT PICK claim, 2026-07-17)**: compiler rungs 1+2 DONE --
+  the vtable FIELD MODEL (`provides Trait over Struct { method -> field }`,
+  layout-resolved offsets, pass/targets/efi_vtable_field_call) and `&mut`
+  out-param ADDRESS marshaling with six-arg stack spill
+  (pass/targets/efi_out_param_call). The "two red efi tests" proved stale
+  (dispatch bytes verified cross-target). Rung 3 (runtime-offset
+  borrow-recast) refuses at the parser -- blocked on the main lane's queued
+  RECAST rung (SS5b), annotated in TASKS.md.
 - **windows/x86_64**: raw seam + wrapper verified through msvcrt rows
   (roundtrip/breadth/wrapper-breadth canaries); stat family + no-msvcrt ops
   (pread/*at/link/read_dir/flock/chown/futimens/realpath) keep the loud
   "no native lowering" error pending Win32 rows. Needs a Windows session.
 - **std::time interop**: rung-10 darwin bindings native-confirmed
-  (`runtime_time_host_native_darwin_exit`); fs↔time bridge pinned
-  (`runtime_fs_mtime_system_time_interop_exit`, natural receiver spelling).
+  (`runtime_time_host_native_darwin_exit`); fs<->time bridge pinned
+  (`runtime_fs_mtime_system_time_interop_exit`). TASKS_TIME.md is
+  essentially complete; its two open items are host-blocked.
 - **Per-instance receivers** (stolen deep fix, landed 2026-07-10): calls
   through non-first same-type receivers run on the RECEIVER's storage on
-  BOTH routes — dispatch (per-dispatch `BackendPlan::receiver_bases` table)
+  BOTH routes -- dispatch (per-dispatch `BackendPlan::receiver_bases` table)
   and inline (`receiver_base_for`'s unique-call recovery). Entry-machine
   callers only (slice 1); ambiguous multi-call states stay fenced. Pins:
-  calls/runtime_dispatch_second_receiver_exit,
-  calls/runtime_same_type_second_receiver_mutation_exit (the original
-  aliasing repro, flipped from fail fence),
-  references/runtime_nested_receiver_same_type_exit,
-  time/runtime_value_machine_receiver_field_postentry_exit.
-- **Dispatch return-write matrix**: complete — every terminal shape serves
-  (incl. slice-element, alias-read, float PLACE terminals) or loud-bails
-  (float BINARY terminals). The call-result fence is DELIVERY-PLACE granular
-  (a consumption copy cannot mask a dropped production write). Recursion:
-  REJECTED by owner directive 2026-07-07 (no cycles; loops are bare state
-  self-transitions) — pinned by machine_self_call_recursion_rejected +
-  terminal_self_call_recursion_rejected.
-- **Dev tooling**: `omega-run` bin (compile+run a .omg; `--both` adds interp
-  agreement; `--keep` preserves the build dir + backend report). Env-gated
-  debug: OMEGA_DEBUG_RECEIVER, OMEGA_DEBUG_CALL_RESULT,
-  OMEGA_DEBUG_DISPATCH_ROUTE, OMEGA_DEBUG_TAILCALL, OMEGA_DUMP_SLOTS.
+  calls/runtime_dispatch_second_receiver_exit + 3 siblings.
+- **Dispatch return-write matrix**: complete -- every terminal shape serves
+  or loud-bails; the call-result fence is DELIVERY-PLACE granular. Recursion
+  REJECTED by owner directive (loops are bare state self-transitions).
+- **Dev tooling**: `omega-run` bin (`--both` interp agreement; `--keep`
+  build dir + backend report). Env-gated debug: OMEGA_DEBUG_RECEIVER,
+  OMEGA_DEBUG_CALL_RESULT, OMEGA_DEBUG_DISPATCH_ROUTE, OMEGA_DEBUG_TAILCALL,
+  OMEGA_DEBUG_HOSTCALL, OMEGA_DUMP_SLOTS.
 
 ## Open work
 
-0. **std Console byte ops (Q11/Q12 owner direction, 2026-07-16).**
-   SURVEY CORRECTED THE PREMISE: samples already share ONE declaration
-   (std/console.omg's `platform Console`; cli samples consume it via
-   compiler host-op lowering) -- only the CANARY/build.omg convention
-   hand-spells inline boundaries, because platform entries carry no
-   effect rows (the granted-build gate needs them). LANDED (slice 1):
-   `entry read_byte() -> ByteRead` -- a std sum (`case Eof; case
-   Byte(value: i32)`), Eof = ordinal 0 = the ZII zero case (owner
-   VETOED the -1 sentinel, 2026-07-16) -- + `entry write_byte(byte:
-   i32)` on platform Console; interpreter serving (statement +
-   value-position dispatches); grammar pin for value-returning platform
-   entries + echo/checksum coverage test
-   (console_byte_ops_echo_and_checksum). Q10 CLOSED same day: authored
-   imports DECLINE interpreted, differential skip is the design (no
-   virtual stubs; "interpreter as a WASM-like target" recorded for the
-   IR-shipping future).
-   NATIVE (aarch64) LANDED: ReadRuntimeByte/WriteRuntimeByte
-   composites end-to-end (selection gated on
-   PlatformCallData::SingleByteRead/Write, rows in all three
-   calling-convention tables, relocations, machine-instruction kinds,
-   emission blocker for unserved shapes -- selection emits NOTHING
-   generic for byte ops; a miss refuses the compile). Root-caused en
-   route: `expression_platform_receiver_type` matched only boundary
-   TRAITS, so ANY value-returning `platform` entry call (`let r =
-   self.console.read_byte()`) silently missed the host-call plan and
-   left its local ZII -- now also matches platform state signatures
-   (OMEGA_DEBUG_HOSTCALL gates the collection trace). Pinned by
-   pass/host/runtime_console_byte_echo_exit (empty stdin = Eof arm =
-   the pre-zeroed slot, exit 70, differential-registered; piped "AB" =
-   echo + exit 201 in the suite test). SAMPLES ZEROED: the stdin trio
-   rewrote onto ByteRead + `self.console` byte ops -- samples_compile
-   is FULLY GREEN (139/139, both fns; the baseline-3 era is over) and
-   the INPUT-GRID rows verify natively with piped stdin ("AB"->"BC"/2,
-   "Mix."->"MIX"/3). std's `Byte(value: i32 [0..=255])` now declares
-   the honest payload range (construction-enforced). The local-shape blocker
-   CLOSED (2026-07-17): the state-values blocker's satisfied-
-   instruction list trusted HostOperation at the statement but not the
-   byte-op composites, so `write_byte(rotated)` after `let rotated =
-   b + 1` re-fired the bind-first diagnostic ON the bind-first shape;
-   ReadRuntimeByte/WriteRuntimeByte joined the list and the stdin
-   samples returned to natural locals (no field detour). x86_64 ENCODERS DONE
-   (2026-07-17): windows import flavor (GetStdHandle -10/-11 +
-   ReadFile/WriteFile, six-arg shadow shape) + linux syscall flavor
-   (read/write via the number table), same ZII design (pre-zeroed
-   slot; the conditional tag-1 store is the only count>0 write);
-   two-call relocation records (GetStdHandle + the op) mirror the
-   line-read collector. Pinned by
-   pass/host/cross_console_byte_targets (dual-target build.omg;
-   fragment asserts in the PE AND the ELF, from any host) + width
-   locks in the isa crate. REMAINING: (c) FILED as
-   OWNER_QUESTIONS #13 (2026-07-17, with the probe-sweep evidence:
-   the purity checker calls read_byte PURE -- refusal paths hold, but
-   the platform-vs-boundary-trait convergence is the owner's call).
-   Probe sweep of the new surfaces PINNED:
-   fail/host/console_byte_field_target_rejected (the unserved
-   field-target shape refuses with the actionable hint); indexed-place
-   write args serve; statement/pure discards + unused-let reads all
-   refuse loudly.
+0. **Q13 gate (the console arc's last rung).** platform-vs-boundary-trait
+   convergence is FILED as OWNER_QUESTIONS #13 with the probe evidence
+   (the purity checker calls read_byte pure; refusal-guarded today) and
+   the guide citation: ch18 already PRESCRIBES the boundary-trait shape
+   (option ii). On an answer, the work is the std migration.
 
-0b. **[CLAIMED 2026-07-17, from TASKS.md NEXT PICK (owner priority
-   2026-07-15)] Cathedral M2 unblock.** DIAGNOSIS (2026-07-17, this
-   host): the "two red efi tests" appear STALE -- the uefi_x64
-   cross-compiled PE contains the `mov rax,[rcx+8]; call rax` dispatch
-   (needle verified at .text offset 1688, so the vtable encoder is NOT
-   width-0 today), and all four efi suite tests that run here PASS
-   (ref_param_call_arg + direct_faces report-checks included). The
-   cfg(windows) byte-pin twins need the next Windows session to
-   re-baseline, but the same encoder path proves out cross-target.
-   THE FIELD MODEL LANDED (2026-07-17): `provides Trait over
-   VtableStruct { method -> field }` (extern brief SS12.1) serves end
-   to end -- `over` clause + bare-field arms parse
-   (HostProviderMappingKind::VtableField), the mechanism carries
-   table/field names, the backend's "vtable field offsets" pass
-   (omega-backend-pipeline builder) resolves byte offsets from the
-   LAYOUT PLAN before any phase copies bindings (unknown struct/field
-   = loud refusal; missing `over` clause = loud at merge), and
-   encode_win64_vtable_call_at_offset emits the dispatch. FOUND EN
-   ROUTE: relocations/data_addresses.rs gated operand-address fixup
-   offsets on `matches!(VtableSlot)` -- the field flavor's relocation
-   landed 2 bytes off and CORRUPTED the marshaling bytes (caught by
-   PE byte-diff vs the slot flavor; the semantic-matches!-gate class
-   of miss, unlike the compiler-enumerated exhaustiveness sites).
-   Pinned by pass/targets/efi_vtable_field_call: byte-identical
-   `mov rax,[rcx+8]; call rax` behind a leading header field, tested
-   CROSS-TARGET on every host (stronger than the cfg(windows) slot
-   twin) + CROSS_TARGET_PASS_CANARIES row. (m1) DONE 2026-07-17: `&mut`
-   out-params through the field-model call serve on MS-x64 -- BORROW
-   arguments now marshal as ADDRESSES in the Unknown-capability arm
-   (scalar-first had read the POINTEE values and handed firmware
-   garbage write targets -- a silent-wrong caught by the canary's
-   report BEFORE any boot); six-arg calls spill args 5-6 to
-   [rsp+0x20]/[rsp+0x28]. Pinned by pass/targets/efi_out_param_call
-   (GetMemoryMap's exact shape; dispatch + spill + address-operand
-   asserts, cross-target on every host). M2 COMPILER RUNGS: 2 of 3
-   DONE (field model + out-param marshaling, both pinned cross-target).
-   (m2) the runtime-offset borrow-recast (`&self.map_buf[offset] as
-   &EfiMemoryDescriptor`) PROBED 2026-07-17: refuses at the PARSER
-   (`as` grammar takes no reference type) -- this is the main lane's
-   queued RECAST rung (TASKS.md programmable-layouts, settled SS5b,
-   behind their validate-mint work; checker borrow-recast form +
-   plan-tiling validator). NOT stealing mid-design; M2 is blocked on
-   exactly that rung now. (m3) Cathedral's remaining provisional
-   spellings (`let mut`, tuple transitions, dot-imports, `and`) are
-   surface decisions, not backend gaps. NOTE
-   this lane also owns the adjacent x86_64 byte-op encoder follow-up
-   (item 0 (x)) -- same encoder territory.
 
 1. **Windows-session bundle** (needs a Windows host): verify the stat-row
    migration natively; WINDOWS_IMPORT_ROWS migration into provides files;
@@ -187,8 +100,8 @@ results in Omega. Interpreter = full-parity reference oracle for everything.
 2. **linux** — binding tables are structural-only until a target host exists.
 
 3. **Owner-question residuals**: Q10/Q11/Q12 all ANSWERED 2026-07-16
-   (recorded inline in OWNER_QUESTIONS.md); the remaining engineering
-   from them lives in item 0's REMAINING list.
+   (recorded inline in OWNER_QUESTIONS.md); all their engineering shipped
+   except the Q13 convergence gate (item 0).
 
 4. **Recorded residuals:** (a) ~~deeper-callee-state name collisions~~
    — probed NOT-REPRODUCIBLE 2026-07-11x (two live same-named locals,
