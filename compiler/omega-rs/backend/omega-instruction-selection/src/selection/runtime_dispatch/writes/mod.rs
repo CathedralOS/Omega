@@ -36,7 +36,6 @@ pub(in crate::selection) use mutation::{
 };
 pub(in crate::selection::runtime_dispatch) use mutation::{
     resolve_runtime_text_equals_operand_in_table, select_runtime_convert_mutation_write_in_table,
-    select_runtime_storage_binary_write_in_table,
     signedness_adjusted_operator, signedness_adjusted_operator_for_operands,
 };
 pub(in crate::selection) use slice_descriptors::emit_runtime_frame_slot_slice_descriptor_write_in_table;

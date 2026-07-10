@@ -319,6 +319,21 @@ fn select_runtime_leaf_branch_expansion(
     }
 
     let write_start = selected_instructions.len();
+    // TERMINAL-VALUE expansions emit ARM-LOCAL INITIALIZERS FIRST -- source
+    // order: the arm's `let b = self.name == ".."` must write its slot
+    // BEFORE the terminal value write copies that slot out (emitting them
+    // after left the copy reading the unwritten slot: the multiarm texteq
+    // divergence's final layer). InlineLeaf expansions keep the historical
+    // late position below.
+    if !expansion.leaf_key.is_valid() {
+        select_runtime_leaf_local_initializer_writes(
+            input,
+            expansion,
+            scratch,
+            runtime_value_operands,
+            selected_instructions,
+        );
+    }
     select_runtime_leaf_nested_call_argument_writes(
         input,
         expansion,
@@ -341,13 +356,15 @@ fn select_runtime_leaf_branch_expansion(
     // A leaf-side copy would either duplicate it (deferred emission lands at
     // the same operation) or sit at the StateCall, BEFORE the splice (the
     // stale-read position the deferral exists to avoid).
-    select_runtime_leaf_local_initializer_writes(
-        input,
-        expansion,
-        scratch,
-        runtime_value_operands,
-        selected_instructions,
-    );
+    if expansion.leaf_key.is_valid() {
+        select_runtime_leaf_local_initializer_writes(
+            input,
+            expansion,
+            scratch,
+            runtime_value_operands,
+            selected_instructions,
+        );
+    }
     select_runtime_leaf_branch_mutation_writes(
         input,
         expansion,

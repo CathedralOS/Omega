@@ -21633,6 +21633,40 @@ fn runtime_multiarm_same_named_locals_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// MULTI-ARM inline callee with TEXTEQ-valued arm locals (`let b: bool =
+// self.name == "omega"` per non-leaf sub-state arm): the arm bodies have no
+// other emission route on the flattened leaf walk, so their call-free
+// LocalData initializers must ride the Terminal-value expansions and write
+// BEFORE the terminal copy (hit==true, miss==false -> exit 70).
+#[test]
+fn runtime_multiarm_texteq_local_exit_canary_runs() {
+    let canary = pass_canary("calls/runtime_multiarm_texteq_local_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-multiarm-texteq-local-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("multi-arm texteq locals canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("multi-arm texteq locals canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected per-arm texteq deliveries (hit true / miss false -> exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // PARAM-BINDING SERVE: a spliced helper's `&mut Tally` param receiver
 // delivers on the PASSED instance (the second of two) -- the receiver
 // chain walk binds the param to its argument's base at each descent.
@@ -29178,10 +29212,11 @@ const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
         path: "arithmetic/unsigned_min_max_wrapping_local_divergence",
         expectation: PendingCanaryExpectation::CurrentlyAccepts,
     },
-    PendingCanary {
-        path: "calls/multiarm_texteq_local_divergence",
-        expectation: PendingCanaryExpectation::CurrentlyAccepts,
-    },
+    // multiarm_texteq_local_divergence PROMOTED to
+    // pass/calls/runtime_multiarm_texteq_local_exit: Terminal-value arm
+    // expansions now carry their sub-state's call-free LocalData
+    // initializers and the leaf writer serves texteq via the frame-slot
+    // text-comparison write.
     PendingCanary {
         path: "expressions/dead_trapping_let_not_elided",
         expectation: PendingCanaryExpectation::CurrentlyAccepts,

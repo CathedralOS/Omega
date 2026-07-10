@@ -1,0 +1,56 @@
+// MULTI-ARM inline callee whose same-named arm locals hold TEXT-EQUALITY
+// results (`let b: bool = self.name == "omega"` per arm) must deliver each
+// arm's comparison, not ZII 0. The arms here are non-leaf SUB-STATES (each
+// carries its own nested transition), which the leaf-expansion walk
+// flattens with NO emission route for their bodies: the prelude covers
+// only the callee ROOT, InlineLeaf expansions only transition-free
+// leaves -- so the `let b` initializers vanished natively and the terminal
+// copies delivered unwritten slots (exit 71; interp 70). Served by three
+// layers: Terminal-value arm expansions collect their branch state's
+// call-free LocalData initializers (SUB-STATES only -- collecting for the
+// callee root re-ran captured-before-mutation locals at terminal time,
+// the trailing-local-return reset), the leaf initializer writer gained
+// the dispatch route's frame-slot text-comparison write, and Terminal
+// expansions emit initializer writes FIRST in the write region (source
+// order -- the terminal copy previously read the slot before the
+// initializer wrote it). Scalar flavor pinned separately by
+// calls/runtime_multiarm_same_named_locals_exit.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Store { name: String; alt: String; }
+machine Store::check(&mut self, idx: i32) -> bool {
+    transition idx == 0 {
+        true -> arm_name()
+        _ -> arm_alt()
+    }
+    state arm_name(&mut self) -> bool {
+        let b: bool = self.name == "omega";
+        transition { _ -> (b) }
+    }
+    state arm_alt(&mut self) -> bool {
+        let b: bool = self.alt == "delta";
+        transition { _ -> (b) }
+    }
+}
+data Main { console: Console; s: Store; }
+machine Main::main(&mut self) {
+    self.s.name = "omega";
+    self.s.alt = "other";
+    self.build();
+}
+machine Main::build(&mut self) {
+    let hit: bool = self.s.check(0);
+    let miss: bool = self.s.check(1);
+    transition hit {
+        true -> chk2(miss)
+        _ -> wrong_arm0()
+    }
+    state chk2(&mut self, m: bool) {
+        transition m {
+            true -> wrong_arm1()
+            _ -> good()
+        }
+    }
+    state good(&mut self)      { self.console.exit_process(70); }
+    state wrong_arm0(&mut self){ self.console.exit_process(71); }
+    state wrong_arm1(&mut self){ self.console.exit_process(72); }
+}

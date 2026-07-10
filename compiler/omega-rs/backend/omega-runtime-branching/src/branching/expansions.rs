@@ -4,7 +4,10 @@ use super::aliases::{
 };
 use super::edges::build_branch_edges;
 use super::lookups::state_parameters;
-use super::operations::{leaf_operations, prelude_operations, straight_line_operations};
+use super::operations::{
+    leaf_local_initializer_operations, leaf_operations, prelude_operations,
+    straight_line_operations,
+};
 use super::{
     RuntimeBranchPreludeBinding, RuntimeBranchPreludeExpansion, RuntimeBranchPreludeOperation,
     RuntimeBranchTargetLowering, RuntimeBranchingCallEdge, RuntimeLeafBranchBinding,
@@ -231,7 +234,22 @@ fn append_leaf_branch_expansions_with_bindings(
                         kind: RuntimeLeafBranchBindingKind::BranchParameter,
                     }
                 })),
-                HandleSpan::empty(),
+                // SUB-STATE terminals carry their arm body's call-free
+                // LocalData initializers -- nothing else emits a non-leaf
+                // sub-state's body on this route. The callee ROOT is excluded:
+                // its ops ride the prelude, and re-running them at terminal
+                // time reset captured-before-mutation locals (the
+                // trailing-local-return 7-red regression). See the fn's doc.
+                if branch_key == state_call.target_key {
+                    HandleSpan::empty()
+                } else {
+                    leaf_local_initializer_operations(
+                        context,
+                        expressions,
+                        leaf_operations_arena,
+                        branch_key,
+                    )
+                },
             ),
             _ => continue,
         };
