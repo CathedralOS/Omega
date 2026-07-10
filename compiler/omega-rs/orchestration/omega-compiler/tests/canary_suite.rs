@@ -29564,6 +29564,12 @@ const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
         expectation: PendingCanaryExpectation::CurrentlyAccepts,
     },
     PendingCanary {
+        path: "collections/hoisted_index_runtime_write_blocked",
+        expectation: PendingCanaryExpectation::CurrentlyRejects {
+            fragment: "needs runtime storage write lowering",
+        },
+    },
+    PendingCanary {
         path: "calls/texteq_local_guard_read_divergence",
         expectation: PendingCanaryExpectation::CurrentlyAccepts,
     },

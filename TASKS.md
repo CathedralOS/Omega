@@ -154,6 +154,17 @@ header above for the verified spelling). Rungs, in payoff order:
 
 ## Open bugs / gaps (ungated)
 
+- **Hoisted-index WRITES with runtime values: lowering gap (found
+  2026-07-09 by the heat_grid sample -- loud refusal, not a miscompile).**
+  `self.cells[y * 4 + x] = next` (dependent params, local RHS) refuses at
+  the storage-write lowering; the READ side lowers (R0) and FIELD-indexed
+  runtime writes lower, so the write cascade just lacks FRAME-LOCAL
+  (`__hoist_N`) index operand resolution. Pinned:
+  pending/collections/hoisted_index_runtime_write_blocked
+  (CurrentlyRejects). Fix = teach the mutation write planner's
+  runtime-indexed arm the frame-local operand (read path's addressing
+  exists); flips the pin + un-workarounds heat_grid's diffusion store.
+
 - **FS-LANE FOLLOW-THROUGH: texteq arm-locals still ZII for non-terminal
   consumers (found 2026-07-15 probing the just-closed leaf fix).** The
   fix's initializer collection rides Terminal-value arm expansions only; a
