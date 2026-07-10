@@ -4079,8 +4079,17 @@ impl<'program> Evaluator<'program> {
             }
             ExpressionNode::Call(call) => self.eval_call_expression(handle, &call, frame),
             ExpressionNode::Cast(cast) => {
-                let value = self.eval_expression(cast.value, frame)?;
                 let target = self.cast_target_primitive(cast.target_type);
+                // RUNG B interior recast (`&self.buf[4] as &u32`): assemble the
+                // target's bytes LITTLE-ENDIAN from the byte region starting at
+                // the indexed element (the judged class guarantees a literal
+                // in-bounds offset over a `[u8; N]` place).
+                if cast.form.is_recast()
+                    && let Some(assembled) = self.eval_interior_recast(&cast, target, frame)?
+                {
+                    return Ok(assembled);
+                }
+                let value = self.eval_expression(cast.value, frame)?;
                 if cast.form.is_recast() {
                     return self.eval_recast(value, target);
                 }
@@ -5168,6 +5177,59 @@ impl<'program> Evaluator<'program> {
     /// borrow exclusivity freezes the source while the view lives. Native
     /// needs no twin -- the emitted load already reads the place's bytes
     /// through the stated type.
+    /// The interior half of the §5b recast: a LITERAL-indexed read over a
+    /// byte array assembles `size_of(target)` bytes little-endian (floats
+    /// from the assembled bits). `Ok(None)` when the shape is not the
+    /// interior class (the scalar-pun path then evaluates normally).
+    fn eval_interior_recast(
+        &mut self,
+        cast: &omega_typed_trees::expression::TableCastExpression,
+        target: Option<PrimitiveType>,
+        frame: &Frame,
+    ) -> EvalResult<Option<Value>> {
+        let ExpressionNode::Indexed(indexed) =
+            self.program.expression_table.expression(cast.value).clone()
+        else {
+            return Ok(None);
+        };
+        let ExpressionNode::Integer(literal) =
+            self.program.expression_table.expression(indexed.index)
+        else {
+            return Ok(None);
+        };
+        let Some(offset) = literal.value_i64().and_then(|value| usize::try_from(value).ok())
+        else {
+            return Ok(None);
+        };
+        let Some(target) = target else {
+            return Ok(None);
+        };
+        let Some(size) = target.scalar_byte_size() else {
+            return Ok(None);
+        };
+        let collection = self.eval_expression(indexed.collection, frame)?;
+        let Value::Array(cells) = collection else {
+            return Ok(None);
+        };
+        let mut bits: u64 = 0;
+        for byte_index in 0..size {
+            let cell = cells.get(offset + byte_index).ok_or_else(|| {
+                Halt::Trap(format!(
+                    "interior recast reads byte {} past the region",
+                    offset + byte_index
+                ))
+            })?;
+            let byte = cell.borrow().as_int().unwrap_or(0) as u64 & 0xFF;
+            bits |= byte << (8 * byte_index);
+        }
+        let assembled = match target {
+            PrimitiveType::F32 => Value::Float(f32::from_bits(bits as u32) as f64),
+            PrimitiveType::F64 => Value::Float(f64::from_bits(bits)),
+            integer => Value::Int(wrap_to_width(bits as i64, integer)),
+        };
+        Ok(Some(assembled))
+    }
+
     fn eval_recast(&self, value: Value, target: Option<PrimitiveType>) -> EvalResult<Value> {
         let Some(target) = target else {
             // Unreachable post-validation (targets are scalar primitives).

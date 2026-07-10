@@ -893,6 +893,47 @@ fn select_runtime_dispatch_local_initializer_write(
     // operand layout reads the referee width). Without the strip every
     // write arm misses the Cast node and the slot stays ZII (the pinned
     // native divergence).
+    // RUNG B interior recast (`&self.buf[4] as &u32`): the source place is a
+    // 1-byte element, but the view copies the STATED size from its address
+    // -- emit the byte copy directly (the judged class guarantees the
+    // region holds the footprint). Same-width recasts fall through to the
+    // ordinary strip.
+    if let omega_checked_trees::expression::ExpressionNode::Cast(cast) =
+        expressions.expression(resolved_initializer)
+        && cast.form.is_recast()
+    {
+        let target_size = expressions
+            .name_path_members(cast.target_type)
+            .last()
+            .and_then(|name| {
+                omega_checked_trees::types::PrimitiveType::from_name(name.as_str())
+            })
+            .and_then(|primitive| primitive.scalar_byte_size());
+        let source = cast.value;
+        if let Some(size) = target_size
+            && let Some(place) = crate::selection::storage_places::resolve_runtime_storage_place_in_table(
+                input,
+                dispatch_index,
+                resolved_initializer_source_key,
+                expressions,
+                source,
+            )
+            && size != place.byte_count
+        {
+            selected_instructions.push(SelectedInstruction {
+                kind: SelectedInstructionKind::CopyRuntimeStorage {
+                    source_region: place.region,
+                    source_offset: place.byte_offset,
+                    target_region: omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame,
+                    target_offset: slot.byte_offset,
+                    byte_count: size,
+                },
+                source_key,
+                source_statement: statement_index,
+            });
+            return;
+        }
+    }
     let resolved_initializer = strip_recast_initializer(expressions, resolved_initializer);
     let wrote_slice = writes::emit_runtime_frame_slot_slice_descriptor_write_in_table(
         input,

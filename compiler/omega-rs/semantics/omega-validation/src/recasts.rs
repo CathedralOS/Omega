@@ -171,6 +171,29 @@ fn judge_scalar_recast(
     // size; scalar alignment follows from size). Facts on the source are
     // fine under a shared view (weakening).
     let source = strip_mutable(program, cast.value);
+    // RUNG B: an INTERIOR recast into a `[u8; N]` region at a STATIC offset
+    // (`&self.buf[4] as &u32`): the target's footprint must fit the
+    // remaining bytes (`k + size(T) <= N`). Byte buffers carry no facts and
+    // align to 1; both ISAs' scalar loads tolerate the resulting unaligned
+    // addresses on normal memory. The stated-type-restated check above
+    // already ran; the same-width rule below does NOT apply (the source
+    // region is byte-granular).
+    if let Some((offset, region_length)) =
+        interior_byte_region_source(program, machine, state, source)
+    {
+        let Some(target_size) = target.scalar_byte_size() else {
+            return;
+        };
+        let Some(end) = offset.checked_add(target_size as i64) else {
+            return;
+        };
+        if end > region_length {
+            diagnostics.push(Diagnostic::error(format!(
+                "{context}: the recast target `{target_name}` needs {target_size} bytes at offset {offset}, but the region holds {region_length} -- the view would read past the buffer (§5b rule 1 is byte-granular)",
+            )));
+        }
+        return;
+    }
     let source_primitive = crate::places::declared_place_type(program, machine, Some(state), source)
         .and_then(|type_reference| program.primitive_type_reference(type_reference));
     let Some(source_primitive) = source_primitive else {
@@ -250,4 +273,51 @@ fn strip_mutable(program: &TypedTrees, expression: ExpressionHandle) -> Expressi
         ExpressionNode::Mutable(inner) => strip_mutable(program, *inner),
         _ => expression,
     }
+}
+
+/// Rung B's interior source: `<[u8; N] place>[k]` with a LITERAL index --
+/// returns `(k, N)`. `None` for runtime indexes (rung C), non-byte
+/// elements, and non-indexed shapes.
+fn interior_byte_region_source(
+    program: &TypedTrees,
+    machine: &omega_typed_trees::machine::Machine,
+    state: &omega_typed_trees::state::State,
+    source: ExpressionHandle,
+) -> Option<(i64, i64)> {
+    let ExpressionNode::Indexed(indexed) = program.expression_table.expression(source) else {
+        return None;
+    };
+    let ExpressionNode::Integer(literal) =
+        program.expression_table.expression(indexed.index)
+    else {
+        return None;
+    };
+    let offset = literal.value_i64()?;
+    if offset < 0 {
+        return None;
+    }
+    let collection_type = crate::places::declared_place_type(
+        program,
+        machine,
+        Some(state),
+        indexed.collection,
+    )?;
+    let TypeReferenceNode::FixedArray {
+        element_type,
+        length,
+        ..
+    } = program.type_reference_table.type_reference(collection_type)
+    else {
+        return None;
+    };
+    let element_is_byte = crate::places::unwrapped_type_reference(program, *element_type)
+        .and_then(|unwrapped| program.primitive_type_reference(unwrapped))
+        == Some(PrimitiveType::U8);
+    if !element_is_byte {
+        return None;
+    }
+    let omega_typed_trees::types::FixedArrayLength::Literal(length) = length else {
+        return None;
+    };
+    Some((offset, *length as i64))
 }
