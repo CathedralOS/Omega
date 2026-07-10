@@ -56,11 +56,15 @@ should target NEW feature surfaces as they land, not re-walk these axes.
   addr, we have primitives", 2026-07-13). Recipe:
   wiki/architecture/usize_retirement_execution.md (inventory: 380 .omg
   files, ~15 compiler files, ~8 chapters; usize -> u64, addresses -> addr,
-  isize -> i64). Stage 1 DONE (2026-07-15): termination measures accept
-  u64 naturals (natural_measure_names_match; pinned by
-  proofs/runtime_decreases_u64_measure_exit). NEXT: the family-batched
-  corpus sweep (stage 2), then chapters, then the compiler rejection +
-  fail canary.
+  isize -> i64). Stages 1+2 DONE (2026-07-15): termination
+  accepts u64 naturals; the corpus is swept (380 files usize -> u64, the
+  isize canary -> i64/renamed; zero usize left in Omega code). The sweep
+  surfaced + fixed: wire byte-count/count-companion contracts (now u64,
+  usize tolerated until the type dies) and a REAL proof gap -- only
+  u32/usize carried type-level range facts, so u64/u8/u16 fields had no
+  `>= 0` fact and proved weaker (primitive_constraints now covers the
+  unsigned family). NEXT: stage 3 chapters/wiki sweep, then the compiler
+  rejection + diagnostics purge + fail canary.
 
 - **Multi-arm TEXTEQ-valued locals drop silently on the leaf route (found
   2026-07-13 probing the fresh scoped-leaf-key surface; parked at
