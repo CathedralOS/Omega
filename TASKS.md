@@ -191,11 +191,17 @@ with a real app-window story.
   wire lowering now dual-registers a regular DataDefinition from the
   schema's current-era fields, so numbered datas are plain program types
   and the Message/Sample twin pattern is optional; pinned:
-  runtime_wire_schema_as_value_type_exit) EXCEPT decode-INTO-self: the
-  verdict is Sound natively but decoded values never land in the local's
-  fields -- the value-argument member-place resolution with two same-named
-  definitions in scope; pinned
-  pending/wire/schema_self_decode_field_places_divergence (73, Exit(70)). (3) runtime layout of wire values. (4) encoding families
+  runtime_wire_schema_as_value_type_exit) EXCEPT decode-INTO-self,
+  root-cause CORRECTED by disassembly: the guard after the decode folds
+  `d.x` to its PRE-DECODE constant (`mov #0`) -- the member-value tracking
+  does not treat `Point::decode(&mut d)` as mutating `d` when the call's
+  type qualifier equals the value's own type (twins invalidate fine;
+  no-preinit works; no corpus canary ever guard-read a decoded field).
+  Find the member-substitution tracker (the simplify bindings family binds
+  LOCALS -- this is a MEMBER fold) and add the decode/encode mutation
+  classification. Pinned:
+  pending/wire/schema_self_decode_field_places_divergence (73, Exit(70)),
+  full analysis in the header. (3) runtime layout of wire values. (4) encoding families
   beyond compact_binary v0 + version negotiation.
 - **Versioned data stage 3:** the era tag itself (+ decision 10's wire-era
   ride), era-tagged containers, migration chains / `replaces` / quiescence.
