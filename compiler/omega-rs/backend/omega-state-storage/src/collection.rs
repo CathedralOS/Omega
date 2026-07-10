@@ -410,6 +410,25 @@ fn local_data_requires_storage(
         return true;
     }
 
+    // A COMPUTED-initializer local consumed as the VALUE of a runtime-INDEXED
+    // write (`let next = cur + bump; self.cells[i] = next` -- the heat_grid
+    // diffusion store) keeps its slot: eliding folds the computation back
+    // into the mutation value, which has no runtime-value lowering against an
+    // indexed target (the loud storage-write blocker), while the slotted
+    // plain place rides the storage-to-indexed copy the mutation arm already
+    // lowers. Twin of the runtime-INDEX carve-out above, on the value side.
+    if initializer_is_computed_value(expressions, initial_value)
+        && local_used_as_runtime_indexed_write_value(
+            expressions,
+            statements,
+            local_statement_index,
+            local_symbol,
+            local_name,
+        )
+    {
+        return true;
+    }
+
     // `statement_references_local` (the final check below) inspects Expression /
     // Assignment / Call / Transition statements but NOT a LocalData (`let`) VALUE.
     // So an AGGREGATE local (array/struct literal -- which has no immediate form to
@@ -678,6 +697,69 @@ fn local_or_bare_copy_used_as_runtime_index(
                 )
             })
         })
+}
+
+/// Whether any later assignment writes THIS local (a bare `Name`, through
+/// `Mutable`) into a runtime-indexed target (`arr[<non-literal>] = local`).
+/// Value-side twin of `local_or_bare_copy_used_as_runtime_index`.
+fn local_used_as_runtime_indexed_write_value(
+    expressions: &omega_checked_trees::expression::ExpressionTable,
+    statements: &[StatementNode],
+    local_statement_index: usize,
+    local_symbol: SymbolHandle,
+    local_name: &Identifier,
+) -> bool {
+    statements
+        .iter()
+        .skip(local_statement_index + 1)
+        .any(|statement| {
+            let StatementNode::Assignment(assignment) = statement else {
+                return false;
+            };
+            let mut value = assignment.value;
+            while let omega_checked_trees::expression::ExpressionNode::Mutable(inner) =
+                expressions.expression(value)
+            {
+                value = *inner;
+            }
+            let value_is_local = match expressions.expression(value) {
+                omega_checked_trees::expression::ExpressionNode::Name(path) => {
+                    (path.symbol.is_valid() && path.symbol == local_symbol)
+                        || matches!(
+                            expressions.name_path_members(path.members),
+                            [only] if only.as_str() == local_name.as_str()
+                        )
+                }
+                _ => false,
+            };
+            if !value_is_local {
+                return false;
+            }
+            assignment_target_has_runtime_index(expressions, assignment.target)
+        })
+}
+
+/// Whether a write target contains an `Indexed` layer whose index is not an
+/// integer literal (constant indexes lower through the static element path).
+fn assignment_target_has_runtime_index(
+    expressions: &omega_checked_trees::expression::ExpressionTable,
+    target: omega_checked_trees::expression::ExpressionHandle,
+) -> bool {
+    match expressions.expression(target) {
+        omega_checked_trees::expression::ExpressionNode::Indexed(indexed) => {
+            !matches!(
+                expressions.expression(indexed.index),
+                omega_checked_trees::expression::ExpressionNode::Integer(_)
+            ) || assignment_target_has_runtime_index(expressions, indexed.collection)
+        }
+        omega_checked_trees::expression::ExpressionNode::Member(member) => {
+            assignment_target_has_runtime_index(expressions, member.receiver)
+        }
+        omega_checked_trees::expression::ExpressionNode::Mutable(inner) => {
+            assignment_target_has_runtime_index(expressions, *inner)
+        }
+        _ => false,
+    }
 }
 
 fn statement_uses_symbol_as_index(

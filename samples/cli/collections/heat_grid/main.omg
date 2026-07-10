@@ -8,12 +8,11 @@
 // (max_y<=2, max_x<=3 => y*4+x in [0..=11] < 12). No linear-counter
 // workaround, no re-guard states, no bounds checks at runtime.
 //
-// The walk is READ-ONLY: each cell's effective heat is its stored value
-// plus its coordinate sum (computed in locals), and the exit code reports
-// the hottest: seed 40 at (2,3) -> 40 + (2+3) = 45. (Writing THROUGH the
-// computed index with a runtime value is a pinned lowering gap --
-// pending/collections/hoisted_index_runtime_write_blocked -- the R0 write
-// canary's leg folds statically, which is why it lowers.)
+// The grid seeds one hot cell, every visited cell ACCUMULATES its
+// coordinate sum through the computed index (`cells[y*4+x] = next` -- the
+// runtime-value indexed write rides the local's slot + the
+// storage-to-indexed copy), and the exit code reports the hottest cell:
+// seed 40 at (2,3) + (2+3) = 45.
 //
 // Expected exit: 45
 boundary trait Console {
@@ -40,8 +39,9 @@ machine Main::main(&mut self) {
     state cell(&mut self, y: u32 [0..=self.max_y], x: u32 [0..=self.max_x]) {
         let bump: u8 = (y as u8 in Wrapping) + (x as u8 in Wrapping);
         let cur: u8 = self.cells[y * 4 + x];
-        let glow: u8 = (cur as u8 in Wrapping) + (bump as u8 in Wrapping);
-        let heat: u32 = glow as u32;
+        let next: u8 = (cur as u8 in Wrapping) + (bump as u8 in Wrapping);
+        self.cells[y * 4 + x] = next;
+        let heat: u32 = next as u32;
         transition heat > self.hottest {
             true -> hotter(y, x, heat)
             _ -> step(y, x)
