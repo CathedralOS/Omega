@@ -145,13 +145,20 @@ results in Omega. Interpreter = full-parity reference oracle for everything.
    Pinned by pass/targets/efi_vtable_field_call: byte-identical
    `mov rax,[rcx+8]; call rax` behind a leading header field, tested
    CROSS-TARGET on every host (stronger than the cfg(windows) slot
-   twin) + CROSS_TARGET_PASS_CANARIES row. REMAINING for M2:
-   (m1) `&mut` out-params through the boundary call, MS-x64
-   (get_memory_map's five) -- needs its canary; (m2) the
+   twin) + CROSS_TARGET_PASS_CANARIES row. (m1) DONE 2026-07-17: `&mut`
+   out-params through the field-model call serve on MS-x64 -- BORROW
+   arguments now marshal as ADDRESSES in the Unknown-capability arm
+   (scalar-first had read the POINTEE values and handed firmware
+   garbage write targets -- a silent-wrong caught by the canary's
+   report BEFORE any boot); six-arg calls spill args 5-6 to
+   [rsp+0x20]/[rsp+0x28]. Pinned by pass/targets/efi_out_param_call
+   (GetMemoryMap's exact shape; dispatch + spill + address-operand
+   asserts, cross-target on every host). REMAINING for M2: (m2) the
    runtime-offset borrow-recast smoke (`&self.map_buf[offset] as
-   &EfiMemoryDescriptor`, M2-ladder #3); (m3) Cathedral's actual
-   protocol structs may exercise shapes beyond one-field tables
-   (multi-arm over-blocks work; DllImport+field mixes untested). NOTE
+   &EfiMemoryDescriptor`, M2-ladder #3); (m3) Cathedral's source
+   still uses provisional syntax beyond the ladder (`let mut`, tuple
+   transitions, dot-imports, `and`) -- the ladder asks are the
+   compiler-side blockers, the spellings are theirs to settle. NOTE
    this lane also owns the adjacent x86_64 byte-op encoder follow-up
    (item 0 (x)) -- same encoder territory.
 
