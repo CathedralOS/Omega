@@ -1288,10 +1288,19 @@ fn select_runtime_leaf_local_initializer_writes(
         .unwrap_or(&[]);
 
     for operation in operations {
+        if std::env::var_os("OMEGA_DEBUG_CALL_RESULT").is_some() {
+            eprintln!(
+                "LEAFINIT: op m{} s{} stmt {} kind Other? {}",
+                operation.source_key.machine.arena_index(),
+                operation.source_key.state.arena_index(),
+                operation.statement_index,
+                matches!(operation.kind, RuntimeLeafBranchOperationKind::Other),
+            );
+        }
         if !matches!(operation.kind, RuntimeLeafBranchOperationKind::Other) {
             continue;
         }
-        let Some(slot) = input
+        let slot_lookup = input
             .runtime_storage
             .frame_slots
             .iter()
@@ -1304,8 +1313,14 @@ fn select_runtime_leaf_local_initializer_writes(
                         omega_runtime_storage::RuntimeFrameSlotKind::LocalStorage
                     ))
                 .then_some(slot)
-            })
-        else {
+            });
+        if std::env::var_os("OMEGA_DEBUG_CALL_RESULT").is_some() {
+            eprintln!(
+                "LEAFINIT:   slot? {}",
+                slot_lookup.map(|slot| slot.byte_offset as i64).unwrap_or(-1),
+            );
+        }
+        let Some(slot) = slot_lookup else {
             continue;
         };
 
@@ -1356,7 +1371,26 @@ fn select_runtime_leaf_local_initializer_writes(
                 source_key: operation.source_key,
                 source_statement: operation.statement_index,
             });
+            continue;
         }
+        // The TEXT-EQUALITY initializer flavor (`let b: bool = self.name ==
+        // "omega"` per arm): the scalar value write above cannot serve it,
+        // and the fall-through silently left the arm local ZII (the multiarm
+        // texteq divergence, parked 2026-07-13, served 2026-07-11aa). The
+        // DISPATCH route's local-initializer path serves the same shape via
+        // the frame-slot text-comparison writer; give the LEAF route the
+        // identical strategy, resolved under the OPERATION's key (the
+        // initializer's names live in the ARM's machine).
+        crate::selection::runtime_dispatch::writes::emit_runtime_frame_slot_text_comparison_write_in_table(
+            input,
+            expansion.dispatch_index,
+            operation.source_key,
+            operation.statement_index,
+            expressions,
+            slot,
+            resolved_initializer,
+            selected_instructions,
+        );
     }
 }
 
