@@ -135,12 +135,18 @@ header above for the verified spelling). Rungs, in payoff order:
   DBM only; omega-validation's interval engine (decision-17 overflow)
   does not consume it (`requires self.a <= self.b` does NOT prove
   `self.b - self.a`), and (2) CALLER-side enforcement of requires at
-  call sites is unverified (the callee refused first in the probe). The
-  R1 completion shape is now clear: ONE relational-facts channel
-  (dependent atoms + guards + requires) consumed by BOTH engines --
-  generalize refine_dependent_subtract into an ordering-facts intake for
-  the interval engine, and mint caller obligations from requires facts
-  in the proof plan (mirroring the dependent-atom discharge). Then
+  call sites is unverified (the callee refused first in the probe). CHANNEL (b)
+  LANDED same day: the subtraction refinement consumes machine `requires`
+  orderings (requires_orders_operands; display-spelling conjunction scan,
+  machine-wide field preservation as the entry-fact bridge) -- pinned
+  pass/dependent/runtime_requires_subtract_exit. CALLER-side requires
+  enforcement turns out to EXIST and is strict ("cannot prove requires
+  contract for call ..."; pinned
+  fail/dependent/requires_call_unproven_rejected) -- its INTAKE gap is
+  precise: incoming-ARM guards do not feed the contract prover, so even
+  a guarded caller refuses; land that intake (feed
+  collect_incoming_guard_facts-style facts into the requires prover) and
+  the guarded-caller shape flips to a pass canary. Then
   value-vs-value guard mints at range endpoints generally
   value-vs-value guard mints at range endpoints generally
   (`requires a.cols == b.rows`), and machine-signature `requires`
