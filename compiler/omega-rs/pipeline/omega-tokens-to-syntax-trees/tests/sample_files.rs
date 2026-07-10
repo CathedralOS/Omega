@@ -75,9 +75,13 @@ fn canaries_ignore_local_build_output() {
     let gitignore = fs::read_to_string(&gitignore_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", gitignore_path.display()));
 
+    // Depth-anchored on purpose (see canaries/.gitignore's comment):
+    // `**/build/` also swallowed the fail/build/ CATEGORY (the build.omg
+    // canaries), silently keeping committed FAIL_CANARIES entries' files out
+    // of git. The canary tree is uniformly <kind>/<category>/<name>/.
     assert!(
-        gitignore.lines().any(|line| line.trim() == "**/build/"),
-        "canaries should ignore generated build directories at every feature depth"
+        gitignore.lines().any(|line| line.trim() == "*/*/*/build/"),
+        "canaries should ignore generated build directories at the uniform canary depth"
     );
 }
 
