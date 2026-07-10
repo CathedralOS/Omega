@@ -20746,6 +20746,32 @@ fn runtime_i64_signed_arith_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_addr_value_flow_exit_canary_runs() {
+    // addr as a first-class value (param/return/local/equality) plus the
+    // model's addr + u64 mixed op -- the Region::allocate shapes.
+    let canary = pass_canary("types/runtime_addr_value_flow_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-addrflow-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("addr value-flow canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("addr value-flow canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "addr value-flow canary should pass (exit 70), got {:?}",
+        output.status.code(),
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_ref_param_method_dispatch_exit_canary_runs() {
     let canary = pass_canary("traits/runtime_ref_param_method_dispatch_exit");
     let main_path = canary.join("main.omg");
@@ -28189,6 +28215,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "arithmetic/runtime_shift_atwidth_indexed_targets_exit",
     "arithmetic/runtime_sat_nested_operand_domain_exit",
     "arithmetic/runtime_sat_unsigned_onedirection_exit",
+    "types/runtime_addr_value_flow_exit",
     "arithmetic/runtime_shl_saturating_exit",
     "arithmetic/runtime_shl_saturating_atwidth_exit",
     "proofs/runtime_decreases_u64_measure_exit",

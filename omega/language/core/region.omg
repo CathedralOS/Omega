@@ -15,19 +15,18 @@
 // `Allocation` boundary-provider category (host malloc vs Cathedral arena
 // per target) and introduces `Vec<'r, T>` borrowing a region.
 //
-// The machines speak raw extents (`size`/`align` in bytes, addresses as
-// `u64`): the typed-container story sits ABOVE this boundary; the boundary
+// The machines speak raw extents -- `size`/`align` are byte COUNTS (u64),
+// addresses are `addr` (the index/count/address model: the two axes never
+// conflate; `width(count) <= width(addr)` so the model survives CHERI-class
+// ISAs). The typed-container story sits ABOVE this boundary; the boundary
 // itself is exactly what a kernel arena or host malloc can honor.
 
 boundary trait Region {
-    // TODO(usize-retirement follow-up): the RETURN and `address` below are
-    // ADDRESSES and should be `addr` (index_count_and_address_model brief) --
-    // needs the trait + target providers + callers moved together.
-    machine allocate(size: u64, align: u64) -> u64
+    machine allocate(size: u64, align: u64) -> addr
     effects
         alloc;
 
-    machine deallocate(address: u64, size: u64, align: u64)
+    machine deallocate(address: addr, size: u64, align: u64)
     effects
         dealloc;
 }
