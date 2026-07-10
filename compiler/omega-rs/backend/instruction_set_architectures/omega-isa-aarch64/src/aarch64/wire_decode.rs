@@ -144,7 +144,14 @@ pub fn encode_read_wire_byte_slice(
     ok_offset: usize,
     target_region: RuntimeStorageRegion,
     target_offset: usize,
+    predicate_mask: u8,
 ) -> Result<Vec<u8>, Diagnostic> {
+    // Decode-boundary byte-domain obligations, threaded from selection
+    // (interp parity). The VALIDATION sequences land as one piece with the
+    // x86_64 twin -- until then the mask is carried but unread, and the
+    // pending/wire/utf8_decode_accepts_invalid_bytes canary pins the
+    // native-accepts state.
+    let _ = predicate_mask;
     // The region only picks the relocation symbol; the encoded shape is identical.
     let _ = target_region;
 

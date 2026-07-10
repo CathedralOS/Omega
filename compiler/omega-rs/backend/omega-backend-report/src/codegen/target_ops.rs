@@ -453,6 +453,7 @@ fn selected_instruction_name(
             ok_offset,
             target_region,
             target_offset,
+                    predicate_mask,
         } => {
             let buffer_symbol =
                 storage_region_symbol_name(*buffer_region, backend_plan.entry_machine_name());

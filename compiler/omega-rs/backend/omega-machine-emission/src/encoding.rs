@@ -393,6 +393,7 @@ pub(super) fn encode_machine_instruction_bytes(
             ok_offset,
             target_region,
             target_offset,
+            predicate_mask,
             ..
         } => omega_instruction_selection::encode_read_wire_byte_slice(
             input.target.architecture,
@@ -402,6 +403,7 @@ pub(super) fn encode_machine_instruction_bytes(
             *ok_offset,
             *target_region,
             *target_offset,
+            *predicate_mask,
         ),
         SelectedInstructionKind::ReadWireNestedOpen {
             buffer_offset,

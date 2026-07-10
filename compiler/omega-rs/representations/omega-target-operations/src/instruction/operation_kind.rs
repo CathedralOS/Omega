@@ -219,6 +219,11 @@ pub enum TargetOperationKind {
         ok_offset: usize,
         target_region: RuntimeStorageRegion,
         target_offset: usize,
+        /// Decode-boundary byte-domain obligations
+        /// (`ByteSequencePredicate::mask_bit` bits): the emitted sequence
+        /// validates the copied bytes and clears the sticky `ok` flag on
+        /// failure. ZII: an empty mask is a plain byte copy.
+        predicate_mask: u8,
     },
     ReadWireNestedOpen {
         buffer_region: RuntimeStorageRegion,
