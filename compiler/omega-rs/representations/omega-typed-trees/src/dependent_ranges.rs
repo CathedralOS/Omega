@@ -8,8 +8,10 @@
 //!
 //! Rung R1a admits exactly `self.<field>` plus an optional literal offset:
 //! `[0..=self.count]` -> (count, 0); the exclusive sugar `[0..self.count]`
-//! parses as `self.count - 1` -> (count, -1). Everything else stays behind
-//! the non-constant-bound fence.
+//! parses as `self.count - 1` -> (count, -1). The sibling-length class
+//! (`[0..items.len]`, chapter 12's Buffer::get shape) admits `<name>.len`
+//! plus an offset, interpreted by policies as a SIBLING PARAMETER's slice
+//! length. Everything else stays behind the non-constant-bound fence.
 
 use crate::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, ExpressionTable};
 use crate::name::Identifier;
@@ -69,4 +71,64 @@ fn self_field_name(table: &ExpressionTable, expression: ExpressionHandle) -> Opt
         return None;
     };
     (only.as_str() == "self").then(|| member.member.clone())
+}
+
+
+/// The recognized sibling-length maximum: `<sibling>.len + offset`, where
+/// `sibling` is a bare name the POLICIES must resolve to a same-state
+/// parameter of slice/array type (`[0..items.len]` -> (items, -1) after the
+/// parser's exclusive normalization).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SiblingLenBound {
+    pub sibling: Identifier,
+    pub offset: i64,
+}
+
+/// Recognizes `<name>.len [+/- k]` -- the sibling-length class. `None` is
+/// never unbounded; callers keep their fence.
+pub fn sibling_len_bound(
+    table: &ExpressionTable,
+    bound: ExpressionHandle,
+) -> Option<SiblingLenBound> {
+    if !bound.is_valid() {
+        return None;
+    }
+    match table.expression(bound) {
+        ExpressionNode::Member(_) => {
+            let sibling = bare_name_len(table, bound)?;
+            Some(SiblingLenBound { sibling, offset: 0 })
+        }
+        ExpressionNode::Binary(binary) => {
+            let sibling = bare_name_len(table, binary.left)?;
+            let ExpressionNode::Integer(literal) = table.expression(binary.right) else {
+                return None;
+            };
+            let magnitude = literal.value_i64()?;
+            let offset = match binary.operator {
+                BinaryOperator::Add => magnitude,
+                BinaryOperator::Subtract => magnitude.checked_neg()?,
+                _ => return None,
+            };
+            Some(SiblingLenBound { sibling, offset })
+        }
+        _ => None,
+    }
+}
+
+/// `<name>.len` where `<name>` is a bare single-segment name (NOT `self.x` --
+/// that is the field class).
+fn bare_name_len(table: &ExpressionTable, expression: ExpressionHandle) -> Option<Identifier> {
+    let ExpressionNode::Member(member) = table.expression(expression) else {
+        return None;
+    };
+    if member.member.as_str() != "len" {
+        return None;
+    }
+    let ExpressionNode::Name(path) = table.expression(member.receiver) else {
+        return None;
+    };
+    let [only] = table.name_path_members(path.members) else {
+        return None;
+    };
+    (only.as_str() != "self").then(|| only.clone())
 }
