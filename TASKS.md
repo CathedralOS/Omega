@@ -126,7 +126,21 @@ header above for the verified spelling). Rungs, in payoff order:
   staleness = the existing forget-on-reassignment on both pair ends),
   composing with incoming-guard facts through via_ordering -- pinned
   pass/dependent/runtime_dependent_ordering_chain_exit (substituted range
-  deliberately too wide; only the chain proves). REMAINING for R1 proper:
+  deliberately too wide; only the chain proves). SURVEYED
+  2026-07-09 (probe evidence): machine-signature `requires` ALREADY
+  parses (machine/clauses.rs -> SignatureContractKind::Requires ->
+  ProofFacts) and seeds CALLEE-side RangeFacts through the guard
+  machinery (seed_machine_requires -> seed_guard_facts, incl. subslice
+  vocabulary) -- but (1) the ordering it seeds lives in the CHECKER's
+  DBM only; omega-validation's interval engine (decision-17 overflow)
+  does not consume it (`requires self.a <= self.b` does NOT prove
+  `self.b - self.a`), and (2) CALLER-side enforcement of requires at
+  call sites is unverified (the callee refused first in the probe). The
+  R1 completion shape is now clear: ONE relational-facts channel
+  (dependent atoms + guards + requires) consumed by BOTH engines --
+  generalize refine_dependent_subtract into an ordering-facts intake for
+  the interval engine, and mint caller obligations from requires facts
+  in the proof plan (mirroring the dependent-atom discharge). Then
   value-vs-value guard mints at range endpoints generally
   value-vs-value guard mints at range endpoints generally
   (`requires a.cols == b.rows`), and machine-signature `requires`
