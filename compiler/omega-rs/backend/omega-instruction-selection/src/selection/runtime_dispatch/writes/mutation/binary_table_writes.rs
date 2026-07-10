@@ -677,7 +677,7 @@ pub(in crate::selection::runtime_dispatch) fn signedness_adjusted_operator_for_t
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(in crate::selection::runtime_dispatch::writes) fn select_runtime_storage_binary_write_in_table(
+pub(in crate::selection::runtime_dispatch) fn select_runtime_storage_binary_write_in_table(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
     source_key: StateKey,

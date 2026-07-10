@@ -72,14 +72,25 @@ results in Omega. Interpreter = full-parity reference oracle for everything.
 
 ## Open work
 
-0. **[CLAIMED 2026-07-11aa — deferred to this lane by TASKS.md's parking
-   note]** Multi-arm TEXTEQ-valued locals drop silently on the leaf
-   route (pending/calls/multiarm_texteq_local_divergence): a texteq
-   arm-local initializer emits NO compare and NO write in the leaf
-   expansion — arms deliver ZII (native 71 / interp 70). The scalar
-   flavor works (runtime_multiarm_same_named_locals_exit). Serve via
-   the frame-slot text-comparison writer from the leaf route, or
-   poison unserved arm-local initializers loudly.
+0. **[CLAIMED 2026-07-11aa, IN PROGRESS — two pieces landed, one
+   remains]** Multi-arm TEXTEQ arm-locals on the leaf route
+   (pending/calls/multiarm_texteq_local_divergence, still 71-vs-70):
+   LANDED: the leaf initializer writer now calls the dispatch route's
+   emit_runtime_frame_slot_text_comparison_write_in_table under the
+   OPERATION's source key (inert until operations ride Terminal arms).
+   ATTEMPTED + REVERTED: collecting the branch state's operations
+   UNFILTERED for Terminal-value arms re-emits EFFECTFUL statements
+   once per arm expansion — 10 suite reds (the single-execution
+   family + both dungeon runs, the exact non-guard over-draw the
+   builder's PreludeStatementFilter comment warns about). THE ACTUAL
+   NEXT STEP: Terminal-arm collection must FILTER to call-free
+   LocalData initializer ops only (the PreludeStatementFilter
+   discipline), and even then verify the dispatch route doesn't
+   double-write the same slot. Diagnostics that hold: with ops riding,
+   LEAFINIT showed slots found (@1/@2) and the text writer still
+   returned false — the decline point (callee-field descriptor place
+   under the caller's case) ALSO needs instrumenting once collection
+   is correctly scoped.
 
 1. **Windows-session bundle** (needs a Windows host): verify the stat-row
    migration natively; WINDOWS_IMPORT_ROWS migration into provides files;
