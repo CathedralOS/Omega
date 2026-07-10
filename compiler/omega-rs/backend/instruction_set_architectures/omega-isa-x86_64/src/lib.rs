@@ -4706,9 +4706,6 @@ pub fn encode_read_wire_byte_slice(
     target_offset: usize,
     predicate_mask: u8,
 ) -> Result<Vec<u8>, Diagnostic> {
-    // Threaded from selection; validation sequences land with the aarch64
-    // twin (see the aarch64 note + the pending utf8 canary).
-    let _ = predicate_mask;
     // The region only picks the relocation symbol; the shape is identical.
     let _ = target_region;
 
@@ -4756,6 +4753,12 @@ pub fn encode_read_wire_byte_slice(
     bytes.extend([0x45, 0x31, 0xc9]); // xor r9d, r9d (content overruns -> clear ok)
     bytes.extend([0x4d, 0x89, 0xc2]); // mov r10, r8 (advance cursor to end)
 
+    // Decode-boundary byte-domain validation over the just-decoded content
+    // (ptr r15, len rax): every predicate in the mask checks the UNTRUSTED
+    // bytes and clears the sticky ok flag (r9d) on violation -- the aarch64
+    // twin's contract exactly.
+    append_wire_byte_predicate_checks(&mut bytes, predicate_mask);
+
     // Store the descriptor: ptr = r15 (content start) @ +0, len = rax @ +8.
     bytes.extend([0x49, 0xb8]); // mov r8, imm64(target page)
     bytes.extend(0u64.to_le_bytes());
@@ -4779,6 +4782,226 @@ pub fn encode_read_wire_byte_slice(
     Ok(bytes)
 }
 
+/// Decode-boundary byte-domain validation blocks (one per predicate in the
+/// mask, `ByteSequencePredicate::ALL` order -- the aarch64 twin's contract):
+/// content ptr in r15, length in rax, sticky ok flag in r9d; rcx (walking
+/// pointer), r11 (end bound), and r8 (byte scratch) are spent at this point
+/// in the byte-slice sequence -- the target page claims r8 only AFTER these
+/// checks. Widths via `wire_byte_predicate_checks_width` (which measures
+/// this emitter -- it is pure, and a hand-summed constant for the ~90-entry
+/// utf8 block would be pure drift risk).
+fn append_wire_byte_predicate_checks(bytes: &mut Vec<u8>, predicate_mask: u8) {
+    use omega_core::byte_predicates::ByteSequencePredicate;
+    for predicate in ByteSequencePredicate::in_mask(predicate_mask) {
+        match predicate {
+            ByteSequencePredicate::NonEmpty => {
+                bytes.extend([0x48, 0x85, 0xc0]); // test rax, rax
+                bytes.extend([0x75, 0x03]); // jnz +3 (nonzero length: ok)
+                bytes.extend([0x45, 0x31, 0xc9]); // xor r9d, r9d
+            }
+            ByteSequencePredicate::NoNul => {
+                bytes.extend([0x4c, 0x89, 0xf9]); // mov rcx, r15 (p)
+                bytes.extend([0x4d, 0x89, 0xfb]); // mov r11, r15
+                bytes.extend([0x49, 0x01, 0xc3]); // add r11, rax (end)
+                bytes.extend([0x4c, 0x39, 0xd9]); // loop: cmp rcx, r11
+                bytes.extend([0x73, 0x0f]); // jae done (+15)
+                bytes.extend([0x44, 0x0f, 0xb6, 0x01]); // movzx r8d, byte [rcx]
+                bytes.extend([0x48, 0xff, 0xc1]); // inc rcx
+                bytes.extend([0x45, 0x85, 0xc0]); // test r8d, r8d
+                bytes.extend([0x75, 0xef]); // jnz loop (-17)
+                bytes.extend([0x45, 0x31, 0xc9]); // xor r9d, r9d (a NUL byte)
+            }
+            ByteSequencePredicate::AsciiOnly => {
+                bytes.extend([0x4c, 0x89, 0xf9]); // mov rcx, r15
+                bytes.extend([0x4d, 0x89, 0xfb]); // mov r11, r15
+                bytes.extend([0x49, 0x01, 0xc3]); // add r11, rax
+                bytes.extend([0x4c, 0x39, 0xd9]); // loop: cmp rcx, r11
+                bytes.extend([0x73, 0x10]); // jae done (+16)
+                bytes.extend([0x44, 0x0f, 0xb6, 0x01]); // movzx r8d, byte [rcx]
+                bytes.extend([0x48, 0xff, 0xc1]); // inc rcx
+                bytes.extend([0x41, 0xf6, 0xc0, 0x80]); // test r8b, 0x80
+                bytes.extend([0x74, 0xee]); // jz loop (-18)
+                bytes.extend([0x45, 0x31, 0xc9]); // xor r9d, r9d (high bit set)
+            }
+            ByteSequencePredicate::ValidUtf8 => {
+                append_wire_utf8_validation(bytes);
+            }
+        }
+    }
+}
+
+/// UTF-8 validation over [r15, r15+rax): the aarch64 twin's decoded-scalar
+/// walk in x86 idiom, dispatching on the LEAD before loading continuations
+/// so ONE scratch register (r8) serves both roles. Lead classes: ASCII;
+/// C2..DF one continuation; E0/ED/E1..EC,EE..EF two with E0 requiring
+/// cont1 >= A0 (overlongs) and ED requiring cont1 < A0 (surrogates);
+/// F0/F1..F3/F4 three with F0 requiring cont1 >= 90 and F4 requiring
+/// cont1 < 90 (beyond U+10FFFF); 0x80..0xC1 and 0xF5.. invalid. Assembled
+/// with a local two-pass label resolver; ALL label branches are rel32 for
+/// uniform, safe distances.
+fn append_wire_utf8_validation(bytes: &mut Vec<u8>) {
+    #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+    enum Label {
+        Loop,
+        Two,
+        E0Block,
+        EdBlock,
+        ThreePlain,
+        OneMore,
+        F0Block,
+        F4Block,
+        FourPlain,
+        TwoMore,
+        Fail,
+        Done,
+    }
+    enum Ins {
+        Fixed(&'static [u8]),
+        /// jcc rel32: (0x0f, opcode) pair.
+        Jcc(u8, Label),
+        Jmp(Label),
+    }
+    use Ins::*;
+    use Label::*;
+    const JB: u8 = 0x82; // unsigned <
+    const JAE: u8 = 0x83; // unsigned >=
+    const JNE: u8 = 0x85;
+
+    // One continuation read with an UNSIGNED range check [low, high):
+    // bounds, load into r8d, range compare. cmp r8d, imm32 (41 81 f8 + 4).
+    fn continuation(program: &mut Vec<(Option<Label>, Ins)>, at: Option<Label>, low: u32, high: u32) {
+        let cmp_imm = |value: u32| -> &'static [u8] {
+            // Leaked tiny allocations keep Ins::Fixed 'static; bounded by the
+            // fixed set of (low, high) pairs this validator uses.
+            Box::leak(
+                [0x41, 0x81, 0xf8]
+                    .iter()
+                    .copied()
+                    .chain(value.to_le_bytes())
+                    .collect::<Vec<u8>>()
+                    .into_boxed_slice(),
+            )
+        };
+        program.push((at, Fixed(&[0x4c, 0x39, 0xd9]))); // cmp rcx, r11
+        program.push((None, Jcc(JAE, Fail))); // truncated
+        program.push((None, Fixed(&[0x44, 0x0f, 0xb6, 0x01]))); // movzx r8d, [rcx]
+        program.push((None, Fixed(&[0x48, 0xff, 0xc1]))); // inc rcx
+        program.push((None, Fixed(cmp_imm(low))));
+        program.push((None, Jcc(JB, Fail)));
+        program.push((None, Fixed(cmp_imm(high))));
+        program.push((None, Jcc(JAE, Fail)));
+    }
+    fn lead_cmp(value: u32) -> &'static [u8] {
+        Box::leak(
+            [0x41, 0x81, 0xf8]
+                .iter()
+                .copied()
+                .chain(value.to_le_bytes())
+                .collect::<Vec<u8>>()
+                .into_boxed_slice(),
+        )
+    }
+
+    let mut program: Vec<(Option<Label>, Ins)> = Vec::new();
+    program.push((None, Fixed(&[0x4c, 0x89, 0xf9]))); // mov rcx, r15 (p)
+    program.push((None, Fixed(&[0x4d, 0x89, 0xfb]))); // mov r11, r15
+    program.push((None, Fixed(&[0x49, 0x01, 0xc3]))); // add r11, rax (end)
+    program.push((Some(Loop), Fixed(&[0x4c, 0x39, 0xd9]))); // cmp rcx, r11
+    program.push((None, Jcc(JAE, Done)));
+    program.push((None, Fixed(&[0x44, 0x0f, 0xb6, 0x01]))); // movzx r8d, [rcx] (lead)
+    program.push((None, Fixed(&[0x48, 0xff, 0xc1]))); // inc rcx
+    program.push((None, Fixed(lead_cmp(0x80))));
+    program.push((None, Jcc(JB, Loop))); // ASCII
+    program.push((None, Fixed(lead_cmp(0xC2))));
+    program.push((None, Jcc(JB, Fail))); // invalid lead 0x80..0xC1
+    program.push((None, Fixed(lead_cmp(0xE0))));
+    program.push((None, Jcc(JB, Two))); // C2..DF
+    program.push((None, Jcc(JNE, Fail))); // placeholder replaced below
+    program.pop(); // (structured dispatch below instead)
+    // Dispatch E0 / ED / other-threes / F0 / F4 / other-fours / >= F5.
+    program.push((None, Fixed(lead_cmp(0xE0 + 1)))); // cmp 0xE1
+    program.push((None, Jcc(JB, E0Block))); // exactly 0xE0
+    program.push((None, Fixed(lead_cmp(0xED))));
+    program.push((None, Jcc(JB, ThreePlain))); // E1..EC
+    program.push((None, Fixed(lead_cmp(0xED + 1)))); // cmp 0xEE
+    program.push((None, Jcc(JB, EdBlock))); // exactly 0xED
+    program.push((None, Fixed(lead_cmp(0xF0))));
+    program.push((None, Jcc(JB, ThreePlain))); // EE..EF
+    program.push((None, Fixed(lead_cmp(0xF0 + 1)))); // cmp 0xF1
+    program.push((None, Jcc(JB, F0Block))); // exactly 0xF0
+    program.push((None, Fixed(lead_cmp(0xF4))));
+    program.push((None, Jcc(JB, FourPlain))); // F1..F3
+    program.push((None, Fixed(lead_cmp(0xF4 + 1)))); // cmp 0xF5
+    program.push((None, Jcc(JAE, Fail))); // F5..
+    // exactly 0xF4 falls through:
+    continuation(&mut program, Some(F4Block), 0x80, 0x90);
+    program.push((None, Jmp(TwoMore)));
+    continuation(&mut program, Some(F0Block), 0x90, 0xC0);
+    program.push((None, Jmp(TwoMore)));
+    continuation(&mut program, Some(FourPlain), 0x80, 0xC0);
+    program.push((Some(TwoMore), Fixed(&[]))); // label carrier
+    continuation(&mut program, None, 0x80, 0xC0);
+    continuation(&mut program, None, 0x80, 0xC0);
+    program.push((None, Jmp(Loop)));
+    continuation(&mut program, Some(E0Block), 0xA0, 0xC0);
+    program.push((None, Jmp(OneMore)));
+    continuation(&mut program, Some(EdBlock), 0x80, 0xA0);
+    program.push((None, Jmp(OneMore)));
+    continuation(&mut program, Some(ThreePlain), 0x80, 0xC0);
+    program.push((Some(OneMore), Fixed(&[]))); // label carrier
+    continuation(&mut program, None, 0x80, 0xC0);
+    program.push((None, Jmp(Loop)));
+    continuation(&mut program, Some(Two), 0x80, 0xC0);
+    program.push((None, Jmp(Loop)));
+    program.push((Some(Fail), Fixed(&[0x45, 0x31, 0xc9]))); // xor r9d, r9d
+    // Done = first instruction after the block.
+
+    // Pass 1: byte positions (Jcc = 6 bytes, Jmp = 5, Fixed = len).
+    let width_of = |instruction: &Ins| -> usize {
+        match instruction {
+            Fixed(word) => word.len(),
+            Jcc(..) => 6,
+            Jmp(..) => 5,
+        }
+    };
+    let mut positions = std::collections::HashMap::new();
+    let mut at = 0usize;
+    for (label, instruction) in &program {
+        if let Some(label) = label {
+            positions.insert(*label, at);
+        }
+        at += width_of(instruction);
+    }
+    positions.insert(Done, at);
+    // Pass 2: emit with resolved rel32 offsets (relative to the next
+    // instruction's start).
+    let mut at = 0usize;
+    for (_, instruction) in &program {
+        let end = at + width_of(instruction);
+        match instruction {
+            Fixed(word) => bytes.extend(*word),
+            Jcc(opcode, target) => {
+                bytes.extend([0x0f, *opcode]);
+                bytes.extend(((positions[target] as i64 - end as i64) as i32).to_le_bytes());
+            }
+            Jmp(target) => {
+                bytes.push(0xe9);
+                bytes.extend(((positions[target] as i64 - end as i64) as i32).to_le_bytes());
+            }
+        }
+        at = end;
+    }
+}
+
+/// Bytes of [`append_wire_byte_predicate_checks`]: measured from the pure
+/// emitter itself -- ONE source of truth (a hand-summed constant for the
+/// ~90-entry utf8 block would be pure drift risk).
+pub fn wire_byte_predicate_checks_width(predicate_mask: u8) -> usize {
+    let mut scratch = Vec::new();
+    append_wire_byte_predicate_checks(&mut scratch, predicate_mask);
+    scratch.len()
+}
+
 pub fn read_wire_byte_slice_width(
     _buffer_offset: usize,
     _buffer_length: usize,
@@ -4787,14 +5010,14 @@ pub fn read_wire_byte_slice_width(
     _target_offset: usize,
     predicate_mask: u8,
 ) -> usize {
-    // Threaded; the x86 validation sequences land with the promotion pin.
-    let _ = predicate_mask;
-    // Prologue + success/value/shift init (10) + read loop + bounds&advance (21)
-    // + target imm64 (10) + ptr store (7) + len store (7) + epilogue.
+    // Prologue + success/value/shift init (10) + read loop + bounds&advance
+    // (21) + the byte-predicate validation blocks + target imm64 (10) + ptr
+    // store (7) + len store (7) + epilogue.
     wire_decode_prologue_width()
         + 10
         + wire_varint_read_loop_width()
         + 21
+        + wire_byte_predicate_checks_width(predicate_mask)
         + 10
         + 7
         + 7
@@ -4809,8 +5032,12 @@ pub fn wire_decode_byte_slice_target_page_offset(
     _read_offset: usize,
     predicate_mask: u8,
 ) -> usize {
-    let _ = predicate_mask;
-    wire_decode_prologue_width() + 10 + wire_varint_read_loop_width() + 21
+    // The validation blocks precede the target page mov.
+    wire_decode_prologue_width()
+        + 10
+        + wire_varint_read_loop_width()
+        + 21
+        + wire_byte_predicate_checks_width(predicate_mask)
 }
 
 /// Byte offset of the READ (cursor) page mov inside both wire decodes (the
@@ -10120,6 +10347,38 @@ mod wrapping_shift_clamp_tests {
             !bytes.windows(4).any(|w| w == [0x4d, 0x0f, 0x47, 0xd3]),
             "an unsigned upper cmova would clamp underflow to MAX"
         );
+    }
+
+    #[test]
+    fn wire_byte_predicate_checks_emit_deterministically() {
+        // The width fn measures the pure emitter; determinism and the
+        // block-prefix bytes are the executable-free sanity available on
+        // this host (runtime behavior rides the linux_x64 ELF pin + the
+        // differential once an x86 host runs the suite).
+        use omega_core::byte_predicates::ByteSequencePredicate;
+        for predicate in ByteSequencePredicate::ALL {
+            let mask = predicate.mask_bit();
+            let mut once = Vec::new();
+            append_wire_byte_predicate_checks(&mut once, mask);
+            let mut twice = Vec::new();
+            append_wire_byte_predicate_checks(&mut twice, mask);
+            assert_eq!(once, twice, "{predicate:?} must emit deterministically");
+            assert_eq!(once.len(), wire_byte_predicate_checks_width(mask));
+            assert!(!once.is_empty(), "{predicate:?} must emit a check");
+            // Every block ends able to clear the ok flag: xor r9d, r9d.
+            assert!(
+                once.windows(3).any(|w| w == [0x45, 0x31, 0xc9]),
+                "{predicate:?} must clear r9d on violation"
+            );
+        }
+        // The utf8 walk begins with the pointer/end setup shared by the
+        // loop blocks: mov rcx, r15 / mov r11, r15 / add r11, rax.
+        let mut utf8 = Vec::new();
+        append_wire_byte_predicate_checks(
+            &mut utf8,
+            ByteSequencePredicate::ValidUtf8.mask_bit(),
+        );
+        assert_eq!(&utf8[0..9], &[0x4c, 0x89, 0xf9, 0x4d, 0x89, 0xfb, 0x49, 0x01, 0xc3]);
     }
 
     #[test]

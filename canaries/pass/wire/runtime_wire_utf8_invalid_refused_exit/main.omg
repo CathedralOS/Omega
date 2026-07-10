@@ -1,12 +1,16 @@
-// PENDING only for x86_64 (aarch64 + interp both REFUSE, 2026-07-16):
-// adversarial wire bytes 0xFF 0xFF decode into a `&[u8] in Utf8` field
-// with verdict INVALID. The interp evaluates the shared
-// ByteSequencePredicate; aarch64 emits validation blocks over the decoded
-// content (utf8 = a 77-instruction compare/branch walk, label-resolved;
-// edge classes pinned by pass/wire/runtime_wire_utf8_edge_verdicts_exit).
-// x86_64 carries the threaded predicate mask but its validation sequences
-// are not emitted yet -- promote this to a refuses-canary when they land.
-// Hold: (70, Exit(70)) on the arm64 host.
+// RUN CANARY (exit 70) + interpreter differential. Adversarial wire bytes
+// 0xFF 0xFF decode into a `&[u8] in Utf8` field with verdict INVALID on
+// ALL THREE engines -- the decode-boundary domain validation that closed
+// the original both-engines-wrong soundness hole (the decoder never ran
+// the domain predicate on untrusted bytes; valid_utf8 existed only in the
+// compile-time proof machinery). The interp evaluates the shared
+// ByteSequencePredicate; aarch64 and x86_64 emit mask-selected validation
+// blocks over the decoded content (utf8 = a label-resolved compare/branch
+// walk on both, single-scratch lead-first dispatch on x86). PROMOTED from
+// canaries/pending when the x86_64 sequences landed; the linux_x64 ELF pin
+// asserts the emitted block prefix. Edge classes pinned separately by
+// runtime_wire_utf8_edge_verdicts_exit.
+// exits: 71 = the invalid bytes were accepted as Sound.
 domain [u8]::Utf8 when valid_utf8(self) {
 }
 boundary trait Console { machine exit_process(return_code: i32); }
