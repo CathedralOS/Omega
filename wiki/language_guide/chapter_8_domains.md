@@ -15,7 +15,7 @@ for a value.
 > *same* mechanism (see [Chapter 7](chapter_7_types_constraints_invariants.md)):
 > single-field constraints are standing invariants of the default domain; cross-field
 > invariants live there too, with stores the checker cannot prove domain-preserving
-> carried as [invariant windows](chapter_11_relax_scopes.md) until the next
+> carried as [invariant windows](chapter_11_invariant_windows.md) until the next
 > consumption point (settled 2026-07-17). *Settled model; not yet implemented.*
 
 ```omega

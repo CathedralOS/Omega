@@ -8,7 +8,7 @@ parameters, and locals, not only constants.
 > companion design brief
 > ([dependent_types.md](../design_briefs/dependent_types.md)). Chapters
 > [7](chapter_7_types_constraints_invariants.md),
-> [8](chapter_8_domains.md), [11](chapter_11_relax_scopes.md), and
+> [8](chapter_8_domains.md), [11](chapter_11_invariant_windows.md), and
 > [13](chapter_13_generics.md) are assumed.
 
 ```omega
