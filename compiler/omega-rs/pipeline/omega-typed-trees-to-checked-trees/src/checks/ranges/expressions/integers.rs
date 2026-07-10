@@ -91,7 +91,11 @@ pub(in crate::checks::ranges) fn expression_name(
     ))
 }
 
-fn folded_integer_binary(left: i64, operator: BinaryOperator, right: i64) -> Option<i64> {
+pub(in crate::checks::ranges) fn folded_integer_binary(
+    left: i64,
+    operator: BinaryOperator,
+    right: i64,
+) -> Option<i64> {
     match operator {
         BinaryOperator::Add => left.checked_add(right),
         BinaryOperator::Divide => (right != 0).then(|| left.checked_div(right)).flatten(),

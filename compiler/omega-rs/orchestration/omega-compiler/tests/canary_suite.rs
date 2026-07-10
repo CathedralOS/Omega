@@ -18212,6 +18212,36 @@ fn runtime_computed_indexed_write_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_nested_const_product_index_exit_canary_runs() {
+    // R0 of the dependent-types ladder: the direct row-major spelling
+    // `pixels[y * 4 + x]` (two-level computed index, const multiplier) in
+    // read + write + ranged-param positions -- interval product discharges
+    // the bound; the depth-2 hoist lowers it by slot. Pinned the former
+    // silent-ZII miscompile.
+    let canary = pass_canary("collections/runtime_nested_const_product_index_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-nested-product-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("nested const-product index canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("nested const-product index canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the row-major `pixels[y * 4 + x]` spelling to read/write the right element in every leg (exit 70), got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_computed_array_fill_via_temp_exit_canary_runs() {
     // The sound pattern for filling an array with computed values in a write-first loop: a computed
     // value goes to a field, then the field (a machine-resident source) is copied to the runtime-
@@ -28731,6 +28761,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "collections/runtime_nested_loop_fill_exit",
     "collections/runtime_computed_array_fill_via_temp_exit",
     "collections/runtime_computed_indexed_write_exit",
+    "collections/runtime_nested_const_product_index_exit",
     "collections/runtime_indexed_rmw_loop_exit",
     "collections/runtime_indexed_reduction_loop_exit",
     "collections/runtime_array_max_and_sum_exit",
@@ -29056,6 +29087,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "drops/drop_ensures_nonempty_body_rejected",
     "collections/declared_range_index_too_wide",
     "collections/wrapping_range_index_unproven",
+    "collections/nested_three_level_index_rejected",
     "collections/deep_nested_runtime_indexed_write_rejected",
     "layouts/plan_laid_dynamic_plan",
     "layouts/plan_laid_policy_without_plan_machine",

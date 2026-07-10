@@ -13,6 +13,12 @@ machine Main::main(&mut self) -> u64 {
     let end: u64 = start + width;
     let tail: &[Entry] = view[start..];
     let middle: &[Entry] = view[start..end];
-    let chosen: Entry = middle[end - 3];
+    // `end - 3` binds to a local first: a bare computed index is fenced
+    // since the R0 fence-order fix (the checker's facts fold used to accept
+    // it while the backend read ZII -- this canary is compile-only, so the
+    // miscompile was never observed; the folded-bound FACTS this canary
+    // pins flow identically through the local).
+    let pick: u64 = end - 3;
+    let chosen: Entry = middle[pick];
     tail.len + middle.len
 }

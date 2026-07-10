@@ -208,6 +208,31 @@ fn hoist_temp_initializer_label(
 /// reaches here is genuinely runtime. The backend cannot lower a computed index as a value
 /// operand (it silently reads 0 as an arithmetic operand, or no-ops as a write target), so
 /// the checker refuses it here -- a #40 soundness stopgap -- until it is hoisted to a field.
+/// Folds an index expression built ONLY from integer literals (through
+/// casts/`Mutable`/binaries) to its value -- no facts, no place reads. This is
+/// the fold the backend is guaranteed to reproduce; anything needing a fact
+/// stays `None` and faces the computed-index fence.
+fn literal_only_integer_value(
+    program: &omega_typed_trees::TypedTrees,
+    index: ExpressionHandle,
+) -> Option<i64> {
+    match program.expression_table.expression(index) {
+        ExpressionNode::Integer(value) => value.value_i64(),
+        ExpressionNode::Mutable(inner) => literal_only_integer_value(program, *inner),
+        ExpressionNode::Cast(cast) => literal_only_integer_value(program, cast.value),
+        ExpressionNode::Binary(binary) => {
+            let left = literal_only_integer_value(program, binary.left)?;
+            let right = literal_only_integer_value(program, binary.right)?;
+            crate::checks::ranges::expressions::folded_integer_binary(
+                left,
+                binary.operator,
+                right,
+            )
+        }
+        _ => None,
+    }
+}
+
 fn index_is_computed(program: &omega_typed_trees::TypedTrees, index: ExpressionHandle) -> bool {
     let mut node = index;
     loop {
@@ -245,24 +270,37 @@ fn check_known_length_index(
             diagnostics,
         ),
         _ => {
+            // #40 fence, ordered BEFORE the facts fold (R0 of the
+            // dependent-types ladder): `expression_integer_value` folds
+            // member values learned from ASSIGNMENT facts (`self.y = 2`
+            // makes `y * 4 + x` "constant" 11), but the BACKEND performs no
+            // such fold in index positions -- an un-hoisted computed index
+            // silently reads 0 / no-ops. Any Binary/Unary index that reaches
+            // this checker was NOT hoisted (hoisted shapes index by their
+            // `__hoist_N` Name), so it must refuse no matter how provable
+            // its FACTS-dependent value is. PURE-LITERAL arithmetic is
+            // exempt: user spellings (`arr[2 + 3]`) are reduced by the
+            // earlier const fold, and the SYNTHESIZED post-fold shapes the
+            // wire/layout lowerings build (`buffer[96 + 1]`) fold to the
+            // same constant in every backend static path -- checker and
+            // backend cannot disagree on literals.
+            if index_is_computed(program, index)
+                && literal_only_integer_value(program, index).is_none()
+            {
+                diagnostics.push(Diagnostic::error(with_attribution(
+                    format!(
+                        "index `{}` is a computed expression, not yet supported as an \
+                         indexed operand (it would silently read 0 or no-op); compute \
+                         it into a field first, then index by that field",
+                        program.expression_table.display_name(index)
+                    ),
+                    attribution,
+                )));
+                return;
+            }
             let Some(index_value) = expression_integer_value(program, facts, index) else {
                 let collection_label = program.expression_table.display_name(collection);
                 let index_label = program.expression_table.display_name(index);
-                // #40 stopgap: a runtime COMPUTED index (`arr[k + 1]`) cannot be lowered
-                // as a value operand -- it silently reads 0 / no-ops -- so refuse it even
-                // when its bound is provable, until it is hoisted to a field.
-                if index_is_computed(program, index) {
-                    diagnostics.push(Diagnostic::error(with_attribution(
-                        format!(
-                            "index `{}` is a computed expression, not yet supported as an \
-                             indexed operand (it would silently read 0 or no-op); compute \
-                             it into a field first, then index by that field",
-                            index_label
-                        ),
-                        attribution,
-                    )));
-                    return;
-                }
                 // A non-constant index needs BOTH `index < length` (upper) and
                 // `0 <= index` (lower). The upper half is the proofs below. The
                 // lower half is FREE for an unsigned index type (non-negative by
