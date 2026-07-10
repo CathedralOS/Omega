@@ -112,6 +112,15 @@ fn state_value_has_planned_storage_write(
                     instruction.kind,
                     SelectedInstructionKind::AtomicFetchAdd { .. }
                         | SelectedInstructionKind::HostOperation { .. }
+                        // The console byte-op composites consume a RESOLVED
+                        // place (selection refuses otherwise): a bound local
+                        // argument's value was already lowered at its own
+                        // LocalData statement, exactly like the HostOperation
+                        // arm above -- without these the blocker re-fired on
+                        // the bind-first shape it itself instructs
+                        // (write_byte(rotated) after `let rotated = b + 1`).
+                        | SelectedInstructionKind::ReadRuntimeByte { .. }
+                        | SelectedInstructionKind::WriteRuntimeByte { .. }
                         | SelectedInstructionKind::AtomicCompareExchange { .. }
                         | SelectedInstructionKind::WriteRuntimeMachineInteger { .. }
                         | SelectedInstructionKind::WriteRuntimeStorageInteger { .. }
