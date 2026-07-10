@@ -86,6 +86,17 @@ should target NEW feature surfaces as they land, not re-walk these axes.
 
 ## Open bugs / gaps (ungated)
 
+- **FS-LANE FOLLOW-THROUGH: texteq arm-locals still ZII for non-terminal
+  consumers (found 2026-07-15 probing the just-closed leaf fix).** The
+  fix's initializer collection rides Terminal-value arm expansions only; a
+  sub-state whose transition targets ANOTHER sub-state emits no initializer
+  write, so a texteq local read by the arm's own GUARD or forwarded as a
+  transition ARG delivers ZII 0 natively (interp 70 / native 71 both
+  shapes). Pinned: pending/calls/texteq_local_guard_read_divergence +
+  texteq_local_arg_forward_divergence. Fix direction: attach the collection
+  to ALL sub-state expansions (or route non-terminal bodies through the
+  leaf initializer writer), not just terminal ones.
+
 - **OWNER DIRECTIVE: `usize` is not an Omega type -- retire it** ("we have
   addr, we have primitives", 2026-07-13). Recipe:
   wiki/architecture/usize_retirement_execution.md (inventory: 380 .omg

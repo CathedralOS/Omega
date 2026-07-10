@@ -1,0 +1,36 @@
+// PENDING (found 2026-07-15 probing the just-closed multiarm-texteq leaf
+// fix): a texteq ARM-LOCAL read by the arm's OWN nested transition GUARD
+// still delivers ZII natively (native 71 / interp 70). The fix's
+// initializer collection rides Terminal-VALUE arm expansions -- a sub-state
+// whose transition targets another sub-state is not a terminal expansion,
+// so its `let x = self.name == "omega"` emits nothing and the guard reads
+// an unwritten slot. Sibling: texteq_local_arg_forward_divergence (the
+// transition-ARG consumer). FS-LANE machinery (the scoped-leaf dispatch
+// route); pinned for their follow-through per the work-stealing protocol.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Store { name: String; }
+machine Store::check(&mut self, idx: i32) -> bool {
+    transition idx == 0 {
+        true -> arm_a()
+        _ -> arm_b()
+    }
+    state arm_a(&mut self) -> bool {
+        let x: bool = self.name == "omega";
+        transition x {
+            true -> (true)
+            _ -> (false)
+        }
+    }
+    state arm_b(&mut self) -> bool { transition { _ -> (false) } }
+}
+data Main { console: Console; s: Store; }
+machine Main::main(&mut self) {
+    self.s.name = "omega";
+    let r: bool = self.s.check(0);
+    transition r {
+        true -> good()
+        _ -> bad()
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self)  { self.console.exit_process(71); }
+}
