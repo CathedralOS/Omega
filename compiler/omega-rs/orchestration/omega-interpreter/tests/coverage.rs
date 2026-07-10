@@ -571,8 +571,8 @@ data Main {
     console: Console;
     source: [u8; 4];
     buffer: [u8; 64];
-    written: usize;
-    read: usize;
+    written: u64;
+    read: u64;
     verdict: WireVerdict;
 }
 
@@ -662,7 +662,7 @@ fn filesystem_path_subslice_domain() {
 data Main {
     fs: FilesystemHost;
     console: Console;
-    k: usize;
+    k: u64;
     rc: i32;
     ck: i32;
     buffer: [u8; 144];
@@ -878,7 +878,7 @@ data Main {
     console: Console;
     mode: i32;
     read_flags: i32;
-    cap: usize;
+    cap: u64;
     fd: i32;
     n: i64;
     rn: i64;
@@ -925,7 +925,7 @@ data Main {
     mode: i32;
     append_flags: i32;
     read_flags: i32;
-    cap: usize;
+    cap: u64;
     fd: i32;
     n: i64;
     rn: i64;
@@ -1019,7 +1019,7 @@ data Main {
     console: Console;
     mode: i32;
     read_flags: i32;
-    cap: usize;
+    cap: u64;
     fd: i32;
     n: i64;
     rn: i64;
@@ -1077,7 +1077,7 @@ fn filesystem_ergonomic_wrapper_crud() {
         r#"
 data File [copy, zero_init] { fd: i32; }
 data OpenResult { case Error; case Ok(file: File); }
-data IoResult { case Error; case Ok(count: usize); }
+data IoResult { case Error; case Ok(count: u64); }
 data UnitResult { case Error; case Ok; }
 
 data Filesystem {
@@ -1102,13 +1102,13 @@ machine Filesystem::open(&mut self, path: &[u8] in Path) -> OpenResult {
 machine Filesystem::write(&mut self, file: File, bytes: &[u8]) -> IoResult {
     let n: i64 = self.host.write(file.fd, bytes);
     transition n >= 0 { true -> ok(n) _ -> err() }
-    state ok(&mut self, n: i64) -> IoResult { IoResult::Ok { count: n as usize } }
+    state ok(&mut self, n: i64) -> IoResult { IoResult::Ok { count: n as u64 } }
     state err(&mut self) -> IoResult { IoResult::Error }
 }
-machine Filesystem::read(&mut self, file: File, buffer: &mut [u8], count: usize) -> IoResult {
+machine Filesystem::read(&mut self, file: File, buffer: &mut [u8], count: u64) -> IoResult {
     let n: i64 = self.host.read(file.fd, buffer, count);
     transition n >= 0 { true -> ok(n) _ -> err() }
-    state ok(&mut self, n: i64) -> IoResult { IoResult::Ok { count: n as usize } }
+    state ok(&mut self, n: i64) -> IoResult { IoResult::Ok { count: n as u64 } }
     state err(&mut self) -> IoResult { IoResult::Error }
 }
 machine Filesystem::close(&mut self, file: File) -> i32 {
@@ -1128,7 +1128,7 @@ data Main {
     io_result: IoResult;
     unit_result: UnitResult;
     close_rc: i32;
-    cap: usize;
+    cap: u64;
     buffer: [u8; 64];
 }
 machine Main::main(&mut self) {
@@ -1155,7 +1155,7 @@ machine Main::main(&mut self) {
             _ -> fail()
         }
     }
-    state verify(&mut self, count: usize) {
+    state verify(&mut self, count: u64) {
         transition count == 19 { true -> cleanup() _ -> fail() }
     }
     state cleanup(&mut self) {
@@ -1259,7 +1259,7 @@ machine Main::main(&mut self) {
         self.io_result = self.fs.read_dir_count("/rd");
         transition self.io_result { IoResult::Ok { count } -> checkcount(count) _ -> fail() }
     }
-    state checkcount(&mut self, count: usize) {
+    state checkcount(&mut self, count: u64) {
         transition count == 3 { true -> ok() _ -> fail() }
     }
     state ok(&mut self) { self.console.exit_process(70); }
@@ -1495,7 +1495,7 @@ data Main {
     open_result: OpenResult;
     entry_result: DirEntryResult;
     close_rc: i32;
-    n: usize in Wrapping;
+    n: u64 in Wrapping;
     count: i32 in Wrapping;
     first_ok: bool;
 }
@@ -1526,7 +1526,7 @@ machine Main::main(&mut self) {
         transition { _ -> ldloop() }
     }
     state ldloop(&mut self) {
-        self.entry_result = self.fs.read_dir_nth("/lp", self.n as usize);
+        self.entry_result = self.fs.read_dir_nth("/lp", self.n as u64);
         transition self.entry_result {
             DirEntryResult::Ok { entry } -> ldgot(entry)
             DirEntryResult::End -> lddone()
@@ -1580,7 +1580,7 @@ data Main {
     io_result: IoResult;
     unit_result: UnitResult;
     close_rc: i32;
-    cap: usize;
+    cap: u64;
     buffer: [u8; 64];
 }
 machine Main::main(&mut self) {
@@ -1607,7 +1607,7 @@ machine Main::main(&mut self) {
             _ -> fail()
         }
     }
-    state verify(&mut self, count: usize) {
+    state verify(&mut self, count: u64) {
         transition count == 14 { true -> cleanup() _ -> fail() }
     }
     state cleanup(&mut self) {
@@ -1691,7 +1691,7 @@ data Main {
     meta_result: MetadataResult;
     unit_result: UnitResult;
     close_rc: i32;
-    cap: usize;
+    cap: u64;
     buffer: [u8; 64];
 }
 machine Main::main(&mut self) {
@@ -1717,7 +1717,7 @@ machine Main::main(&mut self) {
         self.unit_result = self.fs.remove("/m.txt");
         transition self.io_result { IoResult::Ok { count } -> verify(count) _ -> fail() }
     }
-    state verify(&mut self, count: usize) {
+    state verify(&mut self, count: u64) {
         transition count == 17 { true -> ok() _ -> fail() }
     }
     state ok(&mut self) { self.console.exit_process(70); }
@@ -1827,7 +1827,7 @@ data Main {
     close_rc: i32;
     b0: u8;
     b1: u8;
-    cap: usize;
+    cap: u64;
     buffer: [u8; 64];
 }
 machine Main::main(&mut self) {
@@ -1843,7 +1843,7 @@ machine Main::main(&mut self) {
         self.io_result = self.fs.write_at(file, "XY", 2);
         transition self.io_result { IoResult::Ok { count } -> checkwrote(file, count) _ -> fail() }
     }
-    state checkwrote(&mut self, file: File, count: usize) {
+    state checkwrote(&mut self, file: File, count: u64) {
         transition count == 2 { true -> pread(file) _ -> fail() }
     }
     state pread(&mut self, file: File) {
@@ -1852,7 +1852,7 @@ machine Main::main(&mut self) {
         self.unit_result = self.fs.remove("/pio.txt");
         transition self.io_result { IoResult::Ok { count } -> checkread(count) _ -> fail() }
     }
-    state checkread(&mut self, count: usize) {
+    state checkread(&mut self, count: u64) {
         transition count == 4 { true -> checkb0() _ -> fail() }
     }
     state checkb0(&mut self) {
@@ -2337,7 +2337,7 @@ data Main {
     console: Console;
     unit_result: UnitResult;
     io_result: IoResult;
-    cap: usize;
+    cap: u64;
     first: u8;
     buffer: [u8; 64];
 }
@@ -2349,7 +2349,7 @@ machine Main::main(&mut self) {
         self.io_result = self.fs.read_all("/w.txt", &mut self.buffer, self.cap);
         transition self.io_result { IoResult::Ok { count } -> checkcount(count) _ -> fail() }
     }
-    state checkcount(&mut self, count: usize) {
+    state checkcount(&mut self, count: u64) {
         transition count == 15 { true -> checkbyte() _ -> fail() }
     }
     state checkbyte(&mut self) {
@@ -2393,7 +2393,7 @@ data Main {
     dirmode: i32;
     filemode: i32;
     rdonly: i32;
-    cap: usize;
+    cap: u64;
     rc: i32;
     fd: i32;
     dfd: i32;
@@ -2467,22 +2467,22 @@ data Main {
     dirmode: i32;
     filemode: i32;
     rdonly: i32;
-    cap: usize;
+    cap: u64;
     rc: i32;
     fd: i32;
     dfd: i32;
     n: i64;
     total: i64;
-    totalu: usize in Wrapping;
+    totalu: u64 in Wrapping;
     position: i64;
-    off: usize in Wrapping;
-    idx: usize in Wrapping;
+    off: u64 in Wrapping;
+    idx: u64 in Wrapping;
     count: i32 in Wrapping;
     lo: u8;
     hi: u8;
-    lou: usize in Wrapping;
-    hiu: usize in Wrapping;
-    reclen: usize in Wrapping;
+    lou: u64 in Wrapping;
+    hiu: u64 in Wrapping;
+    reclen: u64 in Wrapping;
     buffer: [u8; 512];
 }
 machine Main::main(&mut self) {
@@ -2502,7 +2502,7 @@ machine Main::main(&mut self) {
     transition self.dfd >= 0 { true -> readit() _ -> fail() }
     state readit(&mut self) {
         self.total = self.fs.read_dir(self.dfd, &mut self.buffer, self.cap, &mut self.position);
-        self.totalu = self.total as usize in Wrapping;
+        self.totalu = self.total as u64 in Wrapping;
         transition self.total > 0 { true -> walk() _ -> fail() }
     }
     state walk(&mut self) {
@@ -2516,8 +2516,8 @@ machine Main::main(&mut self) {
         self.lo = self.buffer[self.idx];
         self.idx = self.off + 17;
         self.hi = self.buffer[self.idx];
-        self.lou = self.lo as usize in Wrapping;
-        self.hiu = self.hi as usize in Wrapping;
+        self.lou = self.lo as u64 in Wrapping;
+        self.hiu = self.hi as u64 in Wrapping;
         self.reclen = (self.hiu << 8) | self.lou;
         self.count = self.count + 1;
         self.off = self.off + self.reclen;
@@ -2724,7 +2724,7 @@ data Main {
     io_result: IoResult;
     meta_result: MetadataResult;
     perms: Permissions;
-    cap: usize;
+    cap: u64;
     first: u8;
     buffer: [u8; 64];
     verify: [u8; 64];
@@ -2744,7 +2744,7 @@ machine Main::main(&mut self) {
         self.io_result = self.fs.copy("/src.txt", "/dst.txt", &mut self.buffer, self.cap);
         transition self.io_result { IoResult::Ok { count } -> checkcount(count) _ -> fail() }
     }
-    state checkcount(&mut self, count: usize) {
+    state checkcount(&mut self, count: u64) {
         // 14 bytes ("copy me please"), NOT the 64-byte buffer capacity.
         transition count == 14 { true -> readback() _ -> fail() }
     }
@@ -2752,7 +2752,7 @@ machine Main::main(&mut self) {
         self.io_result = self.fs.read_all("/dst.txt", &mut self.verify, self.cap);
         transition self.io_result { IoResult::Ok { count } -> checklen(count) _ -> fail() }
     }
-    state checklen(&mut self, count: usize) {
+    state checklen(&mut self, count: u64) {
         transition count == 14 { true -> checkbyte() _ -> fail() }
     }
     state checkbyte(&mut self) {
@@ -2898,7 +2898,7 @@ data Main {
     console: Console;
     unit_result: UnitResult;
     io_result: IoResult;
-    cap: usize;
+    cap: u64;
     first: u8;
     buffer: [u8; 32];
 }
@@ -2924,7 +2924,7 @@ machine Main::main(&mut self) {
         self.io_result = self.fs.read_all("/alias.txt", &mut self.buffer, self.cap);
         transition self.io_result { IoResult::Ok { count } -> checklen(count) _ -> fail() }
     }
-    state checklen(&mut self, count: usize) {
+    state checklen(&mut self, count: u64) {
         transition count == 12 { true -> checkbyte() _ -> fail() }
     }
     state checkbyte(&mut self) {
@@ -3284,7 +3284,7 @@ data Main {
     console: Console;
     unit_result: UnitResult;
     io_result: IoResult;
-    cap: usize;
+    cap: u64;
     first: u8;
     buffer: [u8; 64];
 }
@@ -3296,7 +3296,7 @@ machine Main::main(&mut self) {
         self.io_result = self.fs.read_link("/link", &mut self.buffer, self.cap);
         transition self.io_result { IoResult::Ok { count } -> checkcount(count) _ -> fail() }
     }
-    state checkcount(&mut self, count: usize) {
+    state checkcount(&mut self, count: u64) {
         transition count == 12 { true -> checkbyte() _ -> fail() }
     }
     state checkbyte(&mut self) {
@@ -3489,7 +3489,7 @@ data Main {
     open_result: OpenResult;
     io_result: IoResult;
     perms: Permissions;
-    cap: usize;
+    cap: u64;
     first: u8;
     buffer: [u8; 32];
 }
@@ -3540,7 +3540,7 @@ machine Main::main(&mut self) {
         self.first = self.buffer[0];
         transition self.io_result { IoResult::Ok { count } -> checkread(count) _ -> fail() }
     }
-    state checkread(&mut self, count: usize) {
+    state checkread(&mut self, count: u64) {
         transition count == 11 { true -> checkbyte() _ -> fail() }
     }
     state checkbyte(&mut self) {
@@ -3589,7 +3589,7 @@ data Main {
     opts: OpenOptions;
     rc: i32;
     first: u8;
-    cap: usize;
+    cap: u64;
     buffer: [u8; 16];
 }
 machine Main::main(&mut self) {
@@ -3601,7 +3601,7 @@ machine Main::main(&mut self) {
         self.rc = self.fs.close(file);
         transition self.io_result { IoResult::Ok { count } -> reject(count) _ -> fail() }
     }
-    state reject(&mut self, count: usize) {
+    state reject(&mut self, count: u64) {
         // create_new on an existing path -> AlreadyExists (the atomic guarantee)
         self.open_result = self.fs.create_new("/cn.txt");
         transition self.open_result { OpenResult::Error { kind } -> checkexist(kind) _ -> fail() }
@@ -3737,7 +3737,7 @@ data Main {
     io_result: IoResult;
     rc: i32;
     first: u8;
-    cap: usize;
+    cap: u64;
     buffer: [u8; 64];
 }
 machine Main::main(&mut self) {
@@ -3760,7 +3760,7 @@ machine Main::main(&mut self) {
         self.unit_result = self.fs.remove("/dup.txt");
         transition self.io_result { IoResult::Ok { count } -> checkcount(count) _ -> fail() }
     }
-    state checkcount(&mut self, count: usize) {
+    state checkcount(&mut self, count: u64) {
         transition count == 5 { true -> checkbyte() _ -> fail() }
     }
     state checkbyte(&mut self) {
