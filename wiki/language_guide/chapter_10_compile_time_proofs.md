@@ -21,8 +21,8 @@ This machine proves a simple ordering fact:
 
 ```omega
 machine distinct_indices(
-    i: usize,
-    j: usize
+    i: u64,
+    j: u64
 )
 requires
     i < j
@@ -110,7 +110,7 @@ Large proofs should be decomposed through helper machines with small contracts.
 machine Sort::compare_swap(
     before: &[Nat],
     items: &mut [Nat],
-    index: usize
+    index: u64
 )
 requires
     index + 1 < items.len
@@ -190,10 +190,10 @@ such as lexicographic tuples or domain/type-provided orders are declared with a
 dedicated `measure` keyword.
 
 A `measure` is a standalone item: a function from the decreasing value into a
-well-founded domain such as `usize`. It is not an abused `operator` declaration.
+well-founded domain such as `u64`. It is not an abused `operator` declaration.
 
 ```omega
-measure Card::PowerOrder(card: Card) -> usize { card.power }
+measure Card::PowerOrder(card: Card) -> u64 { card.power }
 measure Quest::Difficulty lexicographic { tier, remaining_steps }
 ```
 

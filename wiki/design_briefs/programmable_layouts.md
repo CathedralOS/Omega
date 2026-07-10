@@ -11,7 +11,7 @@
 > sample 2. · **Depends on:** the ch13 build-time-evaluation sketch (const evaluation +
 > member reflection), [`build_time_evaluation.md`](build_time_evaluation.md), the totality budget story,
 > and [`index_count_and_address_model.md`](index_count_and_address_model.md)
-> (`count`/`addr`; no `usize`).
+> (`count`/`addr`; no `u64`).
 
 ---
 
@@ -77,7 +77,7 @@ CLayout satisfies Layout {
 - **Iteration is states** (self-re-entering with accumulators) — the decreasing
   measure (`fields.len - index`) is the build-time termination proof, falling out
   of the shape rather than bolted on. No `for`, no `var`.
-- **Sizes and offsets are `count`s** (no `usize`; field metadata arrives
+- **Sizes and offsets are `count`s** (no `u64`; field metadata arrives
   target-resolved — pointer width, natural alignments — so no ABI threading).
 - **Build-time safety is the effect system**: `plan()` declares no effects, so
   it *has* none — no IO at build time, structurally. Evaluated by the reference

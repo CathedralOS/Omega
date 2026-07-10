@@ -48,7 +48,7 @@ should be left-to-right because it is easiest to reason about and diagnose.
 Operators are typed operations.
 
 ```omega
-let next: usize = index + 1;
+let next: u64 = index + 1;
 let weak: bool = self.health <= 25;
 ```
 
@@ -81,12 +81,12 @@ should be understood as a range-slice operator. Both resolve to a spelled core
 obligation:
 
 ```omega
-boundary operator Slice::index<T>(items: &[T], index: usize) -> T
+boundary operator Slice::index<T>(items: &[T], index: u64) -> T
 spelling []
 requires
     index < items.len;
 
-boundary operator Slice::range<T>(items: &[T], start: usize, end: usize) -> &[T]
+boundary operator Slice::range<T>(items: &[T], start: u64, end: u64) -> &[T]
 spelling [..]
 requires
     start <= end && end <= items.len;
@@ -195,42 +195,42 @@ The visible core declaration should therefore look like a normal contract on a
 `boundary operator`:
 
 ```omega
-boundary operator Array::index<T>(items: &Array<T>, index: usize) -> T
+boundary operator Array::index<T>(items: &Array<T>, index: u64) -> T
 spelling []
 requires
     index < items.len;
 
-boundary operator Vec::index<T>(items: &Vec<T>, index: usize) -> T
+boundary operator Vec::index<T>(items: &Vec<T>, index: u64) -> T
 spelling []
 requires
     index < items.len;
 
-boundary operator Slice::index_mut<T>(items: &mut [T], index: usize) -> &mut T
+boundary operator Slice::index_mut<T>(items: &mut [T], index: u64) -> &mut T
 spelling []
 requires
     index < items.len;
 
-boundary operator Slice::range_mut<T>(items: &mut [T], start: usize, end: usize) -> &mut [T]
+boundary operator Slice::range_mut<T>(items: &mut [T], start: u64, end: u64) -> &mut [T]
 spelling [..]
 requires
     start <= end && end <= items.len;
 
-boundary operator Slice::from<T>(items: &[T], start: usize) -> &[T]
+boundary operator Slice::from<T>(items: &[T], start: u64) -> &[T]
 requires
     start <= items.len;
 
-boundary operator string::byte(text: &string, index: usize) -> u8
+boundary operator string::byte(text: &string, index: u64) -> u8
 requires
     index < text.len;
 
-boundary operator string::range(text: &string, start: usize, end: usize) -> &string
+boundary operator string::range(text: &string, start: u64, end: u64) -> &string
 spelling [..]
 requires
     start <= end && end <= text.len;
 
-boundary operator Vec::with_capacity<T>(capacity: usize) -> Vec<T>;
+boundary operator Vec::with_capacity<T>(capacity: u64) -> Vec<T>;
 
-boundary operator String::with_capacity(capacity: usize) -> String;
+boundary operator String::with_capacity(capacity: u64) -> String;
 
 boundary operator String::push_str(text: &mut String, value: &string) -> ()
 requires
@@ -254,8 +254,8 @@ spelling or declaration order of type parameters, so these two declarations
 describe the same candidate and must be rejected as a duplicate:
 
 ```omega
-operator Slice::index<T>(items: &[T], index: usize) -> T;
-operator Slice::index<U>(items: &[U], index: usize) -> U;
+operator Slice::index<T>(items: &[T], index: u64) -> T;
+operator Slice::index<U>(items: &[U], index: u64) -> U;
 ```
 
 Likewise, `combine<T, U>(left: T, right: U)` and

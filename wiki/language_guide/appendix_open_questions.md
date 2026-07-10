@@ -81,8 +81,8 @@ This page tracks design pressure that is not fully nailed down yet.
   such as `Slice::Length` and descending naturals remain automatic. A custom
   well-founded ordering is declared with a dedicated `measure` keyword as a
   standalone item, not by abusing an `operator` declaration: a `measure` is a
-  function from the decreasing value into a well-founded domain such as `usize`,
-  e.g. `measure Card::PowerOrder(card: Card) -> usize { card.power }`.
+  function from the decreasing value into a well-founded domain such as `u64`,
+  e.g. `measure Card::PowerOrder(card: Card) -> u64 { card.power }`.
   `lexicographic { a, b, ... }` declares an ordered tuple compared left-to-right
   (e.g. `measure Quest::Difficulty lexicographic { tier, remaining_steps }`), and
   multiple named measures per type are allowed.

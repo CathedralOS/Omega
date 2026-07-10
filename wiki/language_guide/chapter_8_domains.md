@@ -72,7 +72,7 @@ Receiver state uses the same model:
 ```omega
 data Game {
     phase: GamePhase;
-    turns: usize;
+    turns: u64;
     board: Board;
     winner: Option<PlayerId>;
 }

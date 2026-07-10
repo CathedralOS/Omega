@@ -22,12 +22,12 @@ stays behind the compiler/runtime boundary. A core operator carries a fixed
 proof obligation:
 
 ```omega
-boundary operator Slice::index<T>(items: &[T], index: usize) -> T
+boundary operator Slice::index<T>(items: &[T], index: u64) -> T
     spelling []
 requires
     index < items.len;
 
-boundary operator Slice::range<T>(items: &[T], start: usize, end: usize) -> &[T]
+boundary operator Slice::range<T>(items: &[T], start: u64, end: u64) -> &[T]
     spelling [..]
 requires
     start <= end && end <= items.len;
@@ -80,8 +80,8 @@ boundary trait WindowsFile {
     machine read(
         handle: HANDLE<[read]>,
         buffer: &mut [u8, [writable, initialized]],
-        bytes_to_read: usize,
-        bytes_read: &mut usize
+        bytes_to_read: u64,
+        bytes_read: &mut u64
     ) -> bool
     effects
         filesystem_io;
@@ -599,13 +599,13 @@ A type can define which invariant parameters it accepts:
 ```omega
 builtin slice &[T, I]
     where I subset {non_empty, initialized}
-    exposes len: usize
+    exposes len: u64
     invariant non_empty = len > 0
     invariant initialized = elements.initialized
 
 builtin slice &mut [T, I]
     where I subset {non_empty, initialized, writable}
-    exposes len: usize
+    exposes len: u64
     invariant non_empty = len > 0
     invariant initialized = elements.initialized
     invariant writable = elements.writable

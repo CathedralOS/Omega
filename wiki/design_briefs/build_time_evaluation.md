@@ -26,7 +26,7 @@ TASKS.md remain the open engineering sequence.
 - **Cross-compilation**: build-time evaluation runs on the host but computes
   TARGET facts — inputs arrive target-resolved (see recommendation 4), and the
   reference interpreter's semantics are target-agnostic.
-- The one existing compile-time spelling in the grammar stays: `const N: usize`
+- The one existing compile-time spelling in the grammar stays: `const N: u64`
   type parameters (a POSITION, on a parameter — never a marker on a machine).
 
 ## Current State

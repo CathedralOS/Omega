@@ -1,7 +1,10 @@
 # Design Brief — The Index, Count & Address Model (retiring `usize`)
 
-> **For:** Omega maintainer · **Status:** SETTLED (model decided; migration + the
-> signed-index soundness fix are follow-up work) · **Driver:** `usize` is a
+> **For:** Omega maintainer · **Status:** SETTLED; migration UNDERWAY (stages
+> 1+2 done 2026-07-15: termination accepts u64 naturals, the corpus is swept
+> usize -> u64 -- see
+> [`architecture/usize_retirement_execution.md`](../architecture/usize_retirement_execution.md);
+> the compiler rejection is the remaining stage) · **Driver:** `usize` is a
 > conflated, ISA-pinned type that doubles as the index type, and the index check
 > has a confirmed lower-bound soundness hole (a negative signed index segfaults).
 >
@@ -156,7 +159,8 @@ model above (a multidim index still lowers to a proven integer).
 ## 9. Follow-up work this brief authorizes
 
 - **Migrate `usize` → count / `addr`** across the stdlib surface and samples; name
-  the address type honestly.
+  the address type honestly. *(Corpus + samples swept 2026-07-15 -- u64 is the
+  count primitive; the compiler-rejection stage remains.)*
 - **Land the signed-index soundness fix**: require `0 <= i` only for *signed*
   indices (unsigned exempt by type), scoped per the `index-lower-bound-soundness-hole`
   thread.
