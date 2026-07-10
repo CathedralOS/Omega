@@ -20,7 +20,13 @@ the facts that APIs and mutations require.
 > scope](chapter_11_relax_scopes.md) that re-proves at exit — a bare single-field
 > store that would break one is rejected. There are **no default *values*** on data
 > (see [Chapter 1](chapter_1_data_values_literals.md)); ZII is the substrate and
-> construction forces the overrides where zero is invalid. *Settled model; not yet
+> construction forces the overrides where zero is invalid. **A default domain the
+> zero value cannot satisfy GATES the type (settled 2026-07-17):** such data is not
+> zero-constructible — its zeroed form exists only as storage, inaccessible as the
+> type until construction or an `as` mint proves the domain, monotonically
+> thereafter (every later store re-proves it). The gate propagates through
+> containment and is absorbed by a zero-valid first sum case (`case Empty;`); see
+> [Chapter 23](chapter_23_dependent_types.md). *Settled model; not yet
 > implemented.*
 
 ```omega

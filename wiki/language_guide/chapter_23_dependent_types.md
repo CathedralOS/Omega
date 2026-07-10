@@ -37,8 +37,9 @@ Working interpretation:
   ordinary stored field, parameter, or local the program already carries —
   never hidden metadata. `len` is its own witness; there is no shadow copy.
 - A fact tying two or more places together (`payload.length == self.len`,
-  `count * stride <= len`) is a **coupling**. Couplings on a data type live in
-  its default domain (chapter 7) like every other cross-field invariant.
+  `count * stride <= len`) is a **coupling**. Couplings on a data type are
+  facts of its default domain, declared with the data declaration
+  (chapter 7).
 - Every naming is a fact the compiler tracks. Every use is an obligation the
   entailment engine discharges from facts in scope, exactly as constant
   ranges discharge today.
@@ -84,9 +85,10 @@ Working rules:
 
 ## Dependent Data
 
-A data type's fields may witness each other. The coupling is a cross-field
-invariant of the default domain, and the rules of chapters 7 and 11 apply to
-it unchanged:
+A data type's fields may witness each other. The default domain is declared
+with the data declaration: a field constraint is a single-field invariant of
+it, and cross-field couplings are facts written in the body alongside the
+fields (the exact cross-field spelling is an open pin from chapter 7):
 
 ```omega
 data MemoryMap {
@@ -94,37 +96,65 @@ data MemoryMap {
     len: u32 [0..=4096];
     stride: u32;
     count: u32;
-}
 
-domain MemoryMap {
     self.count * self.stride <= self.len;
+    self.stride >= 40;
 }
 ```
 
-(The default-domain declaration surface is an open pin from chapter 7; the
-spelling above — a domain block bearing the bare type name — is provisional.)
+> **Gating (settled 2026-07-17).** The zero value either satisfies the
+> default domain or it does not, and both are legal:
+>
+> - **Zero satisfies it** — the type is zero-constructible. A zeroed value
+>   is born established; the facts are standing everywhere, with nothing to
+>   track. Everything landed today is this tier.
+> - **Zero does not** — the type is **gated**. Data can have non-zero
+>   requirements; such a type is simply not zero-constructible. Its zeroed
+>   form exists only as storage — memory the compiler may still zero-fill —
+>   and is inaccessible as the type until construction or an `as` mint
+>   proves the default domain. Establishment is monotone: every later store
+>   re-proves the domain, so an established place never falls back.
+>
+> `MemoryMap` above is gated (`stride >= 40` fails at zero). The landed rule
+> that a declared range must include zero is this model's first tier as an
+> implementation restriction, not language law.
 
 Working rules:
 
-- **The zero value must satisfy every standing coupling.** This is the
-  existing ZII rule — a declared range must include zero — generalized to
-  couplings. `count * stride <= len` holds at zero (`0 <= 0`);
-  `payload.length == len` holds at zero (`0 == 0`). A coupling zero cannot
-  satisfy (`stride >= 40`) is rejected as a standing invariant; it belongs in
-  a subdomain established at a mint and shed by mutation, like any domain:
+- **Construction is the gate.** A gated type's literal must prove the
+  default domain, so exactly the fields whose zero violates it are
+  mandatory:
 
   ```omega
-  domain MemoryMap::Loaded {
-      self.stride >= 40;
-      self.count >= 1;
-  }
+  data Player { health: i32 [1..=100]; }    // gated: zero health is not a Player
+
+  self.champion = Player { health = 50 };   // health mandatory; other fields ZII
   ```
 
+- **Gating propagates through containment.** A container of gated data is
+  gated: `data Team { roster: [Player; 8]; }` owes eight proven Players at
+  construction. A zero-valid first sum case absorbs the gate — emptiness is
+  spelled as a case, not as a nonsense zero value:
+
+  ```omega
+  data PlayerSlot {
+      case Empty;              // tag 0: the zero value IS this case (chapter 19)
+      case Filled(p: Player);
+  }
+
+  data Team { roster: [PlayerSlot; 8]; }    // zero-constructible: eight Empties
+  ```
+
+- **Machine-owned data is access-gated, not construction-gated.** Nobody
+  constructs `Main`; it boots zeroed. A gated field inside it is legal as
+  storage — the machine simply cannot read it as the type until some state
+  establishes it.
+
 - **A lone write to a witness is rejected when it would break a coupling.**
-  The store checker enforces couplings at every write, the same pass that
-  enforces ranges. The two sanctioned update shapes are chapter 11's:
-  construct a valid whole (init-syntax), or open a `relax` scope that updates
-  witness and dependents together and re-proves the coupling at exit:
+  The store checker enforces the default domain at every write, the same
+  pass that enforces ranges. The two sanctioned update shapes are chapter
+  11's: construct a valid whole (init-syntax), or open a `relax` scope that
+  updates witness and dependents together and re-proves at exit:
 
   ```omega
   relax self.map {
@@ -136,6 +166,10 @@ Working rules:
   held across statements implies a read loan on `len`, `stride`, and
   `count` — every place the dependent facts name. A write to a pinned witness
   while the loan lives is a borrow error, by the ordinary loan rules.
+
+Facts that describe some values of the type rather than all — facts you do
+not want gating every access — remain ordinary subdomains (chapter 8),
+minted and shed as usual.
 
 ## Static Lowering
 
@@ -165,8 +199,9 @@ When a witness is a runtime value:
 
 - **The witness is stored as the ordinary field or parameter it already is.**
   Dynamic lowering adds no metadata, no runtime type information, and no fat
-  pointers beyond the slices of chapter 19. A zeroed witness means an empty
-  structure; ZII holds.
+  pointers beyond the slices of chapter 19. For a zero-constructible type, a
+  zeroed witness means an empty structure; a gated type is never observed
+  zeroed.
 - **Offsets are ordinary arithmetic.** An access strided by a runtime witness
   lowers to a multiply and an add. The proof work is compile-time only.
 - **Obligations discharge against flow facts** — declared couplings,
@@ -180,9 +215,9 @@ the `Region` allocator story.
 The memory map, end to end:
 
 ```omega
-// The boundary contract's success arm mints the facts (chapter 18):
-//   ensures self.map.count * self.map.stride <= self.map.len
-//   ensures self.map as MemoryMap::Loaded
+// MemoryMap is gated; the boundary decode is what establishes its default
+// domain (chapter 18 owns the boundary ensures). After the success arm,
+// self.map's facts are standing: count*stride <= len, stride >= 40.
 machine Kernel::walk_map(&self) {
     transition { _ -> at(0) }
 
@@ -195,8 +230,9 @@ machine Kernel::walk_map(&self) {
 
     state visit(&self, i: u32) {
         // Obligation: i*stride + stride <= len.
-        // Facts in scope: i < count (arm guard), count*stride <= len
-        // (standing coupling), stride >= 40 (Loaded).
+        // Facts in scope: i < count (arm guard), count*stride <= len and
+        // stride >= 40 (default domain, standing since the decode
+        // established it).
         let entry: &EfiMemoryDescriptor =
             &self.map.buf[i * self.map.stride] as &EfiMemoryDescriptor;
         ...
@@ -313,8 +349,8 @@ This chapter is intentionally narrow:
 
 - Chapter 7 owns contracts and the default domain; this chapter widens what
   their facts may name.
-- Chapter 8 owns domains and `as` mints; dependent subdomain facts
-  (`Loaded`) are ordinary minted domains.
+- Chapter 8 owns domains and `as` mints; establishing a gated default domain
+  at a boundary decode is an ordinary `as` mint.
 - Chapter 11 owns the mutation discipline; a coupling update is a relax
   scope.
 - Chapter 12 owns the static lowering; const parameters are witnesses the
