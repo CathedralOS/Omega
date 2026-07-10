@@ -26,6 +26,20 @@ pub(in crate::checks::ranges) fn seed_dependent_param_orderings(
         if !parameter.type_reference.is_valid() {
             continue;
         }
+        // Sibling-length class (`index: u64 [0..items.len]`): a STRICT bound
+        // (offset <= -1) makes the param a VALID INDEX of the sibling --
+        // exactly the unknown-length prover's `prove_index` fact. The
+        // caller proved it at every entry (the sibling-length atom); slices
+        // are immutable views, so no write fence is needed on the length.
+        if let Some(sibling) = sibling_len_of_type_reference(program, parameter.type_reference) {
+            if sibling.offset <= -1 {
+                facts.prove_index(
+                    sibling.sibling.as_str().to_owned(),
+                    parameter.name.as_str().to_owned(),
+                );
+            }
+            continue;
+        }
         let Some((field, offset)) =
             dependent_maximum_of_type_reference(program, parameter.type_reference)
         else {
@@ -86,6 +100,48 @@ fn dependent_maximum_of_type_reference(
                     _ => None,
                 })
                 .or_else(|| dependent_maximum_of_type_reference(program, *base_type))
+        }
+        _ => None,
+    }
+}
+
+/// The sibling-length bound of a declared type's Range constraint under
+/// Exact shells (the recognizer class).
+fn sibling_len_of_type_reference(
+    program: &TypedTrees,
+    handle: omega_typed_trees::types::TypeReferenceHandle,
+) -> Option<omega_typed_trees::dependent_ranges::SiblingLenBound> {
+    use omega_typed_trees::types::{TypeConstraintNode, TypeReferenceNode};
+    match program.type_reference_table.type_reference(handle) {
+        TypeReferenceNode::Reference { referee, .. } => {
+            sibling_len_of_type_reference(program, *referee)
+        }
+        TypeReferenceNode::Constrained {
+            base_type,
+            constraints,
+        } => {
+            let constraints = program.type_reference_table.constraints(*constraints);
+            if constraints.iter().any(|constraint| {
+                matches!(
+                    constraint,
+                    TypeConstraintNode::ArithmeticDomain(domain)
+                        if *domain != omega_core::arithmetic::ArithmeticDomain::Exact
+                )
+            }) {
+                return None;
+            }
+            constraints
+                .iter()
+                .find_map(|constraint| match constraint {
+                    TypeConstraintNode::Range { maximum, .. } => {
+                        omega_typed_trees::dependent_ranges::sibling_len_bound(
+                            &program.expression_table,
+                            *maximum,
+                        )
+                    }
+                    _ => None,
+                })
+                .or_else(|| sibling_len_of_type_reference(program, *base_type))
         }
         _ => None,
     }

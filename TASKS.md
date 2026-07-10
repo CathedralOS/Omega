@@ -151,25 +151,17 @@ header above for the verified spelling). Rungs, in payoff order:
   obligation -> in-callee subtraction); pinned
   pass/dependent/runtime_requires_guarded_call_exit, with unguarded and
   guard-then-write refusals held. SIBLING-LEN
-  IN FLIGHT (recognizer landed: dependent_ranges::sibling_len_bound,
-  `<name>.len [+/- k]`): the `index: u64 [0..items.len]` Buffer::get
-  shape. Remaining wiring, in order: (1) proof atom
-  IntegerRangeSiblingLenMax minted in range_from_expression_handles;
-  (2) BOTH obligation structs gain `sibling_argument: ExpressionHandle`
-  resolved AT BUILD TIME (the builders hold the full param+argument
-  lists -- find the sibling param by name, take the caller's argument
-  at its position; transition builder at obligations.rs ~:797, call
-  builder ~:460); (3) checker discharge = guard route ONLY (no static
-  floor exists for slice lens): co-located `arg < <sibling-arg>.len + k`
-  matched by display of the guard bound's receiver vs the stripped
-  sibling argument (strict `<` implies offset -1); WITHOUT the atom the
-  obligation check silently skips, so the atom must land BEFORE the
-  gate opens (the vacuous-pass hazard); (4) declaration gate admits
-  StateParameter owners whose named sibling is a slice/fixed-array
-  param of the same state, offsets <= 0; (5) callee entry fact: for
-  offset <= -1 mint facts.prove_index(sibling, param) in
-  dependent_params.rs -- the unknown-length index prover consumes it
-  directly, closing `items[index]` inside the callee. Then
+  LANDED (2026-07-09): the `index: u64 [0..items.len]` Buffer::get shape
+  serves end-to-end -- recognizer (sibling_len_bound), proof atom
+  (IntegerRangeSiblingLenMax; obligations carry the sibling's ARGUMENT
+  resolved at build time), guard-route discharge (`arg <
+  <sibling-arg>.len`, display-matched, strict-vs-inclusive offsets),
+  declaration gate (same-state slice/fixed-array sibling, offsets <= 0),
+  and the callee prove_index mint (strict bounds only) that the
+  unknown-length prover consumes -- `items[index]` indexes guard-free
+  inside the callee. Pinned pass/dependent/runtime_sibling_len_index_exit
+  + two fail shapes. CALL arguments refuse with a route hint (no
+  co-located guard exists). Then
   value-vs-value guard mints at range endpoints generally
   value-vs-value guard mints at range endpoints generally
   (`requires a.cols == b.rows`), and machine-signature `requires`

@@ -274,6 +274,24 @@ fn check_bounded_call_argument(
         }
     }
 
+    // Sibling-length params on CALL arguments: a call has no co-located
+    // guard and a slice length has no static floor, so no rung-A discharge
+    // exists -- refuse with the route hint.
+    if let Some((_, max_offset)) =
+        sibling_len_from_constraints(type_constraints(proof_plan, obligation.constraints))
+    {
+        let _ = max_offset;
+        diagnostics.push(Diagnostic::error(format!(
+            "cannot prove call argument `{}` satisfies sibling-length parameter `{}` for `{}` in `{}.{}`; route the call through a transition whose arm guards `{} < <items>.len`",
+            expression_display_name(proof_plan, obligation.argument),
+            obligation.parameter,
+            obligation.target,
+            obligation.machine,
+            obligation.state,
+            expression_display_name(proof_plan, obligation.argument),
+        )));
+    }
+
     if let Some(target_range) =
         float_range_from_constraints(type_constraints(proof_plan, obligation.constraints))
     {
@@ -357,6 +375,41 @@ fn check_bounded_transition_argument(
             diagnostics.push(cannot_prove_dependent_transition_bound(
                 proof_plan, obligation, minimum, max_field, max_offset,
             ));
+        }
+    }
+
+    // R1 sibling-length maximum (`index: u64 [0..items.len]`): the argument
+    // must sit under the SIBLING ARGUMENT's length at this call -- and slice
+    // lengths have no static floor, so the only discharge is the co-located
+    // guard relating the argument to `<sibling-arg>.len` tightly enough.
+    if let Some((minimum, max_offset)) =
+        sibling_len_from_constraints(type_constraints(proof_plan, obligation.constraints))
+    {
+        let argument_range = guarded_integer_range_for_transition_argument(proof_plan, obligation);
+        let lower_proven = argument_range.minimum >= minimum;
+        let upper_proven = obligation.sibling_argument.is_valid()
+            && guard_proves_sibling_len_upper(
+                proof_plan,
+                obligation.argument,
+                &obligation.guard,
+                obligation.sibling_argument,
+                max_offset,
+            );
+        if !lower_proven || !upper_proven {
+            diagnostics.push(Diagnostic::error(format!(
+                "cannot prove transition argument `{}` satisfies sibling-length parameter `{}` in `{}.{}`; expected {minimum}..=<sibling>.len{} -- relate them on the arm (`{} < {}.len`)",
+                expression_display_name(proof_plan, obligation.argument),
+                obligation.parameter,
+                obligation.machine,
+                obligation.state,
+                if max_offset == 0 { String::new() } else { format!(" {:+}", max_offset) },
+                expression_display_name(proof_plan, obligation.argument),
+                if obligation.sibling_argument.is_valid() {
+                    expression_display_name(proof_plan, obligation.sibling_argument)
+                } else {
+                    "<sibling>".to_string()
+                },
+            )));
         }
     }
 
@@ -2012,6 +2065,143 @@ fn expression_mentions_field(
             expression_mentions_field(proof_plan, indexed.collection, field)
         }
         _ => false,
+    }
+}
+
+fn sibling_len_from_constraints(
+    constraints: &[ProofConstraint],
+) -> Option<(i64, i64)> {
+    constraints.iter().find_map(|constraint| match constraint {
+        ProofConstraint::IntegerRangeSiblingLenMax {
+            minimum,
+            max_offset,
+            ..
+        } => Some((*minimum, *max_offset)),
+        _ => None,
+    })
+}
+
+/// Guard route for the sibling-length upper half: a conjunct (through the
+/// `== true` desugar) relating the ARGUMENT to `<sibling-arg>.len + k`,
+/// tight enough for the declared offset (`arg < s.len` implies
+/// `arg <= s.len - 1`, so strict needs `k-1 <= offset`). The receiver is
+/// matched by display spelling against the (Mutable-stripped) sibling
+/// argument.
+fn guard_proves_sibling_len_upper(
+    proof_plan: &ProofPlan,
+    argument: ExpressionHandle,
+    guard: &TransitionGuardNode,
+    sibling_argument: ExpressionHandle,
+    max_offset: i64,
+) -> bool {
+    let TransitionGuardNode::When(guard) = guard else {
+        return false;
+    };
+    let argument_label = expression_display_name(proof_plan, argument);
+    let sibling_label =
+        expression_display_name(proof_plan, strip_mutable_handle(proof_plan, sibling_argument));
+    sibling_conjunct_proves(
+        proof_plan,
+        *guard,
+        &argument_label,
+        &sibling_label,
+        max_offset,
+    )
+}
+
+fn sibling_conjunct_proves(
+    proof_plan: &ProofPlan,
+    guard: ExpressionHandle,
+    argument_label: &str,
+    sibling_label: &str,
+    max_offset: i64,
+) -> bool {
+    let ExpressionNode::Binary(binary) = proof_plan.program.expression_table.expression(guard)
+    else {
+        return false;
+    };
+    let recurse = |handle: ExpressionHandle| {
+        sibling_conjunct_proves(proof_plan, handle, argument_label, sibling_label, max_offset)
+    };
+    let normalized = match binary.operator {
+        BinaryOperator::And => return recurse(binary.left) || recurse(binary.right),
+        BinaryOperator::Equal
+            if matches!(
+                proof_plan.program.expression_table.expression(binary.right),
+                ExpressionNode::Boolean(true)
+            ) =>
+        {
+            return recurse(binary.left);
+        }
+        BinaryOperator::Less => Some((binary.left, binary.right, false)),
+        BinaryOperator::LessOrEqual => Some((binary.left, binary.right, true)),
+        BinaryOperator::Greater => Some((binary.right, binary.left, false)),
+        BinaryOperator::GreaterOrEqual => Some((binary.right, binary.left, true)),
+        _ => None,
+    };
+    let Some((argument_side, bound_side, inclusive)) = normalized else {
+        return false;
+    };
+    if expression_display_name(proof_plan, argument_side) != argument_label {
+        return false;
+    }
+    let Some(bound) = omega_typed_trees::dependent_ranges::sibling_len_bound(
+        &proof_plan.program.expression_table,
+        bound_side,
+    )
+    .map(|bound| (bound.sibling, bound.offset))
+    .or_else(|| {
+        // The guard names the CALLER's expression (`self.buf.len`), not the
+        // callee's param -- recognize `<expr>.len + k` with the RECEIVER
+        // display-matched below instead of the bare-name rule.
+        len_of_expression_bound(proof_plan, bound_side)
+    }) else {
+        return false;
+    };
+    let (receiver_label, k) = (bound.0, bound.1);
+    if receiver_label.as_str() != sibling_label {
+        return false;
+    }
+    let implied = if inclusive { Some(k) } else { k.checked_sub(1) };
+    implied.is_some_and(|implied| implied <= max_offset)
+}
+
+/// `<receiver-expr>.len [+/- k]` with the receiver rendered by display name
+/// (an Identifier carrying the display spelling for comparison).
+fn len_of_expression_bound(
+    proof_plan: &ProofPlan,
+    bound: ExpressionHandle,
+) -> Option<(Identifier, i64)> {
+    let table = &proof_plan.program.expression_table;
+    let (len_expr, offset) = match table.expression(bound) {
+        ExpressionNode::Binary(binary) => {
+            let ExpressionNode::Integer(literal) = table.expression(binary.right) else {
+                return None;
+            };
+            let magnitude = literal.value_i64()?;
+            let offset = match binary.operator {
+                BinaryOperator::Add => magnitude,
+                BinaryOperator::Subtract => magnitude.checked_neg()?,
+                _ => return None,
+            };
+            (binary.left, offset)
+        }
+        _ => (bound, 0),
+    };
+    let ExpressionNode::Member(member) = table.expression(len_expr) else {
+        return None;
+    };
+    if member.member.as_str() != "len" {
+        return None;
+    }
+    let receiver_label = expression_display_name(proof_plan, member.receiver);
+    Some((Identifier::generated(receiver_label), offset))
+}
+
+fn strip_mutable_handle(proof_plan: &ProofPlan, expression: ExpressionHandle) -> ExpressionHandle {
+    match proof_plan.program.expression_table.expression(expression) {
+        ExpressionNode::Mutable(inner) => strip_mutable_handle(proof_plan, *inner),
+        _ => expression,
     }
 }
 

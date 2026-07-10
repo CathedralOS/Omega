@@ -702,6 +702,52 @@ fn dependent_state_parameter_range_error(
     if crate::arithmetic_domains::literal_i64(program, minimum).is_none() {
         return Some(generic());
     }
+    // Sibling-length class (`[0..items.len]`): the named sibling must be a
+    // slice/fixed-array parameter of the SAME state, and only offsets <= 0
+    // are admissible (a `+k` bound would exceed the length).
+    if let Some(sibling) = omega_typed_rees_sibling(program, maximum) {
+        let TypeReferenceOwner::StateParameter {
+            owner: StateSignatureOwner::Machine(machine_name),
+            state: state_name,
+            ..
+        } = owner
+        else {
+            return Some(generic());
+        };
+        if sibling.offset > 0 {
+            return Some(format!(
+                "{owner} declares a sibling-length maximum with a positive offset \
+                 (`{}.len + {}`); an index past the length cannot be satisfied",
+                sibling.sibling, sibling.offset,
+            ));
+        }
+        let sibling_is_sliceable = program
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == *machine_name)
+            .and_then(|machine| {
+                program
+                    .machine_states(machine)
+                    .iter()
+                    .find(|state| state.name.as_str() == *state_name)
+                    .map(|state| (machine, state))
+            })
+            .is_some_and(|(_, state)| {
+                program.state_parameters(state).iter().any(|parameter| {
+                    parameter.name.as_str() == sibling.sibling.as_str()
+                        && parameter.type_reference.is_valid()
+                        && type_reference_is_sliceable(program, parameter.type_reference)
+                })
+            });
+        if !sibling_is_sliceable {
+            return Some(format!(
+                "{owner} declares a sibling-length maximum naming `{}`, but no slice or \
+                 fixed-array parameter of that name exists on the state",
+                sibling.sibling,
+            ));
+        }
+        return None;
+    }
     let Some(symbolic) = omega_typed_trees::dependent_ranges::symbolic_max_bound(
         &program.expression_table,
         maximum,
@@ -750,4 +796,27 @@ fn dependent_state_parameter_range_error(
         ));
     }
     None
+}
+
+fn omega_typed_rees_sibling(
+    program: &TypedTrees,
+    maximum: omega_typed_trees::expression::ExpressionHandle,
+) -> Option<omega_typed_trees::dependent_ranges::SiblingLenBound> {
+    omega_typed_trees::dependent_ranges::sibling_len_bound(&program.expression_table, maximum)
+}
+
+fn type_reference_is_sliceable(
+    program: &TypedTrees,
+    handle: TypeReferenceHandle,
+) -> bool {
+    match program.type_reference_table.type_reference(handle) {
+        TypeReferenceNode::Reference { referee, .. } => {
+            type_reference_is_sliceable(program, *referee)
+        }
+        TypeReferenceNode::Constrained { base_type, .. } => {
+            type_reference_is_sliceable(program, *base_type)
+        }
+        TypeReferenceNode::Slice { .. } | TypeReferenceNode::FixedArray { .. } => true,
+        _ => false,
+    }
 }
