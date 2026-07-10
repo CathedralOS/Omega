@@ -15,6 +15,37 @@ Tier 1 items there (ZII guarantee, wire data semantics, versioned data,
 separate-compilation awareness, concurrency/atomics decisions, freestanding
 target, enum payloads) bias which vertical slices get picked next.
 
+## NEXT PICK (owner priority 2026-07-15): Cathedral M2 unblock — two red efi tests
+
+Cathedral is fully written and waiting; its milestone 2 (`GetMemoryMap →
+ExitBootServices → first Region mint`, `../Cathedral/source/boot/uefi/
+own_machine.omg`) is blocked on exactly the two currently-red tests in the
+known-failure baseline — no lane is driving them:
+
+1. **`targets/efi_vtable_call`** — boundary-trait dispatch through a fn-ptr
+   FIELD of a foreign table struct (`provides Trait over Struct { method ->
+   field }`, the field model, extern brief §12). M2 calls `get_memory_map` /
+   `exit_boot_services` through `BootServicesTable` this way; the 2026-07-11
+   regression note says the boot-verified milestone went width-0 at the
+   vtable encoder.
+2. **`targets/efi_ref_param_call_arg`** — `&mut` out-params through that
+   boundary call, MS-x64 (addresses passed for `get_memory_map`'s five
+   out-params). M2-ladder item #1.
+
+Then smoke the third mechanism behind them: the runtime-offset borrow-recast
+`&self.map_buf[offset] as &EfiMemoryDescriptor` strided by runtime
+`descriptor_size` (M2-ladder #3; the indexing + bounds-proof substrate landed
+in the 2026-07-09..13 arcs, unverified against the recast spelling).
+
+Done-check = the M2 ladder's: boot under QEMU/OVMF, greeting prints,
+ExitBootServices succeeds against the fresh MapKey, no crash after exit (the
+machine idles, owned). Substrate already in place: `uefi_x64` registered +
+`uefi_hello` cross-compiles (3915d1cec/631fa6e28), `const` v0, both-runtime
+indexing, declared-range bounds discharge. This is the highest-leverage pick
+on the board: it turns the booting toy into an OS that owns its RAM, and it
+is the first end-to-end exercise of the boot/FFI stack (dispatch + out-params
++ recast under one roof).
+
 ## Probe rotation (current state)
 
 Swept clean and pinned where novel (2026-07-12..13): operand positions
