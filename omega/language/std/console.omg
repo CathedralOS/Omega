@@ -8,7 +8,7 @@
 // (owner ruling 2026-07-16, OWNER_QUESTIONS #12: sentinel -1 vetoed).
 data ByteRead {
     case Eof;
-    case Byte(value: i32);
+    case Byte(value: i32 [0..=255]);
 }
 
 platform Console {

@@ -1,9 +1,9 @@
-// stdin_rot1: an EOF-driven filter — reads stdin to end-of-input (the -1
-// sentinel, so the meaning route runs in ℤ difference-pair mode), writes each
-// byte + 1 through, exits with the byte count. The first sample to combine
-// ALL THREE hard summit dimensions at once: input (grid-substituted), output
-// (dual-channel, render-pinned per vector), and ℤ-pair values reaching the
-// STRUCTURAL result (per-leaf difference-pair pins verified by the kernel).
+// stdin_rot1: an EOF-driven filter — reads stdin to end-of-input
+// (`ByteRead::Eof`, ordinal 0: the ZII zero case of the std console byte
+// read), writes each byte + 1 through, exits with the byte count. The first
+// sample to combine ALL THREE hard summit dimensions at once: input
+// (grid-substituted), output (dual-channel, render-pinned per vector), and
+// end-of-input values reaching the STRUCTURAL result.
 //
 // Expected exit: 0.
 // INPUT-GRID:
@@ -17,22 +17,25 @@ use omega::language::std::console;
 data Main {
     console: Console;
     n: i32 in Wrapping;
+    out: i32 in Wrapping;
 }
 
 machine Main::main(&mut self) {
     transition { _ -> rd() }
 
     state rd(&mut self) {
-        let b: i32 in Wrapping = read_byte();
-        transition b < 0 {
-            true -> fin()
-            _ -> wr(b)
+        let r: ByteRead = self.console.read_byte();
+        transition r {
+            ByteRead::Byte { value } -> wr(value)
+            _ -> fin()
         }
     }
 
-    state wr(&mut self, b: i32 in Wrapping) {
+    state wr(&mut self, value: i32 [0..=255]) {
         self.n = self.n + 1;
-        write_byte(b + 1);
+        let b: i32 in Wrapping = value as i32 in Wrapping;
+        self.out = b + 1;
+        self.console.write_byte(self.out);
         transition { _ -> rd() }
     }
 

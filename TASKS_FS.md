@@ -101,14 +101,23 @@ results in Omega. Interpreter = full-parity reference oracle for everything.
    (OMEGA_DEBUG_HOSTCALL gates the collection trace). Pinned by
    pass/host/runtime_console_byte_echo_exit (empty stdin = Eof arm =
    the pre-zeroed slot, exit 70, differential-registered; piped "AB" =
-   echo + exit 201 in the suite test). REMAINING: (b) rewrite the
-   stdin trio samples `read_byte()` -> `self.console.read_byte()` +
-   ByteRead transitions (zeroes samples_compile baseline-3; aarch64
-   native now serves). (x) x86_64 byte-op encoders (loud refusal
-   today; windows rows registered incl. GetStdHandle pairs). (c) The
-   effect-rows unification for platform entries (what BuildLog
-   hand-spelling actually needs) -- separate rung, may need owner
-   input on platform-vs-boundary-trait convergence.
+   echo + exit 201 in the suite test). SAMPLES ZEROED: the stdin trio
+   rewrote onto ByteRead + `self.console` byte ops -- samples_compile
+   is FULLY GREEN (139/139, both fns; the baseline-3 era is over) and
+   the INPUT-GRID rows verify natively with piped stdin ("AB"->"BC"/2,
+   "Mix."->"MIX"/3). std's `Byte(value: i32 [0..=255])` now declares
+   the honest payload range (construction-enforced). FOUND EN ROUTE
+   (not blocking, field route works): a local initialized from a
+   BINARY over another local-from-param (`let rotated = b + 1` in a
+   non-entry state) hits "state values: CallArgument binary needs
+   runtime value lowering" -- the samples route computed bytes through
+   a field instead; give the local shape a lowering (or a better
+   diagnostic) when it next surfaces. REMAINING: (x) x86_64 byte-op
+   encoders (loud refusal today; windows rows registered incl.
+   GetStdHandle pairs). (c) The effect-rows unification for platform
+   entries (what BuildLog hand-spelling actually needs) -- separate
+   rung, may need owner input on platform-vs-boundary-trait
+   convergence.
 
 1. **Windows-session bundle** (needs a Windows host): verify the stat-row
    migration natively; WINDOWS_IMPORT_ROWS migration into provides files;
@@ -117,10 +126,9 @@ results in Omega. Interpreter = full-parity reference oracle for everything.
 
 2. **linux** — binding tables are structural-only until a target host exists.
 
-3. **Authored-bindings interp story** — OWNER_QUESTIONS.md #10 (native-only
-   imports today; differential skips). Also pending: Q11 (std console
-   boundary for build.omg), Q12 (byte-level stdin spelling — the samples
-   baseline's stdin trio waits on it).
+3. **Owner-question residuals**: Q10/Q11/Q12 all ANSWERED 2026-07-16
+   (recorded inline in OWNER_QUESTIONS.md); the remaining engineering
+   from them lives in item 0's REMAINING list.
 
 4. **Recorded residuals:** (a) ~~deeper-callee-state name collisions~~
    — probed NOT-REPRODUCIBLE 2026-07-11x (two live same-named locals,
