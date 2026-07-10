@@ -158,6 +158,15 @@ pub(super) fn select_state_body_instructions(
                 selected_instructions,
             )
         {
+            // The synthesized wire call mutates its &mut arguments (written,
+            // and the buffer bytes) OUTSIDE the assignment machinery that
+            // feeds static_values: drop every recorded constant so later
+            // reads come from live storage. Skipping this folded
+            // `let m = d.x == 3` after a DECODE to the pre-decode constant
+            // (the wire-wide decode-then-let-compare divergence) -- plain
+            // machine calls invalidate through their own selection, and
+            // these two branches were the only call shapes that did not.
+            static_values.clear();
             continue;
         }
 
@@ -170,6 +179,10 @@ pub(super) fn select_state_body_instructions(
                 selected_instructions,
             )
         {
+            // See the wire-encode arm above: decode writes the value's
+            // fields, the read cursor, and the verdict through &mut
+            // arguments the static-value walk cannot see.
+            static_values.clear();
             continue;
         }
 

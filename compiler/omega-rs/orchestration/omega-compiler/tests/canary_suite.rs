@@ -7427,6 +7427,32 @@ fn runtime_wire_schema_as_value_type_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_wire_decode_let_compare_exit_canary_runs() {
+    // A let-bound comparison of a decoded field reads the DECODED value
+    // (the wire selection clears the static-value table).
+    let canary = pass_canary("wire/runtime_wire_decode_let_compare_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-declc-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("decode-let-compare canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("decode-let-compare canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "decode-let-compare canary should read decoded values (exit 70), got {:?}",
+        output.status.code(),
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_wire_encode_repeated_then_string_exit_canary_runs() {
     // Wire repeated + String-last in one message: two runtime-sized appends
     // in sequence -- the String's cursor must start where the packed payload
@@ -28444,6 +28470,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "wire/runtime_wire_utf8_edge_verdicts_exit",
     "wire/runtime_wire_utf8_invalid_refused_exit",
     "wire/runtime_wire_schema_as_value_type_exit",
+    "wire/runtime_wire_decode_let_compare_exit",
     "control_flow/runtime_case_member_dispatch_exit",
     "control_flow/runtime_local_boolean_or_value_exit",
     "control_flow/runtime_straight_line_terminal_local_exit",
@@ -29442,10 +29469,6 @@ const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
     },
     PendingCanary {
         path: "calls/trailing_state_mut_param_phase_divergence",
-        expectation: PendingCanaryExpectation::CurrentlyAccepts,
-    },
-    PendingCanary {
-        path: "wire/schema_self_decode_field_places_divergence",
         expectation: PendingCanaryExpectation::CurrentlyAccepts,
     },
     PendingCanary {

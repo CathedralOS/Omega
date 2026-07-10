@@ -191,16 +191,13 @@ with a real app-window story.
   wire lowering now dual-registers a regular DataDefinition from the
   schema's current-era fields, so numbered datas are plain program types
   and the Message/Sample twin pattern is optional; pinned:
-  runtime_wire_schema_as_value_type_exit) EXCEPT a WIRE-WIDE
-  decode-then-let-compare fold (analysis v3 in the pin, each revision
-  probe-narrowed): `let m = d.x == 3` after ANY decode folds d.x to its
-  pre-decode constant -- twins reproduce too (not self-type-specific);
-  direct guards and plain &mut calls are fine. The state-values plan holds
-  the static `d.x = '0'` AND the decode's `aliases mut d`, but the let's
-  value computation ignores the synthesized call's mutation. Fix site:
-  the plan production's call-opacity classification (selection never walks
-  statements). Pinned:
-  pending/wire/schema_self_decode_field_places_divergence (73, Exit(70)). (3) runtime layout of wire values. (4) encoding families
+  runtime_wire_schema_as_value_type_exit) The wire-wide
+  decode-then-let-compare fold is FIXED (2026-07-09): the wire encode/
+  decode selection branches now clear RuntimeStaticValues like every other
+  call shape (both walk sites); the pin promoted to
+  pass/wire/runtime_wire_decode_let_compare_exit and the schema-as-value
+  canary regained its decode-into-self roundtrip leg. Item (2) closes
+  outright. (3) runtime layout of wire values. (4) encoding families
   beyond compact_binary v0 + version negotiation.
 - **Versioned data stage 3:** the era tag itself (+ decision 10's wire-era
   ride), era-tagged containers, migration chains / `replaces` / quiescence.
