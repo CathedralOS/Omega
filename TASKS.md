@@ -91,7 +91,28 @@ header above for the verified spelling). Rungs, in payoff order:
 - **R1 (symbolic atoms):** range endpoints + guard mints go value-vs-value
   (`requires a.cols == b.rows`; `i: u64 [0..items.len]` as requires sugar).
   DBM is already relational; this is surface + atom plumbing. Unblocks
-  matrix agreement + all relational bounds.
+  matrix agreement + all relational bounds. SCOPED 2026-07-09 (main lane,
+  post-R0 probe): symbolic endpoints refuse at the PARSER today ("expected
+  integer literal", range-constraint endpoint parse); value-level
+  `requires` has NO surface (the keyword serves capabilities/traits only).
+  Rung R1a = symbolic UPPER endpoint on STATE PARAMS end-to-end. Evidence
+  from the probe pass: the INCLUSIVE form `[0..=self.count]` ALREADY
+  PARSES (range endpoints are full expressions; only the exclusive form's
+  parse-time `max-1` normalization demands a literal,
+  type_reference.rs:381 -- make it synthesize `Binary(max, Sub, 1)`), and
+  the loud fence ALREADY EXISTS (omega-validation type_references.rs
+  ~:552 rejects non-constant integer bounds). So R1a is pure DISCHARGE
+  work, gated on that fence admitting the scoped class (state params
+  only; HIGH bound symbolic, low stays literal). Enforcement-site
+  inventory (each must handle-or-keep-fencing): (1) caller-side
+  transition-arg range check (state_arguments -- prove `arg <= count`
+  via dominating guards / via_ordering DBM); (2) callee-side entry fact
+  (the param's range MINTS `i <= self.count` for the ordering facts);
+  (3) the index prover chains `i <= count` with count's own declared
+  range (expression_enforced_declared_range grows a relational leg);
+  (4) store-time re-checks + ZII gate unaffected (params are not stored;
+  low bound stays literal). Machine-signature `requires` and the
+  bracket-as-sugar desugar stage after R1a proves the atom plumbing.
 - **R3 (relational bounded-product):** ONE closed rule (`0<=a<=A, 0<=b =>
   a*b<=A*b`) over the polynomial engine -- needed only where operand ranges
   are NOT independently tight (x < w with wide w; i*stride via i < count).
