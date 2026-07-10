@@ -22,12 +22,15 @@ ExitBootServices → first Region mint`, `../Cathedral/source/boot/uefi/
 own_machine.omg`) is blocked on exactly the two currently-red tests in the
 known-failure baseline — no lane is driving them:
 
-1. **`targets/efi_vtable_call`** — boundary-trait dispatch through a fn-ptr
-   FIELD of a foreign table struct (`provides Trait over Struct { method ->
-   field }`, the field model, extern brief §12). M2 calls `get_memory_map` /
-   `exit_boot_services` through `BootServicesTable` this way; the 2026-07-11
-   regression note says the boot-verified milestone went width-0 at the
-   vtable encoder.
+1. **`targets/efi_vtable_call`** — REGRESSION: the boot-verified M1 dispatch
+   (`provides TextOutput { output_string -> VtableSlot(1) }`) went width-0 at
+   the vtable encoder (2026-07-11 note). Fix = restore existing machinery.
+   ⚠️ Green here does NOT compile Cathedral: its source is authored in the
+   FIELD MODEL (`provides Trait over Struct { method -> field }`, extern
+   brief §12, decided 2026-07-04 — offsets from the declared struct, header
+   handled free), which has ZERO compiler implementation today (no
+   VtableField anywhere). That's the real dispatch work; the slot fix just
+   un-reds the baseline and de-risks the encoder underneath it.
 2. **`targets/efi_ref_param_call_arg`** — `&mut` out-params through that
    boundary call, MS-x64 (addresses passed for `get_memory_map`'s five
    out-params). M2-ladder item #1.
