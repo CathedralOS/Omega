@@ -83,9 +83,16 @@ should target NEW feature surfaces as they land, not re-walk these axes.
   write, so a texteq local read by the arm's own GUARD or forwarded as a
   transition ARG delivers ZII 0 natively (interp 70 / native 71 both
   shapes). Pinned: pending/calls/texteq_local_guard_read_divergence +
-  texteq_local_arg_forward_divergence. Fix direction: attach the collection
-  to ALL sub-state expansions (or route non-terminal bodies through the
-  leaf initializer writer), not just terminal ones.
+  texteq_local_arg_forward_divergence. ROOT-CAUSED 2026-07-17 (analysis
+  in the guard-read pin's header): the dispatch GUARD evaluates before any
+  expansion's write region, so per-expansion initializer collection can
+  never feed its own guard (or an edge-taking argument) -- the fix is a
+  per-branch-state PRE-GUARD region emitting call-free LocalData
+  initializers, with 82a9a92d3's two load-bearing exclusions. Dispatch-
+  layout surgery in the M2-active machinery; left for the owning lane with
+  the analysis pre-paid. The pinned trailing-state &mut-param stale read
+  (trailing_state_mut_param_phase_divergence) likely shares this region's
+  absence.
 
 - **Const-folder width-blindness: latent, currently unreachable via the
   live spelling.** The 2026-07-04 miscompile class (`(0u32 - 2) >> 1` folding

@@ -1,9 +1,9 @@
-// PENDING (found 2026-07-15; sibling of texteq_local_guard_read_divergence
-// -- same root): a texteq ARM-LOCAL forwarded as a transition ARGUMENT to a
-// deeper sub-state delivers ZII natively (native 71 / interp 70). The
-// terminal-expansion-attached initializer collection never fires for
-// non-terminal sub-state bodies. FS-LANE machinery; pinned for their
-// follow-through.
+// PENDING (root-caused 2026-07-17 -- same chicken-and-egg as the
+// guard-read sibling, see texteq_local_guard_read_divergence for the full
+// analysis): a texteq ARM-LOCAL forwarded as a transition ARGUMENT
+// evaluates at edge-taking time, BEFORE any expansion's write region --
+// per-expansion initializer collection cannot feed it. Fix shape: the
+// per-branch-state PRE-GUARD region. Hold: (71, Exit(70)).
 boundary trait Console { machine exit_process(return_code: i32); }
 data Store { name: String; }
 machine Store::check(&mut self, idx: i32) -> bool {
