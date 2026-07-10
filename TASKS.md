@@ -122,7 +122,7 @@ should target NEW feature surfaces as they land, not re-walk these axes.
   latent markers -- if a route change makes one reachable, the canary legs go
   loud. Wire on first real reproduction.
 
-## Programmable-layouts remainder (ch19/20/21; chapters are the spec)
+## Programmable-layouts remainder (ch21/21/22; chapters are the spec)
 
 - **L4 full:** derived projections into a plan-laid BYTE VIEW + the no-op
   boundary theorem — needs the L5 carrier/domain rung.
@@ -167,7 +167,7 @@ should target NEW feature surfaces as they land, not re-walk these axes.
   + a polynomial matching interp precision — a numerical mini-project.
 - **Nonlinear index `pixels[y*W+x]` -- ANSWERED: enabled by dependent types
   eventually.** NOW IN THE LANGUAGE DOCS (2026-07-15, owner-requested, NOT
-  settled): chapter_23_dependent_types.md (UX surface, static + dynamic
+  settled): chapter_12_dependent_types.md (UX surface, static + dynamic
   lowerings) + design_briefs/dependent_types.md (deep dive; systems fragment;
   lifetimes interplay; Lean path; implementation lab agenda §8 -- rung R3 =
   the ONE bounded-product entailment rule that discharges `y*W+x` and
@@ -233,7 +233,7 @@ with a real app-window story.
   Cross-state phase allocation for the threaded &mut -- the fs lane's
   claimed receiver-phase family; theirs to absorb with the aliasing arc.
   (This closes the old "signed/unsigned residue shape (2)" mystery line.)
-- **Concurrency model:** chapter 17 is a sketch; per-target declarations.
+- **Concurrency model:** chapter 18 is a sketch; per-target declarations.
 - **Atomics remainder** beyond the landed stage-1 ops + memory model.
 - **Separate compilation / component artifact model.**
 - **Freestanding target + hardware vocabulary.**
@@ -261,7 +261,7 @@ with a real app-window story.
   cross-field-related `self` reconstruction at implementation time.
   (Settled 2026-07-17: zero-excluding default domains GATE the type;
   store-time enforcement superseded by consumption-point invariant
-  windows — ch11 rewritten, ch7/8/9/23 + appendix restated, record in
+  windows — ch11 rewritten, ch7/8/9/12 + appendix restated, record in
   design_briefs/dependent_types.md §6.)
 
 ## Structural follow-ups (surface landed; semantics pending)

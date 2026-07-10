@@ -8,7 +8,7 @@
 > sites. · **Amends:** [`extern_boundary_and_format_domains.md`](extern_boundary_and_format_domains.md)
 > §5/§6/§9/§10 (catalog → policies; wire data retired) and
 > [`freestanding_boot_and_hardware_facts.md`](freestanding_boot_and_hardware_facts.md)
-> sample 2. · **Depends on:** the ch13 build-time-evaluation sketch (const evaluation +
+> sample 2. · **Depends on:** the ch14 build-time-evaluation sketch (const evaluation +
 > member reflection), [`build_time_evaluation.md`](build_time_evaluation.md), the totality budget story,
 > and [`index_count_and_address_model.md`](index_count_and_address_model.md)
 > (`count`/`addr`; no `u64`).
@@ -81,10 +81,10 @@ CLayout satisfies Layout {
   target-resolved — pointer width, natural alignments — so no ABI threading).
 - **Build-time safety is the effect system**: `plan()` declares no effects, so
   it *has* none — no IO at build time, structurally. Evaluated by the reference
-  interpreter (the ch13 build-time-evaluation story). The only misbehaviors possible are a
+  interpreter (the ch14 build-time-evaluation story). The only misbehaviors possible are a
   garbage plan (caught by validation, §3) and non-termination (totality budget).
 - **Reflection ask**: `Schema` as first-class build-time reflection data (fields with
-  name/size/align/type-kind/number). A modest generalization of the ch13
+  name/size/align/type-kind/number). A modest generalization of the ch14
   `Self::fields` sketch — the reflection surface was already footnoted open.
 - `Packed` is the same machine minus one `round_up`. The C ABI's pathological
   corners (bitfields-in-C's-sense, unions) are simply not implemented — the
@@ -375,7 +375,7 @@ data Scratch { pos: Vec2; zoom: f32; }     // unnumbered: no identity, and NEVER
   when zero-means-empty is right for the field* (`[zero_init]` policy);
   otherwise it's a version-block migration wearing add-clothing.
 - Renames free (identity is the number). Re-meaning a field = kill+add or a
-  ch21 version block + migration machine; the tag layer never pretends
+  ch22 version block + migration machine; the tag layer never pretends
   re-meaning bytes is safe. Version blocks and tag identity divide the labor:
   tags = compatible evolution both directions (including *forward* skew, which
   version chains cannot do — old code can't hold a decode for a shape that
@@ -441,14 +441,14 @@ contract instead.
 ## 10. What this asks of the language (delta over existing sketches)
 
 1. **Build-time evaluation of effect-free machines** in constant position +
-   totality budget — already the ch13/build-time-evaluation-brief direction; this is its
+   totality budget — already the ch14/build-time-evaluation-brief direction; this is its
    first heavyweight client.
 2. **`Schema` as first-class build-time reflection data** (name/size/align/kind/
    number per field) — generalizes the sketched `Self::fields`.
 3. **Plan validation pass** + the **deriver** (codec, projections, mint-index,
    value types) — compiler-owned; the conformance theorem lives here.
 4. **Optional field numbers + `retired N;`** on `data`; delete the `wire data`
-   form (ch20 rewrite; extern brief §9 already demoted it to "schema identity",
+   form (ch21 rewrite; extern brief §9 already demoted it to "schema identity",
    §10.5 asked whether the name survives — answer: no).
 5. **Publish-time predecessor plan diff** (identity preservation) — package/
    artifact-level, not a compile check.

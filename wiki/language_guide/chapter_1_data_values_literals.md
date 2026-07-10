@@ -195,7 +195,7 @@ Working rules:
   first case. Zero validity is unconditional; declaring the empty/none-like
   case first (and payload-free) is the rule of the opt-in `zero_init`
   property, recommended style otherwise (see
-  [Memory Layout And ABI](chapter_19_memory_layout_abi.md)).
+  [Memory Layout And ABI](chapter_20_memory_layout_abi.md)).
 - The subject's shape decides what an arm can be: a scalar subject takes
   value patterns, a record subject takes domain arms, a case-bearing subject
   takes case arms and domain arms together.
@@ -218,7 +218,7 @@ Working rules:
 ### Equality Vs Membership
 
 `==` is always VALUE equality (resolved through core `Equatable`,
-[Traits](chapter_13_traits.md)); `in` is always DOMAIN membership (the tag
+[Traits](chapter_14_traits.md)); `in` is always DOMAIN membership (the tag
 test, for case domains). A bare payload-bearing case name denotes no value --
 only its domain -- so comparing against it is a category error:
 
@@ -312,7 +312,7 @@ pub const EFI_SUCCESS: EfiStatus = EfiStatus { code: 0 };
   obligation, no shared ownership, and no interior mutability**. It is copied
   freely at each use, so it is trivially borrowable and thread-safe. A type with
   a drop/cleanup obligation cannot be a `const`; the restriction is checked from
-  the cleanup facts ([Drops And Cleanup](chapter_16_drops_and_cleanup.md)), and
+  the cleanup facts ([Drops And Cleanup](chapter_17_drops_and_cleanup.md)), and
   it is what makes a `const` safe to reference from anywhere without analysis.
 - **Not authority.** A constant grants nothing, so free-floating constants are
   consistent with the capability model — unlike ambient *mutable* state, which

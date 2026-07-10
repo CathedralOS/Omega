@@ -69,7 +69,7 @@ budget arithmetic sound.**
 The thesis: an allocator **is** a capability; a bounded arena **is** a range
 refinement; "no OOM" **is** a theorem discharged on the *same interval engine*
 Omega already runs for arithmetic domains. No net-new verification subsystem —
-it reuses capabilities/effects (ch18, shipped), the interval/refinement prover,
+it reuses capabilities/effects (ch19, shipped), the interval/refinement prover,
 lifetimes (decision 15), and the `{ptr,len}` descriptor ABI.
 
 - **A — Stay heap-free (the floor).** `FixedVec<T,N>`/`[T;N]` ship today; OOM

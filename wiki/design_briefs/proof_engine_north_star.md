@@ -142,7 +142,7 @@ through code without re-proving it:
 - **arithmetic-range** (S4 narrowing → return `Wrapping` ops to Exact),
 - **text validity** (`[u8] in Utf8` → retire the `String` vestige),
 - **recoverable errors** (a "fallible" fact on a sum → strict-use + inferred
-  failure surface, ch15).
+  failure surface, ch16).
 
 All three want **domains/facts that attach to and propagate over carriers**
 (scalars, `Slice<u8>`, sums) — the design exists in ch8 ("one generic level up"
@@ -151,7 +151,7 @@ that fact-propagation substrate is the highest-leverage near-term investment: it
 pays down all three at once and is the same machinery the automation front line
 runs on.
 
-**Architecture frozen (decision 18 / ch15, 2026-06-19).** The substrate is now a
+**Architecture frozen (decision 18 / ch16, 2026-06-19).** The substrate is now a
 named target: ONE **unified flow-sensitive fact catalog** threaded through the
 CFG — the borrow checker, the decision-17 interval engine, and sum case-narrowing
 converge into a single carrier-generic analysis (scalar→interval, sum→which-case,
@@ -160,7 +160,7 @@ partitions via intersection. Cross-call propagation is **modular and
 contract-mediated** (prove `requires`, assume `ensures`), with contracts inferred
 within a compilation unit and written only at boundaries — chosen over
 whole-program context-sensitivity precisely so separate compilation survives,
-which is also the SPARK-rung architecture. ch15's recoverable-error model is the
+which is also the SPARK-rung architecture. ch16's recoverable-error model is the
 first concrete customer: a success case's `ensures` fact is inherited by the
 handling arm. v1 fact-kinds: intervals (done) + which-case + slice-length.
 

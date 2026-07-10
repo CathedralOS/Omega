@@ -1,4 +1,4 @@
-# Chapter 15: Errors, Traps, And Failure
+# Chapter 16: Errors, Traps, And Failure
 
 Failure semantics must be explicit. Omega has no hidden exceptions, no second
 control-flow system, and no ambient panic. Recoverable failure is **data**;
@@ -153,7 +153,7 @@ The contagion is the deterrent: aborting is annoying to opt into by design,
 reserved for services whose owner restarts them. It is not for ordinary error
 handling.
 
-The contagion and visibility are **not new machinery** — they are the chapter 18
+The contagion and visibility are **not new machinery** — they are the chapter 19
 effect system. Aborting carries the `process_exit` effect, which is inferred
 bodies-up through the call graph (no per-call-site pollution), forced to be
 declared at boundaries (boundary traits, exported APIs, `main`), and recorded in
@@ -174,7 +174,7 @@ Cleanup happens along known graph edges. A failure edge is an **ordinary
 transition edge** with an ordinary per-edge drop set: the locals not moved into
 the target and still owned are dropped crossing that edge, exactly as on a
 success edge. There is no separate failure-cleanup mechanism and no invisible
-unwinder. (The drop model itself is chapter 16; ch15 commits only to "the failure
+unwinder. (The drop model itself is chapter 17; ch16 commits only to "the failure
 edge is not special.")
 
 If unwinding is ever added, it must be modelled as explicit graph edges with
@@ -204,7 +204,7 @@ boundaries must document whether resources remain valid after a failure case.
 
 ## Cancellation
 
-Cancellation (chapter 17 / decision 16) rides this same channel: it is a
+Cancellation (chapter 18 / decision 16) rides this same channel: it is a
 zero-case value delivered in a task's mailbox sum and handled by an ordinary
 transition. There is no unwinding and no special cancellation control flow — a
 cancelled task observes a case and transitions to its own cleanup-and-exit

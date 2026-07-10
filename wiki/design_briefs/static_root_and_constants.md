@@ -6,7 +6,7 @@
 > for — exposing three tangled holes: where const lives, where static lives, and
 > why `main`'s `&self` looked like a generated-static-ref hack. · **Depends on:**
 > [`build_time_evaluation.md`](build_time_evaluation.md) (const-position eval),
-> `chapter_16_drops_and_cleanup.md` (the cleanup facts the const restriction
+> `chapter_17_drops_and_cleanup.md` (the cleanup facts the const restriction
 > reads), `chapter_14` (the `::` path rule). · **Companion:** the freestanding
 > entry (`freestanding_boot_and_hardware_facts.md`; `main` is the entry).
 
@@ -51,7 +51,7 @@ pub const EFI_SUCCESS: EfiStatus = EfiStatus { code: 0 };
   obligation, no shared ownership, no interior mutability**. It is copied freely
   at each use, so it is trivially borrowable and trivially thread-safe (no shared
   identity to race on). The restriction is *checked from the cleanup facts*
-  (ch16); a type with a drop obligation (an `Arc`-like handle, a lock, a
+  (ch17); a type with a drop obligation (an `Arc`-like handle, a lock, a
   `Cell`-like cell) cannot be a `const`. This is precisely the rule that avoids
   Rust's interior-mutability-in-const footgun (each use inlines a fresh copy —
   surprising for a cell, harmless for a pure value) — Omega forbids the

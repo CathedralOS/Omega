@@ -1,4 +1,4 @@
-# Chapter 19: Memory Layout And ABI
+# Chapter 20: Memory Layout And ABI
 
 Memory layout is part of the contract between Omega, native code, wire formats,
 drivers, inline assembly, and generated machine bytes.
@@ -44,7 +44,7 @@ from pretending the bit pattern cannot exist. A type whose DEFAULT domain
 excludes zero is therefore GATED (settled 2026-07-17): valid as storage, but
 not zero-constructible as a value — access waits on the domain being
 established (see [Chapter 7](chapter_7_types_constraints_invariants.md) and
-[Chapter 23](chapter_23_dependent_types.md)).
+[Chapter 12](chapter_12_dependent_types.md)).
 
 Field defaults (`gold: u32 = 5`) describe CONSTRUCTED values; a zeroed object
 does not apply them. The two initialization shapes are distinct on purpose:
@@ -211,7 +211,7 @@ declared width, in program order relative to other volatile accesses on the
 same region. The boundary provider names the region and carries the
 `device_io` / `memory_map` effects, so hardware access is auditable the same
 way host calls are (see
-[Capabilities, Effects, And Boundaries](chapter_18_capabilities_effects_boundaries.md)).[^volatile-open]
+[Capabilities, Effects, And Boundaries](chapter_19_capabilities_effects_boundaries.md)).[^volatile-open]
 
 Hardware-shaped structures (page-table entries, descriptor tables, device
 register blocks) additionally need exact layout: explicit field offsets,
@@ -244,7 +244,7 @@ field encodings that define byte order independently.
 Serialized layout is not native layout.
 
 Native layout optimizes in-memory access; a serialized layout (a *layout
-policy* chosen at the carrier — [Wire Protocols](chapter_20_wire_protocols.md),
+policy* chosen at the carrier — [Wire Protocols](chapter_21_wire_protocols.md),
 `design_briefs/programmable_layouts.md`) optimizes compatibility and decoding.
 A value has exactly one in-memory form; a schema may serialize through many
 policies. The two coincide only by explicit contract: a fully static policy in

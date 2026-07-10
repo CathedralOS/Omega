@@ -1,4 +1,4 @@
-# Chapter 21: Versioned Data And Machine Replacement
+# Chapter 22: Versioned Data And Machine Replacement
 
 Omega should treat runtime data evolution as a first-class systems problem.
 
@@ -18,11 +18,11 @@ provisional; the obligations are the point.
 
 Two concerns stay separate:
 
-- **Wire protocols ([chapter 20](chapter_20_wire_protocols.md))** own persisted
+- **Wire protocols ([chapter 21](chapter_21_wire_protocols.md))** own persisted
   and external data — save files, protocols, on-disk snapshots, anything that
   may be found many versions old. Schemas with identity numbers are
   self-versioning (stable field numbers, era discriminators, reader
-  tolerance). A five-versions-stale persisted value is chapter 20's problem,
+  tolerance). A five-versions-stale persisted value is chapter 21's problem,
   not this chapter's.
 - **Versioned data (this chapter)** owns *live in-memory state* across a hot
   swap. A live component is always at the last-installed version, so a runtime
@@ -69,7 +69,7 @@ captured *first*, as a typed value, by an effectful **capture** machine. The
 upgrade itself stays pure over `(Old, Context)`.
 
 ```omega
-// IrqCtx is NOT pub, so by ch14 visibility it is private to this replacement
+// IrqCtx is NOT pub, so by ch15 visibility it is private to this replacement
 // module -- nothing outside can construct one. The module declares exactly one
 // minter, capture_irq, so holding an IrqCtx is proof it came from capture.
 // Provenance by a private constructor (like Rust's private fields), NOT a
@@ -88,7 +88,7 @@ machine upgrade_net(old: NetState.prev, ctx: IrqCtx, out: &mut NetState)
 ```
 
 Because `upgrade_net` requires an `IrqCtx`, and `IrqCtx` is private to this
-module (ch14) with `capture_irq` as its only minter, **capture is not skippable**
+module (ch15) with `capture_irq` as its only minter, **capture is not skippable**
 — no outside caller can fabricate a context to pass. IO never happens invisibly
 inside the upgrade; it is a declared-effect capture phase whose output is data.
 
@@ -410,7 +410,7 @@ should be visible in build artifacts.
 - Hot-swap safety depends on borrow checking, invariant checking, effect
   checking, and state/control-flow facts.
 - Wire protocol compatibility is related, but belongs to
-  [chapter 20](chapter_20_wire_protocols.md) (identity numbers + layout
+  [chapter 21](chapter_21_wire_protocols.md) (identity numbers + layout
   policies).
 
 ## Open Design Questions

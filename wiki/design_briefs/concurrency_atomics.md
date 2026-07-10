@@ -10,7 +10,7 @@ C2-C5 awaiting sign-off (TASKS.md register).
 > corrections to the prose above, and catalogs the open questions + build order.
 > Where the review and the older text conflict, **the review wins.**
 
-## C1 As Decided (AMENDED 2026-06-13 in chapter 17 — chapter is authority)
+## C1 As Decided (AMENDED 2026-06-13 in chapter 18 — chapter is authority)
 
 AMENDMENT: an `await` call-site marker WAS reintroduced, and a new hard rule
 SUSPEND-IN-CALL IS FORBIDDEN was added. A wait is still an ordinary call (no
@@ -63,10 +63,10 @@ NO suspension keyword, NO await. The model:
 - Atomic-state guarantee is derived and documented: "your task cannot park
   mid-body unless the body calls a suspending machine" — NOT mutual
   exclusion; the language stays scheduler-agnostic.
-- Cancellation is a value at the wait (pending ch15 alignment): cancelled
+- Cancellation is a value at the wait (pending ch16 alignment): cancelled
   scope -> child's wait returns the zero `Cancelled` case; machine takes
   its own cleanup path; drops run normally; nothing is interrupted
-  mid-state. Rides the ch15 recoverable-condition channel.
+  mid-state. Rides the ch16 recoverable-condition channel.
 - Waitable surface: futex-shaped and SINGULAR (wait on word / wake N);
   everything else is library; ISRs/IO post to words. No second wait
   mechanism, ever.
@@ -77,7 +77,7 @@ NO suspension keyword, NO await. The model:
 
 ## Current State
 
-Sketch-only (chapter 17): `spawn`/`Join<T>` syntax parses; execution model
+Sketch-only (chapter 18): `spawn`/`Join<T>` syntax parses; execution model
 undefined; every target declares `threads = disabled`; zero canaries.
 Ownership rules shared mutation out by construction. The single fused
 dispatch loop assumes one sequential execution path. Atomics are absent
@@ -259,7 +259,7 @@ is the strong promise and is free.
   both forbids out-of-thin-air reads and preserves optimizations (~25-yr-open).
   Verify at **SC + Acquire/Release + NonAtomic** (covers locks, message-passing,
   refcounts). `Relaxed` may exist only as an unverified escape hatch. (The one
-  chapter-17 atomic example uses `Relaxed` — migrate it.)
+  chapter-18 atomic example uses `Relaxed` — migrate it.)
 - **Memory model = one IR model → two FORMALLY-VERIFIED ISA lowerings**
   (x86-TSO, ARMv8; Lasagne-style). **RMW atomicity (#27) is the immediate
   blocker AND on the critical path for the deadlock proof's *binary* soundness**

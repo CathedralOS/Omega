@@ -64,14 +64,14 @@ ownership discipline, not a separate mechanism:
 - Aliased mutation does not exist, so no second path reads the place
   mid-window.
 - A live borrow of a dependent place pins its witnesses
-  ([Chapter 23](chapter_23_dependent_types.md)): a loan is continuous
+  ([Chapter 12](chapter_12_dependent_types.md)): a loan is continuous
   observation, so a write to a pinned witness while the loan lives is a
   borrow error — the window cannot even open.
 
 ## Gated Types Are A Window Since Birth
 
 A gated type's un-established storage ([Chapter 7](chapter_7_types_constraints_invariants.md),
-[Chapter 23](chapter_23_dependent_types.md)) is the same state: the domain
+[Chapter 12](chapter_12_dependent_types.md)) is the same state: the domain
 is not yet proven, and nothing may observe the value as the type. The
 construction literal or `as` mint is its closing consumption point.
 Establishment is monotone **as observed**: a later write may open a window,

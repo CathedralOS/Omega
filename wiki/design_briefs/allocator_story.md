@@ -7,7 +7,7 @@ Scouted 2026-06-12. Status: AWAITING SIGN-OFF (decisions A1-A5 in TASKS.md).
 - `Vec<T>` is browsable surface (core/vec.omg) with ZERO runtime (no
   lowering/codegen). `String` is statically fixed-capacity (push_str is a
   proof obligation against capacity; no heap anywhere). `alloc`/`dealloc`
-  are effect NAMES only (chapter 18).
+  are effect NAMES only (chapter 19).
 - The boundary-provider registry (frozen decision 4) already reserves an
   `Allocation` category — the designed hook for allocator providers.
 - Decision 15 (lifetimes) makes allocator-borrowing containers spellable
@@ -32,7 +32,7 @@ Scouted 2026-06-12. Status: AWAITING SIGN-OFF (decisions A1-A5 in TASKS.md).
    provable room; `try_push -> Result` is the optional stage-2 fallback
    for dynamic cases. No silent traps; OOM at a Region boundary is a
    boundary contract question.
-5. **Drops**: elements drop immediately when the Vec dies (chapter 16
+5. **Drops**: elements drop immediately when the Vec dies (chapter 17
    obligations); the REGION frees memory in bulk on its own drop (memory
    release and object cleanup are separate concerns).
 6. **`alloc` effect** is declared at the allocator boundary machine only

@@ -1,12 +1,12 @@
-# Reconciliation: shipped `Versioned<T>` stage 3 vs ch21's Decided Model
+# Reconciliation: shipped `Versioned<T>` stage 3 vs ch22's Decided Model
 
-Written 2026-06-14. Chapter 21 grew a new top section, **"The Decided Model"**
+Written 2026-06-14. Chapter 22 grew a new top section, **"The Decided Model"**
 (single-step `Upgradable<Old, New, Context>` + an owned `replace ... with` plan),
 which explicitly supersedes the earlier exploration "where they conflict." The
 shipped `Versioned<T>` container (frozen decision 14, landed stage 3 @8867e878)
 is part of that earlier exploration. This note records how the two relate so the
 stage-4 implementer does not build the wrong thing. **No chapter or code
-behavior is changed here** — ch21 is the authority and is being actively edited;
+behavior is changed here** — ch22 is the authority and is being actively edited;
 this is analysis + a pointer.
 
 ## What shipped (stage 3)
@@ -27,8 +27,8 @@ The decided model splits the concern in two, and `Versioned<T>` lands on the
 
 | Concern | Decided owner | Shipped `Versioned<T>` fits? |
 |---|---|---|
-| Persisted/external data, many versions stale, reader tolerance | **Wire data (ch20)** | YES — this is exactly an era-tagged multi-version blob + era match |
-| Live in-memory state across a hot swap | **`Upgradable` + `replace` plan (ch21)** | NO — live state is single-step `prev -> current`, no union, no multi-era dispatch |
+| Persisted/external data, many versions stale, reader tolerance | **Wire data (ch21)** | YES — this is exactly an era-tagged multi-version blob + era match |
+| Live in-memory state across a hot swap | **`Upgradable` + `replace` plan (ch22)** | NO — live state is single-step `prev -> current`, no union, no multi-era dispatch |
 
 Concrete divergences from the decided model (so they are not mistaken for bugs):
 
@@ -54,7 +54,7 @@ Concrete divergences from the decided model (so they are not mistaken for bugs):
   wants `Upgradable<Old, New>` + the `replace` plan, and only `prev`/`current`
   (two shapes), not a union of all eras.
 - **Re-home** `Versioned<T>` mentally as the **wire-decode era matcher**
-  (chapter 20): a boundary decoder reads a versioned wire blob, tags its era, and
+  (chapter 21): a boundary decoder reads a versioned wire blob, tags its era, and
   the existing version-match arms select the shape. That is its real, useful job,
   and it is consistent with "coexistence is wire data's problem." The first
   boundary constructor (wire decode / storage read) is still the right trigger
@@ -63,10 +63,10 @@ Concrete divergences from the decided model (so they are not mistaken for bugs):
 - When the live-state path is built, it is a **separate** feature from
   `Versioned<T>`: the `Upgradable` trait + `replace`-plan checker, not an
   extension of the era container.
-- `versioning.rs`'s provenance comment ("frozen decision 14, chapter 21 Version
+- `versioning.rs`'s provenance comment ("frozen decision 14, chapter 22 Version
   Matching") should eventually point at the wire-data role instead. Deferred:
-  ch21 is being actively edited and decision 14's text in TASKS.md has not yet
-  been reconciled by the maintainer. Update the comment once ch21 settles.
+  ch22 is being actively edited and decision 14's text in TASKS.md has not yet
+  been reconciled by the maintainer. Update the comment once ch22 settles.
 
 ## Status
 

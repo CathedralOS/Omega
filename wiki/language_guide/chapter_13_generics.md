@@ -1,4 +1,4 @@
-# Chapter 12: Generics
+# Chapter 13: Generics
 
 Generics let one data or machine declaration work over many concrete types or
 compile-time values.

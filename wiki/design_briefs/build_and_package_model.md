@@ -9,7 +9,7 @@
 > [`build_time_evaluation.md`](build_time_evaluation.md) (pure build-time eval),
 > [`separate_compilation.md`](separate_compilation.md) (component boundary =
 > package; machines swap within; sealed IR + manifest artifact),
-> `chapter_14_modules_imports_visibility.md`. · **Companion:** Cathedral
+> `chapter_15_modules_imports_visibility.md`. · **Companion:** Cathedral
 > `wiki/architecture/repository_layout.md` ("Reach: imports are declared, never
 > ambient") and the `developer_experience` chapter (pinned closures +
 > content-dedup).
@@ -165,7 +165,7 @@ build-time analog of the capability model:
   of `core`). This is the import-side gate tracked as the Omega ask in
   `cathedral_alignment.md` item 4; `chapter_14` name resolution must consult the
   declared set so a fully-qualified path cannot bypass it.
-- **`pub` and the manifest are the two-sided contract:** `pub` (chapter 14
+- **`pub` and the manifest are the two-sided contract:** `pub` (chapter 15
   visibility) says what a package *offers*; `build.omg` says what it may *reach*.
 - **Different reach-set → different package.** Visibility (`pub` tree) and
   hot-swap points (machines — `separate_compilation.md`: deployment unit ≠ swap

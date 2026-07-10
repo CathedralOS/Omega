@@ -101,7 +101,7 @@ This page tracks design pressure that is not fully nailed down yet.
   -- fields only is a record, cases only is a sum, both is MIXED (sum-only
   shipped first; mixed is live -- see chapter 1 for the layout,
   zero-unless-named construction, and access rules). Case-bearing data gets the
-  full `data` machinery: versions and wire identity numbers (chapter 20) cover
+  full `data` machinery: versions and wire identity numbers (chapter 21) cover
   the case part, zero rules apply uniformly (first case is the zero case). Today's `enum`
   spelling is transitional and retired by this decision.
 - Cases ARE domains. A case implicitly declares the same-named domain (tag
@@ -164,7 +164,7 @@ This page tracks design pressure that is not fully nailed down yet.
   code lives in target packages); lint policy lives at the package/build
   declaration, never per-item in source; deprecation is versioned-data
   metadata, not a marker; field-level codegen metadata is schema identity /
-  plan data (chapter 20), not attributes; optimization hints deliberately
+  plan data (chapter 21), not attributes; optimization hints deliberately
   deferred. `[open]`
   (non-exhaustive evolution contracts) is DROPPED until separate compilation
   gives it teeth; an in-language test surface is deferred.
@@ -221,7 +221,7 @@ This page tracks design pressure that is not fully nailed down yet.
   parameters (verbose ambiguity), Mojo bracket origins (collide with
   slice/property/invariant brackets). House style: descriptive names
   (`'buf`), never `'a`.
-- Suspension (decision 16, AMENDED 2026-06-13 in chapter 17): typed state
+- Suspension (decision 16, AMENDED 2026-06-13 in chapter 18): typed state
   clusters CAN suspend across ticks; no `async` coloring, no `Future`.
   Waiting is an ordinary CALL to a boundary wait primitive (a futex-shaped
   `Scheduler` trait: wait-on-word / wake-N -- the ONLY wait mechanism,
@@ -235,9 +235,9 @@ This page tracks design pressure that is not fully nailed down yet.
   `await`; effect ceilings forbid `suspend` in ISR-like contexts; scoped
   spawns borrow with no scope keyword (drop of `Join<T>` joins);
   cancellation is a value at the wait (zero case, no unwinding, rides
-  chapter 15's recoverable channel); there is NO select -- producers post
+  chapter 16's recoverable channel); there is NO select -- producers post
   into one mailbox carrying a case-bearing sum (Erlang's model). The
-  earlier no-keyword form is superseded. See chapter 17 +
+  earlier no-keyword form is superseded. See chapter 18 +
   wiki/design_briefs/concurrency_atomics.md.
 - Ranking views (decided 2026-06-12): the use-site subtraction
   (`decreases limit - index`) is rejected as permanent surface; the
@@ -279,7 +279,7 @@ This page tracks design pressure that is not fully nailed down yet.
   pointers; deref is bounds+generation checked, fail-safe — kills allocator-UAF
   and ABA by construction; same model as Cathedral's grant arena), **paged** for
   unbounded growth (immovable pages, lock-free CAS-linked).
-- Recoverable errors, traps, and failure (frozen decision 18, see chapter 15):
+- Recoverable errors, traps, and failure (frozen decision 18, see chapter 16):
   recoverable failure is an ordinary **sum handled by an exhaustive transition** —
   no dedicated error type, no `?`, no propagation sugar. The must-use /
   forced-handling / no-success-payload-on-failure guarantees are corollaries of
@@ -298,8 +298,8 @@ This page tracks design pressure that is not fully nailed down yet.
   cleanup, no unwind, lowers to an `exit`/`abort` boundary call). Graceful
   shutdown is NOT abort — it is explicit cleanup states + `exit(code)`. Host
   failure returns a sum (out-parameter result types rejected as surface). Failure
-  cleanup is an ordinary per-edge drop set (chapter 16), not special machinery.
-- Unified fact catalog (frozen direction, decision 18 / chapter 15 + chapter 7):
+  cleanup is an ordinary per-edge drop set (chapter 17), not special machinery.
+- Unified fact catalog (frozen direction, decision 18 / chapter 16 + chapter 7):
   the borrow checker, the arithmetic-domain interval engine (decision 17 S4), and
   sum case-narrowing converge into ONE flow-sensitive fact catalog threaded
   through the CFG, carrier-generic (scalar→interval, sum→which-case,

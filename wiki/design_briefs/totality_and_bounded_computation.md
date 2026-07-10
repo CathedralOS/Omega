@@ -58,8 +58,8 @@ Total-functional languages have always been *harder to write* — discharging al
 - **How bounds are expressed** — bounded `for` ranges, fuel/budget params, decreasing measures, or all three? The minimal surface.
 - **How strict, and where** — is "every loop bounded" global, or relaxed (behind a declared effect) in some contexts? Must the bound be *justified* (input-tied), or merely *present*?
 - **Totality vs productivity split** — handlers/pure functions are *total* (terminate); reactive loops are *productive* (run forever, always progress). What is the syntactic/contract distinction, and how does it propagate down the call graph?
-- **Panic-effect surface** — exact effect name(s), how `abort`/OOM differ, how it composes with the existing effect ceiling (chapter 18).
+- **Panic-effect surface** — exact effect name(s), how `abort`/OOM differ, how it composes with the existing effect ceiling (chapter 19).
 - **Interaction with WCET** — does a bounded-runtime proof subsume the iteration bound, or layer on top?
 
 ## Cross-references
-`proof_caching.md` (makes the proof burden affordable); `verified_gated_ml_optimizer.md` (the LLM-authoring loop); Cathedral `scheduler_and_resources.md` (totality-on-handlers + WCET consume this); Omega effects (chapter 18), contracts / proof obligations (chapters 7, 9).
+`proof_caching.md` (makes the proof burden affordable); `verified_gated_ml_optimizer.md` (the LLM-authoring loop); Cathedral `scheduler_and_resources.md` (totality-on-handlers + WCET consume this); Omega effects (chapter 19), contracts / proof obligations (chapters 7, 9).

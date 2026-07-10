@@ -31,7 +31,7 @@ TASKS.md remain the open engineering sequence.
 
 ## Current State
 
-- Direction frozen (decision 8 / chapter 13): NO macros, NO #run. Const
+- Direction frozen (decision 8 / chapter 14): NO macros, NO #run. Const
   evaluation = effect-free machines in constant positions; trait
   generators = `default machine` bodies using `Self::fields` reflection,
   expanded per conformance, declarer-only, zero effects.

@@ -197,7 +197,7 @@ from all of them.
     spelling can stay); (iii) status quo (hand-spelled BuildLog persists).
     This is the last open rung of the Q11/Q12 console arc.
     [SHARPENED 2026-07-17: the language guide ALREADY prescribes (ii) --
-    chapter 18 "Console boundaries should use the same shape" spells the
+    chapter 19 "Console boundaries should use the same shape" spells the
     console as a boundary trait with effect rows (now including the byte
     ops + ByteRead). If the guide stands as the spec, the answer is (ii)
     and the remaining work is the std migration; say the word.]

@@ -1,7 +1,7 @@
 # Design Brief: Dependent Types — the Systems Fragment, Lifetimes, and the Lean Path
 
 Drafted 2026-07-15. Status: **direction, not a decided plan.** Companion to
-[Chapter 23](../language_guide/chapter_23_dependent_types.md) (the proposed
+[Chapter 12](../language_guide/chapter_12_dependent_types.md) (the proposed
 user-facing surface) and
 [proof_engine_north_star.md](proof_engine_north_star.md) (the automation/kernel
 fork this feature climbs). Sources: a six-track research sweep (theory, systems
@@ -40,14 +40,14 @@ can be declarative rather than inventive:
 
 - **A slice is a length traveling with data.** `items: &[u8]` carries
   `.len`, and indexing obliges `index < items.len` — a fact naming a runtime
-  value. The fat descriptor (ch19) is the layout half; the length fact is
-  the proof half. Every rule in chapter 23 generalizes what slices already
+  value. The fat descriptor (ch20) is the layout half; the length fact is
+  the proof half. Every rule in chapter 12 generalizes what slices already
   do.
 - **A case payload's facts hold under the case fact.** Inside a
   `P::One { v } ->` arm, `v` carries `One`'s declared payload range because
   the arm proves which case is active (landed 2026-07-08). A fact valid
   conditionally on another fact IS dependency.
-- **Const parameters already reach ranges and lengths.** Ch12's
+- **Const parameters already reach ranges and lengths.** Ch13's
   `FixedBuffer<T, const N: u64>` puts a value in a layout; ch7's clamp
   contract writes `ensures out in min..=max` over `const` parameters, and
   ch7's own prose says bounds may name "compile-time or proof-visible
@@ -259,7 +259,7 @@ without contract floating the stance is compositionally unusable.
 
 ### ZII and gating (settled 2026-07-17, superseding this brief's first draft)
 
-The first draft of chapter 23 carried a rule — "the zero value must satisfy
+The first draft of chapter 12 carried a rule — "the zero value must satisfy
 every standing coupling" — generalizing the landed range-must-include-0
 check. Owner discussion replaced it with a strictly more expressive model,
 **gating**, which resolves the ZII/invariant tension instead of legislating
@@ -269,7 +269,7 @@ one side of it:
   (undeclared = the empty domain). ZII stays a **storage** guarantee
   unconditionally: the all-zero pattern is always valid bits, memset always
   legal, never UB — it constrains the compiler, never the programmer
-  (ch19's existing words).
+  (ch20's existing words).
 - If zero satisfies the default domain, the type is zero-constructible: a
   zeroed value is born established, the facts are standing everywhere,
   nothing is tracked. Everything landed today is this tier.
@@ -339,7 +339,7 @@ phased construction stays impossible (same wall, simpler statement);
 runtime-indexed array writes window the whole array under unknown indices
 (identical conservatism to whole-array relax — no regression). Use-site
 error distance is mitigated by citing the opening write. ch11 is rewritten
-as the Invariant Windows chapter; ch7/ch8/ch9/ch23 and the appendix are
+as the Invariant Windows chapter; ch7/ch8/ch9/ch12 and the appendix are
 restated.
 
 ## 7. (C) The Lean-competitive expansion
