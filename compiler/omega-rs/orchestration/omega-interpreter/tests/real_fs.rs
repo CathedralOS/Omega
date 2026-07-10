@@ -42,7 +42,7 @@ data Main {{
     dir_mode: i32;
     mode: i32;
     read_flags: i32;
-    cap: usize;
+    cap: u64;
     rc: i64;
     fd: i32;
     n: i64;
@@ -152,7 +152,7 @@ data Main {{
     console: Console;
     mode: i32;
     rd: i32;
-    cap: usize;
+    cap: u64;
     fd: i32;
     n: i64;
     rn: i64;
@@ -297,7 +297,7 @@ data Main {{
 machine Main::main(&mut self) {{
     self.io_result = self.fs.read_dir_count("{assets}");
     transition self.io_result {{ IoResult::Ok {{ count }} -> ck(count) _ -> bad(72) }}
-    state ck(&mut self, count: usize) {{
+    state ck(&mut self, count: u64) {{
         transition count == 3 {{ true -> good() _ -> bad(71) }}
     }}
     state good(&mut self) {{ self.console.exit_process(70); }}
