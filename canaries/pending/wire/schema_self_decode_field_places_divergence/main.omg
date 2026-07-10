@@ -1,22 +1,24 @@
-// PENDING (root-cause CORRECTED 2026-07-17 by disassembly -- the first
-// place-resolution hypothesis was WRONG): decode into a value of the
-// schema's own type is fine at the PLACE level; the compare after it is
-// what breaks. `transition d.x == 3` lowers with a CONSTANT left operand
-// (`mov x17, #0` in the emitted guard) -- the member-value tracking
-// carried the PRE-DECODE initialization `d.x = 0` ACROSS the decode call,
-// which it does not recognize as mutating `d` WHEN THE CALL'S TYPE
-// QUALIFIER EQUALS THE VALUE'S OWN TYPE (`Point::decode(&mut d)` with
-// `d: Point`). Exonerating probes: the SAMPLE-TWIN spelling
-// (PointMsg::decode with d: PointSample) invalidates correctly and its
-// field guard reads 3; the self-typed decode WITHOUT pre-init writes also
-// works (nothing stale to fold). The corpus never caught this because no
-// existing canary guard-reads a decoded field -- they all re-encode.
-// FIX: whatever tracker substitutes member values into guard operands must
-// invalidate the decode value argument's members (likely classifying
-// `Point::decode` as an attached-machine-ish call of Point and missing the
-// wire-schema mutation); the stale-fold capture family in
-// omega-state-values/simplify is adjacent but binds LOCALS, not members.
-// Hold: (73, Exit(70)).
+// PENDING (analysis v3, 2026-07-17 -- each revision narrowed by probes):
+// a LET-BOUND comparison of a member AFTER a WIRE DECODE folds the member
+// to its PRE-DECODE constant. The full empirical boundary:
+//   decode + DIRECT guard on d.x            -> OK (reads the frame place)
+//   decode + `let m = d.x == 3` + guard m   -> FOLDS STALE (this pin);
+//     TWIN-typed values reproduce identically -- NOT self-type-specific
+//     (the canary name predates this; the header rules)
+//   plain &mut machine call + let-compare   -> OK (mutation recognized)
+//   decode with NO pre-init + let-compare   -> OK (nothing to fold)
+// So: the state-values plan captures `d.x = 0` as a static entry (the
+// backend report shows `d.x = '0'` planned AND `aliases mut d` recorded
+// for the decode statement), and the LET's value computation consults the
+// static entry without honoring the intervening SYNTHESIZED wire call's
+// mutation -- plain machine calls invalidate, synthesized decode calls do
+// not. The emitted compare carries `mov #0` as its left operand. FIX SITE:
+// wherever the state-values/static machinery classifies calls as opaque
+// mutators (plain calls pass; the wire-synthesized call shape misses) --
+// selection itself never walks statements, so it is upstream in the plan
+// production. This affects EVERY decode-then-let-compare, wire-wide; the
+// corpus never noticed because decode canaries re-encode instead of
+// comparing decoded fields. Hold: (73, Exit(70)).
 boundary trait Console { machine exit_process(return_code: i32); }
 data Point {
     0: x: u32;
