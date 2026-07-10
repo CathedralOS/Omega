@@ -3,7 +3,7 @@
 Scouted 2026-07-02. Status: THEORETICAL — worked code samples, not decided
 design. **All syntax is provisional.**
 
-Chapter 18's "Freestanding Targets And Hardware Facts" records the direction —
+Chapter 19's "Freestanding Targets And Hardware Facts" records the direction —
 freestanding = an empty host-provider set, boundary providers declare hardware
 claims instead of OS claims — and honestly footnotes it as "largely
 undesigned." The problem: the language has not yet *encountered* boot. Nothing
@@ -34,7 +34,7 @@ package; a freestanding target instead names an **entry provider** whose
 
 // UefiHandoff is NOT pub: this module declares exactly one minter — the entry
 // provider — so holding one is proof control arrived via the declared handoff
-// (the ch21 IrqCtx provenance pattern: private constructor, single minter).
+// (the ch22 IrqCtx provenance pattern: private constructor, single minter).
 data UefiHandoff {
     image_handle: EfiHandle;
     system_table: EfiSystemTablePtr;
@@ -153,7 +153,7 @@ machine mint_regions(map: FinalMemoryMap) -> Vec<Region>
   structural fact; the semantic "meaning" is not a fact at all, it is the
   boundary's trust decision, enumerated in the audit trail. Facts attach where
   they're true.
-- The `Region` minting story ch19 names open ("how a region capability is
+- The `Region` minting story ch20 names open ("how a region capability is
   constructed at boot"): private mint gated by the `FinalMemoryMap` evidence
   token — CONFIRMED sufficient, no new core feature.
 - `MapKey.fresh` stays a runtime `StaleMap` retry with no static help — a
@@ -173,7 +173,7 @@ machine mint_regions(map: FinalMemoryMap) -> Vec<Region>
 
 ## Sample 3 — an MMIO region and volatile operators
 
-Chapter 19's direction: device memory is reached through boundary operators
+Chapter 20's direction: device memory is reached through boundary operators
 with volatile contracts (each source-level access happens exactly once, at
 declared width, in program order relative to other volatile accesses on the
 same region) — never ordinary loads a compiler may coalesce.
@@ -238,12 +238,12 @@ is a schema for offsets. Three consequences:
 - What `access.exactly_once` / `ordered_within(region)` are as contract
   vocabulary — these constrain the *compiler's own lowering*, not a runtime
   value. A new contract kind: guarantees about emitted code.
-- Confirming ch19's note that volatile ordering is *not* hardware ordering —
+- Confirming ch20's note that volatile ordering is *not* hardware ordering —
   fences/barriers stay separate boundary machines with their own contracts.
 
 ## Sample 4 — CR3 and MSRs: value invariants and owned state, not world facts
 
-The open question ch18 names — "is 'paging enabled' a fact a provider
+The open question ch19 names — "is 'paging enabled' a fact a provider
 establishes and later providers require?" — resolves **no**. Chase every
 would-be consumer of `paging_active(table)` and it wants one of two existing
 things:
@@ -297,7 +297,7 @@ machine write_msr(msr: MsrId, value: u64)
 
 UEFI hands over with interrupts *enabled*, so masking is among the first real
 acts. "This sequence masks interrupts until the matching unmask" is a *scoped*
-machine-state transition — and the ch21 provenance pattern plus drop-semantics
+machine-state transition — and the ch22 provenance pattern plus drop-semantics
 carries it whole. No typed "world fact" anywhere: the token IS the fact.
 
 ```omega
@@ -361,7 +361,7 @@ machine timer_tick(frame: &mut TrapFrame, guard: &IrqGuard)   // masked: evidenc
   (asm) mints the typed `TrapFrame` + `IrqGuard` and calls the handler machine
   — is that stub expressible, or is it irreducibly a hand-audited boundary
   blob?
-- **The `&mut self`-under-preemption question ch18 flags directly:** a handler
+- **The `&mut self`-under-preemption question ch19 flags directly:** a handler
   runs *inside* another machine's execution. What happens to the interrupted
   machine's in-flight borrows? The honest answer is probably "the affected
   region ran under sample 5's mask guard, so no machine is preempted
@@ -403,8 +403,8 @@ against: writing a machine-state predicate as if some value carried it.
 | 6 IRQ entry | vector stub mints frame + guard | entry convention; borrow-checker × preemption interaction |
 
 Everything above is the **existing provenance pattern** (private type + single
-minter, ch21's `IrqCtx`) or the **existing boundary/asm machinery** (ch18
-providers, ch22 instruction contracts, ch19 volatile) declaring hardware
+minter, ch22's `IrqCtx`) or the **existing boundary/asm machinery** (ch19
+providers, ch23 instruction contracts, ch20 volatile) declaring hardware
 axioms instead of OS ones — plus the layout-policy machinery
 (`programmable_layouts.md`) for every foreign struct in the chain.
 

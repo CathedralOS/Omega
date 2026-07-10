@@ -24,24 +24,22 @@ Proof and semantic model:
 - [Chapter 9: Proof Obligations](chapter_9_proof_obligations.md)
 - [Chapter 10: Compile-Time Proofs](chapter_10_compile_time_proofs.md)
 - [Chapter 11: Invariant Windows](chapter_11_relax_scopes.md)
-- [Chapter 23: Dependent Types](chapter_23_dependent_types.md) — reads here,
-  after Invariant Windows; numbered 23 to keep existing chapter references
-  stable
+- [Chapter 12: Dependent Types](chapter_12_dependent_types.md)
 
 Language-building features:
 
-- [Chapter 12: Generics](chapter_12_generics.md)
-- [Chapter 13: Traits And Runtime Dispatch](chapter_13_traits.md)
-- [Chapter 14: Modules, Imports, And Visibility](chapter_14_modules_imports_visibility.md)
-- [Chapter 15: Errors, Traps, And Failure](chapter_15_errors_traps_failure.md)
-- [Chapter 16: Drops And Cleanup](chapter_16_drops_and_cleanup.md)
-- [Chapter 17: Concurrency](chapter_17_concurrency.md)
+- [Chapter 13: Generics](chapter_13_generics.md)
+- [Chapter 14: Traits And Runtime Dispatch](chapter_14_traits.md)
+- [Chapter 15: Modules, Imports, And Visibility](chapter_15_modules_imports_visibility.md)
+- [Chapter 16: Errors, Traps, And Failure](chapter_16_errors_traps_failure.md)
+- [Chapter 17: Drops And Cleanup](chapter_17_drops_and_cleanup.md)
+- [Chapter 18: Concurrency](chapter_18_concurrency.md)
 
 Boundary and low-level topics:
 
-- [Chapter 18: Capabilities, Effects, And Boundaries](chapter_18_capabilities_effects_boundaries.md)
-- [Chapter 19: Memory Layout And ABI](chapter_19_memory_layout_abi.md)
-- [Chapter 20: Wire Protocols](chapter_20_wire_protocols.md)
-- [Chapter 21: Versioned Data And Machine Replacement](chapter_21_versioned_data.md)
-- [Chapter 22: Inline Assembly](chapter_22_inline_assembly.md)
+- [Chapter 19: Capabilities, Effects, And Boundaries](chapter_19_capabilities_effects_boundaries.md)
+- [Chapter 20: Memory Layout And ABI](chapter_20_memory_layout_abi.md)
+- [Chapter 21: Wire Protocols](chapter_21_wire_protocols.md)
+- [Chapter 22: Versioned Data And Machine Replacement](chapter_22_versioned_data.md)
+- [Chapter 23: Inline Assembly](chapter_23_inline_assembly.md)
 - [Appendix: Open Questions](appendix_open_questions.md)

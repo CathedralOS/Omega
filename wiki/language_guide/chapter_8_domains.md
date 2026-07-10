@@ -669,13 +669,13 @@ never from the transport:
   runtime check. The preservation operators above (`concat`, boundary-`slice`)
   carry the domain forward, so text stays text without re-validation.
 
-- **By validation -- a fallible call, riding chapter 15.** Raw bytes from an
+- **By validation -- a fallible call, riding chapter 16.** Raw bytes from an
   untrusted source are plain `[u8]` with NO encoding domain. To use them as text
   you run a `validate` operator, which is an ordinary fallible call: it returns
   the DOMAINED slice or an error, handled at a transition boundary like any other
   recoverable failure. When validation can land in more than one domain, return a
   sum whose cases each carry the ALREADY-DOMAINED slice -- the same shape as
-  `Result`, and the same fact-on-a-case-payload machinery as chapter 15's errors.
+  `Result`, and the same fact-on-a-case-payload machinery as chapter 16's errors.
   The caller matches once and gets the specific domain in each arm; it never
   re-validates.
 

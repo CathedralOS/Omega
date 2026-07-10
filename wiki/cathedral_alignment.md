@@ -21,12 +21,12 @@ These are decisions whose *absence is silently being decided* by ongoing
 implementation work. Each one gets more expensive to retrofit every month.
 
 > Scaffolding status: the clear-direction items below are now CAPTURED in the
-> language guide with footnotes marking the muddy parts — ZII (chapter 19),
-> enums (chapter 1), atomics (chapter 17), volatile/MMIO (chapter 19),
-> freestanding targets + hardware facts (chapter 18), whole-program
+> language guide with footnotes marking the muddy parts — ZII (chapter 20),
+> enums (chapter 1), atomics (chapter 18), volatile/MMIO (chapter 20),
+> freestanding targets + hardware facts (chapter 19), whole-program
 > assumptions (wiki/architecture/whole_program_assumptions.md) — and recorded
-> as Current Answers in the appendix. `wire data` (chapter 20) and versioned
-> data (chapter 21) were already design-complete in the guide; their gap is
+> as Current Answers in the appendix. `wire data` (chapter 21) and versioned
+> data (chapter 22) were already design-complete in the guide; their gap is
 > implementation only.
 
 > ZII update (frozen decision 8): the language guarantee is LAYER 1 only —
@@ -55,7 +55,7 @@ implementation work. Each one gets more expensive to retrofit every month.
    durability as a build-time plan grade consumed by `Store<T>`-class APIs +
    a publish-time predecessor diff). The *work* is unchanged in substance —
    schema identity validation, tag diagnostics, codec generation — but the
-   surface it lands on is plain `data` + the plan/deriver machinery, so ch20
+   surface it lands on is plain `data` + the plan/deriver machinery, so ch21
    needs a rewrite before implementation starts. Still the natural next
    differential-oracle-friendly feature: derived codecs are pure functions
    with byte-exact expected outputs.
@@ -88,9 +88,9 @@ implementation work. Each one gets more expensive to retrofit every month.
    and builds. No toolchain seed and no lockfile (interpreting a pure function
    is version-invariant, so `build.omg` can name its own toolchain without
    circularity; pins live in the manifest). Dependencies are local aliases bound
-   to pinned sources — no semver solving. ch14 updated to end-state (package =
+   to pinned sources — no semver solving. ch15 updated to end-state (package =
    reach boundary; imports resolve only against declared deps). **Remaining
-   implementation ask — the import-side gate:** ch14 name resolution must
+   implementation ask — the import-side gate:** ch15 name resolution must
    consult the declared set so a fully-qualified path cannot bypass it
    (undeclared reach *unresolvable*, not lint-flagged), making the layer law
    self-enforcing. Interim enforcement is a graph check (`imports ⊆ declared
@@ -105,11 +105,11 @@ implementation work. Each one gets more expensive to retrofit every month.
    `suspend` is an inferred effect; cancellation is a value at the wait;
    scoped spawns borrow; task pools are exact compiler-computed frames; no
    select (one-mailbox sums — exactly the IPC-ring shape). Cathedral's
-   scheduler chapter can now align against chapter 17 + the design brief.
+   scheduler chapter can now align against chapter 18 + the design brief.
    Remaining sign-offs: C2-C5 (task unit, Join scopes, atomics-only
    sharing, C11 intrinsics) in TASKS.md's register.
 
-6. **Atomics and a memory model** — direction scouted + chapter 17 now
+6. **Atomics and a memory model** — direction scouted + chapter 18 now
    carries the Rust-like atomics section (distinct core types, five C11
    orderings); the scout recommendation (compiler intrinsics, C11 model
    wholesale, atomics-only sharing with Mutex as library) awaits sign-off
@@ -122,7 +122,7 @@ implementation work. Each one gets more expensive to retrofit every month.
    Boot needs: a target with *no* host bindings and a custom entry (the
    current target model assumes stdout/stdin/process capabilities), linker/
    section/physical-address control for the image writers, **volatile/MMIO
-   access semantics** (absent from chapter 19), and inline asm grown beyond
+   access semantics** (absent from chapter 20), and inline asm grown beyond
    `asm { jmp state(...) }` (CR3/MSR/port-IO instruction contracts — the
    appendix already lists the open questions; they need answers). The direct
    image emission bet is aligned with this; the gap is the freestanding
@@ -204,10 +204,10 @@ entry stubs or the second stated convention land.
 
 Cathedral's `part_3/00_ipc_and_service_invocation` and
 `part_2/01_scheduler_and_resources` lean directly on the concurrency model;
-reconciliation against the amended chapter 17 + the atomics work:
+reconciliation against the amended chapter 18 + the atomics work:
 
-VALIDATED (the ch17 await-amendment + atomics serve these docs):
-- The scheduler doc restates ch17's SINGLE-LEVEL carry-set + N-derived-from-
+VALIDATED (the ch18 await-amendment + atomics serve these docs):
+- The scheduler doc restates ch18's SINGLE-LEVEL carry-set + N-derived-from-
   the-parked-on-resource almost verbatim — the amendment was made to support
   it. The no-select ONE-MAILBOX model is cited as the blessed `many_to_one`
   actor shape; awaiting-is-calling + no-coloring is what lets Cathedral have
@@ -225,14 +225,14 @@ CRITICAL-PATH SHARPENING:
 
 NEW GAPS these docs surface (design TBDs, no clear implementation action yet):
 - **Wake-reason sum.** Park must return `Signaled | PeerDied | Revoked |
-  Timeout`, not just ready-or-cancelled. ch17's cancellation-as-value is a
+  Timeout`, not just ready-or-cancelled. ch18's cancellation-as-value is a
   SUBSET; it must generalize to a wake-reason sum, with `PeerDied`/`Revoked`
   sourced from the OS grant arena (the one liveness fact only the kernel
-  has). Fold into ch17's cancellation section when the scheduler arc starts.
-- **`SharedRegion<Untrusted>` — a THIRD memory category** ch18 does not name:
+  has). Fold into ch18's cancellation section when the scheduler arc starts.
+- **`SharedRegion<Untrusted>` — a THIRD memory category** ch19 does not name:
   adversarially-mutable (neither proved nor boundary-accepted), reads return
   raw/unproven values, snapshot-then-validate to close the TOCTOU hole
-  (a shared-mutable re-read after a check is unsound). ch18 currently knows
+  (a shared-mutable re-read after a check is unsound). ch19 currently knows
   only proved and boundary-accepted memory.
 - **`protocol <Name> version vN { call ...; stream ...; }`** — a typed RPC
   surface over `wire data` (the IPC doc's typed-layer example). No language
@@ -263,7 +263,7 @@ None block current compiler development; all should stay visible.
   heap. Decide before implementing `Vec` lowering, not after.
 - **TBD: repr control for hardware structures** — packed, explicit
   offsets/alignment, untagged unions (page-table entries, descriptor tables,
-  device registers). Chapter 19 has `repr native` only.
+  device registers). Chapter 20 has `repr native` only.
 - **TBD: function pointers / first-class machine references** — driver
   dispatch tables; partially covered by `dyn Trait` (single-impl works,
   multi-impl backend pending).

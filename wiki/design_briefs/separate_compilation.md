@@ -19,7 +19,7 @@ Scouted 2026-06-12. Status: AWAITING SIGN-OFF (decisions S1-S6 in TASKS.md).
 
 ## Recommendations
 
-1. **Component boundary = PACKAGE** (chapter 14 unit); machines stay swap
+1. **Component boundary = PACKAGE** (chapter 15 unit); machines stay swap
    points within any component (deployment unit ≠ swap unit). Artifact =
    sealed IR + boundary manifest + versioned/wire layout reports first;
    relocatable `.o` as follow-up.
@@ -49,10 +49,10 @@ Scouted 2026-06-12. Status: AWAITING SIGN-OFF (decisions S1-S6 in TASKS.md).
    symbolic exports (module paths), composition tool, per-component frame
    regions (base-register discipline), composition-time monomorphization.
 3. **Loader integration (Cathedral scope)**: load-time relocation
-   patching, hot-swap via chapter 21 (Versioned<T>, migrations,
+   patching, hot-swap via chapter 22 (Versioned<T>, migrations,
    quiescence), rollback.
 
 ## Cross-references
 
 wiki/architecture/whole_program_assumptions.md, cathedral_alignment item 4,
-Cathedral component_model/hot_swap docs, chapters 14 + 21.
+Cathedral component_model/hot_swap docs, chapters 15 + 21.

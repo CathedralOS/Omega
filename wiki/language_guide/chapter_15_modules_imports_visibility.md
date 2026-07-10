@@ -1,4 +1,4 @@
-# Chapter 14: Modules, Imports, And Visibility
+# Chapter 15: Modules, Imports, And Visibility
 
 Programs are made of source files grouped into packages.
 

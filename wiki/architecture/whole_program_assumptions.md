@@ -5,7 +5,7 @@ one direct executable image. That is the right shape for the current phase.
 But the language's first large consumer (`wiki/cathedral_alignment.md`) needs
 components that are compiled, signed, shipped, loaded, and hot-swapped
 INDEPENDENTLY, with machines as the swap boundary
-([Versioned Data](../language_guide/chapter_21_versioned_data.md)).
+([Versioned Data](../language_guide/chapter_22_versioned_data.md)).
 
 This page exists so the whole-program assumption is a TRACKED decision per
 backend layer instead of an ambient default that silently deepens. The rule:

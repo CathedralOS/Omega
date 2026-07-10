@@ -181,4 +181,4 @@ aliasing every ref argument.
 ## Relationship To Drops
 
 Ownership decides who must clean up a value. The cleanup machinery itself is
-covered later in [Drops And Cleanup](chapter_16_drops_and_cleanup.md).
+covered later in [Drops And Cleanup](chapter_17_drops_and_cleanup.md).

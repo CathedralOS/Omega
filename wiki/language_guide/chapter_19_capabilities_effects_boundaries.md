@@ -1,4 +1,4 @@
-# Chapter 18: Capabilities, Effects, And Boundaries
+# Chapter 19: Capabilities, Effects, And Boundaries
 
 Omega should model host and compiler boundaries explicitly.
 
@@ -573,7 +573,7 @@ now hardware claims rather than OS claims:
   provider),
 - "stores to this physical region reach device Y in program order" (an MMIO
   region provider, see
-  [Memory Layout And ABI](chapter_19_memory_layout_abi.md) on volatile),
+  [Memory Layout And ABI](chapter_20_memory_layout_abi.md) on volatile),
 - "this instruction sequence masks interrupts until the matching unmask" (an
   interrupt-control provider).
 
@@ -581,7 +581,7 @@ These are the most serious trust statements in any system built on Omega: a
 kernel's trusted computing base is, in large part, exactly this provider set,
 and it is enumerable in the build artifact like every other boundary. The
 audited inline-assembly subset
-([Inline Assembly](chapter_22_inline_assembly.md)) is the implementation
+([Inline Assembly](chapter_23_inline_assembly.md)) is the implementation
 vehicle for many of these providers -- the asm instruction contracts ARE
 hardware-fact declarations in small form.
 

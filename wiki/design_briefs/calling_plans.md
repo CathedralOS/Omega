@@ -87,7 +87,7 @@ observe, or depend on it. Calling plans attach **only** to boundary machines —
 and are **defaulted by the `Binding` kind** (`Syscall(n)` implies the target's
 syscall plan; `DllImport`/`VtableSlot` imply its C plan; an entry/export table
 names its plan once), so in practice nobody writes a convention name at all.
-This replaces ch19's provisional `abi "aarch64-darwin"` string-attribute
+This replaces ch20's provisional `abi "aarch64-darwin"` string-attribute
 sketch — a string names nothing checkable; a policy is auditable data.
 
 ## 5. What stays compiler-owned

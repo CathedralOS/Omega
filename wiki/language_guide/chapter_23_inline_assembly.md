@@ -1,4 +1,4 @@
-# Chapter 22: Inline Assembly
+# Chapter 23: Inline Assembly
 
 Inline assembly is not an escape hatch from Omega's proof model.
 

@@ -1,4 +1,4 @@
-# Chapter 17: Concurrency
+# Chapter 18: Concurrency
 
 Concurrency starts with one primitive idea:
 
@@ -126,7 +126,7 @@ several `await`s is threaded as data in a `self` field (a sum tagging the step),
 not as a paused call stack. Such a field is sized to its biggest case like any
 sum; shrinking it with out-of-line handles is the author's call, optionally
 pinned by a `[max_size = N]` property checked against the layout report
-(chapter 19).
+(chapter 20).
 
 ## Cancellation Is A Value At The Wait
 
@@ -153,7 +153,7 @@ machine Worker::run(&mut self, ring: &mut Ring) {
 
 A task that never suspends is joinable but not cancellable -- its effect
 surface says which kind it is. Cancellation rides the same propagation
-channel as recoverable errors ([chapter 15](chapter_15_errors_traps_failure.md));
+channel as recoverable errors ([chapter 16](chapter_16_errors_traps_failure.md));
 the exact spelling follows that chapter's model.
 
 ## There Is No Select
@@ -303,7 +303,7 @@ Working rules:
   contracts: shared access is the type's documented purpose, not a borrow
   checker escape used elsewhere.
 - A zeroed atomic is the value zero, consistent with zero initialization
-  ([Memory Layout And ABI](chapter_19_memory_layout_abi.md)).
+  ([Memory Layout And ABI](chapter_20_memory_layout_abi.md)).
 
 Atomics underpin the waitable types above (`Mutex`, `Barrier`) and shared-ring
 IPC, so they sit below `spawn` in the implementation order even though they

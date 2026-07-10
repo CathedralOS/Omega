@@ -46,7 +46,7 @@
 > May-era sketch (`host:` blocks, `x = disabled` flags, `capability X { entry ... }`
 > packages) that was never designed.
 >
-> Companion to [`chapter_18`](../language_guide/chapter_18_capabilities_effects_boundaries.md)
+> Companion to [`chapter_18`](../language_guide/chapter_19_capabilities_effects_boundaries.md)
 > (capability/boundary concepts) and the string/encoding-domain work (#66), whose
 > carrier + domain machinery this design generalizes.
 
@@ -373,7 +373,7 @@ materialize), applied to pointers.
    re-enter via mint.
 2. **Retained pointer arguments** (OVERLAPPED async IO, anything stashing your
    buffer past the return) — the KNOWN GAP, already met in another costume:
-   ch20's zero-copy-decode rejection ("borrow facts cannot see a call output
+   ch21's zero-copy-decode rejection ("borrow facts cannot see a call output
    retaining a borrow of another argument"). Tracked in TASKS. Interim pattern
    that works today: **ownership transfer** — move the buffer in, get a
    completion token, the completion machine returns the buffer. No loan, no

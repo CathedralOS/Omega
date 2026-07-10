@@ -1,4 +1,4 @@
-# Chapter 23: Dependent Types
+# Chapter 12: Dependent Types
 
 A type, contract, or layout may name in-scope, proof-visible values — fields,
 parameters, and locals, not only constants.
@@ -9,7 +9,7 @@ parameters, and locals, not only constants.
 > ([dependent_types.md](../design_briefs/dependent_types.md)). Chapters
 > [7](chapter_7_types_constraints_invariants.md),
 > [8](chapter_8_domains.md), [11](chapter_11_relax_scopes.md), and
-> [12](chapter_12_generics.md) are assumed.
+> [13](chapter_13_generics.md) are assumed.
 
 ```omega
 machine Math::clamp(
@@ -140,7 +140,7 @@ Working rules:
 
   ```omega
   data PlayerSlot {
-      case Empty;              // tag 0: the zero value IS this case (chapter 19)
+      case Empty;              // tag 0: the zero value IS this case (chapter 20)
       case Filled(p: Player);
   }
 
@@ -178,7 +178,7 @@ minted and shed as usual.
 ## Static Lowering
 
 When every witness is compile-time-known — a literal, a `const`, a `const`
-parameter — the dependent type is chapter 12, unchanged:
+parameter — the dependent type is chapter 13, unchanged:
 
 ```omega
 data Matrix<const R: u64, const C: u64> {
@@ -203,7 +203,7 @@ When a witness is a runtime value:
 
 - **The witness is stored as the ordinary field or parameter it already is.**
   Dynamic lowering adds no metadata, no runtime type information, and no fat
-  pointers beyond the slices of chapter 19. For a zero-constructible type, a
+  pointers beyond the slices of chapter 20. For a zero-constructible type, a
   zeroed witness means an empty structure; a gated type is never observed
   zeroed.
 - **Offsets are ordinary arithmetic.** An access strided by a runtime witness
@@ -220,7 +220,7 @@ The memory map, end to end:
 
 ```omega
 // MemoryMap is gated; the boundary decode is what establishes its default
-// domain (chapter 18 owns the boundary ensures). After the success arm,
+// domain (chapter 19 owns the boundary ensures). After the success arm,
 // self.map's facts are standing: count*stride <= len, stride >= 40.
 machine Kernel::walk_map(&self) {
     transition { _ -> at(0) }
@@ -247,7 +247,7 @@ machine Kernel::walk_map(&self) {
 }
 ```
 
-The recast borrow (chapters 19/20) discharges its bounds obligation from the
+The recast borrow (chapters 21/21) discharges its bounds obligation from the
 arm guard plus the coupling. Striding by the compile-time size of
 `EfiMemoryDescriptor` instead does not compile: no fact ties that constant to
 `len`.
@@ -357,9 +357,9 @@ This chapter is intentionally narrow:
   at a boundary decode is an ordinary `as` mint.
 - Chapter 11 owns the mutation discipline; a coupling update is an
   invariant window closed at the next consumption point.
-- Chapter 12 owns the static lowering; const parameters are witnesses the
+- Chapter 13 owns the static lowering; const parameters are witnesses the
   compiler evaluates away.
-- Chapters 19/20 own layout and the recast borrow; dynamic strides are their
+- Chapters 21/21 own layout and the recast borrow; dynamic strides are their
   runtime face.
 - The index/count model brief (§8, shape-typed views) is the planned home
   for multidimensional index sugar over the raw `y*width + x` spelling.

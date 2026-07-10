@@ -1,4 +1,4 @@
-# Chapter 20: Wire Protocols
+# Chapter 21: Wire Protocols
 
 Omega treats protocol schemas as first-class source-visible contracts.
 
@@ -15,7 +15,7 @@ The design splits into two independent concerns, each with exactly one home:
 - **Byte grammar** — how a value becomes bytes (varints, tags, offsets,
   framing). This is a property of each *edge*, so it lives **at the use site**:
   a layout policy named (or implied) at the carrier
-  (see [Memory Layout And ABI](chapter_19_memory_layout_abi.md) and
+  (see [Memory Layout And ABI](chapter_20_memory_layout_abi.md) and
   `design_briefs/programmable_layouts.md`).
 
 There is no separate wire declaration form.[^wire-data-retired] One `data`
@@ -174,7 +174,7 @@ easy:
   do — **`version` blocks handle breaking rewrites.**
 - Compatibility checks run along the version chain: each declared era is
   checked against its successor, matching how migrations compose in
-  [Versioned Data](chapter_21_versioned_data.md).
+  [Versioned Data](chapter_22_versioned_data.md).
 
 Declared versions change the reservation story. Generated tagged encodings
 always carry an ERA DISCRIMINATOR (one varint per top-level message or record
@@ -239,7 +239,7 @@ by hand) stay distinct operations: the former carries protocol obligations
 (validation, compatibility, unknown fields, canonical encoding), the latter
 carries the usual effect, ownership, and invariant obligations. Runtime
 hot-swap migration is a third thing with its own obligations
-([Versioned Data](chapter_21_versioned_data.md)).
+([Versioned Data](chapter_22_versioned_data.md)).
 
 ## The Implemented Encoding: `compact_binary` v0
 
@@ -296,7 +296,7 @@ result: a `WireVerdict` enum (`case Invalid; case Sound;` -- Invalid is the
 ZII zero case, so an untouched verdict reads as failure), dispatched with
 ordinary transition arms rather than remembered like a flag. The decoder accepts the schema's CURRENT era only — a payload
 carrying any other era discriminator fails on its first byte; decoding
-historical eras is deferred until the `Versioned<T>` container (chapter 21
+historical eras is deferred until the `Versioned<T>` container (chapter 22
 stage 3) is signed off, since ordinary values cannot carry an era tag.
 Failure semantics: the verdict is sticky — the first violation (wrong era, a tag
 that is not the next expected field number, truncated input, or an overlong

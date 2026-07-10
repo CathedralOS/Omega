@@ -77,7 +77,7 @@ architectural seams to design in from the start:
 - How do profiles/corpora get captured, versioned, and fed without coupling the
   build to one workload?
 - Does specialization / multi-versioning interact with content-addressed code
-  dedup and hot-swap (chapter 21)?
+  dedup and hot-swap (chapter 22)?
 
 ## Cross-references
 

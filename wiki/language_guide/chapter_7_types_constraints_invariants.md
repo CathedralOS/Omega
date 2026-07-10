@@ -27,7 +27,7 @@ the facts that APIs and mutations require.
 > type until construction or an `as` mint proves the domain, monotonically
 > thereafter (every later store re-proves it). The gate propagates through
 > containment and is absorbed by a zero-valid first sum case (`case Empty;`); see
-> [Chapter 23](chapter_23_dependent_types.md). *Settled model; not yet
+> [Chapter 12](chapter_12_dependent_types.md). *Settled model; not yet
 > implemented.*
 
 ```omega
@@ -197,7 +197,7 @@ are the audited exception).
 
 Casing carries the class split: lowercase bracket facts are properties;
 capitalized names in `satisfies` positions are traits (behavior). See
-[Traits](chapter_13_traits.md) for the behavior side.
+[Traits](chapter_14_traits.md) for the behavior side.
 
 Generic bounds reuse the same spelling (frozen decision 13): brackets attach
 to whatever they follow, at every position --
@@ -221,11 +221,11 @@ copy/zero_init/send; whether evolution-contract facts join the same surface
 policy, frozen decision 10; `must_use` was ruled out by strict result use,
 frozen decision 9). A `[max_size = N]` property is a candidate for this
 surface: an opt-in hard bound on a type's total in-memory size, checked
-against the layout report (chapter 19). The language does not impose it --
+against the layout report (chapter 20). The language does not impose it --
 sizing a sum's cases is the author's call (a fat case can be shrunk with an
 out-of-line handle if they choose) -- but the property lets an author pin a
 guarantee where it matters, such as bounding an actor's continuation field so
-a fat in-flight flow does not inflate every parked instance (chapter 17).
+a fat in-flight flow does not inflate every parked instance (chapter 18).
 
 This chapter is intentionally narrow:
 
@@ -233,4 +233,4 @@ This chapter is intentionally narrow:
   numeric evaluation.
 - Chapter 8 covers named semantic classifications through domains.
 - Chapter 9 covers the broader compiler obligation model that uses these facts.
-- Chapter 13 covers traits; properties here are their fact-side counterpart.
+- Chapter 14 covers traits; properties here are their fact-side counterpart.
