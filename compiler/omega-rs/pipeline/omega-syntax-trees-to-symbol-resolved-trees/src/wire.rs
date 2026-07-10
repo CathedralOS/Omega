@@ -26,6 +26,54 @@ pub(crate) fn lower_wire_schema(
     })
 }
 
+/// Chapter 20: field numbers are INERT schema facts, so a numbered `data`
+/// is ALSO a plain program type -- instantiable, member-addressable, ZII
+/// like any data. Build its regular DataDefinition from the schema's
+/// CURRENT-era fields (Reserved entries and Version blocks are wire
+/// HISTORY, not fields), sharing the already-lowered type references. The
+/// corpus's Message/Sample twin pattern was forced by this registration's
+/// absence, not chosen.
+pub(crate) fn data_definition_from_wire_schema(
+    lowerer: &mut Lowerer,
+    schema: &WireSchema,
+) -> omega_symbol_resolved_trees::data::DataDefinition {
+    use omega_symbol_resolved_trees::data::{
+        DataDefinition, DataDefinitionStorage, DataField, DataMember, DataProperties,
+    };
+    let fields: Vec<DataField> = lowerer
+        .symbol_resolved_trees
+        .wire_members(schema.members)
+        .iter()
+        .filter_map(|member| match member {
+            WireMember::Field(field) => Some(DataField {
+                symbol: SymbolHandle::invalid(),
+                name: field.name.clone(),
+                type_reference: field.type_reference.clone(),
+                initial_value: omega_symbol_resolved_trees::expression::ExpressionHandle::invalid(),
+            }),
+            _ => None,
+        })
+        .collect();
+    let mut members = omega_core::arena::HandleSpan::empty();
+    for field in fields {
+        lowerer
+            .symbol_resolved_trees
+            .tables
+            .declarations
+            .data_members
+            .append_to_span(&mut members, DataMember::Field(field));
+    }
+    DataDefinition {
+        symbol: SymbolHandle::invalid(),
+        name: schema.name.clone(),
+        storage: DataDefinitionStorage {
+            type_parameters: omega_core::arena::HandleSpan::empty(),
+            properties: DataProperties::default(),
+            members,
+        },
+    }
+}
+
 fn lower_wire_members(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,

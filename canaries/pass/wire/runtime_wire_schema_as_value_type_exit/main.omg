@@ -1,0 +1,52 @@
+// RUN CANARY (exit 70) + interpreter differential. Chapter 20's "numbers
+// are inert schema facts" made REAL: a NUMBERED data is a plain program
+// type -- locals, field writes, guard arithmetic, ZII -- and its schema
+// machines encode/decode values OF THE TYPE ITSELF. The corpus-wide
+// Message/Sample twin pattern was FORCED (numbered datas never entered the
+// type namespace: "references unknown data type") until the wire lowering
+// gained dual registration (a numbered declaration lowers BOTH the wire
+// schema and a regular DataDefinition sharing the lowered type
+// references; Reserved/Version members are wire history, not fields).
+// Legs: value-type use; encode-from-self. (Decode-INTO-self is pinned
+// separately: pending/wire/schema_self_decode_field_places_divergence --
+// the verdict is Sound natively but the decoded values never land in the
+// self-typed local's fields.)
+// exits: 71 = value use wrong; 72 = encode wrong.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Point {
+    0: x: u32;
+    1: y: u32;
+}
+data WireVerdict {
+    case Invalid;
+    case Sound;
+}
+data Main {
+    console: Console;
+    buffer: [u8; 32];
+    written: u64;
+    read: u64;
+    verdict: WireVerdict;
+}
+machine Main::main(&mut self) {
+    let p: Point;
+    p.x = 3;
+    p.y = 4;
+    transition p.x + p.y == 7 {
+        true -> enc()
+        _ -> bad_value_use()
+    }
+    state enc(&mut self) {
+        let q: Point;
+        q.x = 3;
+        q.y = 4;
+        Point::encode(&q, &mut self.buffer, &mut self.written);
+        transition self.written == 5 {
+            true -> good()
+            _ -> bad_encode()
+        }
+    }
+    state good(&mut self)         { self.console.exit_process(70); }
+    state bad_value_use(&mut self){ self.console.exit_process(71); }
+    state bad_encode(&mut self)   { self.console.exit_process(72); }
+}
