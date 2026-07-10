@@ -7,6 +7,7 @@ use crate::obligations::{
 use omega_core::arena::HandleSpan;
 use omega_core::diagnostics::Diagnostic;
 use omega_typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
+use omega_typed_trees::name::Identifier;
 use omega_typed_trees::statement::TransitionGuardNode;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -232,6 +233,34 @@ fn check_bounded_call_argument(
         }
     }
 
+    // R1 dependent maximum on a CALL argument: no co-located guard exists on
+    // a call statement, so the only rung-A discharge is the worst case
+    // through the field's OWN enforced minimum -- and only for SELF-receiver
+    // calls (the recognizer's `self.<field>` names the callee's data, which
+    // for a self-call IS this machine's; cross-machine dependent params are
+    // the R4 boundary-witness rung). Anything else refuses loudly.
+    if let Some((minimum, max_field, max_offset)) =
+        symbolic_max_from_constraints(type_constraints(proof_plan, obligation.constraints))
+    {
+        let self_receiver = obligation
+            .receiver
+            .as_ref()
+            .is_none_or(|receiver| receiver.as_str() == "self");
+        let argument_range = integer_range_for_call_argument(proof_plan, obligation);
+        let proven = self_receiver
+            && argument_range.is_some_and(|range| {
+                range.minimum >= minimum
+                    && dependent_call_field_floor(proof_plan, obligation, max_field)
+                        .and_then(|floor| floor.checked_add(max_offset))
+                        .is_some_and(|cap| range.maximum <= cap)
+            });
+        if !proven {
+            diagnostics.push(cannot_prove_dependent_call_bound(
+                proof_plan, obligation, minimum, max_field, max_offset,
+            ));
+        }
+    }
+
     if let Some(target_range) =
         float_range_from_constraints(type_constraints(proof_plan, obligation.constraints))
     {
@@ -275,6 +304,31 @@ fn check_bounded_transition_argument(
                 proof_plan,
                 obligation,
                 target_range,
+            ));
+        }
+    }
+
+    // R1 dependent maximum (`i: u32 [0..=self.count]`): the upper half is a
+    // RELATIONAL obligation -- `arg <= self.count + offset` at the transition
+    // point. Discharge routes, in order: (a) the arm's own guard relates the
+    // argument to the SAME field (`arg < self.count`; co-located, so no
+    // stability gate -- same rationale as the literal path above); (b) worst
+    // case through the field's OWN enforced literal range (`arg_max <=
+    // min(count) + offset` holds for every runtime count). The lower half is
+    // the literal minimum, checked against the guarded argument range.
+    if let Some((minimum, max_field, max_offset)) =
+        symbolic_max_from_constraints(type_constraints(proof_plan, obligation.constraints))
+    {
+        let argument_range = guarded_integer_range_for_transition_argument(proof_plan, obligation);
+        let lower_proven = argument_range.minimum >= minimum;
+        let upper_proven =
+            guard_proves_dependent_upper(proof_plan, obligation, max_field, max_offset)
+                || dependent_field_floor(proof_plan, obligation, max_field)
+                    .and_then(|floor| floor.checked_add(max_offset))
+                    .is_some_and(|cap| argument_range.maximum <= cap);
+        if !lower_proven || !upper_proven {
+            diagnostics.push(cannot_prove_dependent_transition_bound(
+                proof_plan, obligation, minimum, max_field, max_offset,
             ));
         }
     }
@@ -1664,6 +1718,241 @@ fn constraints_satisfy_named_constraint(constraints: &[ProofConstraint], constra
         "wrapping" => false,
         _ => false,
     }
+}
+
+/// The single dependent-maximum atom of a constraint set (R1a mints at most
+/// one: the declared range's own bound).
+fn symbolic_max_from_constraints(
+    constraints: &[ProofConstraint],
+) -> Option<(i64, &Identifier, i64)> {
+    constraints.iter().find_map(|constraint| match constraint {
+        ProofConstraint::IntegerRangeSymbolicMax {
+            minimum,
+            max_field,
+            max_offset,
+        } => Some((*minimum, max_field, *max_offset)),
+        _ => None,
+    })
+}
+
+/// Route (a): the arm's guard conjunction contains a compare relating the
+/// ARGUMENT (matched by display spelling -- the co-located guard names the
+/// same expression the argument position does) to `self.<max_field> + k`,
+/// tight enough for the declared offset: `arg < f + k` gives `arg <= f+k-1`
+/// (needs `k-1 <= offset`); `arg <= f + k` needs `k <= offset`. Flipped
+/// spellings (`f + k > arg`) normalize to the same two forms.
+fn guard_proves_dependent_upper(
+    proof_plan: &ProofPlan,
+    obligation: &BoundedTransitionArgumentObligation,
+    max_field: &Identifier,
+    max_offset: i64,
+) -> bool {
+    let TransitionGuardNode::When(guard) = obligation.guard else {
+        return false;
+    };
+    let argument_label = expression_display_name(proof_plan, obligation.argument);
+    guard_conjunct_proves_dependent_upper(
+        proof_plan,
+        guard,
+        &argument_label,
+        max_field,
+        max_offset,
+    )
+}
+
+fn guard_conjunct_proves_dependent_upper(
+    proof_plan: &ProofPlan,
+    guard: ExpressionHandle,
+    argument_label: &str,
+    max_field: &Identifier,
+    max_offset: i64,
+) -> bool {
+    let ExpressionNode::Binary(binary) = proof_plan.program.expression_table.expression(guard)
+    else {
+        return false;
+    };
+    let recurse = |handle: ExpressionHandle| {
+        guard_conjunct_proves_dependent_upper(
+            proof_plan,
+            handle,
+            argument_label,
+            max_field,
+            max_offset,
+        )
+    };
+    // `arg REL bound` normalized to (argument side, bound side, inclusive?).
+    let normalized = match binary.operator {
+        BinaryOperator::And => return recurse(binary.left) || recurse(binary.right),
+        // The multi-arm desugar nests the spelled compare inside
+        // `(subject) == true` (same shape the D14 literal gate walks);
+        // look through it.
+        BinaryOperator::Equal
+            if matches!(
+                proof_plan.program.expression_table.expression(binary.right),
+                ExpressionNode::Boolean(true)
+            ) =>
+        {
+            return recurse(binary.left);
+        }
+        BinaryOperator::Less => Some((binary.left, binary.right, false)),
+        BinaryOperator::LessOrEqual => Some((binary.left, binary.right, true)),
+        BinaryOperator::Greater => Some((binary.right, binary.left, false)),
+        BinaryOperator::GreaterOrEqual => Some((binary.right, binary.left, true)),
+        _ => None,
+    };
+    let Some((argument_side, bound_side, inclusive)) = normalized else {
+        return false;
+    };
+    if expression_display_name(proof_plan, argument_side) != argument_label {
+        return false;
+    }
+    let Some(bound) = omega_typed_trees::dependent_ranges::symbolic_max_bound(
+        &proof_plan.program.expression_table,
+        bound_side,
+    ) else {
+        return false;
+    };
+    if bound.field.as_str() != max_field.as_str() {
+        return false;
+    }
+    let implied_offset = if inclusive {
+        Some(bound.offset)
+    } else {
+        bound.offset.checked_sub(1)
+    };
+    implied_offset.is_some_and(|implied| implied <= max_offset)
+}
+
+/// Route (b): the named field's OWN enforced literal range minimum -- an
+/// argument bounded by `min(field) + offset` satisfies `field + offset` for
+/// EVERY runtime value the field's store-enforced range admits. `None` when
+/// the field is unranged or carries a non-Exact domain (whose range is
+/// deliberately permissive and must never discharge a bound).
+fn dependent_field_floor(
+    proof_plan: &ProofPlan,
+    obligation: &BoundedTransitionArgumentObligation,
+    max_field: &Identifier,
+) -> Option<i64> {
+    let program = &proof_plan.program;
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == obligation.machine.as_str())?;
+    let attached = machine.attached_data.as_ref()?;
+    let data = program
+        .data_definitions()
+        .iter()
+        .find(|data| data.name.as_str() == attached.as_str())?;
+    let field_type =
+        crate::obligations::data_field_type_by_name(program, data, max_field.as_str())?;
+    enforced_literal_range_minimum(program, field_type)
+}
+
+/// The literal Range minimum of a type reference's Constrained shells, ONLY
+/// under an Exact arithmetic domain (a non-Exact range is deliberately
+/// permissive -- probed live on the store side -- and must never discharge a
+/// bound). Mirrors the checker crate's `enforced_range_of_type_reference`.
+fn enforced_literal_range_minimum(
+    program: &omega_typed_trees::TypedTrees,
+    handle: omega_typed_trees::types::TypeReferenceHandle,
+) -> Option<i64> {
+    use omega_typed_trees::types::{TypeConstraintNode, TypeReferenceNode};
+    match program.type_reference_table.type_reference(handle) {
+        TypeReferenceNode::Reference { referee, .. } => {
+            enforced_literal_range_minimum(program, *referee)
+        }
+        TypeReferenceNode::Constrained {
+            base_type,
+            constraints,
+        } => {
+            let constraints = program.type_reference_table.constraints(*constraints);
+            if constraints.iter().any(|constraint| {
+                matches!(
+                    constraint,
+                    TypeConstraintNode::ArithmeticDomain(domain)
+                        if *domain != omega_core::arithmetic::ArithmeticDomain::Exact
+                )
+            }) {
+                return None;
+            }
+            constraints
+                .iter()
+                .find_map(|constraint| match constraint {
+                    TypeConstraintNode::Range { minimum, .. } => {
+                        program.expression_table.constant_integer_value(*minimum)
+                    }
+                    _ => None,
+                })
+                .or_else(|| enforced_literal_range_minimum(program, *base_type))
+        }
+        _ => None,
+    }
+}
+
+/// Route (b) for CALL arguments: same floor, machine resolved from the
+/// obligation's (self-receiver) caller.
+fn dependent_call_field_floor(
+    proof_plan: &ProofPlan,
+    obligation: &BoundedCallArgumentObligation,
+    max_field: &Identifier,
+) -> Option<i64> {
+    let program = &proof_plan.program;
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == obligation.machine.as_str())?;
+    let attached = machine.attached_data.as_ref()?;
+    let data = program
+        .data_definitions()
+        .iter()
+        .find(|data| data.name.as_str() == attached.as_str())?;
+    let field_type =
+        crate::obligations::data_field_type_by_name(program, data, max_field.as_str())?;
+    enforced_literal_range_minimum(program, field_type)
+}
+
+fn cannot_prove_dependent_call_bound(
+    proof_plan: &ProofPlan,
+    obligation: &BoundedCallArgumentObligation,
+    minimum: i64,
+    max_field: &Identifier,
+    max_offset: i64,
+) -> Diagnostic {
+    let bound_spelling = match max_offset {
+        0 => format!("self.{max_field}"),
+        offset if offset < 0 => format!("self.{max_field} - {}", -offset),
+        offset => format!("self.{max_field} + {offset}"),
+    };
+    Diagnostic::error(format!(
+        "cannot prove call argument `{}` satisfies dependent parameter `{}` for `{}` in `{}.{}`; expected {minimum}..={bound_spelling} -- a call has no co-located guard, so only an argument within the field's declared minimum discharges here; route the call through a guarded transition to relate them",
+        expression_display_name(proof_plan, obligation.argument),
+        obligation.parameter,
+        obligation.target,
+        obligation.machine,
+        obligation.state,
+    ))
+}
+
+fn cannot_prove_dependent_transition_bound(
+    proof_plan: &ProofPlan,
+    obligation: &BoundedTransitionArgumentObligation,
+    minimum: i64,
+    max_field: &Identifier,
+    max_offset: i64,
+) -> Diagnostic {
+    let bound_spelling = match max_offset {
+        0 => format!("self.{max_field}"),
+        offset if offset < 0 => format!("self.{max_field} - {}", -offset),
+        offset => format!("self.{max_field} + {offset}"),
+    };
+    Diagnostic::error(format!(
+        "cannot prove transition argument `{}` satisfies dependent parameter `{}` in `{}.{}`; expected {minimum}..={bound_spelling} -- relate them on the arm (`{} <= {bound_spelling}` or a `<` guard), or tighten the argument below the field's declared minimum",
+        expression_display_name(proof_plan, obligation.argument),
+        obligation.parameter,
+        obligation.machine,
+        obligation.state,
+        expression_display_name(proof_plan, obligation.argument),
+    ))
 }
 
 fn cannot_prove_bounded_transition_integer(

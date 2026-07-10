@@ -67,6 +67,17 @@ pub enum ProofConstraint {
         minimum: i64,
         maximum: i64,
     },
+    /// R1 dependent range (`[0..=self.count]`): the maximum names a `self`
+    /// FIELD's entry value plus a literal offset. Minted only for the
+    /// recognizer's admissible class (omega-typed-trees dependent_ranges);
+    /// consumed by the bounded-argument checks, which must DISCHARGE it --
+    /// an unrecognized carrier refuses at the validation fence long before
+    /// proofs run, so this variant never silently widens.
+    IntegerRangeSymbolicMax {
+        minimum: i64,
+        max_field: Identifier,
+        max_offset: i64,
+    },
     FloatRange {
         minimum: FloatLiteral,
         maximum: FloatLiteral,
@@ -116,6 +127,21 @@ impl ProofConstraint {
         };
         if let (Some(minimum), Some(maximum)) = (integer_bound(minimum), integer_bound(maximum)) {
             return Some(Self::IntegerRange { minimum, maximum });
+        }
+        // R1 dependent maximum (`[0..=self.count]`, `[0..self.count]` after
+        // the parser's `- 1` normalization): literal minimum + admissible
+        // symbolic maximum mints the relational atom.
+        if let Some(minimum) = integer_bound(minimum)
+            && let Some(symbolic) = omega_typed_trees::dependent_ranges::symbolic_max_bound(
+                &program.expression_table,
+                maximum,
+            )
+        {
+            return Some(Self::IntegerRangeSymbolicMax {
+                minimum,
+                max_field: symbolic.field,
+                max_offset: symbolic.offset,
+            });
         }
 
         Some(Self::FloatRange {
@@ -1532,7 +1558,7 @@ fn self_field_path(program: &TypedTrees, expression: ExpressionHandle) -> Option
     }
 }
 
-fn data_field_type_by_name(
+pub(crate) fn data_field_type_by_name(
     program: &TypedTrees,
     data: &omega_typed_trees::data::DataDefinition,
     field_name: &str,

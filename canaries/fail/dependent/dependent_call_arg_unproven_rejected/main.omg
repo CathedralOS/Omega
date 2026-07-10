@@ -1,0 +1,14 @@
+// FAIL CANARY (R1a): a CALL argument into a dependent-ranged parameter
+// has no co-located guard, so only the worst case through the field's
+// declared minimum discharges -- an argument above it refuses with the
+// route-through-a-guarded-transition hint.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; items: [u8; 12]; count: u32 [0..=11]; out: i32; }
+machine Main::main(&mut self) {
+    self.count = 8;
+    self.pick(9);
+    self.console.exit_process(self.out);
+    state pick(&mut self, i: u32 [0..=self.count]) {
+        self.out = self.items[i] as i32;
+    }
+}

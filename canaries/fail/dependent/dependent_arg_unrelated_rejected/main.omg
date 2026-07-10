@@ -1,0 +1,15 @@
+// FAIL CANARY (R1a): a transition argument into a dependent-ranged
+// parameter with NO relating guard and no floor discharge refuses -- the
+// obligation `arg <= self.count` is the caller's, and nothing here proves
+// it (`j: u32` is unbounded above; count's declared minimum is 0).
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; items: [u8; 12]; count: u32 [0..=11]; j: u32; out: i32; }
+machine Main::main(&mut self) {
+    self.count = 8;
+    self.j = 6;
+    transition self.j == 6 { true -> read(self.j) _ -> read(0) }
+    state read(&mut self, i: u32 [0..=self.count]) {
+        self.out = self.items[i] as i32;
+        self.console.exit_process(self.out);
+    }
+}
