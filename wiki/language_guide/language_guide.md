@@ -23,9 +23,10 @@ Proof and semantic model:
 - [Chapter 8: Domains](chapter_8_domains.md)
 - [Chapter 9: Proof Obligations](chapter_9_proof_obligations.md)
 - [Chapter 10: Compile-Time Proofs](chapter_10_compile_time_proofs.md)
-- [Chapter 11: Relax Scopes](chapter_11_relax_scopes.md)
+- [Chapter 11: Invariant Windows](chapter_11_relax_scopes.md)
 - [Chapter 23: Dependent Types](chapter_23_dependent_types.md) — reads here,
-  after Relax Scopes; numbered 23 to keep existing chapter references stable
+  after Invariant Windows; numbered 23 to keep existing chapter references
+  stable
 
 Language-building features:
 

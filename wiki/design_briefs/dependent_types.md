@@ -104,12 +104,13 @@ survey is unanimous that nothing more ships anywhere in systems code:
    mint — the memory map). Deliberately NOT unified with const generics;
    Rust's const-fragment agony is the counter-example.
 4. **Mutation discipline enforced by borrows.** A witness is frozen while any
-   dependent borrow lives (loan on the witness); changing a stored witness
-   requires a whole-value rebuild or a relax scope (Ada's whole-record
-   assignment discipline, derived here from one structural rule instead of
-   forty years of aliasing-rule patches — Ada 2005 ultimately had to *ban*
-   pointers to mutable-discriminant objects; a borrow checker gets that
-   theorem for free).
+   dependent borrow lives (loan on the witness); a witness write the checker
+   cannot prove coupling-preserving opens an invariant window closed at the
+   next consumption point (ch11, settled 2026-07-17 — see §6a). Ada needed a
+   whole-record assignment decree and forty years of aliasing-rule patches
+   (Ada 2005 ultimately *banned* pointers to mutable-discriminant objects); a
+   borrow checker plus consumption-point windows gets the same theorem from
+   two structural rules.
 5. **Two bridges only: guard mint and `as` mint.** Proven, or explicitly
    established at a visible guard/decode, or rejected. No implicit runtime
    checks (§6 decides this fork structurally).
@@ -180,8 +181,10 @@ transport.
 **The Omega answer, in one sentence:** dependencies are flow-sensitive
 *facts* about places, never part of type *identity* — so type equality stays
 nominal and decidable, mutation kills facts instead of corrupting types, a
-borrow of a dependent place read-loans its witnesses, and `relax` is the one
-strong-update primitive (Flux proved this shape sound under ownership).
+borrow of a dependent place read-loans its witnesses, and the strong-update
+primitive is the invariant window — write freely, re-prove at consumption
+points (exactly Flux's ownership-backed strong updates, which ship with no
+relax-like construct at all).
 
 **The new bill:** the borrow checker is promoted to soundness oracle for the
 entire proof layer — an aliasing bug now falsifies proven facts, not just
@@ -200,9 +203,9 @@ assigns-everything); ownership-based verifiers (Flux, Creusot, Verus) ship
 Omega's frozen contract-inference decision.
 
 Omega's floor is uniquely high: **declared ranges, domain memberships, and
-default-domain couplings survive every call unconditionally**, because every
-store inside any callee must re-prove them and relax must close before
-control returns. A `len` sizing its `payload` crosses an effectful call with
+default-domain couplings survive every call unconditionally**, because calls
+and returns are consumption points: a callee cannot return, call onward, or
+hand out a borrow with an open window. A `len` sizing its `payload` crosses an effectful call with
 zero annotations — no surveyed language gets this at this price. Only
 flow-scoped extras (guard narrowings, minted subdomains) die, atom-wise, on
 written places.
@@ -218,10 +221,11 @@ state-level `requires`, proven at every in-edge, assumed at entry, consumed
 as the induction hypothesis by the existing strict-decrease rung. Cyclic
 states need no loop-invariant construct; Houdini-style guess-and-check over
 the deterministic engine auto-recovers the counter/bounds class (0–2
-hand-written facts per cyclic state, the Dafny/Why3 norm). Inside `relax`:
-no capability-carrying or boundary calls, ever (a capability is a licensed
-path to state outside the signature — "cannot observe the relaxed target" is
-unprovable for it).
+hand-written facts per cyclic state, the Dafny/Why3 norm). Boundary and
+capability-carrying calls are consumption points even when they do not name
+the windowed place (a capability is a licensed path to state outside the
+signature — "cannot observe the window" is unprovable for it), so every
+window closes before the world can look.
 
 ## 6. Dynamic lowering — the runtime half
 
@@ -273,8 +277,9 @@ one side of it:
   have non-zero requirements — business logic cannot thrive under a
   zero-init-everything law. The zeroed form exists only as storage and is
   inaccessible as the type until construction or an `as` mint proves the
-  domain. Establishment is monotone (every later store re-proves the domain,
-  so a place never falls back to hidden) — a cheap one-way fact riding the
+  domain. Establishment is monotone as observed (a later write may open an
+  invariant window, but every consumption point closes it, so no observer
+  sees a place fall back to hidden) — a cheap one-way fact riding the
   arrival-facts machinery, not typestate bookkeeping.
 - Construction is the gate: a gated type's literal must prove the domain, so
   exactly the fields whose zero violates it are mandatory
@@ -295,6 +300,47 @@ Decode mints grant exactly the checked predicates and nothing more —
 firmware semantic truth is not decodable. Length witnesses at zero mean
 empty (len=0 → nothing to access) for zero-constructible types; gated types
 are never observed zeroed.
+
+### Invariant windows retire `relax` (settled 2026-07-17)
+
+The second owner-driven supersession in this design's history, and the
+deeper one: store-time invariant enforcement (writes must prove the domain;
+`relax` scopes suspend it locally) is replaced by **consumption-point
+enforcement**. Writes never fail a domain check. A write the checker can
+prove domain-preserving changes nothing (facts stay standing — the common
+case and every landed range-checked store). A write it cannot prove opens a
+**window** on the place; the window must close — the domain re-proven from
+flow facts — at the next **consumption point**: a read relying on a domain
+fact, a borrow creation, any call, a transition, return/scope expiration,
+or any boundary/capability-carrying call (the world observes memory).
+Errors cite both ends (opening write, failing consumption point).
+
+Why it is sound with nothing new: exclusivity — relax's soundness hinge and
+its unbuilt enforcement pass — is the borrow checker (no aliased mutation;
+a live dependent borrow pins witnesses, so windows cannot open under
+observation). Why the dependent-types results survive: the frames floor
+("couplings survive every effectful call, zero annotations") restates from
+*every store proves* to *every escape proves* — calls and returns are
+consumption points, so a callee cannot leak an open window; gating's
+monotone establishment becomes monotone-as-observed. Prior art: Flux
+(PLDI 2023) ships ownership-backed strong updates with no relax-like
+construct — refinements demanded at weakening/call/return points — which is
+this exact model.
+
+What `relax` was, in hindsight: manual window management, designed before
+absorbing that the flow-fact catalog plus borrow exclusivity infers the
+windows. Its rules survive as theorems (no-transitions-inside = transitions
+are consumption points; restore-at-exit = return is a consumption point;
+callee-must-take-relaxed-view = calls are consumption points, split helpers
+over decoupled fields). Residues, honestly: mid-window whole-value helper
+signatures (`&mut relaxed T`) are retired in favor of field-decoupled
+helpers, revisited only if a real case demands the whole; multi-state
+phased construction stays impossible (same wall, simpler statement);
+runtime-indexed array writes window the whole array under unknown indices
+(identical conservatism to whole-array relax — no regression). Use-site
+error distance is mitigated by citing the opening write. ch11 is rewritten
+as the Invariant Windows chapter; ch7/ch8/ch9/ch23 and the appendix are
+restated.
 
 ## 7. (C) The Lean-competitive expansion
 
