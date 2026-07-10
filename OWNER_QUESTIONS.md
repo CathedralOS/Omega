@@ -1,9 +1,9 @@
 # Owner Questions — consolidated digest (2026-07-10l, fs lane)
 
-Every decision currently WAITING ON ZACH, gathered from all three task
-files so they can be batch-answered. Each names what it unblocks. Answers
-can go inline here, in chat, or in the source task file — the lanes sync
-from all of them.
+Every decision currently WAITING ON ZACH, gathered from the task lists
+(consolidated into TASKS.md, 2026-07-17) so they can be batch-answered.
+Each names what it unblocks. Answers can go inline here, in chat, or in
+TASKS.md — the lanes sync from all of them.
 
 ## build.omg (fs lane; blocks the final compiler-side rung of open-work #3)
 
@@ -142,7 +142,7 @@ from all of them.
     stop hand-spelling. std/console.omg exists but as a legacy `platform`
     block outside the boundary/effect system; the arc is promoting it to
     the canonical `boundary trait` with declared effect rows + per-target
-    bindings, filesystem_host.omg-style. Filed in TASKS_FS; underway.]
+    bindings, filesystem_host.omg-style. Shipped 2026-07-17; Q13 remains.]
 
 12. **Byte-level stdin spelling for the Omega frontend (fs lane, 2026-07-11w).**
     The stdin samples (stdin_checksum/rot1/upper — the samples_compile
