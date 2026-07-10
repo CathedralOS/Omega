@@ -1,0 +1,34 @@
+// PENDING (root-caused 2026-07-15): the MIN idiom `0 - 2147483648` (Omega
+// has no negative literals; subtraction-from-zero IS the spelling for
+// TYPE_MIN) computes MIN on the interpreter (decision 17: wide i128 at the
+// node) but diverges natively under SATURATING narrow arithmetic: the
+// sat/trap narrow paths sign-extend BOTH operand registers from the target
+// width, which corrupts a literal operand that was loaded as its full wide
+// value (2147483648 re-read as i32 is -2^31, so 0 - (-2^31) saturates to
+// MAX instead of MIN). Exact/Wrapping are IMMUNE (the plain path
+// wide-computes and store-truncates, which is why the wrap-boundary
+// canaries pass) -- only the extending sat/trap narrow paths corrupt.
+// FIX DIRECTION: skip the operand extension for IMMEDIATE operands (the
+// loader already provides the true wide value; the write paths hold the
+// operand handles and can query immediate_integer) on both ISAs -- or fold
+// zero-minus-immediate before emission. A validation-level rejection is
+// WRONG: it breaks the MIN idiom corpus-wide (probed; 7 canaries trip).
+// exits: 70 = MIN (correct); 71 = MAX (the native corruption); 99 = other.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine Main::main(&mut self) {
+    let a: i32 in Saturating = (0 as i32 in Saturating) - 2147483648;
+    transition a == (0 as i32 in Saturating) - 2147483647 - 1 {
+        true  -> is_min()
+        false -> chk_max()
+    }
+    state chk_max(&mut self) {
+        transition a == 2147483647 {
+            true  -> is_max()
+            false -> other()
+        }
+    }
+    state is_min(&mut self) { self.console.exit_process(70); }
+    state is_max(&mut self) { self.console.exit_process(71); }
+    state other(&mut self)  { self.console.exit_process(99); }
+}

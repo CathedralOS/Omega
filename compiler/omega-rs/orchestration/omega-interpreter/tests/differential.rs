@@ -1870,6 +1870,7 @@ const PENDING_RUNTIME_DIVERGENCES: &[(&str, i32, PendingInterpOutcome)] = &[
     ("arithmetic/array_field_default_silent", 0, PendingInterpOutcome::Exit(1)),
     ("calls/texteq_local_guard_read_divergence", 71, PendingInterpOutcome::Exit(70)),
     ("calls/texteq_local_arg_forward_divergence", 71, PendingInterpOutcome::Exit(70)),
+    ("arithmetic/sat_narrow_wide_literal_operand_divergence", 71, PendingInterpOutcome::Exit(70)),
     ("arithmetic/const_fold_unsigned_divide_miscompile", 71, PendingInterpOutcome::Exit(70)),
     ("arithmetic/const_fold_unsigned_shift_right_miscompile", 71, PendingInterpOutcome::Exit(70)),
     ("arithmetic/float_to_int_overflow_divergence", 99, PendingInterpOutcome::Exit(71)),

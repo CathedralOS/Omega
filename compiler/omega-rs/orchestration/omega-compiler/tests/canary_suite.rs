@@ -29250,6 +29250,10 @@ const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
         expectation: PendingCanaryExpectation::CurrentlyAccepts,
     },
     PendingCanary {
+        path: "arithmetic/sat_narrow_wide_literal_operand_divergence",
+        expectation: PendingCanaryExpectation::CurrentlyAccepts,
+    },
+    PendingCanary {
         path: "arithmetic/const_fold_unsigned_divide_miscompile",
         expectation: PendingCanaryExpectation::CurrentlyAccepts,
     },

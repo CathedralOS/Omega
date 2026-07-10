@@ -86,6 +86,20 @@ should target NEW feature surfaces as they land, not re-walk these axes.
 
 ## Open bugs / gaps (ungated)
 
+- **Sat/Trap narrow arithmetic corrupts WIDE LITERAL operands (the MIN
+  idiom; root-caused 2026-07-15).** `(0 as i32 in Saturating) - 2147483648`
+  -- the only spelling for i32::MIN, Omega has no negative literals -- gives
+  MAX natively, MIN on the interp: the sat/trap narrow paths sign-extend
+  operand registers from the TARGET width, corrupting a literal loaded at
+  its true wide value. Exact/Wrapping immune (plain wide-compute +
+  store-truncate). FIX: thread per-side is-immediate flags from the write/
+  operand callers (they hold the handles; `immediate_integer`) and skip the
+  extension for immediates, width twins in lockstep, both ISAs; the shl
+  value-extension shares the pattern. A validation-level rejection is WRONG
+  (breaks the MIN idiom corpus-wide; probed, 7 canaries trip). Pinned:
+  pending/arithmetic/sat_narrow_wide_literal_operand_divergence (71,
+  Exit(70)).
+
 - **FS-LANE FOLLOW-THROUGH: texteq arm-locals still ZII for non-terminal
   consumers (found 2026-07-15 probing the just-closed leaf fix).** The
   fix's initializer collection rides Terminal-value arm expansions only; a
