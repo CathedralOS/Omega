@@ -983,7 +983,7 @@ fn resolve_leaf_caller_local_initializer_names(
                     value,
                     target_type: cast.target_type,
                     domain: cast.domain,
-                    form: omega_core::cast_form::CastForm::Value,
+                    form: cast.form,
                 },
             ))
         }

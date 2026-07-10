@@ -203,7 +203,7 @@ pub(super) fn resolve_runtime_alias_binding(
                         value: resolved.expression,
                         target_type: cast.target_type.clone(),
                         domain: cast.domain,
-                        form: omega_core::cast_form::CastForm::Value,
+                        form: cast.form,
                     },
                 )),
             }
@@ -452,7 +452,7 @@ pub(super) fn resolve_runtime_alias_binding_handle(
                         value: resolved.expression,
                         target_type: cast.target_type,
                         domain: cast.domain,
-                        form: omega_core::cast_form::CastForm::Value,
+                        form: cast.form,
                     },
                 )),
             }
@@ -664,7 +664,7 @@ pub(super) fn resolve_leaf_binding_expression_handle(
                     value,
                     target_type: cast.target_type,
                     domain: cast.domain,
-                    form: omega_core::cast_form::CastForm::Value,
+                    form: cast.form,
                 },
             ))
         }
@@ -873,7 +873,7 @@ pub(super) fn resolve_straight_line_binding_expression_handle(
                     value,
                     target_type: cast.target_type,
                     domain: cast.domain,
-                    form: omega_core::cast_form::CastForm::Value,
+                    form: cast.form,
                 },
             ))
         }

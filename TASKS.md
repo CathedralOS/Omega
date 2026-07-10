@@ -354,10 +354,17 @@ transition loop-backs unchanged (unmeasured, constant-stack, may diverge).
     currently yields NO write, the ZII slot); the read side is
     omega-state-guards operands/layout.rs (~:280
     TypeLayoutDescriptor::Reference arm) which sizes the compare by the
-    SLOT (8) instead of the stated referee (f32 -> bytes 8 vs 4). Fix
-    shape: recast-let writes copy the SOURCE place's bytes at the SOURCE
-    width into the slot low bytes; guard/value reads through a
-    reference-typed local use referee width + kind.
+    SLOT (8) instead of the stated referee (f32 -> bytes 8 vs 4). Fix (a) LANDED
+    2026-07-09: strip_recast_initializer at the LocalStorage write + the
+    EIGHT backend cast-rebuild sites now FORWARD the source form (they
+    hardcoded CastForm::Value, silently erasing recast-ness in
+    alias/binding rebuilds -- the write now lands the source's bit
+    pattern in the slot). Fix (b) remains, mapped in the pin: guards
+    operand layout presents SLOT width for Reference-to-scalar locals
+    (must present referee width); float literals always encode f64 bits
+    (must encode f32 when the other operand is f32-stated); and the
+    compare emission needs a 4-byte float leg (comiss / fcmp s-regs) on
+    BOTH ISAs.
   - **(B)** interior recast into a `[u8; N]` region at a static offset
     (footprint-fits judgment + fact implication over the region).
   - **(C)** the Cathedral shape — runtime offset strided by runtime
