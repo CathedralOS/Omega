@@ -27,7 +27,7 @@ data Item {
 data Main {
     console: Console;
     grid: [Cell; 4];
-    idx: usize;
+    idx: u64;
     item: Item;
     tag: i32 in Trapping;
 }

@@ -23,13 +23,13 @@ data PointValue {
 
 data PolygonValue {
     points: [PointValue; 3];
-    points_count: usize;
+    points_count: u64;
 }
 
 data Main {
     console: Console;
     buffer: [u8; 64];
-    written: usize;
+    written: u64;
 }
 
 machine Main::main(&mut self) {

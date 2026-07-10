@@ -62,7 +62,7 @@ machine Random::chance(
 }
 
 data Level {
-    room_count: usize;
+    room_count: u64;
     deepest_depth: u32;
 }
 

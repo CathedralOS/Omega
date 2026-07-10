@@ -20,7 +20,7 @@ data Main {
     dir_mode: i32;
     ro_mode: u32;
     rdonly: i32;
-    cap: usize;
+    cap: u64;
     fd: i32;
     rc: i32;
     fmt: i32;

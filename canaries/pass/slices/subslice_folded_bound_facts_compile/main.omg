@@ -6,11 +6,11 @@ data Main {
     entries: [Entry; 4];
 }
 
-machine Main::main(&mut self) -> usize {
+machine Main::main(&mut self) -> u64 {
     let view: &[Entry] = self.entries.as_slice();
-    let start: usize = 1;
-    let width: usize = 2;
-    let end: usize = start + width;
+    let start: u64 = 1;
+    let width: u64 = 2;
+    let end: u64 = start + width;
     let tail: &[Entry] = view[start..];
     let middle: &[Entry] = view[start..end];
     let chosen: Entry = middle[end - 3];

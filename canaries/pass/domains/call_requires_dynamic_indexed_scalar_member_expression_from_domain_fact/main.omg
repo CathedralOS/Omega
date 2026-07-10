@@ -8,7 +8,7 @@ domain Entry::Positive {
 
 data Main {
     entries: [Entry; 2];
-    index: usize;
+    index: u64;
 }
 
 machine Main::accept(value: i32)

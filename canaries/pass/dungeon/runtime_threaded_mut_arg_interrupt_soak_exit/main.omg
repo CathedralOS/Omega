@@ -42,11 +42,11 @@ machine Main::main(&mut self) {
     state spin(
         &mut self,
         tally: &mut Tally,
-        index: usize,
-        count: usize
+        index: u64,
+        count: u64
     ) {
         self.stepper.bump(tally);
-        let next_index: usize = index + 1;
+        let next_index: u64 = index + 1;
         let has_next: bool = next_index < count;
 
         transition {

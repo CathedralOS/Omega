@@ -11,7 +11,7 @@ boundary trait Console {
 data Main {
     console: Console;
     arr: [i32; 4];
-    k: usize [0..=3];
+    k: u64 [0..=3];
 }
 machine Main::main(&mut self) {
     self.arr[2] = 9;

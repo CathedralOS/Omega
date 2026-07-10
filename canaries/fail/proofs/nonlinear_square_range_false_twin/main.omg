@@ -3,7 +3,7 @@
 // upper corner. Accepted today; interval products (nonlinear arithmetic) must
 // reject it.
 
-machine false_square_bounded(a: usize)
+machine false_square_bounded(a: u64)
 requires
     a in 0..=10
 ensures

@@ -2,7 +2,7 @@
 // Lean analog: `Nat.lt_trans`. Requires chaining two strict-order facts,
 // one entailment hop past direct fact matching.
 
-machine less_than_transitive(a: usize, b: usize, c: usize)
+machine less_than_transitive(a: u64, b: u64, c: u64)
 requires
     a < b
     b < c

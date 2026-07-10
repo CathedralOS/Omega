@@ -1,7 +1,7 @@
 // Wire REPEATED fields: a schema field spelled `[scalar; max]` packs
 // LENGTH-delimited (protobuf's packed encoding) -- tag varint + byte-LENGTH
 // varint + back-to-back element varints, NO per-element tags. The runtime
-// value declares the matching array plus a `usize` COUNT COMPANION
+// value declares the matching array plus a `u64` COUNT COMPANION
 // (`<name>_count`): the wire never carries the count, so the encoder reads
 // the companion (emitting min(count, max) elements through unrolled guarded
 // appends staged in the wire scratch) and the decoder writes the decoded
@@ -35,7 +35,7 @@ data SensorReadings {
 data SensorSample {
     sensor_id: u32;
     samples: [i32; 4];
-    samples_count: usize;
+    samples_count: u64;
     flag: bool;
 }
 
@@ -49,8 +49,8 @@ data WireVerdict {
 data Main {
     console: Console;
     buffer: [u8; 64];
-    written: usize;
-    read: usize;
+    written: u64;
+    read: u64;
     verdict: WireVerdict;
 }
 

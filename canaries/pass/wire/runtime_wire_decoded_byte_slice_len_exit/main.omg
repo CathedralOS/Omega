@@ -33,8 +33,8 @@ data Main {
     console: Console;
     source: [u8; 4];
     buffer: [u8; 64];
-    written: usize;
-    read: usize;
+    written: u64;
+    read: u64;
     verdict: WireVerdict;
 }
 
@@ -48,7 +48,7 @@ machine Main::main(&mut self) {
     let decoded: BlobSample = BlobSample { bytes: self.source[0..2] };
     Blob::decode(&mut decoded, &self.buffer, &mut self.read, &mut self.verdict);
 
-    let n: usize = decoded.bytes.len;
+    let n: u64 = decoded.bytes.len;
 
     let matches: bool = self.verdict == WireVerdict::Sound && self.read == 5 && n == 2;
 

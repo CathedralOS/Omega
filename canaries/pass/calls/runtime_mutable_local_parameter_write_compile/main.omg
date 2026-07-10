@@ -7,7 +7,7 @@ data Main {
 
 machine Main::main(&mut self) {
     let rooms: [Room; 1] = [Room { exit_count: 0 }];
-    let from_index: usize = 0;
+    let from_index: u64 = 0;
 
     self.bump(&mut rooms[from_index]);
     transition {

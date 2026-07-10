@@ -1,4 +1,4 @@
-// A DECLARED range discharges the index obligation with NO guard: `i: usize
+// A DECLARED range discharges the index obligation with NO guard: `i: u64
 // [0..=4]` indexing `[i32; 5]` proves both halves (0 <= i by the range's low
 // bound -- and by unsignedness -- and i < 5 by high=4). Before, an explicit
 // dominating guard or exact assignment was required; the declared range alone
@@ -12,7 +12,7 @@ boundary trait Console {
 data Main {
     console: Console;
     arr: [i32; 5];
-    i: usize [0..=4];
+    i: u64 [0..=4];
 }
 
 machine Main::main(&mut self) {

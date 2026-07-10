@@ -18,7 +18,7 @@ data Main {
     n: u32 in Wrapping;
     dval: u32 in Wrapping;
     byte: u8 in Wrapping;
-    i: usize;
+    i: u64;
 }
 
 machine Main::main(&mut self) {

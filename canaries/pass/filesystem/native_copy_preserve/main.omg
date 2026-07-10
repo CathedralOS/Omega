@@ -14,11 +14,11 @@ data Main {
     fs: FilesystemHost;
     mode: i32;
     rdonly: i32;
-    cap: usize;
+    cap: u64;
     srcperm: u32;
     fd: i32;
     rc: i32;
-    got: usize;
+    got: u64;
     srcmode: u32;
     dstmode: i32;
     size: i32;
@@ -42,7 +42,7 @@ machine Main::main(&mut self) {
     // read the source bytes
     self.fd = self.fs.open("/tmp/omega_cp_src.txt", self.rdonly);
     self.n = self.fs.read(self.fd, &mut self.buffer, self.cap);
-    self.got = self.n as usize;
+    self.got = self.n as u64;
     self.discard = self.fs.close(self.fd);
     transition self.got <= 144 { true -> writeit() _ -> fail() }
     state writeit(&mut self) {

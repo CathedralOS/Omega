@@ -6,7 +6,7 @@ data Main {
     entries: [Entry; 4];
 }
 
-machine Main::main(&mut self) -> usize {
+machine Main::main(&mut self) -> u64 {
     let view: &[Entry] = self.entries.as_slice();
     let prefix: &[Entry] = view[..4];
     let middle: &[Entry] = view[1..3];

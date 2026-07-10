@@ -5,7 +5,7 @@ data Entry {
 data Main {
 }
 
-machine Main::main(&mut self, entries: &[Entry]) -> usize {
+machine Main::main(&mut self, entries: &[Entry]) -> u64 {
     let tail: &[Entry] = entries[1..];
     tail.len
 }

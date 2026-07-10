@@ -15,10 +15,10 @@ data Main {
     fs: FilesystemHost;
     mode: i32;
     rdonly: i32;
-    cap: usize;
+    cap: u64;
     fd: i32;
     n: i64;
-    got: usize;
+    got: u64;
     size: i64;
     first: u8;
     buffer: [u8; 64];
@@ -33,7 +33,7 @@ machine Main::main(&mut self) {
     self.n = self.fs.close(self.fd);
     self.fd = self.fs.open("/tmp/omega_ssc_src.txt", self.rdonly);
     self.n = self.fs.read(self.fd, &mut self.buffer, self.cap);
-    self.got = self.n as usize;
+    self.got = self.n as u64;
     self.n = self.fs.close(self.fd);
     // faithful copy: write EXACTLY the bytes read, `buffer[0..got]`, no truncate.
     transition self.got <= 64 { true -> writeit() _ -> fail() }

@@ -18,7 +18,7 @@ data Main {
     slots: [i64; table_size()];
 }
 
-machine table_size() -> usize {
+machine table_size() -> u64 {
     transition {
         _ -> (12 + 4)
     }

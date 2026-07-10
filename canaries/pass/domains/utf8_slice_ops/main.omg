@@ -12,7 +12,7 @@ data Main {
 
 boundary trait Console { machine exit_process(return_code: i32); }
 
-machine Main::measure(&self, text: &[u8] in Utf8) -> usize {
+machine Main::measure(&self, text: &[u8] in Utf8) -> u64 {
     transition { _ -> (text.len) }
 }
 

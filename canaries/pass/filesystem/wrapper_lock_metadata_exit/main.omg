@@ -31,7 +31,7 @@ machine Main::main(&mut self) {
         self.io_result = self.fs.write(File { fd: self.file_fd }, "hello");
         transition self.io_result { IoResult::Ok { count } -> seeded(count) _ -> bad(72) }
     }
-    state seeded(&mut self, count: usize) {
+    state seeded(&mut self, count: u64) {
         transition count == 5 { true -> meta() _ -> bad(72) }
     }
     state meta(&mut self) {

@@ -34,9 +34,9 @@ data Main {
     source: [u8; 4];
     buffer: [u8; 64];
     buffer2: [u8; 64];
-    written: usize;
-    written2: usize;
-    read: usize;
+    written: u64;
+    written2: u64;
+    read: u64;
     verdict: WireVerdict;
 }
 

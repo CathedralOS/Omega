@@ -12,7 +12,7 @@ machine Main::main(&mut self) {
     self.arr[1] = 77;
     transition { _ -> self.copy_elem(3, 1) }
 }
-machine Main::copy_elem(&mut self, k: usize [0..=3], j: usize [0..=3]) {
+machine Main::copy_elem(&mut self, k: u64 [0..=3], j: u64 [0..=3]) {
     self.arr[k] = self.arr[j];
     transition self.arr[3] == 77 {
         true -> yes()

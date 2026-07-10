@@ -17,7 +17,7 @@ machine Main::main(&mut self) {
     transition { _ -> self.view(1, 4) }
 }
 
-machine Main::view(&mut self, lo: usize, hi: usize) {
+machine Main::view(&mut self, lo: u64, hi: u64) {
     transition lo <= hi && hi <= self.arr.len {
         true -> self.consume(self.arr[lo..hi])
         false -> bad()
@@ -26,7 +26,7 @@ machine Main::view(&mut self, lo: usize, hi: usize) {
 }
 
 machine Main::consume(&mut self, sub: &[i32]) {
-    let n: usize = sub.len;
+    let n: u64 = sub.len;
     transition n == 3 {
         true -> matched()
         false -> unmatched()

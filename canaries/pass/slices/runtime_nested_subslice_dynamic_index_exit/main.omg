@@ -21,7 +21,7 @@ machine Main::main(&mut self) {
 
     choose(window, 1);
 
-    state choose(&mut self, entries: &[Entry], index: usize) {
+    state choose(&mut self, entries: &[Entry], index: u64) {
         transition entries[index].value == 37 {
             true -> good()
             false -> bad()

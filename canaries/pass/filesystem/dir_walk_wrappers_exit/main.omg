@@ -42,7 +42,7 @@ machine Main::main(&mut self) {
         self.io_result = self.fs.read_dir_count("omega_walk_a/b/c");
         transition self.io_result { IoResult::Ok { count } -> ckcount(count) _ -> bad(73) }
     }
-    state ckcount(&mut self, count: usize) {
+    state ckcount(&mut self, count: u64) {
         transition count == 2 { true -> ckempty() _ -> bad(73) }
     }
     state ckempty(&mut self) {

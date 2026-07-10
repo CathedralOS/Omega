@@ -7,7 +7,7 @@ use omega::language::std::filesystem_host;
 
 data Main {
     fs: FilesystemHost;
-    cap: usize;
+    cap: u64;
     rc: i32;
     got: i64;
     first: u8;

@@ -18,10 +18,10 @@ data CellId { case R00; case R01; case R02; case R03; }
 
 data Main {
     console: Console;
-    count: usize;
+    count: u64;
 }
 
-machine Main::cell_index(&mut self, cell: CellId) -> usize {
+machine Main::cell_index(&mut self, cell: CellId) -> u64 {
     transition cell {
         CellId::R00 -> 0
         CellId::R01 -> 1

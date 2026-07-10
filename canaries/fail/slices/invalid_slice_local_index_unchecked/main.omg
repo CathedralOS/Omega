@@ -8,7 +8,7 @@ data Main {
 
 machine Main::main(&mut self) -> i32 {
     let view: &[Entry] = self.entries.as_slice();
-    let index: usize = 9;
+    let index: u64 = 9;
     let chosen: Entry = view[index];
     chosen.value
 }

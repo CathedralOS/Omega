@@ -13,7 +13,7 @@ data Row {
 data Main {
     console: Console;
     rows: [Row; 3];
-    j: usize [0..=1];
+    j: u64 [0..=1];
     got: i32;
 }
 machine Main::main(&mut self) {

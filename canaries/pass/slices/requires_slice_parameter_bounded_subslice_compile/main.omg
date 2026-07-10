@@ -8,9 +8,9 @@ data Main {
 machine Main::main(
     &mut self,
     entries: &[Entry],
-    start: usize,
-    end: usize
-) -> usize
+    start: u64,
+    end: u64
+) -> u64
 requires
     start <= end && end == entries.len
 {

@@ -16,24 +16,24 @@
 // read by name into the inline arg.
 boundary trait Console { machine exit_process(return_code: i32); }
 data Main { console: Console; }
-data Cnt { n: usize; }
-measure Cnt::Order(n: usize) -> usize { n }
+data Cnt { n: u64; }
+measure Cnt::Order(n: u64) -> u64 { n }
 machine Main::countdown(&mut self, c: Cnt)
 terminates { decreases c.n -> Cnt::Order; }
--> usize
+-> u64
 {
     transition c.n > 0 { true -> countdown(Cnt { n: c.n - 1 }) false -> 5 }
 }
-machine Main::plus1(&mut self, v: usize [0..=100]) -> usize { v + 1 }
+machine Main::plus1(&mut self, v: u64 [0..=100]) -> u64 { v + 1 }
 machine Main::main(&mut self) {
     // TransitionArgument role: recursive result forwarded as an arg.
     transition self.countdown(Cnt { n: 3 }) == 5 { true -> fwd(self.countdown(Cnt { n: 2 })) _ -> bad_guard() }
-    state fwd(&mut self, v: usize) {
+    state fwd(&mut self, v: u64) {
         transition v == 5 { true -> callarg() _ -> bad_fwd() }
     }
     state callarg(&mut self) {
-        let r: usize = self.countdown(Cnt { n: 1 });
-        let d: usize = self.plus1(r);
+        let r: u64 = self.countdown(Cnt { n: 1 });
+        let d: u64 = self.plus1(r);
         transition d == 6 { true -> good() _ -> bad_callarg() }
     }
     state good(&mut self) { self.console.exit_process(70); }

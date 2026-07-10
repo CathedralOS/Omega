@@ -19,7 +19,7 @@ machine Main::main(&mut self) {
 
     choose(prefix, 1);
 
-    state choose(&mut self, entries: &[Entry], index: usize) {
+    state choose(&mut self, entries: &[Entry], index: u64) {
         transition entries[index].value == 29 {
             true -> good()
             false -> bad()

@@ -1,14 +1,15 @@
-// isize: a SIGNED pointer-width integer. It was a registered builtin symbol but
-// missing from PrimitiveType (from_name mapped usize but not isize), so an isize
-// field failed at layout with "unknown layout-bearing type `isize`". Wired as
-// pointer-width + signed: -42 - 8 == -50 -> exit 70.
+// Signed 64-bit field arithmetic: -42 - 8 == -50 -> exit 70. REWRITTEN from
+// the retired `isize` (usize-retirement stage 2, 2026-07-15: "we have addr,
+// we have primitives" -- the pointer-width-signed spelling dies with its
+// unsigned twin; this canary's original purpose was pinning that isize
+// reached layout at all).
 boundary trait Console {
     machine exit_process(return_code: i32);
 }
 
 data Main {
     console: Console;
-    v: isize;
+    v: i64;
 }
 
 machine Main::main(&mut self) {

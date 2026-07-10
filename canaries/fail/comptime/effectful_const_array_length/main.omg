@@ -12,7 +12,7 @@ data Main {
     slots: [i64; loud_size()];
 }
 
-machine loud_size() -> usize
+machine loud_size() -> u64
 effects
     process_exit
 {

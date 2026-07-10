@@ -23,7 +23,7 @@ machine Main::main(&mut self) {
 
     walk(self.source[0..3], 2);
 
-    state walk(&mut self, data: &[u8], i: usize) {
+    state walk(&mut self, data: &[u8], i: u64) {
         transition data.len == 3 && i < data.len {
             true -> check(data[i])
             false -> bad()

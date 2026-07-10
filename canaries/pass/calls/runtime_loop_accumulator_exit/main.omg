@@ -10,19 +10,19 @@ boundary trait Console {
 data Main {
     console: Console;
 }
-machine Main::sum(&mut self, n: usize, acc: usize in Wrapping)
+machine Main::sum(&mut self, n: u64, acc: u64 in Wrapping)
 terminates {
     decreases n;
 }
--> usize
+-> u64
 {
     transition n > 0 {
-        true -> sum(n - 1, acc + (n as usize in Wrapping))
+        true -> sum(n - 1, acc + (n as u64 in Wrapping))
         false -> acc
     }
 }
 machine Main::main(&mut self) {
-    let total: usize = self.sum(5, 0);
+    let total: u64 = self.sum(5, 0);
     transition total == 15 {
         true -> yes()
         false -> no()

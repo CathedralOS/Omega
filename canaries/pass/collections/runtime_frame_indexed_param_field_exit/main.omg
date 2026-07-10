@@ -17,7 +17,7 @@ machine Main::main(&mut self) {
     self.points[1].y = 42;
     transition { _ -> self.pick(self.points, 1) }
 }
-machine Main::pick(&mut self, points: [Point; 3], k: usize [0..=2]) {
+machine Main::pick(&mut self, points: [Point; 3], k: u64 [0..=2]) {
     let v: i32 = points[k].y;
     transition v == 42 {
         true -> yes()

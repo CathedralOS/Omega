@@ -13,7 +13,7 @@ machine Main::main(&mut self) {
     self.arr[2] = 9;
     transition { _ -> self.pick(2) }
 }
-machine Main::pick(&mut self, k: usize [0..=3]) {
+machine Main::pick(&mut self, k: u64 [0..=3]) {
     let v: i32 = self.arr[k];
     transition v == 9 {
         true -> yes()

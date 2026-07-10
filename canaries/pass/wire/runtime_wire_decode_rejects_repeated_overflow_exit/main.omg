@@ -27,7 +27,7 @@ data Burst {
 
 data BurstValue {
     samples: [i32; 2];
-    samples_count: usize;
+    samples_count: u64;
 }
 
 // The decode verdict: a dispatchable enum, not a forgettable flag. Invalid
@@ -39,9 +39,9 @@ data WireVerdict {
 
 data Main {
     console: Console;
-    read_overflow: usize;
+    read_overflow: u64;
     verdict_overflow: WireVerdict;
-    read_hostile: usize;
+    read_hostile: u64;
     verdict_hostile: WireVerdict;
     count_capped: bool;
 }

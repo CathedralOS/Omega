@@ -6,8 +6,8 @@ boundary trait Console { machine exit_process(return_code: i32); }
 data Main {
     console: Console;
     grid: [[i32 in Wrapping; 4]; 3];
-    i: usize [0..=2];
-    j: usize [0..=3];
+    i: u64 [0..=2];
+    j: u64 [0..=3];
     got: i32 in Wrapping;
 }
 machine Main::main(&mut self) {

@@ -11,7 +11,7 @@ data Main {
 machine Main::main(&mut self) {
     transition { _ -> self.put(1, 44) }
 }
-machine Main::put(&mut self, k: usize [0..=3], v: i32) {
+machine Main::put(&mut self, k: u64 [0..=3], v: i32) {
     self.arr[k] = v;
     transition self.arr[1] == 44 {
         true -> yes()

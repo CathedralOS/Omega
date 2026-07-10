@@ -1,5 +1,5 @@
 library TestHost = "TestHost.dylib" calling_convention c {
-    entry host_write(fd: i32, count: usize) -> i32
+    entry host_write(fd: i32, count: u64) -> i32
         symbol "_host_write"
         boundary omega_test_host_write
 }

@@ -1697,25 +1697,25 @@ fn local_data_by_name<'program>(
 }
 
 fn primitive_constraints(name: &Identifier) -> ConstraintBuffer {
-    let mut constraints = match name.as_str() {
-        "u32" => {
-            let mut constraints = ConstraintBuffer::new();
-            constraints.push(ProofConstraint::IntegerRange {
-                minimum: 0,
-                maximum: u32::MAX as i64,
-            });
-            constraints
-        }
-        "usize" => {
-            let mut constraints = ConstraintBuffer::new();
-            constraints.push(ProofConstraint::IntegerRange {
-                minimum: 0,
-                maximum: i64::MAX,
-            });
-            constraints
-        }
-        _ => ConstraintBuffer::new(),
+    // Every UNSIGNED primitive carries its type range as a proof fact -- the
+    // lower half (`>= 0`) is what discharges index/bound obligations when a
+    // guard supplies only the upper half (`idx < 3`). This list originally
+    // held just u32 and usize; the usize retirement's corpus sweep
+    // (usize -> u64) exposed the gap: a `u64` field lost its `>= 0` fact and
+    // previously-proving programs failed their bounded-parameter checks.
+    // u64's maximum caps at i64::MAX -- the proof domain's integer width
+    // (matching the old usize fact).
+    let mut constraints = ConstraintBuffer::new();
+    let range = match name.as_str() {
+        "u8" => Some((0, u8::MAX as i64)),
+        "u16" => Some((0, u16::MAX as i64)),
+        "u32" => Some((0, u32::MAX as i64)),
+        "u64" | "usize" => Some((0, i64::MAX)),
+        _ => None,
     };
+    if let Some((minimum, maximum)) = range {
+        constraints.push(ProofConstraint::IntegerRange { minimum, maximum });
+    }
     augment_constraints_with_named_facts(&mut constraints);
     constraints
 }

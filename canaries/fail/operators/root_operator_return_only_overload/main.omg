@@ -1,6 +1,6 @@
 operator Quantity::combine(left: i32, right: i32) -> i32;
 
-operator Quantity::combine(left: i32, right: i32) -> usize;
+operator Quantity::combine(left: i32, right: i32) -> u64;
 
 data Main {
 }

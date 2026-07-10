@@ -2,7 +2,7 @@
 // a + b == b + a + 1 normalizes to 0 == 1. Accepted today; term
 // normalization (canonical polynomial form) must reject it.
 
-machine false_add_commutative(a: usize, b: usize)
+machine false_add_commutative(a: u64, b: u64)
 ensures
     a + b == b + a + 1
 {

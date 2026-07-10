@@ -8,7 +8,7 @@ boundary trait Console {
 data Main {
     console: Console;
     cells: [i32 [0..=7]; 4];
-    i: usize [0..=3];
+    i: u64 [0..=3];
 }
 
 machine Main::main(&mut self) {

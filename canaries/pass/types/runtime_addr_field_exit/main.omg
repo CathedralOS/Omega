@@ -1,4 +1,5 @@
-// `addr` -- a pointer-width ADDRESS type, distinct from `usize`/counts. Mirrors
+// `addr` -- a pointer-width ADDRESS type, distinct from `u64` counts (the
+// retired `usize` conflated the two). Mirrors
 // the UEFI contract shapes (`EfiHandle { raw: addr }`, `ConsolePtr { raw: addr }`):
 // store two distinct addresses in struct fields, read one back through `.raw`,
 // and cast to i32 for the exit code. Naive pointer-width (rides the 8-byte path);

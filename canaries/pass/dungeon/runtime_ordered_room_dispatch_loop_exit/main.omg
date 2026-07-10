@@ -27,7 +27,7 @@ data Dungeon {
 
 machine Dungeon::enter_room(
     &mut self,
-    room_index: usize
+    room_index: u64
 ) {
     transition {
         _ -> mark_current_room()
@@ -66,7 +66,7 @@ data Main {
     view: GameView;
     input: String;
     output: String;
-    current_room_index: usize;
+    current_room_index: u64;
     fountain_used: bool;
     bat_defeated: bool;
     treasure_taken: bool;

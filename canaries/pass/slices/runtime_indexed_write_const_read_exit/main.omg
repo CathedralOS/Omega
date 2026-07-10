@@ -18,8 +18,8 @@ boundary trait Console {
 data Main {
     console: Console;
     cells: [i32; 5] in Trapping;
-    i: usize;
-    j: usize;
+    i: u64;
+    j: u64;
 }
 
 machine Main::main(&mut self) {

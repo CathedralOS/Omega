@@ -61,7 +61,7 @@ machine Main::main(&mut self) {
         transition self.io { IoResult::Ok { count } -> chk_count(count) _ -> bad(76) }
     }
 
-    state chk_count(&mut self, count: usize) {
+    state chk_count(&mut self, count: u64) {
         transition count == 6 { true -> chk_head() _ -> bad(76) }
     }
 

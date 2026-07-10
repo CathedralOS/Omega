@@ -6,7 +6,7 @@ data Main {
     entries: [Entry; 4];
 }
 
-machine Main::main(&mut self) -> usize {
+machine Main::main(&mut self) -> u64 {
     let view: &[Entry] = self.entries.as_slice();
 
     transition {
@@ -18,7 +18,7 @@ machine Main::walk(&mut self, entries: &[Entry])
 terminates {
     decreases entries;
 }
--> usize
+-> u64
 {
     transition entries.len > 0 {
         true -> walk(entries[1..])

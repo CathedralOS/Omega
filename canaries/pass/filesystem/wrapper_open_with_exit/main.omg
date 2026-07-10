@@ -43,7 +43,7 @@ machine Main::main(&mut self) {
         self.close_rc = self.fs.close(File { fd: self.file_fd });
         transition self.io_result { IoResult::Ok { count } -> wrote(count) _ -> bad(72) }
     }
-    state wrote(&mut self, count: usize) {
+    state wrote(&mut self, count: u64) {
         transition count == 3 { true -> leg2() _ -> bad(72) }
     }
     // Leg 2: read-only open reads the bytes back.
@@ -90,7 +90,7 @@ machine Main::main(&mut self) {
         self.io_result = self.fs.read_all("omega_ow_probe.txt", &mut self.back, 16);
         transition self.io_result { IoResult::Ok { count } -> ck4(count) _ -> bad(76) }
     }
-    state ck4(&mut self, count: usize) {
+    state ck4(&mut self, count: u64) {
         transition count == 8 { true -> ck4b() _ -> bad(76) }
     }
     state ck4b(&mut self) {

@@ -14,19 +14,19 @@ boundary trait Console {
 data Main {
     console: Console;
 }
-machine Main::fact(&mut self, n: usize, acc: usize in Wrapping)
+machine Main::fact(&mut self, n: u64, acc: u64 in Wrapping)
 terminates {
     decreases n;
 }
--> usize
+-> u64
 {
     transition n > 0 {
-        true -> fact(n - 1, acc * (n as usize in Wrapping))
+        true -> fact(n - 1, acc * (n as u64 in Wrapping))
         false -> acc
     }
 }
 machine Main::main(&mut self) {
-    let result: usize = self.fact(5, 1);
+    let result: u64 = self.fact(5, 1);
     let code: i32 = result as i32;
     self.console.exit_process(code);
 }

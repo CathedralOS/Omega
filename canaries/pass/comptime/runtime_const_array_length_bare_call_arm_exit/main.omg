@@ -18,11 +18,11 @@ data Main {
     slots: [i64; table_size()];
 }
 
-machine burn(remaining: usize, acc: usize)
+machine burn(remaining: u64, acc: u64)
 terminates {
     decreases remaining;
 }
--> usize
+-> u64
 {
     transition remaining > 0 {
         true -> (burn(remaining - 1, acc + 1))
@@ -30,7 +30,7 @@ terminates {
     }
 }
 
-machine table_size() -> usize {
+machine table_size() -> u64 {
     transition {
         _ -> (burn(4, 12))
     }

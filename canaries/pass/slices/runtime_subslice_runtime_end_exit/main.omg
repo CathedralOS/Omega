@@ -1,5 +1,5 @@
 // Subslice with a RUNTIME end over a slice parameter (`sub[..end]` where
-// `end: usize` is only known at runtime). The pointer copies unchanged and the
+// `end: u64` is only known at runtime). The pointer copies unchanged and the
 // length is the runtime end value (end - 0), read from `end`'s frame slot.
 
 use platform::console;
@@ -18,7 +18,7 @@ machine Main::main(&mut self) {
     }
 }
 
-machine Main::check(&mut self, sub: &[Entry], end: usize) {
+machine Main::check(&mut self, sub: &[Entry], end: u64) {
     transition end < sub.len {
         true -> self.verify(sub[..end])
         false -> bad()

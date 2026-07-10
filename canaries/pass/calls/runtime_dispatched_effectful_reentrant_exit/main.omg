@@ -11,7 +11,7 @@
 // correctly or fail to compile, never silently ZII. Differential.
 boundary trait Console { machine exit_process(return_code: i32); }
 data Main { console: Console; hits: i32 in Wrapping; total: i32 in Wrapping; }
-machine Main::count(&mut self, i: usize, j: usize)
+machine Main::count(&mut self, i: u64, j: u64)
 terminates {
     decreases (j, i) -> Nat::BoundedDistance;
 }

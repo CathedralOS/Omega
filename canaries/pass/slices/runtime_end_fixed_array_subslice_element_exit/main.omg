@@ -9,7 +9,7 @@ boundary trait Console {
 data Main {
     console: Console;
     arr: [i32; 5];
-    hi: usize;
+    hi: u64;
 }
 
 machine Main::main(&mut self) {

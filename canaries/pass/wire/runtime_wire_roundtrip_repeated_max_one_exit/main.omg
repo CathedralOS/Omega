@@ -25,7 +25,7 @@ data Ping {
 
 data PingValue {
     code: [u32; 1];
-    code_count: usize;
+    code_count: u64;
     flag: bool;
 }
 
@@ -39,8 +39,8 @@ data WireVerdict {
 data Main {
     console: Console;
     buffer: [u8; 32];
-    written: usize;
-    read: usize;
+    written: u64;
+    read: u64;
     verdict: WireVerdict;
 }
 

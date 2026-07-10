@@ -7,7 +7,7 @@
 
 data FixedVecI32x4 {
     items: [i32; 4];
-    length: usize;
+    length: u64;
 }
 
 machine FixedVecI32x4::push(&mut self, value: i32)
@@ -15,7 +15,7 @@ requires
     self.length < self.items.len
 {
     let slots: &mut [i32] = self.items.as_mut_slice();
-    let index: usize = self.length;
+    let index: u64 = self.length;
     slots[index] = value;
     self.length = self.length + 1;
 }

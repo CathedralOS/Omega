@@ -4,16 +4,16 @@ data Entry {
 
 data Main {
     entries: [Entry; 4];
-    start: usize;
+    start: u64;
 }
 
-machine Main::main(&mut self) -> usize {
+machine Main::main(&mut self) -> u64 {
     let view: &[Entry] = self.entries.as_slice();
     transition {
         _ -> choose(view, self.start)
     }
 
-    state choose(&mut self, entries: &[Entry], start: usize) -> usize {
+    state choose(&mut self, entries: &[Entry], start: u64) -> u64 {
         let tail: &[Entry] = entries[start..];
         tail.len
     }

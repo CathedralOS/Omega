@@ -12,7 +12,7 @@ data Main {
 }
 
 machine Main::main(&mut self) {
-    let index: usize = 1;
+    let index: u64 = 1;
     self.rooms[index].exit_count = 7;
 
     let room_slice: &[Room] = self.rooms.as_slice();

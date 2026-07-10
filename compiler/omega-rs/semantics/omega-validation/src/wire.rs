@@ -532,7 +532,7 @@ pub(crate) fn validate_wire_schema_call(
 ///   trailing String byte-copy needs no runtime bounds check -- the
 ///   byte-copy alone bounds against N at runtime and truncates content past
 ///   capacity;
-/// - the written argument is `&mut usize`.
+/// - the written argument is `&mut u64` (usize tolerated until retired).
 ///
 /// Places this scope cannot type (alias-fed or computed arguments) skip the
 /// value/out/written checks; instruction selection re-resolves every place
@@ -856,14 +856,20 @@ fn validate_wire_encode_call(
         }
     }
 
-    // Written argument: `&mut usize`.
+    // Written argument: `&mut u64` (the byte count -- a size, so u64 per the
+    // usize retirement; `usize` stays accepted until the type dies).
     if let Some(written_type) =
         declared_place_type(program, current_machine, current_state, arguments[2])
-        && program.primitive_type_reference(written_type)
-            != Some(omega_typed_trees::types::PrimitiveType::Usize)
+        && !matches!(
+            program.primitive_type_reference(written_type),
+            Some(
+                omega_typed_trees::types::PrimitiveType::U64
+                    | omega_typed_trees::types::PrimitiveType::Usize
+            )
+        )
     {
         diagnostics.push(Diagnostic::error(format!(
-            "`{}::encode` written argument must be `&mut usize`, got `{}`",
+            "`{}::encode` written argument must be `&mut u64`, got `{}`",
             schema.name,
             program.display_type_reference(written_type)
         )));
@@ -884,7 +890,7 @@ fn validate_wire_encode_call(
 ///   matching the CHILD schema's fields, one level down);
 /// - the buffer is a fixed `[u8; N]` byte array (its compile-time length
 ///   bounds every runtime read -- the decoder never reads past it);
-/// - `read` is `&mut usize` (receives the byte count consumed) and `ok` is
+/// - `read` is `&mut u64` (receives the byte count consumed) and `ok` is
 ///   `&mut bool` (the success flag).
 ///
 /// Places this scope cannot type skip their checks; instruction selection
@@ -1173,14 +1179,20 @@ fn validate_wire_decode_call(
         )));
     }
 
-    // Read argument: `&mut usize`.
+    // Read argument: `&mut u64` (the consumed byte count; `usize` stays
+    // accepted until the type dies -- usize retirement).
     if let Some(read_type) =
         declared_place_type(program, current_machine, current_state, arguments[2])
-        && program.primitive_type_reference(read_type)
-            != Some(omega_typed_trees::types::PrimitiveType::Usize)
+        && !matches!(
+            program.primitive_type_reference(read_type),
+            Some(
+                omega_typed_trees::types::PrimitiveType::U64
+                    | omega_typed_trees::types::PrimitiveType::Usize
+            )
+        )
     {
         diagnostics.push(Diagnostic::error(format!(
-            "`{}::decode` read argument must be `&mut usize`, got `{}`",
+            "`{}::decode` read argument must be `&mut u64`, got `{}`",
             schema.name,
             program.display_type_reference(read_type)
         )));
@@ -1423,16 +1435,22 @@ fn validate_repeated_value_field(
     match find_field(&count_name) {
         None => {
             diagnostics.push(Diagnostic::error(format!(
-                "`{}::{machine_name}` value type `{}` has no field `{count_name}`: a repeated wire field needs a `usize` count companion next to the array (`{count_name}: usize;`) -- the encoder reads it and the decoder writes the decoded element count back",
+                "`{}::{machine_name}` value type `{}` has no field `{count_name}`: a repeated wire field needs a `u64` count companion next to the array (`{count_name}: u64;`) -- the encoder reads it and the decoder writes the decoded element count back",
                 schema.name, value_data.name
             )));
         }
         Some(count_field) => {
-            if program.primitive_type_reference(count_field.type_reference)
-                != Some(omega_typed_trees::types::PrimitiveType::Usize)
-            {
+            // u64 is the count type (a size); `usize` stays accepted until
+            // the type dies -- usize retirement.
+            if !matches!(
+                program.primitive_type_reference(count_field.type_reference),
+                Some(
+                    omega_typed_trees::types::PrimitiveType::U64
+                        | omega_typed_trees::types::PrimitiveType::Usize
+                )
+            ) {
                 diagnostics.push(Diagnostic::error(format!(
-                    "`{}::{machine_name}` value field `{}.{count_name}` must be `usize` (the repeated field's count companion), got `{}`",
+                    "`{}::{machine_name}` value field `{}.{count_name}` must be `u64` (the repeated field's count companion), got `{}`",
                     schema.name,
                     value_data.name,
                     program.display_type_reference(count_field.type_reference)

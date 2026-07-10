@@ -17,7 +17,7 @@ machine Main::main(&mut self) {
     self.cells[1].v = 30;
     transition { _ -> self.pick(2, 1) }
 }
-machine Main::pick(&mut self, k: usize [0..=3], j: usize [0..=2]) {
+machine Main::pick(&mut self, k: u64 [0..=3], j: u64 [0..=2]) {
     let sum: i32 = self.arr[k] + self.cells[j].v;
     transition sum == 39 {
         true -> self.report(self.arr[k])

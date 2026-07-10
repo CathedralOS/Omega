@@ -4,7 +4,7 @@ data Exit {
 
 data Room {
     exits: [Exit; 4];
-    exit_count: usize;
+    exit_count: u64;
 }
 
 data Main {
@@ -18,7 +18,7 @@ requires
     room.exit_count < room.exits.len
 {
     let exits: &mut [Exit] = room.exits.as_mut_slice();
-    let index: usize = room.exit_count;
+    let index: u64 = room.exit_count;
 
     exits[index] = Exit { destination: destination };
 }

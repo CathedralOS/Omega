@@ -24,7 +24,7 @@ machine Main::main(&mut self) {
         self.io_result = self.fs.copy("omega_cp_src.txt", "omega_cp_dst.txt", &mut self.buffer, 64);
         transition self.io_result { IoResult::Ok { count } -> chkcount(count) _ -> bad(72) }
     }
-    state chkcount(&mut self, count: usize) {
+    state chkcount(&mut self, count: u64) {
         transition count == 6 { true -> chklen() _ -> bad(73) }
     }
     state chklen(&mut self) {
@@ -51,7 +51,7 @@ machine Main::main(&mut self) {
         self.io_result = self.fs.copy("omega_cp_bin_src.bin", "omega_cp_bin_dst.bin", &mut self.buffer, 64);
         transition self.io_result { IoResult::Ok { count } -> binchkcount(count) _ -> bad(77) }
     }
-    state binchkcount(&mut self, count: usize) {
+    state binchkcount(&mut self, count: u64) {
         transition count == 5 { true -> binread() _ -> bad(77) }
     }
     state binread(&mut self) {

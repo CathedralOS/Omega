@@ -4,7 +4,7 @@
 // the direct callee-scope operand resolution fell through to MACHINE-OWNED
 // NAME matching, so a caller field named like a forwarded param won over the
 // alias chain -- `buffer: [u8; 64]` swallowed the read (the spelled buffer
-// stayed ZII, native 73) and `count: usize` (ZII 0) made the read request 0
+// stayed ZII, native 73) and `count: u64` (ZII 0) made the read request 0
 // bytes (native 72), both silent wrong-storage miscompiles vs interp 70. The
 // fix orders the ALIAS REWRITE (the forwarded param's semantic truth) before
 // direct resolution in address/scalar operand lookup (operands.rs). This
@@ -16,7 +16,7 @@
 use omega::language::std::filesystem;
 use omega::language::std::filesystem_host;
 boundary trait Console { machine exit_process(return_code: i32); }
-data Main { console: Console; fs: Filesystem; unit_result: UnitResult; io_result: IoResult; buffer: [u8; 64]; count: usize; bin_src: [u8; 5]; bin_back: [u8; 8]; }
+data Main { console: Console; fs: Filesystem; unit_result: UnitResult; io_result: IoResult; buffer: [u8; 64]; count: u64; bin_src: [u8; 5]; bin_back: [u8; 8]; }
 machine Main::main(&mut self) {
     self.bin_src[0] = 65;
     self.bin_src[1] = 13;
@@ -29,7 +29,7 @@ machine Main::main(&mut self) {
         self.io_result = self.fs.read_all("omega_shadow_probe.bin", &mut self.bin_back, 8);
         transition self.io_result { IoResult::Ok { count } -> ckcount(count) _ -> bad(72) }
     }
-    state ckcount(&mut self, count: usize) {
+    state ckcount(&mut self, count: u64) {
         self.unit_result = self.fs.remove("omega_shadow_probe.bin");
         transition count == 5 { true -> ck0() _ -> bad(72) }
     }

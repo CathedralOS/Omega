@@ -16,12 +16,12 @@ data Main {
     console: Console;
 }
 
-machine Main::measure(&self, text: &[u8] in Ascii) -> usize {
+machine Main::measure(&self, text: &[u8] in Ascii) -> u64 {
     transition { _ -> (text.len) }
 }
 
 machine Main::main(&mut self) {
-    let n: usize = self.measure("hi");
+    let n: u64 = self.measure("hi");
     transition n == 2 {
         true -> good()
         _ -> bad()

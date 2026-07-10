@@ -14,22 +14,22 @@ data Main {
     dirmode: i32;
     filemode: i32;
     rdonly: i32;
-    cap: usize;
+    cap: u64;
     rc: i32;
     fd: i32;
     dfd: i32;
     n: i64;
     total: i64;
-    totalu: usize in Wrapping;
+    totalu: u64 in Wrapping;
     position: i64;
-    off: usize in Wrapping;
-    idx: usize in Wrapping;
+    off: u64 in Wrapping;
+    idx: u64 in Wrapping;
     count: i32 in Wrapping;
     lo: u8;
     hi: u8;
-    lou: usize in Wrapping;
-    hiu: usize in Wrapping;
-    reclen: usize in Wrapping;
+    lou: u64 in Wrapping;
+    hiu: u64 in Wrapping;
+    reclen: u64 in Wrapping;
     buffer: [u8; 512];
 }
 
@@ -50,7 +50,7 @@ machine Main::main(&mut self) {
     transition self.dfd >= 0 { true -> readit() _ -> fail() }
     state readit(&mut self) {
         self.total = self.fs.read_dir(self.dfd, &mut self.buffer, self.cap, &mut self.position);
-        self.totalu = self.total as usize in Wrapping;
+        self.totalu = self.total as u64 in Wrapping;
         transition self.total > 0 { true -> walk() _ -> fail() }
     }
     state walk(&mut self) {
@@ -64,8 +64,8 @@ machine Main::main(&mut self) {
         self.lo = self.buffer[self.idx];
         self.idx = self.off + 17;
         self.hi = self.buffer[self.idx];
-        self.lou = self.lo as usize in Wrapping;
-        self.hiu = self.hi as usize in Wrapping;
+        self.lou = self.lo as u64 in Wrapping;
+        self.hiu = self.hi as u64 in Wrapping;
         self.reclen = (self.hiu << 8) | self.lou;
         self.count = self.count + 1;
         self.off = self.off + self.reclen;

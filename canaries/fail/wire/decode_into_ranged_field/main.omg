@@ -20,7 +20,7 @@ data WireVerdict {
 data Main {
     console: Console;
     buffer: [u8; 32];
-    read: usize;
+    read: u64;
     verdict: WireVerdict;
 }
 machine Main::main(&mut self) {

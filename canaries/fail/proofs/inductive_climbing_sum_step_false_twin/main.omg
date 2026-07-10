@@ -13,10 +13,10 @@ data Main {
 }
 
 machine Main::main(&mut self) {
-    let total: usize = self.climb(4, 0, 0);
+    let total: u64 = self.climb(4, 0, 0);
 }
 
-machine Main::climb(&mut self, limit: usize, index: usize, acc: usize) -> usize
+machine Main::climb(&mut self, limit: u64, index: u64, acc: u64) -> u64
 terminates {
     decreases (index, limit) -> Nat::BoundedDistance;
 }

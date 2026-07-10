@@ -8,7 +8,7 @@ data Main {
 machine Main::main(
     &mut self,
     exits: &mut [Exit],
-    index: usize
+    index: u64
 )
 requires
     index < exits.len

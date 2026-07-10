@@ -21,7 +21,7 @@ data Cell {
 data Main {
     console: Console;
     cells: [Cell; 3];
-    i: usize [0..=2];
+    i: u64 [0..=2];
     r: i32;
 }
 machine Main::main(&mut self) {

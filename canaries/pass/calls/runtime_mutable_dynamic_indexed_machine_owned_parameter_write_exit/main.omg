@@ -10,7 +10,7 @@ data Item {
 data Main {
     console: Console;
     items: [Item; 2] = [Item { value: 1, tag: 1 }, Item { value: 2, tag: 2 }];
-    index: usize = 0;
+    index: u64 = 0;
 }
 
 machine Main::touch_tag(&mut self, item: &mut Item) {

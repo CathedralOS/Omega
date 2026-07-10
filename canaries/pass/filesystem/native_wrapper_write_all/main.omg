@@ -18,7 +18,7 @@ data Main {
     wrote: UnitResult;
     got: IoResult;
     gone: UnitResult;
-    cap: usize;
+    cap: u64;
     n: i64;
     first: u8;
     buffer: [u8; 16];

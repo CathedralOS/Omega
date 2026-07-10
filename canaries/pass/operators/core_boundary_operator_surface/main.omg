@@ -1,4 +1,4 @@
-boundary operator Slice::index<T>(items: &[T], index: usize) -> T
+boundary operator Slice::index<T>(items: &[T], index: u64) -> T
 requires
     index < items.len;
 

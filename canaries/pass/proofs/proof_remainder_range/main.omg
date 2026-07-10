@@ -2,7 +2,7 @@
 // Lean analog: `Nat.mod_lt`. Needs a built-in lemma about `%`, not interval
 // propagation of the operands.
 
-machine remainder_bounded(a: usize)
+machine remainder_bounded(a: u64)
 ensures
     a % 2 in 0..=1
 {

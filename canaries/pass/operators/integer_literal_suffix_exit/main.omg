@@ -10,7 +10,7 @@ data Main {
     console: Console;
     wide: i64;
     small: u32;
-    size: usize;
+    size: u64;
 }
 
 machine Main::main(&mut self) {

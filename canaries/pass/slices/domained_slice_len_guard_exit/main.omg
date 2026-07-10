@@ -15,7 +15,7 @@ boundary trait Console {
 
 data Main {
     console: Console;
-    k: usize;
+    k: u64;
 }
 
 machine Main::main(&mut self) {

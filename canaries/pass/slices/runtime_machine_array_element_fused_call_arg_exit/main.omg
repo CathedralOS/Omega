@@ -10,14 +10,14 @@
 // scratch list (the hardcoded-x17 clobber lesson). Exit 70; differential-
 // pinned; the frame twin is runtime_local_array_element_value_operand_exit.
 boundary trait Console { machine exit_process(return_code: i32); }
-data Main { console: Console; arr: [i32; 3]; idx: usize; k: i32; }
+data Main { console: Console; arr: [i32; 3]; idx: u64; k: i32; }
 machine Main::pick(&mut self, v: i32 [0..=100]) -> i32 { v + 1 }
 machine Main::main(&mut self) {
     self.arr = [10, 20, 30];
     self.idx = 1;
     self.k = 7;
     transition self.idx < 3 { true -> go(self.idx) _ -> bad() }
-    state go(&mut self, i: usize [0..=2]) {
+    state go(&mut self, i: u64 [0..=2]) {
         let d: i32 = self.pick(self.k + self.arr[i]);
         transition d == 28 { true -> good() _ -> bad() }
     }

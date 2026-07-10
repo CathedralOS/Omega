@@ -9,7 +9,7 @@ data Room {
 
 data Level {
     rooms: [Room; 4];
-    room_count: usize;
+    room_count: u64;
 }
 
 data Main {
@@ -39,12 +39,12 @@ machine Main::main(&mut self) {
     state find_at(
         &mut self,
         rooms: &[Room],
-        room_count: usize,
+        room_count: u64,
         wanted: i32,
-        index: usize
+        index: u64
     ) {
         let matched: bool = rooms[index].id == wanted;
-        let next_index: usize = index + 1;
+        let next_index: u64 = index + 1;
         let has_next: bool = next_index < room_count;
 
         transition {

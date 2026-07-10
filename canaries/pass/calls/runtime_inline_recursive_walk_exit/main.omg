@@ -6,7 +6,7 @@
 // separators of "a/b/c" through the recursive walk. Exit 70.
 boundary trait Console { machine exit_process(return_code: i32); }
 data Main { console: Console; n: i32 in Wrapping; }
-machine Main::walk(&mut self, path: &[u8], i: usize, acc: i32)
+machine Main::walk(&mut self, path: &[u8], i: u64, acc: i32)
 terminates {
     decreases (i, path.len) -> Nat::BoundedDistance;
 }
@@ -19,12 +19,12 @@ terminates {
     }
     state done(&mut self, acc: i32) -> i32 { self.n }
 }
-machine Main::bump(&mut self, path: &[u8], i: usize) {
+machine Main::bump(&mut self, path: &[u8], i: u64) {
     transition i < path.len {
         true -> look(path, i)
         false -> skip()
     }
-    state look(&mut self, path: &[u8], i: usize) {
+    state look(&mut self, path: &[u8], i: u64) {
         transition path[i] == 47 {
             true -> hit()
             false -> skip()

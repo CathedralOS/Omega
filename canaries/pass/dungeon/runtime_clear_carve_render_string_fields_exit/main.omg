@@ -18,7 +18,7 @@ data Room {
 
 data Level {
     rooms: [Room; 2];
-    room_count: usize;
+    room_count: u64;
     start_cell: CellId;
 }
 
@@ -145,13 +145,13 @@ machine Lookup::find_room(
     state find_room_at(
         &mut self,
         rooms: &[Room],
-        room_count: usize,
+        room_count: u64,
         cell: CellId,
         out_room: &mut Room,
-        index: usize
+        index: u64
     ) {
         let found: bool = rooms[index].cell == cell;
-        let next_index: usize = index + 1;
+        let next_index: u64 = index + 1;
         let has_next: bool = next_index < room_count;
 
         transition {

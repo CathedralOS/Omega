@@ -20,14 +20,14 @@ machine Main::main(&mut self) {
     self.arr[2] = 10;
     self.grid[1][2] = 30;
     transition { _ -> single(2) }
-    state single(&mut self, i: usize [0..=3]) {
+    state single(&mut self, i: u64 [0..=3]) {
         transition { _ -> double(self.arr[i] + 5, 1, 2) }
     }
-    state double(&mut self, v: i32 in Wrapping, i: usize [0..=2], j: usize [0..=2]) {
+    state double(&mut self, v: i32 in Wrapping, i: u64 [0..=2], j: u64 [0..=2]) {
         self.got = v;
         transition { _ -> guarded(self.got + self.grid[i][j] + 2, i, j) }
     }
-    state guarded(&mut self, v: i32 in Wrapping, i: usize [0..=2], j: usize [0..=2]) {
+    state guarded(&mut self, v: i32 in Wrapping, i: u64 [0..=2], j: u64 [0..=2]) {
         // A GUARDED true/false pair whose arms BOTH carry indexed-operand
         // args -- the run-splice face (arm 2's hoists must not split the run).
         transition v == 47 {

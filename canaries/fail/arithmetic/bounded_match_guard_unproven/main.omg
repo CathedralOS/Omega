@@ -17,7 +17,7 @@ machine Main::main(
 
     state append(
         &mut self,
-        exit_count: usize
+        exit_count: u64
     ) {
     }
 }

@@ -5,19 +5,19 @@ data Entry {
 data Main {
 }
 
-machine Main::main(&mut self) -> usize {
+machine Main::main(&mut self) -> u64 {
     transition {
         _ -> 0
     }
 
-    state choose(&mut self, entries: &[Entry]) -> usize {
+    state choose(&mut self, entries: &[Entry]) -> u64 {
         transition 2 <= entries.len {
             true -> length(entries[2..])
             false -> 0
         }
     }
 
-    state length(&mut self, entries: &[Entry]) -> usize {
+    state length(&mut self, entries: &[Entry]) -> u64 {
         transition {
             _ -> entries.len
         }

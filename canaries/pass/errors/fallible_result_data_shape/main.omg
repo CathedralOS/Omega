@@ -9,12 +9,12 @@ data IOError {
 }
 
 data Buffer {
-    len: usize;
+    len: u64;
 }
 
 data ReadResult {
     ok: bool;
-    bytes_read: usize;
+    bytes_read: u64;
     error: IOError;
 }
 

@@ -24,7 +24,7 @@ machine Main::main(&mut self) {
         ]
     };
     let exits: &mut [Exit] = room.exits.as_mut_slice();
-    let index: usize = 0;
+    let index: u64 = 0;
 
     exits[index].destination = 1;
 

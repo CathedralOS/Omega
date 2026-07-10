@@ -8,18 +8,18 @@
 // terminal 5 through the role's slot. Exit 70; distinct exits per role.
 boundary trait Console { machine exit_process(return_code: i32); }
 data Main { console: Console; }
-data Cnt { n: usize; }
-measure Cnt::Order(n: usize) -> usize { n }
+data Cnt { n: u64; }
+measure Cnt::Order(n: u64) -> u64 { n }
 machine Main::countdown(&mut self, c: Cnt)
 terminates { decreases c.n -> Cnt::Order; }
--> usize
+-> u64
 {
     transition c.n > 0 { true -> countdown(Cnt { n: c.n - 1 }) false -> 5 }
 }
 machine Main::main(&mut self) {
     // TransitionArgument role: recursive result forwarded as an arg.
     transition self.countdown(Cnt { n: 3 }) == 5 { true -> fwd(self.countdown(Cnt { n: 2 })) _ -> bad_guard() }
-    state fwd(&mut self, v: usize) {
+    state fwd(&mut self, v: u64) {
         transition v == 5 { true -> good() _ -> bad_fwd() }
     }
     state good(&mut self) { self.console.exit_process(70); }

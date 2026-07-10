@@ -11,7 +11,7 @@ data Cell {
 data Main {
     console: Console;
     cells: [Cell; 4];
-    k: usize [0..=3];
+    k: u64 [0..=3];
 }
 machine Main::main(&mut self) {
     self.cells[2].v = 9;

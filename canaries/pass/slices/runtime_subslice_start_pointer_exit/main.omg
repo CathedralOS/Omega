@@ -14,12 +14,12 @@ machine Main::main(&mut self) {
     self.arr[1] = 10;
     transition { _ -> self.view(1, 4) }
 }
-machine Main::view(&mut self, lo: usize, hi: usize) {
+machine Main::view(&mut self, lo: u64, hi: u64) {
     transition lo <= hi && hi <= self.arr.len {
         true -> slice_it(lo, hi)
         false -> bad()
     }
-    state slice_it(&mut self, lo: usize, hi: usize) {
+    state slice_it(&mut self, lo: u64, hi: u64) {
         let sub: &[i32] = self.arr[lo..hi];
         transition sub.len == 3 {
             true -> deep(sub)

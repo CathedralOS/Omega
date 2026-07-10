@@ -22,7 +22,7 @@ machine Main::touch_tag(&mut self, item: &mut Item) {
     item.tag = 0;
 }
 
-machine Main::main(&mut self, index: usize) -> i32
+machine Main::main(&mut self, index: u64) -> i32
 requires
     index < 2
 ensures

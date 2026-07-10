@@ -15,7 +15,7 @@ boundary trait Console {
 data Main {
     console: Console;
     arr: [i32; 5];
-    i: usize [0..=4] in Wrapping;
+    i: u64 [0..=4] in Wrapping;
 }
 
 machine Main::main(&mut self) {

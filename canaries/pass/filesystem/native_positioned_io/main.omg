@@ -11,7 +11,7 @@ data Main {
     fs: FilesystemHost;
     mode: i32;
     rw: i32;
-    cap: usize;
+    cap: u64;
     fd: i32;
     n: i64;
     got: i64;

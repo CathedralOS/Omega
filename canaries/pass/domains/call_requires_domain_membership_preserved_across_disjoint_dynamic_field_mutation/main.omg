@@ -28,7 +28,7 @@ requires
 {
 }
 
-machine Main::main(&mut self, index: usize)
+machine Main::main(&mut self, index: u64)
 requires
     index < 2
 {

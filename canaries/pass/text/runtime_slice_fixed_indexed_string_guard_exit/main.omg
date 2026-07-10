@@ -26,8 +26,8 @@ data Main {
 }
 
 machine Main::main(&mut self) {
-    let match_index: usize = 1;
-    let differ_index: usize = 2;
+    let match_index: u64 = 1;
+    let differ_index: u64 = 2;
     let room_slice: &mut [Room] = self.rooms.as_mut_slice();
     room_slice[match_index].label = "expected";
     // Same length as the literal, differing only in the final byte, so the

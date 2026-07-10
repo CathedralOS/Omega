@@ -20713,8 +20713,8 @@ fn runtime_addr_field_exit_canary_runs() {
 }
 
 #[test]
-fn runtime_isize_signed_arith_exit_canary_runs() {
-    let canary = pass_canary("types/runtime_isize_signed_arith_exit");
+fn runtime_i64_signed_arith_exit_canary_runs() {
+    let canary = pass_canary("types/runtime_i64_signed_arith_exit");
     let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-isize-signed-arith-{}",

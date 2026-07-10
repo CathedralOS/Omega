@@ -2,7 +2,7 @@ use platform::console;
 
 // ALLOCATOR STORY STAGE 1 — fixed-capacity vec, proof-discharged round trip.
 //
-// `FixedVecI32x4` is the core `FixedVec<T, const N: usize>` pattern
+// `FixedVecI32x4` is the core `FixedVec<T, const N: u64>` pattern
 // (core/fixed_vec.omg) instantiated BY HAND for i32 / N = 4, because generic
 // machine instantiation is not wired yet (any machine attached to the
 // generic data fails layout on `[T; N]`). The contracts are the core ones:
@@ -30,7 +30,7 @@ use platform::console;
 
 data FixedVecI32x4 {
     items: [i32; 4];
-    length: usize in Wrapping;
+    length: u64 in Wrapping;
 }
 
 // Empty the vector and ESTABLISH the has-room fact for the next push. The
@@ -51,7 +51,7 @@ ensures
     self.length - 1 < self.items.len
 {
     let slots: &mut [i32] = self.items.as_mut_slice();
-    let index: usize in Wrapping = self.length;
+    let index: u64 in Wrapping = self.length;
     slots[index] = value;
     self.length = self.length + 1;
 }
@@ -67,13 +67,13 @@ requires
     self.length - 1 < self.items.len
 {
     let slots: &[i32] = self.items.as_slice();
-    let index: usize in Wrapping = self.length - 1;
+    let index: u64 in Wrapping = self.length - 1;
     let value: i32 in Wrapping = slots[index];
     self.length = index;
     value
 }
 
-machine FixedVecI32x4::get(&self, index: usize in Wrapping) -> i32
+machine FixedVecI32x4::get(&self, index: u64 in Wrapping) -> i32
 requires
     self.length > index;
     index < self.items.len

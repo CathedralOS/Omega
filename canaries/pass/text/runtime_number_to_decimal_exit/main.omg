@@ -27,7 +27,7 @@ data Main {
     ch: u32 in Wrapping;
     byte: u8 in Wrapping;
     i: u32 in Wrapping;
-    p: usize;
+    p: u64;
 }
 
 machine Main::main(&mut self) {

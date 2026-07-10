@@ -13,7 +13,7 @@ data Main {
     dirmode: i32;
     filemode: i32;
     rdonly: i32;
-    cap: usize;
+    cap: u64;
     rc: i32;
     fd: i32;
     dfd: i32;

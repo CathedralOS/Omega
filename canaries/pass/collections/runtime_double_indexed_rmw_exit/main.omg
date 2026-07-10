@@ -14,9 +14,9 @@ data Main {
     console: Console;
     grid: [[i32 in Wrapping; 4]; 3];
     rows: [Row; 3];
-    i: usize [0..=2];
-    j: usize [0..=3];
-    rj: usize [0..=1];
+    i: u64 [0..=2];
+    j: u64 [0..=3];
+    rj: u64 [0..=1];
     got: i32 in Wrapping;
 }
 machine Main::main(&mut self) {

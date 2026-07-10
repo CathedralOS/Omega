@@ -7,7 +7,7 @@ data Tracker {
     room_three_seen: bool;
 }
 
-machine Tracker::mark_room(&mut self, room_index: usize) {
+machine Tracker::mark_room(&mut self, room_index: u64) {
     transition room_index {
         0 -> mark_zero()
         1 -> mark_one()
@@ -35,7 +35,7 @@ machine Tracker::mark_room(&mut self, room_index: usize) {
 data Main {
     console: Console;
     tracker: Tracker;
-    current_room: usize;
+    current_room: u64;
     fountain_used: bool;
     bat_defeated: bool;
     treasure_taken: bool;

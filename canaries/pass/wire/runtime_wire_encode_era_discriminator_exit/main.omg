@@ -31,7 +31,7 @@ data VersionedSample {
 data Main {
     console: Console;
     buffer: [u8; 16];
-    written: usize;
+    written: u64;
 }
 
 machine Main::main(&mut self) {

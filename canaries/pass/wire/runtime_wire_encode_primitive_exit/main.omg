@@ -34,7 +34,7 @@ data CounterSample {
 data Main {
     console: Console;
     buffer: [u8; 64];
-    written: usize;
+    written: u64;
 }
 
 machine Main::main(&mut self) {

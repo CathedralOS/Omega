@@ -4,7 +4,7 @@
 // parsed.
 
 boundary trait WindowsFile {
-    machine read(buffer: &mut [u8, [writable, initialized]], n: usize) -> bool
+    machine read(buffer: &mut [u8, [writable, initialized]], n: u64) -> bool
     effects
         filesystem_io;
 }

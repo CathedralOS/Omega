@@ -14,7 +14,7 @@ machine Main::main(&mut self) {
     self.b = 7;
     transition { _ -> self.pick(2) }
 }
-machine Main::pick(&mut self, k: usize [0..=3]) {
+machine Main::pick(&mut self, k: u64 [0..=3]) {
     self.arr[k] = self.b;
     transition self.arr[2] == 7 {
         true -> yes()

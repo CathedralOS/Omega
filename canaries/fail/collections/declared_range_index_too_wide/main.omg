@@ -1,4 +1,4 @@
-// A declared range that does NOT fit the array: `i: usize [0..=5]` indexing
+// A declared range that does NOT fit the array: `i: u64 [0..=5]` indexing
 // `[i32; 5]` (high == length) must still reject -- the range only discharges
 // the upper bound when high < length.
 boundary trait Console {
@@ -8,7 +8,7 @@ boundary trait Console {
 data Main {
     console: Console;
     arr: [i32; 5];
-    i: usize [0..=5];
+    i: u64 [0..=5];
 }
 
 machine Main::main(&mut self) {
