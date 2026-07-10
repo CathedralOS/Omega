@@ -186,8 +186,12 @@ header above for the verified spelling). Rungs, in payoff order:
   UNRANGED integer fields as dependent maxima (the guard route
   discharges; couplings bound the products). Pinned:
   pass/dependent/runtime_bounded_product_index_exit + the weak-coupling
-  fail canary. Direct `pixels[y*self.cols+x]` spelling (hoist-temp range
-  synthesis from couplings) is the R3b sugar remainder.
+  fail canary. R3b LANDED same
+  day: the direct `pixels[y*self.cols+x]` spelling serves -- the hoist
+  synthesis mirrors the product rule (dependent_product_index_interval in
+  hoist_temp_type.rs, resolved-tree twins kept in lockstep; the synthesized
+  temp range is re-proved by the typed-side rule at the temp's own store,
+  so a dim-writing machine never carries a stale synthesis to an index).
 - **R4 (boundary witness mints, proof side):** out-params as witnesses,
   decode-minted where-facts, recast bounds discharged from couplings +
   R1/R3. ⚠️ COORDINATE: the recast MECHANICS are claimed by the main lane
