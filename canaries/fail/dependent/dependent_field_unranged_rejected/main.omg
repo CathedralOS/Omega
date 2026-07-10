@@ -1,14 +1,14 @@
-// FAIL CANARY (R1a declaration gate): a dependent maximum naming a field
-// with NO enforced literal integer range refuses AT THE DECLARATION --
-// nothing could discharge the bound at any call site (the substitution
-// and the worst-case floor both read the field's own range). Range the
-// field or spell a literal maximum.
+// FAIL CANARY (R1a declaration gate): a dependent maximum naming NO
+// integer field of the machine's attached data refuses at the
+// declaration. (UNRANGED integer fields are legal since R3: the guard
+// route discharges them at call sites, and product couplings supply the
+// bounds the substitution cannot.)
 boundary trait Console { machine exit_process(return_code: i32); }
 data Main { console: Console; items: [u8; 12]; count: u32; out: i32; }
 machine Main::main(&mut self) {
     self.count = 8;
     transition self.count == 8 { true -> read(0) _ -> read(0) }
-    state read(&mut self, i: u32 [0..=self.count]) {
+    state read(&mut self, i: u32 [0..=self.missing]) {
         self.out = self.items[i] as i32;
         self.console.exit_process(self.out);
     }

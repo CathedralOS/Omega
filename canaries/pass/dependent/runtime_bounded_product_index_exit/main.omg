@@ -1,0 +1,38 @@
+// RUN CANARY (exit 7) + interpreter differential. R3's bounded-product
+// entailment (the ONE closed rule, ch12 brief S8): RUNTIME dims with NO
+// literal ranges, coupled only by `requires self.rows * self.cols <= 12`.
+// The strict dependent params carry `y < rows` / `x < cols`; the rule
+// bounds `y * self.cols` by K (multiply half) and `y*cols + x` by K-1
+// (add half) -- so the ranged temp `idx: u32 [0..=11]` STORE-PROVES (the
+// containment keystone) and the index rides its declared range. The
+// coupling machine never writes the dims (machine-wide preservation is
+// the entry-fact bridge); the caller proves the coupling by guard.
+// A weaker coupling (<= 13) refuses at the store
+// (fail/dependent/bounded_product_weak_coupling_rejected) -- landing
+// this rule EXPOSED and CLOSED a store-proof hole: bounded intervals
+// escaping declared ranges were never refused (a confirmed native OOB
+// read pinned the hole; the interp declined).
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; pixels: [u8; 12]; rows: u32; cols: u32; j: u32; k: u32; out: i32; }
+machine Main::main(&mut self) {
+    self.rows = 3;
+    self.cols = 4;
+    self.pixels[11] = 7;
+    self.j = 2;
+    self.k = 3;
+    transition self.rows * self.cols <= 12 { true -> hop() _ -> bad() }
+    state hop(&mut self) {
+        self.walk();
+        let code: i32 = self.out;
+        self.console.exit_process(code);
+    }
+    state bad(&mut self) { self.console.exit_process(9); }
+}
+machine Main::walk(&mut self) requires self.rows * self.cols <= 12 {
+    transition self.j < self.rows && self.k < self.cols { true -> read(self.j, self.k) _ -> miss() }
+    state read(&mut self, y: u32 [0..self.rows], x: u32 [0..self.cols]) {
+        let idx: u32 [0..=11] = y * self.cols + x;
+        self.out = self.pixels[idx] as i32;
+    }
+    state miss(&mut self) { self.out = 9; }
+}

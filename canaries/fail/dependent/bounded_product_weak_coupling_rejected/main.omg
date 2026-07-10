@@ -1,0 +1,29 @@
+// FAIL CANARY (the containment keystone): a product coupling one too
+// weak (`rows * cols <= 13` against `idx: u32 [0..=11]` and a 12-array)
+// leaves the store interval [0, 12] escaping the declared range --
+// refused at the store, never trusted by the index prover. (This exact
+// shape read pixels[12] out of bounds natively before the keystone.)
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; pixels: [u8; 12]; rows: u32; cols: u32; j: u32; k: u32; out: i32; }
+machine Main::main(&mut self) {
+    self.rows = 3;
+    self.cols = 4;
+    self.pixels[11] = 7;
+    self.j = 2;
+    self.k = 3;
+    transition self.rows * self.cols <= 13 { true -> hop() _ -> bad() }
+    state hop(&mut self) {
+        self.walk();
+        let code: i32 = self.out;
+        self.console.exit_process(code);
+    }
+    state bad(&mut self) { self.console.exit_process(9); }
+}
+machine Main::walk(&mut self) requires self.rows * self.cols <= 13 {
+    transition self.j < self.rows && self.k < self.cols { true -> read(self.j, self.k) _ -> miss() }
+    state read(&mut self, y: u32 [0..self.rows], x: u32 [0..self.cols]) {
+        let idx: u32 [0..=11] = y * self.cols + x;
+        self.out = self.pixels[idx] as i32;
+    }
+    state miss(&mut self) { self.out = 9; }
+}

@@ -13,10 +13,13 @@ machine Main::proc(&self, n: i32 [0..=1000]) -> i32 {
         false -> 0
     }
     state work(&self, n: i32 [1..=1000]) -> i32 {
-        let a: i32 [0..=1000] = n + 1;
-        let b: i32 [0..=2000] = a + a;
-        let c: i32 [0..=3000] = b + a;
-        let d: i32 [0..=4000] = c + b;
+        // Ranges widened to the TRUE bounds (n <= 1000 makes a reach 1001;
+        // the old tighter claims rode the pre-containment vacuous pass --
+        // the store-containment keystone now catches the over-claim).
+        let a: i32 [0..=1001] = n + 1;
+        let b: i32 [0..=2002] = a + a;
+        let c: i32 [0..=3003] = b + a;
+        let d: i32 [0..=5005] = c + b;
         transition {
             _ -> (d)
         }

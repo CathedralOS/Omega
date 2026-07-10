@@ -18463,6 +18463,33 @@ fn runtime_sibling_len_index_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_bounded_product_index_exit_canary_runs() {
+    // R3: runtime dims coupled only by `requires rows * cols <= 12`; the
+    // product rule store-proves the ranged temp and the index rides it.
+    let canary = pass_canary("dependent/runtime_bounded_product_index_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-bounded-product-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("bounded-product canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("bounded-product canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(7),
+        "expected the coupled product walk to read the seeded element (exit 7), got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_computed_array_fill_via_temp_exit_canary_runs() {
     // The sound pattern for filling an array with computed values in a write-first loop: a computed
     // value goes to a field, then the field (a machine-resident source) is copied to the runtime-
@@ -28991,6 +29018,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "dependent/runtime_requires_subtract_exit",
     "dependent/runtime_requires_guarded_call_exit",
     "dependent/runtime_sibling_len_index_exit",
+    "dependent/runtime_bounded_product_index_exit",
     "collections/runtime_indexed_rmw_loop_exit",
     "collections/runtime_indexed_reduction_loop_exit",
     "collections/runtime_array_max_and_sum_exit",
@@ -29326,6 +29354,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "dependent/requires_call_unproven_rejected",
     "dependent/sibling_len_arg_unrelated_rejected",
     "dependent/sibling_len_unknown_sibling_rejected",
+    "dependent/bounded_product_weak_coupling_rejected",
     "collections/deep_nested_runtime_indexed_write_rejected",
     "layouts/plan_laid_dynamic_plan",
     "layouts/plan_laid_policy_without_plan_machine",

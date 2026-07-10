@@ -784,15 +784,22 @@ fn dependent_state_parameter_range_error(
                 }
             })
         })
-        .and_then(|field_type| crate::arithmetic_domains::range_constraint_interval(program, field_type))
-        .is_some();
+        .is_some_and(|field_type| {
+            // The field must EXIST and be an integer primitive. A LITERAL
+            // range on it is NOT required: the guard route discharges
+            // rangeless fields at every call site (`arg < self.rows`); the
+            // floor route and the callee substitution simply contribute
+            // nothing for a rangeless field (both are None-safe), and the
+            // R3 product rule supplies bounds through couplings instead.
+            crate::places::unwrapped_type_reference(program, field_type)
+                .and_then(|unwrapped| program.primitive_type_reference(unwrapped))
+                .is_some_and(|primitive| primitive.accepts_integer_literal())
+        });
     if !field_is_dischargeable {
         return Some(format!(
-            "{owner} declares a dependent maximum naming `self.{}`, but that field does not \
-             carry an enforced literal integer range on the machine's attached data -- the \
-             bound could not be discharged at any call site. Range the field (`{}: u32 \
-             [0..=N]`, Exact) or spell a literal maximum",
-            symbolic.field, symbolic.field,
+            "{owner} declares a dependent maximum naming `self.{}`, but no integer field of \
+             that name exists on the machine's attached data",
+            symbolic.field,
         ));
     }
     None

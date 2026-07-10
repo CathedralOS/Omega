@@ -777,6 +777,21 @@ impl Interval {
         let (Some(low), Some(high)) = (self.low, self.high) else {
             return Interval::UNBOUNDED;
         };
+        // EXACT quotient bounds for a single-valued POSITIVE divisor
+        // (`x / 10`): truncated division is monotone non-decreasing in the
+        // dividend for k > 0, so `[lo/k, hi/k]` is tight -- `[0, 99] / 10 =
+        // [0, 9]`, which is what lets `let tens: u32 [0..=9] = x / 10`
+        // store-prove (the range-containment keystone). Any other divisor
+        // shape keeps the magnitude-preserving over-approximation.
+        if let (Some(k), Some(k_high)) = (divisor.low, divisor.high)
+            && k == k_high
+            && k > 0
+        {
+            return Self {
+                low: Some(low / k),
+                high: Some(high / k),
+            };
+        }
         Self {
             low: Some(low.min(0)),
             high: Some(high.max(0)),
@@ -1371,7 +1386,14 @@ fn analyze(
                 }
             };
             let interval = match operator {
-                BinaryOperator::Add => left.interval.add(right.interval),
+                BinaryOperator::Add => refine_dependent_product(
+                    program,
+                    machine,
+                    state,
+                    binary.left,
+                    binary.right,
+                    left.interval.add(right.interval),
+                ),
                 BinaryOperator::Subtract => refine_dependent_subtract(
                     program,
                     machine,
@@ -1380,7 +1402,14 @@ fn analyze(
                     binary.right,
                     left.interval.subtract(right.interval),
                 ),
-                BinaryOperator::Multiply => left.interval.multiply(right.interval),
+                BinaryOperator::Multiply => refine_dependent_product_factor(
+                    program,
+                    machine,
+                    state,
+                    binary.left,
+                    binary.right,
+                    left.interval.multiply(right.interval),
+                ),
                 // S4: modulo is bounded by the divisor's magnitude and division
                 // never grows the dividend's magnitude -- bounding both lets a
                 // `(a % K)` / `(a / K)` result feed exact arithmetic instead of
@@ -2142,11 +2171,17 @@ mod tests {
 
     #[test]
     fn divide_by_nonzero_never_grows_magnitude() {
-        // bounded dividend / nonzero divisor stays within the dividend bounds,
-        // widened to include 0 (quotient can reach 0)
-        assert_eq!(iv(-99, 99).divide(iv(2, 2)), iv(-99, 99));
-        assert_eq!(iv(10, 50).divide(iv(3, 3)), iv(0, 50));
-        assert_eq!(iv(-50, -10).divide(iv(3, 3)), iv(-50, 0));
+        // A single-valued POSITIVE divisor gives EXACT truncated-quotient
+        // bounds (monotone in the dividend for k > 0) -- the tight interval
+        // that lets `let tens: u32 [0..=9] = x / 10` store-prove.
+        assert_eq!(iv(-99, 99).divide(iv(2, 2)), iv(-49, 49));
+        assert_eq!(iv(10, 50).divide(iv(3, 3)), iv(3, 16));
+        assert_eq!(iv(-50, -10).divide(iv(3, 3)), iv(-16, -3));
+        assert_eq!(iv(0, 99).divide(iv(10, 10)), iv(0, 9));
+        // A RANGED nonzero divisor keeps the magnitude-preserving
+        // over-approximation, widened to include 0.
+        assert_eq!(iv(10, 50).divide(iv(2, 3)), iv(0, 50));
+        assert_eq!(iv(-50, -10).divide(iv(2, 3)), iv(-50, 0));
         // unbounded dividend cannot be bounded by division
         assert_eq!(Interval::UNBOUNDED.divide(iv(2, 2)), Interval::UNBOUNDED);
         // maybe-zero divisor: cannot assume magnitude >= 1
@@ -2491,5 +2526,298 @@ fn collect_self_fields(
         ExpressionNode::Mutable(inner) => collect_self_fields(program, *inner, fields),
         ExpressionNode::Cast(cast) => collect_self_fields(program, cast.value, fields),
         _ => {}
+    }
+}
+
+/// R3's ONE closed bounded-product rule: `a * self.Fb + c` where
+/// `a <= self.Fa - 1` (a STRICT dependent atom), `c <= self.Fb - 1` (strict,
+/// on the SAME field the product multiplies by), and a machine `requires`
+/// couples `self.Fa * self.Fb <= K` -- then
+/// `a*Fb + c <= (Fa-1)*Fb + (Fb-1) = Fa*Fb - 1 <= K - 1`, so the interval is
+/// `[0, K-1]` (unsigned operands floor at 0; a signed floor keeps the naive
+/// low). Needed exactly where operand ranges are NOT independently tight
+/// (runtime dims bounded only by their product). Both fields must be
+/// machine-wide preserved (the coupling speaks of machine entry; the atoms
+/// of state entry).
+fn refine_dependent_product(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: Option<&State>,
+    left: ExpressionHandle,
+    right: ExpressionHandle,
+    naive: Interval,
+) -> Interval {
+    let Some(state) = state else {
+        return naive;
+    };
+    // Left: `a * self.Fb` (either operand order).
+    let ExpressionNode::Binary(product) = program.expression_table.expression(left) else {
+        return naive;
+    };
+    if product.operator != BinaryOperator::Multiply {
+        return naive;
+    }
+    let (a_expr, fb_expr) = {
+        let left_is_field = omega_typed_trees::dependent_ranges::symbolic_max_bound(
+            &program.expression_table,
+            product.left,
+        )
+        .is_some_and(|bound| bound.offset == 0);
+        if left_is_field {
+            (product.right, product.left)
+        } else {
+            (product.left, product.right)
+        }
+    };
+    let Some(fb) = omega_typed_trees::dependent_ranges::symbolic_max_bound(
+        &program.expression_table,
+        fb_expr,
+    )
+    .filter(|bound| bound.offset == 0)
+    .map(|bound| bound.field) else {
+        return naive;
+    };
+    // a's STRICT dependent atom names Fa; c's STRICT atom names Fb (the
+    // multiplier field).
+    let Some(fa) = strict_dependent_atom_field(program, machine, state, a_expr) else {
+        return naive;
+    };
+    let Some(c_field) = strict_dependent_atom_field(program, machine, state, right) else {
+        return naive;
+    };
+    if c_field.as_str() != fb.as_str() {
+        return naive;
+    }
+    // The coupling: `requires self.Fa * self.Fb <= K` (either multiply order).
+    let Some(k) = requires_product_coupling(program, machine, &fa, &fb) else {
+        return naive;
+    };
+    // Preservation of both fields, machine-wide.
+    for field in [&fa, &fb] {
+        let preserved = program
+            .machine_states(machine)
+            .iter()
+            .all(|state| validation_state_preserves_field(program, state, field));
+        if !preserved {
+            return naive;
+        }
+    }
+    let Some(high) = k.checked_sub(1) else {
+        return naive;
+    };
+    Interval {
+        low: Some(naive.low.map_or(0, |low| low.max(0))),
+        high: Some(naive.high.map_or(high, |naive_high| naive_high.min(high))),
+    }
+}
+
+/// The field a STRICTLY-bounded dependent place names: the expression is a
+/// place whose declared range maximum is `self.<field> - 1` (the exclusive
+/// sugar's normalization -- `a < field` at entry).
+fn strict_dependent_atom_field(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    expression: ExpressionHandle,
+) -> Option<omega_typed_trees::name::Identifier> {
+    let raw = crate::places::declared_place_type_raw(program, machine, Some(state), expression)?;
+    let (field, offset) = dependent_maximum_of_type_reference(program, raw)?;
+    (offset == -1).then_some(field)
+}
+
+/// A machine `requires` conjunct `self.Fa * self.Fb <= K` (either multiply
+/// order; strict `<` tightens to `K - 1`).
+fn requires_product_coupling(
+    program: &TypedTrees,
+    machine: &Machine,
+    fa: &omega_typed_trees::name::Identifier,
+    fb: &omega_typed_trees::name::Identifier,
+) -> Option<i64> {
+    let fa_label = format!("self.{}", fa.as_str());
+    let fb_label = format!("self.{}", fb.as_str());
+    for contract in program.machine_contracts(machine) {
+        if contract.kind != omega_typed_trees::signature::SignatureContractKind::Requires {
+            continue;
+        }
+        for fact in program.proof_facts.span_or_empty(contract.facts) {
+            let omega_typed_trees::domain::ProofFact::Expression(expression) = fact else {
+                continue;
+            };
+            if let Some(k) =
+                product_coupling_conjunct(program, *expression, &fa_label, &fb_label)
+            {
+                return Some(k);
+            }
+        }
+    }
+    None
+}
+
+fn product_coupling_conjunct(
+    program: &TypedTrees,
+    guard: ExpressionHandle,
+    fa_label: &str,
+    fb_label: &str,
+) -> Option<i64> {
+    let ExpressionNode::Binary(binary) = program.expression_table.expression(guard) else {
+        return None;
+    };
+    match binary.operator {
+        BinaryOperator::And => {
+            product_coupling_conjunct(program, binary.left, fa_label, fb_label).or_else(|| {
+                product_coupling_conjunct(program, binary.right, fa_label, fb_label)
+            })
+        }
+        BinaryOperator::LessOrEqual | BinaryOperator::Less => {
+            let ExpressionNode::Binary(product) =
+                program.expression_table.expression(binary.left)
+            else {
+                return None;
+            };
+            if product.operator != BinaryOperator::Multiply {
+                return None;
+            }
+            let lhs = program.expression_table.display_name(product.left);
+            let rhs = program.expression_table.display_name(product.right);
+            let matches = (lhs == fa_label && rhs == fb_label)
+                || (lhs == fb_label && rhs == fa_label);
+            if !matches {
+                return None;
+            }
+            let k = literal_i64(program, binary.right)?;
+            if binary.operator == BinaryOperator::Less {
+                k.checked_sub(1)
+            } else {
+                Some(k)
+            }
+        }
+        _ => None,
+    }
+}
+
+/// The MULTIPLY half of R3's rule: `a * self.Fb` (either order) with
+/// `a <= self.Fa - 1` strict and the coupling `Fa * Fb <= K` is bounded by
+/// `(Fa-1)*Fb = Fa*Fb - Fb <= K` (Fb unsigned) -- interval `[0, K]`. The
+/// enclosing Add then tightens to `K - 1`.
+fn refine_dependent_product_factor(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: Option<&State>,
+    left: ExpressionHandle,
+    right: ExpressionHandle,
+    naive: Interval,
+) -> Interval {
+    let Some(state) = state else {
+        return naive;
+    };
+    let (a_expr, fb_expr) = {
+        let left_is_field = omega_typed_trees::dependent_ranges::symbolic_max_bound(
+            &program.expression_table,
+            left,
+        )
+        .is_some_and(|bound| bound.offset == 0);
+        if left_is_field { (right, left) } else { (left, right) }
+    };
+    let Some(fb) = omega_typed_trees::dependent_ranges::symbolic_max_bound(
+        &program.expression_table,
+        fb_expr,
+    )
+    .filter(|bound| bound.offset == 0)
+    .map(|bound| bound.field) else {
+        return naive;
+    };
+    let Some(fa) = strict_dependent_atom_field(program, machine, state, a_expr) else {
+        return naive;
+    };
+    let Some(k) = requires_product_coupling(program, machine, &fa, &fb) else {
+        return naive;
+    };
+    for field in [&fa, &fb] {
+        let preserved = program
+            .machine_states(machine)
+            .iter()
+            .all(|state| validation_state_preserves_field(program, state, field));
+        if !preserved {
+            return naive;
+        }
+    }
+    Interval {
+        low: Some(naive.low.map_or(0, |low| low.max(0))),
+        high: Some(naive.high.map_or(k, |naive_high| naive_high.min(k))),
+    }
+}
+
+/// Containment of a cleanly-analyzed store interval in the target's declared
+/// Exact `[a..=b]` range -- refusing when a BOUND exists and provably
+/// escapes (`[0, 12]` into `[0..=11]`: the R3-era native-OOB shape). An
+/// UNBOUNDED side does NOT refuse here: the interval engine's env seeding
+/// is conservative in post-entry states, so treating unknown as
+/// out-of-range would flip provably-sound corpus shapes; the unbounded
+/// residue of the store-proof gap stays pinned in TASKS.md until the env
+/// seeding tightens. Non-Exact shells and unranged targets are untouched.
+pub(crate) fn check_range_containment(
+    program: &TypedTrees,
+    target_type: TypeReferenceHandle,
+    interval: Interval,
+    owner: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let Some(declared) = enforced_declared_range_interval(program, target_type) else {
+        return;
+    };
+    let escapes_low = match (interval.low, declared.low) {
+        (Some(low), Some(declared_low)) => low < declared_low,
+        _ => false,
+    };
+    let escapes_high = match (interval.high, declared.high) {
+        (Some(high), Some(declared_high)) => high > declared_high,
+        _ => false,
+    };
+    if escapes_low || escapes_high {
+        diagnostics.push(Diagnostic::error(format!(
+            "{owner} stores a value not provably within its declared range: the range is a \
+             store-enforced invariant every read trusts (indexes, exact arithmetic), so the \
+             stored value must be proven to honor it. Narrow the value with a dominating \
+             guard, a dependent bound, or a requires coupling -- or widen/remove the range",
+        )));
+    }
+}
+
+/// The declared literal `[a..=b]` of a type reference, ONLY under all-Exact
+/// Constrained shells (non-Exact ranges are deliberately permissive).
+fn enforced_declared_range_interval(
+    program: &TypedTrees,
+    handle: TypeReferenceHandle,
+) -> Option<Interval> {
+    match program.type_reference_table.type_reference(handle) {
+        TypeReferenceNode::Reference { referee, .. } => {
+            enforced_declared_range_interval(program, *referee)
+        }
+        TypeReferenceNode::Constrained {
+            base_type,
+            constraints,
+        } => {
+            let constraints = program.type_reference_table.constraints(*constraints);
+            if constraints.iter().any(|constraint| {
+                matches!(
+                    constraint,
+                    TypeConstraintNode::ArithmeticDomain(domain)
+                        if *domain != ArithmeticDomain::Exact
+                )
+            }) {
+                return None;
+            }
+            constraints
+                .iter()
+                .find_map(|constraint| match constraint {
+                    TypeConstraintNode::Range { minimum, maximum } => Some(Interval {
+                        low: Some(literal_i64(program, *minimum)?),
+                        high: Some(literal_i64(program, *maximum)?),
+                    }),
+                    _ => None,
+                })
+                .or_else(|| enforced_declared_range_interval(program, *base_type))
+        }
+        _ => None,
     }
 }
