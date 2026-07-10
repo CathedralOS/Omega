@@ -7297,6 +7297,32 @@ fn runtime_wire_roundtrip_repeated_max_one_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_wire_roundtrip_utf8_exit_canary_runs() {
+    // &[u8]-in-Utf8 wire decode roundtrips for honest bytes (the
+    // adversarial half is the pinned soundness hole).
+    let canary = pass_canary("wire/runtime_wire_roundtrip_utf8_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-wireutf8-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("utf8 wire roundtrip canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("utf8 wire roundtrip canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "utf8 wire roundtrip canary should pass (exit 70), got {:?}",
+        output.status.code(),
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_wire_encode_repeated_then_string_exit_canary_runs() {
     // Wire repeated + String-last in one message: two runtime-sized appends
     // in sequence -- the String's cursor must start where the packed payload
@@ -28308,6 +28334,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "text/zii_default_string_equality_exit",
     "text/zii_string_host_write_exit",
     "text/runtime_text_equals_value_positions_exit",
+    "wire/runtime_wire_roundtrip_utf8_exit",
     "control_flow/runtime_case_member_dispatch_exit",
     "control_flow/runtime_local_boolean_or_value_exit",
     "control_flow/runtime_straight_line_terminal_local_exit",
@@ -29306,6 +29333,10 @@ const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
     },
     PendingCanary {
         path: "calls/trailing_state_mut_param_phase_divergence",
+        expectation: PendingCanaryExpectation::CurrentlyAccepts,
+    },
+    PendingCanary {
+        path: "wire/utf8_decode_accepts_invalid_bytes",
         expectation: PendingCanaryExpectation::CurrentlyAccepts,
     },
     PendingCanary {

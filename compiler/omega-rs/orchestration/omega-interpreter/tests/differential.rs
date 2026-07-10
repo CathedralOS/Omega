@@ -74,6 +74,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("structs/aggregate_transition_args_exit", 70),
     ("structs/deep_nested_write_paths_exit", 70),
     ("text/runtime_text_equals_value_positions_exit", 70),
+    ("wire/runtime_wire_roundtrip_utf8_exit", 70),
     ("slices/runtime_saturating_array_element_guard_exit", 70),
     ("arithmetic/runtime_unsigned_high_bit_u32_ops_exit", 70),
     ("arithmetic/runtime_unsigned_min_max_exit", 88),
@@ -1873,6 +1874,9 @@ const PENDING_RUNTIME_DIVERGENCES: &[(&str, i32, PendingInterpOutcome)] = &[
     ("calls/texteq_local_guard_read_divergence", 71, PendingInterpOutcome::Exit(70)),
     ("calls/texteq_local_arg_forward_divergence", 71, PendingInterpOutcome::Exit(70)),
     ("calls/trailing_state_mut_param_phase_divergence", 71, PendingInterpOutcome::Exit(70)),
+    // BOTH-ENGINES-WRONG soundness hole (not a divergence): decode accepts
+    // invalid UTF-8 into an `in Utf8` slice. See the canary header.
+    ("wire/utf8_decode_accepts_invalid_bytes", 71, PendingInterpOutcome::Exit(71)),
     ("arithmetic/const_fold_unsigned_divide_miscompile", 71, PendingInterpOutcome::Exit(70)),
     ("arithmetic/const_fold_unsigned_shift_right_miscompile", 71, PendingInterpOutcome::Exit(70)),
     ("arithmetic/float_to_int_overflow_divergence", 99, PendingInterpOutcome::Exit(71)),

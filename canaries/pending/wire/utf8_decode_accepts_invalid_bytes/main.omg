@@ -1,0 +1,55 @@
+// PENDING -- a SOUNDNESS HOLE both engines share (found 2026-07-16, no
+// divergence so the oracle cannot see it): adversarial wire bytes 0xFF
+// 0xFF decode into a `&[u8] in Utf8` field with verdict SOUND, delivering
+// a domain-tagged slice that violates its own `when valid_utf8(self)`
+// predicate. valid_utf8 exists ONLY in the compile-time proof machinery
+// (field_domain + contract checks); untrusted runtime bytes need a RUNTIME
+// validator at the decode boundary on BOTH engines (interp: evaluate the
+// predicate during the utf8-field decode arm; native: emit or
+// runtime-dispatch a UTF-8 validation loop), flipping the verdict to
+// Invalid on failure. Domains with `when` predicates are the general case;
+// utf8 is the first wire-reachable one. Hold (71, Exit(71)) = both engines
+// currently ACCEPT; promote to exit-70-refuses when the validator lands.
+// Buffer hand-crafted: era 0, tag 0, count 7, tag 1, len 2, 0xFF, 0xFF.
+domain [u8]::Utf8 when valid_utf8(self) {
+}
+boundary trait Console { machine exit_process(return_code: i32); }
+data LabelMessage {
+    0: count: u32;
+    1: label: &[u8] in Utf8;
+}
+data LabelSample {
+    count: u32;
+    label: &[u8] in Utf8;
+}
+data WireVerdict {
+    case Invalid;
+    case Sound;
+}
+data Main {
+    console: Console;
+    buffer: [u8; 64];
+    read: u64;
+    verdict: WireVerdict;
+}
+machine Main::main(&mut self) {
+    self.buffer[0] = 0;
+    self.buffer[1] = 0;
+    self.buffer[2] = 7;
+    self.buffer[3] = 1;
+    self.buffer[4] = 2;
+    self.buffer[5] = 255;
+    self.buffer[6] = 255;
+
+    let decoded: LabelSample;
+    decoded.count = 0;
+    decoded.label = "";
+    LabelMessage::decode(&mut decoded, &self.buffer, &mut self.read, &mut self.verdict);
+
+    transition self.verdict == WireVerdict::Invalid {
+        true -> refused()
+        false -> accepted_invalid_utf8()
+    }
+    state refused(&mut self)              { self.console.exit_process(70); }
+    state accepted_invalid_utf8(&mut self){ self.console.exit_process(71); }
+}

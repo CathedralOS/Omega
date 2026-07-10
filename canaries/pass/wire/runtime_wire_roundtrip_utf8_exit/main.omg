@@ -1,0 +1,56 @@
+// RUN CANARY (exit 70) + interpreter differential. Wire &[u8]-in-Utf8
+// DECODE roundtrips: encode {7, "hi"}, decode into a fresh sample (the
+// decoded slice borrows the wire buffer), re-encode, byte-compare. Found
+// UNPINNED while surveying the stage-2 remainder (whose "String decode"
+// line was stale -- the machinery works for honest bytes). The ADVERSARIAL
+// half does NOT hold: see pending/wire/utf8_decode_accepts_invalid_bytes
+// (the decoder never runs the domain predicate on untrusted bytes).
+domain [u8]::Utf8 when valid_utf8(self) {
+}
+boundary trait Console { machine exit_process(return_code: i32); }
+data LabelMessage {
+    0: count: u32;
+    1: label: &[u8] in Utf8;
+}
+data LabelSample {
+    count: u32;
+    label: &[u8] in Utf8;
+}
+data WireVerdict {
+    case Invalid;
+    case Sound;
+}
+data Main {
+    console: Console;
+    buffer: [u8; 64];
+    buffer2: [u8; 64];
+    written: u64;
+    written2: u64;
+    read: u64;
+    verdict: WireVerdict;
+}
+machine Main::main(&mut self) {
+    let msg: LabelSample;
+    msg.count = 7;
+    msg.label = "hi";
+    LabelMessage::encode(&msg, &mut self.buffer, &mut self.written);
+
+    let decoded: LabelSample;
+    decoded.count = 0;
+    decoded.label = "";
+    LabelMessage::decode(&mut decoded, &self.buffer, &mut self.read, &mut self.verdict);
+
+    LabelMessage::encode(&decoded, &mut self.buffer2, &mut self.written2);
+
+    let matches: bool = self.verdict == WireVerdict::Sound
+        && self.read == 7
+        && self.written2 == 7
+        && self.buffer2[5] == 104
+        && self.buffer2[6] == 105;
+    transition matches {
+        true -> good()
+        false -> bad()
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self)  { self.console.exit_process(71); }
+}
