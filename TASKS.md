@@ -101,10 +101,11 @@ should target NEW feature surfaces as they land, not re-walk these axes.
   rejection: variants + builtins + AtomicUsize deleted, tolerances
   collapsed, fail canaries types/usize_rejected + isize_rejected) landed
   2026-07-15 -- the std/core/host/lattice-corpus .omg trees were swept too
-  (the recipe's inventory had missed them). FOLLOW-UP: region.omg's
-  allocate return + deallocate `address` parameter are ADDRESSES and should
-  be `addr` per the index/count/address brief -- move the trait, target
-  providers, and callers together (annotated at the site).
+  (the recipe's inventory had missed them). The region.omg addr
+  follow-up landed 2026-07-15 (allocate -> addr, deallocate(address: addr);
+  stage-1 contract-only so no providers/callers existed yet; addr value
+  flow + the addr+u64 mixed op pinned by types/runtime_addr_value_flow_exit).
+  The retirement arc is COMPLETE -- item closes next condense.
 
 - **Const-folder width-blindness: latent, currently unreachable via the
   live spelling.** The 2026-07-04 miscompile class (`(0u32 - 2) >> 1` folding
