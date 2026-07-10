@@ -442,12 +442,18 @@ Ordered rungs, each independently shippable, each with its acceptance driver:
 
 ## 9. Open questions (owner)
 
-1. ~~The default-domain declaration surface~~ **DIRECTION SETTLED
-   2026-07-17:** coupled with the data declaration — field constraints are
-   the single-field invariants, cross-field facts written in the body
-   alongside the fields. Exact cross-field spelling still open (ch7's pin).
-2. `stores` as the frame-clause name and its boundary-mandatory rule — right
-   call?
+1. ~~The default-domain declaration surface~~ **SETTLED:** a `where`
+   clause on the data signature (bare field names, N facts) — the same
+   clause position as generics, one construct at two binding times
+   (const operand = instantiation-time proof; runtime fields = standing,
+   windowed). Field constraints remain single-field sugar. Implementation
+   note (owner): treat the clause as pure spelling over the DEFAULT DOMAIN
+   model, so re-skinning the syntax later stays near-trivial.
+2. ~~`stores` naming/mandatory rule~~ **SETTLED:** `stores`, as an
+   UPPER-BOUND may-write set (over-declaring is sound; subtree paths ok).
+   Mandatory on boundary traits (no body exists; the clause is an audited
+   promise in the ensures trust class); optional on exported machines
+   (omitted = whole-receiver frame); inferred intra-unit.
 3. ~~The ZII generalization~~ **ANSWERED 2026-07-17 by the gating model
    (§6):** zero-excluding default domains are legal and gate the type; the
    zero-satisfies rule survives only as the description of the
@@ -455,8 +461,13 @@ Ordered rungs, each independently shippable, each with its acceptance driver:
 4. Chapter numbering: 23-at-the-end with reading-path placement (chosen to
    avoid breaking ~455 chapter-number references incl. live Cathedral wiki
    links) vs a renumber pass.
-5. v1 dynamic-sized storage: views + fixed-capacity buffers only, owned
-   runtime-sized values gated on `Region` — confirm.
+5. ~~v1 dynamic-sized storage~~ **SETTLED, and permanent rather than v1:**
+   views + fixed-capacity buffers now; `Region` allocations ({handle, len},
+   Vec-shaped) complete the set. Owned INLINE runtime-sized data
+   (`payload: [u8; len]` in memory) is banned outright — Ada is the
+   cautionary precedent, and no driver needs it. The spelling stays legal
+   in wire schemas, where it describes bytes; decode mints into the three
+   shapes.
 
 ## Key sources
 

@@ -86,21 +86,31 @@ Working rules:
 ## Dependent Data
 
 A data type's fields may witness each other. The default domain is declared
-with the data declaration: a field constraint is a single-field invariant of
-it, and cross-field couplings are facts written in the body alongside the
-fields (the exact cross-field spelling is an open pin from chapter 7):
+on the data signature as a `where` clause (settled — owner): bare field
+names, any number of facts, holding at every observation of the value. A
+field constraint is single-field sugar for a `where` fact; the body stays
+pure layout. Semantically and in the implementation these facts ARE the
+default domain — the clause is a spelling over that model, so re-skinning
+the syntax later is near-trivial by design:
 
 ```omega
-data MemoryMap {
+data MemoryMap
+where
+    count * stride <= len,
+    stride >= 40,
+{
     buf: [u8; 4096];
     len: u32 [0..=4096];
     stride: u32;
     count: u32;
-
-    self.count * self.stride <= self.len;
-    self.stride >= 40;
 }
 ```
+
+This is the same clause position generics use (chapter 13), deliberately:
+`where N > 0` on a const parameter and `where count * stride <= len` on
+runtime fields are one construct at two binding times — a compile-time-known
+operand collapses the every-observation obligation to a single
+instantiation-time proof, which is exactly the static lowering rule.
 
 > **Gating (settled 2026-07-17).** The zero value either satisfies the
 > default domain or it does not, and both are legal:
@@ -211,10 +221,17 @@ When a witness is a runtime value:
 - **Obligations discharge against flow facts** — declared couplings,
   dominating guards, and minted subdomain facts — instead of constants.
 
-In v1, runtime-sized regions live behind borrowed views or inside
-fixed-capacity buffers (as `MemoryMap` above: static storage, dynamic
-validity). Owned values whose total size is a runtime witness are deferred to
-the `Region` allocator story.
+Runtime-sized data takes exactly three shapes, permanently: borrowed views
+(`{ptr, len}` over someone else's bytes), fixed-capacity buffers with
+dynamic validity (as `MemoryMap` above: static storage, a runtime valid
+prefix carried as facts), and — once the `Region` allocator lands — owned
+allocations (`{handle, len}`, Vec-shaped, the length proof-visible). An
+owned value whose INLINE size is a runtime witness (`payload: [u8; len]` as
+machine-resident storage) is not part of the language: the facts never
+cared where the bytes live, and the one language that shipped inline
+value-dependent layout spent forty years paying for it. The same spelling
+remains legal in wire schemas (chapter 21), where it describes serialized
+bytes; decode mints it into one of the three shapes.
 
 The memory map, end to end:
 
@@ -288,9 +305,16 @@ The frame rule is **preserve-unless-written, at borrow granularity**:
   places.
 
 At machine boundaries the written set is declared with a `stores` clause —
-named for what the store checker already enforces — and checked callee-side
-by that same pass (an undeclared store is a compile error). Within a
-compilation unit it is inferred; boundary traits must write it:
+named for what the store checker already enforces. The clause is an UPPER
+BOUND (a may-write set): declaring more than the machine writes is always
+sound, merely coarse for callers, so path granularity is the author's
+call (`stores self.map` frames a whole subtree). For Omega callees it is
+checked callee-side by the store pass (an undeclared store is a compile
+error, fails closed); on a boundary trait there is no body to check, so
+the clause is an audited promise in the same trust class as the boundary's
+`ensures`. Tiering (settled — owner): mandatory on boundary traits;
+optional on exported machines (omitted = the whole-receiver frame, sound
+but coarse); inferred within a compilation unit — no clause exists:
 
 ```omega
 machine Table::insert(&mut self, item: Item)

@@ -280,9 +280,15 @@ with a real app-window story.
   delete `PrimitiveType::String` + ~16 backend special-cases, retire the
   keyword. Recipe: wiki/architecture/string_retirement_execution.md. The
   capstone of the encoding-domains arc — NOT a background-tick item.
-- **Default-domain invariants (gating + windows follow-up):** pin the
-  cross-field fact spelling in the data body + init-syntax for
-  cross-field-related `self` reconstruction at implementation time.
+- **Default-domain invariants (gating + windows follow-up):** declaration
+  surface SETTLED (owner): a `where` clause on the data signature — bare
+  field names, N facts; field constraints stay single-field sugar; one
+  construct with generics' where (const operand = instantiation proof,
+  runtime fields = standing/windowed). Implementation treats the clause as
+  spelling over the DEFAULT DOMAIN model (re-skinnable). Remaining pin:
+  whether the init-syntax reconstruction form is still needed at all now
+  that windows admit piecemeal writes (likely dissolved; confirm at
+  implementation).
   (Settled 2026-07-17: zero-excluding default domains GATE the type;
   store-time enforcement superseded by consumption-point invariant
   windows — ch11 rewritten, ch7/8/9/12 + appendix restated, record in

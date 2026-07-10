@@ -15,7 +15,10 @@ the facts that APIs and mutations require.
 > write). "Top-level" domains like `Player::New` or `Quantity::Additive` are
 > **subdomains** that refine the default domain (tighter invariants, operators,
 > facts) and are proven at a mint point (`as`). Cross-field invariants
-> (`start <= end`) live in the default domain too; a store the checker cannot
+> (`start <= end`) live in the default domain too, declared as a `where`
+> clause on the data signature (settled — bare field names; field constraints
+> are single-field sugar for it; see
+> [Chapter 12](chapter_12_dependent_types.md)); a store the checker cannot
 > prove domain-preserving opens an [invariant
 > window](chapter_11_relax_scopes.md), re-proven at the next consumption
 > point (settled 2026-07-17 — supersedes the earlier store-rejection +
