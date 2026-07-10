@@ -136,10 +136,10 @@ checker is using.
 
 A custom well-founded ordering is declared with a dedicated `measure` keyword as
 a standalone item. A measure is **not** an abused `operator` declaration: it is a
-function from the decreasing value into a well-founded domain such as `usize`.
+function from the decreasing value into a well-founded domain such as `u64`.
 
 ```omega
-measure Card::PowerOrder(card: Card) -> usize { card.power }
+measure Card::PowerOrder(card: Card) -> u64 { card.power }
 measure Quest::Difficulty lexicographic { tier, remaining_steps }
 ```
 
@@ -170,7 +170,7 @@ what diagnostics and the termination checker report, browsable like
 `Slice::Length`:
 
 ```omega
-machine walk(limit: usize, index: usize)
+machine walk(limit: u64, index: u64)
 terminates {
     decreases limit - index -> Nat::BoundedDistance;
 }

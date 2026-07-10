@@ -103,7 +103,7 @@ empty-body proof machine has no statements, so no `ContractExitFact` is
 created and `check_exit_ensures` never runs for it. A false theorem such as
 
 ```omega
-machine bogus(i: usize, j: usize)
+machine bogus(i: u64, j: u64)
 requires
     i < j
 ensures
@@ -203,7 +203,7 @@ Rejected today:
 
 - `Nat` as a parameter/data type ("references unknown data type `Nat`") --
   Nat exists only as a literal-suffix world, so theorems are stated over
-  `usize` (machine ints, no overflow facts emitted yet),
+  `u64` (machine ints, no overflow facts emitted yet),
 - `Seq(items) in Sorted` ("references unknown domain `Sorted`") -- domains are
   declared over data types (`domain Type::Name`), there is no domain-over-view
   surface,
@@ -217,6 +217,6 @@ Rejected today:
   lowering or semantics; `Sorted` and friends do not exist.
 - `Real` approximation semantics are an open design question; float contract
   facts only have the bounded-type interval checks.
-- Machine-int wrapping: contract arithmetic over `usize` does not yet emit
+- Machine-int wrapping: contract arithmetic over `u64` does not yet emit
   overflow obligations, and the constant folder in the refutation pass uses
   checked i64 (it stands down on overflow rather than wrapping).

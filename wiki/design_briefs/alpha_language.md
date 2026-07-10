@@ -65,7 +65,7 @@ placeholders, finalized once the compiler exists.
   keywords, and punctuation are ASCII.
 
 ### Structure (one fixed arena per kind)
-- `MAX_AST_NODES` — the AST node arena (children are `usize` indices, not
+- `MAX_AST_NODES` — the AST node arena (children are `u64` indices, not
   pointers).
 - `MAX_NESTING_DEPTH` — the explicit parse/walk **worklist** arena. This is the
   replacement for a call-depth limit (see *No recursion*): it bounds how deeply
@@ -111,7 +111,7 @@ placeholders, finalized once the compiler exists.
   + multi-way branch.
 - **No floating point.** The compiler doesn't need it; banning it shrinks the
   seed's encoder.
-- **A small fixed integer-width set** (e.g. `u8`, `i32`, `usize`) — enough for
+- **A small fixed integer-width set** (e.g. `u8`, `i32`, `u64`) — enough for
   bytes, general arithmetic, and indices; keeps the seed's encoder minimal.
 - **No macros / preprocessor.**
 

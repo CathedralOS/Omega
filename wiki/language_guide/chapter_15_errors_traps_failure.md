@@ -192,7 +192,7 @@ boundary host
 { }
 
 data ReadOutcome {
-    case Read(bytes: usize);
+    case Read(bytes: u64);
     case Closed;
     case Failed(error: IOError);
 }

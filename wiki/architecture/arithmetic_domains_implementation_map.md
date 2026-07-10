@@ -238,7 +238,7 @@ Canaries (canaries/pass/expressions/): `arithmetic_domain_wrapping_exit` (44),
   Native handles any target via the descriptor domain; the interpreter's
   field-write path would need the data member's type-reference domain to match —
   add before differential-testing a field-target saturating program.
-- **u64/usize Saturating/Trapping in the interpreter**: `integer_bounds` returns
+- **u64/u64 Saturating/Trapping in the interpreter**: `integer_bounds` returns
   None for those (can't represent u64::MAX in i64), so they fall back to wrap.
   Native is correct (uses CF). Don't differential a u64-domain overflow yet.
 

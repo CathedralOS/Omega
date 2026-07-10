@@ -44,7 +44,7 @@ Machines may be generic over types.
 machine Inventory::find<T>(
     items: &[T],
     target: &T,
-    out: &mut Option<usize>
+    out: &mut Option<u64>
 )
 where
     T: Equatable
@@ -57,11 +57,11 @@ where
     state find_at(
         items: &[T],
         target: &T,
-        index: usize,
-        out: &mut Option<usize>
+        index: u64,
+        out: &mut Option<u64>
     ) {
         let found: bool = items[index].equals(target);
-        let next_index: usize = index + 1;
+        let next_index: u64 = index + 1;
         let has_next: bool = next_index < items.len;
 
         transition (found, has_next) {
@@ -71,11 +71,11 @@ where
         }
     }
 
-    state found_at(index: usize, out: &mut Option<usize>) {
+    state found_at(index: u64, out: &mut Option<u64>) {
         out = Some(index);
     }
 
-    state not_found(out: &mut Option<usize>) {
+    state not_found(out: &mut Option<u64>) {
         out = None;
     }
 }
@@ -89,7 +89,7 @@ machines use type parameters and constraints like Rust does.
 Some generic facts are values known at compile time or proof time.
 
 ```omega
-data FixedBuffer<T, const N: usize> {
+data FixedBuffer<T, const N: u64> {
     items: [T; N];
 }
 
@@ -186,7 +186,7 @@ but that should be an optimization. It should not change generic semantics.
 Generic code emits generic obligations.
 
 ```omega
-machine Buffer::first<T, const N: usize>(
+machine Buffer::first<T, const N: u64>(
     buffer: &FixedBuffer<T, N>,
     out: &mut T
 )
