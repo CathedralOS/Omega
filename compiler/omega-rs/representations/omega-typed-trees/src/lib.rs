@@ -1,3 +1,4 @@
+pub mod byte_predicates;
 pub mod data;
 pub mod domain;
 pub mod expression;

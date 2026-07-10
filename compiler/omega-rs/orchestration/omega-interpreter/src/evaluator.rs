@@ -2216,11 +2216,34 @@ impl<'program> Evaluator<'program> {
             }
             // A borrowed `&[u8]` field decodes zero-copy: length-prefixed bytes
             // viewed in the buffer (validation requires the value field `&[u8]`).
+            // A DOMAIN on the slice (`&[u8] in Utf8`) is a decode-boundary
+            // obligation: the wire carries UNTRUSTED bytes no compile-time
+            // proof covers, so the decoder evaluates the domain's recognized
+            // byte predicate and fails the verdict when it does not hold. A
+            // declared domain whose classifier is NOT a recognized byte
+            // predicate refuses LOUDLY -- silently skipping validation would
+            // deliver a domain-tagged slice with unchecked bytes (the pinned
+            // utf8_decode_accepts_invalid_bytes soundness hole).
             if self.program.is_borrowed_byte_slice(field.type_reference) {
+                let mut predicates = Vec::new();
+                for (domain_name, predicate) in
+                    omega_typed_trees::byte_predicates::type_reference_domain_predicates(
+                        &self.program,
+                        field.type_reference,
+                    )
+                {
+                    let Some(predicate) = predicate else {
+                        return Err(Halt::Unsupported(format!(
+                            "`{schema_name}::decode` field `{}` carries domain `{domain_name}`, whose classifier is not a recognized byte predicate -- the decode boundary cannot validate it yet",
+                            field.name
+                        )));
+                    };
+                    predicates.push(predicate);
+                }
                 fields.push((
                     field.name.as_str().to_owned(),
                     field.number,
-                    WireInterpScalarField::ByteSlice,
+                    WireInterpScalarField::ByteSlice { predicates },
                 ));
                 continue;
             }
@@ -2363,7 +2386,7 @@ impl<'program> Evaluator<'program> {
                     let raw = read_varint(&mut cursor, &mut ok);
                     *field_cell.borrow_mut() = wire_decoded_scalar_value(raw, *encoding)?;
                 }
-                WireInterpScalarField::ByteSlice => {
+                WireInterpScalarField::ByteSlice { predicates } => {
                     // A borrowed `&[u8]`: a byte-LENGTH varint then that many
                     // bytes, stored as an owned Array of byte values
                     // (observationally identical to a buffer view for any read).
@@ -2376,7 +2399,17 @@ impl<'program> Evaluator<'program> {
                         ok = false;
                     }
                     let take = length.min(available);
-                    let elements: Vec<Cell> = buffer[cursor..cursor + take]
+                    let bytes = &buffer[cursor..cursor + take];
+                    // Decode-boundary domain validation: untrusted wire bytes
+                    // must satisfy the slice's declared byte predicates or the
+                    // verdict is Invalid (a truncated read is already !ok
+                    // above; validating the truncated view is harmless).
+                    for predicate in predicates {
+                        if !predicate.holds_for(bytes) {
+                            ok = false;
+                        }
+                    }
+                    let elements: Vec<Cell> = bytes
                         .iter()
                         .map(|byte| Value::Int(i64::from(*byte)).cell())
                         .collect();
@@ -5867,8 +5900,12 @@ enum WireInterpScalarField {
     Repeated(omega_typed_trees::wire::WireRepeatedEncoding),
     /// A borrowed `&[u8]` field: read a byte-length varint then that many bytes
     /// from the buffer. Stored as an owned `Array` of byte values --
-    /// observationally identical to a zero-copy view for any read.
-    ByteSlice,
+    /// observationally identical to a zero-copy view for any read. The
+    /// `predicates` are the slice's declared byte-domain obligations,
+    /// evaluated over the UNTRUSTED wire bytes at the decode boundary.
+    ByteSlice {
+        predicates: Vec<omega_typed_trees::byte_predicates::ByteSequencePredicate>,
+    },
 }
 
 /// The CURRENT-era (name, number, scalar encoding) list of a nested wire

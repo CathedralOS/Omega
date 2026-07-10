@@ -148,13 +148,16 @@ with a real app-window story.
 - **Wire data stage 2 remainder (list refreshed 2026-07-16 by survey):**
   nested/repeated fields and utf8-slice decode are DONE + pinned (the old
   "String decode" line was stale; runtime_wire_roundtrip_utf8_exit).
-  OPEN, ranked: (1) **decode-side DOMAIN VALIDATION -- a live soundness
-  hole**: adversarial wire bytes decode into `&[u8] in Utf8` with verdict
-  Sound, violating `when valid_utf8(self)`; valid_utf8 exists only in the
-  compile-time proof machinery, so untrusted bytes need a RUNTIME validator
-  at the decode boundary on both engines (pinned:
-  pending/wire/utf8_decode_accepts_invalid_bytes, hold (71, Exit(71)) =
-  both-engines-wrong, invisible to the oracle). (2) wire-schemas-as-
+  OPEN, ranked: (1) **decode-side DOMAIN VALIDATION** -- INTERP HALF DONE
+  (2026-07-16): ByteSequencePredicate lifted to
+  omega-typed-trees::byte_predicates (one vocabulary for compile-time proof
+  + runtime validation); the interp decode evaluates the slice's declared
+  byte predicates over untrusted bytes, verdict Invalid on failure,
+  unrecognized classifiers refuse loudly. REMAINING: the NATIVE validation
+  sequence (a byte loop over the copied range per predicate -- utf8 needs a
+  real state machine; no_nul/ascii_only/non_empty are single-pass compares)
+  wired into the decode byte-copy on both ISAs; promote the pending canary
+  (hold now (71, Exit(70))) to a refuses-canary with it. (2) wire-schemas-as-
   program-types. (3) runtime layout of wire values. (4) encoding families
   beyond compact_binary v0 + version negotiation.
 - **Versioned data stage 3:** the era tag itself (+ decision 10's wire-era

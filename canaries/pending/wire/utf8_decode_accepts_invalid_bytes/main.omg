@@ -1,16 +1,14 @@
-// PENDING -- a SOUNDNESS HOLE both engines share (found 2026-07-16, no
-// divergence so the oracle cannot see it): adversarial wire bytes 0xFF
-// 0xFF decode into a `&[u8] in Utf8` field with verdict SOUND, delivering
-// a domain-tagged slice that violates its own `when valid_utf8(self)`
-// predicate. valid_utf8 exists ONLY in the compile-time proof machinery
-// (field_domain + contract checks); untrusted runtime bytes need a RUNTIME
-// validator at the decode boundary on BOTH engines (interp: evaluate the
-// predicate during the utf8-field decode arm; native: emit or
-// runtime-dispatch a UTF-8 validation loop), flipping the verdict to
-// Invalid on failure. Domains with `when` predicates are the general case;
-// utf8 is the first wire-reachable one. Hold (71, Exit(71)) = both engines
-// currently ACCEPT; promote to exit-70-refuses when the validator lands.
-// Buffer hand-crafted: era 0, tag 0, count 7, tag 1, len 2, 0xFF, 0xFF.
+// PENDING only for NATIVE (interp FIXED 2026-07-16): adversarial wire
+// bytes 0xFF 0xFF must decode into a `&[u8] in Utf8` field with verdict
+// INVALID. The interpreter now evaluates the slice's declared byte-domain
+// predicates over the untrusted bytes at the decode boundary (the shared
+// ByteSequencePredicate vocabulary, lifted from the checker's
+// field_domain.rs into omega-typed-trees::byte_predicates so compile-time
+// proof and runtime validation share ONE definition; unrecognized domain
+// classifiers refuse loudly instead of silently skipping). NATIVE still
+// accepts -- its decode byte-copy needs the validation loop (utf8/no_nul/
+// ascii_only/non_empty over the copied range, verdict Invalid on failure);
+// promote to a refuses-canary when it lands. Hold: (71, Exit(70)).
 domain [u8]::Utf8 when valid_utf8(self) {
 }
 boundary trait Console { machine exit_process(return_code: i32); }
