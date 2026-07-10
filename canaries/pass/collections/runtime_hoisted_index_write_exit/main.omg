@@ -1,0 +1,31 @@
+// RUN CANARY (exit 7) + interpreter differential. A RUNTIME value written
+// through a hoisted computed index -- `self.cells[y * 4 + x] = next` with
+// dependent params and a computed local RHS -- lowers via the value
+// local's FRAME SLOT + the storage-to-indexed copy. PROMOTED from a
+// pending CurrentlyRejects pin (found by the heat_grid sample): the
+// state-storage local-slot collection elided `next`'s slot (its liveness
+// scan had no arm for mutation VALUES into runtime-indexed targets), so
+// the mutation write had neither an immediate (runtime value) nor a
+// resolvable source place -- the loud storage-write blocker. Fixed by the
+// value-side slot carve-out (local_used_as_runtime_indexed_write_value,
+// the twin of the runtime-INDEX carve-out). Static-folding RHS values
+// always lowered (probed); this pins the runtime-RHS shape.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; cells: [u8; 12]; rows: u32 [0..=2]; cols: u32 [0..=3]; j: u32; k: u32; out: i32; }
+machine Main::main(&mut self) {
+    self.rows = 2;
+    self.cols = 3;
+    self.j = 2;
+    self.k = 3;
+    transition self.j <= self.rows && self.k <= self.cols { true -> put(self.j, self.k) _ -> bad() }
+    state put(&mut self, y: u32 [0..=self.rows], x: u32 [0..=self.cols]) {
+        // The RHS must be genuinely runtime: a static-folding value lowers
+        // through the write cascade's immediate path (probed -- `= 7`
+        // compiles and runs).
+        let next: u8 = (y as u8 in Wrapping) + 5;
+        self.cells[y * 4 + x] = next;
+        self.out = self.cells[11] as i32;
+        self.console.exit_process(self.out);
+    }
+    state bad(&mut self) { self.console.exit_process(9); }
+}
