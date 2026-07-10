@@ -2198,21 +2198,40 @@ pub fn wire_decode_varint_target_page_offset(
         + if zigzag { wire_unzigzag_width() } else { 0 }
 }
 
+/// Bytes of the decode-boundary byte-predicate validation blocks (one per
+/// mask bit, `ByteSequencePredicate::ALL` order). MUST mirror
+/// `append_wire_byte_predicate_checks`: utf8 is the 77-instruction
+/// compare/branch walk; no_nul 7; ascii_only 8; non_empty 2.
+pub fn wire_byte_predicate_checks_width(predicate_mask: u8) -> usize {
+    use omega_core::byte_predicates::ByteSequencePredicate;
+    ByteSequencePredicate::in_mask(predicate_mask)
+        .map(|predicate| match predicate {
+            ByteSequencePredicate::ValidUtf8 => 308,
+            ByteSequencePredicate::NoNul => 28,
+            ByteSequencePredicate::AsciiOnly => 32,
+            ByteSequencePredicate::NonEmpty => 8,
+        })
+        .sum()
+}
+
 pub fn read_wire_byte_slice_width(
     buffer_offset: usize,
     buffer_length: usize,
     read_offset: usize,
     ok_offset: usize,
     target_offset: usize,
+    predicate_mask: u8,
 ) -> usize {
     // Prologue + buffer-length materialization + success/value/shift movz triple
-    // + read loop + bounds&advance (6 instrs, 24) + target page pair (8) + ptr
-    // store + len store + epilogue.
+    // + read loop + bounds&advance (6 instrs, 24) + the byte-predicate
+    // validation blocks + target page pair (8) + ptr store + len store +
+    // epilogue.
     wire_decode_prologue_width(buffer_offset, read_offset)
         + unsigned_immediate_width(buffer_length as u64)
         + 12
         + wire_varint_read_loop_width()
         + 24
+        + wire_byte_predicate_checks_width(predicate_mask)
         + 8
         + store_data_offset_width(target_offset, 8)
         + store_data_offset_width(target_offset + 8, 8)
@@ -2225,8 +2244,10 @@ pub fn wire_decode_byte_slice_target_page_offset(
     buffer_offset: usize,
     buffer_length: usize,
     read_offset: usize,
+    predicate_mask: u8,
 ) -> usize {
     wire_decode_prologue_width(buffer_offset, read_offset)
+        + wire_byte_predicate_checks_width(predicate_mask)
         + unsigned_immediate_width(buffer_length as u64)
         + 12
         + wire_varint_read_loop_width()

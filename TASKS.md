@@ -160,11 +160,18 @@ with a real app-window story.
   omega-typed-trees::byte_predicates (one vocabulary for compile-time proof
   + runtime validation); the interp decode evaluates the slice's declared
   byte predicates over untrusted bytes, verdict Invalid on failure,
-  unrecognized classifiers refuse loudly. REMAINING: the NATIVE validation
-  sequence (a byte loop over the copied range per predicate -- utf8 needs a
-  real state machine; no_nul/ascii_only/non_empty are single-pass compares)
-  wired into the decode byte-copy on both ISAs; promote the pending canary
-  (hold now (71, Exit(70))) to a refuses-canary with it. (2) wire-schemas-as-
+  unrecognized classifiers refuse loudly. AARCH64 DONE (2026-07-16):
+  validation blocks emitted over the decoded content (mask-selected;
+  non_empty 2 / no_nul 7 / ascii_only 8 instructions; utf8 = a
+  77-instruction compare/branch walk assembled with a local label
+  resolver), width twins + the target-page relocation offset in lockstep;
+  edge classes pinned (runtime_wire_utf8_edge_verdicts_exit: overlong /
+  surrogate / beyond-max / truncated INVALID, honest multi-byte SOUND).
+  REMAINING: the x86_64 twin sequences (the mask is threaded and unread);
+  promote pending/wire/utf8_decode_accepts_invalid_bytes (hold now
+  (70, Exit(70))) with them. NOTE: the first edge-probe harness used a
+  multi-call VALUE MACHINE writing self fields and tripped the PINNED
+  trailing-state phase bug -- inline states are the reliable probe shape. (2) wire-schemas-as-
   program-types. (3) runtime layout of wire values. (4) encoding families
   beyond compact_binary v0 + version negotiation.
 - **Versioned data stage 3:** the era tag itself (+ decision 10's wire-era

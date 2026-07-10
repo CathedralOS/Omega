@@ -33,6 +33,7 @@ use super::primitives::{
     encode_and_x_immediate_low_seven, encode_and_x_register, encode_asr_x_immediate,
     encode_cbnz_x, encode_compare_w_immediate, encode_compare_x_register,
     encode_conditional_branch_equal, encode_conditional_branch_higher,
+    encode_conditional_branch_lower, encode_conditional_branch_not_equal,
     encode_conditional_branch_higher_or_same, encode_eor_x_register,
     encode_load_byte_w_post_increment, encode_lslv_x_register, encode_lsr_x_immediate,
     encode_movz, encode_orr_x_register, encode_unconditional_branch,
@@ -146,12 +147,7 @@ pub fn encode_read_wire_byte_slice(
     target_offset: usize,
     predicate_mask: u8,
 ) -> Result<Vec<u8>, Diagnostic> {
-    // Decode-boundary byte-domain obligations, threaded from selection
-    // (interp parity). The VALIDATION sequences land as one piece with the
-    // x86_64 twin -- until then the mask is carried but unread, and the
-    // pending/wire/utf8_decode_accepts_invalid_bytes canary pins the
-    // native-accepts state.
-    let _ = predicate_mask;
+
     // The region only picks the relocation symbol; the encoded shape is identical.
     let _ = target_region;
 
@@ -161,6 +157,7 @@ pub fn encode_read_wire_byte_slice(
         read_offset,
         ok_offset,
         target_offset,
+        predicate_mask,
     ));
     append_wire_decode_prologue(&mut bytes, buffer_offset, read_offset)?;
     append_unsigned_immediate(&mut bytes, 24, buffer_length as u64);
@@ -207,6 +204,12 @@ pub fn encode_read_wire_byte_slice(
     bytes.extend(encode_movz(23, 0));
     bytes.extend(encode_add_x_immediate(17, 19, 0)?);
 
+    // Decode-boundary byte-domain validation over the just-decoded content
+    // (ptr x16, len x26): every predicate in the mask checks the UNTRUSTED
+    // bytes and clears the sticky ok bit (x23) on violation -- interp
+    // parity for `&[u8] in Utf8`-style wire fields.
+    append_wire_byte_predicate_checks(&mut bytes, predicate_mask)?;
+
     // Store the descriptor: ptr = x16 (content start) @ +0, len = x26 @ +8.
     bytes.extend(encode_adrp_placeholder(25));
     bytes.extend(encode_add_page_offset_placeholder(25));
@@ -230,9 +233,205 @@ pub fn encode_read_wire_byte_slice(
     append_wire_decode_epilogue(&mut bytes, read_offset, ok_offset)?;
     debug_assert_eq!(
         bytes.len(),
-        read_wire_byte_slice_width(buffer_offset, buffer_length, read_offset, ok_offset, target_offset)
+        read_wire_byte_slice_width(
+            buffer_offset,
+            buffer_length,
+            read_offset,
+            ok_offset,
+            target_offset,
+            predicate_mask,
+        )
     );
     Ok(bytes)
+}
+
+/// Decode-boundary byte-domain validation blocks (one per predicate in the
+/// mask, in `ByteSequencePredicate::ALL` order so widths are deterministic).
+/// Contract: content ptr in x16, length in x26, sticky ok bit in x23; x19
+/// (walking pointer), x22 (end bound), x25 (lead byte), x24 (continuation
+/// byte) are spent scratch at this point in the byte-slice sequence -- the
+/// target adrp pair claims x25 only AFTER these checks. Widths MUST match
+/// `wire_byte_predicate_checks_width`.
+fn append_wire_byte_predicate_checks(
+    bytes: &mut Vec<u8>,
+    predicate_mask: u8,
+) -> Result<(), Diagnostic> {
+    use omega_core::byte_predicates::ByteSequencePredicate;
+    for predicate in ByteSequencePredicate::in_mask(predicate_mask) {
+        match predicate {
+            ByteSequencePredicate::NonEmpty => {
+                // A zero length violates non_empty: cbnz skips the clear.
+                bytes.extend(encode_cbnz_x(26, 8)?);
+                bytes.extend(encode_movz(23, 0));
+            }
+            ByteSequencePredicate::NoNul => {
+                bytes.extend(encode_add_x_immediate(19, 16, 0)?); // p = start
+                bytes.extend(encode_add_x_register(22, 16, 26)); // end
+                bytes.extend(encode_compare_x_register(19, 22)); // loop:
+                bytes.extend(encode_conditional_branch_higher_or_same(16)?); // -> done
+                bytes.extend(encode_load_byte_w_post_increment(25, 19, 1)?);
+                bytes.extend(encode_cbnz_x(25, -12)?); // nonzero -> loop
+                bytes.extend(encode_movz(23, 0)); // a NUL byte -> clear ok
+            }
+            ByteSequencePredicate::AsciiOnly => {
+                bytes.extend(encode_add_x_immediate(19, 16, 0)?);
+                bytes.extend(encode_add_x_register(22, 16, 26));
+                bytes.extend(encode_compare_x_register(19, 22)); // loop:
+                bytes.extend(encode_conditional_branch_higher_or_same(20)?); // -> done
+                bytes.extend(encode_load_byte_w_post_increment(25, 19, 1)?);
+                bytes.extend(encode_compare_w_immediate(25, 0x80)?);
+                bytes.extend(encode_conditional_branch_lower(-16)?); // < 0x80 -> loop
+                bytes.extend(encode_movz(23, 0));
+            }
+            ByteSequencePredicate::ValidUtf8 => {
+                append_wire_utf8_validation(bytes)?;
+            }
+        }
+    }
+    Ok(())
+}
+
+/// UTF-8 validation over [x16, x16+x26): a decoded-scalar walk with pure
+/// compare/branch range checks (no logical-immediate encodings). Lead-byte
+/// classes: ASCII < 0x80; C2..DF need one continuation; E0..EF need two,
+/// with E0 requiring cont1 >= A0 (overlongs) and ED requiring cont1 < A0
+/// (surrogates); F0..F4 need three, with F0 requiring cont1 >= 90 and F4
+/// requiring cont1 < 90 (above U+10FFFF); 0x80..0xC1 and 0xF5.. are invalid
+/// leads. Every continuation must sit in [0x80, 0xC0). On any violation the
+/// sticky ok bit (x23) clears. Assembled with a local two-pass label
+/// resolver -- 60+ hand-computed offsets would be write-only.
+fn append_wire_utf8_validation(bytes: &mut Vec<u8>) -> Result<(), Diagnostic> {
+    #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+    enum Label {
+        Loop,
+        Two,
+        Three,
+        NotE0,
+        NotEd,
+        NotF0,
+        NotF4,
+        Fail,
+        Done,
+    }
+    enum Ins {
+        Fixed([u8; 4]),
+        /// (condition-encoder index, target): resolved on the second pass.
+        BHs(Label),
+        BLo(Label),
+        BNe(Label),
+        B(Label),
+    }
+    use Ins::*;
+    use Label::*;
+
+    // One plain continuation read: bounds, load, range [0x80, 0xC0).
+    fn plain_continuation(program: &mut Vec<(Option<Label>, Ins)>, at: Option<Label>) {
+        program.push((at, Fixed(encode_compare_x_register(19, 22))));
+        program.push((None, BHs(Fail))); // truncated sequence
+        program.push((
+            None,
+            Fixed(
+                encode_load_byte_w_post_increment(24, 19, 1)
+                    .expect("byte load with +1 post-increment encodes"),
+            ),
+        ));
+        program.push((
+            None,
+            Fixed(encode_compare_w_immediate(24, 0x80).expect("imm12 compare encodes")),
+        ));
+        program.push((None, BLo(Fail)));
+        program.push((
+            None,
+            Fixed(encode_compare_w_immediate(24, 0xC0).expect("imm12 compare encodes")),
+        ));
+        program.push((None, BHs(Fail)));
+    }
+
+    let mut program: Vec<(Option<Label>, Ins)> = Vec::new();
+    program.push((None, Fixed(encode_add_x_immediate(19, 16, 0)?))); // p = start
+    program.push((None, Fixed(encode_add_x_register(22, 16, 26)))); // end
+    program.push((Some(Loop), Fixed(encode_compare_x_register(19, 22))));
+    program.push((None, BHs(Done)));
+    program.push((None, Fixed(encode_load_byte_w_post_increment(25, 19, 1)?))); // lead
+    program.push((None, Fixed(encode_compare_w_immediate(25, 0x80)?)));
+    program.push((None, BLo(Loop))); // ASCII
+    program.push((None, Fixed(encode_compare_w_immediate(25, 0xC2)?)));
+    program.push((None, BLo(Fail))); // 0x80..0xC1: invalid lead
+    program.push((None, Fixed(encode_compare_w_immediate(25, 0xE0)?)));
+    program.push((None, BLo(Two))); // C2..DF
+    program.push((None, Fixed(encode_compare_w_immediate(25, 0xF0)?)));
+    program.push((None, BLo(Three))); // E0..EF
+    program.push((None, Fixed(encode_compare_w_immediate(25, 0xF5)?)));
+    program.push((None, BHs(Fail))); // F5..: invalid lead
+
+    // FOUR-byte lead F0..F4: cont1 (with the F0/F4 specials), then two plain.
+    plain_continuation(&mut program, None);
+    program.push((None, Fixed(encode_compare_w_immediate(25, 0xF0)?)));
+    program.push((None, BNe(NotF0)));
+    program.push((None, Fixed(encode_compare_w_immediate(24, 0x90)?)));
+    program.push((None, BLo(Fail))); // F0: cont1 >= 0x90 (overlong)
+    program.push((Some(NotF0), Fixed(encode_compare_w_immediate(25, 0xF4)?)));
+    program.push((None, BNe(NotF4)));
+    program.push((None, Fixed(encode_compare_w_immediate(24, 0x90)?)));
+    program.push((None, BHs(Fail))); // F4: cont1 < 0x90 (above U+10FFFF)
+    program.push((Some(NotF4), Fixed(encode_compare_x_register(19, 22))));
+    program.push((None, BHs(Fail)));
+    program.push((None, Fixed(encode_load_byte_w_post_increment(24, 19, 1)?)));
+    program.push((None, Fixed(encode_compare_w_immediate(24, 0x80)?)));
+    program.push((None, BLo(Fail)));
+    program.push((None, Fixed(encode_compare_w_immediate(24, 0xC0)?)));
+    program.push((None, BHs(Fail)));
+    plain_continuation(&mut program, None);
+    program.push((None, B(Loop)));
+
+    // THREE-byte lead E0..EF: cont1 (with the E0/ED specials), then one plain.
+    plain_continuation(&mut program, Some(Three));
+    program.push((None, Fixed(encode_compare_w_immediate(25, 0xE0)?)));
+    program.push((None, BNe(NotE0)));
+    program.push((None, Fixed(encode_compare_w_immediate(24, 0xA0)?)));
+    program.push((None, BLo(Fail))); // E0: cont1 >= 0xA0 (overlong)
+    program.push((Some(NotE0), Fixed(encode_compare_w_immediate(25, 0xED)?)));
+    program.push((None, BNe(NotEd)));
+    program.push((None, Fixed(encode_compare_w_immediate(24, 0xA0)?)));
+    program.push((None, BHs(Fail))); // ED: cont1 < 0xA0 (no surrogates)
+    program.push((Some(NotEd), Fixed(encode_compare_x_register(19, 22))));
+    program.push((None, BHs(Fail)));
+    program.push((None, Fixed(encode_load_byte_w_post_increment(24, 19, 1)?)));
+    program.push((None, Fixed(encode_compare_w_immediate(24, 0x80)?)));
+    program.push((None, BLo(Fail)));
+    program.push((None, Fixed(encode_compare_w_immediate(24, 0xC0)?)));
+    program.push((None, BHs(Fail)));
+    program.push((None, B(Loop)));
+
+    // TWO-byte lead C2..DF: one plain continuation.
+    plain_continuation(&mut program, Some(Two));
+    program.push((None, B(Loop)));
+
+    program.push((Some(Fail), Fixed(encode_movz(23, 0))));
+    // Done = the first instruction AFTER the block.
+
+    // Pass 1: label -> instruction index.
+    let mut positions = std::collections::HashMap::new();
+    for (index, (label, _)) in program.iter().enumerate() {
+        if let Some(label) = label {
+            positions.insert(*label, index);
+        }
+    }
+    positions.insert(Done, program.len());
+    // Pass 2: emit with resolved byte offsets.
+    for (index, (_, instruction)) in program.iter().enumerate() {
+        let offset = |target: &Label| -> isize {
+            (positions[target] as isize - index as isize) * 4
+        };
+        match instruction {
+            Fixed(word) => bytes.extend(word),
+            BHs(target) => bytes.extend(encode_conditional_branch_higher_or_same(offset(target))?),
+            BLo(target) => bytes.extend(encode_conditional_branch_lower(offset(target))?),
+            BNe(target) => bytes.extend(encode_conditional_branch_not_equal(offset(target))?),
+            B(target) => bytes.extend(encode_unconditional_branch(offset(target))?),
+        }
+    }
+    Ok(())
 }
 
 pub fn encode_read_wire_scalar_varint(

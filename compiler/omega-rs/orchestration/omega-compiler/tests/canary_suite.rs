@@ -7323,6 +7323,32 @@ fn runtime_wire_roundtrip_utf8_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_wire_utf8_edge_verdicts_exit_canary_runs() {
+    // The utf8 validator's edge classes: honest multi-byte SOUND; overlong /
+    // surrogate / beyond-max / truncated all INVALID.
+    let canary = pass_canary("wire/runtime_wire_utf8_edge_verdicts_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-utf8edge-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("utf8 edge canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("utf8 edge canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "utf8 edge canary should agree on every class (exit 70), got {:?}",
+        output.status.code(),
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_wire_encode_repeated_then_string_exit_canary_runs() {
     // Wire repeated + String-last in one message: two runtime-sized appends
     // in sequence -- the String's cursor must start where the packed payload
@@ -28337,6 +28363,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "text/zii_string_host_write_exit",
     "text/runtime_text_equals_value_positions_exit",
     "wire/runtime_wire_roundtrip_utf8_exit",
+    "wire/runtime_wire_utf8_edge_verdicts_exit",
     "control_flow/runtime_case_member_dispatch_exit",
     "control_flow/runtime_local_boolean_or_value_exit",
     "control_flow/runtime_straight_line_terminal_local_exit",

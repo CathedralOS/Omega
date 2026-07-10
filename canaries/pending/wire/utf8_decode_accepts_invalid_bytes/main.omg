@@ -1,14 +1,12 @@
-// PENDING only for NATIVE (interp FIXED 2026-07-16): adversarial wire
-// bytes 0xFF 0xFF must decode into a `&[u8] in Utf8` field with verdict
-// INVALID. The interpreter now evaluates the slice's declared byte-domain
-// predicates over the untrusted bytes at the decode boundary (the shared
-// ByteSequencePredicate vocabulary, lifted from the checker's
-// field_domain.rs into omega-typed-trees::byte_predicates so compile-time
-// proof and runtime validation share ONE definition; unrecognized domain
-// classifiers refuse loudly instead of silently skipping). NATIVE still
-// accepts -- its decode byte-copy needs the validation loop (utf8/no_nul/
-// ascii_only/non_empty over the copied range, verdict Invalid on failure);
-// promote to a refuses-canary when it lands. Hold: (71, Exit(70)).
+// PENDING only for x86_64 (aarch64 + interp both REFUSE, 2026-07-16):
+// adversarial wire bytes 0xFF 0xFF decode into a `&[u8] in Utf8` field
+// with verdict INVALID. The interp evaluates the shared
+// ByteSequencePredicate; aarch64 emits validation blocks over the decoded
+// content (utf8 = a 77-instruction compare/branch walk, label-resolved;
+// edge classes pinned by pass/wire/runtime_wire_utf8_edge_verdicts_exit).
+// x86_64 carries the threaded predicate mask but its validation sequences
+// are not emitted yet -- promote this to a refuses-canary when they land.
+// Hold: (70, Exit(70)) on the arm64 host.
 domain [u8]::Utf8 when valid_utf8(self) {
 }
 boundary trait Console { machine exit_process(return_code: i32); }

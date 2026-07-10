@@ -1,0 +1,106 @@
+// RUN CANARY (exit 70) + interpreter differential. The decode-boundary
+// UTF-8 validator's edge classes, one leg each over hand-crafted wire
+// buffers: the euro sign E2 82 AC decodes SOUND (honest 3-byte); the
+// overlong E0 80 80, the UTF-16 surrogate ED A0 80, the beyond-U+10FFFF
+// F4 90 80, and the truncated F0 90 all decode INVALID. Pins the aarch64
+// compare/branch walk (label-resolved, 77 instructions) against the
+// interp's std::str::from_utf8 -- the two must agree on every class.
+// exits: 71 = euro wrongly refused; 72/73/74/75 = the respective
+// adversarial class wrongly accepted.
+domain [u8]::Utf8 when valid_utf8(self) {
+}
+boundary trait Console { machine exit_process(return_code: i32); }
+data LabelMessage {
+    0: count: u32;
+    1: label: &[u8] in Utf8;
+}
+data LabelSample {
+    count: u32;
+    label: &[u8] in Utf8;
+}
+data WireVerdict {
+    case Invalid;
+    case Sound;
+}
+data Main {
+    console: Console;
+    buffer: [u8; 16];
+    read: u64;
+    verdict: WireVerdict;
+}
+machine Main::main(&mut self) {
+    self.buffer[0] = 0;
+    self.buffer[1] = 0;
+    self.buffer[2] = 7;
+    self.buffer[3] = 1;
+    self.buffer[4] = 3;
+    self.buffer[5] = 226;
+    self.buffer[6] = 130;
+    self.buffer[7] = 172;
+    let decoded: LabelSample;
+    decoded.count = 0;
+    decoded.label = "";
+    LabelMessage::decode(&mut decoded, &self.buffer, &mut self.read, &mut self.verdict);
+    transition self.verdict == WireVerdict::Sound {
+        true -> overlong()
+        false -> bad_euro()
+    }
+    state overlong(&mut self) {
+        self.buffer[5] = 224;
+        self.buffer[6] = 128;
+        self.buffer[7] = 128;
+        let d2: LabelSample;
+        d2.count = 0;
+        d2.label = "";
+        LabelMessage::decode(&mut d2, &self.buffer, &mut self.read, &mut self.verdict);
+        transition self.verdict == WireVerdict::Invalid {
+            true -> surrogate()
+            false -> bad_overlong()
+        }
+    }
+    state surrogate(&mut self) {
+        self.buffer[5] = 237;
+        self.buffer[6] = 160;
+        self.buffer[7] = 128;
+        let d3: LabelSample;
+        d3.count = 0;
+        d3.label = "";
+        LabelMessage::decode(&mut d3, &self.buffer, &mut self.read, &mut self.verdict);
+        transition self.verdict == WireVerdict::Invalid {
+            true -> beyond()
+            false -> bad_surrogate()
+        }
+    }
+    state beyond(&mut self) {
+        self.buffer[5] = 244;
+        self.buffer[6] = 144;
+        self.buffer[7] = 128;
+        let d4: LabelSample;
+        d4.count = 0;
+        d4.label = "";
+        LabelMessage::decode(&mut d4, &self.buffer, &mut self.read, &mut self.verdict);
+        transition self.verdict == WireVerdict::Invalid {
+            true -> truncated()
+            false -> bad_beyond()
+        }
+    }
+    state truncated(&mut self) {
+        self.buffer[4] = 2;
+        self.buffer[5] = 240;
+        self.buffer[6] = 144;
+        let d5: LabelSample;
+        d5.count = 0;
+        d5.label = "";
+        LabelMessage::decode(&mut d5, &self.buffer, &mut self.read, &mut self.verdict);
+        transition self.verdict == WireVerdict::Invalid {
+            true -> good()
+            false -> bad_truncated()
+        }
+    }
+    state good(&mut self)          { self.console.exit_process(70); }
+    state bad_euro(&mut self)      { self.console.exit_process(71); }
+    state bad_overlong(&mut self)  { self.console.exit_process(72); }
+    state bad_surrogate(&mut self) { self.console.exit_process(73); }
+    state bad_beyond(&mut self)    { self.console.exit_process(74); }
+    state bad_truncated(&mut self) { self.console.exit_process(75); }
+}

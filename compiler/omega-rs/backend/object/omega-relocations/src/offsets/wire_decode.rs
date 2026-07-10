@@ -40,12 +40,14 @@ pub(crate) fn wire_decode_byte_slice_target_page_offset(
     buffer_offset: usize,
     buffer_length: usize,
     read_offset: usize,
+    predicate_mask: u8,
 ) -> usize {
     omega_instruction_selection::wire_decode_byte_slice_target_page_offset(
         architecture,
         buffer_offset,
         buffer_length,
         read_offset,
+        predicate_mask,
     )
 }
 
