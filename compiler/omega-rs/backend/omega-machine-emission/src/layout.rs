@@ -885,6 +885,18 @@ fn machine_instruction_width(
                 read.target_offset,
             )
         }
+        // Scaffolding refusal (TASKS_FS #0a): unreachable until selection
+        // emits these kinds; the width fns land with the per-ISA encoders.
+        SelectedInstructionKind::ReadRuntimeByte { .. } => {
+            return Err(Diagnostic::error(
+                "runtime byte read: native lowering not yet implemented (console read_byte is interpreter-only today)",
+            ));
+        }
+        SelectedInstructionKind::WriteRuntimeByte { .. } => {
+            return Err(Diagnostic::error(
+                "runtime byte write: native lowering not yet implemented (console write_byte is interpreter-only today)",
+            ));
+        }
         SelectedInstructionKind::CopyRuntimeStorage {
             source_offset,
             target_offset,

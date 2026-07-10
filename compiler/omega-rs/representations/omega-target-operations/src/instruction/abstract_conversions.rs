@@ -894,6 +894,38 @@ impl From<&omega_abstract_operations::AbstractOperationKind> for TargetOperation
                 },
                 is_bounded_buffer: *is_bounded_buffer,
             },
+            omega_abstract_operations::AbstractOperationKind::ReadRuntimeByte {
+                target_region,
+                target_offset,
+                payload_offset,
+            } => Self::ReadRuntimeByte {
+                target_region: *target_region,
+                target_offset: *target_offset,
+                payload_offset: *payload_offset,
+                source: RuntimeTextReadSource::HostOperation {
+                    operation_key: HostOperationKey::new(
+                        omega_calling_conventions::HostCapability::Stdin,
+                        omega_calling_conventions::HostOperation::Read,
+                    ),
+                },
+            },
+            omega_abstract_operations::AbstractOperationKind::WriteRuntimeByte {
+                source_region,
+                source_offset,
+                literal,
+                source_is_place,
+            } => Self::WriteRuntimeByte {
+                source_region: *source_region,
+                source_offset: *source_offset,
+                literal: remap_data_handle(*literal),
+                source_is_place: *source_is_place,
+                source: RuntimeTextReadSource::HostOperation {
+                    operation_key: HostOperationKey::new(
+                        omega_calling_conventions::HostCapability::Stdout,
+                        omega_calling_conventions::HostOperation::Write,
+                    ),
+                },
+            },
             omega_abstract_operations::AbstractOperationKind::CopyRuntimeStorage {
                 source_region,
                 source_offset,

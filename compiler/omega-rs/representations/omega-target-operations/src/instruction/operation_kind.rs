@@ -532,6 +532,25 @@ pub enum TargetOperationKind {
         /// and write only `len` at `target_offset`; `buffer` is unused.
         is_bounded_buffer: bool,
     },
+    /// One stdin byte into a `ByteRead` sum slot (see the abstract kind's
+    /// doc: ZII-driven, no scratch object -- zero tag + payload, read into
+    /// the payload word, tag 1 only on count > 0; the zero state IS `Eof`).
+    ReadRuntimeByte {
+        target_region: RuntimeStorageRegion,
+        target_offset: usize,
+        payload_offset: usize,
+        source: RuntimeTextReadSource,
+    },
+    /// One byte to stdout straight from the argument's storage
+    /// (little-endian low byte first; a literal rides a 1-byte data object
+    /// with `source_is_place` false).
+    WriteRuntimeByte {
+        source_region: RuntimeStorageRegion,
+        source_offset: usize,
+        literal: TargetDataObjectHandle,
+        source_is_place: bool,
+        source: RuntimeTextReadSource,
+    },
     CopyRuntimeStorage {
         source_region: RuntimeStorageRegion,
         source_offset: usize,
