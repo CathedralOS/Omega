@@ -1,0 +1,70 @@
+// HEAT GRID -- dependent-typed row-major indexing (chapter 12, rungs
+// R0+R1a): a flat `cells: [u8; 12]` viewed as a 3x4 grid, walked with the
+// DIRECT `cells[y * 4 + x]` spelling. The walkers' coordinates are
+// DEPENDENT-RANGED STATE PARAMS (`y: u32 [0..=self.max_y]`) -- the bound
+// names a field, the caller PROVES each hop on its arm (the back-edge
+// guard `y + 1 <= self.max_y` is the whole proof), and the index's bound
+// discharges by interval product through the fields' declared ranges
+// (max_y<=2, max_x<=3 => y*4+x in [0..=11] < 12). No linear-counter
+// workaround, no re-guard states, no bounds checks at runtime.
+//
+// The walk is READ-ONLY: each cell's effective heat is its stored value
+// plus its coordinate sum (computed in locals), and the exit code reports
+// the hottest: seed 40 at (2,3) -> 40 + (2+3) = 45. (Writing THROUGH the
+// computed index with a runtime value is a pinned lowering gap --
+// pending/collections/hoisted_index_runtime_write_blocked -- the R0 write
+// canary's leg folds statically, which is why it lowers.)
+//
+// Expected exit: 45
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+data Main {
+    console: Console;
+    cells: [u8; 12];
+    max_y: u32 [0..=2];
+    max_x: u32 [0..=3];
+    hottest: u32;
+}
+machine Main::main(&mut self) {
+    self.max_y = 2;
+    self.max_x = 3;
+    self.cells[11] = 40;
+    transition { _ -> row(0) }
+
+    // Walk rows; each row walks its cells. Every hop's proof is the arm's
+    // own guard relating the next coordinate to the bound field.
+    state row(&mut self, y: u32 [0..=self.max_y]) {
+        transition { _ -> cell(y, 0) }
+    }
+    state cell(&mut self, y: u32 [0..=self.max_y], x: u32 [0..=self.max_x]) {
+        let bump: u8 = (y as u8 in Wrapping) + (x as u8 in Wrapping);
+        let cur: u8 = self.cells[y * 4 + x];
+        let glow: u8 = (cur as u8 in Wrapping) + (bump as u8 in Wrapping);
+        let heat: u32 = glow as u32;
+        transition heat > self.hottest {
+            true -> hotter(y, x, heat)
+            _ -> step(y, x)
+        }
+    }
+    state hotter(&mut self, y: u32 [0..=self.max_y], x: u32 [0..=self.max_x], heat: u32) {
+        self.hottest = heat;
+        transition { _ -> step(y, x) }
+    }
+    state step(&mut self, y: u32 [0..=self.max_y], x: u32 [0..=self.max_x]) {
+        transition x + 1 <= self.max_x {
+            true -> cell(y, x + 1)
+            _ -> next_row(y)
+        }
+    }
+    state next_row(&mut self, y: u32 [0..=self.max_y]) {
+        transition y + 1 <= self.max_y {
+            true -> row(y + 1)
+            _ -> done()
+        }
+    }
+    state done(&mut self) {
+        let code: i32 = self.hottest as i32;
+        self.console.exit_process(code);
+    }
+}

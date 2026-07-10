@@ -1,0 +1,32 @@
+// PENDING (found 2026-07-09 writing the heat_grid sample -- a REAL use
+// case the dependent-types walk surfaced): a WRITE through a hoisted
+// computed index with a RUNTIME value refuses at the storage-write
+// lowering -- `self.cells[y * 4 + x] = next` (dependent params y/x, local
+// RHS) reports "needs runtime storage write lowering". The READ side of
+// the same address lowers fine (R0), and runtime-indexed writes by a
+// FIELD index lower fine (runtime_computed_indexed_write_exit's
+// `self.arr[self.j] = ...`), so the gap is the write cascade not
+// resolving a FRAME-LOCAL (`__hoist_N`) index operand: the R0 write
+// canary's leg only passed because its operands fold statically. The
+// refusal is LOUD (correct); the lowering is the missing piece. Fix
+// shape: the mutation write planner's runtime-indexed arm learns
+// frame-local index operands (the read path's addressing already does).
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; cells: [u8; 12]; rows: u32 [0..=2]; cols: u32 [0..=3]; j: u32; k: u32; out: i32; }
+machine Main::main(&mut self) {
+    self.rows = 2;
+    self.cols = 3;
+    self.j = 2;
+    self.k = 3;
+    transition self.j <= self.rows && self.k <= self.cols { true -> put(self.j, self.k) _ -> bad() }
+    state put(&mut self, y: u32 [0..=self.rows], x: u32 [0..=self.cols]) {
+        // The RHS must be genuinely runtime: a static-folding value lowers
+        // through the write cascade's immediate path (probed -- `= 7`
+        // compiles and runs).
+        let next: u8 = (y as u8 in Wrapping) + 5;
+        self.cells[y * 4 + x] = next;
+        self.out = self.cells[11] as i32;
+        self.console.exit_process(self.out);
+    }
+    state bad(&mut self) { self.console.exit_process(9); }
+}
