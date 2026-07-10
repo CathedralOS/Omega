@@ -1,0 +1,20 @@
+// FAIL CANARY (relational-subtraction soundness fence): the dependent
+// atom `i <= self.count` speaks of the field AT ENTRY; writing the field
+// before the subtraction (`self.count = 3` with i possibly 6) makes
+// `count - i` genuinely underflow, so the write DEFEATS the refinement
+// and exact u32 subtraction refuses with the standard decision-17
+// overflow obligation.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; count: u32 [0..=11]; j: u32; out: i32; }
+machine Main::main(&mut self) {
+    self.count = 8;
+    self.j = 6;
+    transition self.j <= self.count { true -> read(self.j) _ -> bad() }
+    state read(&mut self, i: u32 [0..=self.count]) {
+        self.count = 3;
+        let remaining: u32 = self.count - i;
+        self.out = remaining as i32;
+        self.console.exit_process(self.out);
+    }
+    state bad(&mut self) { self.console.exit_process(9); }
+}

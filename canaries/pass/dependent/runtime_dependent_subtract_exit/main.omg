@@ -1,0 +1,25 @@
+// RUN CANARY (exit 2) + interpreter differential. The R1 relational
+// SUBTRACTION rule (the one closed rule interval arithmetic cannot
+// express): `self.count - i` with `i: u32 [0..=self.count]` proves
+// non-negative in EXACT u32 -- the dependent atom `i <= count` gives
+// `count - i >= 0` (the capacity-minus-used idiom; the exclusive sugar's
+// -1 offset gives `>= 1`). Refinement lives in the decision-17 overflow
+// analysis (arithmetic_domains refine_dependent_subtract), write-fenced
+// like every entry-fact bridge: a mid-state write to the field or any
+// opaque call defeats it (fail/dependent/
+// dependent_subtract_after_write_rejected), and the FLIPPED direction
+// (`i - self.count`) stays refused (probed -- underflow is real there).
+// exits: 8 - 6 = 2.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; count: u32 [0..=11]; j: u32; out: i32; }
+machine Main::main(&mut self) {
+    self.count = 8;
+    self.j = 6;
+    transition self.j <= self.count { true -> read(self.j) _ -> bad() }
+    state read(&mut self, i: u32 [0..=self.count]) {
+        let remaining: u32 = self.count - i;
+        self.out = remaining as i32;
+        self.console.exit_process(self.out);
+    }
+    state bad(&mut self) { self.console.exit_process(9); }
+}

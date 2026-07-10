@@ -336,6 +336,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("collections/runtime_hoisted_index_write_exit", 7),
     ("dependent/runtime_dependent_param_range_exit", 70),
     ("dependent/runtime_dependent_product_index_exit", 70),
+    ("dependent/runtime_dependent_subtract_exit", 2),
     ("collections/runtime_indexed_guard_true_false_pair_exit", 70),
     ("collections/runtime_indexed_field_local_operand_exit", 70),
     ("collections/runtime_indexed_local_bitwise_exit", 70),
