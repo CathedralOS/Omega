@@ -4031,3 +4031,60 @@ machine Main::main(&mut self) {
         "Verdict::Ok (ordinal 1) must not resolve through Decoy::Ok (ordinal 0)"
     );
 }
+
+/// std Console BYTE ops (OWNER_QUESTIONS #12): `read_byte()` yields each raw
+/// stdin byte as `ByteRead::Byte { value }`, then `ByteRead::Eof` at
+/// end-of-input (Eof = ordinal 0 = the ZII zero case; sentinel spellings
+/// vetoed); `write_byte(b)` appends the byte to stdout. The program echoes
+/// stdin while summing byte values -- the checksum exit pins the Eof
+/// termination, the echoed stdout pins the pass-through (no CRLF
+/// normalization on the byte path). Also the grammar pin for VALUE-RETURNING
+/// platform entries (`entry read_byte() -> ByteRead;`, a std-declared sum).
+#[test]
+fn console_byte_ops_echo_and_checksum() {
+    let main_path = write_program(
+        "console-byte-ops",
+        r#"
+use omega::language::std::console;
+
+data Main {
+    console: Console;
+    sum: i32 in Wrapping;
+}
+
+machine Main::main(&mut self) {
+    transition { _ -> rd() }
+
+    state rd(&mut self) {
+        let r: ByteRead = self.console.read_byte();
+        transition r {
+            ByteRead::Byte { value } -> acc(value)
+            _ -> fin()
+        }
+    }
+
+    state acc(&mut self, value: i32) {
+        let b: i32 in Wrapping = value as i32 in Wrapping;
+        self.sum = self.sum + b;
+        self.console.write_byte(value);
+        transition { _ -> rd() }
+    }
+
+    state fin(&mut self) {
+        self.console.exit_process(self.sum);
+    }
+}
+"#,
+    );
+    let checked = compile_to_checked(&main_path, None)
+        .unwrap_or_else(|d| panic!("console byte-ops program should reach checked trees: {d:?}"));
+    let outcome = interpret(&checked, b"AB\r\n");
+    assert!(!outcome.is_error(), "console byte ops: {:?}", outcome.error);
+    // 65 + 66 + 13 + 10 = 154: the CR and LF bytes ARE delivered (no
+    // line-normalization on the byte path).
+    assert_eq!(outcome.exit_code, 154, "checksum should sum every raw byte");
+    assert_eq!(
+        outcome.stdout, b"AB\r\n",
+        "write_byte must echo the raw bytes, CRLF included"
+    );
+}
