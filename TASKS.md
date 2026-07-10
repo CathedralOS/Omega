@@ -66,6 +66,44 @@ truncation, text `!=` inversion (both ISAs), TextEqualsLiteral x16 clobber
 + the x15 pool collision. Marginal probe value is now LOW -- next sweeps
 should target NEW feature surfaces as they land, not re-walk these axes.
 
+## Dependent types — engineering track (design COMPLETE, 2026-07-18)
+
+Chapter 12 + design_briefs/dependent_types.md are decision-complete (gating,
+windows, where-clause domains, stores bound, storage shapes -- every owner
+question settled or parked). Probed against today's compiler: the
+INTERVAL-product half already proves end-to-end (`idx: u32 [0..=11] =
+y*w+x` with ranged fields compiles + runs natively; see the pending canary
+header above for the verified spelling). Rungs, in payoff order:
+
+- **R0 (unblocks software rendering NOW):** fix the nested const-product
+  index miscompile above + extend the computed-index hoist to two-level
+  binaries -- direct `pixels[y*W+x]` spelling with const dims then works
+  with ZERO new proof machinery (interval product covers it). Kills the
+  linear-counter workaround + re-guard states in rendering samples.
+- **R1 (symbolic atoms):** range endpoints + guard mints go value-vs-value
+  (`requires a.cols == b.rows`; `i: u64 [0..items.len]` as requires sugar).
+  DBM is already relational; this is surface + atom plumbing. Unblocks
+  matrix agreement + all relational bounds.
+- **R3 (relational bounded-product):** ONE closed rule (`0<=a<=A, 0<=b =>
+  a*b<=A*b`) over the polynomial engine -- needed only where operand ranges
+  are NOT independently tight (x < w with wide w; i*stride via i < count).
+  Composes with R1.
+- **R4 (boundary witness mints, proof side):** out-params as witnesses,
+  decode-minted where-facts, recast bounds discharged from couplings +
+  R1/R3. ⚠️ COORDINATE: the recast MECHANICS are claimed by the main lane
+  (static core landed 2026-07-09 except the native write); this rung
+  supplies only the proof side. Unblocks the UEFI memory-map walk
+  (Cathedral M2's stride discharge).
+- **R2 (where-clause + gating + windows):** the big semantic build --
+  where-clause parsing on data, default-domain layer, gating
+  (zero-excluding domains legal, construction mandatory fields),
+  consumption-point windows (ADDITIVE relaxation of the landed store-time
+  checks: current eager rejection stays sound as the conservative tier, so
+  this stages late without blocking R0/R1/R3/R4).
+- **R5 (frames):** preserve-unless-written, `stores` clause, state arrival
+  facts, Houdini inference. Needed when dependent facts cross
+  sibling-machine calls.
+
 ## Owner-gated holds (see OWNER_QUESTIONS.md)
 
 - **Q13 console convergence** — `platform` blocks vs boundary traits (the
@@ -78,6 +116,17 @@ should target NEW feature surfaces as they land, not re-walk these axes.
   Parked cast divergence stays in the drift ledger until answered.
 
 ## Open bugs / gaps (ungated)
+
+- **Nested const-product index = SILENT MISCOMPILE (found 2026-07-18 probing
+  dependent-types drivers).** `pixels[y * 4 + x]` (row-major, CONST
+  multiplier) slips the computed-index fence and silently delivers ZII
+  natively in BOTH read and write positions (native 0 / interp 7); the
+  all-runtime sibling (`y * self.w + x`) is correctly fenced, and
+  single-level shapes (`y*4`, `y+8`) work. Pinned:
+  pending/collections/nested_const_product_index_divergence (workaround in
+  header: ranged field temp -- which PROVES via interval product and lowers
+  correctly). Fence hole first (loud), lowering second -- the fix unblocks
+  the direct row-major spelling for software rendering.
 
 - **FS-LANE FOLLOW-THROUGH: texteq arm-locals still ZII for non-terminal
   consumers (found 2026-07-15 probing the just-closed leaf fix).** The
