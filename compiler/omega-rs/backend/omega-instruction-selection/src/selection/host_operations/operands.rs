@@ -170,8 +170,21 @@ pub(super) fn select_host_operation_operands(
             let first_declared = usize::from(host_call.has_result);
             let kinds: Option<Vec<InstructionOperandKind>> = (first_declared..arity)
                 .map(|index| {
-                    scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, index)
-                        .or_else(|| address_argument_operand_at(input, host_call, dispatch_index, alias_context, index))
+                    // A BORROW argument (`&mut self.map_size`, `&self.msg`)
+                    // marshals its ADDRESS -- the out-param shape
+                    // (GetMemoryMap's five): the callee writes through the
+                    // pointer. Scalar-first here read the POINTEE value and
+                    // handed firmware garbage integers as write targets
+                    // (caught cross-compiling the M2 out-param canary,
+                    // 2026-07-17). Non-borrow arguments keep scalar-first
+                    // (an aggregate still falls through to its address).
+                    if host_call_argument_is_borrow(input, host_call, index) {
+                        address_argument_operand_at(input, host_call, dispatch_index, alias_context, index)
+                            .or_else(|| scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, index))
+                    } else {
+                        scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, index)
+                            .or_else(|| address_argument_operand_at(input, host_call, dispatch_index, alias_context, index))
+                    }
                 })
                 .collect();
             match kinds {
@@ -1940,4 +1953,28 @@ fn first_argument<'plan>(
         .arguments
         .span(host_call.arguments)
         .and_then(|arguments| arguments.first())
+}
+
+/// Whether the host-call argument at `index` is spelled as a BORROW
+/// (`&mut x` / `&x` -- both lower to `ExpressionNode::Mutable`): its ABI
+/// value is the place's ADDRESS, never the pointee value.
+fn host_call_argument_is_borrow(
+    input: &InstructionSelectionInput<'_>,
+    host_call: &HostCall,
+    index: usize,
+) -> bool {
+    let Some(arguments) = input.host_calls.arguments.span(host_call.arguments) else {
+        return false;
+    };
+    let Some(argument) = arguments.get(index) else {
+        return false;
+    };
+    let omega_platform_interface::HostCallArgumentKind::Expression(expression) = &argument.kind
+    else {
+        return false;
+    };
+    matches!(
+        input.host_calls.expressions.expression(*expression),
+        omega_checked_trees::expression::ExpressionNode::Mutable(_)
+    )
 }

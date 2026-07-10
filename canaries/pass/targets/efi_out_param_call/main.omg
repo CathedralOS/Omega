@@ -1,0 +1,53 @@
+// M2-LADDER #1: `&mut` OUT-PARAMS through a field-model vtable call, MS-x64.
+// GetMemoryMap's shape -- the callee returns its results by WRITING THROUGH
+// caller-supplied pointers: six arguments total, so args 5 and 6 spill to the
+// STACK (the win64 shadow-space calling plan; args 1-4 ride rcx/rdx/r8/r9).
+// The canary passes addresses of MACHINE FIELDS as the out-params; firmware
+// writes through them after boot -- here the pin is the CALL SHAPE in .text
+// (cross-compiled for uefi_x64 on any host), not a live boot.
+boundary trait BootServices {
+    machine get_memory_map(
+        this: addr,
+        map_size: &mut u64,
+        map: addr,
+        key: &mut u64,
+        desc_size: &mut u64,
+        desc_version: &mut u32
+    ) -> i32;
+}
+data EfiBootServicesTable {
+    hdr: u64;
+    raise_tpl: addr;
+    restore_tpl: addr;
+    allocate_pages: addr;
+    free_pages: addr;
+    get_memory_map: addr;
+}
+uefi_x64 provides BootServices over EfiBootServicesTable { get_memory_map -> get_memory_map; }
+data EfiSystemTable {
+    hdr_signature: u64; hdr_revision: u32; hdr_header_size: u32; hdr_crc: u32; hdr_reserved: u32;
+    firmware_vendor: addr; firmware_revision: u32; fw_pad: u32;
+    console_in_handle: addr; con_in: addr; console_out_handle: addr; con_out: addr;
+    runtime_services: addr; boot_services: addr;
+}
+data Main {
+    bs: BootServices;
+    map_size: u64;
+    key: u64;
+    desc_size: u64;
+    desc_version: u32;
+    map_buf: [u8; 256];
+}
+boundary machine Main::run(&mut self, handle: addr, table: &EfiSystemTable) -> i32 {
+    self.map_size = 256;
+    let boot_services: addr = table.boot_services;
+    _ = self.bs.get_memory_map(
+        boot_services,
+        &mut self.map_size,
+        &self.map_buf,
+        &mut self.key,
+        &mut self.desc_size,
+        &mut self.desc_version
+    );
+    transition { _ -> (0) }
+}

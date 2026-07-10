@@ -26643,6 +26643,7 @@ const WINDOWS_HOST_PASS_CANARIES: &[&str] = &[
 const CROSS_TARGET_PASS_CANARIES: &[(&str, &str)] = &[
     ("targets/efi_vtable_call", "uefi_x64"),
     ("targets/efi_vtable_field_call", "uefi_x64"),
+    ("targets/efi_out_param_call", "uefi_x64"),
     ("targets/efi_ref_param_call_arg", "uefi_x64"),
 ];
 
@@ -29594,6 +29595,56 @@ fn efi_vtable_field_call_emits_indirect_dispatch() {
         bytes.windows(needle.len()).any(|window| window == needle),
         "expected `mov rax, [rcx+8]; call rax` (field-model dispatch at the \
          layout-computed +8) in .text"
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+// M2-LADDER #1: `&mut` OUT-PARAMS through a field-model vtable call, MS-x64
+// (GetMemoryMap's six-argument shape). Pins the WHOLE marshaling: borrow
+// arguments lower as ADDRESSES (before the 2026-07-17 fix the scalar-first
+// order read the POINTEE values and handed firmware garbage write targets),
+// args 5-6 spill to the stack at [rsp+0x20]/[rsp+0x28], and the dispatch
+// reads the layout-computed +40 field. Cross-compiled for uefi_x64 on every
+// host.
+#[test]
+fn efi_out_param_call_marshals_addresses_and_stack_args() {
+    let canary = pass_canary("targets/efi_out_param_call");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-out-param-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: Some("uefi_x64".to_owned()),
+        write_output: true,
+    })
+    .expect("out-param canary should cross-compile for uefi_x64");
+    let bytes = fs::read(build_dir.join("omega-program.exe")).expect("read emitted PE");
+    // The dispatch: mov rax, [rcx+40]; call rax (get_memory_map behind
+    // hdr + four leading fn-ptr fields).
+    let dispatch = [0x48u8, 0x8b, 0x81, 0x28, 0x00, 0x00, 0x00, 0xff, 0xd0];
+    assert!(
+        bytes.windows(dispatch.len()).any(|window| window == dispatch),
+        "expected `mov rax, [rcx+40]; call rax` (field-model dispatch) in .text"
+    );
+    // The stack spills: mov [rsp+0x20], rax and mov [rsp+0x28], rax (args 5-6).
+    let spill_5 = [0x48u8, 0x89, 0x44, 0x24, 0x20];
+    let spill_6 = [0x48u8, 0x89, 0x44, 0x24, 0x28];
+    assert!(
+        bytes.windows(spill_5.len()).any(|window| window == spill_5),
+        "expected the fifth argument's stack spill (mov [rsp+0x20], rax)"
+    );
+    assert!(
+        bytes.windows(spill_6.len()).any(|window| window == spill_6),
+        "expected the sixth argument's stack spill (mov [rsp+0x28], rax)"
+    );
+    let report = fs::read_to_string(build_dir.join("backend_report.txt"))
+        .expect("backend report should be written");
+    assert!(
+        report.contains("address &omega_machine_Main::run_storage@0"),
+        "the `&mut self.map_size` out-param must marshal as an ADDRESS operand"
     );
     let _ = fs::remove_dir_all(&build_dir);
 }
