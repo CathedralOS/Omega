@@ -151,6 +151,36 @@ a length `len`:
 A non-empty inclusive range establishes a `non_empty` fact, which downstream
 contracts and slice operations can consume.
 
+## Window Facts
+
+A range may also quantify (settled 2026-07-18): a fact stated over a window
+of a sequence holds for every element of the window, with no binder and no
+new syntax — the subslice spelling is the quantifier:
+
+```omega
+data MapTable
+where
+    loaded <= 8,
+    maps[0..loaded] in MemoryMap,    // every element below the count is established
+{
+    maps: [MemoryMap; 8];
+    loaded: u32;
+}
+```
+
+Working rules:
+
+- A window fact is an element fact over `expr[range]`: membership in a
+  domain, a range constraint, any single-element fact.
+- Extending the window by one element (append: write at the frontier, then
+  widen the count) costs one instance — the fact for the new element, which
+  the write just established. This is the same delta rule quantified facts
+  use (chapter 10).
+- Consuming at an index requires the index provably inside the window
+  (`i < loaded` by guard or contract), and yields the element fact at `i`.
+- Relational facts between elements (order between neighbors) are not window
+  facts; they are predicate machines with extraction lemmas (chapter 10).
+
 ## Local And Named Facts
 
 Many facts are local and flow-sensitive:
@@ -185,7 +215,9 @@ data Point [copy, zero_init] {
 Properties are facts, not behavior: declaring one generates nothing callable.
 They are acquired exactly three ways:
 
-- COMPUTED: the compiler always knows (`sized`); never written.
+- COMPUTED: the compiler always knows (`sized`); never written. The
+  `unbounded` property (chapter 10) is the proof-only marker: no machine
+  layout, no ZII, fact-position use only.
 - DECLARED + VERIFIED: the bracket list requests the property and the compiler
   checks its structural rule at the declaration (`copy`: every field copies;
   `zero_init`: the zero case is payload-free and no field invariant excludes

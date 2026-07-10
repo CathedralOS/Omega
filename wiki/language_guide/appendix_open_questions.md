@@ -265,7 +265,7 @@ This page tracks design pressure that is not fully nailed down yet.
   named **`Share`** (symmetric verb with `Send`; `Sync` dropped). **Preemption =
   safe-point** (compiler-inserted yield-checks at back-edges/transitions; keeps a
   suspended task as data-at-a-known-point, preserving bounded/overflow-proof state
-  — full async preemption deferred to hard-real-time only). No recursion → WCSU
+  — full async preemption deferred to hard-real-time only). Measured recursion (budgeted cycles, chapter 3) → WCSU
   bounded stacks → **stack overflow impossible by construction.** Suspension lives
   at explicit **`await` call-sites** (a state suspends by awaiting its mailbox/IO
   machine; the high-level FSM stays coloring-free). **Device memory** is a
@@ -348,8 +348,8 @@ This page tracks design pressure that is not fully nailed down yet.
   (decided direction; see ch8 "Domains On Strings And Encodings")? Encoding
   validity is a domain over the byte container (`Slice<u8>::Utf8`, `::NoNul`,
   ...) with ZERO compiler encoding intrinsics (settled 2026-07-05) — the domain
-  body is a pure predicate, and a sequence property is a recursion-free state
-  machine that narrows the slice (the `utf8_ok` recogniser in ch8), not a blessed
+  body is a pure predicate, and a sequence property is a measured walk that
+  narrows the slice (the `utf8_ok` recogniser in ch8), not a blessed
   `valid_utf8` primitive. The byte-level proof tax is avoided by validating once
   at the ingest boundary (running that recogniser), carrying `in Utf8` as a fact,
   and discharging a few preservation lemmas as operator contracts (concat and
