@@ -105,8 +105,16 @@ header above for the verified spelling). Rungs, in payoff order:
   work, gated on that fence admitting the scoped class (state params
   only; HIGH bound symbolic, low stays literal). Enforcement-site
   inventory (each must handle-or-keep-fencing): (1) caller-side
-  transition-arg range check (state_arguments -- prove `arg <= count`
-  via dominating guards / via_ordering DBM); (2) callee-side entry fact
+  transition-arg range check -- LIVES IN OMEGA-PROOF (checker.rs ~:1670
+  `cannot prove transition argument ... satisfies bounded parameter`;
+  obligations carry LITERAL IntegerRange atoms via
+  integer_range_from_constraints), so a symbolic bound needs an atom
+  representation in the PROOF PLAN itself: this is the "atom plumbing"
+  and the deepest R1a piece. PARSER HALF LANDED 2026-07-09: the exclusive
+  form `[0..self.count]` now parses (synthesizes `max - 1` as a Binary;
+  type_reference.rs), so BOTH bracket forms reach the same loud
+  non-constant-bound fence (omega-validation type_references.rs ~:552,
+  scoped relaxation pending on the discharge work); (2) callee-side entry fact
   (the param's range MINTS `i <= self.count` for the ordering facts);
   (3) the index prover chains `i <= count` with count's own declared
   range (expression_enforced_declared_range grows a relational leg);

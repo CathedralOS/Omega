@@ -2,7 +2,7 @@ use crate::parser::expression::parse_expression_handle_without_struct_literals;
 use crate::parser::input::{Input, ParseResult};
 use omega_core::arena::{Handle, HandleSpan};
 use omega_syntax_trees::SyntaxTrees;
-use omega_syntax_trees::expression::ExpressionNode;
+use omega_syntax_trees::expression::{BinaryOperator, ExpressionNode, TableBinaryExpression};
 use omega_syntax_trees::identifier::Identifier;
 use omega_syntax_trees::types::{
     FixedArrayLength, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
@@ -365,9 +365,11 @@ pub(super) fn parse_type_constraint_handles<'tokens, 'source>(
             } else {
                 // Range refinement: `min..=max` (inclusive) or `min..max` (exclusive).
                 // The node stores an INCLUSIVE maximum, so an exclusive bound is
-                // normalised to `max - 1` at parse (its upper bound must therefore be
-                // an integer literal); every downstream consumer keeps reading an
-                // inclusive maximum unchanged.
+                // normalised to `max - 1` at parse: a LITERAL bound folds here
+                // (`[0..8]` stores 7); a SYMBOLIC bound (`[0..self.count]`, the
+                // R1 dependent-range surface) synthesizes `max - 1` as a Binary
+                // so every downstream consumer keeps reading an inclusive
+                // maximum unchanged.
                 let (minimum, rest) =
                     parse_expression_handle_without_struct_literals(syntax_trees, input)?;
                 if rest.at_punctuation(PunctuationKind::DotDotEqual) {
@@ -378,11 +380,33 @@ pub(super) fn parse_type_constraint_handles<'tokens, 'source>(
                     TypeConstraintNode::Range { minimum, maximum }
                 } else if rest.at_punctuation(PunctuationKind::DotDot) {
                     let rest = rest.take_punctuation(PunctuationKind::DotDot, "..")?;
-                    let (end_exclusive, rest) = rest.take_integer()?;
+                    let (end_exclusive, rest) =
+                        parse_expression_handle_without_struct_literals(syntax_trees, rest)?;
                     input = rest;
-                    let maximum = syntax_trees.expressions.insert(ExpressionNode::Integer(
-                        omega_core::literals::IntegerLiteral::from_value(end_exclusive - 1),
-                    ));
+                    let maximum = match syntax_trees.expressions.expression(end_exclusive) {
+                        ExpressionNode::Integer(literal) => {
+                            let Some(value) = literal.value_i64() else {
+                                return Err(input.error_here(
+                                    "exclusive range bound exceeds i64; this position needs a parse-time number",
+                                ));
+                            };
+                            syntax_trees.expressions.insert(ExpressionNode::Integer(
+                                omega_core::literals::IntegerLiteral::from_value(value - 1),
+                            ))
+                        }
+                        _ => {
+                            let one = syntax_trees.expressions.insert(ExpressionNode::Integer(
+                                omega_core::literals::IntegerLiteral::from_value(1),
+                            ));
+                            syntax_trees.expressions.insert(ExpressionNode::Binary(
+                                TableBinaryExpression {
+                                    left: end_exclusive,
+                                    operator: BinaryOperator::Subtract,
+                                    right: one,
+                                },
+                            ))
+                        }
+                    };
                     TypeConstraintNode::Range { minimum, maximum }
                 } else {
                     return Err(
