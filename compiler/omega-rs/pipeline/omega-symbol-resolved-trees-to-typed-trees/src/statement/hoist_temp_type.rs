@@ -435,6 +435,19 @@ fn operand_declared_interval(
         let value = literal.value_i64()?;
         return Some((value, value));
     }
+    // A nested binary operand (`y * 4` inside `y * 4 + x`) composes through
+    // the same interval arithmetic -- depth-bounded by the hoist predicate,
+    // which admits exactly one nested level (R0's row-major shape).
+    if let ExpressionNode::Binary(inner) = expressions.expression(operand) {
+        return computed_index_interval(
+            lowerer,
+            attached_data,
+            state,
+            inner.operator,
+            inner.left,
+            inner.right,
+        );
+    }
     let place_type = collection_type_reference(lowerer, attached_data, state, operand)?;
     declared_exact_range(lowerer.source_trees, &place_type)
 }

@@ -75,11 +75,19 @@ INTERVAL-product half already proves end-to-end (`idx: u32 [0..=11] =
 y*w+x` with ranged fields compiles + runs natively; see the pending canary
 header above for the verified spelling). Rungs, in payoff order:
 
-- **R0 (unblocks software rendering NOW):** fix the nested const-product
-  index miscompile above + extend the computed-index hoist to two-level
-  binaries -- direct `pixels[y*W+x]` spelling with const dims then works
-  with ZERO new proof machinery (interval product covers it). Kills the
-  linear-counter workaround + re-guard states in rendering samples.
+- **R0 — DONE (2026-07-09): the direct `pixels[y*W+x]` spelling serves.**
+  Three composed fixes: depth-2 hoist (index_is_hoistable_computed),
+  compositional interval synthesis (operand_declared_interval recurses one
+  level), and the computed-index fence reordered BEFORE the checker's
+  facts-fold (the fold classified `y*4+x` "constant" via assignment facts
+  and skipped the refusal while the backend read ZII -- the silent-
+  miscompile pin). Promoted:
+  pass/collections/runtime_nested_const_product_index_exit (read + write +
+  ranged-param interval legs); depth fence pinned:
+  fail/collections/nested_three_level_index_rejected (extend hoist +
+  interval in LOCKSTEP to deepen). FOLLOW-ON for the rendering samples:
+  sweep the linear-counter workarounds + re-guard states onto the direct
+  spelling.
 - **R1 (symbolic atoms):** range endpoints + guard mints go value-vs-value
   (`requires a.cols == b.rows`; `i: u64 [0..items.len]` as requires sugar).
   DBM is already relational; this is surface + atom plumbing. Unblocks
@@ -116,17 +124,6 @@ header above for the verified spelling). Rungs, in payoff order:
   Parked cast divergence stays in the drift ledger until answered.
 
 ## Open bugs / gaps (ungated)
-
-- **Nested const-product index = SILENT MISCOMPILE (found 2026-07-18 probing
-  dependent-types drivers).** `pixels[y * 4 + x]` (row-major, CONST
-  multiplier) slips the computed-index fence and silently delivers ZII
-  natively in BOTH read and write positions (native 0 / interp 7); the
-  all-runtime sibling (`y * self.w + x`) is correctly fenced, and
-  single-level shapes (`y*4`, `y+8`) work. Pinned:
-  pending/collections/nested_const_product_index_divergence (workaround in
-  header: ranged field temp -- which PROVES via interval product and lowers
-  correctly). Fence hole first (loud), lowering second -- the fix unblocks
-  the direct row-major spelling for software rendering.
 
 - **FS-LANE FOLLOW-THROUGH: texteq arm-locals still ZII for non-terminal
   consumers (found 2026-07-15 probing the just-closed leaf fix).** The

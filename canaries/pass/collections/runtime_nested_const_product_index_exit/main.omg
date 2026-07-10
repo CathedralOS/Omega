@@ -1,0 +1,56 @@
+// RUN CANARY (exit 70) + interpreter differential. R0 of the dependent-types
+// ladder: the DIRECT row-major spelling `pixels[y * 4 + x]` -- a two-level
+// computed index with a CONST multiplier -- serves in read AND write
+// positions, with bounds discharged by INTERVAL PRODUCT over the operands'
+// declared ranges (no static values needed: leg 3 carries x/y as ranged
+// STATE PARAMS, so nothing folds and the synthesized `__hoist_N` range
+// `[0..=11]` is what proves `< 12`). PROMOTED from
+// pending/collections/nested_const_product_index_divergence, which pinned
+// the SILENT MISCOMPILE this shape used to be: neither hoisted (the hoist
+// took single-level binaries only) nor fenced (the checker's facts-fold
+// classified it "constant" and skipped the computed-index refusal), so
+// native read ZII 0 while the interp computed 7. Fixed by (a) depth-2 hoist
+// (index_is_hoistable_computed), (b) compositional interval synthesis
+// (operand_declared_interval recurses one level), (c) the fence ordered
+// BEFORE the facts fold. Three-and-deeper stays loudly fenced:
+// fail/collections/nested_three_level_index_rejected.
+// exits: 71 = static read wrong; 72 = write flavor wrong; 73 = param leg wrong.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main {
+    console: Console;
+    pixels: [u8; 12];
+    x: u32 [0..=3];
+    y: u32 [0..=2];
+}
+machine Main::main(&mut self) {
+    // Leg 1: READ with statically-known operands (the original pin shape).
+    self.x = 3;
+    self.y = 2;
+    self.pixels[11] = 7;
+    transition self.pixels[self.y * 4 + self.x] == 7 {
+        true -> write_leg()
+        _ -> bad_read()
+    }
+    state write_leg(&mut self) {
+        // Leg 2: WRITE flavor -- the computed index as assignment target.
+        self.y = 1;
+        self.x = 2;
+        self.pixels[self.y * 4 + self.x] = 9;
+        transition self.pixels[6] == 9 {
+            true -> param_leg(2, 3)
+            _ -> bad_write()
+        }
+    }
+    state param_leg(&mut self, y: u32 [0..=2], x: u32 [0..=3]) {
+        // Leg 3: ranged PARAMS -- no assignment facts exist for y/x here, so
+        // the interval product over the declared ranges is the only proof.
+        transition self.pixels[y * 4 + x] == 7 {
+            true -> good()
+            _ -> bad_param()
+        }
+    }
+    state good(&mut self)      { self.console.exit_process(70); }
+    state bad_read(&mut self)  { self.console.exit_process(71); }
+    state bad_write(&mut self) { self.console.exit_process(72); }
+    state bad_param(&mut self) { self.console.exit_process(73); }
+}

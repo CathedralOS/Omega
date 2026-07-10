@@ -397,20 +397,25 @@ fn hoist_index(
     hoist_child(lowerer, index, hoisted, hoist_builtin_calls)
 }
 
-/// A single-level `Binary` index (`k + 1`, `2 * k`, `k - 1`) whose operands are
-/// each TYPEABLE at the hoist-temp layer: an integer literal, a `self.<field>`
-/// member, or a state-PARAMETER name -- with at least one non-literal (a
-/// pure-const binary is left for the const fold, which resolves it to a fixed
-/// index without a temp). A LOCAL operand is refused: `infer_hoist_temp_type`
-/// resolves self-fields and params only, and an untypeable temp would mint a
-/// Unit layout error where the checker's computed-index fence gives a clear
-/// message today. Nested binaries (`k + j + 1`) are likewise left fenced.
+/// A `Binary` index up to TWO levels deep (`k + 1`, `2 * k`, and the
+/// row-major idiom `y * 4 + x`) whose leaf operands are each TYPEABLE at the
+/// hoist-temp layer: an integer literal, a `self.<field>` member, or a
+/// state-PARAMETER name -- with at least one non-literal (a pure-const binary
+/// is left for the const fold, which resolves it to a fixed index without a
+/// temp). A LOCAL leaf is refused: `infer_hoist_temp_type` resolves
+/// self-fields and params only, and an untypeable temp would mint a Unit
+/// layout error where the checker's computed-index fence gives a clear
+/// message today. Deeper nests (`(a+b)*(c+d)` and beyond) are likewise left
+/// fenced -- the interval synthesis in `computed_index_interval` composes to
+/// the same depth, so hoistable-here and range-synthesizable-there stay in
+/// lockstep (R0 of the dependent-types ladder: the two-level shape was
+/// neither hoisted NOR fenced, and silently read ZII natively).
 fn index_is_hoistable_computed(lowerer: &Lowerer, index: ExpressionHandle) -> bool {
     let expressions = &lowerer.symbol_resolved_trees.tables.bodies.expressions;
     let ExpressionNode::Binary(binary) = expressions.expression(index) else {
         return false;
     };
-    let operand_is_typeable = |operand: ExpressionHandle| -> bool {
+    let leaf_is_typeable = |operand: ExpressionHandle| -> bool {
         match expressions.expression(operand) {
             ExpressionNode::Integer(_) => true,
             ExpressionNode::Member(member) => matches!(
@@ -434,15 +439,33 @@ fn index_is_hoistable_computed(lowerer: &Lowerer, index: ExpressionHandle) -> bo
             _ => false,
         }
     };
-    let left_is_literal = matches!(
-        expressions.expression(binary.left),
-        ExpressionNode::Integer(_)
-    );
-    let right_is_literal = matches!(
-        expressions.expression(binary.right),
-        ExpressionNode::Integer(_)
-    );
-    if left_is_literal && right_is_literal {
+    let operand_is_typeable = |operand: ExpressionHandle| -> bool {
+        if leaf_is_typeable(operand) {
+            return true;
+        }
+        // One nested level: a binary of typeable LEAVES (`y * 4` inside
+        // `y * 4 + x`).
+        match expressions.expression(operand) {
+            ExpressionNode::Binary(inner) => {
+                leaf_is_typeable(inner.left) && leaf_is_typeable(inner.right)
+            }
+            _ => false,
+        }
+    };
+    let contains_non_literal = |operand: ExpressionHandle| -> bool {
+        match expressions.expression(operand) {
+            ExpressionNode::Integer(_) => false,
+            ExpressionNode::Binary(inner) => {
+                !matches!(expressions.expression(inner.left), ExpressionNode::Integer(_))
+                    || !matches!(
+                        expressions.expression(inner.right),
+                        ExpressionNode::Integer(_)
+                    )
+            }
+            _ => true,
+        }
+    };
+    if !contains_non_literal(binary.left) && !contains_non_literal(binary.right) {
         return false;
     }
     operand_is_typeable(binary.left) && operand_is_typeable(binary.right)

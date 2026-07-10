@@ -1,0 +1,15 @@
+// FAIL CANARY (R0 depth fence): the computed-index hoist and its interval
+// synthesis compose to TWO levels (`y * 4 + x`); a three-level nest
+// (`z * 12 + y * 4 + x`) is neither hoisted nor provable and must refuse
+// LOUDLY at the reordered computed-index fence -- never silently read ZII
+// (the miscompile class the promoted
+// pass/collections/runtime_nested_const_product_index_exit pins). Extending
+// depth = extend index_is_hoistable_computed AND operand_declared_interval
+// in lockstep, then flip this canary's spelling into the pass canary.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; vox: [u8; 24]; x: u32 [0..=3]; y: u32 [0..=2]; z: u32 [0..=1]; out: i32; }
+machine Main::main(&mut self) {
+    self.x = 3; self.y = 2; self.z = 1;
+    self.out = self.vox[self.z * 12 + self.y * 4 + self.x] as i32;
+    self.console.exit_process(self.out);
+}

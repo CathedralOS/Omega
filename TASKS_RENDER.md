@@ -1,5 +1,13 @@
 # Tasks — GUI samples on macOS (native, no C shim)
 
+> MAIN LANE 2026-07-09: R0 landed — the direct row-major index
+> `pixels[y * W + x]` (const W, or ranged operands) now compiles + lowers
+> correctly on both engines (interval product proves the bound; see
+> pass/collections/runtime_nested_const_product_index_exit). The
+> linear-counter workarounds and re-guard states in the rendering/simulation
+> samples can be swept onto the direct spelling whenever convenient —
+> three-level nests (`z*A + y*B + x`) are still fenced (extendable on ask).
+
 > ## Quality pass (2026-07-08, interactive session) — "tech proven" ≠ "meets bar".
 > The fire-29 result regressed and its UX was below standard; both fixed:
 > - **Fence collision (build break):** the 2026-07-07 value-call effect fence
