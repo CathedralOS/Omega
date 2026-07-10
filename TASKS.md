@@ -120,10 +120,14 @@ header above for the verified spelling). Rungs, in payoff order:
   from i's atom (capacity-minus-used; exclusive sugar gives >= 1),
   write-fenced like every entry-fact bridge, flipped direction stays
   refused; pinned pass/dependent/runtime_dependent_subtract_exit +
-  the write-defeat fail canary. REMAINING for
-  R1 proper: general ORDERING facts inside the callee (`i <= count`
-  fed to the checker's DBM so in-state guards/indexes compose beyond
-  the subtraction rule and forwarding),
+  the write-defeat fail canary. In-callee ORDERING
+  facts landed same day (checks/ranges/dependent_params.rs): the param's
+  atom mints `i <= self.count` into the DBM at entry (offsets <= 0 only;
+  staleness = the existing forget-on-reassignment on both pair ends),
+  composing with incoming-guard facts through via_ordering -- pinned
+  pass/dependent/runtime_dependent_ordering_chain_exit (substituted range
+  deliberately too wide; only the chain proves). REMAINING for R1 proper:
+  value-vs-value guard mints at range endpoints generally
   value-vs-value guard mints at range endpoints generally
   (`requires a.cols == b.rows`), and machine-signature `requires`
   surface with the bracket-as-sugar desugar. Cross-machine dependent

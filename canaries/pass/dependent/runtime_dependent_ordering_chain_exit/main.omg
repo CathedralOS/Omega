@@ -1,0 +1,31 @@
+// RUN CANARY (exit 7) + interpreter differential. The R1 in-callee
+// ORDERING fact: a dependent-ranged param mints `i <= self.count` into
+// the DBM at state entry (dependent_params.rs seeder), where it composes
+// with everything guard-seeded orderings serve. Here the SUBSTITUTED
+// literal range is deliberately too wide (count's high 11 vs items.len
+// 5); only the chain -- minted `k <= self.count` + the dominating guard
+// `self.count < 5` carried by the incoming-guard facts -- discharges the
+// index (via_ordering). Widening the guard to `< 9` refuses (probed).
+// Staleness rides the existing forget-on-reassignment machinery on both
+// pair ends; positive offsets do not mint (would over-claim).
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; items: [u8; 5]; count: u32 [0..=11]; j: u32; out: i32; }
+machine Main::main(&mut self) {
+    self.count = 4;
+    self.j = 4;
+    self.items[4] = 7;
+    transition self.j <= self.count { true -> read(self.j) _ -> bad() }
+    state read(&mut self, i: u32 [0..=self.count]) {
+        // count's SUBSTITUTED high (11) exceeds items.len (5); only the
+        // chained ordering (i <= count) + this guard (count < 5) proves.
+        transition self.count < 5 {
+            true -> go(i)
+            _ -> bad()
+        }
+    }
+    state go(&mut self, k: u32 [0..=self.count]) {
+        self.out = self.items[k] as i32;
+        self.console.exit_process(self.out);
+    }
+    state bad(&mut self) { self.console.exit_process(9); }
+}

@@ -1,4 +1,5 @@
 mod arrays;
+mod dependent_params;
 mod diagnostics;
 mod expressions;
 mod facts;
@@ -22,6 +23,7 @@ use loop_invariants::{collect_loop_invariant_facts, seed_loop_invariant_facts};
 use omega_core::diagnostics::Diagnostic;
 use requirements::seed_machine_requires;
 use state_arguments::{collect_state_argument_facts, seed_state_argument_facts};
+use dependent_params::seed_dependent_param_orderings;
 use statements::check_statement;
 
 pub(crate) fn check_indexed_accesses(
@@ -39,6 +41,7 @@ pub(crate) fn check_indexed_accesses(
             seed_field_integer_facts(program, &mut facts, machine);
             seed_machine_requires(program, &mut facts, machine);
             seed_state_argument_facts(&mut facts, state, &state_argument_facts);
+            seed_dependent_param_orderings(program, &mut facts, machine, state);
             seed_incoming_guard_facts(program, &mut facts, state, &incoming_guard_facts);
             seed_loop_invariant_facts(program, &mut facts, state, &loop_invariant_facts);
             for statement in program.statement_table.statements(state.statement_nodes) {
