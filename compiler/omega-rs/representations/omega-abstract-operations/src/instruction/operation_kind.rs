@@ -255,6 +255,11 @@ pub enum AbstractOperationKind {
         ok_offset: usize,
         target_region: RuntimeStorageRegion,
         target_offset: usize,
+        /// Decode-boundary byte-domain obligations
+        /// (`ByteSequencePredicate::mask_bit` bits): the emitted sequence
+        /// validates the copied bytes and clears the sticky `ok` flag on
+        /// failure. ZII: an empty mask is a plain byte copy.
+        predicate_mask: u8,
     },
     /// compact_binary v0 wire decoding (chapter 20, nested message fields):
     /// turn the sub-message LENGTH just read into the `end` slot into an

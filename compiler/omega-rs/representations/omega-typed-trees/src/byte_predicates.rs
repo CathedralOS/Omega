@@ -5,80 +5,17 @@
 //! (2026-07-16) so the RUNTIME decode boundary shares ONE vocabulary with
 //! the compile-time proof machinery: wire decode brings UNTRUSTED bytes
 //! where no compile-time proof exists, and the decoder must evaluate the
-//! same predicate the checker proves elsewhere (`holds_for`).
+//! same predicate the checker proves elsewhere (`holds_for`). The ENUM
+//! itself lives in `omega_core::byte_predicates` (dependency-free, so the
+//! instruction kinds can carry predicate MASKS); this module owns the
+//! TREE-WALKING resolution from domain declarations.
 
 use crate::TypedTrees;
 use crate::expression::{ExpressionHandle, ExpressionNode};
 use crate::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 use omega_core::symbols::SymbolHandle;
 
-/// A compiler-recognized comptime byte-predicate primitive over a byte
-/// sequence. These are reusable building blocks (like `+`/`==`), NOT
-/// domain-specific.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ByteSequencePredicate {
-    /// `valid_utf8(self)`: the bytes are well-formed UTF-8.
-    ValidUtf8,
-    /// `no_nul(self)`: no byte is `0x00`.
-    NoNul,
-    /// `ascii_only(self)`: every byte is < 128.
-    AsciiOnly,
-    /// `non_empty(self)`: the sequence has at least one byte. Notably does NOT
-    /// hold for the empty/ZII value -- the means to exercise an empty-violating
-    /// domain (see the checker's `domain_admits_empty_byte_sequence`).
-    NonEmpty,
-}
-
-impl ByteSequencePredicate {
-    pub fn from_name(name: &str) -> Option<Self> {
-        match name {
-            "valid_utf8" => Some(Self::ValidUtf8),
-            "no_nul" => Some(Self::NoNul),
-            "ascii_only" => Some(Self::AsciiOnly),
-            "non_empty" => Some(Self::NonEmpty),
-            _ => None,
-        }
-    }
-
-    /// Evaluate the predicate over raw bytes: the comptime literal check AND
-    /// the runtime decode-boundary validator share this one definition.
-    pub fn holds_for(self, bytes: &[u8]) -> bool {
-        match self {
-            Self::ValidUtf8 => std::str::from_utf8(bytes).is_ok(),
-            Self::NoNul => !bytes.contains(&0),
-            Self::AsciiOnly => bytes.iter().all(|byte| *byte < 128),
-            Self::NonEmpty => !bytes.is_empty(),
-        }
-    }
-
-    /// Whether `predicate(a) && predicate(b)` implies `predicate(a ++ b)`: the
-    /// classifier is preserved under byte-sequence concatenation. All four
-    /// recognized predicates are concat-preserving -- concatenating two
-    /// valid-UTF-8 / nul-free / ASCII-only / non-empty sequences yields one of
-    /// the same kind (UTF-8 sequences are self-delimiting, so a complete valid
-    /// sequence followed by another is valid). A future predicate that is NOT
-    /// concat-preserving (a fixed-length or parse-shaped one) must return
-    /// `false` here so the concat-domain law does not admit it.
-    pub fn is_concat_preserving(self) -> bool {
-        match self {
-            Self::ValidUtf8 | Self::NoNul | Self::AsciiOnly | Self::NonEmpty => true,
-        }
-    }
-
-    /// Whether `predicate(x)` implies `predicate(x[a..b])` for EVERY contiguous
-    /// subslice: the classifier is preserved under subslicing. True only for
-    /// PER-BYTE character-class predicates -- `no_nul`/`ascii_only` classify each
-    /// byte independently, so any subset of the bytes still satisfies them.
-    /// `valid_utf8` is NOT subslice-preserving (a subslice can cut a multi-byte
-    /// scalar) and `non_empty` is NOT (a `x[a..a]` subslice is empty). A future
-    /// per-byte predicate would return `true`; any sequence-shaped one, `false`.
-    pub fn is_subslice_preserving(self) -> bool {
-        match self {
-            Self::NoNul | Self::AsciiOnly => true,
-            Self::ValidUtf8 | Self::NonEmpty => false,
-        }
-    }
-}
+pub use omega_core::byte_predicates::ByteSequencePredicate;
 
 /// If `domain_symbol`'s declared classifier is a recognized comptime
 /// byte-predicate call applied to `self` (e.g. `when valid_utf8(self)`), return

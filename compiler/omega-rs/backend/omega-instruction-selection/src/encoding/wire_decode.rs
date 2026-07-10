@@ -77,6 +77,7 @@ pub fn encode_read_wire_byte_slice(
     ok_offset: usize,
     target_region: RuntimeStorageRegion,
     target_offset: usize,
+    predicate_mask: u8,
 ) -> Result<Vec<u8>, Diagnostic> {
     match architecture {
         Architecture::Aarch64 => aarch64::encode_read_wire_byte_slice(
@@ -86,6 +87,7 @@ pub fn encode_read_wire_byte_slice(
             ok_offset,
             target_region,
             target_offset,
+            predicate_mask,
         ),
         Architecture::X86_64 => x86_64::encode_read_wire_byte_slice(
             buffer_offset,
@@ -94,6 +96,7 @@ pub fn encode_read_wire_byte_slice(
             ok_offset,
             target_region,
             target_offset,
+            predicate_mask,
         ),
     }
 }

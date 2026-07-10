@@ -355,6 +355,7 @@ impl From<&omega_abstract_operations::AbstractOperationKind> for TargetOperation
                 ok_offset,
                 target_region,
                 target_offset,
+                predicate_mask,
             } => Self::ReadWireByteSlice {
                 buffer_region: *buffer_region,
                 buffer_offset: *buffer_offset,
@@ -365,6 +366,7 @@ impl From<&omega_abstract_operations::AbstractOperationKind> for TargetOperation
                 ok_offset: *ok_offset,
                 target_region: *target_region,
                 target_offset: *target_offset,
+                predicate_mask: *predicate_mask,
             },
             omega_abstract_operations::AbstractOperationKind::ReadWireNestedOpen {
                 buffer_region,

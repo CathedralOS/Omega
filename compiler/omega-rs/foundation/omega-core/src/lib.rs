@@ -1,3 +1,4 @@
+pub mod byte_predicates;
 pub mod allocations;
 pub mod arena;
 pub mod arithmetic;

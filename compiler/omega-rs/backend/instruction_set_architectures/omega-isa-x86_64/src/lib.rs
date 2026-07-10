@@ -4693,7 +4693,11 @@ pub fn encode_read_wire_byte_slice(
     ok_offset: usize,
     target_region: omega_target_operations::RuntimeStorageRegion,
     target_offset: usize,
+    predicate_mask: u8,
 ) -> Result<Vec<u8>, Diagnostic> {
+    // Threaded from selection; validation sequences land with the aarch64
+    // twin (see the aarch64 note + the pending utf8 canary).
+    let _ = predicate_mask;
     // The region only picks the relocation symbol; the shape is identical.
     let _ = target_region;
 

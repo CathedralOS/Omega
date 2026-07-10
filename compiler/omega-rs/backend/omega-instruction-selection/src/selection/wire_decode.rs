@@ -58,7 +58,7 @@ enum WireReadContent {
     },
     /// A borrowed `&[u8]` field: a byte-LENGTH varint then a fat `{ptr, len}`
     /// descriptor viewing the buffer content, stored zero-copy into `place`.
-    ByteSlice { place: RuntimeStoragePlace },
+    ByteSlice { place: RuntimeStoragePlace, predicate_mask: u8 },
     /// A repeated field: a byte-LENGTH varint opens a bounded sub-region,
     /// then up to `max_count` guarded element reads (each runs only while
     /// the cursor sits below the bound, bumping the count companion), and
@@ -284,7 +284,7 @@ pub(super) fn select_wire_decode_call(
             WireReadContent::Scalar { encoding, place } => {
                 push(scalar_read_kind(place, encoding));
             }
-            WireReadContent::ByteSlice { place } => {
+            WireReadContent::ByteSlice { place, predicate_mask } => {
                 push(SelectedInstructionKind::ReadWireByteSlice {
                     buffer_region: buffer_place.region,
                     buffer_offset: buffer_place.byte_offset,
@@ -295,6 +295,7 @@ pub(super) fn select_wire_decode_call(
                     ok_offset: ok_place.byte_offset,
                     target_region: place.region,
                     target_offset: place.byte_offset,
+                    predicate_mask: *predicate_mask,
                 });
             }
             WireReadContent::Nested {
@@ -571,9 +572,26 @@ fn collect_field_reads(
             if place.byte_count != input.runtime_abi.slice_descriptor_size() {
                 return None;
             }
+            // Decode-boundary byte-domain obligations: the emitted sequence
+            // validates the copied bytes (interp parity). An UNRECOGNIZED
+            // domain classifier refuses selection -- silently decoding
+            // without validation is the pinned utf8 soundness hole; the
+            // emission planner reports the unlowered decode loudly.
+            let mut predicate_mask = 0u8;
+            for (_, predicate) in
+                omega_checked_trees::byte_predicates::type_reference_domain_predicates(
+                    input.program,
+                    field.type_reference,
+                )
+            {
+                predicate_mask |= predicate?.mask_bit();
+            }
             fields.push(WireFieldRead {
                 number: field.number,
-                content: WireReadContent::ByteSlice { place },
+                content: WireReadContent::ByteSlice {
+                    place,
+                    predicate_mask,
+                },
             });
             continue;
         }
