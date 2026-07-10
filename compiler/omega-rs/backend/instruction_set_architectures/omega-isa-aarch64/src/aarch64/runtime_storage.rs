@@ -736,6 +736,8 @@ pub fn encode_runtime_storage_binary_write(
             17,
             26,
             &[15, 14, 13, 12],
+            runtime_value_operands.immediate_integer(left).is_some(),
+            runtime_value_operands.immediate_integer(right).is_some(),
         )?;
     } else if saturating_signed_divide_modulo {
         // TYPE_MIN / -1 fixup for signed Saturating div/mod (result left in x17).
@@ -808,6 +810,8 @@ fn append_saturating_trapping_arithmetic(
     dest: u8,
     rhs: u8,
     scratch: &[u8],
+    left_is_wide_immediate: bool,
+    right_is_wide_immediate: bool,
 ) -> Result<(), Diagnostic> {
     use omega_core::arithmetic::ArithmeticDomain;
     // Register-parametric so the OPERAND-position lowering (fused arithmetic
@@ -989,7 +993,7 @@ fn append_saturating_trapping_arithmetic(
         // shifted left cannot go below zero, and the wide value can exceed
         // i64::MAX (2^31 << 32), which the shared add/sub/mul tail's SIGNED
         // lower compare would misread as negative and clamp to 0.
-        if target_signed {
+        if target_signed && !left_is_wide_immediate {
             bytes.extend(match byte_size {
                 1 => encode_sign_extend_byte_to_x(dest, dest),
                 2 => encode_sign_extend_halfword_to_x(dest, dest),
@@ -1035,24 +1039,25 @@ fn append_saturating_trapping_arithmetic(
         return Ok(());
     }
 
-    // The operands were loaded zero-extended. For signed targets, sign-extend both
-    // to 64 bits so the wide op sees the true signed values (a negative i8 -50 is
-    // 0xCE = 206 zero-extended). Unsigned operands are already correct.
+    // STORAGE operands were loaded zero-extended at the target width: for
+    // signed targets, sign-extend them to 64 bits so the wide op sees the
+    // true signed values (a negative i8 -50 is 0xCE = 206 zero-extended).
+    // IMMEDIATE operands are already their true wide value (the loader
+    // emits the full i64) -- re-extending one from the target width
+    // CORRUPTS it: 2147483648 re-read as i32 is -2^31, which flipped the
+    // MIN idiom `0 - 2147483648` into 0 - (-2^31) and saturated to MAX
+    // (the pinned sat_narrow_wide_literal_operand_divergence).
     if target_signed {
-        match byte_size {
-            1 => {
-                bytes.extend(encode_sign_extend_byte_to_x(dest, dest));
-                bytes.extend(encode_sign_extend_byte_to_x(rhs, rhs));
-            }
-            2 => {
-                bytes.extend(encode_sign_extend_halfword_to_x(dest, dest));
-                bytes.extend(encode_sign_extend_halfword_to_x(rhs, rhs));
-            }
-            4 => {
-                bytes.extend(encode_sign_extend_word_to_x(dest, dest));
-                bytes.extend(encode_sign_extend_word_to_x(rhs, rhs));
-            }
-            _ => {}
+        let extend_one: fn(u8) -> [u8; 4] = match byte_size {
+            1 => |register| encode_sign_extend_byte_to_x(register, register),
+            2 => |register| encode_sign_extend_halfword_to_x(register, register),
+            _ => |register| encode_sign_extend_word_to_x(register, register),
+        };
+        if !left_is_wide_immediate {
+            bytes.extend(extend_one(dest));
+        }
+        if !right_is_wide_immediate {
+            bytes.extend(extend_one(rhs));
         }
     }
 
@@ -3554,6 +3559,8 @@ fn append_runtime_value_operand(
                 destination_register,
                 rhs_register,
                 remaining_scratch,
+                runtime_value_operands.immediate_integer(left).is_some(),
+                runtime_value_operands.immediate_integer(right).is_some(),
             )?;
         } else if runtime_value_operands
             .binary_arithmetic_domain(operand)
@@ -5343,18 +5350,21 @@ mod tests {
             true,
         )
         .unwrap();
-        // The two immediate loads are each MOVZ (one halfword, value < 16 bits),
-        // then the two SXTB sit before the wide ADD. Find the first SXTB.
+        // IMMEDIATE operands are loaded at their true wide value, so the
+        // signed extension is SKIPPED for them (extending from the target
+        // width corrupts a wide literal -- the MIN-idiom fix): expect ZERO
+        // SXTB here. Storage operands keep their per-side extension (the
+        // width twin mirrors the same per-side skip).
         let words: Vec<u32> = bytes
             .chunks_exact(4)
             .map(|c| u32::from_le_bytes(c.try_into().unwrap()))
             .collect();
-        // SXTB Xd, Wn family is 0x9340_1C00; expect exactly two of them.
+        // SXTB Xd, Wn family is 0x9340_1C00.
         let sxtb_count = words
             .iter()
             .filter(|w| (*w & 0xFFFF_FC00) == 0x9340_1C00)
             .count();
-        assert_eq!(sxtb_count, 2, "expected two SXTB (one per signed operand)");
+        assert_eq!(sxtb_count, 0, "immediate operands must not re-extend");
         // Exactly one wide ADD Xd,Xn,Xm (0x8B00_0000 family) — the saturating op.
         let add_count = words
             .iter()
