@@ -5599,7 +5599,13 @@ pub fn runtime_storage_binary_write_width(
             ArithmeticDomain::Saturating | ArithmeticDomain::Trapping
         );
     let operation_width = if saturating_or_trapping && operator == StateGuardOperator::Multiply {
-        saturating_trapping_multiply_width(domain, byte_size, target_signed)
+        saturating_trapping_multiply_width(
+            domain,
+            byte_size,
+            target_signed,
+            runtime_value_operands.immediate_integer(left).is_some(),
+            runtime_value_operands.immediate_integer(right).is_some(),
+        )
     } else if saturating_or_trapping && operator == StateGuardOperator::ShiftLeft {
         saturating_trapping_shift_left_width(domain, byte_size, target_signed)
     } else if saturating_or_trapping
@@ -5608,8 +5614,14 @@ pub fn runtime_storage_binary_write_width(
             StateGuardOperator::Add | StateGuardOperator::Subtract
         )
     {
-        width_integer_add_sub_width(byte_size)
-            + arithmetic_domain_clamp_width(domain, operator, byte_size, target_signed)
+        saturating_trapping_add_sub_width(
+            domain,
+            operator,
+            byte_size,
+            target_signed,
+            runtime_value_operands.immediate_integer(left).is_some(),
+            runtime_value_operands.immediate_integer(right).is_some(),
+        )
     } else if domain == ArithmeticDomain::Saturating
         && matches!(
             operator,
@@ -5864,7 +5876,14 @@ pub fn encode_runtime_storage_binary_write(
         // Saturating/Trapping multiply: a 64-bit `imul` yields the EXACT product
         // for <=32-bit operands (it cannot exceed 64 bits), so compare the full
         // product against the target type's range and clamp / trap.
-        append_saturating_trapping_multiply(&mut bytes, domain, byte_size, target_signed)?;
+        append_saturating_trapping_multiply(
+            &mut bytes,
+            domain,
+            byte_size,
+            target_signed,
+            runtime_value_operands.immediate_integer(left).is_some(),
+            runtime_value_operands.immediate_integer(right).is_some(),
+        )?;
     } else if saturating_or_trapping && operator == StateGuardOperator::ShiftLeft {
         // Saturating/Trapping `<<`: clamp/trap when the TRUE value x * 2^n
         // leaves the target range (shift slice C; mirrors aarch64).
@@ -5875,12 +5894,18 @@ pub fn encode_runtime_storage_binary_write(
             StateGuardOperator::Add | StateGuardOperator::Subtract
         )
     {
-        // Decision 17: the default integer path does a 64-bit op and lets the
-        // store truncate (== Wrapping). Saturating/Trapping instead need the
-        // overflow flags to reflect the TARGET width, so emit a width-correct
-        // add/sub here and then clamp (Saturating) or trap (Trapping).
-        append_width_integer_add_sub(&mut bytes, operator, byte_size)?;
-        append_arithmetic_domain_clamp(&mut bytes, domain, operator, byte_size, target_signed)?;
+        // Decision 17: narrow targets wide-compute + range-tail (immune to
+        // wide literal operands -- the MIN-idiom fix); 64-bit keeps the
+        // flag-driven clamp inside the helper.
+        append_saturating_trapping_add_sub(
+            &mut bytes,
+            domain,
+            operator,
+            byte_size,
+            target_signed,
+            runtime_value_operands.immediate_integer(left).is_some(),
+            runtime_value_operands.immediate_integer(right).is_some(),
+        )?;
     } else if domain == ArithmeticDomain::Saturating
         && matches!(
             operator,
@@ -5961,6 +5986,8 @@ fn saturating_trapping_multiply_width(
     domain: ArithmeticDomain,
     byte_size: usize,
     target_signed: bool,
+    left_is_wide_immediate: bool,
+    right_is_wide_immediate: bool,
 ) -> usize {
     let imul = 4; // imul r10, r11
     if byte_size == 8 {
@@ -5982,13 +6009,18 @@ fn saturating_trapping_multiply_width(
     if !matches!(byte_size, 1 | 2 | 4) {
         return imul; // emission errors; width is irrelevant then
     }
-    // Two sign-extension instructions for signed narrow operands (see emission):
-    // movsx is 4 bytes (8/16-bit), movsxd is 3 bytes (32-bit).
-    let sign_extend = if target_signed {
-        if byte_size == 4 { 6 } else { 8 }
-    } else {
-        0
+    // One sign-extension per SIGNED NON-IMMEDIATE operand (see emission):
+    // movsx is 4 bytes (8/16-bit), movsxd is 3 (32-bit).
+    let extend_one = |skip: bool| {
+        if !target_signed || skip {
+            0
+        } else if byte_size == 4 {
+            3
+        } else {
+            4
+        }
     };
+    let sign_extend = extend_one(left_is_wide_immediate) + extend_one(right_is_wide_immediate);
     imul + sign_extend + narrow_range_clamp_or_trap_width(domain, target_signed)
 }
 
@@ -6003,6 +6035,8 @@ fn append_saturating_trapping_multiply(
     domain: ArithmeticDomain,
     byte_size: usize,
     target_signed: bool,
+    left_is_wide_immediate: bool,
+    right_is_wide_immediate: bool,
 ) -> Result<(), Diagnostic> {
     if byte_size == 8 {
         // 64-bit multiply overflow: the 128-bit one-operand forms make the
@@ -6068,33 +6102,110 @@ fn append_saturating_trapping_multiply(
             "saturating/trapping multiply cannot handle {byte_size}-byte targets yet"
         )));
     }
-    // The 64-bit `imul` needs full-width-correct operands. Narrow operands are
-    // loaded ZERO-extended, so a SIGNED negative value (e.g. i8 -50 -> 0xCE = 206)
-    // would multiply wrong. Sign-extend r10/r11 from the target width to 64 bits
-    // first. (Unsigned operands are already correct zero-extended.)
+    // The 64-bit `imul` needs full-width-correct operands. Narrow STORAGE
+    // operands are loaded ZERO-extended, so a SIGNED negative value (e.g. i8
+    // -50 -> 0xCE = 206) would multiply wrong: sign-extend them from the
+    // target width. IMMEDIATE operands are already their true wide value --
+    // re-extending one corrupts wide literals (the MIN-idiom fix), so each
+    // side skips when immediate.
     if target_signed {
-        match byte_size {
-            1 => {
-                bytes.extend([0x4d, 0x0f, 0xbe, 0xd2]); // movsx r10, r10b
-                bytes.extend([0x4d, 0x0f, 0xbe, 0xdb]); // movsx r11, r11b
-            }
-            2 => {
-                bytes.extend([0x4d, 0x0f, 0xbf, 0xd2]); // movsx r10, r10w
-                bytes.extend([0x4d, 0x0f, 0xbf, 0xdb]); // movsx r11, r11w
-            }
-            4 => {
-                bytes.extend([0x4d, 0x63, 0xd2]); // movsxd r10, r10d
-                bytes.extend([0x4d, 0x63, 0xdb]); // movsxd r11, r11d
-            }
-            _ => {}
+        if !left_is_wide_immediate {
+            bytes.extend(match byte_size {
+                1 => &[0x4d, 0x0f, 0xbe, 0xd2][..], // movsx r10, r10b
+                2 => &[0x4d, 0x0f, 0xbf, 0xd2][..], // movsx r10, r10w
+                _ => &[0x4d, 0x63, 0xd2][..],       // movsxd r10, r10d
+            });
+        }
+        if !right_is_wide_immediate {
+            bytes.extend(match byte_size {
+                1 => &[0x4d, 0x0f, 0xbe, 0xdb][..], // movsx r11, r11b
+                2 => &[0x4d, 0x0f, 0xbf, 0xdb][..], // movsx r11, r11w
+                _ => &[0x4d, 0x63, 0xdb][..],       // movsxd r11, r11d
+            });
         }
     }
     bytes.extend([0x4d, 0x0f, 0xaf, 0xd3]); // imul r10, r11 (64-bit)
     let unsigned_max: u64 = (1u64 << (8 * byte_size)) - 1;
     let signed_min = (-(1i128 << (8 * byte_size - 1))) as i64 as u64;
     let signed_max = ((1i128 << (8 * byte_size - 1)) - 1) as u64;
-    append_narrow_range_clamp_or_trap(bytes, domain, byte_size, target_signed);
+    append_narrow_range_clamp_or_trap(bytes, domain, StateGuardOperator::Multiply, byte_size, target_signed);
     Ok(())
+}
+
+/// Saturating/Trapping ADD/SUB (decision 17). 64-bit targets keep the
+/// FLAG-driven clamp (adds/subs carry/overflow at the full width is the only
+/// exact witness there). Narrow targets wide-compute like multiply/shl:
+/// sign-extend SIGNED NON-IMMEDIATE operands (an immediate is already its
+/// true wide value -- re-extending it from the target width corrupts wide
+/// literals, the MIN-idiom fix), one exact 64-bit add/sub, then the shared
+/// range tail. This replaces the old width-correct-flags narrow path, which
+/// could not hold a wide immediate at all (r11's low byte of 128 is -128).
+fn append_saturating_trapping_add_sub(
+    bytes: &mut Vec<u8>,
+    domain: ArithmeticDomain,
+    operator: StateGuardOperator,
+    byte_size: usize,
+    target_signed: bool,
+    left_is_wide_immediate: bool,
+    right_is_wide_immediate: bool,
+) -> Result<(), Diagnostic> {
+    if byte_size == 8 {
+        append_width_integer_add_sub(bytes, operator, 8)?;
+        append_arithmetic_domain_clamp(bytes, domain, operator, 8, target_signed)?;
+        return Ok(());
+    }
+    if !matches!(byte_size, 1 | 2 | 4) {
+        return Err(Diagnostic::error(format!(
+            "saturating/trapping add/sub cannot handle {byte_size}-byte targets yet"
+        )));
+    }
+    if target_signed {
+        if !left_is_wide_immediate {
+            bytes.extend(match byte_size {
+                1 => &[0x4d, 0x0f, 0xbe, 0xd2][..], // movsx r10, r10b
+                2 => &[0x4d, 0x0f, 0xbf, 0xd2][..], // movsx r10, r10w
+                _ => &[0x4d, 0x63, 0xd2][..],       // movsxd r10, r10d
+            });
+        }
+        if !right_is_wide_immediate {
+            bytes.extend(match byte_size {
+                1 => &[0x4d, 0x0f, 0xbe, 0xdb][..], // movsx r11, r11b
+                2 => &[0x4d, 0x0f, 0xbf, 0xdb][..], // movsx r11, r11w
+                _ => &[0x4d, 0x63, 0xdb][..],       // movsxd r11, r11d
+            });
+        }
+    }
+    append_runtime_binary_operation(bytes, operator, 8)?; // exact 64-bit add/sub
+    append_narrow_range_clamp_or_trap(bytes, domain, operator, byte_size, target_signed);
+    Ok(())
+}
+
+/// Bytes of [`append_saturating_trapping_add_sub`]. MUST stay in lockstep.
+fn saturating_trapping_add_sub_width(
+    domain: ArithmeticDomain,
+    operator: StateGuardOperator,
+    byte_size: usize,
+    target_signed: bool,
+    left_is_wide_immediate: bool,
+    right_is_wide_immediate: bool,
+) -> usize {
+    if byte_size == 8 {
+        return width_integer_add_sub_width(8)
+            + arithmetic_domain_clamp_width(domain, operator, 8, target_signed);
+    }
+    let extend_one = |skip: bool| {
+        if !target_signed || skip {
+            0
+        } else if byte_size == 4 {
+            3
+        } else {
+            4
+        }
+    };
+    extend_one(left_is_wide_immediate)
+        + extend_one(right_is_wide_immediate)
+        + 3 // 64-bit add/sub
+        + narrow_range_clamp_or_trap_width(domain, target_signed)
 }
 
 /// The narrow (<= 4-byte) exact-wide-value range tail shared by the
@@ -6107,6 +6218,7 @@ fn append_saturating_trapping_multiply(
 fn append_narrow_range_clamp_or_trap(
     bytes: &mut Vec<u8>,
     domain: ArithmeticDomain,
+    operator: StateGuardOperator,
     byte_size: usize,
     target_signed: bool,
 ) {
@@ -6120,9 +6232,20 @@ fn append_narrow_range_clamp_or_trap(
     }
     match (domain, target_signed) {
         (ArithmeticDomain::Saturating, false) => {
-            mov_r11(bytes, unsigned_max);
-            bytes.extend([0x4d, 0x39, 0xda]); // cmp r10, r11
-            bytes.extend([0x4d, 0x0f, 0x47, 0xd3]); // cmova r10, r11 (r10 >u max -> max)
+            // Unsigned wide results overflow in ONE direction per operator
+            // (the aarch64 tail's rule): subtract only DOWNWARD -- the
+            // wrapped wide underflow reads signed-negative, so clamp to 0
+            // with a SIGNED compare -- add/mul/shl only UPWARD, where the
+            // compare must be UNSIGNED (a 2^63+ product reads negative).
+            if operator == StateGuardOperator::Subtract {
+                mov_r11(bytes, 0);
+                bytes.extend([0x4d, 0x39, 0xda]); // cmp r10, r11
+                bytes.extend([0x4d, 0x0f, 0x4c, 0xd3]); // cmovl r10, r11 (<s 0 -> 0)
+            } else {
+                mov_r11(bytes, unsigned_max);
+                bytes.extend([0x4d, 0x39, 0xda]); // cmp r10, r11
+                bytes.extend([0x4d, 0x0f, 0x47, 0xd3]); // cmova r10, r11 (r10 >u max -> max)
+            }
         }
         (ArithmeticDomain::Saturating, true) => {
             mov_r11(bytes, signed_max);
@@ -6133,10 +6256,17 @@ fn append_narrow_range_clamp_or_trap(
             bytes.extend([0x4d, 0x0f, 0x4c, 0xd3]); // cmovl r10, r11 (< imin -> imin)
         }
         (ArithmeticDomain::Trapping, false) => {
-            mov_r11(bytes, unsigned_max);
-            bytes.extend([0x4d, 0x39, 0xda]); // cmp r10, r11
-            bytes.extend([0x76, 0x02]); // jbe +2 (<= max: ok)
-            bytes.extend([0x0f, 0x0b]); // ud2
+            if operator == StateGuardOperator::Subtract {
+                mov_r11(bytes, 0);
+                bytes.extend([0x4d, 0x39, 0xda]); // cmp r10, r11
+                bytes.extend([0x7d, 0x02]); // jge +2 (>=s 0: ok)
+                bytes.extend([0x0f, 0x0b]); // ud2
+            } else {
+                mov_r11(bytes, unsigned_max);
+                bytes.extend([0x4d, 0x39, 0xda]); // cmp r10, r11
+                bytes.extend([0x76, 0x02]); // jbe +2 (<= max: ok)
+                bytes.extend([0x0f, 0x0b]); // ud2
+            }
         }
         (ArithmeticDomain::Trapping, true) => {
             mov_r11(bytes, signed_max);
@@ -6152,6 +6282,8 @@ fn append_narrow_range_clamp_or_trap(
 }
 
 /// Bytes of [`append_narrow_range_clamp_or_trap`]. MUST stay in lockstep.
+/// (The unsigned direction split is width-neutral: one bound either way --
+/// mov 10 + cmp 3 + cmov/jcc+ud2 4 -- so no operator parameter here.)
 fn narrow_range_clamp_or_trap_width(domain: ArithmeticDomain, target_signed: bool) -> usize {
     match (domain, target_signed) {
         // mov r11,imm64 (10) + cmp (3) + cmova (4)
@@ -6243,7 +6375,7 @@ fn append_saturating_trapping_shift_left(
     bytes.extend([0x49, 0x83, 0xfb, width_bits]); // cmp r11, w
     bytes.extend([0x4c, 0x0f, 0x43, 0xd8]); // cmovae r11, rax (cap count at w)
     append_runtime_binary_operation(bytes, StateGuardOperator::ShiftLeft, 8)?; // exact 64-bit shl
-    append_narrow_range_clamp_or_trap(bytes, domain, byte_size, target_signed);
+    append_narrow_range_clamp_or_trap(bytes, domain, StateGuardOperator::ShiftLeft, byte_size, target_signed);
     Ok(())
 }
 
@@ -7558,11 +7690,23 @@ pub fn runtime_value_operand_width(
             let byte_width = runtime_value_operands.binary_byte_width(operand).unwrap_or(8);
             match domain_operation {
                 OperandDomainOperation::AddSub { domain, operands_signed } => {
-                    width_integer_add_sub_width(byte_width)
-                        + arithmetic_domain_clamp_width(domain, operator, byte_width, operands_signed)
+                    saturating_trapping_add_sub_width(
+                        domain,
+                        operator,
+                        byte_width,
+                        operands_signed,
+                        runtime_value_operands.immediate_integer(left).is_some(),
+                        runtime_value_operands.immediate_integer(right).is_some(),
+                    )
                 }
                 OperandDomainOperation::Multiply { domain, operands_signed } => {
-                    saturating_trapping_multiply_width(domain, byte_width, operands_signed)
+                    saturating_trapping_multiply_width(
+                        domain,
+                        byte_width,
+                        operands_signed,
+                        runtime_value_operands.immediate_integer(left).is_some(),
+                        runtime_value_operands.immediate_integer(right).is_some(),
+                    )
                 }
                 OperandDomainOperation::SaturatingSignedDivMod { want_remainder } => {
                     saturating_signed_divide_modulo_width(byte_width, want_remainder)
@@ -7792,13 +7936,14 @@ fn append_runtime_value_operand(
             let byte_width = runtime_value_operands.binary_byte_width(operand).unwrap_or(8);
             match domain_operation {
                 OperandDomainOperation::AddSub { domain, operands_signed } => {
-                    append_width_integer_add_sub(bytes, operator, byte_width)?;
-                    append_arithmetic_domain_clamp(
+                    append_saturating_trapping_add_sub(
                         bytes,
                         domain,
                         operator,
                         byte_width,
                         operands_signed,
+                        runtime_value_operands.immediate_integer(left).is_some(),
+                        runtime_value_operands.immediate_integer(right).is_some(),
                     )?;
                 }
                 OperandDomainOperation::Multiply { domain, operands_signed } => {
@@ -7807,6 +7952,8 @@ fn append_runtime_value_operand(
                         domain,
                         byte_width,
                         operands_signed,
+                        runtime_value_operands.immediate_integer(left).is_some(),
+                        runtime_value_operands.immediate_integer(right).is_some(),
                     )?;
                 }
                 OperandDomainOperation::SaturatingSignedDivMod { want_remainder } => {
@@ -9865,6 +10012,91 @@ mod wrapping_shift_clamp_tests {
                 0x4d, 0x39, 0xda, // cmp r10, r11
                 0x4d, 0x0f, 0x47, 0xd3, // cmova r10, r11 (UNSIGNED upper)
             ]
+        );
+    }
+
+    #[test]
+    fn saturating_trapping_add_sub_width_stays_in_lockstep() {
+        // Every (domain x op x signedness x width x per-side-immediate) arm's
+        // emitted length must match the width twin, or relocation offsets
+        // drift.
+        for domain in [ArithmeticDomain::Saturating, ArithmeticDomain::Trapping] {
+            for operator in [StateGuardOperator::Add, StateGuardOperator::Subtract] {
+                for target_signed in [false, true] {
+                    for byte_size in [1usize, 2, 4, 8] {
+                        for left_imm in [false, true] {
+                            for right_imm in [false, true] {
+                                let mut bytes = Vec::new();
+                                append_saturating_trapping_add_sub(
+                                    &mut bytes, domain, operator, byte_size,
+                                    target_signed, left_imm, right_imm,
+                                )
+                                .expect("emit");
+                                assert_eq!(
+                                    bytes.len(),
+                                    saturating_trapping_add_sub_width(
+                                        domain, operator, byte_size,
+                                        target_signed, left_imm, right_imm,
+                                    ),
+                                    "width mismatch: {domain:?} {operator:?} \
+                                     signed={target_signed} {byte_size}b \
+                                     imm=({left_imm},{right_imm})"
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn min_idiom_subtract_skips_the_immediate_and_wide_computes() {
+        // The MIN idiom `(0 as i32 in Saturating) - 2147483648`: left is a
+        // convert (extends), right is a WIDE immediate (must NOT re-extend);
+        // one exact 64-bit sub; both signed bounds.
+        let mut bytes = Vec::new();
+        append_saturating_trapping_add_sub(
+            &mut bytes,
+            ArithmeticDomain::Saturating,
+            StateGuardOperator::Subtract,
+            4,
+            true,
+            false, // left: convert-of-literal, not an immediate operand
+            true,  // right: the wide literal
+        )
+        .expect("emit");
+        assert_eq!(&bytes[0..3], &[0x4d, 0x63, 0xd2], "movsxd r10 (left extends)");
+        // NO movsxd r11 (4d 63 db) anywhere: the immediate keeps its wide value.
+        assert!(
+            !bytes.windows(3).any(|w| w == [0x4d, 0x63, 0xdb]),
+            "the immediate operand must not re-extend"
+        );
+        assert_eq!(&bytes[3..6], &[0x4d, 0x29, 0xda], "wide 64-bit sub r10, r11");
+    }
+
+    #[test]
+    fn unsigned_saturating_subtract_clamps_downward_with_a_signed_compare() {
+        // 10u8 - 100u8 wide-computes to -90, whose UNSIGNED reading is huge:
+        // the subtract arm clamps to 0 through cmovl (signed), never cmova.
+        let mut bytes = Vec::new();
+        append_saturating_trapping_add_sub(
+            &mut bytes,
+            ArithmeticDomain::Saturating,
+            StateGuardOperator::Subtract,
+            1,
+            false,
+            false,
+            false,
+        )
+        .expect("emit");
+        assert!(
+            bytes.windows(4).any(|w| w == [0x4d, 0x0f, 0x4c, 0xd3]),
+            "expected cmovl (signed lower clamp to 0)"
+        );
+        assert!(
+            !bytes.windows(4).any(|w| w == [0x4d, 0x0f, 0x47, 0xd3]),
+            "an unsigned upper cmova would clamp underflow to MAX"
         );
     }
 

@@ -86,24 +86,12 @@ should target NEW feature surfaces as they land, not re-walk these axes.
 
 ## Open bugs / gaps (ungated)
 
-- **Sat/Trap narrow arithmetic corrupts WIDE LITERAL operands (the MIN
-  idiom; root-caused 2026-07-15).** `(0 as i32 in Saturating) - 2147483648`
-  -- the only spelling for i32::MIN, Omega has no negative literals -- gives
-  MAX natively, MIN on the interp: the sat/trap narrow paths sign-extend
-  operand registers from the TARGET width, corrupting a literal loaded at
-  its true wide value. Exact/Wrapping immune (plain wide-compute +
-  store-truncate). AARCH64 + INTERP FIXED (2026-07-16):
-  per-side is-immediate flags thread from both callers, the signed
-  extension skips immediates (their loaded value IS the true wide value),
-  width twin in lockstep, shl value-extension shares the skip. REMAINING --
-  x86_64: the multiply prologue movsx needs the same per-side skip, and the
-  flag-width add/sub cannot hold a wide immediate at all -- migrate them to
-  the wide 64-bit op + the shared narrow_range_clamp_or_trap tail (per-side
-  extension skip included), then promote the pending canary with a
-  linux_x64 byte pin. (A validation-level rejection is WRONG -- breaks the
-  MIN idiom corpus-wide; probed, 7 canaries trip.) Pinned:
-  pending/arithmetic/sat_narrow_wide_literal_operand_divergence, hold now
-  (70, Exit(70)) on the arm64 host.
+- The MIN-idiom corruption CLOSED (2026-07-16): sat/trap narrow paths
+  never re-extend IMMEDIATE operands on either ISA; x86_64's flag-width
+  narrow add/sub migrated to the wide-op + shared-tail shape (the unsigned
+  tail direction-splits per operator: subtract clamps DOWNWARD through a
+  signed compare). Promoted: pass/arithmetic/runtime_sat_min_idiom_exit +
+  the linux_x64 byte pin. Item closes next condense.
 
 - **FS-LANE FOLLOW-THROUGH: texteq arm-locals still ZII for non-terminal
   consumers (found 2026-07-15 probing the just-closed leaf fix).** The

@@ -58,6 +58,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("arithmetic/runtime_shift_atwidth_indexed_targets_exit", 70),
     ("arithmetic/runtime_sat_nested_operand_domain_exit", 70),
     ("arithmetic/runtime_sat_unsigned_onedirection_exit", 70),
+    ("arithmetic/runtime_sat_min_idiom_exit", 70),
     ("arithmetic/runtime_shl_saturating_exit", 70),
     ("arithmetic/runtime_shl_saturating_atwidth_exit", 70),
     ("proofs/runtime_decreases_u64_measure_exit", 70),
@@ -1870,10 +1871,6 @@ const PENDING_RUNTIME_DIVERGENCES: &[(&str, i32, PendingInterpOutcome)] = &[
     ("arithmetic/array_field_default_silent", 0, PendingInterpOutcome::Exit(1)),
     ("calls/texteq_local_guard_read_divergence", 71, PendingInterpOutcome::Exit(70)),
     ("calls/texteq_local_arg_forward_divergence", 71, PendingInterpOutcome::Exit(70)),
-    // aarch64 + interp now agree at MIN (the per-side immediate-skip fix);
-    // parked only for the x86_64 half (its flag-width add/sub needs the
-    // wide-op migration; its multiply the same movsx skip).
-    ("arithmetic/sat_narrow_wide_literal_operand_divergence", 70, PendingInterpOutcome::Exit(70)),
     ("arithmetic/const_fold_unsigned_divide_miscompile", 71, PendingInterpOutcome::Exit(70)),
     ("arithmetic/const_fold_unsigned_shift_right_miscompile", 71, PendingInterpOutcome::Exit(70)),
     ("arithmetic/float_to_int_overflow_divergence", 99, PendingInterpOutcome::Exit(71)),
