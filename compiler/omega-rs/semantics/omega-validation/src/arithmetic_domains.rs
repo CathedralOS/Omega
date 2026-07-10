@@ -1709,12 +1709,54 @@ pub(crate) fn range_constraint_interval(
             .find_map(|constraint| match constraint {
                 TypeConstraintNode::Range { minimum, maximum } => Some(Interval {
                     low: Some(literal_i64(program, *minimum)?),
-                    high: Some(literal_i64(program, *maximum)?),
+                    high: Some(
+                        literal_i64(program, *maximum).or_else(|| {
+                            dependent_maximum_substituted(program, *maximum)
+                        })?,
+                    ),
                 }),
                 _ => None,
             }),
         _ => None,
     }
+}
+
+/// R1a dependent maximum in interval position: `[0..=self.count]` reads as
+/// the named field's own enforced literal HIGH plus the offset -- sound
+/// because the field's range is store-enforced at every write, so the
+/// dependent bound can never exceed it. The field is resolved by NAME
+/// across all data definitions and must be UNIQUE (or agree everywhere);
+/// an ambiguous name with disagreeing ranges bails rather than guesses
+/// (this helper has no machine context; the declaration gate has already
+/// verified the binding machine's own field is ranged).
+fn dependent_maximum_substituted(
+    program: &TypedTrees,
+    maximum: omega_typed_trees::expression::ExpressionHandle,
+) -> Option<i64> {
+    let symbolic = omega_typed_trees::dependent_ranges::symbolic_max_bound(
+        &program.expression_table,
+        maximum,
+    )?;
+    let mut resolved: Option<i64> = None;
+    for data in program.data_definitions() {
+        for member in program.data_members(data) {
+            let omega_typed_trees::data::DataMember::Field(field) = member else {
+                continue;
+            };
+            if field.name.as_str() != symbolic.field.as_str() || !field.type_reference.is_valid()
+            {
+                continue;
+            }
+            let high = range_constraint_interval(program, field.type_reference)
+                .and_then(|interval| interval.high)?;
+            match resolved {
+                None => resolved = Some(high),
+                Some(existing) if existing == high => {}
+                Some(_) => return None,
+            }
+        }
+    }
+    resolved?.checked_add(symbolic.offset)
 }
 
 /// S4 return-range inference: the DECLARED return type of a value-position call,

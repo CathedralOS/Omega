@@ -107,7 +107,14 @@ header above for the verified spelling). Rungs, in payoff order:
   tighter-or-equal sibling bound via its OWN atom, fenced on the state
   PRESERVING the field (any write to it or opaque call defeats the
   route -- entry-to-entry bridging; the defeat is pinned by
-  fail/dependent/dependent_forward_after_write_rejected). REMAINING for
+  fail/dependent/dependent_forward_after_write_rejected). The R0 x R1a
+  COMPOSITION landed same day: dependent params feed product indexes with
+  RUNTIME arguments (`pixels[y*4+x]` with `y: [0..=self.rows]`) -- the
+  overflow proof (arithmetic_domains range_constraint_interval,
+  unique-field substitution) and the hoist's temp-range synthesis
+  (hoist_temp_type resolved-tree twin recognizer, attached-data-resolved)
+  both read the substituted intervals; pinned
+  pass/dependent/runtime_dependent_product_index_exit. REMAINING for
   R1 proper: relational ORDERING facts inside the callee (`i <= count`
   fed to the DBM so in-state guards compose beyond forwarding),
   value-vs-value guard mints at range endpoints generally
