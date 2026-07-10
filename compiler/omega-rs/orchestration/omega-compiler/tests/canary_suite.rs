@@ -20772,6 +20772,31 @@ fn runtime_addr_value_flow_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_addr_algebra_exit_canary_runs() {
+    // The legal addr algebra: addr - count, addr - addr -> count, ordering.
+    let canary = pass_canary("types/runtime_addr_algebra_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-addralg-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("addr algebra canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("addr algebra canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "addr algebra canary should pass all legs (exit 70), got {:?}",
+        output.status.code(),
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_ref_param_method_dispatch_exit_canary_runs() {
     let canary = pass_canary("traits/runtime_ref_param_method_dispatch_exit");
     let main_path = canary.join("main.omg");
@@ -28216,6 +28241,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "arithmetic/runtime_sat_nested_operand_domain_exit",
     "arithmetic/runtime_sat_unsigned_onedirection_exit",
     "types/runtime_addr_value_flow_exit",
+    "types/runtime_addr_algebra_exit",
     "arithmetic/runtime_shl_saturating_exit",
     "arithmetic/runtime_shl_saturating_atwidth_exit",
     "proofs/runtime_decreases_u64_measure_exit",

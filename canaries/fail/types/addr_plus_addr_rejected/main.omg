@@ -1,0 +1,13 @@
+// FAIL canary: `addr + addr` is MEANINGLESS under the index/count/address
+// model -- adding two addresses has no referent (and no representation on
+// CHERI-class targets where addr may be a 128-bit capability). The legal
+// algebra: addr +/- count offsets; addr - addr measures. Multiplying,
+// dividing, or shifting an address rejects through the same fence.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine Main::main(&mut self) {
+    let a: addr = 4096;
+    let b: addr = 4000;
+    let r: addr = a + b;
+    self.console.exit_process(70);
+}
