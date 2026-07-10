@@ -119,6 +119,19 @@ results in Omega. Interpreter = full-parity reference oracle for everything.
    rung, may need owner input on platform-vs-boundary-trait
    convergence.
 
+0b. **[CLAIMED 2026-07-17, from TASKS.md NEXT PICK (owner priority
+   2026-07-15) -- no lane was driving it]** Cathedral M2 unblock, the
+   two red efi tests: (1) `targets/efi_vtable_call` -- the
+   boot-verified M1 dispatch (`provides TextOutput { output_string ->
+   VtableSlot(1) }`) went WIDTH-0 at the vtable encoder (their
+   2026-07-11 note; "restore existing machinery"). (2)
+   `targets/efi_ref_param_call_arg` -- `&mut` out-params through that
+   boundary call, MS-x64. Both byte-pin tests are cfg(windows), but PE
+   emission is cross-target: verify here by compiling for uefi_x64
+   WITH output and checking .text (the `mov rax,[rcx+8]; call rax`
+   needle). NOTE this lane also owns the adjacent x86_64 byte-op
+   encoder follow-up (item 0 (x)) -- same encoder territory.
+
 1. **Windows-session bundle** (needs a Windows host): verify the stat-row
    migration natively; WINDOWS_IMPORT_ROWS migration into provides files;
    Win32 rows for the no-msvcrt ops; file_journal-on-windows recheck;
