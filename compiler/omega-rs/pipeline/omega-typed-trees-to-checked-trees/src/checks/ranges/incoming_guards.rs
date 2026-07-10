@@ -13,11 +13,21 @@ use super::guards::{seed_guard_facts, seed_negated_guard_facts};
 /// along single-predecessor edges reaches this guarded arm, and no field the
 /// guard names is rewritten between that arm and the state's entry.
 #[derive(Clone)]
-pub(super) struct IncomingGuard {
+pub(in crate::checks) struct IncomingGuard {
     state: SymbolHandle,
     guard: ExpressionHandle,
     /// True when the edge is the negated (continuation / `_`) arm.
     negated: bool,
+}
+
+impl IncomingGuard {
+    pub(in crate::checks) fn holds_at(&self, state: SymbolHandle) -> bool {
+        self.state == state && !self.negated
+    }
+
+    pub(in crate::checks) fn guard(&self) -> ExpressionHandle {
+        self.guard
+    }
 }
 
 #[derive(Clone)]
@@ -55,7 +65,7 @@ enum StateWrites {
 /// Facts are keyed by symbol, so a guard naming a source-state local (a
 /// different symbol than anything in the target) is inert rather than unsound;
 /// only machine fields (`self.x`), shared across states, actually carry.
-pub(super) fn collect_incoming_guard_facts(
+pub(in crate::checks) fn collect_incoming_guard_facts(
     program: &omega_typed_trees::TypedTrees,
     machine: &Machine,
 ) -> Vec<IncomingGuard> {

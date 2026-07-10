@@ -1,11 +1,10 @@
 // FAIL CANARY: calling a machine whose `requires` names field facts the
 // CALLER has not established refuses -- the contract prover demands the
-// fact at the call site ("establish it before the call"). NOTE the
-// current intake gap (recorded in TASKS.md's R1 remainder): an
-// incoming-ARM guard (`transition self.a <= self.b { true -> ... }`)
-// does not yet feed the contract prover, so even a guarded caller
-// refuses -- when that intake lands, this canary's sibling shape flips
-// to a pass canary and this one keeps the truly-unguarded refusal.
+// fact at the call site ("establish it before the call"). The guarded
+// sibling shape PASSES since the incoming-guard intake landed
+// (pass/dependent/runtime_requires_guarded_call_exit); this pin keeps
+// the truly-unguarded refusal, and guard-then-write-before-the-call
+// also refuses (the caller state's own preservation scan).
 boundary trait Console { machine exit_process(return_code: i32); }
 data Main { console: Console; a: u32; b: u32; out: i32; }
 machine Main::main(&mut self) {
