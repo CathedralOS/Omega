@@ -369,6 +369,34 @@ fn linux_x64_wrapping_shl_clamp_bytes_present() {
             .any(|window| window == min_idiom_sub),
         "the MIN-idiom wide-sub + immediate-skip sequence must be emitted"
     );
+
+    // The wire decode-boundary utf8 validator (the promoted refusal canary):
+    // the walk's pointer/end setup (mov rcx,r15 / mov r11,r15 / add r11,rax)
+    // followed by the loop-head compare and the lead load.
+    let utf8_canary = pass_canary("wire/runtime_wire_utf8_invalid_refused_exit");
+    fs::copy(utf8_canary.join("main.omg"), src_dir.join("main.omg")).expect("copy utf8 canary");
+    let out_utf8 = scratch.join("out-utf8");
+    compile(CompileOptions {
+        root_path: src_dir.join("main.omg"),
+        build_dir: Some(out_utf8.clone()),
+        target_name: Some("linux_x64".to_owned()),
+        write_output: true,
+    })
+    .expect("utf8 refusal canary should cross-compile for linux_x64");
+    let elf_utf8 = fs::read(out_utf8.join("omega-program")).expect("linux_x64 ELF emitted");
+    let validator_head = [
+        0x4c, 0x89, 0xf9, // mov rcx, r15
+        0x4d, 0x89, 0xfb, // mov r11, r15
+        0x49, 0x01, 0xc3, // add r11, rax
+        0x4c, 0x39, 0xd9, // cmp rcx, r11 (loop head)
+        0x0f, 0x83, // jae rel32 (to Done)
+    ];
+    assert!(
+        elf_utf8
+            .windows(validator_head.len())
+            .any(|window| window == validator_head),
+        "the utf8 validation walk must be emitted"
+    );
     let _ = fs::remove_dir_all(&scratch);
 }
 
@@ -7343,6 +7371,31 @@ fn runtime_wire_utf8_edge_verdicts_exit_canary_runs() {
         output.status.code(),
         Some(70),
         "utf8 edge canary should agree on every class (exit 70), got {:?}",
+        output.status.code(),
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_wire_utf8_invalid_refused_exit_canary_runs() {
+    // Adversarial 0xFF 0xFF refuses with verdict Invalid on every engine.
+    let canary = pass_canary("wire/runtime_wire_utf8_invalid_refused_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-utf8ref-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("utf8 refusal canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("utf8 refusal canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "adversarial bytes must refuse (exit 70), got {:?}",
         output.status.code(),
     );
     let _ = fs::remove_dir_all(&build_dir);
@@ -28364,6 +28417,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "text/runtime_text_equals_value_positions_exit",
     "wire/runtime_wire_roundtrip_utf8_exit",
     "wire/runtime_wire_utf8_edge_verdicts_exit",
+    "wire/runtime_wire_utf8_invalid_refused_exit",
     "control_flow/runtime_case_member_dispatch_exit",
     "control_flow/runtime_local_boolean_or_value_exit",
     "control_flow/runtime_straight_line_terminal_local_exit",
@@ -29362,10 +29416,6 @@ const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
     },
     PendingCanary {
         path: "calls/trailing_state_mut_param_phase_divergence",
-        expectation: PendingCanaryExpectation::CurrentlyAccepts,
-    },
-    PendingCanary {
-        path: "wire/utf8_decode_accepts_invalid_bytes",
         expectation: PendingCanaryExpectation::CurrentlyAccepts,
     },
     PendingCanary {
