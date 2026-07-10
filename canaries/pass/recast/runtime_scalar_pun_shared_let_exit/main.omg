@@ -1,0 +1,41 @@
+// RUN CANARY (exit 70) + interpreter differential. The §5b shared scalar
+// recast serves NATIVELY: `let v: &f32 = &self.bits as &f32` reads
+// 0x40490FDB as pi and `&self.wide as &i32` reads u32::MAX as -1, both
+// engines. PROMOTED from the pending native-ZII pin; the closing fixes:
+// (a) the recast initializer strips to its source place at the
+// LocalStorage write (+ EIGHT backend cast-rebuild sites that silently
+// erased CastForm now forward it); (b) reads through the view use the
+// STATED type's width -- the guards operand layout presents the referee
+// width for &scalar locals, and constant float expectations re-encode to
+// f32 bits against 4-byte float places (which ALSO fixed plain f32 field
+// guards, broken program-wide: arithmetic/runtime_f32_field_guard_exit).
+// This closes the recast rung-A native gap -- Cathedral M2's last
+// compiler-side blocker family continues at rungs B/C (interior +
+// runtime-offset recasts).
+// exits: 71 = float pun read wrong; 72 = sign pun read wrong.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main {
+    console: Console;
+    bits: i32;
+    wide: u32;
+}
+machine Main::main(&mut self) {
+    // 0x40490FDB = the f32 bit pattern of pi.
+    self.bits = 1078530011;
+    let v: &f32 = &self.bits as &f32;
+    transition v > 3.14 && v < 3.15 {
+        true -> sign_pun()
+        _ -> bad_float()
+    }
+    state sign_pun(&mut self) {
+        self.wide = 4294967295;
+        let s: &i32 = &self.wide as &i32;
+        transition s == -1 {
+            true -> good()
+            _ -> bad_sign()
+        }
+    }
+    state good(&mut self)      { self.console.exit_process(70); }
+    state bad_float(&mut self) { self.console.exit_process(71); }
+    state bad_sign(&mut self)  { self.console.exit_process(72); }
+}

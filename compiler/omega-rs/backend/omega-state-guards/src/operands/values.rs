@@ -3,6 +3,20 @@ use omega_checked_trees::expression::{
 };
 use omega_layout::{DataShape, LayoutPlan};
 
+/// Whether a guard operand is a CONSTANT float expression (a float literal
+/// or foldable float arithmetic) -- the conjunction clause builder marks
+/// such compares float-kinded so the emission takes the FCMP path.
+pub(crate) fn guard_operand_is_float_constant(
+    table: &ExpressionTable,
+    expression: ExpressionHandle,
+) -> bool {
+    match table.expression(expression) {
+        ExpressionNode::Float(_) => true,
+        ExpressionNode::Binary(_) => const_fold_float(table, expression).is_some(),
+        _ => false,
+    }
+}
+
 pub(super) fn resolved_guard_operand_value(
     layouts: &LayoutPlan,
     table: &ExpressionTable,

@@ -342,6 +342,8 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("dependent/runtime_requires_guarded_call_exit", 6),
     ("dependent/runtime_sibling_len_index_exit", 7),
     ("dependent/runtime_bounded_product_index_exit", 7),
+    ("recast/runtime_scalar_pun_shared_let_exit", 70),
+    ("arithmetic/runtime_f32_field_guard_exit", 70),
     ("collections/runtime_indexed_guard_true_false_pair_exit", 70),
     ("collections/runtime_indexed_field_local_operand_exit", 70),
     ("collections/runtime_indexed_local_bitwise_exit", 70),
@@ -1885,7 +1887,6 @@ enum PendingInterpOutcome {
 /// when a divergence's documented behavior changes.
 const PENDING_RUNTIME_DIVERGENCES: &[(&str, i32, PendingInterpOutcome)] = &[
     ("arithmetic/array_field_default_silent", 0, PendingInterpOutcome::Exit(1)),
-    ("recast/scalar_pun_shared_let_native_zii", 71, PendingInterpOutcome::Exit(70)),
     ("calls/texteq_local_guard_read_divergence", 71, PendingInterpOutcome::Exit(70)),
     ("calls/texteq_local_arg_forward_divergence", 71, PendingInterpOutcome::Exit(70)),
     ("calls/trailing_state_mut_param_phase_divergence", 71, PendingInterpOutcome::Exit(70)),

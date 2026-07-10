@@ -328,43 +328,17 @@ transition loop-backs unchanged (unmeasured, constant-stack, may diverge).
 - **RECAST (settled §5b): IN PROGRESS, main lane (claimed 2026-07-09 —
   jumped the validate-mint queue; it is the last compiler-side M2 blocker
   per the fs-lane rung-3 smoke).** Ladder + state:
-  - **(A) static core — LANDED except the native write (2026-07-09).**
-    Parser (`as &[mut] T` rides the Cast node as `CastForm`, omega-core
-    cast_form.rs, threaded through all four tree crates); the rung-A
-    judgment (omega-validation recasts.rs: shared scalar equal-width only,
-    stated-type restated by the let, bool/text refused absolutely, `&mut`
-    + records + non-let positions fenced loudly, D14-style blessed-root
-    sweep); the companion rule REFUSES the previously-unjudged reference-
-    let pun (`let v: &f32 = &self.x` over i64 compiled and DIVERGED —
-    found probing this rung; 4 fail canaries under canaries/fail/recast/).
-    Interp serves (eval_recast bit-reinterprets; snapshot is sound under
-    exclusivity). NATIVE GAP pinned pending/recast/
-    scalar_pun_shared_let_native_zii (71, Exit(70)): reference locals
-    materialize as pointee-VALUE copies into pointer-wide slots; the
-    write planner has no arm for a recast initializer (slot stays ZII)
-    and the guard operand layout reads slot-width, not stated-width.
-    NEXT: (a) let-write byte-copies the source place's bytes, (b) reads
-    through the view use the stated type's width/kind — both in the
-    write-planning + state-guards operand machinery. ENTRY POINTS located
-    (2026-07-09 survey): the reference-let initializer write plans through
-    the LocalStorage operation path (instruction-selection
-    runtime_dispatch.rs ~:1030 `local_data_initializer_expression` + its
-    dispatch-walk callers -- the same-type case emits `write
-    runtime_frame_storage@N bytes 8 <pointee value>`; a Cast initializer
-    currently yields NO write, the ZII slot); the read side is
-    omega-state-guards operands/layout.rs (~:280
-    TypeLayoutDescriptor::Reference arm) which sizes the compare by the
-    SLOT (8) instead of the stated referee (f32 -> bytes 8 vs 4). Fix (a) LANDED
-    2026-07-09: strip_recast_initializer at the LocalStorage write + the
-    EIGHT backend cast-rebuild sites now FORWARD the source form (they
-    hardcoded CastForm::Value, silently erasing recast-ness in
-    alias/binding rebuilds -- the write now lands the source's bit
-    pattern in the slot). Fix (b) remains, mapped in the pin: guards
-    operand layout presents SLOT width for Reference-to-scalar locals
-    (must present referee width); float literals always encode f64 bits
-    (must encode f32 when the other operand is f32-stated); and the
-    compare emission needs a 4-byte float leg (comiss / fcmp s-regs) on
-    BOTH ISAs.
+  - **(A) static core — COMPLETE (native closed 2026-07-09).** Parser,
+    judgment, interp, and BOTH native halves: (a) the recast initializer
+    strips to its source place at the LocalStorage write (+ eight backend
+    cast-rebuild sites that silently erased CastForm now forward it);
+    (b) reads through the view use the stated type's width (guards layout
+    presents the referee width for &scalar locals; constant float
+    expectations re-encode to f32 bits against 4-byte float places --
+    which ALSO fixed plain f32 field guards, broken program-wide; pinned
+    arithmetic/runtime_f32_field_guard_exit). Promoted:
+    pass/recast/runtime_scalar_pun_shared_let_exit. The fs lane's M2
+    rung-3 blocker family continues at (B)/(C).
   - **(B)** interior recast into a `[u8; N]` region at a static offset
     (footprint-fits judgment + fact implication over the region).
   - **(C)** the Cathedral shape — runtime offset strided by runtime
