@@ -20,7 +20,7 @@ the facts that APIs and mutations require.
 > are single-field sugar for it; see
 > [Chapter 12](chapter_12_dependent_types.md)); a store the checker cannot
 > prove domain-preserving opens an [invariant
-> window](chapter_11_relax_scopes.md), re-proven at the next consumption
+> window](chapter_11_invariant_windows.md), re-proven at the next consumption
 > point (settled 2026-07-17 — supersedes the earlier store-rejection +
 > `relax` model). There are **no default *values*** on data
 > (see [Chapter 1](chapter_1_data_values_literals.md)); ZII is the substrate and
