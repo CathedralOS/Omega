@@ -102,12 +102,18 @@ header above for the verified spelling). Rungs, in payoff order:
   (range substituted through the field's store-enforced literal high --
   immune to mid-state reassignment; params are immutable so no write
   hole). Canaries: pass/dependent/runtime_dependent_param_range_exit +
-  4 fail shapes under fail/dependent/. REMAINING for R1 proper:
-  R1b relational callee facts (`i <= count` as an ordering fact the DBM
-  consumes -- unlocks guards inside the callee), value-vs-value guard
-  mints at range endpoints generally (`requires a.cols == b.rows`), and
-  machine-signature `requires` surface with the bracket-as-sugar
-  desugar. Cross-machine dependent params ride R4 (boundary witnesses).
+  4 fail shapes under fail/dependent/. FORWARDING landed
+  same day (route c): a dependent param forwards into a same-field
+  tighter-or-equal sibling bound via its OWN atom, fenced on the state
+  PRESERVING the field (any write to it or opaque call defeats the
+  route -- entry-to-entry bridging; the defeat is pinned by
+  fail/dependent/dependent_forward_after_write_rejected). REMAINING for
+  R1 proper: relational ORDERING facts inside the callee (`i <= count`
+  fed to the DBM so in-state guards compose beyond forwarding),
+  value-vs-value guard mints at range endpoints generally
+  (`requires a.cols == b.rows`), and machine-signature `requires`
+  surface with the bracket-as-sugar desugar. Cross-machine dependent
+  params ride R4 (boundary witnesses).
 - **R3 (relational bounded-product):** ONE closed rule (`0<=a<=A, 0<=b =>
   a*b<=A*b`) over the polynomial engine -- needed only where operand ranges
   are NOT independently tight (x < w with wide w; i*stride via i < count).

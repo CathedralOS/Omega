@@ -1,0 +1,23 @@
+// FAIL CANARY (R1b soundness fence): forwarding a dependent-ranged param
+// into a same-bound sibling is route (c) -- the argument's own atom -- but
+// that atom speaks of the field AT THIS STATE'S ENTRY while the new
+// obligation speaks of the NEXT entry. A write to the field in between
+// (here `self.count = 3` after entering with i <= count == 8) makes the
+// bridge unsound, so the write DEFEATS the route and the transition
+// refuses (relate them with a fresh guard after the write instead).
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; items: [u8; 12]; count: u32 [0..=11]; j: u32; out: i32; }
+machine Main::main(&mut self) {
+    self.count = 8;
+    self.j = 6;
+    transition self.j <= self.count { true -> read(self.j) _ -> bad() }
+    state read(&mut self, i: u32 [0..=self.count]) {
+        self.count = 3;
+        transition self.out == 0 { true -> deeper(i) _ -> bad() }
+    }
+    state deeper(&mut self, k: u32 [0..=self.count]) {
+        self.out = self.items[k] as i32;
+        self.console.exit_process(self.out);
+    }
+    state bad(&mut self) { self.console.exit_process(9); }
+}
