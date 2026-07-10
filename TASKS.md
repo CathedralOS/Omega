@@ -256,9 +256,13 @@ with a real app-window story.
   delete `PrimitiveType::String` + ~16 backend special-cases, retire the
   keyword. Recipe: wiki/architecture/string_retirement_execution.md. The
   capstone of the encoding-domains arc — NOT a background-tick item.
-- **Default-domain invariants (relax follow-up):** pin the declaration
-  surface + init-syntax for cross-field-related `self` reconstruction at
-  implementation time.
+- **Default-domain invariants (gating + windows follow-up):** pin the
+  cross-field fact spelling in the data body + init-syntax for
+  cross-field-related `self` reconstruction at implementation time.
+  (Settled 2026-07-17: zero-excluding default domains GATE the type;
+  store-time enforcement superseded by consumption-point invariant
+  windows — ch11 rewritten, ch7/8/9/23 + appendix restated, record in
+  design_briefs/dependent_types.md §6.)
 
 ## Structural follow-ups (surface landed; semantics pending)
 
@@ -275,8 +279,14 @@ with a real app-window story.
   reuse, override rules, dispatch pending.
 - **Dynamic traits (`dyn Trait`):** structural + fat descriptor; construction,
   vtable emission, dispatch lowering, object-safety validation pending.
-- **Relax semantics:** scopes flatten structurally; the checked-tree/proof
-  pass (mark relaxed place, exclusivity, restore obligations at exit) pending.
+- **Relax RETIRED (settled 2026-07-17):** superseded by invariant windows
+  (consumption-point enforcement; ch11 rewritten — writes never fail domain
+  checks, windows close at read/borrow/call/transition/return/boundary; the
+  borrow checker IS the exclusivity story). The pending exclusivity pass is
+  CANCELLED. Engineering follow-up: remove the parsed `relax` surface
+  (parser/statement.rs, type_reference.rs) + the relax canaries
+  (canaries/pass/relax/*) + any corpus uses, replacing with plain writes —
+  a deliberate compiler pass, coordinate with active lanes.
 
 ## Vertical slices
 

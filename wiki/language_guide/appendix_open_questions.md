@@ -9,7 +9,7 @@ This page tracks design pressure that is not fully nailed down yet.
 - `machine` is the callable boundary. Calling a machine creates the callable activation; transitioning to an internal `state` does not.
 - States are graph labels inside the current machine. They may take arguments and participate in return-value compatibility, but they are reached by `transition`, not by normal call syntax.
 - Terminal value completion is useful: a final value completes the active machine with a value, while `transition { _ -> state_name(args) }` jumps to an internal state.
-- Relax obligations are compile-time proof obligations. The runtime should not carry hidden invariant state unless a debug/proof artifact explicitly asks for it.
+- Invariant-window obligations are compile-time proof obligations. The runtime should not carry hidden invariant state unless a debug/proof artifact explicitly asks for it.
 - Target signatures define the invariants they accept. Either the caller can prove the handoff satisfies the signature, or the transition is illegal.
 - `domain` names a type-scoped proof predicate over an existing value. Domains
   may have explicit `when` classifiers for cheap domain-pattern matching, but
@@ -358,8 +358,8 @@ This page tracks design pressure that is not fully nailed down yet.
 - When domains can participate in operator resolution, what exact ambiguity
   rules should apply, and which concepts should remain ordinary value domains
   versus a separate evaluation-mode/policy system?
-- Should relax ever permit graph-edge proof debt, or should it remain strictly
-  lexical and non-transitioning?
+- Should invariant windows ever permit graph-edge proof debt, or should
+  transitions remain consumption points (the settled position, 2026-07-17)?
 - How explicit should weakened machine invariants be in target state signatures?
 - What syntax should Omega use for float optimization permissions, separate from float invariants?
 - Which float properties should be first-class invariants: `finite`, `non_nan`, `normal`, signed-zero policy, or something else?

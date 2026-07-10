@@ -112,8 +112,10 @@ data MemoryMap {
 >   requirements; such a type is simply not zero-constructible. Its zeroed
 >   form exists only as storage — memory the compiler may still zero-fill —
 >   and is inaccessible as the type until construction or an `as` mint
->   proves the default domain. Establishment is monotone: every later store
->   re-proves the domain, so an established place never falls back.
+>   proves the default domain. Establishment is monotone as observed: a
+>   later write may open an invariant window (chapter 11), but every
+>   consumption point closes it, so no observer sees an established place
+>   fall back.
 >
 > `MemoryMap` above is gated (`stride >= 40` fails at zero). The landed rule
 > that a declared range must include zero is this model's first tier as an
@@ -150,16 +152,18 @@ Working rules:
   storage — the machine simply cannot read it as the type until some state
   establishes it.
 
-- **A lone write to a witness is rejected when it would break a coupling.**
-  The store checker enforces the default domain at every write, the same
-  pass that enforces ranges. The two sanctioned update shapes are chapter
-  11's: construct a valid whole (init-syntax), or open a `relax` scope that
-  updates witness and dependents together and re-proves at exit:
+- **A write that breaks a coupling opens an invariant window**
+  (chapter 11). Write the witness and its dependents in either order; the
+  coupling is re-proven from the flow facts at the next consumption point —
+  read, borrow, call, transition, or return. Nothing can observe the value
+  mid-window. Init-syntax (construct a valid whole) remains the idiomatic
+  form when rebuilding is cheap:
 
   ```omega
-  relax self.map {
-      MemoryMap::refill(&mut relaxed self.map, source);
-  }
+  self.map.count = fresh_count;      // window opens: coupling unproven
+  self.map.len = fresh_len;          // flow facts accumulate
+  // next consumption point proves count * stride <= len, or errors
+  // citing both the opening write and the point that needed it closed
   ```
 
 - **A live borrow of a dependent place pins its witnesses.** `&self.map.buf`
@@ -276,8 +280,8 @@ The frame rule is **preserve-unless-written, at borrow granularity**:
 - A place passed by exclusive borrow loses its flow-scoped extras
   (guard-minted narrowings, minted subdomains), atom by atom. Declared
   ranges, standing couplings, and domain memberships survive every call:
-  stores inside the callee re-prove them, and a `relax` must close before
-  control returns.
+  calls and returns are consumption points (chapter 11), so a callee cannot
+  return — or call onward, or hand out a borrow — with an open window.
 - Callee `ensures` adds facts back.
 - Capability effects havoc the facts minted from that capability's boundary.
   Effects frame capability-reachable state only; they never name program
@@ -351,8 +355,8 @@ This chapter is intentionally narrow:
   their facts may name.
 - Chapter 8 owns domains and `as` mints; establishing a gated default domain
   at a boundary decode is an ordinary `as` mint.
-- Chapter 11 owns the mutation discipline; a coupling update is a relax
-  scope.
+- Chapter 11 owns the mutation discipline; a coupling update is an
+  invariant window closed at the next consumption point.
 - Chapter 12 owns the static lowering; const parameters are witnesses the
   compiler evaluates away.
 - Chapters 19/20 own layout and the recast borrow; dynamic strides are their

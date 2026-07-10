@@ -319,7 +319,7 @@ and Zig packed structs are the real precedents.
   `u8 < 8` placed in `Bits(..., width: 3)`. Reads project a plain `u8` with
   the range fact **established free** (the mask is the proof). Arithmetic is
   ordinary; write-back re-discharges the range obligation — identical to any
-  invariant-carrying field (relax-scopes applies). No casts; no promotion
+  invariant-carrying field (invariant windows apply, ch11). No casts; no promotion
   rules; overflow = failed obligation, never silent wrap.
 - Stated plans put page-table entries at datasheet positions
   (`Bits(0, 64, 12, 40)` for the frame) and validation rejects straddles.

@@ -14,8 +14,9 @@ for a value.
 > point (`as`) when provable. This is why a per-field constraint and a domain are the
 > *same* mechanism (see [Chapter 7](chapter_7_types_constraints_invariants.md)):
 > single-field constraints are standing invariants of the default domain; cross-field
-> invariants live there too but are reached only via construction or a [`relax`
-> scope](chapter_11_relax_scopes.md). *Settled model; not yet implemented.*
+> invariants live there too, with stores the checker cannot prove domain-preserving
+> carried as [invariant windows](chapter_11_relax_scopes.md) until the next
+> consumption point (settled 2026-07-17). *Settled model; not yet implemented.*
 
 ```omega
 data Player {
@@ -231,9 +232,10 @@ domain Player::Dead {
 }
 ```
 
-Relax scopes may temporarily suspend a required fact inside a machine body, but
-that does not make an invalid value a member of a domain. Domain membership is a
-fact about values that satisfy the type's ordinary validity rules.
+An invariant window may temporarily suspend a required fact inside a machine
+body, but that does not make a mid-window value a member of a domain. Domain
+membership is a fact about values that satisfy the type's ordinary validity
+rules — and nothing can observe a value mid-window (Chapter 11).
 
 ## Domain Patterns
 

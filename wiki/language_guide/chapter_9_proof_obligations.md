@@ -49,8 +49,9 @@ Likely obligations:
 - Every transition into a typed state provides compatible arguments.
 - Every typed transition satisfies return value compatibility.
 - Every transition dispatch arm establishes the assumptions needed by its target.
-- Every `relax` scope re-establishes all relaxed invariants before exit.
-- No transition occurs while a relax scope is active.
+- Every invariant window closes — its suspended facts re-proven — at the next
+  consumption point (read, borrow, call, transition, return, boundary).
+- No window spans a transition edge: transitions are consumption points.
 - Every generic invariant is instantiated with compile-time or proof-visible facts.
 - Every float invariant is checked as a semantic fact, not treated as an optimization permission.
 - Every owned value that dies on a transition edge is cleaned up before the
@@ -240,7 +241,7 @@ The subtraction operation has requirements: `self.health` must be mutable, `dama
 
 The assignment back into `self.health` creates obligations: prove the arithmetic is valid and prove the resulting value satisfies the field invariant at the required boundary.
 
-If those obligations are discharged, the operation contributes guarantees: `self.health` is initialized and has the proven resulting facts. If not, the compiler must reject the code, require a different arithmetic mode, require a `relax` scope, or require an explicit checked/boundary depending on the construct.
+If those obligations are discharged, the operation contributes guarantees: `self.health` is initialized and has the proven resulting facts. If not, the compiler carries the debt as an invariant window closed at the next consumption point, requires a different arithmetic mode, or requires an explicit checked/boundary construct — and rejects the code when the window cannot close.
 
 This maps well onto TLA+ style action checking:
 
@@ -248,7 +249,8 @@ This maps well onto TLA+ style action checking:
 - State parameters are action inputs.
 - Transitions are guarded next-state relations.
 - Value constraints are invariants or pre/postconditions.
-- Relax scopes are local invariant weakening with mandatory restoration.
+- Invariant windows are local invariant weakening with mandatory restoration
+  at consumption points.
 
 Invariants are not RTTI. If proof fails, the normal result is a compiler diagnostic, not a hidden runtime tag check. Runtime validation may exist as an explicit debug or proof-emission mode, but it should not define the semantics.
 

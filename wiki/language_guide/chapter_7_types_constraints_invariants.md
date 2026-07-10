@@ -15,10 +15,11 @@ the facts that APIs and mutations require.
 > write). "Top-level" domains like `Player::New` or `Quantity::Additive` are
 > **subdomains** that refine the default domain (tighter invariants, operators,
 > facts) and are proven at a mint point (`as`). Cross-field invariants
-> (`start <= end`) live in the default domain too, but are reachable only by
-> constructing a valid whole (init-syntax) or inside a [`relax`
-> scope](chapter_11_relax_scopes.md) that re-proves at exit — a bare single-field
-> store that would break one is rejected. There are **no default *values*** on data
+> (`start <= end`) live in the default domain too; a store the checker cannot
+> prove domain-preserving opens an [invariant
+> window](chapter_11_relax_scopes.md), re-proven at the next consumption
+> point (settled 2026-07-17 — supersedes the earlier store-rejection +
+> `relax` model). There are **no default *values*** on data
 > (see [Chapter 1](chapter_1_data_values_literals.md)); ZII is the substrate and
 > construction forces the overrides where zero is invalid. **A default domain the
 > zero value cannot satisfy GATES the type (settled 2026-07-17):** such data is not
@@ -60,34 +61,35 @@ proof facts.
 
 ```omega
 data Player {
-    health: i32;
+    health: i32 [0..=100];
 }
 
 machine Player::take_damage(
     &mut self,
-    amount: i32
+    amount: i32 [0..=100]
 ) ensures self.health in 0..=100 {
-    relax self.health {
-        self.health -= amount;
-        Player::restore_health_range(&mut relaxed self.health);
+    let next: i32 = self.health - amount;
+
+    transition next < 0 {
+        true -> floored()
+        false -> settle(next)
     }
 
-    transition self.health <= 25 {
-        true -> bloodied()
-        false -> still_alive()
+    state floored(&mut self) {
+        self.health = 0;
     }
 
-    state bloodied(&mut self) {
-    }
-
-    state still_alive(&mut self) {
+    state settle(&mut self, next: i32) {
+        self.health = next;
     }
 }
 ```
 
-The useful idea is not that `relax` means "anything goes." It means the
-compiler has a proof debt. The normal fact set must be restored before control
-can leave the relax scope. Chapter 11 goes deeper on relax-specific rules.
+The temp carries the arithmetic, the arm facts (`next < 0` / `next >= 0`)
+discharge each store, and both paths discharge the postcondition. Writes that
+transiently break a fact in place are also legal: the compiler carries the
+proof debt as an invariant window, re-proven at the next consumption point —
+Chapter 11 owns those rules.
 
 ## Generic Contracts
 
