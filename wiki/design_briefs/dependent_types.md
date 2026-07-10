@@ -253,12 +253,48 @@ name the missing fact and the minimal guard), and obligations must float
 into `requires` so libraries export them instead of guarding internally —
 without contract floating the stance is compositionally unusable.
 
-ZII interplay: length witnesses at zero mean empty (len=0 → nothing to
-access); standing couplings must hold at the all-zero value (the existing
-"range must include 0" rule, generalized verbatim); facts zero cannot satisfy
-(`stride >= 40`) are minted subdomains, not standing invariants. Decode mints
-grant exactly the checked predicates and nothing more — firmware semantic
-truth is not decodable.
+### ZII and gating (settled 2026-07-17, superseding this brief's first draft)
+
+The first draft of chapter 23 carried a rule — "the zero value must satisfy
+every standing coupling" — generalizing the landed range-must-include-0
+check. Owner discussion replaced it with a strictly more expressive model,
+**gating**, which resolves the ZII/invariant tension instead of legislating
+one side of it:
+
+- Every type has a default domain, declared with the data declaration
+  (undeclared = the empty domain). ZII stays a **storage** guarantee
+  unconditionally: the all-zero pattern is always valid bits, memset always
+  legal, never UB — it constrains the compiler, never the programmer
+  (ch19's existing words).
+- If zero satisfies the default domain, the type is zero-constructible: a
+  zeroed value is born established, the facts are standing everywhere,
+  nothing is tracked. Everything landed today is this tier.
+- If zero does not, the type is **gated**: not zero-constructible. Data can
+  have non-zero requirements — business logic cannot thrive under a
+  zero-init-everything law. The zeroed form exists only as storage and is
+  inaccessible as the type until construction or an `as` mint proves the
+  domain. Establishment is monotone (every later store re-proves the domain,
+  so a place never falls back to hidden) — a cheap one-way fact riding the
+  arrival-facts machinery, not typestate bookkeeping.
+- Construction is the gate: a gated type's literal must prove the domain, so
+  exactly the fields whose zero violates it are mandatory
+  (`Player { health = 50 }` — the ch7 settle's construction semantics,
+  derived rather than separately decreed).
+- The gate propagates through containment (a container of gated data is
+  gated) and is **absorbed by a zero-valid first sum case** — emptiness is
+  spelled as a case (`PlayerSlot::Empty`), not as a nonsense zero value.
+  Machine-owned data is access-gated, not construction-gated (Main boots
+  zeroed; gated fields are storage until a state establishes them).
+- The landed 0-in-range declaration check becomes the first tier as an
+  implementation restriction, not language law.
+- Deferred honestly in every universe: partially-established arrays under
+  runtime indices ("elements below `loaded` are established" is a
+  quantified fact — the quantifier rung).
+
+Decode mints grant exactly the checked predicates and nothing more —
+firmware semantic truth is not decodable. Length witnesses at zero mean
+empty (len=0 → nothing to access) for zero-constructible types; gated types
+are never observed zeroed.
 
 ## 7. (C) The Lean-competitive expansion
 
@@ -360,12 +396,16 @@ Ordered rungs, each independently shippable, each with its acceptance driver:
 
 ## 9. Open questions (owner)
 
-1. The default-domain declaration surface (already an open pin in ch7) is
-   now load-bearing for couplings — priority bump?
+1. ~~The default-domain declaration surface~~ **DIRECTION SETTLED
+   2026-07-17:** coupled with the data declaration — field constraints are
+   the single-field invariants, cross-field facts written in the body
+   alongside the fields. Exact cross-field spelling still open (ch7's pin).
 2. `stores` as the frame-clause name and its boundary-mandatory rule — right
    call?
-3. The ZII generalization (all-zero value must satisfy every standing
-   coupling; zero-unsatisfiable facts are minted subdomains) — confirm.
+3. ~~The ZII generalization~~ **ANSWERED 2026-07-17 by the gating model
+   (§6):** zero-excluding default domains are legal and gate the type; the
+   zero-satisfies rule survives only as the description of the
+   zero-constructible tier.
 4. Chapter numbering: 23-at-the-end with reading-path placement (chosen to
    avoid breaking ~455 chapter-number references incl. live Cathedral wiki
    links) vs a renumber pass.

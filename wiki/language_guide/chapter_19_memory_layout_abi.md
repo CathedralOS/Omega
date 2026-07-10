@@ -40,7 +40,11 @@ facts. A zeroed object has established nothing: it carries no facts, sits
 outside every domain that zero does not satisfy, and cannot be passed where
 those facts are required -- but it is still a memory-safe value, not garbage.
 Proof soundness comes from facts being unestablished on zeroed storage, never
-from pretending the bit pattern cannot exist.
+from pretending the bit pattern cannot exist. A type whose DEFAULT domain
+excludes zero is therefore GATED (settled 2026-07-17): valid as storage, but
+not zero-constructible as a value — access waits on the domain being
+established (see [Chapter 7](chapter_7_types_constraints_invariants.md) and
+[Chapter 23](chapter_23_dependent_types.md)).
 
 Field defaults (`gold: u32 = 5`) describe CONSTRUCTED values; a zeroed object
 does not apply them. The two initialization shapes are distinct on purpose:
