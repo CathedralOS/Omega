@@ -2,13 +2,14 @@ use crate::MachineEmissionContext;
 use crate::host_bindings::host_binding_mechanism;
 use crate::selected_instruction_queries::{selected_host_operation, selected_host_text_read};
 use omega_assigned_target_operations::{
-    SelectedInstructionKind, StateGuardLowering, StateGuardOperator,
+    RuntimeTextReadSource, SelectedInstructionKind, StateGuardLowering, StateGuardOperator,
 };
 use omega_calling_conventions::HostBindingMechanism;
 use omega_core::diagnostics::Diagnostic;
 use omega_instruction_selection::{
     dispatch_case_enter_width, dispatch_case_leave_width, dispatch_guard_compare_static_width,
     runtime_atomic_compare_exchange_width, runtime_atomic_fetch_add_width,
+    runtime_byte_read_width, runtime_byte_write_width,
     dispatch_loop_enter_width, dispatch_state_write_width, function_enter_width,
     host_call_sequence_width, vtable_call_sequence_width, return_register_integer_write_width, return_width,
     runtime_frame_base_indexed_binary_write_width, runtime_frame_base_indexed_integer_write_width,
@@ -885,17 +886,29 @@ fn machine_instruction_width(
                 read.target_offset,
             )
         }
-        // Scaffolding refusal (TASKS_FS #0a): unreachable until selection
-        // emits these kinds; the width fns land with the per-ISA encoders.
-        SelectedInstructionKind::ReadRuntimeByte { .. } => {
-            return Err(Diagnostic::error(
-                "runtime byte read: native lowering not yet implemented (console read_byte is interpreter-only today)",
-            ));
+        SelectedInstructionKind::ReadRuntimeByte { source, .. } => {
+            let RuntimeTextReadSource::HostOperation { operation_key } = source;
+            let Some(binding) = input
+                .assigned_target_operations
+                .host_binding(*operation_key)
+            else {
+                return Err(Diagnostic::error(
+                    "missing host binding for runtime byte read",
+                ));
+            };
+            runtime_byte_read_width(input.target.architecture, &binding.mechanism)
         }
-        SelectedInstructionKind::WriteRuntimeByte { .. } => {
-            return Err(Diagnostic::error(
-                "runtime byte write: native lowering not yet implemented (console write_byte is interpreter-only today)",
-            ));
+        SelectedInstructionKind::WriteRuntimeByte { source, .. } => {
+            let RuntimeTextReadSource::HostOperation { operation_key } = source;
+            let Some(binding) = input
+                .assigned_target_operations
+                .host_binding(*operation_key)
+            else {
+                return Err(Diagnostic::error(
+                    "missing host binding for runtime byte write",
+                ));
+            };
+            runtime_byte_write_width(input.target.architecture, &binding.mechanism)
         }
         SelectedInstructionKind::CopyRuntimeStorage {
             source_offset,

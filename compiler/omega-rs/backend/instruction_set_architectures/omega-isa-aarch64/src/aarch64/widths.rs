@@ -1262,6 +1262,45 @@ pub fn runtime_text_line_read_carrier_import_call_offset() -> usize {
     32
 }
 
+/// Width of the ByteRead stdin read (import binding): the relocated region
+/// `adrp`+`add` (8) + tag/payload zero stores (8) + the three call-argument
+/// moves (12) + `bl` (4) + the cbz/movz/tag-store epilogue (12). Every
+/// element is fixed width, so the import-call relocation offset is the
+/// constant 28.
+pub fn runtime_byte_read_import_width() -> usize {
+    44
+}
+
+/// The syscall flavor swaps the 4-byte `bl` for the syscall-number
+/// immediate plus `svc` (4).
+pub fn runtime_byte_read_syscall_width(syscall_number: u32) -> usize {
+    40 + unsigned_immediate_width(u64::from(syscall_number)) + 4
+}
+
+/// Offset of the import `bl` inside the ByteRead read: adrp + add (8) +
+/// the two zero stores (8) + the three call-argument moves (12).
+pub fn runtime_byte_read_import_call_offset() -> usize {
+    28
+}
+
+/// Width of the stdout byte write (import binding): the relocated source
+/// `adrp`+`add` (8) + the three call-argument moves (12) + `bl` (4).
+pub fn runtime_byte_write_import_width() -> usize {
+    24
+}
+
+/// The syscall flavor swaps the 4-byte `bl` for the syscall-number
+/// immediate plus `svc` (4).
+pub fn runtime_byte_write_syscall_width(syscall_number: u32) -> usize {
+    20 + unsigned_immediate_width(u64::from(syscall_number)) + 4
+}
+
+/// Offset of the import `bl` inside the byte write: adrp + add (8) + the
+/// three call-argument moves (12).
+pub fn runtime_byte_write_import_call_offset() -> usize {
+    20
+}
+
 pub fn runtime_text_line_read_import_target_address_offset() -> usize {
     100
 }

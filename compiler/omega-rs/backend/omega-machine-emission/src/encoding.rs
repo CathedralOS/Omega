@@ -758,16 +758,23 @@ pub(super) fn encode_machine_instruction_bytes(
                 read.is_bounded_buffer,
             )
         }
-        // Scaffolding refusal (TASKS_FS #0a): the selection layer does not
-        // emit these kinds yet; the per-ISA encoders land with that wiring.
-        // Loud by doctrine -- a program can only reach here once selection
-        // routes console byte ops natively, and then this MUST be replaced.
-        SelectedInstructionKind::ReadRuntimeByte { .. } => Err(Diagnostic::error(
-            "runtime byte read: native lowering not yet implemented (console read_byte is interpreter-only today)",
-        )),
-        SelectedInstructionKind::WriteRuntimeByte { .. } => Err(Diagnostic::error(
-            "runtime byte write: native lowering not yet implemented (console write_byte is interpreter-only today)",
-        )),
+        SelectedInstructionKind::ReadRuntimeByte {
+            target_offset,
+            payload_offset,
+            source,
+            ..
+        } => runtime_text::encode_runtime_byte_read(input, *target_offset, *payload_offset, source),
+        SelectedInstructionKind::WriteRuntimeByte {
+            source_offset,
+            source,
+            source_is_place,
+            ..
+        } => {
+            // A literal source relocates the adrp pair to the 1-byte data
+            // object, whose byte sits at offset 0.
+            let offset = if *source_is_place { *source_offset } else { 0 };
+            runtime_text::encode_runtime_byte_write(input, offset, source)
+        }
         SelectedInstructionKind::CopyRuntimeStorage {
             source_offset,
             target_offset,

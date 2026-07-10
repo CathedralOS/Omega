@@ -71,6 +71,7 @@ pub use runtime_storage::{
 pub use runtime_text::{
     encode_runtime_text_buffer_materialize,
     encode_runtime_text_buffer_materialize_to_runtime_frame_indexed,
+    encode_runtime_byte_read, encode_runtime_byte_write,
     encode_runtime_text_buffer_materialize_to_runtime_pointee, encode_runtime_text_line_read,
     encode_runtime_text_literal_append,
     encode_runtime_text_literal_append_to_runtime_frame_indexed,
