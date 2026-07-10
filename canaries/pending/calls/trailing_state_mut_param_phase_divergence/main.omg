@@ -1,0 +1,46 @@
+// PENDING (the June-2026 dungeon instrumentation ghost, minimal skeleton
+// found 2026-07-16): a machine receives `random: &mut Rng`, forwards it to
+// mutating callees, and guard-reads the param's field -- CORRECT until a
+// TRAILING sub-state that also bumps-and-reads is APPENDED, at which point
+// the FIRST state's guard read goes stale natively (native 71 = the
+// calls==2 guard fails; interp 70). The single-state shapes are all green
+// (probed: one/two forwards, one/two fields); the trigger is the trailing
+// state's existence, i.e. cross-state phase/snapshot allocation for the
+// threaded &mut param -- the same family as the fs lane's CLAIMED
+// same-type-receiver-aliasing arc (per-instance receiver phases). Pinned
+// for that arc's follow-through; exits: 71 = first guard stale; 72 =
+// trailing guard stale; 70 = both correct.
+// MINIMAL: a machine receives `r: &mut Rng`, FORWARDS it to one mutating
+// callee, then guard-reads the param's field. Native sees the pre-call
+// snapshot.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Rng { seed: u64 in Wrapping; calls: u32 in Wrapping; }
+data Main { console: Console; rng: Rng; }
+machine Main::bump(&mut self, r: &mut Rng) {
+    r.seed = r.seed + 7;
+    r.calls = r.calls + 1;
+}
+machine Main::build(&mut self, random: &mut Rng) -> u32 {
+    self.bump(random);
+    self.bump(random);
+    transition random.calls == 2 {
+        true -> after()
+        _ -> (71)
+    }
+    state after(&mut self) -> u32 {
+        self.bump(random);
+        transition random.calls == 3 {
+            true -> (70)
+            _ -> (72)
+        }
+    }
+}
+machine Main::main(&mut self) {
+    let r: u32 = self.build(self.rng);
+    transition r == 70 {
+        true -> good()
+        _ -> bad()
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self)  { self.console.exit_process(71); }
+}

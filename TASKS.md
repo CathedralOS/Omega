@@ -151,12 +151,14 @@ with a real app-window story.
 - **Versioned data stage 3:** the era tag itself (+ decision 10's wire-era
   ride), era-tagged containers, migration chains / `replaces` / quiescence.
 - **Equatable synthesis:** a CALLABLE conformance surface is still open.
-- **Signed/unsigned residue, shape (2): trailing-state STALE READS of
-  threaded `&mut` param fields** (dungeon instrumentation, 2026-06; a
-  guard-subject read of `random.calls` in a state appended after a
-  mutating call saw the pre-call snapshot). Needs its minimal skeleton --
-  possibly already fixed by the fs lane's per-instance receiver phases;
-  probe and either pin green (close) or park the divergence.
+- **Trailing-state stale reads of threaded `&mut` param fields -- SKELETON
+  FOUND (2026-07-16), pinned:**
+  pending/calls/trailing_state_mut_param_phase_divergence (71, Exit(70)).
+  Appending a sub-state that bumps-and-reads the param makes the FIRST
+  state's guard read go stale natively; every single-state shape is green.
+  Cross-state phase allocation for the threaded &mut -- the fs lane's
+  claimed receiver-phase family; theirs to absorb with the aliasing arc.
+  (This closes the old "signed/unsigned residue shape (2)" mystery line.)
 - **Concurrency model:** chapter 17 is a sketch; per-target declarations.
 - **Atomics remainder** beyond the landed stage-1 ops + memory model.
 - **Separate compilation / component artifact model.**
