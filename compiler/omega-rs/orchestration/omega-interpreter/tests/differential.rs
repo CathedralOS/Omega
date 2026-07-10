@@ -1874,9 +1874,9 @@ const PENDING_RUNTIME_DIVERGENCES: &[(&str, i32, PendingInterpOutcome)] = &[
     ("calls/texteq_local_guard_read_divergence", 71, PendingInterpOutcome::Exit(70)),
     ("calls/texteq_local_arg_forward_divergence", 71, PendingInterpOutcome::Exit(70)),
     ("calls/trailing_state_mut_param_phase_divergence", 71, PendingInterpOutcome::Exit(70)),
-    // BOTH-ENGINES-WRONG soundness hole (not a divergence): decode accepts
-    // invalid UTF-8 into an `in Utf8` slice. See the canary header.
-    ("wire/utf8_decode_accepts_invalid_bytes", 71, PendingInterpOutcome::Exit(71)),
+    // The INTERP now refuses (decode-boundary byte-predicate validation,
+    // 2026-07-16); native still accepts pending its validation sequence.
+    ("wire/utf8_decode_accepts_invalid_bytes", 71, PendingInterpOutcome::Exit(70)),
     ("arithmetic/const_fold_unsigned_divide_miscompile", 71, PendingInterpOutcome::Exit(70)),
     ("arithmetic/const_fold_unsigned_shift_right_miscompile", 71, PendingInterpOutcome::Exit(70)),
     ("arithmetic/float_to_int_overflow_divergence", 99, PendingInterpOutcome::Exit(71)),
