@@ -1875,6 +1875,7 @@ enum PendingInterpOutcome {
 /// when a divergence's documented behavior changes.
 const PENDING_RUNTIME_DIVERGENCES: &[(&str, i32, PendingInterpOutcome)] = &[
     ("arithmetic/array_field_default_silent", 0, PendingInterpOutcome::Exit(1)),
+    ("recast/scalar_pun_shared_let_native_zii", 71, PendingInterpOutcome::Exit(70)),
     ("calls/texteq_local_guard_read_divergence", 71, PendingInterpOutcome::Exit(70)),
     ("calls/texteq_local_arg_forward_divergence", 71, PendingInterpOutcome::Exit(70)),
     ("calls/trailing_state_mut_param_phase_divergence", 71, PendingInterpOutcome::Exit(70)),

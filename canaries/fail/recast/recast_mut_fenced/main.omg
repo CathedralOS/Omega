@@ -1,0 +1,14 @@
+// FAIL CANARY (rung-A fence): `&mut` recasts need §5b's fact implication
+// in BOTH directions (anything writable through the target must leave the
+// source valid at release) -- that judgment rides the byte-view rung.
+// Rung A serves shared re-views only; the writable spelling refuses
+// loudly instead of lowering unjudged.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; wide: u32; }
+machine Main::main(&mut self) {
+    self.wide = 5;
+    let v: &mut i32 = &mut self.wide as &mut i32;
+    transition v == 5 { true -> good() _ -> bad() }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self)  { self.console.exit_process(71); }
+}

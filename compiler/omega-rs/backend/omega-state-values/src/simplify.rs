@@ -122,6 +122,7 @@ fn simplify_expression_with_bindings(
                 ),
                 target_type: cast.target_type.clone(),
                 domain: cast.domain,
+                form: cast.form,
             }))
         }
         Expression::Indexed(indexed) => Expression::Indexed(Box::new(IndexedExpression {

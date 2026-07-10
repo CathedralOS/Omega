@@ -372,6 +372,14 @@ fn simple_local_binding_value_from_table(
                 case_variant: member.case_variant.clone(),
             })))
         }
+        // §5b recast (`&x as &T`): address identity -- the binding
+        // substitutes the VIEWED PLACE, and the let's stated type keeps
+        // driving reads at each use site (that IS the runtime meaning of a
+        // re-view; the rung-A judgment guarantees the operand is a scalar
+        // place). A VALUE cast stays unfoldable below.
+        ExpressionNode::Cast(cast) if cast.form.is_recast() => {
+            simple_local_binding_value_from_table(table, cast.value)
+        }
         ExpressionNode::ArrayLiteral(_)
         | ExpressionNode::Cast(_)
         | ExpressionNode::StructLiteral(_) => None,

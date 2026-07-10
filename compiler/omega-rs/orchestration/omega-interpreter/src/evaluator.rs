@@ -4081,6 +4081,9 @@ impl<'program> Evaluator<'program> {
             ExpressionNode::Cast(cast) => {
                 let value = self.eval_expression(cast.value, frame)?;
                 let target = self.cast_target_primitive(cast.target_type);
+                if cast.form.is_recast() {
+                    return self.eval_recast(value, target);
+                }
                 self.eval_cast(value, target)
             }
             ExpressionNode::Indexed(indexed) => {
@@ -5153,6 +5156,67 @@ impl<'program> Evaluator<'program> {
                         .as_int()
                         .ok_or_else(|| Halt::Trap("cast to integer of non-numeric".to_owned()))?,
                 };
+                Ok(Value::Int(wrap_to_width(raw, integer)))
+            }
+        }
+    }
+
+    /// §5b recast (`&x as &T`): bit-REINTERPRET, never convert. Validation
+    /// (omega-validation recasts.rs, rung A) guarantees equal scalar widths
+    /// and fences bool/text/records, so the reinterpretation below is total.
+    /// A SNAPSHOT of the source's bits is sound for the shared-only rung:
+    /// borrow exclusivity freezes the source while the view lives. Native
+    /// needs no twin -- the emitted load already reads the place's bytes
+    /// through the stated type.
+    fn eval_recast(&self, value: Value, target: Option<PrimitiveType>) -> EvalResult<Value> {
+        let Some(target) = target else {
+            // Unreachable post-validation (targets are scalar primitives).
+            return Ok(value);
+        };
+        // Look through a reference-valued source (a recast of a `&T`-typed
+        // local re-views the pointee's bytes).
+        let value = match value {
+            Value::Ref(cell) => cell.borrow().clone(),
+            other => other,
+        };
+        match target {
+            PrimitiveType::F32 => {
+                let bits = match value {
+                    Value::Float(f) => (f as f32).to_bits(),
+                    other => {
+                        other.as_int().ok_or_else(|| {
+                            Halt::Trap("recast to f32 of non-scalar".to_owned())
+                        })? as u32
+                    }
+                };
+                Ok(Value::Float(f32::from_bits(bits) as f64))
+            }
+            PrimitiveType::F64 => {
+                let bits = match value {
+                    Value::Float(f) => f.to_bits(),
+                    other => {
+                        other.as_int().ok_or_else(|| {
+                            Halt::Trap("recast to f64 of non-scalar".to_owned())
+                        })? as u64
+                    }
+                };
+                Ok(Value::Float(f64::from_bits(bits)))
+            }
+            integer => {
+                let raw: i64 = match value {
+                    // A float source's width equals the target's (validated),
+                    // so 4-byte targets take the f32 bit pattern, 8-byte the
+                    // f64's.
+                    Value::Float(f) => match integer.scalar_byte_size() {
+                        Some(4) => (f as f32).to_bits() as i64,
+                        _ => f.to_bits() as i64,
+                    },
+                    other => other.as_int().ok_or_else(|| {
+                        Halt::Trap("recast to integer of non-scalar".to_owned())
+                    })?,
+                };
+                // Equal-width int<->int reinterpretation is exactly the
+                // width-wrap (`u32` 0xFFFF_FFFF re-viewed as `i32` = -1).
                 Ok(Value::Int(wrap_to_width(raw, integer)))
             }
         }

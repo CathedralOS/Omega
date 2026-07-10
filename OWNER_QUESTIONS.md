@@ -80,6 +80,14 @@ from all of them.
    declaration), or define stores to wrap/clamp INTO the declared range?
    > Oh I misread this in the other doc. Well, this in my mind is a compile error. You can surface this as a "Exact assignments must be within invariant range, consider adjusting the size or using a modulo operator" or whatever the fuck.
 
+10. **Float-to-int cast overflow (migrated from TASKS.md per the
+    consolidation directive).** `1e300 as i32`: aarch64 FCVTZS and the
+    interpreter saturate to i32::MAX; x86_64 CVTTSD2SI produces the
+    0x80000000 "integer indefinite". Pick one: saturate everywhere
+    (x86 grows a clamp sequence), trap as a failed obligation, or rule the
+    out-of-range cast ill-formed without an explicit domain. Unblocks
+    retiring the parked cast divergence from the drift ledger.
+
 ## Host bindings (fs lane, flagged during provides work)
 
 10. **Interpreter story for authored import bindings.** A user-authored

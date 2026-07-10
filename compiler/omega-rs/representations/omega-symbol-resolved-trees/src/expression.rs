@@ -198,6 +198,7 @@ impl ExpressionTable {
                     value,
                     target_type,
                     domain: cast.domain,
+                    form: cast.form,
                 }))
             }
             ExpressionNode::Call(call) => {
@@ -572,6 +573,7 @@ impl ExpressionTable {
                     value,
                     target_type,
                     domain: cast.domain,
+                    form: cast.form,
                 }))
             }
             ExpressionNode::Call(call) => {
@@ -886,6 +888,8 @@ pub struct TableCastExpression {
     pub target_type: HandleSpan<DiagnosticName>,
     /// Arithmetic domain cast (`x as u8 in Saturating`), decision 17 S2.
     pub domain: omega_core::arithmetic::ArithmeticDomain,
+    /// Value conversion vs §5b borrow recast (`&x as &T`).
+    pub form: omega_core::cast_form::CastForm,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

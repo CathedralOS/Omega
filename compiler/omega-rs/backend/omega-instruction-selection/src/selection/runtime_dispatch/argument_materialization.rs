@@ -1555,6 +1555,7 @@ fn resolve_prior_local_initializers_in_table(
                         value,
                         target_type: cast.target_type,
                         domain: cast.domain,
+                        form: omega_core::cast_form::CastForm::Value,
                     },
                 ))
             }

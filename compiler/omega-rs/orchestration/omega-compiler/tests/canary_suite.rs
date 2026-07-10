@@ -29061,6 +29061,10 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "layouts/plan_laid_policy_without_plan_machine",
     "control_flow/if_statement_retired",
     "types/range_under_non_exact_domain_rejected",
+    "recast/reference_let_pun_requires_recast",
+    "recast/recast_size_mismatch_rejected",
+    "recast/recast_mut_fenced",
+    "recast/recast_position_fenced",
     "control_flow/transition_fall_through_bool",
     "control_flow/transition_fall_through_value_match",
     "calls/abs_call_argument_rejected",
@@ -29457,6 +29461,10 @@ struct PendingCanary {
 const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
     PendingCanary {
         path: "arithmetic/array_field_default_silent",
+        expectation: PendingCanaryExpectation::CurrentlyAccepts,
+    },
+    PendingCanary {
+        path: "recast/scalar_pun_shared_let_native_zii",
         expectation: PendingCanaryExpectation::CurrentlyAccepts,
     },
     PendingCanary {

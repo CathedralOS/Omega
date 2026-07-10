@@ -603,6 +603,7 @@ pub(super) fn rewrite_destructure_guard_expression(
             value: rewrite_destructure_guard_expression(syntax_trees, cast.value, subject, fields),
             target_type: cast.target_type,
             domain: cast.domain,
+            form: cast.form,
         }),
         ExpressionNode::Indexed(indexed) => ExpressionNode::Indexed(TableIndexedExpression {
             collection: rewrite_destructure_guard_expression(

@@ -174,6 +174,8 @@ pub struct TableCastExpression {
     /// Arithmetic domain cast (`x as u8 in Saturating`), decision 17 S2. `Exact`
     /// when the cast has no `in <Domain>` suffix.
     pub domain: omega_core::arithmetic::ArithmeticDomain,
+    /// Value conversion vs §5b borrow recast (`&x as &T`).
+    pub form: omega_core::cast_form::CastForm,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
