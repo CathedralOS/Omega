@@ -17,7 +17,6 @@ use omega::language::std::console;
 data Main {
     console: Console;
     n: i32 in Wrapping;
-    out: i32 in Wrapping;
 }
 
 machine Main::main(&mut self) {
@@ -34,8 +33,8 @@ machine Main::main(&mut self) {
     state wr(&mut self, value: i32 [0..=255]) {
         self.n = self.n + 1;
         let b: i32 in Wrapping = value as i32 in Wrapping;
-        self.out = b + 1;
-        self.console.write_byte(self.out);
+        let rotated: i32 in Wrapping = b + 1;
+        self.console.write_byte(rotated);
         transition { _ -> rd() }
     }
 

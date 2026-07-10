@@ -19,7 +19,6 @@ use omega::language::std::console;
 data Main {
     console: Console;
     n: i32 in Wrapping;
-    out: i32 in Wrapping;
 }
 
 machine Main::main(&mut self) {
@@ -50,8 +49,8 @@ machine Main::main(&mut self) {
     }
 
     state up(&mut self, b: i32 in Wrapping) {
-        self.out = b - 32;
-        self.console.write_byte(self.out);
+        let upped: i32 in Wrapping = b - 32;
+        self.console.write_byte(upped);
         transition { _ -> rd() }
     }
 

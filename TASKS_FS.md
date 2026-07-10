@@ -106,13 +106,13 @@ results in Omega. Interpreter = full-parity reference oracle for everything.
    is FULLY GREEN (139/139, both fns; the baseline-3 era is over) and
    the INPUT-GRID rows verify natively with piped stdin ("AB"->"BC"/2,
    "Mix."->"MIX"/3). std's `Byte(value: i32 [0..=255])` now declares
-   the honest payload range (construction-enforced). FOUND EN ROUTE
-   (not blocking, field route works): a local initialized from a
-   BINARY over another local-from-param (`let rotated = b + 1` in a
-   non-entry state) hits "state values: CallArgument binary needs
-   runtime value lowering" -- the samples route computed bytes through
-   a field instead; give the local shape a lowering (or a better
-   diagnostic) when it next surfaces. x86_64 ENCODERS DONE
+   the honest payload range (construction-enforced). The local-shape blocker
+   CLOSED (2026-07-17): the state-values blocker's satisfied-
+   instruction list trusted HostOperation at the statement but not the
+   byte-op composites, so `write_byte(rotated)` after `let rotated =
+   b + 1` re-fired the bind-first diagnostic ON the bind-first shape;
+   ReadRuntimeByte/WriteRuntimeByte joined the list and the stdin
+   samples returned to natural locals (no field detour). x86_64 ENCODERS DONE
    (2026-07-17): windows import flavor (GetStdHandle -10/-11 +
    ReadFile/WriteFile, six-arg shadow shape) + linux syscall flavor
    (read/write via the number table), same ZII design (pre-zeroed
