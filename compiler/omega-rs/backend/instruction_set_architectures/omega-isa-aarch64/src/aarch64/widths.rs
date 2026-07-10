@@ -369,7 +369,14 @@ pub fn runtime_storage_binary_write_width(
                 | StateGuardOperator::ShiftLeft
         )
     {
-        saturating_trapping_arithmetic_width(domain, operator, byte_size, target_signed)
+        saturating_trapping_arithmetic_width(
+            domain,
+            operator,
+            byte_size,
+            target_signed,
+            runtime_value_operands.immediate_integer(left).is_some(),
+            runtime_value_operands.immediate_integer(right).is_some(),
+        )
     } else if saturating_signed_divide_modulo {
         saturating_signed_divide_modulo_width(
             byte_size,
@@ -403,6 +410,8 @@ fn saturating_trapping_arithmetic_width(
     operator: StateGuardOperator,
     byte_size: usize,
     target_signed: bool,
+    left_is_wide_immediate: bool,
+    right_is_wide_immediate: bool,
 ) -> usize {
     use omega_core::arithmetic::ArithmeticDomain;
     if byte_size == 8 {
@@ -449,10 +458,18 @@ fn saturating_trapping_arithmetic_width(
     // cmp 4 + b.cond 4 + mov/brk 4) -- both bounds for signed, the single
     // unsigned upper bound otherwise.
     if operator == StateGuardOperator::ShiftLeft {
-        return if target_signed { 4 + 28 + 56 } else { 28 + 28 };
+        let value_extend = if target_signed && !left_is_wide_immediate { 4 } else { 0 };
+        return if target_signed { value_extend + 28 + 56 } else { 28 + 28 };
     }
-    // Two SXTB/SXTH/SXTW sign-extends (4 bytes each) for signed targets only.
-    let sign_extend = if target_signed { 8 } else { 0 };
+    // One SXTB/SXTH/SXTW sign-extend (4 bytes) per SIGNED NON-IMMEDIATE
+    // operand -- immediates are already their true wide value and skipping
+    // keeps them uncorrupted (MUST mirror the emission's per-side skip).
+    let sign_extend = if target_signed {
+        (if left_is_wide_immediate { 0 } else { 4 })
+            + (if right_is_wide_immediate { 0 } else { 4 })
+    } else {
+        0
+    };
     // Wide op: ADD/SUB/MUL Xd,Xn,Xm.
     let wide_op = 4;
     // Each bound check: MOVZ+MOVK*3 bound (16) + CMP (4) + b.cond (4)
@@ -1779,6 +1796,8 @@ pub fn runtime_value_operand_width(
                 operator,
                 runtime_value_operands.binary_byte_width(operand).unwrap_or(8),
                 operands_signed,
+                runtime_value_operands.immediate_integer(left).is_some(),
+                runtime_value_operands.immediate_integer(right).is_some(),
             )
         } else if saturating_signed_div_mod {
             // Signed Saturating div/mod operand arm: the TYPE_MIN/-1 fixup.

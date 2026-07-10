@@ -92,13 +92,18 @@ should target NEW feature surfaces as they land, not re-walk these axes.
   MAX natively, MIN on the interp: the sat/trap narrow paths sign-extend
   operand registers from the TARGET width, corrupting a literal loaded at
   its true wide value. Exact/Wrapping immune (plain wide-compute +
-  store-truncate). FIX: thread per-side is-immediate flags from the write/
-  operand callers (they hold the handles; `immediate_integer`) and skip the
-  extension for immediates, width twins in lockstep, both ISAs; the shl
-  value-extension shares the pattern. A validation-level rejection is WRONG
-  (breaks the MIN idiom corpus-wide; probed, 7 canaries trip). Pinned:
-  pending/arithmetic/sat_narrow_wide_literal_operand_divergence (71,
-  Exit(70)).
+  store-truncate). AARCH64 + INTERP FIXED (2026-07-16):
+  per-side is-immediate flags thread from both callers, the signed
+  extension skips immediates (their loaded value IS the true wide value),
+  width twin in lockstep, shl value-extension shares the skip. REMAINING --
+  x86_64: the multiply prologue movsx needs the same per-side skip, and the
+  flag-width add/sub cannot hold a wide immediate at all -- migrate them to
+  the wide 64-bit op + the shared narrow_range_clamp_or_trap tail (per-side
+  extension skip included), then promote the pending canary with a
+  linux_x64 byte pin. (A validation-level rejection is WRONG -- breaks the
+  MIN idiom corpus-wide; probed, 7 canaries trip.) Pinned:
+  pending/arithmetic/sat_narrow_wide_literal_operand_divergence, hold now
+  (70, Exit(70)) on the arm64 host.
 
 - **FS-LANE FOLLOW-THROUGH: texteq arm-locals still ZII for non-terminal
   consumers (found 2026-07-15 probing the just-closed leaf fix).** The
