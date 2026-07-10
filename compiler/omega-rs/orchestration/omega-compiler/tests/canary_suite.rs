@@ -29305,6 +29305,10 @@ const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
         expectation: PendingCanaryExpectation::CurrentlyAccepts,
     },
     PendingCanary {
+        path: "calls/trailing_state_mut_param_phase_divergence",
+        expectation: PendingCanaryExpectation::CurrentlyAccepts,
+    },
+    PendingCanary {
         path: "arithmetic/const_fold_unsigned_divide_miscompile",
         expectation: PendingCanaryExpectation::CurrentlyAccepts,
     },
