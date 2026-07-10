@@ -27,6 +27,13 @@ pub(super) fn runtime_text_read_source_name(
                 }) => {
                     format!("syscall {number} via x{number_register}/svc #{supervisor_call}")
                 }
+                Some(omega_calling_conventions::HostBindingMechanism::VtableField {
+                    table,
+                    field,
+                    byte_offset,
+                }) => {
+                    format!("vtable field {table}.{field} (+{byte_offset})")
+                }
                 Some(omega_calling_conventions::HostBindingMechanism::VtableSlot { index }) => {
                     format!("vtable slot {index}")
                 }

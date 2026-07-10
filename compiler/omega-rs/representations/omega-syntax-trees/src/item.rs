@@ -77,6 +77,12 @@ impl Default for ProviderDeclaration {
 pub struct HostProviderDefinition {
     pub target: Identifier,
     pub boundary_trait: HandleSpan<Identifier>,
+    /// The vtable STRUCT whose fn-ptr fields the arms bind (the field model,
+    /// extern brief SS12.1): `uefi_x64 provides TextOutput over
+    /// EfiTextOutputProtocol { ... }`. EMPTY when the block has no `over`
+    /// clause (the ZII default; required for `VtableField` arms, unused by
+    /// the static mechanisms).
+    pub vtable_struct: Identifier,
     pub mappings: HandleSpan<HostProviderMapping>,
 }
 
@@ -103,6 +109,11 @@ pub enum HostProviderMappingKind {
     /// COM/UEFI per-object dispatch: `-> VtableSlot(1)` (deref `this`, read the
     /// vtable pointer, read slot N, call at the declared convention).
     VtableSlot { index: i64 },
+    /// COM/UEFI per-object dispatch by FIELD NAME (the field model, decided
+    /// 2026-07-04; extern brief SS12.1): `output_string -> output_string`
+    /// names a fn-ptr FIELD of the block's `over` struct; the layout policy
+    /// computes the offset -- no magic slot counts, headers fall out free.
+    VtableField { field: Identifier },
     /// A per-target named CONSTANT, not a call mechanism: `O_CREATE -> 32768`
     /// (portable-values settle, 2026-07-07 -- the libc-crate half of the Rust
     /// split). The row supplies the number a boundary trait's declared const

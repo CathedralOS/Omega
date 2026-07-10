@@ -31,7 +31,12 @@ pub(super) fn collect_data_address_relocations(
         .is_some_and(|binding| matches!(binding.mechanism, HostBindingMechanism::Syscall { .. }));
     let is_vtable = operation_key
         .and_then(|key| find_host_binding(input, key))
-        .is_some_and(|binding| matches!(binding.mechanism, HostBindingMechanism::VtableSlot { .. }));
+        .is_some_and(|binding| {
+            matches!(
+                binding.mechanism,
+                HostBindingMechanism::VtableSlot { .. } | HostBindingMechanism::VtableField { .. }
+            )
+        });
 
     for (operand_index, operand) in operands.iter().enumerate() {
         if let Some(data) = operand.data_address() {

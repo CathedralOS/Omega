@@ -1808,6 +1808,19 @@ pub fn encode_win64_vtable_call<T: InstructionOperandLike>(
     operands: &[T],
     index: i64,
 ) -> Result<Vec<u8>, Diagnostic> {
+    let byte_offset = index
+        .checked_mul(8)
+        .ok_or_else(|| Diagnostic::error("vtable slot index overflows a byte offset"))?;
+    encode_win64_vtable_call_at_offset(operands, byte_offset)
+}
+
+/// The FIELD-MODEL flavor (extern brief SS12.1): the fn-ptr offset comes from
+/// the vtable struct's layout, already in bytes -- `mov rax, [rcx + offset];
+/// call rax`. The slot flavor above is offset = index * 8.
+pub fn encode_win64_vtable_call_at_offset<T: InstructionOperandLike>(
+    operands: &[T],
+    byte_offset: i64,
+) -> Result<Vec<u8>, Diagnostic> {
     if operands.is_empty() {
         return Err(Diagnostic::error(
             "cannot encode X86_64 vtable call: the receiver (arg 0) did not lower to an operand",
@@ -1815,19 +1828,17 @@ pub fn encode_win64_vtable_call<T: InstructionOperandLike>(
     }
     let arg_count = operands.len();
     let reserve = win64_import_reserve(arg_count);
-    let mut bytes = Vec::with_capacity(win64_vtable_call_width(operands, index));
+    let mut bytes = Vec::with_capacity(win64_vtable_call_width(operands, byte_offset));
     append_sub_rsp(&mut bytes, reserve);
     append_win64_call_arguments(&mut bytes, operands, 0)?;
     // Read the callee from the receiver (still in RCX) and call it.
-    let slot_disp = i32::try_from(index.checked_mul(8).ok_or_else(|| {
-        Diagnostic::error("vtable slot index overflows a byte offset")
-    })?)
-    .map_err(|_| Diagnostic::error("vtable slot offset exceeds an imm32"))?;
+    let slot_disp = i32::try_from(byte_offset)
+        .map_err(|_| Diagnostic::error("vtable field offset exceeds an imm32"))?;
     bytes.extend([0x48, 0x8b, 0x81]); // mov rax, [rcx + disp32]
     bytes.extend(slot_disp.to_le_bytes());
     append_call_register(&mut bytes, 0); // call rax
     append_add_rsp(&mut bytes, reserve);
-    debug_assert_eq!(bytes.len(), win64_vtable_call_width(operands, index));
+    debug_assert_eq!(bytes.len(), win64_vtable_call_width(operands, byte_offset));
     Ok(bytes)
 }
 

@@ -372,6 +372,7 @@ impl SyntaxTrees {
         HostProviderDefinition {
             target: host_provider.target.clone(),
             boundary_trait: self.copy_item_identifier_span(other, host_provider.boundary_trait),
+            vtable_struct: host_provider.vtable_struct.clone(),
             mappings: self.copy_host_provider_mapping_span(other, host_provider.mappings),
         }
     }

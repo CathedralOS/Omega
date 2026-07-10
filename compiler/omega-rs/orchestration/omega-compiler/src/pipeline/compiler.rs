@@ -94,6 +94,11 @@ fn extract_provides_rows(
                 HostProviderMappingKind::VtableSlot { index } => {
                     ProvidesBindingKind::VtableSlot { index: *index }
                 }
+                HostProviderMappingKind::VtableField { field } => {
+                    ProvidesBindingKind::VtableField {
+                        field: field.as_str().to_owned(),
+                    }
+                }
                 HostProviderMappingKind::Value { value } => {
                     ProvidesBindingKind::Value { value: *value }
                 }
@@ -102,6 +107,7 @@ fn extract_provides_rows(
                 target_name: provider.target.as_str().to_owned(),
                 trait_name: trait_name.clone(),
                 method: mapping.machine.as_str().to_owned(),
+                vtable_struct: provider.vtable_struct.as_str().to_owned(),
                 binding,
             });
         }

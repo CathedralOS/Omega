@@ -664,6 +664,9 @@ fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnapshot {
                         HostProviderMappingKind::DllImport { module, symbol } => {
                             ("dll_import", 0, Some(module.clone()), Some(symbol.clone()))
                         }
+                        HostProviderMappingKind::VtableField { field } => {
+                            ("vtable_field", 0, None, Some(field.as_str().to_owned()))
+                        }
                         HostProviderMappingKind::Value { value } => ("value", *value, None, None),
                     };
                     HostProviderMappingSnapshot {

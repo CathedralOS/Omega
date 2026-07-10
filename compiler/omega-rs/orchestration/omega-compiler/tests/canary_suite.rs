@@ -26642,6 +26642,7 @@ const WINDOWS_HOST_PASS_CANARIES: &[&str] = &[
 /// former windows-gating.
 const CROSS_TARGET_PASS_CANARIES: &[(&str, &str)] = &[
     ("targets/efi_vtable_call", "uefi_x64"),
+    ("targets/efi_vtable_field_call", "uefi_x64"),
     ("targets/efi_ref_param_call_arg", "uefi_x64"),
 ];
 
@@ -29559,6 +29560,40 @@ fn runtime_console_byte_echo_exit_canary_runs() {
         piped.stdout, b"AB",
         "write_byte must echo the raw bytes, got {:?}",
         String::from_utf8_lossy(&piped.stdout)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+// THE FIELD MODEL (extern brief SS12.1): `provides TextOutput over
+// EfiTextOutputProtocol { output_string -> output_string }` -- the binding
+// names the fn-ptr FIELD and the LAYOUT computes its offset (+8 behind the
+// leading `reset` field; headers fall out free, no magic slot count). The
+// emitted dispatch must be byte-identical to the VtableSlot(1) original:
+// `mov rax, [rcx+8]; call rax`. Cross-compiled for uefi_x64, so this pins
+// the whole chain (parse -> provides row -> layout-resolved mechanism ->
+// relocation placement -> PE bytes) on EVERY host -- unlike the
+// cfg(windows) slot twin.
+#[test]
+fn efi_vtable_field_call_emits_indirect_dispatch() {
+    let canary = pass_canary("targets/efi_vtable_field_call");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-vtable-field-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: Some("uefi_x64".to_owned()),
+        write_output: true,
+    })
+    .expect("vtable field-model canary should cross-compile for uefi_x64");
+    let bytes = fs::read(build_dir.join("omega-program.exe")).expect("read emitted PE");
+    let needle = [0x48u8, 0x8b, 0x81, 0x08, 0x00, 0x00, 0x00, 0xff, 0xd0];
+    assert!(
+        bytes.windows(needle.len()).any(|window| window == needle),
+        "expected `mov rax, [rcx+8]; call rax` (field-model dispatch at the \
+         layout-computed +8) in .text"
     );
     let _ = fs::remove_dir_all(&build_dir);
 }
