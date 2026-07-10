@@ -1,0 +1,17 @@
+// FAIL CANARY: a transition argument into a sibling-length parameter
+// with no guard relating it to the SIBLING ARGUMENT's length refuses --
+// slice lengths have no static floor, so the co-located guard route is
+// the only discharge, and the message names the exact guard to write.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; buf: [u8; 8]; j: u64; out: i32; }
+machine Main::main(&mut self) {
+    self.buf[5] = 7;
+    self.j = 5;
+    let view: &[u8] = self.buf.as_slice();
+    transition self.j == 5 { true -> read(view, self.j) _ -> bad() }
+    state read(&mut self, items: &[u8], index: u64 [0..items.len]) {
+        self.out = items[index] as i32;
+        self.console.exit_process(self.out);
+    }
+    state bad(&mut self) { self.console.exit_process(9); }
+}

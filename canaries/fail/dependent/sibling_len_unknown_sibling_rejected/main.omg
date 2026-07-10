@@ -1,0 +1,16 @@
+// FAIL CANARY (declaration gate): a sibling-length maximum naming no
+// slice/fixed-array parameter of the state refuses AT THE DECLARATION --
+// nothing could discharge or mint from a phantom sibling.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; buf: [u8; 8]; j: u64; out: i32; }
+machine Main::main(&mut self) {
+    self.buf[5] = 7;
+    self.j = 5;
+    let view: &[u8] = self.buf.as_slice();
+    transition self.j < view.len { true -> read(view, self.j) _ -> bad() }
+    state read(&mut self, items: &[u8], index: u64 [0..nothere.len]) {
+        self.out = items[index] as i32;
+        self.console.exit_process(self.out);
+    }
+    state bad(&mut self) { self.console.exit_process(9); }
+}

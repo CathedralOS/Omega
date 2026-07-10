@@ -78,6 +78,16 @@ pub enum ProofConstraint {
         max_field: Identifier,
         max_offset: i64,
     },
+    /// R1 sibling-length range (`[0..items.len]`, Buffer::get): the maximum
+    /// names a SIBLING PARAMETER's slice length plus a literal offset. The
+    /// obligation builders resolve the sibling's ARGUMENT at build time
+    /// (`sibling_argument` on the obligation); discharge is the co-located
+    /// guard route only -- slice lengths have no static floor.
+    IntegerRangeSiblingLenMax {
+        minimum: i64,
+        sibling: Identifier,
+        max_offset: i64,
+    },
     FloatRange {
         minimum: FloatLiteral,
         maximum: FloatLiteral,
@@ -141,6 +151,19 @@ impl ProofConstraint {
                 minimum,
                 max_field: symbolic.field,
                 max_offset: symbolic.offset,
+            });
+        }
+        // R1 sibling-length maximum (`[0..items.len]` -> len - 1).
+        if let Some(minimum) = integer_bound(minimum)
+            && let Some(sibling) = omega_typed_trees::dependent_ranges::sibling_len_bound(
+                &program.expression_table,
+                maximum,
+            )
+        {
+            return Some(Self::IntegerRangeSiblingLenMax {
+                minimum,
+                sibling: sibling.sibling,
+                max_offset: sibling.offset,
             });
         }
 
@@ -363,6 +386,8 @@ pub struct BoundedCallArgumentObligation {
     pub argument_constraints: HandleSpan<ProofConstraint>,
     pub base_type: TypeReferenceHandle,
     pub constraints: HandleSpan<ProofConstraint>,
+    /// See BoundedTransitionArgumentObligation::sibling_argument.
+    pub sibling_argument: ExpressionHandle,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -398,6 +423,11 @@ pub struct BoundedTransitionArgumentObligation {
     pub base_type: TypeReferenceHandle,
     pub constraints: HandleSpan<ProofConstraint>,
     pub guard: TransitionGuardNode,
+    /// The caller's ARGUMENT for the sibling a sibling-length atom names
+    /// (invalid when the parameter has no such atom or the sibling is
+    /// absent) -- resolved at build time, where the full parameter and
+    /// argument lists are in hand.
+    pub sibling_argument: ExpressionHandle,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -424,6 +454,30 @@ pub struct BinaryValueOperands {
 struct FloatRange {
     minimum: f64,
     maximum: f64,
+}
+
+
+/// The caller's argument for the SIBLING a sibling-length atom names --
+/// `None`/invalid when the parameter's constraints carry no such atom or the
+/// sibling name matches no parameter. Positional: parameters and arguments
+/// pair index-for-index (self excluded on calls).
+fn sibling_argument_for<'plan>(
+    constraints: &[ProofConstraint],
+    parameter_names: impl Iterator<Item = &'plan Identifier>,
+    arguments: &[ExpressionHandle],
+) -> ExpressionHandle {
+    let Some(sibling) = constraints.iter().find_map(|constraint| match constraint {
+        ProofConstraint::IntegerRangeSiblingLenMax { sibling, .. } => Some(sibling.clone()),
+        _ => None,
+    }) else {
+        return ExpressionHandle::invalid();
+    };
+    for (index, name) in parameter_names.enumerate() {
+        if name.as_str() == sibling.as_str() {
+            return arguments.get(index).copied().unwrap_or_default();
+        }
+    }
+    ExpressionHandle::invalid()
 }
 
 pub fn build_proof_plan(program: &TypedTrees) -> ProofPlan<'_> {
@@ -826,6 +880,11 @@ fn collect_bounded_transition_argument_obligations(
         };
         let argument_constraints = proof_plan.store_constraints(argument_constraint_buffer);
         let constraints = proof_plan.store_constraint_nodes(program, constraints);
+        let sibling_argument = sibling_argument_for(
+            proof_plan.type_constraints.span(constraints).unwrap_or(&[]),
+            callable_parameters(program, target_state).map(|parameter| &parameter.name),
+            arguments,
+        );
 
         proof_plan.push_obligation(ProofObligation::BoundedTransitionArgument(
             BoundedTransitionArgumentObligation {
@@ -844,6 +903,7 @@ fn collect_bounded_transition_argument_obligations(
                 } else {
                     TransitionGuardNode::Always
                 },
+                sibling_argument,
             },
         ));
     }
@@ -1052,6 +1112,18 @@ fn collect_bounded_call_argument_obligations(
             proof_plan.store_constraints(expression_constraints(program, machine, state, argument));
         let constraints = proof_plan.store_constraint_nodes(program, constraints);
         let receiver = program.statement_table.name_path_members(call.receiver);
+        let call_arguments: Vec<ExpressionHandle> = program
+            .statement_table
+            .expression_handles(call.arguments)
+            .to_vec();
+        let sibling_argument = sibling_argument_for(
+            proof_plan.type_constraints.span(constraints).unwrap_or(&[]),
+            parameters
+                .iter()
+                .filter(|parameter| !parameter.is_self)
+                .map(|parameter| &parameter.name),
+            &call_arguments,
+        );
 
         proof_plan.push_obligation(ProofObligation::BoundedCallArgument(
             BoundedCallArgumentObligation {
@@ -1068,6 +1140,7 @@ fn collect_bounded_call_argument_obligations(
                 argument_constraints,
                 base_type,
                 constraints,
+                sibling_argument,
             },
         ));
     }
