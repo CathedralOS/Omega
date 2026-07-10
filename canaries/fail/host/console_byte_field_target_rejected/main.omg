@@ -1,0 +1,22 @@
+// FAIL canary: `self.r = self.console.read_byte()` (a FIELD assignment
+// target) is outside read_byte's served shape -- the composite owns the
+// whole ByteRead result and serves the `let r: ByteRead = ...` LOCAL slot
+// only today. The emission blocker must refuse LOUDLY (selection emits
+// nothing generic for byte ops; the alternative is a silently-ZII field,
+// the cardinal sin). Remove when field-target byte reads gain a lowering.
+use omega::language::std::console;
+
+data Main {
+    console: Console;
+    r: ByteRead;
+}
+
+machine Main::main(&mut self) {
+    self.r = self.console.read_byte();
+    transition self.r {
+        ByteRead::Byte { value } -> got(value)
+        _ -> fin()
+    }
+    state got(&mut self, value: i32 [0..=255]) { self.console.exit_process(value); }
+    state fin(&mut self) { self.console.exit_process(70); }
+}

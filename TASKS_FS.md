@@ -121,10 +121,15 @@ results in Omega. Interpreter = full-parity reference oracle for everything.
    line-read collector. Pinned by
    pass/host/cross_console_byte_targets (dual-target build.omg;
    fragment asserts in the PE AND the ELF, from any host) + width
-   locks in the isa crate. REMAINING: (c) the effect-rows unification
-   for platform entries (what BuildLog hand-spelling actually needs)
-   -- separate rung, may need owner input on
-   platform-vs-boundary-trait convergence.
+   locks in the isa crate. REMAINING: (c) FILED as
+   OWNER_QUESTIONS #13 (2026-07-17, with the probe-sweep evidence:
+   the purity checker calls read_byte PURE -- refusal paths hold, but
+   the platform-vs-boundary-trait convergence is the owner's call).
+   Probe sweep of the new surfaces PINNED:
+   fail/host/console_byte_field_target_rejected (the unserved
+   field-target shape refuses with the actionable hint); indexed-place
+   write args serve; statement/pure discards + unused-let reads all
+   refuse loudly.
 
 0b. **[CLAIMED 2026-07-17, from TASKS.md NEXT PICK (owner priority
    2026-07-15)] Cathedral M2 unblock.** DIAGNOSIS (2026-07-17, this

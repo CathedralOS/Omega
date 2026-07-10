@@ -29791,3 +29791,31 @@ fn cross_console_byte_targets_emit_x86_64_flavors() {
     }
     let _ = fs::remove_dir_all(&build_dir);
 }
+
+// The console byte-op fence: a FIELD-target read_byte is outside the served
+// shape and must refuse LOUDLY with the actionable message (the composite
+// owns the whole ByteRead result; nothing generic exists to fall back to,
+// so a silent miss would be a ZII field). Probe-swept 2026-07-17: the
+// indexed-place write arg SERVES, statement/pure discards refuse at the
+// frontend, an unused `let` refuses here too (no slot to serve).
+#[test]
+fn console_byte_field_target_rejected_canary_is_rejected() {
+    let canary = fail_canary("host/console_byte_field_target_rejected");
+    let diagnostics = match compile_canary_without_output(&canary) {
+        Ok(report) => panic!(
+            "expected the field-target read_byte canary to reject, but it compiled: {}",
+            report.summary()
+        ),
+        Err(diagnostics) => diagnostics,
+    };
+    let combined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains("did not lower to its byte-op instruction")
+            && combined.contains("let r: ByteRead"),
+        "expected the actionable byte-op blocker (serving-shape hint), got:\n{combined}"
+    );
+}

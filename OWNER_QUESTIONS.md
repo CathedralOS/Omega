@@ -168,3 +168,23 @@ from all of them.
     ZII zero value IS end-of-input; no sentinel anywhere. (std Option<T>
     can't carry payloads yet, so the domain sum is the honest spelling
     today; fold into Option<i32> if/when variant payloads land there.)]
+
+13. **Platform entries vs boundary traits — converge or give `platform`
+    effect rows? (fs lane, 2026-07-17.)** Two declaration forms exist for
+    host surfaces: `boundary trait X { machine f(..) effects row; }` (the
+    general mechanism: effect rows, provides bindings, granted-build
+    gating) and `platform Console { entry f(..); }` (std's console, wired
+    through compiler host-op lowering, NO effect rows). Consequences
+    today: (a) build.omg logging must hand-spell a BuildLog boundary trait
+    because the granted-build gate needs DECLARED effects that platform
+    entries cannot carry (the residue of your Q11 "declare it once"
+    ruling); (b) the purity checker classifies `read_byte` as PURE ("no
+    effects and no mutable out-parameters") -- wrong: it consumes a stdin
+    byte. Probe-swept 2026-07-17: every current path REFUSES rather than
+    elides, so this is not a live miscompile, but purity claims about
+    effectful ops age badly. Options: (i) `platform` entries gain
+    `effects` rows (small grammar addition; both forms live on); (ii)
+    platform blocks CONVERGE onto boundary traits + std provides rows
+    (one form, bigger migration -- the samples' `console: Console` field
+    spelling can stay); (iii) status quo (hand-spelled BuildLog persists).
+    This is the last open rung of the Q11/Q12 console arc.
