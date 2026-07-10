@@ -106,6 +106,12 @@ should target NEW feature surfaces as they land, not re-walk these axes.
   stage-1 contract-only so no providers/callers existed yet; addr value
   flow + the addr+u64 mixed op pinned by types/runtime_addr_value_flow_exit).
   The retirement arc is COMPLETE -- item closes next condense.
+  Probe follow-through (2026-07-15): the addr ALGEBRA is fenced --
+  addr +/- count and addr - addr -> count work (pinned:
+  types/runtime_addr_algebra_exit); addr + addr / * / / / % / shifts
+  reject via a new arithmetic_domains rule (pinned:
+  fail/types/addr_plus_addr_rejected). The brief's capability rung
+  (in-region/aligned proofs on addr) stays future work.
 
 - **Const-folder width-blindness: latent, currently unreachable via the
   live spelling.** The 2026-07-04 miscompile class (`(0u32 - 2) >> 1` folding

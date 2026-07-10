@@ -1,0 +1,40 @@
+// RUN CANARY (exit 70) + interpreter differential. The LEGAL half of the
+// addr algebra (index/count/address model): `addr - count -> addr` offsets
+// backward, `addr - addr -> count` measures the distance between two
+// addresses, and addresses ORDER (`<`). The illegal half (addr + addr,
+// addr * anything, shifts) rejects at compile -- see
+// fail/types/addr_plus_addr_rejected.
+// exits: 71 = addr - count wrong; 72 = addr - addr wrong; 73 = ordering wrong.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine Main::main(&mut self) {
+    let a: addr = 4096;
+    let b: addr = 4000;
+    let back: addr = a - 16;
+    transition back == 4080 {
+        true  -> diff_leg()
+        false -> bad_sub()
+    }
+    state diff_leg(&mut self) {
+        let a2: addr = 4096;
+        let b2: addr = 4000;
+        let d: u64 = a2 - b2;
+        transition d == 96 {
+            true  -> order_leg()
+            false -> bad_diff()
+        }
+    }
+    state order_leg(&mut self) {
+        let a3: addr = 4096;
+        let b3: addr = 4000;
+        let o: bool = b3 < a3;
+        transition o == true {
+            true  -> good()
+            false -> bad_order()
+        }
+    }
+    state good(&mut self)     { self.console.exit_process(70); }
+    state bad_sub(&mut self)  { self.console.exit_process(71); }
+    state bad_diff(&mut self) { self.console.exit_process(72); }
+    state bad_order(&mut self){ self.console.exit_process(73); }
+}

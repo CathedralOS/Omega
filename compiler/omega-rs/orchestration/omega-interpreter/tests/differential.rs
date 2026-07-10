@@ -803,6 +803,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("types/runtime_i16_signed_arith_exit", 70),
     ("types/runtime_i64_signed_arith_exit", 70),
     ("types/runtime_addr_value_flow_exit", 70),
+    ("types/runtime_addr_algebra_exit", 70),
     ("types/runtime_u8_field_arith_exit", 70),
     ("types/runtime_addr_field_exit", 88),
     ("text/runtime_utf16_literal_exit", 70),

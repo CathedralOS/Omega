@@ -1182,6 +1182,20 @@ pub(crate) fn report_mismatched_width_operands(
 /// operands) and comparison/logical ops (which yield a bool). Used both for the
 /// overflow analysis here and, via `expression_types`, to classify an arithmetic
 /// result as numeric for the cross-class store check.
+/// The source spelling of an arithmetic operator, for diagnostics.
+fn arithmetic_operator_spelling(operator: BinaryOperator) -> &'static str {
+    match operator {
+        BinaryOperator::Add => "+",
+        BinaryOperator::Subtract => "-",
+        BinaryOperator::Multiply => "*",
+        BinaryOperator::Divide => "/",
+        BinaryOperator::Modulo => "%",
+        BinaryOperator::ShiftLeft => "<<",
+        BinaryOperator::ShiftRight => ">>",
+        _ => "?",
+    }
+}
+
 pub(crate) fn is_arithmetic(operator: BinaryOperator) -> bool {
     matches!(
         operator,
@@ -1283,6 +1297,37 @@ fn analyze(
                     "{operation} by zero in {owner}: the divisor is provably zero, which always \
                      traps at runtime. Remove the operation or use a nonzero divisor."
                 )));
+            }
+
+            // The index/count/address model (design brief, SETTLED): `addr`
+            // composes with COUNTS -- `addr + count` / `count + addr` /
+            // `addr - count` offset an address -- and differences with
+            // ITSELF (`addr - addr` is the count between two addresses).
+            // Every other arithmetic pairing is meaningless: `addr + addr`
+            // has no referent (and no representation on CHERI-class targets
+            // where addr may be a 128-bit capability), and multiplying,
+            // dividing, or shifting an address conflates the axes the model
+            // exists to separate. Reject loudly.
+            let left_is_addr = left.primitive == Some(PrimitiveType::Addr);
+            let right_is_addr = right.primitive == Some(PrimitiveType::Addr);
+            if left_is_addr || right_is_addr {
+                let legal = match operator {
+                    // addr - addr -> count; addr - count -> addr. (count -
+                    // addr has left_is_addr == false and stays illegal.)
+                    BinaryOperator::Subtract => left_is_addr,
+                    // Exactly one side is the address; the other offsets it.
+                    BinaryOperator::Add => left_is_addr != right_is_addr,
+                    _ => false,
+                };
+                if !legal {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "meaningless address arithmetic in {owner}: `addr` composes with \
+                         counts (`addr + u64`, `addr - u64`) or differences with itself \
+                         (`addr - addr` is the count between two addresses); `{}` over \
+                         these operands conflates the address and count axes.",
+                        arithmetic_operator_spelling(operator),
+                    )));
+                }
             }
 
             // A SHIFT's count operand carries no domain weight: "shift
