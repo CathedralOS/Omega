@@ -120,17 +120,34 @@ results in Omega. Interpreter = full-parity reference oracle for everything.
    convergence.
 
 0b. **[CLAIMED 2026-07-17, from TASKS.md NEXT PICK (owner priority
-   2026-07-15) -- no lane was driving it]** Cathedral M2 unblock, the
-   two red efi tests: (1) `targets/efi_vtable_call` -- the
-   boot-verified M1 dispatch (`provides TextOutput { output_string ->
-   VtableSlot(1) }`) went WIDTH-0 at the vtable encoder (their
-   2026-07-11 note; "restore existing machinery"). (2)
-   `targets/efi_ref_param_call_arg` -- `&mut` out-params through that
-   boundary call, MS-x64. Both byte-pin tests are cfg(windows), but PE
-   emission is cross-target: verify here by compiling for uefi_x64
-   WITH output and checking .text (the `mov rax,[rcx+8]; call rax`
-   needle). NOTE this lane also owns the adjacent x86_64 byte-op
-   encoder follow-up (item 0 (x)) -- same encoder territory.
+   2026-07-15)] Cathedral M2 unblock.** DIAGNOSIS (2026-07-17, this
+   host): the "two red efi tests" appear STALE -- the uefi_x64
+   cross-compiled PE contains the `mov rax,[rcx+8]; call rax` dispatch
+   (needle verified at .text offset 1688, so the vtable encoder is NOT
+   width-0 today), and all four efi suite tests that run here PASS
+   (ref_param_call_arg + direct_faces report-checks included). The
+   cfg(windows) byte-pin twins need the next Windows session to
+   re-baseline, but the same encoder path proves out cross-target.
+   THE REAL M2 WORK (their note agrees): the FIELD MODEL -- `provides
+   Trait over VtableStruct { method -> field }` (extern brief SS12.1,
+   decided 2026-07-04) has zero implementation; Cathedral is authored
+   in it. Recipe from today's survey: (1) syntax: provides block gains
+   the optional `over <Struct>` clause; arm RHS bare identifier ->
+   ProvidesBindingKind::VtableField { field } (RHS is already
+   expression syntax; VtableSlot parse stays for the existing
+   canaries). (2) resolution: over-struct + field names resolve; the
+   FIELD OFFSET comes from the layout plan (the byte-op
+   payload-offset precedent) -- normalize BOTH forms to a byte offset
+   (VtableSlot(n) = n x pointer_size) so one encoder serves.
+   (3) encoding: generalize encode_vtable_call_sequence's `index` to
+   the byte offset (calling-conventions lib.rs:988 is the
+   binding-kind -> mechanism seam; emission/host.rs:27 the dispatch).
+   (4) canary: the M1 greeting re-authored in the field model
+   (header-prefixed EfiSimpleTextOutput struct, output_string as a
+   NAMED field) pinning the SAME dispatch needle; then M2-ladder #1
+   (`&mut` out-params, get_memory_map's five) gets its canary. NOTE
+   this lane also owns the adjacent x86_64 byte-op encoder follow-up
+   (item 0 (x)) -- same encoder territory.
 
 1. **Windows-session bundle** (needs a Windows host): verify the stat-row
    migration natively; WINDOWS_IMPORT_ROWS migration into provides files;
