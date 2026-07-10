@@ -39,6 +39,13 @@ Then smoke the third mechanism behind them: the runtime-offset borrow-recast
 `&self.map_buf[offset] as &EfiMemoryDescriptor` strided by runtime
 `descriptor_size` (M2-ladder #3; the indexing + bounds-proof substrate landed
 in the 2026-07-09..13 arcs, unverified against the recast spelling).
+> fs lane 2026-07-17: rungs 1+2 DONE (the FIELD MODEL serves --
+> pass/targets/efi_vtable_field_call -- and `&mut` out-params marshal as
+> addresses with six-arg stack spill -- pass/targets/efi_out_param_call;
+> the "two red efi tests" proved stale, dispatch bytes verified
+> cross-target). Rung 3 SMOKED: the recast refuses at the PARSER (`as`
+> takes no reference type) -- M2 now blocks on exactly the queued RECAST
+> rung below (SS5b). It is the last compiler-side blocker.
 
 Done-check = the M2 ladder's: boot under QEMU/OVMF, greeting prints,
 ExitBootServices succeeds against the fresh MapKey, no crash after exit (the
