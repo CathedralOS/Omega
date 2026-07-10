@@ -255,6 +255,14 @@ vocabulary only through explicitly boundary target configuration.
 Console boundaries should use the same shape:
 
 ```omega
+// The result of a byte-level read. `Eof` is ordinal 0: a zero-initialized
+// ByteRead IS end-of-input -- ZII, no sentinel value anywhere (ruled
+// 2026-07-16; the -1 spelling was rejected as legacy non-ZII).
+data ByteRead {
+    case Eof;
+    case Byte(value: i32 [0..=255]);
+}
+
 boundary trait Console {
     machine write(text: String)
     effects
@@ -268,11 +276,33 @@ boundary trait Console {
     effects
         stdin_io;
 
+    machine read_byte() -> ByteRead
+    effects
+        stdin_io;
+
+    machine write_byte(byte: i32)
+    effects
+        stdout_io;
+
     machine exit_process(code: i32)
     effects
         process_exit;
 }
 ```
+
+The byte ops are the universal filter surface (`stdin_checksum` and its
+siblings): `read_byte` yields each raw byte as `ByteRead::Byte { value }`
+and `ByteRead::Eof` at end-of-input -- the payload's declared `[0..=255]`
+range is construction-enforced, so downstream arithmetic gets honest facts
+for free, and native lowerings exploit the ZII rule directly (the result
+slot is pre-zeroed; only an arrived byte writes the non-zero tag, so the
+EOF path executes no write at all).
+
+NOTE (implementation state, 2026-07-17): std's shipping console is still
+the transitional `platform Console` block, which cannot carry effect rows
+-- the shape above is the prescribed end state (OWNER_QUESTIONS #13 tracks
+the convergence; the missing rows currently make the purity checker call
+`read_byte` pure, which is wrong but refusal-guarded).
 
 Domain requirements stay normal proof language. A filesystem boundary should
 not invent special "initialized" words when a domain is what it means:
