@@ -270,6 +270,7 @@ impl ExpressionTable {
                     value,
                     target_type,
                     domain: cast.domain,
+                    form: cast.form,
                 }))
             }
             ExpressionNode::Call(call) => {
@@ -1047,6 +1048,7 @@ impl ExpressionTable {
                     value,
                     target_type,
                     domain: cast.domain,
+                    form: cast.form,
                 }))
             }
             ExpressionNode::Call(call) => {
@@ -1226,6 +1228,7 @@ impl ExpressionTable {
                     value,
                     target_type,
                     domain: cast.domain,
+                    form: cast.form,
                 }))
             }
             Expression::Call(call) => {
@@ -1331,6 +1334,7 @@ impl ExpressionTable {
                     self.name_path_members(cast.target_type).iter().cloned(),
                 ),
                 domain: cast.domain,
+                form: cast.form,
             })),
             ExpressionNode::Call(call) => Expression::Call(Box::new(CallExpression {
                 receiver: call
@@ -1588,6 +1592,10 @@ pub struct TableCastExpression {
     pub target_type: HandleSpan<Identifier>,
     /// Arithmetic domain cast (`x as u8 in Saturating`), decision 17 S2.
     pub domain: omega_core::arithmetic::ArithmeticDomain,
+    /// Value conversion vs §5b borrow recast (`&x as &T`). Only `Value`
+    /// survives past the typed trees today: the resolved->typed lowering is
+    /// the recast judgment's choke point (rung A).
+    pub form: omega_core::cast_form::CastForm,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1963,6 +1971,8 @@ pub struct CastExpression {
     pub target_type: NamePath,
     /// Arithmetic domain cast (`x as u8 in Saturating`), decision 17 S2.
     pub domain: omega_core::arithmetic::ArithmeticDomain,
+    /// Value conversion vs §5b borrow recast (`&x as &T`).
+    pub form: omega_core::cast_form::CastForm,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

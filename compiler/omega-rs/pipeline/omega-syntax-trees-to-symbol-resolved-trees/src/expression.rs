@@ -77,6 +77,7 @@ fn lower_expression_node_into_table(
                     value,
                     target_type,
                     domain: cast.domain,
+                    form: cast.form,
                 })),
             )
         }

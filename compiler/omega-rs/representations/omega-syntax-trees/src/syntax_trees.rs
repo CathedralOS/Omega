@@ -966,6 +966,7 @@ impl SyntaxTrees {
                 value: self.copy_expression_handle(other, cast.value),
                 target_type: self.copy_expression_identifier_span(other, cast.target_type),
                 domain: cast.domain,
+                form: cast.form,
             }),
             ExpressionNode::Call(call) => ExpressionNode::Call(TableCallExpression {
                 receiver: self.copy_expression_handle(other, call.receiver),

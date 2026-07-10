@@ -460,6 +460,12 @@ pub(crate) fn validate_cast_types(
     cast: &TableCastExpression,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    // §5b recasts (`&x as &T`) are judged WHOLE by `recasts::validate_recasts`
+    // (size/facts/position); the value-cast rules below do not apply to a
+    // re-view.
+    if cast.form.is_recast() {
+        return;
+    }
     let target_name = program
         .expression_table
         .name_path_members(cast.target_type)

@@ -1,0 +1,13 @@
+// FAIL CANARY (rung-A fence): a recast binds to a reference-typed let;
+// inline re-views (guard operands, call arguments, nested expressions)
+// land with the byte-view rung. The position sweep in omega-validation
+// recasts.rs mirrors the D14 literal gate: blessed roots first, then a
+// whole-table sweep refuses strays.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; bits: i32; }
+machine Main::main(&mut self) {
+    self.bits = 1078530011;
+    transition (&self.bits as &f32) > 3.14 { true -> good() _ -> bad() }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self)  { self.console.exit_process(71); }
+}

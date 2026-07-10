@@ -1,0 +1,13 @@
+// FAIL CANARY: §5b rule 1 -- a recast re-views the SAME bytes, so source
+// and target shapes must agree on total size. `&i64 as &f32` (8 vs 4
+// bytes) refuses at the rung-A scalar judgment (omega-validation
+// recasts.rs).
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; x: i64; }
+machine Main::main(&mut self) {
+    self.x = 3;
+    let v: &f32 = &self.x as &f32;
+    transition v > 2.9 { true -> good() _ -> bad() }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self)  { self.console.exit_process(71); }
+}

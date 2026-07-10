@@ -310,6 +310,7 @@ fn rewrite_children(
                     value,
                     target_type: cast.target_type,
                     domain: cast.domain,
+                    form: cast.form,
                 }),
             );
         }

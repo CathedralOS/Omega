@@ -1,7 +1,5 @@
 > OWNER_QUESTIONS.md (repo root) consolidates all lanes' pending owner decisions — batch-answerable.
 
-> OWNER: Migrate questions from this into OWNER_QUESTIONS.md, reconciling duplicates.
-
 # Tasks
 
 Working backlog only. Finished work lives in the git log; canary headers carry
@@ -70,9 +68,9 @@ should target NEW feature surfaces as they land, not re-walk these axes.
 
 ## Owner-gated holds (see OWNER_QUESTIONS.md)
 
-- **FLOAT-TO-INT half still open (no ruling).** `1e300 as i32`: aarch64
-  FCVTZS + interp saturate to i32::MAX; x86 CVTTSD2SI gives the 0x80000000
-  "integer indefinite". Parked cast divergence stays in the drift ledger.
+- **FLOAT-TO-INT half still open (no ruling)** — migrated to
+  OWNER_QUESTIONS.md item 10 (2026-07-09, per the consolidation directive).
+  Parked cast divergence stays in the drift ledger until answered.
 
 ## Open bugs / gaps (ungated)
 
@@ -132,9 +130,34 @@ should target NEW feature surfaces as they land, not re-walk these axes.
   §10.2), the `Packed` grammar, the plan-walking deriver (blocked on
   case-vocabulary Plan element construction), the validate/materialize decode
   mint, refinement-as-obligation.
-- **RECAST (settled §5b):** borrows under a second stated shape spelled `as` —
-  checker borrow-recast form + plan-tiling/fact-implication validator. Queued
-  behind the validate-mint rung.
+- **RECAST (settled §5b): IN PROGRESS, main lane (claimed 2026-07-09 —
+  jumped the validate-mint queue; it is the last compiler-side M2 blocker
+  per the fs-lane rung-3 smoke).** Ladder + state:
+  - **(A) static core — LANDED except the native write (2026-07-09).**
+    Parser (`as &[mut] T` rides the Cast node as `CastForm`, omega-core
+    cast_form.rs, threaded through all four tree crates); the rung-A
+    judgment (omega-validation recasts.rs: shared scalar equal-width only,
+    stated-type restated by the let, bool/text refused absolutely, `&mut`
+    + records + non-let positions fenced loudly, D14-style blessed-root
+    sweep); the companion rule REFUSES the previously-unjudged reference-
+    let pun (`let v: &f32 = &self.x` over i64 compiled and DIVERGED —
+    found probing this rung; 4 fail canaries under canaries/fail/recast/).
+    Interp serves (eval_recast bit-reinterprets; snapshot is sound under
+    exclusivity). NATIVE GAP pinned pending/recast/
+    scalar_pun_shared_let_native_zii (71, Exit(70)): reference locals
+    materialize as pointee-VALUE copies into pointer-wide slots; the
+    write planner has no arm for a recast initializer (slot stays ZII)
+    and the guard operand layout reads slot-width, not stated-width.
+    NEXT: (a) let-write byte-copies the source place's bytes, (b) reads
+    through the view use the stated type's width/kind — both in the
+    write-planning + state-guards operand machinery.
+  - **(B)** interior recast into a `[u8; N]` region at a static offset
+    (footprint-fits judgment + fact implication over the region).
+  - **(C)** the Cathedral shape — runtime offset strided by runtime
+    `descriptor_size` (`&self.map_buf[offset] as &EfiMemoryDescriptor`),
+    bounds discharge via the declared-range substrate + the alignment
+    question. Plan-tiling validation beyond fact-free shapes rides the
+    L5 rung as before.
 - **L6+:** Bits placements + access classes (MMIO deriver); durability plan
   grades; publish-time predecessor diff.
 
