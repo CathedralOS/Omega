@@ -380,6 +380,14 @@ fn validate_state_statement_node(
                     &owner,
                     diagnostics,
                 );
+                // Containment for non-literal stores into ranged places (see
+                // the local arm's twin note; literal stores refuse through
+                // the proof plan).
+                if let Some(handle) = assignment_target_type {
+                    arithmetic_domains::check_range_containment(
+                        program, handle, interval, &owner, diagnostics,
+                    );
+                }
             }
             arithmetic_domains::record_assignment(
                 value_env,
@@ -648,6 +656,22 @@ fn validate_state_statement_node(
                     local_target_primitive,
                     interval,
                     source_primitive,
+                    &owner,
+                    diagnostics,
+                );
+                // Containment against a declared Exact `[a..=b]`: literal
+                // initializers refuse through the proof plan, but a
+                // NON-LITERAL initializer's interval was never checked --
+                // `let idx: u32 [0..=11] = <expr provably up to 12>` stored
+                // unproven and the index prover then TRUSTED the range (a
+                // confirmed native OOB read, found landing the R3 product
+                // rule). The enforced range only exists under Exact shells,
+                // so non-Exact declarations are untouched (Q9's own gate
+                // already rejects range+domain combinations).
+                arithmetic_domains::check_range_containment(
+                    program,
+                    local_data.type_reference,
+                    interval,
                     &owner,
                     diagnostics,
                 );

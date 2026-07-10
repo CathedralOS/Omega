@@ -167,10 +167,27 @@ header above for the verified spelling). Rungs, in payoff order:
   (`requires a.cols == b.rows`), and machine-signature `requires`
   surface with the bracket-as-sugar desugar. Cross-machine dependent
   params ride R4 (boundary witnesses).
-- **R3 (relational bounded-product):** ONE closed rule (`0<=a<=A, 0<=b =>
-  a*b<=A*b`) over the polynomial engine -- needed only where operand ranges
-  are NOT independently tight (x < w with wide w; i*stride via i < count).
-  Composes with R1.
+- **R3 (relational bounded-product): LANDED (2026-07-09).** The one
+  closed rule: `y * self.cols + x` with strict dependent params
+  (`y < rows`, `x < cols`) and a machine `requires self.rows * self.cols
+  <= K` coupling is bounded by K-1 (multiply half by K), machine-wide
+  field preservation as the bridge -- runtime dims with NO literal
+  ranges prove (refine_dependent_product/_factor in the decision-17
+  analysis). Landing it EXPOSED AND CLOSED a store-proof hole: bounded
+  intervals escaping declared Exact ranges were never refused (confirmed
+  native OOB read) -- the containment keystone now refuses
+  bounded-escape stores at both let and assignment arms
+  (check_range_containment; it also caught a genuinely over-claimed
+  range in the deep-chain corpus canary), constant-divisor quotient
+  intervals tightened to make provable shapes prove ([0,99]/10 =
+  [0,9]), and the UNBOUNDED-store residue stays permissive (conservative
+  post-entry env seeding would flip sound corpus shapes) -- pinned here
+  as the store-proof completion item. The declaration gate now admits
+  UNRANGED integer fields as dependent maxima (the guard route
+  discharges; couplings bound the products). Pinned:
+  pass/dependent/runtime_bounded_product_index_exit + the weak-coupling
+  fail canary. Direct `pixels[y*self.cols+x]` spelling (hoist-temp range
+  synthesis from couplings) is the R3b sugar remainder.
 - **R4 (boundary witness mints, proof side):** out-params as witnesses,
   decode-minted where-facts, recast bounds discharged from couplings +
   R1/R3. ⚠️ COORDINATE: the recast MECHANICS are claimed by the main lane

@@ -19,7 +19,11 @@ machine Main::proc(&self, total: i32 [0..=1000], freq: i32 [0..=1000]) -> i32 {
     state work(&self, total: i32 [0..=1000], freq: i32 [1..=1000]) -> i32 {
         let q: i32 [0..=1000] = total / freq;
         let scaled: i32 [0..=1000000] = q * freq;
-        let rem: i32 [0..=1000] = total - scaled;
+        // `rem`'s true bound needs the Euclidean identity (total - q*freq =
+        // total mod freq); interval arithmetic sees [-10^6, 1000], so the
+        // local stays UNRANGED since the store-containment keystone landed
+        // (the old range rode the pre-containment vacuous pass).
+        let rem: i32 = total - scaled;
         transition {
             _ -> (rem)
         }
