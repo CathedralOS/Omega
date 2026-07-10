@@ -90,6 +90,32 @@ from all of them.
     virtual semantics next to the row), or (c) something capability-gated
     like the build.omg fs grants? Affects how testable authored-binding
     programs are.
+    > Owner: Is this a windows only question? cross-platform? In my mind,
+    > all libraries in the like must go behind a boundary declaration,
+    > this is where trust naturally ends. Then we need some OS-specific
+    > mechanism to link against boundaries. So windows that implements a
+    > boundary trait gets the windows ABI, and trust naturally stops
+    > there -- as with all boundary traits. I dont even understand the
+    > question.
+    > Owner (2026-07-16, CLOSES the question): the interpreter presumably
+    > will get its own implementation of omega-specific boundary traits,
+    > especially if we support WASM-like interpretation of Omega programs
+    > (shipped up to an IR stage, rather than emitting binaries). In these
+    > cases, we would, behind omega APIs, route to an interpreter version
+    > of the impl. Now, as for user-defined boundaries, these would likely
+    > just error out if there is no way to do anything with them. ie
+    > trying to call some windows dll import or similar boundary in an
+    > interpreter build -- theres simply no concept of this. This is
+    > likely sufficient for our tests, as the idea of comparing program
+    > output to interpreter output simply exists for our testing + future
+    > WASM-like builds. There is 0 expectation that we run user programs,
+    > built for specific targets, through the interpreter and have them
+    > function.
+    [CLOSED: today's behavior IS the design -- std boundaries get
+    interpreter implementations (they have them); user-authored bindings
+    error out interpreted and the differential skips them. No virtual-stub
+    mechanism. The "interpreter as a WASM-like target" framing is recorded
+    for the future IR-shipping story.]
 
 11. **A std console boundary for build.omg logging (fs lane, 2026-07-11k).**
     Owner answer #5 landed: granted builds SERVE console writes through
@@ -101,6 +127,14 @@ from all of them.
     collides with the bare exit_process convention all samples use;
     `BuildLog`? method set: write/write_line/write_error/write_error_line?),
     or is per-program spelling the intended shape?
+    > Owner: I have no fucking clue why we keep doing this, can we not
+    > declare this trait in omega::core or something? omega::std? Isnt
+    > this a suuuper solved problem in programming?
+    [DIRECTION TAKEN: yes -- declare it ONCE in omega::language::std and
+    stop hand-spelling. std/console.omg exists but as a legacy `platform`
+    block outside the boundary/effect system; the arc is promoting it to
+    the canonical `boundary trait` with declared effect rows + per-target
+    bindings, filesystem_host.omg-style. Filed in TASKS_FS; underway.]
 
 12. **Byte-level stdin spelling for the Omega frontend (fs lane, 2026-07-11w).**
     The stdin samples (stdin_checksum/rot1/upper — the samples_compile
@@ -113,3 +147,24 @@ from all of them.
     separate Stdin/Stdout boundary pair, or (c) keep byte I/O
     lattice-only and rewrite the samples line-oriented? The samples stay
     red on the Rust compiler until ruled.
+    > Owner: The boot lattice is super fucking experimental and not
+    > something to reference at all. Unless there is a consistency
+    > problem WITHIN omega-rs itself, this is not a concern EVER. This
+    > again feels like a super fucking solved problem, arent Console
+    > operations fucking universal by now?
+    [DIRECTION TAKEN: the lattice's input model carries no weight; there
+    is no omega-rs-internal inconsistency -- the three samples simply
+    call free functions that don't exist in real Omega. Under "Console
+    ops are universal": std Console (the Q11 arc) gets the universal op
+    set (read/write bytes + lines, error stream, exit_process) and the
+    stdin samples are rewritten against it, which zeroes the
+    samples_compile baseline.]
+    > Owner (2026-07-16, EOF spelling): read_byte() returning -1 instead
+    > of 0 on EOF sounds retarded, legacy non-ZII shit. even an
+    > Option<i32> is better than -1 in my mind, magic numbers are fucking
+    > retarded.
+    [RESOLVED: shipped as a std sum, `data ByteRead { case Eof; case
+    Byte(value: i32); }` in std/console.omg -- Eof is ordinal 0, so the
+    ZII zero value IS end-of-input; no sentinel anywhere. (std Option<T>
+    can't carry payloads yet, so the domain sum is the honest spelling
+    today; fold into Option<i32> if/when variant payloads land there.)]

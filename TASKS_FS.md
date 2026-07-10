@@ -72,6 +72,37 @@ results in Omega. Interpreter = full-parity reference oracle for everything.
 
 ## Open work
 
+0. **std Console byte ops (Q11/Q12 owner direction, 2026-07-16).**
+   SURVEY CORRECTED THE PREMISE: samples already share ONE declaration
+   (std/console.omg's `platform Console`; cli samples consume it via
+   compiler host-op lowering) -- only the CANARY/build.omg convention
+   hand-spells inline boundaries, because platform entries carry no
+   effect rows (the granted-build gate needs them). LANDED (slice 1):
+   `entry read_byte() -> ByteRead` -- a std sum (`case Eof; case
+   Byte(value: i32)`), Eof = ordinal 0 = the ZII zero case (owner
+   VETOED the -1 sentinel, 2026-07-16) -- + `entry write_byte(byte:
+   i32)` on platform Console; interpreter serving (statement +
+   value-position dispatches); grammar pin for value-returning platform
+   entries + echo/checksum coverage test
+   (console_byte_ops_echo_and_checksum). Q10 CLOSED same day: authored
+   imports DECLINE interpreted, differential skip is the design (no
+   virtual stubs; "interpreter as a WASM-like target" recorded for the
+   IR-shipping future). REMAINING: (a) NATIVE lowering -- two
+   SelectedInstructionKind siblings of ReadRuntimeTextLine (read:
+   `read(0,scratch,1)` + mint ByteRead tag[+payload] into the result
+   slot, Eof=tag 0 so the ZII zero write IS the EOF arm; write: byte
+   into scratch + `write(1,scratch,1)`),
+   ISA encodings x2, wildcard rows in calling-conventions
+   darwin/linux/windows (Stdin.read / Stdout.write imports exist),
+   data-planning scratch-byte object, backend-report arms; native
+   canary (byte echo exit) + differential registration. (b) Rewrite
+   stdin trio samples `read_byte()` -> `self.console.read_byte()` +
+   ByteRead transitions (zeroes samples_compile baseline-3; needs (a)
+   since samples compile BOTH engines). (c) The effect-rows unification
+   for platform entries (what BuildLog hand-spelling actually needs) --
+   separate rung, may need owner input on platform-vs-boundary-trait
+   convergence.
+
 1. **Windows-session bundle** (needs a Windows host): verify the stat-row
    migration natively; WINDOWS_IMPORT_ROWS migration into provides files;
    Win32 rows for the no-msvcrt ops; file_journal-on-windows recheck;

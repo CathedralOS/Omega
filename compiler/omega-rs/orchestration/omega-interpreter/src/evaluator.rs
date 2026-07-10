@@ -2605,6 +2605,31 @@ impl<'program> Evaluator<'program> {
                 }
                 Ok(Some(Value::Unit))
             }
+            "read_byte" => {
+                // The next raw stdin byte as `ByteRead::Byte { value }`, or
+                // `ByteRead::Eof` at end-of-input (Eof = ordinal 0 = the ZII
+                // zero case; sentinel spellings vetoed, OWNER_QUESTIONS #12).
+                // No CRLF normalization: byte-level readers see the stream
+                // as-is.
+                Ok(Some(self.read_stdin_byte_value()))
+            }
+            "write_byte" => {
+                // Append one byte (the argument's low 8 bits) to stdout.
+                let byte = arguments
+                    .first()
+                    .and_then(|argument| self.eval_expression(*argument, frame).ok())
+                    .and_then(|value| match value {
+                        Value::Int(byte) => Some(byte as u8),
+                        _ => None,
+                    });
+                match byte {
+                    Some(byte) => {
+                        self.stdout.push(byte);
+                        Ok(Some(Value::Unit))
+                    }
+                    None => unsupported("write_byte expects one integer argument".to_string()),
+                }
+            }
             "read_line" => {
                 // Read up to (and including) the next newline from the remaining stdin into
                 // the `&mut String` out-parameter. CRLF is normalized (a trailing `\r` is
@@ -3793,6 +3818,33 @@ impl<'program> Evaluator<'program> {
 
     /// Consume the next line from the remaining stdin (without the line terminator). CRLF
     /// and LF are both handled; returns an empty string at end of input.
+    /// One raw stdin byte as a std `ByteRead` value: `Byte { value }` while
+    /// input remains, `Eof` after (ordinal 0 -- the ZII zero case; sentinel
+    /// spellings vetoed, OWNER_QUESTIONS #12). The declaring type resolves by
+    /// name from std/console.omg (invalid + name-global fallback when a
+    /// program shadows or lacks it, the WireVerdict precedent).
+    fn read_stdin_byte_value(&mut self) -> Value {
+        let type_symbol = self
+            .find_data_by_name("ByteRead")
+            .map(|data| data.symbol)
+            .unwrap_or_else(SymbolHandle::invalid);
+        if self.stdin_cursor < self.stdin.len() {
+            let byte = self.stdin[self.stdin_cursor];
+            self.stdin_cursor += 1;
+            Value::Enum {
+                type_symbol,
+                variant_name: "Byte".to_owned(),
+                payload: vec![("value".to_owned(), Value::Int(i64::from(byte)).cell())],
+            }
+        } else {
+            Value::Enum {
+                type_symbol,
+                variant_name: "Eof".to_owned(),
+                payload: Vec::new(),
+            }
+        }
+    }
+
     fn read_stdin_line(&mut self) -> String {
         let mut line = String::new();
         while self.stdin_cursor < self.stdin.len() {
@@ -4180,6 +4232,17 @@ impl<'program> Evaluator<'program> {
                     // sees them as well.
                     self.host_boundary_touched = true;
                     self.non_fs_host_boundary_touched = true;
+                }
+                if target == "read_byte" {
+                    // The next raw stdin byte as `ByteRead::Byte { value }`,
+                    // or `ByteRead::Eof` at end-of-input (the ZII zero case;
+                    // OWNER_QUESTIONS #12); the byte path does no CRLF
+                    // normalization. Mirrors the statement-position arm in
+                    // try_host_call, but read_byte is value-position by
+                    // nature (`let r = self.console.read_byte()`).
+                    self.host_boundary_touched = true;
+                    self.non_fs_host_boundary_touched = true;
+                    return Ok(self.read_stdin_byte_value());
                 }
                 if let Some(value) = self.virtual_time_host_value(target) {
                     self.host_boundary_touched = true;
@@ -5759,6 +5822,8 @@ fn is_canonical_host_method(name: &str) -> bool {
             | "write_error"
             | "write_error_line"
             | "read_line"
+            | "read_byte"
+            | "write_byte"
             | "exit_process"
             | "sleep"
             | "tick_count"
