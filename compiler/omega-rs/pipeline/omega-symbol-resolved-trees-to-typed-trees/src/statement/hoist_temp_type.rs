@@ -449,7 +449,93 @@ fn operand_declared_interval(
         );
     }
     let place_type = collection_type_reference(lowerer, attached_data, state, operand)?;
-    declared_exact_range(lowerer.source_trees, &place_type)
+    declared_exact_range(lowerer.source_trees, &place_type).or_else(|| {
+        dependent_exact_range_substituted(lowerer.source_trees, attached_data, &place_type)
+    })
+}
+
+/// R1a dependent maximum as an INTERVAL operand: `y: u32 [0..=self.rows]`
+/// contributes `(0, high(rows) + offset)` -- the named field's own
+/// store-enforced literal range caps the dependent bound at every moment,
+/// so the substituted interval is sound for the temp's synthesized range
+/// (the same substitution the checker's index prover applies). The field
+/// resolves on the ENCLOSING machine's attached data (`attached_data`).
+fn dependent_exact_range_substituted(
+    source_trees: &resolved::SymbolResolvedTrees,
+    attached_data: Option<&resolved::name::DiagnosticName>,
+    type_reference: &TypeReference,
+) -> Option<(i64, i64)> {
+    let TypeReference::Constrained(constrained) = type_reference else {
+        return None;
+    };
+    let constraints = source_trees
+        .tables
+        .types
+        .constraints
+        .span_or_empty(constrained.constraints);
+    if constraints.iter().any(|constraint| {
+        matches!(
+            constraint,
+            TypeConstraint::ArithmeticDomain(domain)
+                if *domain != omega_core::arithmetic::ArithmeticDomain::Exact
+        )
+    }) {
+        return None;
+    }
+    let data_name = attached_data?;
+    constraints.iter().find_map(|constraint| {
+        let TypeConstraint::Range { minimum, maximum } = constraint else {
+            return None;
+        };
+        let expressions = &source_trees.tables.bodies.expressions;
+        let low = match expressions.expression(*minimum) {
+            ExpressionNode::Integer(literal) => literal.value_i64()?,
+            _ => return None,
+        };
+        let (field, offset) = resolved_symbolic_max_bound(expressions, *maximum)?;
+        let field_type = attached_field_type(source_trees, data_name, &field)?;
+        let (_, field_high) = declared_exact_range(source_trees, &field_type)?;
+        let high = field_high.checked_add(offset)?;
+        (low <= high).then_some((low, high))
+    })
+}
+
+/// Resolved-tree twin of `omega_typed_trees::dependent_ranges`'s recognizer
+/// (`self.<field>` plus an optional literal offset). Kept to the same
+/// admissible class -- the typed-level gate has already validated it.
+fn resolved_symbolic_max_bound(
+    expressions: &resolved::expression::ExpressionTable,
+    bound: ExpressionHandle,
+) -> Option<(String, i64)> {
+    let self_field = |handle: ExpressionHandle| -> Option<String> {
+        let ExpressionNode::Member(member) = expressions.expression(handle) else {
+            return None;
+        };
+        let ExpressionNode::Name(path) = expressions.expression(member.receiver) else {
+            return None;
+        };
+        let [only] = expressions.name_path_members(path.members) else {
+            return None;
+        };
+        (only.as_str() == "self").then(|| member.member.as_str().to_owned())
+    };
+    match expressions.expression(bound) {
+        ExpressionNode::Member(_) => Some((self_field(bound)?, 0)),
+        ExpressionNode::Binary(binary) => {
+            let field = self_field(binary.left)?;
+            let ExpressionNode::Integer(literal) = expressions.expression(binary.right) else {
+                return None;
+            };
+            let magnitude = literal.value_i64()?;
+            let offset = match binary.operator {
+                resolved::expression::BinaryOperator::Add => magnitude,
+                resolved::expression::BinaryOperator::Subtract => magnitude.checked_neg()?,
+                _ => return None,
+            };
+            Some((field, offset))
+        }
+        _ => None,
+    }
 }
 
 /// The Range constraint of a resolved place type, ONLY when every arithmetic
