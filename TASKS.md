@@ -345,7 +345,19 @@ transition loop-backs unchanged (unmeasured, constant-stack, may diverge).
     and the guard operand layout reads slot-width, not stated-width.
     NEXT: (a) let-write byte-copies the source place's bytes, (b) reads
     through the view use the stated type's width/kind — both in the
-    write-planning + state-guards operand machinery.
+    write-planning + state-guards operand machinery. ENTRY POINTS located
+    (2026-07-09 survey): the reference-let initializer write plans through
+    the LocalStorage operation path (instruction-selection
+    runtime_dispatch.rs ~:1030 `local_data_initializer_expression` + its
+    dispatch-walk callers -- the same-type case emits `write
+    runtime_frame_storage@N bytes 8 <pointee value>`; a Cast initializer
+    currently yields NO write, the ZII slot); the read side is
+    omega-state-guards operands/layout.rs (~:280
+    TypeLayoutDescriptor::Reference arm) which sizes the compare by the
+    SLOT (8) instead of the stated referee (f32 -> bytes 8 vs 4). Fix
+    shape: recast-let writes copy the SOURCE place's bytes at the SOURCE
+    width into the slot low bytes; guard/value reads through a
+    reference-typed local use referee width + kind.
   - **(B)** interior recast into a `[u8; N]` region at a static offset
     (footprint-fits judgment + fact implication over the region).
   - **(C)** the Cathedral shape — runtime offset strided by runtime
