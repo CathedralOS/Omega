@@ -147,6 +147,8 @@ fn write_platform_call_lowering(
         PlatformCallData::MutableOutputBuffer { byte_capacity } => output.push_str(&format!(
             " data mutable_output_buffer byte_capacity={byte_capacity}"
         )),
+        PlatformCallData::SingleByteRead => output.push_str(" data single_byte_read"),
+        PlatformCallData::SingleByteWrite => output.push_str(" data single_byte_write"),
         PlatformCallData::ConstantResult { value } => {
             output.push_str(&format!(" data constant_result value={value}"))
         }

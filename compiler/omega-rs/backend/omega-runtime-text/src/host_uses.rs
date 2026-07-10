@@ -20,8 +20,12 @@ pub(crate) fn collect_host_call_runtime_text(
         PlatformCallData::MutableOutputBuffer { byte_capacity } => {
             collect_runtime_text_buffer(host_calls, host_call, plan, byte_capacity);
         }
-        // A constant result carries no text.
+        // A constant result carries no text; the byte ops carry raw bytes,
+        // not text (no buffer, no descriptor -- the composite instructions
+        // address storage directly).
         PlatformCallData::None
+        | PlatformCallData::SingleByteRead
+        | PlatformCallData::SingleByteWrite
         | PlatformCallData::ConstantResult { .. }
         | PlatformCallData::ConstantArgument { .. } => {}
     }

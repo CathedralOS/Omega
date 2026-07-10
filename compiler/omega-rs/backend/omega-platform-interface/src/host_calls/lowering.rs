@@ -141,9 +141,12 @@ fn receiver_surface_name(program: &CheckedTrees, symbol: SymbolHandle) -> Option
 }
 
 /// The platform (boundary) type name behind an EXPRESSION call -- the
-/// assignment-RHS host-call shape `self.t = self.clock.tick_count()`. Resolved
-/// through the boundary-trait fallback: the call's resolved target symbol is a
-/// signature of exactly one boundary trait.
+/// assignment-RHS host-call shape `self.t = self.clock.tick_count()`.
+/// Resolved through the boundary-trait fallback (the call's resolved target
+/// symbol is a signature of exactly one boundary trait) OR through a
+/// `platform` block's entry signatures (`let r = self.console.read_byte()`
+/// -- value-returning platform entries; without this arm the call silently
+/// missed the host-call plan and the local stayed ZII, caught 2026-07-17).
 pub(crate) fn expression_platform_receiver_type<'program>(
     program: &'program CheckedTrees,
     target_symbol: omega_core::symbols::SymbolHandle,
@@ -151,7 +154,7 @@ pub(crate) fn expression_platform_receiver_type<'program>(
     if !target_symbol.is_valid() {
         return None;
     }
-    let trait_symbol = program
+    if let Some(trait_symbol) = program
         .traits()
         .iter()
         .filter(|trait_definition| trait_definition.is_boundary)
@@ -161,8 +164,21 @@ pub(crate) fn expression_platform_receiver_type<'program>(
                 .iter()
                 .any(|machine| machine.symbol == target_symbol)
         })
-        .map(|trait_definition| trait_definition.symbol)?;
-    receiver_surface_name(program, trait_symbol)
+        .map(|trait_definition| trait_definition.symbol)
+    {
+        return receiver_surface_name(program, trait_symbol);
+    }
+
+    program
+        .platforms()
+        .iter()
+        .find(|platform| {
+            program
+                .platform_state_signatures(platform)
+                .iter()
+                .any(|signature| signature.symbol == target_symbol)
+        })
+        .map(|platform| platform.name.as_str())
 }
 
 /// Like `find_platform_call_lowering`, keyed directly on the callee target

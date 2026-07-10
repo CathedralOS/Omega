@@ -33,6 +33,8 @@ pub(in crate::selection::host_operations) fn runtime_text_literal_for_host_call(
         PlatformCallData::FirstTextArgument { append_newline } => append_newline,
         PlatformCallData::MutableOutputBuffer { .. }
         | PlatformCallData::None
+        | PlatformCallData::SingleByteRead
+        | PlatformCallData::SingleByteWrite
         | PlatformCallData::ConstantResult { .. }
         | PlatformCallData::ConstantArgument { .. } => return None,
     };

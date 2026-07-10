@@ -232,11 +232,17 @@ fn collect_local_result_host_lowering(
     let omega_checked_trees::expression::ExpressionNode::Call(call) =
         program.expression_table.expression(local_data.initial_value)
     else {
+        if std::env::var_os("OMEGA_DEBUG_HOSTCALL").is_some() {
+            eprintln!("HOSTCALL: local `{}` initializer is not a Call node", local_data.name.as_str());
+        }
         return Ok(());
     };
     let call = call.clone();
     let Some(platform_name) = expression_platform_receiver_type(program, call.target_symbol)
     else {
+        if std::env::var_os("OMEGA_DEBUG_HOSTCALL").is_some() {
+            eprintln!("HOSTCALL: local `{}` call target `{}` has no platform receiver type", local_data.name.as_str(), call.target.as_str());
+        }
         return Ok(());
     };
     let Some((lowering_handle, lowering)) =

@@ -8,6 +8,12 @@ pub(super) fn selected_read_kind(kind: &SelectedInstructionKind) -> Option<Machi
             byte_capacity,
             ..
         } => Some(runtime_text_line_read_kind(*target_offset, *byte_capacity)),
+        SelectedInstructionKind::ReadRuntimeByte { .. } => {
+            Some(MachineInstructionKind::RuntimeByteRead)
+        }
+        SelectedInstructionKind::WriteRuntimeByte { .. } => {
+            Some(MachineInstructionKind::RuntimeByteWrite)
+        }
         _ => None,
     }
 }

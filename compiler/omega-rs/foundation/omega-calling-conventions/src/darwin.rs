@@ -211,6 +211,20 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
     insert_platform_lowering(
         plan,
         "*",
+        "read_byte",
+        [host_operation("Stdin", "read")],
+        PlatformCallData::SingleByteRead,
+    );
+    insert_platform_lowering(
+        plan,
+        "*",
+        "write_byte",
+        [host_operation("Stdout", "write")],
+        PlatformCallData::SingleByteWrite,
+    );
+    insert_platform_lowering(
+        plan,
+        "*",
         "exit_process",
         [host_operation("Process", "exit")],
         PlatformCallData::None,

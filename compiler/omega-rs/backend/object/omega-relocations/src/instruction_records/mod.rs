@@ -1,3 +1,4 @@
+mod byte_io;
 mod context;
 mod host_operation;
 mod queries;

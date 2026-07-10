@@ -1,6 +1,9 @@
 mod buffers;
+mod byte_io;
 mod line_read;
 mod literals;
+
+pub(super) use byte_io::{runtime_byte_read, runtime_byte_write};
 
 pub(super) use buffers::find_runtime_text_input_buffer_data_object;
 pub(in crate::selection) use buffers::{
