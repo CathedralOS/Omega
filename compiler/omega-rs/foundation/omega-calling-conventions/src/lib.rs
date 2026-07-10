@@ -811,6 +811,14 @@ pub enum PlatformCallData {
     MutableOutputBuffer {
         byte_capacity: usize,
     },
+    /// std console `read_byte() -> ByteRead`: the composite ReadRuntimeByte
+    /// instruction owns the WHOLE result (it writes the sum slot itself --
+    /// tag AND payload), so no generic result store runs.
+    SingleByteRead,
+    /// std console `write_byte(b)`: one byte to stdout straight from the
+    /// argument's storage (or a staged 1-byte data object for literals) via
+    /// the composite WriteRuntimeByte instruction.
+    SingleByteWrite,
     /// The op's result is a PER-TARGET CONSTANT: no call happens at all -- the
     /// selection pushes the value as an immediate operand and the encoder
     /// materializes `mov rax, imm64` + the normal result store (std::time

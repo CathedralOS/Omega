@@ -87,21 +87,28 @@ results in Omega. Interpreter = full-parity reference oracle for everything.
    (console_byte_ops_echo_and_checksum). Q10 CLOSED same day: authored
    imports DECLINE interpreted, differential skip is the design (no
    virtual stubs; "interpreter as a WASM-like target" recorded for the
-   IR-shipping future). REMAINING: (a) NATIVE lowering -- two
-   SelectedInstructionKind siblings of ReadRuntimeTextLine (read:
-   `read(0,scratch,1)` + mint ByteRead tag[+payload] into the result
-   slot, Eof=tag 0 so the ZII zero write IS the EOF arm; write: byte
-   into scratch + `write(1,scratch,1)`),
-   ISA encodings x2, wildcard rows in calling-conventions
-   darwin/linux/windows (Stdin.read / Stdout.write imports exist),
-   data-planning scratch-byte object, backend-report arms; native
-   canary (byte echo exit) + differential registration. (b) Rewrite
+   IR-shipping future).
+   NATIVE (aarch64) LANDED: ReadRuntimeByte/WriteRuntimeByte
+   composites end-to-end (selection gated on
+   PlatformCallData::SingleByteRead/Write, rows in all three
+   calling-convention tables, relocations, machine-instruction kinds,
+   emission blocker for unserved shapes -- selection emits NOTHING
+   generic for byte ops; a miss refuses the compile). Root-caused en
+   route: `expression_platform_receiver_type` matched only boundary
+   TRAITS, so ANY value-returning `platform` entry call (`let r =
+   self.console.read_byte()`) silently missed the host-call plan and
+   left its local ZII -- now also matches platform state signatures
+   (OMEGA_DEBUG_HOSTCALL gates the collection trace). Pinned by
+   pass/host/runtime_console_byte_echo_exit (empty stdin = Eof arm =
+   the pre-zeroed slot, exit 70, differential-registered; piped "AB" =
+   echo + exit 201 in the suite test). REMAINING: (b) rewrite the
    stdin trio samples `read_byte()` -> `self.console.read_byte()` +
-   ByteRead transitions (zeroes samples_compile baseline-3; needs (a)
-   since samples compile BOTH engines). (c) The effect-rows unification
-   for platform entries (what BuildLog hand-spelling actually needs) --
-   separate rung, may need owner input on platform-vs-boundary-trait
-   convergence.
+   ByteRead transitions (zeroes samples_compile baseline-3; aarch64
+   native now serves). (x) x86_64 byte-op encoders (loud refusal
+   today; windows rows registered incl. GetStdHandle pairs). (c) The
+   effect-rows unification for platform entries (what BuildLog
+   hand-spelling actually needs) -- separate rung, may need owner
+   input on platform-vs-boundary-trait convergence.
 
 1. **Windows-session bundle** (needs a Windows host): verify the stat-row
    migration natively; WINDOWS_IMPORT_ROWS migration into provides files;

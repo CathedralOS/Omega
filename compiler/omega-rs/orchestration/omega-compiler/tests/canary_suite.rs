@@ -29463,3 +29463,71 @@ fn runtime_atomic_compare_exchange_exit_canary_runs() {
 
     let _ = fs::remove_dir_all(&build_dir);
 }
+
+// std Console BYTE OPS natively (the ByteRead ruling: Eof = ordinal 0 = the
+// composite's pre-zeroed slot; no sentinel). One compile, two runs: empty
+// stdin takes the Eof-first arm (exit 70 -- the differential's leg), piped
+// "AB" echoes both bytes and exits 70 + 65 + 66 = 201 (the byte-arrival arm:
+// payload delivery, tag-1 write, write_byte pass-through).
+#[test]
+fn runtime_console_byte_echo_exit_canary_runs() {
+    let canary = pass_canary("host/runtime_console_byte_echo_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-console-byte-echo-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("console byte echo canary should compile");
+
+    let empty = Command::new(build_dir.join(executable_name()))
+        .stdin(std::process::Stdio::null())
+        .output()
+        .expect("console byte echo canary should run on empty stdin");
+    assert_eq!(
+        empty.status.code(),
+        Some(70),
+        "empty stdin must take the Eof arm (the ZII zero slot), got {:?}\nstderr:\n{}",
+        empty.status.code(),
+        String::from_utf8_lossy(&empty.stderr)
+    );
+    assert!(
+        empty.stdout.is_empty(),
+        "empty stdin must echo nothing, got {:?}",
+        String::from_utf8_lossy(&empty.stdout)
+    );
+
+    let mut piped = Command::new(build_dir.join(executable_name()))
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .expect("console byte echo canary should spawn");
+    use std::io::Write;
+    piped
+        .stdin
+        .take()
+        .expect("piped stdin")
+        .write_all(b"AB")
+        .expect("write test bytes");
+    let piped = piped.wait_with_output().expect("piped run should finish");
+    assert_eq!(
+        piped.status.code(),
+        Some(201),
+        "piped AB must sum 70+65+66, got {:?}\nstderr:\n{}",
+        piped.status.code(),
+        String::from_utf8_lossy(&piped.stderr)
+    );
+    assert_eq!(
+        piped.stdout, b"AB",
+        "write_byte must echo the raw bytes, got {:?}",
+        String::from_utf8_lossy(&piped.stdout)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}

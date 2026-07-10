@@ -46,6 +46,26 @@ pub(super) fn select_host_call(
         return;
     }
 
+    // Console byte ops select into their composite instructions ONLY -- on a
+    // resolution miss nothing generic is emitted (the byte-op blocker in
+    // emission planning turns the miss into a loud compile refusal rather
+    // than a mismatched generic call).
+    if matches!(
+        host_call.data,
+        PlatformCallData::SingleByteRead | PlatformCallData::SingleByteWrite
+    ) {
+        let selected = runtime_text::runtime_byte_read(input, host_call, dispatch_index)
+            .or_else(|| runtime_text::runtime_byte_write(input, host_call, dispatch_index));
+        if let Some(byte_op) = selected {
+            selected_instructions.push(SelectedInstruction {
+                kind: byte_op,
+                source_key: host_call.source_key,
+                source_statement: host_call.statement_index,
+            });
+        }
+        return;
+    }
+
     let Some(operations) = input.host_calls.operations.span(host_call.operations) else {
         return;
     };

@@ -19,6 +19,8 @@ pub(super) fn collect_host_argument_blockers(
     state_schedule: &[ScheduledState],
     blockers: &mut Arena<EmissionBlocker>,
 ) {
+    collect_console_byte_op_blockers(input, state_schedule, blockers);
+
     for (_, host_call) in input.host_calls.calls.iter() {
         if !scheduled_state_contains_key(state_schedule, host_call.source_key) {
             continue;
@@ -81,6 +83,65 @@ pub(super) fn collect_host_argument_blockers(
     }
 
     collect_selected_runtime_text_buffer_host_blockers(input, blockers);
+}
+
+/// Console byte ops select into their composite instructions ONLY (selection
+/// emits nothing generic for them), so a resolution miss would otherwise be
+/// a SILENTLY DROPPED call -- the serve-or-refuse cardinal sin. Any
+/// SingleByteRead/SingleByteWrite host call in a scheduled state must have
+/// its composite; a miss blocks the compile loudly.
+fn collect_console_byte_op_blockers(
+    input: &EmissionPlanningInput<'_>,
+    state_schedule: &[ScheduledState],
+    blockers: &mut Arena<EmissionBlocker>,
+) {
+    for (_, host_call) in input.host_calls.calls.iter() {
+        if !scheduled_state_contains_key(state_schedule, host_call.source_key) {
+            continue;
+        }
+        let (op_name, needs_read) = match host_call.data {
+            PlatformCallData::SingleByteRead => ("read_byte", true),
+            PlatformCallData::SingleByteWrite => ("write_byte", false),
+            _ => continue,
+        };
+
+        let has_composite = input
+            .instructions
+            .code
+            .instructions
+            .iter()
+            .any(|(_, instruction)| {
+                state_key_matches_statement_source(instruction.source_key, host_call.source_key)
+                    && instruction.source_statement == host_call.statement_index
+                    && if needs_read {
+                        matches!(
+                            instruction.kind,
+                            SelectedInstructionKind::ReadRuntimeByte { .. }
+                        )
+                    } else {
+                        matches!(
+                            instruction.kind,
+                            SelectedInstructionKind::WriteRuntimeByte { .. }
+                        )
+                    }
+            });
+        if has_composite {
+            continue;
+        }
+
+        let source_name = state_name(input, host_call.source_key);
+        blockers.insert(blocker(
+            "host arguments",
+            &format!(
+                "{} statement {} console `{op_name}` did not lower to its byte-op instruction \
+                 (read_byte serves the `let r: ByteRead = ...` local shape; write_byte serves \
+                 place-backed or integer-literal arguments){}",
+                source_name,
+                host_call.statement_index,
+                proof_scope_suffix(input, host_call.source_key)
+            ),
+        ));
+    }
 }
 
 fn collect_selected_runtime_text_buffer_host_blockers(

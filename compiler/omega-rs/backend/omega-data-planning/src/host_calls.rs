@@ -14,11 +14,57 @@ pub(super) fn collect_host_call_data(
             collect_text_argument_data(host_calls, host_call, data_plan, append_newline);
         }
         PlatformCallData::MutableOutputBuffer { .. } => {}
-        // A constant result contributes no data objects.
+        PlatformCallData::SingleByteWrite => {
+            collect_byte_literal_data(host_calls, host_call, data_plan);
+        }
+        // A constant result contributes no data objects; the byte read
+        // writes straight into the ByteRead slot (no scratch object).
         PlatformCallData::None
+        | PlatformCallData::SingleByteRead
         | PlatformCallData::ConstantResult { .. }
         | PlatformCallData::ConstantArgument { .. } => {}
     }
+}
+
+/// A `write_byte(<integer literal>)` argument has no storage place to write
+/// from, so its low byte is staged as a 1-byte data object (the
+/// string-literal precedent); place-backed arguments contribute nothing.
+fn collect_byte_literal_data(
+    host_calls: &HostCallPlan,
+    host_call: &HostCall,
+    data_plan: &mut TargetDataPlan,
+) {
+    let Some(arguments) = host_calls.arguments.span(host_call.arguments) else {
+        return;
+    };
+    let Some(first_argument) = arguments.first() else {
+        return;
+    };
+    let HostCallArgumentKind::Expression(expression) = &first_argument.kind else {
+        return;
+    };
+    let omega_checked_trees::expression::ExpressionNode::Integer(value) =
+        host_calls.expressions.expression(*expression)
+    else {
+        return;
+    };
+    let Some(value) = value.value_i64() else {
+        return;
+    };
+
+    let offset = data_plan.bytes.len();
+    let byte_span = data_plan.bytes.insert_many(std::iter::once(value as u8));
+    let symbol_index = data_plan.objects.len() + 1;
+
+    data_plan.objects.insert(TargetDataObject {
+        symbol: format!("omega_byte_literal_{symbol_index}").into(),
+        kind: TargetDataObjectKind::StaticString,
+        offset,
+        bytes: byte_span,
+        alignment: 1,
+        source_key: host_call.source_key,
+        source_statement: host_call.statement_index,
+    });
 }
 
 pub(super) fn collect_runtime_text_buffer_data(

@@ -1,3 +1,4 @@
+use super::byte_io;
 use super::context::InstructionRelocationContext;
 use super::runtime_text_append;
 use super::runtime_text_compare;
@@ -21,6 +22,9 @@ pub(super) fn collect_runtime_text_relocations(
         return;
     }
     if runtime_text_write::collect_runtime_text_write_relocations(context, instruction) {
+        return;
+    }
+    if byte_io::collect_runtime_byte_io_relocations(context, instruction) {
         return;
     }
 

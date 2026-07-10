@@ -162,6 +162,29 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         ],
         PlatformCallData::MutableOutputBuffer { byte_capacity: 256 },
     );
+    // Byte-level console ops: rows registered so the OP RESOLVES on
+    // windows; the x86_64 byte-op encoders are a recorded follow-up
+    // (TASKS_FS #0a) and refuse loudly at emission until they land.
+    insert_platform_lowering(
+        plan,
+        "*",
+        "read_byte",
+        [
+            host_operation("Stdin", "get_std_handle"),
+            host_operation("Stdin", "read_file"),
+        ],
+        PlatformCallData::SingleByteRead,
+    );
+    insert_platform_lowering(
+        plan,
+        "*",
+        "write_byte",
+        [
+            host_operation("Stdout", "get_std_handle"),
+            host_operation("Stdout", "write_file"),
+        ],
+        PlatformCallData::SingleByteWrite,
+    );
     insert_platform_lowering(
         plan,
         "*",

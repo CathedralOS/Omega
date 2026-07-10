@@ -13,14 +13,27 @@ pub(crate) fn copy_runtime_text_host_bindings(
     code: &mut TargetOperationCode,
 ) {
     for (instruction_key, instruction) in abstract_operations.code.instructions.iter() {
-        let AbstractOperationKind::ReadRuntimeTextLine { .. } = &instruction.kind else {
+        if !matches!(
+            &instruction.kind,
+            AbstractOperationKind::ReadRuntimeTextLine { .. }
+                | AbstractOperationKind::ReadRuntimeByte { .. }
+                | AbstractOperationKind::WriteRuntimeByte { .. }
+        ) {
             continue;
-        };
+        }
 
-        let TargetOperationKind::ReadRuntimeTextLine {
+        let (TargetOperationKind::ReadRuntimeTextLine {
             source: RuntimeTextReadSource::HostOperation { operation_key },
             ..
-        } = &code
+        }
+        | TargetOperationKind::ReadRuntimeByte {
+            source: RuntimeTextReadSource::HostOperation { operation_key },
+            ..
+        }
+        | TargetOperationKind::WriteRuntimeByte {
+            source: RuntimeTextReadSource::HostOperation { operation_key },
+            ..
+        }) = &code
             .instructions
             .get(remap::instruction_handle(instruction_key))
             .kind
