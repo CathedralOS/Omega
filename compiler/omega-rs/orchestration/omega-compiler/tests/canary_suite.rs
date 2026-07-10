@@ -18354,6 +18354,34 @@ fn runtime_dependent_subtract_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_dependent_ordering_chain_exit_canary_runs() {
+    // The minted in-callee ordering (`k <= self.count`) chains with a
+    // dominating `count < 5` guard to discharge an index the substituted
+    // range alone cannot.
+    let canary = pass_canary("dependent/runtime_dependent_ordering_chain_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-dependent-ordering-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("dependent ordering-chain canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("dependent ordering-chain canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(7),
+        "expected the ordering chain to discharge the index (exit 7), got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_computed_array_fill_via_temp_exit_canary_runs() {
     // The sound pattern for filling an array with computed values in a write-first loop: a computed
     // value goes to a field, then the field (a machine-resident source) is copied to the runtime-
@@ -28878,6 +28906,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "dependent/runtime_dependent_param_range_exit",
     "dependent/runtime_dependent_product_index_exit",
     "dependent/runtime_dependent_subtract_exit",
+    "dependent/runtime_dependent_ordering_chain_exit",
     "collections/runtime_indexed_rmw_loop_exit",
     "collections/runtime_indexed_reduction_loop_exit",
     "collections/runtime_array_max_and_sum_exit",
