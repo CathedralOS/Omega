@@ -341,6 +341,34 @@ fn linux_x64_wrapping_shl_clamp_bytes_present() {
             "the {name} arithmetic >> count-saturate + sar must be emitted"
         );
     }
+
+    // The MIN-idiom sat-subtract (the promoted canary): left (a convert of
+    // 0) extends, the wide immediate right does NOT, one exact 64-bit sub,
+    // then the signed upper bound of the shared tail.
+    let min_idiom = pass_canary("arithmetic/runtime_sat_min_idiom_exit");
+    fs::copy(min_idiom.join("main.omg"), src_dir.join("main.omg")).expect("copy min-idiom canary");
+    let out_min = scratch.join("out-min");
+    compile(CompileOptions {
+        root_path: src_dir.join("main.omg"),
+        build_dir: Some(out_min.clone()),
+        target_name: Some("linux_x64".to_owned()),
+        write_output: true,
+    })
+    .expect("MIN idiom canary should cross-compile for linux_x64");
+    let elf_min = fs::read(out_min.join("omega-program")).expect("linux_x64 ELF emitted");
+    let min_idiom_sub = [
+        0x4d, 0x63, 0xd2, // movsxd r10, r10d (left extends; right immediate skipped)
+        0x4d, 0x29, 0xda, // sub r10, r11 (exact 64-bit)
+        0x49, 0xbb, 0xff, 0xff, 0xff, 0x7f, 0, 0, 0, 0, // mov r11, i32::MAX
+        0x4d, 0x39, 0xda, // cmp r10, r11
+        0x4d, 0x0f, 0x4f, 0xd3, // cmovg r10, r11
+    ];
+    assert!(
+        elf_min
+            .windows(min_idiom_sub.len())
+            .any(|window| window == min_idiom_sub),
+        "the MIN-idiom wide-sub + immediate-skip sequence must be emitted"
+    );
     let _ = fs::remove_dir_all(&scratch);
 }
 
@@ -16681,6 +16709,32 @@ fn runtime_sat_unsigned_onedirection_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_sat_min_idiom_exit_canary_runs() {
+    // The MIN idiom `0 - 2147483648` computes MIN (immediates never
+    // re-extend in the sat/trap narrow paths).
+    let canary = pass_canary("arithmetic/runtime_sat_min_idiom_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-minidm-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("MIN idiom canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("MIN idiom canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "MIN idiom canary should compute MIN (exit 70), got {:?}",
+        output.status.code(),
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_shl_saturating_exit_canary_runs() {
     // Saturating << clamps on true-value overflow (u8 17 << 4 -> 255).
     let canary = pass_canary("arithmetic/runtime_shl_saturating_exit");
@@ -28240,6 +28294,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "arithmetic/runtime_shift_atwidth_indexed_targets_exit",
     "arithmetic/runtime_sat_nested_operand_domain_exit",
     "arithmetic/runtime_sat_unsigned_onedirection_exit",
+    "arithmetic/runtime_sat_min_idiom_exit",
     "types/runtime_addr_value_flow_exit",
     "types/runtime_addr_algebra_exit",
     "arithmetic/runtime_shl_saturating_exit",
@@ -29247,10 +29302,6 @@ const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
     },
     PendingCanary {
         path: "calls/texteq_local_arg_forward_divergence",
-        expectation: PendingCanaryExpectation::CurrentlyAccepts,
-    },
-    PendingCanary {
-        path: "arithmetic/sat_narrow_wide_literal_operand_divergence",
         expectation: PendingCanaryExpectation::CurrentlyAccepts,
     },
     PendingCanary {
