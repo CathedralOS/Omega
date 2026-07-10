@@ -101,7 +101,9 @@ impl OperationSemanticQuery for TargetOperationKind {
             | Self::CopyRuntimeStorageToRuntimePointee { .. }
             | Self::CopyRuntimePointeeToRuntimeFrame { .. } => TargetOperationDomain::RuntimeCopy,
 
-            Self::ReadRuntimeTextLine { .. } => TargetOperationDomain::RuntimeRead,
+            Self::ReadRuntimeTextLine { .. }
+            | Self::ReadRuntimeByte { .. }
+            | Self::WriteRuntimeByte { .. } => TargetOperationDomain::RuntimeRead,
 
             Self::BeginPlatformCall | Self::HostOperation { .. } => {
                 TargetOperationDomain::HostBoundary
@@ -114,6 +116,12 @@ impl OperationSemanticQuery for TargetOperationKind {
             || matches!(
                 self,
                 Self::ReadRuntimeTextLine {
+                    source: RuntimeTextReadSource::HostOperation { .. },
+                    ..
+                } | Self::ReadRuntimeByte {
+                    source: RuntimeTextReadSource::HostOperation { .. },
+                    ..
+                } | Self::WriteRuntimeByte {
                     source: RuntimeTextReadSource::HostOperation { .. },
                     ..
                 }

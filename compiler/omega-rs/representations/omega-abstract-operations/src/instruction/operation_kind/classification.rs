@@ -100,7 +100,9 @@ impl OperationSemanticQuery for AbstractOperationKind {
             | Self::CopyRuntimeStorageToRuntimePointee { .. }
             | Self::CopyRuntimePointeeToRuntimeFrame { .. } => AbstractOperationDomain::RuntimeCopy,
 
-            Self::ReadRuntimeTextLine { .. } => AbstractOperationDomain::RuntimeRead,
+            Self::ReadRuntimeTextLine { .. }
+            | Self::ReadRuntimeByte { .. }
+            | Self::WriteRuntimeByte { .. } => AbstractOperationDomain::RuntimeRead,
 
             Self::BeginPlatformCall
             | Self::HostOperation { .. }
@@ -111,7 +113,12 @@ impl OperationSemanticQuery for AbstractOperationKind {
 
     fn crosses_host_boundary(&self) -> bool {
         self.semantic_domain() == AbstractOperationDomain::HostBoundary
-            || matches!(self, Self::ReadRuntimeTextLine { .. })
+            || matches!(
+                self,
+                Self::ReadRuntimeTextLine { .. }
+                    | Self::ReadRuntimeByte { .. }
+                    | Self::WriteRuntimeByte { .. }
+            )
     }
 }
 

@@ -653,6 +653,30 @@ pub enum AbstractOperationKind {
         /// unused in this case.
         is_bounded_buffer: bool,
     },
+    /// One stdin byte into a `ByteRead` sum slot (std console `read_byte()`,
+    /// no scratch object -- ZII-driven): zero the tag word AND the payload
+    /// word, `read(fd 0, target + payload_offset, 1)` lands the byte straight
+    /// in the pre-zeroed payload (little-endian low byte), and ONLY a
+    /// count > 0 read writes tag 1 (`Byte`) -- the untouched zero state IS
+    /// `Eof` (ordinal 0). The tag sits at `target_offset` (ENUM_TAG_BYTES
+    /// wide); the payload word at `target_offset + payload_offset`.
+    ReadRuntimeByte {
+        target_region: RuntimeStorageRegion,
+        target_offset: usize,
+        payload_offset: usize,
+    },
+    /// One byte to stdout (std console `write_byte(b)`): `write(fd 1,
+    /// source, 1)` straight from the argument's storage -- on little-endian
+    /// the first byte of an integer place IS its low byte, so no staging
+    /// copy exists. A literal argument rides a 1-byte data object instead
+    /// (`source_is_place` false; `literal` holds the byte, the
+    /// FirstTextArgument literal precedent).
+    WriteRuntimeByte {
+        source_region: RuntimeStorageRegion,
+        source_offset: usize,
+        literal: AbstractDataObjectHandle,
+        source_is_place: bool,
+    },
     CopyRuntimeStorage {
         source_region: RuntimeStorageRegion,
         source_offset: usize,

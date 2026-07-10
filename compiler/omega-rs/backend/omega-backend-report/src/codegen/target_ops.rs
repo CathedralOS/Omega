@@ -906,6 +906,41 @@ fn selected_instruction_name(
                 )
             }
         }
+        SelectedInstructionKind::ReadRuntimeByte {
+            target_region,
+            target_offset,
+            payload_offset,
+            source,
+        } => {
+            let target_symbol =
+                storage_region_symbol_name(*target_region, backend_plan.entry_machine_name());
+            format!(
+                "read runtime byte {} -> ByteRead {target_symbol}@{target_offset} (payload +{payload_offset})",
+                runtime_text_read_source_name(backend_plan, source)
+            )
+        }
+        SelectedInstructionKind::WriteRuntimeByte {
+            source_region,
+            source_offset,
+            literal,
+            source_is_place,
+            source,
+        } => {
+            if *source_is_place {
+                let source_symbol =
+                    storage_region_symbol_name(*source_region, backend_plan.entry_machine_name());
+                format!(
+                    "write runtime byte {} <- {source_symbol}@{source_offset}",
+                    runtime_text_read_source_name(backend_plan, source)
+                )
+            } else {
+                let literal_symbol = backend_plan.data.objects.get(*literal).symbol.as_ref();
+                format!(
+                    "write runtime byte {} <- literal `{literal_symbol}`",
+                    runtime_text_read_source_name(backend_plan, source)
+                )
+            }
+        }
         SelectedInstructionKind::CopyRuntimeStorage {
             source_region,
             source_offset,
