@@ -29675,3 +29675,69 @@ fn efi_out_param_call_marshals_addresses_and_stack_args() {
     );
     let _ = fs::remove_dir_all(&build_dir);
 }
+
+// The x86_64 console byte-op encoders, pinned CROSS-TARGET from any host:
+// windows_x64 gets the GetStdHandle(+/-10/-11) + ReadFile/WriteFile import
+// flavor; linux_x64 the read/write syscall flavor. Both keep the ZII shape
+// (pre-zeroed ByteRead slot; the conditional tag-1 store is the only
+// count>0 write).
+#[test]
+fn cross_console_byte_targets_emit_x86_64_flavors() {
+    let canary = pass_canary("host/cross_console_byte_targets");
+    let main_path = canary.join("main.omg");
+
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-bytes-win-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: main_path.clone(),
+        build_dir: Some(build_dir.clone()),
+        target_name: Some("windows_x64".to_owned()),
+        write_output: true,
+    })
+    .expect("byte-op canary should cross-compile for windows_x64");
+    let pe = fs::read(build_dir.join("omega-program.exe")).expect("read emitted PE");
+    for (name, needle) in [
+        ("STD_INPUT_HANDLE", &[0xb9u8, 0xf6, 0xff, 0xff, 0xff][..]),
+        ("STD_OUTPUT_HANDLE", &[0xb9u8, 0xf5, 0xff, 0xff, 0xff][..]),
+        (
+            "count-1 + bytes-read out-param",
+            &[0x41u8, 0xb8, 0x01, 0x00, 0x00, 0x00, 0x4c, 0x8d, 0x4c, 0x24, 0x28][..],
+        ),
+        ("conditional tag-1 store", &[0x74u8, 0x0b, 0x41, 0xc7, 0x86][..]),
+    ] {
+        assert!(
+            pe.windows(needle.len()).any(|window| window == needle),
+            "windows_x64 byte-op image missing the {name} fragment"
+        );
+    }
+    let _ = fs::remove_dir_all(&build_dir);
+
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-bytes-linux-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: Some("linux_x64".to_owned()),
+        write_output: true,
+    })
+    .expect("byte-op canary should cross-compile for linux_x64");
+    let elf = fs::read(build_dir.join("omega-program")).expect("read emitted ELF");
+    for (name, needle) in [
+        ("fd-0 + payload lea", &[0x48u8, 0x31, 0xff, 0x49, 0x8d, 0xb6][..]),
+        ("read syscall", &[0xb8u8, 0x00, 0x00, 0x00, 0x00, 0x0f, 0x05][..]),
+        ("write syscall", &[0xb8u8, 0x01, 0x00, 0x00, 0x00, 0x0f, 0x05][..]),
+        ("conditional tag-1 store", &[0x7eu8, 0x0b, 0x41, 0xc7, 0x86][..]),
+    ] {
+        assert!(
+            elf.windows(needle.len()).any(|window| window == needle),
+            "linux_x64 byte-op image missing the {name} fragment"
+        );
+    }
+    let _ = fs::remove_dir_all(&build_dir);
+}

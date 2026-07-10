@@ -1,0 +1,17 @@
+// Cross-compile pins for the x86_64 console byte-op encoders: the suite
+// builds this for windows_x64 (GetStdHandle + ReadFile/WriteFile import
+// flavor) and linux_x64 (read/write syscall flavor) from ANY host and
+// asserts the encoder fragments in the emitted image. Structural only --
+// native confirmation needs those hosts.
+target windows_x64 {
+    boundary omega::host::contracts
+    boundary omega::host::targets::windows
+}
+
+target linux_x64 {
+    boundary omega::host::contracts
+    boundary omega::host::targets::linux
+}
+
+machine build(b: &mut Build) {
+}

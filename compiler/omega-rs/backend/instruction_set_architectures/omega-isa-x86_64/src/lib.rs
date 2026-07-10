@@ -10137,3 +10137,187 @@ mod wrapping_shift_clamp_tests {
         }
     }
 }
+
+// ============================================================================
+// Console byte ops (std read_byte/write_byte) -- the x86_64 flavors.
+// ZII-driven like the aarch64 pair: the ByteRead slot is pre-zeroed (tag 0 =
+// Eof = the untouched state), the read lands straight in the payload word,
+// and only a count > 0 writes tag 1. r14 holds the relocated region base
+// (imm64 at +2, the line-read convention).
+// ============================================================================
+
+/// Windows import flavor: GetStdHandle(STD_INPUT_HANDLE) + ReadFile(handle,
+/// &payload, 1, &bytes_read, NULL). Fixed width; the two rel32 call fixups
+/// sit at [`runtime_byte_read_get_std_handle_offset`] and
+/// [`runtime_byte_read_read_file_offset`].
+pub fn encode_runtime_byte_read_import(
+    target_offset: usize,
+    payload_offset: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    let tag_disp = disp32(target_offset)?;
+    let payload_disp = disp32(target_offset + payload_offset)?;
+    let mut bytes = Vec::with_capacity(runtime_byte_read_import_width());
+    bytes.extend([0x49, 0xbe]); // mov r14, imm64 (region, relocated)
+    bytes.extend(0u64.to_le_bytes());
+    append_zero_dword_r14(&mut bytes, tag_disp); // tag = 0 (Eof)
+    append_zero_dword_r14(&mut bytes, payload_disp); // payload = 0
+    bytes.extend([0x48, 0x83, 0xec, 0x38]); // sub rsp, 56
+    bytes.push(0xb9); // mov ecx, STD_INPUT_HANDLE
+    bytes.extend((-10i32).to_le_bytes());
+    bytes.push(0xe8); // call GetStdHandle
+    debug_assert_eq!(bytes.len(), runtime_byte_read_get_std_handle_offset());
+    bytes.extend([0, 0, 0, 0]);
+    bytes.extend([0x48, 0x89, 0xc1]); // mov rcx, rax (handle)
+    bytes.extend([0x49, 0x8d, 0x96]); // lea rdx, [r14 + payload]
+    bytes.extend(payload_disp.to_le_bytes());
+    bytes.extend([0x41, 0xb8, 0x01, 0x00, 0x00, 0x00]); // mov r8d, 1
+    bytes.extend([0x4c, 0x8d, 0x4c, 0x24, 0x28]); // lea r9, [rsp+40]
+    bytes.extend([0x48, 0xc7, 0x44, 0x24, 0x20, 0, 0, 0, 0]); // [rsp+32] = 0
+    bytes.push(0xe8); // call ReadFile
+    debug_assert_eq!(bytes.len(), runtime_byte_read_read_file_offset());
+    bytes.extend([0, 0, 0, 0]);
+    bytes.extend([0x8b, 0x44, 0x24, 0x28]); // mov eax, [rsp+40] (bytesRead)
+    bytes.extend([0x85, 0xc0]); // test eax, eax
+    bytes.extend([0x74, 0x0b]); // je +11 (skip the tag store: Eof stays)
+    append_one_dword_r14(&mut bytes, tag_disp); // tag = 1 (Byte)
+    bytes.extend([0x48, 0x83, 0xc4, 0x38]); // add rsp, 56
+    debug_assert_eq!(bytes.len(), runtime_byte_read_import_width());
+    Ok(bytes)
+}
+
+/// Syscall flavor (linux_x64): read(0, &payload, 1) via the number table.
+pub fn encode_runtime_byte_read_syscall(
+    target_offset: usize,
+    payload_offset: usize,
+    number: u32,
+) -> Result<Vec<u8>, Diagnostic> {
+    let tag_disp = disp32(target_offset)?;
+    let payload_disp = disp32(target_offset + payload_offset)?;
+    let mut bytes = Vec::with_capacity(runtime_byte_read_syscall_width());
+    bytes.extend([0x49, 0xbe]); // mov r14, imm64 (region, relocated)
+    bytes.extend(0u64.to_le_bytes());
+    append_zero_dword_r14(&mut bytes, tag_disp);
+    append_zero_dword_r14(&mut bytes, payload_disp);
+    bytes.extend([0x48, 0x31, 0xff]); // xor rdi, rdi (fd 0)
+    bytes.extend([0x49, 0x8d, 0xb6]); // lea rsi, [r14 + payload]
+    bytes.extend(payload_disp.to_le_bytes());
+    bytes.extend([0xba, 0x01, 0x00, 0x00, 0x00]); // mov edx, 1
+    bytes.push(0xb8); // mov eax, number
+    bytes.extend(number.to_le_bytes());
+    bytes.extend([0x0f, 0x05]); // syscall
+    bytes.extend([0x48, 0x85, 0xc0]); // test rax, rax
+    bytes.extend([0x7e, 0x0b]); // jle +11 (0 = EOF, negative = error: Eof stays)
+    append_one_dword_r14(&mut bytes, tag_disp);
+    debug_assert_eq!(bytes.len(), runtime_byte_read_syscall_width());
+    Ok(bytes)
+}
+
+/// Windows import flavor: GetStdHandle(STD_OUTPUT_HANDLE) + WriteFile(handle,
+/// &source, 1, &written, NULL).
+pub fn encode_runtime_byte_write_import(source_offset: usize) -> Result<Vec<u8>, Diagnostic> {
+    let source_disp = disp32(source_offset)?;
+    let mut bytes = Vec::with_capacity(runtime_byte_write_import_width());
+    bytes.extend([0x49, 0xbe]); // mov r14, imm64 (source region/literal, relocated)
+    bytes.extend(0u64.to_le_bytes());
+    bytes.extend([0x48, 0x83, 0xec, 0x38]); // sub rsp, 56
+    bytes.push(0xb9); // mov ecx, STD_OUTPUT_HANDLE
+    bytes.extend((-11i32).to_le_bytes());
+    bytes.push(0xe8); // call GetStdHandle
+    debug_assert_eq!(bytes.len(), runtime_byte_write_get_std_handle_offset());
+    bytes.extend([0, 0, 0, 0]);
+    bytes.extend([0x48, 0x89, 0xc1]); // mov rcx, rax
+    bytes.extend([0x49, 0x8d, 0x96]); // lea rdx, [r14 + source]
+    bytes.extend(source_disp.to_le_bytes());
+    bytes.extend([0x41, 0xb8, 0x01, 0x00, 0x00, 0x00]); // mov r8d, 1
+    bytes.extend([0x4c, 0x8d, 0x4c, 0x24, 0x28]); // lea r9, [rsp+40]
+    bytes.extend([0x48, 0xc7, 0x44, 0x24, 0x20, 0, 0, 0, 0]); // [rsp+32] = 0
+    bytes.push(0xe8); // call WriteFile
+    debug_assert_eq!(bytes.len(), runtime_byte_write_write_file_offset());
+    bytes.extend([0, 0, 0, 0]);
+    bytes.extend([0x48, 0x83, 0xc4, 0x38]); // add rsp, 56
+    debug_assert_eq!(bytes.len(), runtime_byte_write_import_width());
+    Ok(bytes)
+}
+
+/// Syscall flavor (linux_x64): write(1, &source, 1).
+pub fn encode_runtime_byte_write_syscall(
+    source_offset: usize,
+    number: u32,
+) -> Result<Vec<u8>, Diagnostic> {
+    let source_disp = disp32(source_offset)?;
+    let mut bytes = Vec::with_capacity(runtime_byte_write_syscall_width());
+    bytes.extend([0x49, 0xbe]); // mov r14, imm64 (source, relocated)
+    bytes.extend(0u64.to_le_bytes());
+    bytes.extend([0xbf, 0x01, 0x00, 0x00, 0x00]); // mov edi, 1 (stdout)
+    bytes.extend([0x49, 0x8d, 0xb6]); // lea rsi, [r14 + source]
+    bytes.extend(source_disp.to_le_bytes());
+    bytes.extend([0xba, 0x01, 0x00, 0x00, 0x00]); // mov edx, 1
+    bytes.push(0xb8); // mov eax, number
+    bytes.extend(number.to_le_bytes());
+    bytes.extend([0x0f, 0x05]); // syscall
+    debug_assert_eq!(bytes.len(), runtime_byte_write_syscall_width());
+    Ok(bytes)
+}
+
+/// `mov dword [r14 + disp32], 0` (11 bytes).
+fn append_zero_dword_r14(bytes: &mut Vec<u8>, disp: i32) {
+    bytes.extend([0x41, 0xc7, 0x86]);
+    bytes.extend(disp.to_le_bytes());
+    bytes.extend(0u32.to_le_bytes());
+}
+
+/// `mov dword [r14 + disp32], 1` (11 bytes).
+fn append_one_dword_r14(bytes: &mut Vec<u8>, disp: i32) {
+    bytes.extend([0x41, 0xc7, 0x86]);
+    bytes.extend(disp.to_le_bytes());
+    bytes.extend(1u32.to_le_bytes());
+}
+
+pub fn runtime_byte_read_import_width() -> usize {
+    104
+}
+/// rel32 fixup position of the GetStdHandle call inside the import read.
+pub fn runtime_byte_read_get_std_handle_offset() -> usize {
+    42
+}
+/// rel32 fixup position of the ReadFile call inside the import read.
+pub fn runtime_byte_read_read_file_offset() -> usize {
+    77
+}
+pub fn runtime_byte_read_syscall_width() -> usize {
+    70
+}
+pub fn runtime_byte_write_import_width() -> usize {
+    63
+}
+pub fn runtime_byte_write_get_std_handle_offset() -> usize {
+    20
+}
+pub fn runtime_byte_write_write_file_offset() -> usize {
+    55
+}
+pub fn runtime_byte_write_syscall_width() -> usize {
+    34
+}
+
+#[cfg(test)]
+mod byte_io_width_tests {
+    use super::*;
+
+    #[test]
+    fn byte_op_widths_match_emission() {
+        for (target_offset, payload_offset) in [(0usize, 4usize), (8, 4), (48, 4)] {
+            let import = encode_runtime_byte_read_import(target_offset, payload_offset).unwrap();
+            assert_eq!(import.len(), runtime_byte_read_import_width());
+            let syscall =
+                encode_runtime_byte_read_syscall(target_offset, payload_offset, 0).unwrap();
+            assert_eq!(syscall.len(), runtime_byte_read_syscall_width());
+        }
+        for source_offset in [0usize, 8, 48] {
+            let import = encode_runtime_byte_write_import(source_offset).unwrap();
+            assert_eq!(import.len(), runtime_byte_write_import_width());
+            let syscall = encode_runtime_byte_write_syscall(source_offset, 1).unwrap();
+            assert_eq!(syscall.len(), runtime_byte_write_syscall_width());
+        }
+    }
+}
