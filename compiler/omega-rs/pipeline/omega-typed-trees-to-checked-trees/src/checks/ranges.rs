@@ -4,7 +4,7 @@ mod diagnostics;
 mod expressions;
 mod facts;
 mod guards;
-mod incoming_guards;
+pub(in crate::checks) mod incoming_guards;
 mod indexes;
 mod initializers;
 mod loop_invariants;

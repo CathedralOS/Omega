@@ -60,6 +60,18 @@ pub(super) fn check_call_requires(
                             &entry_contexts,
                             expression,
                         )
+                        // R1: a DOMINATING incoming-arm guard establishes a
+                        // boolean requires fact -- the ranges machinery's
+                        // IncomingGuard walk-back is the soundness gate
+                        // (single-predecessor edges, rewrite-fenced across
+                        // intermediate states), and the caller state's OWN
+                        // statements must preserve the named fields up to
+                        // the call (conservative whole-state scan).
+                        || incoming_guard_proves_requires(
+                            program,
+                            state_flow,
+                            expression,
+                        )
                     }
                 }
                 _ => semantic_contexts_prove_contract_fact(
@@ -403,4 +415,141 @@ fn explain_domain_requirement_failure(
     }
 
     detail
+}
+
+/// A caller-state incoming guard (non-negated, dominating, rewrite-fenced by
+/// the ranges walk-back) whose spelling matches the requires expression --
+/// exactly (`self.a <= self.b`), as an `&&` conjunct, or through the
+/// multi-arm `(subject) == true` desugar. The caller state itself must also
+/// preserve every field the expression names (whole-state: any assignment
+/// mentioning one, or any call statement, defeats the route).
+fn incoming_guard_proves_requires(
+    program: &omega_typed_trees::TypedTrees,
+    state_flow: &FlowStateFact,
+    expression: omega_typed_trees::expression::ExpressionHandle,
+) -> bool {
+    let Some(machine) = program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == state_flow.machine_symbol)
+    else {
+        return false;
+    };
+    let Some(state) = program
+        .machine_states(machine)
+        .iter()
+        .find(|state| state.symbol == state_flow.state_symbol)
+    else {
+        return false;
+    };
+    let required_label = program.expression_table.display_name(expression);
+    let incoming =
+        crate::checks::ranges::incoming_guards::collect_incoming_guard_facts(program, machine);
+    let guard_matches = incoming
+        .iter()
+        .filter(|guard| guard.holds_at(state_flow.state_symbol))
+        .any(|guard| guard_conjunct_matches(program, guard.guard(), &required_label));
+    if !guard_matches {
+        return false;
+    }
+    let mut fields: Vec<omega_typed_trees::name::Identifier> = Vec::new();
+    collect_expression_self_fields(program, expression, &mut fields);
+    fields
+        .iter()
+        .all(|field| caller_state_preserves_field(program, state, field))
+}
+
+fn guard_conjunct_matches(
+    program: &omega_typed_trees::TypedTrees,
+    guard: omega_typed_trees::expression::ExpressionHandle,
+    required_label: &str,
+) -> bool {
+    if program.expression_table.display_name(guard) == required_label {
+        return true;
+    }
+    let ExpressionNode::Binary(binary) = program.expression_table.expression(guard) else {
+        return false;
+    };
+    match binary.operator {
+        omega_typed_trees::expression::BinaryOperator::And => {
+            guard_conjunct_matches(program, binary.left, required_label)
+                || guard_conjunct_matches(program, binary.right, required_label)
+        }
+        omega_typed_trees::expression::BinaryOperator::Equal
+            if matches!(
+                program.expression_table.expression(binary.right),
+                ExpressionNode::Boolean(true)
+            ) =>
+        {
+            guard_conjunct_matches(program, binary.left, required_label)
+        }
+        _ => false,
+    }
+}
+
+fn collect_expression_self_fields(
+    program: &omega_typed_trees::TypedTrees,
+    expression: omega_typed_trees::expression::ExpressionHandle,
+    fields: &mut Vec<omega_typed_trees::name::Identifier>,
+) {
+    if !expression.is_valid() {
+        return;
+    }
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Member(member) => {
+            fields.push(member.member.clone());
+            collect_expression_self_fields(program, member.receiver, fields);
+        }
+        ExpressionNode::Binary(binary) => {
+            collect_expression_self_fields(program, binary.left, fields);
+            collect_expression_self_fields(program, binary.right, fields);
+        }
+        ExpressionNode::Mutable(inner) => {
+            collect_expression_self_fields(program, *inner, fields)
+        }
+        ExpressionNode::Cast(cast) => {
+            collect_expression_self_fields(program, cast.value, fields)
+        }
+        _ => {}
+    }
+}
+
+fn caller_state_preserves_field(
+    program: &omega_typed_trees::TypedTrees,
+    state: &omega_typed_trees::state::State,
+    field: &omega_typed_trees::name::Identifier,
+) -> bool {
+    use omega_typed_trees::statement::StatementNode;
+    for statement in program.statement_table.statements(state.statement_nodes) {
+        match statement {
+            StatementNode::Assignment(assignment) => {
+                if assignment_target_mentions_field(program, assignment.target, field) {
+                    return false;
+                }
+            }
+            _ => {}
+        }
+    }
+    true
+}
+
+fn assignment_target_mentions_field(
+    program: &omega_typed_trees::TypedTrees,
+    target: omega_typed_trees::expression::ExpressionHandle,
+    field: &omega_typed_trees::name::Identifier,
+) -> bool {
+    if !target.is_valid() {
+        return false;
+    }
+    match program.expression_table.expression(target) {
+        ExpressionNode::Member(member) => {
+            member.member.as_str() == field.as_str()
+                || assignment_target_mentions_field(program, member.receiver, field)
+        }
+        ExpressionNode::Mutable(inner) => assignment_target_mentions_field(program, *inner, field),
+        ExpressionNode::Indexed(indexed) => {
+            assignment_target_mentions_field(program, indexed.collection, field)
+        }
+        _ => false,
+    }
 }

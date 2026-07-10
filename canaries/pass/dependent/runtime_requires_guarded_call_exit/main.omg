@@ -1,0 +1,29 @@
+// RUN CANARY (exit 6) + interpreter differential. The chapter-12 requires
+// loop CLOSED: a dominating incoming-arm guard establishes a machine
+// `requires` fact at the call site -- `transition self.a <= self.b
+// { true -> go() }` proves helper's `requires self.a <= self.b` (the
+// contracts prover consumes the ranges machinery's IncomingGuard
+// walk-back: single-predecessor edges, rewrite-fenced across
+// intermediate states, plus the caller state's own pre-call
+// preservation), and INSIDE helper the same requires proves the exact
+// u32 subtraction (channel b). Guard-then-WRITE before the call refuses
+// (probed), as does the unguarded caller
+// (fail/dependent/requires_call_unproven_rejected).
+// exits: 9 - 3 = 6.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; a: u32; b: u32; out: i32; }
+machine Main::main(&mut self) {
+    self.a = 3;
+    self.b = 9;
+    transition self.a <= self.b { true -> go() _ -> bad() }
+    state go(&mut self) {
+        self.helper();
+        let code: i32 = self.out;
+        self.console.exit_process(code);
+    }
+    state bad(&mut self) { self.console.exit_process(9); }
+}
+machine Main::helper(&mut self) requires self.a <= self.b {
+    let diff: u32 = self.b - self.a;
+    self.out = diff as i32;
+}

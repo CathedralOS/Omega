@@ -142,11 +142,15 @@ header above for the verified spelling). Rungs, in payoff order:
   pass/dependent/runtime_requires_subtract_exit. CALLER-side requires
   enforcement turns out to EXIST and is strict ("cannot prove requires
   contract for call ..."; pinned
-  fail/dependent/requires_call_unproven_rejected) -- its INTAKE gap is
-  precise: incoming-ARM guards do not feed the contract prover, so even
-  a guarded caller refuses; land that intake (feed
-  collect_incoming_guard_facts-style facts into the requires prover) and
-  the guarded-caller shape flips to a pass canary. Then
+  fail/dependent/requires_call_unproven_rejected) -- the guard INTAKE
+  LANDED same day: the contracts prover consumes the ranges machinery's
+  IncomingGuard walk-back (contracts/calls.rs
+  incoming_guard_proves_requires; exact/conjunct/==true-desugar spelling
+  match + caller-state pre-call preservation) -- the guarded caller
+  PROVES and the requires loop is closed end-to-end (guard -> call
+  obligation -> in-callee subtraction); pinned
+  pass/dependent/runtime_requires_guarded_call_exit, with unguarded and
+  guard-then-write refusals held. Then
   value-vs-value guard mints at range endpoints generally
   value-vs-value guard mints at range endpoints generally
   (`requires a.cols == b.rows`), and machine-signature `requires`
