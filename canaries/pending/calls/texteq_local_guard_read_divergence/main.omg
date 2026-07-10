@@ -1,12 +1,18 @@
-// PENDING (found 2026-07-15 probing the just-closed multiarm-texteq leaf
-// fix): a texteq ARM-LOCAL read by the arm's OWN nested transition GUARD
-// still delivers ZII natively (native 71 / interp 70). The fix's
-// initializer collection rides Terminal-VALUE arm expansions -- a sub-state
-// whose transition targets another sub-state is not a terminal expansion,
-// so its `let x = self.name == "omega"` emits nothing and the guard reads
-// an unwritten slot. Sibling: texteq_local_arg_forward_divergence (the
-// transition-ARG consumer). FS-LANE machinery (the scoped-leaf dispatch
-// route); pinned for their follow-through per the work-stealing protocol.
+// PENDING (root-caused 2026-07-17; fs-lane machinery, analysis left here
+// to save the regression-discovery loops): a texteq ARM-LOCAL read by the
+// arm's OWN nested transition GUARD delivers ZII natively. The 82a9a92d3
+// fix collects arm-local initializers onto TERMINAL-VALUE expansions --
+// but a GUARD that selects among expansions evaluates BEFORE any
+// expansion's write region, so an initializer riding the expansion can
+// never feed its own dispatch guard (chicken-and-egg). Same root for the
+// arg-forward sibling: `-> next(x)` evaluates the target argument at
+// edge-taking time, before expansion writes. THE FIX SHAPE: a per-branch-
+// state PRE-GUARD region in the dispatch chain (a sub-state prelude
+// emitting call-free LocalData initializers before that state's guard
+// evaluation), NOT more per-expansion collection -- with the same two
+// load-bearing exclusions 82a9a92d3 documented (call-free only; callee
+// root excluded). Sibling: texteq_local_arg_forward_divergence. Hold:
+// (71, Exit(70)).
 boundary trait Console { machine exit_process(return_code: i32); }
 data Store { name: String; }
 machine Store::check(&mut self, idx: i32) -> bool {
