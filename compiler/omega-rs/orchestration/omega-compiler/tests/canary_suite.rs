@@ -18327,6 +18327,33 @@ fn runtime_dependent_product_index_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_dependent_subtract_exit_canary_runs() {
+    // The relational subtraction rule: `self.count - i` proves non-negative
+    // in exact u32 from i's dependent atom (capacity-minus-used).
+    let canary = pass_canary("dependent/runtime_dependent_subtract_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-dependent-subtract-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("dependent subtract canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("dependent subtract canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(2),
+        "expected `self.count - i` to prove and compute 8 - 6 (exit 2), got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_computed_array_fill_via_temp_exit_canary_runs() {
     // The sound pattern for filling an array with computed values in a write-first loop: a computed
     // value goes to a field, then the field (a machine-resident source) is copied to the runtime-
@@ -28850,6 +28877,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "collections/runtime_hoisted_index_write_exit",
     "dependent/runtime_dependent_param_range_exit",
     "dependent/runtime_dependent_product_index_exit",
+    "dependent/runtime_dependent_subtract_exit",
     "collections/runtime_indexed_rmw_loop_exit",
     "collections/runtime_indexed_reduction_loop_exit",
     "collections/runtime_array_max_and_sum_exit",
@@ -29181,6 +29209,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "dependent/dependent_range_on_field_rejected",
     "dependent/dependent_call_arg_unproven_rejected",
     "dependent/dependent_forward_after_write_rejected",
+    "dependent/dependent_subtract_after_write_rejected",
     "collections/deep_nested_runtime_indexed_write_rejected",
     "layouts/plan_laid_dynamic_plan",
     "layouts/plan_laid_policy_without_plan_machine",

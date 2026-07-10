@@ -114,9 +114,16 @@ header above for the verified spelling). Rungs, in payoff order:
   unique-field substitution) and the hoist's temp-range synthesis
   (hoist_temp_type resolved-tree twin recognizer, attached-data-resolved)
   both read the substituted intervals; pinned
-  pass/dependent/runtime_dependent_product_index_exit. REMAINING for
-  R1 proper: relational ORDERING facts inside the callee (`i <= count`
-  fed to the DBM so in-state guards compose beyond forwarding),
+  pass/dependent/runtime_dependent_product_index_exit. The relational
+  SUBTRACTION rule landed same day (refine_dependent_subtract in the
+  decision-17 overflow analysis): `self.count - i` proves non-negative
+  from i's atom (capacity-minus-used; exclusive sugar gives >= 1),
+  write-fenced like every entry-fact bridge, flipped direction stays
+  refused; pinned pass/dependent/runtime_dependent_subtract_exit +
+  the write-defeat fail canary. REMAINING for
+  R1 proper: general ORDERING facts inside the callee (`i <= count`
+  fed to the checker's DBM so in-state guards/indexes compose beyond
+  the subtraction rule and forwarding),
   value-vs-value guard mints at range endpoints generally
   (`requires a.cols == b.rows`), and machine-signature `requires`
   surface with the bracket-as-sugar desugar. Cross-machine dependent
