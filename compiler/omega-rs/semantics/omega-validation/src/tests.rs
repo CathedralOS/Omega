@@ -452,6 +452,54 @@ fn symbolic_walk_weak_guard_spelling_refuses() {
 }
 
 #[test]
+fn bracket_range_is_requires_sugar_for_ensures() {
+    // R1 bracket-as-sugar (ch12): `k: u64 [0..=8]` IS `requires k >= 0 &&
+    // k <= 8` -- the entailment engine assumes it, so `result <= 9`
+    // proves for `result = k + 1` with no spelled requires.
+    validate_contract_source(
+        r#"
+    data Main { }
+    machine Main::pick(&mut self, k: u64 [0..=8]) -> u64
+    ensures
+        result <= 9
+    {
+        transition { _ -> (k + 1) }
+    }
+    machine Main::main(&mut self) {
+        let v: u64 = self.pick(3);
+    }
+    "#,
+    )
+    .expect("the bracket range should discharge the ensures");
+}
+
+#[test]
+fn bracket_range_sugar_does_not_over_prove() {
+    // k = 8 makes k + 1 = 9 > 8: the tighter ensures must stay unproven.
+    let diagnostics = validate_contract_source(
+        r#"
+    data Main { }
+    machine Main::pick(&mut self, k: u64 [0..=8]) -> u64
+    ensures
+        result <= 8
+    {
+        transition { _ -> (k + 1) }
+    }
+    machine Main::main(&mut self) {
+        let v: u64 = self.pick(3);
+    }
+    "#,
+    )
+    .expect_err("an ensures the range cannot support must refuse");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("cannot prove ensures")),
+        "expected the ensures refusal, got {diagnostics:#?}"
+    );
+}
+
+#[test]
 fn refutes_constant_false_ensures_on_empty_proof_machine() {
     let diagnostics = validate_contract_source(
         r#"

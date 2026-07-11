@@ -59,6 +59,7 @@
 use std::collections::BTreeMap;
 
 use omega_core::bignum::BigInt;
+use omega_core::symbols::SymbolHandle;
 use omega_core::diagnostics::Diagnostic;
 use omega_typed_trees::TypedTrees;
 use omega_typed_trees::domain::ProofFact;
@@ -348,6 +349,7 @@ fn prepare_arm<'program>(
     let mut engine = Engine::with_result_atom(program, machine, root);
     let mut comparisons = Vec::new();
     let mut fully_visible = engine.collect_comparisons(requires, &mut comparisons);
+    engine.collect_entry_range_hypotheses(&mut comparisons);
 
     // The arm's path condition: the guard with its boolean polarity applied
     // (`expr == false` lowers each dispatch arm; the negated comparison is the
@@ -375,6 +377,7 @@ fn prepare_arm<'program>(
             let mut gate_engine = Engine::with_result_atom(program, machine, root);
             let mut gate_comparisons = Vec::new();
             gate_engine.collect_comparisons(requires, &mut gate_comparisons);
+            gate_engine.collect_entry_range_hypotheses(&mut gate_comparisons);
             if let Some(guard) = arm.guard
                 && let Some(comparison) = guard_arm_comparison(&mut gate_engine, guard)
             {
@@ -871,6 +874,9 @@ fn pow(base: &BigInt, power: u32) -> BigInt {
 
 struct Engine<'program> {
     program: &'program TypedTrees,
+    /// The machine this engine judges (entry-range hypotheses resolve
+    /// through it).
+    machine_symbol: SymbolHandle,
     /// Canonical atom names for the machine's parameters.
     parameter_atoms: Vec<String>,
     /// Parameters whose primitive type is unsigned carry an implicit `>= 0`.
@@ -919,6 +925,7 @@ impl<'program> Engine<'program> {
         }
         Self {
             program,
+            machine_symbol: machine.symbol,
             parameter_atoms,
             unsigned_atoms,
             substitutions: BTreeMap::new(),
@@ -959,12 +966,63 @@ impl<'program> Engine<'program> {
 
     /// Load the requires facts. Returns whether EVERY fact was inside the
     /// engine's language (full visibility is the precondition for rejecting
-    /// unproven ensures).
+    /// unproven ensures). The ENTRY-state parameters' declared bracket
+    /// ranges join as hypotheses too -- R1's bracket-as-sugar rule (ch12:
+    /// `k: u64 [0..=8]` IS `requires k >= 0 && k <= 8`; the range is
+    /// caller-discharged, so the callee's contract proofs may assume it).
     fn add_requires(&mut self, facts: &[ExpressionHandle]) -> bool {
         let mut comparisons = Vec::new();
         let mut fully_visible = self.collect_comparisons(facts, &mut comparisons);
+        self.collect_entry_range_hypotheses(&mut comparisons);
         fully_visible &= self.install_hypotheses(comparisons);
         fully_visible
+    }
+
+    /// The bracket-as-sugar hypotheses: for each ENTRY-state (machine
+    /// signature) parameter whose type carries a LITERAL `[a..=b]` range,
+    /// push `param >= a` and `param <= b`. Entry-only: sub-state params are
+    /// different binders that may reuse names.
+    fn collect_entry_range_hypotheses(
+        &mut self,
+        comparisons: &mut Vec<(BinaryOperator, Polynomial, Polynomial)>,
+    ) {
+        let Some(machine) = self
+            .program
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == self.machine_symbol)
+        else {
+            return;
+        };
+        let Some(entry) = self.program.machine_states(machine).first() else {
+            return;
+        };
+        for parameter in self.program.state_parameters(entry) {
+            if parameter.is_self {
+                continue;
+            }
+            let Some(interval) = crate::arithmetic_domains::range_constraint_interval(
+                self.program,
+                parameter.type_reference,
+            ) else {
+                continue;
+            };
+            let atom = Polynomial::atom(parameter.name.as_str().to_owned());
+            if let Some(low) = interval.low() {
+                comparisons.push((
+                    BinaryOperator::GreaterOrEqual,
+                    atom.clone(),
+                    Polynomial::constant(BigInt::from_i64(low)),
+                ));
+            }
+            if let Some(high) = interval.high() {
+                comparisons.push((
+                    BinaryOperator::LessOrEqual,
+                    atom.clone(),
+                    Polynomial::constant(BigInt::from_i64(high)),
+                ));
+            }
+        }
     }
 
     /// First ingestion pass: split facts into conjuncts and normalize each to
