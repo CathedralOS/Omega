@@ -161,20 +161,118 @@ fn component_has_proven_decrease(
     // pointwise across differing source/target states.
     let single_state_self_loop = component.len() == 1 && edges.len() == 1;
 
-    edges.iter().all(|edge| {
-        let Some(source) = states.get(edge.from) else {
-            return false;
-        };
-        let Some(target) = states.get(edge.to) else {
-            return false;
-        };
+    if single_state_self_loop {
+        return edges.iter().all(|edge| {
+            states.get(edge.from).is_some_and(|source| {
+                state_has_proven_supported_self_loop(program, source, measure, order, orientation)
+            })
+        });
+    }
 
-        if single_state_self_loop {
-            state_has_proven_supported_self_loop(program, source, measure, order, orientation)
-        } else {
-            edge_has_proven_decrease(program, source, target, measure, order, orientation)
+    // Multi-state cycle: every edge must be STRICT or NON-INCREASING (a
+    // forwarding edge passing the measure unchanged), and the subgraph of
+    // non-strict edges must be ACYCLIC -- then every cycle traversal crosses
+    // at least one strict decrease, which is well-founded over the naturals.
+    let mut pairs: Vec<(usize, usize)> = edges.iter().map(|edge| (edge.from, edge.to)).collect();
+    pairs.sort_unstable();
+    pairs.dedup();
+    let mut nonstrict_edges: Vec<(usize, usize)> = Vec::new();
+    let all_classified = pairs.iter().all(|&(from, to)| {
+        let (Some(source), Some(target)) = (states.get(from), states.get(to)) else {
+            return false;
+        };
+        match classify_cycle_edge(program, source, target, measure, order, orientation) {
+            EdgeClass::Strict => true,
+            EdgeClass::NonIncreasing => {
+                nonstrict_edges.push((from, to));
+                true
+            }
+            EdgeClass::Unknown => false,
         }
-    })
+    });
+    all_classified && subgraph_is_acyclic(component, &nonstrict_edges)
+}
+
+enum EdgeClass {
+    Strict,
+    NonIncreasing,
+    Unknown,
+}
+
+/// Classify every transition statement from `source` targeting `target`:
+/// the PAIR is strict only when all its statements strictly decrease; one
+/// non-increasing statement makes the pair non-strict (that alternative may
+/// be taken on every traversal); one unclassifiable statement fails it.
+fn classify_cycle_edge(
+    program: &omega_typed_trees::TypedTrees,
+    source: &omega_typed_trees::state::State,
+    target: &omega_typed_trees::state::State,
+    measure: DecreaseMeasure,
+    order: &RankingOrder,
+    orientation: DistanceOrientation,
+) -> EdgeClass {
+    if !matches!(
+        order,
+        RankingOrder::NatDescending
+            | RankingOrder::BoundedDistance
+            | RankingOrder::CustomNatDescending
+    ) {
+        // Slice-length, struct-view and lexicographic orders stay
+        // self-loop-only (no pointwise cross-state meaning).
+        return EdgeClass::Unknown;
+    }
+    let mut class = EdgeClass::Unknown;
+    for statement in program.statement_table.statements(source.statement_nodes) {
+        let Some(edge) = patterns::edge_to_any_guard(program, statement, target.symbol) else {
+            continue;
+        };
+        if nat::edge_decrease_proven(
+            program,
+            source,
+            target,
+            edge.guard,
+            edge.arguments,
+            measure,
+            orientation,
+        ) {
+            if matches!(class, EdgeClass::Unknown) {
+                class = EdgeClass::Strict;
+            }
+        } else if nat::edge_nonincrease_proven(program, source, target, edge.arguments, measure) {
+            class = EdgeClass::NonIncreasing;
+        } else {
+            return EdgeClass::Unknown;
+        }
+    }
+    class
+}
+
+/// DFS cycle check over the component restricted to the given edges.
+fn subgraph_is_acyclic(component: &[usize], edges: &[(usize, usize)]) -> bool {
+    // 0 unvisited, 1 on-stack, 2 done -- iterative coloring.
+    fn visit(node: usize, edges: &[(usize, usize)], color: &mut std::collections::BTreeMap<usize, u8>) -> bool {
+        color.insert(node, 1);
+        for &(from, to) in edges {
+            if from != node {
+                continue;
+            }
+            match color.get(&to).copied().unwrap_or(0) {
+                1 => return false,
+                0 => {
+                    if !visit(to, edges, color) {
+                        return false;
+                    }
+                }
+                _ => {}
+            }
+        }
+        color.insert(node, 2);
+        true
+    }
+    let mut color = std::collections::BTreeMap::new();
+    component
+        .iter()
+        .all(|&node| color.get(&node).copied().unwrap_or(0) != 0 || visit(node, edges, &mut color))
 }
 
 /// Prove a strict decrease across one cyclic edge between (possibly distinct)

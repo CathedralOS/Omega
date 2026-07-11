@@ -188,9 +188,17 @@ proof-stratum non-tail unaffected, it never lowers). Rungs:
   refuted equality = point exclusion against the type+declared range) —
   the exact-domain terminal shape (`u64 [0..=100]`, no Trapping) runs
   both engines and the run canary is spelled that way. LANDED
-  2026-07-11; the exact-domain unlock is COMPLETE. Two-state cycles (entry→step→entry) still need per-edge
-  strict decrease, so a same-value forwarding edge refuses — MR4's
-  joint-measure work is the natural home. Original rung text:** a MEASURED machine's state whose TERMINAL
+  2026-07-11; the exact-domain unlock is COMPLETE. Two-state IN-MACHINE cycles LANDED 2026-07-11 (MR4's
+  first sub-rung): the ranking classifies every in-cycle edge STRICT or
+  NON-INCREASING (measure forwarded unchanged) and requires the
+  non-strict subgraph be acyclic — every traversal then crosses a
+  strict decrease; strictness on an Always edge may come from the
+  param's DECLARED `[1..=N]` floor (Exact domain only). Canaries:
+  pass/calls/runtime_two_state_tail_cycle_exit (the accumulator shape,
+  both spellings) + fail/calls/forwarding_cycle_no_decrease_rejected.
+  MR4's REMAINING core is CROSS-MACHINE mutual cycles (Q6 relaxation:
+  joint measures + tail classification along the cycle; the dungeon
+  find_item_at/find_item_after pair is the live test). Original rung text:** a MEASURED machine's state whose TERMINAL
   expression is a self-entry call rewrites AT PARSE onto the bare
   loop-back transition (parse_machine::rewrite_terminal_tail_self_calls;
   verified faithful by bare-spelled twin — identical outcomes), so every

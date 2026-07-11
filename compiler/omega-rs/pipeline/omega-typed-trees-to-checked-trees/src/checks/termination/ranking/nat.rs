@@ -178,8 +178,104 @@ fn countdown_edge(
         return false;
     };
 
-    guard_is_positive_parameter(program, guard, parameter)
+    (guard_is_positive_parameter(program, guard, parameter)
+        || declared_floor_at_least_one(program, parameter))
         && argument_is_parameter_minus_one(program, argument, parameter)
+}
+
+/// The parameter's DECLARED `[a..=b]` floor is >= 1 under an Exact (or
+/// absent) arithmetic domain -- the positivity source for a decrement on an
+/// edge with no usable guard (the MR2 Always loop-back from a sub-state
+/// whose param is declared `[1..=N]`). Non-Exact ranges are deliberately
+/// permissive (probed live at stores) and must never discharge a bound.
+fn declared_floor_at_least_one(
+    program: &omega_typed_trees::TypedTrees,
+    parameter: &omega_typed_trees::signature::StateParameter,
+) -> bool {
+    use omega_typed_trees::types::{TypeConstraintNode, TypeReferenceNode};
+    let mut handle = parameter.type_reference;
+    loop {
+        match program.type_reference_table.type_reference(handle) {
+            TypeReferenceNode::Constrained {
+                base_type,
+                constraints,
+            } => {
+                let constraints = program.type_reference_table.constraints(*constraints);
+                if constraints.iter().any(|constraint| {
+                    matches!(
+                        constraint,
+                        TypeConstraintNode::ArithmeticDomain(domain)
+                            if *domain != omega_core::arithmetic::ArithmeticDomain::Exact
+                    )
+                }) {
+                    return false;
+                }
+                if let Some(minimum) = constraints.iter().find_map(|constraint| {
+                    match constraint {
+                        TypeConstraintNode::Range { minimum, .. } => {
+                            program.expression_table.constant_integer_value(*minimum)
+                        }
+                        _ => None,
+                    }
+                }) {
+                    return minimum >= 1;
+                }
+                handle = *base_type;
+            }
+            _ => return false,
+        }
+    }
+}
+
+/// The edge passes the measured parameter UNCHANGED (`step(n, acc)`
+/// forwarding `n`): non-increasing, legal in a cycle as long as some other
+/// edge strictly decreases (the non-strict subgraph must stay acyclic --
+/// see `component_has_proven_decrease`).
+pub(super) fn edge_nonincrease_proven(
+    program: &omega_typed_trees::TypedTrees,
+    source: &omega_typed_trees::state::State,
+    target: &omega_typed_trees::state::State,
+    arguments: &[ExpressionHandle],
+    measure: DecreaseMeasure,
+) -> bool {
+    let DecreaseMeasure::Single(decreases) = measure else {
+        return false;
+    };
+    let ExpressionNode::Name(decreases_path) = program.expression_table.expression(decreases)
+    else {
+        return false;
+    };
+    let decrease_name = program
+        .expression_table
+        .name_path_members(decreases_path.members)
+        .last()
+        .map(|member| member.as_str())
+        .unwrap_or_default();
+    let Some(parameter) = program
+        .state_parameters(source)
+        .iter()
+        .filter(|parameter| !parameter.is_self)
+        .find(|parameter| {
+            parameter.symbol == decreases_path.symbol || parameter.name.as_str() == decrease_name
+        })
+    else {
+        return false;
+    };
+    let Some(argument_index) = target_argument_index(program, target, parameter.name.as_str())
+    else {
+        return false;
+    };
+    let Some(argument) = arguments.get(argument_index).copied() else {
+        return false;
+    };
+    let ExpressionNode::Name(argument_path) = program.expression_table.expression(argument) else {
+        return false;
+    };
+    program
+        .expression_table
+        .name_path_members(argument_path.members)
+        .last()
+        .is_some_and(|member| member.as_str() == parameter.name.as_str())
 }
 
 fn member_countdown_edge(
