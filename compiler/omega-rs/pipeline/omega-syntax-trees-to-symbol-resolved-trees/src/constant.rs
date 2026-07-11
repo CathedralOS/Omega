@@ -36,13 +36,7 @@ pub(crate) fn validate_const_definition(
     definition: &ConstDefinition,
 ) -> Result<(), Diagnostic> {
     if definition.scope.as_str().is_empty() {
-        return Err(Diagnostic::error(format!(
-            "free-floating `const {}` is not accepted yet: scope it to a type \
-             (`const Type::{}: ... = ...;`) -- a bare-name const could silently \
-             shadow a like-named local or field until the shadowing walk lands",
-            definition.name.as_str(),
-            definition.name.as_str(),
-        )));
+        free_const_shadowing_walk(syntax_trees, definition)?;
     }
 
     validate_literal_initializer(syntax_trees, definition, definition.value)?;
@@ -86,20 +80,116 @@ pub(crate) fn validate_const_definition(
     Ok(())
 }
 
-/// If `members` is a two-segment path naming a declared const, lower a fresh
-/// copy of its initializer into `expressions` and return it. `None` = not a
-/// const reference; the caller lowers the path normally.
+/// The free-const SHADOWING WALK: a bare-name const substitutes BEFORE
+/// scoped-name resolution, so its name must not be spellable as anything a
+/// bare reference resolves to. Whole-program, refused at the const with
+/// both sites named. Conservative by design: a collision anywhere refuses,
+/// even if no bare use exists (fewer names, no silent-shadow class).
+fn free_const_shadowing_walk(
+    syntax_trees: &SyntaxTrees,
+    definition: &ConstDefinition,
+) -> Result<(), Diagnostic> {
+    let const_name = definition.name.as_str();
+    let collision = |site: String| {
+        Err(Diagnostic::error(format!(
+            "free-floating `const {const_name}` collides with {site}: a bare `{const_name}` \
+             would be ambiguous (the const substitutes before name resolution). Rename one, \
+             or scope the const (`const Type::{const_name}: ... = ...;`)",
+        )))
+    };
+    for item in syntax_trees.root_items() {
+        match item {
+            Item::Data(data) => {
+                if data.name.as_str() == const_name {
+                    return collision(format!("data `{}`", data.name.as_str()));
+                }
+                for member in syntax_trees.items.data_members(data.members) {
+                    match member {
+                        DataMember::Field(field) if field.name.as_str() == const_name => {
+                            return collision(format!(
+                                "field `{}` of data `{}` (bare field reads spell the field name)",
+                                field.name.as_str(),
+                                data.name.as_str(),
+                            ));
+                        }
+                        DataMember::Variant(variant)
+                            if variant.name.as_str() == const_name =>
+                        {
+                            return collision(format!(
+                                "case `{}` of data `{}` (case constants are spelled bare)",
+                                variant.name.as_str(),
+                                data.name.as_str(),
+                            ));
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            Item::Machine(machine) => {
+                if machine.name.as_str() == const_name {
+                    return collision(format!("machine `{}`", machine.name.as_str()));
+                }
+                for state_handle in syntax_trees.items.state_handles(machine.states) {
+                    let state = syntax_trees.items.state(*state_handle);
+                    if state.name.as_str() == const_name {
+                        return collision(format!(
+                            "state `{}` of machine `{}`",
+                            state.name.as_str(),
+                            machine.name.as_str(),
+                        ));
+                    }
+                    for parameter_handle in
+                        syntax_trees.items.state_parameters(state.parameters)
+                    {
+                        let parameter = syntax_trees.items.state_parameter(*parameter_handle);
+                        if parameter.name.as_str() == const_name {
+                            return collision(format!(
+                                "parameter `{}` of state `{}` in machine `{}`",
+                                parameter.name.as_str(),
+                                state.name.as_str(),
+                                machine.name.as_str(),
+                            ));
+                        }
+                    }
+                    for statement_handle in syntax_trees.items.statements(state.statements) {
+                        if let omega_syntax_trees::statement::StatementNode::LocalData(local) =
+                            syntax_trees.statements.statement(*statement_handle)
+                            && local.name.as_str() == const_name
+                        {
+                            return collision(format!(
+                                "local `{}` in state `{}` of machine `{}`",
+                                local.name.as_str(),
+                                state.name.as_str(),
+                                machine.name.as_str(),
+                            ));
+                        }
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    Ok(())
+}
+
+/// If `members` is a two-segment path naming a declared const -- or a
+/// SINGLE-segment path naming a FREE-FLOATING one (safe: the shadowing walk
+/// refused every collidable name) -- lower a fresh copy of its initializer
+/// into `expressions` and return it. `None` = not a const reference; the
+/// caller lowers the path normally.
 pub(crate) fn try_lower_const_reference(
     syntax_trees: &SyntaxTrees,
     expressions: &mut ExpressionTable,
     members: &[Identifier],
 ) -> Option<Result<ExpressionHandle, Diagnostic>> {
-    let [scope, name] = members else {
-        return None;
+    let (scope_str, name) = match members {
+        [scope, name] => (scope.as_str(), name),
+        [name] => ("", name),
+        _ => return None,
     };
     let definition = syntax_trees.root_items().find_map(|item| match item {
         Item::Const(definition)
-            if definition.scope.as_str() == scope.as_str()
+            if definition.scope.as_str() == scope_str
                 && definition.name.as_str() == name.as_str() =>
         {
             Some(definition)
