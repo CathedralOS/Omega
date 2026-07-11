@@ -414,6 +414,16 @@ Open sub-decisions (owner-gated, dependency order):
    (stream equality undecidable => no reduced form; any subset either
    drops numbers or keeps duplicates). Taxonomy: where/domain = fewer
    values, same equality; `%` = same values, fewer distinctions.
+   FORM RULE (owner): `data X = <type expr>;` REQUIRES a former — bare
+   `data Meters = u32;` never parses. The newtype's only real job (units/
+   provenance) belongs to the landed domain shape (`domain u32::Meters
+   {}`), which beats it technically: the fact-drop default is
+   dimensionally CORRECT (`+` preserves by one operator declaration;
+   `*` drops the tag — meters times meters is area, and the newtype's
+   derived-Mul legislates bad physics), one type not a type-per-unit,
+   invariants can grow into the empty body later. `data` always MINTS a
+   distinct nominal type, never aliases; transparent typedefs would be a
+   different keyword and are not wanted.
 
 With these, the Real arc is OWNER-COMPLETE: N1-N8 carry no remaining
 design gates.

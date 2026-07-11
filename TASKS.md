@@ -282,7 +282,9 @@ no `unbounded` property exists. Rungs:
   carry the grant line); trust report shows classical vs constructive.
 - **N6 — quotients (spelling SETTLED: `data Real = CauchySeq %
   converges_together` — bodyless data decl, `%` = the one new type
-  expression):** `as` = mk, carrier-only; respect-ensures gates lift;
+  expression; bare RHS NEVER parses — `data Meters = u32;` rejected, the
+  units/provenance job belongs to empty-body domains, owner-confirmed:
+  `domain u32::Meters {}` + per-operator preservation):** `as` = mk, carrier-only; respect-ensures gates lift;
   congruence over the user equivalence; refl/symm/trans as ordinary lemma
   obligations. Buckets span the machine-param family (the equivalence is
   a nested-schema machine — N7 customer). Record: mathematical_proofs
