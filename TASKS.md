@@ -209,19 +209,24 @@ no `unbounded` property exists. Rungs:
   contracts never lower to runtime bytes, the exact engine is their one
   consumer). Canaries: pass/proofs/proof_bignum_constant_fold
   (10^22 * 10^22 == 10^44 folds exactly), fail twin
-  proof_bignum_constant_false. REMAINING, next rung (c): the
-  obligations/checker engine — **KNOWN UNSOUNDNESS, probe-confirmed
-  2026-07-11**: `primitive_constraints` caps u64's range fact at
-  i64::MAX (obligations.rs), so a plain u64 param STORES into a field
-  declared `u64 [0..=9223372036854775807]` and runtime holds u64::MAX —
-  a proven range fact violated (probe: let big: u64 = u64::MAX; pass to
-  state; store into the capped field; both engines exit with the
-  violating value). Fix = widen ProofConstraint::IntegerRange +
-  checker-side IntegerRange fold arithmetic (both omega-proof files,
-  ~52 sites; constant_integer_value windows too) to BigInt, then the
-  cap becomes exact (0, u64::MAX). Then (d) the structural bridge for
-  induction (n > 0 => n == Succ(n - 1)) — needs Nat-as-data engine
-  semantics, design with N4's roster library in view.
+  proof_bignum_constant_false. (c) LANDED 2026-07-11: the
+  obligations/checker engine widened — ProofConstraint::IntegerRange +
+  the checker's IntegerRange are BigInt; the u64 range fact is the TRUE
+  (0, u64::MAX), retiring a probe-confirmed UNSOUNDNESS (a plain u64
+  param stored into `u64 [0..=9223372036854775807]` and runtime held
+  u64::MAX — a proven fact violated; pinned
+  fail/arithmetic/u64_range_fact_cap_store_rejected + the guarded-copy
+  positive twin pass/arithmetic/runtime_u64_guarded_cap_store_exit).
+  Same-class sentinel fabrications retired with it: Named
+  non_negative/positive facts now RAISE an existing floor instead of
+  minting a standalone [0, i64::MAX] claim, and extrema (min/max call)
+  one-sided folds return no range instead of an i64 sentinel bound.
+  Literal facts and literal `[v,v]` ranges are exact at any magnitude
+  (value_bignum); binary range folds are exact (no saturation; the
+  `i64::MIN / -1` bail is gone); the checker's NEUTRAL guard-refinement
+  start is documented as a non-claim. REMAINING: (d) the structural
+  bridge for induction (n > 0 => n == Succ(n - 1)) — needs Nat-as-data
+  engine semantics, design with N4's roster library in view.
 - **N3 — fact-position operator routing:** glyphs route by operand type —
   Nat/Int/Rat compute-mode, declared proof carriers rearrange-mode
   (ring-generic polynomial normalization). Int introduction rule: order

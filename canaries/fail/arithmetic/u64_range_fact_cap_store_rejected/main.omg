@@ -1,0 +1,18 @@
+// N2 rung (c) -- the RETIRED u64 range-fact cap. The proof domain used to
+// cap u64's type-range fact at i64::MAX, so this store PROVED (value
+// range [0, i64::MAX] fit the target exactly) while runtime carried
+// u64::MAX into a field declared [0..=9223372036854775807] -- a proven
+// fact violated by a legal program (probe-confirmed 2026-07-11). With
+// exact bignum facts u64's range is the true [0, u64::MAX], which does
+// NOT fit, and the unguarded store refuses. The guarded-copy twin
+// (pass/arithmetic/runtime_u64_guarded_cap_store_exit) discharges.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; capped: u64 [0..=9223372036854775807]; }
+machine Main::main(&mut self) {
+    let big_value: u64 = 18446744073709551615;
+    transition { _ -> put(big_value) }
+    state put(&mut self, v: u64) {
+        self.capped = v;
+        self.console.exit_process(0);
+    }
+}

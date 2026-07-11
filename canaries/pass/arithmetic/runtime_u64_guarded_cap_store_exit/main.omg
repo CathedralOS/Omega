@@ -1,0 +1,15 @@
+// RUN CANARY (exit 70) + interpreter differential. N2 rung (c) positive
+// twin: the guarded-COPY shape discharges the [0..=i64::MAX] store for a
+// plain u64 source -- the incoming edge's stable guard bounds the exact
+// range where the type fact alone (now the true [0, u64::MAX]) cannot.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; raw: u64; capped: u64 [0..=9223372036854775807]; }
+machine Main::main(&mut self) {
+    self.raw = 42;
+    transition self.raw <= 9223372036854775807 { true -> store() _ -> bad() }
+    state store(&mut self) {
+        self.capped = self.raw;
+        self.console.exit_process(70);
+    }
+    state bad(&mut self) { self.console.exit_process(71); }
+}
