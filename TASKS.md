@@ -3,7 +3,8 @@
 # Tasks
 
 Working backlog only. Finished work lives in the git log; canary headers carry
-each fix's story. (Condensed 2026-07-12 per owner directive.)
+each fix's story. (Condensed 2026-07-12; re-condensed + NEXT TASKS queue
+loaded 2026-07-18 per owner directive.)
 
 ## Current Strategic Focus
 
@@ -13,197 +14,82 @@ Tier 1 items there (ZII guarantee, wire data semantics, versioned data,
 separate-compilation awareness, concurrency/atomics decisions, freestanding
 target, enum payloads) bias which vertical slices get picked next.
 
-## NEXT PICK (owner priority 2026-07-15): Cathedral M2 unblock — two red efi tests
+## NEXT TASKS — design-unblocked, agent-ready (loaded 2026-07-18, owner directive)
 
-Cathedral is fully written and waiting; its milestone 2 (`GetMemoryMap →
-ExitBootServices → first Region mint`, `../Cathedral/source/boot/uefi/
-own_machine.omg`) is blocked on exactly the two currently-red tests in the
-known-failure baseline — no lane is driving them:
+Claim an item, work its rungs in order, canaries per rung, push per rung.
+Collision map: the MAIN LANE owns RECAST/M2; the FS LANE owns the
+dispatch-region + receiver-phase family. Everything queued here avoids both.
 
-1. **`targets/efi_vtable_call`** — REGRESSION: the boot-verified M1 dispatch
-   (`provides TextOutput { output_string -> VtableSlot(1) }`) went width-0 at
-   the vtable encoder (2026-07-11 note). Fix = restore existing machinery.
-   ⚠️ Green here does NOT compile Cathedral: its source is authored in the
-   FIELD MODEL (`provides Trait over Struct { method -> field }`, extern
-   brief §12, decided 2026-07-04 — offsets from the declared struct, header
-   handled free), which has ZERO compiler implementation today (no
-   VtableField anywhere). That's the real dispatch work; the slot fix just
-   un-reds the baseline and de-risks the encoder underneath it.
-2. **`targets/efi_ref_param_call_arg`** — `&mut` out-params through that
-   boundary call, MS-x64 (addresses passed for `get_memory_map`'s five
-   out-params). M2-ladder item #1.
+1. **Math roster ladder N1→N4** (section below) — zero backend/codegen
+   contact; N2 retires the long-standing u64>i64::MAX i128 debt. Continue
+   into N5–N7 when reached (all design-settled; they need the `<machine M>`
+   plumbing and the `%` former).
+2. **Measured recursion MR1 + MR3** (section below) — frontend/validation
+   gates over the existing recursion fences. MR2 (tail lowering) only after
+   checking the main lane's backend position; MR4/MR5 follow.
+3. **Dependent types R2** (section below) — where-clause + gating + windows;
+   the big semantic build, explicitly ADDITIVE (the landed eager store-time
+   checks stay sound as the conservative tier). One careful agent, multi-day.
+4. **Windows platform-verification session** (section below) — checklist-
+   shaped; one session on a Windows host closes the whole list.
 
-Then smoke the third mechanism behind them: the runtime-offset borrow-recast
-`&self.map_buf[offset] as &EfiMemoryDescriptor` strided by runtime
-`descriptor_size` (M2-ladder #3; the indexing + bounds-proof substrate landed
-in the 2026-07-09..13 arcs, unverified against the recast spelling).
-> fs lane 2026-07-17: rungs 1+2 DONE (the FIELD MODEL serves --
-> pass/targets/efi_vtable_field_call -- and `&mut` out-params marshal as
-> addresses with six-arg stack spill -- pass/targets/efi_out_param_call;
-> the "two red efi tests" proved stale, dispatch bytes verified
-> cross-target). Rung 3 SMOKED: the recast refuses at the PARSER (`as`
-> takes no reference type) -- M2 now blocks on exactly the queued RECAST
-> rung below (SS5b). It is the last compiler-side blocker.
+Also standing: the rendering-sample sweep onto the direct `pixels[y*W+x]`
+spelling (R0 follow-on, under Language ergonomics).
 
-Done-check = the M2 ladder's: boot under QEMU/OVMF, greeting prints,
-ExitBootServices succeeds against the fresh MapKey, no crash after exit (the
-machine idles, owned). Substrate already in place: `uefi_x64` registered +
-`uefi_hello` cross-compiles (3915d1cec/631fa6e28), `const` v0, both-runtime
-indexing, declared-range bounds discharge. This is the highest-leverage pick
-on the board: it turns the booting toy into an OS that owns its RAM, and it
-is the first end-to-end exercise of the boot/FFI stack (dispatch + out-params
-+ recast under one roof).
+## Cathedral M2 (owner priority 2026-07-15; RECAST = main lane, claimed)
 
-## Probe rotation (current state)
+Cathedral is fully written and waiting; M2 (`GetMemoryMap → ExitBootServices
+→ first Region mint`, `../Cathedral/source/boot/uefi/own_machine.omg`) is
+down to ONE compiler-side blocker: the RECAST remainder (see
+Programmable-layouts below — rungs A/B/C1/C2 landed; the tail is
+non-scalar-field records, `&mut` views, plan-tiling). The old "two red efi
+tests" proved stale 2026-07-17: field-model dispatch and `&mut` out-params
+both serve, pinned (pass/targets/efi_vtable_field_call,
+pass/targets/efi_out_param_call). Done-check: boot under QEMU/OVMF, greeting
+prints, ExitBootServices succeeds against the fresh MapKey, no crash after
+exit (the machine idles, owned).
 
-Swept clean and pinned where novel (2026-07-12..13): operand positions
-(left/right asymmetries), comparison complement flavors (equal-operand `!=`
-legs), staleness (sum reassignment vs equality; slice-capture is borrow-
-fenced), ZII boundaries (strings, sums-as-first-case, arrays, nesting, host
-marshal), deep-nesting writes + aggregate arg marshaling, range endpoints,
-u64 high-bit wrapped ops. Found + fixed en route: wrapping operand
-truncation, text `!=` inversion (both ISAs), TextEqualsLiteral x16 clobber
-+ the x15 pool collision. Marginal probe value is now LOW -- next sweeps
-should target NEW feature surfaces as they land, not re-walk these axes.
+## Probe rotation
 
-## Dependent types — engineering track (design COMPLETE, 2026-07-18)
+Swept clean and pinned 2026-07-12..13 (operand positions, comparison
+complements, staleness, ZII boundaries, deep-nesting writes + aggregate arg
+marshaling, range endpoints, u64 high-bit wrapped ops; the fixes found en
+route are in the git log). Marginal value on those axes is LOW — point
+probes at NEW feature surfaces as they land, not at re-walking these.
+
+## Dependent types — engineering track (design COMPLETE 2026-07-18)
 
 Chapter 12 + design_briefs/dependent_types.md are decision-complete (gating,
-windows, where-clause domains, stores bound, storage shapes -- every owner
-question settled or parked). Probed against today's compiler: the
-INTERVAL-product half already proves end-to-end (`idx: u32 [0..=11] =
-y*w+x` with ranged fields compiles + runs natively; see the pending canary
-header above for the verified spelling). Rungs, in payoff order:
+windows, where-clause domains, stores bound, storage shapes — every owner
+question settled or parked). LANDED 2026-07-09, detail in git log + canary
+headers (pass/dependent/, pass/collections/, fail/dependent/): **R0** direct
+`pixels[y*W+x]` (depth-2 hoist, compositional intervals, fence-before-fold);
+**R1a** symbolic atoms (`i: u32 [0..=self.count]` — declaration gate, proof
+atom, caller/callee discharge, forwarding, the subtraction rule, in-callee
+ordering DBM mints, machine-`requires` intake on both sides, sibling-len
+`[0..items.len]`); **R3 + R3b** bounded products (`requires rows*cols <= K`
+discharges `y*self.cols+x`, direct spelling included) with the
+bounded-escape store-containment keystone. Open rungs:
 
-- **R0 — DONE (2026-07-09): the direct `pixels[y*W+x]` spelling serves.**
-  Three composed fixes: depth-2 hoist (index_is_hoistable_computed),
-  compositional interval synthesis (operand_declared_interval recurses one
-  level), and the computed-index fence reordered BEFORE the checker's
-  facts-fold (the fold classified `y*4+x` "constant" via assignment facts
-  and skipped the refusal while the backend read ZII -- the silent-
-  miscompile pin). Promoted:
-  pass/collections/runtime_nested_const_product_index_exit (read + write +
-  ranged-param interval legs); depth fence pinned:
-  fail/collections/nested_three_level_index_rejected (extend hoist +
-  interval in LOCKSTEP to deepen). FOLLOW-ON for the rendering samples:
-  sweep the linear-counter workarounds + re-guard states onto the direct
-  spelling.
-- **R1 (symbolic atoms): R1a LANDED (2026-07-09, main lane).** A state
-  parameter's range may name a self field as its maximum
-  (`i: u32 [0..=self.count]`; exclusive sugar normalizes to `- 1` at
-  parse). One recognizer (omega-typed-trees dependent_ranges) feeds three
-  policies in lockstep: the declaration gate (type_references.rs --
-  admits state params whose named field carries an enforced literal
-  Exact range, refuses fields/unranged/mistyped loudly), the proof atom
-  (ProofConstraint::IntegerRangeSymbolicMax; caller discharge at every
-  transition via co-located guard THROUGH the `== true` desugar, or the
-  field's declared-minimum floor; CALL arguments floor-only with a
-  route-hint refusal, self-receiver only), and the callee index prover
-  (range substituted through the field's store-enforced literal high --
-  immune to mid-state reassignment; params are immutable so no write
-  hole). Canaries: pass/dependent/runtime_dependent_param_range_exit +
-  4 fail shapes under fail/dependent/. FORWARDING landed
-  same day (route c): a dependent param forwards into a same-field
-  tighter-or-equal sibling bound via its OWN atom, fenced on the state
-  PRESERVING the field (any write to it or opaque call defeats the
-  route -- entry-to-entry bridging; the defeat is pinned by
-  fail/dependent/dependent_forward_after_write_rejected). The R0 x R1a
-  COMPOSITION landed same day: dependent params feed product indexes with
-  RUNTIME arguments (`pixels[y*4+x]` with `y: [0..=self.rows]`) -- the
-  overflow proof (arithmetic_domains range_constraint_interval,
-  unique-field substitution) and the hoist's temp-range synthesis
-  (hoist_temp_type resolved-tree twin recognizer, attached-data-resolved)
-  both read the substituted intervals; pinned
-  pass/dependent/runtime_dependent_product_index_exit. The relational
-  SUBTRACTION rule landed same day (refine_dependent_subtract in the
-  decision-17 overflow analysis): `self.count - i` proves non-negative
-  from i's atom (capacity-minus-used; exclusive sugar gives >= 1),
-  write-fenced like every entry-fact bridge, flipped direction stays
-  refused; pinned pass/dependent/runtime_dependent_subtract_exit +
-  the write-defeat fail canary. In-callee ORDERING
-  facts landed same day (checks/ranges/dependent_params.rs): the param's
-  atom mints `i <= self.count` into the DBM at entry (offsets <= 0 only;
-  staleness = the existing forget-on-reassignment on both pair ends),
-  composing with incoming-guard facts through via_ordering -- pinned
-  pass/dependent/runtime_dependent_ordering_chain_exit (substituted range
-  deliberately too wide; only the chain proves). SURVEYED
-  2026-07-09 (probe evidence): machine-signature `requires` ALREADY
-  parses (machine/clauses.rs -> SignatureContractKind::Requires ->
-  ProofFacts) and seeds CALLEE-side RangeFacts through the guard
-  machinery (seed_machine_requires -> seed_guard_facts, incl. subslice
-  vocabulary) -- but (1) the ordering it seeds lives in the CHECKER's
-  DBM only; omega-validation's interval engine (decision-17 overflow)
-  does not consume it (`requires self.a <= self.b` does NOT prove
-  `self.b - self.a`), and (2) CALLER-side enforcement of requires at
-  call sites is unverified (the callee refused first in the probe). CHANNEL (b)
-  LANDED same day: the subtraction refinement consumes machine `requires`
-  orderings (requires_orders_operands; display-spelling conjunction scan,
-  machine-wide field preservation as the entry-fact bridge) -- pinned
-  pass/dependent/runtime_requires_subtract_exit. CALLER-side requires
-  enforcement turns out to EXIST and is strict ("cannot prove requires
-  contract for call ..."; pinned
-  fail/dependent/requires_call_unproven_rejected) -- the guard INTAKE
-  LANDED same day: the contracts prover consumes the ranges machinery's
-  IncomingGuard walk-back (contracts/calls.rs
-  incoming_guard_proves_requires; exact/conjunct/==true-desugar spelling
-  match + caller-state pre-call preservation) -- the guarded caller
-  PROVES and the requires loop is closed end-to-end (guard -> call
-  obligation -> in-callee subtraction); pinned
-  pass/dependent/runtime_requires_guarded_call_exit, with unguarded and
-  guard-then-write refusals held. SIBLING-LEN
-  LANDED (2026-07-09): the `index: u64 [0..items.len]` Buffer::get shape
-  serves end-to-end -- recognizer (sibling_len_bound), proof atom
-  (IntegerRangeSiblingLenMax; obligations carry the sibling's ARGUMENT
-  resolved at build time), guard-route discharge (`arg <
-  <sibling-arg>.len`, display-matched, strict-vs-inclusive offsets),
-  declaration gate (same-state slice/fixed-array sibling, offsets <= 0),
-  and the callee prove_index mint (strict bounds only) that the
-  unknown-length prover consumes -- `items[index]` indexes guard-free
-  inside the callee. Pinned pass/dependent/runtime_sibling_len_index_exit
-  + two fail shapes. CALL arguments refuse with a route hint (no
-  co-located guard exists). Then
-  value-vs-value guard mints at range endpoints generally
-  value-vs-value guard mints at range endpoints generally
-  (`requires a.cols == b.rows`), and machine-signature `requires`
-  surface with the bracket-as-sugar desugar. Cross-machine dependent
-  params ride R4 (boundary witnesses).
-- **R3 (relational bounded-product): LANDED (2026-07-09).** The one
-  closed rule: `y * self.cols + x` with strict dependent params
-  (`y < rows`, `x < cols`) and a machine `requires self.rows * self.cols
-  <= K` coupling is bounded by K-1 (multiply half by K), machine-wide
-  field preservation as the bridge -- runtime dims with NO literal
-  ranges prove (refine_dependent_product/_factor in the decision-17
-  analysis). Landing it EXPOSED AND CLOSED a store-proof hole: bounded
-  intervals escaping declared Exact ranges were never refused (confirmed
-  native OOB read) -- the containment keystone now refuses
-  bounded-escape stores at both let and assignment arms
-  (check_range_containment; it also caught a genuinely over-claimed
-  range in the deep-chain corpus canary), constant-divisor quotient
-  intervals tightened to make provable shapes prove ([0,99]/10 =
-  [0,9]), and the UNBOUNDED-store residue stays permissive (conservative
-  post-entry env seeding would flip sound corpus shapes) -- pinned here
-  as the store-proof completion item. The declaration gate now admits
-  UNRANGED integer fields as dependent maxima (the guard route
-  discharges; couplings bound the products). Pinned:
-  pass/dependent/runtime_bounded_product_index_exit + the weak-coupling
-  fail canary. R3b LANDED same
-  day: the direct `pixels[y*self.cols+x]` spelling serves -- the hoist
-  synthesis mirrors the product rule (dependent_product_index_interval in
-  hoist_temp_type.rs, resolved-tree twins kept in lockstep; the synthesized
-  temp range is re-proved by the typed-side rule at the temp's own store,
-  so a dim-writing machine never carries a stale synthesis to an index).
+- **R1 remainder:** value-vs-value guard mints at range endpoints generally
+  (`requires a.cols == b.rows`); the bracket-as-sugar desugar for
+  machine-signature requires. Cross-machine dependent params ride R4.
+- **R3 residue (store-proof completion):** UNBOUNDED-store seeding stays
+  permissive (conservative post-entry env seeding would flip sound corpus
+  shapes) — revisit with a plan.
+- **R2 (where-clause + gating + windows) — QUEUED (Next Tasks #3):** the
+  big semantic build — where-clause parsing on data, the default-domain
+  layer, gating (zero-excluding domains legal, construction mandatory
+  fields), consumption-point windows (ADDITIVE relaxation of the landed
+  store-time checks). Implementation notes: the clause is spelling over the
+  DEFAULT DOMAIN model (re-skinnable); confirm at implementation whether
+  the init-syntax reconstruction form is still needed now that windows
+  admit piecemeal writes (likely dissolved). Record:
+  design_briefs/dependent_types.md §6; ch11 (windows) is the spec.
 - **R4 (boundary witness mints, proof side):** out-params as witnesses,
   decode-minted where-facts, recast bounds discharged from couplings +
-  R1/R3. ⚠️ COORDINATE: the recast MECHANICS are claimed by the main lane
-  (static core landed 2026-07-09 except the native write); this rung
-  supplies only the proof side. Unblocks the UEFI memory-map walk
-  (Cathedral M2's stride discharge).
-- **R2 (where-clause + gating + windows):** the big semantic build --
-  where-clause parsing on data, default-domain layer, gating
-  (zero-excluding domains legal, construction mandatory fields),
-  consumption-point windows (ADDITIVE relaxation of the landed store-time
-  checks: current eager rejection stays sound as the conservative tier, so
-  this stages late without blocking R0/R1/R3/R4).
+  R1/R3. ⚠️ COORDINATE: recast MECHANICS are main-lane; this rung supplies
+  only the proof side. Unblocks the UEFI memory-map stride discharge.
 - **R5 (frames):** preserve-unless-written, `stores` clause, state arrival
   facts, Houdini inference. Needed when dependent facts cross
   sibling-machine calls.
@@ -284,14 +170,14 @@ no `unbounded` property exists. Rungs:
   converges_together` — bodyless data decl, `%` = the one new type
   expression; bare RHS NEVER parses — `data Meters = u32;` rejected, the
   units/provenance job belongs to empty-body domains, owner-confirmed:
-  `domain u32::Meters {}` + per-operator preservation):** `as` = mk, carrier-only; respect-ensures gates lift;
-  congruence over the user equivalence; refl/symm/trans as ordinary lemma
-  obligations. Buckets span the machine-param family (the equivalence is
-  a nested-schema machine — N7 customer). Record: mathematical_proofs
-  par-7.
-- **N7 — nested schemas:** machine params
-  on proof data (`data CauchySeq<machine S>`) + machine-parameter
-  signatures that themselves take machine parameters.
+  `domain u32::Meters {}` + per-operator preservation):** `as` = mk,
+  carrier-only; respect-ensures gates lift; congruence over the user
+  equivalence; refl/symm/trans as ordinary lemma obligations. Buckets span
+  the machine-param family (the equivalence is a nested-schema machine —
+  N7 customer). Record: mathematical_proofs par-7.
+- **N7 — nested schemas:** machine params on proof data
+  (`data CauchySeq<machine S>`) + machine-parameter signatures that
+  themselves take machine parameters.
 - **N8 — the construction corpus:** Cauchy Real, well-definedness, order,
   completeness; axioms retire via the standard boundary upgrade.
   LLM-parallel, zero backend contact. Universe ladder PARKED (trigger:
@@ -304,72 +190,49 @@ no `unbounded` property exists. Rungs:
   because platform entries carry no effect rows -- refusal-guarded today).
   Guide ch18 already PRESCRIBES the boundary-trait shape; on a ruling the
   work is the std migration.
-- **FLOAT-TO-INT half still open (no ruling)** — migrated to
-  OWNER_QUESTIONS.md item 10 (2026-07-09, per the consolidation directive).
+- **FLOAT-TO-INT half still open (no ruling)** — OWNER_QUESTIONS.md item 10.
   Parked cast divergence stays in the drift ledger until answered.
 
 ## Open bugs / gaps (ungated)
 
-- **FS-LANE FOLLOW-THROUGH: texteq arm-locals still ZII for non-terminal
-  consumers (found 2026-07-15 probing the just-closed leaf fix).** The
-  fix's initializer collection rides Terminal-value arm expansions only; a
-  sub-state whose transition targets ANOTHER sub-state emits no initializer
-  write, so a texteq local read by the arm's own GUARD or forwarded as a
-  transition ARG delivers ZII 0 natively (interp 70 / native 71 both
-  shapes). Pinned: pending/calls/texteq_local_guard_read_divergence +
-  texteq_local_arg_forward_divergence. ROOT-CAUSED 2026-07-17 (analysis
-  in the guard-read pin's header): the dispatch GUARD evaluates before any
-  expansion's write region, so per-expansion initializer collection can
-  never feed its own guard (or an edge-taking argument) -- the fix is a
-  per-branch-state PRE-GUARD region emitting call-free LocalData
-  initializers, with 82a9a92d3's two load-bearing exclusions. Dispatch-
-  layout surgery in the M2-active machinery; left for the owning lane with
-  the analysis pre-paid. The pinned trailing-state &mut-param stale read
-  (trailing_state_mut_param_phase_divergence) likely shares this region's
-  absence.
-
-- **Const-folder width-blindness: latent, currently unreachable via the
-  live spelling.** The 2026-07-04 miscompile class (`(0u32 - 2) >> 1` folding
-  through bare i64) no longer reproduces as a FOLD: the mandatory cast-retag
-  spelling (`0 as u32 in Wrapping`) puts a Cast node in the tree, which the
-  folder's literal window refuses -- the expression reaches the RUNTIME
-  operand path instead (whose wrapping-truncation hole is now FIXED and
-  pinned by arithmetic/runtime_wrapping_operand_truncation_exit). The folder
-  (`omega-state-values/simplify/folding.rs`) is still i64-window/type-blind
-  by design (D14 comment); a width-carrying folder remains the deeper rung,
-  gated with the type-carrying-constants design.
-- **UnloweredCaseLiteralField poison is now UNPINNED by a fail canary.**
-  Every previously-poisoned texteq shape serves (terminal position landed:
-  the write rides the binary write's own target arms, and the
-  TextEqualsLiteral operand encoder moved off x16 -- it was clobbering the
-  write's target base; pass/text/case_literal_texteq_terminal_exit pins it,
-  with the x15 precedent note). The poison stays as negative space for the
-  NEXT unloweable payload-field shape; when one surfaces in authoring, give
-  it the fail canary.
-- **Same-type receiver aliasing** — fs-lane arc, slice 1 landed (receivers
-  serve on both routes for entry-machine callers; ambiguous multi-call
-  states stay fenced -- e0c718793..cd271c670). Retire
+- **texteq arm-locals ZII for non-terminal consumers** — root-caused
+  2026-07-17, analysis pre-paid in the pin headers
+  (pending/calls/texteq_local_guard_read_divergence + the arg-forward
+  twin): the dispatch GUARD evaluates before any expansion's write region,
+  so the fix is a per-branch-state PRE-GUARD region of call-free LocalData
+  initializers (with 82a9a92d3's two load-bearing exclusions).
+  Dispatch-layout surgery in M2-active machinery — the OWNING LANE's; do
+  not pick up. The pinned trailing_state_mut_param divergence likely
+  shares the missing region.
+- **Const-folder width-blindness (latent, unreachable via the live
+  spelling):** the cast-retag spelling puts a Cast node in the tree, which
+  the folder's literal window refuses; the runtime operand path's
+  wrapping-truncation hole is FIXED and pinned. A width-carrying folder
+  (`omega-state-values/simplify/folding.rs` is i64-window by design, D14)
+  remains the deeper rung, gated with the type-carrying-constants design.
+- **UnloweredCaseLiteralField poison:** every known texteq shape serves
+  (pinned); the poison stays as negative space — give the NEXT unloweable
+  payload-field shape a fail canary when authoring surfaces one.
+- **Same-type receiver aliasing:** slice 1 landed (receivers serve on both
+  routes for entry-machine callers); ambiguous multi-call states stay
+  fenced (fs lane). Retire
   pending/time/value_machine_receiver_field_postentry when the fence lifts.
-- **Float `is_float` on nested operand paths: not silently reachable
-  (probed 2026-07-12).** Nested float binaries serve in write-value,
-  transition-arg, and spliced-mutation positions (pinned:
-  arithmetic/runtime_float_nested_operand_exit); guard-position nested
-  arithmetic fences on the conjunction rule; case-literal terminals are
-  poisoned. The `is_float: false` notes in the tree/branch resolvers stay as
-  latent markers -- if a route change makes one reachable, the canary legs go
-  loud. Wire on first real reproduction.
+- **Float `is_float` nested-operand markers:** not silently reachable
+  (probed 2026-07-12; pinned arithmetic/runtime_float_nested_operand_exit).
+  Wire the canary legs on first real reproduction.
 
-## Platform verification sessions (host-gated; the retired TASKS_FS/TASKS_TIME lists fold in here, 2026-07-17)
+## Platform verification sessions (host-gated)
 
-- **Windows session** (one session closes all of it): natively verify the
-  fs stat-row migration; migrate WINDOWS_IMPORT_ROWS into provides files;
-  Win32 rows for the no-msvcrt fs ops (pread/*at/link/read_dir/flock/
-  chown/futimens/realpath — loud "no native lowering" refusals today);
-  file_journal sample recheck; WndProc entry stubs (title-bar close); the
-  fs<->time mtime interop leg (time-side surface ready + canaried; rides
-  the stat rows). Also re-baseline the two cfg(windows) efi byte-pin
-  tests (proved stale via cross-target PE evidence, 2026-07-17).
-- **Linux session**: fs + time binding tables are structural-only until a
+- **Windows session — QUEUED (Next Tasks #4); one session closes all of
+  it:** natively verify the fs stat-row migration; migrate
+  WINDOWS_IMPORT_ROWS into provides files; Win32 rows for the no-msvcrt fs
+  ops (pread/*at/link/read_dir/flock/chown/futimens/realpath — loud "no
+  native lowering" refusals today); file_journal sample recheck; WndProc
+  entry stubs (title-bar close); the fs<->time mtime interop leg (time-side
+  surface ready + canaried; rides the stat rows). Also re-baseline the two
+  cfg(windows) efi byte-pin tests (proved stale via cross-target PE
+  evidence, 2026-07-17).
+- **Linux session:** fs + time binding tables are structural-only until a
   host exists. Time's monotonic/wall rows additionally need a timespec
   composite lowering (clock_gettime writes {tv_sec, tv_nsec}; result =
   sec * 1e9 + nsec) — buildable now with the byte-op composite pattern,
@@ -383,73 +246,26 @@ no `unbounded` property exists. Rungs:
   boundary theorem — needs the L5 carrier/domain rung.
 - **L5 remainder:** target-directed `encode()` (spelling open, extern brief
   §10.2), the `Packed` grammar, the plan-walking deriver (blocked on
-  case-vocabulary Plan element construction), the validate/materialize decode
-  mint, refinement-as-obligation.
-- **RECAST (settled §5b): IN PROGRESS, main lane (claimed 2026-07-09 —
-  jumped the validate-mint queue; it is the last compiler-side M2 blocker
-  per the fs-lane rung-3 smoke).** Ladder + state:
-  - **(A) static core — COMPLETE (native closed 2026-07-09).** Parser,
-    judgment, interp, and BOTH native halves: (a) the recast initializer
-    strips to its source place at the LocalStorage write (+ eight backend
-    cast-rebuild sites that silently erased CastForm now forward it);
-    (b) reads through the view use the stated type's width (guards layout
-    presents the referee width for &scalar locals; constant float
-    expectations re-encode to f32 bits against 4-byte float places --
-    which ALSO fixed plain f32 field guards, broken program-wide; pinned
-    arithmetic/runtime_f32_field_guard_exit). Promoted:
-    pass/recast/runtime_scalar_pun_shared_let_exit. The fs lane's M2
-    rung-3 blocker family continues at (B)/(C).
-  - **(B) — LANDED (2026-07-09, scalar targets).** `&self.buf[4] as &u32`
-    serves both engines: footprint-fits judgment (`k + size(T) <= N`,
-    byte-granular, refuses past-the-buffer at the declaration), native
-    lowering = a stated-size CopyRuntimeStorage from the element's
-    address into the view slot, interp assembles little-endian. Pinned
-    pass/recast/runtime_interior_byte_recast_exit + the footprint fail
-    canary. RECORD targets (EfiMemoryDescriptor-shaped) remain with
-    rung C.
-  - **(C1) — LANDED (2026-07-09, scalar targets).** The runtime-offset
-    interior recast (`&self.buf[off] as &u32`): footprint discharges
-    through the offset's enforced interval (high(off)+size <= N; the R1
-    substitution machinery serves dependent/coupled offsets), the
-    operand-hoist EXEMPTS recast operands (the view addresses buf[off],
-    never a copied byte), native lowers as
-    CopyRuntimeMachineIndexedToRuntimeStorage at the STATED byte count,
-    interp assembles at the evaluated offset. Pinned
-    pass/recast/runtime_offset_byte_recast_exit + the footprint fail
-    canary.
-  - **(C2) — LANDED (2026-07-09, all-scalar records).** The Cathedral M2
-    shape serves: `&self.buf[off] as &Desc` with member reads through the
-    view, both engines. Snapshot materialization: the reference local's
-    slot sizes by the REFEREE record (runtime-storage layout_for_reference_type,
-    Named-data referees only -- scalar referees keep the rung-A pointer
-    model), the initializer rides C1's indexed copy at the record's
-    width, member reads are frame-resident record reads. The three
-    sizing implementations (validation footprint / layout plan / interp
-    field decode) are pinned in ALIGNMENT LOCKSTEP by the canary's
-    padded-field leg (u32+u64 -> b at offset 8). Pinned:
-    pass/recast/runtime_record_view_exit + the footprint fail canary.
-    The STRIDE-WALK sample LANDED same day
-    (samples/cli/systems/descriptor_walk): the Cathedral memory-map
-    pattern end-to-end -- runtime stride, record views per entry, every
-    proof compiler-side (back-edge guard proves the forwarded offset;
-    footprint through the offset's interval), 50/50 both engines.
-    REMAINING recast tail: non-scalar-field records, `&mut` views, and
-    plan-tiling beyond fact-free shapes (L5).
+  case-vocabulary Plan element construction), the validate/materialize
+  decode mint, refinement-as-obligation.
+- **RECAST (main lane, claimed 2026-07-09; the last compiler-side M2
+  blocker):** rungs A/B/C1/C2 ALL LANDED — static core, interior byte
+  recast, runtime-offset recast, all-scalar record views, and the
+  descriptor_walk stride sample (the Cathedral memory-map pattern
+  end-to-end; detail in git log + pass/recast/ canary headers). REMAINING
+  tail: non-scalar-field records, `&mut` views, plan-tiling beyond
+  fact-free shapes (L5).
 - **L6+:** Bits placements + access classes (MMIO deriver); durability plan
   grades; publish-time predecessor diff.
 
 ## Language ergonomics
 
-- **[ENGINEERING]** numeric intrinsics remainder: sin/cos need range reduction
-  + a polynomial matching interp precision — a numerical mini-project.
-- **Nonlinear index `pixels[y*W+x]` -- ANSWERED: enabled by dependent types
-  eventually.** NOW IN THE LANGUAGE DOCS (2026-07-15, owner-requested, NOT
-  settled): chapter_12_dependent_types.md (UX surface, static + dynamic
-  lowerings) + design_briefs/dependent_types.md (deep dive; systems fragment;
-  lifetimes interplay; Lean path; implementation lab agenda §8 -- rung R3 =
-  the ONE bounded-product entailment rule that discharges `y*W+x` and
-  `i*stride`). Until it lands the linear-counter workaround stands; no
-  axiom/octagon stopgap.
+- **[ENGINEERING]** numeric intrinsics remainder: sin/cos need range
+  reduction + a polynomial matching interp precision — a numerical
+  mini-project.
+- **Rendering-sample sweep (R0 follow-on, standing):** the direct
+  `pixels[y*W+x]` spelling serves since 2026-07-09 — sweep the rendering
+  samples' linear-counter workarounds + re-guard states onto it.
 
 ## Backend perf (deferred, post-1.0)
 
@@ -464,52 +280,20 @@ with a real app-window story.
 
 - **Lifetimes (decision 15):** `'name` lifetime implementation arc.
 - **Ranking-view spelling** (decision 2 follow-through).
-- **Wire data stage 2 remainder (list refreshed 2026-07-16 by survey):**
-  nested/repeated fields and utf8-slice decode are DONE + pinned (the old
-  "String decode" line was stale; runtime_wire_roundtrip_utf8_exit).
-  OPEN, ranked: (1) **decode-side DOMAIN VALIDATION** -- INTERP HALF DONE
-  (2026-07-16): ByteSequencePredicate lifted to
-  omega-typed-trees::byte_predicates (one vocabulary for compile-time proof
-  + runtime validation); the interp decode evaluates the slice's declared
-  byte predicates over untrusted bytes, verdict Invalid on failure,
-  unrecognized classifiers refuse loudly. AARCH64 DONE (2026-07-16):
-  validation blocks emitted over the decoded content (mask-selected;
-  non_empty 2 / no_nul 7 / ascii_only 8 instructions; utf8 = a
-  77-instruction compare/branch walk assembled with a local label
-  resolver), width twins + the target-page relocation offset in lockstep;
-  edge classes pinned (runtime_wire_utf8_edge_verdicts_exit: overlong /
-  surrogate / beyond-max / truncated INVALID, honest multi-byte SOUND).
-  The decode-boundary domain-validation slice
-  is CLOSED (2026-07-17): x86_64 emits the twin blocks (single-scratch
-  lead-first dispatch, rel32 label resolver; widths measured from the pure
-  emitter -- one source of truth); the refusal canary PROMOTED to
-  pass/wire/runtime_wire_utf8_invalid_refused_exit with a linux_x64 ELF
-  pin. NOTE for probe authors: multi-call VALUE MACHINES writing self
-  fields trip the PINNED trailing-state phase bug -- inline states are the
-  reliable shape. (2) wire-schemas-as-program-types --
-  LANDED 2026-07-17 (a numbered data never entered the type namespace; the
-  wire lowering now dual-registers a regular DataDefinition from the
-  schema's current-era fields, so numbered datas are plain program types
-  and the Message/Sample twin pattern is optional; pinned:
-  runtime_wire_schema_as_value_type_exit) The wire-wide
-  decode-then-let-compare fold is FIXED (2026-07-09): the wire encode/
-  decode selection branches now clear RuntimeStaticValues like every other
-  call shape (both walk sites); the pin promoted to
-  pass/wire/runtime_wire_decode_let_compare_exit and the schema-as-value
-  canary regained its decode-into-self roundtrip leg. Item (2) closes
-  outright. (3) runtime layout of wire values. (4) encoding families
-  beyond compact_binary v0 + version negotiation.
+- **Wire data stage 2 remainder:** items (1) decode-side domain validation
+  (both ISAs + interp) and (2) wire-schemas-as-program-types CLOSED
+  2026-07-16..17 (pinned; detail in git log). OPEN, ranked: (3) runtime
+  layout of wire values; (4) encoding families beyond compact_binary v0 +
+  version negotiation. Probe-author note: multi-call value machines
+  writing self fields trip the pinned trailing-state phase bug — inline
+  states are the reliable shape.
 - **Versioned data stage 3:** the era tag itself (+ decision 10's wire-era
   ride), era-tagged containers, migration chains / `replaces` / quiescence.
 - **Equatable synthesis:** a CALLABLE conformance surface is still open.
-- **Trailing-state stale reads of threaded `&mut` param fields -- SKELETON
-  FOUND (2026-07-16), pinned:**
-  pending/calls/trailing_state_mut_param_phase_divergence (71, Exit(70)).
-  Appending a sub-state that bumps-and-reads the param makes the FIRST
-  state's guard read go stale natively; every single-state shape is green.
-  Cross-state phase allocation for the threaded &mut -- the fs lane's
-  claimed receiver-phase family; theirs to absorb with the aliasing arc.
-  (This closes the old "signed/unsigned residue shape (2)" mystery line.)
+- **Trailing-state stale reads of threaded `&mut` param fields:** pinned
+  (pending/calls/trailing_state_mut_param_phase_divergence, 71/Exit(70));
+  cross-state phase allocation for the threaded &mut — the fs lane's
+  claimed receiver-phase family, theirs to absorb with the aliasing arc.
 - **Concurrency model:** chapter 18 is a sketch; per-target declarations.
 - **Atomics remainder** beyond the landed stage-1 ops + memory model.
 - **Separate compilation / component artifact model.**
@@ -533,19 +317,14 @@ with a real app-window story.
   delete `PrimitiveType::String` + ~16 backend special-cases, retire the
   keyword. Recipe: wiki/architecture/string_retirement_execution.md. The
   capstone of the encoding-domains arc — NOT a background-tick item.
-- **Default-domain invariants (gating + windows follow-up):** declaration
-  surface SETTLED (owner): a `where` clause on the data signature — bare
-  field names, N facts; field constraints stay single-field sugar; one
-  construct with generics' where (const operand = instantiation proof,
-  runtime fields = standing/windowed). Implementation treats the clause as
-  spelling over the DEFAULT DOMAIN model (re-skinnable). Remaining pin:
-  whether the init-syntax reconstruction form is still needed at all now
-  that windows admit piecemeal writes (likely dissolved; confirm at
-  implementation).
-  (Settled 2026-07-17: zero-excluding default domains GATE the type;
-  store-time enforcement superseded by consumption-point invariant
-  windows — ch11 rewritten, ch7/8/9/12 + appendix restated, record in
-  design_briefs/dependent_types.md §6.)
+- **Trust system engineering (design settled through the proofs arc):**
+  boundary machines + grants + the unified lockfile (trust receipts beside
+  package pins), engine veto, trust report, oracle tripwires, `defer`
+  tooling (site marker + root row from one command, hash-pinned,
+  package-release-fatal), grant locality (own-package dev-active w/
+  warning; package boundaries inert until root-granted). Record: ch10
+  Evidence And Trust + mathematical_proofs par-4/par-6. No rungs cut yet —
+  ladder it when a lane picks it up.
 
 ## Structural follow-ups (surface landed; semantics pending)
 
@@ -562,11 +341,10 @@ with a real app-window story.
   reuse, override rules, dispatch pending.
 - **Dynamic traits (`dyn Trait`):** structural + fat descriptor; construction,
   vtable emission, dispatch lowering, object-safety validation pending.
-- **Relax RETIRED (settled 2026-07-17):** superseded by invariant windows
-  (consumption-point enforcement; ch11 rewritten — writes never fail domain
-  checks, windows close at read/borrow/call/transition/return/boundary; the
-  borrow checker IS the exclusivity story). The pending exclusivity pass is
-  CANCELLED. Engineering follow-up: remove the parsed `relax` surface
+  NOTE from the proofs arc: dyn descriptors must carry satisfier identity
+  (`as &dyn Card::PowerOrder` decays to `&dyn Trait`; ch14).
+- **Relax surface removal (relax RETIRED 2026-07-17):** superseded by
+  invariant windows (ch11). Remove the parsed `relax` surface
   (parser/statement.rs, type_reference.rs) + the relax canaries
   (canaries/pass/relax/*) + any corpus uses, replacing with plain writes —
   a deliberate compiler pass, coordinate with active lanes.
