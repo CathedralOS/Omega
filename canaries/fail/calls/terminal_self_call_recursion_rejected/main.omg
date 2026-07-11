@@ -1,17 +1,14 @@
-// TERMINAL-position call-spelled self-recursion (`{ self.sum(n - 1, acc +
-// n) }` as a state's value terminal) is TAIL in shape -- under the
-// measured-recursion ruling (2026-07-18) it becomes legal when rung MR2
-// lands its loop-back rewrite (the same rewrite once tried 2026-07-09/10
-// and retracted under the old NO-RECURSION directive, which the ruling
-// AMENDS). Until MR2, the refusal points at the rung and the transition
-// spellings that work today. This canary pins that the position cannot
-// SILENTLY start compiling: when MR2 lands, recast this into its run twin.
-// The transition-arm measured spelling already runs:
-// pass/calls/runtime_measured_tail_recursion_exit.
+// TERMINAL-position tail self-recursion on an UNMEASURED machine is
+// REJECTED (measured-recursion ruling 2026-07-18): recursive call
+// spellings are legal only when measured. On a MEASURED machine the
+// parser rewrites this exact shape onto the bare loop-back edge (MR2,
+// landed 2026-07-11) and the REAL obligations surface (see
+// fail/calls/terminal_tail_rewrite_obligation_frontier for the current
+// proving frontier). This canary pins the unmeasured refusal, naming
+// the measure and the bare-loop alternative.
 boundary trait Console { machine exit_process(return_code: i32); }
 data Main { console: Console; }
 machine Main::sum(&mut self, n: i32, acc: i32)
-terminates { decreases n; }
 -> i32
 {
     transition n > 0 { true -> step(n, acc) false -> leaf(acc) }
@@ -20,7 +17,10 @@ terminates { decreases n; }
 }
 machine Main::main(&mut self) {
     let s: i32 = self.sum(4, 0);
-    transition s == 10 { true -> good() _ -> bad() }
-    state good(&mut self) { self.console.exit_process(70); }
-    state bad(&mut self) { self.console.exit_process(71); }
+    transition s == 10 {
+        true -> yes()
+        false -> no()
+    }
+    state yes(&mut self) { self.console.exit_process(1); }
+    state no(&mut self) { self.console.exit_process(2); }
 }
