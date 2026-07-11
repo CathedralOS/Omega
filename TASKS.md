@@ -215,7 +215,10 @@ design_briefs/mathematical_proofs.md par-2; chapters 3/8/10/18 + appendix
 updated). The rule: recursive CALL cycles are legal iff `decreases`-measured
 (both strata, all positions); unmeasured cycles remain the hard error;
 transition loop-backs unchanged (unmeasured, constant-stack, may diverge).
-`decreases` is the SOLE gate — tail is only a lowering guarantee. Rungs:
+`decreases` is the SOLE termination gate; RUNTIME cycles are additionally
+TAIL-ONLY (owner amendment — non-tail runtime CUT, the frame-budget/
+cardinality rule deleted; depth lives in explicit storage the author sizes;
+proof-stratum non-tail unaffected, it never lowers). Rungs:
 
 - **MR1 — classifier + legality gate:** call-graph cycle detection already
   exists (the recursion fences); repurpose reject-all into
@@ -226,14 +229,18 @@ transition loop-backs unchanged (unmeasured, constant-stack, may diverge).
 - **MR2 — tail lowering:** desugar tail recursive calls onto the landed
   loop-back machinery (same back-edge; loop-carried-arg staging fix already
   pins the delivery). Differential canaries.
-- **MR3 — non-tail space rule (spelling SETTLED: `decreases m -> View in
-  a..=b`):** frame capacity = range CARDINALITY; floor = range start
-  (non-zero floors legal); const endpoints required for non-tail (dependent
-  endpoints tail-only); lexicographic + non-tail deferred (no cardinality;
-  bounded components flatten m*B+n). Frame region as machine-storage field
-  + layout report line; whole-program worst-case stack line (additive along
-  call chains; mutual cycles need MR4). Record: mathematical_proofs par-5b.
-- **MR4 — mutual cycles:** joint (lexicographic) measures across the cycle;
+- **MR3 — non-tail runtime rejection (AMENDED — space rule CUT):** a
+  measured cycle with any non-tail recursive call in runtime code is a
+  clean compile error naming the offending call and why it is not tail,
+  pointing at explicit-storage iteration as the spelling. Fail canaries
+  (direct + mutual). `decreases m -> View in a..=b` stays as spelled; the
+  range is a termination fact only (floor = well-foundedness bound, any
+  start; dependent endpoints legal; nothing sized from a range).
+  Whole-program worst-case stack line = longest chain of the
+  acyclic-after-lowering call graph. Record: mathematical_proofs par-2
+  amendment.
+- **MR4 — mutual cycles:** joint (lexicographic) measures across the
+  cycle, every call along the cycle tail-classified;
   the dungeon's find_item_at/find_item_after pair is the live test case
   (currently absorbed by bounded clone specialization).
 - **MR5 — proof-stratum evaluation:** measured recursion under interpreter
