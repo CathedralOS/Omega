@@ -373,6 +373,10 @@ pub struct BoundedAssignmentObligation {
     /// Present when `value` is a top-level integer BINARY: its operands with
     /// their declared ranges, for the checker's guard-assisted refold.
     pub binary_operands: Option<BinaryValueOperands>,
+    /// R4 containment intake: `(place display, INCLUSIVE upper bound)` for
+    /// every boundary-ensures witness live at this assignment (see
+    /// `ensures_witness_bounds_at`).
+    pub ensures_witness_bounds: Vec<(String, i64)>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -566,6 +570,8 @@ pub fn build_proof_plan(program: &TypedTrees) -> ProofPlan<'_> {
                             machine,
                             state,
                             assignment,
+                            table_statements,
+                            statement_index,
                             &mut proof_plan,
                         );
                         continue;
@@ -767,8 +773,16 @@ fn collect_bounded_assignment_obligation(
     machine: &Machine,
     state: &State,
     assignment: &TableAssignment,
+    statements: &[StatementNode],
+    statement_index: usize,
     proof_plan: &mut ProofPlan<'_>,
 ) {
+    // R4 containment intake: the INCLUSIVE upper bounds boundary-call
+    // ensures prove for `&mut` argument places, live at THIS statement
+    // (any later call invalidates everything -- callees hold `&mut self`;
+    // a write to the place drops its bound).
+    let ensures_witness_bounds =
+        ensures_witness_bounds_at(program, machine, statements, statement_index);
     let target = assignment.target;
     let Some((base_type, constraints)) = expression_type_reference(program, machine, state, target)
         .and_then(|type_reference| constrained_type_reference(program, type_reference))
@@ -830,8 +844,159 @@ fn collect_bounded_assignment_obligation(
             base_type,
             constraints,
             binary_operands,
+            ensures_witness_bounds,
         },
     ));
+}
+
+/// Walk `statements[..upto]` maintaining the live boundary-ensures witness
+/// set: a boundary call replaces the whole set with ITS ensures-bounded
+/// `&mut` argument places (any call may rewrite any field); an assignment
+/// drops its target's bound. (Third sibling of the validation recast walk
+/// and the checker ranges walk -- the resolvers differ per crate context;
+/// consolidation is a recorded refactor.)
+fn ensures_witness_bounds_at(
+    program: &TypedTrees,
+    machine: &Machine,
+    statements: &[StatementNode],
+    upto: usize,
+) -> Vec<(String, i64)> {
+    use omega_typed_trees::domain::ProofFact;
+    use omega_typed_trees::signature::SignatureContractKind;
+    let mut witnesses: Vec<(String, i64)> = Vec::new();
+    for statement in &statements[..upto] {
+        match statement {
+            StatementNode::Call(call) => {
+                witnesses.clear();
+                let Some(receiver) = program
+                    .statement_table
+                    .name_path_members(call.receiver)
+                    .last()
+                else {
+                    continue;
+                };
+                let Some(attached) = machine.attached_data.as_ref() else {
+                    continue;
+                };
+                let Some(data) = program
+                    .data_definitions()
+                    .iter()
+                    .find(|data| data.name.as_str() == attached.as_str())
+                else {
+                    continue;
+                };
+                let Some(field_type) =
+                    data_field_type_by_name(program, data, receiver.as_str())
+                else {
+                    continue;
+                };
+                let TypeReferenceNode::Named { name: trait_name, .. } =
+                    program.type_reference_table.type_reference(field_type)
+                else {
+                    continue;
+                };
+                let Some(trait_definition) = program
+                    .traits()
+                    .iter()
+                    .find(|definition| definition.name.as_str() == trait_name.as_str())
+                else {
+                    continue;
+                };
+                let Some(signature) = program
+                    .trait_machine_signatures(trait_definition)
+                    .iter()
+                    .find(|signature| signature.name == call.target)
+                else {
+                    continue;
+                };
+                let arguments = program.statement_table.expression_handles(call.arguments);
+                let parameters: Vec<_> = program
+                    .state_signature_parameters(signature)
+                    .iter()
+                    .filter(|parameter| !parameter.is_self)
+                    .collect();
+                for contract in program
+                    .signature_contracts
+                    .span_or_empty(signature.contracts)
+                {
+                    if !matches!(contract.kind, SignatureContractKind::Ensures) {
+                        continue;
+                    }
+                    for fact in program.proof_facts.span_or_empty(contract.facts) {
+                        let ProofFact::Expression(expression) = fact else {
+                            continue;
+                        };
+                        collect_witness_conjunct(
+                            program,
+                            &parameters,
+                            arguments,
+                            *expression,
+                            &mut witnesses,
+                        );
+                    }
+                }
+            }
+            StatementNode::Assignment(assignment) => {
+                let target = program.expression_table.display_name(assignment.target);
+                witnesses.retain(|(place, _)| place != &target);
+            }
+            _ => {}
+        }
+    }
+    witnesses
+}
+
+fn collect_witness_conjunct(
+    program: &TypedTrees,
+    parameters: &[&StateParameter],
+    arguments: &[ExpressionHandle],
+    conjunct: ExpressionHandle,
+    witnesses: &mut Vec<(String, i64)>,
+) {
+    let ExpressionNode::Binary(comparison) = program.expression_table.expression(conjunct) else {
+        return;
+    };
+    if comparison.operator == BinaryOperator::And {
+        let (left, right) = (comparison.left, comparison.right);
+        collect_witness_conjunct(program, parameters, arguments, left, witnesses);
+        collect_witness_conjunct(program, parameters, arguments, right, witnesses);
+        return;
+    }
+    let inclusive_offset = match comparison.operator {
+        BinaryOperator::LessOrEqual => 0,
+        BinaryOperator::Less => -1,
+        _ => return,
+    };
+    let ExpressionNode::Name(path) = program.expression_table.expression(comparison.left) else {
+        return;
+    };
+    let [param_name] = program.expression_table.name_path_members(path.members) else {
+        return;
+    };
+    let ExpressionNode::Integer(literal) = program.expression_table.expression(comparison.right)
+    else {
+        return;
+    };
+    let Some(bound) = literal
+        .value_i64()
+        .and_then(|value| value.checked_add(inclusive_offset))
+    else {
+        return;
+    };
+    let Some(position) = parameters
+        .iter()
+        .position(|parameter| parameter.name.as_str() == param_name.as_str())
+    else {
+        return;
+    };
+    let Some(argument) = arguments.get(position).copied() else {
+        return;
+    };
+    let ExpressionNode::Mutable(place) = program.expression_table.expression(argument) else {
+        return;
+    };
+    let place = program.expression_table.display_name(*place);
+    witnesses.push((place, bound));
 }
 
 fn collect_bounded_transition_argument_obligations(
