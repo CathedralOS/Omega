@@ -764,3 +764,48 @@ fn boundary_ensures_witness_bounded_assignment_dies_on_later_call() {
         "expected a refusal naming the unproven value, got {diagnostics:#?}"
     );
 }
+
+
+#[test]
+fn value_vs_value_guard_transfers_the_range_endpoint() {
+    // R1 endpoint mint: `i < k` with `k: u32 [0..=8]` proves `i < 8`.
+    let source = r#"
+        data Main { buf: [u8; 8]; i: u32; k: u32 [0..=8]; }
+        machine Main::main(&mut self) {
+            self.k = 4;
+            self.i = 2;
+            transition self.i < self.k { true -> put() _ -> done() }
+            state put(&mut self) {
+                self.buf[self.i] = 7;
+            }
+            state done(&mut self) { }
+        }
+    "#;
+    lower_typed_trees(parse_typed_trees(source))
+        .expect("the transferred endpoint should discharge the index");
+}
+
+#[test]
+fn value_vs_value_endpoint_one_past_the_region_refuses() {
+    // `k: u32 [0..=9]` transfers i <= 8 -- index 8 into length 8 refuses.
+    let source = r#"
+        data Main { buf: [u8; 8]; i: u32; k: u32 [0..=9]; }
+        machine Main::main(&mut self) {
+            self.k = 4;
+            self.i = 2;
+            transition self.i < self.k { true -> put() _ -> done() }
+            state put(&mut self) {
+                self.buf[self.i] = 7;
+            }
+            state done(&mut self) { }
+        }
+    "#;
+    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+        .expect_err("an endpoint reaching the length must refuse");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("cannot prove index `self.i` is within length 8")),
+        "expected the index refusal, got {diagnostics:#?}"
+    );
+}
