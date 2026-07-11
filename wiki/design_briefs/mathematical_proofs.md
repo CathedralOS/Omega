@@ -285,8 +285,35 @@ Settled through chat review after the documentation spree; chapters updated:
    (order has no floor; `decreases` measures stay Nat-valued or
    range-floored). The proof views (Seq/Bag/Range) dissolve from
    compiler-known atoms into ordinary core data + lemmas. `Real`: par-7.
-4. **Deferral ergonomics**: compiler-writes-the-declaration tooling vs an
-   in-source attribute paired with a mandatory row.
+4. ~~Deferral ergonomics~~ **SETTLED.** Defer stays a distinct mechanism
+   (owner probed collapsing it into boundary machines; kept separate on
+   two structural mismatches): **blast radius** — a boundary machine MINTS
+   a citable fact anything can consume, a deferral WAIVES exactly one
+   compiler-derived obligation and nothing becomes citable (distinct
+   compiler action = the house test); **statement shape** — obligations
+   are flow facts over internal temps with no signature-level names,
+   which is why deferrals are tooling-written (the compiler names the
+   obligation; a human cannot). Lifecycle seals it: boundaries may be
+   legitimately permanent (the FPU rounds correctly), deferrals are
+   constitutionally temporary — our `sorry`, with a leash. Mechanics:
+   in-source marker at the obligation site + mandatory root row in
+   build.omg, both written by one tooling command; hash-pinned so edits
+   kill it; warns on every build; fatal at PACKAGE RELEASE (owner: the
+   gate is the package-manager moment, not a build configuration — debt
+   never crosses a package boundary). Promotion path: a deferral judged
+   permanent is extracted by tooling into a real boundary machine and
+   granted — debt dies proven or graduates to a considered position.
+   RIDER SETTLES: (a) grant locality — own-package boundaries are
+   dev-active with a standing warning until granted; package boundaries
+   stay inert-until-granted; packages can never self-grant. (b) The
+   owner's unsafe probe, answered and recorded in ch10: a granted false
+   boundary IS Omega's unsafe (effects are unforgeable statically —
+   call-graph, not facts — but false memory-safety facts corrupt
+   everything dynamically); mitigations are loudness, not prevention
+   (root-only grants, report, engine veto, oracle tripwires); export
+   status is irrelevant to trust mechanics. Omega has no unsafe keyword
+   because the grant row is the unsafe keyword — centralized at the
+   root with a ledger, where Rust scatters unsafe blocks through code.
 5. **Reified goal type** for tactic-style proof machines — far rung; shares
    the declaration-reification machinery sketched for `M::proof`-style
    synthesized records (Equatable/ZII synthesis precedent).

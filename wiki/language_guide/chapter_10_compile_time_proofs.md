@@ -398,8 +398,12 @@ distinct compiler behavior, never a label:
   exists. Most facts live here invisibly.
 - **Evaluated**: the compiler runs a measured machine under a fuel budget
   and the result is evidence — run once, Merkle-cached.
-- **Deferred** ("prove later", written by tooling): warns on every build and
-  is a hard error in any release artifact.
+- **Deferred** ("prove later", written by tooling): a waiver of exactly one
+  compiler-derived obligation — nothing new becomes citable. Warns on every
+  build; fatal at **package release** (publishing with an open deferral is
+  the hard error — "release" is a package-manager moment, not a build
+  configuration; debt never crosses a package boundary). Hash-pinned to the
+  code under it: edits kill the deferral and it must be re-taken.
 - **Accepted**: a `boundary machine` — a contract with no body, the proof
   system's face of the boundary culture (chapter 19): trusted, audited,
   reported.
@@ -418,9 +422,11 @@ Working rules:
   one. The trust report cannot be vaguer than the claim, because it *is*
   the claim.
 - **There is no inline `assume`.** Boundary machines are the only home for
-  unproven facts. They are legal in any package but **inert until granted**:
-  a library's boundary machines surface as requests when the package is
-  added.
+  unproven facts. Grant locality: **own-package boundary machines are active
+  in dev builds**, carrying a standing warning until granted; boundary
+  machines arriving **from packages are inert until granted** — a library's
+  boundary machines surface as requests when the package is added, and a
+  package can never self-grant.
 - **Grants flow from the root.** The final build's build.omg accepts each
   request by symbol — `b.accept_boundary<walker_lib::collatz_cert_checked>();`
   (a compile-time machine parameter, chapter 13). The build lockfile — the
@@ -433,7 +439,15 @@ Working rules:
   is a compile error, grants notwithstanding.
 - **Blast radius is reported.** The trust report names which conclusions
   rest on which boundary machines; facts derived without touching one stay
-  in the unconditional tier, visibly.
+  in the unconditional tier, visibly. Export status is irrelevant — the
+  report sees every grant, private or public.
+- **The grant row is the language's `unsafe`.** A granted false statement
+  can corrupt anything proofs protect — bounds, domains, and through
+  corrupted memory, everything downstream. Effects cannot be waived by
+  facts (they ride the call graph, and a boundary machine has no body),
+  but a false range fact reaches the same place dynamically. Omega has no
+  `unsafe` keyword because this is the one unsafe door: root-only, pinned,
+  reported, tripwired.
 - **Runtime-decidable boundary claims get oracle tripwires** in proof
   builds: a test run that witnesses a violation traps naming the machine
   that lied.
