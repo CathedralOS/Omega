@@ -121,13 +121,17 @@ the firmware out-values) is RESOLVED against the vouch — see blocker 2.
    symbolic RHS resolution + (iii) the composition, discharging the
    Cathedral spelling as committed. [ENGINEERING — design above is
    complete; no owner input needed.]
-3. **depend-mapping**: `b.depend("uefi", path(...))` is not wired into
-   use-resolution (uses resolve root-relative only) — Cathedral's
-   contracts/ + core/ packages can't be reached from boot/ without the
-   staging workaround. [ENGINEERING — design settled in
-   build_and_package_model.md (one dir = one package = one build.omg;
-   depend names the alias the use-path's first segment resolves through).
-   No owner input needed.]
+3. **depend-mapping — LANDED 2026-07-11 (main lane):** the build
+   vocabulary gained `Build::depend` + the `path` helper; each frontier
+   collects `b.depend("alias", path("dir"))` rows (resolved against the
+   declaring build.omg's directory) BEFORE resolving its uses, and a use
+   whose first segment matches an alias resolves into the aliased
+   directory. Dependency packages' build.omgs are read AS DATA for their
+   transitive rows (their `build` machines never join the program — two
+   would collide). Pinned pass/build/runtime_depend_mapping_exit
+   (companion build.omg + aliased use + depended free const, both
+   engines). Undeclared aliases fail loudly at the resolved path.
+   [Original: design settled in build_and_package_model.md.]
 4. **Free-floating const — LANDED 2026-07-11 (main lane):** the
    SHADOWING WALK guards it — a bare-name const must not collide with
    any name a bare reference could resolve to (data/machine/state

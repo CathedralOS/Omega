@@ -23,7 +23,7 @@ use omega_symbol_resolved_trees::SymbolResolvedTrees;
 use omega_syntax_trees::SyntaxTrees;
 use omega_target::NativeTarget;
 use omega_typed_trees::TypedTrees;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 pub(super) struct AssembledSyntax {
@@ -78,6 +78,11 @@ pub(super) fn source_files_to_syntax_trees_for_engine(
     }
 
     let mut source_storage = SourceStorage::default();
+    // depend-mapping (M2 blocker 3): `b.depend("alias", path("dir"))` rows
+    // collected from every loaded build machine, alias -> directory. Each
+    // frontier collects BEFORE resolving its uses, so a build.omg companion
+    // maps aliases for the sources loaded alongside it.
+    let mut depend_aliases: Vec<(String, PathBuf)> = Vec::new();
 
     while imports.has_pending() {
         let frontier = imports.take_frontier();
@@ -89,11 +94,17 @@ pub(super) fn source_files_to_syntax_trees_for_engine(
         let parsed = timings.record(TOKENS_TO_SYNTAX_TREES, || {
             parse_sources(lexed, &mut source_storage.syntax_trees)
         })?;
+        crate::pipeline::frontend::collect_depend_aliases(
+            &parsed,
+            &source_storage.syntax_trees,
+            &mut depend_aliases,
+        );
         let discovered_imports = discover_imports(
             &parsed,
             &source_storage.syntax_trees,
             root_path,
             target_name,
+            &mut depend_aliases,
         )?;
 
         imports.enqueue(discovered_imports)?;
@@ -130,6 +141,11 @@ data Subsystem {
 data Build {
     subsystem: Subsystem;
     freestanding: bool;
+}
+machine Build::depend(&mut self, alias: String, location: String) {
+}
+machine path(location: String) -> String {
+    transition { _ -> (location) }
 }
 "#;
 
