@@ -61,11 +61,14 @@ measured remaining M2 blockers, NOW IN ORDER:
    the multi-predecessor self-re-entering loop its own comment names, so
    `interior_byte_region_source` returns None. Needs (a) per-edge meet,
    (b) the symbolic `offset + desc_size < map_size` route.
-   DIAGNOSTIC BUG found en route: that None falls through to the
-   MISLEADING "recast target is not a scalar primitive or an all-scalar
-   record" error (recasts.rs ~line 178) — EfiMemoryDescriptor IS
-   all-scalar; the real failure is the unproven offset bound. Split the
-   message.
+   DIAGNOSTIC BUG FIXED 2026-07-11 (main lane): the interior judgment
+   answers three ways (NotInteriorShape / OffsetUnproven / Bounded);
+   the unproven-offset case names the real failure and all three
+   discharge routes (declared range, dominating guard, boundary-ensures
+   witness) — pinned fail/recast/unbounded_offset_names_the_bound. Note
+   the ensures WITNESS route also landed (see R4): the literal half of
+   the walk bound is dischargeable today; (a) per-edge meet and (b) the
+   symbolic route remain.
 3. **depend-mapping**: `b.depend("uefi", path(...))` is not wired into
    use-resolution (uses resolve root-relative only) — Cathedral's
    contracts/ + core/ packages can't be reached from boot/ without the
