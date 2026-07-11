@@ -40,6 +40,7 @@ pub(super) fn collect_state_argument_facts_for_call(
                     is_self: parameter.is_self,
                     length: MergedFact::Unseen,
                     integer: MergedFact::Unseen,
+                    upper_bound: super::MergedBound::Unseen,
                 })
                 .collect(),
             index_proofs: Default::default(),
@@ -70,6 +71,15 @@ pub(super) fn collect_state_argument_facts_for_call(
         parameter
             .integer
             .merge(expression_integer_value(program, facts, argument));
+        // R4 transport: a constant argument bounds exclusively at value+1;
+        // otherwise the argument's own proven upper bound (ensures-seeded
+        // or guard-seeded) carries over by display name.
+        let argument_bound = expression_integer_value(program, facts, argument)
+            .and_then(|value| (value >= 0).then(|| value.checked_add(1)).flatten())
+            .or_else(|| {
+                facts.proven_index_upper_bound(&program.expression_table.display_name(argument))
+            });
+        parameter.upper_bound.merge(argument_bound);
     }
 
     let mut index_proofs = Vec::new();

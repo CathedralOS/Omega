@@ -603,3 +603,88 @@ fn boundary_out_param_ensures_bound_too_wide_keeps_index_refusal() {
         "expected the index refusal, got {diagnostics:#?}"
     );
 }
+
+
+#[test]
+fn boundary_ensures_transport_through_transition_arguments() {
+    // R4 slice 3: the ensures-bounded value passed as a transition argument
+    // carries its bound into the target state's PARAM -- the own_machine
+    // shape (map_size flows into the walk state).
+    let source = r#"
+        boundary trait Firmware {
+            machine get_size(size: &mut u32)
+            ensures size <= 8;
+        }
+        data Main { fw: Firmware; buf: [u8; 12]; n: u32; }
+        machine Main::main(&mut self) {
+            self.fw.get_size(&mut self.n);
+            transition { _ -> walk(self.n) }
+            state walk(&mut self, off: u32) {
+                self.buf[off] = 7;
+            }
+        }
+    "#;
+    lower_typed_trees(parse_typed_trees(source))
+        .expect("the transported ensures bound should discharge the param index");
+}
+
+#[test]
+fn boundary_ensures_transport_poisoned_by_unbounded_edge() {
+    // A SECOND edge passing an unbounded value into the same state must
+    // poison the merged bound -- the meet is max-over-edges, one unbounded
+    // edge kills the fact.
+    let source = r#"
+        boundary trait Firmware {
+            machine get_size(size: &mut u32)
+            ensures size <= 8;
+        }
+        data Main { fw: Firmware; buf: [u8; 12]; n: u32; wild: u32; }
+        machine Main::main(&mut self) {
+            self.fw.get_size(&mut self.n);
+            transition self.wild == 0 {
+                true -> walk(self.n)
+                _ -> walk(self.wild)
+            }
+            state walk(&mut self, off: u32) {
+                self.buf[off] = 7;
+            }
+        }
+    "#;
+    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+        .expect_err("an unbounded sibling edge must poison the transported bound");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("cannot prove index `off` is within length 12")),
+        "expected the index refusal, got {diagnostics:#?}"
+    );
+}
+
+#[test]
+fn boundary_ensures_transport_rebind_before_transition_kills_the_fact() {
+    // Writing the place between the call and the transition stales the
+    // bound; the transported fact must die with it.
+    let source = r#"
+        boundary trait Firmware {
+            machine get_size(size: &mut u32)
+            ensures size <= 8;
+        }
+        data Main { fw: Firmware; buf: [u8; 12]; n: u32; wild: u32; }
+        machine Main::main(&mut self) {
+            self.fw.get_size(&mut self.n);
+            self.n = self.wild;
+            transition { _ -> walk(self.n) }
+            state walk(&mut self, off: u32) {
+                self.buf[off] = 7;
+            }
+        }
+    "#;
+    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+        .expect_err("the rebound place must lose the transported bound");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("cannot prove index `off` is within length 12")),
+        "expected the index refusal, got {diagnostics:#?}"
+    );
+}

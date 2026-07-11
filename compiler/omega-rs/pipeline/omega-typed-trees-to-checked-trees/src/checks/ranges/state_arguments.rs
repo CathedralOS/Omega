@@ -25,6 +25,37 @@ struct ParameterFacts {
     is_self: bool,
     length: MergedFact<usize>,
     integer: MergedFact<i64>,
+    /// The tightest EXCLUSIVE upper bound every incoming edge proves for
+    /// this parameter's argument (R4 transport: an ensures-bounded value
+    /// passed as a transition argument carries its bound into the param).
+    /// The meet is the MAX over edges -- the weakest bound all satisfy;
+    /// one unbounded edge poisons it.
+    upper_bound: MergedBound,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+enum MergedBound {
+    #[default]
+    Unseen,
+    Known(i64),
+    Unbounded,
+}
+
+impl MergedBound {
+    fn merge(&mut self, value: Option<i64>) {
+        *self = match (*self, value) {
+            (Self::Unseen, Some(bound)) => Self::Known(bound),
+            (Self::Known(existing), Some(bound)) => Self::Known(existing.max(bound)),
+            (_, None) | (Self::Unbounded, _) => Self::Unbounded,
+        };
+    }
+
+    fn get(self) -> Option<i64> {
+        match self {
+            Self::Known(bound) => Some(bound),
+            Self::Unseen | Self::Unbounded => None,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -159,6 +190,9 @@ pub(super) fn seed_state_argument_facts(
             parameter.length.get(),
             parameter.integer.get(),
         );
+        if let Some(bound) = parameter.upper_bound.get() {
+            facts.prove_index_upper_bound(parameter.name.clone(), bound);
+        }
     }
 
     for proof in state_facts.index_proofs.get() {
