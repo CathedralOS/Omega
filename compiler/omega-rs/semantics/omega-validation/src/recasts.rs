@@ -489,11 +489,35 @@ fn scalar_record_size(program: &TypedTrees, name: &str) -> Option<usize> {
 ///   the transition.
 /// One unprovable edge kills the meet. Symbolic bounds (`offset +
 /// desc_size < map_size`) remain -- gap 4b.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum BoundSide {
+    Upper,
+    Lower,
+}
+
 fn incoming_guard_offset_bound(
     program: &TypedTrees,
     machine: &omega_typed_trees::machine::Machine,
     state: &omega_typed_trees::state::State,
     offset: ExpressionHandle,
+) -> Option<i64> {
+    incoming_offset_bound(
+        program,
+        machine,
+        state,
+        offset,
+        SYMBOLIC_BOUND_DEPTH,
+        BoundSide::Upper,
+    )
+}
+
+fn incoming_offset_bound(
+    program: &TypedTrees,
+    machine: &omega_typed_trees::machine::Machine,
+    state: &omega_typed_trees::state::State,
+    offset: ExpressionHandle,
+    depth: u8,
+    side: BoundSide,
 ) -> Option<i64> {
     use omega_typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
     // The offset must be a bare PARAM of this state; the guard bounds the
@@ -544,15 +568,25 @@ fn incoming_guard_offset_bound(
                     .expression_handles(*arguments)
                     .get(param_position)
                     .copied()?;
-                // A constant argument bounds at its own value.
+                // A constant argument bounds at its own value (both sides).
                 if let ExpressionNode::Integer(literal) =
                     program.expression_table.expression(argument)
                 {
                     let value = literal.value_i64().filter(|value| *value >= 0)?;
-                    meet = Some(meet.map_or(value, |existing: i64| existing.max(value)));
+                    meet = Some(meet.map_or(value, |existing: i64| match side {
+                        BoundSide::Upper => existing.max(value),
+                        BoundSide::Lower => existing.min(value),
+                    }));
                     continue;
                 }
                 let argument_label = program.expression_table.display_name(argument);
+                // Gap 4b: a SELF-FORWARDING edge (the state passes this very
+                // param back to itself unchanged) preserves whatever holds at
+                // entry -- it contributes nothing to the meet and must not
+                // kill it.
+                if source.symbol == state.symbol && argument_label == param_name.as_str() {
+                    continue;
+                }
                 // Only the GUARDED (true) arm establishes the guard's bound;
                 // the R4 ensures witness precedes the whole transition, so it
                 // holds on EITHER arm (and on an Always edge).
@@ -560,7 +594,14 @@ fn incoming_guard_offset_bound(
                     TransitionGuardNode::When(guard)
                         if target_handle == transition.target =>
                     {
-                        guard_upper_bound_for(program, guard, &argument_label)
+                        match side {
+                            BoundSide::Upper => guard_upper_bound_for(
+                                program, machine, source, guard, &argument_label, depth,
+                            ),
+                            BoundSide::Lower => guard_lower_bound_for(
+                                program, machine, source, guard, &argument_label, depth,
+                            ),
+                        }
                     }
                     _ => None,
                 };
@@ -568,12 +609,17 @@ fn incoming_guard_offset_bound(
                     boundary_ensures_argument_bound(
                         program,
                         machine,
+                        source,
                         source_statements,
                         statement_index,
                         &argument_label,
+                        side,
                     )
                 })?;
-                meet = Some(meet.map_or(edge_bound, |existing: i64| existing.max(edge_bound)));
+                meet = Some(meet.map_or(edge_bound, |existing: i64| match side {
+                    BoundSide::Upper => existing.max(edge_bound),
+                    BoundSide::Lower => existing.min(edge_bound),
+                }));
             }
         }
     }
@@ -593,9 +639,11 @@ fn incoming_guard_offset_bound(
 fn boundary_ensures_argument_bound(
     program: &TypedTrees,
     machine: &omega_typed_trees::machine::Machine,
+    source: &omega_typed_trees::state::State,
     statements: &[omega_typed_trees::statement::StatementNode],
     transition_index: usize,
     argument_label: &str,
+    side: BoundSide,
 ) -> Option<i64> {
     use omega_typed_trees::statement::StatementNode;
     let mut witness: Option<i64> = None;
@@ -604,7 +652,14 @@ fn boundary_ensures_argument_bound(
             StatementNode::Call(call) => {
                 // Any call invalidates an earlier witness; this call may
                 // itself mint a new one.
-                witness = boundary_call_ensures_bound(program, machine, call, argument_label);
+                witness = boundary_call_ensures_bound(
+                    program,
+                    machine,
+                    source,
+                    call,
+                    argument_label,
+                    side,
+                );
             }
             StatementNode::Assignment(assignment) => {
                 if program.expression_table.display_name(assignment.target) == argument_label {
@@ -624,8 +679,10 @@ fn boundary_ensures_argument_bound(
 fn boundary_call_ensures_bound(
     program: &TypedTrees,
     machine: &omega_typed_trees::machine::Machine,
+    source: &omega_typed_trees::state::State,
     call: &omega_typed_trees::statement::TableCall,
     argument_label: &str,
+    side: BoundSide,
 ) -> Option<i64> {
     use omega_typed_trees::domain::ProofFact;
     use omega_typed_trees::signature::SignatureContractKind;
@@ -690,10 +747,21 @@ fn boundary_call_ensures_bound(
             let ProofFact::Expression(expression) = fact else {
                 continue;
             };
-            if let Some(fact_bound) =
-                guard_upper_bound_for(program, *expression, parameter.name.as_str())
-            {
-                bound = Some(bound.map_or(fact_bound, |existing: i64| existing.min(fact_bound)));
+            // Ensures facts are literal-only here (depth 0): a symbolic RHS
+            // inside a callee contract names CALLEE scope, not ours.
+            let fact_bound = match side {
+                BoundSide::Upper => guard_upper_bound_for(
+                    program, machine, source, *expression, parameter.name.as_str(), 0,
+                ),
+                BoundSide::Lower => guard_lower_bound_for(
+                    program, machine, source, *expression, parameter.name.as_str(), 0,
+                ),
+            };
+            if let Some(fact_bound) = fact_bound {
+                bound = Some(bound.map_or(fact_bound, |existing: i64| match side {
+                    BoundSide::Upper => existing.min(fact_bound),
+                    BoundSide::Lower => existing.max(fact_bound),
+                }));
             }
         }
     }
@@ -702,27 +770,156 @@ fn boundary_call_ensures_bound(
 
 /// `label <= K` / `label < K` within an `&&` conjunction (through the
 /// `== true` desugar), by display spelling.
+/// Recursion cap for symbolic bound resolution: the M2 chain needs depth 2
+/// (offset bound -> map_size bound); anything deeper stays unproven.
+const SYMBOLIC_BOUND_DEPTH: u8 = 2;
+
 fn guard_upper_bound_for(
     program: &TypedTrees,
+    machine: &omega_typed_trees::machine::Machine,
+    source: &omega_typed_trees::state::State,
     guard: ExpressionHandle,
     label: &str,
+    depth: u8,
 ) -> Option<i64> {
     use omega_typed_trees::expression::BinaryOperator;
     let ExpressionNode::Binary(binary) = program.expression_table.expression(guard) else {
         return None;
     };
     match binary.operator {
-        BinaryOperator::And => guard_upper_bound_for(program, binary.left, label)
-            .or_else(|| guard_upper_bound_for(program, binary.right, label)),
+        BinaryOperator::And => {
+            guard_upper_bound_for(program, machine, source, binary.left, label, depth)
+                .or_else(|| {
+                    guard_upper_bound_for(program, machine, source, binary.right, label, depth)
+                })
+        }
         BinaryOperator::Equal
             if matches!(
                 program.expression_table.expression(binary.right),
                 ExpressionNode::Boolean(true)
             ) =>
         {
-            guard_upper_bound_for(program, binary.left, label)
+            guard_upper_bound_for(program, machine, source, binary.left, label, depth)
         }
         BinaryOperator::LessOrEqual | BinaryOperator::Less => {
+            // The comparison's inclusive RHS bound: a literal, or (gap 4b)
+            // a symbolic NAME whose own inclusive bound resolves through
+            // the per-edge meet in the SOURCE state's scope.
+            let rhs_inclusive = match program.expression_table.expression(binary.right) {
+                ExpressionNode::Integer(literal) => literal.value_i64()?,
+                ExpressionNode::Name(_) if depth > 0 => symbolic_param_upper_bound(
+                    program,
+                    machine,
+                    source,
+                    binary.right,
+                    depth - 1,
+                )?,
+                _ => return None,
+            };
+            let bound = if binary.operator == BinaryOperator::Less {
+                rhs_inclusive.checked_sub(1)?
+            } else {
+                rhs_inclusive
+            };
+            // Direct match: the compared expression IS the labeled one.
+            if program.expression_table.display_name(binary.left) == label {
+                return Some(bound);
+            }
+            // Gap 4b composition: `X + Y <OP> RHS` bounds X at RHS_bound -
+            // lower(Y) -- sound because Y >= lower(Y) forces X down by at
+            // least that much. Both operand orders.
+            if depth > 0
+                && let ExpressionNode::Binary(addition) =
+                    program.expression_table.expression(binary.left)
+                && addition.operator == BinaryOperator::Add
+            {
+                for (x, y) in [
+                    (addition.left, addition.right),
+                    (addition.right, addition.left),
+                ] {
+                    if program.expression_table.display_name(x) == label
+                        && let Some(y_floor) = symbolic_param_lower_bound(
+                            program,
+                            machine,
+                            source,
+                            y,
+                            depth - 1,
+                        )
+                        && y_floor >= 0
+                    {
+                        return bound.checked_sub(y_floor);
+                    }
+                }
+            }
+            None
+        }
+        _ => None,
+    }
+}
+
+/// A NAME's inclusive UPPER bound in `source`'s scope: its declared range,
+/// or (as a param) the per-edge meet -- the gap-4b symbolic resolution.
+fn symbolic_param_upper_bound(
+    program: &TypedTrees,
+    machine: &omega_typed_trees::machine::Machine,
+    source: &omega_typed_trees::state::State,
+    name: ExpressionHandle,
+    depth: u8,
+) -> Option<i64> {
+    let declared = crate::places::declared_place_type_raw(program, machine, Some(source), name)
+        .and_then(|raw| {
+            let interval = crate::arithmetic_domains::range_constraint_interval(program, raw)?;
+            interval.high()
+        });
+    declared.or_else(|| incoming_offset_bound(program, machine, source, name, depth, BoundSide::Upper))
+}
+
+/// A NAME's inclusive LOWER bound in `source`'s scope (declared range or
+/// the per-edge meet's lower twin) -- the `desc_size >= sizeof` witness leg.
+fn symbolic_param_lower_bound(
+    program: &TypedTrees,
+    machine: &omega_typed_trees::machine::Machine,
+    source: &omega_typed_trees::state::State,
+    name: ExpressionHandle,
+    depth: u8,
+) -> Option<i64> {
+    let declared = crate::places::declared_place_type_raw(program, machine, Some(source), name)
+        .and_then(|raw| {
+            let interval = crate::arithmetic_domains::range_constraint_interval(program, raw)?;
+            interval.low()
+        });
+    declared.or_else(|| incoming_offset_bound(program, machine, source, name, depth, BoundSide::Lower))
+}
+
+/// `label >= K` / `> K` within the same guard walk -- the lower twin.
+fn guard_lower_bound_for(
+    program: &TypedTrees,
+    machine: &omega_typed_trees::machine::Machine,
+    source: &omega_typed_trees::state::State,
+    guard: ExpressionHandle,
+    label: &str,
+    depth: u8,
+) -> Option<i64> {
+    use omega_typed_trees::expression::BinaryOperator;
+    let ExpressionNode::Binary(binary) = program.expression_table.expression(guard) else {
+        return None;
+    };
+    match binary.operator {
+        BinaryOperator::And => {
+            guard_lower_bound_for(program, machine, source, binary.left, label, depth)
+                .or_else(|| {
+                    guard_lower_bound_for(program, machine, source, binary.right, label, depth)
+                })
+        }
+        BinaryOperator::Equal
+            if matches!(
+                program.expression_table.expression(binary.right),
+                ExpressionNode::Boolean(true)
+            ) =>
+        {
+            guard_lower_bound_for(program, machine, source, binary.left, label, depth)
+        }
+        BinaryOperator::GreaterOrEqual | BinaryOperator::Greater => {
             if program.expression_table.display_name(binary.left) != label {
                 return None;
             }
@@ -732,8 +929,8 @@ fn guard_upper_bound_for(
                 return None;
             };
             let k = literal.value_i64()?;
-            if binary.operator == BinaryOperator::Less {
-                k.checked_sub(1)
+            if binary.operator == BinaryOperator::Greater {
+                k.checked_add(1)
             } else {
                 Some(k)
             }

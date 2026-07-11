@@ -78,9 +78,20 @@ the firmware out-values) is RESOLVED against the vouch — see blocker 2.
    MEET landed 2026-07-11: every incoming edge must prove (constant /
    guard / ensures routes per edge) and the max wins — pinned
    pass/recast/runtime_multi_edge_offset_meet_exit +
-   fail/recast/multi_edge_offset_meet_rejected. Only (b) the symbolic
-   route remains in this blocker's main-lane half. DESIGN (worked out
-   2026-07-11): the loop edge's argument is the COMPOUND
+   fail/recast/multi_edge_offset_meet_rejected. (b) the symbolic route
+   LANDED 2026-07-11 — the main-lane half of this blocker is COMPLETE:
+   guard bounds resolve symbolic right-hand NAMEs recursively through
+   the per-edge meet (depth-capped; self-forwarding edges preserve entry
+   bounds and are skipped), ensures witnesses carry BOTH sides
+   (`map_size <= 64` upper, `desc_size >= 8` lower), and the
+   Add-composition discharges the compound loop argument
+   (bound(offset + desc_size) = bound(guard LHS RHS) - floor(desc_size)).
+   The full walk chain proves in one shape and three lib tests pin
+   discharge / wide-witness refusal / WEAK-GUARD refusal — the
+   `< map_size` spelling refuses at exactly the tail overrun the
+   coordination note predicts (offset 63 + 8 > 64), mechanically
+   enforcing the required Cathedral spelling. ORIGINAL DESIGN
+   (retained for the Cathedral-side spelling requirements): the loop edge's argument is the COMPOUND
    `offset + desc_size`, and guard_upper_bound_for already matches it by
    display — what's missing is (i) a symbolic right-hand side: `label <=
    NAME`/`< NAME` resolves NAME's inclusive bound recursively (depth-
