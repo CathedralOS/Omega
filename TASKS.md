@@ -368,9 +368,12 @@ transition loop-backs unchanged (unmeasured, constant-stack, may diverge).
     field decode) are pinned in ALIGNMENT LOCKSTEP by the canary's
     padded-field leg (u32+u64 -> b at offset 8). Pinned:
     pass/recast/runtime_record_view_exit + the footprint fail canary.
-    REMAINING recast tail: the STRIDE-WALK sample (`offset +=
-    self.descriptor_size` over R1 couplings -- machinery in place, wants
-    the end-to-end sample), non-scalar-field records, `&mut` views, and
+    The STRIDE-WALK sample LANDED same day
+    (samples/cli/systems/descriptor_walk): the Cathedral memory-map
+    pattern end-to-end -- runtime stride, record views per entry, every
+    proof compiler-side (back-edge guard proves the forwarded offset;
+    footprint through the offset's interval), 50/50 both engines.
+    REMAINING recast tail: non-scalar-field records, `&mut` views, and
     plan-tiling beyond fact-free shapes (L5).
 - **L6+:** Bits placements + access classes (MMIO deriver); durability plan
   grades; publish-time predecessor diff.
