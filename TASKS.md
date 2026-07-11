@@ -165,9 +165,24 @@ proof-stratum non-tail unaffected, it never lowers). Rungs:
   fail/calls/nontail_value_self_call_rejected pins the non-tail message;
   terminal_self_call_recursion_rejected re-pinned on the MR2 pointer
   (recast it into a run twin when MR2 lands).
-- **MR2 — tail lowering:** desugar tail recursive calls onto the landed
-  loop-back machinery (same back-edge; loop-carried-arg staging fix already
-  pins the delivery). Differential canaries.
+- **MR2 — tail lowering — REWRITE LANDED 2026-07-11, run canary blocked
+  on complement narrowing:** a MEASURED machine's state whose TERMINAL
+  expression is a self-entry call rewrites AT PARSE onto the bare
+  loop-back transition (parse_machine::rewrite_terminal_tail_self_calls;
+  verified faithful by bare-spelled twin — identical outcomes), so every
+  downstream pass sees the same back-edge the arm spelling rides and the
+  REAL obligations surface instead of a blanket refusal. FRONTIER
+  (pinned fail/calls/terminal_tail_rewrite_obligation_frontier): the
+  rewritten edge is the unguarded FALL-THROUGH, and neither the
+  decision-17 argument fold nor the decreases ranking uses the
+  dominating base-case COMPLEMENT (`transition n == 0 { true -> exit }`
+  fall-through implies n >= 1 — probed: equality and ordering spellings
+  both unproven; the `_`-arm complement is equally unread). The unlock
+  is one checker rung: fall-through/underscore-arm complement facts for
+  transition-argument obligations + the ranking's edge decrease. When it
+  lands, recast the frontier canary into a run twin. Unmeasured terminal
+  calls keep a clean validation refusal naming the measure
+  (terminal_self_call_recursion_rejected, recast).
 - **MR3 — non-tail runtime rejection — LANDED 2026-07-11 (direct; the
   MUTUAL leg rides MR4's cycle work):** a non-tail self-recursive call
   in runtime code refuses naming the offending call and why it is not

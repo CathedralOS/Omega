@@ -131,6 +131,23 @@ pub(super) fn parse_machine<'tokens, 'source>(
     } else {
         HandleSpan::from_parts(state_start, state_count)
     };
+    // Measured recursion MR2: a MEASURED machine's state whose TERMINAL
+    // expression is a self-call to the machine's own entry (`{ self.sum(n -
+    // 1, acc + n) }`, or the bare `sum(..)` in a free machine) is TAIL
+    // recursion -- rewrite it to the loop-back transition `{ _ ->
+    // <entry>(args) }` here, so every downstream pass (termination decrease
+    // proof, loop-carried arg staging, both engines) sees the same bare
+    // back-edge the arm spelling produces. Unmeasured machines keep the
+    // call; validation names the missing measure.
+    if terminates && !decreases.is_empty() {
+        let entry_callable = entry_name.clone().unwrap_or_else(|| name.clone());
+        rewrite_terminal_tail_self_calls(
+            syntax_trees,
+            states,
+            &entry_callable,
+            entry_name.is_some(),
+        );
+    }
     Ok((
         Machine {
             name,
@@ -281,6 +298,89 @@ fn append_statement_handle(
     *statement_count = statement_count
         .checked_add(1)
         .expect("state statement span count overflow");
+}
+
+/// MR2's rewrite walk (see the call site above): for each state, when the
+/// LAST statement is a bare terminal expression that IS a self-entry call,
+/// replace it with an always-transition to the entry carrying the same
+/// argument expressions.
+fn rewrite_terminal_tail_self_calls(
+    syntax_trees: &mut SyntaxTrees,
+    states: HandleSpan<StateHandle>,
+    entry_callable: &Identifier,
+    receiver_must_be_self: bool,
+) {
+    use omega_syntax_trees::expression::ExpressionNode;
+    use omega_syntax_trees::statement::{
+        StatementNode, TableTransition, TransitionGuardNode, TransitionTargetNode,
+    };
+
+    // Phase 1 (reads): collect the rewrite sites.
+    let mut sites: Vec<(StatementHandle, Vec<omega_syntax_trees::expression::ExpressionHandle>)> =
+        Vec::new();
+    for state_handle in syntax_trees.items.state_handles(states).to_vec() {
+        let state = syntax_trees.items.state(state_handle);
+        let Some(&last) = syntax_trees.items.statements(state.statements).last() else {
+            continue;
+        };
+        let StatementNode::Expression(expression) = syntax_trees.statements.statement(last) else {
+            continue;
+        };
+        let ExpressionNode::Call(call) = syntax_trees.expressions.expression(*expression) else {
+            continue;
+        };
+        if call.target.as_str() != entry_callable.as_str() {
+            continue;
+        }
+        let receiver_is_self = call.receiver.is_valid()
+            && matches!(
+                syntax_trees.expressions.expression(call.receiver),
+                ExpressionNode::SelfValue
+            );
+        let shape_matches = if receiver_must_be_self {
+            receiver_is_self
+        } else {
+            !call.receiver.is_valid()
+        };
+        if !shape_matches {
+            continue;
+        }
+        let arguments = syntax_trees
+            .expressions
+            .expression_handles(call.arguments)
+            .to_vec();
+        sites.push((last, arguments));
+    }
+
+    // Phase 2 (writes): mint the bare Named loop-back per site.
+    for (statement_handle, arguments) in sites {
+        let path_start = syntax_trees
+            .statements
+            .append_identifier_path_member(entry_callable.clone());
+        let path = HandleSpan::from_parts(path_start, 1);
+        let mut argument_span = HandleSpan::empty();
+        for (index, argument) in arguments.iter().enumerate() {
+            let handle = syntax_trees.statements.append_expression_handle(*argument);
+            if index == 0 {
+                argument_span = HandleSpan::from_parts(handle, arguments.len() as u32);
+            }
+        }
+        let target = syntax_trees
+            .statements
+            .insert_transition_target(TransitionTargetNode::Named {
+                path,
+                path_starts_at_self: false,
+                arguments: argument_span,
+            });
+        syntax_trees.statements.replace_statement(
+            statement_handle,
+            StatementNode::Transition(TableTransition {
+                target,
+                continuation: omega_syntax_trees::statement::TransitionTargetHandle::invalid(),
+                guard: TransitionGuardNode::Always,
+            }),
+        );
+    }
 }
 
 fn append_machine_state(

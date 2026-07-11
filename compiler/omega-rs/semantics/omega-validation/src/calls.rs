@@ -967,15 +967,18 @@ pub(crate) fn validate_self_recursive_call_positions(
         StatementNode::Expression(expression) => {
             // A bare terminal self-call is TAIL in shape; the whole-expression
             // case gets the MR2 pointer, anything nested is non-tail.
+            // A terminal self-call surviving to validation means the machine
+            // is UNMEASURED: the parser rewrites measured machines' terminal
+            // tail calls onto the loop-back edge (MR2).
             if let Some(call_display) =
                 whole_expression_self_call(program, entry_name, *expression)
             {
                 diagnostics.push(Diagnostic::error(format!(
-                    "`{call_display}` in terminal position is TAIL self-recursion, but \
-                     its loop-back lowering has not landed (measured-recursion rung \
-                     MR2). Until then, spell the loop as a transition: guard the \
-                     recursive arm and jump with `-> self.{entry_name}(..)` (measured) \
-                     or the bare `-> {entry_name}(..)`.",
+                    "`{call_display}` in terminal position is TAIL self-recursion on an \
+                     UNMEASURED machine. Recursive call spellings are legal only when \
+                     measured: declare `terminates {{ decreases ... }}` and the terminal \
+                     call rewrites onto the loop-back edge; unmeasured repetition spells \
+                     as the bare loop `-> {entry_name}(..)` (constant stack, may diverge).",
                 )));
                 return;
             }
