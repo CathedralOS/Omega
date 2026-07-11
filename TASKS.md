@@ -178,11 +178,18 @@ proof-stratum non-tail unaffected, it never lowers). Rungs:
   (`u64 [0..=100]`, `u64 in Trapping`) as a SLICE — the Constrained
   shell renders brackets and the kind probe read them as an element
   type; kinds now classify the unwrapped base type. REMAINING follow-ons
-  (recorded, not blocking): the decision-17 argument fold does not yet
-  read fall-through complements (the run canary rides a Trapping
-  domain for `n - 1`); two-state cycles (entry→step→entry) still need
-  per-edge strict decrease, so a same-value forwarding edge refuses —
-  MR4's joint-measure work is the natural home. Original rung text:** a MEASURED machine's state whose TERMINAL
+  (recorded, not blocking): the PROOF-side transition-argument
+  obligations now carry `refuted_exit_guards` (prior in-state exit
+  guards, call-free-gated) and the checker applies their complements
+  (apply_handle_condition_complement + complement_refined_binary_range,
+  landed 2026-07-11) — but VALIDATION's arithmetic_domains S4 value-env
+  fold checks the same `n - 1` first and does NOT read fall-through
+  complements yet, so the exact-domain terminal shape
+  (`u64 [0..=100]`) still refuses there and the run canary rides a
+  Trapping domain; the validation value-env complement is the remaining
+  unlock. Two-state cycles (entry→step→entry) still need per-edge
+  strict decrease, so a same-value forwarding edge refuses — MR4's
+  joint-measure work is the natural home. Original rung text:** a MEASURED machine's state whose TERMINAL
   expression is a self-entry call rewrites AT PARSE onto the bare
   loop-back transition (parse_machine::rewrite_terminal_tail_self_calls;
   verified faithful by bare-spelled twin — identical outcomes), so every

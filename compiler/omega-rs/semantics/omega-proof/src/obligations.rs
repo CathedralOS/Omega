@@ -427,6 +427,13 @@ pub struct BoundedTransitionArgumentObligation {
     pub base_type: TypeReferenceHandle,
     pub constraints: HandleSpan<ProofConstraint>,
     pub guard: TransitionGuardNode,
+    /// Guards of PRIOR in-state EXIT transitions (guarded, valid target, no
+    /// fall-through arm): control reaching THIS transition refutes each one,
+    /// so the checker may narrow argument places by their complements (the
+    /// MR2 fall-through shape: `transition n == 0 { true -> exit }` then the
+    /// rewritten loop-back's `n - 1`). Only collected when the arguments are
+    /// call-free (same stability rule as `guard`).
+    pub refuted_exit_guards: Vec<ExpressionHandle>,
     /// The caller's ARGUMENT for the sibling a sibling-length atom names
     /// (invalid when the parameter has no such atom or the sibling is
     /// absent) -- resolved at build time, where the full parameter and
@@ -838,6 +845,26 @@ fn collect_bounded_transition_argument_obligations(
     let Some(StatementNode::Transition(table_transition)) = table_statement else {
         return;
     };
+    // Prior EXIT transitions in this state whose guards control reaching
+    // this statement refutes (see the obligation field's doc).
+    let mut refuted_exit_guards = Vec::new();
+    for statement in program.statement_table.statements(state.statement_nodes) {
+        if std::ptr::eq(
+            statement as *const StatementNode,
+            table_statement.map_or(std::ptr::null(), |statement| statement as *const _),
+        ) {
+            break;
+        }
+        let StatementNode::Transition(prior) = statement else {
+            continue;
+        };
+        if let TransitionGuardNode::When(guard) = prior.guard
+            && prior.target.is_valid()
+            && !prior.continuation.is_valid()
+        {
+            refuted_exit_guards.push(guard);
+        }
+    }
     let Some((target_state, arguments)) =
         table_transition_target_state_and_arguments(program, state, table_transition.target)
     else {
@@ -906,6 +933,11 @@ fn collect_bounded_transition_argument_obligations(
                     transition_guard
                 } else {
                     TransitionGuardNode::Always
+                },
+                refuted_exit_guards: if arguments_are_call_free {
+                    refuted_exit_guards.clone()
+                } else {
+                    Vec::new()
                 },
                 sibling_argument,
             },
