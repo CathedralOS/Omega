@@ -194,7 +194,8 @@ Settled through chat review after the documentation spree; chapters updated:
   **named satisfiers**, multiple per type, prover-transparent because the
   ordering trait is key-shaped (rank -> well-founded carrier, never
   cmp-shaped). Selection: spelled where concrete meets abstract (generic
-  instantiation; dyn coercion carries the choice in the descriptor);
+  instantiation; dyn coercion carries the choice in the descriptor —
+  settled spelling: `as &dyn Card::PowerOrder`, decaying to `&dyn Trait`);
   elide-when-unique, loud-when-plural. Rust buys obviousness globally
   (coherence, hence one Ord per type and the newtype smear); Omega buys it
   locally.
@@ -215,10 +216,13 @@ Settled through chat review after the documentation spree; chapters updated:
    proven equation to the normalizer; termination of rule sets — wants an
    Omega-native answer (`decreases` on rule application?). The first thing a
    proof author reaches for once measures exist. The remaining design cliff.
-2. **The `by` keyword's fate**: the evidence clause died in the trust
-   collapse, regressing `by` to a single user (dyn satisfier selection) —
-   earned-keyword status revoked; re-bikeshed the coercion spelling or find
-   it a second customer.
+2. ~~The `by` keyword's fate~~ **SETTLED — `by` is deleted, zero users.**
+   The dyn coercion respelled as `&card as &dyn Card::PowerOrder` (owner):
+   dyn-over-a-satisfier-path, decaying immediately to `&dyn Trait`; implicit
+   when unique; the explicit chain (`as &dyn Sat as &dyn Trait`) is valid by
+   composition (coercion + identity recast), never designed. Final keyword
+   tally for the entire proofs/trust arc: **zero** — boundary, dyn, as,
+   satisfies, decreases, in were all already in the building.
 3. **The `unbounded` property spelling** and which proof-only types ship in
    core (`Nat`, `Int`, `Seq`?).
 4. **Deferral ergonomics**: compiler-writes-the-declaration tooling vs an

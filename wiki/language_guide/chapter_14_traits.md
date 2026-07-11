@@ -47,9 +47,24 @@ fulfills the matching requirement from `Incrementable`.
 > key-shaped ordering trait). Omega selects explicitly where Rust's implicit
 > resolution forces one impl per type: selection happens where concrete
 > meets abstract — spelled in a generic instantiation, and at a `dyn`
-> coercion, where the chosen satisfier is carried in the descriptor and
-> erased downstream (spelling provisional). Elided when unique, a loud
-> error when plural — the landed bail-on-ambiguity pattern. `measure`
+> coercion (settled 2026-07-18):
+>
+> ```omega
+> let h: &dyn Ranked = &card;                            // unique satisfier: implicit
+> let h: &dyn Ranked = &card as &dyn Card::PowerOrder;   // plural: name the binding
+> ```
+>
+> `dyn` over a satisfier path is the operator that turns a conformance into
+> a viewable type; the form **decays immediately** to `&dyn Trait` — the
+> satisfier is carried in the descriptor and erased downstream, never part
+> of type identity (two differently-bound `&dyn Ranked` are the same type).
+> The trait is recovered from the `satisfies` clause, disambiguated by
+> expected type if a machine ever satisfies several traits. Elided when
+> unique, a loud error listing candidates when plural — the landed
+> bail-on-ambiguity pattern. A fully explicit chain
+> (`as &dyn Card::PowerOrder as &dyn Ranked`) is valid by composition —
+> coercion then identity recast — and useful only where no annotation
+> supplies context; no `by` or other connective exists. `measure`
 > (chapter 10) is declaration sugar for a named satisfier of the ordering
 > trait.
 
