@@ -18624,6 +18624,33 @@ fn runtime_offset_byte_recast_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_measured_tail_recursion_exit_canary_runs() {
+    // MR1: the call-spelled tail arm on a measured machine resolves onto
+    // the bare loop-back edge and runs.
+    let canary = pass_canary("calls/runtime_measured_tail_recursion_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-measured-tail-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("measured tail recursion canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("measured tail recursion canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the measured tail loop to count down to 7 (exit 70), got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_u64_guarded_cap_store_exit_canary_runs() {
     // N2 rung (c): the guarded-copy discharge survives the exact u64 range
     // fact (the retired i64::MAX cap's positive twin).
@@ -29295,6 +29322,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "recast/runtime_guarded_offset_recast_exit",
     "data/runtime_proof_only_data_declared_exit",
     "arithmetic/runtime_u64_guarded_cap_store_exit",
+    "calls/runtime_measured_tail_recursion_exit",
     "recast/runtime_record_view_exit",
     "arithmetic/runtime_f32_field_guard_exit",
     "collections/runtime_indexed_rmw_loop_exit",

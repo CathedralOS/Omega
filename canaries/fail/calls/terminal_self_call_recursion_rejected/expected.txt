@@ -1,1 +1,1 @@
-calls into a recursive cycle
+loop-back lowering has not landed

@@ -50,15 +50,28 @@ pub(super) fn plan_transition_target(
                 )));
             };
 
-            // Same fence as the non-local arm below: a `self.X(..)` spelling
-            // that resolved to a LOCAL segment is call-spelled recursion.
+            // Measured recursion MR1 (2026-07-18 ruling, landed 2026-07-11):
+            // `-> self.X(..)` resolving to a LOCAL segment. When X is the
+            // machine's OWN ENTRY and the machine is MEASURED (`terminates {
+            // decreases ... }`), this is the sanctioned TAIL spelling -- it
+            // resolves to the SAME loop-back edge as the bare `-> X(..)`
+            // (a jump with re-bound arguments; the termination pass already
+            // proves the strict decrease across this edge by symbol).
+            // Unmeasured stays refused: recursive CALL spellings are legal
+            // iff measured; unmeasured repetition is the bare loop, which
+            // may legally diverge on constant stack.
             if members.len() == 2 && members[0].as_str() == "self" {
-                return Err(Diagnostic::error(format!(
-                    "`self.{name}(..)` in a transition arm is call-spelled recursion, \
-                     which Omega does not support (stack size must be predictable). \
-                     Write the state transition bare -- `-> {name}(..)` -- which is a \
-                     self-transition LOOP (a jump with re-bound arguments), not a call.",
-                )));
+                if !machine_targets_own_entry(source_key, program, &name) {
+                    return Err(Diagnostic::error(format!(
+                        "`self.{name}(..)` in a transition arm targets a sub-state \
+                         through a call spelling. Write the state transition bare -- \
+                         `-> {name}(..)` -- which is a self-transition LOOP (a jump \
+                         with re-bound arguments), not a call.",
+                    )));
+                }
+                if !machine_is_measured(source_key, program) {
+                    return Err(Diagnostic::error(unmeasured_recursion_message(&name)));
+                }
             }
 
             Ok(PlannedTransitionTarget::State {
@@ -98,13 +111,9 @@ pub(super) fn plan_transition_target(
                                 .unwrap_or(machine.name.as_str())
                                 == members[1].as_str()
                         });
-                    if targets_own_entry {
-                        return Err(Diagnostic::error(format!(
-                            "`self.{name}(..)` in a transition arm is call-spelled recursion, \
-                             which Omega does not support (stack size must be predictable). \
-                             Write the state transition bare -- `-> {name}(..)` -- which is a \
-                             self-transition LOOP (a jump with re-bound arguments), not a call.",
-                            name = members[1].as_str(),
+                    if targets_own_entry && !machine_is_measured(source_key, program) {
+                        return Err(Diagnostic::error(unmeasured_recursion_message(
+                            members[1].as_str(),
                         )));
                     }
                     return Ok(PlannedTransitionTarget::State {
@@ -201,6 +210,50 @@ pub(super) fn next_segment_target(
         key: target.1.key,
         name: target.1.name.clone(),
     })
+}
+
+/// MR1: a machine is MEASURED when it declares `terminates` with a
+/// `decreases` clause -- the gate that legalizes call-spelled TAIL
+/// self-recursion (the termination pass separately PROVES the decrease).
+fn machine_is_measured(source_key: StateKey, program: &CheckedTrees) -> bool {
+    program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == source_key.machine)
+        .is_some_and(|machine| machine.terminates && !machine.decreases.is_empty())
+}
+
+/// Does `name` spell the CURRENT machine's own entry (its simple method
+/// name)?
+fn machine_targets_own_entry(
+    source_key: StateKey,
+    program: &CheckedTrees,
+    name: &omega_checked_trees::name::Identifier,
+) -> bool {
+    program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == source_key.machine)
+        .is_some_and(|machine| {
+            machine
+                .name
+                .as_str()
+                .rsplit("::")
+                .next()
+                .unwrap_or(machine.name.as_str())
+                == name.as_str()
+        })
+}
+
+fn unmeasured_recursion_message(name: &str) -> String {
+    format!(
+        "`self.{name}(..)` in a transition arm is call-spelled self-recursion \
+         WITHOUT a measure. Recursive call spellings are legal only on a \
+         measured machine (`terminates {{ decreases ... }}`; the decrease is \
+         proven across the loop edge). Measure the machine, or spell \
+         unmeasured repetition as the bare loop `-> {name}(..)` -- a jump \
+         with re-bound arguments (constant stack, may diverge)."
+    )
 }
 
 fn is_local_transition_path(

@@ -1,11 +1,13 @@
 // TERMINAL-position call-spelled self-recursion (`{ self.sum(n - 1, acc +
-// n) }` as a state's value terminal) is REJECTED: Omega has no recursion
-// (owner directive 2026-07-07 -- stack size must be predictable;
-// repetition is a bare state self-transition loop). This position slipped
-// past the directive's transition-arm enforcement and was briefly ACCEPTED
-// via a tail-call-to-loop rewrite (2026-07-09/10, retracted 2026-07-10k);
-// this canary pins the rejection so the class cannot silently reopen.
-// The sibling transition-arm pin is machine_self_call_recursion_rejected.
+// n) }` as a state's value terminal) is TAIL in shape -- under the
+// measured-recursion ruling (2026-07-18) it becomes legal when rung MR2
+// lands its loop-back rewrite (the same rewrite once tried 2026-07-09/10
+// and retracted under the old NO-RECURSION directive, which the ruling
+// AMENDS). Until MR2, the refusal points at the rung and the transition
+// spellings that work today. This canary pins that the position cannot
+// SILENTLY start compiling: when MR2 lands, recast this into its run twin.
+// The transition-arm measured spelling already runs:
+// pass/calls/runtime_measured_tail_recursion_exit.
 boundary trait Console { machine exit_process(return_code: i32); }
 data Main { console: Console; }
 machine Main::sum(&mut self, n: i32, acc: i32)
