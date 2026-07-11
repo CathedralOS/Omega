@@ -401,6 +401,19 @@ Open sub-decisions (owner-gated, dependency order):
    are different `CauchySeq<S>` instantiations in one bucket (that is the
    point) — so `converges_together` is itself a nested-schema machine:
    one more N7 customer. Documented ch10 Proof-Only Data.
+   OWNER-PROBE REFINEMENT ("% feels like it's trying to be a where
+   clause"): the formal wall is unary-vs-binary — where/domains state
+   facts about ONE value (subset; equality untouched), the quotient
+   states identity between TWO (merge; no value removed) — a unary fact
+   language cannot spell "these two are equal." BUT the probe wins the
+   practical point: domains impersonate quotients wherever a COMPUTABLE
+   CANONICAL REPRESENTATIVE exists (reduced fractions `where gcd==1`,
+   sorted sequences), and are then the RIGHT tool — so Rat and Bag ship
+   on domains alone and N4 decouples from N6. `%` is reserved for
+   carriers that provably cannot canonicalize — Real the archetype
+   (stream equality undecidable => no reduced form; any subset either
+   drops numbers or keeps duplicates). Taxonomy: where/domain = fewer
+   values, same equality; `%` = same values, fewer distinctions.
 
 With these, the Real arc is OWNER-COMPLETE: N1-N8 carry no remaining
 design gates.

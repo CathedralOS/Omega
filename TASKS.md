@@ -270,6 +270,10 @@ no `unbounded` property exists. Rungs:
 - **N4 — roster library:** Nat/Seq/Bag/Rat in core as ordinary recursive
   data + extraction lemmas; the proof views (Seq/Bag/Range) dissolve from
   parser-known atoms into these types (the L6 bag_view rung folds in).
+  Rat/Bag ship via CANONICAL-REPRESENTATIVE domains (reduced fractions
+  `where gcd==1`; sorted sequences) — plain `==`, no quotient dependency:
+  N4 is decoupled from N6. The `%` former is reserved for carriers with
+  no computable canonical form (Real: stream equality undecidable).
 - **N5 — `boundary data` + the Real axiom package:** opaque carrier;
   ensures-less boundary machines = claim-free symbols (no grant); axioms =
   accepted-tier rows; schema axioms as `<machine P>` boundary machines (one
