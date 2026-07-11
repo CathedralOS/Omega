@@ -1,0 +1,18 @@
+// Owner-measured diagnostic split (2026-07-11, M2 blocker 2's rider): a
+// recognized interior recast whose runtime OFFSET has no bound used to
+// fall through to the FORM errors ("not a scalar primitive or an
+// all-scalar record" -- misleading: this Desc IS all-scalar). The
+// judgment now answers three ways, and the unproven-offset case names
+// the real failure and all three discharge routes (declared range,
+// dominating incoming guard, boundary-ensures witness).
+boundary trait Console { machine exit_process(return_code: i32); }
+data Desc { a: u32; b: u32; }
+data Main { console: Console; buf: [u8; 16]; }
+machine Main::main(&mut self) {
+    transition { _ -> read(0) }
+    state read(&mut self, off: u32) {
+        let d: &Desc = &self.buf[off] as &Desc;
+        transition { _ -> yes() }
+    }
+    state yes(&mut self) { self.console.exit_process(70); }
+}
