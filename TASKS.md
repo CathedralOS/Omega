@@ -128,10 +128,17 @@ the firmware out-values) is RESOLVED against the vouch — see blocker 2.
    build_and_package_model.md (one dir = one package = one build.omg;
    depend names the alias the use-path's first segment resolves through).
    No owner input needed.]
-4. **Free-floating const**: v0 is `Type::`-scoped only; Cathedral's
-   contracts spell free-floating consts per the settled design (the
-   shadowing-walk prerequisite is the filed follow-up). [ENGINEERING —
-   the design IS free-floating (owner, static_root_and_constants.md);
+4. **Free-floating const — LANDED 2026-07-11 (main lane):** the
+   SHADOWING WALK guards it — a bare-name const must not collide with
+   any name a bare reference could resolve to (data/machine/state
+   names, params, locals, fields, cases) anywhere in the program;
+   collisions refuse AT THE CONST naming both sites, so single-segment
+   substitution can never silently win over a like-named local/field.
+   Pinned pass/constants/runtime_free_const_exit +
+   fail/constants/free_const_{local,field}_collision. Package/module
+   NAMESPACING (`memory::PAGE_SIZE`) rides depend-mapping (blocker 3).
+   [Original note — the design IS free-floating (owner,
+   static_root_and_constants.md);
    the missing piece is the shadowing walk the v0 error message names.
    No owner input needed.]
 

@@ -1,0 +1,6 @@
+// The free-const SHADOWING WALK, field leg: bare field reads spell the
+// field name, so a like-named free const collides; refused at the const.
+boundary trait Console { machine exit_process(return_code: i32); }
+const flags: u32 = 3;
+data Main { console: Console; flags: u32; }
+machine Main::main(&mut self) { self.console.exit_process(0); }

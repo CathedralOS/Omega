@@ -356,6 +356,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("comptime/runtime_const_measured_recursion_exit", 70),
     ("collections/runtime_computed_index_match_subject_exit", 70),
     ("recast/runtime_multi_edge_offset_meet_exit", 70),
+    ("constants/runtime_free_const_exit", 70),
     ("recast/runtime_record_view_exit", 70),
     ("arithmetic/runtime_f32_field_guard_exit", 70),
     ("collections/runtime_indexed_guard_true_false_pair_exit", 70),

@@ -1,11 +1,13 @@
-// FAIL canary (const-v0): a free-floating const is rejected until the
-// local-shadowing walk lands -- a bare-name substitution could silently win
-// over a like-named local or field; a `Type::NAME` path cannot.
+// RECAST 2026-07-11 (M2 blocker 4): free-floating consts are now LEGAL
+// behind the shadowing walk -- this canary's old pin (the blanket v0
+// refusal) dissolved into pass/constants/runtime_free_const_exit. What
+// stays refused is a COLLISION; this pins the machine-name leg: a free
+// const spelling a machine's callable name would make bare calls
+// ambiguous with the substituted literal.
 boundary trait Console { machine exit_process(return_code: i32); }
-
-const CEILING: i32 = 60;
-
+const helper: u32 = 7;
 data Main { console: Console; }
-machine Main::main(&mut self) {
-    self.console.exit_process(0);
+machine helper() -> u32 {
+    transition { _ -> (7) }
 }
+machine Main::main(&mut self) { self.console.exit_process(0); }

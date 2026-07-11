@@ -1,1 +1,1 @@
-scope it to a type
+collides with machine `helper`

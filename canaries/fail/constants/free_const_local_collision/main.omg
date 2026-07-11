@@ -1,0 +1,11 @@
+// The free-const SHADOWING WALK: a like-named LOCAL anywhere in the
+// program collides (the const substitutes before name resolution --
+// a bare spelling would be ambiguous); refused at the const with both
+// sites named.
+boundary trait Console { machine exit_process(return_code: i32); }
+const PAGE_SIZE: u32 = 64;
+data Main { console: Console; }
+machine Main::main(&mut self) {
+    let PAGE_SIZE: u32 = 1;
+    self.console.exit_process(0);
+}
