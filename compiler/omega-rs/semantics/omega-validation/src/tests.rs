@@ -348,6 +348,40 @@ fn symbolic_walk_recast_footprint_discharges() {
 }
 
 #[test]
+fn symbolic_walk_guard_route_discharges() {
+    // The owner-corrected HONEST spelling (Cathedral f0b7572): no trait
+    // ensures (a vouch would be false under BUFFER_TOO_SMALL) -- a
+    // post-call SANITY GUARD establishes both witnesses on the entry
+    // edge, and the same symbolic chain discharges.
+    validate_contract_source(
+        r#"
+    boundary trait Firmware {
+        machine get_memory_map(map_size: &mut u32, desc_size: &mut u32);
+    }
+    data Desc { a: u32; b: u32; }
+    data Main { fw: Firmware; buf: [u8; 64]; map_size: u32; desc_size: u32; }
+    machine Main::main(&mut self) {
+        self.fw.get_memory_map(&mut self.map_size, &mut self.desc_size);
+        transition self.map_size <= 64 && self.desc_size >= 8 {
+            true -> walk(self.map_size, self.desc_size, 0)
+            _ -> bad()
+        }
+        state walk(&mut self, map_size: u32 in Trapping, desc_size: u32 in Trapping, offset: u32 in Trapping) {
+            let d: &Desc = &self.buf[offset] as &Desc;
+            transition offset + desc_size + desc_size <= map_size {
+                true -> walk(map_size, desc_size, offset + desc_size)
+                _ -> done()
+            }
+        }
+        state done(&mut self) { }
+        state bad(&mut self) { }
+    }
+    "#,
+    )
+    .expect("the guard-route walk chain should discharge the recast footprint");
+}
+
+#[test]
 fn symbolic_walk_recast_wide_witness_refuses() {
     // `map_size <= 65` drags the loop-edge bound to 57; 57 + 8 > 64.
     let diagnostics = validate_contract_source(
