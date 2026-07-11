@@ -1,0 +1,63 @@
+// DESCRIPTOR WALK -- the Cathedral M2 memory-map pattern, in-tree: a byte
+// buffer holding firmware-style descriptors is walked at a RUNTIME stride
+// (`off + self.descriptor_size`, never sizeof), each entry re-viewed
+// through the §5b record recast (`&self.buf[off] as &Desc`) with member
+// reads through the view. Every proof is compiler-side:
+//   - the walk bound: the back-edge guard `next <= 32` proves the
+//     forwarded offset's declared range (R1a's co-located guard route);
+//   - the view footprint: `high(off) + size_of(Desc) <= len(buf)` through
+//     the offset's enforced interval (recast rung C1/C2);
+//   - no runtime bounds checks, no linear-counter workaround.
+// Three descriptors at offsets 0/16/32 carry kind tags 3, 4, 5 and page
+// counts 10, 20, 30; the walk sums the page counts of kind >= 4 entries:
+// 20 + 30 = 50.
+//
+// Expected exit: 50
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+data Desc { kind: u32; pages: u64; }
+data Main {
+    console: Console;
+    buf: [u8; 48];
+    descriptor_size: u32 [0..=16];
+    total: u32 in Wrapping;
+}
+machine Main::main(&mut self) {
+    // Descriptor 0: kind 3, pages 10.
+    self.buf[0] = 3;
+    self.buf[8] = 10;
+    // Descriptor 1: kind 4, pages 20.
+    self.buf[16] = 4;
+    self.buf[24] = 20;
+    // Descriptor 2: kind 5, pages 30.
+    self.buf[32] = 5;
+    self.buf[40] = 30;
+    self.descriptor_size = 16;
+    transition { _ -> walk(0) }
+
+    state walk(&mut self, off: u32 [0..=32]) {
+        let d: &Desc = &self.buf[off] as &Desc;
+        transition d.kind >= 4 {
+            true -> tally(off)
+            _ -> step(off)
+        }
+    }
+    state tally(&mut self, off: u32 [0..=32]) {
+        let d: &Desc = &self.buf[off] as &Desc;
+        let pages: u32 in Wrapping = d.pages as u32 in Wrapping;
+        self.total = self.total + pages;
+        transition { _ -> step(off) }
+    }
+    state step(&mut self, off: u32 [0..=32]) {
+        let next: u32 = off + self.descriptor_size;
+        transition next <= 32 && self.descriptor_size > 0 {
+            true -> walk(next)
+            _ -> done()
+        }
+    }
+    state done(&mut self) {
+        let code: i32 = self.total as i32;
+        self.console.exit_process(code);
+    }
+}
