@@ -36,7 +36,7 @@ dispatch-region + receiver-phase family. Everything queued here avoids both.
    shaped; one session on a Windows host closes the whole list.
 
 The rendering-sample sweep landed 2026-07-11 (see Language ergonomics;
-remaining gap: computed indexes in enum-match SUBJECT position).
+the match-subject computed-index gap closed with it).
 
 ## Cathedral M2 (owner priority 2026-07-15; RECAST = main lane, claimed)
 
@@ -411,12 +411,14 @@ no `unbounded` property exists. Rungs:
   now spell `grid[b*20+a]` / `grid[ry*20+cx]` under one dominating
   compound guard — the cross-state incoming-guard route serves) and
   histogram dropped the temp-field RMW idiom for the direct
-  `histogram[v] = histogram[v] + 1` (served + canaried). NOT sweepable:
-  dungeon_render — its runtime-indexed ENUM-MATCH SUBJECT
-  (`transition self.grid[k] { Cell::Wall -> ... }`) refuses a computed
-  index with the honest fence ("compute it into a field first"); the
-  match-subject position never got the R0 hoist. That is the remaining
-  gap if the direct spelling should reach match subjects too.
+  `histogram[v] = histogram[v] + 1` (served + canaried). dungeon_render
+  followed once the match-subject gap closed: the membership-subject
+  hoist emitted its shared temp with the raw computed index inside,
+  which the #40 fence refused — the ONE position the R0 index hoist
+  missed; the mint now hoists the subject's computed index into its own
+  temp first (pinned
+  pass/collections/runtime_computed_index_match_subject_exit), and
+  dungeon_render spells `grid[r*6+c]` directly as the match subject.
 
 ## Backend perf (deferred, post-1.0)
 

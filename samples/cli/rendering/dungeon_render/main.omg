@@ -6,7 +6,7 @@
 // runtime-indexed ENUM-MATCH subject (fixed 2026-07-01): before that, a direct `grid[k] { .. }`
 // silently took the first arm, so every cell would render as `#` and no `~`/`+`/`.` would appear.
 //
-// Composes: enum-array construction, a linear grid index + a per-row column index (both loop
+// Composes: enum-array construction, the direct row-major `grid[r*6+c]` match subject (loop
 // counters, so both prove in bounds -- no computed index), the direct enum-match subject, and
 // runtime-indexed carrier byte writes. Pure compute + stdout, no new features. Renders:
 //   ######
@@ -32,7 +32,6 @@ data Main {
     line: [u8; 6] in Utf8;
     r: u32 in Wrapping;   // current row
     c: u32 in Wrapping;   // current column (write index into the line buffer)
-    k: u32 in Wrapping;   // linear index into the grid
     lab: u8;              // glyph for the current cell
     pause: String;
 }
@@ -45,7 +44,6 @@ machine Main::main(&mut self) {
         Cell::Wall,  Cell::Floor, Cell::Water, Cell::Floor, Cell::Floor, Cell::Wall,
         Cell::Wall,  Cell::Wall,  Cell::Wall,  Cell::Wall,  Cell::Wall,  Cell::Wall
     ];
-    self.k = 0;
     self.r = 0;
     transition { _ -> row_loop() }
 
@@ -61,13 +59,15 @@ machine Main::main(&mut self) {
         transition self.c < 6 { true -> cell() _ -> emit_row() }
     }
     state cell(&mut self) {
-        // Re-establish the grid index bound (k is a free-running counter across the nested loops,
-        // so `k < 24` is not implied by `r < 4 && c < 6` -- the product bound is not proven).
-        transition self.k < 24 { true -> match_cell() _ -> emit_row() }
+        // The DIRECT row-major index (R0 sweep 2026-07-11): one dominating guard on the
+        // compound bound, then `grid[r * 6 + c]` as the MATCH SUBJECT -- the free-running
+        // `k` counter and its re-guard state are gone (the match-subject position now
+        // hoists computed indexes like every other position).
+        transition self.r * 6 + self.c < 24 { true -> match_cell() _ -> emit_row() }
     }
     state match_cell(&mut self) {
         // Direct runtime-indexed enum-match subject -- the tilemap classification.
-        transition self.grid[self.k] {
+        transition self.grid[self.r * 6 + self.c] {
             Cell::Wall  -> put(35)   // '#'
             Cell::Floor -> put(46)   // '.'
             Cell::Door  -> put(43)   // '+'
@@ -80,7 +80,6 @@ machine Main::main(&mut self) {
     }
     state write_cell(&mut self) {
         self.line[self.c] = self.lab;
-        self.k = self.k + 1;
         self.c = self.c + 1;
         transition { _ -> col_loop() }
     }
