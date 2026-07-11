@@ -226,8 +226,17 @@ ordering DBM mints, machine-`requires` intake on both sides, sibling-len
 discharges `y*self.cols+x`, direct spelling included) with the
 bounded-escape store-containment keystone. Open rungs:
 
-- **R1 remainder:** value-vs-value guard mints at range endpoints generally
-  (`requires a.cols == b.rows`). The bracket-as-sugar half LANDED
+- **R1 remainder:** value-vs-value ENDPOINT mints LANDED 2026-07-11:
+  a guard comparing two places transfers the bound-source's enforced
+  declared endpoint onto the bounded place (`i < k` with `k: u32
+  [0..=8]` proves `i < 8`; `<=` shifts; `>`/`>=` mirror), seeded on the
+  co-located arm and the positive incoming edges
+  (seed_value_vs_value_endpoints; two lib tests pin discharge and the
+  one-past-the-region refusal). Still open in this bullet:
+  value-vs-value EQUALITY mints across machines (`requires a.cols ==
+  b.rows`, the matrix-multiply shape — the entailment engine's equality
+  harvest covers same-machine; the cross-machine leg rides R4/R5
+  framing). The bracket-as-sugar half LANDED
   2026-07-11: ENTRY-state params' literal `[a..=b]` ranges join the
   entailment engine's hypotheses on both the empty-body and inductive
   paths (collect_entry_range_hypotheses; `k: u64 [0..=8]` proves

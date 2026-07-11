@@ -122,6 +122,13 @@ pub(super) fn check_statement(
                     check_expression(program, machine, state, facts, guard, diagnostics);
                     let mut guarded_facts = facts.clone();
                     seed_guard_facts(program, &mut guarded_facts, guard);
+                    super::guards::seed_value_vs_value_endpoints(
+                        program,
+                        machine,
+                        state,
+                        &mut guarded_facts,
+                        guard,
+                    );
                     let mut negated_facts = facts.clone();
                     seed_negated_guard_facts(program, &mut negated_facts, guard);
                     (guarded_facts, negated_facts)

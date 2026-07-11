@@ -386,6 +386,7 @@ fn push_edge(
 /// Seed `facts` with every entry guard collected for `state`.
 pub(super) fn seed_incoming_guard_facts(
     program: &omega_typed_trees::TypedTrees,
+    machine: &Machine,
     facts: &mut RangeFacts<'_>,
     state: &State,
     incoming: &[IncomingGuard],
@@ -395,6 +396,12 @@ pub(super) fn seed_incoming_guard_facts(
             seed_negated_guard_facts(program, facts, entry.guard);
         } else {
             seed_guard_facts(program, facts, entry.guard);
+            // R1 endpoint mints ride the positive incoming guards too
+            // (fields resolve machine-wide; a source-scope name that does
+            // not resolve here simply yields no fact).
+            super::guards::seed_value_vs_value_endpoints(
+                program, machine, state, facts, entry.guard,
+            );
         }
     }
 }

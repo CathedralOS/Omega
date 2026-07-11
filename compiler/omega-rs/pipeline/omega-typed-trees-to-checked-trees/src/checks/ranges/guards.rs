@@ -10,6 +10,73 @@ use bounds::{
     seed_non_negative_fact, seed_successor_at_most_len_fact,
 };
 
+/// R1 value-vs-value endpoint mints: a guard comparing two PLACES
+/// transfers the RHS's ENFORCED declared range endpoint onto the LHS
+/// (`i < k` with `k: u32 [0..=8]` proves `i < 8`; `<=` shifts by one;
+/// `>`/`>=` mirror). Store-enforced Exact ranges only (the resolver's
+/// gate); literal RHS comparisons stay with the literal seeders. Needs
+/// machine/state context, so it runs beside `seed_guard_facts` at the
+/// sites that have it (the co-located transition arm).
+pub(super) fn seed_value_vs_value_endpoints(
+    program: &omega_typed_trees::TypedTrees,
+    machine: &omega_typed_trees::machine::Machine,
+    state: &omega_typed_trees::state::State,
+    facts: &mut RangeFacts<'_>,
+    guard: ExpressionHandle,
+) {
+    if !guard.is_valid() {
+        return;
+    }
+    let ExpressionNode::Binary(binary) = program.expression_table.expression(guard) else {
+        return;
+    };
+    match binary.operator {
+        BinaryOperator::And => {
+            seed_value_vs_value_endpoints(program, machine, state, facts, binary.left);
+            seed_value_vs_value_endpoints(program, machine, state, facts, binary.right);
+            return;
+        }
+        BinaryOperator::Equal
+            if matches!(
+                program.expression_table.expression(binary.right),
+                ExpressionNode::Boolean(true)
+            ) =>
+        {
+            seed_value_vs_value_endpoints(program, machine, state, facts, binary.left);
+            return;
+        }
+        _ => {}
+    }
+    let (bounded, bound_source, inclusive_shift) = match binary.operator {
+        BinaryOperator::Less => (binary.left, binary.right, 0),
+        BinaryOperator::LessOrEqual => (binary.left, binary.right, 1),
+        BinaryOperator::Greater => (binary.right, binary.left, 0),
+        BinaryOperator::GreaterOrEqual => (binary.right, binary.left, 1),
+        _ => return,
+    };
+    // Literal bounds are the literal seeders' job.
+    if crate::checks::ranges::expressions::expression_integer_value(program, facts, bound_source)
+        .is_some()
+    {
+        return;
+    }
+    let Some((_, high)) = crate::checks::ranges::types::expression_enforced_declared_range(
+        program,
+        machine,
+        state,
+        bound_source,
+    ) else {
+        return;
+    };
+    let Some(exclusive) = high.checked_add(inclusive_shift) else {
+        return;
+    };
+    facts.prove_index_upper_bound(
+        program.expression_table.display_name(bounded),
+        exclusive,
+    );
+}
+
 pub(super) fn seed_guard_facts(
     program: &omega_typed_trees::TypedTrees,
     facts: &mut RangeFacts<'_>,
