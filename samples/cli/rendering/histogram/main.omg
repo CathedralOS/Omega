@@ -4,11 +4,9 @@
 // blocked until a runtime-indexed write learned to invalidate the whole array's
 // folded constants (so `histogram[v]` accumulates instead of re-reading 0).
 //
-// The accumulation uses the temp-field read-modify-write idiom:
-//   tmp = histogram[v] + 1;   // indexed-read operand into a field
-//   histogram[v] = tmp;        // field -> runtime-indexed write
-// (the direct `histogram[v] = histogram[v] + 1` form -- a binary value into an
-// indexed target -- is not yet selectable; see the language notes.)
+// The accumulation is the DIRECT read-modify-write at a runtime index
+// (`histogram[v] = histogram[v] + 1` -- served and canaried since the
+// indexed-RMW selection landed; swept off the temp-field idiom 2026-07-11).
 //
 // Every histogram index `v` is bounds-checked by an explicit `v < 4` guard before
 // the write, matching Omega's proof model -- the index is admitted only where it
@@ -32,7 +30,6 @@ data Main {
     histogram: [i32; 4] in Wrapping;
     k: u64;
     v: u64;
-    tmp: i32 in Wrapping;
     result: i32 in Wrapping;
 }
 
@@ -82,8 +79,7 @@ machine Main::main(&mut self) {
     }
 
     state bump(&mut self) {
-        self.tmp = self.histogram[self.v] + 1;
-        self.histogram[self.v] = self.tmp;
+        self.histogram[self.v] = self.histogram[self.v] + 1;
         transition {
             _ -> advance()
         }

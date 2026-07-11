@@ -5,9 +5,11 @@
 //
 // Each frame: clear the grid, plot every particle (grid[y*W + x] = 1), render the grid in
 // place via an ANSI cursor-home, then integrate pos += vel for every particle and reverse
-// a velocity component at the walls. 2D indexing uses the linear-counter sidestep (the
-// flat index computed into a field, then a plain index); the per-particle update reads the
-// struct fields into temps and writes them back (a direct ps[i].x += ps[i].vx is a gap).
+// a velocity component at the walls. 2D indexing is the DIRECT row-major spelling
+// (`grid[b * 20 + a]`), bounds discharged by the dominating incoming guard on the
+// compound index (R0 sweep 2026-07-11; the old flat-field sidestep is gone); the
+// per-particle update reads the struct fields into temps and writes them back (a direct
+// ps[i].x += ps[i].vx is a gap).
 // Pure compute + stdout + Clock.sleep; no new compiler features.
 // Expected exit: 0.
 // Expected output contains: *
@@ -38,7 +40,6 @@ data Main {
     gen: i32 in Wrapping;
     pi: i32 in Wrapping;   // particle index
     k: i32 in Wrapping;    // grid clear index
-    flat: i32 in Wrapping; // computed flat grid index
     ry: i32 in Wrapping;   // render row
     cx: i32 in Wrapping;   // render col
     a: i32 in Wrapping;    // scratch: a component
@@ -92,11 +93,10 @@ machine Main::main(&mut self) {
     state plot_cell(&mut self) {
         self.a = self.ps[self.pi].x;
         self.b = self.ps[self.pi].y;
-        self.flat = self.b * 20 + self.a;
-        transition self.flat >= 0 && self.flat < 200 { true -> plot_set() _ -> bad() }
+        transition self.b * 20 + self.a >= 0 && self.b * 20 + self.a < 200 { true -> plot_set() _ -> bad() }
     }
     state plot_set(&mut self) {
-        self.grid[self.flat] = 1;
+        self.grid[self.b * 20 + self.a] = 1;
         self.pi = self.pi + 1;
         transition { _ -> plot_loop() }
     }
@@ -118,11 +118,10 @@ machine Main::main(&mut self) {
         transition self.cx >= 0 && self.cx < 20 { true -> render_cell() _ -> emit_row() }
     }
     state render_cell(&mut self) {
-        self.flat = self.ry * 20 + self.cx;
-        transition self.flat >= 0 && self.flat < 200 { true -> render_read() _ -> bad() }
+        transition self.ry * 20 + self.cx >= 0 && self.ry * 20 + self.cx < 200 { true -> render_read() _ -> bad() }
     }
     state render_read(&mut self) {
-        self.a = self.grid[self.flat];
+        self.a = self.grid[self.ry * 20 + self.cx];
         transition self.a >= 0 && self.a < 2 { true -> render_put() _ -> bad() }
     }
     state render_put(&mut self) {
