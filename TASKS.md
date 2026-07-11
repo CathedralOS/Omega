@@ -21,7 +21,8 @@ Collision map: the MAIN LANE owns RECAST/M2; the FS LANE owns the
 dispatch-region + receiver-phase family. Everything queued here avoids both.
 
 1. **Math roster ladder N1→N4** (section below) — zero backend/codegen
-   contact; N2 retires the long-standing u64>i64::MAX i128 debt. Continue
+   contact; N1 LANDED 2026-07-11 (proof-only classification + all faces),
+   N2 next: N2 retires the long-standing u64>i64::MAX i128 debt. Continue
    into N5–N7 when reached (all design-settled; they need the `<machine M>`
    plumbing and the `%` former).
 2. **Measured recursion MR1 + MR3** (section below) — frontend/validation
@@ -181,12 +182,22 @@ item 3 + par-7). Proof-only is COMPUTED, never spelled: recursive data is
 legal and proof-only (fixpoint: recursive, or contains a proof-only field);
 no `unbounded` property exists. Rungs:
 
-- **N1 — proof-only classification:** recursive data (direct + mutual)
-  legal; classification fixpoint; contagion by containment; every runtime
-  consumption face (layout/ZII/lowering/borrow) rejects with the
-  classification named ("`Nat` is proof-only: recursive data has no
-  layout"). Fail canaries per face; the ch14 Equatable recursive-reject
-  note is about lowering conformance and stands.
+- **N1 — proof-only classification — LANDED 2026-07-11:** recursive data
+  (direct + mutual, incl. generic templates) legal; the recognizer is
+  `omega_typed_trees::proof_only::classify` (inline-containment cycle
+  seeds + contagion fixpoint; references/slices are indirection and stop
+  containment); faces: machine-runs-on-data, owned data, `contains`
+  (pre-wired — the keyword is reserved but not yet parsed, no canary
+  possible), state params, returns, locals, data properties (ZII),
+  wire fields, runtime-data-views-proof-only-through-indirection, and
+  the layout walk skips proof-only like generic templates (visit-stack
+  cycle error stays as the pipeline-bug backstop). Canaries:
+  pass/data/runtime_proof_only_data_declared_exit + five
+  fail/data/proof_only_* + fail/wire/proof_only_wire_field_rejected;
+  fail/data/recursive_data_infinite_size recast onto the consumption
+  refusal (declaration is now legal). Untyped lets don't parse, so
+  construction always crosses a typed face; the ch14 Equatable
+  recursive-reject note is about lowering conformance and stands.
 - **N2 — engine bignum:** exact unbounded arithmetic for Nat/Int/Rat fact
   evaluation; engine coefficients widen (subsumes the u64>i64::MAX i128
   refactor — one surgery, done properly). `3nat` literals evaluate to

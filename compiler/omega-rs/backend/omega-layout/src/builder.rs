@@ -23,8 +23,18 @@ pub fn build_layout_plan(
 ) -> Result<LayoutPlan, Diagnostic> {
     let mut builder = LayoutBuilder::new(program, target);
 
+    // Math roster N1: proof-only data (recursive, or holding proof-only
+    // inline) HAS no layout, by definition -- skip it the way generic
+    // templates are skipped. Validation has already fenced every runtime
+    // consumption; anything that still demands a layout for one of these
+    // downstream is a pipeline bug, caught by the visit-stack backstop.
+    let proof_only = omega_checked_trees::proof_only::classify(&program.typed);
+
     for data_definition in program.data_definitions() {
         if !data_definition.type_parameters.is_empty() {
+            continue;
+        }
+        if proof_only.is_proof_only(data_definition.symbol) {
             continue;
         }
         builder.layout_data_definition(data_definition.symbol)?;
