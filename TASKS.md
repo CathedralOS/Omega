@@ -583,11 +583,12 @@ no `unbounded` property exists. Rungs:
   found by the draft): (a) float-terminal value-call RETURN-WRITES are
   not served ("this terminal shape is not served yet" — integer
   terminals serve; the selection needs the float twin); (b) a
-  COMPILE-THREAD STACK OVERFLOW on the reduce ladder's shape (4
-  fall-through transitions + self-loops with mut locals; repro:
-  `use omega::language::std::math; let s: f64 = sin(1.0);` under
-  --both). Fix (a) then (b), then the draft's probes become run
-  canaries.
+  COMPILE-THREAD STACK OVERFLOW, bisect-NARROWED: a VALUE-CALL TERMINAL
+  expanding a multi-state callee (`cos`'s old `(sin(...))` terminal)
+  recurses the nested-inline expansion without a depth gate — the
+  library now binds through a let (the supported shape) so only (a)
+  gates sin/cos; (b) stays as the robustness bug with its pending
+  repro. Fix (a), then the draft's probes become run canaries.
 - **Rendering-sample sweep (R0 follow-on) — SWEPT 2026-07-11:**
   bouncing_particles dropped its flat-field sidestep (plot + render paths
   now spell `grid[b*20+a]` / `grid[ry*20+cx]` under one dominating
