@@ -417,13 +417,20 @@ fn scalar_record_size(program: &TypedTrees, name: &str) -> Option<usize> {
     Some(offset.div_ceil(max_align) * max_align)
 }
 
-/// The literal upper bound the incoming guard places on `offset` at this
+/// The literal upper bound the incoming edge places on `offset` at this
 /// state's entry. Sound because it is SHALLOW: the state must have exactly
-/// ONE incoming edge machine-wide, that edge's GUARDED (true) arm, whose
-/// guard conjunct `arg <= K` / `arg < K` names (by display spelling) the
-/// very expression passed at the param's position -- guard check and
-/// argument capture happen in the same transition step, so the bound holds
-/// at entry. Multi-predecessor states (e.g. self-re-entering walk loops),
+/// ONE incoming edge machine-wide. Two routes, in order:
+/// - the edge's GUARDED (true) arm, whose guard conjunct `arg <= K` /
+///   `arg < K` names (by display spelling) the very expression passed at
+///   the param's position -- guard check and argument capture happen in
+///   the same transition step, so the bound holds at entry;
+/// - R4 witness (the own_machine shape): a BOUNDARY call EARLIER in the
+///   source state whose `ensures <param> <= K` bounds the `&mut` argument
+///   place spelled identically to the transition argument, with NO
+///   intervening write to that place and NO later call (a later callee
+///   holding `&mut self` could rewrite the field) between the witness and
+///   the transition.
+/// Multi-predecessor states (e.g. self-re-entering walk loops),
 /// fall-through arms, and non-literal bounds all return None; those need
 /// the per-edge meet + symbolic route (TASKS M2 gap 4, remaining).
 fn incoming_guard_offset_bound(
@@ -452,7 +459,8 @@ fn incoming_guard_offset_bound(
     let mut bound: Option<i64> = None;
     let mut incoming_edges = 0usize;
     for source in program.machine_states(machine) {
-        for statement in program.statement_table.statements(source.statement_nodes) {
+        let source_statements = program.statement_table.statements(source.statement_nodes);
+        for (statement_index, statement) in source_statements.iter().enumerate() {
             let StatementNode::Transition(transition) = statement else {
                 continue;
             };
@@ -478,20 +486,147 @@ fn incoming_guard_offset_bound(
                 if incoming_edges > 1 {
                     return None;
                 }
-                // Only the GUARDED (true) arm establishes the guard.
-                if target_handle != transition.target {
-                    return None;
-                }
-                let TransitionGuardNode::When(guard) = transition.guard else {
-                    return None;
-                };
                 let argument = program
                     .statement_table
                     .expression_handles(*arguments)
                     .get(param_position)
                     .copied()?;
                 let argument_label = program.expression_table.display_name(argument);
-                bound = guard_upper_bound_for(program, guard, &argument_label);
+                // Only the GUARDED (true) arm establishes the guard's bound;
+                // the R4 ensures witness precedes the whole transition, so it
+                // holds on EITHER arm (and on an Always edge).
+                let guard_bound = match transition.guard {
+                    TransitionGuardNode::When(guard)
+                        if target_handle == transition.target =>
+                    {
+                        guard_upper_bound_for(program, guard, &argument_label)
+                    }
+                    _ => None,
+                };
+                bound = guard_bound.or_else(|| {
+                    boundary_ensures_argument_bound(
+                        program,
+                        machine,
+                        source_statements,
+                        statement_index,
+                        &argument_label,
+                    )
+                });
+            }
+        }
+    }
+    bound
+}
+
+/// The R4 witness route: scan the statements BEFORE the transition for the
+/// LAST boundary call whose `ensures <param> <= K`/`< K` bounds a `&mut`
+/// argument place spelled `argument_label`; refuse if anything after that
+/// witness could rewrite the place (an assignment to it, or ANY other call
+/// -- callees hold `&mut self`).
+fn boundary_ensures_argument_bound(
+    program: &TypedTrees,
+    machine: &omega_typed_trees::machine::Machine,
+    statements: &[omega_typed_trees::statement::StatementNode],
+    transition_index: usize,
+    argument_label: &str,
+) -> Option<i64> {
+    use omega_typed_trees::statement::StatementNode;
+    let mut witness: Option<i64> = None;
+    for statement in &statements[..transition_index] {
+        match statement {
+            StatementNode::Call(call) => {
+                // Any call invalidates an earlier witness; this call may
+                // itself mint a new one.
+                witness = boundary_call_ensures_bound(program, machine, call, argument_label);
+            }
+            StatementNode::Assignment(assignment) => {
+                if program.expression_table.display_name(assignment.target) == argument_label {
+                    witness = None;
+                }
+            }
+            _ => {}
+        }
+    }
+    witness
+}
+
+/// `call`'s `ensures <param> <= K`/`< K` INCLUSIVE bound for the `&mut`
+/// argument place spelled `argument_label`, resolved through the receiver
+/// field's declared boundary trait. None for non-boundary callees, other
+/// spellings, or params without a literal upper bound.
+fn boundary_call_ensures_bound(
+    program: &TypedTrees,
+    machine: &omega_typed_trees::machine::Machine,
+    call: &omega_typed_trees::statement::TableCall,
+    argument_label: &str,
+) -> Option<i64> {
+    use omega_typed_trees::domain::ProofFact;
+    use omega_typed_trees::signature::SignatureContractKind;
+    let receiver = program
+        .statement_table
+        .name_path_members(call.receiver)
+        .last()?;
+    let attached = machine.attached_data.as_ref()?;
+    let data = program
+        .data_definitions()
+        .iter()
+        .find(|data| data.name.as_str() == attached.as_str())?;
+    let field_type = program.data_members(data).iter().find_map(|member| {
+        match member {
+            omega_typed_trees::data::DataMember::Field(field)
+                if field.name.as_str() == receiver.as_str() =>
+            {
+                field
+                    .type_reference
+                    .is_valid()
+                    .then_some(field.type_reference)
+            }
+            _ => None,
+        }
+    })?;
+    let TypeReferenceNode::Named { name: trait_name, .. } =
+        program.type_reference_table.type_reference(field_type)
+    else {
+        return None;
+    };
+    let trait_definition = program
+        .traits()
+        .iter()
+        .find(|definition| definition.name.as_str() == trait_name.as_str())?;
+    let signature = program
+        .trait_machine_signatures(trait_definition)
+        .iter()
+        .find(|signature| signature.name == call.target)?;
+    let arguments = program.statement_table.expression_handles(call.arguments);
+    // Which non-self param position holds our place as a `&mut` argument?
+    let position = arguments.iter().position(|argument| {
+        matches!(
+            program.expression_table.expression(*argument),
+            ExpressionNode::Mutable(inner)
+                if program.expression_table.display_name(*inner) == argument_label
+        )
+    })?;
+    let parameter = program
+        .state_signature_parameters(signature)
+        .iter()
+        .filter(|parameter| !parameter.is_self)
+        .nth(position)?;
+    let mut bound: Option<i64> = None;
+    for contract in program
+        .signature_contracts
+        .span_or_empty(signature.contracts)
+    {
+        if !matches!(contract.kind, SignatureContractKind::Ensures) {
+            continue;
+        }
+        for fact in program.proof_facts.span_or_empty(contract.facts) {
+            let ProofFact::Expression(expression) = fact else {
+                continue;
+            };
+            if let Some(fact_bound) =
+                guard_upper_bound_for(program, *expression, parameter.name.as_str())
+            {
+                bound = Some(bound.map_or(fact_bound, |existing: i64| existing.min(fact_bound)));
             }
         }
     }
