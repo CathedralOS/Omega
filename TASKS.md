@@ -137,11 +137,17 @@ bounded-escape store-containment keystone. Open rungs:
   arithmetic_domains::seed_out_param_ensures; conjunctions split,
   literal-vs-param comparisons only, intersected with type+declared
   ranges; flow-scoped — a later write kills it; three lib tests pin
-  mint/negative/rebind). REMAINING: the CHECKER tier — index bounds
-  (`buf[self.n]` after the ensures still refuses at "cannot prove index")
-  and bounded-target containment don't read the env; they need their own
-  ensures intake (dominating-call facts, stability-gated like incoming
-  guards). Then decode-minted where-facts + recast bounds discharged
+  mint/negative/rebind). CHECKER tier LANDED same day: the ranges walk's
+  Call arm forgets every `&mut`-written place's upper bound, then seeds
+  `ensures <param> <= K`/`< K` conjuncts as index-upper-bound facts on
+  the matching argument places (statements.rs::
+  seed_boundary_call_ensures_facts; three lib tests pin discharge /
+  no-ensures refusal / too-wide-bound refusal — `buf[self.n]` after
+  `ensures size <= 8` proves against length 12). REMAINING intake:
+  bounded-target containment obligations (the [a..=b] store checks) and
+  CROSS-STATE transport (the ensures fact through transition arguments
+  into the walk state's params — the own_machine shape passes map_size
+  as an arg; the argument-fact translation machinery is the carrier). Then decode-minted where-facts + recast bounds discharged
   from couplings + R1/R3. ⚠️ COORDINATE: recast MECHANICS are main-lane;
   this rung supplies only the proof side. Unblocks the UEFI memory-map
   stride discharge (`map_size <= 16384` as an ensures witness feeding

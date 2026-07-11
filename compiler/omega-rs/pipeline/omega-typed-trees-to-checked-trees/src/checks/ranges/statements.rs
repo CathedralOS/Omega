@@ -73,6 +73,12 @@ pub(super) fn check_statement(
                 check_expression(program, machine, state, facts, *argument, diagnostics);
             }
             facts.forget_field_integers();
+            // R4 witness mint, checker tier: a BOUNDARY callee's `ensures
+            // <param> <= K` bounds the `&mut` out-argument's place the
+            // moment the call returns (the boundary model's citable fact).
+            // Any prior upper-bound fact for a written place is dropped
+            // first; the ensures then re-proves what it states.
+            seed_boundary_call_ensures_facts(program, machine, call, facts);
         }
         StatementNode::Expression(expression) => {
             check_expression(program, machine, state, facts, *expression, diagnostics);
@@ -215,4 +221,149 @@ fn field_plus_positive_constant(
         }
     }
     None
+}
+
+
+/// Resolve a call statement's BOUNDARY-TRAIT callee signature from the typed
+/// trees (receiver field's declared trait), then seed `ensures <param> <OP>
+/// <literal>` conjuncts as index-upper-bound facts on the matching `&mut`
+/// argument places. Prior bounds for every `&mut`-written place are
+/// forgotten regardless, ensures or not.
+fn seed_boundary_call_ensures_facts(
+    program: &omega_typed_trees::TypedTrees,
+    machine: &Machine,
+    call: &omega_typed_trees::statement::TableCall,
+    facts: &mut RangeFacts<'_>,
+) {
+    use omega_typed_trees::domain::ProofFact;
+    use omega_typed_trees::signature::SignatureContractKind;
+    let arguments = program.statement_table.expression_handles(call.arguments);
+    // Drop stale bounds for every &mut-written place first.
+    for argument in arguments {
+        if let ExpressionNode::Mutable(inner) = program.expression_table.expression(*argument) {
+            let place = program.expression_table.display_name(*inner);
+            facts.forget_index_upper_bound(&place);
+        }
+    }
+    // Receiver field -> declared trait -> called signature.
+    let receiver_members = program.statement_table.name_path_members(call.receiver);
+    let Some(receiver) = receiver_members.last() else {
+        return;
+    };
+    let Some(attached) = machine.attached_data.as_ref() else {
+        return;
+    };
+    let Some(data) = program
+        .data_definitions()
+        .iter()
+        .find(|data| data.name.as_str() == attached.as_str())
+    else {
+        return;
+    };
+    let Some(field_type) = program.data_members(data).iter().find_map(|member| {
+        match member {
+            omega_typed_trees::data::DataMember::Field(field)
+                if field.name.as_str() == receiver.as_str() =>
+            {
+                field
+                    .type_reference
+                    .is_valid()
+                    .then_some(field.type_reference)
+            }
+            _ => None,
+        }
+    }) else {
+        return;
+    };
+    let omega_typed_trees::types::TypeReferenceNode::Named { name: trait_name, .. } =
+        program.type_reference_table.type_reference(field_type)
+    else {
+        return;
+    };
+    let Some(trait_definition) = program
+        .traits()
+        .iter()
+        .find(|definition| definition.name.as_str() == trait_name.as_str())
+    else {
+        return;
+    };
+    let Some(signature) = program
+        .trait_machine_signatures(trait_definition)
+        .iter()
+        .find(|signature| signature.name == call.target)
+    else {
+        return;
+    };
+    let parameters: Vec<_> = program
+        .state_signature_parameters(signature)
+        .iter()
+        .filter(|parameter| !parameter.is_self)
+        .collect();
+    for contract in program
+        .signature_contracts
+        .span_or_empty(signature.contracts)
+    {
+        if !matches!(contract.kind, SignatureContractKind::Ensures) {
+            continue;
+        }
+        for fact in program.proof_facts.span_or_empty(contract.facts) {
+            let ProofFact::Expression(expression) = fact else {
+                continue;
+            };
+            seed_ensures_bound_conjunct(program, &parameters, arguments, *expression, facts);
+        }
+    }
+}
+
+fn seed_ensures_bound_conjunct(
+    program: &omega_typed_trees::TypedTrees,
+    parameters: &[&omega_typed_trees::signature::StateParameter],
+    arguments: &[ExpressionHandle],
+    conjunct: ExpressionHandle,
+    facts: &mut RangeFacts<'_>,
+) {
+    use omega_typed_trees::expression::BinaryOperator;
+    let ExpressionNode::Binary(comparison) = program.expression_table.expression(conjunct) else {
+        return;
+    };
+    if comparison.operator == BinaryOperator::And {
+        let (left, right) = (comparison.left, comparison.right);
+        seed_ensures_bound_conjunct(program, parameters, arguments, left, facts);
+        seed_ensures_bound_conjunct(program, parameters, arguments, right, facts);
+        return;
+    }
+    // `param <= K` / `param < K`, param on the left (the ensures house
+    // spelling); the EXCLUSIVE bound feeds the index prover.
+    let exclusive = match comparison.operator {
+        BinaryOperator::LessOrEqual => 1,
+        BinaryOperator::Less => 0,
+        _ => return,
+    };
+    let ExpressionNode::Name(path) = program.expression_table.expression(comparison.left) else {
+        return;
+    };
+    let [param_name] = program.expression_table.name_path_members(path.members) else {
+        return;
+    };
+    let ExpressionNode::Integer(literal) = program.expression_table.expression(comparison.right)
+    else {
+        return;
+    };
+    let Some(bound) = literal.value_i64().and_then(|value| value.checked_add(exclusive)) else {
+        return;
+    };
+    let Some(position) = parameters
+        .iter()
+        .position(|parameter| parameter.name.as_str() == param_name.as_str())
+    else {
+        return;
+    };
+    let Some(argument) = arguments.get(position).copied() else {
+        return;
+    };
+    let ExpressionNode::Mutable(place) = program.expression_table.expression(argument) else {
+        return;
+    };
+    let place = program.expression_table.display_name(*place);
+    facts.prove_index_upper_bound(place, bound);
 }
