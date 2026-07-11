@@ -35,8 +35,8 @@ dispatch-region + receiver-phase family. Everything queued here avoids both.
 4. **Windows platform-verification session** (section below) — checklist-
    shaped; one session on a Windows host closes the whole list.
 
-Also standing: the rendering-sample sweep onto the direct `pixels[y*W+x]`
-spelling (R0 follow-on, under Language ergonomics).
+The rendering-sample sweep landed 2026-07-11 (see Language ergonomics;
+remaining gap: computed indexes in enum-match SUBJECT position).
 
 ## Cathedral M2 (owner priority 2026-07-15; RECAST = main lane, claimed)
 
@@ -406,9 +406,17 @@ no `unbounded` property exists. Rungs:
 - **[ENGINEERING]** numeric intrinsics remainder: sin/cos need range
   reduction + a polynomial matching interp precision — a numerical
   mini-project.
-- **Rendering-sample sweep (R0 follow-on, standing):** the direct
-  `pixels[y*W+x]` spelling serves since 2026-07-09 — sweep the rendering
-  samples' linear-counter workarounds + re-guard states onto it.
+- **Rendering-sample sweep (R0 follow-on) — SWEPT 2026-07-11:**
+  bouncing_particles dropped its flat-field sidestep (plot + render paths
+  now spell `grid[b*20+a]` / `grid[ry*20+cx]` under one dominating
+  compound guard — the cross-state incoming-guard route serves) and
+  histogram dropped the temp-field RMW idiom for the direct
+  `histogram[v] = histogram[v] + 1` (served + canaried). NOT sweepable:
+  dungeon_render — its runtime-indexed ENUM-MATCH SUBJECT
+  (`transition self.grid[k] { Cell::Wall -> ... }`) refuses a computed
+  index with the honest fence ("compute it into a field first"); the
+  match-subject position never got the R0 hoist. That is the remaining
+  gap if the direct spelling should reach match subjects too.
 
 ## Backend perf (deferred, post-1.0)
 
