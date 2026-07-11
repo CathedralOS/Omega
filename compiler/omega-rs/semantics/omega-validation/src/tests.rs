@@ -157,6 +157,78 @@ fn validate_contract_source(source: &str) -> Result<(), Vec<omega_core::diagnost
 }
 
 #[test]
+fn boundary_out_param_ensures_seeds_the_value_env() {
+    // R4 witness mint: `fw.get_size(&mut self.n)` with `ensures size <= 8`
+    // leaves `self.n` in [0, 8], so the exact-overflow proof on `n + 1`
+    // discharges without a guard.
+    validate_contract_source(
+        r#"
+    boundary trait Firmware {
+        machine get_size(size: &mut u32)
+        ensures size <= 8;
+    }
+    data Main { fw: Firmware; n: u32; m: u32; }
+    machine Main::main(&mut self) {
+        self.fw.get_size(&mut self.n);
+        self.m = self.n + 1;
+    }
+    "#,
+    )
+    .expect("the ensures-seeded bound should discharge the exact-overflow proof");
+}
+
+#[test]
+fn boundary_out_param_without_ensures_stays_unproven() {
+    // The negative rail: the same shape without the ensures keeps the
+    // decision-17 refusal (the call clears the env; nothing re-seeds).
+    let diagnostics = validate_contract_source(
+        r#"
+    boundary trait Firmware {
+        machine get_size(size: &mut u32);
+    }
+    data Main { fw: Firmware; n: u32; m: u32; }
+    machine Main::main(&mut self) {
+        self.fw.get_size(&mut self.n);
+        self.m = self.n + 1;
+    }
+    "#,
+    )
+    .expect_err("without the ensures the addition must stay unproven");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("may overflow `u32`")),
+        "expected the exact-arithmetic refusal, got {diagnostics:#?}"
+    );
+}
+
+#[test]
+fn boundary_out_param_ensures_dies_at_the_next_write() {
+    // Env facts are flow-scoped: writing the place kills the seeded bound.
+    let diagnostics = validate_contract_source(
+        r#"
+    boundary trait Firmware {
+        machine get_size(size: &mut u32)
+        ensures size <= 8;
+    }
+    data Main { fw: Firmware; n: u32; other: u32; m: u32; }
+    machine Main::main(&mut self) {
+        self.fw.get_size(&mut self.n);
+        self.n = self.other;
+        self.m = self.n + 1;
+    }
+    "#,
+    )
+    .expect_err("the rebound place must lose the ensures fact");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("may overflow `u32`")),
+        "expected an exact-arithmetic refusal after the rebind, got {diagnostics:#?}"
+    );
+}
+
+#[test]
 fn refutes_constant_false_ensures_on_empty_proof_machine() {
     let diagnostics = validate_contract_source(
         r#"

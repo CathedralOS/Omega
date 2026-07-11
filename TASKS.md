@@ -130,10 +130,22 @@ bounded-escape store-containment keystone. Open rungs:
   the init-syntax reconstruction form is still needed now that windows
   admit piecemeal writes (likely dissolved). Record:
   design_briefs/dependent_types.md §6; ch11 (windows) is the spec.
-- **R4 (boundary witness mints, proof side):** out-params as witnesses,
-  decode-minted where-facts, recast bounds discharged from couplings +
-  R1/R3. ⚠️ COORDINATE: recast MECHANICS are main-lane; this rung supplies
-  only the proof side. Unblocks the UEFI memory-map stride discharge.
+- **R4 (boundary witness mints, proof side) — SLICE 1 LANDED 2026-07-11:**
+  out-params as witnesses, S4 tier: a boundary callee's `ensures
+  <param> <= K` re-seeds the `&mut` out-argument's PLACE in the value env
+  right after the call clears it (calls::boundary_trait_signature +
+  arithmetic_domains::seed_out_param_ensures; conjunctions split,
+  literal-vs-param comparisons only, intersected with type+declared
+  ranges; flow-scoped — a later write kills it; three lib tests pin
+  mint/negative/rebind). REMAINING: the CHECKER tier — index bounds
+  (`buf[self.n]` after the ensures still refuses at "cannot prove index")
+  and bounded-target containment don't read the env; they need their own
+  ensures intake (dominating-call facts, stability-gated like incoming
+  guards). Then decode-minted where-facts + recast bounds discharged
+  from couplings + R1/R3. ⚠️ COORDINATE: recast MECHANICS are main-lane;
+  this rung supplies only the proof side. Unblocks the UEFI memory-map
+  stride discharge (`map_size <= 16384` as an ensures witness feeding
+  `offset + desc_size < map_size`).
 - **R5 (frames):** preserve-unless-written, `stores` clause, state arrival
   facts, Houdini inference. Needed when dependent facts cross
   sibling-machine calls.
