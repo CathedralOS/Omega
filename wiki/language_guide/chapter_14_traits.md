@@ -40,6 +40,19 @@ a name for the required surface.
 `satisfies Incrementable` is an explicit binding: this machine intentionally
 fulfills the matching requirement from `Incrementable`.
 
+> **Named satisfiers (drafted 2026-07-18, direction).** Under an explicit
+> `satisfies` clause, the machine's own name may differ from the trait's
+> required-machine name — so a type may carry *several named satisfiers* of
+> one trait (`Card::PowerOrder` and `Card::RarityOrder` both satisfying a
+> key-shaped ordering trait). Omega selects explicitly where Rust's implicit
+> resolution forces one impl per type: selection happens where concrete
+> meets abstract — spelled in a generic instantiation, and at a `dyn`
+> coercion, where the chosen satisfier is carried in the descriptor and
+> erased downstream (spelling provisional). Elided when unique, a loud
+> error when plural — the landed bail-on-ambiguity pattern. `measure`
+> (chapter 10) is declaration sugar for a named satisfier of the ordering
+> trait.
+
 ## Machine Binding
 
 The preferred explicit spelling is post-signature metadata on the machine.

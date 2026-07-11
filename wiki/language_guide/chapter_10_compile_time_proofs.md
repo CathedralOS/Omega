@@ -258,6 +258,12 @@ dedicated `measure` keyword.
 
 A `measure` is a standalone item: a function from the decreasing value into a
 well-founded domain such as `u64`. It is not an abused `operator` declaration.
+Semantically it is declaration sugar for a *named satisfier* of the key-shaped
+ordering trait (chapter 14) — a plain measure is a pure machine; the
+`lexicographic { }` form earns the sugar, because dictionary order over
+components that can be reset to unbounded fresh values is the one ranking
+shape that cannot flatten into a single natural (bounded components flatten
+as `m*B + n` and are linear again).
 
 ```omega
 measure Card::PowerOrder(card: Card) -> u64 { card.power }
@@ -319,40 +325,59 @@ Working rules:
 
 ## Evidence And Trust
 
-Every fact carries an evidence class, and the classes roll up into the
-binary's trust report:
+Facts are proven, computed, deferred, or accepted — and each tier is a
+distinct compiler behavior, never a label:
 
-```text
-engine        derived by the entailment engine (the default; unconditional)
-derivation    kernel-checked derivation record (unconditional)
-evaluated     decided by running a proof machine under a fuel budget
-external-run  a verified checker's recorded offline execution (attestation)
-assumed       accepted authority; no evidence
+- **Proven** (the engine, a derivation, a cited theorem): no declaration
+  exists. Most facts live here invisibly.
+- **Evaluated**: the compiler runs a measured machine under a fuel budget
+  and the result is evidence — run once, Merkle-cached.
+- **Deferred** ("prove later", written by tooling): warns on every build and
+  is a hard error in any release artifact.
+- **Accepted**: a `boundary machine` — a contract with no body, the proof
+  system's face of the boundary culture (chapter 19): trusted, audited,
+  reported.
+
+```omega
+boundary machine collatz_cert_checked()
+ensures check_collatz_cert(cert_blob_b41c) == true
 ```
 
-Rows below `evaluated` live in the build's proofs manifest (`Proofs.lock`),
-one row per accepted fact: the fact, its class, its artifacts (checker hash,
-run record, authority identity).
+Working rules:
 
-Assumption rules:
-
-- **There is no inline `assume`.** Unproven facts exist only as
-  boundary-shaped manifest rows. Local "trust me" needs are already served
-  soundly by guards, `as` mints, and the Trapping domain.
-- **Grants flow from the root.** A dependency may *request* an assumption;
-  the final program links only if the root package's manifest accepts the
-  row by name and hash. No transitively inherited axioms.
-- **The engine can veto.** An assumption the engine can refute — one that
-  contradicts declared ranges, domains, or another accepted row — is a
-  compile error, not a warning.
-- **Deferral cannot ship.** A development-class row ("prove later") warns on
-  every build and is a hard error in any release artifact.
+- **The statement carries all specificity.** Trust the narrowest thing — an
+  execution claim ("this checker accepts this certificate", the
+  certificate's identity inside the statement) rather than the theorem it
+  implies; a userspace proof machine lifts the narrow claim to the broad
+  one. The trust report cannot be vaguer than the claim, because it *is*
+  the claim.
+- **There is no inline `assume`.** Boundary machines are the only home for
+  unproven facts. They are legal in any package but **inert until granted**:
+  a library's boundary machines surface as requests when the package is
+  added.
+- **Grants flow from the root.** The final build's build.omg accepts each
+  request by symbol — `b.accept_boundary<walker_lib::collatz_cert_checked>();`
+  (a compile-time machine parameter, chapter 13). The build lockfile records
+  the statement hash automatically; a statement that drifts under a grant
+  fails the build until re-approved. No hash is ever hand-written.
+- **The engine can veto.** A boundary statement the engine can refute — one
+  contradicting declared ranges, domains, or another accepted statement —
+  is a compile error, grants notwithstanding.
 - **Blast radius is reported.** The trust report names which conclusions
-  rest on which rows; facts derived without touching a row stay in the
-  unconditional class, visibly.
-- **Assumed runtime-decidable facts get oracle tripwires**: proof builds
-  instrument them, and a test run that witnesses a violation traps naming
-  the row that lied.
+  rest on which boundary machines; facts derived without touching one stay
+  in the unconditional tier, visibly.
+- **Runtime-decidable boundary claims get oracle tripwires** in proof
+  builds: a test run that witnesses a violation traps naming the machine
+  that lied.
+
+Certificates need no construct of their own: a certificate is wire data,
+its checker is a measured machine, its soundness is a theorem
+(`check(c) == true` implies the claim), and establishment is the
+`evaluated` tier — or an `as` mint through a certificate domain
+(`domain [u8]::ValidCert { check(self); }`), the validated-decode pattern
+of chapter 8 applied to proofs. A build that can afford the check *proves*
+the claim outright; one that cannot accepts the narrow execution claim
+above and lifts it by theorem.
 
 ## Automation And Boundary
 

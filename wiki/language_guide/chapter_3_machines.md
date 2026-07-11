@@ -101,7 +101,7 @@ cycle through the call graph strictly decreases a well-founded measure:
 
 ```omega
 machine Tree::depth(node: &Node) -> u64
-terminates { decreases node -> Tree::Height; }
+terminates { decreases node -> Tree::Height in 0..=63; }
 {
     transition node.is_leaf {
         true  -> 0
@@ -122,13 +122,26 @@ Working rules:
   stack growth. Classification is strict and never silent:
   `-> 3 * Tree::depth(...)` is not tail (the multiply runs after the call
   returns), and the error names why.
-- **Non-tail recursion carries a space obligation.** The machine declares a
-  compile-time depth budget and proves the initial measure fits it
-  (spelling provisional). The activation region is an ordinary
-  machine-storage field — `[Frame; BUDGET]` plus a depth witness — sized at
-  layout time and reported like any other field (chapter 20). There is no
-  operating-system stack to overflow: an over-generous budget fails loudly
-  as a visibly large layout.
+- **Non-tail recursion carries a space obligation, spelled as the measure's
+  range.** `decreases node -> Tree::Height in 0..=63` states where the
+  measure lives; the frame region's capacity is the range's **cardinality**
+  (64 values — at most 64 strict decreases), an ordinary machine-storage
+  field sized at layout time and reported like any other field (chapter 20).
+  The obligation is the ordinary range proof at entry. There is no
+  operating-system stack to overflow: an over-generous range fails loudly as
+  a visibly large layout. The well-foundedness floor is the range's *start* —
+  any floor, not only zero, so a cursor walking `hi` down to `lo` needs no
+  re-zeroed distance measure.
+- **Dependent range endpoints are tail-only in v1.** `decreases cursor in
+  lo..=hi` with witness endpoints is legal on tail cycles (pure proof fact,
+  no storage; endpoints are pinned witnesses, re-proven at every back-edge —
+  the same fact the loop spelling declares as a parameter range). Non-tail
+  cycles require const endpoints: a runtime cardinality would be a
+  runtime-sized frame region, which storage rules ban.
+- **Lexicographic measures and non-tail do not mix in v1.** An
+  unbounded-component dictionary order has no cardinality to reserve;
+  bounded components flatten to a single linear measure (`m*B + n`) and are
+  ordinary again. Tail cycles take lexicographic measures freely.
 - **Runtime-unbounded depth does not compile.** An unranged runtime measure
   cannot discharge the budget obligation; bounding the witness — a declared
   range, a dominating guard — is the fix.

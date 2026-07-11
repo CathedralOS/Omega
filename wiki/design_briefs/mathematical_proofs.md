@@ -99,26 +99,52 @@ open-addressing probe coprimality (gcd ⟹ full slot coverage), bignum/crypto
 limb bounds (the HACL* precedent), power-of-two mask identities, CRC
 polynomial facts — the "inexpressible without hacks" list.
 
-## 4. Evidence classes and assumption discipline
+## 4. Trust: boundary machines (the ten-round collapse)
 
-`Proofs.lock` is one ledger, one row shape, five classes (engine /
-derivation / evaluated / external-run / assumed), rows upgraded in place as
-machinery arrives. The certificate-size fear is bounded by the
-proof_caching.md trilemma: our engine's derivations are proportional to
-statements (deterministic, no search transcripts); the blow-up regime is
-unstructured exhaustion, which routes to checker-proof + attestation, never
-trace-shipping.
+The trust design went through ten owner-review rounds, and the record of
+what died is the argument for what survived. Proposed and killed, in order:
+a YAML `Proofs.lock` input (build.omg exists precisely to prevent sidecar
+config); a `grant` keyword (grants are Build-API data); a path-denotes-record
+pun (context-dependent meaning); a five-class evidence ladder
+(`external_run` vs `assumed` had **no distinct compiler action** — taxonomy
+cosplaying as grammar); a structured evidence schema, then an optional
+evidence field (both re-invented what the *statement itself* can say); and
+first-class PCC (re-invented `as`). The test that did the killing, owner's:
+**a distinction earns syntax only by earning a compiler action.**
 
-Assumptions are treated as *worse than `unsafe`* because false facts are
-anti-local (ex falso propagates through the engine into modules that never
-mentioned the axiom). Hence: no inline `assume` exists; rows are
-boundary-shaped (named authority + artifact — "assume 0 = 1" is
-syntactically homeless); grants flow from the root (libraries request, the
-top package signs — no transitively smuggled axioms); the engine vetoes
-refutable assumptions; deferral-class rows cannot ship; the trust report
-names which conclusions rest on which rows; and the interpreter oracle
-tripwires assumed runtime-decidable facts in proof builds. The honest-path
-cost gradient is deliberate: guard < mint < prove < accept.
+What survived, each with its action:
+
+- **`boundary machine`** — a contract with no body; the proof system's face
+  of the existing boundary culture (boundary traits have no evidence
+  classes either; trust quality is the auditor's judgment). Legal in any
+  package, **inert until granted**. The statement carries all specificity:
+  trust the narrow execution claim (`ensures check(cert_#x) == true`, the
+  certificate's identity inside the statement) and lift it to the broad
+  theorem with a userspace proof machine.
+- **Root grants** — `b.accept_boundary<machine M>();` in build.omg (a
+  compile-time machine parameter). Libraries request; the root countersigns;
+  link fails otherwise. No transitively inherited axioms.
+- **The lockfile pin** — statement hash recorded automatically at grant;
+  drift fails the build until re-approved. No hand-typed hashes, ever.
+- **The engine veto** — refutable boundary statements are compile errors,
+  grants notwithstanding.
+- **The deferral gate** — "prove later" rows (tooling-written) warn always
+  and cannot ship.
+- **The trust report** — which conclusions rest on which boundary machines;
+  hashes are plumbing, never porcelain (grants by name, report by class).
+- **Oracle tripwires** — runtime-decidable boundary claims instrumented in
+  proof builds; a violating test run names the machine that lied.
+
+Tiers with distinct compiler behavior, final: **proven** (no declaration) |
+**evaluated** (fuel-budgeted build-time run, Merkle-cached) | **deferred**
+(unshippable) | **accepted** (boundary machine). Certificates are userspace:
+cert = wire data, checker = measured machine, soundness = membrane theorem,
+establishment = `evaluated` or an `as` mint through a certificate domain —
+the validated-decode pattern applied to proofs. Lean context: its defense is
+social (mathlib bans `sorry`; axioms beyond the sanctioned trio are
+PR-rejected; nothing structural stops a malicious package) — this design is
+that equilibrium made structural, with the attestation tier given an honest
+home instead of living in papers.
 
 ## 5. Lean-shape triage (what maps where)
 
@@ -144,17 +170,63 @@ variance (Mariposa's 2.6–5% instability is the avoided cost), Merkle-cached,
 contract-modular linear; residual = occasionally naming a ghost index the
 engine can't see (one line, deterministic error).
 
+## 5b. Post-spree settlements (owner review arc)
+
+Settled through chat review after the documentation spree; chapters updated:
+
+- **`decreases ... in <range>`** (ch3/ch9): the measure declares its range;
+  the frames clause and a `within` keyword both died. Frame capacity = the
+  range's **cardinality**; the well-foundedness floor = the range's start
+  (non-zero floors legal — no re-zeroing ceremony). Dependent endpoints
+  (witness-named, ch12 machinery: pinned across the cycle, re-proven at
+  back-edges) are tail-only in v1 — a runtime cardinality would be a
+  runtime-sized frame region. Linear monotone ranges are the only primitive;
+  lexicographic is the only extension (unbounded resets: omega-squared does
+  not order-embed into omega — bounded components flatten as `m*B + n`,
+  which is the R3 product lemma); everything else is a measure the user
+  writes. Beyond-epsilon-zero termination (Goodstein/Hydra) is unprovable in
+  arithmetic for everyone and permanently out of scope.
+- **`measure` survives as sugar for a named ordering satisfier** (ch10/ch14).
+  A dissolution into machine-returning-struct was proposed and owner-killed
+  (reflexive data; Rust's sort_by_key-returning-tuple minus tuples). The
+  mechanism underneath: ch14's landed machine-level `satisfies` clause +
+  name-freedom (machine name may differ from the trait's method name) =
+  **named satisfiers**, multiple per type, prover-transparent because the
+  ordering trait is key-shaped (rank -> well-founded carrier, never
+  cmp-shaped). Selection: spelled where concrete meets abstract (generic
+  instantiation; dyn coercion carries the choice in the descriptor);
+  elide-when-unique, loud-when-plural. Rust buys obviousness globally
+  (coherence, hence one Ord per type and the newtype smear); Omega buys it
+  locally.
+- **Machine parameters, no Fn hierarchy** (ch13). `<machine M>` binds a
+  symbol at the spelling site, monomorphized, gone by codegen; three
+  customers already wait (decreases' selector — shipped; satisfier
+  selection; sort_by-shaped APIs). Fn/FnMut/FnOnce manage *implicit
+  capture*, which Omega machines don't have: signatures = where-machine
+  grammar (landed), discipline = receiver modes, closures = machine
+  instances (fields are declared captures; borrow modes are field types),
+  erasure = dyn, threads = move-at-spawn + the `send` property. Consuming
+  receivers ride the cleanup arc; anonymous machine sugar is parked
+  (binder-bar verdict: pure sugar, wait for pain).
+
 ## 6. Open questions (for the next session)
 
 1. **Rewrite registration** (the `simp` analog): surface for admitting a
    proven equation to the normalizer; termination of rule sets — wants an
    Omega-native answer (`decreases` on rule application?). The first thing a
-   proof author reaches for once measures exist.
-2. **Budget spelling** for non-tail recursion (the const depth bound clause).
+   proof author reaches for once measures exist. The remaining design cliff.
+2. **The `by` keyword's fate**: the evidence clause died in the trust
+   collapse, regressing `by` to a single user (dyn satisfier selection) —
+   earned-keyword status revoked; re-bikeshed the coercion spelling or find
+   it a second customer.
 3. **The `unbounded` property spelling** and which proof-only types ship in
    core (`Nat`, `Int`, `Seq`?).
-4. **Deferral ergonomics**: compiler-writes-the-ledger-row tooling vs an
+4. **Deferral ergonomics**: compiler-writes-the-declaration tooling vs an
    in-source attribute paired with a mandatory row.
-5. **Reified goal type** for tactic-style proof machines (the fact AST as
-   proof-stratum data) — far rung, but its shape gates the extension node.
+5. **Reified goal type** for tactic-style proof machines — far rung; shares
+   the declaration-reification machinery sketched for `M::proof`-style
+   synthesized records (Equatable/ZII synthesis precedent).
 6. Derivation-record and kernel formats — north-star stages 2–3, unchanged.
+7. **Engineering pins**: the `<machine M>` parameter kind through the
+   generics pipeline; dyn descriptors carrying satisfier identity; the
+   in-range decreases obligation in MR3.

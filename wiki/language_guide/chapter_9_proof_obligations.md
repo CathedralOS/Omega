@@ -117,6 +117,9 @@ The intended meaning is:
   back-edges make `value` strictly smaller under this selected ranking view."
 - Plain `decreases value` should remain available when the ranking is builtin or
   otherwise unambiguous.
+- `decreases value -> View in a..=b` additionally states the measure's range:
+  the floor is the well-foundedness bound (any start, not only zero), and for
+  non-tail cycles the range's cardinality sizes the frame region (chapter 3).
 
 The important semantic piece is a well-founded ordering. A decrease metric is
 accepted only when the compiler knows how to compare successive values in a

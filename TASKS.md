@@ -226,11 +226,13 @@ transition loop-backs unchanged (unmeasured, constant-stack, may diverge).
 - **MR2 — tail lowering:** desugar tail recursive calls onto the landed
   loop-back machinery (same back-edge; loop-carried-arg staging fix already
   pins the delivery). Differential canaries.
-- **MR3 — non-tail budget:** const depth budget obligation
-  (measure <= BUDGET at entry; spelling pinned at implementation), frame
-  region as machine-storage field ([Frame; BUDGET] + depth witness), layout
-  report line for the region size. Whole-program worst-case stack line in
-  the report (additive along call chains; mutual cycles need MR4).
+- **MR3 — non-tail space rule (spelling SETTLED: `decreases m -> View in
+  a..=b`):** frame capacity = range CARDINALITY; floor = range start
+  (non-zero floors legal); const endpoints required for non-tail (dependent
+  endpoints tail-only); lexicographic + non-tail deferred (no cardinality;
+  bounded components flatten m*B+n). Frame region as machine-storage field
+  + layout report line; whole-program worst-case stack line (additive along
+  call chains; mutual cycles need MR4). Record: mathematical_proofs par-5b.
 - **MR4 — mutual cycles:** joint (lexicographic) measures across the cycle;
   the dungeon's find_item_at/find_item_after pair is the live test case
   (currently absorbed by bounded clone specialization).
