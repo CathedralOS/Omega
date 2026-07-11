@@ -338,6 +338,13 @@ Settled:
   Trigger to revisit: full-mathlib replay becoming a language goal, and
   better surgeons (owner: "we'll wait for LLMs to get better so they can
   do this surgery more precisely"). Parks next to reified goals.
+  Migration insurance, pinned now so the door stays a door: universes, if
+  ever, are PROOF-STRATUM-ONLY — runtime types stay static forever, and no
+  future feature may depend on "types are never values" for soundness
+  elsewhere. Under that fence the move is additive: predicative proofs are
+  valid impredicative proofs (a schema instance IS the universe theorem
+  instantiated), so the corpus ports verbatim; the kernel is built
+  alongside the engine, not inside it.
 - **Fact-position operators route by operand type**: Nat/Int/Rat compute
   (engine bignum); Real rearranges (the glyph maps to the declared symbol;
   the normalizer works under the ring axioms — the polynomial layer is
@@ -353,12 +360,12 @@ Open sub-decisions (owner-gated, dependency order):
    accepted-tier grant row; constructivists simply do not grant it; the
    trust report shows whether a proof tower is classical or constructive.
    A century-old philosophy-of-math war absorbed as a lockfile row.
-2. **Machine-parameterized proof data.** A CauchySeq wraps a stream;
-   recommendation: `data CauchySeq<machine S>` — extend ch13 machine
-   params from machines to data declarations (monomorphization everywhere,
-   no machine-valued fields, consistent with the runtime ban). Nested
-   schemas (machine parameters whose signatures take machine parameters)
-   are the one genuinely new capability the construction demands.
+2. ~~Machine-parameterized proof data~~ **SETTLED**: `data
+   CauchySeq<machine S>` — ch13 machine params extend from machines to
+   data declarations (monomorphization everywhere, no machine-valued
+   fields, consistent with the runtime ban). Nested schemas (machine
+   parameters whose signatures take machine parameters) remain the one
+   genuinely new capability the construction demands.
 3. **Quotient spelling.** The gadget is Lean-small (four constants and one
    reduction rule); the engine learns lift-of-mk reduction plus congruence
    over the user equivalence at the quotient type. Needs an Omega-native
