@@ -212,10 +212,26 @@ Settled through chat review after the documentation spree; chapters updated:
 
 ## 6. Open questions (for the next session)
 
-1. **Rewrite registration** (the `simp` analog): surface for admitting a
-   proven equation to the normalizer; termination of rule sets — wants an
-   Omega-native answer (`decreases` on rule application?). The first thing a
-   proof author reaches for once measures exist. The remaining design cliff.
+1. ~~Rewrite registration~~ **SETTLED: fact injection is the default;
+   registration is PARKED.** Carrying a theorem to a site is an ordinary
+   statement call (a fact-only machine invoked for its `ensures`, which
+   enters flow facts and erases at codegen — the composition rule's normal
+   job). Rationale (owner): in the co-authored-code era the tradeoff simp
+   optimized has inverted — verbosity is cheap (machines type the ceremony)
+   while invisible context is expensive (humans and models read the file
+   cold); an explicit lemma call keeps the proof structure in the text,
+   where an import-activated rewrite proves things for reasons visible only
+   in the import list. Mitigations shipping with the default: the failure
+   diagnostic names the missing lemma by shape-match ("note: mask_is_mod
+   rewrites `_ & (_ - 1)` and is not in scope"), and derivation records name
+   the lemmas each obligation consumed. Dafny is the existence proof that
+   this mode works at scale. The registration design is retained here for
+   un-parking if a math-library corpus ever hurts at mathlib scale: rules
+   must shrink under ONE engine-canonical term order (measured rewriting —
+   modular, packages compose), conditional rules re-discharge side
+   conditions per site, activation is import-scoped (nothing ambient),
+   direction and eligibility are declared at the definition (`[rewrite]`,
+   the satisfies-not-structural-matching precedent).
 2. ~~The `by` keyword's fate~~ **SETTLED — `by` is deleted, zero users.**
    The dyn coercion respelled as `&card as &dyn Card::PowerOrder` (owner):
    dyn-over-a-satisfier-path, decaying immediately to `&dyn Trait`; implicit
