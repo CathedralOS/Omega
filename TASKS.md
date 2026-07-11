@@ -66,9 +66,13 @@ measured remaining M2 blockers, NOW IN ORDER:
    the unproven-offset case names the real failure and all three
    discharge routes (declared range, dominating guard, boundary-ensures
    witness) — pinned fail/recast/unbounded_offset_names_the_bound. Note
-   the ensures WITNESS route also landed (see R4): the literal half of
-   the walk bound is dischargeable today; (a) per-edge meet and (b) the
-   symbolic route remain.
+   the ensures WITNESS route also landed (see R4), and (a) the PER-EDGE
+   MEET landed 2026-07-11: every incoming edge must prove (constant /
+   guard / ensures routes per edge) and the max wins — pinned
+   pass/recast/runtime_multi_edge_offset_meet_exit +
+   fail/recast/multi_edge_offset_meet_rejected. Only (b) the symbolic
+   route (`offset + desc_size < map_size` + a desc_size lower-bound
+   witness) remains in this blocker's main-lane half.
 3. **depend-mapping**: `b.depend("uefi", path(...))` is not wired into
    use-resolution (uses resolve root-relative only) — Cathedral's
    contracts/ + core/ packages can't be reached from boot/ without the
