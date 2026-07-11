@@ -111,6 +111,25 @@ subtraction-closed reasoning wants it, with one rule stated at introduction:
 `Int`'s order has no floor, so `decreases` measures stay `Nat`-valued or
 range-floored.
 
+Proof-only types compose by two derivation forms: `in` constrains a carrier
+(chapter 8's domain shape — fewer values admitted), and `/` coarsens one — a
+quotient, read as math's "modulo": sort the carrier into buckets of values
+the relation calls interchangeable, and the buckets become the values.
+Wrapping arithmetic is the familiar instance (`u32` addition is integer
+addition with numbers differing by 2^32 counted the same):
+
+```omega
+data Real = CauchySeq / converges_together;
+```
+
+Working rules: the relation must be proven an equivalence (reflexive,
+symmetric, transitive — ordinary lemma obligations); entry is the ordinary
+mint (`seq as Real`); a machine on the carrier is callable on the quotient
+only when it carries the respect proof (`ensures equiv(a, b) => f(a) ==
+f(b)` — bucket-safe outputs); and proven `equiv(a, b)` makes `(a as Real)
+== (b as Real)` a fact. Equality on a quotient means "same bucket," never
+"same representative".
+
 ## Proof Views
 
 Runtime data often needs a mathematical view before it can be reasoned about.
@@ -432,6 +451,11 @@ grant/lockfile/report machinery. An ensures-less declaration claims nothing
 and needs no grant; each axiom is one accepted-tier row. Axioms retire by
 the standard upgrade: ship the constructed type with its proven theorems,
 and consumers swap grant for import.
+
+Core ships classical logic itself this way: excluded middle is a boundary
+machine, granted like anything else — nothing is granted by default, not
+even logic (project templates carry the line). A build that never grants it
+is constructive, and its trust report says so.
 
 ## Automation And Boundary
 

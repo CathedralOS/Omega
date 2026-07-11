@@ -273,11 +273,14 @@ no `unbounded` property exists. Rungs:
 - **N5 — `boundary data` + the Real axiom package:** opaque carrier;
   ensures-less boundary machines = claim-free symbols (no grant); axioms =
   accepted-tier rows; schema axioms as `<machine P>` boundary machines (one
-  grant covers the schema statement). OWNER-GATED input: the LEM row
-  (classical logic as a core boundary machine — recommended, unruled).
-- **N6 — quotients (OWNER-GATED spelling):** proof-only type former;
-  lift-of-mk reduction + congruence over the user equivalence.
-- **N7 — nested schemas (OWNER-GATED spelling, with N6):** machine params
+  grant covers the schema statement). LEM ruling SETTLED: excluded middle
+  = ordinary core boundary machine; nothing granted by default (templates
+  carry the grant line); trust report shows classical vs constructive.
+- **N6 — quotients (spelling SETTLED: `data Real = CauchySeq /
+  converges_together`):** `as` = mk; respect-ensures gates lift;
+  congruence over the user equivalence; refl/symm/trans as ordinary lemma
+  obligations. Record: mathematical_proofs par-7.
+- **N7 — nested schemas:** machine params
   on proof data (`data CauchySeq<machine S>`) + machine-parameter
   signatures that themselves take machine parameters.
 - **N8 — the construction corpus:** Cauchy Real, well-definedness, order,

@@ -354,22 +354,40 @@ Settled:
 
 Open sub-decisions (owner-gated, dependency order):
 
-1. **Classical logic.** The construction forces it: trichotomy and
-   division well-definedness are unprovable without excluded middle.
-   Recommendation on record: LEM ships as a boundary machine in core — one
-   accepted-tier grant row; constructivists simply do not grant it; the
-   trust report shows whether a proof tower is classical or constructive.
-   A century-old philosophy-of-math war absorbed as a lockfile row.
+1. ~~Classical logic~~ **SETTLED (owner sided with the Coq
+   philosophy).** LEM is an ordinary core boundary machine; NOTHING is
+   granted by default, not even logic — "grants flow from the root" stays
+   absolute with zero exceptions. Project templates carry the one grant
+   line; constructivists delete it; the trust report shows whether a proof
+   tower is classical or constructive. Why Lean chose the other default,
+   for the record: audience — mathlib's working mathematicians are
+   classical to the bone, while Coq's proofs-as-programs culture needed
+   constructivity for extraction (classical axioms break "a proof of
+   exists-x computes x"). Omega is Coq-shaped for a systems reason:
+   what-did-you-assume is the brand. Note LEM is not choice: choice is the
+   stronger axiom and implies LEM (Diaconescu); Lean ships choice and
+   derives LEM. A century-old philosophy-of-math war absorbed as a
+   lockfile row.
 2. ~~Machine-parameterized proof data~~ **SETTLED**: `data
    CauchySeq<machine S>` — ch13 machine params extend from machines to
    data declarations (monomorphization everywhere, no machine-valued
    fields, consistent with the runtime ban). Nested schemas (machine
    parameters whose signatures take machine parameters) remain the one
    genuinely new capability the construction demands.
-3. **Quotient spelling.** The gadget is Lean-small (four constants and one
-   reduction rule); the engine learns lift-of-mk reduction plus congruence
-   over the user equivalence at the quotient type. Needs an Omega-native
-   declaration form when the lane reaches it.
+3. ~~Quotient spelling~~ **SETTLED: the slash.** `data Real =
+   CauchySeq / converges_together;` — math's T/~ read as "modulo," the
+   dual of the `in` derivation form (`in` constrains a carrier, `/`
+   coarsens one; wrapping arithmetic is the familiar quotient — u32
+   addition is integer addition mod 2^32). No new name enters the type
+   namespace. The four pieces land on existing constructs: equivalence =
+   three ordinary lemma obligations (refl/symm/trans); mk = the `as` mint
+   (`seq as Real`); lift = the respect-ensures gate (`equiv(a,b) => f(a)
+   == f(b)` — bucket-safe machines are callable on the quotient, others
+   reject); sound = engine congruence (proven `equiv(a,b)` makes `(a as
+   Real) == (b as Real)` a fact). Documented ch10 Proof-Only Data.
+
+With these, the Real arc is OWNER-COMPLETE: N1-N8 carry no remaining
+design gates.
 
 The corpus (well-definedness of the ops, ordering, completeness) is
 mathlib-scale ceremony: long, LLM-parallel, zero runtime-compiler conflict
