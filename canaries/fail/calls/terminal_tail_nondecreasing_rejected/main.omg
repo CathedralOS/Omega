@@ -5,7 +5,7 @@
 // (Deleting the base-case exit refuses identically: nothing to refute.)
 boundary trait Console { machine exit_process(return_code: i32); }
 data Main { console: Console; }
-machine Main::countdown(&mut self, n: u64 in Trapping) -> u64
+machine Main::countdown(&mut self, n: u64 [0..=100]) -> u64
 terminates { decreases n; }
 {
     transition n == 0 { true -> 7 }

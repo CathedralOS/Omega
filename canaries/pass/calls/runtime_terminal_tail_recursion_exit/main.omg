@@ -9,13 +9,16 @@
 // default-order inference misread ANY constrained scalar -- `u64 in
 // Trapping`, `u64 [0..=100]` -- as a SLICE because the constraint shell
 // renders brackets; kinds now classify the unwrapped base.) The
-// arithmetic on the rewritten unguarded edge rides the Trapping domain;
-// the decision-17 fold's own complement reading is a recorded follow-on.
+// arithmetic on the rewritten unguarded edge proves in the EXACT domain:
+// validation's S4 value-env narrows later statements by the negated
+// guard of every exit-if-true transition (fall_through_narrowed_env),
+// including refuted-equality point exclusion (n == 0 refuted on
+// [0..=100] gives n in [1..=100], so n - 1 fits).
 // Non-decreasing and missing-base-case twins refuse:
 // fail/calls/terminal_tail_nondecreasing_rejected.
 boundary trait Console { machine exit_process(return_code: i32); }
 data Main { console: Console; }
-machine Main::countdown(&mut self, n: u64 in Trapping) -> u64
+machine Main::countdown(&mut self, n: u64 [0..=100]) -> u64
 terminates { decreases n; }
 {
     transition n == 0 { true -> 7 }

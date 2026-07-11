@@ -752,6 +752,20 @@ fn validate_state_statement_node(
                 value_env,
             );
 
+            // Fall-through complement: an exit-if-true transition (valid
+            // target, no `_` arm) leaves the guard REFUTED for every later
+            // statement in this state -- the MR2 terminal-tail shape's
+            // `n - 1` after `transition n == 0 { true -> exit }`.
+            if transition.target.is_valid() && !transition.continuation.is_valid() {
+                *value_env = arithmetic_domains::fall_through_narrowed_env(
+                    program,
+                    machine,
+                    machine_symbols.state(state_name),
+                    &transition.guard,
+                    value_env,
+                );
+            }
+
             // A transition VALUE target (`_ -> (expr)`) is a return value. When the
             // state's return type declares a `[a..=b]`, enforce the value is provably
             // within it (so call-site narrowing that trusts the range is sound); the

@@ -173,6 +173,39 @@ pub(crate) fn guard_narrowed_env(
     env
 }
 
+/// S4 fall-through complement (MR2 exact-domain unlock): a guarded
+/// transition with a valid target and NO fall-through arm EXITS when its
+/// guard holds, so every LATER statement in the state runs under the
+/// guard's NEGATION (`transition n == 0 { true -> 7 }` then
+/// `-> countdown(n - 1)` may assume n >= 1). Returns `base` refined by the
+/// negated guard; same simple-comparison leaves as the arm narrowing.
+pub(crate) fn fall_through_narrowed_env(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: Option<&State>,
+    guard: &omega_typed_trees::statement::TransitionGuardNode,
+    base: &ValueEnv,
+) -> ValueEnv {
+    use omega_typed_trees::statement::TransitionGuardNode;
+    let mut env = base.clone();
+    let TransitionGuardNode::When(guard_expr) = guard else {
+        return env;
+    };
+    // The multi-arm desugar wraps `(cmp) == true|false`; a single-arm guard
+    // stores the comparison bare. Unwrap when present, else negate the whole
+    // expression.
+    if let ExpressionNode::Binary(equality) = program.expression_table.expression(*guard_expr)
+        && equality.operator == BinaryOperator::Equal
+        && let ExpressionNode::Boolean(arm_true) =
+            program.expression_table.expression(equality.right)
+    {
+        narrow_env_by_condition(program, machine, state, &mut env, equality.left, !*arm_true);
+        return env;
+    }
+    narrow_env_by_condition(program, machine, state, &mut env, *guard_expr, false);
+    env
+}
+
 /// Narrow `env` by a guard condition holding with the given polarity,
 /// recursing through the boolean structure: a POSITIVE `a && b` narrows by
 /// both conjuncts (each may bound a DIFFERENT place -- `dir >= 0 && dir <= 1`
@@ -217,8 +250,14 @@ fn narrow_env_by_condition(
         } else {
             return;
         };
-    // A negative arm narrows by the NEGATED comparison.
+    // A negative arm narrows by the NEGATED comparison. A negated EQUALITY
+    // is a point exclusion: it tightens an interval only when an END sits
+    // exactly on the excluded literal (`n == 0` refuted with `n: u64` gives
+    // n >= 1), handled below after the type/declared intersection.
+    let negated_equality = !positive && comparison.operator == BinaryOperator::Equal;
     let operator = if positive {
+        comparison.operator
+    } else if negated_equality {
         comparison.operator
     } else {
         let Some(negated) = negate_comparison(comparison.operator) else {
@@ -229,6 +268,33 @@ fn narrow_env_by_condition(
     let Some(name) = place_path(program, place_expr) else {
         return;
     };
+    if negated_equality {
+        // Start from the full line; the intersection below brings in the
+        // type + declared ranges, then the point exclusion bumps an end.
+        let mut interval = Interval {
+            low: None,
+            high: None,
+        };
+        if let Some(handle) = declared_place_type_raw(program, machine, state, place_expr) {
+            if let Some(type_interval) = program
+                .primitive_type_reference(handle)
+                .and_then(primitive_range)
+            {
+                interval = interval.intersect(type_interval);
+            }
+            if let Some(declared_range) = range_constraint_interval(program, handle) {
+                interval = interval.intersect(declared_range);
+            }
+        }
+        if interval.low == Some(literal) {
+            interval.low = literal.checked_add(1);
+        }
+        if interval.high == Some(literal) {
+            interval.high = literal.checked_sub(1);
+        }
+        env.narrow(name, interval);
+        return;
+    }
     let (_, low, high) = bound_from(name.clone(), operator, literal, name_on_left);
     let mut interval = Interval { low, high };
     // Intersect with the place's type range AND its declared `[a..=b]` range
