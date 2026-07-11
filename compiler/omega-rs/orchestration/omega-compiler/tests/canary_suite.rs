@@ -30546,6 +30546,23 @@ fn efi_vtable_field_call_emits_indirect_dispatch() {
 // reads the layout-computed +40 field. Cross-compiled for uefi_x64 on every
 // host.
 #[test]
+fn efi_two_provides_rows_cross_compile() {
+    // M2 blocker 1: two authored provides rows coexist (interned Custom
+    // keys); cross-compiled for uefi_x64 on any host.
+    let canary = pass_canary("targets/efi_two_provides_rows");
+    let build_dir = std::env::temp_dir().join(format!("omega-two-rows-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: Some("uefi_x64".to_owned()),
+        write_output: true,
+    })
+    .expect("two provides rows should cross-compile for uefi_x64");
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn efi_out_param_call_marshals_addresses_and_stack_args() {
     let canary = pass_canary("targets/efi_out_param_call");
     let build_dir = std::env::temp_dir().join(format!(

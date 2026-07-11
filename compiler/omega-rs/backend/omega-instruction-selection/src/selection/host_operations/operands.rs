@@ -153,7 +153,7 @@ pub(super) fn select_host_operation_operands(
         // a value; the declared arguments then start at index 1. Any
         // unresolvable operand => NO operands, so the encoder hard-errors
         // rather than calling with garbage.
-        (HostCapability::Unknown, _) => {
+        (HostCapability::Unknown | HostCapability::Custom(_), _) => {
             let arity = input
                 .host_calls
                 .arguments

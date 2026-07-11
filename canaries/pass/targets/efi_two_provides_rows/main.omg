@@ -1,0 +1,63 @@
+// M2 BLOCKER 1 (landed 2026-07-11): TWO authored provides rows in one
+// image -- get_memory_map + exit_boot_services on the same trait. Names
+// outside the built-in host catalog now intern to stable Custom keys
+// (Copy, process-wide), so any number of authored rows coexist; the
+// selection/encoding/import arms that keyed the authored path on the old
+// (Unknown, Unknown) sentinel accept Custom alongside it. A genuinely
+// repeated (trait, method) pair still collides loudly:
+// fail/targets/duplicate_provides_row_rejected. Cross-compiled for
+// uefi_x64 on any host; M2's three-row image (output_string + these two)
+// is now expressible.
+boundary trait BootServices {
+    machine get_memory_map(
+        this: addr,
+        map_size: &mut u64,
+        map: addr,
+        key: &mut u64,
+        desc_size: &mut u64,
+        desc_version: &mut u32
+    ) -> i32;
+    machine exit_boot_services(this: addr, handle: addr, key: u64) -> i32
+    effects device_io;
+}
+data EfiBootServicesTable {
+    hdr: u64;
+    raise_tpl: addr;
+    restore_tpl: addr;
+    allocate_pages: addr;
+    free_pages: addr;
+    get_memory_map: addr;
+    exit_boot_services: addr;
+}
+uefi_x64 provides BootServices over EfiBootServicesTable {
+    get_memory_map -> get_memory_map;
+    exit_boot_services -> exit_boot_services;
+}
+data EfiSystemTable {
+    hdr_signature: u64; hdr_revision: u32; hdr_header_size: u32; hdr_crc: u32; hdr_reserved: u32;
+    firmware_vendor: addr; firmware_revision: u32; fw_pad: u32;
+    console_in_handle: addr; con_in: addr; console_out_handle: addr; con_out: addr;
+    runtime_services: addr; boot_services: addr;
+}
+data Main {
+    bs: BootServices;
+    map_size: u64;
+    key: u64;
+    desc_size: u64;
+    desc_version: u32;
+    map_buf: [u8; 256];
+}
+boundary machine Main::run(&mut self, handle: addr, table: &EfiSystemTable) -> i32 {
+    self.map_size = 256;
+    let boot_services: addr = table.boot_services;
+    _ = self.bs.get_memory_map(
+        boot_services,
+        &mut self.map_size,
+        &self.map_buf,
+        &mut self.key,
+        &mut self.desc_size,
+        &mut self.desc_version
+    );
+    _ = self.bs.exit_boot_services(boot_services, handle, self.key);
+    transition { _ -> (0) }
+}

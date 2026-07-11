@@ -53,17 +53,18 @@ design — nothing here is owner-gated; claim and build.** Design cites per
 item; the one design question found en route (ensures-as-vouch vs guard for
 the firmware out-values) is RESOLVED against the vouch — see blocker 2.
 
-1. **Provides-row catalog holds ONE custom row per image (NEW, first
-   blocker).** ANY two rows collide — even one trait's two methods
-   (`BootServices::get_memory_map` + `exit_boot_services`): "fall outside
-   the closed operation catalog and would collide; string-keyed operations
-   are not built yet". M2 needs THREE rows (output_string + get_memory_map
-   + exit_boot_services). The single-row M1 compiles+boots; the moment a
-   second row exists, emission refuses. This gates M2 AHEAD of the walk
-   proof. [ENGINEERING — the design is already the field model (extern
-   brief §12): operations are identified by their (trait, method) symbol;
-   the closed enum just needs the string/symbol-keyed lane its own error
-   message anticipates. No owner input needed.]
+1. **Provides-row catalog — LANDED 2026-07-11 (main lane):** names
+   outside the built-in host catalog intern to stable `Custom(u32)` keys
+   (process-wide interner in omega-calling-conventions; the key stays
+   Copy, binding/call sites agree by construction), and the four
+   authored-row consumer arms (selection operands, x86_64 encode +
+   relocation-sites, emission-planning import blockers) accept Custom
+   alongside the old Unknown sentinel. Any number of authored rows
+   coexist; a genuinely repeated (trait, method) pair still collides
+   loudly. Pinned pass/targets/efi_two_provides_rows (get_memory_map +
+   exit_boot_services cross-compiled for uefi_x64) +
+   fail/targets/duplicate_provides_row_rejected. M2's three-row image is
+   expressible. [Original: the design is the field model, extern §12.]
 2. **Gap-4 remainder, confirmed against the real walk**: the landed
    guard-route is single-predecessor + literal-K only; the walk state is
    the multi-predecessor self-re-entering loop its own comment names, so
