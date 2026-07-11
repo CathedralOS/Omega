@@ -276,10 +276,13 @@ no `unbounded` property exists. Rungs:
   grant covers the schema statement). LEM ruling SETTLED: excluded middle
   = ordinary core boundary machine; nothing granted by default (templates
   carry the grant line); trust report shows classical vs constructive.
-- **N6 — quotients (spelling SETTLED: `data Real = CauchySeq /
-  converges_together`):** `as` = mk; respect-ensures gates lift;
+- **N6 — quotients (spelling SETTLED: `data Real = CauchySeq %
+  converges_together` — bodyless data decl, `%` = the one new type
+  expression):** `as` = mk, carrier-only; respect-ensures gates lift;
   congruence over the user equivalence; refl/symm/trans as ordinary lemma
-  obligations. Record: mathematical_proofs par-7.
+  obligations. Buckets span the machine-param family (the equivalence is
+  a nested-schema machine — N7 customer). Record: mathematical_proofs
+  par-7.
 - **N7 — nested schemas:** machine params
   on proof data (`data CauchySeq<machine S>`) + machine-parameter
   signatures that themselves take machine parameters.

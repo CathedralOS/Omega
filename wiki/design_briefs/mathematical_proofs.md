@@ -351,6 +351,12 @@ Settled:
   ring-generic). Real never exists at runtime, so it never queues behind
   the runtime operator-overloading question (posits et al. — that arc
   stays open, and it is the one genuine gap the posit exploration exposed).
+- **One lockfile (owner).** Trust receipts and package resolution share
+  the same machine-written lockfile — "one to rule them all rather than
+  keeping it disjoint." build.omg stays the only file a human authors;
+  the lock is the compiler's receipt: statement hashes of granted
+  boundaries beside pinned package identities. The Cargo.toml/Cargo.lock
+  split, with the receipt side unified.
 
 Open sub-decisions (owner-gated, dependency order):
 
@@ -374,17 +380,27 @@ Open sub-decisions (owner-gated, dependency order):
    fields, consistent with the runtime ban). Nested schemas (machine
    parameters whose signatures take machine parameters) remain the one
    genuinely new capability the construction demands.
-3. ~~Quotient spelling~~ **SETTLED: the slash.** `data Real =
-   CauchySeq / converges_together;` — math's T/~ read as "modulo," the
-   dual of the `in` derivation form (`in` constrains a carrier, `/`
-   coarsens one; wrapping arithmetic is the familiar quotient — u32
-   addition is integer addition mod 2^32). No new name enters the type
-   namespace. The four pieces land on existing constructs: equivalence =
-   three ordinary lemma obligations (refl/symm/trans); mk = the `as` mint
-   (`seq as Real`); lift = the respect-ensures gate (`equiv(a,b) => f(a)
-   == f(b)` — bucket-safe machines are callable on the quotient, others
-   reject); sound = engine congruence (proven `equiv(a,b)` makes `(a as
-   Real) == (b as Real)` a fact). Documented ch10 Proof-Only Data.
+3. ~~Quotient spelling~~ **SETTLED: `%`, corrected from the slash.**
+   `data Real = CauchySeq % converges_together;` — the owner caught the
+   `/` misread ("it looks like we're dividing by a keyword"): `/` was
+   math transcription (T/~), where `%` says wrap-by-equivalence in the
+   audience's native glyph — wrapping arithmetic IS the familiar quotient.
+   Honesty correction on the record: the "dual `in` derivation form"
+   (`data X = Y in D`) cited in chat was extrapolation, NOT landed — ch8's
+   landed surface is `in`-annotated type expressions (`&[u8] in Utf8`)
+   plus `as` mints. The quotient therefore introduces ONE new declaration
+   face, not two: bodyless `data Name = <type expression>;` (the const
+   assignment precedent), with `%` as the single new type-expression
+   form. The four pieces land on existing constructs: equivalence = three
+   ordinary lemma obligations (refl/symm/trans); mk = the `as` mint,
+   CARRIER-ONLY (`seq as Real`; `42 as Real` rejects — that road runs
+   through Rat and a constant stream); lift = the respect-ensures gate
+   (`equiv(a,b) => f(a) == f(b)` — bucket-safe machines callable on the
+   quotient, others reject); sound = engine congruence. The buckets span
+   the machine-parameterized family — pi-via-Leibniz and pi-via-Machin
+   are different `CauchySeq<S>` instantiations in one bucket (that is the
+   point) — so `converges_together` is itself a nested-schema machine:
+   one more N7 customer. Documented ch10 Proof-Only Data.
 
 With these, the Real arc is OWNER-COMPLETE: N1-N8 carry no remaining
 design gates.
