@@ -1,0 +1,33 @@
+// RUN CANARY (exit 70) + interpreter differential. R0's last position: a
+// COMPUTED index in an enum-match SUBJECT (`transition self.grid[self.r *
+// 3 + self.c] { Cell::... }`). The membership-subject hoist used to emit
+// its shared temp with the raw computed index inside (`let __hoist =
+// grid[r*3+c]`), which the #40 fence then refused ("compute it into a
+// field first") -- the ONE position the R0 index hoist missed. The mint
+// now hoists the subject's computed index into its own temp first, like
+// every other position (landed 2026-07-11; swept dungeon_render onto the
+// direct spelling). Bounds discharge through the dominating compound
+// guard, same as read/write positions.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Cell { case Empty; case Wall; case Goal; }
+data Main {
+    console: Console;
+    grid: [Cell; 6];
+    r: u32 in Wrapping;
+    c: u32 in Wrapping;
+}
+machine Main::main(&mut self) {
+    self.grid = [Cell::Empty, Cell::Wall, Cell::Empty, Cell::Empty, Cell::Empty, Cell::Goal];
+    self.r = 1;
+    self.c = 2;
+    transition self.r * 3 + self.c < 6 { true -> classify() _ -> bad() }
+    state classify(&mut self) {
+        transition self.grid[self.r * 3 + self.c] {
+            Cell::Empty -> bad()
+            Cell::Wall  -> bad()
+            Cell::Goal  -> good()
+        }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self)  { self.console.exit_process(71); }
+}

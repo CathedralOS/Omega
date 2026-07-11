@@ -1006,6 +1006,31 @@ fn hoist_membership_match_subject(
     let name = match lowerer.match_subject_temp(subject_key) {
         Some(existing) => DiagnosticName::generated(existing),
         None => {
+            // The subject's INDEX may itself be a hoistable COMPUTED
+            // expression (`grid[r * 6 + c]` as a match subject -- the
+            // dungeon_render shape): hoist it into its own temp FIRST,
+            // exactly as operand positions do, so the emitted subject let
+            // indexes a slotted plain place (otherwise the #40 computed-
+            // index fence refuses the initializer). Only on the minting
+            // arm: sibling arms' lowered reads are orphaned anyway.
+            if let ExpressionNode::Indexed(indexed) = lowerer
+                .symbol_resolved_trees
+                .tables
+                .bodies
+                .expressions
+                .expression(membership.value)
+                .clone()
+            {
+                let index = hoist_index(lowerer, indexed.index, hoisted, false);
+                set_expression(
+                    lowerer,
+                    membership.value,
+                    ExpressionNode::Indexed(TableIndexedExpression {
+                        collection: indexed.collection,
+                        index,
+                    }),
+                );
+            }
             let fresh = lowerer.next_hoist_name();
             lowerer.record_match_subject_temp(subject_key, fresh.clone());
             let name = DiagnosticName::generated(fresh);
