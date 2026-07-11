@@ -54,6 +54,7 @@ pub(super) fn parse_transition_guard_node<'tokens, 'source>(
     (
         TransitionGuardNode,
         Option<DestructureBindings>,
+        Option<Vec<Option<bool>>>,
         Input<'tokens, 'source>,
     ),
     ParseError,
@@ -72,7 +73,7 @@ pub(super) fn parse_transition_guard_node<'tokens, 'source>(
         && let Some((guard, bindings)) =
             parse_version_pattern_arm(syntax_trees, pattern_input, subject[0])?
     {
-        return Ok((guard, Some(bindings), rest));
+        return Ok((guard, Some(bindings), None, rest));
     }
     // Any OTHER spelling that embeds a `Type::vN(...)` selector (nested in a
     // larger pattern expression, non-identifier binding, ...) is still
@@ -87,7 +88,7 @@ pub(super) fn parse_transition_guard_node<'tokens, 'source>(
         && let Some((guard, bindings)) =
             parse_destructure_pattern_arm(syntax_trees, pattern_input, subject[0])?
     {
-        return Ok((guard, Some(bindings), rest));
+        return Ok((guard, Some(bindings), None, rest));
     }
 
     let (patterns, pattern_rest) = parse_transition_pattern_list(syntax_trees, pattern_input)?;
@@ -101,13 +102,13 @@ pub(super) fn parse_transition_guard_node<'tokens, 'source>(
                 Some(expression) => TransitionGuardNode::When(expression),
                 None => TransitionGuardNode::Always,
             };
-            return Ok((guard, None, rest));
+            return Ok((guard, None, None, rest));
         }
         return Err(input.error_here("anonymous transition blocks do not support tuple patterns"));
     }
 
     if patterns.len() == 1 && patterns[0].is_none() {
-        return Ok((TransitionGuardNode::Always, None, rest));
+        return Ok((TransitionGuardNode::Always, None, None, rest));
     }
 
     if subject.len() != patterns.len() {
@@ -118,6 +119,20 @@ pub(super) fn parse_transition_guard_node<'tokens, 'source>(
         )));
     }
 
+    // The arm's BOOL-TUPLE shape (bool literals / `_` wildcards only) feeds
+    // the block-level exhaustiveness rewrite: a covering matrix's last arm
+    // becomes the fall-through (ch4's canonical `(found, has_next)` example
+    // has no `_ ->` arm; coverage IS the completeness proof).
+    let bool_tuple: Option<Vec<Option<bool>>> = patterns
+        .iter()
+        .map(|pattern| match pattern {
+            None => Some(None),
+            Some(handle) => match syntax_trees.expressions.expression(*handle) {
+                ExpressionNode::Boolean(value) => Some(Some(*value)),
+                _ => None,
+            },
+        })
+        .collect();
     let mut combined = ExpressionHandle::invalid();
     for (left, right) in subject.iter().copied().zip(patterns.into_iter()) {
         let Some(right) = right else {
@@ -168,6 +183,7 @@ pub(super) fn parse_transition_guard_node<'tokens, 'source>(
             TransitionGuardNode::Always
         },
         None,
+        bool_tuple,
         rest,
     ))
 }

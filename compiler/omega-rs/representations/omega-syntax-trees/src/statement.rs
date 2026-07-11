@@ -51,6 +51,13 @@ impl StatementTable {
         self.transition_targets.insert(target)
     }
 
+    /// Replace a node in place. Reserved for PARSE-phase desugars (the
+    /// bool-tuple exhaustiveness rewrite) -- downstream stages treat the
+    /// table as immutable, mirroring `ExpressionTable::replace_expression`.
+    pub fn replace_statement(&mut self, handle: StatementHandle, statement: StatementNode) {
+        *self.statements.get_mut(handle) = statement;
+    }
+
     pub fn statement(&self, handle: StatementHandle) -> &StatementNode {
         self.statements.get(handle)
     }

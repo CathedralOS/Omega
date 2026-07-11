@@ -1,0 +1,24 @@
+// RUN CANARY (exit 70) + interpreter differential. Bool-matrix
+// EXHAUSTIVENESS for tuple-subject transitions (ch4's canonical
+// `(found, has_next)` example carries NO `_ ->` arm): a covering
+// bool-literal/wildcard matrix's last arm rewrites to the fall-through
+// at parse (dispatch tests arms in order, so an input reaching a
+// covering matrix's last arm must match it). The pre-existing
+// runtime_tuple_transition_exit canary pins the `_`-armed tuple form;
+// this one pins the coverless-complete form (M2 surface gap #3).
+// Uncovered matrices keep the loud refusal
+// (fail/control_flow/tuple_transition_uncovered_rejected).
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; out: i32; }
+machine Main::main(&mut self) {
+    let found: bool = true;
+    let has_next: bool = false;
+    transition (found, has_next) {
+        (true, _) -> hit()
+        (false, true) -> step()
+        (false, false) -> stop()
+    }
+    state hit(&mut self)  { self.console.exit_process(70); }
+    state step(&mut self) { self.console.exit_process(71); }
+    state stop(&mut self) { self.console.exit_process(72); }
+}

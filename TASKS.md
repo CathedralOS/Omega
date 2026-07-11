@@ -53,8 +53,15 @@ fail/calls/plain_let_reassign_rejected; member/index fills and
 `&mut`-view pointee writes stay ungated; mut locals slot-backed, never
 bind-folded — pass/calls/runtime_let_mut_reassign_exit); (2) the `and`
 boolean keyword — NOT guide vocabulary, own_machine.omg drift,
-Cathedral-side fix; (3) tuple-subject transitions
-(`transition (bigger, more) { (true, true) -> ... }`); (4) the walk's
+Cathedral-side fix; (3) tuple-subject transitions — LANDED 2026-07-11 (the
+multi-subject desugar existed end-to-end; the missing piece was
+bool-matrix EXHAUSTIVENESS — a covering matrix's last arm rewrites to
+the fall-through at parse; uncovered matrices keep the refusal —
+pass/control_flow/runtime_tuple_matrix_exhaustive_exit + the uncovered
+fail canary; note the pre-existing `_`-armed tuple canary was nearly
+clobbered by name collision — check for an existing canary before
+minting one);
+(4) the walk's
 footprint is against RUNTIME `map_size` (`offset + desc_size <
 map_size`), needing the guard/coupling footprint route rather than C1's
 literal-N interval (the machinery exists — wire the recast judgment to
