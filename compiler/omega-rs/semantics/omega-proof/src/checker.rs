@@ -5,6 +5,7 @@ use crate::obligations::{
     integer_binary_range,
 };
 use omega_core::arena::HandleSpan;
+use omega_core::bignum::BigInt;
 use omega_core::diagnostics::Diagnostic;
 use omega_typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use omega_typed_trees::name::Identifier;
@@ -262,10 +263,10 @@ fn check_bounded_call_argument(
         let proven = self_receiver
             && (atom_proves
                 || argument_range.is_some_and(|range| {
-                    range.minimum >= minimum
+                    range.minimum >= BigInt::from_i64(minimum)
                         && dependent_call_field_floor(proof_plan, obligation, max_field)
                             .and_then(|floor| floor.checked_add(max_offset))
-                            .is_some_and(|cap| range.maximum <= cap)
+                            .is_some_and(|cap| range.maximum <= BigInt::from_i64(cap))
                 }));
         if !proven {
             diagnostics.push(cannot_prove_dependent_call_bound(
@@ -365,12 +366,12 @@ fn check_bounded_transition_argument(
                 && arg_offset <= max_offset
                 && arg_min >= minimum
         }) && state_preserves_field(proof_plan, obligation.machine.as_str(), obligation.state.as_str(), max_field);
-        let lower_proven = atom_proves || argument_range.minimum >= minimum;
+        let lower_proven = atom_proves || argument_range.minimum >= BigInt::from_i64(minimum);
         let upper_proven = atom_proves
             || guard_proves_dependent_upper(proof_plan, obligation, max_field, max_offset)
             || dependent_field_floor(proof_plan, obligation, max_field)
                 .and_then(|floor| floor.checked_add(max_offset))
-                .is_some_and(|cap| argument_range.maximum <= cap);
+                .is_some_and(|cap| argument_range.maximum <= BigInt::from_i64(cap));
         if !lower_proven || !upper_proven {
             diagnostics.push(cannot_prove_dependent_transition_bound(
                 proof_plan, obligation, minimum, max_field, max_offset,
@@ -386,7 +387,7 @@ fn check_bounded_transition_argument(
         sibling_len_from_constraints(type_constraints(proof_plan, obligation.constraints))
     {
         let argument_range = guarded_integer_range_for_transition_argument(proof_plan, obligation);
-        let lower_proven = argument_range.minimum >= minimum;
+        let lower_proven = argument_range.minimum >= BigInt::from_i64(minimum);
         let upper_proven = obligation.sibling_argument.is_valid()
             && guard_proves_sibling_len_upper(
                 proof_plan,
@@ -459,11 +460,8 @@ fn guarded_integer_range_for_transition_argument(
     proof_plan: &ProofPlan,
     obligation: &BoundedTransitionArgumentObligation,
 ) -> IntegerRange {
-    let base =
-        integer_range_for_transition_argument(proof_plan, obligation).unwrap_or(IntegerRange {
-            minimum: i64::MIN,
-            maximum: i64::MAX,
-        });
+    let base = integer_range_for_transition_argument(proof_plan, obligation)
+        .unwrap_or_else(neutral_range);
 
     // Co-located: the arm's guard and its arguments evaluate at the SAME
     // dispatch, so the guard fact needs no stability gate here (collection
@@ -627,12 +625,8 @@ fn guarded_integer_range_for_assignment(
     // guard was ever consulted. Starting wider is sound: guard refinement only
     // intersects, and a bound the guard leaves at the i64 extreme fails the
     // target fit exactly as the old None did.
-    const NEUTRAL: IntegerRange = IntegerRange {
-        minimum: i64::MIN,
-        maximum: i64::MAX,
-    };
     let declared = integer_range_for_assignment(proof_plan, obligation);
-    let mut range = declared.unwrap_or(NEUTRAL);
+    let mut range = declared.clone().unwrap_or_else(neutral_range);
 
     // The incoming-edge guard held at STATE ENTRY; it still holds at this
     // assignment only if nothing earlier in the state could have changed what
@@ -656,7 +650,7 @@ fn guarded_integer_range_for_assignment(
             && let Some(operands) = &obligation.binary_operands
         {
             let operand_range = |declared: Option<IntegerRange>, handle: ExpressionHandle| {
-                let base = declared.unwrap_or(NEUTRAL);
+                let base = declared.unwrap_or_else(neutral_range);
                 let narrowed = apply_source_condition(
                     proof_plan,
                     base,
@@ -665,11 +659,11 @@ fn guarded_integer_range_for_assignment(
                     obligation.machine_symbol,
                     obligation.state_guard_source,
                 );
-                (narrowed != NEUTRAL).then_some(narrowed)
+                (narrowed != neutral_range()).then_some(narrowed)
             };
             if let (Some(left), Some(right)) = (
-                operand_range(operands.left_range, operands.left),
-                operand_range(operands.right_range, operands.right),
+                operand_range(operands.left_range.clone(), operands.left),
+                operand_range(operands.right_range.clone(), operands.right),
             ) && let Some(folded) = integer_binary_range(operands.operator, left, right)
             {
                 range = IntegerRange {
@@ -682,7 +676,7 @@ fn guarded_integer_range_for_assignment(
 
     // Nothing declared AND nothing narrowed: keep reporting "no range" rather
     // than a vacuous full-line interval.
-    if declared.is_none() && range == NEUTRAL {
+    if declared.is_none() && range == neutral_range() {
         return None;
     }
     Some(range)
@@ -920,37 +914,38 @@ fn guard_refined_binary_range(
             return range;
         };
     // value = place + K  =>  place = value - K (and the subtract mirrors).
+    let literal = BigInt::from_i64(literal);
     let place_range = match (binary.operator, place_is_left) {
         (BinaryOperator::Add, _) => IntegerRange {
-            minimum: range.minimum.saturating_sub(literal),
-            maximum: range.maximum.saturating_sub(literal),
+            minimum: range.minimum.sub(&literal),
+            maximum: range.maximum.sub(&literal),
         },
         (BinaryOperator::Subtract, true) => IntegerRange {
-            minimum: range.minimum.saturating_add(literal),
-            maximum: range.maximum.saturating_add(literal),
+            minimum: range.minimum.add(&literal),
+            maximum: range.maximum.add(&literal),
         },
         (BinaryOperator::Subtract, false) => IntegerRange {
-            minimum: literal.saturating_sub(range.maximum),
-            maximum: literal.saturating_sub(range.minimum),
+            minimum: literal.sub(&range.maximum),
+            maximum: literal.sub(&range.minimum),
         },
         _ => return range,
     };
-    let narrowed = apply_handle_condition(proof_plan, place_range, place, *condition);
+    let narrowed = apply_handle_condition(proof_plan, place_range.clone(), place, *condition);
     if narrowed == place_range {
         return range;
     }
     let refolded = match (binary.operator, place_is_left) {
         (BinaryOperator::Add, _) => IntegerRange {
-            minimum: narrowed.minimum.saturating_add(literal),
-            maximum: narrowed.maximum.saturating_add(literal),
+            minimum: narrowed.minimum.add(&literal),
+            maximum: narrowed.maximum.add(&literal),
         },
         (BinaryOperator::Subtract, true) => IntegerRange {
-            minimum: narrowed.minimum.saturating_sub(literal),
-            maximum: narrowed.maximum.saturating_sub(literal),
+            minimum: narrowed.minimum.sub(&literal),
+            maximum: narrowed.maximum.sub(&literal),
         },
         (BinaryOperator::Subtract, false) => IntegerRange {
-            minimum: literal.saturating_sub(narrowed.maximum),
-            maximum: literal.saturating_sub(narrowed.minimum),
+            minimum: literal.sub(&narrowed.maximum),
+            maximum: literal.sub(&narrowed.minimum),
         },
         _ => unreachable!("classified above"),
     };
@@ -991,17 +986,25 @@ fn integer_range_for_initializer(
     }
 }
 
-/// The `[v, v]` interval for a literal that fits the checker's i64 bound
-/// width. An oversize (u64-magnitude) literal yields NO range: the obligation
-/// then stays unproven, and the oversize-literal validation gate reports the
-/// real error before proofs are consulted (D14 fire-B discipline -- never a
-/// silent skip).
+/// The "know nothing" starting interval for guard refinement: the i64 line.
+/// Sound as a start (guard refinement only intersects, and an end the guard
+/// leaves at the extreme fails any spellable target fit); NOT a claim about
+/// the value.
+fn neutral_range() -> IntegerRange {
+    IntegerRange {
+        minimum: BigInt::from_i64(i64::MIN),
+        maximum: BigInt::from_i64(i64::MAX),
+    }
+}
+
+/// The `[v, v]` interval for a literal -- exact at any magnitude (N2); the
+/// D14 width gate still owns which POSITIONS may spell an oversize literal.
 fn integer_range_for_literal(
     literal: &omega_core::literals::IntegerLiteral,
 ) -> Option<IntegerRange> {
-    let value = literal.value_i64()?;
+    let value = literal.value_bignum()?;
     Some(IntegerRange {
-        minimum: value,
+        minimum: value.clone(),
         maximum: value,
     })
 }
@@ -1015,8 +1018,8 @@ fn integer_range_from_constraints(constraints: &[ProofConstraint]) -> Option<Int
         };
 
         let candidate = IntegerRange {
-            minimum: *minimum,
-            maximum: *maximum,
+            minimum: minimum.clone(),
+            maximum: maximum.clone(),
         };
 
         range = Some(match range {
@@ -1028,34 +1031,23 @@ fn integer_range_from_constraints(constraints: &[ProofConstraint]) -> Option<Int
         });
     }
 
+    // Named sign facts RAISE an existing floor only (see the obligations-
+    // side twin: the old standalone [0, i64::MAX] was a false upper claim
+    // for u64 atoms).
     for constraint in constraints {
         let ProofConstraint::Named(name) = constraint else {
             continue;
         };
-
-        let implied = match name.as_str() {
-            "non_negative" => Some(IntegerRange {
-                minimum: 0,
-                maximum: i64::MAX,
-            }),
-            "positive" => Some(IntegerRange {
-                minimum: 1,
-                maximum: i64::MAX,
-            }),
-            _ => None,
+        let floor = match name.as_str() {
+            "non_negative" => BigInt::zero(),
+            "positive" => BigInt::from_i64(1),
+            _ => continue,
         };
-
-        let Some(implied) = implied else {
-            continue;
-        };
-
-        range = Some(match range {
-            Some(existing) => IntegerRange {
-                minimum: existing.minimum.max(implied.minimum),
-                maximum: existing.maximum.min(implied.maximum),
-            },
-            None => implied,
-        });
+        if let Some(existing) = range.as_mut()
+            && existing.minimum < floor
+        {
+            existing.minimum = floor;
+        }
     }
 
     range
@@ -1193,7 +1185,7 @@ fn apply_assignment_guard(
     };
 
     IntegerRange {
-        minimum: range.minimum.max(lower_bound),
+        minimum: range.minimum.max(BigInt::from_i64(lower_bound)),
         maximum: range.maximum,
     }
 }
@@ -1495,14 +1487,16 @@ fn apply_right_literal_guard(
         return range;
     };
 
+    let value = BigInt::from_i64(value);
+    let one = BigInt::from_i64(1);
     match operator {
         BinaryOperator::Equal => {
-            range.minimum = range.minimum.max(value);
+            range.minimum = range.minimum.max(value.clone());
             range.maximum = range.maximum.min(value);
         }
-        BinaryOperator::Greater => range.minimum = range.minimum.max(value.saturating_add(1)),
+        BinaryOperator::Greater => range.minimum = range.minimum.max(value.add(&one)),
         BinaryOperator::GreaterOrEqual => range.minimum = range.minimum.max(value),
-        BinaryOperator::Less => range.maximum = range.maximum.min(value.saturating_sub(1)),
+        BinaryOperator::Less => range.maximum = range.maximum.min(value.sub(&one)),
         BinaryOperator::LessOrEqual => range.maximum = range.maximum.min(value),
         BinaryOperator::Add
         | BinaryOperator::And
@@ -1532,14 +1526,16 @@ fn apply_left_literal_guard(
         return range;
     };
 
+    let value = BigInt::from_i64(value);
+    let one = BigInt::from_i64(1);
     match operator {
         BinaryOperator::Equal => {
-            range.minimum = range.minimum.max(value);
+            range.minimum = range.minimum.max(value.clone());
             range.maximum = range.maximum.min(value);
         }
-        BinaryOperator::Greater => range.maximum = range.maximum.min(value.saturating_sub(1)),
+        BinaryOperator::Greater => range.maximum = range.maximum.min(value.sub(&one)),
         BinaryOperator::GreaterOrEqual => range.maximum = range.maximum.min(value),
-        BinaryOperator::Less => range.minimum = range.minimum.max(value.saturating_add(1)),
+        BinaryOperator::Less => range.minimum = range.minimum.max(value.add(&one)),
         BinaryOperator::LessOrEqual => range.minimum = range.minimum.max(value),
         BinaryOperator::Add
         | BinaryOperator::And
@@ -1690,8 +1686,8 @@ fn transition_argument_satisfies_named_constraint(
     if matches!(constraint, "positive" | "non_negative") {
         let range = guarded_integer_range_for_transition_argument(proof_plan, obligation);
         return match constraint {
-            "positive" => range.minimum > 0,
-            "non_negative" => range.minimum >= 0,
+            "positive" => !range.minimum.is_negative() && !range.minimum.is_zero(),
+            "non_negative" => !range.minimum.is_negative(),
             _ => false,
         };
     }
@@ -1726,8 +1722,8 @@ fn assignment_satisfies_named_constraint(
         && let Some(range) = guarded_integer_range_for_assignment(proof_plan, obligation)
     {
         return match constraint {
-            "positive" => range.minimum > 0,
-            "non_negative" => range.minimum >= 0,
+            "positive" => !range.minimum.is_negative() && !range.minimum.is_zero(),
+            "non_negative" => !range.minimum.is_negative(),
             _ => false,
         };
     }
@@ -1789,12 +1785,11 @@ fn constraints_satisfy_named_constraint(constraints: &[ProofConstraint], constra
             integer_range_from_constraints(constraints).is_some()
                 || float_range_from_constraints(constraints).is_some()
         }
-        "non_negative" => {
-            integer_range_from_constraints(constraints).is_some_and(|range| range.minimum >= 0)
-        }
-        "positive" => {
-            integer_range_from_constraints(constraints).is_some_and(|range| range.minimum > 0)
-        }
+        "non_negative" => integer_range_from_constraints(constraints)
+            .is_some_and(|range| !range.minimum.is_negative()),
+        "positive" => integer_range_from_constraints(constraints).is_some_and(|range| {
+            !range.minimum.is_negative() && !range.minimum.is_zero()
+        }),
         "wrapping" => false,
         _ => false,
     }

@@ -95,6 +95,16 @@ impl BigInt {
         }
     }
 
+    /// Nearest-f64 conversion (lossy above 2^53, infinite past f64 range)
+    /// -- for float-range DERIVATION only, never exact arithmetic.
+    pub fn to_f64_lossy(&self) -> f64 {
+        let mut magnitude = 0.0f64;
+        for limb in self.magnitude.iter().rev() {
+            magnitude = magnitude * 18446744073709551616.0 + *limb as f64;
+        }
+        if self.negative { -magnitude } else { magnitude }
+    }
+
     pub fn negate(&self) -> Self {
         Self {
             negative: !self.negative && !self.is_zero(),

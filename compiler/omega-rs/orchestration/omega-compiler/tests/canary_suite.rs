@@ -18624,6 +18624,33 @@ fn runtime_offset_byte_recast_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_u64_guarded_cap_store_exit_canary_runs() {
+    // N2 rung (c): the guarded-copy discharge survives the exact u64 range
+    // fact (the retired i64::MAX cap's positive twin).
+    let canary = pass_canary("arithmetic/runtime_u64_guarded_cap_store_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-u64-guarded-cap-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("guarded cap-store canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("guarded cap-store canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the guarded u64 copy to store and exit 70, got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_proof_only_data_declared_exit_canary_runs() {
     // Math roster N1: declaring recursive (proof-only) data is legal; the
     // classification fences consumption, not declaration.
@@ -29267,6 +29294,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "recast/runtime_offset_byte_recast_exit",
     "recast/runtime_guarded_offset_recast_exit",
     "data/runtime_proof_only_data_declared_exit",
+    "arithmetic/runtime_u64_guarded_cap_store_exit",
     "recast/runtime_record_view_exit",
     "arithmetic/runtime_f32_field_guard_exit",
     "collections/runtime_indexed_rmw_loop_exit",

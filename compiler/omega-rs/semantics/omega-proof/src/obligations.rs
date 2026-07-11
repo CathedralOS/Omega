@@ -1,4 +1,5 @@
 use omega_core::arena::{Arena, HandleSpan};
+use omega_core::bignum::BigInt;
 use omega_core::symbols::{BuiltinType, BuiltinTypeMember, SymbolHandle};
 use omega_typed_trees::TypedTrees;
 use omega_typed_trees::expression::{
@@ -64,8 +65,8 @@ impl<'program> ProofPlan<'program> {
 pub enum ProofConstraint {
     Named(Identifier),
     IntegerRange {
-        minimum: i64,
-        maximum: i64,
+        minimum: omega_core::bignum::BigInt,
+        maximum: omega_core::bignum::BigInt,
     },
     /// R1 dependent range (`[0..=self.count]`): the maximum names a `self`
     /// FIELD's entry value plus a literal offset. Minted only for the
@@ -136,7 +137,10 @@ impl ProofConstraint {
             })
         };
         if let (Some(minimum), Some(maximum)) = (integer_bound(minimum), integer_bound(maximum)) {
-            return Some(Self::IntegerRange { minimum, maximum });
+            return Some(Self::IntegerRange {
+                minimum: BigInt::from_i64(minimum),
+                maximum: BigInt::from_i64(maximum),
+            });
         }
         // R1 dependent maximum (`[0..=self.count]`, `[0..self.count]` after
         // the parser's `- 1` normalization): literal minimum + admissible
@@ -430,10 +434,10 @@ pub struct BoundedTransitionArgumentObligation {
     pub sibling_argument: ExpressionHandle,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct IntegerRange {
-    pub(crate) minimum: i64,
-    pub(crate) maximum: i64,
+    pub(crate) minimum: omega_core::bignum::BigInt,
+    pub(crate) maximum: omega_core::bignum::BigInt,
 }
 
 /// A top-level BINARY assignment value's operands with their DECLARED ranges,
@@ -441,7 +445,7 @@ pub(crate) struct IntegerRange {
 /// stability-gated edge guard filling in an operand the declaration leaves
 /// unbounded (`self.y = self.p + self.dir` with `p: [0..=8]` declared and
 /// `dir` bounded only by the incoming guard).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BinaryValueOperands {
     pub operator: BinaryOperator,
     pub left: ExpressionHandle,
@@ -1802,14 +1806,16 @@ fn primitive_constraints(name: &Identifier) -> ConstraintBuffer {
     // held just u32 and usize (now retired); the retirement's corpus sweep
     // exposed the gap: a `u64` field carried no `>= 0` fact and
     // previously-proving programs failed their bounded-parameter checks.
-    // u64's maximum caps at i64::MAX -- the proof domain's integer width
-    // (matching the old usize fact).
+    // N2 (2026-07-11): the proof domain is EXACT bignum, so u64's fact is
+    // the true (0, u64::MAX) -- the old i64::MAX cap let a real u64::MAX
+    // pass a containment check against a `[0..=i64::MAX]` target (probe-
+    // confirmed store unsoundness).
     let mut constraints = ConstraintBuffer::new();
     let range = match name.as_str() {
-        "u8" => Some((0, u8::MAX as i64)),
-        "u16" => Some((0, u16::MAX as i64)),
-        "u32" => Some((0, u32::MAX as i64)),
-        "u64" => Some((0, i64::MAX)),
+        "u8" => Some((BigInt::zero(), BigInt::from_u64(u8::MAX as u64))),
+        "u16" => Some((BigInt::zero(), BigInt::from_u64(u16::MAX as u64))),
+        "u32" => Some((BigInt::zero(), BigInt::from_u64(u32::MAX as u64))),
+        "u64" => Some((BigInt::zero(), BigInt::from_u64(u64::MAX))),
         _ => None,
     };
     if let Some((minimum, maximum)) = range {
@@ -1937,31 +1943,32 @@ fn integer_literal_constraints(
     literal: &omega_core::literals::IntegerLiteral,
 ) -> ConstraintBuffer {
     let mut constraints = ConstraintBuffer::new();
-    // An oversize (u64-magnitude) literal carries NO facts: obligations built
-    // on it stay unproven, and the oversize-literal validation gate reports
-    // the real error first (D14 fire-B discipline -- never a silent skip).
-    let Some(value) = literal.value_i64() else {
+    // N2: literal facts are EXACT at any magnitude (canonical text always
+    // parses); the D14 width gate still owns which POSITIONS may spell an
+    // oversize literal.
+    let Some(value) = literal.value_bignum() else {
         return constraints;
     };
     constraints.push(ProofConstraint::Named(Identifier::generated_static(
         "exact",
     )));
-    constraints.push(ProofConstraint::IntegerRange {
-        minimum: value,
-        maximum: value,
-    });
 
-    if value >= 0 {
+    if !value.is_negative() {
         constraints.push(ProofConstraint::Named(Identifier::generated_static(
             "non_negative",
         )));
     }
 
-    if value > 0 {
+    if !value.is_negative() && !value.is_zero() {
         constraints.push(ProofConstraint::Named(Identifier::generated_static(
             "positive",
         )));
     }
+
+    constraints.push(ProofConstraint::IntegerRange {
+        minimum: value.clone(),
+        maximum: value,
+    });
 
     constraints
 }
@@ -2028,20 +2035,20 @@ fn derived_binary_constraints(
         integer_range_from_constraints(right_constraints),
     ) && let Some(range) = integer_binary_range(operator, left_range, right_range)
     {
-        constraints.push(ProofConstraint::IntegerRange {
-            minimum: range.minimum,
-            maximum: range.maximum,
-        });
-        if range.minimum >= 0 {
+        if !range.minimum.is_negative() {
             constraints.push(ProofConstraint::Named(Identifier::generated_static(
                 "non_negative",
             )));
         }
-        if range.minimum > 0 {
+        if !range.minimum.is_negative() && !range.minimum.is_zero() {
             constraints.push(ProofConstraint::Named(Identifier::generated_static(
                 "positive",
             )));
         }
+        constraints.push(ProofConstraint::IntegerRange {
+            minimum: range.minimum,
+            maximum: range.maximum,
+        });
     }
 
     if let (Some(left_range), Some(right_range)) = (
@@ -2071,8 +2078,8 @@ fn derived_real_from_constraints(argument_constraints: &ConstraintBuffer) -> Con
         "finite",
     )));
     constraints.push(ProofConstraint::FloatRange {
-        minimum: FloatLiteral::new(range.minimum as f64),
-        maximum: FloatLiteral::new(range.maximum as f64),
+        minimum: FloatLiteral::new(range.minimum.to_f64_lossy()),
+        maximum: FloatLiteral::new(range.maximum.to_f64_lossy()),
     });
     constraints
 }
@@ -2138,24 +2145,20 @@ fn extrema_integer_range(
     left: Option<IntegerRange>,
     right: Option<IntegerRange>,
 ) -> Option<IntegerRange> {
+    // One-sided cases FABRICATED the missing bound with an i64 sentinel --
+    // a false claim once real u64-magnitude values flow (the same class as
+    // the retired u64 range-fact cap). With exact bounds they are honest
+    // only as "no range"; the two-sided folds are exact.
     match (is_max, left, right) {
         (true, Some(left), Some(right)) => Some(IntegerRange {
             minimum: left.minimum.max(right.minimum),
             maximum: left.maximum.max(right.maximum),
         }),
-        (true, Some(range), None) | (true, None, Some(range)) => Some(IntegerRange {
-            minimum: range.minimum,
-            maximum: i64::MAX,
-        }),
         (false, Some(left), Some(right)) => Some(IntegerRange {
             minimum: left.minimum.min(right.minimum),
             maximum: left.maximum.min(right.maximum),
         }),
-        (false, Some(range), None) | (false, None, Some(range)) => Some(IntegerRange {
-            minimum: i64::MIN,
-            maximum: range.maximum,
-        }),
-        (_, None, None) => None,
+        _ => None,
     }
 }
 
@@ -2177,7 +2180,7 @@ fn derived_range_call_constraints(
 
     if let Some(upper_range) = integer_range_from_constraints(&upper_constraints) {
         constraints.push(ProofConstraint::IntegerRange {
-            minimum: 0,
+            minimum: BigInt::zero(),
             maximum: upper_range.maximum,
         });
     }
@@ -2263,12 +2266,15 @@ fn augment_constraints_with_named_facts(constraints: &mut ConstraintBuffer) {
     }
 
     if let Some(range) = integer_range_from_constraints(constraints) {
-        if range.minimum >= 0 && !has_named_constraint(constraints, "non_negative") {
+        if !range.minimum.is_negative() && !has_named_constraint(constraints, "non_negative") {
             constraints.push(ProofConstraint::Named(Identifier::generated_static(
                 "non_negative",
             )));
         }
-        if range.minimum > 0 && !has_named_constraint(constraints, "positive") {
+        if !range.minimum.is_negative()
+            && !range.minimum.is_zero()
+            && !has_named_constraint(constraints, "positive")
+        {
             constraints.push(ProofConstraint::Named(Identifier::generated_static(
                 "positive",
             )));
@@ -2311,8 +2317,8 @@ fn integer_range_from_constraints(constraints: &ConstraintBuffer) -> Option<Inte
         };
 
         let candidate = IntegerRange {
-            minimum: *minimum,
-            maximum: *maximum,
+            minimum: minimum.clone(),
+            maximum: maximum.clone(),
         };
 
         range = Some(match range {
@@ -2324,34 +2330,23 @@ fn integer_range_from_constraints(constraints: &ConstraintBuffer) -> Option<Inte
         });
     }
 
+    // Named sign facts RAISE an existing floor only. They used to fabricate
+    // a standalone [0, i64::MAX] range -- a false upper claim for u64 atoms
+    // (the widths carry the honest ranges now).
     for constraint in constraints.iter() {
         let ProofConstraint::Named(name) = constraint else {
             continue;
         };
-
-        let implied = match name.as_str() {
-            "non_negative" => Some(IntegerRange {
-                minimum: 0,
-                maximum: i64::MAX,
-            }),
-            "positive" => Some(IntegerRange {
-                minimum: 1,
-                maximum: i64::MAX,
-            }),
-            _ => None,
+        let floor = match name.as_str() {
+            "non_negative" => BigInt::zero(),
+            "positive" => BigInt::from_i64(1),
+            _ => continue,
         };
-
-        let Some(implied) = implied else {
-            continue;
-        };
-
-        range = Some(match range {
-            Some(existing) => IntegerRange {
-                minimum: existing.minimum.max(implied.minimum),
-                maximum: existing.maximum.min(implied.maximum),
-            },
-            None => implied,
-        });
+        if let Some(existing) = range.as_mut()
+            && existing.minimum < floor
+        {
+            existing.minimum = floor;
+        }
     }
 
     range
@@ -2387,45 +2382,46 @@ pub(crate) fn integer_binary_range(
     left: IntegerRange,
     right: IntegerRange,
 ) -> Option<IntegerRange> {
+    let one = BigInt::from_i64(1);
     match operator {
         BinaryOperator::Add => Some(IntegerRange {
-            minimum: left.minimum.saturating_add(right.minimum),
-            maximum: left.maximum.saturating_add(right.maximum),
+            minimum: left.minimum.add(&right.minimum),
+            maximum: left.maximum.add(&right.maximum),
         }),
         BinaryOperator::Subtract => Some(IntegerRange {
-            minimum: left.minimum.saturating_sub(right.maximum),
-            maximum: left.maximum.saturating_sub(right.minimum),
+            minimum: left.minimum.sub(&right.maximum),
+            maximum: left.maximum.sub(&right.minimum),
         }),
         BinaryOperator::Multiply => {
             let products = [
-                left.minimum.saturating_mul(right.minimum),
-                left.minimum.saturating_mul(right.maximum),
-                left.maximum.saturating_mul(right.minimum),
-                left.maximum.saturating_mul(right.maximum),
+                left.minimum.mul(&right.minimum),
+                left.minimum.mul(&right.maximum),
+                left.maximum.mul(&right.minimum),
+                left.maximum.mul(&right.maximum),
             ];
             Some(IntegerRange {
-                minimum: *products.iter().min()?,
-                maximum: *products.iter().max()?,
+                minimum: products.iter().min()?.clone(),
+                maximum: products.iter().max()?.clone(),
             })
         }
         BinaryOperator::Modulo => {
-            if right.minimum <= 0 {
+            if right.minimum.is_negative() || right.minimum.is_zero() {
                 return None;
             }
 
             Some(IntegerRange {
-                minimum: 0,
-                maximum: right.maximum.saturating_sub(1),
+                minimum: BigInt::zero(),
+                maximum: right.maximum.sub(&one),
             })
         }
         BinaryOperator::ShiftRight => {
-            if right.minimum < 0 {
+            if right.minimum.is_negative() {
                 return None;
             }
 
             Some(IntegerRange {
-                minimum: 0.max(left.minimum),
-                maximum: left.maximum.max(0),
+                minimum: BigInt::zero().max(left.minimum.clone()),
+                maximum: left.maximum.clone().max(BigInt::zero()),
             })
         }
         BinaryOperator::Divide => {
@@ -2435,20 +2431,20 @@ pub(crate) fn integer_binary_range(
             // monotone in x for fixed k, and piecewise monotone in k on one
             // sign side), so min/max over the corners is exact --
             // `[0..=259] / 26` folds to `[0..=9]`, which used to return None
-            // and reject a provably-in-range store. `i64::MIN / -1` overflows;
-            // checked_div bails to None (conservative).
-            if !(right.minimum >= 1 || right.maximum <= -1) {
+            // and reject a provably-in-range store. (Exact bignum: the old
+            // `i64::MIN / -1` overflow bail is gone.)
+            if !(right.minimum >= one || right.maximum <= one.negate()) {
                 return None;
             }
             let corners = [
-                left.minimum.checked_div(right.minimum)?,
-                left.minimum.checked_div(right.maximum)?,
-                left.maximum.checked_div(right.minimum)?,
-                left.maximum.checked_div(right.maximum)?,
+                left.minimum.div_rem(&right.minimum)?.0,
+                left.minimum.div_rem(&right.maximum)?.0,
+                left.maximum.div_rem(&right.minimum)?.0,
+                left.maximum.div_rem(&right.maximum)?.0,
             ];
             Some(IntegerRange {
-                minimum: *corners.iter().min()?,
-                maximum: *corners.iter().max()?,
+                minimum: corners.iter().min()?.clone(),
+                maximum: corners.iter().max()?.clone(),
             })
         }
         BinaryOperator::BitwiseAnd => {
@@ -2456,11 +2452,11 @@ pub(crate) fn integer_binary_range(
             // never sets a bit absent from either operand, so the result is
             // in [0, min(left.max, right.max)]. A possibly-negative operand
             // (sign bits) stays unfolded.
-            if left.minimum < 0 || right.minimum < 0 {
+            if left.minimum.is_negative() || right.minimum.is_negative() {
                 return None;
             }
             Some(IntegerRange {
-                minimum: 0,
+                minimum: BigInt::zero(),
                 maximum: left.maximum.min(right.maximum),
             })
         }
