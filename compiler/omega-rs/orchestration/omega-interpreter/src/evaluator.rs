@@ -5203,14 +5203,25 @@ impl<'program> Evaluator<'program> {
         let Some(offset) = offset_value.and_then(|value| usize::try_from(value).ok()) else {
             return Ok(None);
         };
-        let Some(target) = target else {
-            return Ok(None);
-        };
-        let Some(size) = target.scalar_byte_size() else {
-            return Ok(None);
-        };
         let collection = self.eval_expression(indexed.collection, frame)?;
         let Value::Array(cells) = collection else {
+            return Ok(None);
+        };
+        // RUNG C2: a RECORD target assembles field-by-field at
+        // natural-alignment offsets (each field at the next multiple of its
+        // own size -- LOCKSTEP with the layout rule; the drift canary pins
+        // agreement).
+        let Some(target) = target else {
+            let target_name = self
+                .program
+                .expression_table
+                .name_path_members(cast.target_type)
+                .last()
+                .map(|name| name.as_str().to_owned())
+                .unwrap_or_default();
+            return self.assemble_record_view(&target_name, &cells, offset);
+        };
+        let Some(size) = target.scalar_byte_size() else {
             return Ok(None);
         };
         let mut bits: u64 = 0;
@@ -5230,6 +5241,67 @@ impl<'program> Evaluator<'program> {
             integer => Value::Int(wrap_to_width(bits as i64, integer)),
         };
         Ok(Some(assembled))
+    }
+
+    /// Rung C2's record view: decode each all-scalar field little-endian at
+    /// its natural-alignment offset within the byte region.
+    fn assemble_record_view(
+        &mut self,
+        type_name: &str,
+        cells: &[Cell],
+        base_offset: usize,
+    ) -> EvalResult<Option<Value>> {
+        let Some(data) = self.find_data_by_name(type_name) else {
+            return Ok(None);
+        };
+        let mut field_specs: Vec<(String, PrimitiveType, usize)> = Vec::new();
+        let mut offset = 0usize;
+        for member in self.program.data_members(data) {
+            let omega_typed_trees::data::DataMember::Field(field) = member else {
+                return Ok(None);
+            };
+            let Some(primitive) = self
+                .program
+                .primitive_type_reference(field.type_reference)
+            else {
+                return Ok(None);
+            };
+            let Some(size) = primitive.scalar_byte_size() else {
+                return Ok(None);
+            };
+            offset = offset.div_ceil(size) * size;
+            field_specs.push((field.name.as_str().to_owned(), primitive, offset));
+            offset += size;
+        }
+        let type_symbol = data.symbol;
+        let mut fields = std::collections::BTreeMap::new();
+        for (name, primitive, field_offset) in field_specs {
+            let size = primitive.scalar_byte_size().unwrap_or(0);
+            let mut bits: u64 = 0;
+            for byte_index in 0..size {
+                let cell = cells
+                    .get(base_offset + field_offset + byte_index)
+                    .ok_or_else(|| {
+                        Halt::Trap(format!(
+                            "record view reads byte {} past the region",
+                            base_offset + field_offset + byte_index
+                        ))
+                    })?;
+                let byte = cell.borrow().as_int().unwrap_or(0) as u64 & 0xFF;
+                bits |= byte << (8 * byte_index);
+            }
+            let value = match primitive {
+                PrimitiveType::F32 => Value::Float(f32::from_bits(bits as u32) as f64),
+                PrimitiveType::F64 => Value::Float(f64::from_bits(bits)),
+                integer => Value::Int(wrap_to_width(bits as i64, integer)),
+            };
+            fields.insert(name, value.cell());
+        }
+        Ok(Some(Value::Struct {
+            type_symbol,
+            type_name: type_name.to_owned().into(),
+            fields,
+        }))
     }
 
     fn eval_recast(&self, value: Value, target: Option<PrimitiveType>) -> EvalResult<Value> {

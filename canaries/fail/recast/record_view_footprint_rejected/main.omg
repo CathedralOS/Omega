@@ -1,0 +1,21 @@
+// FAIL CANARY (rung C2 footprint): a 16-byte record view at offsets up
+// to 9 of a 24-byte region would read bytes 9..25 -- past the buffer;
+// refused at the declaration through the offset's enforced interval.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Desc { a: u32; b: u64; }
+data Main { console: Console; buf: [u8; 24]; k: u32 [0..=9]; out: i32; }
+machine Main::main(&mut self) {
+    self.buf[8] = 7;
+    self.buf[16] = 9;
+    self.k = 8;
+    transition self.k == 8 { true -> read(self.k) _ -> bad() }
+    state read(&mut self, off: u32 [0..=9]) {
+        let d: &Desc = &self.buf[off] as &Desc;
+        transition d.a == 7 && d.b == 9 {
+            true -> good()
+            _ -> bad()
+        }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self)  { self.console.exit_process(71); }
+}
