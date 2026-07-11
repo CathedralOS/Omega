@@ -1,0 +1,18 @@
+// M2 gap 4a negative twin: the guarded edge admits offset 9 (`k <= 9`),
+// so the MEET is 9 even though the sibling edge passes a constant 0 --
+// a 4-byte view at offset 9 reads past the 12-byte region and the
+// footprint refuses with the offending bound named.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; buf: [u8; 12]; k: u32; }
+machine Main::main(&mut self) {
+    self.k = 4;
+    transition self.k <= 9 { true -> read(self.k) _ -> seed() }
+    state seed(&mut self) {
+        transition { _ -> read(0) }
+    }
+    state read(&mut self, off: u32) {
+        let v: &u32 = &self.buf[off] as &u32;
+        transition v == 67305985 { true -> good() _ -> good() }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+}

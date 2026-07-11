@@ -472,9 +472,11 @@ fn scalar_record_size(program: &TypedTrees, name: &str) -> Option<usize> {
     Some(offset.div_ceil(max_align) * max_align)
 }
 
-/// The literal upper bound the incoming edge places on `offset` at this
-/// state's entry. Sound because it is SHALLOW: the state must have exactly
-/// ONE incoming edge machine-wide. Two routes, in order:
+/// The literal upper bound the incoming edges place on `offset` at this
+/// state's entry: the PER-EDGE MEET (M2 gap 4a) -- EVERY incoming edge
+/// machine-wide must prove a bound, and the entry bound is their MAX (the
+/// weakest all satisfy). Per-edge routes, in order:
+/// - a CONSTANT argument bounds at its own value;
 /// - the edge's GUARDED (true) arm, whose guard conjunct `arg <= K` /
 ///   `arg < K` names (by display spelling) the very expression passed at
 ///   the param's position -- guard check and argument capture happen in
@@ -485,9 +487,8 @@ fn scalar_record_size(program: &TypedTrees, name: &str) -> Option<usize> {
 ///   intervening write to that place and NO later call (a later callee
 ///   holding `&mut self` could rewrite the field) between the witness and
 ///   the transition.
-/// Multi-predecessor states (e.g. self-re-entering walk loops),
-/// fall-through arms, and non-literal bounds all return None; those need
-/// the per-edge meet + symbolic route (TASKS M2 gap 4, remaining).
+/// One unprovable edge kills the meet. Symbolic bounds (`offset +
+/// desc_size < map_size`) remain -- gap 4b.
 fn incoming_guard_offset_bound(
     program: &TypedTrees,
     machine: &omega_typed_trees::machine::Machine,
@@ -511,7 +512,7 @@ fn incoming_guard_offset_bound(
         .filter(|parameter| !parameter.is_self)
         .position(|parameter| parameter.name.as_str() == param_name.as_str())?;
 
-    let mut bound: Option<i64> = None;
+    let mut meet: Option<i64> = None;
     let mut incoming_edges = 0usize;
     for source in program.machine_states(machine) {
         let source_statements = program.statement_table.statements(source.statement_nodes);
@@ -538,14 +539,19 @@ fn incoming_guard_offset_bound(
                     continue;
                 }
                 incoming_edges += 1;
-                if incoming_edges > 1 {
-                    return None;
-                }
                 let argument = program
                     .statement_table
                     .expression_handles(*arguments)
                     .get(param_position)
                     .copied()?;
+                // A constant argument bounds at its own value.
+                if let ExpressionNode::Integer(literal) =
+                    program.expression_table.expression(argument)
+                {
+                    let value = literal.value_i64().filter(|value| *value >= 0)?;
+                    meet = Some(meet.map_or(value, |existing: i64| existing.max(value)));
+                    continue;
+                }
                 let argument_label = program.expression_table.display_name(argument);
                 // Only the GUARDED (true) arm establishes the guard's bound;
                 // the R4 ensures witness precedes the whole transition, so it
@@ -558,7 +564,7 @@ fn incoming_guard_offset_bound(
                     }
                     _ => None,
                 };
-                bound = guard_bound.or_else(|| {
+                let edge_bound = guard_bound.or_else(|| {
                     boundary_ensures_argument_bound(
                         program,
                         machine,
@@ -566,11 +572,17 @@ fn incoming_guard_offset_bound(
                         statement_index,
                         &argument_label,
                     )
-                });
+                })?;
+                meet = Some(meet.map_or(edge_bound, |existing: i64| existing.max(edge_bound)));
             }
         }
     }
-    bound
+    // No incoming edge at all (the entry state, or dead states) proves
+    // nothing.
+    if incoming_edges == 0 {
+        return None;
+    }
+    meet
 }
 
 /// The R4 witness route: scan the statements BEFORE the transition for the

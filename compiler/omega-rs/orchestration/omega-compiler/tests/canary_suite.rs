@@ -18624,6 +18624,33 @@ fn runtime_offset_byte_recast_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_multi_edge_offset_meet_exit_canary_runs() {
+    // M2 gap 4a: the per-edge meet -- every incoming edge proves a bound,
+    // the max discharges the recast footprint.
+    let canary = pass_canary("recast/runtime_multi_edge_offset_meet_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-offset-meet-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("multi-edge offset meet canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("multi-edge offset meet canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected both meet edges to admit the recast (exit 70), got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_computed_index_match_subject_exit_canary_runs() {
     // R0's last position: a computed index in an enum-match SUBJECT hoists
     // like every other position.
@@ -29435,6 +29462,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "calls/runtime_two_state_tail_cycle_exit",
     "comptime/runtime_const_measured_recursion_exit",
     "collections/runtime_computed_index_match_subject_exit",
+    "recast/runtime_multi_edge_offset_meet_exit",
     "recast/runtime_record_view_exit",
     "arithmetic/runtime_f32_field_guard_exit",
     "collections/runtime_indexed_rmw_loop_exit",
