@@ -40,9 +40,41 @@ the match-subject computed-index gap closed with it).
 
 ## Cathedral M2 (owner priority 2026-07-15; RECAST = main lane, claimed)
 
-Cathedral is fully written and waiting; M2 (`GetMemoryMap → ExitBootServices
-→ first Region mint`, `../Cathedral/source/boot/uefi/own_machine.omg`) is
-down to a MEASURED gap list (compile-checked against the real
+**2026-07-11 full-tree measurement (owner side): Cathedral's TYPED M1 BOOTS.**
+The whole Cathedral boot package (typed EfiStatus/EfiHandle wrappers,
+`&TextOutputProtocol` reference field, `effects device_io`, field-model
+provides, `use` modules, `Type::`-scoped const) was compiled via a staged
+tree standing in for depend-mapping, and the image PRINTS THE GREETING under
+QEMU/OVMF. Cathedral-side spelling drift is synced (Cathedral 5d8c6fe). The
+measured remaining M2 blockers, NOW IN ORDER:
+
+1. **Provides-row catalog holds ONE custom row per image (NEW, first
+   blocker).** ANY two rows collide — even one trait's two methods
+   (`BootServices::get_memory_map` + `exit_boot_services`): "fall outside
+   the closed operation catalog and would collide; string-keyed operations
+   are not built yet". M2 needs THREE rows (output_string + get_memory_map
+   + exit_boot_services). The single-row M1 compiles+boots; the moment a
+   second row exists, emission refuses. This gates M2 AHEAD of the walk
+   proof.
+2. **Gap-4 remainder, confirmed against the real walk**: the landed
+   guard-route is single-predecessor + literal-K only; the walk state is
+   the multi-predecessor self-re-entering loop its own comment names, so
+   `interior_byte_region_source` returns None. Needs (a) per-edge meet,
+   (b) the symbolic `offset + desc_size < map_size` route.
+   DIAGNOSTIC BUG found en route: that None falls through to the
+   MISLEADING "recast target is not a scalar primitive or an all-scalar
+   record" error (recasts.rs ~line 178) — EfiMemoryDescriptor IS
+   all-scalar; the real failure is the unproven offset bound. Split the
+   message.
+3. **depend-mapping**: `b.depend("uefi", path(...))` is not wired into
+   use-resolution (uses resolve root-relative only) — Cathedral's
+   contracts/ + core/ packages can't be reached from boot/ without the
+   staging workaround.
+4. **Free-floating const**: v0 is `Type::`-scoped only; Cathedral's
+   contracts spell free-floating consts per the settled design (the
+   shadowing-walk prerequisite is the filed follow-up).
+
+Original gap list (compile-checked against the real
 own_machine.omg 2026-07-11 via the new `omega-run --target uefi_x64`):
 the recast MECHANICS are DONE for M2's shape (rungs A/B/C1/C2; the
 all-scalar EfiMemoryDescriptor record view serves — see
