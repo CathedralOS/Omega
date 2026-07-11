@@ -1,0 +1,27 @@
+// PENDING (2026-07-11): the std sin/cos draft's two measured blockers.
+// (a) FLOAT-TERMINAL value-call return-writes are not served -- the
+//     dispatch return-write selection
+//     (select_runtime_leaf_branch_terminal_value_write + the write
+//     strategies it retries) serves integer place/literal/binary
+//     terminals only; `sin(1.0)`'s `(x + tail)` f64 terminal trips the
+//     honest call_result_blockers fence. The fix is the float twin of
+//     the integer write strategies (mind the pinned regressions noted
+//     in leaf.rs: nested-inline result scrambles, same-named arm
+//     locals).
+// (b) With the fence bypassed mentally: compiling this file under
+//     --both overflows the COMPILE thread's stack on the reduce
+//     ladder's shape (four fall-through transitions + self-loops with
+//     mut locals) -- bisect which pass recurses (suspects: a
+//     per-transition env/fact pass compounding across the four
+//     fall-throughs).
+// PROMOTE to pass/ run canaries (value windows in
+// omega/language/std/math.omg's history) when both land.
+use omega::language::std::math;
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine Main::main(&mut self) {
+    let s: f64 = sin(1.0);
+    transition s > 0.84147098480 && s < 0.84147098481 { true -> good() _ -> bad() }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self)  { self.console.exit_process(71); }
+}
