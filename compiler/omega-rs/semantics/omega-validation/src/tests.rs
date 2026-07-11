@@ -314,6 +314,110 @@ fn boundary_ensures_witness_dies_on_intervening_call() {
 }
 
 #[test]
+fn symbolic_walk_recast_footprint_discharges() {
+    // M2 gap 4b, the full chain: the walk state re-enters itself with
+    // `offset + desc_size` under the guard `offset + desc_size + desc_size
+    // <= map_size`; map_size's upper witness (<= 64) and desc_size's lower
+    // witness (>= 8) resolve symbolically through the per-edge meet
+    // (self-forwarding edges preserve entry bounds), so the loop edge
+    // bounds the offset at 64 - 8 = 56 and the Desc footprint 56 + 8 <= 64
+    // discharges. The entry edge is the constant 0.
+    validate_contract_source(
+        r#"
+    boundary trait Firmware {
+        machine get_memory_map(map_size: &mut u32, desc_size: &mut u32)
+        ensures map_size <= 64 && desc_size >= 8;
+    }
+    data Desc { a: u32; b: u32; }
+    data Main { fw: Firmware; buf: [u8; 64]; map_size: u32; desc_size: u32; }
+    machine Main::main(&mut self) {
+        self.fw.get_memory_map(&mut self.map_size, &mut self.desc_size);
+        transition { _ -> walk(self.map_size, self.desc_size, 0) }
+        state walk(&mut self, map_size: u32 in Trapping, desc_size: u32 in Trapping, offset: u32 in Trapping) {
+            let d: &Desc = &self.buf[offset] as &Desc;
+            transition offset + desc_size + desc_size <= map_size {
+                true -> walk(map_size, desc_size, offset + desc_size)
+                _ -> done()
+            }
+        }
+        state done(&mut self) { }
+    }
+    "#,
+    )
+    .expect("the symbolic walk chain should discharge the recast footprint");
+}
+
+#[test]
+fn symbolic_walk_recast_wide_witness_refuses() {
+    // `map_size <= 65` drags the loop-edge bound to 57; 57 + 8 > 64.
+    let diagnostics = validate_contract_source(
+        r#"
+    boundary trait Firmware {
+        machine get_memory_map(map_size: &mut u32, desc_size: &mut u32)
+        ensures map_size <= 65 && desc_size >= 8;
+    }
+    data Desc { a: u32; b: u32; }
+    data Main { fw: Firmware; buf: [u8; 64]; map_size: u32; desc_size: u32; }
+    machine Main::main(&mut self) {
+        self.fw.get_memory_map(&mut self.map_size, &mut self.desc_size);
+        transition { _ -> walk(self.map_size, self.desc_size, 0) }
+        state walk(&mut self, map_size: u32 in Trapping, desc_size: u32 in Trapping, offset: u32 in Trapping) {
+            let d: &Desc = &self.buf[offset] as &Desc;
+            transition offset + desc_size + desc_size <= map_size {
+                true -> walk(map_size, desc_size, offset + desc_size)
+                _ -> done()
+            }
+        }
+        state done(&mut self) { }
+    }
+    "#,
+    )
+    .expect_err("a witness past the footprint must refuse");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("would read past the buffer")),
+        "expected the footprint refusal, got {diagnostics:#?}"
+    );
+}
+
+#[test]
+fn symbolic_walk_weak_guard_spelling_refuses() {
+    // The `< map_size` spelling bounds the next descriptor's START, not
+    // its END: bound 63, 63 + 8 > 64 -- the exact tail overrun the design
+    // note calls out; the chain must refuse it.
+    let diagnostics = validate_contract_source(
+        r#"
+    boundary trait Firmware {
+        machine get_memory_map(map_size: &mut u32, desc_size: &mut u32)
+        ensures map_size <= 64 && desc_size >= 8;
+    }
+    data Desc { a: u32; b: u32; }
+    data Main { fw: Firmware; buf: [u8; 64]; map_size: u32; desc_size: u32; }
+    machine Main::main(&mut self) {
+        self.fw.get_memory_map(&mut self.map_size, &mut self.desc_size);
+        transition { _ -> walk(self.map_size, self.desc_size, 0) }
+        state walk(&mut self, map_size: u32 in Trapping, desc_size: u32 in Trapping, offset: u32 in Trapping) {
+            let d: &Desc = &self.buf[offset] as &Desc;
+            transition offset + desc_size < map_size {
+                true -> walk(map_size, desc_size, offset + desc_size)
+                _ -> done()
+            }
+        }
+        state done(&mut self) { }
+    }
+    "#,
+    )
+    .expect_err("the weak guard spelling admits a tail overrun and must refuse");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("would read past the buffer")),
+        "expected the footprint refusal, got {diagnostics:#?}"
+    );
+}
+
+#[test]
 fn refutes_constant_false_ensures_on_empty_proof_machine() {
     let diagnostics = validate_contract_source(
         r#"
