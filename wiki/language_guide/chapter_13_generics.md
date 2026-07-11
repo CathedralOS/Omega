@@ -118,6 +118,36 @@ Working rules:
   obligations.
 - The compiler must prove const constraints at each instantiation.
 
+## Machine Parameters
+
+A generic parameter may be a machine (drafted 2026-07-18, direction):
+
+```omega
+machine Deck::best<machine Key>(&self) -> u64
+where machine Key(card: &Card) -> u64
+{
+    // Key(&self.cards[i]) — a direct static call after monomorphization
+}
+// spelled at the call site: deck.best<Card::power_key>()
+```
+
+Working rules:
+
+- `<machine M>` binds a machine **symbol** at the spelling site, checked
+  against its `where machine` signature and monomorphized per instance like
+  every generic. After substitution, each use of `M` is a direct static
+  call. No runtime value exists — the parameter is gone by codegen.
+- The receiver mode in the required signature is the calling discipline:
+  `&self` is freely repeatable, `&mut self` is a stateful callback (spell it
+  as a type parameter whose machine is required, as below); a consuming
+  mode arrives with the cleanup arc.
+- There are **no runtime machine values and no capture inference**. A
+  stateful callback is a machine *instance* — its fields are its declared
+  captures, construction is the capture clause, and borrow modes are field
+  types. A type-erased callable is a `dyn` trait (chapter 14). Spawning
+  moves the instance, and the `send` property (chapter 7) gates what may
+  cross a spawn boundary.
+
 ## Where Clauses
 
 `where` clauses describe requirements on generic parameters.
