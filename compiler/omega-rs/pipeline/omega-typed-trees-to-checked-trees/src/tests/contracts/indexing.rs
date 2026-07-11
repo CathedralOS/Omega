@@ -688,3 +688,79 @@ fn boundary_ensures_transport_rebind_before_transition_kills_the_fact() {
         "expected the index refusal, got {diagnostics:#?}"
     );
 }
+
+
+#[test]
+fn boundary_ensures_witness_discharges_bounded_assignment() {
+    // R4 containment: `ensures size <= 8` refolds `self.n + 1` into
+    // [1, 9], fitting the [0..=9] target with no guard.
+    let source = r#"
+        boundary trait Firmware {
+            machine get_size(size: &mut u32)
+            ensures size <= 8;
+        }
+        data Main { fw: Firmware; n: u32; m: u32 [0..=9]; }
+        machine Main::main(&mut self) {
+            self.fw.get_size(&mut self.n);
+            self.m = self.n + 1;
+        }
+    "#;
+    lower_typed_trees(parse_typed_trees(source))
+        .expect("the ensures witness should discharge the bounded assignment");
+}
+
+#[test]
+fn boundary_ensures_witness_wide_bounded_assignment_refuses() {
+    // `self.n + 2` reaches 10 > 9 -- the witness must not over-prove.
+    let source = r#"
+        boundary trait Firmware {
+            machine get_size(size: &mut u32)
+            ensures size <= 8;
+        }
+        data Main { fw: Firmware; n: u32; m: u32 [0..=9]; }
+        machine Main::main(&mut self) {
+            self.fw.get_size(&mut self.n);
+            self.m = self.n + 2;
+        }
+    "#;
+    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+        .expect_err("a fold past the target must refuse");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("satisfies bounded target `self.m`")),
+        "expected the containment refusal, got {diagnostics:#?}"
+    );
+}
+
+#[test]
+fn boundary_ensures_witness_bounded_assignment_dies_on_later_call() {
+    // A second call between the witness and the assignment invalidates it.
+    let source = r#"
+        boundary trait Firmware {
+            machine get_size(size: &mut u32)
+            ensures size <= 8;
+            machine poke();
+        }
+        data Main { fw: Firmware; n: u32; m: u32 [0..=9]; }
+        machine Main::main(&mut self) {
+            self.fw.get_size(&mut self.n);
+            self.fw.poke();
+            self.m = self.n + 1;
+        }
+    "#;
+    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+        .expect_err("an intervening call must kill the witness");
+    // The kill shows up at whichever engine checks first: validation's
+    // exact-arithmetic fold (its S4 witness died too) or the checker's
+    // containment obligation -- both name the unproven value.
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("satisfies bounded target `self.m`")
+                || diagnostic.message.contains("may overflow `u32`")
+        }),
+        "expected a refusal naming the unproven value, got {diagnostics:#?}"
+    );
+}

@@ -747,6 +747,64 @@ fn guarded_integer_range_for_assignment(
     let declared = integer_range_for_assignment(proof_plan, obligation);
     let mut range = declared.clone().unwrap_or_else(neutral_range);
 
+    // R4 containment intake: boundary-ensures witnesses live at this
+    // assignment clamp the value's range -- directly when the VALUE is the
+    // witnessed place, and through the binary refold below when an OPERAND
+    // is (the witness fills the upper end the declaration leaves open; the
+    // place's type floor supplies the lower).
+    let value_display = proof_plan
+        .program
+        .expression_table
+        .display_name(obligation.value);
+    for (place, bound) in &obligation.ensures_witness_bounds {
+        if place == &value_display {
+            let bound = BigInt::from_i64(*bound);
+            if range.maximum > bound {
+                range.maximum = bound;
+            }
+        }
+    }
+    // Witness-only binary refold: the witness carries its own stability
+    // (computed at build with the invalidation walk), so it needs no
+    // incoming state guard -- `self.m = self.n + 1` after `ensures size <=
+    // 8` refolds n's [0, 8] through the addition with no guard at all.
+    if !obligation.ensures_witness_bounds.is_empty()
+        && let Some(operands) = &obligation.binary_operands
+    {
+        let witness_operand = |declared: &Option<IntegerRange>, handle: ExpressionHandle| {
+            let mut narrowed = declared.clone().unwrap_or_else(neutral_range);
+            let operand_display = proof_plan.program.expression_table.display_name(handle);
+            let mut touched = false;
+            for (place, bound) in &obligation.ensures_witness_bounds {
+                if place == &operand_display {
+                    let bound = BigInt::from_i64(*bound);
+                    if narrowed.maximum > bound {
+                        narrowed.maximum = bound;
+                    }
+                    if narrowed.minimum < BigInt::zero()
+                        && operand_is_unsigned(proof_plan, obligation, handle)
+                    {
+                        narrowed.minimum = BigInt::zero();
+                    }
+                    touched = true;
+                }
+            }
+            (touched || declared.is_some()).then_some(narrowed)
+        };
+        if let (Some(left), Some(right)) = (
+            witness_operand(&operands.left_range, operands.left),
+            witness_operand(&operands.right_range, operands.right),
+        ) && left != neutral_range()
+            && right != neutral_range()
+            && let Some(folded) = integer_binary_range(operands.operator, left, right)
+        {
+            range = IntegerRange {
+                minimum: range.minimum.max(folded.minimum),
+                maximum: range.maximum.min(folded.maximum),
+            };
+        }
+    }
+
     // The incoming-edge guard held at STATE ENTRY; it still holds at this
     // assignment only if nothing earlier in the state could have changed what
     // it constrained (a prior write to a may-aliasing place, or any opaque
@@ -770,7 +828,7 @@ fn guarded_integer_range_for_assignment(
         {
             let operand_range = |declared: Option<IntegerRange>, handle: ExpressionHandle| {
                 let base = declared.unwrap_or_else(neutral_range);
-                let narrowed = apply_source_condition(
+                let mut narrowed = apply_source_condition(
                     proof_plan,
                     base,
                     handle,
@@ -778,6 +836,23 @@ fn guarded_integer_range_for_assignment(
                     obligation.machine_symbol,
                     obligation.state_guard_source,
                 );
+                // R4: an ensures-witnessed OPERAND place clamps here; an
+                // unsigned place's type floor supplies the lower end.
+                let operand_display =
+                    proof_plan.program.expression_table.display_name(handle);
+                for (place, bound) in &obligation.ensures_witness_bounds {
+                    if place == &operand_display {
+                        let bound = BigInt::from_i64(*bound);
+                        if narrowed.maximum > bound {
+                            narrowed.maximum = bound;
+                        }
+                        if narrowed.minimum < BigInt::zero()
+                            && operand_is_unsigned(proof_plan, obligation, handle)
+                        {
+                            narrowed.minimum = BigInt::zero();
+                        }
+                    }
+                }
                 (narrowed != neutral_range()).then_some(narrowed)
             };
             if let (Some(left), Some(right)) = (
@@ -808,6 +883,68 @@ fn guarded_integer_range_for_assignment(
 /// member paths alias (`self.state` vs `self.state.count`); distinct roots do
 /// not (`self.pixels[i]` vs `self.i` -- the render-loop shape stays provable).
 /// Unresolvable shapes and calls are opaque: the guard is dropped (sound).
+/// Whether an operand place's DECLARED primitive is unsigned (its type
+/// floor is 0) -- lets an ensures upper witness pair with the natural
+/// lower bound.
+fn operand_is_unsigned(
+    proof_plan: &ProofPlan,
+    obligation: &BoundedAssignmentObligation,
+    handle: ExpressionHandle,
+) -> bool {
+    let _ = obligation;
+    let Some(constraints) = operand_declared_primitive(proof_plan, handle) else {
+        return false;
+    };
+    matches!(
+        constraints,
+        omega_typed_trees::types::PrimitiveType::U8
+            | omega_typed_trees::types::PrimitiveType::U16
+            | omega_typed_trees::types::PrimitiveType::U32
+            | omega_typed_trees::types::PrimitiveType::U64
+            | omega_typed_trees::types::PrimitiveType::Addr
+    )
+}
+
+fn operand_declared_primitive(
+    proof_plan: &ProofPlan,
+    handle: ExpressionHandle,
+) -> Option<omega_typed_trees::types::PrimitiveType> {
+    // Member place (`self.n`): resolve through the attached data's field.
+    let program = proof_plan.program;
+    let ExpressionNode::Member(member) = program.expression_table.expression(handle) else {
+        return None;
+    };
+    let ExpressionNode::Name(path) = program.expression_table.expression(member.receiver) else {
+        return None;
+    };
+    let [receiver] = program.expression_table.name_path_members(path.members) else {
+        return None;
+    };
+    if receiver.as_str() != "self" {
+        return None;
+    }
+    for machine in program.machines() {
+        let Some(attached) = machine.attached_data.as_ref() else {
+            continue;
+        };
+        let Some(data) = program
+            .data_definitions()
+            .iter()
+            .find(|data| data.name.as_str() == attached.as_str())
+        else {
+            continue;
+        };
+        if let Some(field_type) = crate::obligations::data_field_type_by_name(
+            program,
+            data,
+            member.member.as_str(),
+        ) {
+            return program.primitive_type_reference(field_type);
+        }
+    }
+    None
+}
+
 fn assignment_guard_is_stable(
     proof_plan: &ProofPlan,
     obligation: &BoundedAssignmentObligation,

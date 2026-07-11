@@ -271,8 +271,16 @@ bounded-escape store-containment keystone. Open rungs:
   whole transition). The M2 mini-shape (`get_size(&mut self.n)` with
   `ensures size <= 8`, then `read(self.n)` recasting `&buf[off] as
   &u32`) discharges 8+4<=12 end to end; too-wide and intervening-call
-  twins refuse (three lib tests). REMAINING intake: bounded-target
-  containment obligations; the SYMBOLIC half of the M2 stride
+  twins refuse (three lib tests). Bounded-target CONTAINMENT LANDED
+  2026-07-11: BoundedAssignmentObligation carries the live
+  ensures-witness set (a boundary call replaces the set with its own
+  witnessed places; an assignment drops its target's bound), and the
+  checker clamps the value directly plus a witness-only binary refold
+  (no incoming guard needed — `self.m = self.n + 1` after `ensures
+  size <= 8` refolds [0,8]+1 into the [0..=9] target; three lib tests
+  pin discharge / wide-fold refusal / intervening-call kill). The
+  SYMBOLIC half of the M2 stride LANDED with gap 4b (see the blocker-2
+  entry); the older note below stands only for
   (`offset + desc_size < map_size` with `desc_size >= sizeof` as a
   second lower-bound witness — needs value-vs-value coupling, R1
   remainder territory) — the LITERAL half is now fully witnessed. Then decode-minted where-facts + recast bounds discharged
