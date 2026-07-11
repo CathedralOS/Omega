@@ -18650,6 +18650,33 @@ fn runtime_depend_mapping_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_core_nat_declared_exit_canary_runs() {
+    // N4 first slice: core Nat loads through the bundled root; declaring
+    // proof-only data never touches runtime.
+    let canary = pass_canary("proofs/runtime_core_nat_declared_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-core-nat-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("core Nat canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("core Nat canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the core-Nat-using program to run untouched (exit 70), got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_free_const_exit_canary_runs() {
     // M2 blocker 4: free-floating consts substitute behind the shadowing
     // walk.
@@ -29517,6 +29544,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "collections/runtime_computed_index_match_subject_exit",
     "recast/runtime_multi_edge_offset_meet_exit",
     "constants/runtime_free_const_exit",
+    "proofs/runtime_core_nat_declared_exit",
     "build/runtime_depend_mapping_exit",
     "recast/runtime_record_view_exit",
     "arithmetic/runtime_f32_field_guard_exit",
