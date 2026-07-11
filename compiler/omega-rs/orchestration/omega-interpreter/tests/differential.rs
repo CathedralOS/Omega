@@ -347,6 +347,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("recast/runtime_scalar_pun_shared_let_exit", 70),
     ("recast/runtime_interior_byte_recast_exit", 70),
     ("recast/runtime_offset_byte_recast_exit", 70),
+    ("recast/runtime_guarded_offset_recast_exit", 70),
     ("recast/runtime_record_view_exit", 70),
     ("arithmetic/runtime_f32_field_guard_exit", 70),
     ("collections/runtime_indexed_guard_true_false_pair_exit", 70),

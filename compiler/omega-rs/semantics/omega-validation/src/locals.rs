@@ -33,20 +33,6 @@ impl WritableRoots<'_, '_> {
                 .any(|parameter| parameter.is_mutable && parameter.name.as_str() == root_name)
     }
 
-    pub(crate) fn contains(&self, root_name: &str) -> bool {
-        self.machine_symbols.has_owned_data(root_name)
-            || self.statements.iter().any(|statement| {
-                let StatementNode::LocalData(local_data) = statement else {
-                    return false;
-                };
-
-                local_data.name.as_str() == root_name
-            })
-            || self
-                .parameters
-                .iter()
-                .any(|parameter| parameter.is_mutable && parameter.name.as_str() == root_name)
-    }
 }
 
 fn local_is_mutable_reference(

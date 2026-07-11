@@ -18624,6 +18624,33 @@ fn runtime_offset_byte_recast_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_guarded_offset_recast_exit_canary_runs() {
+    // M2 gap #4: the runtime-offset recast whose bound arrives from the
+    // caller's dominating incoming-edge guard, not a declared interval.
+    let canary = pass_canary("recast/runtime_guarded_offset_recast_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-guarded-offset-recast-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("guarded-offset recast canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("guarded-offset recast canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the guard-discharged view to read 0x04030201 (exit 70), got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_record_view_exit_canary_runs() {
     // Rung C2: the record re-viewed over a byte region at a runtime offset;
     // legs pin alignment lockstep across validation/layout/interp sizing.
@@ -29211,6 +29238,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "recast/runtime_scalar_pun_shared_let_exit",
     "recast/runtime_interior_byte_recast_exit",
     "recast/runtime_offset_byte_recast_exit",
+    "recast/runtime_guarded_offset_recast_exit",
     "recast/runtime_record_view_exit",
     "arithmetic/runtime_f32_field_guard_exit",
     "collections/runtime_indexed_rmw_loop_exit",

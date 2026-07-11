@@ -27,10 +27,16 @@ impl SourceFile {
     }
 
     pub fn position_at(&self, byte_offset: usize) -> SourcePosition {
+        SourcePosition::of(&self.source, byte_offset)
+    }
+}
+
+impl SourcePosition {
+    pub fn of(source: &str, byte_offset: usize) -> Self {
         let mut line = 1;
         let mut column = 1;
 
-        for (index, character) in self.source.char_indices() {
+        for (index, character) in source.char_indices() {
             if index >= byte_offset {
                 break;
             }

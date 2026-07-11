@@ -338,18 +338,31 @@ fn interior_byte_region_source(
             offset
         }
         _ => {
-            let raw = crate::places::declared_place_type_raw(
+            let declared_high = crate::places::declared_place_type_raw(
                 program,
                 machine,
                 Some(state),
                 indexed.index,
-            )?;
-            let interval = crate::arithmetic_domains::range_constraint_interval(program, raw)?;
-            let high = interval.high()?;
-            if interval.low().is_some_and(|low| low < 0) || high < 0 {
-                return None;
+            )
+            .and_then(|raw| {
+                let interval =
+                    crate::arithmetic_domains::range_constraint_interval(program, raw)?;
+                let high = interval.high()?;
+                (!interval.low().is_some_and(|low| low < 0) && high >= 0).then_some(high)
+            });
+            // Gap #4 (the Cathedral walk): an UNRANGED runtime offset
+            // discharges through a DOMINATING incoming-arm guard bounding it
+            // below a literal (`transition off <= K { true -> read(off) }`)
+            // -- the single-predecessor walk-back, with every intermediate
+            // state preserving the offset's fields (the same soundness gate
+            // the requires prover and the checker's incoming-guard facts
+            // use).
+            let guard_bound =
+                incoming_guard_offset_bound(program, machine, state, indexed.index);
+            match declared_high.or(guard_bound) {
+                Some(high) => high,
+                None => return None,
             }
-            high
         }
     };
     let collection_type = crate::places::declared_place_type(
@@ -402,4 +415,127 @@ fn scalar_record_size(program: &TypedTrees, name: &str) -> Option<usize> {
         max_align = max_align.max(size);
     }
     Some(offset.div_ceil(max_align) * max_align)
+}
+
+/// The literal upper bound the incoming guard places on `offset` at this
+/// state's entry. Sound because it is SHALLOW: the state must have exactly
+/// ONE incoming edge machine-wide, that edge's GUARDED (true) arm, whose
+/// guard conjunct `arg <= K` / `arg < K` names (by display spelling) the
+/// very expression passed at the param's position -- guard check and
+/// argument capture happen in the same transition step, so the bound holds
+/// at entry. Multi-predecessor states (e.g. self-re-entering walk loops),
+/// fall-through arms, and non-literal bounds all return None; those need
+/// the per-edge meet + symbolic route (TASKS M2 gap 4, remaining).
+fn incoming_guard_offset_bound(
+    program: &TypedTrees,
+    machine: &omega_typed_trees::machine::Machine,
+    state: &omega_typed_trees::state::State,
+    offset: ExpressionHandle,
+) -> Option<i64> {
+    use omega_typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
+    // The offset must be a bare PARAM of this state; the guard bounds the
+    // ARGUMENT at the call site, which becomes the param at entry.
+    let ExpressionNode::Name(path) = program.expression_table.expression(offset) else {
+        return None;
+    };
+    let [param_name] = program.expression_table.name_path_members(path.members) else {
+        return None;
+    };
+    // Position among NON-SELF parameters: call-site argument lists exclude
+    // the receiver.
+    let param_position = program
+        .state_parameters(state)
+        .iter()
+        .filter(|parameter| !parameter.is_self)
+        .position(|parameter| parameter.name.as_str() == param_name.as_str())?;
+
+    let mut bound: Option<i64> = None;
+    let mut incoming_edges = 0usize;
+    for source in program.machine_states(machine) {
+        for statement in program.statement_table.statements(source.statement_nodes) {
+            let StatementNode::Transition(transition) = statement else {
+                continue;
+            };
+            for target_handle in [transition.target, transition.continuation] {
+                if !target_handle.is_valid() {
+                    continue;
+                }
+                let TransitionTargetNode::Named { path, arguments, .. } =
+                    program.statement_table.transition_target(target_handle)
+                else {
+                    continue;
+                };
+                let target_name = program
+                    .statement_table
+                    .name_path_members(path.members)
+                    .last()
+                    .map(|name| name.as_str())
+                    .unwrap_or("");
+                if target_name != state.name.as_str() {
+                    continue;
+                }
+                incoming_edges += 1;
+                if incoming_edges > 1 {
+                    return None;
+                }
+                // Only the GUARDED (true) arm establishes the guard.
+                if target_handle != transition.target {
+                    return None;
+                }
+                let TransitionGuardNode::When(guard) = transition.guard else {
+                    return None;
+                };
+                let argument = program
+                    .statement_table
+                    .expression_handles(*arguments)
+                    .get(param_position)
+                    .copied()?;
+                let argument_label = program.expression_table.display_name(argument);
+                bound = guard_upper_bound_for(program, guard, &argument_label);
+            }
+        }
+    }
+    bound
+}
+
+/// `label <= K` / `label < K` within an `&&` conjunction (through the
+/// `== true` desugar), by display spelling.
+fn guard_upper_bound_for(
+    program: &TypedTrees,
+    guard: ExpressionHandle,
+    label: &str,
+) -> Option<i64> {
+    use omega_typed_trees::expression::BinaryOperator;
+    let ExpressionNode::Binary(binary) = program.expression_table.expression(guard) else {
+        return None;
+    };
+    match binary.operator {
+        BinaryOperator::And => guard_upper_bound_for(program, binary.left, label)
+            .or_else(|| guard_upper_bound_for(program, binary.right, label)),
+        BinaryOperator::Equal
+            if matches!(
+                program.expression_table.expression(binary.right),
+                ExpressionNode::Boolean(true)
+            ) =>
+        {
+            guard_upper_bound_for(program, binary.left, label)
+        }
+        BinaryOperator::LessOrEqual | BinaryOperator::Less => {
+            if program.expression_table.display_name(binary.left) != label {
+                return None;
+            }
+            let ExpressionNode::Integer(literal) =
+                program.expression_table.expression(binary.right)
+            else {
+                return None;
+            };
+            let k = literal.value_i64()?;
+            if binary.operator == BinaryOperator::Less {
+                k.checked_sub(1)
+            } else {
+                Some(k)
+            }
+        }
+        _ => None,
+    }
 }
