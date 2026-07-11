@@ -1,0 +1,9 @@
+// N1 state-param face: proof-only `Nat` cannot cross a runtime state
+// boundary -- params are runtime storage.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Nat { case Zero; case Succ(prev: Nat); }
+data Main { console: Console; }
+machine Main::main(&mut self) {
+    transition { _ -> f(Nat::Zero) }
+    state f(&mut self, n: Nat) { self.console.exit_process(0); }
+}

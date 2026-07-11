@@ -1,0 +1,18 @@
+// RUN CANARY (exit 70) + interpreter differential. Math roster N1:
+// recursive data -- direct (`Nat`) and mutual (`Tree`/`Forest`) -- is
+// LEGAL to declare; the classification (proof-only, computed, never
+// spelled) fences runtime consumption, not declaration. A program that
+// declares proof-only types and never consumes them at runtime compiles
+// and runs untouched: the layout walk skips them the way generic
+// templates are skipped. N2 gives these types their bignum fact
+// evaluation; the fail twins (fail/data/proof_only_*) pin each
+// consumption face's refusal.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Nat { case Zero; case Succ(prev: Nat); }
+data Tree { case Leaf; case Node(forest: Forest); }
+data Forest { case Empty; case Grow(tree: Tree, rest: Forest); }
+data Main { console: Console; out: i32; }
+machine Main::main(&mut self) {
+    self.out = 70;
+    self.console.exit_process(self.out);
+}

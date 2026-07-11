@@ -15,6 +15,7 @@ mod operators;
 mod places;
 mod proof_facts;
 mod recasts;
+mod proof_only_faces;
 mod properties;
 mod state_signatures;
 mod struct_literals;
@@ -72,6 +73,11 @@ pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
     validate_trait_requirements(program, &mut diagnostics);
     validate_data_conformances(program, &symbols, &mut diagnostics);
     validate_data_field_types(program, &symbols, &mut diagnostics);
+    // Math roster N1: recursive data is legal and PROOF-ONLY (computed, never
+    // spelled); every runtime consumption face refuses with the
+    // classification named.
+    let proof_only = omega_typed_trees::proof_only::classify(program);
+    proof_only_faces::validate_proof_only_consumption(program, &proof_only, &mut diagnostics);
     // Q6 ruling: machine call cycles are banned regardless of boundedness.
     call_cycles::validate_machine_call_cycles(program, &symbols, &mut diagnostics);
     data::validate_zero_reachable_field_ranges(program, &mut diagnostics);

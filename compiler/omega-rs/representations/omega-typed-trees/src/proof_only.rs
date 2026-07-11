@@ -1,0 +1,235 @@
+//! Proof-only classification (math roster N1). COMPUTED, never spelled:
+//! recursive data (direct or mutual, through INLINE containment) is legal
+//! and proof-only; containment of a proof-only type is contagious. The
+//! classification is the single recognizer -- runtime consumption faces
+//! (layout, machine data, state params, locals, wire, properties) consult
+//! it and refuse with the classification named. References are
+//! indirection, not containment: `next: &Node` breaks a cycle and keeps
+//! `Node` runtime data.
+
+use crate::TypedTrees;
+use crate::data::DataMember;
+use crate::name::Identifier;
+use crate::types::{TypeReferenceHandle, TypeReferenceNode};
+use omega_core::symbols::SymbolHandle;
+use std::collections::HashMap;
+
+/// Why a data definition is proof-only. `describe` renders the chain.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ProofOnlyReason {
+    /// The definition reaches itself through inline fields.
+    Recursive,
+    /// A field (or case payload field) holds a proof-only type inline.
+    Contains {
+        field: Identifier,
+        held: Identifier,
+    },
+}
+
+#[derive(Debug, Default)]
+pub struct ProofOnlyClassification {
+    /// Keyed by `SymbolHandle::arena_index()` (handles carry no `Hash`).
+    reasons: HashMap<u32, ProofOnlyReason>,
+}
+
+impl ProofOnlyClassification {
+    pub fn is_proof_only(&self, symbol: SymbolHandle) -> bool {
+        self.reasons.contains_key(&symbol.arena_index())
+    }
+
+    pub fn reason(&self, symbol: SymbolHandle) -> Option<&ProofOnlyReason> {
+        self.reasons.get(&symbol.arena_index())
+    }
+
+    /// "`Nat` is proof-only: recursive data has no layout" /
+    /// "`Wrapper` is proof-only: field `n` holds proof-only `Nat`".
+    pub fn describe(&self, name: &str, symbol: SymbolHandle) -> Option<String> {
+        Some(match self.reasons.get(&symbol.arena_index())? {
+            ProofOnlyReason::Recursive => {
+                format!("`{name}` is proof-only: recursive data has no layout")
+            }
+            ProofOnlyReason::Contains { field, held } => {
+                format!("`{name}` is proof-only: field `{field}` holds proof-only `{held}`")
+            }
+        })
+    }
+
+    /// Is any data type this reference holds INLINE proof-only? Returns the
+    /// held type's name. Walks through arrays/constraints/generic arguments
+    /// AND through references -- a runtime face cannot use `&Nat` either
+    /// (the pointee never materializes); containment edges during
+    /// classification are the narrower `inline_data_edges`.
+    pub fn proof_only_mention(
+        &self,
+        program: &TypedTrees,
+        type_reference: TypeReferenceHandle,
+    ) -> Option<Identifier> {
+        if !type_reference.is_valid() {
+            return None;
+        }
+        match program.type_reference_table.type_reference(type_reference) {
+            TypeReferenceNode::Named { symbol, name } => self
+                .is_proof_only(*symbol)
+                .then(|| name.clone()),
+            TypeReferenceNode::Reference { referee, .. } => {
+                self.proof_only_mention(program, *referee)
+            }
+            TypeReferenceNode::Constrained { base_type, .. } => {
+                self.proof_only_mention(program, *base_type)
+            }
+            TypeReferenceNode::FixedArray { element_type, .. }
+            | TypeReferenceNode::Slice { element_type } => {
+                self.proof_only_mention(program, *element_type)
+            }
+            TypeReferenceNode::Generic {
+                base_symbol,
+                base_name,
+                arguments,
+            } => {
+                if self.is_proof_only(*base_symbol) {
+                    return Some(base_name.clone());
+                }
+                program
+                    .type_reference_table
+                    .type_reference_handles(*arguments)
+                    .iter()
+                    .find_map(|argument| self.proof_only_mention(program, *argument))
+            }
+            TypeReferenceNode::DynamicTrait { .. } | TypeReferenceNode::Unit => None,
+        }
+    }
+}
+
+/// Classify every data definition: recursion seeds (a definition on an
+/// inline-containment cycle), then contagion to fixpoint.
+pub fn classify(program: &TypedTrees) -> ProofOnlyClassification {
+    let definitions = program.data_definitions();
+    let index_by_symbol: HashMap<u32, usize> = definitions
+        .iter()
+        .enumerate()
+        .map(|(index, definition)| (definition.symbol.arena_index(), index))
+        .collect();
+
+    // Inline containment edges, with the field that carries each edge (for
+    // the contagion message).
+    let mut edges: Vec<Vec<(usize, Identifier, Identifier)>> = vec![Vec::new(); definitions.len()];
+    for (index, definition) in definitions.iter().enumerate() {
+        for member in program.data_members(definition) {
+            let fields = match member {
+                DataMember::Field(field) => std::slice::from_ref(field),
+                DataMember::Variant(variant) => program.data_payload_fields(variant),
+            };
+            for field in fields {
+                collect_inline_data_edges(
+                    program,
+                    field.type_reference,
+                    &index_by_symbol,
+                    &mut |target, held| {
+                        edges[index].push((target, field.name.clone(), held));
+                    },
+                );
+            }
+        }
+    }
+
+    let mut reasons: HashMap<u32, ProofOnlyReason> = HashMap::new();
+
+    // Recursion seeds: definitions that can reach themselves.
+    for (start, definition) in definitions.iter().enumerate() {
+        if reaches(start, start, &edges) {
+            reasons.insert(definition.symbol.arena_index(), ProofOnlyReason::Recursive);
+        }
+    }
+
+    // Contagion fixpoint: holding a proof-only type inline makes the holder
+    // proof-only.
+    loop {
+        let mut changed = false;
+        for (index, definition) in definitions.iter().enumerate() {
+            if reasons.contains_key(&definition.symbol.arena_index()) {
+                continue;
+            }
+            let contained = edges[index].iter().find(|(target, _, _)| {
+                reasons.contains_key(&definitions[*target].symbol.arena_index())
+            });
+            if let Some((_, field, held)) = contained {
+                reasons.insert(
+                    definition.symbol.arena_index(),
+                    ProofOnlyReason::Contains {
+                        field: field.clone(),
+                        held: held.clone(),
+                    },
+                );
+                changed = true;
+            }
+        }
+        if !changed {
+            break;
+        }
+    }
+
+    ProofOnlyClassification { reasons }
+}
+
+/// Can `from` reach `goal` through one or more inline edges?
+fn reaches(goal: usize, from: usize, edges: &[Vec<(usize, Identifier, Identifier)>]) -> bool {
+    let mut visited = vec![false; edges.len()];
+    let mut stack: Vec<usize> = edges[from].iter().map(|(target, _, _)| *target).collect();
+    while let Some(node) = stack.pop() {
+        if node == goal {
+            return true;
+        }
+        if std::mem::replace(&mut visited[node], true) {
+            continue;
+        }
+        stack.extend(edges[node].iter().map(|(target, _, _)| *target));
+    }
+    false
+}
+
+/// Inline containment: named data, fixed arrays of it, constrained shells,
+/// generic bases and their arguments. References and slices are
+/// indirection -- they stop the walk (a `&Node` field is the sanctioned
+/// cycle-breaker and stays runtime-legal).
+fn collect_inline_data_edges(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+    index_by_symbol: &HashMap<u32, usize>,
+    edge: &mut impl FnMut(usize, Identifier),
+) {
+    if !type_reference.is_valid() {
+        return;
+    }
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Named { symbol, name } => {
+            if let Some(target) = index_by_symbol.get(&symbol.arena_index()) {
+                edge(*target, name.clone());
+            }
+        }
+        TypeReferenceNode::Constrained { base_type, .. } => {
+            collect_inline_data_edges(program, *base_type, index_by_symbol, edge)
+        }
+        TypeReferenceNode::FixedArray { element_type, .. } => {
+            collect_inline_data_edges(program, *element_type, index_by_symbol, edge)
+        }
+        TypeReferenceNode::Generic {
+            base_symbol,
+            base_name,
+            arguments,
+        } => {
+            if let Some(target) = index_by_symbol.get(&base_symbol.arena_index()) {
+                edge(*target, base_name.clone());
+            }
+            for argument in program
+                .type_reference_table
+                .type_reference_handles(*arguments)
+            {
+                collect_inline_data_edges(program, *argument, index_by_symbol, edge);
+            }
+        }
+        TypeReferenceNode::Reference { .. }
+        | TypeReferenceNode::Slice { .. }
+        | TypeReferenceNode::DynamicTrait { .. }
+        | TypeReferenceNode::Unit => {}
+    }
+}
