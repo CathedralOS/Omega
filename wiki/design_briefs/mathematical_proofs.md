@@ -38,9 +38,12 @@ almost no new language. Each proposed construct collapsed, in order:
    rule (settled; see §2).
 4. **An `assume` keyword** — deliberately never (see §4).
 
-What genuinely remains as *new*: one data property (`unbounded`-shaped) for
-proof-only types, the evidence-class ledger, and — far rungs — derivation
-records, the kernel, and reified goals for tactic-style proof machines.
+What genuinely remains as *new*: `boundary data` (the trust keyword's data
+face — par-7) and, far rungs, derivation records, the kernel, and reified
+goals for tactic-style proof machines. The `unbounded` property DIED in
+review: proof-only is computed from structure (recursive data), never
+spelled. Final new-surface tally for the whole arc: `<machine M>` +
+`boundary data`; zero keywords, zero properties.
 
 ## 2. Measured recursion (settled 2026-07-18 — amends the NO RECURSION directive)
 
@@ -268,8 +271,20 @@ Settled through chat review after the documentation spree; chapters updated:
    composition (coercion + identity recast), never designed. Final keyword
    tally for the entire proofs/trust arc: **zero** — boundary, dyn, as,
    satisfies, decreases, in were all already in the building.
-3. **The `unbounded` property spelling** and which proof-only types ship in
-   core (`Nat`, `Int`, `Seq`?).
+3. ~~The `unbounded` property spelling~~ **SETTLED: no property exists.**
+   Proof-only is computed, never spelled — a type is proof-only iff it is
+   recursive (directly or mutually) or contains a proof-only field. Owner:
+   "the violation is already opting into the semantics"; the marker earned
+   no compiler action (the house test), and Omega is cleaner than Rust here
+   — with no Box, recursive data has no runtime meaning it could have
+   accidentally intended. Core roster: `Nat`, `Seq<T>`, `Bag<T>`, `Rat`
+   (every finite float is a dyadic rational — the embedding is exact; float
+   verification is Rat-vs-Rat error bounds, the Gappa road; posits and any
+   other format are libraries, f32's FPU ops are the boundary-trusted
+   special case — the language is never float-aware), `Int` on demand
+   (order has no floor; `decreases` measures stay Nat-valued or
+   range-floored). The proof views (Seq/Bag/Range) dissolve from
+   compiler-known atoms into ordinary core data + lemmas. `Real`: par-7.
 4. **Deferral ergonomics**: compiler-writes-the-declaration tooling vs an
    in-source attribute paired with a mandatory row.
 5. **Reified goal type** for tactic-style proof machines — far rung; shares
@@ -279,3 +294,77 @@ Settled through chat review after the documentation spree; chapters updated:
 7. **Engineering pins**: the `<machine M>` parameter kind through the
    generics pipeline; dyn descriptors carrying satisfier identity; the
    in-range decreases obligation in MR3.
+
+## 7. The Real arc (settled through owner review)
+
+`Rat` and `Real` are different animals: a Rat is a pair of Ints — finite
+data; a Real is infinite information, representable only as the
+approximation process itself (a Cauchy stream of Rats), two streams equal
+when they converge together. Reals are symbols everywhere — even Lean's
+`Real` is noncomputable by design; proofs push algebra, never digits;
+computation lives in Rat/float land, connected by proven error bounds.
+
+Settled:
+
+- **`boundary data Real;`** — a type with no definition, as a boundary
+  machine is a contract with no body (owner: "data and code can both be
+  'trust me bro'"). This is the one proof-only case structure cannot infer
+  (an axiomatized carrier has no structure), and it resurrects no marker:
+  an undefined type IS a trust object, so it reuses the trust surface. Ops
+  are ensures-less boundary machines (symbols; claim nothing; no grant);
+  axioms are boundary machines with ensures (one accepted-tier row each).
+  Opacity is mathematically justified: any two complete ordered fields are
+  isomorphic — the rulebook pins the carrier uniquely.
+- **Constructed Real is the end-state** (owner: "I sorta trust the Lean gut
+  instinct"). Axioms can be jointly inconsistent, and one contradiction
+  proves everything; construction inherits consistency from the kernel. The
+  axiom package ships anyway as interim scaffolding — users get Real specs
+  immediately, the trust report shows the honest rows — and retires by the
+  settled boundary-upgrade swap. Engine note that decided the staging: the
+  normalizer keys on native `==`, which axioms preserve; a setoid
+  construction (custom equivalence, no quotients) would wall Real off from
+  the polynomial/DBM machinery, so quotients are the required gadget, not
+  setoids.
+- **No universe ladder — parked with a trigger.** The Russell/Girard
+  paradox needs types as values; Omega never reifies types. Quantification
+  over predicates = machine-parameter schemas, monomorphized per use (the
+  PA-induction-schema precedent) — predicative, paradox-immune by
+  construction, no Type-tower to design or audit. Cost: proofs whose
+  STATEMENTS treat all-predicates as one completed object (deep
+  set-theoretic foundations, not working analysis — the construction sans
+  universes is Weyl's 1918 predicative program, mechanized). A universe
+  tower would be foundation surgery comparable to the entire entailment
+  engine, with a documented history of soundness bugs in Coq/Agda/Lean.
+  Trigger to revisit: full-mathlib replay becoming a language goal, and
+  better surgeons (owner: "we'll wait for LLMs to get better so they can
+  do this surgery more precisely"). Parks next to reified goals.
+- **Fact-position operators route by operand type**: Nat/Int/Rat compute
+  (engine bignum); Real rearranges (the glyph maps to the declared symbol;
+  the normalizer works under the ring axioms — the polynomial layer is
+  ring-generic). Real never exists at runtime, so it never queues behind
+  the runtime operator-overloading question (posits et al. — that arc
+  stays open, and it is the one genuine gap the posit exploration exposed).
+
+Open sub-decisions (owner-gated, dependency order):
+
+1. **Classical logic.** The construction forces it: trichotomy and
+   division well-definedness are unprovable without excluded middle.
+   Recommendation on record: LEM ships as a boundary machine in core — one
+   accepted-tier grant row; constructivists simply do not grant it; the
+   trust report shows whether a proof tower is classical or constructive.
+   A century-old philosophy-of-math war absorbed as a lockfile row.
+2. **Machine-parameterized proof data.** A CauchySeq wraps a stream;
+   recommendation: `data CauchySeq<machine S>` — extend ch13 machine
+   params from machines to data declarations (monomorphization everywhere,
+   no machine-valued fields, consistent with the runtime ban). Nested
+   schemas (machine parameters whose signatures take machine parameters)
+   are the one genuinely new capability the construction demands.
+3. **Quotient spelling.** The gadget is Lean-small (four constants and one
+   reduction rule); the engine learns lift-of-mk reduction plus congruence
+   over the user equivalence at the quotient type. Needs an Omega-native
+   declaration form when the lane reaches it.
+
+The corpus (well-definedness of the ops, ordering, completeness) is
+mathlib-scale ceremony: long, LLM-parallel, zero runtime-compiler conflict
+(nothing lowers), and the ultimate dogfood — it stress-tests measured
+recursion, schemas, quotients, and bignum simultaneously.

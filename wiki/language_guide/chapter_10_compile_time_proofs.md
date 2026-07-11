@@ -71,25 +71,45 @@ which proof rules apply.
 ## Proof-Only Data
 
 `Nat` and its kin are proof-only types: unbounded, with no machine layout, no
-ZII obligation, and no runtime existence. A data type declares this with a
-property in the landed bracket surface (spelling provisional):
+ZII obligation, and no runtime existence. Nothing declares this — the
+structure does. Recursive data is legal, and recursion is what makes a type
+proof-only:
 
 ```omega
-data Nat [unbounded] { ... }
+data Nat {
+    case Zero;
+    case Succ(n: Nat);   // recursive: no layout is derivable — proof-only
+}
 ```
 
 Working rules:
 
+- **Proof-only is computed, never spelled.** A type is proof-only when it is
+  recursive (directly or mutually) or any field's type is proof-only. There
+  is no marker; writing recursive data is the opt-in, and diagnostics name
+  the classification ("`Nat` is proof-only: recursive data has no layout").
 - A proof-only value may appear **only in fact positions** — `requires`,
   `ensures`, `where` clauses, domain bodies — and in proof-stratum machine
   bodies. It never has a size, an address, or a zero value.
 - A machine whose signature mentions a proof-only type is itself proof-only:
   it is evaluated by the checker, never lowered.
+- **The checker computes where values exist and rearranges where they do
+  not.** `Nat`/`Int`/`Rat` facts evaluate with exact unbounded arithmetic
+  (`3nat * 3nat` reduces to `9nat`); facts over axiomatized carriers such as
+  `Real` normalize symbolically under the carrier's declared algebra. The
+  operand type picks the mode.
 - A pure, total, measured machine over ordinary machine types is **dual-use**:
   it runs at runtime *and* serves as a fact atom the engine reasons about.
   Most theorems about `u64` code cite dual-use machines directly and never
   need `Nat` at all; `Nat` appears when a claim is genuinely about unbounded
   mathematics.
+
+Core ships the roster: `Nat`, `Seq<T>`, `Bag<T>`, and `Rat` — every finite
+float embeds into `Rat` exactly (IEEE values are dyadic rationals), so float
+verification is exact Rat-versus-Rat error bounding. `Int` follows when
+subtraction-closed reasoning wants it, with one rule stated at introduction:
+`Int`'s order has no floor, so `decreases` measures stay `Nat`-valued or
+range-floored.
 
 ## Proof Views
 
@@ -103,8 +123,10 @@ Bag(items)    finite multiset/counting view
 Range(len)    finite index space
 ```
 
-These are proof-only views. They do not allocate at runtime. They let contracts
-talk about math without pretending that proof binders are runtime loops.
+These are ordinary proof-only types from core — recursive data plus
+extraction lemmas, not compiler-known forms. They do not allocate at runtime;
+they let contracts talk about math without pretending that proof binders are
+runtime loops.
 
 `Sorted` is an ordinary domain defined by a predicate machine (see Quantified
 Facts below); the views exist so contracts can talk about order and counting
@@ -393,6 +415,23 @@ its checker is a measured machine, its soundness is a theorem
 of chapter 8 applied to proofs. A build that can afford the check *proves*
 the claim outright; one that cannot accepts the narrow execution claim
 above and lifts it by theorem.
+
+Trust has a data face too. `boundary data` declares a type with no
+definition, as `boundary machine` declares a contract with no body:
+
+```omega
+boundary data Real;                                    // opaque proof-only carrier
+boundary machine Real::add(a: Real, b: Real) -> Real;  // no ensures: a symbol — claims nothing
+boundary machine add_comm(a: Real, b: Real)
+ensures Real::add(a, b) == Real::add(b, a);            // an axiom: one trust row
+```
+
+The carrier is proof-only (nothing without a definition can have a layout);
+its meaning is exactly its axiom machines; the package rides the same
+grant/lockfile/report machinery. An ensures-less declaration claims nothing
+and needs no grant; each axiom is one accepted-tier row. Axioms retire by
+the standard upgrade: ship the constructed type with its proven theorems,
+and consumers swap grant for import.
 
 ## Automation And Boundary
 
