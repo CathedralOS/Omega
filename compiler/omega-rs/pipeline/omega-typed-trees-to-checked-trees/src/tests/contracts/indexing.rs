@@ -536,3 +536,70 @@ fn indexes_terminal_state_contract_ensures() {
     assert_eq!(ensures.len(), 1);
     assert_eq!(facts.contract_facts.get(ensures[0].fact).fact, fact);
 }
+
+
+#[test]
+fn boundary_out_param_ensures_discharges_index_bounds() {
+    // R4 witness mint, checker tier: `fw.get_size(&mut self.n)` with
+    // `ensures size <= 8` proves `self.buf[self.n]` against length 12.
+    let source = r#"
+        boundary trait Firmware {
+            machine get_size(size: &mut u32)
+            ensures size <= 8;
+        }
+        data Main { fw: Firmware; buf: [u8; 12]; n: u32; }
+        machine Main::main(&mut self) {
+            self.fw.get_size(&mut self.n);
+            self.buf[self.n] = 7;
+        }
+    "#;
+    lower_typed_trees(parse_typed_trees(source))
+        .expect("the ensures witness should discharge the index bound");
+}
+
+#[test]
+fn boundary_out_param_without_ensures_keeps_index_refusal() {
+    let source = r#"
+        boundary trait Firmware {
+            machine get_size(size: &mut u32);
+        }
+        data Main { fw: Firmware; buf: [u8; 12]; n: u32; }
+        machine Main::main(&mut self) {
+            self.fw.get_size(&mut self.n);
+            self.buf[self.n] = 7;
+        }
+    "#;
+    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+        .expect_err("without the ensures the index must stay unproven");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("cannot prove index `self.n` is within length 12")),
+        "expected the index refusal, got {diagnostics:#?}"
+    );
+}
+
+#[test]
+fn boundary_out_param_ensures_bound_too_wide_keeps_index_refusal() {
+    // `ensures size <= 12` admits index 12 into a length-12 buffer -- the
+    // witness must not over-prove.
+    let source = r#"
+        boundary trait Firmware {
+            machine get_size(size: &mut u32)
+            ensures size <= 12;
+        }
+        data Main { fw: Firmware; buf: [u8; 12]; n: u32; }
+        machine Main::main(&mut self) {
+            self.fw.get_size(&mut self.n);
+            self.buf[self.n] = 7;
+        }
+    "#;
+    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+        .expect_err("a bound admitting the length itself must stay unproven");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("cannot prove index `self.n` is within length 12")),
+        "expected the index refusal, got {diagnostics:#?}"
+    );
+}
