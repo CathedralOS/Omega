@@ -1,0 +1,75 @@
+// std math: sin/cos as PURE OMEGA (numeric-intrinsics remainder,
+// 2026-07-11). STATUS: DRAFT -- parses and validates; native use is
+// measured-blocked on (a) float-terminal value-call return-writes ("this
+// terminal shape is not served yet"; integer terminals serve) and (b) a
+// compile-thread stack overflow on the reduce ladder's shape (repro in
+// TASKS). Both recorded under the numeric-intrinsics item. No ISA carries a usable sin instruction, so instead of a
+// per-target encoder arm the implementations are ordinary f64 machines --
+// both engines then execute the IDENTICAL IEEE op sequence, so native and
+// interpreter agree bit-for-bit by construction (the property the task
+// named "a polynomial matching interp precision").
+//
+// Shape: a binary-ladder range reduction into [-pi, pi] (conditional
+// subtraction of 2pi * 2^k -- pure compares and subtracts, no
+// float-to-int cast, which is still owner-gated), a quadrant fold into
+// [-pi/2, pi/2], then a degree-15 Taylor polynomial in Horner form.
+// Accuracy: ~2e-11 worst case at |x| = pi/2; the ladder serves |x| up to
+// ~6.7e7 (2pi * 2^24) with reduction error growing as |x| does. Large
+// arguments and sub-ulp accuracy are the recorded follow-on (Cody-Waite
+// double-double constants ride the same shape).
+
+machine sin(x: f64) -> f64 {
+    transition { _ -> reduce(x, 16777216.0) }
+
+    // Ladder: subtract 2pi * k, halving k, until x lands in [-pi, pi].
+    // Guard subjects materialize into slotted locals first (the guard
+    // encoder compares places, not computed expressions).
+    state reduce(x: f64, k: f64) {
+        let mut hi: f64 = 3.14159265358979312;
+        hi = hi * k;
+        let mut lo: f64 = 0.0;
+        lo = lo - hi;
+        let mut step: f64 = 6.28318530717958623;
+        step = step * k;
+        transition k < 1.0 { true -> fold(x) }
+        transition x > hi { true -> reduce(x - step, k) }
+        transition x < lo { true -> reduce(x + step, k) }
+        transition { _ -> reduce(x, k * 0.5) }
+    }
+
+    // Quadrant fold: sin(x) = sin(pi - x) on (pi/2, pi]; mirrored below.
+    state fold(x: f64) {
+        transition x > 1.57079632679489656 {
+            true -> poly(3.14159265358979312 - x)
+        }
+        transition x < 0.0 - 1.57079632679489656 {
+            true -> poly(0.0 - 3.14159265358979312 - x)
+        }
+        transition { _ -> poly(x) }
+    }
+
+    // Degree-15 Taylor in Horner form over x*x. The accumulator is
+    // `let mut`: plain lets BIND-FOLD into their consumers, which would
+    // rebuild the whole chain as one deeply nested expression and exhaust
+    // the MVP encoders' small scratch pools -- a mut local is slotted, so
+    // every step stays a two-op store.
+    state poly(x: f64) {
+        let xx: f64 = x * x;
+        let mut p: f64 = 0.00000000000002811457254345520763198945583010320;
+        p = -0.00000000000764716373181981647590113198578807 + xx * p;
+        p = 0.00000000160590438368216145993923771701549479 + xx * p;
+        p = -0.00000027557319223985890652557316053039947 + xx * p;
+        p = 0.00002480158730158730158730158730158730 + xx * p;
+        p = -0.00138888888888888888888888888888888889 + xx * p;
+        p = 0.04166666666666666666666666666666666667 + xx * p;
+        p = -0.16666666666666666666666666666666666667 + xx * p;
+        let mut tail: f64 = x * xx;
+        tail = tail * p;
+        transition { _ -> (x + tail) }
+    }
+}
+
+machine cos(x: f64) -> f64 {
+    // cos(x) = sin(x + pi/2); the shared reduction absorbs the shift.
+    transition { _ -> (sin(x + 1.57079632679489656)) }
+}

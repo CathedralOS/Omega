@@ -571,9 +571,23 @@ no `unbounded` property exists. Rungs:
 
 ## Language ergonomics
 
-- **[ENGINEERING]** numeric intrinsics remainder: sin/cos need range
-  reduction + a polynomial matching interp precision — a numerical
-  mini-project.
+- **[ENGINEERING]** numeric intrinsics remainder: sin/cos — DESIGN
+  SETTLED + DRAFT LANDED 2026-07-11 as PURE OMEGA
+  (omega/language/std/math.omg): no ISA carries a usable sin
+  instruction, so the implementations are ordinary f64 machines (ladder
+  range reduction — no float→int cast needed, that ruling is still open
+  — quadrant fold, degree-15 Horner with a `let mut` accumulator: plain
+  lets BIND-FOLD into one giant nested expression and exhaust the MVP
+  scratch pools). Both engines then run the identical IEEE sequence —
+  bit-equal by construction. MEASURED BLOCKERS (both compiler-side,
+  found by the draft): (a) float-terminal value-call RETURN-WRITES are
+  not served ("this terminal shape is not served yet" — integer
+  terminals serve; the selection needs the float twin); (b) a
+  COMPILE-THREAD STACK OVERFLOW on the reduce ladder's shape (4
+  fall-through transitions + self-loops with mut locals; repro:
+  `use omega::language::std::math; let s: f64 = sin(1.0);` under
+  --both). Fix (a) then (b), then the draft's probes become run
+  canaries.
 - **Rendering-sample sweep (R0 follow-on) — SWEPT 2026-07-11:**
   bouncing_particles dropped its flat-field sidestep (plot + render paths
   now spell `grid[b*20+a]` / `grid[ry*20+cx]` under one dominating
