@@ -48,6 +48,11 @@ tree standing in for depend-mapping, and the image PRINTS THE GREETING under
 QEMU/OVMF. Cathedral-side spelling drift is synced (Cathedral 5d8c6fe). The
 measured remaining M2 blockers, NOW IN ORDER:
 
+**OWNER 2026-07-11: every blocker below is MISSING IMPL, not missing
+design — nothing here is owner-gated; claim and build.** Design cites per
+item; the one design question found en route (ensures-as-vouch vs guard for
+the firmware out-values) is RESOLVED against the vouch — see blocker 2.
+
 1. **Provides-row catalog holds ONE custom row per image (NEW, first
    blocker).** ANY two rows collide — even one trait's two methods
    (`BootServices::get_memory_map` + `exit_boot_services`): "fall outside
@@ -55,7 +60,10 @@ measured remaining M2 blockers, NOW IN ORDER:
    are not built yet". M2 needs THREE rows (output_string + get_memory_map
    + exit_boot_services). The single-row M1 compiles+boots; the moment a
    second row exists, emission refuses. This gates M2 AHEAD of the walk
-   proof.
+   proof. [ENGINEERING — the design is already the field model (extern
+   brief §12): operations are identified by their (trait, method) symbol;
+   the closed enum just needs the string/symbol-keyed lane its own error
+   message anticipates. No owner input needed.]
 2. **Gap-4 remainder, confirmed against the real walk**: the landed
    guard-route is single-predecessor + literal-K only; the walk state is
    the multi-predecessor self-re-entering loop its own comment names, so
@@ -80,26 +88,38 @@ measured remaining M2 blockers, NOW IN ORDER:
    meet is {ensures witness 16384 on the entry edge; SELF-FORWARDING on
    the loop edge, which preserves the entry bound and must be SKIPPED in
    the meet (argument display == the param's own name, same state)};
-   (ii) ensures LOWER-bound witnesses (`ensures desc_size >= 48`) via a
+   (ii) LOWER-bound witnesses (`desc_size >= 40`) via a
    guard_lower_bound_for twin; (iii) the subtraction composition:
    footprint offset' + sizeof <= N discharges from bound(offset' +
-   desc_size) <= B ∧ desc_size >= sizeof ∧ B <= N. ⚠️ SPELLING
-   COORDINATION (Cathedral lane): the chain is only sound if the walk
-   guard leaves room for the WHOLE next descriptor — `more` must spell
-   `offset + desc_size + desc_size <= map_size` (or equivalent), not the
-   current `offset + desc_size < map_size`, which bounds the next START
-   but not its END (offset' <= map_size - 1 admits a tail read past
-   map_size when desc_size > 1). EDK2's map is whole descriptors, so the
-   stronger spelling is semantically free; and get_memory_map's contract
-   needs BOTH witnesses: `ensures map_size <= 16384` and
-   `ensures desc_size >= 48`.
+   desc_size) <= B ∧ desc_size >= sizeof ∧ B <= N. ✅ SPELLING
+   COORDINATION DONE (Cathedral f0b7572, 2026-07-11): `more` now spells
+   `offset + desc_size + desc_size <= map_size` (bounds the next
+   descriptor's END). ⚠️ WITNESS CORRECTION (owner): the proposed
+   `ensures map_size <= 16384` is a FALSE unconditional vouch — on
+   EFI_BUFFER_TOO_SMALL firmware returns the NEEDED size (> capacity).
+   Cathedral instead spells an honest POST-CALL GUARD:
+   `let sane: bool = map_size <= 16384 && desc_size >= 40;` gating the
+   walk entry — so both witnesses arrive through the ALREADY-LANDED
+   guard route on the entry edge + self-forwarding on the loop edge; no
+   new ensures machinery is needed for M2, and no trait ensures should
+   be added. (Also: the stride floor is 40 — sizeof EfiMemoryDescriptor
+   under natural alignment — not 48.) Remaining impl is exactly (i) the
+   symbolic RHS resolution + (iii) the composition, discharging the
+   Cathedral spelling as committed. [ENGINEERING — design above is
+   complete; no owner input needed.]
 3. **depend-mapping**: `b.depend("uefi", path(...))` is not wired into
    use-resolution (uses resolve root-relative only) — Cathedral's
    contracts/ + core/ packages can't be reached from boot/ without the
-   staging workaround.
+   staging workaround. [ENGINEERING — design settled in
+   build_and_package_model.md (one dir = one package = one build.omg;
+   depend names the alias the use-path's first segment resolves through).
+   No owner input needed.]
 4. **Free-floating const**: v0 is `Type::`-scoped only; Cathedral's
    contracts spell free-floating consts per the settled design (the
-   shadowing-walk prerequisite is the filed follow-up).
+   shadowing-walk prerequisite is the filed follow-up). [ENGINEERING —
+   the design IS free-floating (owner, static_root_and_constants.md);
+   the missing piece is the shadowing walk the v0 error message names.
+   No owner input needed.]
 
 Original gap list (compile-checked against the real
 own_machine.omg 2026-07-11 via the new `omega-run --target uefi_x64`):
