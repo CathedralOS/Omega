@@ -1,0 +1,17 @@
+// RUN CANARY (exit 2) + interpreter differential. `let mut` locals
+// (ch3/ch14 spelling, the M2 surface gap #1): a mut local reassigns and
+// READS THE NEW VALUE on both engines. The mut flag threads
+// parser -> syntax -> resolved -> typed; mut locals are always
+// slot-backed (never bind-folded) and state-storage always slots them --
+// closing the class where plain-let reassignment compiled and native
+// reads SILENTLY folded to the stale initializer (native 1 / interp 2;
+// the plain spelling now refuses:
+// fail/calls/plain_let_reassign_rejected).
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; out: i32; }
+machine Main::main(&mut self) {
+    let mut x: u32 = 1;
+    x = 2;
+    self.out = x as i32;
+    self.console.exit_process(self.out);
+}

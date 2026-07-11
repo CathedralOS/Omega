@@ -38,6 +38,8 @@ pub struct LocalData {
 pub struct LocalDataStorage {
     pub type_reference: crate::types::TypeReference,
     pub initial_value: crate::expression::ExpressionHandle,
+    /// `let mut` -- see the syntax-tree twin.
+    pub is_mutable: bool,
 }
 
 impl Default for LocalDataStorage {
@@ -45,6 +47,7 @@ impl Default for LocalDataStorage {
         Self {
             type_reference: crate::types::TypeReference::Unit,
             initial_value: crate::expression::ExpressionHandle::invalid(),
+            is_mutable: false,
         }
     }
 }
@@ -318,6 +321,7 @@ impl StatementTable {
                     name: local_data.name.clone(),
                     type_reference,
                     initial_value,
+                    is_mutable: local_data.is_mutable,
                 }))
             }
             Statement::Transition(transition) => {
@@ -514,6 +518,8 @@ pub struct TableLocalData {
     pub name: DiagnosticName,
     pub type_reference: crate::types::TypeReferenceHandle,
     pub initial_value: crate::expression::ExpressionHandle,
+    /// `let mut` -- see the syntax-tree twin.
+    pub is_mutable: bool,
 }
 
 impl Default for TableLocalData {
@@ -523,6 +529,7 @@ impl Default for TableLocalData {
             name: DiagnosticName::default(),
             type_reference: crate::types::TypeReferenceHandle::invalid(),
             initial_value: crate::expression::ExpressionHandle::invalid(),
+            is_mutable: false,
         }
     }
 }

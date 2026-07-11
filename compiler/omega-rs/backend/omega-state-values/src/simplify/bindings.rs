@@ -97,6 +97,13 @@ pub(super) fn simple_local_bindings(
         if !local_data.initial_value.is_valid() {
             continue;
         }
+        // A `let mut` local is REASSIGNABLE: folding its initializer into
+        // use sites reads the stale first value after any reassignment (the
+        // pinned plain-let divergence, now refused; mut is the legal
+        // spelling). Always slot-backed, never a binding.
+        if local_data.is_mutable {
+            continue;
+        }
         // CAPTURE semantics: a `let` captures its initializer's VALUE at the
         // declaration. When a member field the initializer reads is REASSIGNED
         // between the declaration and this use point, substituting the

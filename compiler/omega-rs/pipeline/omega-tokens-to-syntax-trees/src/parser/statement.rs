@@ -368,6 +368,19 @@ fn parse_local_data_statement_handle<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, StatementHandle> {
+    // `let mut x: T` -- the mutable-local spelling (ch3/ch14). `mut` stays
+    // contextual: `let mut: T` (a local literally named mut) keeps parsing
+    // because the identifier arm only fires when ANOTHER identifier follows.
+    let (is_mutable, input) = if input.at_contextual("mut")
+        && input
+            .clone()
+            .take_contextual("mut")
+            .is_ok_and(|rest| rest.at_name_like())
+    {
+        (true, input.take_contextual("mut")?)
+    } else {
+        (false, input)
+    };
     let (name, input) = input.take_identifier()?;
     let input = input.take_punctuation(PunctuationKind::Colon, ":")?;
     let (type_reference, input) = parse_type_reference_handle_allowing_borrow(syntax_trees, input)?;
@@ -387,6 +400,7 @@ fn parse_local_data_statement_handle<'tokens, 'source>(
                 name,
                 type_reference,
                 initial_value,
+                is_mutable,
             })),
         input,
     ))
@@ -489,6 +503,7 @@ pub(super) fn try_parse_atomic_compare_exchange_let<'tokens, 'source>(
             name: name.clone(),
             type_reference,
             initial_value: place_expr,
+            is_mutable: false,
         }));
     let first_handle = syntax_trees.items.append_statement_handle(local_stmt);
 
@@ -614,6 +629,7 @@ pub(super) fn try_parse_atomic_fetch_add_let<'tokens, 'source>(
             name,
             type_reference,
             initial_value: place_expr,
+            is_mutable: false,
         }));
     let first_handle = syntax_trees.items.append_statement_handle(local_stmt);
 

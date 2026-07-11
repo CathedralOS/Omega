@@ -149,6 +149,7 @@ pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
                 &mut diagnostics,
             );
             let writable_roots = WritableRoots {
+                program,
                 machine_symbols: &machine_symbols,
                 statements: program.statement_table.statements(state.statement_nodes),
                 parameters: program.state_parameters(state),

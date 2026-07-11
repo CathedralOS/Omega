@@ -1,0 +1,14 @@
+// FAIL CANARY: BARE reassignment of a plain `let` local refuses -- the
+// binding is immutable (`let mut` is the reassignable spelling). Before
+// the gate this shape compiled and natively read the STALE initializer
+// (a silent fold divergence, interp disagreed). Member/index fills
+// (`q.x = 3`) and writes through `&mut`-typed views stay ungated (the
+// ZII fill idiom and pointee writes respectively).
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; out: i32; }
+machine Main::main(&mut self) {
+    let x: u32 = 1;
+    x = 2;
+    self.out = x as i32;
+    self.console.exit_process(self.out);
+}

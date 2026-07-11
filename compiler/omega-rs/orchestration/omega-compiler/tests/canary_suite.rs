@@ -18270,6 +18270,32 @@ fn runtime_hoisted_index_write_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_let_mut_reassign_exit_canary_runs() {
+    // `let mut` reassignment reads the NEW value (slot-backed, never folded).
+    let canary = pass_canary("calls/runtime_let_mut_reassign_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-let-mut-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("let-mut canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("let-mut canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(2),
+        "expected the reassigned mut local to read 2 (exit 2), got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_dependent_param_range_exit_canary_runs() {
     // R1a: a state parameter ranged by a self FIELD (`i: u32
     // [0..=self.count]`) -- caller-proved at every transition, callee index
@@ -29145,6 +29171,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "collections/runtime_computed_indexed_write_exit",
     "collections/runtime_nested_const_product_index_exit",
     "collections/runtime_hoisted_index_write_exit",
+    "calls/runtime_let_mut_reassign_exit",
     "dependent/runtime_dependent_param_range_exit",
     "dependent/runtime_dependent_product_index_exit",
     "dependent/runtime_dependent_subtract_exit",
@@ -29506,6 +29533,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "recast/interior_recast_footprint_rejected",
     "recast/runtime_offset_footprint_rejected",
     "recast/record_view_footprint_rejected",
+    "calls/plain_let_reassign_rejected",
     "control_flow/transition_fall_through_bool",
     "control_flow/transition_fall_through_value_match",
     "calls/abs_call_argument_rejected",

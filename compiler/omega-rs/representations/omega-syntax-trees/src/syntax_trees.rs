@@ -796,6 +796,7 @@ impl SyntaxTrees {
                 name: local_data.name.clone(),
                 type_reference: self.copy_type_reference_handle(other, local_data.type_reference),
                 initial_value: self.copy_expression_handle(other, local_data.initial_value),
+                is_mutable: local_data.is_mutable,
             }),
             StatementNode::Relax(relax) => StatementNode::Relax(crate::statement::TableRelax {
                 target: self.copy_expression_handle(other, relax.target),

@@ -23,7 +23,7 @@ machine Main::main(&mut self) {
 
     state render(&mut self, source: Room) {
         let room: Room;
-        let out_line: &[u8] in Utf8;
+        let mut out_line: &[u8] in Utf8;
 
         room.label = source.label;
         out_line = "== " + room.label + " ==";

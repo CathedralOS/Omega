@@ -64,7 +64,17 @@ pub(crate) fn validate_assignment_target_handle(
         return;
     };
 
-    if !writable_roots.contains(root_name) {
+    // BARE reassignment of a whole local (`x = 2`) is gated on `let mut`;
+    // MEMBER/INDEX writes (`q.x = 3`, `buf[i] = b`) are the ZII
+    // construction-by-fill idiom and stay ungated (the fill targets
+    // interior storage, and the divergence this gate closes -- the stale
+    // initializer fold -- only fires on whole-local rebinding).
+    let target_is_bare_name = matches!(
+        program.expression_table.expression(target),
+        ExpressionNode::Name(_)
+    );
+
+    if !writable_roots.contains_for_write(root_name, target_is_bare_name) {
         // The writable set cannot distinguish a nonexistent root (a typo) from a real
         // but non-mutable one, so append a conditional typo hint -- correct whatever
         // the cause. (A full "data X has no field Y" check is the separate

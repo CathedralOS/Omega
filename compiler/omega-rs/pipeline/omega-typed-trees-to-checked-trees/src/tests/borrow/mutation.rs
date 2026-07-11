@@ -163,6 +163,7 @@ fn call_mutated_places_include_mutable_local_arguments_from_unresolved_names() {
             name: Identifier::generated("player"),
             type_reference: omega_typed_trees::types::TypeReferenceHandle::invalid(),
             initial_value: omega_typed_trees::expression::ExpressionHandle::invalid(),
+            is_mutable: false,
         }),
     );
     program.statement_table.push_statement(
