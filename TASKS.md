@@ -198,10 +198,30 @@ no `unbounded` property exists. Rungs:
   refusal (declaration is now legal). Untyped lets don't parse, so
   construction always crosses a typed face; the ch14 Equatable
   recursive-reject note is about lowering conformance and stands.
-- **N2 — engine bignum:** exact unbounded arithmetic for Nat/Int/Rat fact
-  evaluation; engine coefficients widen (subsumes the u64>i64::MAX i128
-  refactor — one surgery, done properly). `3nat` literals evaluate to
-  bignum; structural bridge for induction (n > 0 => n == Succ(n - 1)).
+- **N2 — engine bignum (IN FLIGHT, rungs a+b LANDED 2026-07-11):**
+  (a) `omega_core::bignum::BigInt` — sign-magnitude limbs, exact ring ops
+  + div_rem/gcd (Rat-ready), radix parsing, decimal display, oracle-
+  tested against i128; (b) the polynomial ENTAILMENT engine
+  (contract_entailment.rs) widened: BigInt coefficients, exact Interval
+  ends, DBM edges — no more overflow-downgrades-to-unknown; literals
+  enter exactly via `IntegerLiteral::value_bignum`, and D14 gained FIRE G
+  (contract facts + decreases measures bless ANY-magnitude literals —
+  contracts never lower to runtime bytes, the exact engine is their one
+  consumer). Canaries: pass/proofs/proof_bignum_constant_fold
+  (10^22 * 10^22 == 10^44 folds exactly), fail twin
+  proof_bignum_constant_false. REMAINING, next rung (c): the
+  obligations/checker engine — **KNOWN UNSOUNDNESS, probe-confirmed
+  2026-07-11**: `primitive_constraints` caps u64's range fact at
+  i64::MAX (obligations.rs), so a plain u64 param STORES into a field
+  declared `u64 [0..=9223372036854775807]` and runtime holds u64::MAX —
+  a proven range fact violated (probe: let big: u64 = u64::MAX; pass to
+  state; store into the capped field; both engines exit with the
+  violating value). Fix = widen ProofConstraint::IntegerRange +
+  checker-side IntegerRange fold arithmetic (both omega-proof files,
+  ~52 sites; constant_integer_value windows too) to BigInt, then the
+  cap becomes exact (0, u64::MAX). Then (d) the structural bridge for
+  induction (n > 0 => n == Succ(n - 1)) — needs Nat-as-data engine
+  semantics, design with N4's roster library in view.
 - **N3 — fact-position operator routing:** glyphs route by operand type —
   Nat/Int/Rat compute-mode, declared proof carriers rearrange-mode
   (ring-generic polynomial normalization). Int introduction rule: order

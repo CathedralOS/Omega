@@ -58,6 +58,7 @@
 
 use std::collections::BTreeMap;
 
+use omega_core::bignum::BigInt;
 use omega_core::diagnostics::Diagnostic;
 use omega_typed_trees::TypedTrees;
 use omega_typed_trees::domain::ProofFact;
@@ -532,7 +533,7 @@ fn discharges_strict_decrease(
         [lower, upper] => engine
             .normalize(*upper)
             .zip(engine.normalize(*lower))
-            .and_then(|(upper, lower)| upper.checked_sub(&lower)),
+            .map(|(upper, lower)| upper.sub(&lower)),
         _ => None,
     };
     let Some(measure) = measure else {
@@ -543,10 +544,9 @@ fn discharges_strict_decrease(
     };
     let measure_now = engine.substituted(&measure);
     let measure_after = engine.substituted(&measure_after);
-    let Some(difference) = measure_now.checked_sub(&measure_after) else {
-        return false;
-    };
-    engine.prove_at_least(&difference, 1) && engine.prove_at_least(&measure_after, 0)
+    let difference = measure_now.sub(&measure_after);
+    engine.prove_at_least(&difference, &BigInt::from_i64(1))
+        && engine.prove_at_least(&measure_after, &BigInt::zero())
 }
 
 /// One ensures conjunct instantiated over the recursive call's arguments:
@@ -576,7 +576,7 @@ fn apply_argument_map(
 ) -> Option<Polynomial> {
     let mut result = Polynomial::default();
     for (monomial, coefficient) in &polynomial.terms {
-        let mut piece = Polynomial::constant(*coefficient);
+        let mut piece = Polynomial::constant(coefficient.clone());
         for (atom, power) in monomial {
             let base = if let Some(replacement) = argument_map.get(atom) {
                 replacement.clone()
@@ -589,7 +589,7 @@ fn apply_argument_map(
                 piece = piece.checked_mul(&base)?;
             }
         }
-        result = result.checked_add(&piece)?;
+        result = result.add(&piece);
     }
     Some(result)
 }
@@ -609,17 +609,19 @@ enum Judgment {
 /// constant monomial.
 type Monomial = BTreeMap<String, u32>;
 
-/// A polynomial: monomials to i64 coefficients. Zero coefficients are never
-/// stored, so structural equality is polynomial identity.
+/// A polynomial: monomials to EXACT BigInt coefficients (math roster N2:
+/// coefficient arithmetic never overflows, so a provable goal never
+/// downgrades to "unknown" by width). Zero coefficients are never stored,
+/// so structural equality is polynomial identity.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 struct Polynomial {
-    terms: BTreeMap<Monomial, i64>,
+    terms: BTreeMap<Monomial, BigInt>,
 }
 
 impl Polynomial {
-    fn constant(value: i64) -> Self {
+    fn constant(value: BigInt) -> Self {
         let mut polynomial = Self::default();
-        if value != 0 {
+        if !value.is_zero() {
             polynomial.terms.insert(Monomial::new(), value);
         }
         polynomial
@@ -629,55 +631,60 @@ impl Polynomial {
         let mut monomial = Monomial::new();
         monomial.insert(name, 1);
         let mut polynomial = Self::default();
-        polynomial.terms.insert(monomial, 1);
+        polynomial.terms.insert(monomial, BigInt::from_i64(1));
         polynomial
     }
 
-    fn constant_value(&self) -> Option<i64> {
+    fn constant_value(&self) -> Option<BigInt> {
         match self.terms.len() {
-            0 => Some(0),
-            1 => self.terms.get(&Monomial::new()).copied(),
+            0 => Some(BigInt::zero()),
+            1 => self.terms.get(&Monomial::new()).cloned(),
             _ => None,
         }
     }
 
-    fn checked_add(&self, other: &Self) -> Option<Self> {
+    fn add(&self, other: &Self) -> Self {
         let mut terms = self.terms.clone();
         for (monomial, coefficient) in &other.terms {
-            let entry = terms.entry(monomial.clone()).or_insert(0);
-            *entry = entry.checked_add(*coefficient)?;
-            if *entry == 0 {
+            let entry = terms.entry(monomial.clone()).or_insert_with(BigInt::zero);
+            *entry = entry.add(coefficient);
+            if entry.is_zero() {
                 terms.remove(monomial);
             }
         }
-        Some(Self { terms })
+        Self { terms }
     }
 
-    fn checked_neg(&self) -> Option<Self> {
+    fn neg(&self) -> Self {
         let mut terms = BTreeMap::new();
         for (monomial, coefficient) in &self.terms {
-            terms.insert(monomial.clone(), coefficient.checked_neg()?);
+            terms.insert(monomial.clone(), coefficient.negate());
         }
-        Some(Self { terms })
+        Self { terms }
     }
 
-    fn checked_sub(&self, other: &Self) -> Option<Self> {
-        self.checked_add(&other.checked_neg()?)
+    fn sub(&self, other: &Self) -> Self {
+        self.add(&other.neg())
     }
 
+    /// Coefficients are exact; the only remaining failure is monomial POWER
+    /// overflow (u32), which no writable program reaches.
     fn checked_mul(&self, other: &Self) -> Option<Self> {
         let mut result = Self::default();
         for (left_monomial, left_coefficient) in &self.terms {
             for (right_monomial, right_coefficient) in &other.terms {
-                let coefficient = left_coefficient.checked_mul(*right_coefficient)?;
+                let coefficient = left_coefficient.mul(right_coefficient);
                 let mut monomial = left_monomial.clone();
                 for (atom, power) in right_monomial {
                     let entry = monomial.entry(atom.clone()).or_insert(0);
                     *entry = entry.checked_add(*power)?;
                 }
-                let entry = result.terms.entry(monomial.clone()).or_insert(0);
-                *entry = entry.checked_add(coefficient)?;
-                if *entry == 0 {
+                let entry = result
+                    .terms
+                    .entry(monomial.clone())
+                    .or_insert_with(BigInt::zero);
+                *entry = entry.add(&coefficient);
+                if entry.is_zero() {
                     result.terms.remove(&monomial);
                 }
             }
@@ -687,23 +694,25 @@ impl Polynomial {
 
     /// `(difference-of-two-unit-atoms, constant)`: `a - b + c` as
     /// `Some((a, b, c))`. The shape the difference-bound matrix consumes.
-    fn as_atom_difference(&self) -> Option<(String, String, i64)> {
+    fn as_atom_difference(&self) -> Option<(String, String, BigInt)> {
         let mut positive = None;
         let mut negative = None;
-        let mut constant = 0i64;
+        let mut constant = BigInt::zero();
         for (monomial, coefficient) in &self.terms {
             if monomial.is_empty() {
-                constant = *coefficient;
+                constant = coefficient.clone();
                 continue;
             }
             if monomial.len() != 1 || *monomial.values().next().unwrap() != 1 {
                 return None;
             }
             let atom = monomial.keys().next().unwrap().clone();
-            match coefficient {
-                1 if positive.is_none() => positive = Some(atom),
-                -1 if negative.is_none() => negative = Some(atom),
-                _ => return None,
+            if *coefficient == BigInt::from_i64(1) && positive.is_none() {
+                positive = Some(atom);
+            } else if *coefficient == BigInt::from_i64(-1) && negative.is_none() {
+                negative = Some(atom);
+            } else {
+                return None;
             }
         }
         Some((positive?, negative?, constant))
@@ -711,139 +720,139 @@ impl Polynomial {
 
     /// `(single-unit-atom, coefficient-sign, constant)` for bounds like
     /// `a + c >= 0` / `-a + c >= 0`.
-    fn as_single_atom(&self) -> Option<(String, i64, i64)> {
+    fn as_single_atom(&self) -> Option<(String, i64, BigInt)> {
         let mut atom = None;
-        let mut coefficient_value = 0i64;
-        let mut constant = 0i64;
+        let mut coefficient_value = BigInt::zero();
+        let mut constant = BigInt::zero();
         for (monomial, coefficient) in &self.terms {
             if monomial.is_empty() {
-                constant = *coefficient;
+                constant = coefficient.clone();
                 continue;
             }
             if monomial.len() != 1 || *monomial.values().next().unwrap() != 1 || atom.is_some() {
                 return None;
             }
             atom = Some(monomial.keys().next().unwrap().clone());
-            coefficient_value = *coefficient;
+            coefficient_value = coefficient.clone();
         }
         let atom = atom?;
-        if coefficient_value != 1 && coefficient_value != -1 {
+        let sign = if coefficient_value == BigInt::from_i64(1) {
+            1
+        } else if coefficient_value == BigInt::from_i64(-1) {
+            -1
+        } else {
             return None;
-        }
-        Some((atom, coefficient_value, constant))
+        };
+        Some((atom, sign, constant))
     }
 }
 
-/// An interval with optional (= unbounded) ends, all arithmetic checked.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// An interval with optional (= unbounded) ends; end arithmetic is exact.
+#[derive(Debug, Clone, PartialEq, Eq)]
 struct Interval {
-    low: Option<i64>,
-    high: Option<i64>,
+    low: Option<BigInt>,
+    high: Option<BigInt>,
 }
 
 impl Interval {
-    const UNBOUNDED: Interval = Interval {
-        low: None,
-        high: None,
-    };
-
-    fn constant(value: i64) -> Self {
+    fn unbounded() -> Self {
         Self {
-            low: Some(value),
+            low: None,
+            high: None,
+        }
+    }
+
+    fn constant(value: BigInt) -> Self {
+        Self {
+            low: Some(value.clone()),
             high: Some(value),
         }
     }
 
-    fn add(self, other: Self) -> Self {
+    fn add(&self, other: &Self) -> Self {
         Self {
-            low: match (self.low, other.low) {
-                (Some(a), Some(b)) => a.checked_add(b),
+            low: match (&self.low, &other.low) {
+                (Some(a), Some(b)) => Some(a.add(b)),
                 _ => None,
             },
-            high: match (self.high, other.high) {
-                (Some(a), Some(b)) => a.checked_add(b),
+            high: match (&self.high, &other.high) {
+                (Some(a), Some(b)) => Some(a.add(b)),
                 _ => None,
             },
         }
     }
 
-    fn scale(self, factor: i64) -> Self {
-        let scaled_low = self.low.and_then(|value| value.checked_mul(factor));
-        let scaled_high = self.high.and_then(|value| value.checked_mul(factor));
-        if factor >= 0 {
-            Self {
-                low: scaled_low,
-                high: scaled_high,
-            }
-        } else {
+    fn scale(&self, factor: &BigInt) -> Self {
+        let scaled_low = self.low.as_ref().map(|value| value.mul(factor));
+        let scaled_high = self.high.as_ref().map(|value| value.mul(factor));
+        if factor.is_negative() {
             Self {
                 low: scaled_high,
                 high: scaled_low,
             }
+        } else {
+            Self {
+                low: scaled_low,
+                high: scaled_high,
+            }
         }
     }
 
-    fn multiply(self, other: Self) -> Self {
+    fn multiply(&self, other: &Self) -> Self {
+        // An unbounded end makes the product unbounded on the side it could
+        // extend; with all four ends finite the corner products are exact.
+        let (Some(self_low), Some(self_high), Some(other_low), Some(other_high)) =
+            (&self.low, &self.high, &other.low, &other.high)
+        else {
+            return Interval::unbounded();
+        };
         let candidates = [
-            checked_pair_mul(self.low, other.low),
-            checked_pair_mul(self.low, other.high),
-            checked_pair_mul(self.high, other.low),
-            checked_pair_mul(self.high, other.high),
+            self_low.mul(other_low),
+            self_low.mul(other_high),
+            self_high.mul(other_low),
+            self_high.mul(other_high),
         ];
-        // Any unbounded/overflowed corner makes the product unbounded on the
-        // side it could extend.
-        if candidates.iter().any(|corner| corner.is_none())
-            || self.low.is_none()
-            || self.high.is_none()
-            || other.low.is_none()
-            || other.high.is_none()
-        {
-            return Interval::UNBOUNDED;
-        }
-        let values: Vec<i64> = candidates.into_iter().map(Option::unwrap).collect();
         Self {
-            low: values.iter().min().copied(),
-            high: values.iter().max().copied(),
+            low: candidates.iter().min().cloned(),
+            high: candidates.iter().max().cloned(),
         }
     }
 
     /// `self` raised to `power`, treating repeated factors as CORRELATED:
     /// an even power of any interval is non-negative, and the square of
     /// `[lo, hi]` is exact rather than the independent product.
-    fn correlated_power(self, power: u32) -> Self {
+    fn correlated_power(&self, power: u32) -> Self {
         if power == 0 {
-            return Self::constant(1);
+            return Self::constant(BigInt::from_i64(1));
         }
         if power == 1 {
-            return self;
+            return self.clone();
         }
-        let (Some(low), Some(high)) = (self.low, self.high) else {
+        let (Some(low), Some(high)) = (&self.low, &self.high) else {
             // Unbounded base: an even power is still known non-negative.
             return if power % 2 == 0 {
                 Self {
-                    low: Some(0),
+                    low: Some(BigInt::zero()),
                     high: None,
                 }
             } else {
-                Interval::UNBOUNDED
+                Interval::unbounded()
             };
         };
-        let corner_low = checked_pow(low, power);
-        let corner_high = checked_pow(high, power);
-        let (Some(corner_low), Some(corner_high)) = (corner_low, corner_high) else {
-            return Interval::UNBOUNDED;
-        };
+        let corner_low = pow(low, power);
+        let corner_high = pow(high, power);
         if power % 2 == 1 {
             return Self {
                 low: Some(corner_low),
                 high: Some(corner_high),
             };
         }
-        let max_corner = corner_low.max(corner_high);
-        let min_corner = if low <= 0 && 0 <= high {
-            0
-        } else {
+        let max_corner = corner_low.clone().max(corner_high.clone());
+        let min_corner = if !low.is_negative() || high.is_negative() {
             corner_low.min(corner_high)
+        } else {
+            // The base interval straddles zero: the even power bottoms at 0.
+            BigInt::zero()
         };
         Self {
             low: Some(min_corner),
@@ -852,16 +861,12 @@ impl Interval {
     }
 }
 
-fn checked_pair_mul(left: Option<i64>, right: Option<i64>) -> Option<i64> {
-    left?.checked_mul(right?)
-}
-
-fn checked_pow(base: i64, power: u32) -> Option<i64> {
-    let mut result = 1i64;
+fn pow(base: &BigInt, power: u32) -> BigInt {
+    let mut result = BigInt::from_i64(1);
     for _ in 0..power {
-        result = result.checked_mul(base)?;
+        result = result.mul(base);
     }
-    Some(result)
+    result
 }
 
 struct Engine<'program> {
@@ -874,12 +879,12 @@ struct Engine<'program> {
     /// applied to fixpoint during normalization.
     substitutions: BTreeMap<String, Polynomial>,
     /// Lower bounds: each entry means `polynomial >= bound`.
-    bounds: Vec<(Polynomial, i64)>,
+    bounds: Vec<(Polynomial, BigInt)>,
     /// Mod-term atoms with their euclidean intervals (`t % k` in `0 ..= k-1`).
     mod_intervals: BTreeMap<String, Interval>,
     /// Difference-bound matrix over atoms + the virtual ZERO atom:
     /// `matrix[a][b]` = best known lower bound of `a - b`.
-    matrix: BTreeMap<String, BTreeMap<String, i64>>,
+    matrix: BTreeMap<String, BTreeMap<String, BigInt>>,
     requires_unsatisfiable: bool,
 }
 
@@ -1002,22 +1007,18 @@ impl<'program> Engine<'program> {
         for (operator, left, right) in comparisons {
             let left = self.substituted(&left);
             let right = self.substituted(&right);
-            let Some(difference_rl) = right.checked_sub(&left) else {
-                fully_visible = false;
-                continue;
-            };
-            let Some(difference_lr) = left.checked_sub(&right) else {
-                fully_visible = false;
-                continue;
-            };
+            let difference_rl = right.sub(&left);
+            let difference_lr = left.sub(&right);
             match operator {
-                BinaryOperator::Less => lower_bounds.push((difference_rl, 1)),
-                BinaryOperator::LessOrEqual => lower_bounds.push((difference_rl, 0)),
-                BinaryOperator::Greater => lower_bounds.push((difference_lr, 1)),
-                BinaryOperator::GreaterOrEqual => lower_bounds.push((difference_lr, 0)),
+                BinaryOperator::Less => lower_bounds.push((difference_rl, BigInt::from_i64(1))),
+                BinaryOperator::LessOrEqual => lower_bounds.push((difference_rl, BigInt::zero())),
+                BinaryOperator::Greater => lower_bounds.push((difference_lr, BigInt::from_i64(1))),
+                BinaryOperator::GreaterOrEqual => {
+                    lower_bounds.push((difference_lr, BigInt::zero()))
+                }
                 BinaryOperator::Equal => {
-                    lower_bounds.push((difference_rl, 0));
-                    lower_bounds.push((difference_lr, 0));
+                    lower_bounds.push((difference_rl, BigInt::zero()));
+                    lower_bounds.push((difference_lr, BigInt::zero()));
                 }
                 // A `!=` hypothesis carries no single lower bound; ignore it
                 // (sound: dropping hypotheses only weakens proving power).
@@ -1082,23 +1083,18 @@ impl<'program> Engine<'program> {
         };
         let left = self.substituted(&left);
         let right = self.substituted(&right);
-        let (Some(difference_rl), Some(difference_lr)) =
-            (right.checked_sub(&left), left.checked_sub(&right))
-        else {
-            return Judgment::Unknown {
-                goal_in_language: false,
-            };
-        };
+        let difference_rl = right.sub(&left);
+        let difference_lr = left.sub(&right);
 
         // Constant fold first: it gives the crispest diagnostic.
         if let Some(value) = difference_rl.constant_value() {
             let holds = match operator {
-                BinaryOperator::Less => value > 0,
-                BinaryOperator::LessOrEqual => value >= 0,
-                BinaryOperator::Greater => value < 0,
-                BinaryOperator::GreaterOrEqual => value <= 0,
-                BinaryOperator::Equal => value == 0,
-                BinaryOperator::NotEqual => value != 0,
+                BinaryOperator::Less => !value.is_negative() && !value.is_zero(),
+                BinaryOperator::LessOrEqual => !value.is_negative(),
+                BinaryOperator::Greater => value.is_negative(),
+                BinaryOperator::GreaterOrEqual => value.is_negative() || value.is_zero(),
+                BinaryOperator::Equal => value.is_zero(),
+                BinaryOperator::NotEqual => !value.is_zero(),
                 _ => {
                     return Judgment::Unknown {
                         goal_in_language: false,
@@ -1112,16 +1108,20 @@ impl<'program> Engine<'program> {
             };
         }
 
+        let zero = BigInt::zero();
+        let one = BigInt::from_i64(1);
         let proved = match operator {
-            BinaryOperator::Less => self.prove_at_least(&difference_rl, 1),
-            BinaryOperator::LessOrEqual => self.prove_at_least(&difference_rl, 0),
-            BinaryOperator::Greater => self.prove_at_least(&difference_lr, 1),
-            BinaryOperator::GreaterOrEqual => self.prove_at_least(&difference_lr, 0),
+            BinaryOperator::Less => self.prove_at_least(&difference_rl, &one),
+            BinaryOperator::LessOrEqual => self.prove_at_least(&difference_rl, &zero),
+            BinaryOperator::Greater => self.prove_at_least(&difference_lr, &one),
+            BinaryOperator::GreaterOrEqual => self.prove_at_least(&difference_lr, &zero),
             BinaryOperator::Equal => {
-                self.prove_at_least(&difference_rl, 0) && self.prove_at_least(&difference_lr, 0)
+                self.prove_at_least(&difference_rl, &zero)
+                    && self.prove_at_least(&difference_lr, &zero)
             }
             BinaryOperator::NotEqual => {
-                self.prove_at_least(&difference_rl, 1) || self.prove_at_least(&difference_lr, 1)
+                self.prove_at_least(&difference_rl, &one)
+                    || self.prove_at_least(&difference_lr, &one)
             }
             _ => {
                 return Judgment::Unknown {
@@ -1135,15 +1135,17 @@ impl<'program> Engine<'program> {
 
         let negation_proved = match operator {
             // not (l < r)  ==  l >= r
-            BinaryOperator::Less => self.prove_at_least(&difference_lr, 0),
-            BinaryOperator::LessOrEqual => self.prove_at_least(&difference_lr, 1),
-            BinaryOperator::Greater => self.prove_at_least(&difference_rl, 0),
-            BinaryOperator::GreaterOrEqual => self.prove_at_least(&difference_rl, 1),
+            BinaryOperator::Less => self.prove_at_least(&difference_lr, &zero),
+            BinaryOperator::LessOrEqual => self.prove_at_least(&difference_lr, &one),
+            BinaryOperator::Greater => self.prove_at_least(&difference_rl, &zero),
+            BinaryOperator::GreaterOrEqual => self.prove_at_least(&difference_rl, &one),
             BinaryOperator::Equal => {
-                self.prove_at_least(&difference_rl, 1) || self.prove_at_least(&difference_lr, 1)
+                self.prove_at_least(&difference_rl, &one)
+                    || self.prove_at_least(&difference_lr, &one)
             }
             BinaryOperator::NotEqual => {
-                self.prove_at_least(&difference_rl, 0) && self.prove_at_least(&difference_lr, 0)
+                self.prove_at_least(&difference_rl, &zero)
+                    && self.prove_at_least(&difference_lr, &zero)
             }
             _ => false,
         };
@@ -1158,13 +1160,11 @@ impl<'program> Engine<'program> {
 
     /// Prove `polynomial >= bound` via the difference-bound matrix or the
     /// interval evaluator.
-    fn prove_at_least(&self, polynomial: &Polynomial, bound: i64) -> bool {
+    fn prove_at_least(&self, polynomial: &Polynomial, bound: &BigInt) -> bool {
         if let Some((positive, negative, constant)) = polynomial.as_atom_difference() {
             if let Some(best) = self.matrix_bound(&positive, &negative) {
-                if let Some(total) = best.checked_add(constant) {
-                    if total >= bound {
-                        return true;
-                    }
+                if best.add(&constant) >= *bound {
+                    return true;
                 }
             }
         }
@@ -1175,10 +1175,8 @@ impl<'program> Engine<'program> {
                 self.matrix_bound(ZERO_ATOM, &atom)
             };
             if let Some(best) = other {
-                if let Some(total) = best.checked_add(constant) {
-                    if total >= bound {
-                        return true;
-                    }
+                if best.add(&constant) >= *bound {
+                    return true;
                 }
             }
         }
@@ -1188,12 +1186,12 @@ impl<'program> Engine<'program> {
         // that fit neither the difference-bound matrix nor the interval
         // evaluator, but whose canonical form matches the goal exactly.
         for (stored, stored_bound) in &self.bounds {
-            if stored == polynomial && *stored_bound >= bound {
+            if stored == polynomial && stored_bound >= bound {
                 return true;
             }
         }
         if let Some(low) = self.polynomial_interval(polynomial).low {
-            if low >= bound {
+            if low >= *bound {
                 return true;
             }
         }
@@ -1201,79 +1199,80 @@ impl<'program> Engine<'program> {
     }
 
     fn polynomial_interval(&self, polynomial: &Polynomial) -> Interval {
-        let mut total = Interval::constant(0);
+        let mut total = Interval::constant(BigInt::zero());
         for (monomial, coefficient) in &polynomial.terms {
-            let mut product = Interval::constant(1);
+            let mut product = Interval::constant(BigInt::from_i64(1));
             for (atom, power) in monomial {
                 let base = self.atom_interval(atom);
-                product = product.multiply(base.correlated_power(*power));
+                product = product.multiply(&base.correlated_power(*power));
             }
-            total = total.add(product.scale(*coefficient));
+            total = total.add(&product.scale(coefficient));
         }
         total
     }
 
     fn atom_interval(&self, atom: &str) -> Interval {
         if let Some(interval) = self.mod_intervals.get(atom) {
-            return *interval;
+            return interval.clone();
         }
         Interval {
             low: self.matrix_bound(atom, ZERO_ATOM),
             high: self
                 .matrix_bound(ZERO_ATOM, atom)
-                .and_then(i64::checked_neg),
+                .map(|bound| bound.negate()),
         }
     }
 
-    fn matrix_bound(&self, from: &str, to: &str) -> Option<i64> {
+    fn matrix_bound(&self, from: &str, to: &str) -> Option<BigInt> {
         if from == to {
-            return Some(0);
+            return Some(BigInt::zero());
         }
-        self.matrix.get(from).and_then(|row| row.get(to)).copied()
+        self.matrix.get(from).and_then(|row| row.get(to)).cloned()
     }
 
     fn seed_matrix(&mut self) {
         for atom in self.unsigned_atoms.clone() {
-            self.record_difference(&atom, ZERO_ATOM, 0);
+            self.record_difference(&atom, ZERO_ATOM, BigInt::zero());
         }
         let mod_atoms: Vec<(String, Interval)> = self
             .mod_intervals
             .iter()
-            .map(|(atom, interval)| (atom.clone(), *interval))
+            .map(|(atom, interval)| (atom.clone(), interval.clone()))
             .collect();
         for (atom, interval) in mod_atoms {
             if let Some(low) = interval.low {
                 self.record_difference(&atom, ZERO_ATOM, low);
             }
             if let Some(high) = interval.high {
-                if let Some(negated) = high.checked_neg() {
-                    self.record_difference(ZERO_ATOM, &atom, negated);
-                }
+                self.record_difference(ZERO_ATOM, &atom, high.negate());
             }
         }
         for (polynomial, bound) in self.bounds.clone() {
             if let Some((positive, negative, constant)) = polynomial.as_atom_difference() {
-                if let Some(edge) = bound.checked_sub(constant) {
-                    self.record_difference(&positive, &negative, edge);
-                }
+                self.record_difference(&positive, &negative, bound.sub(&constant));
             }
             if let Some((atom, sign, constant)) = polynomial.as_single_atom() {
-                if let Some(edge) = bound.checked_sub(constant) {
-                    if sign == 1 {
-                        self.record_difference(&atom, ZERO_ATOM, edge);
-                    } else {
-                        self.record_difference(ZERO_ATOM, &atom, edge);
-                    }
+                let edge = bound.sub(&constant);
+                if sign == 1 {
+                    self.record_difference(&atom, ZERO_ATOM, edge);
+                } else {
+                    self.record_difference(ZERO_ATOM, &atom, edge);
                 }
             }
         }
     }
 
-    fn record_difference(&mut self, from: &str, to: &str, bound: i64) {
+    fn record_difference(&mut self, from: &str, to: &str, bound: BigInt) {
         let row = self.matrix.entry(from.to_owned()).or_default();
-        let entry = row.entry(to.to_owned()).or_insert(bound);
-        if bound > *entry {
-            *entry = bound;
+        match row.entry(to.to_owned()) {
+            std::collections::btree_map::Entry::Vacant(slot) => {
+                slot.insert(bound);
+            }
+            std::collections::btree_map::Entry::Occupied(mut slot) => {
+                if bound > *slot.get() {
+                    slot.insert(bound);
+                }
+            }
         }
         self.matrix.entry(to.to_owned()).or_default();
     }
@@ -1289,11 +1288,9 @@ impl<'program> Engine<'program> {
                     let Some(second) = self.matrix_bound(via, to) else {
                         continue;
                     };
-                    let Some(combined) = first.checked_add(second) else {
-                        continue;
-                    };
+                    let combined = first.add(&second);
                     if from == to {
-                        if combined > 0 {
+                        if !combined.is_negative() && !combined.is_zero() {
                             self.requires_unsatisfiable = true;
                         }
                         continue;
@@ -1309,7 +1306,9 @@ impl<'program> Engine<'program> {
 
     fn harvest_substitution(&mut self, left: &Polynomial, right: &Polynomial) {
         for (candidate, replacement) in [(left, right), (right, left)] {
-            if let Some((atom, 1, 0)) = candidate.as_single_atom() {
+            if let Some((atom, 1, constant)) = candidate.as_single_atom()
+                && constant.is_zero()
+            {
                 let occurs = replacement
                     .terms
                     .keys()
@@ -1329,7 +1328,7 @@ impl<'program> Engine<'program> {
             let mut next = Polynomial::default();
             let mut overflowed = false;
             for (monomial, coefficient) in &current.terms {
-                let mut piece = Polynomial::constant(*coefficient);
+                let mut piece = Polynomial::constant(coefficient.clone());
                 for (atom, power) in monomial {
                     let base = match self.substitutions.get(atom) {
                         Some(replacement) => {
@@ -1354,13 +1353,7 @@ impl<'program> Engine<'program> {
                 if overflowed {
                     break;
                 }
-                match next.checked_add(&piece) {
-                    Some(sum) => next = sum,
-                    None => {
-                        overflowed = true;
-                        break;
-                    }
-                }
+                next = next.add(&piece);
             }
             if overflowed {
                 return current;
@@ -1418,7 +1411,7 @@ impl<'program> Engine<'program> {
     fn normalize(&mut self, expression: ExpressionHandle) -> Option<Polynomial> {
         let node = self.program.expression_table.expression(expression).clone();
         match node {
-            ExpressionNode::Integer(value) => Some(Polynomial::constant(value.value_i64()?)),
+            ExpressionNode::Integer(value) => Some(Polynomial::constant(value.value_bignum()?)),
             ExpressionNode::Mutable(inner) => self.normalize(inner),
             ExpressionNode::Name(path) => {
                 let members = self
@@ -1441,12 +1434,12 @@ impl<'program> Engine<'program> {
                 BinaryOperator::Add => {
                     let left = self.normalize(binary.left)?;
                     let right = self.normalize(binary.right)?;
-                    left.checked_add(&right)
+                    Some(left.add(&right))
                 }
                 BinaryOperator::Subtract => {
                     let left = self.normalize(binary.left)?;
                     let right = self.normalize(binary.right)?;
-                    left.checked_sub(&right)
+                    Some(left.sub(&right))
                 }
                 BinaryOperator::Multiply => {
                     let left = self.normalize(binary.left)?;
@@ -1456,15 +1449,15 @@ impl<'program> Engine<'program> {
                 BinaryOperator::Modulo => {
                     let operand = self.normalize(binary.left)?;
                     let modulus = self.normalize(binary.right)?.constant_value()?;
-                    if modulus <= 0 {
+                    if modulus.is_negative() || modulus.is_zero() {
                         return None;
                     }
                     let display = format!("({}) % {}", polynomial_display(&operand), modulus);
                     self.mod_intervals.insert(
                         display.clone(),
                         Interval {
-                            low: Some(0),
-                            high: Some(modulus - 1),
+                            low: Some(BigInt::zero()),
+                            high: Some(modulus.sub(&BigInt::from_i64(1))),
                         },
                     );
                     Some(Polynomial::atom(display))
@@ -1516,7 +1509,7 @@ fn polynomial_display(polynomial: &Polynomial) -> String {
             .collect();
         if atoms.is_empty() {
             parts.push(coefficient.to_string());
-        } else if *coefficient == 1 {
+        } else if *coefficient == BigInt::from_i64(1) {
             parts.push(atoms.join("*"));
         } else {
             parts.push(format!("{}*{}", coefficient, atoms.join("*")));

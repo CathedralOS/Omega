@@ -1,0 +1,15 @@
+// N2 false twin: exact bignum folding DISPROVES the off-by-one giant
+// equation (10^22 squared is not 10^44 - 1). Before N2 this was
+// indistinguishable from "outside the engine's language"; exactness
+// makes it a crisp constant-arithmetic refutation.
+machine big_products_fold_wrong()
+ensures
+    10000000000000000000000nat * 10000000000000000000000nat == 99999999999999999999999999999999999999999999nat
+{
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

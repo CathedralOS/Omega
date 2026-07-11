@@ -143,6 +143,20 @@ impl IntegerLiteral {
         }
     }
 
+    /// The EXACT value at any magnitude -- the proof engines' accessor
+    /// (math roster N2: fact evaluation never rounds a literal). Canonical
+    /// text always parses, so `None` is unreachable for well-formed
+    /// literals; the Option mirrors the sibling accessors.
+    pub fn value_bignum(&self) -> Option<crate::bignum::BigInt> {
+        let (negative, unsigned) = match self.text.strip_prefix('-') {
+            Some(rest) => (true, rest),
+            None => (false, &*self.text),
+        };
+        let (base, digits) = split_radix(unsigned);
+        let magnitude = crate::bignum::BigInt::from_str_radix(digits, base)?;
+        Some(if negative { magnitude.negate() } else { magnitude })
+    }
+
     /// The value, IF it is non-negative and fits u64 — the u64-target window
     /// (D14 fire C). Widening the language to u128 later means adding another
     /// accessor here, never touching stored literals.
