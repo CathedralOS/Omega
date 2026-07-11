@@ -143,11 +143,18 @@ bounded-escape store-containment keystone. Open rungs:
   the matching argument places (statements.rs::
   seed_boundary_call_ensures_facts; three lib tests pin discharge /
   no-ensures refusal / too-wide-bound refusal — `buf[self.n]` after
-  `ensures size <= 8` proves against length 12). REMAINING intake:
-  bounded-target containment obligations (the [a..=b] store checks) and
-  CROSS-STATE transport (the ensures fact through transition arguments
-  into the walk state's params — the own_machine shape passes map_size
-  as an arg; the argument-fact translation machinery is the carrier). Then decode-minted where-facts + recast bounds discharged
+  `ensures size <= 8` proves against length 12). CROSS-STATE transport
+  LANDED same day (slice 3): ParameterFacts gained a MergedBound upper
+  bound — max-over-edges meet, one unbounded edge poisons — collected
+  from each incoming transition's argument (ensures-seeded or constant)
+  and re-seeded onto the param name at state entry; the collection pass
+  runs the ensures intake and mirrors the rebind invalidation. Three
+  more lib tests pin transport / poisoned-sibling-edge / rebind-kill —
+  the own_machine shape (`walk(self.n)` after `ensures size <= 8`
+  proving `buf[off]`) discharges end to end. REMAINING intake:
+  bounded-target containment obligations (the [a..=b] store checks);
+  then the recast judgment's own ensures route (the footprint
+  `offset + size <= map_size <= 16384` coupling chain). Then decode-minted where-facts + recast bounds discharged
   from couplings + R1/R3. ⚠️ COORDINATE: recast MECHANICS are main-lane;
   this rung supplies only the proof side. Unblocks the UEFI memory-map
   stride discharge (`map_size <= 16384` as an ensures witness feeding

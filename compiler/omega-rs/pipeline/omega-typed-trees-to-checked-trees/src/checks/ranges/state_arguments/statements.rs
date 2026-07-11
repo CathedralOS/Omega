@@ -21,6 +21,11 @@ pub(super) fn collect_state_argument_facts_from_statement(
 ) {
     match statement {
         StatementNode::Assignment(assignment) => {
+            // A rebind stales any proven upper bound for the target (mirror
+            // of the main walk's Assignment arm).
+            facts.forget_index_upper_bound(
+                &program.expression_table.display_name(assignment.target),
+            );
             if let Some((symbol, name)) = expression_name(program, assignment.target) {
                 let next_length = expression_indexable_length(program, facts, assignment.value);
                 let next_integer = expression_integer_value(program, facts, assignment.value);
@@ -37,6 +42,12 @@ pub(super) fn collect_state_argument_facts_from_statement(
                 Some(&call.target),
                 program.statement_table.expression_handles(call.arguments),
                 collected,
+            );
+            // R4 witness mint in the COLLECTION pass too: boundary ensures
+            // bound the &mut argument places, so a later transition can
+            // transport the fact into its target's params.
+            crate::checks::ranges::statements::seed_boundary_call_ensures_facts(
+                program, machine, call, facts,
             );
         }
         StatementNode::Expression(expression) => {

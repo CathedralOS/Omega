@@ -229,7 +229,7 @@ fn field_plus_positive_constant(
 /// <literal>` conjuncts as index-upper-bound facts on the matching `&mut`
 /// argument places. Prior bounds for every `&mut`-written place are
 /// forgotten regardless, ensures or not.
-fn seed_boundary_call_ensures_facts(
+pub(super) fn seed_boundary_call_ensures_facts(
     program: &omega_typed_trees::TypedTrees,
     machine: &Machine,
     call: &omega_typed_trees::statement::TableCall,
