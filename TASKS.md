@@ -231,8 +231,14 @@ proof-stratum non-tail unaffected, it never lowers). Rungs:
   cycle, every call along the cycle tail-classified;
   the dungeon's find_item_at/find_item_after pair is the live test case
   (currently absorbed by bounded clone specialization).
-- **MR5 — proof-stratum evaluation:** measured recursion under interpreter
-  fuel for compile-time proof machines (no lowering, no space rule).
+- **MR5 — proof-stratum evaluation — LANDED 2026-07-11 (pinned; the
+  machinery already composed):** measured recursion evaluates at compile
+  time under the const-eval ~100k-step fuel cap — the MR1/MR2 spellings
+  interpret as loop-backs with no lowering and no space rule. Pinned by
+  pass/comptime/runtime_const_measured_recursion_exit: `[u8;
+  table_size()]` const-calls a zero-arg machine whose measured
+  tail-recursive FREE-machine helper (MR2 bare terminal form) computes
+  the length.
 
 ## Math roster & the Real arc — engineering track
 
