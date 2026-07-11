@@ -169,6 +169,37 @@ impl HostOperationKey {
     }
 }
 
+/// The process-wide interner for CUSTOM operation names (M2 blocker 1:
+/// the closed catalog generalized). A name outside the built-in catalog
+/// interns to a stable index for the life of the process, so the key stays
+/// `Copy` and binding/call sites agree by construction. Leaked once per
+/// DISTINCT name (bounded by the program's provides surface).
+fn interned_names() -> &'static std::sync::Mutex<Vec<&'static str>> {
+    use std::sync::{Mutex, OnceLock};
+    static NAMES: OnceLock<Mutex<Vec<&'static str>>> = OnceLock::new();
+    NAMES.get_or_init(|| Mutex::new(Vec::new()))
+}
+
+fn intern_custom_name(name: &str) -> u32 {
+    let mut names = interned_names()
+        .lock()
+        .expect("custom-name interner poisoned");
+    if let Some(index) = names.iter().position(|existing| *existing == name) {
+        return index as u32;
+    }
+    names.push(Box::leak(name.to_string().into_boxed_str()));
+    (names.len() - 1) as u32
+}
+
+fn custom_name(index: u32) -> &'static str {
+    interned_names()
+        .lock()
+        .expect("custom-name interner poisoned")
+        .get(index as usize)
+        .copied()
+        .unwrap_or("<custom>")
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum HostCapability {
     #[default]
@@ -199,6 +230,11 @@ pub enum HostCapability {
     /// the arm64 HFA calling convention (a `CGRect` = 4 doubles passed in v0–v3);
     /// `CGImageCreate`/`CGColorSpace…` build the blit surface.
     CoreGraphics,
+    /// A string-interned AUTHORED capability (a provides row whose trait
+    /// name is outside the built-in catalog; M2 blocker 1). The index
+    /// resolves through the process-wide interner, so the key stays `Copy`
+    /// and binding/call sites agree by construction.
+    Custom(u32),
 }
 
 impl HostCapability {
@@ -215,7 +251,8 @@ impl HostCapability {
             "Math" => Self::Math,
             "ObjectiveC" => Self::ObjectiveC,
             "CoreGraphics" => Self::CoreGraphics,
-            _ => Self::Unknown,
+            // M2 blocker 1: authored names intern to stable Custom keys.
+            _ => Self::Custom(intern_custom_name(name)),
         }
     }
 
@@ -233,6 +270,7 @@ impl HostCapability {
             Self::Math => "Math",
             Self::ObjectiveC => "ObjectiveC",
             Self::CoreGraphics => "CoreGraphics",
+            Self::Custom(index) => custom_name(index),
         }
     }
 }
@@ -241,6 +279,9 @@ impl HostCapability {
 pub enum HostOperation {
     #[default]
     Unknown,
+    /// A string-interned AUTHORED method name (M2 blocker 1); index into
+    /// the process-wide interner.
+    Custom(u32),
     Exit,
     ExitGroup,
     ExitProcess,
@@ -632,13 +673,15 @@ impl HostOperation {
             "is_window" => Self::IsWindow,
             "window_destroy" => Self::WindowDestroy,
             "foreground_window" => Self::ForegroundWindow,
-            _ => Self::Unknown,
+            // M2 blocker 1: authored names intern to stable Custom keys.
+            _ => Self::Custom(intern_custom_name(name)),
         }
     }
 
     pub fn name(self) -> &'static str {
         match self {
             Self::Unknown => "<unknown>",
+            Self::Custom(index) => custom_name(index),
             Self::Exit => "exit",
             Self::ExitGroup => "exit_group",
             Self::ExitProcess => "exit_process",
@@ -961,12 +1004,10 @@ pub fn merge_provides_rows(
         });
     }
 
-    // KNOWN DEBT: HostOperationKey is a CLOSED enum pair; provides names
-    // outside the catalog map to (Unknown, Unknown). One such row is fine --
-    // the key just has to be stable between the binding and the call site --
-    // but TWO would collide silently, so collide loudly instead. The
-    // generalization is string-interned operation keys.
-    let mut seen_unknown: Option<(String, String)> = None;
+    // M2 blocker 1 (landed 2026-07-11): names outside the built-in catalog
+    // intern to stable Custom keys, so any number of authored rows coexist;
+    // the duplicate-binding check below catches a genuinely repeated
+    // (trait, method) pair like any other collision.
     for row in provides {
         // VALUE rows are constants, not call mechanisms: skip them BEFORE the
         // operation-key checks (their names are naturally outside the closed
@@ -975,22 +1016,7 @@ pub fn merge_provides_rows(
             continue;
         }
         let key = HostOperationKey::from_names(&row.trait_name, &row.method);
-        // NOTE: compare the ENUM, not `capability_name()` -- Unknown renders
-        // as "<unknown>", so the original string compare never fired and the
-        // loud-collision debt check was dead.
-        if key.capability == HostCapability::Unknown {
-            if let Some((prior_trait, prior_method)) = &seen_unknown
-                && (prior_trait != &row.trait_name || prior_method != &row.method)
-            {
-                return Err(format!(
-                    "provides rows `{}::{}` and `{}::{}` both fall outside the closed \
-                     operation catalog and would collide; string-keyed operations are \
-                     not built yet",
-                    prior_trait, prior_method, row.trait_name, row.method
-                ));
-            }
-            seen_unknown = Some((row.trait_name.clone(), row.method.clone()));
-        } else if plan
+        if plan
             .bindings
             .iter()
             .any(|(_, binding)| binding.operation_key == key)

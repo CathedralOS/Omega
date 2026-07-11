@@ -28,7 +28,10 @@ pub(crate) fn collect_authored_import_blockers(
             .unwrap_or(&[])
             .iter()
             .any(|operation| {
-                operation.operation_key.capability == HostCapability::Unknown
+                matches!(
+                    operation.operation_key.capability,
+                    HostCapability::Unknown | HostCapability::Custom(_)
+                )
                     && input.host_abi.bindings.iter().any(|(_, binding)| {
                         binding.operation_key == operation.operation_key
                             && matches!(binding.mechanism, HostBindingMechanism::Import { .. })
