@@ -40,9 +40,20 @@ spelling (R0 follow-on, under Language ergonomics).
 
 Cathedral is fully written and waiting; M2 (`GetMemoryMap → ExitBootServices
 → first Region mint`, `../Cathedral/source/boot/uefi/own_machine.omg`) is
-down to ONE compiler-side blocker: the RECAST remainder (see
-Programmable-layouts below — rungs A/B/C1/C2 landed; the tail is
-non-scalar-field records, `&mut` views, plan-tiling). The old "two red efi
+down to a MEASURED gap list (compile-checked against the real
+own_machine.omg 2026-07-11 via the new `omega-run --target uefi_x64`):
+the recast MECHANICS are DONE for M2's shape (rungs A/B/C1/C2; the
+all-scalar EfiMemoryDescriptor record view serves — see
+samples/cli/systems/descriptor_walk for the in-tree twin), and the
+remaining blockers are SURFACE + one proof rung: (1) `let mut` locals
+(own_machine mutates map_size/key/desc_size through &mut out-params into
+locals); (2) the `and` boolean keyword; (3) tuple-subject transitions
+(`transition (bigger, more) { (true, true) -> ... }`); (4) the walk's
+footprint is against RUNTIME `map_size` (`offset + desc_size <
+map_size`), needing the guard/coupling footprint route rather than C1's
+literal-N interval (the machinery exists — wire the recast judgment to
+accept a dominating `offset + size <= <runtime bound>` guard the way the
+index prover does). The old "two red efi
 tests" proved stale 2026-07-17: field-model dispatch and `&mut` out-params
 both serve, pinned (pass/targets/efi_vtable_field_call,
 pass/targets/efi_out_param_call). Done-check: boot under QEMU/OVMF, greeting
