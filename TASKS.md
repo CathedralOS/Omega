@@ -246,6 +246,45 @@ proof-stratum non-tail unaffected, it never lowers). Rungs:
 - **MR5 — proof-stratum evaluation:** measured recursion under interpreter
   fuel for compile-time proof machines (no lowering, no space rule).
 
+## Math roster & the Real arc — engineering track
+
+Owner-settled through the proofs review (record: mathematical_proofs par-6
+item 3 + par-7). Proof-only is COMPUTED, never spelled: recursive data is
+legal and proof-only (fixpoint: recursive, or contains a proof-only field);
+no `unbounded` property exists. Rungs:
+
+- **N1 — proof-only classification:** recursive data (direct + mutual)
+  legal; classification fixpoint; contagion by containment; every runtime
+  consumption face (layout/ZII/lowering/borrow) rejects with the
+  classification named ("`Nat` is proof-only: recursive data has no
+  layout"). Fail canaries per face; the ch14 Equatable recursive-reject
+  note is about lowering conformance and stands.
+- **N2 — engine bignum:** exact unbounded arithmetic for Nat/Int/Rat fact
+  evaluation; engine coefficients widen (subsumes the u64>i64::MAX i128
+  refactor — one surgery, done properly). `3nat` literals evaluate to
+  bignum; structural bridge for induction (n > 0 => n == Succ(n - 1)).
+- **N3 — fact-position operator routing:** glyphs route by operand type —
+  Nat/Int/Rat compute-mode, declared proof carriers rearrange-mode
+  (ring-generic polynomial normalization). Int introduction rule: order
+  has no floor, measures stay Nat-valued or range-floored.
+- **N4 — roster library:** Nat/Seq/Bag/Rat in core as ordinary recursive
+  data + extraction lemmas; the proof views (Seq/Bag/Range) dissolve from
+  parser-known atoms into these types (the L6 bag_view rung folds in).
+- **N5 — `boundary data` + the Real axiom package:** opaque carrier;
+  ensures-less boundary machines = claim-free symbols (no grant); axioms =
+  accepted-tier rows; schema axioms as `<machine P>` boundary machines (one
+  grant covers the schema statement). OWNER-GATED input: the LEM row
+  (classical logic as a core boundary machine — recommended, unruled).
+- **N6 — quotients (OWNER-GATED spelling):** proof-only type former;
+  lift-of-mk reduction + congruence over the user equivalence.
+- **N7 — nested schemas (OWNER-GATED spelling, with N6):** machine params
+  on proof data (`data CauchySeq<machine S>`) + machine-parameter
+  signatures that themselves take machine parameters.
+- **N8 — the construction corpus:** Cauchy Real, well-definedness, order,
+  completeness; axioms retire via the standard boundary upgrade.
+  LLM-parallel, zero backend contact. Universe ladder PARKED (trigger:
+  full-mathlib replay as a language goal).
+
 ## Owner-gated holds (see OWNER_QUESTIONS.md)
 
 - **Q13 console convergence** — `platform` blocks vs boundary traits (the
