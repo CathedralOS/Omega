@@ -71,8 +71,28 @@ measured remaining M2 blockers, NOW IN ORDER:
    guard / ensures routes per edge) and the max wins — pinned
    pass/recast/runtime_multi_edge_offset_meet_exit +
    fail/recast/multi_edge_offset_meet_rejected. Only (b) the symbolic
-   route (`offset + desc_size < map_size` + a desc_size lower-bound
-   witness) remains in this blocker's main-lane half.
+   route remains in this blocker's main-lane half. DESIGN (worked out
+   2026-07-11): the loop edge's argument is the COMPOUND
+   `offset + desc_size`, and guard_upper_bound_for already matches it by
+   display — what's missing is (i) a symbolic right-hand side: `label <=
+   NAME`/`< NAME` resolves NAME's inclusive bound recursively (depth-
+   limited) through the same per-edge meet — for the walk, map_size's
+   meet is {ensures witness 16384 on the entry edge; SELF-FORWARDING on
+   the loop edge, which preserves the entry bound and must be SKIPPED in
+   the meet (argument display == the param's own name, same state)};
+   (ii) ensures LOWER-bound witnesses (`ensures desc_size >= 48`) via a
+   guard_lower_bound_for twin; (iii) the subtraction composition:
+   footprint offset' + sizeof <= N discharges from bound(offset' +
+   desc_size) <= B ∧ desc_size >= sizeof ∧ B <= N. ⚠️ SPELLING
+   COORDINATION (Cathedral lane): the chain is only sound if the walk
+   guard leaves room for the WHOLE next descriptor — `more` must spell
+   `offset + desc_size + desc_size <= map_size` (or equivalent), not the
+   current `offset + desc_size < map_size`, which bounds the next START
+   but not its END (offset' <= map_size - 1 admits a tail read past
+   map_size when desc_size > 1). EDK2's map is whole descriptors, so the
+   stronger spelling is semantically free; and get_memory_map's contract
+   needs BOTH witnesses: `ensures map_size <= 16384` and
+   `ensures desc_size >= 48`.
 3. **depend-mapping**: `b.depend("uefi", path(...))` is not wired into
    use-resolution (uses resolve root-relative only) — Cathedral's
    contracts/ + core/ packages can't be reached from boot/ without the
