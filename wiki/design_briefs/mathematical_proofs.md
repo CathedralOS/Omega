@@ -414,6 +414,15 @@ Open sub-decisions (owner-gated, dependency order):
    (stream equality undecidable => no reduced form; any subset either
    drops numbers or keeps duplicates). Taxonomy: where/domain = fewer
    values, same equality; `%` = same values, fewer distinctions.
+   GLYPH RE-CHALLENGED AND UPHELD (owner proposed `<-` as "unfamiliarity
+   conveys something special"): kept `%`. Grounds: `<-` priors all point
+   wrong (Haskell bind, Go receive, R assignment — effectful extraction;
+   the real quotient arrow is the projection carrier->buckets, the OTHER
+   direction); "signals special" fights the arc's thesis (the exotic
+   dissolving into the ordinary — the declaration SHAPE already carries
+   the signal, no other decl looks like `data X = Y % machine`); mirror
+   hazard against ubiquitous `->` plus lexer collisions (`a < -b`,
+   generic close then `<-`) — the cluster that killed Rust's own `<-`.
    FORM RULE (owner): `data X = <type expr>;` REQUIRES a former — bare
    `data Meters = u32;` never parses. The newtype's only real job (units/
    provenance) belongs to the landed domain shape (`domain u32::Meters
