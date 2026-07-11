@@ -1,0 +1,16 @@
+// FAIL CANARY: a bool-tuple transition matrix MISSING a combination
+// ((false,false) absent) keeps the loud fall-through refusal -- the
+// exhaustiveness rewrite only fires for covering matrices.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; out: i32; }
+machine Main::main(&mut self) {
+    let found: bool = true;
+    let has_next: bool = false;
+    transition (found, has_next) {
+        (true, _) -> hit()
+        (false, true) -> step()
+    }
+    state hit(&mut self)  { self.console.exit_process(70); }
+    state step(&mut self) { self.console.exit_process(71); }
+    state stop(&mut self) { self.console.exit_process(72); }
+}
