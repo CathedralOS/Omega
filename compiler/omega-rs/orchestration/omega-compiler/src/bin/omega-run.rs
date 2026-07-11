@@ -18,8 +18,22 @@ fn main() {
     let both = args.iter().any(|a| a == "--both");
     let keep = args.iter().any(|a| a == "--keep");
     args.retain(|a| a != "--both" && a != "--keep");
+    // `--target <name>` cross-compiles for a registered target (e.g.
+    // uefi_x64) and reports COMPILE success/refusal without running -- the
+    // M2/platform-session check loop.
+    let target_name = args
+        .iter()
+        .position(|a| a == "--target")
+        .map(|index| {
+            let name = args.get(index + 1).cloned().unwrap_or_else(|| {
+                eprintln!("usage: omega-run --target <name> <main.omg>");
+                std::process::exit(2);
+            });
+            args.drain(index..=index + 1);
+            name
+        });
     let Some(main_path) = args.first() else {
-        eprintln!("usage: omega-run [--both] <main.omg>");
+        eprintln!("usage: omega-run [--both] [--target <name>] <main.omg>");
         std::process::exit(2);
     };
     let main_path = std::path::PathBuf::from(main_path);
@@ -30,7 +44,7 @@ fn main() {
     if let Err(diagnostics) = compile(CompileOptions {
         root_path: main_path.clone(),
         build_dir: Some(build_dir.clone()),
-        target_name: None,
+        target_name: target_name.clone(),
         write_output: true,
     }) {
         eprintln!("native compile FAILED:");
@@ -38,6 +52,14 @@ fn main() {
             eprintln!("  {diagnostic}");
         }
         std::process::exit(200);
+    }
+    if let Some(target) = &target_name {
+        // Cross-target images do not run on the host; compiling IS the check.
+        eprintln!("compiled for target `{target}` OK ({})", build_dir.display());
+        if !keep {
+            let _ = std::fs::remove_dir_all(&build_dir);
+        }
+        return;
     }
 
     let exe = build_dir.join(if cfg!(windows) {
