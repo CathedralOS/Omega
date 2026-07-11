@@ -183,10 +183,20 @@ bounded-escape store-containment keystone. Open rungs:
   runs the ensures intake and mirrors the rebind invalidation. Three
   more lib tests pin transport / poisoned-sibling-edge / rebind-kill —
   the own_machine shape (`walk(self.n)` after `ensures size <= 8`
-  proving `buf[off]`) discharges end to end. REMAINING intake:
-  bounded-target containment obligations (the [a..=b] store checks);
-  then the recast judgment's own ensures route (the footprint
-  `offset + size <= map_size <= 16384` coupling chain). Then decode-minted where-facts + recast bounds discharged
+  proving `buf[off]`) discharges end to end. The recast judgment's ensures
+  route LANDED same day: the incoming-edge walk's bound now falls back
+  to an R4 witness — the LAST boundary call before the transition whose
+  `ensures <param> <= K` bounds the `&mut` argument place spelled like
+  the transition argument, invalidated by any intervening write or call
+  — and Always/`_`-arm edges may carry it (the witness precedes the
+  whole transition). The M2 mini-shape (`get_size(&mut self.n)` with
+  `ensures size <= 8`, then `read(self.n)` recasting `&buf[off] as
+  &u32`) discharges 8+4<=12 end to end; too-wide and intervening-call
+  twins refuse (three lib tests). REMAINING intake: bounded-target
+  containment obligations; the SYMBOLIC half of the M2 stride
+  (`offset + desc_size < map_size` with `desc_size >= sizeof` as a
+  second lower-bound witness — needs value-vs-value coupling, R1
+  remainder territory) — the LITERAL half is now fully witnessed. Then decode-minted where-facts + recast bounds discharged
   from couplings + R1/R3. ⚠️ COORDINATE: recast MECHANICS are main-lane;
   this rung supplies only the proof side. Unblocks the UEFI memory-map
   stride discharge (`map_size <= 16384` as an ensures witness feeding

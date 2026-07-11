@@ -229,6 +229,91 @@ fn boundary_out_param_ensures_dies_at_the_next_write() {
 }
 
 #[test]
+fn boundary_ensures_witness_discharges_recast_footprint() {
+    // R4 recast route (the M2 memory-map mini-shape): `ensures size <= 8`
+    // on the boundary out-param bounds the transition argument, so the
+    // callee's recast footprint `8 + size(u32) <= 12` proves with no guard
+    // and no declared range on `off`.
+    validate_contract_source(
+        r#"
+    boundary trait Firmware {
+        machine get_size(size: &mut u32)
+        ensures size <= 8;
+    }
+    data Main { fw: Firmware; buf: [u8; 12]; n: u32; }
+    machine Main::main(&mut self) {
+        self.fw.get_size(&mut self.n);
+        transition { _ -> read(self.n) }
+        state read(&mut self, off: u32) {
+            let v: &u32 = &self.buf[off] as &u32;
+        }
+    }
+    "#,
+    )
+    .expect("the ensures witness should discharge the recast footprint");
+}
+
+#[test]
+fn boundary_ensures_witness_too_wide_refuses_recast_footprint() {
+    // `ensures size <= 9` admits offset 9: a 4-byte view reads bytes 9..13
+    // of a 12-byte region -- refused with the footprint named.
+    let diagnostics = validate_contract_source(
+        r#"
+    boundary trait Firmware {
+        machine get_size(size: &mut u32)
+        ensures size <= 9;
+    }
+    data Main { fw: Firmware; buf: [u8; 12]; n: u32; }
+    machine Main::main(&mut self) {
+        self.fw.get_size(&mut self.n);
+        transition { _ -> read(self.n) }
+        state read(&mut self, off: u32) {
+            let v: &u32 = &self.buf[off] as &u32;
+        }
+    }
+    "#,
+    )
+    .expect_err("a bound past the footprint must refuse");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("would read past the buffer")),
+        "expected the footprint refusal, got {diagnostics:#?}"
+    );
+}
+
+#[test]
+fn boundary_ensures_witness_dies_on_intervening_call() {
+    // A SECOND call between the witness and the transition may rewrite the
+    // field through `&mut self` -- the witness must not survive it.
+    let diagnostics = validate_contract_source(
+        r#"
+    boundary trait Firmware {
+        machine get_size(size: &mut u32)
+        ensures size <= 8;
+        machine poke();
+    }
+    data Main { fw: Firmware; buf: [u8; 12]; n: u32; }
+    machine Main::main(&mut self) {
+        self.fw.get_size(&mut self.n);
+        self.fw.poke();
+        transition { _ -> read(self.n) }
+        state read(&mut self, off: u32) {
+            let v: &u32 = &self.buf[off] as &u32;
+        }
+    }
+    "#,
+    )
+    .expect_err("an intervening call must kill the witness");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("recast")),
+        "expected a recast refusal, got {diagnostics:#?}"
+    );
+}
+
+#[test]
 fn refutes_constant_false_ensures_on_empty_proof_machine() {
     let diagnostics = validate_contract_source(
         r#"
