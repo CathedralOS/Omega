@@ -18571,6 +18571,33 @@ fn runtime_offset_byte_recast_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_record_view_exit_canary_runs() {
+    // Rung C2: the record re-viewed over a byte region at a runtime offset;
+    // legs pin alignment lockstep across validation/layout/interp sizing.
+    let canary = pass_canary("recast/runtime_record_view_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-record-view-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("record-view canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("record-view canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the record view's members to read at natural offsets (exit 70), got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_f32_field_guard_exit_canary_runs() {
     // Plain f32 field guards: f32-pattern expectations, 4-byte compares.
     let canary = pass_canary("arithmetic/runtime_f32_field_guard_exit");
@@ -29129,6 +29156,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "recast/runtime_scalar_pun_shared_let_exit",
     "recast/runtime_interior_byte_recast_exit",
     "recast/runtime_offset_byte_recast_exit",
+    "recast/runtime_record_view_exit",
     "arithmetic/runtime_f32_field_guard_exit",
     "collections/runtime_indexed_rmw_loop_exit",
     "collections/runtime_indexed_reduction_loop_exit",
@@ -29477,6 +29505,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "recast/recast_position_fenced",
     "recast/interior_recast_footprint_rejected",
     "recast/runtime_offset_footprint_rejected",
+    "recast/record_view_footprint_rejected",
     "control_flow/transition_fall_through_bool",
     "control_flow/transition_fall_through_value_match",
     "calls/abs_call_argument_rejected",

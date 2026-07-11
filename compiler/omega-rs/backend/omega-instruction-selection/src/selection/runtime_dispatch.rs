@@ -907,8 +907,17 @@ fn select_runtime_dispatch_local_initializer_write(
             .last()
             .and_then(|name| {
                 omega_checked_trees::types::PrimitiveType::from_name(name.as_str())
-            })
-            .and_then(|primitive| primitive.scalar_byte_size());
+                    .and_then(|primitive| primitive.scalar_byte_size())
+                    .or_else(|| {
+                        // Rung C2: a RECORD target sizes by its data layout.
+                        input
+                            .layouts
+                            .data_layouts
+                            .iter()
+                            .find(|(_, data)| data.name.as_str() == name.as_str())
+                            .map(|(_, data)| data.layout.size)
+                    })
+            });
         let source = cast.value;
         if let Some(size) = target_size
             && let Some(place) = crate::selection::storage_places::resolve_runtime_storage_place_in_table(

@@ -5,6 +5,34 @@ use omega_checked_trees::types::{
 use omega_core::symbols::{BuiltinType, SymbolHandle};
 use omega_layout::TypeLayout;
 
+/// Rung C2's snapshot view: a reference-typed local whose initializer is a
+/// judged RECAST over a byte region sizes by the REFEREE RECORD (the slot
+/// materializes the referee's bytes; member reads are ordinary
+/// frame-resident record reads). Every other reference local keeps the
+/// pointer model -- gating on the recast initializer is what keeps the
+/// boundary machinery's pointer-in-slot locals untouched.
+pub(super) fn recast_view_layout(
+    context: &RuntimeStorageContext,
+    table: &TypeReferenceTable,
+    type_reference: TypeReferenceHandle,
+) -> Option<TypeLayout> {
+    let TypeReferenceNode::Reference { referee, .. } = table.type_reference(type_reference)
+    else {
+        return None;
+    };
+    let mut referee = *referee;
+    loop {
+        match table.type_reference(referee) {
+            TypeReferenceNode::Constrained { base_type, .. } => referee = *base_type,
+            TypeReferenceNode::Named { symbol, name } => {
+                let record = layout_for_named_type(context, *symbol, name.as_str());
+                return (record.size > 0).then_some(record);
+            }
+            _ => return None,
+        }
+    }
+}
+
 pub(super) fn layout_for_type_reference(
     context: &RuntimeStorageContext,
     table: &TypeReferenceTable,

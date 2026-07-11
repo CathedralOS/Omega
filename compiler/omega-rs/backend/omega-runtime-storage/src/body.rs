@@ -685,6 +685,35 @@ fn append_branch_operation_storage(
     }
 }
 
+
+/// Rung C2: a reference-typed local INITIALIZED BY A JUDGED RECAST sizes by
+/// its referee record (the snapshot view). `None` keeps the ordinary layout
+/// -- the gate is the recast initializer, so boundary pointer-model locals
+/// are untouched.
+fn recast_view_slot_layout(
+    context: &RuntimeStorageContext,
+    local_storage: &StateLocalStorage,
+) -> Option<omega_layout::TypeLayout> {
+    if !local_storage.initial_value.is_valid() {
+        return None;
+    }
+    let omega_checked_trees::expression::ExpressionNode::Cast(cast) = context
+        .state_storage
+        .expressions
+        .expression(local_storage.initial_value)
+    else {
+        return None;
+    };
+    if !cast.form.is_recast() {
+        return None;
+    }
+    super::layout::recast_view_layout(
+        context,
+        &context.state_storage.type_references,
+        local_storage.type_reference,
+    )
+}
+
 fn append_branch_local_slot(
     context: &RuntimeStorageContext,
     plan: &mut RuntimeStoragePlan,
@@ -692,11 +721,13 @@ fn append_branch_local_slot(
     dispatch_index: u32,
     local_storage: &StateLocalStorage,
 ) {
-    let layout = layout_for_type_reference(
-        context,
-        &context.state_storage.type_references,
-        local_storage.type_reference,
-    );
+    let layout = recast_view_slot_layout(context, local_storage).unwrap_or_else(|| {
+        layout_for_type_reference(
+            context,
+            &context.state_storage.type_references,
+            local_storage.type_reference,
+        )
+    });
     append_local_slot(
         plan,
         dispatch_index,

@@ -357,26 +357,21 @@ transition loop-backs unchanged (unmeasured, constant-stack, may diverge).
     interp assembles at the evaluated offset. Pinned
     pass/recast/runtime_offset_byte_recast_exit + the footprint fail
     canary.
-  - **(C2)** RECORD targets — `&self.map_buf[offset] as
-    &EfiMemoryDescriptor`. DESIGN SETTLED (2026-07-09 survey): the view
-    MATERIALIZES as a SNAPSHOT — the local's slot is sized by the
-    REFEREE record (not pointer-wide), the initializer byte-copies
-    size_of(record) from base+offset (rung C1's sized copy, byte_count
-    grown), and member reads are then ORDINARY frame-resident record
-    reads (existing machinery, no new deref family). Snapshot == view
-    under the shared-only rung + the write fence (same soundness the
-    interp's snapshot uses). Sites: (1) state-storage local sizing for
-    reference-typed locals with RECORD referees bound to recasts;
-    (2) the judgment's record-size footprint — needs size_of at
-    VALIDATION, where layout is backend-only: rung-one restricts to
-    all-scalar-field records sized by the natural-alignment rule, with
-    a DRIFT CANARY pinning agreement with omega-layout (the lockstep
-    note); (3) interp: decode the record's fields from the byte region
-    by the same rule (third copy of the sizing — consider exposing
-    omega-layout's scalar-record sizing at a shared level instead).
-    The stride walk (`offset += self.descriptor_size`) then rides R1's
-    coupled-offset intervals. Plan-tiling validation beyond fact-free
-    shapes rides the L5 rung as before.
+  - **(C2) — LANDED (2026-07-09, all-scalar records).** The Cathedral M2
+    shape serves: `&self.buf[off] as &Desc` with member reads through the
+    view, both engines. Snapshot materialization: the reference local's
+    slot sizes by the REFEREE record (runtime-storage layout_for_reference_type,
+    Named-data referees only -- scalar referees keep the rung-A pointer
+    model), the initializer rides C1's indexed copy at the record's
+    width, member reads are frame-resident record reads. The three
+    sizing implementations (validation footprint / layout plan / interp
+    field decode) are pinned in ALIGNMENT LOCKSTEP by the canary's
+    padded-field leg (u32+u64 -> b at offset 8). Pinned:
+    pass/recast/runtime_record_view_exit + the footprint fail canary.
+    REMAINING recast tail: the STRIDE-WALK sample (`offset +=
+    self.descriptor_size` over R1 couplings -- machinery in place, wants
+    the end-to-end sample), non-scalar-field records, `&mut` views, and
+    plan-tiling beyond fact-free shapes (L5).
 - **L6+:** Bits placements + access classes (MMIO deriver); durability plan
   grades; publish-time predecessor diff.
 

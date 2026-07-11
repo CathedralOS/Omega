@@ -141,12 +141,48 @@ fn judge_scalar_recast(
         .last()
         .map(|name| name.as_str().to_string())
         .unwrap_or_default();
-    let Some(target) = PrimitiveType::from_name(&target_name) else {
+    // RUNG C2: a RECORD target with ALL-SCALAR fields, sized by the
+    // natural-alignment rule (kept in lockstep with omega-layout by the
+    // drift canary). The view snapshots size_of(record) bytes from the
+    // region; member reads are frame-resident record reads.
+    if PrimitiveType::from_name(&target_name).is_none() {
+        if let Some(record_size) = scalar_record_size(program, &target_name) {
+            let source = strip_mutable(program, cast.value);
+            if let Some((offset, region_length)) =
+                interior_byte_region_source(program, machine, state, source)
+            {
+                let Some(end) = offset.checked_add(record_size as i64) else {
+                    return;
+                };
+                if end > region_length {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "{context}: the recast target `{target_name}` needs {record_size} bytes at offset {offset}, but the region holds {region_length} -- the view would read past the buffer (§5b rule 1 is byte-granular)",
+                    )));
+                }
+                let let_names_target = crate::places::unwrapped_type_reference(program, let_referee)
+                    .map(|unwrapped| {
+                        matches!(
+                            program.type_reference_table.type_reference(unwrapped),
+                            TypeReferenceNode::Named { name, .. } if name.as_str() == target_name
+                        )
+                    })
+                    .unwrap_or(false);
+                if !let_names_target {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "{context}: the let's declared type must restate the recast target `&{target_name}`",
+                    )));
+                }
+                return;
+            }
+        }
         diagnostics.push(Diagnostic::error(format!(
-            "{context}: recast target `{target_name}` is not a scalar primitive; \
-             record/array re-views (byte-granular tiling over plan-laid layouts) land \
-             with the byte-view rung"
+            "{context}: recast target `{target_name}` is not a scalar primitive or an \
+             all-scalar record over a byte region; deeper shapes land with the \
+             byte-view rung"
         )));
+        return;
+    }
+    let Some(target) = PrimitiveType::from_name(&target_name) else {
         return;
     };
     if matches!(target, PrimitiveType::Bool | PrimitiveType::String) {
@@ -340,4 +376,30 @@ fn interior_byte_region_source(
         return None;
     };
     Some((offset, *length as i64))
+}
+
+/// The natural-alignment size of an ALL-SCALAR-FIELD record (each field at
+/// the next multiple of its own size; total padded to the widest field).
+/// `None` when the name is no data definition or any field is non-scalar.
+/// LOCKSTEP: this mirrors omega-layout's scalar-record rule; the drift
+/// canary pins agreement (see the C2 note in TASKS.md).
+fn scalar_record_size(program: &TypedTrees, name: &str) -> Option<usize> {
+    let data = program
+        .data_definitions()
+        .iter()
+        .find(|data| data.name.as_str() == name)?;
+    let mut offset = 0usize;
+    let mut max_align = 1usize;
+    for member in program.data_members(data) {
+        let omega_typed_trees::data::DataMember::Field(field) = member else {
+            return None;
+        };
+        let size = crate::places::unwrapped_type_reference(program, field.type_reference)
+            .and_then(|unwrapped| program.primitive_type_reference(unwrapped))
+            .and_then(|primitive| primitive.scalar_byte_size())?;
+        offset = offset.div_ceil(size) * size;
+        offset += size;
+        max_align = max_align.max(size);
+    }
+    Some(offset.div_ceil(max_align) * max_align)
 }
