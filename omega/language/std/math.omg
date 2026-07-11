@@ -70,6 +70,12 @@ machine sin(x: f64) -> f64 {
 }
 
 machine cos(x: f64) -> f64 {
-    // cos(x) = sin(x + pi/2); the shared reduction absorbs the shift.
-    transition { _ -> (sin(x + 1.57079632679489656)) }
+    // cos(x) = sin(x + pi/2); the shared reduction absorbs the shift. The
+    // call binds through a let FIRST: a value-CALL terminal expanding a
+    // multi-state callee overflows the compile thread (the nested-inline
+    // expansion recursion pinned in
+    // canaries/pending/calls/std_math_float_terminal_and_ladder), and the
+    // let-bound shape is the supported one regardless.
+    let s: f64 = sin(x + 1.57079632679489656);
+    transition { _ -> (s) }
 }
