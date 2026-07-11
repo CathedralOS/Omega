@@ -102,10 +102,10 @@ The model:
 
 ## Task Storage: No Stack Sizes
 
-Recursion is measured (chapter 3): tail cycles are loops, non-tail cycles
-carry a const depth budget with frames in machine storage, and frames are
-planner-computed — so the compiler still knows each spawned machine's EXACT
-worst-case storage. Nobody declares a stack size; overflow is impossible by
+Recursion is measured and runtime cycles are tail-only (chapter 3): every
+cycle lowers to a loop, the call graph is acyclic after lowering, and frames
+are planner-computed — so the compiler still knows each spawned machine's
+EXACT worst-case storage. Nobody declares a stack size; overflow is impossible by
 construction. Task pools are per-machine-type `M x N`: M computed, N
 declared per spawn site (Embassy/RTIC precedent); spawning past N is a proof
 obligation or boundary failure. Region-backed dynamic N arrives with the

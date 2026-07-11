@@ -91,69 +91,71 @@ transitions directly.
 
 ## Measured Recursion
 
-> **Settled 2026-07-18.** Recursive call cycles are legal if and only if they
-> carry a `decreases` measure (chapter 9). An unmeasured call cycle is a
-> compile error. Transition loop-backs (chapter 4) are unchanged: they are
-> jumps, not calls — unmeasured, constant-stack, free to run forever.
+> **Settled 2026-07-18; amended in the same review: runtime cycles are
+> tail-only.** Recursive call cycles are legal if and only if they carry a
+> `decreases` measure (chapter 9), and in runtime code every recursive call
+> must be in tail position, where the cycle lowers to loop machinery. An
+> unmeasured call cycle is a compile error; a measured non-tail cycle in
+> runtime code is a compile error. Transition loop-backs (chapter 4) are
+> unchanged: they are jumps, not calls — unmeasured, constant-stack, free to
+> run forever.
 
 A machine may call itself, directly or through a mutual cycle, when every
-cycle through the call graph strictly decreases a well-founded measure:
+cycle through the call graph strictly decreases a well-founded measure and
+each recursive call is the last thing its arm does:
 
 ```omega
-machine Tree::depth(node: &Node) -> u64
-terminates { decreases node -> Tree::Height in 0..=63; }
+machine Gauss::sum(n: u64, acc: u64) -> u64
+terminates { decreases n; }
 {
-    transition node.is_leaf {
-        true  -> 0
-        false -> 1 + max(Tree::depth(node.left), Tree::depth(node.right))
-        //       ^ non-tail: the calls return into the max — see the space rule
+    transition n {
+        0 -> acc
+        _ -> Gauss::sum(n - 1, acc + n)   // tail: the call IS the arm's result
     }
 }
 ```
 
 Working rules:
 
-- **Legality is the measure, not the position.** Tail and non-tail recursion
-  are both gated by `decreases`. Spelling encodes intent: a transition arrow
-  says "process — may run forever, constant space, no proof owed"; a
-  recursive call says "terminating walk — measured, or it does not compile."
-- **Tail position lowers to the loop machinery.** A recursive call in tail
-  position compiles to the same back-edge a transition loop-back uses: zero
-  stack growth. Classification is strict and never silent:
-  `-> 3 * Tree::depth(...)` is not tail (the multiply runs after the call
-  returns), and the error names why.
-- **Non-tail recursion carries a space obligation, spelled as the measure's
-  range.** `decreases node -> Tree::Height in 0..=63` states where the
-  measure lives; the frame region's capacity is the range's **cardinality**
-  (64 values — at most 64 strict decreases), an ordinary machine-storage
-  field sized at layout time and reported like any other field (chapter 20).
-  The obligation is the ordinary range proof at entry. There is no
-  operating-system stack to overflow: an over-generous range fails loudly as
-  a visibly large layout. The well-foundedness floor is the range's *start* —
-  any floor, not only zero, so a cursor walking `hi` down to `lo` needs no
-  re-zeroed distance measure.
-- **Dependent range endpoints are tail-only in v1.** `decreases cursor in
-  lo..=hi` with witness endpoints is legal on tail cycles (pure proof fact,
-  no storage; endpoints are pinned witnesses, re-proven at every back-edge —
-  the same fact the loop spelling declares as a parameter range). Non-tail
-  cycles require const endpoints: a runtime cardinality would be a
-  runtime-sized frame region, which storage rules ban.
-- **Lexicographic measures and non-tail do not mix in v1.** An
-  unbounded-component dictionary order has no cardinality to reserve;
-  bounded components flatten to a single linear measure (`m*B + n`) and are
-  ordinary again. Tail cycles take lexicographic measures freely.
-- **Runtime-unbounded depth does not compile.** An unranged runtime measure
-  cannot discharge the budget obligation; bounding the witness — a declared
-  range, a dominating guard — is the fix.
+- **Legality is the measure, not the position.** Every runtime cycle needs
+  both: `decreases` proves it terminates; tail position gives it a lowering.
+  Spelling encodes intent: a transition arrow says "process — may run
+  forever, constant space, no proof owed"; a recursive call says
+  "terminating walk — measured, or it does not compile."
+- **Every runtime cycle lowers to the loop machinery.** A tail recursive
+  call compiles to the same back-edge a transition loop-back uses: zero
+  stack growth, no frame accumulation, ever. Classification is strict and
+  never silent: `-> 3 * Gauss::sum(...)` is not tail (the multiply runs
+  after the call returns), and the error names why.
+- **Non-tail recursion does not compile in runtime code.** A measured cycle
+  whose call returns into more work (`1 + max(depth(l), depth(r))`) is
+  rejected with the classification error. Depth belongs in data: iterate
+  with explicit storage the machine declares and sizes — a fixed-capacity
+  field today, a Region when the allocator arc lands. Activation frames are
+  storage the author never sees or sizes; depth does not hide there.
+- **The range is a termination fact, never a size.** `decreases cursor in
+  lo..=hi` states where the measure lives; the floor is the well-foundedness
+  bound (any start, not only zero, so a cursor walking `hi` down to `lo`
+  needs no re-zeroed distance measure). Dependent endpoints are legal —
+  pinned witnesses, re-proven at every back-edge, the same fact the loop
+  spelling declares as a parameter range. Nothing is ever allocated from a
+  range.
+- **Lexicographic measures compose freely.** The measure gates legality and
+  sizes nothing, so dictionary orders need no special case; bounded
+  components may still flatten to a single linear measure (`m*B + n`).
 - **Mutual cycles share a joint measure** (lexicographic when needed); every
-  cycle through the call graph must decrease it.
-- **The whole program's worst-case stack is a static constant.** Every call
-  cycle is budget-bounded, so the maximum live activation storage along any
-  call chain is computable at build time and appears in the layout report.
+  cycle through the call graph must decrease it, and at runtime every call
+  along the cycle must be tail.
+- **The whole program's worst-case stack is a static constant.** After
+  lowering, the runtime call graph is acyclic, so the maximum live
+  activation storage along any call chain is computable at build time and
+  appears in the layout report.
 
 Proof-stratum machines (chapter 10) follow the same legality rule with no
-space obligation: they evaluate at compile time under the checker's fuel
-budget and never lower.
+tail restriction: non-tail shapes — `1 + max(Tree::depth(node.left),
+Tree::depth(node.right))`, induction over a tree — are legal there, because
+fact-only machines evaluate at compile time under the checker's fuel budget
+and never lower. No frame ever materializes.
 
 ## Contracts
 

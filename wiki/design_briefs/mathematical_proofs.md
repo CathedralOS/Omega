@@ -74,6 +74,33 @@ relaxation, precisely scoped:
   (`* 3` toggling a machine between legal and illegal) — the arbitrariness
   the unification exists to delete.
 
+**AMENDMENT (owner review): runtime non-tail is CUT.** The probe that killed
+it: "at one point recursion was banned and we seemed quite contented... now
+you're saying that 1 explicit case is load bearing." Unpacking that exposed
+a strata conflation in the defense. The load-bearing customer of measured
+recursion was always the PROOF stratum — induction — where fact-only
+machines erase and no frame, budget, or constant ever exists. Runtime tail
+is the loop machinery wearing call syntax. Runtime bounded non-tail was a
+corollary taken because it cost one sentence — and it had no current
+customer (first-boot, rendering, fs, and the proof arc are all tail- or
+loop-shaped; the parser/AML case was a future-customers argument). Owner
+verdict, verbatim core: "stack pressure is often hackier than forcing
+people to write code that doesn't repeatedly produce stack frames (hence a
+language centered around state machines)." A five-million-deep map file is
+not a frame-budget problem — you iterate, handle it, and structure the code
+so depth lives in data the author sizes; if that storage exhausts the heap,
+that is a more accepted risk than stack exhaustion, given the size
+difference. Consequences: the frame-budget/cardinality rule is DELETED (and
+with it the only hard-coded constant on the runtime recursion surface);
+dependent range endpoints are unrestricted (the range is a termination
+fact, never a size); lexicographic measures need no non-tail carve-out; the
+whole-program stack bound simplifies to the longest chain of an
+acyclic-after-lowering call graph. If a real customer ever demands
+recursion-spelled depth, the recorded future shape is frames allocated from
+a Region — a visible allocation, consistent with the verdict's
+heap-over-stack risk ordering. The Lowering/Exposure bullets above stand as
+the pre-amendment record.
+
 ## 3. The membrane and the Collatz shape
 
 One construct connects strata: a fact justified by citing a proof machine's
@@ -180,7 +207,9 @@ Settled through chat review after the documentation spree; chapters updated:
   (non-zero floors legal — no re-zeroing ceremony). Dependent endpoints
   (witness-named, ch12 machinery: pinned across the cycle, re-proven at
   back-edges) are tail-only in v1 — a runtime cardinality would be a
-  runtime-sized frame region. Linear monotone ranges are the only primitive;
+  runtime-sized frame region. *(Amended, par-2: runtime non-tail is cut —
+  cardinality-as-capacity and the endpoint restriction are both dead; the
+  range is a termination fact only.)* Linear monotone ranges are the only primitive;
   lexicographic is the only extension (unbounded resets: omega-squared does
   not order-embed into omega — bounded components flatten as `m*B + n`,
   which is the R3 product lemma); everything else is a measure the user
