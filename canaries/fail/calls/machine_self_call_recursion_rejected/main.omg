@@ -1,7 +1,11 @@
-// CALL-SPELLED SELF-RECURSION (`true -> self.countdown(remaining - 1)`) is
-// REJECTED by design (owner directive 2026-07-07): Omega has no recursion --
-// stack size must be predictable; repetition is a bare state self-transition
-// loop (`-> countdown(..)`), a jump with re-bound arguments.
+// UNMEASURED call-spelled self-recursion is REJECTED (measured-recursion
+// ruling 2026-07-18, MR1): a recursive CALL spelling (`true ->
+// self.countdown(remaining - 1)`) is legal ONLY on a measured machine
+// (`terminates { decreases ... }`, the decrease proven across the loop
+// edge). This machine declares no measure, so the arm refuses and names
+// both fixes: measure the machine, or spell unmeasured repetition as the
+// bare loop `-> countdown(..)` (constant stack, may legally diverge).
+// The measured twin RUNS: pass/calls/runtime_measured_tail_recursion_exit.
 boundary trait Console {
     machine exit_process(return_code: i32);
 }
@@ -9,9 +13,6 @@ data Main {
     console: Console;
 }
 machine Main::countdown(&mut self, remaining: u64) -> u64
-terminates {
-    decreases remaining;
-}
 {
     transition remaining > 0 {
         true -> self.countdown(remaining - 1)

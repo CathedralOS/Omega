@@ -1,0 +1,27 @@
+// MR3 (runtime recursion is TAIL-ONLY): `3 * self.triple(n - 1)` keeps
+// the frame alive past the call -- the result feeds the multiply -- so
+// even on a MEASURED machine the spelling refuses, naming why it is not
+// tail and pointing at the tail arm / explicit-storage restructurings.
+// (The owner amendment CUT non-tail runtime recursion; depth lives in
+// storage the author sizes.)
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine Main::triple(&mut self, n: u64) -> u64
+terminates {
+    decreases n;
+}
+{
+    transition n > 0 {
+        true -> 3 * self.triple(n - 1)
+        false -> 1
+    }
+}
+machine Main::main(&mut self) {
+    let value: u64 = self.triple(1);
+    transition value == 3 {
+        true -> yes()
+        false -> no()
+    }
+    state yes(&mut self) { self.console.exit_process(1); }
+    state no(&mut self) { self.console.exit_process(2); }
+}

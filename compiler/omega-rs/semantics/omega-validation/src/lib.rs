@@ -27,7 +27,9 @@ mod transitions;
 mod type_references;
 mod wire;
 
-use crate::calls::{validate_call_node, validate_value_position_calls};
+use crate::calls::{
+    validate_call_node, validate_self_recursive_call_positions, validate_value_position_calls,
+};
 use crate::contract_entailment::validate_machine_contract_entailment;
 use crate::data::validate_data_field_types;
 use crate::domains::validate_domain_definitions;
@@ -195,6 +197,13 @@ pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
                     &symbols,
                     &writable_roots,
                     &value_env,
+                    &mut diagnostics,
+                );
+                validate_self_recursive_call_positions(
+                    program,
+                    machine,
+                    state,
+                    statement,
                     &mut diagnostics,
                 );
                 validate_state_statement_node(

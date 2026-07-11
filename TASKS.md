@@ -25,9 +25,10 @@ dispatch-region + receiver-phase family. Everything queued here avoids both.
    N2 next: N2 retires the long-standing u64>i64::MAX i128 debt. Continue
    into N5–N7 when reached (all design-settled; they need the `<machine M>`
    plumbing and the `%` former).
-2. **Measured recursion MR1 + MR3** (section below) — frontend/validation
-   gates over the existing recursion fences. MR2 (tail lowering) only after
-   checking the main lane's backend position; MR4/MR5 follow.
+2. **Measured recursion MR1 + MR3** — LANDED 2026-07-11 (MR1 whole; MR3
+   direct leg — the mutual leg rides MR4). Next in the family: MR2 (the
+   terminal-position tail rewrite onto loop-backs — the arm-target spelling
+   needed NO lowering and already runs), then MR4/MR5.
 3. **Dependent types R2** (section below) — where-clause + gating + windows;
    the big semantic build, explicitly ADDITIVE (the landed eager store-time
    checks stay sound as the conservative tier). One careful agent, multi-day.
@@ -149,20 +150,31 @@ TAIL-ONLY (owner amendment — non-tail runtime CUT, the frame-budget/
 cardinality rule deleted; depth lives in explicit storage the author sizes;
 proof-stratum non-tail unaffected, it never lowers). Rungs:
 
-- **MR1 — classifier + legality gate:** call-graph cycle detection already
-  exists (the recursion fences); repurpose reject-all into
-  measured-or-reject. Tail/non-tail classification, strict, clean errors
-  (`-> 3 * f(...)` names why it is not tail). The existing
-  machine_self_call_recursion_rejected fail canary becomes
-  "unmeasured-rejected"; add measured-tail pass canaries.
+- **MR1 — classifier + legality gate — LANDED 2026-07-11:** the
+  transition-arm spelling `-> self.own_entry(..)` on a MEASURED machine
+  resolves onto the SAME loop-back edge as the bare `-> own_entry(..)`
+  (state-graph targets.rs; zero new lowering — the termination pass
+  already proves the decrease across that edge by symbol, and the
+  loop-carried arg staging rides unchanged); unmeasured refuses naming
+  both fixes. Non-tail spellings classify in validation
+  (validate_self_recursive_call_positions): embedded-in-expression
+  (`3 * self.f(n-1)`) names why the frame outlives the call (MR3, cut);
+  a state's bare TERMINAL self-call is named TAIL-awaiting-MR2.
+  machine_self_call_recursion_rejected recast to unmeasured-rejected;
+  pass/calls/runtime_measured_tail_recursion_exit runs both engines;
+  fail/calls/nontail_value_self_call_rejected pins the non-tail message;
+  terminal_self_call_recursion_rejected re-pinned on the MR2 pointer
+  (recast it into a run twin when MR2 lands).
 - **MR2 — tail lowering:** desugar tail recursive calls onto the landed
   loop-back machinery (same back-edge; loop-carried-arg staging fix already
   pins the delivery). Differential canaries.
-- **MR3 — non-tail runtime rejection (AMENDED — space rule CUT):** a
-  measured cycle with any non-tail recursive call in runtime code is a
-  clean compile error naming the offending call and why it is not tail,
-  pointing at explicit-storage iteration as the spelling. Fail canaries
-  (direct + mutual). `decreases m -> View in a..=b` stays as spelled; the
+- **MR3 — non-tail runtime rejection — LANDED 2026-07-11 (direct; the
+  MUTUAL leg rides MR4's cycle work):** a non-tail self-recursive call
+  in runtime code refuses naming the offending call and why it is not
+  tail, pointing at the tail arm + explicit-storage iteration
+  (fail/calls/nontail_value_self_call_rejected; statement-position keeps
+  its Q7 fence wording). Mutual cycles still refuse wholesale at the Q6
+  walk (unchanged until MR4's joint measures). `decreases m -> View in a..=b` stays as spelled; the
   range is a termination fact only (floor = well-foundedness bound, any
   start; dependent endpoints legal; nothing sized from a range).
   Whole-program worst-case stack line = longest chain of the

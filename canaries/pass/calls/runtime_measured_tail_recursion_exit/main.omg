@@ -1,0 +1,31 @@
+// RUN CANARY (exit 70) + interpreter differential. Measured recursion MR1
+// (ruling 2026-07-18): the call-spelled TAIL arm `true ->
+// self.countdown(remaining - 1)` on a MEASURED machine (`terminates {
+// decreases remaining; }`) is legal -- it resolves onto the SAME
+// loop-back edge as the bare `-> countdown(..)` (a jump with re-bound
+// arguments; constant stack), and the termination pass proves the strict
+// decrease across the edge. The unmeasured twin refuses
+// (fail/calls/machine_self_call_recursion_rejected); non-tail spellings
+// refuse with the position named
+// (fail/calls/nontail_value_self_call_rejected).
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine Main::countdown(&mut self, remaining: u64) -> u64
+terminates {
+    decreases remaining;
+}
+{
+    transition remaining > 0 {
+        true -> self.countdown(remaining - 1)
+        false -> 7
+    }
+}
+machine Main::main(&mut self) {
+    let value: u64 = self.countdown(3);
+    transition value == 7 {
+        true -> yes()
+        false -> no()
+    }
+    state yes(&mut self) { self.console.exit_process(70); }
+    state no(&mut self)  { self.console.exit_process(71); }
+}
