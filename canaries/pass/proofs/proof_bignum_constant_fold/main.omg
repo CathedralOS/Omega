@@ -1,0 +1,25 @@
+// Math roster N2 (engine bignum): fact evaluation is EXACT at any
+// magnitude. Before N2 the engine read literals through the i64 window
+// and the D14 width gate refused u64-magnitude spellings outside runtime
+// u64 places -- an ensures like these was either rejected or silently
+// unprovable. Now contract facts are a blessed literal position (fire G:
+// contracts never lower to runtime bytes; the exact engine is their one
+// consumer), coefficients are unbounded, and closed equations fold
+// exactly: 10^22 * 10^22 == 10^44 needs 147 bits.
+machine big_products_fold()
+ensures
+    10000000000000000000000nat * 10000000000000000000000nat == 100000000000000000000000000000000000000000000nat
+{
+}
+
+machine u64_magnitude_orders()
+ensures
+    18446744073709551615nat > 9223372036854775807nat
+{
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

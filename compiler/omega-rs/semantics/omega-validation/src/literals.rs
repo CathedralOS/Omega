@@ -29,6 +29,12 @@
 //!   compare inside `(subject) == true`). Ordering stays refused: the
 //!   compare the encoder emits is SIGNED, and a bit-pattern u64 under it is
 //!   sign-blind.
+//! - **Accepted (fire G, 2026-07-11, math roster N2):** literals inside
+//!   CONTRACT FACT positions (`requires`/`ensures` facts, `decreases`
+//!   measures) at ANY magnitude -- contracts never lower to runtime bytes;
+//!   their one consumer is the proof engine, which reads literals exactly
+//!   (`value_bignum`, N2 bignum coefficients). This is the position where
+//!   the old i64 window silently downgraded provable facts.
 //! - **Everything else** (arithmetic operands, ordering guards,
 //!   call/transition arguments, narrower or signed targets): one clear
 //!   error.
@@ -158,8 +164,56 @@ fn u64_blessed_literals(program: &TypedTrees) -> Vec<ExpressionHandle> {
                 }
             }
         }
+
+        // Fire G: contract facts and decreases measures live in the proof
+        // domain only; the exact engine is their sole reader.
+        for contract in program.machine_contracts(machine) {
+            for fact in program.proof_facts.span_or_empty(contract.facts) {
+                if let omega_typed_trees::domain::ProofFact::Expression(expression) = fact {
+                    bless_fact_literals(program, *expression, &mut blessed);
+                }
+            }
+        }
+        for measure in program.expression_table.expression_handles(machine.decreases) {
+            bless_fact_literals(program, *measure, &mut blessed);
+        }
     }
     blessed
+}
+
+/// Fire G's walk: every integer literal under a fact expression, any
+/// magnitude (beyond-u64 included -- the engine is exact).
+fn bless_fact_literals(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    blessed: &mut Vec<ExpressionHandle>,
+) {
+    if !expression.is_valid() {
+        return;
+    }
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Integer(literal) => {
+            if literal.value_i64().is_none() {
+                blessed.push(expression);
+            }
+        }
+        ExpressionNode::Binary(binary) => {
+            bless_fact_literals(program, binary.left, blessed);
+            bless_fact_literals(program, binary.right, blessed);
+        }
+        ExpressionNode::Unary(unary) => {
+            bless_fact_literals(program, unary.operand, blessed);
+        }
+        ExpressionNode::Mutable(inner) => {
+            bless_fact_literals(program, *inner, blessed);
+        }
+        ExpressionNode::Call(call) => {
+            for argument in program.expression_table.expression_handles(call.arguments) {
+                bless_fact_literals(program, *argument, blessed);
+            }
+        }
+        _ => {}
+    }
 }
 
 fn oversize_literal(program: &TypedTrees, expression: ExpressionHandle) -> bool {

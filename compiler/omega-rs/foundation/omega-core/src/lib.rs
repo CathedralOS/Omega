@@ -2,6 +2,7 @@ pub mod byte_predicates;
 pub mod allocations;
 pub mod arena;
 pub mod arithmetic;
+pub mod bignum;
 pub mod cast_form;
 pub mod diagnostics;
 pub mod literals;
