@@ -1,0 +1,31 @@
+// RUN CANARY (exit 70) + interpreter differential. MR5: measured
+// recursion evaluates at COMPILE TIME under the const-eval fuel cap --
+// `[u8; table_size()]` const-calls a zero-arg machine whose helper
+// `triangle` is a measured tail-recursive FREE machine spelled in the
+// MR2 terminal form (`triangle(n - 1, acc + n)` after the base-case
+// exit; the bare free-machine rewrite path). No lowering, no space rule:
+// the reference interpreter runs the loop-backs under the ~100k-step
+// fuel and the array length lands as an ordinary literal (triangle(4)
+// = 10, so buf[9] is the last legal slot). Proof-stratum machines ride
+// the same evaluator; the fuel cap is the defense-in-depth ceiling.
+boundary trait Console { machine exit_process(return_code: i32); }
+
+machine triangle(n: u64 [0..=100], acc: u64 [0..=5050]) -> u64
+terminates { decreases n; }
+{
+    transition n == 0 { true -> acc }
+    triangle(n - 1, acc + n)
+}
+
+machine table_size() -> u64 {
+    let size: u64 = triangle(4, 0);
+    transition { _ -> (size) }
+}
+
+data Main { console: Console; buf: [u8; table_size()]; }
+machine Main::main(&mut self) {
+    self.buf[9] = 7;
+    transition self.buf[9] == 7 { true -> yes() _ -> no() }
+    state yes(&mut self) { self.console.exit_process(70); }
+    state no(&mut self)  { self.console.exit_process(71); }
+}
