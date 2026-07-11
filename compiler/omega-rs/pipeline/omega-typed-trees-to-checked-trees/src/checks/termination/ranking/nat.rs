@@ -35,6 +35,57 @@ pub(super) fn state_has_proven_self_loop(
                 orientation,
             )
         })
+        || fall_through_self_loop_proven(program, state, measure)
+}
+
+/// The MR2 fall-through shape: an ALWAYS self-loop dominated by guarded
+/// EXIT transitions (`transition n == 0 { true -> 7 }` then the loop-back).
+/// Control reaching the loop refutes every prior exit guard, so a refuted
+/// base case `n == 0` / `n < 1` / `n <= 0` supplies the positivity the
+/// countdown proof needs where a co-located guard would.
+fn fall_through_self_loop_proven(
+    program: &omega_typed_trees::TypedTrees,
+    state: &omega_typed_trees::state::State,
+    measure: DecreaseMeasure,
+) -> bool {
+    let DecreaseMeasure::Single(decreases) = measure else {
+        return false;
+    };
+    let ExpressionNode::Name(decreases_path) = program.expression_table.expression(decreases)
+    else {
+        return false;
+    };
+    let Some(self_loop) = patterns::fall_through_self_loop(program, state) else {
+        return false;
+    };
+    let decrease_name = program
+        .expression_table
+        .name_path_members(decreases_path.members)
+        .last()
+        .map(|member| member.as_str())
+        .unwrap_or_default();
+    let Some(parameter) = program
+        .state_parameters(state)
+        .iter()
+        .filter(|parameter| !parameter.is_self)
+        .find(|parameter| {
+            parameter.symbol == decreases_path.symbol || parameter.name.as_str() == decrease_name
+        })
+    else {
+        return false;
+    };
+    let Some(argument_index) = target_argument_index(program, state, parameter.name.as_str())
+    else {
+        return false;
+    };
+    let Some(argument) = self_loop.arguments.get(argument_index).copied() else {
+        return false;
+    };
+    self_loop
+        .refuted_exit_guards
+        .iter()
+        .any(|guard| patterns::refuted_guard_proves_positive(program, *guard, parameter))
+        && argument_is_parameter_minus_one(program, argument, parameter)
 }
 
 /// Prove that the Nat-descending measure strictly decreases across a single

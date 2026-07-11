@@ -339,12 +339,14 @@ fn decreasing_value_kind(
     }
 
     let parameter = state_parameter_of_expression(program, state, decreases)?;
-    // The checker identifies types by display name. Slice types render with a
-    // bracketed element type (`&[Entry]`, `[usize]`); nat-like scalars render as
-    // their bare name.
+    // The checker identifies types by display name -- of the UNWRAPPED base
+    // type: a Constrained shell (`u64 [0..=100]`, `u64 in Trapping`) renders
+    // its constraints in brackets, which the bracket probe below would
+    // misread as a slice element type (`[Entry]`). Slices render with a
+    // bracketed element type; nat-like scalars render as their bare name.
     let type_name = program
         .type_reference_table
-        .display_name(parameter.type_reference);
+        .display_name(unwrap_constraint_shells(program, parameter.type_reference));
     if type_name.contains('[') {
         return Some(DecreasingValueKind::Slice);
     }
@@ -352,6 +354,21 @@ fn decreasing_value_kind(
         return Some(DecreasingValueKind::Nat);
     }
     None
+}
+
+/// Strip `Constrained` shells to the base type (ranges and arithmetic
+/// domains never change WHAT descends, only which values are legal).
+fn unwrap_constraint_shells(
+    program: &omega_typed_trees::TypedTrees,
+    mut handle: omega_typed_trees::types::TypeReferenceHandle,
+) -> omega_typed_trees::types::TypeReferenceHandle {
+    use omega_typed_trees::types::TypeReferenceNode;
+    while let TypeReferenceNode::Constrained { base_type, .. } =
+        program.type_reference_table.type_reference(handle)
+    {
+        handle = *base_type;
+    }
+    handle
 }
 
 /// A type whose values descend through the naturals: unsigned / bounded

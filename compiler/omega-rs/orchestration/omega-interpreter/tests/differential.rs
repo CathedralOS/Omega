@@ -351,6 +351,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("data/runtime_proof_only_data_declared_exit", 70),
     ("arithmetic/runtime_u64_guarded_cap_store_exit", 70),
     ("calls/runtime_measured_tail_recursion_exit", 70),
+    ("calls/runtime_terminal_tail_recursion_exit", 70),
     ("recast/runtime_record_view_exit", 70),
     ("arithmetic/runtime_f32_field_guard_exit", 70),
     ("collections/runtime_indexed_guard_true_false_pair_exit", 70),

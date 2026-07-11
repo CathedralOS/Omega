@@ -1,0 +1,32 @@
+// RUN CANARY (exit 70) + interpreter differential. MR2 complete: a
+// MEASURED machine's TERMINAL tail self-call (`self.countdown(n - 1)` as
+// the fall-through after the base case) rewrites at parse onto the bare
+// loop-back edge, and the decreases ranking proves the decrease through
+// the FALL-THROUGH COMPLEMENT: control reaching the loop refutes the
+// prior exit guard (`n == 0 -> 7`), and a refuted base case IS the
+// positivity the countdown proof needs. (This was the pinned MR2
+// frontier; the complement route landed 2026-07-11. En route: the
+// default-order inference misread ANY constrained scalar -- `u64 in
+// Trapping`, `u64 [0..=100]` -- as a SLICE because the constraint shell
+// renders brackets; kinds now classify the unwrapped base.) The
+// arithmetic on the rewritten unguarded edge rides the Trapping domain;
+// the decision-17 fold's own complement reading is a recorded follow-on.
+// Non-decreasing and missing-base-case twins refuse:
+// fail/calls/terminal_tail_nondecreasing_rejected.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine Main::countdown(&mut self, n: u64 in Trapping) -> u64
+terminates { decreases n; }
+{
+    transition n == 0 { true -> 7 }
+    self.countdown(n - 1)
+}
+machine Main::main(&mut self) {
+    let s: u64 = self.countdown(4);
+    transition s == 7 {
+        true -> yes()
+        false -> no()
+    }
+    state yes(&mut self) { self.console.exit_process(70); }
+    state no(&mut self)  { self.console.exit_process(71); }
+}

@@ -31,6 +31,87 @@ pub(super) fn guarded_self_loop<'program>(
     })
 }
 
+/// An UNGUARDED (always) self-loop transition -- the shape the MR2
+/// terminal-tail rewrite produces (`{ _ -> countdown(n - 1) }` as the
+/// state's fall-through). Its edge facts come from the COMPLEMENTS of the
+/// guarded EXIT transitions before it (see `fall_through_exit_guards`),
+/// not from its own (absent) guard.
+pub(super) struct FallThroughSelfLoop<'program> {
+    pub(super) arguments: &'program [ExpressionHandle],
+    /// Guards of PRIOR exit transitions: control only reaches the loop when
+    /// every one of these was FALSE.
+    pub(super) refuted_exit_guards: Vec<ExpressionHandle>,
+}
+
+/// Match the state's Always-guarded self-loop reached by FALL-THROUGH, with
+/// the prior exit guards whose complements dominate it. A prior transition
+/// counts as an EXIT when it is guarded, its true-arm leaves (any valid
+/// target), and it has NO fall-through arm of its own (invalid
+/// continuation): reaching a later statement then proves the guard false.
+pub(super) fn fall_through_self_loop<'program>(
+    program: &'program omega_typed_trees::TypedTrees,
+    state: &omega_typed_trees::state::State,
+) -> Option<FallThroughSelfLoop<'program>> {
+    let statements = program.statement_table.statements(state.statement_nodes);
+    let mut refuted_exit_guards = Vec::new();
+    for statement in statements {
+        let StatementNode::Transition(transition) = statement else {
+            continue;
+        };
+        match transition.guard {
+            TransitionGuardNode::When(guard) => {
+                if transition.target.is_valid() && !transition.continuation.is_valid() {
+                    refuted_exit_guards.push(guard);
+                }
+                continue;
+            }
+            TransitionGuardNode::Always => {}
+        }
+        let target = program.statement_table.transition_target(transition.target);
+        let TransitionTargetNode::Named { path, arguments } = target else {
+            continue;
+        };
+        if path.symbol != state.symbol {
+            continue;
+        }
+        return Some(FallThroughSelfLoop {
+            arguments: program.statement_table.expression_handles(*arguments),
+            refuted_exit_guards,
+        });
+    }
+    None
+}
+
+/// Does refuting `guard` prove `parameter > 0`? True for the base-case
+/// spellings `param == 0`, `param < 1`, and `param <= 0` (unsigned or not:
+/// the refutation gives param != 0 / param >= 1 / param >= 1, and the Nat
+/// ranking only fires for parameters with a well-founded non-negative
+/// order).
+pub(super) fn refuted_guard_proves_positive(
+    program: &omega_typed_trees::TypedTrees,
+    guard: ExpressionHandle,
+    parameter: &omega_typed_trees::signature::StateParameter,
+) -> bool {
+    use omega_typed_trees::expression::BinaryOperator;
+    let normalized = normalize_boolean_guard(program, guard);
+    let ExpressionNode::Binary(binary) = program.expression_table.expression(normalized) else {
+        return false;
+    };
+    if !expression_is_parameter(program, binary.left, parameter) {
+        return false;
+    }
+    let ExpressionNode::Integer(literal) = program.expression_table.expression(binary.right)
+    else {
+        return false;
+    };
+    match binary.operator {
+        BinaryOperator::Equal => literal.value_i64() == Some(0),
+        BinaryOperator::Less => literal.value_i64() == Some(1),
+        BinaryOperator::LessOrEqual => literal.value_i64() == Some(0),
+        _ => false,
+    }
+}
+
 /// A guarded transition edge whose target is a specific state (used for
 /// cyclic / mutually-recursive edges where the target differs from the source).
 pub(super) struct GuardedEdge<'program> {

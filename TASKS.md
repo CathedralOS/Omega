@@ -165,8 +165,24 @@ proof-stratum non-tail unaffected, it never lowers). Rungs:
   fail/calls/nontail_value_self_call_rejected pins the non-tail message;
   terminal_self_call_recursion_rejected re-pinned on the MR2 pointer
   (recast it into a run twin when MR2 lands).
-- **MR2 — tail lowering — REWRITE LANDED 2026-07-11, run canary blocked
-  on complement narrowing:** a MEASURED machine's state whose TERMINAL
+- **MR2 — tail lowering — COMPLETE 2026-07-11:** the fall-through
+  complement landed in the decreases ranking
+  (patterns::fall_through_self_loop + refuted_guard_proves_positive:
+  an ALWAYS self-loop dominated by guarded EXIT transitions treats each
+  refuted base case `n == 0`/`n < 1`/`n <= 0` as the positivity the
+  countdown proof needs), so the rewritten terminal shape now RUNS both
+  engines — pass/calls/runtime_terminal_tail_recursion_exit, with
+  non-decreasing/no-base-case twins refusing
+  (fail/calls/terminal_tail_nondecreasing_rejected). EN-ROUTE FIX: the
+  default-order inference misclassified ANY constrained scalar measure
+  (`u64 [0..=100]`, `u64 in Trapping`) as a SLICE — the Constrained
+  shell renders brackets and the kind probe read them as an element
+  type; kinds now classify the unwrapped base type. REMAINING follow-ons
+  (recorded, not blocking): the decision-17 argument fold does not yet
+  read fall-through complements (the run canary rides a Trapping
+  domain for `n - 1`); two-state cycles (entry→step→entry) still need
+  per-edge strict decrease, so a same-value forwarding edge refuses —
+  MR4's joint-measure work is the natural home. Original rung text:** a MEASURED machine's state whose TERMINAL
   expression is a self-entry call rewrites AT PARSE onto the bare
   loop-back transition (parse_machine::rewrite_terminal_tail_self_calls;
   verified faithful by bare-spelled twin — identical outcomes), so every
