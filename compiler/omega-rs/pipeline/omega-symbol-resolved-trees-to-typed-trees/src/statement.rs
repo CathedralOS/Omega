@@ -89,6 +89,7 @@ pub(crate) fn lower_statement_node(
                         .then(|| lower_statement_expression(lowerer, local_data.initial_value))
                         .transpose()?
                         .unwrap_or_else(typed::expression::ExpressionHandle::invalid),
+                    is_mutable: local_data.is_mutable,
                 },
             ))
         }

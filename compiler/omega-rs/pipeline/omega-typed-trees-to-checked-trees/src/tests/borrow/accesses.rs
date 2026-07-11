@@ -332,6 +332,7 @@ fn collects_unresolved_local_argument_access_roots() {
             name: Identifier::generated("value"),
             type_reference: omega_typed_trees::types::TypeReferenceHandle::invalid(),
             initial_value: omega_typed_trees::expression::ExpressionHandle::invalid(),
+            is_mutable: false,
         }),
     );
     program.statement_table.push_statement(

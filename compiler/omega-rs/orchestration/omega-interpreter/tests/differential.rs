@@ -334,6 +334,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("collections/runtime_computed_indexed_write_exit", 70),
     ("collections/runtime_nested_const_product_index_exit", 70),
     ("collections/runtime_hoisted_index_write_exit", 7),
+    ("calls/runtime_let_mut_reassign_exit", 2),
     ("dependent/runtime_dependent_param_range_exit", 70),
     ("dependent/runtime_dependent_product_index_exit", 70),
     ("dependent/runtime_dependent_subtract_exit", 2),

@@ -134,6 +134,9 @@ pub struct TableLocalData {
     pub name: Identifier,
     pub type_reference: crate::types::TypeReferenceHandle,
     pub initial_value: crate::expression::ExpressionHandle,
+    /// `let mut` -- the local admits reassignment (ch3/ch14 spelling); a
+    /// plain `let` is immutable and reassignment refuses.
+    pub is_mutable: bool,
 }
 
 impl Default for TableLocalData {
@@ -142,6 +145,7 @@ impl Default for TableLocalData {
             name: Identifier::default(),
             type_reference: crate::types::TypeReferenceHandle::invalid(),
             initial_value: crate::expression::ExpressionHandle::invalid(),
+            is_mutable: false,
         }
     }
 }

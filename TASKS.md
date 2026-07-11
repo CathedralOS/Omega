@@ -45,9 +45,15 @@ own_machine.omg 2026-07-11 via the new `omega-run --target uefi_x64`):
 the recast MECHANICS are DONE for M2's shape (rungs A/B/C1/C2; the
 all-scalar EfiMemoryDescriptor record view serves — see
 samples/cli/systems/descriptor_walk for the in-tree twin), and the
-remaining blockers are SURFACE + one proof rung: (1) `let mut` locals
-(own_machine mutates map_size/key/desc_size through &mut out-params into
-locals); (2) the `and` boolean keyword; (3) tuple-subject transitions
+remaining blockers are SURFACE + one proof rung: (1) `let mut` locals —
+LANDED 2026-07-11: parser + tree threading + the mutability gate (BARE
+reassignment of a plain let refuses — it used to compile and natively
+fold reads to the STALE initializer, a silent divergence, pinned
+fail/calls/plain_let_reassign_rejected; member/index fills and
+`&mut`-view pointee writes stay ungated; mut locals slot-backed, never
+bind-folded — pass/calls/runtime_let_mut_reassign_exit); (2) the `and`
+boolean keyword — NOT guide vocabulary, own_machine.omg drift,
+Cathedral-side fix; (3) tuple-subject transitions
 (`transition (bigger, more) { (true, true) -> ... }`); (4) the walk's
 footprint is against RUNTIME `map_size` (`offset + desc_size <
 map_size`), needing the guard/coupling footprint route rather than C1's

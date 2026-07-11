@@ -1178,6 +1178,7 @@ mod tests {
                         name,
                         type_reference,
                         initial_value,
+                        is_mutable: false,
                     })
                 }
                 TestStatement::TransitionValue { target, guard } => {

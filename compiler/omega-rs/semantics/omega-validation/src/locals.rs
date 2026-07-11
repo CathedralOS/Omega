@@ -4,12 +4,35 @@ use omega_typed_trees::signature::StateParameter;
 use omega_typed_trees::statement::StatementNode;
 
 pub(crate) struct WritableRoots<'program, 'state> {
+    pub(crate) program: &'program omega_typed_trees::TypedTrees,
     pub(crate) machine_symbols: &'state MachineSymbols<'program>,
     pub(crate) statements: &'state [StatementNode],
     pub(crate) parameters: &'state [StateParameter],
 }
 
 impl WritableRoots<'_, '_> {
+    /// `bare_reassignment` = the target is the whole local (`x = 2`); member
+    /// and index writes pass `false` and keep the ZII fill idiom ungated.
+    pub(crate) fn contains_for_write(&self, root_name: &str, bare_reassignment: bool) -> bool {
+        self.machine_symbols.has_owned_data(root_name)
+            || self.statements.iter().any(|statement| {
+                let StatementNode::LocalData(local_data) = statement else {
+                    return false;
+                };
+                if local_data.name.as_str() != root_name {
+                    return false;
+                }
+                if !bare_reassignment {
+                    return true;
+                }
+                local_data.is_mutable || local_is_mutable_reference(self.program, local_data)
+            })
+            || self
+                .parameters
+                .iter()
+                .any(|parameter| parameter.is_mutable && parameter.name.as_str() == root_name)
+    }
+
     pub(crate) fn contains(&self, root_name: &str) -> bool {
         self.machine_symbols.has_owned_data(root_name)
             || self.statements.iter().any(|statement| {
@@ -24,6 +47,20 @@ impl WritableRoots<'_, '_> {
                 .iter()
                 .any(|parameter| parameter.is_mutable && parameter.name.as_str() == root_name)
     }
+}
+
+fn local_is_mutable_reference(
+    program: &omega_typed_trees::TypedTrees,
+    local_data: &omega_typed_trees::statement::TableLocalData,
+) -> bool {
+    use omega_typed_trees::types::TypeReferenceNode;
+    if !local_data.type_reference.is_valid() {
+        return false;
+    }
+    matches!(
+        program.type_reference_table.type_reference(local_data.type_reference),
+        TypeReferenceNode::Reference { is_mutable: true, .. }
+    )
 }
 
 pub(crate) fn validate_local_data_names(

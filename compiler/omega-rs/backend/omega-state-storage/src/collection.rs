@@ -162,6 +162,7 @@ fn build_machine_state_storage_plan(
                 StatementNode::LocalData(local_data) => {
                     if !local_data_requires_storage(
                         program,
+                        local_data.is_mutable,
                         machine.boundary,
                         state,
                         &program.expression_table,
@@ -306,6 +307,7 @@ fn state_has_initialized_locals_before(
 
 fn local_data_requires_storage(
     program: &CheckedTrees,
+    local_is_mutable: bool,
     machine_is_boundary: bool,
     state: &omega_checked_trees::state::State,
     expressions: &omega_checked_trees::expression::ExpressionTable,
@@ -318,6 +320,12 @@ fn local_data_requires_storage(
     uses_runtime_flow: bool,
 ) -> bool {
     if !initial_value.is_valid() {
+        return true;
+    }
+
+    // `let mut` locals are reassignable -- the slot IS their storage story
+    // (the simplify layer never binds them; see bindings.rs's twin note).
+    if local_is_mutable {
         return true;
     }
 

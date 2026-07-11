@@ -524,6 +524,7 @@ fn narrows_index_operator_candidates_by_local_receiver_type() {
             name: Identifier::generated("items"),
             type_reference: reference_to_slice_of_i32,
             initial_value: omega_typed_trees::expression::ExpressionHandle::invalid(),
+            is_mutable: false,
         }),
     );
     program.statement_table.push_statement(

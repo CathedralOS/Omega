@@ -143,6 +143,7 @@ fn lower_statement_node(
                 storage: LocalDataStorage {
                     type_reference,
                     initial_value,
+                    is_mutable: local_data.is_mutable,
                 },
             }));
             Ok(hoisted)
@@ -710,6 +711,7 @@ fn hoist_scalar_value_call_comparison(
                     // return (`infer_hoist_temp_type`'s Call branch).
                     type_reference: TypeReference::Unit,
                     initial_value: call_side,
+                    is_mutable: false,
                 },
             }));
             name
@@ -863,7 +865,8 @@ fn hoist_into_temp(
             // the inference sentinel.
             type_reference: TypeReference::Unit,
             initial_value: indexed_value,
-        },
+            is_mutable: false,
+                },
     }));
 
     let mut members = HandleSpan::empty();
@@ -1012,6 +1015,7 @@ fn hoist_membership_match_subject(
                 storage: LocalDataStorage {
                     type_reference: TypeReference::Unit,
                     initial_value: membership.value,
+                    is_mutable: false,
                 },
             }));
             name
@@ -1156,6 +1160,7 @@ fn hoist_comparison_match_subject(
                         name: DiagnosticName::generated("bool"),
                     },
                     initial_value: outer.left,
+                    is_mutable: false,
                 },
             }));
             name
