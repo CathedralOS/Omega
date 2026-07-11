@@ -7,6 +7,9 @@ pub(super) fn guard_is_positive_parameter(
     guard: ExpressionHandle,
     parameter: &omega_typed_trees::signature::StateParameter,
 ) -> bool {
+    if !guard.is_valid() {
+        return false;
+    }
     let normalized = patterns::normalize_boolean_guard(program, guard);
     let ExpressionNode::Binary(binary) = program.expression_table.expression(normalized) else {
         return false;
@@ -25,6 +28,9 @@ pub(super) fn guard_is_positive_parameter_member(
     parameter: &omega_typed_trees::signature::StateParameter,
     member_name: &str,
 ) -> bool {
+    if !guard.is_valid() {
+        return false;
+    }
     let normalized = patterns::normalize_boolean_guard(program, guard);
     let ExpressionNode::Binary(binary) = program.expression_table.expression(normalized) else {
         return false;
@@ -43,6 +49,9 @@ pub(super) fn guard_is_index_below_limit(
     index_parameter: &omega_typed_trees::signature::StateParameter,
     limit_parameter: &omega_typed_trees::signature::StateParameter,
 ) -> bool {
+    if !guard.is_valid() {
+        return false;
+    }
     let normalized = patterns::normalize_boolean_guard(program, guard);
     let ExpressionNode::Binary(binary) = program.expression_table.expression(normalized) else {
         return false;

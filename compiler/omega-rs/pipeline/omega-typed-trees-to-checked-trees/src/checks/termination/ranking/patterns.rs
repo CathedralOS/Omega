@@ -119,6 +119,41 @@ pub(super) struct GuardedEdge<'program> {
     pub(super) arguments: &'program [ExpressionHandle],
 }
 
+/// Match ANY transition edge (guarded or Always) from a statement to
+/// `target_symbol`. The Always case (the MR2 terminal-tail rewrite's shape)
+/// carries an INVALID guard handle -- provers must not read it as a fact.
+pub(super) fn edge_to_any_guard<'program>(
+    program: &'program omega_typed_trees::TypedTrees,
+    statement: &StatementNode,
+    target_symbol: omega_core::symbols::SymbolHandle,
+) -> Option<GuardedEdge<'program>> {
+    let StatementNode::Transition(transition) = statement else {
+        return None;
+    };
+    let guard = match transition.guard {
+        TransitionGuardNode::When(guard) => guard,
+        TransitionGuardNode::Always => ExpressionHandle::invalid(),
+    };
+    for target_handle in [transition.target, transition.continuation] {
+        if !target_handle.is_valid() {
+            continue;
+        }
+        let TransitionTargetNode::Named { path, arguments } =
+            program.statement_table.transition_target(target_handle)
+        else {
+            continue;
+        };
+        if path.symbol != target_symbol {
+            continue;
+        }
+        return Some(GuardedEdge {
+            guard,
+            arguments: program.statement_table.expression_handles(*arguments),
+        });
+    }
+    None
+}
+
 /// Match a guarded transition from `state` whose target is exactly
 /// `target_symbol`. Unlike [`guarded_self_loop`], the target may be a different
 /// state, which is what lets cycle reasoning prove a decrease across a
@@ -193,6 +228,10 @@ pub(super) fn normalize_boolean_guard(
     program: &omega_typed_trees::TypedTrees,
     guard: ExpressionHandle,
 ) -> ExpressionHandle {
+    // An Always edge (edge_to_any_guard) carries no guard at all.
+    if !guard.is_valid() {
+        return guard;
+    }
     match program.expression_table.expression(guard) {
         ExpressionNode::Binary(binary)
             if matches!(
