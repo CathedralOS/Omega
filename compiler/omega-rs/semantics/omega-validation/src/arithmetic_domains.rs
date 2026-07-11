@@ -319,6 +319,110 @@ fn narrow_env_by_condition(
     env.narrow(name, interval);
 }
 
+/// R4 witness mint (out-params as witnesses): a BOUNDARY callee's
+/// `ensures <param> <OP> <literal>` bounds the `&mut` OUT-ARGUMENT's place
+/// the moment the call returns -- the boundary model's citable fact
+/// (design brief: a boundary machine MINTS facts; ensures are the trusted
+/// tier the way requires are the checked tier). Called after the call
+/// clears the env; each conjunct that names a signature parameter bound by
+/// a literal seeds the matching argument place, intersected with the
+/// place's type + declared ranges. Conjunctions split; anything else is
+/// skipped (sound -- fewer facts).
+pub(crate) fn seed_out_param_ensures(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: Option<&State>,
+    call: &omega_typed_trees::statement::TableCall,
+    signature: &omega_typed_trees::signature::StateSignature,
+    env: &mut ValueEnv,
+) {
+    use omega_typed_trees::domain::ProofFact;
+    use omega_typed_trees::signature::SignatureContractKind;
+    let arguments = program.statement_table.expression_handles(call.arguments);
+    let parameters: Vec<&omega_typed_trees::signature::StateParameter> = program
+        .state_signature_parameters(signature)
+        .iter()
+        .filter(|parameter| !parameter.is_self)
+        .collect();
+    for contract in program.signature_contracts.span_or_empty(signature.contracts) {
+        if !matches!(contract.kind, SignatureContractKind::Ensures) {
+            continue;
+        }
+        for fact in program.proof_facts.span_or_empty(contract.facts) {
+            let ProofFact::Expression(expression) = fact else {
+                continue;
+            };
+            seed_ensures_conjunct(program, machine, state, &parameters, arguments, *expression, env);
+        }
+    }
+}
+
+fn seed_ensures_conjunct(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: Option<&State>,
+    parameters: &[&omega_typed_trees::signature::StateParameter],
+    arguments: &[ExpressionHandle],
+    conjunct: ExpressionHandle,
+    env: &mut ValueEnv,
+) {
+    let ExpressionNode::Binary(comparison) = program.expression_table.expression(conjunct) else {
+        return;
+    };
+    if comparison.operator == BinaryOperator::And {
+        let (left, right) = (comparison.left, comparison.right);
+        seed_ensures_conjunct(program, machine, state, parameters, arguments, left, env);
+        seed_ensures_conjunct(program, machine, state, parameters, arguments, right, env);
+        return;
+    }
+    // `param <OP> literal` (param on either side).
+    let (param_expr, literal, name_on_left) =
+        if let Some(literal) = literal_i64(program, comparison.right) {
+            (comparison.left, literal, true)
+        } else if let Some(literal) = literal_i64(program, comparison.left) {
+            (comparison.right, literal, false)
+        } else {
+            return;
+        };
+    let ExpressionNode::Name(path) = program.expression_table.expression(param_expr) else {
+        return;
+    };
+    let [param_name] = program.expression_table.name_path_members(path.members) else {
+        return;
+    };
+    let Some(position) = parameters
+        .iter()
+        .position(|parameter| parameter.name.as_str() == param_name.as_str())
+    else {
+        return;
+    };
+    let Some(argument) = arguments.get(position).copied() else {
+        return;
+    };
+    // The out-argument spells `&mut <place>`; unwrap to the place.
+    let place_expr = match program.expression_table.expression(argument) {
+        ExpressionNode::Mutable(inner) => *inner,
+        _ => argument,
+    };
+    let Some(place) = place_path(program, place_expr) else {
+        return;
+    };
+    let (_, low, high) = bound_from(place.clone(), comparison.operator, literal, name_on_left);
+    let mut interval = Interval { low, high };
+    if let Some(handle) = declared_place_type_raw(program, machine, state, place_expr) {
+        if let Some(type_interval) = program
+            .primitive_type_reference(handle)
+            .and_then(primitive_range)
+        {
+            interval = interval.intersect(type_interval);
+        }
+        if let Some(declared_range) = range_constraint_interval(program, handle) {
+            interval = interval.intersect(declared_range);
+        }
+    }
+    env.narrow(place, interval);
+}
+
 /// Seed a NON-ENTRY state's starting env from its SOLE incoming guarded
 /// transition: `transition dir >= 0 && dir <= 1 { true -> store() }` means
 /// `store`'s body may assume the guard -- the target-state twin of the

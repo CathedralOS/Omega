@@ -436,6 +436,25 @@ fn validate_state_statement_node(
             // environment is no longer trustworthy -- drop it (sound: subsequent
             // places fall back to their type bounds).
             value_env.clear();
+            // R4 witness mint: a BOUNDARY callee's `ensures` re-seeds the
+            // `&mut` out-arguments' places (the boundary model's citable
+            // fact) -- `fw.get_size(&mut self.n)` with `ensures size <= 8`
+            // leaves `self.n` in [type_low, 8].
+            if let Some(signature) = crate::calls::boundary_trait_signature(
+                program,
+                machine_symbols,
+                symbols,
+                call,
+            ) {
+                arithmetic_domains::seed_out_param_ensures(
+                    program,
+                    machine,
+                    machine_symbols.state(state_name),
+                    call,
+                    signature,
+                    value_env,
+                );
+            }
         }
         StatementNode::Expression(expression) => {
             let Some(state) = machine_symbols.state(state_name) else {
