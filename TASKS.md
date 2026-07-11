@@ -182,12 +182,13 @@ proof-stratum non-tail unaffected, it never lowers). Rungs:
   obligations now carry `refuted_exit_guards` (prior in-state exit
   guards, call-free-gated) and the checker applies their complements
   (apply_handle_condition_complement + complement_refined_binary_range,
-  landed 2026-07-11) — but VALIDATION's arithmetic_domains S4 value-env
-  fold checks the same `n - 1` first and does NOT read fall-through
-  complements yet, so the exact-domain terminal shape
-  (`u64 [0..=100]`) still refuses there and the run canary rides a
-  Trapping domain; the validation value-env complement is the remaining
-  unlock. Two-state cycles (entry→step→entry) still need per-edge
+  landed 2026-07-11) — and VALIDATION's S4 value-env now narrows later
+  statements by the NEGATED guard of every exit-if-true transition
+  (fall_through_narrowed_env; unwrapped single-arm guards handled;
+  refuted equality = point exclusion against the type+declared range) —
+  the exact-domain terminal shape (`u64 [0..=100]`, no Trapping) runs
+  both engines and the run canary is spelled that way. LANDED
+  2026-07-11; the exact-domain unlock is COMPLETE. Two-state cycles (entry→step→entry) still need per-edge
   strict decrease, so a same-value forwarding edge refuses — MR4's
   joint-measure work is the natural home. Original rung text:** a MEASURED machine's state whose TERMINAL
   expression is a self-entry call rewrites AT PARSE onto the bare
