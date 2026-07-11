@@ -21,10 +21,16 @@ Collision map: the MAIN LANE owns RECAST/M2; the FS LANE owns the
 dispatch-region + receiver-phase family. Everything queued here avoids both.
 
 1. **Math roster ladder N1→N4** (section below) — zero backend/codegen
-   contact; N1 LANDED 2026-07-11 (proof-only classification + all faces),
-   N2 next: N2 retires the long-standing u64>i64::MAX i128 debt. Continue
-   into N5–N7 when reached (all design-settled; they need the `<machine M>`
-   plumbing and the `%` former).
+   contact; N1 LANDED 2026-07-11 (proof-only classification + all faces);
+   N2 rungs a–c LANDED (bignum + exact engines; the u64>i64::MAX debt
+   retired as a soundness fix); N4's FIRST SLICE landed 2026-07-11: the
+   "core-injection" question DISSOLVED — the bundled `omega::` root +
+   depend-mapping already reach omega/language/core, so `data Nat` lives
+   in core/nat.omg as ordinary recursive (proof-only) data, pinned
+   pass/proofs/runtime_core_nat_declared_exit + the consumption-refusal
+   twin. Remaining: N2(d) Succ bridge, N3 routing, N4's Seq/Bag/Rat +
+   extraction lemmas + view dissolution. Continue into N5–N7 when
+   reached (they need the `<machine M>` plumbing and the `%` former).
 2. **Measured recursion MR1 + MR3** — LANDED 2026-07-11 (MR1 whole; MR3
    direct leg — the mutual leg rides MR4). Next in the family: MR2 (the
    terminal-position tail rewrite onto loop-backs — the arm-target spelling

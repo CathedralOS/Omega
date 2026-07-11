@@ -1,0 +1,9 @@
+// N4 first slice, consumption twin: core Nat is proof-only (N1's
+// classification: recursive data has no layout), so a machine field
+// holding it refuses at the machine face with the chain named.
+use omega::language::core::nat;
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; n: Nat; }
+machine Main::main(&mut self) {
+    self.console.exit_process(0);
+}

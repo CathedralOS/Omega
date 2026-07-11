@@ -1,0 +1,15 @@
+// RUN CANARY (exit 70) + interpreter differential. Math roster N4, first
+// slice: `Nat` lives in the bundled core (omega/language/core/nat.omg)
+// as ORDINARY RECURSIVE DATA -- the "core-injection" question dissolved:
+// the bundled `omega::` root plus N1's computed proof-only
+// classification already compose (recursive data is legal to declare,
+// classified proof-only, and the layout walk skips it). A program that
+// uses core Nat and never consumes it at runtime compiles and runs
+// untouched; the consumption twin refuses with the classification named
+// (fail/proofs/core_nat_runtime_consumption_rejected).
+use omega::language::core::nat;
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine Main::main(&mut self) {
+    self.console.exit_process(70);
+}

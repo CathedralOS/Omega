@@ -13,3 +13,14 @@
 //   pretending every ordering belongs directly to the data type
 
 operator Nat::Descending(value: u64) -> u64;
+
+// Math roster N4, first slice (2026-07-11): Nat as ORDINARY RECURSIVE
+// DATA -- legal to declare and proof-only by N1's computed
+// classification (recursive data has no layout; every runtime
+// consumption face refuses with the classification named). N2's exact
+// engine evaluates Nat facts; the structural bridge (n > 0 => n ==
+// Succ(n - 1)) and the fact-position operator routing are N2(d)/N3.
+data Nat {
+    case Zero;
+    case Succ(prev: Nat);
+}
