@@ -323,6 +323,21 @@ Working rules:
   over the ideal type; embed per width by supplying each width's bound.
 - Runtime code that cites no proofs pays nothing and sees nothing.
 
+Carrying a theorem to a site is an ordinary statement call — a fact-only
+machine invoked for its `ensures`, which enters the flow facts and erases at
+codegen:
+
+```omega
+mask_is_mod(self.head, self.cap);            // erased; its ensures now in scope
+self.slots[self.head & (self.cap - 1)] = x;  // proves against those facts
+```
+
+This explicit form is the default (settled 2026-07-18): the proof structure
+stays visible in the text. When an obligation fails for want of a known
+lemma, the diagnostic names it by shape match. A rewrite extension —
+proven equations joining the engine's term reading — is parked in the
+design brief, to be revisited only if ergonomics demand it.
+
 ## Evidence And Trust
 
 Facts are proven, computed, deferred, or accepted — and each tier is a
