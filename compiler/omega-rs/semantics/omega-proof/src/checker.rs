@@ -467,7 +467,126 @@ fn guarded_integer_range_for_transition_argument(
     // dispatch, so the guard fact needs no stability gate here (collection
     // downgrades the guard when a sibling argument contains an opaque call).
     let range = apply_handle_guard(proof_plan, base, obligation.argument, &obligation.guard);
-    guard_refined_binary_range(proof_plan, range, obligation.argument, &obligation.guard)
+    let mut range =
+        guard_refined_binary_range(proof_plan, range, obligation.argument, &obligation.guard);
+    // Fall-through complements: control reaching this transition refuted
+    // every prior exit guard (collection gates on call-free arguments), so
+    // each applies with its comparison INVERTED -- directly on the argument
+    // place, and through the `place +- K` refold.
+    for refuted in &obligation.refuted_exit_guards {
+        range = apply_handle_condition_complement(proof_plan, range, obligation.argument, *refuted);
+        range = complement_refined_binary_range(proof_plan, range, obligation.argument, *refuted);
+    }
+    range
+}
+
+/// `apply_handle_condition` with the comparison REFUTED: `place == K` gives
+/// point exclusion (bump an end sitting exactly on K), `place < K` gives
+/// `place >= K`, and so on. Conjunctions cannot refute soundly (either leg
+/// may have failed) and are skipped.
+fn apply_handle_condition_complement(
+    proof_plan: &ProofPlan,
+    mut range: IntegerRange,
+    argument: ExpressionHandle,
+    condition: ExpressionHandle,
+) -> IntegerRange {
+    let condition = unwrap_true_guard_condition(proof_plan, condition);
+    let ExpressionNode::Binary(binary) = proof_plan.program.expression_table.expression(condition)
+    else {
+        return range;
+    };
+    if !expressions_equivalent_for_proof(proof_plan, binary.left, argument) {
+        return range;
+    }
+    let Some(value) = integer_literal_handle(proof_plan, binary.right) else {
+        return range;
+    };
+    let value = BigInt::from_i64(value);
+    let one = BigInt::from_i64(1);
+    match binary.operator {
+        // NOT (place == K): exclude the point when an end sits on it.
+        BinaryOperator::Equal => {
+            if range.minimum == value {
+                range.minimum = range.minimum.add(&one);
+            }
+            if range.maximum == value {
+                range.maximum = range.maximum.sub(&one);
+            }
+        }
+        // NOT (place < K)  ==  place >= K
+        BinaryOperator::Less => range.minimum = range.minimum.max(value),
+        // NOT (place <= K)  ==  place >= K + 1
+        BinaryOperator::LessOrEqual => range.minimum = range.minimum.max(value.add(&one)),
+        // NOT (place > K)  ==  place <= K
+        BinaryOperator::Greater => range.maximum = range.maximum.min(value),
+        // NOT (place >= K)  ==  place <= K - 1
+        BinaryOperator::GreaterOrEqual => range.maximum = range.maximum.min(value.sub(&one)),
+        _ => {}
+    }
+    range
+}
+
+/// `guard_refined_binary_range`'s complement twin: refine a `place +- K`
+/// argument by narrowing the PLACE operand with a REFUTED prior guard and
+/// refolding.
+fn complement_refined_binary_range(
+    proof_plan: &ProofPlan,
+    range: IntegerRange,
+    value: ExpressionHandle,
+    refuted: ExpressionHandle,
+) -> IntegerRange {
+    let ExpressionNode::Binary(binary) = proof_plan.program.expression_table.expression(value)
+    else {
+        return range;
+    };
+    let (place, literal, place_is_left) =
+        if let Some(literal) = integer_literal_handle(proof_plan, binary.right) {
+            (binary.left, literal, true)
+        } else if let Some(literal) = integer_literal_handle(proof_plan, binary.left) {
+            (binary.right, literal, false)
+        } else {
+            return range;
+        };
+    let literal = BigInt::from_i64(literal);
+    let place_range = match (binary.operator, place_is_left) {
+        (BinaryOperator::Add, _) => IntegerRange {
+            minimum: range.minimum.sub(&literal),
+            maximum: range.maximum.sub(&literal),
+        },
+        (BinaryOperator::Subtract, true) => IntegerRange {
+            minimum: range.minimum.add(&literal),
+            maximum: range.maximum.add(&literal),
+        },
+        (BinaryOperator::Subtract, false) => IntegerRange {
+            minimum: literal.sub(&range.maximum),
+            maximum: literal.sub(&range.minimum),
+        },
+        _ => return range,
+    };
+    let narrowed =
+        apply_handle_condition_complement(proof_plan, place_range.clone(), place, refuted);
+    if narrowed == place_range {
+        return range;
+    }
+    let refolded = match (binary.operator, place_is_left) {
+        (BinaryOperator::Add, _) => IntegerRange {
+            minimum: narrowed.minimum.add(&literal),
+            maximum: narrowed.maximum.add(&literal),
+        },
+        (BinaryOperator::Subtract, true) => IntegerRange {
+            minimum: narrowed.minimum.sub(&literal),
+            maximum: narrowed.maximum.sub(&literal),
+        },
+        (BinaryOperator::Subtract, false) => IntegerRange {
+            minimum: literal.sub(&narrowed.maximum),
+            maximum: literal.sub(&narrowed.minimum),
+        },
+        _ => unreachable!("classified above"),
+    };
+    IntegerRange {
+        minimum: range.minimum.max(refolded.minimum),
+        maximum: range.maximum.min(refolded.maximum),
+    }
 }
 
 fn float_range_for_transition_argument(
