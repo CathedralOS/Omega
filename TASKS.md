@@ -64,9 +64,27 @@ minting one);
 (4) the walk's
 footprint is against RUNTIME `map_size` (`offset + desc_size <
 map_size`), needing the guard/coupling footprint route rather than C1's
-literal-N interval (the machinery exists — wire the recast judgment to
-accept a dominating `offset + size <= <runtime bound>` guard the way the
-index prover does). The old "two red efi
+literal-N interval. FIRST RUNG LANDED 2026-07-11: an unranged offset
+param discharges through the caller's dominating incoming-edge guard —
+single-predecessor walk, guarded arm only, argument matched at the
+param's non-self position, literal `<= K`/`< K` bound through `&&`;
+the checker's element-index prover SKIPS a judged recast's direct
+Indexed operand (the footprint `K + size <= N` subsumes `off < N`;
+nested reads keep their obligations) —
+pass/recast/runtime_guarded_offset_recast_exit +
+fail/recast/guarded_offset_footprint_rejected. REMAINING for the real
+walk shape: (a) MULTI-predecessor meet (the walk state re-enters
+itself — every incoming edge must prove the bound, including the loop
+arm), (b) the SYMBOLIC bound `offset + desc_size < map_size` where
+`map_size` is itself runtime — needs a boundary `ensures` tying the
+out-param to the buffer capacity (`map_size <= 16384`), then the
+transitive chain; the DBM/coupling machinery from R1/R3 is the intended
+carrier. NOTE: own_machine.omg currently fails AT PARSE
+(`own_machine.omg:15:9`, `use uefi.EfiHandle` dot-paths + `package`
+statements — guide ch15 settled `use pkg::Item;` with build.omg
+packages and no `package` lines), Cathedral-side drift like (2); the
+gap list above was measured against the header-stripped body, which
+still stands. The old "two red efi
 tests" proved stale 2026-07-17: field-model dispatch and `&mut` out-params
 both serve, pinned (pass/targets/efi_vtable_field_call,
 pass/targets/efi_out_param_call). Done-check: boot under QEMU/OVMF, greeting

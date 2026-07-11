@@ -37,6 +37,28 @@ pub(super) fn check_expression(
             }
         }
         ExpressionNode::Cast(cast) => {
+            // A §5b RECAST's operand is an ADDRESS the view starts at, not an
+            // element read: its bounds are the recast judgment's FOOTPRINT
+            // (offset + size_of(target) <= region, strictly stronger than the
+            // element check `offset < region`). Skip the element-index
+            // obligation on the direct Indexed operand -- but still walk the
+            // INDEX expression itself (a nested read inside the offset
+            // computation keeps its own obligations).
+            if cast.form.is_recast()
+                && let ExpressionNode::Indexed(indexed) =
+                    program.expression_table.expression(cast.value)
+            {
+                check_expression(
+                    program,
+                    machine,
+                    state,
+                    facts,
+                    indexed.collection,
+                    diagnostics,
+                );
+                check_expression(program, machine, state, facts, indexed.index, diagnostics);
+                return;
+            }
             check_expression(program, machine, state, facts, cast.value, diagnostics)
         }
         ExpressionNode::Indexed(indexed) => {

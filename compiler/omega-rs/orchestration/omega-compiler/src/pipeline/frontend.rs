@@ -5,7 +5,7 @@ use crate::pipeline::source::SourceStorage;
 use crate::{lexer, parser};
 use omega_core::arena::{Arena, HandleSpan};
 use omega_core::diagnostics::Diagnostic;
-use omega_core::source::SourceId;
+use omega_core::source::{SourceId, SourcePosition};
 use omega_syntax_trees::SyntaxTrees;
 use omega_syntax_trees::identifier::Identifier;
 use omega_syntax_trees::item::{Item, ItemHandle};
@@ -118,9 +118,13 @@ pub fn lex_sources(sources: LoadedSources) -> Result<LexedSources, Vec<Diagnosti
         let tokens = lexer::Lexer::new(loaded_source.source.as_ref())
             .tokenize()
             .map_err(|error| {
+                let position =
+                    SourcePosition::of(loaded_source.source.as_ref(), error.span.start);
                 vec![Diagnostic::error(format!(
-                    "{}: {}",
+                    "{}:{}:{}: {}",
                     loaded_source.path.display(),
+                    position.line,
+                    position.column,
                     error.message
                 ))]
             })?;
@@ -157,9 +161,13 @@ pub fn parse_sources(
             &lexed_source.tokens,
         )
         .map_err(|error| {
+            let position =
+                SourcePosition::of(lexed_source.source.as_ref(), error.source_span.span.start);
             vec![Diagnostic::error(format!(
-                "{}: {}",
+                "{}:{}:{}: {}",
                 lexed_source.path.display(),
+                position.line,
+                position.column,
                 error.message
             ))]
         })?;
