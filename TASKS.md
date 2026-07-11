@@ -227,8 +227,13 @@ discharges `y*self.cols+x`, direct spelling included) with the
 bounded-escape store-containment keystone. Open rungs:
 
 - **R1 remainder:** value-vs-value guard mints at range endpoints generally
-  (`requires a.cols == b.rows`); the bracket-as-sugar desugar for
-  machine-signature requires. Cross-machine dependent params ride R4.
+  (`requires a.cols == b.rows`). The bracket-as-sugar half LANDED
+  2026-07-11: ENTRY-state params' literal `[a..=b]` ranges join the
+  entailment engine's hypotheses on both the empty-body and inductive
+  paths (collect_entry_range_hypotheses; `k: u64 [0..=8]` proves
+  `ensures result <= 9` for `k + 1` with no spelled requires; two lib
+  tests pin discharge and the no-over-prove rail). Cross-machine
+  dependent params ride R4.
 - **R3 residue (store-proof completion):** UNBOUNDED-store seeding stays
   permissive (conservative post-entry env seeding would flip sound corpus
   shapes) — revisit with a plan.
