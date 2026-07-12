@@ -1,0 +1,14 @@
+// FAIL CANARY: a structurally FALSE claim -- under `a == Nat::Zero` the
+// ensures `a != Nat::Zero` resolves both sides to the same constructor
+// form, so the mini-judge disproves it instead of certifying (N3 rung 1).
+use omega::language::core::nat;
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine Main::main(&mut self) { self.console.exit_process(70); }
+machine bogus(a: Nat)
+requires
+    a == Nat::Zero
+ensures
+    a != Nat::Zero
+{
+}
