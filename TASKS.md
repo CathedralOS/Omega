@@ -678,7 +678,12 @@ no `unbounded` property exists. Rungs:
   unfolding the core `length`). First PROVEN
   library lemmas LANDED 2026-07-11: core nat.omg carries add_zero_left
   (compute-mode) and add_zero_right (structural induction), each ensures
-  machine-checked at compile time for every importer. REMAINING:
+  machine-checked at compile time for every importer. SEQ ZOO GROWTH
+  2026-07-12: seq.omg adds `append` + the COMPOSED law length_append
+  (`length(append(s,t)) == add(length(s), length(t))`, induction on s —
+  cross-machine unfolding through append/length/add plus the IH, no
+  citations; Lean analog List.length_append), consumed by
+  cite_length_append in the roster canary + a lib test. REMAINING:
   more of the lemma zoo as the judge widens (commutativity needs
   double induction / rearrange-mode), extraction INTO consumer proofs
   (a caller citing a lemma's ensures — the fact-consumption face), the

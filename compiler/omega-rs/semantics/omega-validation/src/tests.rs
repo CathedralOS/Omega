@@ -1964,6 +1964,28 @@ mod structural_entailment {
     }
 
     #[test]
+    fn seq_length_append_proves() {
+        // The Seq zoo's first COMPOSED law: length distributes over append,
+        // by induction on the first sequence -- generic recursive data,
+        // cross-machine unfolding (append inside length inside add), the
+        // IH as a rewrite. No citations needed: both sides normalize.
+        validate(
+            "data Seq { case Empty; case Cons(head: Nat, tail: Seq); } \
+             machine length(s: Seq) -> Nat terminates { decreases s; } { \
+             transition s { Seq::Empty -> Nat::Zero \
+             Seq::Cons { head, tail } -> Nat::Succ { prev: length(tail) } } } \
+             machine append(s: Seq, t: Seq) -> Seq terminates { decreases s; } { \
+             transition s { Seq::Empty -> (t) \
+             Seq::Cons { head, tail } -> Seq::Cons { head: head, tail: append(tail, t) } } } \
+             machine length_append(s: Seq, t: Seq) -> Nat terminates { decreases s; } \
+             ensures (length(append(s, t))) == (add(length(s), length(t))) { \
+             transition s { Seq::Empty -> Nat::Zero \
+             Seq::Cons { head, tail } -> Nat::Succ { prev: length_append(tail, t) } } }",
+        )
+        .expect("length_append should prove by induction");
+    }
+
+    #[test]
     fn citation_with_wrong_operands_does_not_prove_the_goal() {
         // The citation instantiates at ITS operands only -- citing the law
         // at `b` says nothing about the unrelated `c`. (Citing at `b` DOES
