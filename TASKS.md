@@ -499,13 +499,20 @@ no `unbounded` property exists. Rungs:
   Nat/Int/Rat compute-mode, declared proof carriers rearrange-mode
   (ring-generic polynomial normalization). Int introduction rule: order
   has no floor, measures stay Nat-valued or range-floored.
-- **N4 — roster library:** Nat/Seq/Bag/Rat in core as ordinary recursive
-  data + extraction lemmas; the proof views (Seq/Bag/Range) dissolve from
-  parser-known atoms into these types (the L6 bag_view rung folds in).
-  Rat/Bag ship via CANONICAL-REPRESENTATIVE domains (reduced fractions
-  `where gcd==1`; sorted sequences) — plain `==`, no quotient dependency:
-  N4 is decoupled from N6. The `%` former is reserved for carriers with
-  no computable canonical form (Real: stream equality undecidable).
+- **N4 — roster library (Nat ops + Seq LANDED 2026-07-11):** core
+  nat.omg carries add/mul as proof machines (mul composes add by an
+  ordinary cross-machine call; only self-calls need the measure), and
+  seq.omg carries generic recursive `Seq<T>` — pinned
+  pass/proofs/runtime_core_roster_ops_exit (core ops + a program-side
+  structural length lemma over Seq<u64> into core Nat). REMAINING:
+  extraction lemmas (the ensures-extraction rung — proof machines'
+  ensures consumed as facts), the proof views (Seq/Bag/Range) dissolving
+  from parser-known atoms into these types (the L6 bag_view rung folds
+  in). Rat/Bag ship via CANONICAL-REPRESENTATIVE domains (reduced
+  fractions `where gcd==1`; sorted sequences) — plain `==`, no quotient
+  dependency: N4 is decoupled from N6, but those two ride R2's
+  where-clauses. The `%` former is reserved for carriers with no
+  computable canonical form (Real: stream equality undecidable).
 - **N5 — `boundary data` + the Real axiom package:** opaque carrier;
   ensures-less boundary machines = claim-free symbols (no grant); axioms =
   accepted-tier rows; schema axioms as `<machine P>` boundary machines (one

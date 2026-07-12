@@ -18650,6 +18650,34 @@ fn runtime_depend_mapping_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_core_roster_ops_exit_canary_runs() {
+    // N4 roster slice: core add/mul (cross-machine composition) + generic
+    // recursive Seq<T> + a program-side structural length lemma.
+    let canary = pass_canary("proofs/runtime_core_roster_ops_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-core-roster-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("core roster ops canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("core roster ops canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the roster machines to validate and the program to run (exit 70), got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_nat_structural_recursion_exit_canary_runs() {
     // N2(d) gateway: a free machine over proof-only Nat is a PROOF MACHINE
     // -- structural recursion legal, measured, every self-call descending
@@ -29636,6 +29664,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "constants/runtime_free_const_exit",
     "proofs/runtime_core_nat_declared_exit",
     "proofs/runtime_nat_structural_recursion_exit",
+    "proofs/runtime_core_roster_ops_exit",
     "build/runtime_depend_mapping_exit",
     "recast/runtime_record_view_exit",
     "arithmetic/runtime_f32_field_guard_exit",

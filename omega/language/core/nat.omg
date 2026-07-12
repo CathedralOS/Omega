@@ -24,3 +24,32 @@ data Nat {
     case Zero;
     case Succ(prev: Nat);
 }
+
+// N4 roster operations (2026-07-11): the Peano ring surface as ordinary
+// PROOF MACHINES -- free machines over proof-only data (machine-stratum
+// contagion), structurally recursive, every self-call descending by the
+// arm-bound case-payload subterm. `mul` composes `add` by an ordinary
+// cross-machine call (no cycle; only self-calls need the measure).
+// Extraction lemmas (add_zero, add_succ, commutativity) ride N3/N4's
+// ensures-extraction rung.
+machine add(a: Nat, b: Nat) -> Nat
+terminates {
+    decreases a;
+}
+{
+    transition a {
+        Nat::Zero -> (b)
+        Nat::Succ { prev } -> Nat::Succ { prev: add(prev, b) }
+    }
+}
+
+machine mul(a: Nat, b: Nat) -> Nat
+terminates {
+    decreases a;
+}
+{
+    transition a {
+        Nat::Zero -> Nat::Zero
+        Nat::Succ { prev } -> (add(b, mul(prev, b)))
+    }
+}

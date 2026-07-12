@@ -1,0 +1,11 @@
+// Math roster N4 (2026-07-11): Seq<T> as ordinary GENERIC RECURSIVE DATA
+// -- proof-only by N1's computed classification (recursive through
+// `tail`; no runtime layout). The proof views (Seq/Bag/Range atoms)
+// dissolve into this type as the extraction-lemma rungs land; Bag ships
+// as a canonical-representative domain over sorted sequences (no
+// quotient dependency -- N4 is decoupled from N6), which rides R2's
+// where-clauses.
+data Seq<T> {
+    case Empty;
+    case Cons(head: T, tail: Seq<T>);
+}

@@ -1,0 +1,23 @@
+// RUN CANARY (exit 70) + interpreter differential. Math roster N4: the
+// core library's Peano operations (nat.omg's add/mul -- mul composes add
+// by an ordinary cross-machine call; only self-calls need the measure)
+// and generic recursive Seq<T> (seq.omg) compose with a PROGRAM-side
+// structural lemma: length over Seq<u64> returns core Nat, descending on
+// the arm-bound `tail` subterm. All of it is proof-only -- the program
+// lowers untouched, and every machine here validates through the
+// machine-stratum contagion (free machines over proof-only data).
+use omega::language::core::nat;
+use omega::language::core::seq;
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine Main::main(&mut self) { self.console.exit_process(70); }
+machine length(s: Seq<u64>) -> Nat
+terminates {
+    decreases s;
+}
+{
+    transition s {
+        Seq::Empty -> Nat::Zero
+        Seq::Cons { head, tail } -> Nat::Succ { prev: length(tail) }
+    }
+}
