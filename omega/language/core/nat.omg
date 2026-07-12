@@ -81,3 +81,13 @@ ensures
         Nat::Succ { prev } -> Nat::Succ { prev: add_zero_right(prev) }
     }
 }
+
+// mul's left annihilator: mul(Zero, b) == Zero (compute-mode, unfolds the
+// Zero arm). The right annihilator and commutativity need proven lemmas
+// to act as ambient REWRITE rules (rearrange-mode) -- a later N3 rung.
+machine mul_zero_left(b: Nat) -> Nat
+ensures
+    result == Nat::Zero
+{
+    transition { _ -> (mul(Nat::Zero, b)) }
+}

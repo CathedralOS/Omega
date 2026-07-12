@@ -549,9 +549,16 @@ no `unbounded` property exists. Rungs:
   (`cite_right` discharges `result == a` by consuming add_zero_right's
   ensures; a false-conclusion consumer still fences,
   nat_lemma_citation_false_rejected). Sound by the same batch-validation
-  argument as the IH. THEN: guarded/multi-arm result binding, Int/Rat
-  routing, rearrange-mode, the N2(d) arithmetic bridge (n > 0 => n ==
-  Succ(n - 1)). Int introduction rule: order has no floor,
+  argument as the IH. core nat.omg also carries
+  mul_zero_left (the left annihilator). NEXT BIG LEVER (measured
+  2026-07-11): COMMUTATIVITY (`add(a,b) == add(b,a)`) and the mul right
+  annihilator need PROVEN LEMMAS TO ACT AS AMBIENT REWRITE RULES
+  (rearrange-mode) — an empty-body lemma has no arms to induct on, and
+  `add(b, Zero)` cannot cite add_zero_right (a different machine); the
+  fix is a global rewrite theory where each proven `f(..) == rhs` lemma
+  rewrites matching applications everywhere. THEN: that rewrite theory,
+  guarded/multi-arm result binding, Int/Rat routing, the N2(d)
+  arithmetic bridge (n > 0 => n == Succ(n - 1)). Int introduction rule: order has no floor,
   measures stay Nat-valued or range-floored.
 - **N4 — roster library (Nat ops + Seq LANDED 2026-07-11):** core
   nat.omg carries add/mul as proof machines (mul composes add by an
