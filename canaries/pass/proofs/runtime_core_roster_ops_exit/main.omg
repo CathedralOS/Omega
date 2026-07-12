@@ -19,3 +19,11 @@ ensures
         == (Nat::Succ { prev: Nat::Succ { prev: Nat::Zero } })
 {
 }
+// Citing the core's COMPOSED Seq law (length distributes over append,
+// proven by induction in seq.omg): the citation delivers it at (u, v).
+machine cite_length_append(u: Seq<u64>, v: Seq<u64>)
+ensures
+    (length(append(u, v))) == (add(length(u), length(v)))
+{
+    length_append(u, v);
+}

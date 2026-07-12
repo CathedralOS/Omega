@@ -43,3 +43,32 @@ ensures
     (length(Seq::Cons { head: x, tail: s })) == (Nat::Succ { prev: length(s) })
 {
 }
+
+// Concatenation, structurally recursive on the first sequence.
+machine append(s: Seq<u64>, t: Seq<u64>) -> Seq<u64>
+terminates {
+    decreases s;
+}
+{
+    transition s {
+        Seq::Empty -> (t)
+        Seq::Cons { head, tail } -> Seq::Cons { head: head, tail: append(tail, t) }
+    }
+}
+
+// The Seq zoo's first COMPOSED law: length distributes over append, by
+// induction on the first sequence -- cross-machine unfolding (append
+// inside length inside add) plus the inductive hypothesis; no citations
+// needed. Lean analog: `List.length_append`.
+machine length_append(s: Seq<u64>, t: Seq<u64>) -> Nat
+terminates {
+    decreases s;
+}
+ensures
+    (length(append(s, t))) == (add(length(s), length(t)))
+{
+    transition s {
+        Seq::Empty -> Nat::Zero
+        Seq::Cons { head, tail } -> Nat::Succ { prev: length_append(tail, t) }
+    }
+}
