@@ -1701,15 +1701,21 @@ mod structural_entailment {
     }
 
     #[test]
-    fn uncited_law_fact_fences() {
+    fn uncited_law_fact_fences_and_names_the_missing_citation() {
         // Nothing is global, nothing applies silently: the same goal
-        // WITHOUT the citation statement must fence.
+        // WITHOUT the citation statement must fence -- and the settled
+        // ergonomics mitigation names the lemma whose ensures
+        // shape-matches it, with the exact operands.
         let error = validate(&(RIGHT_ID_LAW.to_owned()
             + " machine uncited(b: Nat) ensures (add(b, Nat::Zero)) == b {}"))
         .expect_err("an uncited law fact should fence");
         assert!(
             error.contains("no entailment tier judges yet"),
             "expected the N3 fence, got: {error}"
+        );
+        assert!(
+            error.contains("note: `right_id` proves this shape -- cite it: `right_id(b);`"),
+            "expected the citation suggestion, got: {error}"
         );
     }
 
