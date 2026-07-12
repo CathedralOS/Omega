@@ -696,6 +696,48 @@ no `unbounded` property exists. Rungs:
   LLM-parallel, zero backend contact. Universe ladder PARKED (trigger:
   full-mathlib replay as a language goal).
 
+## Float semantics — engineering track (design settled 2026-07-18)
+
+Record: design_briefs/float_semantics.md; UX: ch5 Float Facts. Zero new
+keywords — value/policy domains + Rat const-eval + satisfiers + provides
+rows. Rungs:
+
+- **F1 — policy-domain validation:** `Wrapping` on float types = compile
+  error; `Saturating`/`Trapping` on floats = recognized real policies
+  (loud not-yet-lowered refusal until F5); replaces the
+  type_references.rs no-op arm (`ArithmeticDomain(_) => {}`). Fail
+  canaries.
+- **F2 — exact literal/const pipeline (N2 bignum is landed):** float
+  literals parse to exact Rat; compile-time float arithmetic = exact Rat
+  + round once per op at operand width; specials per format (compile ==
+  runtime bit-for-bit, NaN production included). RETIRES three pinned
+  residues: FloatLiteral-as-f64-bits (f32 literal double-rounding), the
+  guard folder's f64-window float folds, interp per-op f32 rounding.
+  Differential canaries incl. the 2^24 plateau legs.
+- **F3 — `Finite` core domain:** promote ch5's `finite`; window
+  enforcement; ranges-imply-Finite in the prover; `is_finite` std machine
+  (portable spelling; `x != x` stays the IEEE-binding idiom underneath).
+- **F4 — float→int cast ruling** (ANSWERED — see Recently answered
+  holds): build it; retire the drift-ledger entry; NaN differential legs
+  become pinnable (runtime 0.0/0.0 constructs NaN portably).
+- **F5 — policy lowering:** float Trapping (invalid/overflow/div-by-zero
+  trap) + Saturating (clamp to ±MAX_FINITE) on both ISAs + interp.
+- **F6 — TotalOrder named satisfiers** for f32/f64 (sign-magnitude
+  integer compare) once satisfier machinery lands.
+- **F7 — format records in omega::core + Float provides rows:** needs the
+  `Instruction` arm of the Binding sum (new machinery). Today's hardcoded
+  IEEE lowering IS the built-in binding — formalization, not a blocker.
+- **Cleanup:** the stale bounded_float canary family (`0.0f` suffix no
+  longer lexes): pass/arithmetic/bounded_float,
+  fail/arithmetic/bounded_float_call_unproven, fail/constraints/
+  invariant_* carriers — rewrite or retire.
+
+Open micro-decisions (surfaced, unruled): min/max NaN contract (lean:
+keep hardware semantics + document); Saturating NaN sub-rule (lean:
+overflow-only, NaN passes through; cast NaN->0 stays cast-specific);
+shift-amount >= width (the Q10 sibling, same proof-or-policy stroke
+available).
+
 ## Recently answered holds (rulings 2026-07-18; now ungated engineering)
 
 - **Q13 console convergence — ANSWERED: (ii), the guide is the spec.**

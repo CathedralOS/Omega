@@ -331,50 +331,110 @@ provably overflows a `Trapping` target still compiles and traps at runtime
 
 ## Float Facts
 
+> **Settled 2026-07-18** (record: design_briefs/float_semantics.md). A float
+> is a format-parameterized approximation carrier: every operation is "exact
+> rational arithmetic, then round once" under a FORMAT the target binds.
+> `f32`/`f64` name the IEEE binary32/64 formats — a fact recorded in target
+> provides data, never in the grammar. Every finite float is exactly a
+> dyadic rational, so float facts are `Rat` facts (chapter 10). Names mean
+> formats, always: `f32` never rebinds to a different representation on any
+> target; a future format (posits, bf16) arrives as a new name plus a
+> format record plus provides rows — zero grammar.
+
 Float constraints describe correctness facts, not optimization permissions.
 
+### Value domains — wellness facts
+
 ```omega
-data Motion {
-    speed: f32;
+data Particle {
+    x: f64;                            // bare: may hold NaN/±inf quietly
+    speed: f64 in Finite;              // NaN and ±inf forbidden
+    alpha: f32 [0.0..=1.0];            // range fact — implies Finite for free
+    mass: f64 in Finite & Positive;    // domains conjoin with the landed `&`
 }
 ```
 
-Working interpretation:
+- `Finite` (core domain; ch5's original `finite` constraint, promoted):
+  the value is not `NaN`, `+inf`, or `-inf`. Enforcement is the
+  invariant-window machinery (chapter 11): writes are free, the window
+  closes at consumption points.
+- A float range (`0.0f..=100000.0f`) is a window-checked value fact — and
+  every range implies `Finite`: NaN fails every comparison, so no range
+  admits it.
+- Float constraints are not runtime metadata.
 
-- `finite` means the value is not `NaN`, `+inf`, or `-inf`.
+### Policy domains — operation behavior
+
+Operand-driven and exclusive per operation (the decision-17 rule, applied
+to floats — whose failure modes are non-finite production, not overflow
+into wraparound):
+
+- **default**: the format's quiet semantics — correctly rounded, inf/NaN
+  propagate silently; `Finite` windows catch them wherever wellness was
+  claimed.
+- **`in Trapping`**: producing a non-finite value traps.
+- **`in Saturating`**: overflow clamps to the format's largest finite
+  magnitude.
+- **`in Wrapping`**: compile error — there is no modular reading of a
+  float (the float-to-int cast ruling's precedent, generalized).
 
 ### Float comparisons and NaN
 
-Float comparisons follow IEEE 754 semantics on both engines:
+Float comparisons follow the format's partial order on both engines (IEEE
+under the binary32/64 bindings):
 
 - The ordered comparisons `<`, `<=`, `>`, `>=` are **false** whenever either
   operand is NaN (natively: aarch64 condition codes chosen to fail on
   unordered; x86_64 `ucomis*` with parity-aware sequencing).
 - `==` is false and `!=` is **true** when either operand is NaN — so
-  `f != f` is the canonical isNaN idiom. The constant folder deliberately
-  refuses to fold float self-comparisons (`x == x`, `x != x`) for exactly
-  this reason: folding `f != f` to `false` would silently break the idiom
-  for a NaN-holding `f`.
+  `f != f` is the IEEE binding's isNaN idiom. The constant folder
+  deliberately refuses to fold float self-comparisons (`x == x`, `x != x`)
+  for exactly this reason. `is_finite(x)` is the portable wellness
+  spelling; the idiom is what implements it under IEEE bindings.
 
 Comparison results in value position (`let ok: bool = a > b`) use the same
 lowering as guards and are pinned for ordinary values — including negative
 operands, where a bit-pattern comparison would invert the order — by
-`arithmetic/runtime_float_compare_bool_exit`. NaN-operand legs are not yet
-canary-pinned: constructing NaN portably awaits the float-semantics ruling
-(OWNER_QUESTIONS Q8); until then the NaN rows above are the implemented and
-code-reviewed behavior, not yet differential-proven.
-- `0.0f..=100000.0f` is the intended range spelling for a float fact.
-- Float constraints are not runtime metadata.
-- Float constraints do not automatically permit reassociation, signed-zero
-  erasure, reciprocal transforms, or other fast-math rewrites.
+`arithmetic/runtime_float_compare_bool_exit`. NaN-operand differential legs
+are now pinnable (runtime `0.0 / 0.0` under the quiet default constructs
+NaN portably).
 
-The language probably needs two separate layers:
+NaN payload bits are unspecified after every operation and never
+proof-observable; a recast (`&self.f as &u32`) reads whatever bits are
+honestly there.
 
-- semantic constraints: facts that must be true, such as `finite`,
-  `non_negative`, or `a..=b`
-- optimization permissions: facts about which rewrites are acceptable
+### Two orders
 
-For now, this chapter only covers semantic constraints.
+Arithmetic comparison is the partial order above — floats never pretend to
+be totally ordered in arithmetic position. Sorting and keying use a total
+order spelled as a named satisfier (chapter 14):
+
+```omega
+sort_by<F64::TotalOrder>(&mut samples);   // IEEE totalOrder — a sign-magnitude
+                                          // integer compare, explicit at the site
+```
+
+### No ambient relaxation
+
+- `a * b + c` is two roundings, on every target, always — the compiler
+  never contracts multiplies into fused ops on its own.
+- `fma(a, b, c)` is the single-rounding spelling.
+- There is no fast-math mode, flag, or build option, and none is planned.
+  Optimization permissions, where they ever exist, are per-operation
+  spellings — never ambient. (This settles the two-layer question this
+  section used to carry: the permission layer is spelled ops.)
+
+### Literals and compile-time arithmetic
+
+A float literal parses to its exact rational value (`9.80665` IS
+`196133/20000`); compile-time float arithmetic is exact `Rat` arithmetic;
+the result rounds **once**, at the landing site, to the landing type's
+format. The same literal lands correctly as `f32`, `f64`, or any future
+format with no suffix — a constant is unitless until a site requests a
+type. Where the exact operation is undefined or exceeds the format
+(division by zero, overflow), compile-time evaluation applies the format's
+special-value semantics — so compile-time and runtime agree bit-for-bit by
+construction, NaN production included.
 
 ## Temporaries
 
