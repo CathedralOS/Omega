@@ -34,3 +34,10 @@ ensures
     a == c
 {
 }
+// Bodied identity: the sole unguarded value arm binds `result` totally.
+machine nat_id(b: Nat) -> Nat
+ensures
+    result == b
+{
+    transition { _ -> (b) }
+}

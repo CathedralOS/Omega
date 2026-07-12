@@ -124,6 +124,46 @@ pub(crate) fn validate_machine_contract_entailment(
     // grammar-gated today (struct literals do not parse in contract
     // position), so injectivity decomposition is the recorded next rung.
     let structural = StructuralJudge::from_requires(program, &requires);
+    // A bodied lemma whose single state carries EXACTLY ONE unguarded value
+    // arm (`transition { _ -> (b) }`) binds `result` to that arm's term --
+    // the arm always fires, so the binding is total and a ground refutation
+    // under it is a real disproof. Anything wider (guarded arms, multiple
+    // arms with first-match reachability, tail self-calls) judges without
+    // the binding, which can only weaken toward Unknown -- never unsound.
+    // The identity lemma `-> (b)` with `ensures result == b` proves here.
+    let sole_arm_result: Option<StructuralTerm> = {
+        let states = program.machine_states(machine);
+        if let [root] = states {
+            let statements = program.statement_table.statements(root.statement_nodes);
+            if let [StatementNode::Transition(transition)] = statements {
+                (matches!(transition.guard, TransitionGuardNode::Always)
+                    && !transition.continuation.is_valid())
+                .then(|| {
+                    match program.statement_table.transition_target(transition.target) {
+                        TransitionTargetNode::Value(value) => structural_term(program, *value),
+                        _ => None,
+                    }
+                })
+                .flatten()
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    };
+    let judge_structural = |fact: ExpressionHandle| -> StructuralJudgment {
+        match &sole_arm_result {
+            Some(term) => {
+                let mut bound = structural.clone();
+                bound
+                    .substitutions
+                    .insert(0, (RESULT_BINDER.to_owned(), term.clone()));
+                bound.judge(program, fact)
+            }
+            None => structural.judge(program, fact),
+        }
+    };
     let ensures: Vec<ExpressionHandle> = ensures
         .into_iter()
         .filter(|fact| {
@@ -136,7 +176,7 @@ pub(crate) fn validate_machine_contract_entailment(
             if structural.hypotheses_contradictory {
                 return false;
             }
-            match structural.judge(program, *fact) {
+            match judge_structural(*fact) {
                 StructuralJudgment::Proven => {}
                 StructuralJudgment::Refuted => {
                     diagnostics.push(Diagnostic::error(format!(
@@ -1783,6 +1823,7 @@ enum StructuralTerm {
     Opaque(String),
 }
 
+#[derive(Clone)]
 struct StructuralJudge {
     substitutions: Vec<(String, StructuralTerm)>,
     hypotheses_contradictory: bool,
