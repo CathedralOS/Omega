@@ -2102,6 +2102,11 @@ enum StructuralTerm {
 struct StructuralJudge<'program> {
     program: &'program TypedTrees,
     substitutions: Vec<(String, StructuralTerm)>,
+    /// Application REWRITES (`add_zero_right(prev) -> prev`): hypothesis
+    /// equations with an application side orient REDUCING -- the inductive
+    /// hypothesis rewrites the self-application away instead of expanding a
+    /// variable into it, which also serves asymmetric goals.
+    rewrites: Vec<(StructuralTerm, StructuralTerm)>,
     hypotheses_contradictory: bool,
 }
 
@@ -2110,6 +2115,7 @@ impl Clone for StructuralJudge<'_> {
         Self {
             program: self.program,
             substitutions: self.substitutions.clone(),
+            rewrites: self.rewrites.clone(),
             hypotheses_contradictory: self.hypotheses_contradictory,
         }
     }
@@ -2120,6 +2126,7 @@ impl<'program> StructuralJudge<'program> {
         let mut judge = Self {
             program,
             substitutions: Vec::new(),
+            rewrites: Vec::new(),
             hypotheses_contradictory: false,
         };
         for fact in requires {
@@ -2185,6 +2192,16 @@ impl<'program> StructuralJudge<'program> {
                     }
                 }
             }
+            (StructuralTerm::Application { .. }, _) => {
+                if !term_contains(&right, &left) {
+                    self.rewrites.push((left, right));
+                }
+            }
+            (_, StructuralTerm::Application { .. }) => {
+                if !term_contains(&left, &right) {
+                    self.rewrites.push((right, left));
+                }
+            }
             (StructuralTerm::Variable(name), _) => {
                 if left != right {
                     self.substitutions.push((name.clone(), right));
@@ -2236,13 +2253,27 @@ impl<'program> StructuralJudge<'program> {
                         .into_iter()
                         .map(|argument| self.resolve_at(argument, depth + 1))
                         .collect();
+                    let resolved = StructuralTerm::Application { machine, arguments };
+                    // Hypothesis rewrites first (the inductive hypothesis
+                    // reduces the self-application), then unfolding.
+                    if let Some((_, replacement)) = self
+                        .rewrites
+                        .iter()
+                        .find(|(pattern, _)| pattern == &resolved)
+                    {
+                        term = replacement.clone();
+                        continue;
+                    }
+                    let StructuralTerm::Application { machine, arguments } = &resolved else {
+                        unreachable!();
+                    };
                     if let Some(unfolded) =
-                        self.unfold_application(&machine, &arguments, depth + 1)
+                        self.unfold_application(machine, arguments, depth + 1)
                     {
                         term = unfolded;
                         continue;
                     }
-                    return StructuralTerm::Application { machine, arguments };
+                    return resolved;
                 }
                 StructuralTerm::Opaque(_) => return term,
             }
@@ -2590,6 +2621,25 @@ impl<'program> StructuralJudge<'program> {
             }
         }
         verdict
+    }
+}
+
+/// Whether `haystack` contains `needle` as a subterm (occurs check for the
+/// rewrite orientation: a rewrite whose replacement contains its own pattern
+/// would loop; the resolution cap would still bound it, but skipping keeps
+/// resolution productive).
+fn term_contains(haystack: &StructuralTerm, needle: &StructuralTerm) -> bool {
+    if haystack == needle {
+        return true;
+    }
+    match haystack {
+        StructuralTerm::Constructor { fields, .. } => fields
+            .iter()
+            .any(|(_, value)| term_contains(value, needle)),
+        StructuralTerm::Application { arguments, .. } => arguments
+            .iter()
+            .any(|argument| term_contains(argument, needle)),
+        _ => false,
     }
 }
 

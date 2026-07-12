@@ -538,13 +538,13 @@ no `unbounded` property exists. Rungs:
   hypothesis — sound because the proof-machine recursion check refuses
   non-descending self-calls in the same batch); add_zero_right (right
   identity by induction) PROVES, false inductive claims REFUTE
-  (nat_inductive_claim_refuted). POLISH NOTE: the IH intakes as a
-  variable substitution, which for `App(prev) == prev` orients EXPANDING
-  (prev -> App) — goals prove via both sides converging under the capped
-  resolution; an APPLICATION-REWRITE orientation (App -> rhs) would be
-  cleaner and serve asymmetric goals. THEN: that rewrite orientation,
-  guarded/multi-arm result binding, Int/Rat routing, rearrange-mode, the
-  N2(d) arithmetic bridge (n > 0 => n == Succ(n - 1)). Int introduction rule: order has no floor,
+  (nat_inductive_claim_refuted). Rewrite orientation LANDED same
+  day: hypothesis equations with an application side intake as REDUCING
+  rewrites (App -> rhs, occurs-checked), applied in resolution before
+  unfolding — the IH now rewrites the self-application away instead of
+  expanding variables. THEN: guarded/multi-arm result binding, Int/Rat
+  routing, rearrange-mode, the N2(d) arithmetic bridge (n > 0 => n ==
+  Succ(n - 1)). Int introduction rule: order has no floor,
   measures stay Nat-valued or range-floored.
 - **N4 — roster library (Nat ops + Seq LANDED 2026-07-11):** core
   nat.omg carries add/mul as proof machines (mul composes add by an
