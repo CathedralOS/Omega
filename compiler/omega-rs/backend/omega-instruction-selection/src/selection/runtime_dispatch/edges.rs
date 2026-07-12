@@ -456,6 +456,31 @@ fn select_runtime_dispatch_call_result_return(
         return;
     }
 
+    // FLOAT-literal terminal (`-> 1.5`): the constant is its IEEE bit pattern
+    // (the callee's return type fixed the slot as a float), narrowed to f32
+    // bits for a 4-byte result slot -- the integer write stores raw bytes, so
+    // the pattern lands verbatim.
+    if let ExpressionNode::Float(literal) =
+        input.control_flow.expressions.expression(value_expr)
+    {
+        let value = if byte_size == 4 {
+            i64::from((literal.value() as f32).to_bits())
+        } else {
+            literal.value().to_bits() as i64
+        };
+        selected_instructions.push(SelectedInstruction {
+            kind: SelectedInstructionKind::WriteRuntimeStorageInteger {
+                target_region,
+                byte_offset: target_offset,
+                byte_size,
+                value,
+            },
+            source_key,
+            source_statement: edge.statement_index,
+        });
+        return;
+    }
+
     // Runtime place terminal (`-> acc`, `-> self.base`): resolve the value's
     // place in the CALLEE context and copy it into the caller's call-result
     // slot. The source REGION comes from the resolved place -- a param/local
@@ -930,6 +955,12 @@ fn select_dispatch_binary_terminal_return(
     let Some(operator) = dispatch_terminal_binary_operator(binary.operator) else {
         return false;
     };
+    let float_literal_value = |handle: ExpressionHandle| -> Option<f64> {
+        match expressions.expression(handle) {
+            ExpressionNode::Float(literal) => Some(literal.value()),
+            _ => None,
+        }
+    };
     let resolve = |input: &InstructionSelectionInput<'_>,
                    handle: ExpressionHandle|
      -> Option<(
@@ -938,6 +969,16 @@ fn select_dispatch_binary_terminal_return(
     )> {
         if let Some(value) = static_runtime_argument_value(expressions.expression(handle)) {
             return Some((RuntimeValueOperand::Immediate(value), None));
+        }
+        // A float LITERAL operand (`-> x * 0.5`) is carried as its IEEE f64
+        // bit pattern, exactly as the local float-arithmetic path resolves
+        // it; a 4-byte (f32) target narrows the bits once the terminal's
+        // float-ness is decided below.
+        if let Some(literal) = float_literal_value(handle) {
+            return Some((
+                RuntimeValueOperand::Immediate(literal.to_bits() as i64),
+                None,
+            ));
         }
         let place = resolve_runtime_storage_place_in_table(
             input,
@@ -958,14 +999,14 @@ fn select_dispatch_binary_terminal_return(
             Some(place),
         ))
     };
-    let Some((left_operand, left_place)) = resolve(input, binary.left) else {
+    let Some((mut left_operand, left_place)) = resolve(input, binary.left) else {
         return false;
     };
-    let Some((right_operand, right_place)) = resolve(input, binary.right) else {
+    let Some((mut right_operand, right_place)) = resolve(input, binary.right) else {
         return false;
     };
     // Type facts come from whichever side is a typed PLACE (an all-immediate
-    // binary folds statically and never reaches here). Float terminals bail.
+    // binary folds statically and never reaches here).
     let typed_expr = if left_place.is_some() {
         binary.left
     } else {
@@ -978,13 +1019,59 @@ fn select_dispatch_binary_terminal_return(
         expressions,
         typed_expr,
     );
-    if matches!(primitive, Some(PrimitiveType::F32 | PrimitiveType::F64)) {
+    // FLOAT terminal (`-> x + tail` -- sin's polynomial delivery): the op runs
+    // on the float unit, gated to the operator set BOTH encoders serve
+    // (fadd/fsub/fmul/fdiv twins); an unserved float operator falls through to
+    // the loud call-result fence instead of an integer op over IEEE bits.
+    let is_float = matches!(primitive, Some(PrimitiveType::F32 | PrimitiveType::F64))
+        || float_literal_value(binary.left).is_some()
+        || float_literal_value(binary.right).is_some();
+    if is_float
+        && !matches!(
+            operator,
+            StateGuardOperator::Add
+                | StateGuardOperator::Subtract
+                | StateGuardOperator::Multiply
+                | StateGuardOperator::Divide
+        )
+    {
         return false;
     }
-    // ALL-IMMEDIATE binary (`0 - 1` -- the idiomatic negative literal): fold
-    // and write the constant. Only the sign-safe class reaches here (the
-    // operator map), and both values are known.
+    // ALL-IMMEDIATE binary (`0 - 1` / `0.0 - 1.5` -- the idiomatic negative
+    // literal): fold and write the constant. Only the sign-safe class reaches
+    // here (the operator map), and both values are known.
     if left_place.is_none() && right_place.is_none() {
+        if is_float {
+            let (Some(left_value), Some(right_value)) = (
+                float_literal_value(binary.left),
+                float_literal_value(binary.right),
+            ) else {
+                return false;
+            };
+            let folded = match operator {
+                StateGuardOperator::Add => left_value + right_value,
+                StateGuardOperator::Subtract => left_value - right_value,
+                StateGuardOperator::Multiply => left_value * right_value,
+                StateGuardOperator::Divide => left_value / right_value,
+                _ => return false,
+            };
+            let value = if byte_size == 4 {
+                i64::from((folded as f32).to_bits())
+            } else {
+                folded.to_bits() as i64
+            };
+            selected_instructions.push(SelectedInstruction {
+                kind: SelectedInstructionKind::WriteRuntimeStorageInteger {
+                    target_region,
+                    byte_offset: target_offset,
+                    byte_size,
+                    value,
+                },
+                source_key,
+                source_statement: edge.statement_index,
+            });
+            return true;
+        }
         let (
             RuntimeValueOperand::Immediate(left_value),
             RuntimeValueOperand::Immediate(right_value),
@@ -1013,6 +1100,21 @@ fn select_dispatch_binary_terminal_return(
         });
         return true;
     }
+    // An f32 (4-byte) target runs the op in single precision, so a float-
+    // LITERAL operand's f64 bit pattern must be narrowed to f32 bits (the
+    // local path's `narrow_f32_literal_operands`, applied pre-insertion).
+    if is_float && byte_size == 4 {
+        for (expression, operand) in [
+            (binary.left, &mut left_operand),
+            (binary.right, &mut right_operand),
+        ] {
+            if float_literal_value(expression).is_some()
+                && let RuntimeValueOperand::Immediate(bits) = operand
+            {
+                *bits = i64::from((f64::from_bits(*bits as u64) as f32).to_bits());
+            }
+        }
+    }
     let is_signed = resolve_runtime_storage_is_signed_in_table(
         input,
         source_dispatch_index,
@@ -1039,9 +1141,9 @@ fn select_dispatch_binary_terminal_return(
             left,
             operator,
             right,
-            is_float: false,
+            is_float,
             domain,
-            target_signed: is_signed,
+            target_signed: !is_float && is_signed,
         },
         source_key,
         source_statement: edge.statement_index,

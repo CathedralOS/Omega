@@ -1,0 +1,32 @@
+// std math sin/cos, natively (2026-07-11): the pure-Omega implementations
+// in omega/language/std/math.omg run through the real dispatch pipeline --
+// sin(1) exercises the polynomial, sin(10) the binary-ladder range
+// reduction, cos(1) the let-bound sin composition. Each value is pinned to
+// a 1e-11 window around the true result (the degree-15 Taylor's worst case
+// on [-pi/2, pi/2] is ~2e-11). The delivery rides the FLOAT binary
+// terminal return-write (`poly`'s `(x + tail)` f64 terminal), which is the
+// float twin of the dispatch integer binary-terminal path -- before it
+// landed, this shape refused at the call-result fence. Distinct exit codes
+// name the first window that misses.
+use omega::language::std::math;
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine Main::main(&mut self) {
+    // sin(1) = 0.841470984807896507...
+    let s: f64 = sin(1.0);
+    transition s > 0.84147098480 && s < 0.84147098481 { true -> a() _ -> bad_s() }
+    state a(&mut self) {
+        // sin(10) = -0.544021110889...; 10 > pi exercises the ladder.
+        let t: f64 = sin(10.0);
+        transition t > 0.0 - 0.54402111089 && t < 0.0 - 0.54402111088 { true -> b() _ -> bad_t() }
+    }
+    state b(&mut self) {
+        // cos(1) = 0.540302305868...
+        let c: f64 = cos(1.0);
+        transition c > 0.54030230586 && c < 0.54030230587 { true -> good() _ -> bad_c() }
+    }
+    state good(&mut self)  { self.console.exit_process(70); }
+    state bad_s(&mut self) { self.console.exit_process(72); }
+    state bad_t(&mut self) { self.console.exit_process(73); }
+    state bad_c(&mut self) { self.console.exit_process(74); }
+}
