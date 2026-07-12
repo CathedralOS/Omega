@@ -1729,6 +1729,118 @@ mod structural_entailment {
         );
     }
 
+    /// The successor-shift law, the step case's citation material.
+    const SUCC_LAW: &str = "machine add_succ_law(a: Nat, b: Nat) -> Nat \
+         terminates { decreases a; } \
+         ensures (add(a, Nat::Succ { prev: b })) == (Nat::Succ { prev: add(a, b) }) { \
+         transition a { Nat::Zero -> Nat::Zero \
+         Nat::Succ { prev } -> Nat::Succ { prev: add_succ_law(prev, b) } } }";
+
+    /// COMMUTATIVITY (N3 rung 2): induction on `a` with per-arm SUB-STATE
+    /// proofs -- the base case cites right_id's law at `b`, the step case
+    /// cites add_succ_law AT THE CASE PAYLOAD (only reachable from a
+    /// sub-state's frame) and takes the IH from its self-application.
+    const ADD_COMM: &str = "machine add_comm(a: Nat, b: Nat) -> Nat \
+         terminates { decreases a; } \
+         ensures (add(a, b)) == (add(b, a)) { \
+         transition a { Nat::Zero -> base_case(b) \
+         Nat::Succ { prev } -> step_case(prev, b) } \
+         state base_case(b: Nat) -> Nat { \
+         right_id(b); \
+         transition { _ -> (b) } } \
+         state step_case(prev: Nat, b: Nat) -> Nat { \
+         add_succ_law(b, prev); \
+         transition { _ -> Nat::Succ { prev: add_comm(prev, b) } } } }";
+
+    #[test]
+    fn commutativity_proves_with_per_arm_citations() {
+        validate(&(RIGHT_ID_LAW.to_owned() + " " + SUCC_LAW + " " + ADD_COMM))
+            .expect("add_comm should prove by induction with per-arm citations");
+    }
+
+    #[test]
+    fn citing_a_multi_state_lemma_delivers_its_law() {
+        // The consumer face of rung 2: add_comm has THREE states (entry +
+        // two sub-proofs); a citation reads only the ENTRY signature.
+        // Pinned after a real regression -- the single-state `[entry]`
+        // gate silently dropped multi-state callees' equations.
+        validate(
+            &(RIGHT_ID_LAW.to_owned()
+                + " "
+                + SUCC_LAW
+                + " "
+                + ADD_COMM
+                + " machine use_comm(x: Nat, y: Nat) \
+                   ensures (add(x, y)) == (add(y, x)) { \
+                   add_comm(x, y); }"),
+        )
+        .expect("citing the proven add_comm should deliver its law");
+    }
+
+    #[test]
+    fn commutativity_step_without_citation_fences() {
+        // Drop the step case's citation: the IH alone cannot bridge
+        // `add(b, Succ(prev))`, so the claim must fence, proving the
+        // per-arm citation is load-bearing.
+        let uncited = ADD_COMM.replace("add_succ_law(b, prev); ", "");
+        let error = validate(&(RIGHT_ID_LAW.to_owned() + " " + SUCC_LAW + " " + &uncited))
+            .expect_err("the step case without its citation should fence");
+        assert!(
+            error.contains("no entailment tier judges yet"),
+            "expected the N3 fence, got: {error}"
+        );
+    }
+
+    #[test]
+    fn false_commutativity_shaped_claim_refutes() {
+        // Same sub-state shape, wrong theorem: add(a, b) == add(b, b)
+        // must refute on the base arm (add(Zero, b) == b vs add(b, b)).
+        let error = validate(
+            &(RIGHT_ID_LAW.to_owned()
+                + " "
+                + SUCC_LAW
+                + " machine bad_comm(a: Nat, b: Nat) -> Nat \
+                   terminates { decreases a; } \
+                   ensures (add(a, b)) == (add(b, b)) { \
+                   transition a { Nat::Zero -> base_case(b) \
+                   Nat::Succ { prev } -> step_case(prev, b) } \
+                   state base_case(b: Nat) -> Nat { \
+                   right_id(b); \
+                   transition { _ -> (b) } } \
+                   state step_case(prev: Nat, b: Nat) -> Nat { \
+                   add_succ_law(b, prev); \
+                   transition { _ -> Nat::Succ { prev: bad_comm(prev, b) } } } }"),
+        )
+        .expect_err("a false comm-shaped claim should not prove");
+        assert!(
+            error.contains("no entailment tier judges yet")
+                || error.contains("disproved structurally"),
+            "expected a fence or refutation, got: {error}"
+        );
+    }
+
+    #[test]
+    fn nondescending_substate_recursion_rejected() {
+        // The sub-state parameter is bound from `b` (not a payload of the
+        // measure), so the self-call through it must reject.
+        let error = validate(
+            "machine bad(a: Nat, b: Nat) -> Nat \
+             terminates { decreases a; } \
+             ensures (add(a, b)) == (add(a, b)) { \
+             transition a { Nat::Zero -> done(b) \
+             Nat::Succ { prev } -> spin(b, b) } \
+             state done(b: Nat) -> Nat { \
+             transition { _ -> (b) } } \
+             state spin(prev: Nat, b: Nat) -> Nat { \
+             transition { _ -> Nat::Succ { prev: bad(prev, b) } } } }",
+        )
+        .expect_err("recursion through a non-descending sub-state parameter should reject");
+        assert!(
+            error.contains("cannot prove the measure"),
+            "expected the descent error, got: {error}"
+        );
+    }
+
     #[test]
     fn citation_with_wrong_operands_does_not_prove_the_goal() {
         // The citation instantiates at ITS operands only -- citing the law

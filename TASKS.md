@@ -602,36 +602,33 @@ no `unbounded` property exists. Rungs:
   the citation fences), fail/proofs/citation_requires_bearing_rejected,
   + 5 lib tests (incl. wrong-operands non-leakage: citing at `b` says
   nothing about unrelated `c`, but DOES serve goals one compute step
-  away — sound derivation). (2) PER-ARM CITATION — comm's
-  step case must cite add_succ_law AT THE CASE PAYLOAD (`prev`), which
-  machine-level statements cannot see; needs the sub-state proof shape
-  (each case arm transitions to its own state carrying its citations +
-  terminal value — the guarded/multi-arm result-binding family).
-  RECON (2026-07-12): three pieces. (a) DESCENT through sub-state
-  params: today's arm-payload arguments pass strict_subterm_of_measure
-  because payload bindings lower to case-tagged MEMBER reads off the
-  subject (`prev` IS `a.prev` in typed trees); a self-call inside a
-  sub-state references the sub-state's own param (bare Name) and
-  fails. Fix = transition-argument provenance: sub-state param i
-  counts as descending iff EVERY Named transition into that state
-  passes a strict-subterm Member read at position i. (b) JUDGE shape:
-  entry = case dispatch with Named targets; per arm, follow the target
-  to its sub-state; arm environment maps the sub-state's params to the
-  transition's argument terms under the case hypothesis (fresh payload
-  vars); sub-state citations instantiate under THAT environment (the
-  machine-level intake sees Variable("prev") as a free name — wrong
-  binding); result binds to the sub-state's Always value terminal.
-  (c) IH unchanged: self-applications in the sub-state terminal, licensed
-  by (a). Spelling target:
-  `transition a { Zero -> base(b) Succ { prev } -> step(prev, b) }`,
-  `state base(b) { add_zero_right(b); transition { _ -> (b) } }`,
-  `state step(prev, b) { add_succ_law(b, prev); transition { _ ->
-  Nat::Succ { prev: add_comm(prev, b) } } }`. THEN
-  add_comm proves in core (base cites a law-shaped add_zero_right
-  conjunct `(add(a, Nat::Zero)) == a`; step cites add_succ_law + IH) —
-  note NO law layer/import stratification needed under the citation
-  design: citations are calls, so add_comm may live in nat.omg citing
-  its neighbors; the call-graph rule owns the acyclicity.
+  away — sound derivation). (2) PER-ARM CITATION — LANDED 2026-07-12:
+  **COMMUTATIVITY IS PROVEN IN CORE.** nat.omg carries add_comm
+  (`add(a,b) == add(b,a)`, induction on `a`) spelled with per-arm
+  SUB-STATE proofs: each case arm transitions to its own state carrying
+  exactly the citations that case needs — comm_base cites
+  add_zero_right's law at `b`, comm_step cites add_succ_law AT THE CASE
+  PAYLOAD (a frame only the sub-state sees) and takes the IH from its
+  self-application. The three pieces as reconned: (a) descent THROUGH
+  sub-state params (substate_parameter_descends in calls.rs: param
+  descends iff EVERY Named transition into its state passes a
+  strict-subterm Member read at that position; symbol-first matching,
+  name-fallback refuses under any same-name local/assignment);
+  (b) recognize_structural_case_arms follows Named arm targets into
+  sub-states — sub-state params bind to the transition's argument terms
+  converted under the arm environment (payload bindings become the
+  fresh IH variables), sub-state citations instantiate under THAT
+  environment onto StructuralCaseArm::citations, the sole Always value
+  terminal is the arm's value; machine-level citation intake now reads
+  the ENTRY state only (sub-state frames are per-arm; note mis-bound
+  instances of requires-free ∀-lemmas were never UNSOUND — any
+  instantiation of a proven lemma is true — only imprecise);
+  (c) IH machinery unchanged. Pinned: cite_comm in
+  pass/proofs/proof_nat_structural_lemmas (consumes core add_comm),
+  fail/proofs/nat_substate_nondescending_rejected (param bound from `b`
+  spins forever — rejects), + 4 lib tests (comm proves; step minus its
+  citation fences — the citation is load-bearing; false comm-shaped
+  claim refuses; non-descending sub-state recursion rejects).
   (3) the SHAPE-MATCH FAILURE DIAGNOSTIC ("note: add_succ_law proves
   this shape — cite it"): suggestion at failure, never silent
   application. (4) rearrange-mode = ENGINE-INTERNAL ring

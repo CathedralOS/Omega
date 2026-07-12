@@ -30037,6 +30037,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "proofs/nat_lemma_citation_false_rejected",
     "proofs/uncited_structural_fact_rejected",
     "proofs/citation_requires_bearing_rejected",
+    "proofs/nat_substate_nondescending_rejected",
     "boundary/entry_typed_params_unmarked",
     "boundary/boundary_entry_too_many_params",
     "wire/decode_into_ranged_field",
