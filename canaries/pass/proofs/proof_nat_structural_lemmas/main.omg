@@ -1,0 +1,36 @@
+// Math roster N3 rung 1: the STRUCTURAL mini-judge proves the equality
+// kernel over proof-only data -- reflexivity (a == a), nullary-case
+// equality (Nat::Zero == Nat::Zero), and symmetry/transitivity falling
+// out of requires-equality substitution. Distinct-case claims refute
+// (fail/proofs/nat_structural_disproof_refuted); anything beyond this
+// term language (payload constructors are grammar-gated in fact
+// position, proof-machine applications await unfolding) still fences
+// with the N3 pointer (fail/proofs/structural_ensures_unjudged_rejected).
+use omega::language::core::nat;
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine Main::main(&mut self) { self.console.exit_process(70); }
+machine nat_refl(a: Nat)
+ensures
+    a == a
+{
+}
+machine zero_refl()
+ensures
+    Nat::Zero == Nat::Zero
+{
+}
+machine nat_symm(a: Nat, b: Nat)
+requires
+    a == b
+ensures
+    b == a
+{
+}
+machine nat_trans(a: Nat, b: Nat, c: Nat)
+requires
+    a == b && b == c
+ensures
+    a == c
+{
+}

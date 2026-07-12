@@ -500,10 +500,23 @@ no `unbounded` property exists. Rungs:
   engine stood down as out-of-language, a silent false certificate;
   fail/proofs/structural_ensures_unjudged_rejected). N3's tier replaces
   the fence with real judgment.
-- **N3 — fact-position operator routing:** glyphs route by operand type —
-  Nat/Int/Rat compute-mode, declared proof carriers rearrange-mode
-  (ring-generic polynomial normalization). Int introduction rule: order
-  has no floor, measures stay Nat-valued or range-floored.
+- **N3 — fact-position operator routing (RUNG 1 LANDED 2026-07-11):**
+  the STRUCTURAL mini-judge in contract_entailment.rs judges equality
+  conjuncts over proof-only data — requires-equality substitution
+  (symmetry/transitivity fall out), reflexivity, nullary-case
+  equality/disjointness; contradictory structural hypotheses accept
+  vacuously (mirrors the polynomial vacuity rule); mixed contracts keep
+  integer conjuncts on the polynomial engine. Pinned
+  pass/proofs/proof_nat_structural_lemmas +
+  fail/proofs/nat_structural_disproof_refuted; everything beyond the
+  term language still fences (structural_ensures_unjudged_rejected).
+  MEASURED GRAMMAR GAP: struct literals do not parse in fact position
+  (`requires Nat::Succ { prev: a } == ...` is a parse error), so payload
+  constructor terms + injectivity decomposition are the next rung.
+  REMAINING: proof-machine application unfolding (add/mul compute-mode),
+  result-arm binding for bodied lemmas, Int/Rat routing, rearrange-mode
+  for declared carriers. Int introduction rule: order has no floor,
+  measures stay Nat-valued or range-floored.
 - **N4 — roster library (Nat ops + Seq LANDED 2026-07-11):** core
   nat.omg carries add/mul as proof machines (mul composes add by an
   ordinary cross-machine call; only self-calls need the measure), and

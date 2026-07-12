@@ -114,22 +114,68 @@ pub(crate) fn validate_machine_contract_entailment(
     // compiled clean before this fence.
     let proof_only = omega_typed_trees::proof_only::classify(program);
     let mut fenced_structural = false;
-    for fact in &ensures {
-        if let Some(held) =
-            fact_mentions_proof_only_data(program, &proof_only, machine, *fact)
-        {
-            diagnostics.push(Diagnostic::error(format!(
-                "machine `{}` ensures contract proof fact `{}` speaks about proof-only \
-                 `{held}`, which no entailment tier judges yet -- accepting it would \
-                 certify an unproven structural claim. Spell the fact over integer \
-                 measures, or wait for the structural extraction tier (math roster N3)",
-                machine.name,
-                program.expression_table.display_name(*fact),
-            )));
-            fenced_structural = true;
-        }
+    let mut any_structural = false;
+    // N3 rung 1: a tiny STRUCTURAL judge for the conjuncts the fence would
+    // otherwise refuse -- variable substitution from requires equalities
+    // (symmetry/transitivity fall out) plus nullary-constructor comparison
+    // (reflexivity proves, distinct cases refute). Contradictory structural
+    // hypotheses accept everything (absurd), mirroring the polynomial
+    // engine's vacuity rule. Payload-carrying constructor TERMS in facts are
+    // grammar-gated today (struct literals do not parse in contract
+    // position), so injectivity decomposition is the recorded next rung.
+    let structural = StructuralJudge::from_requires(program, &requires);
+    let ensures: Vec<ExpressionHandle> = ensures
+        .into_iter()
+        .filter(|fact| {
+            let Some(held) = fact_mentions_proof_only_data(program, &proof_only, machine, *fact)
+            else {
+                // Not structural: stays with the polynomial engine below.
+                return true;
+            };
+            any_structural = true;
+            if structural.hypotheses_contradictory {
+                return false;
+            }
+            match structural.judge(program, *fact) {
+                StructuralJudgment::Proven => {}
+                StructuralJudgment::Refuted => {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "machine `{}` ensures contract proof fact `{}` is disproved \
+                         structurally: under the requires hypotheses the sides resolve \
+                         to constructor forms that contradict the claim",
+                        machine.name,
+                        program.expression_table.display_name(*fact),
+                    )));
+                    fenced_structural = true;
+                }
+                StructuralJudgment::Unknown => {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "machine `{}` ensures contract proof fact `{}` speaks about proof-only \
+                         `{held}`, which no entailment tier judges yet -- accepting it would \
+                         certify an unproven structural claim. Spell the fact over integer \
+                         measures, or wait for the structural extraction tier (math roster N3)",
+                        machine.name,
+                        program.expression_table.display_name(*fact),
+                    )));
+                    fenced_structural = true;
+                }
+            }
+            // Structural conjuncts never reach the polynomial engine: judged
+            // here (proven/refuted/fenced), they have no integer reading.
+            false
+        })
+        .collect();
+    // Structural REQUIRES are hypotheses the polynomial engine cannot read:
+    // mark the contract not-fully-visible so it stands down instead of
+    // rejecting integer goals it cannot prove without them.
+    if any_structural
+        || requires
+            .iter()
+            .any(|fact| fact_mentions_proof_only_data(program, &proof_only, machine, *fact).is_some())
+    {
+        all_facts_are_expressions = false;
     }
-    if fenced_structural {
+    if fenced_structural || ensures.is_empty() {
         return;
     }
 
@@ -1709,5 +1755,202 @@ fn fact_mentions_proof_only_data(
         | ExpressionNode::Float(_)
         | ExpressionNode::Integer(_)
         | ExpressionNode::String(_) => None,
+    }
+}
+
+/// N3 rung 1: the structural mini-judge for contract conjuncts over
+/// proof-only data. Term language (bounded by today's contract grammar --
+/// struct literals do not parse in fact position, so payload-carrying
+/// constructor terms and their injectivity decomposition are the recorded
+/// next rung): variables (single-segment names), nullary case classifiers
+/// (`Nat::Zero`), and opaque applications compared only by display name.
+/// `requires` equalities with a variable side become directed substitutions
+/// (first binding wins; symmetry and transitivity fall out of resolution);
+/// two distinct nullary cases equated make the hypotheses CONTRADICTORY and
+/// every goal holds vacuously, mirroring the polynomial engine's rule.
+enum StructuralJudgment {
+    Proven,
+    Refuted,
+    Unknown,
+}
+
+#[derive(Clone, PartialEq, Eq, Debug)]
+enum StructuralTerm {
+    Variable(String),
+    /// data name, case name -- a nullary classifier reference.
+    Case(String, String),
+    /// Anything else, compared by canonical display name only.
+    Opaque(String),
+}
+
+struct StructuralJudge {
+    substitutions: Vec<(String, StructuralTerm)>,
+    hypotheses_contradictory: bool,
+}
+
+impl StructuralJudge {
+    fn from_requires(program: &TypedTrees, requires: &[ExpressionHandle]) -> Self {
+        let mut judge = Self {
+            substitutions: Vec::new(),
+            hypotheses_contradictory: false,
+        };
+        for fact in requires {
+            judge.intake(program, *fact);
+        }
+        judge
+    }
+
+    fn intake(&mut self, program: &TypedTrees, fact: ExpressionHandle) {
+        let ExpressionNode::Binary(binary) = program.expression_table.expression(fact) else {
+            return;
+        };
+        match binary.operator {
+            BinaryOperator::And => {
+                self.intake(program, binary.left);
+                self.intake(program, binary.right);
+            }
+            BinaryOperator::Equal => {
+                let (Some(left), Some(right)) = (
+                    structural_term(program, binary.left),
+                    structural_term(program, binary.right),
+                ) else {
+                    return;
+                };
+                let left = self.resolve(left);
+                let right = self.resolve(right);
+                match (&left, &right) {
+                    (StructuralTerm::Case(data_l, case_l), StructuralTerm::Case(data_r, case_r))
+                        if data_l == data_r && case_l != case_r =>
+                    {
+                        self.hypotheses_contradictory = true;
+                    }
+                    (StructuralTerm::Variable(name), _) => {
+                        if left != right {
+                            self.substitutions.push((name.clone(), right));
+                        }
+                    }
+                    (_, StructuralTerm::Variable(name)) => {
+                        self.substitutions.push((name.clone(), left));
+                    }
+                    _ => {}
+                }
+            }
+            _ => {}
+        }
+    }
+
+    /// Follow variable substitutions to a fixpoint, depth-capped (a cyclic
+    /// substitution chain resolves to wherever the cap lands, which only
+    /// weakens judgments toward Unknown -- never unsound).
+    fn resolve(&self, mut term: StructuralTerm) -> StructuralTerm {
+        for _ in 0..32 {
+            let StructuralTerm::Variable(name) = &term else {
+                return term;
+            };
+            let Some((_, replacement)) = self
+                .substitutions
+                .iter()
+                .find(|(variable, _)| variable == name)
+            else {
+                return term;
+            };
+            term = replacement.clone();
+        }
+        term
+    }
+
+    fn judge(&self, program: &TypedTrees, fact: ExpressionHandle) -> StructuralJudgment {
+        let ExpressionNode::Binary(binary) = program.expression_table.expression(fact) else {
+            return StructuralJudgment::Unknown;
+        };
+        match binary.operator {
+            BinaryOperator::And => {
+                match (
+                    self.judge(program, binary.left),
+                    self.judge(program, binary.right),
+                ) {
+                    (StructuralJudgment::Proven, StructuralJudgment::Proven) => {
+                        StructuralJudgment::Proven
+                    }
+                    (StructuralJudgment::Refuted, _) | (_, StructuralJudgment::Refuted) => {
+                        StructuralJudgment::Refuted
+                    }
+                    _ => StructuralJudgment::Unknown,
+                }
+            }
+            BinaryOperator::Equal | BinaryOperator::NotEqual => {
+                let (Some(left), Some(right)) = (
+                    structural_term(program, binary.left),
+                    structural_term(program, binary.right),
+                ) else {
+                    return StructuralJudgment::Unknown;
+                };
+                let left = self.resolve(left);
+                let right = self.resolve(right);
+                let equality = if left == right {
+                    StructuralJudgment::Proven
+                } else if let (
+                    StructuralTerm::Case(data_l, case_l),
+                    StructuralTerm::Case(data_r, case_r),
+                ) = (&left, &right)
+                {
+                    if data_l == data_r && case_l != case_r {
+                        StructuralJudgment::Refuted
+                    } else {
+                        StructuralJudgment::Unknown
+                    }
+                } else {
+                    StructuralJudgment::Unknown
+                };
+                if binary.operator == BinaryOperator::Equal {
+                    equality
+                } else {
+                    match equality {
+                        StructuralJudgment::Proven => StructuralJudgment::Refuted,
+                        StructuralJudgment::Refuted => StructuralJudgment::Proven,
+                        StructuralJudgment::Unknown => StructuralJudgment::Unknown,
+                    }
+                }
+            }
+            _ => StructuralJudgment::Unknown,
+        }
+    }
+}
+
+/// Read an expression as a structural term. Single-segment names are
+/// variables; a two-segment path whose head names a data definition is a
+/// nullary case classifier; everything else is opaque by display name
+/// (identical applications still prove reflexively through term equality).
+fn structural_term(program: &TypedTrees, expression: ExpressionHandle) -> Option<StructuralTerm> {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Name(path) => {
+            let members = program.expression_table.name_path_members(path.members);
+            match members {
+                [single] => Some(StructuralTerm::Variable(single.as_str().to_owned())),
+                [first, second] => {
+                    if program
+                        .data_definitions()
+                        .iter()
+                        .any(|definition| definition.name.as_str() == first.as_str())
+                    {
+                        Some(StructuralTerm::Case(
+                            first.as_str().to_owned(),
+                            second.as_str().to_owned(),
+                        ))
+                    } else {
+                        Some(StructuralTerm::Opaque(
+                            program.expression_table.display_name(expression),
+                        ))
+                    }
+                }
+                _ => Some(StructuralTerm::Opaque(
+                    program.expression_table.display_name(expression),
+                )),
+            }
+        }
+        ExpressionNode::Call(_) | ExpressionNode::Member(_) => Some(StructuralTerm::Opaque(
+            program.expression_table.display_name(expression),
+        )),
+        _ => None,
     }
 }
