@@ -45,18 +45,20 @@ pub fn validate_effect_plan(
         }
     }
 
-    if diagnostics.is_empty() {
-        Ok(())
-    } else {
-        Err(diagnostics)
-    }
+    crate::finish_diagnostics(diagnostics)
 }
 
-/// FROZEN DECISION 12 -- DISCARD ADMITS EFFECTS: `_ = call();` exists to drop a
+/// DECISION 12 -- DISCARD ADMITS EFFECTS: `_ = call();` exists to drop a
 /// result the caller does not need while keeping the callee's observable work.
 /// When the resolved callee provably has no observable channel at all -- an
-/// empty effect set AND no `&mut`/out parameters -- the whole statement is dead
-/// code and rejects. The effect surface is read from the inferred plan's
+/// empty effect set AND no `&mut`/out parameters -- the statement is dead
+/// runtime code. AMENDED (owner, 2026-07-12) from reject to WARN, for
+/// uniform compilation: the statement always compiles, and the deadness
+/// surfaces as a warning ONLY outside proof use. Proof use is silent by
+/// design -- a statement call whose callee is a PROOF MACHINE is a CITATION
+/// (ch10 "Citing Proofs": invoked for its ensures, erased at codegen), and
+/// inside a proof machine's own body every discard is compile-time
+/// material. The effect surface is read from the inferred plan's
 /// TRANSITIVE machine set, not the declared signature surface: a machine that
 /// declares nothing but transitively calls `console.write` is effectful, and
 /// the declared-vs-reached ceiling above only fires when something IS declared,
@@ -66,13 +68,26 @@ fn validate_pure_discards(
     effect_plan: &omega_effects::EffectPlan,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    let classification = omega_typed_trees::proof_only::classify(program);
     for machine in program.machines() {
+        // Inside a proof machine, discards are proof context -- silent.
+        if classification.is_proof_machine(program, machine) {
+            continue;
+        }
         for state in program.machine_states(machine) {
             for statement in program.statement_table.statements(state.statement_nodes) {
                 let StatementNode::Call(call) = statement else {
                     continue;
                 };
                 if !call.discards_result {
+                    continue;
+                }
+
+                // A proof-machine callee makes the statement a CITATION,
+                // not dead code.
+                if machine_owning_state(program, call.target_symbol)
+                    .is_some_and(|callee| classification.is_proof_machine(program, callee))
+                {
                     continue;
                 }
 
@@ -84,7 +99,7 @@ fn validate_pure_discards(
                 };
 
                 if callee.effects.is_empty() && !callee.has_mutable_parameter {
-                    diagnostics.push(Diagnostic::error(format!(
+                    diagnostics.push(Diagnostic::warning(format!(
                         "`_ = {target}(...);` discards a provably pure call: `{target}` has no effects and no mutable out-parameters, so the discard is dead code; remove the statement or use the result",
                         target = call.target.as_str()
                     )));
@@ -97,6 +112,24 @@ fn validate_pure_discards(
 struct DiscardCallee {
     effects: omega_effects::EffectSet,
     has_mutable_parameter: bool,
+}
+
+/// The machine whose states include the called state -- the discard rules
+/// reason about the CALLEE MACHINE (purity surface, proof classification),
+/// while the call site records only the state symbol.
+fn machine_owning_state(
+    program: &TypedTrees,
+    target_symbol: SymbolHandle,
+) -> Option<&omega_typed_trees::machine::Machine> {
+    if !target_symbol.is_valid() {
+        return None;
+    }
+    program.machines().iter().find(|machine| {
+        program
+            .machine_states(machine)
+            .iter()
+            .any(|state| state.symbol == target_symbol)
+    })
 }
 
 fn resolve_discard_callee(

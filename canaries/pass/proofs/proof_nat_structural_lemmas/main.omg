@@ -73,3 +73,15 @@ ensures
 {
     transition { _ -> (add_zero_right(a)) }
 }
+// STATEMENT-CALL CITATION (ch10 "Citing Proofs"; the OWNER_QUESTIONS #14
+// answer): the bare statement call delivers add_zero_right's proven LAW
+// conjunct `add(a, Zero) == a` instantiated at `b` -- explicit fact
+// injection, erased at codegen. Without the citation this exact goal
+// FENCES (fail/proofs/uncited_structural_fact_rejected): nothing is
+// global, nothing applies silently.
+machine cite_zero(b: Nat)
+ensures
+    (add(b, Nat::Zero)) == b
+{
+    add_zero_right(b);
+}

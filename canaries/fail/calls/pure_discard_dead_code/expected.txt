@@ -1,1 +1,0 @@
-discards a provably pure call: `pure_flag` has no effects and no mutable out-parameters, so the discard is dead code

@@ -238,11 +238,23 @@ pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
         }
     }
 
-    if diagnostics.is_empty() {
-        Ok(())
-    } else {
-        Err(diagnostics)
+    finish_diagnostics(diagnostics)
+}
+
+/// Errors fail the build; a WARNING-only batch surfaces on stderr and
+/// passes (the Decision-12 relaxation: uniform compilation, deadness
+/// outside proofs warns). stderr is the v1 warning channel -- report
+/// integration is recorded in TASKS.md.
+pub(crate) fn finish_diagnostics(
+    diagnostics: Vec<Diagnostic>,
+) -> Result<(), Vec<Diagnostic>> {
+    if diagnostics.iter().any(Diagnostic::is_error) {
+        return Err(diagnostics);
     }
+    for warning in &diagnostics {
+        eprintln!("{warning}");
+    }
+    Ok(())
 }
 
 #[allow(clippy::too_many_arguments)]
