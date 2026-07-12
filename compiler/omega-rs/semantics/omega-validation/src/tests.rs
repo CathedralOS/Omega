@@ -1644,6 +1644,23 @@ mod structural_entailment {
     }
 
     #[test]
+    fn seq_length_cons_proves() {
+        // Generic recursive Seq<T>: the judge is parametric over constructor
+        // names, so length(Cons(x, s)) == Succ(length(s)) proves by one
+        // unfold, the tail's length staying symbolic on both sides.
+        validate(
+            "data Seq { case Empty; case Cons(head: Nat, tail: Seq); } \
+             machine length(s: Seq) -> Nat terminates { decreases s; } { \
+             transition s { Seq::Empty -> Nat::Zero \
+             Seq::Cons { head, tail } -> Nat::Succ { prev: length(tail) } } } \
+             machine length_cons(x: Nat, s: Seq) \
+             ensures (length(Seq::Cons { head: x, tail: s })) \
+             == (Nat::Succ { prev: length(s) }); {}",
+        )
+        .expect("length_cons should prove by unfolding");
+    }
+
+    #[test]
     fn lemma_citation_proves() {
         // right_id proves `result == a`; a caller cites it (its inductive
         // body never finitely unfolds for a symbolic argument).

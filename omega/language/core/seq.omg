@@ -34,3 +34,12 @@ ensures
     (length(Seq::Empty)) == Nat::Zero
 {
 }
+
+// length's recursive step: length(Cons(x, s)) == Succ(length(s)) -- one
+// unfold of the Cons arm, the tail's length staying symbolic on both sides.
+// Lean analog: `List.length_cons`.
+machine length_cons(x: u64, s: Seq<u64>)
+ensures
+    (length(Seq::Cons { head: x, tail: s })) == (Nat::Succ { prev: length(s) })
+{
+}
