@@ -606,9 +606,32 @@ no `unbounded` property exists. Rungs:
   step case must cite add_succ_law AT THE CASE PAYLOAD (`prev`), which
   machine-level statements cannot see; needs the sub-state proof shape
   (each case arm transitions to its own state carrying its citations +
-  terminal value — the guarded/multi-arm result-binding family). THEN
+  terminal value — the guarded/multi-arm result-binding family).
+  RECON (2026-07-12): three pieces. (a) DESCENT through sub-state
+  params: today's arm-payload arguments pass strict_subterm_of_measure
+  because payload bindings lower to case-tagged MEMBER reads off the
+  subject (`prev` IS `a.prev` in typed trees); a self-call inside a
+  sub-state references the sub-state's own param (bare Name) and
+  fails. Fix = transition-argument provenance: sub-state param i
+  counts as descending iff EVERY Named transition into that state
+  passes a strict-subterm Member read at position i. (b) JUDGE shape:
+  entry = case dispatch with Named targets; per arm, follow the target
+  to its sub-state; arm environment maps the sub-state's params to the
+  transition's argument terms under the case hypothesis (fresh payload
+  vars); sub-state citations instantiate under THAT environment (the
+  machine-level intake sees Variable("prev") as a free name — wrong
+  binding); result binds to the sub-state's Always value terminal.
+  (c) IH unchanged: self-applications in the sub-state terminal, licensed
+  by (a). Spelling target:
+  `transition a { Zero -> base(b) Succ { prev } -> step(prev, b) }`,
+  `state base(b) { add_zero_right(b); transition { _ -> (b) } }`,
+  `state step(prev, b) { add_succ_law(b, prev); transition { _ ->
+  Nat::Succ { prev: add_comm(prev, b) } } }`. THEN
   add_comm proves in core (base cites a law-shaped add_zero_right
-  conjunct `(add(a, Nat::Zero)) == a`; step cites add_succ_law + IH).
+  conjunct `(add(a, Nat::Zero)) == a`; step cites add_succ_law + IH) —
+  note NO law layer/import stratification needed under the citation
+  design: citations are calls, so add_comm may live in nat.omg citing
+  its neighbors; the call-graph rule owns the acyclicity.
   (3) the SHAPE-MATCH FAILURE DIAGNOSTIC ("note: add_succ_law proves
   this shape — cite it"): suggestion at failure, never silent
   application. (4) rearrange-mode = ENGINE-INTERNAL ring
