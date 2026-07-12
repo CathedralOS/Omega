@@ -105,6 +105,21 @@ TASKS.md — the lanes sync from all of them.
     (x86 grows a clamp sequence), trap as a failed obligation, or rule the
     out-of-range cast ill-formed without an explicit domain. Unblocks
     retiring the parked cast divergence from the drift ledger.
+    > **ANSWERED (owner, 2026-07-18): proof-or-policy — the decision-17
+    > rule applied to the one op it missed.** Under Exact (default), a
+    > cast that could exceed the target range is an UNPROVEN OBLIGATION:
+    > discharge it by proving the range (dominating guard or declared
+    > range on the source — NaN excluded by proof, the `x == x` guard)
+    > and bare `as` compiles with no runtime cost; or pick a policy:
+    > `as i32 in Saturating` = clamp to MIN/MAX on every target (x86
+    > grows the clamp; NaN -> 0, the ZII answer, Rust-concordant);
+    > `in Trapping` = out-of-range/NaN traps (the #DE precedent);
+    > `in Wrapping` on a float source = COMPILE ERROR (no modular
+    > reading of a float; the Q9 lying-declaration precedent). This
+    > makes casts uniform with landed arithmetic overflow (decision-17)
+    > and landed integer narrowing (the narrowing-store keystone): the
+    > compiler never invents a number you didn't ask for. Build it,
+    > retire the drift-ledger entry.
 
 ## Host bindings (fs lane, flagged during provides work)
 
@@ -219,6 +234,11 @@ TASKS.md — the lanes sync from all of them.
     console as a boundary trait with effect rows (now including the byte
     ops + ByteRead). If the guide stands as the spec, the answer is (ii)
     and the remaining work is the std migration; say the word.]
+    > Owner (2026-07-18, CLOSES it): "Yeah you have it right, opt ii" —
+    > the guide is the spec. Platform blocks CONVERGE onto boundary
+    > traits + std provides rows; the samples' `console: Console` field
+    > spelling stays; the remaining work is the std migration
+    > (ungated engineering, the console arc's last rung).
 
 ## Proof engine — lemma-citation soundness discipline (main lane, 2026-07-11)
 

@@ -684,15 +684,21 @@ no `unbounded` property exists. Rungs:
   LLM-parallel, zero backend contact. Universe ladder PARKED (trigger:
   full-mathlib replay as a language goal).
 
-## Owner-gated holds (see OWNER_QUESTIONS.md)
+## Recently answered holds (rulings 2026-07-18; now ungated engineering)
 
-- **Q13 console convergence** — `platform` blocks vs boundary traits (the
-  console byte-op arc's last rung; the purity checker calls read_byte pure
-  because platform entries carry no effect rows -- refusal-guarded today).
-  Guide ch18 already PRESCRIBES the boundary-trait shape; on a ruling the
-  work is the std migration.
-- **FLOAT-TO-INT half still open (no ruling)** — OWNER_QUESTIONS.md item 10.
-  Parked cast divergence stays in the drift ledger until answered.
+- **Q13 console convergence — ANSWERED: (ii), the guide is the spec.**
+  Platform blocks converge onto `boundary trait Console` + std provides
+  rows (ch19 shape; `console: Console` field spelling stays). Work: the
+  std migration — retire the platform block, effect rows land, the
+  purity checker gets truth (read_byte consumes stdin), the granted-build
+  BuildLog hand-spelling dissolves. OWNER_QUESTIONS item 13.
+- **Float-to-int cast overflow — ANSWERED: proof-or-policy.** Exact =
+  unproven obligation (prove via guard/declared range, NaN excluded by
+  `x == x`); `in Saturating` = clamp all targets (NaN -> 0; x86 grows the
+  clamp); `in Trapping` = trap; `in Wrapping` on float source = compile
+  error. Uniform with decision-17 arithmetic + the narrowing-store
+  keystone. Build, then retire the drift-ledger entry.
+  OWNER_QUESTIONS item 10.
 
 ## Open bugs / gaps (ungated)
 
