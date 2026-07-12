@@ -67,3 +67,20 @@ ensures
     (add(Nat::Succ { prev: Nat::Zero }, Nat::Succ { prev: Nat::Zero })) == (Nat::Succ { prev: Nat::Succ { prev: Nat::Zero } })
 {
 }
+// STRUCTURAL INDUCTION: right identity by induction on `a` -- each case
+// arm judges with the subject substituted by a fresh-variable
+// constructor, and the self-application assumes the machine's own
+// ensures (the inductive hypothesis; descent already enforced by the
+// proof-machine recursion check).
+machine add_zero_right(a: Nat) -> Nat
+terminates {
+    decreases a;
+}
+ensures
+    result == a
+{
+    transition a {
+        Nat::Zero -> Nat::Zero
+        Nat::Succ { prev } -> Nat::Succ { prev: add_zero_right(prev) }
+    }
+}
