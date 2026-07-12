@@ -63,3 +63,13 @@ ensures
     (add(Nat::Succ { prev: Nat::Zero }, Nat::Succ { prev: Nat::Zero })) == (Nat::Succ { prev: Nat::Succ { prev: Nat::Zero } })
 {
 }
+// FACT CONSUMPTION: cite core add_zero_right's PROVEN `result == a`
+// ensures. Its inductive body never finitely unfolds for a symbolic `a`,
+// so the caller discharges this only by consuming the callee's ensures
+// (extraction into consumer proofs).
+machine cite_right(a: Nat) -> Nat
+ensures
+    result == a
+{
+    transition { _ -> (add_zero_right(a)) }
+}

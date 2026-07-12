@@ -30033,6 +30033,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "proofs/nat_payload_disjointness_refuted",
     "proofs/nat_ground_compute_refuted",
     "proofs/nat_inductive_claim_refuted",
+    "proofs/nat_lemma_citation_false_rejected",
     "boundary/entry_typed_params_unmarked",
     "boundary/boundary_entry_too_many_params",
     "wire/decode_into_ranged_field",

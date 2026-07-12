@@ -2325,6 +2325,34 @@ impl<'program> StructuralJudge<'program> {
             .map(|(parameter, argument)| (parameter.name.as_str().to_owned(), argument.clone()))
             .collect();
 
+        // CITE the callee's proven ensures first (extraction into consumer
+        // proofs): a lemma with a functional `ensures result == <term>`
+        // abstracts its body, so instantiating that ensures under the call
+        // environment yields the result directly -- and it is the ONLY route
+        // for an INDUCTIVE lemma whose body never finitely unfolds for a
+        // symbolic argument (`add_zero_right(a) == a`). Sound because the
+        // callee's ensures is proven in the same validation batch (a false
+        // one raises its own error, so no compiling program cites an
+        // unproven fact). Prefer it over body unfolding.
+        for contract in program.machine_contracts(machine) {
+            if !matches!(
+                contract.kind,
+                omega_typed_trees::signature::SignatureContractKind::Ensures
+            ) {
+                continue;
+            }
+            for fact in program.proof_facts.span_or_empty(contract.facts) {
+                let ProofFact::Expression(expression) = fact else {
+                    continue;
+                };
+                if let Some(term) =
+                    self.functional_ensures_result(*expression, &environment, depth + 1)
+                {
+                    return Some(term);
+                }
+            }
+        }
+
         for statement in program.statement_table.statements(state.statement_nodes) {
             let StatementNode::Transition(transition) = statement else {
                 return None;
@@ -2383,6 +2411,43 @@ impl<'program> StructuralJudge<'program> {
             return self.callee_term(*value, &environment, depth + 1);
         }
         None
+    }
+
+    /// If `ensures_fact` is exactly `result == <term>` (either orientation),
+    /// convert `<term>` under the call environment -- the functional-result
+    /// abstraction of a lemma. `None` for any other ensures shape.
+    fn functional_ensures_result(
+        &self,
+        ensures_fact: ExpressionHandle,
+        environment: &[(String, StructuralTerm)],
+        depth: usize,
+    ) -> Option<StructuralTerm> {
+        let program = self.program;
+        let ExpressionNode::Binary(binary) = program.expression_table.expression(ensures_fact)
+        else {
+            return None;
+        };
+        if binary.operator != BinaryOperator::Equal {
+            return None;
+        }
+        let is_result = |handle: ExpressionHandle| {
+            matches!(
+                program.expression_table.expression(handle),
+                ExpressionNode::Name(path)
+                    if matches!(
+                        program.expression_table.name_path_members(path.members),
+                        [only] if only.as_str() == RESULT_BINDER
+                    )
+            )
+        };
+        let value = if is_result(binary.left) {
+            binary.right
+        } else if is_result(binary.right) {
+            binary.left
+        } else {
+            return None;
+        };
+        self.callee_term(value, environment, depth)
     }
 
     /// Convert a callee-body expression to a term under the call

@@ -542,7 +542,14 @@ no `unbounded` property exists. Rungs:
   day: hypothesis equations with an application side intake as REDUCING
   rewrites (App -> rhs, occurs-checked), applied in resolution before
   unfolding — the IH now rewrites the self-application away instead of
-  expanding variables. THEN: guarded/multi-arm result binding, Int/Rat
+  expanding variables. FACT CONSUMPTION LANDED same day:
+  a caller CITES a callee's proven functional ensures (`result == term`)
+  instead of unfolding its body — the only route for an INDUCTIVE lemma
+  whose body never finitely reduces for a symbolic argument
+  (`cite_right` discharges `result == a` by consuming add_zero_right's
+  ensures; a false-conclusion consumer still fences,
+  nat_lemma_citation_false_rejected). Sound by the same batch-validation
+  argument as the IH. THEN: guarded/multi-arm result binding, Int/Rat
   routing, rearrange-mode, the N2(d) arithmetic bridge (n > 0 => n ==
   Succ(n - 1)). Int introduction rule: order has no floor,
   measures stay Nat-valued or range-floored.
