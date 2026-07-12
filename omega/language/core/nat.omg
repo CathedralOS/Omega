@@ -83,11 +83,31 @@ ensures
 }
 
 // mul's left annihilator: mul(Zero, b) == Zero (compute-mode, unfolds the
-// Zero arm). The right annihilator and commutativity need proven lemmas
-// to act as ambient REWRITE rules (rearrange-mode) -- a later N3 rung.
+// Zero arm).
 machine mul_zero_left(b: Nat) -> Nat
 ensures
     result == Nat::Zero
 {
     transition { _ -> (mul(Nat::Zero, b)) }
+}
+
+// The successor-shift LAW: add(a, Succ(b)) == Succ(add(a, b)), by
+// induction on `a` -- an ensures that is an EQUATION BETWEEN
+// APPLICATIONS (not `result == term`), each arm discharged by unfolding
+// add plus this machine's own ensures as the inductive hypothesis. This
+// and add_zero_right are the rewrite material COMMUTATIVITY needs; the
+// missing rung is a global PATTERN-MATCHING rewrite theory (each proven
+// `lhs == rhs` law rewriting matching applications everywhere), not the
+// laws themselves.
+machine add_succ_law(a: Nat, b: Nat) -> Nat
+terminates {
+    decreases a;
+}
+ensures
+    (add(a, Nat::Succ { prev: b })) == (Nat::Succ { prev: add(a, b) })
+{
+    transition a {
+        Nat::Zero -> Nat::Zero
+        Nat::Succ { prev } -> Nat::Succ { prev: add_succ_law(prev, b) }
+    }
 }

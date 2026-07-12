@@ -550,13 +550,17 @@ no `unbounded` property exists. Rungs:
   ensures; a false-conclusion consumer still fences,
   nat_lemma_citation_false_rejected). Sound by the same batch-validation
   argument as the IH. core nat.omg also carries
-  mul_zero_left (the left annihilator). NEXT BIG LEVER (measured
-  2026-07-11): COMMUTATIVITY (`add(a,b) == add(b,a)`) and the mul right
-  annihilator need PROVEN LEMMAS TO ACT AS AMBIENT REWRITE RULES
-  (rearrange-mode) — an empty-body lemma has no arms to induct on, and
-  `add(b, Zero)` cannot cite add_zero_right (a different machine); the
-  fix is a global rewrite theory where each proven `f(..) == rhs` lemma
-  rewrites matching applications everywhere. THEN: that rewrite theory,
+  mul_zero_left (left annihilator) and add_succ_law (the successor-shift
+  LAW `add(a, Succ b) == Succ(add(a, b))` — an ensures that is an
+  EQUATION BETWEEN APPLICATIONS, proven by induction; the discovery that
+  application-equation laws prove with the EXISTING per-arm IH machinery,
+  no new engine). NEXT BIG LEVER, now SHARPENED: COMMUTATIVITY needs a
+  global PATTERN-MATCHING rewrite theory — each proven `lhs == rhs` law
+  (add_zero_right, add_succ_law) registered as a rule whose LHS's lemma
+  PARAMETERS are pattern variables, matched first-order against ground
+  applications during resolution (`add(b, Zero)` matches
+  add_zero_right's `add(?a, Zero)` with ?a:=b -> b). The laws exist; the
+  matching + termination + program-wide collection is the rung. THEN:
   guarded/multi-arm result binding, Int/Rat routing, the N2(d)
   arithmetic bridge (n > 0 => n == Succ(n - 1)). Int introduction rule: order has no floor,
   measures stay Nat-valued or range-floored.
