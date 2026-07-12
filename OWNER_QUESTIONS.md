@@ -13,6 +13,11 @@ TASKS.md — the lanes sync from all of them.
    data. Every build.omg will spell this. (Interpreter side is landed and
    parameter-driven; only the spelling is open.)
    > Owner: This is specifically about getting a data ref on which we can call methods? It needs some form of dependency injection then (similar concept to SAS-components in Cathedral -- the main function literally is given the filesystem instance, although build.omg still needs to include std::filesystem to use it).
+   > Owner (2026-07-18, CLOSES the spelling): confirmed — the
+   > second-parameter DI shape: `machine build(b: &mut Build,
+   > fs: &mut Filesystem)`. The instance is handed to the entry, not a
+   > Build field, not machine-owned data; build.omg imports
+   > std::filesystem to name the type.
 3. **Grant derivation defaults.** Read root = the package dir (main.omg's
    directory)? Write root = which output dir? May build.omg request EXTRA
    roots (assets outside the tree), and does that require CLI
