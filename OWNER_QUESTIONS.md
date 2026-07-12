@@ -335,3 +335,47 @@ TASKS.md — the lanes sync from all of them.
     > normalization over declared carriers is ENGINE-INTERNAL
     > canonicalization (the L4 sum-of-monomials machinery generalized),
     > not user-registered rewriting.
+
+## Proof engine — rearrange-mode carriers (main lane, 2026-07-12)
+
+15. **How does a carrier EARN ring canonicalization (N3 rung 4)?** The
+    promised one-pager, now that the law set exists. STATUS QUO: core
+    nat.omg carries the commutative-semiring surface PROVEN — add_zero_
+    left/right, add_succ_law, add_comm, add_assoc, mul_zero_left/right,
+    mul_succ_right, mul_comm — each an induction, machine-checked on
+    every compile, delivered to consumer proofs by explicit citation.
+    What citations cost at the margin: mul_succ_right's step case needs
+    THREE choreographed rearrangement citations (comm/assoc/comm); a
+    distributivity proof needs ~6-8 (its four-summand step case is pure
+    AC-shuffling), which is why distrib is DEFERRED — it is exactly the
+    shape rearrange-mode dissolves. WHAT REARRANGE-MODE IS: your settled
+    answer — engine-internal normalization; the N2 polynomial engine
+    already proves integer AC-rearrangements by normalizing both sides
+    to canonical sum-of-monomials; rung 4 lets it treat `add`/`mul`
+    applications over a proof carrier as +/×, so any two AC-equal Nat
+    terms judge equal citation-free. SOUNDNESS PRECONDITION: the engine
+    may canonicalize only where comm/assoc/distrib/identities actually
+    HOLD for the carrier's operations. THE QUESTION — how it learns
+    that:
+    (a) AUTO-ENABLE when the standard law lemmas are proven in scope.
+        Zero syntax; but proving one more lemma silently upgrades every
+        proof in the program (ambient behavior — the flavor you rejected
+        for rewrite imports), and the required lemma set becomes an
+        invisible engine-internal contract.
+    (b) EXPLICIT PER-CARRIER DECLARATION citing the proven lemmas —
+        one line, e.g. a domain/operator row naming (add: comm, assoc,
+        zero_left/right; mul: comm, assoc-or-succ-laws, distrib,
+        one/zero). Compile error if any cited lemma is missing or
+        unproven; the declaration IS the license, visible in text,
+        greppable — your verbosity-is-cheap / no-invisible-context
+        stance. Exact spelling yours to pick.
+    (c) NOTHING (citations only, status quo): workable — the whole
+        semiring surface minus distrib proved this way — but scales
+        poorly for AC-heavy steps, and distrib stays deferred.
+    RECOMMENDATION: (b). Note the declaration wants distributivity in
+    its lemma set, and distrib is deferred BECAUSE it wants rearrange-
+    mode — the clean sequencing is: rule on (b), engine implements
+    canonicalization for add-only first (needs only the PROVEN add
+    laws), distrib then proves with add-side rearrangement dissolved,
+    unlocking the full mul canonicalization. No urgency: nothing else
+    on the roster blocks on this.
