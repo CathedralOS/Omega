@@ -94,3 +94,19 @@ ensures
 {
     add_comm(x, y);
 }
+// The commutative-semiring surface, consumed: core carries add_assoc and
+// mul_comm PROVEN (mul_comm's ladder: mul_zero_right -> mul_succ_right's
+// three-citation choreography -> mul_comm); citing them here pins every
+// importer's access to the full law set.
+machine cite_assoc(x: Nat, y: Nat, z: Nat)
+ensures
+    (add(add(x, y), z)) == (add(x, add(y, z)))
+{
+    add_assoc(x, y, z);
+}
+machine cite_mul_comm(x: Nat, y: Nat)
+ensures
+    (mul(x, y)) == (mul(y, x))
+{
+    mul_comm(x, y);
+}

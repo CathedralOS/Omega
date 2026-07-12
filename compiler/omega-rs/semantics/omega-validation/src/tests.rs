@@ -1847,6 +1847,122 @@ mod structural_entailment {
         );
     }
 
+    /// Multiplication (the harness prelude only carries `add`).
+    const MUL: &str = "machine mul(a: Nat, b: Nat) -> Nat \
+         terminates { decreases a; } { \
+         transition a { Nat::Zero -> Nat::Zero \
+         Nat::Succ { prev } -> (add(b, mul(prev, b))) } }";
+
+    /// Associativity: pure induction, no citations -- both sides normalize
+    /// by unfolding plus the IH rewrite.
+    const ADD_ASSOC: &str = "machine add_assoc(a: Nat, b: Nat, c: Nat) -> Nat \
+         terminates { decreases a; } \
+         ensures (add(add(a, b), c)) == (add(a, add(b, c))) { \
+         transition a { Nat::Zero -> Nat::Zero \
+         Nat::Succ { prev } -> Nat::Succ { prev: add_assoc(prev, b, c) } } }";
+
+    const MUL_ZERO_RIGHT: &str = "machine mul_zero_right(a: Nat) -> Nat \
+         terminates { decreases a; } \
+         ensures (mul(a, Nat::Zero)) == Nat::Zero { \
+         transition a { Nat::Zero -> Nat::Zero \
+         Nat::Succ { prev } -> Nat::Succ { prev: mul_zero_right(prev) } } }";
+
+    /// The right-successor law for mul. Its step case is the citation
+    /// CHOREOGRAPHY stress: three reducing rewrites (comm, assoc, comm)
+    /// normalize `add(b, add(prev, m))` onto the goal's other side --
+    /// explicit Dafny-style proof text, no search.
+    const MUL_SUCC_RIGHT: &str = "machine mul_succ_right(a: Nat, b: Nat) -> Nat \
+         terminates { decreases a; } \
+         ensures (mul(a, Nat::Succ { prev: b })) == (add(a, mul(a, b))) { \
+         transition a { Nat::Zero -> Nat::Zero \
+         Nat::Succ { prev } -> step_msr(prev, b) } \
+         state step_msr(prev: Nat, b: Nat) -> Nat { \
+         add_comm(b, add(prev, mul(prev, b))); \
+         add_assoc(prev, mul(prev, b), b); \
+         add_comm(mul(prev, b), b); \
+         transition { _ -> Nat::Succ { prev: mul_succ_right(prev, b) } } } }";
+
+    /// Multiplication commutes: base cites mul_zero_right, step cites
+    /// mul_succ_right at (b, prev) plus the IH.
+    const MUL_COMM: &str = "machine mul_comm(a: Nat, b: Nat) -> Nat \
+         terminates { decreases a; } \
+         ensures (mul(a, b)) == (mul(b, a)) { \
+         transition a { Nat::Zero -> base_mc(b) \
+         Nat::Succ { prev } -> step_mc(prev, b) } \
+         state base_mc(b: Nat) -> Nat { \
+         mul_zero_right(b); \
+         transition { _ -> Nat::Zero } } \
+         state step_mc(prev: Nat, b: Nat) -> Nat { \
+         mul_succ_right(b, prev); \
+         transition { _ -> Nat::Succ { prev: mul_comm(prev, b) } } } }";
+
+    fn lemma_zoo() -> String {
+        [
+            RIGHT_ID_LAW,
+            SUCC_LAW,
+            ADD_COMM,
+            MUL,
+            ADD_ASSOC,
+            MUL_ZERO_RIGHT,
+            MUL_SUCC_RIGHT,
+            MUL_COMM,
+        ]
+        .join(" ")
+    }
+
+    #[test]
+    fn add_assoc_proves_without_citations() {
+        validate(&(RIGHT_ID_LAW.to_owned() + " " + ADD_ASSOC))
+            .expect("associativity should prove by pure induction");
+    }
+
+    #[test]
+    fn mul_zero_right_proves() {
+        validate(&(MUL.to_owned() + " " + MUL_ZERO_RIGHT))
+            .expect("the right annihilator should prove by induction");
+    }
+
+    #[test]
+    fn mul_succ_right_proves_with_citation_choreography() {
+        validate(&lemma_zoo())
+            .expect("the right-successor law should prove via comm/assoc/comm citations");
+    }
+
+    #[test]
+    fn mul_comm_proves() {
+        validate(&lemma_zoo()).expect("mul_comm should prove citing the mul laws");
+    }
+
+    #[test]
+    fn mul_succ_right_without_choreography_fences() {
+        // Dropping the three rearrangement citations strands the step case:
+        // the IH alone cannot bridge the summand order.
+        let uncited = MUL_SUCC_RIGHT
+            .replace("add_comm(b, add(prev, mul(prev, b))); ", "")
+            .replace("add_assoc(prev, mul(prev, b), b); ", "")
+            .replace("add_comm(mul(prev, b), b); ", "");
+        let error = validate(
+            &(RIGHT_ID_LAW.to_owned()
+                + " "
+                + SUCC_LAW
+                + " "
+                + ADD_COMM
+                + " "
+                + MUL
+                + " "
+                + ADD_ASSOC
+                + " "
+                + MUL_ZERO_RIGHT
+                + " "
+                + &uncited),
+        )
+        .expect_err("the step case without its choreography should fence");
+        assert!(
+            error.contains("no entailment tier judges yet"),
+            "expected the N3 fence, got: {error}"
+        );
+    }
+
     #[test]
     fn citation_with_wrong_operands_does_not_prove_the_goal() {
         // The citation instantiates at ITS operands only -- citing the law

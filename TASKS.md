@@ -637,12 +637,28 @@ no `unbounded` property exists. Rungs:
   cite it: `lemma(operands);`" with the matched operands rendered.
   DIAGNOSTIC ONLY — the proving path never pattern-matches. Pinned in
   fail/proofs/uncited_structural_fact_rejected (expected.txt is the
-  note itself) + the lib-test twin. NEXT: (3b) grow the N4 LEMMA ZOO
-  with the rung-2 machinery — add_assoc, mul_succ_law, mul_comm,
-  distributivity (each an induction with per-arm citations; mul_comm
-  classically rides mul_succ + distrib) — after which the ring-
-  canonicalization one-pager (rung 4's carrier question) has its full
-  law set to cite. (4) rearrange-mode = ENGINE-INTERNAL ring
+  note itself) + the lib-test twin. (3b) LEMMA ZOO — LANDED 2026-07-12:
+  core nat.omg now carries the COMMUTATIVE-SEMIRING surface minus
+  distributivity, all proven: add_assoc (pure induction, no citations),
+  mul_zero_right, mul_succ_right (`mul(a, Succ b) == add(a, mul(a,b))`
+  — its step case is the citation CHOREOGRAPHY showcase: three reducing
+  rewrites, comm/assoc/comm, hand-spelled Dafny-style), and mul_comm
+  (base cites mul_zero_right; step cites mul_succ_right + IH). Pinned:
+  cite_assoc/cite_mul_comm consumers in the lemmas canary + 5 lib tests
+  (incl. choreography-stripped fences). Distributivity DEFERRED to
+  rearrange-mode (its step case is exactly the choreography-heavy shape
+  ring canonicalization dissolves). FOUND + FIXED en route (pre-existing
+  backend bug, stratum-independent): a statement call whose ARGUMENT
+  calls a self-recursive machine (`lemma(q, add(p, q));`) overflowed the
+  compile thread — omega-state-values' simplifier expanded the recursive
+  callee's model via the guarded-helper comparison, re-entered itself
+  with the HelperStateStack freshly popped, and grew the argument one
+  constructor-read per round. REENTRANT_SIMPLIFY_DEPTH_LIMIT (32) now
+  budgets the growth edges (comparison expansion, helper-value inline,
+  model build); past it the expression stays unsimplified — the
+  canonicalizer's ordinary no-match behavior. Pinned
+  pass/calls/statement_call_recursive_argument_compile. (4)
+  rearrange-mode = ENGINE-INTERNAL ring
   canonicalization (L4 sum-of-monomials generalized), not lemma rules;
   OWNER DECISION eventually needed on how a carrier earns
   canonicalization (auto-enable when the standard law lemmas are proven
