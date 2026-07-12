@@ -56,6 +56,36 @@ terminates {
     }
 }
 
+// append's right identity, by induction on `s`. Lean analog:
+// `List.append_nil`.
+machine append_empty_right(s: Seq<u64>) -> Seq<u64>
+terminates {
+    decreases s;
+}
+ensures
+    (append(s, Seq::Empty)) == s
+{
+    transition s {
+        Seq::Empty -> Seq::Empty
+        Seq::Cons { head, tail } -> Seq::Cons { head: head, tail: append_empty_right(tail) }
+    }
+}
+
+// append associates, by induction on the outermost first sequence. Lean
+// analog: `List.append_assoc`.
+machine append_assoc(s: Seq<u64>, t: Seq<u64>, u: Seq<u64>) -> Seq<u64>
+terminates {
+    decreases s;
+}
+ensures
+    (append(append(s, t), u)) == (append(s, append(t, u)))
+{
+    transition s {
+        Seq::Empty -> Seq::Empty
+        Seq::Cons { head, tail } -> Seq::Cons { head: head, tail: append_assoc(tail, t, u) }
+    }
+}
+
 // The Seq zoo's first COMPOSED law: length distributes over append, by
 // induction on the first sequence -- cross-machine unfolding (append
 // inside length inside add) plus the inductive hypothesis; no citations
