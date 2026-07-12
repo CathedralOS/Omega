@@ -732,11 +732,18 @@ rows. Rungs:
   fail/arithmetic/bounded_float_call_unproven, fail/constraints/
   invariant_* carriers — rewrite or retire.
 
-Open micro-decisions (surfaced, unruled): min/max NaN contract (lean:
-keep hardware semantics + document); Saturating NaN sub-rule (lean:
-overflow-only, NaN passes through; cast NaN->0 stays cast-specific);
-shift-amount >= width (the Q10 sibling, same proof-or-policy stroke
-available).
+Micro-decisions ALL SETTLED (owner, 2026-07-18; record: float brief §8 +
+ch5): min/max = hardware contract, documented (order-dependent under NaN;
+Finite makes it unobservable in proven code); Saturating = overflow-only
+(div-by-zero/invalid ops stay Finite obligations; `Finite & Saturating`
+composes; at most one policy per `&` chain); shift-count = proof-or-policy
+(Exact proves count < width, Wrapping masks, Trapping traps, literal OOR
+rejects — an INTEGER ruling, engineering rides this ladder as F8).
+
+- **F8 — shift-count ruling (integer):** Exact obligation (count < width;
+  literal OOR = compile error), Wrapping = masked count, Trapping = trap;
+  retire the shift divergence from the pending family; differential
+  canaries per domain.
 
 ## Recently answered holds (rulings 2026-07-18; now ungated engineering)
 
