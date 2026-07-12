@@ -67,6 +67,19 @@ TASKS.md — the lanes sync from all of them.
    the route still accepts them. In or out?
    > Are you asking about "lowering a tail call to a loop"? Banned, if it reads as recursion. We can maybe relax this later, but as of now, go write this as states.
 
+   [⚠️ SUPERSEDED 2026-07-18 — the "maybe relax later" happened: the
+   owner settled MEASURED RECURSION in the proofs review (record:
+   mathematical_proofs.md par-2 + amendment; ch3; TASKS MR rungs, MR1+MR3
+   already landed). Current law: recursive CALL cycles are legal iff
+   `decreases`-measured AND (runtime only) tail-position — tail lowers to
+   the loop machinery; non-tail runtime rejects; unmeasured cycles remain
+   the hard error; transition loop-backs unchanged. The Q6 "yes fucking
+   banned" and Q7 "banned, maybe relax later" answers above are the
+   PRE-AMENDMENT record: mutual value-call cycles now resolve via MR4
+   joint measures, statement tail self-calls via MR1/MR2
+   measured-or-reject. Do not tear out MR work on the strength of the
+   answers above.]
+
 ## Underspecified numerics (main lane's found items, both marked "owner call")
 
 8. **Float domain clauses.** `f: f32 in Saturating` compiles but means
