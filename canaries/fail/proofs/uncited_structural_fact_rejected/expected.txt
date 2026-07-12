@@ -1,1 +1,1 @@
-speaks about proof-only `Nat`, which no entailment tier judges yet
+note: `add_zero_right` proves this shape -- cite it: `add_zero_right(b);`

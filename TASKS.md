@@ -629,10 +629,25 @@ no `unbounded` property exists. Rungs:
   spins forever — rejects), + 4 lib tests (comm proves; step minus its
   citation fences — the citation is load-bearing; false comm-shaped
   claim refuses; non-descending sub-state recursion rejects).
-  (3) the SHAPE-MATCH FAILURE DIAGNOSTIC ("note: add_succ_law proves
-  this shape — cite it"): suggestion at failure, never silent
-  application. (4) rearrange-mode = ENGINE-INTERNAL ring
-  canonicalization (L4 sum-of-monomials generalized), not lemma rules.
+  (3) the SHAPE-MATCH FAILURE DIAGNOSTIC — LANDED 2026-07-12: when a
+  structural conjunct fences Unknown, requires-free free proof machines'
+  law conjuncts (result-shaped ones excluded) first-order match against
+  the failed goal (lemma params as pattern variables, either
+  orientation) and the fence appends "note: `lemma` proves this shape --
+  cite it: `lemma(operands);`" with the matched operands rendered.
+  DIAGNOSTIC ONLY — the proving path never pattern-matches. Pinned in
+  fail/proofs/uncited_structural_fact_rejected (expected.txt is the
+  note itself) + the lib-test twin. NEXT: (3b) grow the N4 LEMMA ZOO
+  with the rung-2 machinery — add_assoc, mul_succ_law, mul_comm,
+  distributivity (each an induction with per-arm citations; mul_comm
+  classically rides mul_succ + distrib) — after which the ring-
+  canonicalization one-pager (rung 4's carrier question) has its full
+  law set to cite. (4) rearrange-mode = ENGINE-INTERNAL ring
+  canonicalization (L4 sum-of-monomials generalized), not lemma rules;
+  OWNER DECISION eventually needed on how a carrier earns
+  canonicalization (auto-enable when the standard law lemmas are proven
+  in scope vs an explicit per-carrier declaration citing them; the
+  one-pager with tradeoffs comes with 3b's law set).
   THEN: Int/Rat routing, the N2(d) arithmetic bridge
   (n > 0 => n == Succ(n - 1)). Int introduction rule: order has no floor,
   measures stay Nat-valued or range-floored.

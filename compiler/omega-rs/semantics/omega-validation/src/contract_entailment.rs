@@ -316,11 +316,20 @@ pub(crate) fn validate_machine_contract_entailment(
                     fenced_structural = true;
                 }
                 StructuralJudgment::Unknown => {
+                    // The settled ergonomics mitigation: when a known
+                    // lemma's ensures shape-matches the fenced goal, the
+                    // diagnostic names the missing citation. Suggestion at
+                    // failure, never silent application.
+                    let suggestion =
+                        suggest_missing_citation(program, &proof_only, machine, *fact)
+                            .map(|note| format!("; {note}"))
+                            .unwrap_or_default();
                     diagnostics.push(Diagnostic::error(format!(
                         "machine `{}` ensures contract proof fact `{}` speaks about proof-only \
                          `{held}`, which no entailment tier judges yet -- accepting it would \
                          certify an unproven structural claim. Spell the fact over integer \
-                         measures, or wait for the structural extraction tier (math roster N3)",
+                         measures, or wait for the structural extraction tier (math roster \
+                         N3){suggestion}",
                         machine.name,
                         program.expression_table.display_name(*fact),
                     )));
@@ -2014,6 +2023,252 @@ fn collect_citation_equations(
         );
     }
     equations
+}
+
+/// The failure-side HALF of the citation ergonomics (the OWNER_QUESTIONS
+/// #14 answer, verbatim design: "when an obligation fails and a known
+/// lemma's ensures shape-matches it, the diagnostic NAMES the missing
+/// citation... Suggestion at failure, never silent application"). Scans
+/// requires-free free proof machines for an ensures `==`-conjunct that
+/// first-order matches the fenced goal (lemma parameters as pattern
+/// variables, either orientation) and renders the exact citation statement
+/// to write. DIAGNOSTIC ONLY -- nothing here feeds the judge.
+fn suggest_missing_citation(
+    program: &TypedTrees,
+    classification: &omega_typed_trees::proof_only::ProofOnlyClassification,
+    machine: &Machine,
+    fact: ExpressionHandle,
+) -> Option<String> {
+    // Walk the fact's `&&`-conjuncts; the first suggestible equation wins.
+    let ExpressionNode::Binary(binary) = program.expression_table.expression(fact) else {
+        return None;
+    };
+    match binary.operator {
+        BinaryOperator::And => {
+            return suggest_missing_citation(program, classification, machine, binary.left)
+                .or_else(|| {
+                    suggest_missing_citation(program, classification, machine, binary.right)
+                });
+        }
+        BinaryOperator::Equal => {}
+        _ => return None,
+    }
+    let goal_left = structural_term(program, binary.left)?;
+    let goal_right = structural_term(program, binary.right)?;
+
+    for lemma in program.machines() {
+        if lemma.attached_data.is_some()
+            || std::ptr::eq(lemma, machine)
+            || !classification.is_proof_machine(program, lemma)
+        {
+            continue;
+        }
+        let mut has_requires = false;
+        let mut ensures_facts: Vec<ExpressionHandle> = Vec::new();
+        for contract in program.machine_contracts(lemma) {
+            match contract.kind {
+                SignatureContractKind::Requires => {
+                    has_requires |= !program
+                        .proof_facts
+                        .span_or_empty(contract.facts)
+                        .is_empty();
+                }
+                SignatureContractKind::Ensures => {
+                    for lemma_fact in program.proof_facts.span_or_empty(contract.facts) {
+                        if let ProofFact::Expression(expression) = lemma_fact {
+                            ensures_facts.push(*expression);
+                        }
+                    }
+                }
+                SignatureContractKind::Boundary => {}
+            }
+        }
+        // A requires-bearing lemma cannot be cited yet; suggesting it would
+        // walk the author into the v1 refusal.
+        if has_requires {
+            continue;
+        }
+        let Some(entry) = program.machine_states(lemma).first() else {
+            continue;
+        };
+        let parameters: Vec<String> = program
+            .state_parameters(entry)
+            .iter()
+            .map(|parameter| parameter.name.as_str().to_owned())
+            .collect();
+        for lemma_fact in &ensures_facts {
+            if let Some(suggestion) = suggest_conjunct_match(
+                program,
+                lemma,
+                &parameters,
+                *lemma_fact,
+                &goal_left,
+                &goal_right,
+            ) {
+                return Some(suggestion);
+            }
+        }
+    }
+    None
+}
+
+fn suggest_conjunct_match(
+    program: &TypedTrees,
+    lemma: &Machine,
+    parameters: &[String],
+    lemma_fact: ExpressionHandle,
+    goal_left: &StructuralTerm,
+    goal_right: &StructuralTerm,
+) -> Option<String> {
+    let ExpressionNode::Binary(binary) = program.expression_table.expression(lemma_fact) else {
+        return None;
+    };
+    match binary.operator {
+        BinaryOperator::And => {
+            return suggest_conjunct_match(
+                program, lemma, parameters, binary.left, goal_left, goal_right,
+            )
+            .or_else(|| {
+                suggest_conjunct_match(
+                    program, lemma, parameters, binary.right, goal_left, goal_right,
+                )
+            });
+        }
+        BinaryOperator::Equal => {}
+        _ => return None,
+    }
+    let lemma_left = structural_term(program, binary.left)?;
+    let lemma_right = structural_term(program, binary.right)?;
+    let result_binder = RESULT_BINDER.to_owned();
+    // `result`-shaped conjuncts describe the lemma's application, not a
+    // free-standing law; the law conjuncts are the suggestible material.
+    if term_mentions_variable(&lemma_left, &result_binder)
+        || term_mentions_variable(&lemma_right, &result_binder)
+    {
+        return None;
+    }
+    for (first, second) in [(goal_left, goal_right), (goal_right, goal_left)] {
+        let mut bindings: Vec<(String, StructuralTerm)> = Vec::new();
+        if diagnostic_shape_match(&lemma_left, first, parameters, &mut bindings)
+            && diagnostic_shape_match(&lemma_right, second, parameters, &mut bindings)
+        {
+            let arguments: Vec<String> = parameters
+                .iter()
+                .map(|parameter| {
+                    bindings
+                        .iter()
+                        .find(|(name, _)| name == parameter)
+                        .map(|(_, term)| display_structural_term(term))
+                        .unwrap_or_else(|| "..".to_owned())
+                })
+                .collect();
+            return Some(format!(
+                "note: `{lemma}` proves this shape -- cite it: `{lemma}({arguments});`",
+                lemma = lemma.name.as_str(),
+                arguments = arguments.join(", "),
+            ));
+        }
+    }
+    None
+}
+
+fn term_mentions_variable(term: &StructuralTerm, variable: &String) -> bool {
+    match term {
+        StructuralTerm::Variable(name) => name == variable,
+        StructuralTerm::Constructor { fields, .. } => fields
+            .iter()
+            .any(|(_, value)| term_mentions_variable(value, variable)),
+        StructuralTerm::Application { arguments, .. } => arguments
+            .iter()
+            .any(|argument| term_mentions_variable(argument, variable)),
+        StructuralTerm::Opaque(_) => false,
+    }
+}
+
+/// First-order matching for the SUGGESTION diagnostic only (the proving
+/// path never pattern-matches -- citations instantiate at written
+/// operands): occurrences of `variables` in `pattern` bind consistently
+/// against the goal's subterms; everything else must agree exactly.
+fn diagnostic_shape_match(
+    pattern: &StructuralTerm,
+    term: &StructuralTerm,
+    variables: &[String],
+    bindings: &mut Vec<(String, StructuralTerm)>,
+) -> bool {
+    match (pattern, term) {
+        (StructuralTerm::Variable(name), _) if variables.iter().any(|v| v == name) => {
+            if let Some((_, bound)) = bindings.iter().find(|(n, _)| n == name) {
+                bound == term
+            } else {
+                bindings.push((name.clone(), term.clone()));
+                true
+            }
+        }
+        (StructuralTerm::Variable(left), StructuralTerm::Variable(right)) => left == right,
+        (
+            StructuralTerm::Constructor { data, case, fields },
+            StructuralTerm::Constructor {
+                data: data_t,
+                case: case_t,
+                fields: fields_t,
+            },
+        ) => {
+            data == data_t
+                && case == case_t
+                && fields.len() == fields_t.len()
+                && fields
+                    .iter()
+                    .zip(fields_t)
+                    .all(|((name, value), (name_t, value_t))| {
+                        name == name_t
+                            && diagnostic_shape_match(value, value_t, variables, bindings)
+                    })
+        }
+        (
+            StructuralTerm::Application { machine, arguments },
+            StructuralTerm::Application {
+                machine: machine_t,
+                arguments: arguments_t,
+            },
+        ) => {
+            machine == machine_t
+                && arguments.len() == arguments_t.len()
+                && arguments
+                    .iter()
+                    .zip(arguments_t)
+                    .all(|(argument, argument_t)| {
+                        diagnostic_shape_match(argument, argument_t, variables, bindings)
+                    })
+        }
+        (StructuralTerm::Opaque(left), StructuralTerm::Opaque(right)) => left == right,
+        _ => false,
+    }
+}
+
+/// Render a term back into citation-argument spelling.
+fn display_structural_term(term: &StructuralTerm) -> String {
+    match term {
+        StructuralTerm::Variable(name) => name.clone(),
+        StructuralTerm::Constructor { data, case, fields } => {
+            if fields.is_empty() {
+                format!("{data}::{case}")
+            } else {
+                let rendered: Vec<String> = fields
+                    .iter()
+                    .map(|(name, value)| {
+                        format!("{name}: {}", display_structural_term(value))
+                    })
+                    .collect();
+                format!("{data}::{case} {{ {} }}", rendered.join(", "))
+            }
+        }
+        StructuralTerm::Application { machine, arguments } => {
+            let rendered: Vec<String> =
+                arguments.iter().map(display_structural_term).collect();
+            format!("{machine}({})", rendered.join(", "))
+        }
+        StructuralTerm::Opaque(display) => display.clone(),
+    }
 }
 
 /// Extract a potential citation call from a statement: the target name and
