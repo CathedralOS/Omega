@@ -1,3 +1,4 @@
+pub mod boundary;
 pub mod byte_predicates;
 pub mod data;
 pub mod dependent_ranges;

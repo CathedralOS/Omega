@@ -252,52 +252,10 @@ pub(super) fn seed_boundary_call_ensures_facts(
             facts.forget_index_upper_bound(&place);
         }
     }
-    // Receiver field -> declared trait -> called signature.
-    let receiver_members = program.statement_table.name_path_members(call.receiver);
-    let Some(receiver) = receiver_members.last() else {
-        return;
-    };
-    let Some(attached) = machine.attached_data.as_ref() else {
-        return;
-    };
-    let Some(data) = program
-        .data_definitions()
-        .iter()
-        .find(|data| data.name.as_str() == attached.as_str())
-    else {
-        return;
-    };
-    let Some(field_type) = program.data_members(data).iter().find_map(|member| {
-        match member {
-            omega_typed_trees::data::DataMember::Field(field)
-                if field.name.as_str() == receiver.as_str() =>
-            {
-                field
-                    .type_reference
-                    .is_valid()
-                    .then_some(field.type_reference)
-            }
-            _ => None,
-        }
-    }) else {
-        return;
-    };
-    let omega_typed_trees::types::TypeReferenceNode::Named { name: trait_name, .. } =
-        program.type_reference_table.type_reference(field_type)
-    else {
-        return;
-    };
-    let Some(trait_definition) = program
-        .traits()
-        .iter()
-        .find(|definition| definition.name.as_str() == trait_name.as_str())
-    else {
-        return;
-    };
-    let Some(signature) = program
-        .trait_machine_signatures(trait_definition)
-        .iter()
-        .find(|signature| signature.name == call.target)
+    // Receiver field -> declared trait -> called signature (the shared
+    // TypedTrees chain).
+    let Some(signature) =
+        omega_typed_trees::boundary::called_boundary_signature(program, machine, call)
     else {
         return;
     };

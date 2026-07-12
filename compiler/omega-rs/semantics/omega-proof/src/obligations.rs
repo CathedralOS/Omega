@@ -852,9 +852,10 @@ fn collect_bounded_assignment_obligation(
 /// Walk `statements[..upto]` maintaining the live boundary-ensures witness
 /// set: a boundary call replaces the whole set with ITS ensures-bounded
 /// `&mut` argument places (any call may rewrite any field); an assignment
-/// drops its target's bound. (Third sibling of the validation recast walk
-/// and the checker ranges walk -- the resolvers differ per crate context;
-/// consolidation is a recorded refactor.)
+/// drops its target's bound. (Sibling of the validation recast walk and the
+/// checker ranges walk; the signature chain is the shared
+/// `omega_typed_trees::boundary::called_boundary_signature` -- validation's
+/// stays cache-based because it also covers `contains`-clause receivers.)
 fn ensures_witness_bounds_at(
     program: &TypedTrees,
     machine: &Machine,
@@ -868,45 +869,9 @@ fn ensures_witness_bounds_at(
         match statement {
             StatementNode::Call(call) => {
                 witnesses.clear();
-                let Some(receiver) = program
-                    .statement_table
-                    .name_path_members(call.receiver)
-                    .last()
-                else {
-                    continue;
-                };
-                let Some(attached) = machine.attached_data.as_ref() else {
-                    continue;
-                };
-                let Some(data) = program
-                    .data_definitions()
-                    .iter()
-                    .find(|data| data.name.as_str() == attached.as_str())
-                else {
-                    continue;
-                };
-                let Some(field_type) =
-                    data_field_type_by_name(program, data, receiver.as_str())
-                else {
-                    continue;
-                };
-                let TypeReferenceNode::Named { name: trait_name, .. } =
-                    program.type_reference_table.type_reference(field_type)
-                else {
-                    continue;
-                };
-                let Some(trait_definition) = program
-                    .traits()
-                    .iter()
-                    .find(|definition| definition.name.as_str() == trait_name.as_str())
-                else {
-                    continue;
-                };
-                let Some(signature) = program
-                    .trait_machine_signatures(trait_definition)
-                    .iter()
-                    .find(|signature| signature.name == call.target)
-                else {
+                let Some(signature) = omega_typed_trees::boundary::called_boundary_signature(
+                    program, machine, call,
+                ) else {
                     continue;
                 };
                 let arguments = program.statement_table.expression_handles(call.arguments);
