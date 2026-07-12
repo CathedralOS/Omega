@@ -228,7 +228,7 @@ pub(crate) fn validate_machine_contract_entailment(
     let case_arms: Option<Vec<StructuralCaseArm>> = if sole_arm_result.is_some() {
         None
     } else {
-        recognize_structural_case_arms(program, machine, &structural, &proof_only)
+        recognize_structural_case_arms(program, machine, &structural, &proof_only, diagnostics)
     };
     let judge_structural = |fact: ExpressionHandle| -> StructuralJudgment {
         if let Some(term) = &sole_arm_result {
@@ -248,6 +248,11 @@ pub(crate) fn validate_machine_contract_entailment(
                 bound
                     .substitutions
                     .insert(0, (subject.clone(), constructor.clone()));
+            }
+            // Per-arm citations (N3 rung 2): the arm's sub-state facts,
+            // already instantiated under this arm's environment.
+            for (left, right) in &arm.citations {
+                bound.intake_equation(left.clone(), right.clone(), 0);
             }
             // Inductive hypotheses: instantiate every ensures conjunct for
             // each self-application in the arm's value term.
@@ -1968,120 +1973,39 @@ fn collect_citation_equations(
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Vec<(StructuralTerm, StructuralTerm)> {
     let mut equations = Vec::new();
-    for state in program.machine_states(machine) {
-        for statement in program.statement_table.statements(state.statement_nodes) {
-            // Two citation spellings reach here: the bare statement call
-            // (ch10's canonical form), and the let-bound call -- which is
-            // both a legal spelling in its own right (`let fact =
-            // lemma(b);`) and what the trailing-return auto-hoist lowers
-            // the bare form into (`let __hoist_N = lemma(b); ->
-            // (__hoist_N)`).
-            // NOTE the two spellings' argument spans live in DIFFERENT
-            // arenas: statement calls own theirs in the statement table,
-            // expression calls in the expression table.
-            let (target, argument_handles): (_, Vec<ExpressionHandle>) = match statement {
-                StatementNode::Call(call) if call.receiver.is_empty() => (
-                    &call.target,
-                    program
-                        .statement_table
-                        .expression_handles(call.arguments)
-                        .to_vec(),
-                ),
-                StatementNode::LocalData(local_data) => {
-                    let ExpressionNode::Call(call) = program
-                        .expression_table
-                        .expression(local_data.initial_value)
-                    else {
-                        continue;
-                    };
-                    if call.receiver.is_valid() {
-                        continue;
-                    }
-                    (
-                        &call.target,
-                        program
-                            .expression_table
-                            .expression_handles(call.arguments)
-                            .to_vec(),
-                    )
-                }
-                _ => continue,
+    // Machine level reads the ENTRY state only: sub-state citations
+    // reference sub-state parameters, which have no machine-level frame --
+    // they intake PER ARM in `recognize_structural_case_arms`, converted
+    // under that arm's environment.
+    let Some(entry) = program.machine_states(machine).first() else {
+        return equations;
+    };
+    for statement in program.statement_table.statements(entry.statement_nodes) {
+        let Some((target, argument_handles)) = citation_call_in_statement(program, statement)
+        else {
+            continue;
+        };
+        let mut argument_terms: Vec<StructuralTerm> = Vec::with_capacity(argument_handles.len());
+        let mut arguments_termify = true;
+        for argument in &argument_handles {
+            let Some(term) = structural_term(program, *argument) else {
+                arguments_termify = false;
+                break;
             };
-            let Some(callee) = program.machines().iter().find(|candidate| {
-                candidate.attached_data.is_none()
-                    && candidate.name.as_str() == target.as_str()
-            }) else {
-                continue;
-            };
-            if std::ptr::eq(callee, machine)
-                || !classification.is_proof_machine(program, callee)
-            {
-                continue;
-            }
-            let mut has_requires = false;
-            let mut ensures_facts: Vec<ExpressionHandle> = Vec::new();
-            for contract in program.machine_contracts(callee) {
-                match contract.kind {
-                    SignatureContractKind::Requires => {
-                        has_requires |= !program
-                            .proof_facts
-                            .span_or_empty(contract.facts)
-                            .is_empty();
-                    }
-                    SignatureContractKind::Ensures => {
-                        for fact in program.proof_facts.span_or_empty(contract.facts) {
-                            if let ProofFact::Expression(expression) = fact {
-                                ensures_facts.push(*expression);
-                            }
-                        }
-                    }
-                    SignatureContractKind::Boundary => {}
-                }
-            }
-            if has_requires {
-                diagnostics.push(Diagnostic::error(format!(
-                    "machine `{}` cites `{}`, whose requires contract is not \
-                     discharged at citation sites yet -- cite a requires-free \
-                     lemma, or wait for the site-discharge rung (math roster N3)",
-                    machine.name, callee.name,
-                )));
-                continue;
-            }
-            let [entry] = program.machine_states(callee) else {
-                continue;
-            };
-            let parameters = program.state_parameters(entry);
-            if parameters.len() != argument_handles.len() {
-                continue;
-            }
-            let mut map: Vec<(String, StructuralTerm)> = Vec::with_capacity(parameters.len() + 1);
-            let mut argument_terms: Vec<StructuralTerm> =
-                Vec::with_capacity(argument_handles.len());
-            let mut arguments_termify = true;
-            for (parameter, argument) in parameters.iter().zip(&argument_handles) {
-                let Some(term) = structural_term(program, *argument) else {
-                    arguments_termify = false;
-                    break;
-                };
-                map.push((parameter.name.as_str().to_owned(), term.clone()));
-                argument_terms.push(term);
-            }
-            if !arguments_termify {
-                continue;
-            }
-            // `result` in the callee's ensures denotes the application
-            // itself at these operands.
-            map.push((
-                RESULT_BINDER.to_owned(),
-                StructuralTerm::Application {
-                    machine: callee.name.as_str().to_owned(),
-                    arguments: argument_terms,
-                },
-            ));
-            for fact in ensures_facts {
-                collect_instantiated_conjuncts(program, fact, &map, &mut equations);
-            }
+            argument_terms.push(term);
         }
+        if !arguments_termify {
+            continue;
+        }
+        instantiate_citation(
+            program,
+            classification,
+            machine,
+            target,
+            &argument_terms,
+            diagnostics,
+            &mut equations,
+        );
     }
     if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
         eprintln!(
@@ -2090,6 +2014,131 @@ fn collect_citation_equations(
         );
     }
     equations
+}
+
+/// Extract a potential citation call from a statement: the target name and
+/// argument expression handles, for either spelling -- the bare statement
+/// call (ch10's canonical form) or the let-bound call (a legal spelling in
+/// its own right, and what the trailing-return auto-hoist lowers the bare
+/// form into). The proof-machine gates apply in `instantiate_citation`.
+///
+/// NOTE the two spellings' argument spans live in DIFFERENT arenas:
+/// statement calls own theirs in the statement table, expression calls in
+/// the expression table.
+fn citation_call_in_statement<'program>(
+    program: &'program TypedTrees,
+    statement: &'program StatementNode,
+) -> Option<(
+    &'program omega_typed_trees::name::Identifier,
+    Vec<ExpressionHandle>,
+)> {
+    match statement {
+        StatementNode::Call(call) if call.receiver.is_empty() => Some((
+            &call.target,
+            program
+                .statement_table
+                .expression_handles(call.arguments)
+                .to_vec(),
+        )),
+        StatementNode::LocalData(local_data) => {
+            let ExpressionNode::Call(call) = program
+                .expression_table
+                .expression(local_data.initial_value)
+            else {
+                return None;
+            };
+            if call.receiver.is_valid() {
+                return None;
+            }
+            Some((
+                &call.target,
+                program
+                    .expression_table
+                    .expression_handles(call.arguments)
+                    .to_vec(),
+            ))
+        }
+        _ => None,
+    }
+}
+
+/// Resolve and gate ONE citation, pushing the callee's ensures conjuncts
+/// instantiated at `argument_terms` (the call's arguments ALREADY converted
+/// to terms in the consumer's frame: machine-level intake reads them raw,
+/// per-arm intake converts under the arm environment first). `result` maps
+/// to the application at these operands.
+fn instantiate_citation(
+    program: &TypedTrees,
+    classification: &omega_typed_trees::proof_only::ProofOnlyClassification,
+    machine: &Machine,
+    target: &omega_typed_trees::name::Identifier,
+    argument_terms: &[StructuralTerm],
+    diagnostics: &mut Vec<Diagnostic>,
+    equations: &mut Vec<(StructuralTerm, StructuralTerm)>,
+) {
+    let Some(callee) = program.machines().iter().find(|candidate| {
+        candidate.attached_data.is_none() && candidate.name.as_str() == target.as_str()
+    }) else {
+        return;
+    };
+    if std::ptr::eq(callee, machine) || !classification.is_proof_machine(program, callee) {
+        return;
+    }
+    let mut has_requires = false;
+    let mut ensures_facts: Vec<ExpressionHandle> = Vec::new();
+    for contract in program.machine_contracts(callee) {
+        match contract.kind {
+            SignatureContractKind::Requires => {
+                has_requires |= !program
+                    .proof_facts
+                    .span_or_empty(contract.facts)
+                    .is_empty();
+            }
+            SignatureContractKind::Ensures => {
+                for fact in program.proof_facts.span_or_empty(contract.facts) {
+                    if let ProofFact::Expression(expression) = fact {
+                        ensures_facts.push(*expression);
+                    }
+                }
+            }
+            SignatureContractKind::Boundary => {}
+        }
+    }
+    if has_requires {
+        diagnostics.push(Diagnostic::error(format!(
+            "machine `{}` cites `{}`, whose requires contract is not \
+             discharged at citation sites yet -- cite a requires-free \
+             lemma, or wait for the site-discharge rung (math roster N3)",
+            machine.name, callee.name,
+        )));
+        return;
+    }
+    // The ENTRY state carries the signature; further states are the
+    // lemma's own sub-proofs (add_comm's per-arm states) and do not affect
+    // what a citation delivers.
+    let Some(entry) = program.machine_states(callee).first() else {
+        return;
+    };
+    let parameters = program.state_parameters(entry);
+    if parameters.len() != argument_terms.len() {
+        return;
+    }
+    let mut map: Vec<(String, StructuralTerm)> = Vec::with_capacity(parameters.len() + 1);
+    for (parameter, term) in parameters.iter().zip(argument_terms) {
+        map.push((parameter.name.as_str().to_owned(), term.clone()));
+    }
+    // `result` in the callee's ensures denotes the application itself at
+    // these operands.
+    map.push((
+        RESULT_BINDER.to_owned(),
+        StructuralTerm::Application {
+            machine: callee.name.as_str().to_owned(),
+            arguments: argument_terms.to_vec(),
+        },
+    ));
+    for fact in ensures_facts {
+        collect_instantiated_conjuncts(program, fact, &map, equations);
+    }
 }
 
 /// Walk an ensures fact's `&&`-conjuncts; each `==` conjunct whose sides
@@ -2145,6 +2194,12 @@ struct StructuralCaseArm {
     /// equals a constructor over FRESH payload variables. `None` for an
     /// Always arm.
     case_hypothesis: Option<(String, StructuralTerm)>,
+    /// PER-ARM CITATIONS (N3 rung 2): equations injected by citation
+    /// statements in the arm's SUB-STATE, instantiated under the arm
+    /// environment -- the only route to cite a lemma AT A CASE PAYLOAD
+    /// (comm's step case cites add_succ_law at `prev`, which machine-level
+    /// statements cannot see). Empty for direct value arms.
+    citations: Vec<(StructuralTerm, StructuralTerm)>,
     /// The arm's value term, converted under the case environment (payload
     /// member reads resolve against the fresh-variable constructor).
     value: StructuralTerm,
@@ -2160,10 +2215,13 @@ fn recognize_structural_case_arms(
     machine: &Machine,
     judge: &StructuralJudge<'_>,
     classification: &omega_typed_trees::proof_only::ProofOnlyClassification,
+    diagnostics: &mut Vec<Diagnostic>,
 ) -> Option<Vec<StructuralCaseArm>> {
-    let [root] = program.machine_states(machine) else {
-        return None;
-    };
+    // The entry state carries the case dispatch; further states are per-arm
+    // SUB-PROOFS (N3 rung 2) reached by Named arm targets, each holding its
+    // own citations plus one Always value terminal.
+    let states = program.machine_states(machine);
+    let root = states.first()?;
     let machine_name = machine
         .name
         .as_str()
@@ -2263,11 +2321,6 @@ fn recognize_structural_case_arms(
                 ))
             }
         };
-        let TransitionTargetNode::Value(value) =
-            program.statement_table.transition_target(transition.target)
-        else {
-            return None;
-        };
         // The arm environment: the subject maps to its constructor (so
         // payload member reads index the fresh variables); every other
         // parameter maps to itself.
@@ -2283,11 +2336,99 @@ fn recognize_structural_case_arms(
                 }
             })
             .collect();
-        let value = judge.callee_term(*value, &environment, 0)?;
+        let (value, citations) =
+            match program.statement_table.transition_target(transition.target) {
+                TransitionTargetNode::Value(value) => {
+                    (judge.callee_term(*value, &environment, 0)?, Vec::new())
+                }
+                // A NAMED target hands the arm to a sub-state: its
+                // parameters bind to the transition's argument terms
+                // (converted under THIS arm's environment, so payload
+                // bindings become the fresh variables), its citation
+                // statements instantiate under that sub-environment, and
+                // its sole Always value terminal is the arm's value.
+                TransitionTargetNode::Named { path, arguments } => {
+                    let [state_name] =
+                        program.statement_table.name_path_members(path.members)
+                    else {
+                        return None;
+                    };
+                    let sub_state = states[1..]
+                        .iter()
+                        .find(|state| state.name.as_str() == state_name.as_str())?;
+                    let sub_parameters = program.state_parameters(sub_state);
+                    let argument_handles =
+                        program.statement_table.expression_handles(*arguments);
+                    if sub_parameters.len() != argument_handles.len() {
+                        return None;
+                    }
+                    let mut sub_environment: Vec<(String, StructuralTerm)> =
+                        Vec::with_capacity(sub_parameters.len());
+                    for (parameter, argument) in sub_parameters.iter().zip(argument_handles) {
+                        let term = judge.callee_term(*argument, &environment, 0)?;
+                        sub_environment.push((parameter.name.as_str().to_owned(), term));
+                    }
+                    let mut citations = Vec::new();
+                    let mut terminal: Option<StructuralTerm> = None;
+                    for statement in
+                        program.statement_table.statements(sub_state.statement_nodes)
+                    {
+                        if terminal.is_some() {
+                            return None; // statements after the terminal: out of shape
+                        }
+                        if let Some((target, argument_handles)) =
+                            citation_call_in_statement(program, statement)
+                        {
+                            let mut argument_terms =
+                                Vec::with_capacity(argument_handles.len());
+                            let mut arguments_termify = true;
+                            for argument in &argument_handles {
+                                let Some(term) =
+                                    judge.callee_term(*argument, &sub_environment, 0)
+                                else {
+                                    arguments_termify = false;
+                                    break;
+                                };
+                                argument_terms.push(term);
+                            }
+                            if arguments_termify {
+                                instantiate_citation(
+                                    program,
+                                    classification,
+                                    machine,
+                                    target,
+                                    &argument_terms,
+                                    diagnostics,
+                                    &mut citations,
+                                );
+                            }
+                            continue;
+                        }
+                        let StatementNode::Transition(sub_transition) = statement else {
+                            return None;
+                        };
+                        if !matches!(sub_transition.guard, TransitionGuardNode::Always)
+                            || sub_transition.continuation.is_valid()
+                        {
+                            return None;
+                        }
+                        let TransitionTargetNode::Value(value) = program
+                            .statement_table
+                            .transition_target(sub_transition.target)
+                        else {
+                            return None;
+                        };
+                        terminal = Some(judge.callee_term(*value, &sub_environment, 0)?);
+                    }
+                    (terminal?, citations)
+                }
+                _ => return None,
+            };
         arms.push(StructuralCaseArm {
             machine_name: machine_name.clone(),
             parameter_names: parameter_names.clone(),
             case_hypothesis,
+            citations,
             value,
         });
     }

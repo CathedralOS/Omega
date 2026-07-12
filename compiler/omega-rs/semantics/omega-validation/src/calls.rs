@@ -1153,6 +1153,13 @@ pub(crate) fn validate_proof_machine_recursion(
             .copied();
         let descends = argument.is_some_and(|argument| {
             strict_subterm_of_measure(program, argument, measure_symbol, measure_name.as_ref())
+                || substate_parameter_descends(
+                    program,
+                    machine,
+                    argument,
+                    measure_symbol,
+                    measure_name.as_ref(),
+                )
         });
         if !descends {
             diagnostics.push(Diagnostic::error(format!(
@@ -1274,6 +1281,114 @@ fn collect_self_entry_call_arguments(
 /// A STRICT subterm of the measure: a Member chain of one or more hops whose
 /// root Name is the measure parameter (symbol match, name fallback). One hop
 /// = one constructor consumed (`n.prev`); depth composes for free.
+/// N3 rung 2 -- descent THROUGH a sub-state parameter: a self-call inside a
+/// per-arm sub-proof passes the sub-state's own parameter (`step_case(prev,
+/// b)` bound it at the entry arm from the measure's case payload, so inside
+/// `step_case` the recursion argument is the bare name `prev`). The
+/// parameter counts as strictly descending iff EVERY Named transition into
+/// its state passes a strict-subterm Member read of the measure at that
+/// position -- provenance over ALL binding sites, so a single
+/// non-descending entry poisons the parameter.
+///
+/// Matching is symbol-first (precise); the name fallback additionally
+/// refuses when any local or assignment anywhere in the machine shares the
+/// name, so a shadowing binding cannot launder a non-descending value
+/// through a descending parameter's name.
+fn substate_parameter_descends(
+    program: &TypedTrees,
+    machine: &Machine,
+    argument: ExpressionHandle,
+    measure_symbol: omega_core::symbols::SymbolHandle,
+    measure_name: Option<&Identifier>,
+) -> bool {
+    let ExpressionNode::Name(path) = program.expression_table.expression(argument) else {
+        return false;
+    };
+    let [name] = program.expression_table.name_path_members(path.members) else {
+        return false;
+    };
+    let states = program.machine_states(machine);
+    if states.len() < 2 {
+        return false;
+    }
+    // Every sub-state parameter this name could denote (symbol-first).
+    let mut candidates: Vec<(&omega_typed_trees::state::State, usize)> = Vec::new();
+    let mut symbol_matched = false;
+    for state in &states[1..] {
+        for (position, parameter) in program.state_parameters(state).iter().enumerate() {
+            let by_symbol = path.symbol.is_valid()
+                && parameter.symbol.is_valid()
+                && parameter.symbol == path.symbol;
+            let by_name = parameter.name.as_str() == name.as_str();
+            if by_symbol {
+                symbol_matched = true;
+                candidates.push((state, position));
+            } else if by_name {
+                candidates.push((state, position));
+            }
+        }
+    }
+    if candidates.is_empty() {
+        return false;
+    }
+    if !symbol_matched {
+        // Name-only matching: refuse if anything else in the machine binds
+        // this name.
+        for state in states {
+            for statement in program.statement_table.statements(state.statement_nodes) {
+                match statement {
+                    StatementNode::LocalData(local_data)
+                        if local_data.name.as_str() == name.as_str() =>
+                    {
+                        return false;
+                    }
+                    StatementNode::Assignment(_) => return false,
+                    _ => {}
+                }
+            }
+        }
+    }
+    // Every candidate parameter must descend at EVERY Named transition into
+    // its state.
+    candidates.iter().all(|(sub_state, position)| {
+        let mut binding_sites = 0usize;
+        for source in states {
+            for statement in program.statement_table.statements(source.statement_nodes) {
+                let StatementNode::Transition(transition) = statement else {
+                    continue;
+                };
+                for target_handle in [transition.target, transition.continuation] {
+                    if !target_handle.is_valid() {
+                        continue;
+                    }
+                    let TransitionTargetNode::Named { path, arguments } =
+                        program.statement_table.transition_target(target_handle)
+                    else {
+                        continue;
+                    };
+                    let [target_name] = program.statement_table.name_path_members(path.members)
+                    else {
+                        return false;
+                    };
+                    if target_name.as_str() != sub_state.name.as_str() {
+                        continue;
+                    }
+                    binding_sites += 1;
+                    let handles = program.statement_table.expression_handles(*arguments);
+                    let Some(bound) = handles.get(*position) else {
+                        return false;
+                    };
+                    if !strict_subterm_of_measure(program, *bound, measure_symbol, measure_name)
+                    {
+                        return false;
+                    }
+                }
+            }
+        }
+        binding_sites > 0
+    })
+}
+
 fn strict_subterm_of_measure(
     program: &TypedTrees,
     expression: ExpressionHandle,

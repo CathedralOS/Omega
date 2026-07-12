@@ -1,0 +1,31 @@
+// N3 rung 2's descent discipline, negative space: a self-call inside a
+// per-arm sub-state descends only when EVERY transition into that state
+// binds the recursion parameter from a case-payload subterm of the
+// measure. Here `spin`'s first parameter is bound from `b` -- unrelated
+// to the measure `a` -- so the recursion consumes nothing and must
+// reject. (The passing twin is core add_comm's comm_step, whose parameter
+// provenance is `a`'s Succ payload.)
+use omega::language::core::nat;
+
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine Main::main(&mut self) { self.console.exit_process(70); }
+
+machine bad_walk(a: Nat, b: Nat) -> Nat
+terminates {
+    decreases a;
+}
+{
+    transition a {
+        Nat::Zero -> done(b)
+        Nat::Succ { prev } -> spin(b, b)
+    }
+
+    state done(b: Nat) -> Nat {
+        transition { _ -> (b) }
+    }
+
+    state spin(prev: Nat, b: Nat) -> Nat {
+        transition { _ -> Nat::Succ { prev: bad_walk(prev, b) } }
+    }
+}

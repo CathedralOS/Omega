@@ -118,3 +118,35 @@ ensures
         Nat::Succ { prev } -> Nat::Succ { prev: add_succ_law(prev, b) }
     }
 }
+
+// COMMUTATIVITY (N3 rung 2, 2026-07-12): induction on `a` with PER-ARM
+// SUB-STATE proofs -- each case arm transitions to its own state carrying
+// exactly the citations that case needs (ch10 "Citing Proofs", explicit
+// fact injection). The base case cites add_zero_right's law at `b`; the
+// step case cites add_succ_law AT THE CASE PAYLOAD (a frame only the
+// sub-state sees) and takes the inductive hypothesis from its
+// self-application, whose descent flows through the sub-state parameter
+// (provenance: every transition into comm_step binds it from `a`'s Succ
+// payload).
+machine add_comm(a: Nat, b: Nat) -> Nat
+terminates {
+    decreases a;
+}
+ensures
+    (add(a, b)) == (add(b, a))
+{
+    transition a {
+        Nat::Zero -> comm_base(b)
+        Nat::Succ { prev } -> comm_step(prev, b)
+    }
+
+    state comm_base(b: Nat) -> Nat {
+        add_zero_right(b);
+        transition { _ -> (b) }
+    }
+
+    state comm_step(prev: Nat, b: Nat) -> Nat {
+        add_succ_law(b, prev);
+        transition { _ -> Nat::Succ { prev: add_comm(prev, b) } }
+    }
+}

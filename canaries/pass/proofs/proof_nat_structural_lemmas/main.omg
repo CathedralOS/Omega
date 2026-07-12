@@ -85,3 +85,12 @@ ensures
 {
     add_zero_right(b);
 }
+// COMMUTATIVITY, consumed: core add_comm is PROVEN (induction with
+// per-arm sub-state citations -- N3 rung 2); citing it here injects the
+// law at (x, y). The peak of the Peano ladder so far.
+machine cite_comm(x: Nat, y: Nat)
+ensures
+    (add(x, y)) == (add(y, x))
+{
+    add_comm(x, y);
+}
