@@ -554,15 +554,35 @@ no `unbounded` property exists. Rungs:
   LAW `add(a, Succ b) == Succ(add(a, b))` — an ensures that is an
   EQUATION BETWEEN APPLICATIONS, proven by induction; the discovery that
   application-equation laws prove with the EXISTING per-arm IH machinery,
-  no new engine). NEXT BIG LEVER, now SHARPENED: COMMUTATIVITY needs a
-  global PATTERN-MATCHING rewrite theory — each proven `lhs == rhs` law
-  (add_zero_right, add_succ_law) registered as a rule whose LHS's lemma
-  PARAMETERS are pattern variables, matched first-order against ground
-  applications during resolution (`add(b, Zero)` matches
-  add_zero_right's `add(?a, Zero)` with ?a:=b -> b). The laws exist; the
-  matching + termination + program-wide collection is the rung. THEN:
-  guarded/multi-arm result binding, Int/Rat routing, the N2(d)
-  arithmetic bridge (n > 0 => n == Succ(n - 1)). Int introduction rule: order has no floor,
+  no new engine). NEXT LEVER, CORRECTED per the OWNER_QUESTIONS #14
+  answer (settled record: mathematical_proofs par-6 item 1 + ch10
+  "Citing Proofs" — NO global rewrite engine; the registry framing this
+  section briefly carried was an over-derivation, torn down unlanded):
+  a law reaches a consumer proof as an EXPLICIT STATEMENT CALL
+  (`add_zero_right(b);` — a fact-only machine invoked for its ensures,
+  instantiated at the call's operands into the judge's hypotheses,
+  erased at codegen; instantiation is machine application, not search).
+  Citation soundness = the CALL-GRAPH discipline already landed (a
+  lemma citing a lemma is a machine calling a machine; mutual cycles
+  refuse as unmeasured call cycles). The rungs this opens, in order:
+  (1) STATEMENT-CALL CITATION INTO THE STRUCTURAL JUDGE — the
+  sole-arm/case-arm recognizers currently abort on any statement
+  besides LocalData/Transition, so a cited lemma's ensures never
+  reaches the hypotheses; intake `lemma(args);` statements exactly like
+  the IH instantiation (substitute_term over the callee's ensures
+  conjuncts at the call argument terms). (2) PER-ARM CITATION — comm's
+  step case must cite add_succ_law AT THE CASE PAYLOAD (`prev`), which
+  machine-level statements cannot see; needs the sub-state proof shape
+  (each case arm transitions to its own state carrying its citations +
+  terminal value — the guarded/multi-arm result-binding family). THEN
+  add_comm proves in core (base cites a law-shaped add_zero_right
+  conjunct `(add(a, Nat::Zero)) == a`; step cites add_succ_law + IH).
+  (3) the SHAPE-MATCH FAILURE DIAGNOSTIC ("note: add_succ_law proves
+  this shape — cite it"): suggestion at failure, never silent
+  application. (4) rearrange-mode = ENGINE-INTERNAL ring
+  canonicalization (L4 sum-of-monomials generalized), not lemma rules.
+  THEN: Int/Rat routing, the N2(d) arithmetic bridge
+  (n > 0 => n == Succ(n - 1)). Int introduction rule: order has no floor,
   measures stay Nat-valued or range-floored.
 - **N4 — roster library (Nat ops + Seq LANDED 2026-07-11):** core
   nat.omg carries add/mul as proof machines (mul composes add by an
