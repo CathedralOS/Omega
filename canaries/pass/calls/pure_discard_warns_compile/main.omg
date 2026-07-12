@@ -1,0 +1,35 @@
+// DECISION 12, AMENDED (owner, 2026-07-12) -- uniform compilation:
+// `_ = call();` on a provably pure callee (no effects, no `&mut`
+// out-parameters) is dead runtime code, but deadness outside a proof
+// context is a WARNING, never a rejection ("I'd rather not have
+// 'compiles in this context but not this other context'"). This program
+// previously lived in fail/calls/pure_discard_dead_code pinning the old
+// hard error; it now compiles, and the discard surfaces as
+// `warning: ... discards a provably pure call ...` on stderr.
+data Main {
+    value: i32;
+}
+
+machine Main::pure_flag(&self) -> bool {
+    transition {
+        _ -> true
+    }
+}
+
+machine Main::main(&mut self) -> i32 {
+    transition {
+        _ -> discard_pure()
+    }
+
+    state discard_pure(&mut self) {
+        _ = self.pure_flag();
+
+        transition {
+            _ -> shutdown()
+        }
+    }
+
+    state shutdown(&mut self) {
+        0
+    }
+}

@@ -1674,4 +1674,76 @@ mod structural_entailment {
         )
         .expect("citing a proven functional ensures should prove");
     }
+
+    /// The law-shaped lemma every statement-citation test consumes:
+    /// `result == a` (functional) plus `add(a, Zero) == a` (the LAW an
+    /// explicit citation delivers), both by one induction.
+    const RIGHT_ID_LAW: &str = "machine right_id(a: Nat) -> Nat \
+         terminates { decreases a; } \
+         ensures result == a; (add(a, Nat::Zero)) == a; { \
+         transition a { Nat::Zero -> Nat::Zero \
+         Nat::Succ { prev } -> Nat::Succ { prev: right_id(prev) } } }";
+
+    #[test]
+    fn law_conjunct_proves_alongside_functional_ensures() {
+        validate(RIGHT_ID_LAW)
+            .expect("both conjuncts should prove by the same induction");
+    }
+
+    #[test]
+    fn statement_citation_proves() {
+        // ch10 "Citing Proofs" / the OWNER_QUESTIONS #14 answer: the bare
+        // statement call injects right_id's law instantiated at `b`.
+        validate(&(RIGHT_ID_LAW.to_owned()
+            + " machine cite_zero(b: Nat) ensures (add(b, Nat::Zero)) == b { \
+               right_id(b); }"))
+        .expect("a statement citation should deliver the law");
+    }
+
+    #[test]
+    fn uncited_law_fact_fences() {
+        // Nothing is global, nothing applies silently: the same goal
+        // WITHOUT the citation statement must fence.
+        let error = validate(&(RIGHT_ID_LAW.to_owned()
+            + " machine uncited(b: Nat) ensures (add(b, Nat::Zero)) == b {}"))
+        .expect_err("an uncited law fact should fence");
+        assert!(
+            error.contains("no entailment tier judges yet"),
+            "expected the N3 fence, got: {error}"
+        );
+    }
+
+    #[test]
+    fn requires_bearing_citation_rejected() {
+        // v1 boundary: site discharge of the callee's requires has not
+        // landed, so citing a conditional lemma errors loudly.
+        let error = validate(
+            "machine sym(a: Nat, b: Nat) requires a == b; ensures b == a; {} \
+             machine conditional_cite(x: Nat, y: Nat) ensures y == x { \
+             sym(x, y); }",
+        )
+        .expect_err("citing a requires-bearing lemma should reject");
+        assert!(
+            error.contains("requires contract is not discharged at citation sites yet"),
+            "expected the citation v1 boundary error, got: {error}"
+        );
+    }
+
+    #[test]
+    fn citation_with_wrong_operands_does_not_prove_the_goal() {
+        // The citation instantiates at ITS operands only -- citing the law
+        // at `b` says nothing about the unrelated `c`. (Citing at `b` DOES
+        // serve goals one compute step away, like `add(Succ(b), Zero) ==
+        // Succ(b)` -- the Succ arm unfolds and exposes exactly the cited
+        // instance; that is sound derivation, not leakage.)
+        let error = validate(&(RIGHT_ID_LAW.to_owned()
+            + " machine wrong_operand(b: Nat, c: Nat) \
+               ensures (add(c, Nat::Zero)) == c { \
+               right_id(b); }"))
+        .expect_err("a citation at the wrong operands should not discharge the goal");
+        assert!(
+            error.contains("no entailment tier judges yet"),
+            "expected the N3 fence, got: {error}"
+        );
+    }
 }

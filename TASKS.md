@@ -565,12 +565,44 @@ no `unbounded` property exists. Rungs:
   Citation soundness = the CALL-GRAPH discipline already landed (a
   lemma citing a lemma is a machine calling a machine; mutual cycles
   refuse as unmeasured call cycles). The rungs this opens, in order:
-  (1) STATEMENT-CALL CITATION INTO THE STRUCTURAL JUDGE — the
-  sole-arm/case-arm recognizers currently abort on any statement
-  besides LocalData/Transition, so a cited lemma's ensures never
-  reaches the hypotheses; intake `lemma(args);` statements exactly like
-  the IH instantiation (substitute_term over the callee's ensures
-  conjuncts at the call argument terms). (2) PER-ARM CITATION — comm's
+  (1) STATEMENT-CALL CITATION INTO THE STRUCTURAL JUDGE — LANDED
+  2026-07-12: both citation spellings intake (the bare statement call
+  `lemma(b);` and the let-bound `let fact = lemma(b);`, which is also
+  what the trailing-return auto-hoist lowers the bare form into — NOTE
+  their argument spans live in DIFFERENT arenas, statement table vs
+  expression table); the callee's ensures conjuncts instantiate at the
+  call's argument terms via substitute_term (with `result` mapped to
+  the application at those operands) and feed the judge exactly like
+  requires hypotheses; the sole-arm/case-arm recognizers step over
+  citation statements (with the empty-arms guard — a citations-only
+  body must NOT return Some([]) or every fact judges vacuously
+  Proven); v1 boundary: citing a REQUIRES-bearing lemma errors loudly
+  (site discharge is its own rung). Landed with it, the DECISION-12
+  AMENDMENT (owner, 2026-07-12, chat): uniform compilation — the
+  diagnostics system grew a WARNING severity (was error-only;
+  warning-only batches print to stderr and pass — report integration
+  is a recorded follow-up), `_ = pure();` demoted from error to
+  warning, suppressed when the callee OR the enclosing machine is a
+  proof machine, and bare `lemma(b);` exempted from the
+  discarded-result error for proof-machine callees (a citation has no
+  runtime result; the exemption keys on the callee's computed
+  classification, never on site context). Canary rework:
+  fail/calls/pure_discard_dead_code -> pass/calls/
+  pure_discard_warns_compile. NOTE for the runtime-membrane rung: the
+  exemptions key on the proof-MACHINE classification (signature
+  mentions proof-only data), so ch10's integer-typed `mask_is_mod`
+  shape rides only because fact-only integer lemmas are RETURN-LESS
+  (no result to discard); if value-returning integer lemmas want bare
+  citation, a broader "fact-only machine" marker is the recorded fix.
+  Core nat.omg's add_zero_right now carries the LAW conjunct
+  `(add(a, Nat::Zero)) == a` next to `result == a` (both by the same
+  induction — multi-fact ensures, `;`-separated). Pinned: pass/proofs/
+  proof_nat_structural_lemmas (cite_zero), fail/proofs/
+  uncited_structural_fact_rejected (nothing ambient: same goal minus
+  the citation fences), fail/proofs/citation_requires_bearing_rejected,
+  + 5 lib tests (incl. wrong-operands non-leakage: citing at `b` says
+  nothing about unrelated `c`, but DOES serve goals one compute step
+  away — sound derivation). (2) PER-ARM CITATION — comm's
   step case must cite add_succ_law AT THE CASE PAYLOAD (`prev`), which
   machine-level statements cannot see; needs the sub-state proof shape
   (each case arm transitions to its own state carrying its citations +

@@ -1,0 +1,25 @@
+// Citation v1 boundary (ch10 "Citing Proofs"): a theorem applies only at
+// operands satisfying its REQUIRES, and the site-discharge rung has not
+// landed -- so citing a requires-bearing lemma errors loudly instead of
+// silently injecting a conditional fact as if it were unconditional.
+// (`sym` itself PROVES fine; only the citation is refused.)
+use omega::language::core::nat;
+
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine Main::main(&mut self) { self.console.exit_process(70); }
+
+machine sym(a: Nat, b: Nat)
+requires
+    a == b
+ensures
+    b == a
+{
+}
+
+machine conditional_cite(x: Nat, y: Nat)
+ensures
+    y == x
+{
+    sym(x, y);
+}
