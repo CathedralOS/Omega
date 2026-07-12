@@ -8,6 +8,7 @@ use omega_syntax_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, TableBinaryExpression, TableCallExpression,
     TableIndexedExpression, TableMemberExpression,
 };
+use omega_syntax_trees::identifier::Identifier;
 use omega_syntax_trees::statement::{
     StatementHandle, StatementNode, TableAssignment, TableCall, TableLocalData, TableRelax,
     TableTransition, TransitionGuardNode, TransitionTargetHandle, TransitionTargetNode,
@@ -224,6 +225,24 @@ fn parse_discard_statement_handle<'tokens, 'source>(
     ))
 }
 
+/// An asm block is parsed target assembly under the stricter accepted subset,
+/// never an opaque text blob (ch23). Each mnemonic is a KNOWN-CONTRACT
+/// instruction or the block does not compile -- there is no strictest-default
+/// escape hatch, and opaque forms (`db`, raw bytes) are rejected because no
+/// contract is attributable to them (privileged_effects_and_binary_trust
+/// brief, LOCKED point 2). The accepted subset desugars here:
+///
+/// - `asm { jmp state() }`      -> a plain transition (control flow stays
+///   Omega control flow)
+/// - `asm { hlt }`              -> a call to the `asm#hlt` intrinsic
+///   (emits `machine_control`)
+/// - `asm { out <port>, <v> }`  -> a call to `asm#port_out(port, value)`
+///   (emits `device_io`)
+/// - `asm { in <dest>, <port> }`-> `<dest> = asm#port_in(port)` -- the
+///   Intel dest-first operand order (emits `device_io`)
+///
+/// The intrinsic names contain `#`, which is not an identifier character, so
+/// they are unnameable from source -- only this desugar can reference them.
 fn parse_asm_statement_handle<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
@@ -234,22 +253,88 @@ fn parse_asm_statement_handle<'tokens, 'source>(
     }
 
     let input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
-    let input = input.take_contextual("jmp").map_err(|_| {
-        input.error_here("asm blocks currently support only `jmp` transition statements")
-    })?;
-    let (target, input) = parse_transition_block_target_handle(syntax_trees, input)?;
-    let input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
+    let mnemonic_site = input.clone();
+    let (mnemonic, input) = input.take_identifier()?;
 
-    Ok((
-        syntax_trees
-            .statements
-            .insert(StatementNode::Transition(TableTransition {
-                target,
-                continuation: TransitionTargetHandle::invalid(),
-                guard: TransitionGuardNode::Always,
-            })),
-        input,
-    ))
+    match mnemonic.as_str() {
+        "jmp" => {
+            let (target, input) = parse_transition_block_target_handle(syntax_trees, input)?;
+            let input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
+            Ok((
+                syntax_trees
+                    .statements
+                    .insert(StatementNode::Transition(TableTransition {
+                        target,
+                        continuation: TransitionTargetHandle::invalid(),
+                        guard: TransitionGuardNode::Always,
+                    })),
+                input,
+            ))
+        }
+        "hlt" => {
+            let input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
+            Ok((
+                syntax_trees
+                    .statements
+                    .insert(StatementNode::Call(TableCall {
+                        receiver: HandleSpan::empty(),
+                        receiver_starts_at_self: false,
+                        target: Identifier::new("asm#hlt", mnemonic.source_span()),
+                        arguments: HandleSpan::empty(),
+                        discards_result: false,
+                    })),
+                input,
+            ))
+        }
+        "out" => {
+            let (port, input) = parse_expression_handle(syntax_trees, input)?;
+            let input = input.take_punctuation(PunctuationKind::Comma, ",")?;
+            let (value, input) = parse_expression_handle(syntax_trees, input)?;
+            let input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
+            let arguments = syntax_trees
+                .expressions
+                .insert_expression_handles(vec![port, value]);
+            Ok((
+                syntax_trees
+                    .statements
+                    .insert(StatementNode::Call(TableCall {
+                        receiver: HandleSpan::empty(),
+                        receiver_starts_at_self: false,
+                        target: Identifier::new("asm#port_out", mnemonic.source_span()),
+                        arguments,
+                        discards_result: false,
+                    })),
+                input,
+            ))
+        }
+        "in" => {
+            let (destination, input) = parse_expression_handle(syntax_trees, input)?;
+            let input = input.take_punctuation(PunctuationKind::Comma, ",")?;
+            let (port, input) = parse_expression_handle(syntax_trees, input)?;
+            let input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
+            let arguments = syntax_trees.expressions.insert_expression_handles(vec![port]);
+            let value = syntax_trees
+                .expressions
+                .insert(ExpressionNode::Call(TableCallExpression {
+                    receiver: ExpressionHandle::invalid(),
+                    target: Identifier::new("asm#port_in", mnemonic.source_span()),
+                    arguments,
+                }));
+            Ok((
+                syntax_trees
+                    .statements
+                    .insert(StatementNode::Assignment(TableAssignment {
+                        target: destination,
+                        value,
+                    })),
+                input,
+            ))
+        }
+        unknown => Err(mnemonic_site.error_here(format!(
+            "unknown asm instruction `{unknown}`: only known-contract instructions compile \
+             (`hlt`, `in`, `out`, `jmp`); opaque forms (`db`, raw bytes) are rejected"
+        ))),
+    }
 }
 
 fn parse_relax_statement_handle<'tokens, 'source>(

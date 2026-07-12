@@ -53,7 +53,7 @@ use crate::traits::{
 };
 use crate::transitions::validate_transition_target_node;
 use crate::type_references::{TypeReferenceOwner, validate_type_reference_handle};
-pub use effects::validate_effect_plan;
+pub use effects::{validate_asm_discharge, validate_effect_plan};
 use omega_core::diagnostics::Diagnostic;
 use omega_typed_trees::TypedTrees;
 use omega_typed_trees::statement::{StatementNode, TransitionTargetNode};

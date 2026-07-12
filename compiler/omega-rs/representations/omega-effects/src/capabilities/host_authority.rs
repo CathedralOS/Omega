@@ -36,6 +36,11 @@ pub const HOST_AUTHORITY_EFFECT_NAMES: &[&str] = &[
     "device_io",
     "memory_map",
     "dynamic_link",
+    // `machine_control` is DELIBERATELY absent: it is authority-bearing but
+    // never grant-mediated -- no provider can be whitelisted to mint ring-0
+    // CPU control (privileged_effects_and_binary_trust brief, LOCKED point 1).
+    // Its gate is the freestanding-boundary-root discharge on the asm
+    // intrinsics themselves, not host-call authorization.
 ];
 
 /// Returns the set of standard effects that mint or carry host authority.

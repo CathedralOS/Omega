@@ -206,6 +206,14 @@ impl Compiler {
         let build_machine_present = typed.machines().iter().any(|machine| {
             crate::pipeline::build_config::is_build_machine(machine, &build_file_machine_names)
         });
+        // ASM DISCHARGE v0 (privileged_effects_and_binary_trust): asm
+        // intrinsics (`hlt`, port I/O) are permitted only in a FREESTANDING
+        // boundary root. The gate lives here because it consumes a
+        // BuildConfig fact the typed->checked validations never see.
+        omega_typed_trees_to_checked_trees::validate_asm_discharge(
+            &typed,
+            build_config.freestanding,
+        )?;
         write_typed_snapshot(&self.options, &typed)?;
         crate::pipeline::wire_report::write_wire_protocol_report(&self.options, &typed)?;
 

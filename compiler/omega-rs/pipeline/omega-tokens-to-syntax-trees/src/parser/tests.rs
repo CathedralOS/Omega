@@ -529,6 +529,99 @@ fn parses_asm_jmp_block_as_transition_statement() {
     ));
 }
 
+/// The asm mnemonic desugar: each known-contract instruction lowers to a call
+/// on its unnameable `asm#...` intrinsic (`in` through an assignment); unknown
+/// mnemonics -- including `db` -- are rejected at parse time.
+#[test]
+fn parses_asm_mnemonics_as_intrinsic_calls() {
+    let source = r#"
+        data Main {
+            port: u16;
+        }
+
+        machine Main::main(&mut self) {
+            let mut status: u8 = 0;
+            asm { hlt }
+            asm { out self.port, status }
+            asm { in status, self.port }
+        }
+        "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let parsed = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let machine = parsed
+        .root_items()
+        .find_map(|item| match item {
+            omega_syntax_trees::item::Item::Machine(machine) => Some(machine),
+            _ => None,
+        })
+        .expect("machine root item");
+    let entry = parsed
+        .items
+        .state_handles(machine.states)
+        .first()
+        .copied()
+        .expect("entry state");
+    let state = parsed.items.state(entry);
+    let statements = parsed.items.statements(state.statements).to_vec();
+    assert_eq!(statements.len(), 4, "let + three asm statements");
+
+    let StatementNode::Call(hlt) = parsed.statements.statement(statements[1]).clone() else {
+        panic!("asm {{ hlt }} should desugar to a call statement");
+    };
+    assert_eq!(hlt.target.as_str(), "asm#hlt");
+    assert!(hlt.receiver.is_empty());
+    assert_eq!(hlt.arguments.count(), 0);
+
+    let StatementNode::Call(out) = parsed.statements.statement(statements[2]).clone() else {
+        panic!("asm {{ out .. }} should desugar to a call statement");
+    };
+    assert_eq!(out.target.as_str(), "asm#port_out");
+    assert_eq!(out.arguments.count(), 2);
+
+    let StatementNode::Assignment(read) = parsed.statements.statement(statements[3]).clone()
+    else {
+        panic!("asm {{ in .. }} should desugar to an assignment");
+    };
+    let ExpressionNode::Call(port_in) = parsed.expressions.expression(read.value).clone() else {
+        panic!("asm {{ in .. }} assignment value should be the intrinsic call");
+    };
+    assert_eq!(port_in.target.as_str(), "asm#port_in");
+    assert_eq!(port_in.arguments.count(), 1);
+    assert!(!port_in.receiver.is_valid());
+}
+
+/// Opaque asm forms have no attributable contract; only known-contract
+/// instructions compile (privileged_effects_and_binary_trust, LOCKED point 2).
+#[test]
+fn rejects_unknown_asm_mnemonics() {
+    for block in ["asm { db 0xF4 }", "asm { wrmsr }", "asm { cli }"] {
+        let source = format!(
+            r#"
+            data Main {{
+                value: i32;
+            }}
+
+            machine Main::main(&mut self) {{
+                {block}
+            }}
+            "#
+        );
+
+        let tokens = Lexer::new(&source)
+            .tokenize()
+            .expect("tokenize should succeed");
+        let error = parse_syntax_trees(&tokens).expect_err("unknown mnemonic must not parse");
+        let message = format!("{error:?}");
+        assert!(
+            message.contains("only known-contract instructions compile"),
+            "unexpected error for {block}: {message}"
+        );
+    }
+}
+
 #[test]
 fn parses_executable_domain_membership_intersection_expression() {
     let source = r#"

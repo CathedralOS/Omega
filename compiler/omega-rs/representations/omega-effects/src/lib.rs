@@ -51,6 +51,12 @@ pub const STANDARD_EFFECT_NAMES: &[&str] = &[
     // per-signature declarations -- the build-time evaluation gates (const
     // array lengths, layout plan()) reject on it statically.
     "host_boundary",
+    // Ring-0 CPU control (`asm { hlt }`; later cli/sti, MSR/CR writes).
+    // DISTINCT from device_io because the enforcement substrate differs:
+    // device_io is hardware-mediated (TSS I/O bitmap, grantable to ring-3
+    // drivers); machine_control is ring-0-only and never grant-mediated
+    // (privileged_effects_and_binary_trust brief, LOCKED point 1).
+    "machine_control",
 ];
 
 pub fn is_standard_effect_name(name: &str) -> bool {
@@ -484,7 +490,8 @@ fn push_statement_call(
 ) {
     let target_state_symbol = call.target_symbol;
     let target_machine_symbol = machine_symbol_for_state(program, target_state_symbol);
-    let direct = direct_effects_for_signature_symbol(program, target_state_symbol);
+    let direct = asm_intrinsic_effects(call.target.as_str())
+        .unwrap_or_else(|| direct_effects_for_signature_symbol(program, target_state_symbol));
     calls.push(CallWork {
         statement_index,
         call_ordinal: *call_ordinal,
@@ -591,7 +598,8 @@ fn push_expression_call(
 ) {
     let target_state_symbol = call.target_symbol;
     let target_machine_symbol = machine_symbol_for_state(program, target_state_symbol);
-    let direct = direct_effects_for_signature_symbol(program, target_state_symbol);
+    let direct = asm_intrinsic_effects(call.target.as_str())
+        .unwrap_or_else(|| direct_effects_for_signature_symbol(program, target_state_symbol));
     calls.push(CallWork {
         statement_index,
         call_ordinal: *call_ordinal,
@@ -601,6 +609,19 @@ fn push_expression_call(
         transitive: EffectSet::empty(),
     });
     *call_ordinal = call_ordinal.checked_add(1).expect("call ordinal overflow");
+}
+
+/// The instruction contract of an asm intrinsic call (`asm { hlt }` -->
+/// `machine_control`, `asm { in/out .. }` --> `device_io`), or None for
+/// ordinary calls. Keyed by the unnameable `asm#...` names only the parser's
+/// asm-block desugar can emit; the contract table itself lives on
+/// `BuiltinFunction` so the effect an instruction emits has ONE source of
+/// truth.
+pub fn asm_intrinsic_effects(target: &str) -> Option<EffectSet> {
+    let function = omega_core::symbols::BuiltinFunction::asm_intrinsics()
+        .into_iter()
+        .find(|function| function.name() == target)?;
+    EffectSet::from_name(function.asm_intrinsic_effect_name()?)
 }
 
 fn machine_symbol_for_state(program: &TypedTrees, state_symbol: SymbolHandle) -> SymbolHandle {

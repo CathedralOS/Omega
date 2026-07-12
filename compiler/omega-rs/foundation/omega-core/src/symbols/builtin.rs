@@ -46,16 +46,31 @@ pub enum BuiltinFunction {
     /// value-write path with both operands set to `x` (the encoder's Sqrt
     /// arm reads the first SSE register only).
     Sqrt,
+    /// `asm { hlt }`: the x86 privileged halt instruction as a known-contract
+    /// asm intrinsic (privileged_effects_and_binary_trust brief). Emits the
+    /// `machine_control` effect. The `#` in the symbol name is not an
+    /// identifier character, so the intrinsic is UNNAMEABLE from source --
+    /// only the parser's asm-block desugar can reference it.
+    AsmHlt,
+    /// `asm { out <port>, <value> }`: x86 port write (`out dx, al`). Emits
+    /// the `device_io` effect. Unnameable from source (see AsmHlt).
+    AsmPortOut,
+    /// `asm { in <destination>, <port> }`: x86 port read (`in al, dx`).
+    /// Emits the `device_io` effect. Unnameable from source (see AsmHlt).
+    AsmPortIn,
 }
 
 impl BuiltinFunction {
-    pub const COUNT: usize = 3;
+    pub const COUNT: usize = 6;
 
     pub fn name(self) -> &'static str {
         match self {
             Self::Max => "max",
             Self::Min => "min",
             Self::Sqrt => "sqrt",
+            Self::AsmHlt => "asm#hlt",
+            Self::AsmPortOut => "asm#port_out",
+            Self::AsmPortIn => "asm#port_in",
         }
     }
 
@@ -64,7 +79,29 @@ impl BuiltinFunction {
             Self::Max => 0,
             Self::Min => 1,
             Self::Sqrt => 2,
+            Self::AsmHlt => 3,
+            Self::AsmPortOut => 4,
+            Self::AsmPortIn => 5,
         }
+    }
+
+    /// The effect an asm intrinsic emits (its instruction contract), or None
+    /// for the value builtins. Every asm instruction is a known-contract
+    /// intrinsic or it does not compile -- this map IS the contract table.
+    pub fn asm_intrinsic_effect_name(self) -> Option<&'static str> {
+        match self {
+            Self::AsmHlt => Some("machine_control"),
+            Self::AsmPortOut | Self::AsmPortIn => Some("device_io"),
+            Self::Max | Self::Min | Self::Sqrt => None,
+        }
+    }
+
+    pub fn is_asm_intrinsic(self) -> bool {
+        self.asm_intrinsic_effect_name().is_some()
+    }
+
+    pub fn asm_intrinsics() -> [Self; 3] {
+        [Self::AsmHlt, Self::AsmPortOut, Self::AsmPortIn]
     }
 }
 
@@ -133,6 +170,18 @@ pub fn builtin_function_symbols() -> [(SymbolKind, SymbolNameRef<'static>); Buil
             SymbolKind::BuiltinFunction,
             SymbolNameRef::Static(BuiltinFunction::Sqrt.name()),
         ),
+        (
+            SymbolKind::BuiltinFunction,
+            SymbolNameRef::Static(BuiltinFunction::AsmHlt.name()),
+        ),
+        (
+            SymbolKind::BuiltinFunction,
+            SymbolNameRef::Static(BuiltinFunction::AsmPortOut.name()),
+        ),
+        (
+            SymbolKind::BuiltinFunction,
+            SymbolNameRef::Static(BuiltinFunction::AsmPortIn.name()),
+        ),
     ]
 }
 
@@ -189,5 +238,60 @@ mod builtin_ordinal_tests {
                 builtin_type
             );
         }
+    }
+
+    #[test]
+    fn builtin_function_ordinals_track_the_symbol_table() {
+        // builtin_function_symbol() resolves by BUILTIN_TYPE_COUNT + ordinal
+        // over root children inserted in builtin_function_symbols() order --
+        // the same silent-shift hazard the type test pins.
+        let table = builtin_function_symbols();
+        for function in [
+            BuiltinFunction::Max,
+            BuiltinFunction::Min,
+            BuiltinFunction::Sqrt,
+            BuiltinFunction::AsmHlt,
+            BuiltinFunction::AsmPortOut,
+            BuiltinFunction::AsmPortIn,
+        ] {
+            assert_eq!(
+                table[function.ordinal()].1.as_str(),
+                function.name(),
+                "ordinal for {:?} does not match the symbol table position",
+                function
+            );
+        }
+    }
+
+    #[test]
+    fn asm_intrinsics_are_unnameable_and_contract_bearing() {
+        // Every asm intrinsic name contains `#` (not an identifier character),
+        // so source code cannot reference it -- only the parser's asm-block
+        // desugar can. And every asm intrinsic carries an instruction
+        // contract: an effect name (only known-contract instructions compile).
+        for function in BuiltinFunction::asm_intrinsics() {
+            assert!(
+                function.name().contains('#'),
+                "{:?} must be unnameable from source",
+                function
+            );
+            assert!(
+                function.is_asm_intrinsic(),
+                "{:?} must carry an instruction contract",
+                function
+            );
+        }
+        assert_eq!(
+            BuiltinFunction::AsmHlt.asm_intrinsic_effect_name(),
+            Some("machine_control")
+        );
+        assert_eq!(
+            BuiltinFunction::AsmPortOut.asm_intrinsic_effect_name(),
+            Some("device_io")
+        );
+        assert_eq!(
+            BuiltinFunction::AsmPortIn.asm_intrinsic_effect_name(),
+            Some("device_io")
+        );
     }
 }
