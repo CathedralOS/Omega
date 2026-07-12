@@ -30027,6 +30027,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "proofs/core_nat_runtime_consumption_rejected",
     "proofs/nat_unmeasured_recursion_rejected",
     "proofs/nat_nondescending_recursion_rejected",
+    "proofs/structural_ensures_unjudged_rejected",
     "boundary/entry_typed_params_unmarked",
     "boundary/boundary_entry_too_many_params",
     "wire/decode_into_ranged_field",
