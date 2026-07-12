@@ -321,7 +321,10 @@ pub(crate) fn validate_call_node(
 /// The boundary-trait signature a call statement resolves to (`self.fw.
 /// get_size(..)` -> trait `Firmware`'s `get_size`), or None for every other
 /// receiver class. Mirrors `validate_call_node`'s trait branch; used by the
-/// R4 witness mint (out-param ensures seeding the value env).
+/// R4 witness mint (out-param ensures seeding the value env). Kept
+/// cache-based (vs the shared `omega_typed_trees::boundary` chain the
+/// checker/proof consumers use) because `contained_type` also resolves
+/// `contains`-clause receivers, not just attached-data fields.
 pub(crate) fn boundary_trait_signature<'program>(
     program: &'program TypedTrees,
     machine_symbols: &MachineSymbols<'_>,
