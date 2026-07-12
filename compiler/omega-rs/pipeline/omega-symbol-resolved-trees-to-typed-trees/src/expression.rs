@@ -70,3 +70,15 @@ pub(super) fn lower_expression_handle_from_table_with_self_substitution(
         self_substitution,
     )
 }
+
+/// PROOF-FACT position twin of `lower_expression_handle_from_table_in_program`:
+/// equality over recursive (proof-only) data lowers as a raw Binary for the
+/// structural entailment judge instead of demanding runtime synthesis.
+pub(crate) fn lower_expression_handle_from_table_in_fact_position(
+    program: &resolved::SymbolResolvedTrees,
+    source: &resolved::expression::ExpressionTable,
+    target: &mut typed::expression::ExpressionTable,
+    expression: resolved::expression::ExpressionHandle,
+) -> Result<typed::expression::ExpressionHandle, Diagnostic> {
+    table::lower_expression_handle_from_table_in_fact_position(program, source, target, expression)
+}
