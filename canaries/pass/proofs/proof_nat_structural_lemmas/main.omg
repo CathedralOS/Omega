@@ -52,35 +52,14 @@ ensures
     a == b
 {
 }
-// COMPUTE-MODE (application unfolding): the EXTRACTION shape -- the
-// terminal call auto-hoists into a let, the recognizer folds the local
-// back, and resolution unfolds core add's Zero arm to `b`.
-machine add_zero_left(b: Nat) -> Nat
-ensures
-    result == b
-{
-    transition { _ -> (add(Nat::Zero, b)) }
-}
-// Ground compute: 1 + 1 == 2 by two unfold steps (Succ arm, then Zero).
+// COMPUTE-MODE + STRUCTURAL INDUCTION now live IN CORE: nat.omg carries
+// add_zero_left (extraction shape, unfolds add's Zero arm) and
+// add_zero_right (right identity by induction) as PROVEN library lemmas,
+// machine-checked for every importer -- including this canary, whose
+// `use` line exercises them. Ground compute stays program-side:
+// 1 + 1 == 2 by two unfold steps (Succ arm, then Zero).
 machine one_plus_one()
 ensures
     (add(Nat::Succ { prev: Nat::Zero }, Nat::Succ { prev: Nat::Zero })) == (Nat::Succ { prev: Nat::Succ { prev: Nat::Zero } })
 {
-}
-// STRUCTURAL INDUCTION: right identity by induction on `a` -- each case
-// arm judges with the subject substituted by a fresh-variable
-// constructor, and the self-application assumes the machine's own
-// ensures (the inductive hypothesis; descent already enforced by the
-// proof-machine recursion check).
-machine add_zero_right(a: Nat) -> Nat
-terminates {
-    decreases a;
-}
-ensures
-    result == a
-{
-    transition a {
-        Nat::Zero -> Nat::Zero
-        Nat::Succ { prev } -> Nat::Succ { prev: add_zero_right(prev) }
-    }
 }

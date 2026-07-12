@@ -551,9 +551,14 @@ no `unbounded` property exists. Rungs:
   ordinary cross-machine call; only self-calls need the measure), and
   seq.omg carries generic recursive `Seq<T>` — pinned
   pass/proofs/runtime_core_roster_ops_exit (core ops + a program-side
-  structural length lemma over Seq<u64> into core Nat). REMAINING:
-  extraction lemmas (the ensures-extraction rung — proof machines'
-  ensures consumed as facts), the proof views (Seq/Bag/Range) dissolving
+  structural length lemma over Seq<u64> into core Nat). First PROVEN
+  library lemmas LANDED 2026-07-11: core nat.omg carries add_zero_left
+  (compute-mode) and add_zero_right (structural induction), each ensures
+  machine-checked at compile time for every importer. REMAINING:
+  more of the lemma zoo as the judge widens (commutativity needs
+  double induction / rearrange-mode), extraction INTO consumer proofs
+  (a caller citing a lemma's ensures — the fact-consumption face), the
+  proof views (Seq/Bag/Range) dissolving
   from parser-known atoms into these types (the L6 bag_view rung folds
   in). Rat/Bag ship via CANONICAL-REPRESENTATIVE domains (reduced
   fractions `where gcd==1`; sorted sequences) — plain `==`, no quotient
