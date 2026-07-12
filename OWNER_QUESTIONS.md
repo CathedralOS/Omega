@@ -201,3 +201,29 @@ TASKS.md — the lanes sync from all of them.
     console as a boundary trait with effect rows (now including the byte
     ops + ByteRead). If the guide stands as the spec, the answer is (ii)
     and the remaining work is the std migration; say the word.]
+
+## Proof engine — lemma-citation soundness discipline (main lane, 2026-07-11)
+
+14. **Lemmas-as-rewrite-rules: the citation-acyclicity discipline (unblocks
+    N3 commutativity + rearrange-mode).** The structural entailment judge
+    now proves the equality kernel, compute-mode unfolding, structural
+    induction, and CITES a callee's proven functional ensures when
+    resolving `f(args)` (sound: the callee's ensures is proven in the same
+    validation batch; a false one raises its own error). Commutativity
+    (`add(a,b) == add(b,a)`) needs the next step: proven `lhs == rhs` LAWS
+    (add_zero_right, add_succ_law — both LANDED in core/nat.omg, proven by
+    induction) registered as GLOBAL PATTERN-MATCHING rewrite rules, whose
+    LHS lemma-parameters are pattern variables matched first-order against
+    ground applications everywhere (`add(b, Zero)` matches
+    add_zero_right's `add(?a, Zero)` -> b). The laws exist; the matching +
+    program-wide collection is mechanical. THE SOUNDNESS QUESTION: a lemma
+    citing ANOTHER lemma's rule is sound only if the citation graph is
+    ACYCLIC — a mutual cycle (A cites B's rule, B cites A's) lets two false
+    laws certify each other. The IH is already sound (descent-guarded, same
+    machine). Proposed discipline (mirrors measured recursion): a lemma may
+    cite any OTHER lemma's rule, self only via the descent-guarded IH, and
+    mutual lemma cycles are REFUSED (or require a joint measure, MR4-style).
+    Is acyclic-citation the right rule, or do you want a stricter
+    stratification (e.g. an explicit `uses lemma_a, lemma_b;` declaration
+    making the DAG author-visible)? This touches the proof KERNEL's trust
+    story, so shipping the matching engine waits on the discipline.
