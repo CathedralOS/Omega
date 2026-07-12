@@ -53,6 +53,33 @@ pub(crate) fn validate_call_node(
         return;
     }
 
+    // Asm intrinsic statements (`asm { hlt }`, `asm { out port, value }`)
+    // desugar to calls on unnameable `asm#...` targets -- known-contract
+    // instructions with FIXED shapes, validated here instead of against a
+    // state signature. (`asm { in dest, port }` is an assignment whose value
+    // is the `asm#port_in` call; the value-call path owns it.)
+    if receiver_members.is_empty() && call.target.as_str().starts_with("asm#") {
+        let expected_arguments = match call.target.as_str() {
+            "asm#hlt" => 0,
+            "asm#port_out" => 2,
+            other => {
+                diagnostics.push(Diagnostic::error(format!(
+                    "asm intrinsic `{other}` is not a statement form"
+                )));
+                return;
+            }
+        };
+        if arguments.len() != expected_arguments {
+            diagnostics.push(Diagnostic::error(format!(
+                "asm intrinsic `{}` takes {} operand(s), found {}",
+                call.target,
+                expected_arguments,
+                arguments.len()
+            )));
+        }
+        return;
+    }
+
     // Q7 ruling (2026-07-13): a STATEMENT-position call to the enclosing
     // machine's OWN ENTRY (`self.drip(n - 1);` as a trailing statement) is
     // tail recursion spelled as a call -- it lowered as a Nested-transition
@@ -2881,8 +2908,10 @@ fn report_unresolved_value_call(
     let target = call.target.as_str();
     let Some(receiver) = receiver_name else {
         // Receiverless: the three machine channels missed; only the reserved
-        // value builtins remain.
-        if matches!(target, "min" | "max" | "sqrt") {
+        // value builtins remain. `asm#port_in` is the value-position asm
+        // intrinsic (`asm { in dest, port }` desugars to `dest =
+        // asm#port_in(port)`); the name is unnameable from source.
+        if matches!(target, "min" | "max" | "sqrt" | "asm#port_in") {
             return;
         }
         diagnostics.push(Diagnostic::error(format!(

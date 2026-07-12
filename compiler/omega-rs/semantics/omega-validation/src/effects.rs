@@ -11,6 +11,7 @@ pub fn validate_effect_plan(
     let mut diagnostics = Vec::new();
 
     validate_pure_discards(program, effect_plan, &mut diagnostics);
+    validate_asm_intrinsic_declarations(program, effect_plan, &mut diagnostics);
 
     for machine_effects in effect_plan.machines() {
         let Some(machine) = program
@@ -46,6 +47,161 @@ pub fn validate_effect_plan(
     }
 
     crate::finish_diagnostics(diagnostics)
+}
+
+/// The v0 `machine_control`/port-I/O DISCHARGE gate
+/// (privileged_effects_and_binary_trust brief, LOCKED point 4 + the M3
+/// actionable subset): declaring an effect labels the code truthfully;
+/// DISCHARGE proves the code is PERMITTED to run it. Until the
+/// owns-the-machine capability token lands (the parked capability_lifecycle
+/// arc), discharge v0 is "permitted in the freestanding boundary root": the
+/// boot root trivially owns the machine, and a HOSTED build has no business
+/// executing `hlt` (ring-3 faults) or raw port I/O (unmapped I/O bitmap
+/// faults) -- so asm intrinsics in a non-freestanding build are a compile
+/// error, not a runtime fault.
+pub fn validate_asm_discharge(
+    program: &TypedTrees,
+    freestanding: bool,
+) -> Result<(), Vec<Diagnostic>> {
+    if freestanding {
+        return Ok(());
+    }
+
+    let mut diagnostics = Vec::new();
+    for machine in program.machines() {
+        for state in program.machine_states(machine) {
+            for statement in program.statement_table.statements(state.statement_nodes) {
+                let Some((instruction, _)) = statement_asm_intrinsic(program, statement) else {
+                    continue;
+                };
+                diagnostics.push(Diagnostic::error(format!(
+                    "machine `{}` uses asm instruction `{}`, which requires a FREESTANDING \
+                     boundary root (v0 discharge: only code that owns the machine may emit \
+                     privileged instructions; a hosted build would fault at ring 3). Set \
+                     `b.freestanding = true` in build.omg, or remove the asm block",
+                    machine.name, instruction
+                )));
+            }
+        }
+    }
+
+    crate::finish_diagnostics(diagnostics)
+}
+
+/// Asm-sourced effects are STRICTLY must-declare -- the empty-declared
+/// exemption above does not apply to the privileged tier
+/// (privileged_effects_and_binary_trust brief, LOCKED points 2-3: every asm
+/// instruction emits its contract, and the function AND every machine that
+/// directly-or-indirectly reaches it must declare what it emits; the
+/// top-level declared set is what a package manager reads).
+///
+/// Two rules:
+/// 1. A machine whose body CONTAINS an asm intrinsic must declare that
+///    instruction's effect (`asm { hlt }` forces `effects machine_control`,
+///    `asm { in/out }` forces `effects device_io`).
+/// 2. `machine_control` is strict TRANSITIVELY: it originates only from asm,
+///    so any machine whose transitive set reaches it must declare it --
+///    empty declaration is not an exemption for ring-0 CPU control.
+///
+/// (device_io transitivity for CALLERS still rides the declared-set ceiling
+/// above: it can also originate from boundary-trait rows, whose callers keep
+/// the existing empty-declared behavior.)
+fn validate_asm_intrinsic_declarations(
+    program: &TypedTrees,
+    effect_plan: &omega_effects::EffectPlan,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let machine_control = omega_effects::EffectSet::from_name("machine_control")
+        .expect("machine_control is a standard effect");
+
+    for machine in program.machines() {
+        let declared_effects = declared_machine_effect_set(program, machine);
+
+        // Rule 1: direct emission sites.
+        for state in program.machine_states(machine) {
+            for statement in program.statement_table.statements(state.statement_nodes) {
+                let Some((instruction, effects)) =
+                    statement_asm_intrinsic(program, statement)
+                else {
+                    continue;
+                };
+                if !declared_effects.contains_all(effects) {
+                    let missing = effects.difference(declared_effects);
+                    diagnostics.push(Diagnostic::error(format!(
+                        "machine `{}` uses asm instruction `{}` but does not declare its \
+                         contract: add `effects {}` (every asm instruction's emitted effects \
+                         must be declared where they are emitted)",
+                        machine.name,
+                        instruction,
+                        format_effect_set(missing)
+                    )));
+                }
+            }
+        }
+
+        // Rule 2: machine_control strict transitivity.
+        let Some(machine_effects) = effect_plan
+            .machines()
+            .iter()
+            .find(|entry| entry.symbol == machine.symbol)
+        else {
+            continue;
+        };
+        if machine_effects.transitive.contains_all(machine_control)
+            && !declared_effects.contains_all(machine_control)
+        {
+            let mut message = format!(
+                "machine `{}` reaches `machine_control` (ring-0 CPU control) but does not \
+                 declare it -- machine_control must be declared by every machine that \
+                 directly or indirectly reaches it",
+                machine.name
+            );
+            append_effect_paths(
+                program,
+                effect_plan,
+                machine_effects.symbol,
+                machine_control,
+                &mut message,
+            );
+            diagnostics.push(Diagnostic::error(message));
+        }
+    }
+}
+
+/// The asm intrinsic a statement carries, as (instruction label, contract
+/// effects): a statement call on an `asm#...` target (`asm { hlt }`,
+/// `asm { out .. }`) or an assignment whose value is the `asm#port_in` call
+/// (`asm { in dest, port }`). The parser's desugar emits exactly these two
+/// shapes and the names are unnameable from source.
+fn statement_asm_intrinsic(
+    program: &TypedTrees,
+    statement: &StatementNode,
+) -> Option<(&'static str, omega_effects::EffectSet)> {
+    let target = match statement {
+        StatementNode::Call(call) => call.target.as_str().to_owned(),
+        StatementNode::Assignment(assignment) => {
+            let omega_typed_trees::expression::ExpressionNode::Call(call) =
+                program.expression_table.expression(assignment.value)
+            else {
+                return None;
+            };
+            call.target.as_str().to_owned()
+        }
+        _ => return None,
+    };
+
+    let function = omega_core::symbols::BuiltinFunction::asm_intrinsics()
+        .into_iter()
+        .find(|function| function.name() == target)?;
+    let effects = omega_effects::asm_intrinsic_effects(function.name())?;
+    // Label the diagnostic with the SOURCE mnemonic, not the internal name.
+    let instruction = match function {
+        omega_core::symbols::BuiltinFunction::AsmHlt => "hlt",
+        omega_core::symbols::BuiltinFunction::AsmPortOut => "out",
+        omega_core::symbols::BuiltinFunction::AsmPortIn => "in",
+        _ => return None,
+    };
+    Some((instruction, effects))
 }
 
 /// DECISION 12 -- DISCARD ADMITS EFFECTS: `_ = call();` exists to drop a
@@ -358,6 +514,16 @@ fn state_label(program: &TypedTrees, symbol: SymbolHandle) -> String {
     find_machine_state(program, symbol)
         .map(|state| state.name.to_string())
         .or_else(|| find_signature_name(program, symbol))
+        // Builtin targets (the `asm#...` intrinsics) resolve through the
+        // symbol table -- the effect path should read `asm#hlt`, not a raw
+        // handle.
+        .or_else(|| {
+            symbol
+                .is_valid()
+                .then(|| program.symbols.name(symbol))
+                .filter(|name| !name.is_empty())
+                .map(|name| name.to_owned())
+        })
         .unwrap_or_else(|| symbol_label(symbol))
 }
 
