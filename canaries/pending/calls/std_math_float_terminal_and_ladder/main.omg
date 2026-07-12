@@ -1,28 +1,33 @@
-// PENDING (2026-07-11): the std sin/cos draft's two measured blockers.
-// (a) FLOAT-TERMINAL value-call return-writes are not served -- the
-//     dispatch return-write selection
-//     (select_runtime_leaf_branch_terminal_value_write + the write
-//     strategies it retries) serves integer place/literal/binary
-//     terminals only; `sin(1.0)`'s `(x + tail)` f64 terminal trips the
-//     honest call_result_blockers fence. The fix is the float twin of
-//     the integer write strategies (mind the pinned regressions noted
-//     in leaf.rs: nested-inline result scrambles, same-named arm
-//     locals).
-// (b) NARROWED by bisect: the compile-thread stack overflow fires when
-//     a machine's VALUE-CALL TERMINAL expands a multi-state callee
-//     (`machine cos { transition { _ -> (sin(...)) } }` -- the
-//     nested-inline expansion recurses without a depth gate). The
-//     ladder alone and sin alone are fine; std math's cos now binds
-//     through a let (the supported shape) so the library sidesteps it,
-//     but the expansion recursion itself still wants the gate.
-// PROMOTE to pass/ run canaries (value windows in
-// omega/language/std/math.omg's history) when both land.
+// PENDING (2026-07-11): value-call TERMINALS expanding a multi-state
+// callee. Of the std sin/cos draft's two original blockers, (a) FLOAT
+// binary/literal terminal return-writes LANDED (the dispatch
+// binary-terminal path classifies float operands and emits
+// WriteRuntimeStorageBinary { is_float } -- exercised by
+// pass/calls/runtime_std_math_sin_cos_exit), and (b) the compile-thread
+// STACK OVERFLOW on this file's shape was tamed by
+// MAX_BINDING_SUBSTITUTION_DEPTH (selection/bindings.rs): a cyclic
+// callee's self-referential binding set (reduce's `x` bound over the same
+// `x`) has no finite substitution, and the capped walk now falls through
+// to a LOUD refusal (scratch-pool exhaustion on the capped tree, or the
+// unlowered-terminal fences) instead of crashing.
+//
+// What remains unserved -- and what this canary pins: a value-CALL
+// terminal whose callee is a genuine multi-state machine has no dispatch
+// return route (acyclic callees poison as "a host-boundary call is the
+// TERMINAL value"; cyclic ones refuse as above). The interpreter runs this
+// file fine (exit 70). PROMOTE to a pass/ run canary when the terminal
+// call shape is served -- e.g. desugared to the let-bound form (`let r =
+// sin(..); -> (r)`), which is the supported spelling std math's cos uses
+// today.
 use omega::language::std::math;
 boundary trait Console { machine exit_process(return_code: i32); }
 data Main { console: Console; }
+machine cos_via_terminal(x: f64) -> f64 {
+    transition { _ -> (sin(x + 1.57079632679489656)) }
+}
 machine Main::main(&mut self) {
-    let s: f64 = sin(1.0);
-    transition s > 0.84147098480 && s < 0.84147098481 { true -> good() _ -> bad() }
+    let c: f64 = cos_via_terminal(1.0);
+    transition c > 0.54030230586 && c < 0.54030230587 { true -> good() _ -> bad() }
     state good(&mut self) { self.console.exit_process(70); }
     state bad(&mut self)  { self.console.exit_process(71); }
 }

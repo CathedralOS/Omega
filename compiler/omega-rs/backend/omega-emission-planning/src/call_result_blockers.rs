@@ -9,8 +9,8 @@ use omega_target_operations::SelectedInstructionKind;
 /// SELECTED return-write (integer/copy/binary) at its clone-terminal state --
 /// otherwise the caller's result slot silently keeps its prior/ZII value (the
 /// exact silent-wrong class the return-write matrix has been closing: field
-/// bindings, binary terminals, transition args). A terminal shape the
-/// return-write cannot serve yet (float terminals, unresolvable places) now
+/// bindings, binary terminals (integer AND float), transition args). A
+/// terminal shape the return-write cannot serve yet (an unresolvable place)
 /// refuses LOUDLY here instead of misdelivering -- which is what makes the
 /// splice fences' dispatch-route exemption sound: dispatched value calls
 /// either deliver correctly or fail to compile, never silently ZII.
@@ -95,10 +95,10 @@ pub(crate) fn collect_call_result_return_blockers(
                 &format!(
                     "{}: the dispatched value call's terminal (returning into {} \
                      statement {}) has no selected return-write -- this terminal \
-                     shape is not served yet (float terminal, or an unresolvable \
-                     value), and running it would silently leave the caller's \
-                     result as ZII. Bind through a supported shape (integer \
-                     place/literal/binary terminal) or restructure the callee.",
+                     shape is not served yet (an unresolvable value), and running \
+                     it would silently leave the caller's result as ZII. Bind \
+                     through a supported shape (place/literal/binary terminal, \
+                     integer or float) or restructure the callee.",
                     state_name(input, case.key),
                     state_name(input, call_result.call_source_key),
                     call_result.statement_index,

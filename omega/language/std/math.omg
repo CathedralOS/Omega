@@ -1,13 +1,10 @@
 // std math: sin/cos as PURE OMEGA (numeric-intrinsics remainder,
-// 2026-07-11). STATUS: DRAFT -- parses and validates; native use is
-// measured-blocked on (a) float-terminal value-call return-writes ("this
-// terminal shape is not served yet"; integer terminals serve) and (b) a
-// compile-thread stack overflow on the reduce ladder's shape (repro in
-// TASKS). Both recorded under the numeric-intrinsics item. No ISA carries a usable sin instruction, so instead of a
+// 2026-07-11). No ISA carries a usable sin instruction, so instead of a
 // per-target encoder arm the implementations are ordinary f64 machines --
 // both engines then execute the IDENTICAL IEEE op sequence, so native and
 // interpreter agree bit-for-bit by construction (the property the task
-// named "a polynomial matching interp precision").
+// named "a polynomial matching interp precision"). Exercised natively by
+// canaries/pass/calls/runtime_std_math_sin_cos_exit.
 //
 // Shape: a binary-ladder range reduction into [-pi, pi] (conditional
 // subtraction of 2pi * 2^k -- pure compares and subtracts, no
@@ -55,13 +52,13 @@ machine sin(x: f64) -> f64 {
     // every step stays a two-op store.
     state poly(x: f64) {
         let xx: f64 = x * x;
-        let mut p: f64 = 0.00000000000002811457254345520763198945583010320;
-        p = -0.00000000000764716373181981647590113198578807 + xx * p;
-        p = 0.00000000160590438368216145993923771701549479 + xx * p;
-        p = -0.00000027557319223985890652557316053039947 + xx * p;
-        p = 0.00002480158730158730158730158730158730 + xx * p;
-        p = -0.00138888888888888888888888888888888889 + xx * p;
-        p = 0.04166666666666666666666666666666666667 + xx * p;
+        let mut p: f64 = 0.00000000000002811457254345520763198946;
+        p = -0.00000000000076471637318198164759011320 + xx * p;
+        p = 0.00000000016059043836821614599392377170 + xx * p;
+        p = -0.00000002505210838544171877505210838544 + xx * p;
+        p = 0.00000275573192239858906525573192239859 + xx * p;
+        p = -0.00019841269841269841269841269841269841 + xx * p;
+        p = 0.00833333333333333333333333333333333333 + xx * p;
         p = -0.16666666666666666666666666666666666667 + xx * p;
         let mut tail: f64 = x * xx;
         tail = tail * p;

@@ -593,24 +593,26 @@ no `unbounded` property exists. Rungs:
 
 ## Language ergonomics
 
-- **[ENGINEERING]** numeric intrinsics remainder: sin/cos — DESIGN
-  SETTLED + DRAFT LANDED 2026-07-11 as PURE OMEGA
-  (omega/language/std/math.omg): no ISA carries a usable sin
-  instruction, so the implementations are ordinary f64 machines (ladder
-  range reduction — no float→int cast needed, that ruling is still open
-  — quadrant fold, degree-15 Horner with a `let mut` accumulator: plain
-  lets BIND-FOLD into one giant nested expression and exhaust the MVP
-  scratch pools). Both engines then run the identical IEEE sequence —
-  bit-equal by construction. MEASURED BLOCKERS (both compiler-side,
-  found by the draft): (a) float-terminal value-call RETURN-WRITES are
-  not served ("this terminal shape is not served yet" — integer
-  terminals serve; the selection needs the float twin); (b) a
-  COMPILE-THREAD STACK OVERFLOW, bisect-NARROWED: a VALUE-CALL TERMINAL
-  expanding a multi-state callee (`cos`'s old `(sin(...))` terminal)
-  recurses the nested-inline expansion without a depth gate — the
-  library now binds through a let (the supported shape) so only (a)
-  gates sin/cos; (b) stays as the robustness bug with its pending
-  repro. Fix (a), then the draft's probes become run canaries.
+- **numeric intrinsics remainder: sin/cos — LANDED 2026-07-11** as PURE
+  OMEGA (omega/language/std/math.omg): ladder range reduction (no
+  float→int cast — that ruling stays open), quadrant fold, degree-15
+  Horner with `let mut` accumulators (plain lets BIND-FOLD and exhaust
+  the MVP scratch pools). Both engines run the identical IEEE sequence —
+  bit-equal by construction; sin(1)/sin(10)/cos(1) pinned to 1e-11
+  windows in pass/calls/runtime_std_math_sin_cos_exit (canary_suite +
+  differential). Both measured blockers closed: (a) FLOAT binary/literal
+  terminal return-writes serve (the dispatch binary-terminal path
+  classifies float operands, emits WriteRuntimeStorageBinary{is_float},
+  f32-narrows literal bits; float ops gated to the Add/Sub/Mul/Div set
+  both encoders carry); (b) the compile-thread stack overflow on
+  value-call terminals expanding a CYCLIC callee is tamed by
+  MAX_BINDING_SUBSTITUTION_DEPTH (selection/bindings.rs, all three
+  binding-substitution twins): self-referential binding sets now refuse
+  LOUDLY instead of crashing. REMAINING (pinned in
+  pending/calls/std_math_float_terminal_and_ladder): value-call
+  TERMINALS on multi-state callees have no dispatch return route —
+  serve or desugar to the let-bound form. Follow-ons recorded in
+  math.omg: Cody-Waite constants for large args, sub-ulp accuracy.
 - **Rendering-sample sweep (R0 follow-on) — SWEPT 2026-07-11:**
   bouncing_particles dropped its flat-field sidestep (plot + render paths
   now spell `grid[b*20+a]` / `grid[ry*20+cx]` under one dominating
