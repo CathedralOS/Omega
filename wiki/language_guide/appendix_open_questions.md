@@ -361,9 +361,9 @@ This page tracks design pressure that is not fully nailed down yet.
 - Should invariant windows ever permit graph-edge proof debt, or should
   transitions remain consumption points (the settled position, 2026-07-17)?
 - How explicit should weakened machine invariants be in target state signatures?
-- What syntax should Omega use for float optimization permissions, separate from float invariants?
-- Which float properties should be first-class invariants: `finite`, `non_nan`, `normal`, signed-zero policy, or something else?
-- What exact spelling should arithmetic modes use: scoped policy, operator variants, or domain-sensitive operator resolution for semantic quantity domains?
+- ~~Float optimization permissions~~ SETTLED 2026-07-18 (ch5, float brief): permissions are per-operation spellings (`fma`), never ambient — no fast-math mode will ever exist.
+- ~~First-class float invariants~~ SETTLED 2026-07-18: `Finite` (core domain) + float ranges (which imply Finite); `normal`/signed-zero deferred until a customer.
+- ~~Arithmetic-mode spelling~~ SETTLED: domains won — decision-17 for integers, the value/policy domain split for floats (2026-07-18); no scoped modes, no operator variants.
 - Does `checked` arithmetic return `Option`, `Result`, a language-specific checked value, or require explicit operator forms?
 - How should `Real` contracts lower when called with `f32` or `f64`: explicit `approx<Real, eps=...>`, compiler-inferred error bounds, or named approximation policies?
 - Should inline assembly allow local labels and internal jumps, or only structured exits that map to Omega transitions?
@@ -372,7 +372,7 @@ This page tracks design pressure that is not fully nailed down yet.
 - When should manual assembly contracts be allowed to supplement known instruction contracts, and when should they be rejected as too opaque?
 - Which words must be globally reserved, and which should remain contextual keywords only?
 - How should imported library/syscall signatures and target bindings describe native operand lowering, so `Stdout.write` and `Process.exit` are not compiler-special string matches?
-- Should the language eventually support explicit tail calls into machines, and if so what spelling avoids confusing them with ordinary `-> state()` transitions?
+- ~~Explicit tail calls~~ SETTLED by measured recursion (ch3, 2026-07-18): a recursive call in tail position is legal iff `decreases`-measured and lowers to the loop machinery; spelling is the ordinary call, classification is strict and errors name why a call is not tail.
 - Case members: payload-binding spelling in `transition` vs `match` arms
   (expected to reuse data-destructure guards), generic payloads, the exact
   tag-prefixed overlay layout, and whether case-union domains are recognized
