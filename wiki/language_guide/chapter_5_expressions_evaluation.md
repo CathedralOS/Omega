@@ -294,6 +294,16 @@ primitive **domain** that defines the behavior:
 - `Trapping`: checks at runtime and traps on overflow — the escape hatch when
   safety cannot be proven and neither wrap nor saturate is wanted.
 
+Shift counts follow the same rule (settled 2026-07-18): under Exact, a
+shift's count must be **proven** below the operand width (a literal
+out-of-range shift is an immediate compile error); under `Wrapping` the
+count is masked to the width (`k & (width - 1)`) — the genuinely modular
+reading, and what the hardware computes anyway; under `Trapping` an
+out-of-range count traps. `Saturating` adds no count meaning: it governs
+value overflow, not operand validity, so its count obligation is Exact's.
+The compiler never adopts the ISA's silent count-masking under Exact —
+`x << 64 == x` is an invented number.
+
 Two rules keep it honest:
 
 - **No implicit widening.** `u8 + u8` is a `u8` and must be proven to fit a
@@ -361,6 +371,9 @@ data Particle {
 - A float range (`0.0f..=100000.0f`) is a window-checked value fact — and
   every range implies `Finite`: NaN fails every comparison, so no range
   admits it.
+- A domain chain `in A & B & C` carries any number of value domains and
+  **at most one** policy domain (two policies is the existing
+  mixed-domain rejection).
 - Float constraints are not runtime metadata.
 
 ### Policy domains — operation behavior
@@ -374,7 +387,12 @@ into wraparound):
   claimed.
 - **`in Trapping`**: producing a non-finite value traps.
 - **`in Saturating`**: overflow clamps to the format's largest finite
-  magnitude.
+  magnitude — **overflow only** (settled 2026-07-18): division by zero and
+  invalid operations (`0.0/0.0`, `inf - inf`, `sqrt` of a negative) still
+  produce non-finite values; those routes remain `Finite` obligations.
+  `Finite & Saturating` is therefore the ergonomic pairing: magnitude
+  proofs vanish into the clamp, wellness stays proven via the cheap
+  discrete obligations (divisor nonzero, operand signs).
 - **`in Wrapping`**: compile error — there is no modular reading of a
   float (the float-to-int cast ruling's precedent, generalized).
 
@@ -391,6 +409,16 @@ under the binary32/64 bindings):
   deliberately refuses to fold float self-comparisons (`x == x`, `x != x`)
   for exactly this reason. `is_finite(x)` is the portable wellness
   spelling; the idiom is what implements it under IEEE bindings.
+
+`min` and `max` follow the **hardware contract** (settled 2026-07-18):
+return the second operand on unordered-or-equal — exactly `a < b ? a : b`,
+matching `minsd`/`maxsd` and the aarch64 FCSEL lowering. This is
+order-dependent under NaN (`min(NaN, 5)` is `5`; `min(5, NaN)` is `NaN`)
+and deliberately differs from both Rust (non-NaN wins — which silently
+launders a poisoned value) and IEEE-2019 `minimum` (NaN wins — which costs
+a compare-and-blend on x86). Under `Finite` operands all three contracts
+agree, so proven code cannot observe the choice; unproven code gets the
+fastest true-to-silicon lowering.
 
 Comparison results in value position (`let ok: bool = a > b`) use the same
 lowering as guards and are pinned for ordinary values — including negative

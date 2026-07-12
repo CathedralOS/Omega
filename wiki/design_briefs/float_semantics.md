@@ -157,19 +157,32 @@ both engines) is the junior version already. Accelerator reality (bf16,
 tf32, two incompatible FP8s, MX block formats, ~a new format yearly)
 makes format-as-data descriptive, not speculative.
 
-## 8. Open sub-decisions + engineering notes
+## 8. Sub-decisions — ALL SETTLED (owner, same review)
 
-1. **min/max NaN contract**: landed behavior is raw hardware ("return b on
-   unordered" — matches minsd), which differs from both Rust (non-NaN
-   wins) and IEEE-2019 minimumNumber. Lean: keep hardware semantics +
-   document; under Finite windows the question is moot in proven code.
-2. **Saturating's NaN sub-rule (arithmetic)**: lean — Saturating governs
-   OVERFLOW only (clamp to ±MAX_FINITE); NaN production is not overflow
-   and passes through (use Trapping or Finite windows for NaN policy).
-   The float->int cast's NaN->0 stays cast-specific (a cast must produce
-   some integer; an op need not).
-3. **Shift-amount >= width** (the sibling divergence, still unruled):
-   available to the same proof-or-policy stroke as Q10.
+1. ~~min/max NaN contract~~ **SETTLED: keep the hardware contract +
+   document** ("lower to better ISA matching, and don't worry about it" —
+   owner). Return the second operand on unordered/equal (`a < b ? a : b`,
+   matches minsd/FCSEL); order-dependent under NaN, knowingly differing
+   from Rust (whose non-NaN-wins LAUNDERS a poisoned value) and IEEE-2019
+   minimum (which costs a blend). Under Finite operands all contracts
+   agree — proven code cannot observe the choice. Recorded in ch5.
+2. ~~Saturating NaN sub-rule~~ **SETTLED: overflow-only.** Saturating
+   clamps magnitude overflow to ±MAX_FINITE and nothing else; division by
+   zero and invalid ops still produce non-finites, which remain Finite
+   obligations (cheap, discrete). Division by zero does NOT clamp (0/0
+   has no defensible clamp; half-measures rejected). `Finite &
+   Saturating` composes (value + policy = different axes) and is the
+   ergonomic pairing: magnitude proofs vanish, wellness stays proven.
+   Chain rule recorded: any number of value domains, at most one policy
+   per `&` chain. The cast's NaN->0 stays cast-specific.
+3. ~~Shift-amount >= width~~ **SETTLED: proof-or-policy, the Q10 stroke**
+   (integer ruling, recorded in ch5's integer section): Exact = count
+   provably < width (literal OOR = compile error); Wrapping = masked
+   count (the modular reading, hardware-free); Trapping = trap;
+   Saturating adds no count meaning (it governs value overflow, not
+   operand validity). The ISA's silent masking under Exact is an invented
+   number and never adopted. Retires the shift entry of the
+   underspecified-numerics family; native==interp by definition.
 4. Engineering: the stale bounded_float canary family (the `0.0f` suffix
    no longer lexes) — cleanup rung; the `Instruction` Binding arm (F7);
    format-record vocabulary v1 = fixed-precision radix-2.
