@@ -490,6 +490,22 @@ tables re-opening the win64 call encoder at runtime pointers).
   because its contract IS the proof.
 - **Bookkeeping:** the Packed grammar stays dead (2026-07-02 ruling —
   plan-laid value + recast IS the packed encoding); repr control folds
-  into plan-laid types + policies. The encode-call spelling (bare
-  `encode(x)` reading the destination's declared domain vs always
-  qualifying) remains IN OWNER REVIEW.
+  into plan-laid types + policies.
+- **Encode-call spelling SETTLED (owner, after the resolution fight):**
+  bare `encode(x)` is legal when the destination's DECLARED domain names
+  the policy (`save: [u8;256] in Protobuf<Level>` — the compiler reads
+  the name off the declaration); it resolves to the policy's HOME
+  conformance, always, on any import set. Plural home conformances or no
+  declared destination (temps, expressions) = loud error, qualify
+  (`Protobuf::<Level>::encode(x)`). Rides the general conformance-
+  visibility rule (recorded ch14): anyone may conform anything; implicit
+  selection consults only home conformances (type's or trait's package);
+  third-party conformances are legal but NAMED-ONLY. The Rust contrast
+  that decided it: Rust assembles candidates from imports, so a `use`
+  can change what a bare call means; here imports control whether a name
+  resolves, never what an unnamed call does. A crate wanting its custom
+  codec as a default mints its own policy name and declares buffers
+  `in MyProto<Level>` — the buffer declaration is the opt-in point,
+  which is where the reader looks for the format anyway. Runtime cost:
+  none — policies are compile-time keys, resolution monomorphizes;
+  `dyn` remains the only priced construct and only where spelled.
