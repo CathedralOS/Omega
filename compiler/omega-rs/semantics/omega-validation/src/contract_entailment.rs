@@ -131,27 +131,58 @@ pub(crate) fn validate_machine_contract_entailment(
     // arms with first-match reachability, tail self-calls) judges without
     // the binding, which can only weaken toward Unknown -- never unsound.
     // The identity lemma `-> (b)` with `ensures result == b` proves here.
-    let sole_arm_result: Option<StructuralTerm> = {
-        let states = program.machine_states(machine);
-        if let [root] = states {
-            let statements = program.statement_table.statements(root.statement_nodes);
-            if let [StatementNode::Transition(transition)] = statements {
-                (matches!(transition.guard, TransitionGuardNode::Always)
-                    && !transition.continuation.is_valid())
-                .then(|| {
-                    match program.statement_table.transition_target(transition.target) {
-                        TransitionTargetNode::Value(value) => structural_term(program, *value),
-                        _ => None,
-                    }
-                })
-                .flatten()
-            } else {
-                None
+    // Recognized shape: leading `let` locals (the terminal auto-hoist
+    // rewrites `-> (call(..))` into `let __hoist = call(..); -> (__hoist)`)
+    // folding into an environment over the lemma's own params, then exactly
+    // one Always value arm. Params map to themselves (they are the fact's
+    // vocabulary); locals map to their initializer terms.
+    let sole_arm_result: Option<StructuralTerm> = (|| {
+        let [root] = program.machine_states(machine) else {
+            return None;
+        };
+        let mut environment: Vec<(String, StructuralTerm)> = program
+            .state_parameters(root)
+            .iter()
+            .map(|parameter| {
+                let name = parameter.name.as_str().to_owned();
+                (name.clone(), StructuralTerm::Variable(name))
+            })
+            .collect();
+        let mut result = None;
+        for statement in program.statement_table.statements(root.statement_nodes) {
+            if result.is_some() {
+                return None; // statements after the value arm: out of shape
             }
-        } else {
-            None
+            match statement {
+                StatementNode::LocalData(local_data) => {
+                    let term =
+                        structural.callee_term(local_data.initial_value, &environment, 0)?;
+                    environment.push((local_data.name.as_str().to_owned(), term));
+                }
+                StatementNode::Transition(transition) => {
+                    if !matches!(transition.guard, TransitionGuardNode::Always)
+                        || transition.continuation.is_valid()
+                    {
+                        return None;
+                    }
+                    let TransitionTargetNode::Value(value) =
+                        program.statement_table.transition_target(transition.target)
+                    else {
+                        return None;
+                    };
+                    result = Some(structural.callee_term(*value, &environment, 0)?);
+                }
+                _ => return None,
+            }
         }
-    };
+        result
+    })();
+    if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+        eprintln!(
+            "STRUCT machine={} sole_arm={:?}",
+            machine.name, sole_arm_result
+        );
+    }
     let judge_structural = |fact: ExpressionHandle| -> StructuralJudgment {
         match &sole_arm_result {
             Some(term) => {
@@ -1828,27 +1859,38 @@ enum StructuralTerm {
         case: String,
         fields: Vec<(String, StructuralTerm)>,
     },
+    /// A FREE call whose arguments all term-ify (`add(Nat::Zero, b)`).
+    /// Resolution UNFOLDS it when the callee is a single-state proof
+    /// machine of the case-arm shape and the matched argument resolves to
+    /// a constructor -- the compute-mode of N3's operator routing.
+    Application {
+        machine: String,
+        arguments: Vec<StructuralTerm>,
+    },
     /// Anything else, compared by canonical display name only.
     Opaque(String),
 }
 
-struct StructuralJudge {
+struct StructuralJudge<'program> {
+    program: &'program TypedTrees,
     substitutions: Vec<(String, StructuralTerm)>,
     hypotheses_contradictory: bool,
 }
 
-impl Clone for StructuralJudge {
+impl Clone for StructuralJudge<'_> {
     fn clone(&self) -> Self {
         Self {
+            program: self.program,
             substitutions: self.substitutions.clone(),
             hypotheses_contradictory: self.hypotheses_contradictory,
         }
     }
 }
 
-impl StructuralJudge {
-    fn from_requires(program: &TypedTrees, requires: &[ExpressionHandle]) -> Self {
+impl<'program> StructuralJudge<'program> {
+    fn from_requires(program: &'program TypedTrees, requires: &[ExpressionHandle]) -> Self {
         let mut judge = Self {
+            program,
             substitutions: Vec::new(),
             hypotheses_contradictory: false,
         };
@@ -1961,10 +2003,216 @@ impl StructuralJudge {
                             .collect(),
                     };
                 }
+                StructuralTerm::Application { machine, arguments } => {
+                    let arguments: Vec<StructuralTerm> = arguments
+                        .into_iter()
+                        .map(|argument| self.resolve_at(argument, depth + 1))
+                        .collect();
+                    if let Some(unfolded) =
+                        self.unfold_application(&machine, &arguments, depth + 1)
+                    {
+                        term = unfolded;
+                        continue;
+                    }
+                    return StructuralTerm::Application { machine, arguments };
+                }
                 StructuralTerm::Opaque(_) => return term,
             }
         }
         term
+    }
+
+    /// COMPUTE-MODE unfolding (N3): apply a single-state proof machine of
+    /// the case-arm shape to structural arguments. The desugared arm guard
+    /// is `subject == Data::Case` (membership lowers to that exact Binary at
+    /// parse/lowering time), so arm selection reads the guard directly: the
+    /// matched argument must RESOLVE to a constructor, the arm whose case
+    /// matches fires, and its value expression converts to a term under an
+    /// environment of callee params -> argument terms (payload bindings are
+    /// case-tagged member reads off the subject and resolve to the
+    /// constructor's field terms). Any name outside the environment aborts
+    /// the unfold -- callee-scope names must never leak into caller-scope
+    /// judgments. `None` = no unfold (never unsound; the application just
+    /// stays opaque).
+    fn unfold_application(
+        &self,
+        machine_name: &str,
+        arguments: &[StructuralTerm],
+        depth: usize,
+    ) -> Option<StructuralTerm> {
+        if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+            eprintln!("STRUCT unfold? {machine_name} args {arguments:?} depth {depth}");
+        }
+        if depth >= 32 {
+            return None;
+        }
+        let program = self.program;
+        let machine = program
+            .machines()
+            .iter()
+            .find(|machine| {
+                machine.attached_data.is_none() && machine.name.as_str() == machine_name
+            })?;
+        let [state] = program.machine_states(machine) else {
+            return None;
+        };
+        let parameters = program.state_parameters(state);
+        if parameters.len() != arguments.len() {
+            return None;
+        }
+        let environment: Vec<(String, StructuralTerm)> = parameters
+            .iter()
+            .zip(arguments.iter())
+            .map(|(parameter, argument)| (parameter.name.as_str().to_owned(), argument.clone()))
+            .collect();
+
+        for statement in program.statement_table.statements(state.statement_nodes) {
+            let StatementNode::Transition(transition) = statement else {
+                return None;
+            };
+            if transition.continuation.is_valid() {
+                return None;
+            }
+            let fires = match transition.guard {
+                TransitionGuardNode::Always => true,
+                TransitionGuardNode::When(guard) => {
+                    let ExpressionNode::Binary(comparison) =
+                        program.expression_table.expression(guard)
+                    else {
+                        return None;
+                    };
+                    if comparison.operator != BinaryOperator::Equal {
+                        return None;
+                    }
+                    let subject = structural_term(program, comparison.left)?;
+                    let StructuralTerm::Variable(subject_name) = subject else {
+                        return None;
+                    };
+                    let case = structural_term(program, comparison.right)?;
+                    let StructuralTerm::Constructor {
+                        case: arm_case,
+                        fields: arm_fields,
+                        ..
+                    } = case
+                    else {
+                        return None;
+                    };
+                    if !arm_fields.is_empty() {
+                        return None;
+                    }
+                    let (_, subject_term) = environment
+                        .iter()
+                        .find(|(name, _)| name == &subject_name)?;
+                    let StructuralTerm::Constructor { case: got_case, .. } =
+                        self.resolve_at(subject_term.clone(), depth + 1)
+                    else {
+                        // The matched argument is not (yet) a constructor:
+                        // arm selection is undecidable, no unfold.
+                        return None;
+                    };
+                    got_case == arm_case
+                }
+            };
+            if !fires {
+                continue;
+            }
+            let TransitionTargetNode::Value(value) =
+                program.statement_table.transition_target(transition.target)
+            else {
+                return None;
+            };
+            return self.callee_term(*value, &environment, depth + 1);
+        }
+        None
+    }
+
+    /// Convert a callee-body expression to a term under the call
+    /// environment. Names must be callee parameters; case-tagged member
+    /// reads (`a.prev`) index the bound constructor's fields; case literals
+    /// and nested free calls recurse. Anything else aborts (None).
+    fn callee_term(
+        &self,
+        expression: ExpressionHandle,
+        environment: &[(String, StructuralTerm)],
+        depth: usize,
+    ) -> Option<StructuralTerm> {
+        if depth >= 32 {
+            return None;
+        }
+        let program = self.program;
+        match program.expression_table.expression(expression) {
+            ExpressionNode::Name(path) => {
+                let members = program.expression_table.name_path_members(path.members);
+                match members {
+                    [single] => environment
+                        .iter()
+                        .find(|(name, _)| name == single.as_str())
+                        .map(|(_, term)| term.clone()),
+                    [first, second] => program
+                        .data_definitions()
+                        .iter()
+                        .any(|definition| definition.name.as_str() == first.as_str())
+                        .then(|| StructuralTerm::Constructor {
+                            data: first.as_str().to_owned(),
+                            case: second.as_str().to_owned(),
+                            fields: Vec::new(),
+                        }),
+                    _ => None,
+                }
+            }
+            ExpressionNode::Member(member) => {
+                let ExpressionNode::Name(path) =
+                    program.expression_table.expression(member.receiver)
+                else {
+                    return None;
+                };
+                let [single] = program.expression_table.name_path_members(path.members) else {
+                    return None;
+                };
+                let (_, receiver_term) = environment
+                    .iter()
+                    .find(|(name, _)| name == single.as_str())?;
+                let StructuralTerm::Constructor { fields, .. } =
+                    self.resolve_at(receiver_term.clone(), depth + 1)
+                else {
+                    return None;
+                };
+                fields
+                    .iter()
+                    .find(|(name, _)| name == member.member.as_str())
+                    .map(|(_, term)| term.clone())
+            }
+            ExpressionNode::StructLiteral(literal) => {
+                let case = literal.case_name.as_ref()?;
+                let mut fields: Vec<(String, StructuralTerm)> = Vec::new();
+                for field in program.expression_table.struct_fields(literal.fields) {
+                    fields.push((
+                        field.name.as_str().to_owned(),
+                        self.callee_term(field.value, environment, depth + 1)?,
+                    ));
+                }
+                fields.sort_by(|(left, _), (right, _)| left.cmp(right));
+                Some(StructuralTerm::Constructor {
+                    data: literal.type_name.as_str().to_owned(),
+                    case: case.as_str().to_owned(),
+                    fields,
+                })
+            }
+            ExpressionNode::Call(call) => {
+                if call.receiver.is_valid() {
+                    return None;
+                }
+                let mut arguments = Vec::new();
+                for argument in program.expression_table.expression_handles(call.arguments) {
+                    arguments.push(self.callee_term(*argument, environment, depth + 1)?);
+                }
+                Some(StructuralTerm::Application {
+                    machine: call.target.as_str().to_owned(),
+                    arguments,
+                })
+            }
+            _ => None,
+        }
     }
 
     fn judge(&self, program: &TypedTrees, fact: ExpressionHandle) -> StructuralJudgment {
@@ -2111,7 +2359,25 @@ fn structural_term(program: &TypedTrees, expression: ExpressionHandle) -> Option
                 fields,
             })
         }
-        ExpressionNode::Call(_) | ExpressionNode::Member(_) => Some(StructuralTerm::Opaque(
+        ExpressionNode::Call(call) => {
+            if !call.receiver.is_valid() {
+                let handles = program.expression_table.expression_handles(call.arguments);
+                let arguments: Vec<StructuralTerm> = handles
+                    .iter()
+                    .filter_map(|argument| structural_term(program, *argument))
+                    .collect();
+                if arguments.len() == handles.len() {
+                    return Some(StructuralTerm::Application {
+                        machine: call.target.as_str().to_owned(),
+                        arguments,
+                    });
+                }
+            }
+            Some(StructuralTerm::Opaque(
+                program.expression_table.display_name(expression),
+            ))
+        }
+        ExpressionNode::Member(_) => Some(StructuralTerm::Opaque(
             program.expression_table.display_name(expression),
         )),
         _ => None,

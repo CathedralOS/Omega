@@ -52,3 +52,18 @@ ensures
     a == b
 {
 }
+// COMPUTE-MODE (application unfolding): the EXTRACTION shape -- the
+// terminal call auto-hoists into a let, the recognizer folds the local
+// back, and resolution unfolds core add's Zero arm to `b`.
+machine add_zero_left(b: Nat) -> Nat
+ensures
+    result == b
+{
+    transition { _ -> (add(Nat::Zero, b)) }
+}
+// Ground compute: 1 + 1 == 2 by two unfold steps (Succ arm, then Zero).
+machine one_plus_one()
+ensures
+    (add(Nat::Succ { prev: Nat::Zero }, Nat::Succ { prev: Nat::Zero })) == (Nat::Succ { prev: Nat::Succ { prev: Nat::Zero } })
+{
+}

@@ -521,25 +521,21 @@ no `unbounded` property exists. Rungs:
   Result binding LANDED same day for
   SOLE-unguarded-value-arm bodies (the identity lemma
   `-> (b)` / `ensures result == b` proves; wider bodies judge without
-  the binding — weaker, never unsound). REMAINING — NEXT RUNG (application
-  unfolding, analysis pre-paid): give the judge
-  `StructuralTerm::Application {{ machine, args }}` for free calls whose
-  args all term-ify; in resolve, unfold when the callee is a single-state
-  proof machine of the case-arm shape and the MATCHED argument resolves
-  to a Constructor — pick the arm whose case matches, build an env
-  (params -> arg terms; the arm's payload bindings are CASE-TAGGED MEMBER
-  READS `n.prev` off the subject, so Member(subject, field,
-  case_variant) -> constructor field term), convert the arm value under
-  the env, fuel-capped. CAVEAT: arm guards at the TYPED level are the
-  MEMBERSHIP DESUGAR (typed trees have no Membership node — case arms
-  become synthesized tag compares via lower_case_membership_expression),
-  so arm-case recognition must read that desugared guard shape (find
-  what it looks like for proof-only data first). This unlocks the
-  extraction shape (`add_zero_left ensures result == b` with terminal
-  `(add(Nat::Zero, b))`). THEN: guarded/multi-arm result binding (per-arm
-  reachability), Int/Rat routing, rearrange-mode for declared carriers,
-  and the N2(d) arithmetic bridge (n > 0 => n == Succ(n - 1)) riding the
-  same machinery. Int introduction rule: order has no floor,
+  the binding — weaker, never unsound). APPLICATION UNFOLDING LANDED
+  same day (compute-mode): StructuralTerm::Application for free calls;
+  resolution unfolds single-state case-arm proof machines when the
+  matched argument resolves to a constructor (the desugared arm guard IS
+  `subject == Data::Case`, read directly); callee bodies convert under a
+  strict param environment (payload member reads index the bound
+  constructor's fields; any out-of-env name aborts — no capture);
+  fuel-capped. The lemma recognizer folds leading `let` locals (the
+  terminal auto-hoist's shape). PROVEN LIVE: add_zero_left (extraction
+  shape) + one_plus_one (ground 1+1==2); FALSE ground compute REFUTES
+  (nat_ground_compute_refuted). THEN: induction over the unfolding
+  (recursive-arm goals need the inductive hypothesis, today they stop at
+  the undecidable arm — honest Unknown), guarded/multi-arm result
+  binding, Int/Rat routing, rearrange-mode, the N2(d) arithmetic bridge
+  (n > 0 => n == Succ(n - 1)). Int introduction rule: order has no floor,
   measures stay Nat-valued or range-floored.
 - **N4 — roster library (Nat ops + Seq LANDED 2026-07-11):** core
   nat.omg carries add/mul as proof machines (mul composes add by an

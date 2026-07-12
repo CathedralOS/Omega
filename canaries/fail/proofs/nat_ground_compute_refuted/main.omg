@@ -1,0 +1,13 @@
+// FAIL CANARY: a FALSE ground computation -- add(1, 0) unfolds through
+// core add's arms to Succ{Zero}, which the judge disproves against Zero
+// (distinct cases). The compute-mode unfolding makes false arithmetic
+// claims over Nat REFUTE instead of silently certifying (N3).
+use omega::language::core::nat;
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine Main::main(&mut self) { self.console.exit_process(70); }
+machine bogus()
+ensures
+    (add(Nat::Succ { prev: Nat::Zero }, Nat::Zero)) == Nat::Zero
+{
+}
