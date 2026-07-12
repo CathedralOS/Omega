@@ -1,0 +1,41 @@
+// Value-CALL TERMINALS (2026-07-11): a free value-machine call as a
+// transition's terminal value (`-> (sin(x + k))`) or a trailing implicit
+// return hoists into the let-bound spelling at syntax->symbol-resolved
+// lowering (hoist_terminal_value_machine_call) -- the only served route.
+// Before the hoist, an ACYCLIC callee poisoned at the unlowered-terminal
+// fence and a CYCLIC callee (this file's cos_via_terminal -> sin, whose
+// `reduce` self-loops) overflowed the compile thread through the
+// binding-substitution recursion. Three shapes, one per callee class:
+// single-state (72 on miss), multi-state acyclic (73), multi-state cyclic
+// through std math (74). Guarded arms still fence -- the hoist is gated to
+// ALWAYS arms so an effectful callee cannot run for a not-taken arm.
+use omega::language::std::math;
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine dbl(x: i32 [0..=1000]) -> i32 {
+    transition { _ -> (x + x) }
+}
+machine pass_through(x: i32 [0..=1000]) -> i32 {
+    transition { _ -> hop(x) }
+    state hop(x: i32 [0..=1000]) { transition { _ -> (x) } }
+}
+machine cos_via_terminal(x: f64) -> f64 {
+    transition { _ -> (sin(x + 1.57079632679489656)) }
+}
+machine Main::main(&mut self) {
+    let d: i32 = dbl(35);
+    transition d == 70 { true -> a() _ -> bad_d() }
+    state a(&mut self) {
+        let p: i32 = pass_through(41);
+        transition p == 41 { true -> b() _ -> bad_p() }
+    }
+    state b(&mut self) {
+        // cos(1) = 0.540302305868...
+        let c: f64 = cos_via_terminal(1.0);
+        transition c > 0.54030230586 && c < 0.54030230587 { true -> good() _ -> bad_c() }
+    }
+    state good(&mut self)  { self.console.exit_process(70); }
+    state bad_d(&mut self) { self.console.exit_process(72); }
+    state bad_p(&mut self) { self.console.exit_process(73); }
+    state bad_c(&mut self) { self.console.exit_process(74); }
+}

@@ -3,6 +3,9 @@
 // its result slot read ZII 0 (the Filesystem::close fd-leak shape: rc 0
 // "success" while the fd stayed open). The fence turns it into this clean
 // error; the supported spelling binds to a `let` and returns the local.
+// (Free VALUE-MACHINE calls on ALWAYS arms auto-hoist into that spelling
+// since 2026-07-11 -- pass/calls/runtime_value_call_terminal_exit -- but
+// host calls stay manual: the receiver marks the boundary effect.)
 use omega::language::std::filesystem_host;
 boundary trait Console { machine exit_process(return_code: i32); }
 data Probe { host: FilesystemHost; fd: i32; }

@@ -357,6 +357,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("collections/runtime_computed_index_match_subject_exit", 70),
     ("recast/runtime_multi_edge_offset_meet_exit", 70),
     ("calls/runtime_std_math_sin_cos_exit", 70),
+    ("calls/runtime_value_call_terminal_exit", 70),
     ("constants/runtime_free_const_exit", 70),
     ("proofs/runtime_core_nat_declared_exit", 70),
     ("build/runtime_depend_mapping_exit", 70),

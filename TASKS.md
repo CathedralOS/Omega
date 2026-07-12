@@ -608,11 +608,15 @@ no `unbounded` property exists. Rungs:
   value-call terminals expanding a CYCLIC callee is tamed by
   MAX_BINDING_SUBSTITUTION_DEPTH (selection/bindings.rs, all three
   binding-substitution twins): self-referential binding sets now refuse
-  LOUDLY instead of crashing. REMAINING (pinned in
-  pending/calls/std_math_float_terminal_and_ladder): value-call
-  TERMINALS on multi-state callees have no dispatch return route —
-  serve or desugar to the let-bound form. Follow-ons recorded in
-  math.omg: Cody-Waite constants for large args, sub-ulp accuracy.
+  LOUDLY instead of crashing. The residue landed same-day:
+  value-call TERMINALS (always-arm transition values + trailing
+  returns) now AUTO-HOIST into the let-bound spelling at
+  syntax->symbol-resolved lowering (hoist_terminal_value_machine_call;
+  free user calls only — host calls and guarded arms keep the honest
+  fence, fail/calls/guarded_value_call_terminal_rejected) — all three
+  callee classes exercised by pass/calls/runtime_value_call_terminal_exit.
+  Follow-ons recorded in math.omg: Cody-Waite constants for large args,
+  sub-ulp accuracy.
 - **Rendering-sample sweep (R0 follow-on) — SWEPT 2026-07-11:**
   bouncing_particles dropped its flat-field sidestep (plot + render paths
   now spell `grid[b*20+a]` / `grid[ry*20+cx]` under one dominating

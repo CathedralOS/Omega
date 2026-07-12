@@ -120,6 +120,11 @@ fn lower_statement_node(
             let mut hoisted = Vec::new();
             let expression = lower_statement_expression(lowerer, syntax_trees, *expression)?;
             let expression = hoist_operand_indexed_reads(lowerer, expression, &mut hoisted, false);
+            // A free value-machine call as the trailing return
+            // (`state go(..) -> f64 { ..; sin(x) }`) hoists into the
+            // let-bound spelling, exactly as the transition-value face.
+            // Trailing returns are unconditional, so no guard gate applies.
+            let expression = hoist_terminal_value_machine_call(lowerer, expression, &mut hoisted);
             hoisted.push(Statement::Expression(expression));
             Ok(hoisted)
         }
@@ -153,12 +158,28 @@ fn lower_statement_node(
         )]),
         syntax::statement::StatementNode::Transition(transition) => {
             let mut hoisted = Vec::new();
-            let target = lower_transition_target_node(
+            let mut target = lower_transition_target_node(
                 lowerer,
                 syntax_trees,
                 transition.target,
                 &mut hoisted,
             )?;
+            // A free value-machine call as the TERMINAL value of an
+            // ALWAYS-guard arm (`transition { _ -> (sin(x + k)) }`) hoists
+            // into the let-bound spelling -- the only served route. Guarded
+            // arms keep the honest fence: their hoist would run the callee
+            // even when the arm is not taken.
+            if matches!(
+                transition.guard,
+                syntax::statement::TransitionGuardNode::Always
+            ) && let TransitionTarget::Value(expression) = target
+            {
+                let rewritten =
+                    hoist_terminal_value_machine_call(lowerer, expression, &mut hoisted);
+                if rewritten != expression {
+                    target = TransitionTarget::Value(rewritten);
+                }
+            }
             let continuation = if transition.continuation.is_valid() {
                 Some(lower_transition_target_node(
                     lowerer,
@@ -750,6 +771,54 @@ fn hoist_scalar_value_call_comparison(
         },
     };
     set_expression(lowerer, resolved_cmp, ExpressionNode::Binary(rewritten));
+}
+
+/// A FREE user value-machine call (`sin(x)` -- no receiver, not a pure
+/// builtin) as a transition's TERMINAL VALUE (or a state's trailing implicit
+/// return) has no dispatch return route: an acyclic callee poisons at the
+/// unlowered-terminal fence and a cyclic one refuses at the
+/// binding-substitution depth cap (neither ever lowered -- probed 2026-07-11,
+/// so this rewrite cannot regress a served shape). The let-bound spelling is
+/// the fully served path, so make it automatic: hoist the call into a
+/// `let __hoist_N` temp (typed from the callee's DECLARED return by
+/// `infer_hoist_temp_type`'s Call branch) and deliver the local. Callers gate
+/// transition targets to ALWAYS-guard arms: a hoisted statement runs whenever
+/// control reaches it, and hoisting out of a guarded arm would run an
+/// effectful callee even when the arm is not taken (trailing returns are
+/// unconditional, so they hoist unconditionally).
+fn hoist_terminal_value_machine_call(
+    lowerer: &mut Lowerer,
+    expression: ExpressionHandle,
+    hoisted: &mut Vec<Statement>,
+) -> ExpressionHandle {
+    let expressions = &lowerer.symbol_resolved_trees.tables.bodies.expressions;
+    let ExpressionNode::Call(call) = expressions.expression(expression) else {
+        return expression;
+    };
+    if call.receiver.is_valid() || matches!(call.target.as_str(), "min" | "max" | "sqrt") {
+        return expression;
+    }
+    let name = DiagnosticName::generated(lowerer.next_hoist_name());
+    hoisted.push(Statement::LocalData(LocalData {
+        symbol: SymbolHandle::invalid(),
+        name: name.clone(),
+        storage: LocalDataStorage {
+            // Unit is the inference sentinel; the symbol-resolved -> typed
+            // lowering types the temp from the callee's declared return.
+            type_reference: TypeReference::Unit,
+            initial_value: expression,
+            is_mutable: false,
+        },
+    }));
+    let expressions = &mut lowerer.symbol_resolved_trees.tables.bodies.expressions;
+    let mut members = HandleSpan::empty();
+    expressions.push_name_path_member(&mut members, name);
+    expressions.insert(ExpressionNode::Name(TableNamePath {
+        members,
+        is_self_value: false,
+        head_symbol: SymbolHandle::invalid(),
+        symbol: SymbolHandle::invalid(),
+    }))
 }
 
 /// Whether `expression` is a pure-builtin call (`min`/`max`/`sqrt`; `abs`/`clamp`
