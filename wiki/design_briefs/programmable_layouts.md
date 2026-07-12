@@ -462,3 +462,34 @@ domain zero-copy generalized by §5 here), boot brief sample 2 (loses the
 deltas: runtime `DescriptorSize` stride — the spec *forbids* sizeof-striding,
 which the obligation system can enforce — and BootServices function-pointer
 tables re-opening the win64 call encoder at runtime pointers).
+
+## Amendment (owner, 2026-07-18): hand-written proven policies; mint exclusivity
+
+- **The "everything else is derived" law is AMENDED.** Policies HAND-WRITE
+  encode/decode/validate as ordinary library machines; the conformance
+  theorem moves ON the trait — `ensures decode(encode(x)) == x` (plus
+  validate agreement) — proven per conformance. The anti-serde goal is
+  kept as a PROOF OBLIGATION instead of a code generator. Rationale
+  (owner probe: "there aren't going to be many of these impls anyway —
+  how bad can it be to just write these"): generation is what languages
+  without provers do; policies are few (a handful ever) and per-policy
+  roundtrip proofs are the sorting-spec shape the proof arc built for;
+  purity makes encode/decode dual-use fact atoms; precedent — the trait
+  already breaks bad impls at their own declaration via the effect-free
+  gate on plan(). Legitimate asymmetry (old-era reads, defaults,
+  migrations) lives in the EVOLUTION layer, never inside a codec.
+  Roundtrip proofs need inductive prover reach; the hardcoded
+  compact_binary codec bridges until then — the same gap the unbuilt
+  deriver had.
+- **Mint exclusivity RULED** (the flagged ⚠️ design question):
+  `Checked::Valid { view: plain_bytes }` from an unrefined `&[u8]` is a
+  COMPILE ERROR — case-payload construction is a fact-checked position
+  like every other; claiming a domain on a payload without proof is the
+  2026-07-04 settle's implicit-add bug class. The derived... now
+  hand-written-and-proven `validate` constructs Valid legitimately
+  because its contract IS the proof.
+- **Bookkeeping:** the Packed grammar stays dead (2026-07-02 ruling —
+  plan-laid value + recast IS the packed encoding); repr control folds
+  into plan-laid types + policies. The encode-call spelling (bare
+  `encode(x)` reading the destination's declared domain vs always
+  qualifying) remains IN OWNER REVIEW.

@@ -857,10 +857,21 @@ rejects — an INTEGER ruling, engineering rides this ladder as F8).
 
 - **L4 full:** derived projections into a plan-laid BYTE VIEW + the no-op
   boundary theorem — needs the L5 carrier/domain rung.
-- **L5 remainder:** target-directed `encode()` (spelling open, extern brief
-  §10.2), the `Packed` grammar, the plan-walking deriver (blocked on
-  case-vocabulary Plan element construction), the validate/materialize
-  decode mint, refinement-as-obligation.
+- **L5 remainder (three of five items RULED 2026-07-18; record:
+  programmable_layouts amendment):** encode-call spelling = still in owner
+  review (the one open item). Plan-walking deriver REPLACED: policies
+  HAND-WRITE encode/decode/validate as ordinary proven library machines;
+  the conformance theorem (`ensures decode(encode(x)) == x` + validate
+  agreement) lives ON the trait, proven per conformance — anti-serde kept
+  as a proof obligation, not a code generator; the hardcoded
+  compact_binary codec serves until inductive prover reach lands (same
+  bridge the deriver needed). Validate/materialize MINT EXCLUSIVITY
+  RULED: `Checked::Valid { view: plain }` from unrefined bytes = compile
+  error (case-payload construction is a fact-checked position, the
+  2026-07-04 all-facts-proven implicit-add bug class; validate's proven
+  contract licenses its Valid construction). Packed grammar REMOVED
+  (dead since 2026-07-02: plan-laid value + recast IS the packed
+  encoding). Refinement-as-obligation stays queued.
 - **RECAST (main lane, claimed 2026-07-09; the last compiler-side M2
   blocker):** rungs A/B/C1/C2 ALL LANDED — static core, interior byte
   recast, runtime-offset recast, all-scalar record views, and the
@@ -947,7 +958,10 @@ with a real app-window story.
 - **Generics completion:** stage-1 data monomorphization landed; machines/
   traits remainder.
 - **Allocator story:** `Vec` has no runtime; `alloc` is an effect name only.
-- **Repr control** for hardware structures (packed, explicit).
+- **Repr control** — FOLDED into the layouts ladder (2026-07-18): L4
+  plan-laid types + policies ARE repr control (CLayout pilot landed;
+  packed = a no-padding policy); remaining work is surface polish, no
+  arc.
 - **Proof engine arcs** beyond L7 induction.
 - **Hot-swap semantics:** quiescence proofs, borrows as swap barriers.
 - **Wire encoding families + negotiation** (beyond stage-2 encoders).
