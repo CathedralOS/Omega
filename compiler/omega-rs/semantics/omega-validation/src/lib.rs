@@ -28,7 +28,8 @@ mod type_references;
 mod wire;
 
 use crate::calls::{
-    validate_call_node, validate_self_recursive_call_positions, validate_value_position_calls,
+    validate_call_node, validate_proof_machine_recursion,
+    validate_self_recursive_call_positions, validate_value_position_calls,
 };
 use crate::contract_entailment::validate_machine_contract_entailment;
 use crate::data::validate_data_field_types;
@@ -199,13 +200,29 @@ pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
                     &value_env,
                     &mut diagnostics,
                 );
-                validate_self_recursive_call_positions(
-                    program,
-                    machine,
-                    state,
-                    statement,
-                    &mut diagnostics,
-                );
+                // PROOF MACHINES (free machines over proof-only data) are
+                // exempt from the tail-only rule: they emit no runtime code,
+                // so there is no frame to survive a non-tail call --
+                // structural recursion (`Succ { prev: double(prev) }`) is
+                // the induction the measure licenses. What still applies is
+                // the measure itself: every self-call must structurally
+                // descend (N2d gateway).
+                if proof_only.is_proof_machine(program, machine) {
+                    validate_proof_machine_recursion(
+                        program,
+                        machine,
+                        statement,
+                        &mut diagnostics,
+                    );
+                } else {
+                    validate_self_recursive_call_positions(
+                        program,
+                        machine,
+                        state,
+                        statement,
+                        &mut diagnostics,
+                    );
+                }
                 validate_state_statement_node(
                     program,
                     machine,

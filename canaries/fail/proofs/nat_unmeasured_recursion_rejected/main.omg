@@ -1,0 +1,14 @@
+// FAIL CANARY: a recursive PROOF MACHINE without a measure. Proof
+// machines are exempt from the tail-only rule (no runtime code, no
+// frames), but a cycle without a measure is an unproven termination
+// claim in BOTH strata -- `spin(n)` would "prove" by spinning forever.
+use omega::language::core::nat;
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine Main::main(&mut self) { self.console.exit_process(70); }
+machine spin(n: Nat) -> Nat {
+    transition n {
+        Nat::Zero -> Nat::Zero
+        Nat::Succ { prev } -> Nat::Succ { prev: spin(n) }
+    }
+}

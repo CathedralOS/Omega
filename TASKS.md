@@ -479,9 +479,22 @@ no `unbounded` property exists. Rungs:
   Literal facts and literal `[v,v]` ranges are exact at any magnitude
   (value_bignum); binary range folds are exact (no saturation; the
   `i64::MIN / -1` bail is gone); the checker's NEUTRAL guard-refinement
-  start is documented as a non-claim. REMAINING: (d) the structural
-  bridge for induction (n > 0 => n == Succ(n - 1)) — needs Nat-as-data
-  engine semantics, design with N4's roster library in view.
+  start is documented as a non-claim. (d) GATEWAY LANDED
+  2026-07-11: machine-stratum contagion — a FREE machine whose signature
+  mentions proof-only data is a PROOF MACHINE
+  (ProofOnlyClassification::is_proof_machine, computed never spelled;
+  the brief's dissolved keyword). Faces exempt (params/returns/locals);
+  tail-only exempt (no frames) but recursion MUST be measured and every
+  self-call must STRUCTURALLY DESCEND — the measure-position argument is
+  a case-payload subterm (arm-pattern `prev` lowers to the case-tagged
+  member read `n.prev`; validate_proof_machine_recursion). Pinned
+  pass/proofs/runtime_nat_structural_recursion_exit + unmeasured/
+  non-descending fail twins; every runtime route into a proof machine
+  refuses on existing rails (locals fence, discard + purity fences;
+  attached machines keep all faces). REMAINING (d cont.): the arithmetic
+  bridge itself (n > 0 => n == Succ(n - 1) for INTEGER-measured
+  induction consuming Nat lemmas) + ensures-extraction from proof
+  machines — rides N3/N4 (extraction lemmas).
 - **N3 — fact-position operator routing:** glyphs route by operand type —
   Nat/Int/Rat compute-mode, declared proof carriers rearrange-mode
   (ring-generic polynomial normalization). Int introduction rule: order
