@@ -549,9 +549,12 @@ no `unbounded` property exists. Rungs:
 - **N4 — roster library (Nat ops + Seq LANDED 2026-07-11):** core
   nat.omg carries add/mul as proof machines (mul composes add by an
   ordinary cross-machine call; only self-calls need the measure), and
-  seq.omg carries generic recursive `Seq<T>` — pinned
-  pass/proofs/runtime_core_roster_ops_exit (core ops + a program-side
-  structural length lemma over Seq<u64> into core Nat). First PROVEN
+  seq.omg carries generic recursive `Seq<T>` plus a
+  structurally-recursive `length` proof machine + the length_empty
+  PROVEN lemma (the roster's first proven lemma over a GENERIC type; the
+  structural judge is parametric over constructor names) — pinned
+  pass/proofs/runtime_core_roster_ops_exit (a two-element length lemma
+  unfolding the core `length`). First PROVEN
   library lemmas LANDED 2026-07-11: core nat.omg carries add_zero_left
   (compute-mode) and add_zero_right (structural induction), each ensures
   machine-checked at compile time for every importer. REMAINING:

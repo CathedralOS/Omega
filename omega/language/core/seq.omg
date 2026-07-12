@@ -9,3 +9,28 @@ data Seq<T> {
     case Empty;
     case Cons(head: T, tail: Seq<T>);
 }
+
+use omega::language::core::nat;
+
+// N4 Seq operations (2026-07-11): length as a structurally-recursive
+// proof machine returning core Nat -- the generic twin of nat's own
+// ladder, and the roster's first PROVEN lemma over a GENERIC recursive
+// type. The structural entailment judge (N3) is parametric over
+// constructor names, so it discharges Seq lemmas exactly as it does Nat's.
+machine length(s: Seq<u64>) -> Nat
+terminates {
+    decreases s;
+}
+{
+    transition s {
+        Seq::Empty -> Nat::Zero
+        Seq::Cons { head, tail } -> Nat::Succ { prev: length(tail) }
+    }
+}
+
+// length of the empty sequence is Zero (compute-mode: unfold the Empty arm).
+machine length_empty()
+ensures
+    (length(Seq::Empty)) == Nat::Zero
+{
+}
