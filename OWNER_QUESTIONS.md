@@ -246,6 +246,31 @@ TASKS.md — the lanes sync from all of them.
     making the DAG author-visible)? This touches the proof KERNEL's trust
     story, so shipping the matching engine waits on the discipline.
 
+    [Prior art, on the owner's ask "what does Lean and/or Coq do?" —
+    (1) ACYCLICITY: both get it FOR FREE from a monotone, declaration-
+    ordered environment. A Coq/Lean proof may only reference constants
+    already fully checked into the environment; citation cycles are
+    impossible by construction (time is the stratification). Neither
+    requires explicit `uses` lists for soundness; audit needs are met by
+    tooling (`Print Assumptions` / `#print axioms`) instead. (2) MUTUAL
+    cycles: not banned outright — allowed ONLY inside an explicit
+    `mutual`/`Fixpoint..with` block whose members are checked together
+    under a JOINT structural/well-founded measure (the MR4 shape).
+    (3) REWRITE RULES: neither system auto-registers proven equations;
+    registration is explicit and curated (Coq `Hint Rewrite` databases,
+    Lean `@[simp]`), and rewrite-system termination is NOT verified — a
+    looping rule set hangs the tactic but cannot prove false, because
+    every step emits a kernel-checked proof. (4) COMMUTATIVITY: naive
+    rewriting loops, so Lean/Isabelle simp fire permutative rules only
+    under ORDERED REWRITING (strict term-order decrease); Coq practice
+    prefers reflective decision procedures (`ring`, `lia`) normalizing
+    both sides to canonical polynomial form — structurally what the N2
+    polynomial engine already does. Note the answer below supersedes the
+    rewrite-registry framing entirely: with citation-as-machine-call, the
+    citation graph IS the call graph and Omega's landed measured-or-
+    reject discipline is exactly the Lean/Coq guarantee, point (2)
+    included.]
+
     > **ANSWERED (owner, 2026-07-18 — settled in the proofs review before
     > the question was asked; record: mathematical_proofs.md par-6 item 1 +
     > ch10 "Citing Proofs"):** do NOT build the global pattern-matching
