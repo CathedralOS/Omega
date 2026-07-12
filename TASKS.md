@@ -513,8 +513,12 @@ no `unbounded` property exists. Rungs:
   MEASURED GRAMMAR GAP: struct literals do not parse in fact position
   (`requires Nat::Succ { prev: a } == ...` is a parse error), so payload
   constructor terms + injectivity decomposition are the next rung.
-  REMAINING: proof-machine application unfolding (add/mul compute-mode),
-  result-arm binding for bodied lemmas, Int/Rat routing, rearrange-mode
+  Result binding LANDED same day for
+  SOLE-unguarded-value-arm bodies (the identity lemma
+  `-> (b)` / `ensures result == b` proves; wider bodies judge without
+  the binding — weaker, never unsound). REMAINING: proof-machine
+  application unfolding (add/mul compute-mode), guarded/multi-arm result
+  binding (needs per-arm reachability), Int/Rat routing, rearrange-mode
   for declared carriers. Int introduction rule: order has no floor,
   measures stay Nat-valued or range-floored.
 - **N4 — roster library (Nat ops + Seq LANDED 2026-07-11):** core
