@@ -30,7 +30,7 @@ pub fn simplify_expression(
     expression: &Expression,
 ) -> Expression {
     let bindings: &[Binding] = &[];
-    simplify_expression_with_bindings(program, machine, expression, bindings, false)
+    simplify_expression_with_bindings(program, machine, expression, bindings, false, 0)
 }
 
 pub fn simplify_state_expression(
@@ -76,8 +76,19 @@ pub fn simplify_state_expression_for_role(
         expression,
         &bindings,
         preserve_call_locals,
+        0,
     )
 }
+
+/// Re-entrant simplification depth cap: the guarded-helper comparison and
+/// helper-value inlining feed their EXPANSIONS back through the simplifier,
+/// and a RECURSIVE callee grows its arguments one constructor-read per round
+/// (`a.prev`, `a.prev.prev`, ..) with the cycle stack freshly popped between
+/// rounds -- unbounded. Past the cap the expression returns UNSIMPLIFIED,
+/// which is this canonicalizer's ordinary "no match" behavior (never
+/// unsound, merely unfolded). Mirrors instruction selection's
+/// MAX_BINDING_SUBSTITUTION_DEPTH.
+const REENTRANT_SIMPLIFY_DEPTH_LIMIT: usize = 32;
 
 fn simplify_expression_with_bindings(
     program: &CheckedTrees,
@@ -85,7 +96,11 @@ fn simplify_expression_with_bindings(
     expression: &Expression,
     bindings: &(impl BindingScope + ?Sized),
     preserve_call_locals: bool,
+    depth: usize,
 ) -> Expression {
+    if depth >= REENTRANT_SIMPLIFY_DEPTH_LIMIT {
+        return expression.clone();
+    }
     match expression {
         Expression::ArrayLiteral(values) => Expression::ArrayLiteral(Arc::from(
             values
@@ -97,19 +112,20 @@ fn simplify_expression_with_bindings(
                         value,
                         bindings,
                         preserve_call_locals,
+                    depth,
                     )
                 })
                 .collect::<Arc<[_]>>(),
         )),
         Expression::Binary(binary) => {
-            simplify_binary_expression(program, machine, binary, bindings, preserve_call_locals)
+            simplify_binary_expression(program, machine, binary, bindings, preserve_call_locals, depth)
         }
         Expression::Boolean(_)
         | Expression::Float(_)
         | Expression::Integer(_)
         | Expression::String(_) => expression.clone(),
         Expression::Call(call) => {
-            simplify_call_expression(program, machine, call, bindings, preserve_call_locals)
+            simplify_call_expression(program, machine, call, bindings, preserve_call_locals, depth)
         }
         Expression::Cast(cast) => {
             Expression::Cast(Box::new(omega_checked_trees::expression::CastExpression {
@@ -119,6 +135,7 @@ fn simplify_expression_with_bindings(
                     &cast.value,
                     bindings,
                     preserve_call_locals,
+                depth,
                 ),
                 target_type: cast.target_type.clone(),
                 domain: cast.domain,
@@ -132,6 +149,7 @@ fn simplify_expression_with_bindings(
                 &indexed.collection,
                 bindings,
                 preserve_call_locals,
+                depth,
             ),
             index: simplify_index_expression(
                 program,
@@ -139,6 +157,7 @@ fn simplify_expression_with_bindings(
                 &indexed.index,
                 bindings,
                 preserve_call_locals,
+                depth,
             ),
         })),
         Expression::Range(range) => {
@@ -150,6 +169,7 @@ fn simplify_expression_with_bindings(
                         start,
                         bindings,
                         preserve_call_locals,
+                    depth,
                     ))
                 }),
                 end: range.end.as_ref().map(|end| {
@@ -159,6 +179,7 @@ fn simplify_expression_with_bindings(
                         end,
                         bindings,
                         preserve_call_locals,
+                    depth,
                     ))
                 }),
                 end_inclusive: range.end_inclusive,
@@ -171,6 +192,7 @@ fn simplify_expression_with_bindings(
                 &member.receiver,
                 bindings,
                 preserve_call_locals,
+            depth,
             );
             // Struct-literal field extraction: `Holder { f: X }.f` simplifies to
             // `X`. A local bound to a struct literal simplifies to that literal,
@@ -204,6 +226,7 @@ fn simplify_expression_with_bindings(
                 inner,
                 bindings,
                 preserve_call_locals,
+            depth,
             )))
         }
         Expression::Unary(unary) => {
@@ -213,6 +236,7 @@ fn simplify_expression_with_bindings(
                 &unary.operand,
                 bindings,
                 preserve_call_locals,
+            depth,
             );
             match unary.operator {
                 UnaryOperator::LogicalNot => boolean_not(operand),
@@ -242,6 +266,7 @@ fn simplify_expression_with_bindings(
                             &field.value,
                             bindings,
                             preserve_call_locals,
+                        depth,
                         ),
                     })
                     .collect::<Arc<[_]>>(),
@@ -268,6 +293,7 @@ fn simplify_collection_expression(
     collection: &Expression,
     bindings: &(impl BindingScope + ?Sized),
     preserve_call_locals: bool,
+    depth: usize,
 ) -> Expression {
     if let Expression::Name(path) = collection
         && let Some(binding) = bindings.find_path_binding(path)
@@ -279,7 +305,7 @@ fn simplify_collection_expression(
     {
         return collection.clone();
     }
-    simplify_expression_with_bindings(program, machine, collection, bindings, preserve_call_locals)
+    simplify_expression_with_bindings(program, machine, collection, bindings, preserve_call_locals, depth)
 }
 
 fn simplify_index_expression(
@@ -288,6 +314,7 @@ fn simplify_index_expression(
     index: &Expression,
     bindings: &(impl BindingScope + ?Sized),
     preserve_call_locals: bool,
+    depth: usize,
 ) -> Expression {
     if let Expression::Name(path) = index
         && let Some(binding) = bindings.find_path_binding(path)
@@ -299,7 +326,7 @@ fn simplify_index_expression(
     {
         return index.clone();
     }
-    simplify_expression_with_bindings(program, machine, index, bindings, preserve_call_locals)
+    simplify_expression_with_bindings(program, machine, index, bindings, preserve_call_locals, depth)
 }
 
 fn simplify_binary_expression(
@@ -308,6 +335,7 @@ fn simplify_binary_expression(
     binary: &BinaryExpression,
     bindings: &(impl BindingScope + ?Sized),
     preserve_call_locals: bool,
+    depth: usize,
 ) -> Expression {
     let left = simplify_expression_with_bindings(
         program,
@@ -315,6 +343,7 @@ fn simplify_binary_expression(
         &binary.left,
         bindings,
         preserve_call_locals,
+    depth,
     );
     let right = simplify_expression_with_bindings(
         program,
@@ -322,6 +351,7 @@ fn simplify_binary_expression(
         &binary.right,
         bindings,
         preserve_call_locals,
+    depth,
     );
 
     if let Some(expression) = simplify_guarded_helper_comparison(
@@ -331,13 +361,19 @@ fn simplify_binary_expression(
         &left,
         &right,
         bindings,
+        depth,
     ) {
+        // GROWTH edge: the expansion re-enters the simplifier with material
+        // the comparison machinery synthesized; count it against the
+        // re-entrancy budget (a recursive callee grows its arguments one
+        // constructor-read per round).
         return simplify_expression_with_bindings(
             program,
             machine,
             &expression,
             bindings,
             preserve_call_locals,
+            depth + 1,
         );
     }
 
@@ -422,6 +458,7 @@ fn simplify_call_expression(
     call: &CallExpression,
     bindings: &(impl BindingScope + ?Sized),
     preserve_call_locals: bool,
+    depth: usize,
 ) -> Expression {
     let receiver = call.receiver.as_ref().map(|receiver| {
         simplify_expression_with_bindings(
@@ -430,6 +467,7 @@ fn simplify_call_expression(
             receiver,
             bindings,
             preserve_call_locals,
+        depth,
         )
     });
     let simplified_arguments: Arc<[_]> = call
@@ -442,6 +480,7 @@ fn simplify_call_expression(
                 argument,
                 bindings,
                 preserve_call_locals,
+            depth,
             )
         })
         .collect();
@@ -459,14 +498,18 @@ fn simplify_call_expression(
                 value: argument.clone(),
             });
         }
-        if let Some(value) = helper_state_value(state, program, target_machine, &argument_bindings)
+        if let Some(value) =
+            helper_state_value(state, program, target_machine, &argument_bindings, depth)
         {
+            // GROWTH edge: the inlined helper value is new material under
+            // new bindings.
             return simplify_expression_with_bindings(
                 program,
                 machine,
                 &value,
                 &argument_bindings,
                 preserve_call_locals,
+                depth + 1,
             );
         }
     }
@@ -486,6 +529,7 @@ fn simplify_guarded_helper_comparison(
     left: &Expression,
     right: &Expression,
     bindings: &(impl BindingScope + ?Sized),
+    depth: usize,
 ) -> Option<Expression> {
     use omega_checked_trees::expression::BinaryOperator::{Equal, NotEqual};
 
@@ -495,7 +539,7 @@ fn simplify_guarded_helper_comparison(
 
     if let Expression::Call(call) = left
         && let Some(condition) =
-            simplify_helper_call_comparison(program, machine, call, right, bindings)
+            simplify_helper_call_comparison(program, machine, call, right, bindings, depth)
     {
         return Some(match operator {
             Equal => condition,
@@ -506,7 +550,7 @@ fn simplify_guarded_helper_comparison(
 
     if let Expression::Call(call) = right
         && let Some(condition) =
-            simplify_helper_call_comparison(program, machine, call, left, bindings)
+            simplify_helper_call_comparison(program, machine, call, left, bindings, depth)
     {
         return Some(match operator {
             Equal => condition,
@@ -524,9 +568,10 @@ fn simplify_helper_call_comparison(
     call: &CallExpression,
     expected: &Expression,
     bindings: &(impl BindingScope + ?Sized),
+    depth: usize,
 ) -> Option<Expression> {
     let receiver = call.receiver.as_ref().map(|receiver| {
-        simplify_expression_with_bindings(program, machine, receiver, bindings, false)
+        simplify_expression_with_bindings(program, machine, receiver, bindings, false, depth)
     });
     let target_machine =
         resolve_call_target_machine(program, machine, receiver.as_ref(), call.target_symbol)?;
@@ -537,11 +582,11 @@ fn simplify_helper_call_comparison(
         argument_bindings.insert(Binding {
             symbol: parameter.symbol,
             name: parameter.name.clone(),
-            value: simplify_expression_with_bindings(program, machine, argument, bindings, false),
+            value: simplify_expression_with_bindings(program, machine, argument, bindings, false, depth),
         });
     }
 
-    helper_state_match_condition(state, program, target_machine, &argument_bindings, expected)
+    helper_state_match_condition(state, program, target_machine, &argument_bindings, expected, depth)
 }
 
 fn helper_state_value(
@@ -549,8 +594,9 @@ fn helper_state_value(
     program: &CheckedTrees,
     machine: &Machine,
     bindings: &(impl BindingScope + ?Sized),
+    depth: usize,
 ) -> Option<Expression> {
-    let helper = helper_state_model(state, program, machine, bindings)?;
+    let helper = helper_state_model(state, program, machine, bindings, depth)?;
     let mut transitions = helper.transitions.iter().map(|(_, transition)| transition);
     let transition = transitions.next()?;
     if transitions.next().is_some() {
@@ -568,6 +614,7 @@ fn helper_state_match_condition(
     machine: &Machine,
     bindings: &(impl BindingScope + ?Sized),
     expected: &Expression,
+    depth: usize,
 ) -> Option<Expression> {
     helper_state_match_condition_with_stack(
         state,
@@ -576,6 +623,7 @@ fn helper_state_match_condition(
         bindings,
         expected,
         &mut HelperStateStack::with_capacity(program.machine_states.len()),
+        depth,
     )
 }
 
@@ -586,6 +634,7 @@ fn helper_state_match_condition_with_stack(
     bindings: &(impl BindingScope + ?Sized),
     expected: &Expression,
     stack: &mut HelperStateStack,
+    depth: usize,
 ) -> Option<Expression> {
     if state.symbol.is_valid() && stack.contains(state.symbol) {
         return None;
@@ -595,7 +644,7 @@ fn helper_state_match_condition_with_stack(
         stack.push(state.symbol);
     }
 
-    let helper = match helper_state_model(state, program, machine, bindings) {
+    let helper = match helper_state_model(state, program, machine, bindings, depth) {
         Some(helper) => helper,
         None => {
             if pushed {
@@ -615,6 +664,7 @@ fn helper_state_match_condition_with_stack(
             &transition.value,
             expected,
             stack,
+            depth,
         ) {
             matched = boolean_or(matched, boolean_and(effective_guard.clone(), value_matches));
         }
@@ -633,6 +683,7 @@ fn expression_match_condition_with_stack(
     expression: &Expression,
     expected: &Expression,
     stack: &mut HelperStateStack,
+    depth: usize,
 ) -> Option<Expression> {
     if expressions_equivalent(expression, expected) {
         return Some(Expression::Boolean(true));
@@ -663,6 +714,7 @@ fn expression_match_condition_with_stack(
         &argument_bindings,
         expected,
         stack,
+        depth,
     )
 }
 
@@ -671,7 +723,14 @@ fn helper_state_model(
     program: &CheckedTrees,
     machine: &Machine,
     bindings: &(impl BindingScope + ?Sized),
+    depth: usize,
 ) -> Option<HelperStateModel> {
+    // GROWTH edge: each model build expands the callee's body under new
+    // argument bindings.
+    let depth = depth + 1;
+    if depth >= REENTRANT_SIMPLIFY_DEPTH_LIMIT {
+        return None;
+    }
     let statements = program.statement_table.statements(state.statement_nodes);
     let local_binding_capacity = statements
         .iter()
@@ -711,6 +770,7 @@ fn helper_state_model(
                     &initial_value,
                     &scoped_bindings,
                     false,
+                    depth,
                 );
                 local_bindings.insert(Binding {
                     symbol: local.symbol,
@@ -735,6 +795,7 @@ fn helper_state_model(
                             &expression,
                             &scoped_bindings,
                             false,
+                            depth,
                         )
                     }
                 };
@@ -750,6 +811,7 @@ fn helper_state_model(
                     &value,
                     &scoped_bindings,
                     false,
+                    depth,
                 );
                 transitions.insert(HelperTransition { guard, value });
             }
@@ -761,6 +823,7 @@ fn helper_state_model(
                     &expression,
                     &scoped_bindings,
                     false,
+                    depth,
                 );
                 transitions.insert(HelperTransition {
                     guard: Expression::Boolean(true),

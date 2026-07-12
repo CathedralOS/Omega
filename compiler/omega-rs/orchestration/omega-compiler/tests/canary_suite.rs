@@ -29763,6 +29763,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "calls/free_standing_machine_helper_compile",
     "calls/typed_return_from_local_call_compile",
     "calls/pure_discard_warns_compile",
+    "calls/statement_call_recursive_argument_compile",
     "capabilities/boundary_trait_multiple_effects",
     "capabilities/derives_authority_via_boundary",
     "capabilities/acquires_through_helper_return",

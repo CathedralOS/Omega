@@ -1,0 +1,33 @@
+// REGRESSION PIN (2026-07-12): a statement call whose ARGUMENT calls a
+// self-recursive machine (`lemma(q, add(p, q));`) used to overflow the
+// compile thread -- the state-values simplifier's guarded-helper
+// comparison expanded the recursive callee's model, re-entered the
+// simplifier with the cycle stack already popped, and grew the argument
+// one constructor-read per round (`a.prev`, `a.prev.prev`, ..) without
+// bound. REENTRANT_SIMPLIFY_DEPTH_LIMIT now caps the re-entrancy budget:
+// past it the expression stays unsimplified (the canonicalizer's ordinary
+// "no match" behavior), and this program simply compiles. Value-position
+// nested call args keep their own honest fence ("a value-call argument
+// cannot itself be a machine call yet").
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine Main::main(&mut self) { self.console.exit_process(70); }
+
+data Nat { case Zero; case Succ(prev: Nat); }
+
+machine add(a: Nat, b: Nat) -> Nat
+terminates {
+    decreases a;
+}
+{
+    transition a {
+        Nat::Zero -> (b)
+        Nat::Succ { prev } -> Nat::Succ { prev: add(prev, b) }
+    }
+}
+
+machine lemma(x: Nat, y: Nat) { }
+
+machine consumer(p: Nat, q: Nat) {
+    lemma(q, add(p, q));
+}

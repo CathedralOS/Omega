@@ -150,3 +150,82 @@ ensures
         transition { _ -> Nat::Succ { prev: add_comm(prev, b) } }
     }
 }
+
+// ASSOCIATIVITY: pure induction on `a`, no citations -- both sides
+// normalize by unfolding plus the inductive hypothesis.
+machine add_assoc(a: Nat, b: Nat, c: Nat) -> Nat
+terminates {
+    decreases a;
+}
+ensures
+    (add(add(a, b), c)) == (add(a, add(b, c)))
+{
+    transition a {
+        Nat::Zero -> Nat::Zero
+        Nat::Succ { prev } -> Nat::Succ { prev: add_assoc(prev, b, c) }
+    }
+}
+
+// mul's RIGHT annihilator (the left one is compute-mode; this one is the
+// induction).
+machine mul_zero_right(a: Nat) -> Nat
+terminates {
+    decreases a;
+}
+ensures
+    (mul(a, Nat::Zero)) == Nat::Zero
+{
+    transition a {
+        Nat::Zero -> Nat::Zero
+        Nat::Succ { prev } -> Nat::Succ { prev: mul_zero_right(prev) }
+    }
+}
+
+// mul's right-successor law. The step case is the citation CHOREOGRAPHY
+// showcase: three reducing rewrites (comm, assoc, comm) normalize
+// `add(b, add(prev, mul(prev, b)))` onto the goal's other side --
+// explicit proof text, each step a cited instance, no search anywhere.
+machine mul_succ_right(a: Nat, b: Nat) -> Nat
+terminates {
+    decreases a;
+}
+ensures
+    (mul(a, Nat::Succ { prev: b })) == (add(a, mul(a, b)))
+{
+    transition a {
+        Nat::Zero -> Nat::Zero
+        Nat::Succ { prev } -> msr_step(prev, b)
+    }
+
+    state msr_step(prev: Nat, b: Nat) -> Nat {
+        add_comm(b, add(prev, mul(prev, b)));
+        add_assoc(prev, mul(prev, b), b);
+        add_comm(mul(prev, b), b);
+        transition { _ -> Nat::Succ { prev: mul_succ_right(prev, b) } }
+    }
+}
+
+// MULTIPLICATION COMMUTES: base cites mul_zero_right; step cites
+// mul_succ_right at (b, prev) plus the inductive hypothesis.
+machine mul_comm(a: Nat, b: Nat) -> Nat
+terminates {
+    decreases a;
+}
+ensures
+    (mul(a, b)) == (mul(b, a))
+{
+    transition a {
+        Nat::Zero -> mc_base(b)
+        Nat::Succ { prev } -> mc_step(prev, b)
+    }
+
+    state mc_base(b: Nat) -> Nat {
+        mul_zero_right(b);
+        transition { _ -> Nat::Zero }
+    }
+
+    state mc_step(prev: Nat, b: Nat) -> Nat {
+        mul_succ_right(b, prev);
+        transition { _ -> Nat::Succ { prev: mul_comm(prev, b) } }
+    }
+}
