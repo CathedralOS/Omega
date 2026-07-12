@@ -92,6 +92,23 @@ TASKS.md — the lanes sync from all of them.
    on float primitives loudly (matches decision-17's integer framing), or
    define float saturation (clamp to finite MAX)?
    > Not defined yet. Deferred pending a serious float design.
+   > **ANSWERED (owner, 2026-07-18 — the serious float design arrived;
+   > record: design_briefs/float_semantics.md; UX: ch5 Float Facts
+   > rewrite; ladder: TASKS F1-F7).** Neither reject-loudly nor
+   > define-saturation alone — domains on floats SPLIT: VALUE domains
+   > (`Finite`, float ranges — conjoinable with the landed `&`,
+   > window-checked; every range implies Finite since NaN fails all
+   > comparisons) and POLICY domains (quiet format default; `Trapping` =
+   > trap on producing non-finite; `Saturating` = clamp overflow to
+   > ±MAX_FINITE; `Wrapping` = COMPILE ERROR — no modular reading of a
+   > float, the Q10 precedent generalized). So `f32 in Saturating`
+   > becomes MEANINGFUL (F5 lowers it) and `in Wrapping` becomes the loud
+   > reject (F1). Floats themselves = rounded-Rat carriers over
+   > target-bound format records; IEEE lives in core format records +
+   > target provides rows (accepted-tier FPU boundary), never in the
+   > grammar; literals/const-eval = exact Rat, round once at the landing
+   > site. No ambient relaxation ever; fma is spelled; TotalOrder is a
+   > named satisfier.
 9. **Range constraint under a non-Exact domain.** `i: usize [0..=4] in
    Wrapping` accepts `self.i = 100` — the range only enforces under Exact,
    so the declaration lies. Ill-formed (reject the combination at
