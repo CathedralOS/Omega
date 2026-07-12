@@ -494,7 +494,12 @@ no `unbounded` property exists. Rungs:
   attached machines keep all faces). REMAINING (d cont.): the arithmetic
   bridge itself (n > 0 => n == Succ(n - 1) for INTEGER-measured
   induction consuming Nat lemmas) + ensures-extraction from proof
-  machines — rides N3/N4 (extraction lemmas).
+  machines — rides N3/N4 (extraction lemmas). EN-ROUTE FENCE 2026-07-11:
+  ensures conjuncts over proof-only data refuse loudly (a false
+  `result == Nat::Zero` previously compiled clean — the polynomial
+  engine stood down as out-of-language, a silent false certificate;
+  fail/proofs/structural_ensures_unjudged_rejected). N3's tier replaces
+  the fence with real judgment.
 - **N3 — fact-position operator routing:** glyphs route by operand type —
   Nat/Int/Rat compute-mode, declared proof carriers rearrange-mode
   (ring-generic polynomial normalization). Int introduction rule: order

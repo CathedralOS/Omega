@@ -1,0 +1,17 @@
+// FAIL CANARY: an ensures conjunct over PROOF-ONLY data. The polynomial
+// entailment engine's language is integers; a structural claim like this
+// FALSE `result == Nat::Zero` (the machine returns b) would previously
+// stand down as out-of-language and compile clean -- a silent false
+// certificate, poison once ensures-extraction lands. The fence refuses
+// every structural conjunct until the extraction/rearrange tier (math
+// roster N3) exists to actually judge them.
+use omega::language::core::nat;
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine Main::main(&mut self) { self.console.exit_process(70); }
+machine bogus(b: Nat) -> Nat
+ensures
+    result == Nat::Zero
+{
+    transition { _ -> (b) }
+}

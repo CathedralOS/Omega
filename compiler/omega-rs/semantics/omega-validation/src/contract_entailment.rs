@@ -104,6 +104,35 @@ pub(crate) fn validate_machine_contract_entailment(
         return;
     }
 
+    // STRUCTURAL claims -- ensures conjuncts whose operands mention
+    // PROOF-ONLY data (`result == Nat::Zero`, `add(a, b) == add(b, a)`) --
+    // have no judging tier yet: the polynomial engine's language is
+    // integers, so such a conjunct would stand down as out-of-language and
+    // silently CERTIFY an unproven (possibly false) mathematical claim.
+    // Refuse loudly until the extraction/rearrange tier (math roster N3)
+    // lands; probed 2026-07-11 with a false `result == Nat::Zero` that
+    // compiled clean before this fence.
+    let proof_only = omega_typed_trees::proof_only::classify(program);
+    let mut fenced_structural = false;
+    for fact in &ensures {
+        if let Some(held) =
+            fact_mentions_proof_only_data(program, &proof_only, machine, *fact)
+        {
+            diagnostics.push(Diagnostic::error(format!(
+                "machine `{}` ensures contract proof fact `{}` speaks about proof-only \
+                 `{held}`, which no entailment tier judges yet -- accepting it would \
+                 certify an unproven structural claim. Spell the fact over integer \
+                 measures, or wait for the structural extraction tier (math roster N3)",
+                machine.name,
+                program.expression_table.display_name(*fact),
+            )));
+            fenced_structural = true;
+        }
+    }
+    if fenced_structural {
+        return;
+    }
+
     let body_is_empty = program.machine_states(machine).iter().all(|state| {
         program
             .statement_table
@@ -1577,5 +1606,108 @@ fn polynomial_display(polynomial: &Polynomial) -> String {
         "0".to_owned()
     } else {
         parts.join(" + ")
+    }
+}
+
+/// Does this contract conjunct SPEAK ABOUT proof-only data? Structural
+/// detection over the expression tree: a machine parameter (or the `result`
+/// atom) whose declared type mentions proof-only data, a classifier or case
+/// literal naming a proof-only definition (`Nat::Zero`,
+/// `Nat::Succ { .. }`), or a call whose target machine returns one. Returns
+/// the named proof-only type for the diagnostic. Used by the ensures fence
+/// above: such conjuncts are outside every judging tier today, and standing
+/// down would silently certify them (math roster N3 owns the real tier).
+fn fact_mentions_proof_only_data(
+    program: &TypedTrees,
+    classification: &omega_typed_trees::proof_only::ProofOnlyClassification,
+    machine: &Machine,
+    expression: ExpressionHandle,
+) -> Option<omega_typed_trees::name::Identifier> {
+    if !expression.is_valid() {
+        return None;
+    }
+    let recurse = |handle: ExpressionHandle| {
+        fact_mentions_proof_only_data(program, classification, machine, handle)
+    };
+    let proof_only_definition = |name: &str| {
+        program
+            .data_definitions()
+            .iter()
+            .find(|definition| definition.name.as_str() == name)
+            .filter(|definition| classification.is_proof_only(definition.symbol))
+            .map(|definition| definition.name.clone())
+    };
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Name(path) => {
+            let members = program.expression_table.name_path_members(path.members);
+            match members {
+                [single] => {
+                    let entry = program.machine_states(machine).first()?;
+                    if single.as_str() == "result" {
+                        if entry.return_type.is_valid() {
+                            return classification.proof_only_mention(program, entry.return_type);
+                        }
+                        return None;
+                    }
+                    program
+                        .state_parameters(entry)
+                        .iter()
+                        .find(|parameter| parameter.name.as_str() == single.as_str())
+                        .and_then(|parameter| {
+                            classification.proof_only_mention(program, parameter.type_reference)
+                        })
+                }
+                [first, ..] => proof_only_definition(first.as_str()),
+                [] => None,
+            }
+        }
+        ExpressionNode::StructLiteral(struct_literal) => {
+            proof_only_definition(struct_literal.type_name.as_str()).or_else(|| {
+                program
+                    .expression_table
+                    .struct_fields(struct_literal.fields)
+                    .iter()
+                    .find_map(|field| recurse(field.value))
+            })
+        }
+        ExpressionNode::Call(call) => program
+            .machines()
+            .iter()
+            .find(|target| {
+                target.attached_data.is_none() && target.name.as_str() == call.target.as_str()
+            })
+            .and_then(|target| {
+                let entry = program.machine_states(target).first()?;
+                if !entry.return_type.is_valid() {
+                    return None;
+                }
+                classification.proof_only_mention(program, entry.return_type)
+            })
+            .or_else(|| recurse(call.receiver))
+            .or_else(|| {
+                program
+                    .expression_table
+                    .expression_handles(call.arguments)
+                    .iter()
+                    .find_map(|argument| recurse(*argument))
+            }),
+        ExpressionNode::Binary(binary) => recurse(binary.left).or_else(|| recurse(binary.right)),
+        ExpressionNode::Unary(unary) => recurse(unary.operand),
+        ExpressionNode::Cast(cast) => recurse(cast.value),
+        ExpressionNode::Member(member) => recurse(member.receiver),
+        ExpressionNode::Mutable(inner) => recurse(*inner),
+        ExpressionNode::Indexed(indexed) => {
+            recurse(indexed.collection).or_else(|| recurse(indexed.index))
+        }
+        ExpressionNode::Range(range) => recurse(range.start).or_else(|| recurse(range.end)),
+        ExpressionNode::ArrayLiteral(items) => program
+            .expression_table
+            .expression_handles(*items)
+            .iter()
+            .find_map(|item| recurse(*item)),
+        ExpressionNode::Boolean(_)
+        | ExpressionNode::Float(_)
+        | ExpressionNode::Integer(_)
+        | ExpressionNode::String(_) => None,
     }
 }
