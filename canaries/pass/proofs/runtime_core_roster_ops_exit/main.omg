@@ -1,23 +1,21 @@
 // RUN CANARY (exit 70) + interpreter differential. Math roster N4: the
-// core library's Peano operations (nat.omg's add/mul -- mul composes add
-// by an ordinary cross-machine call; only self-calls need the measure)
-// and generic recursive Seq<T> (seq.omg) compose with a PROGRAM-side
-// structural lemma: length over Seq<u64> returns core Nat, descending on
-// the arm-bound `tail` subterm. All of it is proof-only -- the program
-// lowers untouched, and every machine here validates through the
-// machine-stratum contagion (free machines over proof-only data).
+// core library's Peano operations (nat.omg's add/mul; add_zero_left and
+// add_zero_right ship as PROVEN lemmas) and generic recursive Seq<T>
+// with its own structurally-recursive `length` proof machine + the
+// length_empty lemma (seq.omg) all validate through the machine-stratum
+// contagion and the structural entailment judge. This program adds one
+// more PROVEN lemma on top -- a program-side extension of the roster --
+// then runs untouched (everything here is proof-only).
 use omega::language::core::nat;
 use omega::language::core::seq;
 boundary trait Console { machine exit_process(return_code: i32); }
 data Main { console: Console; }
 machine Main::main(&mut self) { self.console.exit_process(70); }
-machine length(s: Seq<u64>) -> Nat
-terminates {
-    decreases s;
-}
+// length of a two-element sequence is Succ(Succ(Zero)) -- two unfold
+// steps through the core `length` machine's Cons arm, then the Empty arm.
+machine length_two(a: u64, b: u64)
+ensures
+    (length(Seq::Cons { head: a, tail: Seq::Cons { head: b, tail: Seq::Empty } }))
+        == (Nat::Succ { prev: Nat::Succ { prev: Nat::Zero } })
 {
-    transition s {
-        Seq::Empty -> Nat::Zero
-        Seq::Cons { head, tail } -> Nat::Succ { prev: length(tail) }
-    }
 }
