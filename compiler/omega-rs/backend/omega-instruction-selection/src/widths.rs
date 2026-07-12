@@ -1148,8 +1148,11 @@ pub fn runtime_storage_copy_from_runtime_machine_indexed_runtime_frame_address_o
             )
         }
         Architecture::X86_64 => {
+            // The frame-base mov sits after the 10-byte source mov in both the
+            // single-value and chunked layouts (pre-+2; the record context
+            // adds the imm64 offset).
             let _ = base_byte_offset;
-            0
+            10
         }
     }
 }
@@ -1161,9 +1164,11 @@ pub fn runtime_storage_copy_from_runtime_machine_indexed_target_address_offset(
     index_offset: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
+    byte_count: usize,
 ) -> usize {
     match architecture {
         Architecture::Aarch64 => {
+            let _ = byte_count;
             aarch64::runtime_storage_copy_from_runtime_machine_indexed_target_address_offset(
                 base_byte_offset,
                 index_region,
@@ -1173,8 +1178,20 @@ pub fn runtime_storage_copy_from_runtime_machine_indexed_target_address_offset(
             )
         }
         Architecture::X86_64 => {
-            let _ = (base_byte_offset, index_region, index_offset, element_byte_size, field_byte_offset);
-            0
+            // Pre-+2 offsets of the target-base mov (see the x86_64 width fn's
+            // layout comment): the single-value layout has it after the
+            // element load (+44 frame-index / +34 machine-index); the chunked
+            // layout puts it right after `add r15,rax` (+37 / +27).
+            let _ = (base_byte_offset, index_offset, element_byte_size, field_byte_offset);
+            let frame_index =
+                index_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame;
+            if matches!(byte_count, 1 | 4 | 8) {
+                if frame_index { 44 } else { 34 }
+            } else if frame_index {
+                37
+            } else {
+                27
+            }
         }
     }
 }
@@ -1752,6 +1769,7 @@ pub fn runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage_widt
         Architecture::X86_64 => {
             x86_64::runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage_width(
                 index_region,
+                byte_count,
             )
         }
     }
