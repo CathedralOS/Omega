@@ -1520,3 +1520,141 @@ mod provider_registry {
         assert!(provider.target_applicability.is_empty());
     }
 }
+
+mod structural_entailment {
+    use super::super::validate_program;
+    use omega_source_files_to_tokens::Lexer;
+    use omega_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
+    use omega_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
+    use omega_tokens_to_syntax_trees::parse_syntax_trees;
+
+    /// Run source through parse -> resolve -> typed -> validate. `Nat` is
+    /// declared inline (the judge is parametric over any recursive proof
+    /// data, so no bundled import is needed). Returns the joined diagnostic
+    /// text on failure, or the empty string on success.
+    fn validate(body: &str) -> Result<(), String> {
+        let source = format!(
+            "data Nat {{ case Zero; case Succ(prev: Nat); }}\n\
+             data Main {{}}\n\
+             machine Main::main(&mut self) {{}}\n\
+             machine add(a: Nat, b: Nat) -> Nat terminates {{ decreases a; }} {{\n\
+             transition a {{ Nat::Zero -> (b) Nat::Succ {{ prev }} -> Nat::Succ {{ prev: add(prev, b) }} }}\n\
+             }}\n\
+             {body}\n"
+        );
+        let tokens = Lexer::new(&source).tokenize().expect("tokenize");
+        let syntax_trees = parse_syntax_trees(&tokens).expect("parse");
+        let resolved = lower_syntax_trees(&syntax_trees).expect("resolve");
+        let typed = lower_symbol_resolved_trees(&resolved).expect("typed lowering");
+        validate_program(&typed).map_err(|diagnostics| {
+            diagnostics
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join("\n")
+        })
+    }
+
+    #[test]
+    fn reflexivity_proves() {
+        validate("machine refl(a: Nat) ensures a == a {}")
+            .expect("a == a should prove structurally");
+    }
+
+    #[test]
+    fn constructor_injectivity_proves() {
+        validate(
+            "machine inj(a: Nat, b: Nat) \
+             requires (Nat::Succ { prev: a }) == (Nat::Succ { prev: b }); \
+             ensures a == b; {}",
+        )
+        .expect("Succ injectivity should prove");
+    }
+
+    #[test]
+    fn case_disjointness_refutes() {
+        let error = validate(
+            "machine bad(a: Nat) requires a == Nat::Zero; ensures a != Nat::Zero; {}",
+        )
+        .expect_err("a != Zero under a == Zero should refute");
+        assert!(
+            error.contains("disproved structurally"),
+            "expected a structural disproof, got: {error}"
+        );
+    }
+
+    #[test]
+    fn ground_compute_proves() {
+        validate(
+            "machine two() ensures \
+             (add(Nat::Succ { prev: Nat::Zero }, Nat::Succ { prev: Nat::Zero })) \
+             == (Nat::Succ { prev: Nat::Succ { prev: Nat::Zero } }) {}",
+        )
+        .expect("1 + 1 == 2 should prove by unfolding");
+    }
+
+    #[test]
+    fn false_ground_compute_refutes() {
+        let error = validate(
+            "machine bad() ensures \
+             (add(Nat::Succ { prev: Nat::Zero }, Nat::Zero)) == Nat::Zero {}",
+        )
+        .expect_err("add(1, 0) == 0 should refute");
+        assert!(
+            error.contains("disproved structurally"),
+            "expected a structural disproof, got: {error}"
+        );
+    }
+
+    #[test]
+    fn structural_induction_proves() {
+        validate(
+            "machine right_id(a: Nat) -> Nat terminates { decreases a; } \
+             ensures result == a { \
+             transition a { Nat::Zero -> Nat::Zero \
+             Nat::Succ { prev } -> Nat::Succ { prev: right_id(prev) } } }",
+        )
+        .expect("right identity by induction should prove");
+    }
+
+    #[test]
+    fn false_inductive_claim_refutes() {
+        let error = validate(
+            "machine bad(a: Nat) -> Nat terminates { decreases a; } \
+             ensures result == Nat::Zero { \
+             transition a { Nat::Zero -> Nat::Zero \
+             Nat::Succ { prev } -> Nat::Succ { prev: bad(prev) } } }",
+        )
+        .expect_err("a false inductive claim should refute");
+        assert!(
+            error.contains("disproved structurally"),
+            "expected a structural disproof, got: {error}"
+        );
+    }
+
+    #[test]
+    fn application_equation_law_proves() {
+        validate(
+            "machine succ_law(a: Nat, b: Nat) -> Nat terminates { decreases a; } \
+             ensures (add(a, Nat::Succ { prev: b })) == (Nat::Succ { prev: add(a, b) }) { \
+             transition a { Nat::Zero -> Nat::Zero \
+             Nat::Succ { prev } -> Nat::Succ { prev: succ_law(prev, b) } } }",
+        )
+        .expect("the successor-shift law should prove by induction");
+    }
+
+    #[test]
+    fn lemma_citation_proves() {
+        // right_id proves `result == a`; a caller cites it (its inductive
+        // body never finitely unfolds for a symbolic argument).
+        validate(
+            "machine right_id(a: Nat) -> Nat terminates { decreases a; } \
+             ensures result == a { \
+             transition a { Nat::Zero -> Nat::Zero \
+             Nat::Succ { prev } -> Nat::Succ { prev: right_id(prev) } } } \
+             machine cite(a: Nat) -> Nat ensures result == a { \
+             transition { _ -> (right_id(a)) } }",
+        )
+        .expect("citing a proven functional ensures should prove");
+    }
+}
