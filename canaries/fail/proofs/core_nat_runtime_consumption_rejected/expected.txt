@@ -1,1 +1,1 @@
-proof-only
+`Main` is proof-only: field `n` holds proof-only `Nat`

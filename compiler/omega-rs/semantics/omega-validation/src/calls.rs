@@ -11,6 +11,7 @@ use crate::properties::{
 use crate::struct_literals::data_declares_field;
 use crate::symbols::{MachineSymbols, TopLevelSymbols};
 use crate::type_references::type_reference_label;
+use omega_core::arena::HandleSpan;
 use omega_core::diagnostics::Diagnostic;
 use omega_typed_trees::TypedTrees;
 use omega_typed_trees::data::DataMember;
@@ -1041,6 +1042,238 @@ pub(crate) fn validate_self_recursive_call_positions(
         }
     }
     let _ = state;
+}
+
+/// PROOF-MACHINE recursion legality (math roster N2d gateway). A free
+/// machine over proof-only data emits no runtime code, so the tail-only
+/// rule does not apply (no frame survives anything) -- structural recursion
+/// in ANY position is the induction the measure licenses. What DOES apply,
+/// both strata: a cycle without a measure is an unproven termination claim.
+/// Every self-call must be measured, and rung 1 proves the decrease
+/// STRUCTURALLY: the argument in the measure's parameter position is a
+/// case-payload SUBTERM of the measure -- a pattern binding like
+/// `transition n { Nat::Succ { prev } -> .. double(prev) .. }` lowers
+/// `prev` to the case-tagged member read `n.prev`, so the test is "a Member
+/// chain (>= 1 hop) rooted at the measure parameter". Anything else refuses
+/// with the shape named; the arithmetic bridge (n > 0 => n == Succ(n - 1))
+/// is the recorded follow-on.
+pub(crate) fn validate_proof_machine_recursion(
+    program: &TypedTrees,
+    machine: &Machine,
+    statement: &StatementNode,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let entry_name = machine
+        .name
+        .as_str()
+        .rsplit("::")
+        .next()
+        .unwrap_or(machine.name.as_str());
+    let mut self_calls: Vec<HandleSpan<ExpressionHandle>> = Vec::new();
+    for root in statement_expression_roots(program, statement) {
+        collect_self_entry_call_arguments(program, entry_name, root, &mut self_calls);
+    }
+    if self_calls.is_empty() {
+        return;
+    }
+
+    let subjects = program.expression_table.expression_handles(machine.decreases);
+    let [subject] = subjects else {
+        diagnostics.push(Diagnostic::error(format!(
+            "recursive proof machine `{}` needs a single structural measure: declare \
+             `terminates {{ decreases <param> }}` naming one proof-data parameter -- a \
+             cycle without a measure is an unproven termination claim (measured \
+             recursion, both strata)",
+            machine.name,
+        )));
+        return;
+    };
+    let ExpressionNode::Name(measure_path) = program.expression_table.expression(*subject) else {
+        diagnostics.push(Diagnostic::error(format!(
+            "recursive proof machine `{}`: the structural measure must be a bare \
+             parameter name (rung 1); compound measures over proof data are not \
+             proven yet",
+            machine.name,
+        )));
+        return;
+    };
+    let measure_symbol = measure_path.symbol;
+    let measure_name = program
+        .expression_table
+        .name_path_members(measure_path.members)
+        .first()
+        .cloned();
+    // The measure names an ENTRY parameter; its POSITION is where every
+    // self-call's argument must descend.
+    let Some(measure_position) = program.machine_states(machine).first().and_then(|entry| {
+        program.state_parameters(entry).iter().position(|parameter| {
+            (parameter.symbol.is_valid() && parameter.symbol == measure_symbol)
+                || measure_name
+                    .as_ref()
+                    .is_some_and(|name| parameter.name.as_str() == name.as_str())
+        })
+    }) else {
+        diagnostics.push(Diagnostic::error(format!(
+            "recursive proof machine `{}`: the measure must name an entry parameter",
+            machine.name,
+        )));
+        return;
+    };
+
+    for arguments in self_calls {
+        let argument = program
+            .expression_table
+            .expression_handles(arguments)
+            .get(measure_position)
+            .copied();
+        let descends = argument.is_some_and(|argument| {
+            strict_subterm_of_measure(program, argument, measure_symbol, measure_name.as_ref())
+        });
+        if !descends {
+            diagnostics.push(Diagnostic::error(format!(
+                "`{entry_name}(..)` cannot prove the measure `{}` structurally \
+                 decreases at this self-call: the argument in the measure position \
+                 must be a case-payload subterm of the measure -- bind it in the arm \
+                 pattern (`Nat::Succ {{ prev }} -> .. {entry_name}(prev)`) so the \
+                 recursion consumes one constructor per step",
+                measure_name
+                    .as_ref()
+                    .map(|name| name.as_str())
+                    .unwrap_or("<measure>"),
+            )));
+        }
+    }
+}
+
+/// The root expression handles a statement can carry (guard subjects, arm
+/// arguments, terminal values, initializers, call arguments).
+fn statement_expression_roots(
+    program: &TypedTrees,
+    statement: &StatementNode,
+) -> Vec<ExpressionHandle> {
+    match statement {
+        StatementNode::Call(call) => program
+            .statement_table
+            .expression_handles(call.arguments)
+            .to_vec(),
+        StatementNode::Assignment(assignment) => vec![assignment.target, assignment.value],
+        StatementNode::LocalData(local_data) => vec![local_data.initial_value],
+        StatementNode::Expression(expression) => vec![*expression],
+        StatementNode::Transition(transition) => {
+            let mut roots = Vec::new();
+            if let TransitionGuardNode::When(guard) = transition.guard {
+                roots.push(guard);
+            }
+            for target_handle in [transition.target, transition.continuation] {
+                if !target_handle.is_valid() {
+                    continue;
+                }
+                match program.statement_table.transition_target(target_handle) {
+                    TransitionTargetNode::Named { arguments, .. } => {
+                        roots.extend(
+                            program
+                                .statement_table
+                                .expression_handles(*arguments)
+                                .iter()
+                                .copied(),
+                        );
+                    }
+                    TransitionTargetNode::Value(expression) => roots.push(*expression),
+                    TransitionTargetNode::SelfTarget | TransitionTargetNode::Terminal => {}
+                }
+            }
+            roots
+        }
+        _ => Vec::new(),
+    }
+}
+
+/// Collect the ARGUMENT spans of every self-entry call in this tree.
+fn collect_self_entry_call_arguments(
+    program: &TypedTrees,
+    entry_name: &str,
+    expression: ExpressionHandle,
+    found: &mut Vec<HandleSpan<ExpressionHandle>>,
+) {
+    if !expression.is_valid() {
+        return;
+    }
+    let mut recurse =
+        |handle: ExpressionHandle, found: &mut Vec<HandleSpan<ExpressionHandle>>| {
+            collect_self_entry_call_arguments(program, entry_name, handle, found);
+        };
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Call(call) => {
+            if is_self_entry_call(program, entry_name, call) {
+                found.push(call.arguments);
+            }
+            recurse(call.receiver, found);
+            for argument in program.expression_table.expression_handles(call.arguments) {
+                recurse(*argument, found);
+            }
+        }
+        ExpressionNode::Binary(binary) => {
+            recurse(binary.left, found);
+            recurse(binary.right, found);
+        }
+        ExpressionNode::Cast(cast) => recurse(cast.value, found),
+        ExpressionNode::Indexed(indexed) => {
+            recurse(indexed.collection, found);
+            recurse(indexed.index, found);
+        }
+        ExpressionNode::Member(member) => recurse(member.receiver, found),
+        ExpressionNode::Mutable(inner) => recurse(*inner, found),
+        ExpressionNode::Range(range) => {
+            recurse(range.start, found);
+            recurse(range.end, found);
+        }
+        ExpressionNode::Unary(unary) => recurse(unary.operand, found),
+        ExpressionNode::ArrayLiteral(items) => {
+            for item in program.expression_table.expression_handles(*items) {
+                recurse(*item, found);
+            }
+        }
+        ExpressionNode::StructLiteral(struct_literal) => {
+            for field in program.expression_table.struct_fields(struct_literal.fields) {
+                recurse(field.value, found);
+            }
+        }
+        ExpressionNode::Boolean(_)
+        | ExpressionNode::Float(_)
+        | ExpressionNode::Integer(_)
+        | ExpressionNode::Name(_)
+        | ExpressionNode::String(_) => {}
+    }
+}
+
+/// A STRICT subterm of the measure: a Member chain of one or more hops whose
+/// root Name is the measure parameter (symbol match, name fallback). One hop
+/// = one constructor consumed (`n.prev`); depth composes for free.
+fn strict_subterm_of_measure(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    measure_symbol: omega_core::symbols::SymbolHandle,
+    measure_name: Option<&Identifier>,
+) -> bool {
+    let ExpressionNode::Member(member) = program.expression_table.expression(expression) else {
+        return false;
+    };
+    let mut root = member.receiver;
+    loop {
+        match program.expression_table.expression(root) {
+            ExpressionNode::Member(inner) => root = inner.receiver,
+            ExpressionNode::Name(path) => {
+                return (path.symbol.is_valid() && path.symbol == measure_symbol)
+                    || measure_name.is_some_and(|name| {
+                        matches!(
+                            program.expression_table.name_path_members(path.members),
+                            [only] if only.as_str() == name.as_str()
+                        )
+                    });
+            }
+            _ => return false,
+        }
+    }
 }
 
 /// The rendered call when `expression` IS a self-call to the machine's own

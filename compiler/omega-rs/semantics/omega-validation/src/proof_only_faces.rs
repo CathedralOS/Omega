@@ -63,6 +63,16 @@ pub(crate) fn validate_proof_only_consumption(
             }
         }
 
+        // A FREE machine whose signature mentions proof-only data is a
+        // PROOF MACHINE (machine-stratum contagion, N2d gateway): it emits
+        // no runtime code, so the param/local/return faces below do not
+        // apply -- the machine IS the fact position the module doc names.
+        // Attached machines fall through and refuse: their receiver is
+        // runtime storage.
+        if classification.is_proof_machine(program, machine) {
+            continue;
+        }
+
         // Machine-owned data slots.
         for owned_data in program.machine_owned_data(machine) {
             if let Some(held) =

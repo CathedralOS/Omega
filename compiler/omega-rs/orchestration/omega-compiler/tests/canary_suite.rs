@@ -18650,6 +18650,35 @@ fn runtime_depend_mapping_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_nat_structural_recursion_exit_canary_runs() {
+    // N2(d) gateway: a free machine over proof-only Nat is a PROOF MACHINE
+    // -- structural recursion legal, measured, every self-call descending
+    // by a case-payload subterm; the program lowers without it.
+    let canary = pass_canary("proofs/runtime_nat_structural_recursion_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-nat-structural-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("nat structural recursion canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("nat structural recursion canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the proof machine to validate and the program to run (exit 70), got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_core_nat_declared_exit_canary_runs() {
     // N4 first slice: core Nat loads through the bundled root; declaring
     // proof-only data never touches runtime.
@@ -29606,6 +29635,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "calls/runtime_value_call_terminal_exit",
     "constants/runtime_free_const_exit",
     "proofs/runtime_core_nat_declared_exit",
+    "proofs/runtime_nat_structural_recursion_exit",
     "build/runtime_depend_mapping_exit",
     "recast/runtime_record_view_exit",
     "arithmetic/runtime_f32_field_guard_exit",
@@ -29965,6 +29995,9 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "build/build_machine_wrong_arity",
     "host/terminal_host_call_value",
     "calls/guarded_value_call_terminal_rejected",
+    "proofs/core_nat_runtime_consumption_rejected",
+    "proofs/nat_unmeasured_recursion_rejected",
+    "proofs/nat_nondescending_recursion_rejected",
     "boundary/entry_typed_params_unmarked",
     "boundary/boundary_entry_too_many_params",
     "wire/decode_into_ranged_field",

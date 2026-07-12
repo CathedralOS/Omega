@@ -1,0 +1,29 @@
+// RUN CANARY (exit 70) + interpreter differential. Math roster N2(d)
+// gateway: a FREE machine over proof-only data is a PROOF MACHINE
+// (machine-stratum contagion, computed never spelled -- the design
+// brief's dissolved `proof machine` keyword). It emits no runtime code,
+// so the tail-only rule does not apply; what does apply is the measure:
+// every self-call must STRUCTURALLY DESCEND -- the argument in the
+// measure position is a case-payload subterm bound by the arm pattern
+// (`prev` lowers to the case-tagged member read `n.prev`). The unmeasured
+// and non-descending twins refuse
+// (fail/proofs/nat_unmeasured_recursion_rejected,
+// fail/proofs/nat_nondescending_recursion_rejected); every runtime
+// consumption route into the machine refuses on existing rails (locals
+// fence, discard fences, purity fence).
+use omega::language::core::nat;
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine Main::main(&mut self) {
+    self.console.exit_process(70);
+}
+machine double(n: Nat) -> Nat
+terminates {
+    decreases n;
+}
+{
+    transition n {
+        Nat::Zero -> Nat::Zero
+        Nat::Succ { prev } -> Nat::Succ { prev: Nat::Succ { prev: double(prev) } }
+    }
+}

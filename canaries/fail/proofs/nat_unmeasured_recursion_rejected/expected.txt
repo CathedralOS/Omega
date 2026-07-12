@@ -1,0 +1,1 @@
+recursive proof machine `spin` needs a single structural measure

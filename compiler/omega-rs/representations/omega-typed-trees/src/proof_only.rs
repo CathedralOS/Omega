@@ -100,6 +100,49 @@ impl ProofOnlyClassification {
     }
 }
 
+impl ProofOnlyClassification {
+    /// Machine-stratum contagion (math roster N2d gateway): a FREE machine
+    /// (no attached data, no receiver) whose signature -- any state's
+    /// params, returns, or locals -- mentions proof-only data is a PROOF
+    /// MACHINE: an ordinary machine used only as evidence (chapter 10; the
+    /// design brief's `proof machine` keyword dissolved into exactly this
+    /// computed classification). It emits no runtime code, so the runtime
+    /// consumption faces do not apply to it; validation and the proof
+    /// engines still see it whole. Attached machines stay refused at the
+    /// faces: their receiver is runtime storage, and a lemma about a
+    /// machine's fields belongs in that machine's contracts instead.
+    pub fn is_proof_machine(
+        &self,
+        program: &TypedTrees,
+        machine: &crate::machine::Machine,
+    ) -> bool {
+        if machine.attached_data.is_some() {
+            return false;
+        }
+        program.machine_states(machine).iter().any(|state| {
+            program
+                .state_parameters(state)
+                .iter()
+                .any(|parameter| {
+                    self.proof_only_mention(program, parameter.type_reference)
+                        .is_some()
+                })
+                || (state.return_type.is_valid()
+                    && self.proof_only_mention(program, state.return_type).is_some())
+                || program
+                    .statement_table
+                    .statements(state.statement_nodes)
+                    .iter()
+                    .any(|statement| match statement {
+                        crate::statement::StatementNode::LocalData(local_data) => self
+                            .proof_only_mention(program, local_data.type_reference)
+                            .is_some(),
+                        _ => false,
+                    })
+        })
+    }
+}
+
 /// Classify every data definition: recursion seeds (a definition on an
 /// inline-containment cycle), then contagion to fixpoint.
 pub fn classify(program: &TypedTrees) -> ProofOnlyClassification {
