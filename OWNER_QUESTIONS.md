@@ -227,3 +227,31 @@ TASKS.md — the lanes sync from all of them.
     stratification (e.g. an explicit `uses lemma_a, lemma_b;` declaration
     making the DAG author-visible)? This touches the proof KERNEL's trust
     story, so shipping the matching engine waits on the discipline.
+
+    > **ANSWERED (owner, 2026-07-18 — settled in the proofs review before
+    > the question was asked; record: mathematical_proofs.md par-6 item 1 +
+    > ch10 "Citing Proofs"):** do NOT build the global pattern-matching
+    > rule engine — that is rewrite registration, owner-PARKED ("fact
+    > injection is essentially the default, with rewrite or something as a
+    > potential future extension if ergonomics suffer"). Delivering a
+    > proven law to a site is an EXPLICIT STATEMENT CALL of the lemma:
+    > `add_comm(b, a);` instantiates its ensures at those args into the
+    > flow facts and erases at codegen — the mask_is_mod pattern in ch10.
+    > Nothing is global, nothing pattern-matches, nothing applies silently.
+    > The soundness question then DISSOLVES: a lemma citing a lemma is a
+    > machine CALLING a machine, so the citation graph IS the call graph
+    > and the discipline is the one this lane already landed —
+    > measured-or-reject (MR1); mutual cycles need a joint measure (MR4);
+    > the IH stays descent-guarded as-is. Two false laws cannot certify
+    > each other because their mutual citation is an unmeasured call cycle
+    > and already refuses. No `uses` clause either: the call IS the use
+    > declaration (a second spelling of the same fact is the kind of
+    > redundancy the arc kept killing). BUILD INSTEAD the settled
+    > ergonomics mitigation: when an obligation fails and a known lemma's
+    > ensures shape-matches it, the diagnostic NAMES the missing citation
+    > ("cannot prove add(b,a) == add(a,b); note: core::nat::add_comm
+    > proves this shape — cite it"). Suggestion at failure, never silent
+    > application. And N3's rearrange-mode needs no lemma rules: ring
+    > normalization over declared carriers is ENGINE-INTERNAL
+    > canonicalization (the L4 sum-of-monomials machinery generalized),
+    > not user-registered rewriting.
