@@ -152,6 +152,28 @@ the firmware out-values) is RESOLVED against the vouch — see blocker 2.
    static_root_and_constants.md);
    the missing piece is the shadowing walk the v0 error message names.
    No owner input needed.]
+5. **NEW (owner, 2026-07-11, measured on the REAL tree post-1–4): the
+   x86_64 record-view read encoder — THE LAST M2 BLOCKER.** With 1–4
+   landed, the full Cathedral tree (`../Cathedral/source/boot/uefi/
+   main.omg`, `omega-run --target uefi_x64`, real build.omg + depend
+   rows) now clears the ENTIRE semantic pipeline — depend-mapping
+   resolves contracts/+core/, three provides rows coexist, free consts
+   substitute, and the walk's recast footprint DISCHARGES (per-edge
+   meet: entry edge constant 0 under the inline sanity guard; loop edge
+   `offset + desc_size <= 16344` literal conjunct; `in Trapping` walk
+   params — Cathedral 52e6a6e has the proof-carrying spelling). The one
+   remaining refusal is BACKEND: "X86_64 MVP encoder cannot read
+   40-byte machine indexed values yet" — the C2 record-view snapshot
+   (40-byte read from a machine byte-array field at a runtime offset)
+   has aarch64 lowering (descriptor_walk runs there) but no x86_64
+   encoder rung. Land it and Cathedral M2 compiles end-to-end; the
+   QEMU/OVMF done-check is ready on the Cathedral side. Spelling notes
+   for the corpus, learned en route: guard conjuncts must be INLINE
+   transition subjects (let-bound bools hide them from display
+   matching), and the R1a declared-range edge-discharge cannot yet read
+   compound guard displays (`offset + desc_size <= K`) — the guard-route
+   meet can; a redundant literal conjunct bridges it. [ENGINEERING — an
+   encoder rung; no owner input needed.]
 
 Original gap list (compile-checked against the real
 own_machine.omg 2026-07-11 via the new `omega-run --target uefi_x64`):
