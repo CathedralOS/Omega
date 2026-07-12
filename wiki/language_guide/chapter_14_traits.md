@@ -61,7 +61,15 @@ fulfills the matching requirement from `Incrementable`.
 > The trait is recovered from the `satisfies` clause, disambiguated by
 > expected type if a machine ever satisfies several traits. Elided when
 > unique, a loud error listing candidates when plural — the landed
-> bail-on-ambiguity pattern. A fully explicit chain
+> bail-on-ambiguity pattern. **Conformance visibility (settled
+> 2026-07-18)** is what makes elision sound: anyone may conform any type
+> to any trait, but implicit selection consults only **home**
+> conformances — those declared in the type's package or the trait's
+> package. A third-party conformance (owner of neither) is legal and
+> **named-only**: usable anywhere by spelling it, never a candidate for
+> an unnamed call. Imports therefore control whether a *name* resolves;
+> they never change what an *unnamed* call does — "it found the wrong
+> impl" is unwritable, not unlikely. A fully explicit chain
 > (`as &dyn Card::PowerOrder as &dyn Ranked`) is valid by composition —
 > coercion then identity recast — and useful only where no annotation
 > supplies context; no `by` or other connective exists. `measure`

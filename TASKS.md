@@ -857,9 +857,11 @@ rejects — an INTEGER ruling, engineering rides this ladder as F8).
 
 - **L4 full:** derived projections into a plan-laid BYTE VIEW + the no-op
   boundary theorem — needs the L5 carrier/domain rung.
-- **L5 remainder (three of five items RULED 2026-07-18; record:
-  programmable_layouts amendment):** encode-call spelling = still in owner
-  review (the one open item). Plan-walking deriver REPLACED: policies
+- **L5 remainder (four of five items RULED 2026-07-18; record:
+  programmable_layouts amendment):** encode-call spelling SETTLED — bare
+  `encode(x)` reads the destination's declared domain, home conformances
+  only, loud on plural/undeclared; third-party conformances named-only
+  (general rule in ch14). Plan-walking deriver REPLACED: policies
   HAND-WRITE encode/decode/validate as ordinary proven library machines;
   the conformance theorem (`ensures decode(encode(x)) == x` + validate
   agreement) lives ON the trait, proven per conformance — anti-serde kept

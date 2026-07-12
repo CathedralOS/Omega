@@ -267,8 +267,12 @@ free (identity is the number).
    inference. Mirrors the landed stage-1 data/machine monomorphization, and is
    easier (domains have no layout). Remaining spelling detail: the surface
    grammar for the angle-bracketed domain name.
-2. **encode/decode surface** — builtins (like min/max) vs boundary-operator
-   surfaces (like the stdlib slice contracts).
+2. ~~encode/decode surface~~ **ANSWERED 2026-07-18** (record:
+   programmable_layouts amendment): neither builtins nor boundary
+   operators — ordinary hand-written policy machines conforming to the
+   layout trait, with the conformance theorem as trait ensures. Bare
+   `encode(x)` reads the destination's declared domain (home
+   conformances only); otherwise qualified.
 3. **Field-peek accessors** — per-field derived accessor *functions* for validated
    buffers (a call, never projection); exact spelling open.
 4. **Streaming/append** — a log carrier appending encoded messages wants the
