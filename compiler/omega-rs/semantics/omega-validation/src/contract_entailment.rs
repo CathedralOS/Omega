@@ -183,17 +183,95 @@ pub(crate) fn validate_machine_contract_entailment(
             machine.name, sole_arm_result
         );
     }
+    // STRUCTURAL INDUCTION (the L7 protocol's structural twin): a bodied
+    // machine whose single state is a chain of case arms over one matched
+    // parameter judges the ensures PER ARM -- the arm's case hypothesis
+    // substitutes the subject with a constructor over FRESH payload
+    // variables, `result` binds to the arm's value term, and every
+    // self-application in that term assumes the machine's own ensures for
+    // its arguments (the inductive hypothesis; sound because
+    // validate_proof_machine_recursion refuses non-descending self-calls in
+    // this same diagnostics batch, so an unsound assumption never certifies
+    // a program that compiles). Case arms of inhabited proof data are
+    // reachable, so a ground refutation on any arm refutes the claim.
+    // Pre-term-ified ensures equalities, the raw material of the inductive
+    // hypothesis instantiation (only top-level `==` conjuncts serve as IH).
+    let ensures_terms: Vec<Option<(StructuralTerm, StructuralTerm)>> = ensures
+        .iter()
+        .map(|fact| {
+            let ExpressionNode::Binary(binary) = program.expression_table.expression(*fact)
+            else {
+                return None;
+            };
+            if binary.operator != BinaryOperator::Equal {
+                return None;
+            }
+            Some((
+                structural_term(program, binary.left)?,
+                structural_term(program, binary.right)?,
+            ))
+        })
+        .collect();
+    let case_arms: Option<Vec<StructuralCaseArm>> = if sole_arm_result.is_some() {
+        None
+    } else {
+        recognize_structural_case_arms(program, machine, &structural)
+    };
     let judge_structural = |fact: ExpressionHandle| -> StructuralJudgment {
-        match &sole_arm_result {
-            Some(term) => {
-                let mut bound = structural.clone();
+        if let Some(term) = &sole_arm_result {
+            let mut bound = structural.clone();
+            bound
+                .substitutions
+                .insert(0, (RESULT_BINDER.to_owned(), term.clone()));
+            return bound.judge(program, fact);
+        }
+        let Some(arms) = &case_arms else {
+            return structural.judge(program, fact);
+        };
+        let mut verdict = StructuralJudgment::Proven;
+        for arm in arms {
+            let mut bound = structural.clone();
+            if let Some((subject, constructor)) = &arm.case_hypothesis {
                 bound
                     .substitutions
-                    .insert(0, (RESULT_BINDER.to_owned(), term.clone()));
-                bound.judge(program, fact)
+                    .insert(0, (subject.clone(), constructor.clone()));
             }
-            None => structural.judge(program, fact),
+            // Inductive hypotheses: instantiate every ensures conjunct for
+            // each self-application in the arm's value term.
+            let mut applications = Vec::new();
+            StructuralJudge::self_applications(&arm.value, &arm.machine_name, &mut applications);
+            for application in applications {
+                let StructuralTerm::Application { arguments, .. } = application else {
+                    continue;
+                };
+                let mut map: Vec<(String, StructuralTerm)> = arm
+                    .parameter_names
+                    .iter()
+                    .cloned()
+                    .zip(arguments.iter().cloned())
+                    .collect();
+                map.push((RESULT_BINDER.to_owned(), application.clone()));
+                for conjunct in &ensures_terms {
+                    let Some((left, right)) = conjunct else {
+                        continue;
+                    };
+                    bound.intake_equation(
+                        StructuralJudge::substitute_term(left, &map),
+                        StructuralJudge::substitute_term(right, &map),
+                        0,
+                    );
+                }
+            }
+            bound
+                .substitutions
+                .insert(0, (RESULT_BINDER.to_owned(), arm.value.clone()));
+            match bound.judge(program, fact) {
+                StructuralJudgment::Proven => {}
+                StructuralJudgment::Refuted => return StructuralJudgment::Refuted,
+                StructuralJudgment::Unknown => verdict = StructuralJudgment::Unknown,
+            }
         }
+        verdict
     };
     let ensures: Vec<ExpressionHandle> = ensures
         .into_iter()
@@ -1839,6 +1917,156 @@ fn fact_mentions_proof_only_data(
 /// (first binding wins; symmetry and transitivity fall out of resolution);
 /// two distinct nullary cases equated make the hypotheses CONTRADICTORY and
 /// every goal holds vacuously, mirroring the polynomial engine's rule.
+/// One recognized case arm of a structurally-inductive proof machine.
+struct StructuralCaseArm {
+    /// The machine's short (call-target) name, for self-application search.
+    machine_name: String,
+    /// Entry parameter names, positionally matching self-call arguments.
+    parameter_names: Vec<String>,
+    /// `Some((subject, constructor))` for a case arm: the subject parameter
+    /// equals a constructor over FRESH payload variables. `None` for an
+    /// Always arm.
+    case_hypothesis: Option<(String, StructuralTerm)>,
+    /// The arm's value term, converted under the case environment (payload
+    /// member reads resolve against the fresh-variable constructor).
+    value: StructuralTerm,
+}
+
+/// Recognize a single-state proof machine whose statements are case arms
+/// over its parameters (`transition a { Nat::Zero -> .. Nat::Succ { prev }
+/// -> .. }` desugars to per-arm transitions guarded by `a == Nat::Case`).
+/// Returns `None` for anything out of shape -- judging then proceeds
+/// without result binding, which only weakens toward Unknown.
+fn recognize_structural_case_arms(
+    program: &TypedTrees,
+    machine: &Machine,
+    judge: &StructuralJudge<'_>,
+) -> Option<Vec<StructuralCaseArm>> {
+    let [root] = program.machine_states(machine) else {
+        return None;
+    };
+    let machine_name = machine
+        .name
+        .as_str()
+        .rsplit("::")
+        .next()
+        .unwrap_or(machine.name.as_str())
+        .to_owned();
+    let parameter_names: Vec<String> = program
+        .state_parameters(root)
+        .iter()
+        .map(|parameter| parameter.name.as_str().to_owned())
+        .collect();
+    let statements = program.statement_table.statements(root.statement_nodes);
+    if statements.is_empty() {
+        return None;
+    }
+    let mut arms = Vec::new();
+    for statement in statements {
+        let StatementNode::Transition(transition) = statement else {
+            return None;
+        };
+        if transition.continuation.is_valid() {
+            return None;
+        }
+        let case_hypothesis = match transition.guard {
+            TransitionGuardNode::Always => None,
+            TransitionGuardNode::When(guard) => {
+                let ExpressionNode::Binary(comparison) =
+                    program.expression_table.expression(guard)
+                else {
+                    return None;
+                };
+                if comparison.operator != BinaryOperator::Equal {
+                    return None;
+                }
+                let Some(StructuralTerm::Variable(subject)) =
+                    structural_term(program, comparison.left)
+                else {
+                    return None;
+                };
+                if !parameter_names.iter().any(|name| name == &subject) {
+                    return None;
+                }
+                let Some(StructuralTerm::Constructor { data, case, fields }) =
+                    structural_term(program, comparison.right)
+                else {
+                    return None;
+                };
+                if !fields.is_empty() {
+                    return None;
+                }
+                // Fresh payload variables from the case's declared fields.
+                let definition = program
+                    .data_definitions()
+                    .iter()
+                    .find(|definition| definition.name.as_str() == data.as_str())?;
+                let variant_fields: Vec<String> = program
+                    .data_members(definition)
+                    .iter()
+                    .find_map(|member| match member {
+                        omega_typed_trees::data::DataMember::Variant(variant)
+                            if variant.name.as_str() == case.as_str() =>
+                        {
+                            Some(
+                                program
+                                    .data_payload_fields(variant)
+                                    .iter()
+                                    .map(|field| field.name.as_str().to_owned())
+                                    .collect(),
+                            )
+                        }
+                        _ => None,
+                    })?;
+                let mut fresh: Vec<(String, StructuralTerm)> = variant_fields
+                    .into_iter()
+                    .map(|field| {
+                        let variable = format!("__ih_{subject}_{field}");
+                        (field, StructuralTerm::Variable(variable))
+                    })
+                    .collect();
+                fresh.sort_by(|(left, _), (right, _)| left.cmp(right));
+                Some((
+                    subject,
+                    StructuralTerm::Constructor {
+                        data,
+                        case,
+                        fields: fresh,
+                    },
+                ))
+            }
+        };
+        let TransitionTargetNode::Value(value) =
+            program.statement_table.transition_target(transition.target)
+        else {
+            return None;
+        };
+        // The arm environment: the subject maps to its constructor (so
+        // payload member reads index the fresh variables); every other
+        // parameter maps to itself.
+        let environment: Vec<(String, StructuralTerm)> = parameter_names
+            .iter()
+            .map(|name| {
+                if let Some((subject, constructor)) = &case_hypothesis
+                    && subject == name
+                {
+                    (name.clone(), constructor.clone())
+                } else {
+                    (name.clone(), StructuralTerm::Variable(name.clone()))
+                }
+            })
+            .collect();
+        let value = judge.callee_term(*value, &environment, 0)?;
+        arms.push(StructuralCaseArm {
+            machine_name: machine_name.clone(),
+            parameter_names: parameter_names.clone(),
+            case_hypothesis,
+            value,
+        });
+    }
+    Some(arms)
+}
+
 enum StructuralJudgment {
     Proven,
     Refuted,
@@ -2212,6 +2440,62 @@ impl<'program> StructuralJudge<'program> {
                 })
             }
             _ => None,
+        }
+    }
+
+    /// Substitute variables in a term (used to instantiate the machine's
+    /// own ensures as the INDUCTIVE HYPOTHESIS at a self-call: params -> the
+    /// call's argument terms, `result` -> the application term).
+    fn substitute_term(
+        term: &StructuralTerm,
+        map: &[(String, StructuralTerm)],
+    ) -> StructuralTerm {
+        match term {
+            StructuralTerm::Variable(name) => map
+                .iter()
+                .find(|(variable, _)| variable == name)
+                .map(|(_, replacement)| replacement.clone())
+                .unwrap_or_else(|| term.clone()),
+            StructuralTerm::Constructor { data, case, fields } => StructuralTerm::Constructor {
+                data: data.clone(),
+                case: case.clone(),
+                fields: fields
+                    .iter()
+                    .map(|(name, value)| (name.clone(), Self::substitute_term(value, map)))
+                    .collect(),
+            },
+            StructuralTerm::Application { machine, arguments } => StructuralTerm::Application {
+                machine: machine.clone(),
+                arguments: arguments
+                    .iter()
+                    .map(|argument| Self::substitute_term(argument, map))
+                    .collect(),
+            },
+            StructuralTerm::Opaque(_) => term.clone(),
+        }
+    }
+
+    /// Collect every self-application (calls to `machine_name`) in a term.
+    fn self_applications<'term>(
+        term: &'term StructuralTerm,
+        machine_name: &str,
+        found: &mut Vec<&'term StructuralTerm>,
+    ) {
+        match term {
+            StructuralTerm::Application { machine, arguments } => {
+                if machine == machine_name {
+                    found.push(term);
+                }
+                for argument in arguments {
+                    Self::self_applications(argument, machine_name, found);
+                }
+            }
+            StructuralTerm::Constructor { fields, .. } => {
+                for (_, value) in fields {
+                    Self::self_applications(value, machine_name, found);
+                }
+            }
+            _ => {}
         }
     }
 

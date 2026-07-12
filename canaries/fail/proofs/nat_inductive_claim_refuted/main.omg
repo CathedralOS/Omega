@@ -1,0 +1,20 @@
+// FAIL CANARY: a FALSE inductive claim -- the Succ arm's result is a
+// constructor Succ, which the per-arm structural judge disproves against
+// the claimed Zero (N3 structural induction; a refuted arm refutes the
+// machine's ensures).
+use omega::language::core::nat;
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine Main::main(&mut self) { self.console.exit_process(70); }
+machine bogus(a: Nat) -> Nat
+terminates {
+    decreases a;
+}
+ensures
+    result == Nat::Zero
+{
+    transition a {
+        Nat::Zero -> Nat::Zero
+        Nat::Succ { prev } -> Nat::Succ { prev: bogus(prev) }
+    }
+}

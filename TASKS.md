@@ -531,11 +531,20 @@ no `unbounded` property exists. Rungs:
   fuel-capped. The lemma recognizer folds leading `let` locals (the
   terminal auto-hoist's shape). PROVEN LIVE: add_zero_left (extraction
   shape) + one_plus_one (ground 1+1==2); FALSE ground compute REFUTES
-  (nat_ground_compute_refuted). THEN: induction over the unfolding
-  (recursive-arm goals need the inductive hypothesis, today they stop at
-  the undecidable arm — honest Unknown), guarded/multi-arm result
-  binding, Int/Rat routing, rearrange-mode, the N2(d) arithmetic bridge
-  (n > 0 => n == Succ(n - 1)). Int introduction rule: order has no floor,
+  (nat_ground_compute_refuted). STRUCTURAL INDUCTION LANDED same
+  day: case-arm machines judge per arm (subject substituted by a
+  fresh-variable constructor; result bound to the arm value; every
+  self-application intakes the machine's own ensures as the inductive
+  hypothesis — sound because the proof-machine recursion check refuses
+  non-descending self-calls in the same batch); add_zero_right (right
+  identity by induction) PROVES, false inductive claims REFUTE
+  (nat_inductive_claim_refuted). POLISH NOTE: the IH intakes as a
+  variable substitution, which for `App(prev) == prev` orients EXPANDING
+  (prev -> App) — goals prove via both sides converging under the capped
+  resolution; an APPLICATION-REWRITE orientation (App -> rhs) would be
+  cleaner and serve asymmetric goals. THEN: that rewrite orientation,
+  guarded/multi-arm result binding, Int/Rat routing, rearrange-mode, the
+  N2(d) arithmetic bridge (n > 0 => n == Succ(n - 1)). Int introduction rule: order has no floor,
   measures stay Nat-valued or range-floored.
 - **N4 — roster library (Nat ops + Seq LANDED 2026-07-11):** core
   nat.omg carries add/mul as proof machines (mul composes add by an
