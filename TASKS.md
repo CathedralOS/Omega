@@ -700,7 +700,9 @@ no `unbounded` property exists. Rungs:
   (`length(append(s,t)) == add(length(s), length(t))`, induction on s —
   cross-machine unfolding through append/length/add plus the IH, no
   citations; Lean analog List.length_append), consumed by
-  cite_length_append in the roster canary + a lib test. REMAINING:
+  cite_length_append in the roster canary + a lib test — plus
+  append_empty_right and append_assoc (same-day; pure inductions, Lean
+  analogs List.append_nil / List.append_assoc). REMAINING:
   more of the lemma zoo as the judge widens (commutativity needs
   double induction / rearrange-mode), extraction INTO consumer proofs
   (a caller citing a lemma's ensures — the fact-consumption face), the

@@ -1964,6 +1964,27 @@ mod structural_entailment {
     }
 
     #[test]
+    fn seq_append_laws_prove() {
+        // Right identity and associativity of append -- both pure
+        // inductions on the first sequence, no citations.
+        validate(
+            "data Seq { case Empty; case Cons(head: Nat, tail: Seq); } \
+             machine append(s: Seq, t: Seq) -> Seq terminates { decreases s; } { \
+             transition s { Seq::Empty -> (t) \
+             Seq::Cons { head, tail } -> Seq::Cons { head: head, tail: append(tail, t) } } } \
+             machine append_empty_right(s: Seq) -> Seq terminates { decreases s; } \
+             ensures (append(s, Seq::Empty)) == s { \
+             transition s { Seq::Empty -> Seq::Empty \
+             Seq::Cons { head, tail } -> Seq::Cons { head: head, tail: append_empty_right(tail) } } } \
+             machine append_assoc(s: Seq, t: Seq, u: Seq) -> Seq terminates { decreases s; } \
+             ensures (append(append(s, t), u)) == (append(s, append(t, u))) { \
+             transition s { Seq::Empty -> Seq::Empty \
+             Seq::Cons { head, tail } -> Seq::Cons { head: head, tail: append_assoc(tail, t, u) } } }",
+        )
+        .expect("the append laws should prove by induction");
+    }
+
+    #[test]
     fn seq_length_append_proves() {
         // The Seq zoo's first COMPOSED law: length distributes over append,
         // by induction on the first sequence -- generic recursive data,
