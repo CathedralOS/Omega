@@ -31,10 +31,15 @@ dispatch-region + receiver-phase family. Everything queued here avoids both.
    twin. Remaining: N2(d) Succ bridge, N3 routing, N4's Seq/Bag/Rat +
    extraction lemmas + view dissolution. Continue into N5–N7 when
    reached (they need the `<machine M>` plumbing and the `%` former).
-2. **Measured recursion MR1 + MR3** — LANDED 2026-07-11 (MR1 whole; MR3
-   direct leg — the mutual leg rides MR4). Next in the family: MR2 (the
-   terminal-position tail rewrite onto loop-backs — the arm-target spelling
-   needed NO lowering and already runs), then MR4/MR5.
+2. **Measured recursion MR1 + MR2 + MR3 + MR5** — LANDED 2026-07-11
+   (MR2's complement-route frontier included — the pinned canary is now
+   the run twin runtime_terminal_tail_recursion_exit; MR5 pinned via
+   const-eval). The family's ONE remaining item: MR4's cross-machine
+   mutual cycles (joint lexicographic measures + per-edge tail
+   classification along the cycle; the dungeon find_item_at/
+   find_item_after pair is the live test, currently absorbed by bounded
+   clone specialization). In-machine two-state cycles already landed as
+   MR4's first sub-rung.
 3. **Dependent types R2** (section below) — where-clause + gating + windows;
    the big semantic build, explicitly ADDITIVE (the landed eager store-time
    checks stay sound as the conservative tier). One careful agent, multi-day.
