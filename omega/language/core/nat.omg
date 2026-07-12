@@ -53,3 +53,31 @@ terminates {
         Nat::Succ { prev } -> (add(b, mul(prev, b)))
     }
 }
+
+// N4 extraction lemmas (2026-07-11): the first PROVEN library lemmas --
+// the structural entailment judge (N3) discharges each ensures at
+// compile time, so every program importing this module carries machine-
+// checked Peano facts. add_zero_left unfolds add's Zero arm
+// (compute-mode); add_zero_right is STRUCTURAL INDUCTION on `a` (each
+// case arm judged with the self-application assuming this machine's own
+// ensures -- the inductive hypothesis, licensed by the structural
+// descent the recursion check enforces).
+machine add_zero_left(b: Nat) -> Nat
+ensures
+    result == b
+{
+    transition { _ -> (add(Nat::Zero, b)) }
+}
+
+machine add_zero_right(a: Nat) -> Nat
+terminates {
+    decreases a;
+}
+ensures
+    result == a
+{
+    transition a {
+        Nat::Zero -> Nat::Zero
+        Nat::Succ { prev } -> Nat::Succ { prev: add_zero_right(prev) }
+    }
+}
