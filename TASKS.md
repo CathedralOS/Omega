@@ -152,28 +152,45 @@ the firmware out-values) is RESOLVED against the vouch — see blocker 2.
    static_root_and_constants.md);
    the missing piece is the shadowing walk the v0 error message names.
    No owner input needed.]
-5. **NEW (owner, 2026-07-11, measured on the REAL tree post-1–4): the
-   x86_64 record-view read encoder — THE LAST M2 BLOCKER.** With 1–4
-   landed, the full Cathedral tree (`../Cathedral/source/boot/uefi/
-   main.omg`, `omega-run --target uefi_x64`, real build.omg + depend
-   rows) now clears the ENTIRE semantic pipeline — depend-mapping
-   resolves contracts/+core/, three provides rows coexist, free consts
-   substitute, and the walk's recast footprint DISCHARGES (per-edge
-   meet: entry edge constant 0 under the inline sanity guard; loop edge
-   `offset + desc_size <= 16344` literal conjunct; `in Trapping` walk
-   params — Cathedral 52e6a6e has the proof-carrying spelling). The one
-   remaining refusal is BACKEND: "X86_64 MVP encoder cannot read
-   40-byte machine indexed values yet" — the C2 record-view snapshot
-   (40-byte read from a machine byte-array field at a runtime offset)
-   has aarch64 lowering (descriptor_walk runs there) but no x86_64
-   encoder rung. Land it and Cathedral M2 compiles end-to-end; the
-   QEMU/OVMF done-check is ready on the Cathedral side. Spelling notes
-   for the corpus, learned en route: guard conjuncts must be INLINE
-   transition subjects (let-bound bools hide them from display
-   matching), and the R1a declared-range edge-discharge cannot yet read
-   compound guard displays (`offset + desc_size <= K`) — the guard-route
-   meet can; a redundant literal conjunct bridges it. [ENGINEERING — an
-   encoder rung; no owner input needed.]
+5. **x86_64 record-view read encoder — LANDED 2026-07-11 (9ea55a5ca);
+   ⇒ Cathedral M2 BOOTS.** CopyRuntimeMachineIndexedToRuntimeStorage now
+   handles byte_count outside {1,4,8} (the C2 record-view snapshot): the
+   single-value path is byte-identical, the chunked path keeps the source
+   in r15, loads the target base into r10, and copies in 8/4/1-byte pairs
+   via the same alignment-aware decomposition as aarch64's
+   for_each_runtime_copy_chunk; the width fn + relocation target-offset
+   helpers thread byte_count. Proven: descriptor_walk (16-byte all-8s,
+   the in-tree twin) runs native==interp==50 on x86_64; four unit tests
+   pin width/emitter lockstep, the 8/4/1 decomposition, the exact
+   4-byte-tail opcodes, and single-value invariance. **The full Cathedral
+   M2 tree cross-compiles for uefi_x64 AND BOOTS under QEMU/OVMF
+   (2026-07-11): greeting prints, firmware never regains control (no
+   UiApp fall-through, unlike M1), no triple-fault — the app entered
+   own_machine, walked the map, ExitBootServices, and idles. The machine
+   is ours.** (40-byte EfiMemoryDescriptor is 5x8, no tail; the tail path
+   is unit-tested since the frontend specializes small-trip .omg loops to
+   fixed copies before the op — see the found-bug below.) Spelling notes
+   that stand for the corpus: guard conjuncts must be INLINE transition
+   subjects (let-bound bools hide them from display matching), and the
+   R1a declared-range edge-discharge cannot yet read compound guard
+   displays (`offset + desc_size <= K`) — the guard-route meet can; a
+   redundant literal conjunct bridges it.
+
+**FOUND BUG (owner lane, 2026-07-11, not M2-blocking): a recast at a
+COMPILE-TIME-CONSTANT offset stale-reads the zero-init image.** `let r:
+&Rec = &self.buf[K] as &Rec` with `K` a constant (e.g. entering a state
+with a literal offset) const-folds the field reads against the STATIC
+(ZII) buffer, ignoring runtime writes to `self.buf` — native returns 0,
+interp returns the written value (a silent divergence). Reproduced
+minimizing an M2-shape canary; does NOT affect M2 (the walk's offset is
+genuinely runtime, so it uses the real runtime-indexed op — descriptor_walk
+and the booting Cathedral image both confirm). Adjacent: a runtime-offset
+recast loop with a statically-small trip count (2 records) SPECIALIZES to
+fixed-offset copies at the WRONG displacements (read [+0] and [+16] for
+records at 0 and 12), also diverging native 0. Both are frontend
+recast-lowering / const-fold issues, not backend. No fail canary filed yet
+(the frontend keeps folding the repro away — needs a genuinely
+runtime-but-small offset shape to pin).
 
 Original gap list (compile-checked against the real
 own_machine.omg 2026-07-11 via the new `omega-run --target uefi_x64`):
