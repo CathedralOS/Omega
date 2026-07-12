@@ -97,6 +97,7 @@ pub(super) fn collect_runtime_storage_copy_relocations(
             index_offset,
             element_byte_size,
             field_byte_offset,
+            byte_count,
             ..
         } => {
             context
@@ -122,6 +123,7 @@ pub(super) fn collect_runtime_storage_copy_relocations(
                     *index_offset,
                     *element_byte_size,
                     *field_byte_offset,
+                    *byte_count,
                 ),
                 context.storage_region_symbol_handle(*target_region),
             );

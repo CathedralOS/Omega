@@ -69,6 +69,7 @@ pub(crate) fn runtime_storage_copy_from_runtime_machine_indexed_target_address_o
     index_offset: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
+    byte_count: usize,
 ) -> usize {
     match architecture {
         Architecture::Aarch64 => {
@@ -79,18 +80,24 @@ pub(crate) fn runtime_storage_copy_from_runtime_machine_indexed_target_address_o
                 index_offset,
                 element_byte_size,
                 field_byte_offset,
+                byte_count,
             )
         }
-        // Start of the target-base `mov r15,imm64`, which follows the
-        // source-address sequence; the relocation planner adds the +2
-        // immediate offset itself. Machine index: 10+7+7+3+7 = 34. A
-        // frame-resident index inserts `mov r10,imm64` (10) + reads the index
-        // off r10 (same 7 bytes): 44.
+        // Start of the target-base mov, which follows the source-address
+        // sequence; the relocation planner adds the +2 immediate offset
+        // itself. SINGLE-VALUE (byte_count 1|4|8) loads the element first, so
+        // machine index: 10+7+7+3+7 = 34; a frame-resident index inserts
+        // `mov r10,imm64` (10): 44. CHUNKED (record-view snapshot) puts the
+        // target mov (r10) right after `add r15,rax`: 27 / 37.
         Architecture::X86_64 => {
-            if index_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame {
-                44
+            let frame_index =
+                index_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame;
+            if matches!(byte_count, 1 | 4 | 8) {
+                if frame_index { 44 } else { 34 }
+            } else if frame_index {
+                37
             } else {
-                34
+                27
             }
         }
     }

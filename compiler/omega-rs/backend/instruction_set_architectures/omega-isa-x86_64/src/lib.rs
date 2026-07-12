@@ -2816,25 +2816,86 @@ pub fn encode_runtime_machine_indexed_integer_write(
 }
 
 /// Width of [`encode_runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage`].
-/// MUST equal the emitter exactly. Machine-resident index: the two relocations
-/// are the machine source base (@+2, the instruction start) and the target base
-/// (@+36); there is NO runtime-frame load, so a program without any frame
-/// storage relocates cleanly. Frame-resident index: a THIRD relocation loads
-/// the frame base into r10 (mov at +10) for the index read, and the target mov
-/// shifts to +44.
+/// MUST equal the emitter exactly. SINGLE-VALUE (byte_count 1|4|8, the original
+/// layout, byte-identical): machine-resident index has the machine source base
+/// reloc @+2 (instruction start) and the target base mov at +34 (imm @+36);
+/// frame-resident index adds the frame-base mov at +10 (imm @+12) and the
+/// target mov shifts to +44 (imm @+46). CHUNKED (any other byte_count — the
+/// record-view snapshot): the address prelude is unchanged, the TARGET mov
+/// (r10, reused after the index read) sits right after `add r15,rax` at
+/// +37/+27 (frame/machine), and each 8/4/1 chunk is a 7-byte load + 7-byte
+/// store pair.
 pub fn runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage_width(
     index_region: omega_target_operations::RuntimeStorageRegion,
+    byte_count: usize,
 ) -> usize {
-    match index_region {
-        // mov r15,imm64 (10) + mov r10,imm64 (10) + mov eax,[r10+idx] (7)
+    let frame_index =
+        index_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame;
+    if matches!(byte_count, 1 | 4 | 8) {
+        // mov r15,imm64 (10) [+ mov r10,imm64 (10) frame] + mov eax,[idx] (7)
         // + imul rax,rax,imm32 (7) + add r15,rax (3) + mov rax,[r15+disp] (7)
         // + mov r15,imm64 (10) + store [r15+disp] (7).
-        omega_target_operations::RuntimeStorageRegion::RuntimeFrame => 61,
-        // mov r15,imm64 (10) + mov eax,[r15+idx] (7) + imul rax,rax,imm32 (7)
-        // + add r15,rax (3) + mov rax,[r15+disp] (7) + mov r15,imm64 (10)
-        // + store [r15+disp] (7).
-        _ => 51,
+        return if frame_index { 61 } else { 51 };
     }
+    // mov r15,imm64 (10) [+ mov r10,imm64 (10) frame] + mov eax,[idx] (7)
+    // + imul (7) + add r15,rax (3) + mov r10,imm64(target) (10)
+    // + per chunk: load (7) + store (7).
+    let prelude = if frame_index { 37 } else { 27 };
+    prelude + 10 + 14 * runtime_copy_chunk_count(0, 0, byte_count)
+}
+
+/// The 8/4/1 chunk decomposition shared with aarch64's
+/// `for_each_runtime_copy_chunk`: 8-byte chunks while both offsets stay
+/// 8-aligned, 4-byte while 4-aligned, else single bytes. x86_64 loads tolerate
+/// misalignment, but mirroring the rule keeps the chunk count a pure function
+/// of (offsets, byte_count) across architectures.
+fn for_each_x86_runtime_copy_chunk(
+    source_base_offset: usize,
+    target_base_offset: usize,
+    byte_count: usize,
+    mut visit: impl FnMut(usize, usize) -> Result<(), Diagnostic>,
+) -> Result<(), Diagnostic> {
+    let mut remaining = byte_count;
+    let mut offset = 0usize;
+    while remaining > 0 {
+        let source_offset = source_base_offset + offset;
+        let target_offset = target_base_offset + offset;
+        let chunk_size =
+            if remaining >= 8 && source_offset.is_multiple_of(8) && target_offset.is_multiple_of(8)
+            {
+                8
+            } else if remaining >= 4
+                && source_offset.is_multiple_of(4)
+                && target_offset.is_multiple_of(4)
+            {
+                4
+            } else {
+                1
+            };
+        visit(offset, chunk_size)?;
+        offset += chunk_size;
+        remaining -= chunk_size;
+    }
+    Ok(())
+}
+
+/// Chunk count of [`for_each_x86_runtime_copy_chunk`] for width computation.
+fn runtime_copy_chunk_count(
+    source_base_offset: usize,
+    target_base_offset: usize,
+    byte_count: usize,
+) -> usize {
+    let mut count = 0usize;
+    let _ = for_each_x86_runtime_copy_chunk(
+        source_base_offset,
+        target_base_offset,
+        byte_count,
+        |_, _| {
+            count += 1;
+            Ok(())
+        },
+    );
+    count
 }
 
 /// Read `collection[index]` (an element of a machine-resident inline array,
@@ -2852,11 +2913,6 @@ pub fn encode_runtime_storage_copy_from_runtime_machine_indexed_to_runtime_stora
     target_offset: usize,
     byte_count: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
-    if !matches!(byte_count, 1 | 4 | 8) {
-        return Err(Diagnostic::error(format!(
-            "X86_64 MVP encoder cannot read {byte_count}-byte machine indexed values yet"
-        )));
-    }
     if !matches!(
         index_region,
         omega_target_operations::RuntimeStorageRegion::Machine
@@ -2866,6 +2922,21 @@ pub fn encode_runtime_storage_copy_from_runtime_machine_indexed_to_runtime_stora
             "X86_64 MVP encoder cannot read a machine indexed value with this index region yet",
         ));
     }
+    if !matches!(byte_count, 1 | 4 | 8) {
+        // CHUNKED record-view read (the §5b/C2 snapshot -- e.g. a 40-byte
+        // EfiMemoryDescriptor view over a byte buffer): same address prelude,
+        // then the target base rides r10 (dead after the index read) and the
+        // snapshot copies in 8/4/1-byte load/store pairs through rax.
+        return encode_chunked_machine_indexed_read(
+            base_byte_offset,
+            index_offset,
+            index_region,
+            element_byte_size,
+            field_byte_offset,
+            target_offset,
+            byte_count,
+        );
+    }
     let element_scale = i32::try_from(element_byte_size).map_err(|_| {
         Diagnostic::error(format!(
             "X86_64 MVP encoder cannot scale machine index by element size `{element_byte_size}`"
@@ -2873,7 +2944,10 @@ pub fn encode_runtime_storage_copy_from_runtime_machine_indexed_to_runtime_stora
     })?;
     let index_displacement = disp32(index_offset)?;
     let mut bytes = Vec::with_capacity(
-        runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage_width(index_region),
+        runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage_width(
+            index_region,
+            byte_count,
+        ),
     );
     // r15 = machine source base (imm64 at +2 relocated to the machine symbol).
     append_mov_r15_imm64(&mut bytes, 0);
@@ -2899,7 +2973,69 @@ pub fn encode_runtime_storage_copy_from_runtime_machine_indexed_to_runtime_stora
     append_store_rax_to_r15(&mut bytes, target_offset, byte_count)?;
     debug_assert_eq!(
         bytes.len(),
-        runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage_width(index_region)
+        runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage_width(
+            index_region,
+            byte_count
+        )
+    );
+    Ok(bytes)
+}
+
+/// The chunked (byte_count outside 1|4|8) body of
+/// [`encode_runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage`]:
+/// r15 = machine base + index*element (the same prelude as the single-value
+/// path), r10 = target region base (relocated imm64 at prelude+2), then the
+/// snapshot copies through rax in 8/4/1 chunks. Chunk decomposition runs on
+/// (0, 0) base offsets -- x86 loads tolerate misalignment, and anchoring at
+/// zero keeps the chunk count (and thus the width fn) independent of the
+/// runtime field/target displacements.
+fn encode_chunked_machine_indexed_read(
+    base_byte_offset: usize,
+    index_offset: usize,
+    index_region: omega_target_operations::RuntimeStorageRegion,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    target_offset: usize,
+    byte_count: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    let element_scale = i32::try_from(element_byte_size).map_err(|_| {
+        Diagnostic::error(format!(
+            "X86_64 MVP encoder cannot scale machine index by element size `{element_byte_size}`"
+        ))
+    })?;
+    let mut bytes = Vec::with_capacity(
+        runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage_width(
+            index_region,
+            byte_count,
+        ),
+    );
+    // r15 = machine source base (imm64 at +2 relocated to the machine symbol).
+    append_mov_r15_imm64(&mut bytes, 0);
+    if index_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame {
+        // Frame-resident index: r10 = frame base (imm64 at +12, the frame
+        // relocation); eax = index, 32-bit zero-extended.
+        append_mov_r10_imm64(&mut bytes, 0);
+        append_load_index_eax_from_r10(&mut bytes, index_offset)?;
+    } else {
+        append_load_index_eax_from_r15(&mut bytes, index_offset)?;
+    }
+    // rax = index * element_byte_size; r15 = source base + scaled index.
+    append_imul_rax_imm32(&mut bytes, element_scale);
+    append_add_r15_rax(&mut bytes);
+    // r10 = target base (imm64 relocated to the target region symbol). r10 is
+    // dead here in both index flavors, so the source address stays in r15.
+    append_mov_r10_imm64(&mut bytes, 0);
+    let source_displacement = base_byte_offset + field_byte_offset;
+    for_each_x86_runtime_copy_chunk(0, 0, byte_count, |offset, chunk_size| {
+        append_load_rax_chunk_from_r15(&mut bytes, source_displacement + offset, chunk_size)?;
+        append_store_rax_chunk_to_r10(&mut bytes, target_offset + offset, chunk_size)
+    })?;
+    debug_assert_eq!(
+        bytes.len(),
+        runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage_width(
+            index_region,
+            byte_count
+        )
     );
     Ok(bytes)
 }
@@ -9519,6 +9655,51 @@ fn append_load_rax_from_r15(bytes: &mut Vec<u8>, byte_offset: usize) -> Result<(
     Ok(())
 }
 
+/// Width-parametric chunk load through rax off the r15 source address: 8-byte
+/// `mov rax`, 4-byte `mov eax` (zero-extends), or 1-byte `mov al`. Every form
+/// is 7 bytes, so chunk count alone determines the emitted width.
+fn append_load_rax_chunk_from_r15(
+    bytes: &mut Vec<u8>,
+    byte_offset: usize,
+    chunk_size: usize,
+) -> Result<(), Diagnostic> {
+    let displacement = disp32(byte_offset)?;
+    match chunk_size {
+        8 => bytes.extend([0x49, 0x8b, 0x87]), // mov rax, [r15 + disp32]
+        4 => bytes.extend([0x41, 0x8b, 0x87]), // mov eax, [r15 + disp32]
+        1 => bytes.extend([0x41, 0x8a, 0x87]), // mov al,  [r15 + disp32]
+        _ => {
+            return Err(Diagnostic::error(format!(
+                "X86_64 MVP encoder has no {chunk_size}-byte chunk load"
+            )));
+        }
+    }
+    bytes.extend(displacement.to_le_bytes());
+    Ok(())
+}
+
+/// Width-parametric chunk store of rax to the r10 target base -- the store
+/// twin of [`append_load_rax_chunk_from_r15`]; every form is 7 bytes.
+fn append_store_rax_chunk_to_r10(
+    bytes: &mut Vec<u8>,
+    byte_offset: usize,
+    chunk_size: usize,
+) -> Result<(), Diagnostic> {
+    let displacement = disp32(byte_offset)?;
+    match chunk_size {
+        8 => bytes.extend([0x49, 0x89, 0x82]), // mov [r10 + disp32], rax
+        4 => bytes.extend([0x41, 0x89, 0x82]), // mov [r10 + disp32], eax
+        1 => bytes.extend([0x41, 0x88, 0x82]), // mov [r10 + disp32], al
+        _ => {
+            return Err(Diagnostic::error(format!(
+                "X86_64 MVP encoder has no {chunk_size}-byte chunk store"
+            )));
+        }
+    }
+    bytes.extend(displacement.to_le_bytes());
+    Ok(())
+}
+
 /// 32-bit zero-extending load of an array INDEX. A 64-bit `mov rax` reads 8 bytes,
 /// which for a 4-byte index field (i32/u32) pulls in the ADJACENT field's bytes as
 /// the high dword -> a garbage index and an OOB store (segfault). Every valid array
@@ -10579,6 +10760,107 @@ mod byte_io_width_tests {
             assert_eq!(import.len(), runtime_byte_write_import_width());
             let syscall = encode_runtime_byte_write_syscall(source_offset, 1).unwrap();
             assert_eq!(syscall.len(), runtime_byte_write_syscall_width());
+        }
+    }
+}
+
+#[cfg(test)]
+mod chunked_record_view_read_tests {
+    use super::*;
+    use omega_target_operations::RuntimeStorageRegion;
+
+    // The record-view snapshot read (§5b/C2): CopyRuntimeMachineIndexedToRuntime-
+    // Storage for a record whose byte_count is outside {1,4,8}. descriptor_walk
+    // (a run canary) covers the all-8s 16-byte shape on the host; these pin the
+    // encoder as a pure function -- byte_count/width lockstep, the 8/4/1 chunk
+    // decomposition, and the exact tail-chunk opcodes -- without depending on
+    // frontend lowering choices.
+
+    #[test]
+    fn width_matches_emitter_across_shapes_and_regions() {
+        // byte_count: single-value {1,4,8} keep the original layout; the rest
+        // are chunked. 40 = Cathedral's EfiMemoryDescriptor (5x8, no tail);
+        // 12/20 have a 4-byte tail; 7 falls to single bytes.
+        for region in [RuntimeStorageRegion::Machine, RuntimeStorageRegion::RuntimeFrame] {
+            for byte_count in [1usize, 4, 8, 12, 16, 20, 40, 7, 3, 9] {
+                let bytes = encode_runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage(
+                    16, // base_byte_offset
+                    8,  // index_offset
+                    region,
+                    1,  // element_byte_size (u8 buffer)
+                    0,  // field_byte_offset
+                    64, // target_offset
+                    byte_count,
+                )
+                .expect("encode");
+                assert_eq!(
+                    bytes.len(),
+                    runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage_width(
+                        region, byte_count,
+                    ),
+                    "width/emitter mismatch: region {region:?}, {byte_count} bytes"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn chunk_decomposition_is_eight_four_one() {
+        // Anchored at (0,0): 8-byte chunks while 8-aligned, then 4, then 1.
+        assert_eq!(runtime_copy_chunk_count(0, 0, 8), 1);
+        assert_eq!(runtime_copy_chunk_count(0, 0, 16), 2); // 8 + 8
+        assert_eq!(runtime_copy_chunk_count(0, 0, 12), 2); // 8 + 4
+        assert_eq!(runtime_copy_chunk_count(0, 0, 20), 3); // 8 + 8 + 4
+        assert_eq!(runtime_copy_chunk_count(0, 0, 40), 5); // 8 x 5
+        assert_eq!(runtime_copy_chunk_count(0, 0, 7), 4); // 4 + 1 + 1 + 1
+        assert_eq!(runtime_copy_chunk_count(0, 0, 3), 3); // 1 + 1 + 1 (never 4-aligned)
+    }
+
+    #[test]
+    fn twelve_byte_machine_index_reads_an_eight_then_a_four_chunk() {
+        // 12 = one 8-byte + one 4-byte tail. Machine-resident index. Assert the
+        // exact chunk load/store opcodes so the tail's 4-byte forms are pinned.
+        let bytes = encode_runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage(
+            0, 8, RuntimeStorageRegion::Machine, 1, 0, 64, 12,
+        )
+        .expect("encode");
+        // Prelude (machine index, 27 bytes): mov r15,imm64 (10) + mov eax,[r15+idx]
+        // (7) + imul (7) + add r15,rax (3). Then mov r10,imm64 target (10).
+        assert_eq!(&bytes[0..2], &[0x49, 0xbf], "mov r15, imm64 (machine base)");
+        assert_eq!(&bytes[10..13], &[0x41, 0x8b, 0x87], "mov eax, [r15+idx]");
+        assert_eq!(&bytes[24..27], &[0x49, 0x01, 0xc7], "add r15, rax");
+        assert_eq!(&bytes[27..29], &[0x49, 0xba], "mov r10, imm64 (target base)");
+        // Chunk 0 (8 bytes): mov rax,[r15+0] ; mov [r10+0],rax.
+        assert_eq!(&bytes[37..40], &[0x49, 0x8b, 0x87], "8-chunk load rax,[r15+0]");
+        assert_eq!(&bytes[44..47], &[0x49, 0x89, 0x82], "8-chunk store [r10+0],rax");
+        // Chunk 1 (4-byte TAIL): mov eax,[r15+8] ; mov [r10+8],eax.
+        assert_eq!(&bytes[51..54], &[0x41, 0x8b, 0x87], "4-chunk load eax,[r15+8]");
+        assert_eq!(
+            &bytes[54..58],
+            &8u32.to_le_bytes(),
+            "4-chunk source displacement = 8"
+        );
+        assert_eq!(&bytes[58..61], &[0x41, 0x89, 0x82], "4-chunk store [r10+8],eax");
+        assert_eq!(
+            &bytes[61..65],
+            &(64u32 + 8).to_le_bytes(),
+            "4-chunk target displacement = target_offset + 8"
+        );
+        assert_eq!(bytes.len(), 65, "27 prelude + 10 target-mov + 2*14 chunks");
+    }
+
+    #[test]
+    fn single_value_paths_are_unchanged() {
+        // byte_count 1|4|8 keep the byte-identical original layout (target base
+        // in r15, single load/store), independent of the chunked additions.
+        for byte_count in [1usize, 4, 8] {
+            let bytes = encode_runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage(
+                0, 8, RuntimeStorageRegion::Machine, 1, 0, 64, byte_count,
+            )
+            .expect("encode");
+            assert_eq!(bytes.len(), 51, "single-value machine-index width");
+            // Ends with mov r15,imm64 (target) + a store to r15, NOT r10.
+            assert_eq!(&bytes[34..36], &[0x49, 0xbf], "target base in r15");
         }
     }
 }
