@@ -41,3 +41,14 @@ ensures
 {
     transition { _ -> (b) }
 }
+// INJECTIVITY: the parenthesized case literals re-enable struct literals
+// inside the contract grammar, both equality fences stand down for
+// recursive proof data in fact position, and the judge decomposes
+// same-case constructor equations pairwise.
+machine succ_inj(a: Nat, b: Nat)
+requires
+    (Nat::Succ { prev: a }) == (Nat::Succ { prev: b })
+ensures
+    a == b
+{
+}

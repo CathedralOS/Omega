@@ -1,0 +1,13 @@
+// FAIL CANARY: case DISJOINTNESS with a payload term -- `Nat::Zero ==
+// (Nat::Succ { prev: a })` resolves to distinct cases of one data, so the
+// structural judge disproves it (N3; the payload spelling parses through
+// the parenthesized case literal).
+use omega::language::core::nat;
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine Main::main(&mut self) { self.console.exit_process(70); }
+machine bogus(a: Nat)
+ensures
+    Nat::Zero == (Nat::Succ { prev: a })
+{
+}

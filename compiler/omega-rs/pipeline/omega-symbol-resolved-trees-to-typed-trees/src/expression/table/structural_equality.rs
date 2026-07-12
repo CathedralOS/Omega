@@ -126,6 +126,16 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
         }
 
         if !equatable_conformance_declared(program, &type_name) {
+            // PROOF-FACT position over RECURSIVE (proof-only) data: the
+            // compare stays a raw Binary for the structural entailment judge
+            // (math roster N3) -- no runtime lowering exists to synthesize,
+            // and the resolved-level pre-pass already stood down for exactly
+            // this shape.
+            if self.fact_position
+                && crate::equality::data_is_directly_recursive(program, &type_name)
+            {
+                return Ok(None);
+            }
             return Err(Diagnostic::error(format!(
                 "cannot compare `{type_name}` values with `==`: structural equality is not synthesized for non-conforming types -- declare `{type_name} satisfies Equatable;` to synthesize structural equality"
             )));

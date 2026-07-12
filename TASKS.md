@@ -510,9 +510,14 @@ no `unbounded` property exists. Rungs:
   pass/proofs/proof_nat_structural_lemmas +
   fail/proofs/nat_structural_disproof_refuted; everything beyond the
   term language still fences (structural_ensures_unjudged_rejected).
-  MEASURED GRAMMAR GAP: struct literals do not parse in fact position
-  (`requires Nat::Succ { prev: a } == ...` is a parse error), so payload
-  constructor terms + injectivity decomposition are the next rung.
+  Payload constructor terms LANDED same day: the PARENTHESIZED case
+  literal `(Nat::Succ { prev: a })` already parses (parens reset the
+  contract grammar's no-struct-literal context), both equality fences
+  (resolved pre-pass + typed synthesis) stand down for RECURSIVE data in
+  fact position, and the judge decomposes constructor equations —
+  INJECTIVITY (`requires (Succ{a}) == (Succ{b}) ensures a == b` proves)
+  and payload DISJOINTNESS (refutes) are in
+  proof_nat_structural_lemmas + nat_payload_disjointness_refuted.
   Result binding LANDED same day for
   SOLE-unguarded-value-arm bodies (the identity lemma
   `-> (b)` / `ensures result == b` proves; wider bodies judge without

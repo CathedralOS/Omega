@@ -17,6 +17,10 @@ pub(super) struct ExpressionTableLowerer<'program, 'target, 'scope> {
     pub(super) target: &'target mut typed::expression::ExpressionTable,
     self_substitution: Option<typed::expression::ExpressionHandle>,
     pub(super) equality_scope: Option<&'scope EqualityScope>,
+    /// PROOF-FACT position (contract/domain facts): equality over RECURSIVE
+    /// (proof-only) data stays a raw Binary for the structural entailment
+    /// judge instead of demanding runtime synthesis (math roster N3).
+    pub(super) fact_position: bool,
 }
 
 impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope> {
@@ -33,7 +37,13 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
             target,
             self_substitution,
             equality_scope,
+            fact_position: false,
         }
+    }
+
+    pub(super) fn in_fact_position(mut self) -> Self {
+        self.fact_position = true;
+        self
     }
 
     pub(super) fn lower(

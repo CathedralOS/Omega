@@ -1,5 +1,6 @@
 use crate::expression::{
-    lower_expression_handle_from_table, lower_expression_handle_from_table_in_program,
+    lower_expression_handle_from_table, lower_expression_handle_from_table_in_fact_position,
+    lower_expression_handle_from_table_in_program,
 };
 use crate::lowerer::Lowerer;
 use crate::name::lower_name;
@@ -54,7 +55,7 @@ pub(crate) fn lower_proof_facts(
     for fact in lowerer.source_trees.proof_facts(facts) {
         let fact = match fact {
             resolved::domain::ProofFact::Expression(expression) => {
-                let expression = lower_expression_handle_from_table_in_program(
+                let expression = lower_expression_handle_from_table_in_fact_position(
                     lowerer.source_trees,
                     &lowerer.source_trees.tables.bodies.expressions,
                     &mut lowerer.typed_trees.expression_table,

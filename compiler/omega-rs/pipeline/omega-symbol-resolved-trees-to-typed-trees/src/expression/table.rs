@@ -27,3 +27,14 @@ pub(super) fn lower_expression_handle_from_table_in_scope(
     lowerer::ExpressionTableLowerer::new(Some(program), source, target, None, scope)
         .lower(expression)
 }
+
+pub(super) fn lower_expression_handle_from_table_in_fact_position(
+    program: &resolved::SymbolResolvedTrees,
+    source: &resolved::expression::ExpressionTable,
+    target: &mut typed::expression::ExpressionTable,
+    expression: resolved::expression::ExpressionHandle,
+) -> Result<typed::expression::ExpressionHandle, Diagnostic> {
+    lowerer::ExpressionTableLowerer::new(Some(program), source, target, None, None)
+        .in_fact_position()
+        .lower(expression)
+}

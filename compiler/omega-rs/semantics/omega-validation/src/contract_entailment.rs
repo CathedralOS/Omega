@@ -1817,16 +1817,33 @@ enum StructuralJudgment {
 #[derive(Clone, PartialEq, Eq, Debug)]
 enum StructuralTerm {
     Variable(String),
-    /// data name, case name -- a nullary classifier reference.
-    Case(String, String),
+    /// data name, case name, named payload fields (sorted by field name;
+    /// empty for a nullary classifier like `Nat::Zero`). Payload-carrying
+    /// terms spell as parenthesized case literals in fact position
+    /// (`(Nat::Succ { prev: a })` -- the parens re-enable struct literals in
+    /// the contract grammar), and both lowering fences stand down for
+    /// recursive data so the raw Binary reaches this judge.
+    Constructor {
+        data: String,
+        case: String,
+        fields: Vec<(String, StructuralTerm)>,
+    },
     /// Anything else, compared by canonical display name only.
     Opaque(String),
 }
 
-#[derive(Clone)]
 struct StructuralJudge {
     substitutions: Vec<(String, StructuralTerm)>,
     hypotheses_contradictory: bool,
+}
+
+impl Clone for StructuralJudge {
+    fn clone(&self) -> Self {
+        Self {
+            substitutions: self.substitutions.clone(),
+            hypotheses_contradictory: self.hypotheses_contradictory,
+        }
+    }
 }
 
 impl StructuralJudge {
@@ -1857,24 +1874,54 @@ impl StructuralJudge {
                 ) else {
                     return;
                 };
-                let left = self.resolve(left);
-                let right = self.resolve(right);
-                match (&left, &right) {
-                    (StructuralTerm::Case(data_l, case_l), StructuralTerm::Case(data_r, case_r))
-                        if data_l == data_r && case_l != case_r =>
-                    {
-                        self.hypotheses_contradictory = true;
-                    }
-                    (StructuralTerm::Variable(name), _) => {
-                        if left != right {
-                            self.substitutions.push((name.clone(), right));
-                        }
-                    }
-                    (_, StructuralTerm::Variable(name)) => {
-                        self.substitutions.push((name.clone(), left));
-                    }
-                    _ => {}
+                self.intake_equation(left, right, 0);
+            }
+            _ => {}
+        }
+    }
+
+    /// One structural equation: constructor pairs DECOMPOSE (injectivity --
+    /// `Succ(a) == Succ(b)` yields `a == b`), distinct cases of one data
+    /// make the hypotheses contradictory (disjointness), and a variable side
+    /// becomes a directed substitution (first binding wins).
+    fn intake_equation(&mut self, left: StructuralTerm, right: StructuralTerm, depth: usize) {
+        if depth >= 32 {
+            return;
+        }
+        let left = self.resolve(left);
+        let right = self.resolve(right);
+        match (&left, &right) {
+            (
+                StructuralTerm::Constructor {
+                    data: data_l,
+                    case: case_l,
+                    fields: fields_l,
+                },
+                StructuralTerm::Constructor {
+                    data: data_r,
+                    case: case_r,
+                    fields: fields_r,
+                },
+            ) if data_l == data_r => {
+                if case_l != case_r {
+                    self.hypotheses_contradictory = true;
+                    return;
                 }
+                for (name_l, value_l) in fields_l {
+                    if let Some((_, value_r)) =
+                        fields_r.iter().find(|(name_r, _)| name_r == name_l)
+                    {
+                        self.intake_equation(value_l.clone(), value_r.clone(), depth + 1);
+                    }
+                }
+            }
+            (StructuralTerm::Variable(name), _) => {
+                if left != right {
+                    self.substitutions.push((name.clone(), right));
+                }
+            }
+            (_, StructuralTerm::Variable(name)) => {
+                self.substitutions.push((name.clone(), left));
             }
             _ => {}
         }
@@ -1882,20 +1929,40 @@ impl StructuralJudge {
 
     /// Follow variable substitutions to a fixpoint, depth-capped (a cyclic
     /// substitution chain resolves to wherever the cap lands, which only
-    /// weakens judgments toward Unknown -- never unsound).
-    fn resolve(&self, mut term: StructuralTerm) -> StructuralTerm {
+    /// weakens judgments toward Unknown -- never unsound). Constructor
+    /// fields resolve recursively under the same budget.
+    fn resolve(&self, term: StructuralTerm) -> StructuralTerm {
+        self.resolve_at(term, 0)
+    }
+
+    fn resolve_at(&self, mut term: StructuralTerm, depth: usize) -> StructuralTerm {
+        if depth >= 32 {
+            return term;
+        }
         for _ in 0..32 {
-            let StructuralTerm::Variable(name) = &term else {
-                return term;
-            };
-            let Some((_, replacement)) = self
-                .substitutions
-                .iter()
-                .find(|(variable, _)| variable == name)
-            else {
-                return term;
-            };
-            term = replacement.clone();
+            match term {
+                StructuralTerm::Variable(ref name) => {
+                    let Some((_, replacement)) = self
+                        .substitutions
+                        .iter()
+                        .find(|(variable, _)| variable == name)
+                    else {
+                        return term;
+                    };
+                    term = replacement.clone();
+                }
+                StructuralTerm::Constructor { data, case, fields } => {
+                    return StructuralTerm::Constructor {
+                        data,
+                        case,
+                        fields: fields
+                            .into_iter()
+                            .map(|(name, value)| (name, self.resolve_at(value, depth + 1)))
+                            .collect(),
+                    };
+                }
+                StructuralTerm::Opaque(_) => return term,
+            }
         }
         term
     }
@@ -1926,23 +1993,8 @@ impl StructuralJudge {
                 ) else {
                     return StructuralJudgment::Unknown;
                 };
-                let left = self.resolve(left);
-                let right = self.resolve(right);
-                let equality = if left == right {
-                    StructuralJudgment::Proven
-                } else if let (
-                    StructuralTerm::Case(data_l, case_l),
-                    StructuralTerm::Case(data_r, case_r),
-                ) = (&left, &right)
-                {
-                    if data_l == data_r && case_l != case_r {
-                        StructuralJudgment::Refuted
-                    } else {
-                        StructuralJudgment::Unknown
-                    }
-                } else {
-                    StructuralJudgment::Unknown
-                };
+                let equality =
+                    self.judge_equation(self.resolve(left), self.resolve(right), 0);
                 if binary.operator == BinaryOperator::Equal {
                     equality
                 } else {
@@ -1956,12 +2008,65 @@ impl StructuralJudge {
             _ => StructuralJudgment::Unknown,
         }
     }
+
+    /// Judge one resolved structural equation: identical terms prove,
+    /// same-case constructors decompose pairwise (all fields prove =>
+    /// proven, any refutes => refuted), distinct cases refute.
+    fn judge_equation(
+        &self,
+        left: StructuralTerm,
+        right: StructuralTerm,
+        depth: usize,
+    ) -> StructuralJudgment {
+        if depth >= 32 {
+            return StructuralJudgment::Unknown;
+        }
+        if left == right {
+            return StructuralJudgment::Proven;
+        }
+        let (
+            StructuralTerm::Constructor {
+                data: data_l,
+                case: case_l,
+                fields: fields_l,
+            },
+            StructuralTerm::Constructor {
+                data: data_r,
+                case: case_r,
+                fields: fields_r,
+            },
+        ) = (&left, &right)
+        else {
+            return StructuralJudgment::Unknown;
+        };
+        if data_l != data_r {
+            return StructuralJudgment::Unknown;
+        }
+        if case_l != case_r {
+            return StructuralJudgment::Refuted;
+        }
+        let mut verdict = StructuralJudgment::Proven;
+        for (name_l, value_l) in fields_l {
+            let Some((_, value_r)) = fields_r.iter().find(|(name_r, _)| name_r == name_l) else {
+                verdict = StructuralJudgment::Unknown;
+                continue;
+            };
+            match self.judge_equation(value_l.clone(), value_r.clone(), depth + 1) {
+                StructuralJudgment::Proven => {}
+                StructuralJudgment::Refuted => return StructuralJudgment::Refuted,
+                StructuralJudgment::Unknown => verdict = StructuralJudgment::Unknown,
+            }
+        }
+        verdict
+    }
 }
 
 /// Read an expression as a structural term. Single-segment names are
 /// variables; a two-segment path whose head names a data definition is a
-/// nullary case classifier; everything else is opaque by display name
-/// (identical applications still prove reflexively through term equality).
+/// nullary case constructor; a case literal (`(Nat::Succ { prev: a })`) is a
+/// payload-carrying constructor with fields sorted by name; everything else
+/// is opaque by display name (identical applications still prove reflexively
+/// through term equality).
 fn structural_term(program: &TypedTrees, expression: ExpressionHandle) -> Option<StructuralTerm> {
     match program.expression_table.expression(expression) {
         ExpressionNode::Name(path) => {
@@ -1974,10 +2079,11 @@ fn structural_term(program: &TypedTrees, expression: ExpressionHandle) -> Option
                         .iter()
                         .any(|definition| definition.name.as_str() == first.as_str())
                     {
-                        Some(StructuralTerm::Case(
-                            first.as_str().to_owned(),
-                            second.as_str().to_owned(),
-                        ))
+                        Some(StructuralTerm::Constructor {
+                            data: first.as_str().to_owned(),
+                            case: second.as_str().to_owned(),
+                            fields: Vec::new(),
+                        })
                     } else {
                         Some(StructuralTerm::Opaque(
                             program.expression_table.display_name(expression),
@@ -1989,9 +2095,26 @@ fn structural_term(program: &TypedTrees, expression: ExpressionHandle) -> Option
                 )),
             }
         }
+        ExpressionNode::StructLiteral(literal) => {
+            let case = literal.case_name.as_ref()?;
+            let mut fields: Vec<(String, StructuralTerm)> = Vec::new();
+            for field in program.expression_table.struct_fields(literal.fields) {
+                fields.push((
+                    field.name.as_str().to_owned(),
+                    structural_term(program, field.value)?,
+                ));
+            }
+            fields.sort_by(|(left, _), (right, _)| left.cmp(right));
+            Some(StructuralTerm::Constructor {
+                data: literal.type_name.as_str().to_owned(),
+                case: case.as_str().to_owned(),
+                fields,
+            })
+        }
         ExpressionNode::Call(_) | ExpressionNode::Member(_) => Some(StructuralTerm::Opaque(
             program.expression_table.display_name(expression),
         )),
         _ => None,
     }
 }
+
