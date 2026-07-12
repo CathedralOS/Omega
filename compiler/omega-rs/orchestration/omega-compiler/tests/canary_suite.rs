@@ -18731,6 +18731,37 @@ fn runtime_multi_edge_offset_meet_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_value_call_terminal_exit_canary_runs() {
+    // Free value-machine calls in TERMINAL position (always-arm transition
+    // values and trailing returns) hoist into the let-bound spelling:
+    // single-state callee (72 on miss), multi-state acyclic (73), and the
+    // cyclic cos-via-terminal shape that used to overflow the compile
+    // thread (74).
+    let canary = pass_canary("calls/runtime_value_call_terminal_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-terminal-call-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("value-call terminal canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("value-call terminal canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected all three hoisted terminal-call shapes to deliver (exit 70), got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_std_math_sin_cos_exit_canary_runs() {
     // std math natively: sin's polynomial (exit 72 on miss), the binary
     // ladder at sin(10) (73), and the let-bound cos composition (74) --
@@ -29572,6 +29603,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "collections/runtime_computed_index_match_subject_exit",
     "recast/runtime_multi_edge_offset_meet_exit",
     "calls/runtime_std_math_sin_cos_exit",
+    "calls/runtime_value_call_terminal_exit",
     "constants/runtime_free_const_exit",
     "proofs/runtime_core_nat_declared_exit",
     "build/runtime_depend_mapping_exit",
@@ -29932,6 +29964,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "calls/abs_call_argument_rejected",
     "build/build_machine_wrong_arity",
     "host/terminal_host_call_value",
+    "calls/guarded_value_call_terminal_rejected",
     "boundary/entry_typed_params_unmarked",
     "boundary/boundary_entry_too_many_params",
     "wire/decode_into_ranged_field",

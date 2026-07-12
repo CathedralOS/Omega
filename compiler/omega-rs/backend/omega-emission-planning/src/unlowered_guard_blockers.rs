@@ -85,11 +85,14 @@ pub(super) fn collect_unlowered_guard_blockers(
                 blockers.insert(blocker(
                     "state values",
                     &format!(
-                        "{} statement {}: a host-boundary call is the TERMINAL value, \
-                         which has no native value-return lowering -- the call would \
-                         silently never run and its result would read 0 (ZII). Bind it \
-                         to a `let` and return the local \
-                         (`let rc: i32 = self.host.op(..); rc`){}",
+                        "{} statement {}: a call is the TERMINAL value, which has no \
+                         native value-return lowering here -- host-boundary calls are \
+                         never served in terminal position, and a value-machine call \
+                         under a GUARDED arm is not auto-hoisted (the hoist would run \
+                         the callee even when the arm is not taken; ALWAYS arms hoist \
+                         automatically). The call would silently never run and its \
+                         result would read 0 (ZII). Bind it to a `let` and return the \
+                         local (`let rc: i32 = self.host.op(..); rc`){}",
                         state_name(input, instruction.source_key),
                         instruction.source_statement,
                         proof_scope_suffix(input, instruction.source_key)

@@ -631,8 +631,9 @@ pub(super) fn resolve_runtime_alias_binding_handle(
 /// (`machine cos { transition { _ -> (sin(..)) } }` where sin's `reduce`
 /// self-loops, binding `x` to an expression over the same `x`) -- has no
 /// finite substitution, and the unbounded Name re-resolve overflowed the
-/// compile thread's stack (2026-07-11; pinned in
-/// canaries/pending/calls/std_math_float_terminal_and_ladder). Legitimate
+/// compile thread's stack (2026-07-11; the shape now hoists at the frontend
+/// and runs -- pass/calls/runtime_value_call_terminal_exit -- so this cap is
+/// the backstop for binding cycles reached some other way). Legitimate
 /// chains are bounded by the callee's binding count (single digits), so only
 /// a true cycle reaches the cap; at the cap the name stays UNSUBSTITUTED,
 /// which downstream either resolves as a real place or refuses at the loud

@@ -1,0 +1,19 @@
+// FAIL CANARY: a free value-machine call as the TERMINAL value of a
+// GUARDED arm. The ALWAYS-arm hoist (runtime_value_call_terminal_exit)
+// must NOT extend here: hoisted statements run whenever control reaches
+// them, so hoisting out of a guarded arm would run the callee -- which
+// may be effectful -- even when the arm is not taken. The honest fence
+// asks for the explicit let-bound spelling instead.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine dbl(x: i32 [0..=1000]) -> i32 {
+    transition { _ -> (x + x) }
+}
+machine pick(x: i32 [0..=1000]) -> i32 {
+    transition x > 50 { true -> (dbl(x)) _ -> (x) }
+}
+machine Main::main(&mut self) {
+    let p: i32 = pick(60);
+    transition p == 120 { true -> good() _ -> good() }
+    state good(&mut self) { self.console.exit_process(70); }
+}
