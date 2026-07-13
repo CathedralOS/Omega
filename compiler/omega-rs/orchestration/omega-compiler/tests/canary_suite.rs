@@ -30748,6 +30748,10 @@ const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
         path: "expressions/dead_trapping_let_not_elided",
         expectation: PendingCanaryExpectation::CurrentlyAccepts,
     },
+    PendingCanary {
+        path: "arithmetic/unsigned_min_max_operand_position_divergence",
+        expectation: PendingCanaryExpectation::CurrentlyAccepts,
+    },
 ];
 
 // =============================================================================

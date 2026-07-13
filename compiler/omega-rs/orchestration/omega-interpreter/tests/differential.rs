@@ -1932,6 +1932,14 @@ const PENDING_RUNTIME_DIVERGENCES: &[(&str, i32, PendingInterpOutcome)] = &[
     // 72/72: the two legs AGREE on this host (aarch64 LSLV masks the count
     // at 64 like the interp); the parked divergence is vs x86's 32-bit mask.
     ("expressions/dead_trapping_let_not_elided", 7, PendingInterpOutcome::Traps),
+    // Operand-position unsigned max: no write target exists for the nested
+    // call, and the static-value table strips the carrier landing (CR3's
+    // static-table rung is the fix; the resolver arm is already in place).
+    (
+        "arithmetic/unsigned_min_max_operand_position_divergence",
+        78,
+        PendingInterpOutcome::Exit(77),
+    ),
 ];
 
 /// COLLECT-ALL runtime drift-check over the parked divergences above.

@@ -832,6 +832,22 @@ pub(super) fn resolve_runtime_storage_is_signed_in_table(
             )
         });
     }
+    // A LANDED constant carries its own signedness (carrier CR3, ch5
+    // two-phase law): a folded `u64 in Wrapping` local substituted to its
+    // literal keeps typing the operand even though the place is gone -- the
+    // operand-position min/max on a folded unsigned local ran SIGNED before
+    // this. An anonymous literal stays untyped (fall through to the place
+    // resolution / the caller's fallback chain).
+    // A LANDED constant carries its own signedness (carrier CR3, ch5
+    // two-phase law). LATENT until the static-value table carries landings:
+    // substituted locals reach here through RuntimeStaticValues, whose
+    // PlaceKey -> i64 entries strip the stamp (the pinned operand-position
+    // min/max divergence is the acceptance test for that rung).
+    if let ExpressionNode::Integer(literal) = expressions.expression(expression)
+        && let Some(landing) = literal.landing()
+    {
+        return Some(landing.landed_type.is_signed());
+    }
     let descriptor = resolve_runtime_storage_leaf_descriptor_in_table(
         input,
         dispatch_index,
