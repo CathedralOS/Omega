@@ -2086,7 +2086,10 @@ fn select_runtime_binary_mutation_write(
         _ => return None,
     };
     // Same signedness policy as the `_in_table` binary writes: unsigned operands
-    // pick the unsigned division/modulo/shift/min/max/comparison encoding.
+    // pick the unsigned division/modulo/shift/min/max/comparison encoding, with
+    // the write TARGET as the fallback of last resort when every operand folded
+    // to a typeless constant (`let m: u64 = max(big, 5)` with `big` an erased
+    // const local -- the u64 min/max divergence).
     let operator = binary_table_writes::signedness_adjusted_operator_for_tree_operands(
         input,
         dispatch_index,
@@ -2094,6 +2097,7 @@ fn select_runtime_binary_mutation_write(
         left_expression,
         right_expression,
         operator,
+        Some((target_source_key, resolved_target)),
     );
     let left = resolve_runtime_value_operand(
         input,

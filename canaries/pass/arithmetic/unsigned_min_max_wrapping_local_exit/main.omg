@@ -1,0 +1,31 @@
+// PASS canary (FIXED 2026-07-18; was pending/arithmetic/
+// unsigned_min_max_wrapping_local_divergence, found 2026-07-08). max/min on
+// a `u64 in Wrapping` LOCAL operand: `let big: u64 in Wrapping = z - 1`
+// folds to the bit-faithful-but-signless literal `-1` (u64-at-width-64
+// cannot ride a positive i64), so the max operand carried no type and the
+// operator signedness probe found nothing -- native compared SIGNED and
+// picked 5 (exit 78) while the interpreter took the unsigned witness
+// u64::MAX (exit 77).
+//
+// FIX: the non-table binary mutation write's signedness adjustment
+// (signedness_adjusted_operator_for_tree_operands) now takes the WRITE
+// TARGET as the fallback of last resort -- `m`'s declared u64 selects
+// MaxUnsigned -- mirroring the table variant's operand-then-target probe
+// order. Same target-fallback family as
+// const_fold_unsigned_{shift_right,divide}_arg_exit.
+//
+// A plain u64 FIELD operand (not folded) always worked
+// (arithmetic/runtime_unsigned_min_max_exit). exit 78 = signed Max again.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine Main::main(&mut self) {
+    let z: u64 in Wrapping = 0;
+    let big: u64 in Wrapping = z - 1;
+    let m: u64 = max(big, 5);
+    transition m == big {
+        true -> good()
+        false -> bad()
+    }
+    state good(&self) { self.console.exit_process(77); }
+    state bad(&self) { self.console.exit_process(78); }
+}

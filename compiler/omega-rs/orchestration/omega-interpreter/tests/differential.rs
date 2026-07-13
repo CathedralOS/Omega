@@ -119,6 +119,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("arithmetic/const_fold_unsigned_landed_ops_exit", 70),
     ("arithmetic/const_fold_unsigned_shift_right_arg_exit", 70),
     ("arithmetic/const_fold_unsigned_divide_arg_exit", 70),
+    ("arithmetic/unsigned_min_max_wrapping_local_exit", 77),
     ("arithmetic/const_fold_cast_signedness", 70),
     ("arithmetic/wrapping_signed_divide_min_by_neg_one", 70),
     ("arithmetic/saturating_signed_divide_min_by_neg_one", 70),
@@ -1920,7 +1921,6 @@ const PENDING_RUNTIME_DIVERGENCES: &[(&str, i32, PendingInterpOutcome)] = &[
     ("arithmetic/immutable_arg_for_mut_param_not_checked", -1, PendingInterpOutcome::Exit(1)),
     // 72/72: the two legs AGREE on this host (aarch64 LSLV masks the count
     // at 64 like the interp); the parked divergence is vs x86's 32-bit mask.
-    ("arithmetic/unsigned_min_max_wrapping_local_divergence", 78, PendingInterpOutcome::Exit(77)),
     ("expressions/dead_trapping_let_not_elided", 7, PendingInterpOutcome::Traps),
 ];
 
