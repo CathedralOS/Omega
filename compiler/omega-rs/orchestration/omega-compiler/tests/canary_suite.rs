@@ -30941,3 +30941,52 @@ fn runtime_dutch_flag_partition_exit_canary_runs() {
 
     let _ = fs::remove_dir_all(&build_dir);
 }
+
+// Float semantics F1: a `Wrapping` policy domain on a float primitive is a hard
+// compile error -- there is no modular reading of a float (ch5 Float Facts).
+#[test]
+fn float_wrapping_domain_rejected_canary_is_rejected() {
+    let canary = fail_canary("arithmetic/float_wrapping_domain_rejected");
+    let diagnostics = match compile_canary_without_output(&canary) {
+        Ok(report) => panic!(
+            "expected `f32 in Wrapping` to reject, but it compiled: {}",
+            report.summary()
+        ),
+        Err(diagnostics) => diagnostics,
+    };
+    let combined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains("Wrapping") && combined.contains("no modular reading of a float"),
+        "expected the wrapping-on-float diagnostic to name the policy and the reason, \
+         got:\n{combined}"
+    );
+}
+
+// Float semantics F1: a `Saturating`/`Trapping` policy on a float is recognized
+// but does not lower yet (the F5 rung) -- it refuses loudly rather than silently
+// no-opping.
+#[test]
+fn float_saturating_domain_rejected_canary_is_rejected() {
+    let canary = fail_canary("arithmetic/float_saturating_domain_rejected");
+    let diagnostics = match compile_canary_without_output(&canary) {
+        Ok(report) => panic!(
+            "expected `f64 in Saturating` to reject, but it compiled: {}",
+            report.summary()
+        ),
+        Err(diagnostics) => diagnostics,
+    };
+    let combined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains("Saturating") && combined.contains("not lowered yet"),
+        "expected the saturating-on-float diagnostic to name the policy and the F5 \
+         deferral, got:\n{combined}"
+    );
+}
