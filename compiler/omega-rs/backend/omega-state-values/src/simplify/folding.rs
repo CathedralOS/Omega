@@ -34,6 +34,31 @@ impl IntegerLanding {
     fn is_signed(self) -> bool {
         self.primitive.is_signed_integer()
     }
+
+    /// The foundation-layer landing this fold ran at (CR2: fold results are
+    /// STAMPED so the fact rides the literal through every later clone,
+    /// splice, and table insertion -- the two-phase law's phase-B carrier).
+    fn as_carrier_landing(self) -> Option<omega_core::literals::IntegerLanding> {
+        use omega_core::literals::LandedIntegerType;
+        let landed_type = match self.primitive {
+            PrimitiveType::I8 => LandedIntegerType::I8,
+            PrimitiveType::I16 => LandedIntegerType::I16,
+            PrimitiveType::I32 => LandedIntegerType::I32,
+            PrimitiveType::I64 => LandedIntegerType::I64,
+            PrimitiveType::U8 => LandedIntegerType::U8,
+            PrimitiveType::U16 => LandedIntegerType::U16,
+            PrimitiveType::U32 => LandedIntegerType::U32,
+            PrimitiveType::U64 => LandedIntegerType::U64,
+            PrimitiveType::Addr => LandedIntegerType::Addr,
+            PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64 | PrimitiveType::String => {
+                return None;
+            }
+        };
+        Some(omega_core::literals::IntegerLanding {
+            landed_type,
+            domain: self.domain,
+        })
+    }
 }
 
 /// A stored i64 representative read as the landed type's mathematical value:
@@ -101,15 +126,14 @@ fn land_result(result: i128, landing: IntegerLanding) -> Option<Expression> {
         }
         ArithmeticDomain::Trapping => {
             if result < minimum || result > maximum {
-                // TRANSITIONAL: pass the EXACT value through UNWRAPPED. The
-                // static-store path detects an out-of-range Trapping constant
-                // and emits the guaranteed runtime trap
+                // TRANSITIONAL: pass the EXACT value through UNWRAPPED (and
+                // unstamped -- it is deliberately NOT a value of the landed
+                // type). The static-store path detects an out-of-range
+                // Trapping constant and emits the guaranteed runtime trap
                 // (trapping_frame_slot_constant_overflow_write and its field
                 // twin); deferring instead would lower a typeless runtime op
-                // whose domain resolution cannot see Trapping (the domain
-                // rides on operand TYPES, which a folded constant no longer
-                // has -- the CM2 carrier retires this). An overflow past i64
-                // cannot ride the carrier at all and defers.
+                // whose domain resolution cannot see Trapping. An overflow
+                // past i64 cannot ride the i64 window and defers.
                 return i64::try_from(result)
                     .ok()
                     .map(|value| Expression::Integer(IntegerLiteral::from_value(value)));
@@ -117,9 +141,14 @@ fn land_result(result: i128, landing: IntegerLanding) -> Option<Expression> {
             landed_representative(result, landing)
         }
     };
-    Some(Expression::Integer(IntegerLiteral::from_value(
-        representative,
-    )))
+    // CR2: stamp the fold result with the landing it was computed at, so the
+    // fact survives every later substitution and table insertion.
+    let literal = IntegerLiteral::from_value(representative);
+    let literal = match landing.as_carrier_landing() {
+        Some(carrier) => literal.with_landing(carrier),
+        None => literal,
+    };
+    Some(Expression::Integer(literal))
 }
 
 /// Fold an integer op AT THE LANDED TYPE. `None` means "do not fold": the

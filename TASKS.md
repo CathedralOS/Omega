@@ -49,9 +49,34 @@ dispatch-region + receiver-phase family. Everything queued here avoids both.
    2026-07-18; law: ch5 "Constants: Two Phases"; memory:
    anonymous-values-two-phase-constants):** file-disjoint from the RECAST
    selection files — START IMMEDIATELY. Rungs:
+   ⚠️ CARRIER RE-SCOPED 2026-07-18 (owner ratified the COMBINED CM1+CM2
+   carrier; the old "major cross-compiler change" scare is STALE): D14
+   already did the hard migration — all four tree layers carry
+   `omega_core::literals::IntegerLiteral` as the payload, so the landing
+   rides INSIDE the literal with ZERO enum-variant or match-site churn,
+   every splice/alias/`to_tree` CLONES it (the strip-on-substitution
+   disease dies structurally), and the spelling already holds any
+   magnitude (CM1's "165-site i128 refactor" dissolves into consumers
+   consulting the landing). Rungs:
+   CR1 — omega-core: `LandedIntegerType` (foundation-layer integer-type
+   enum; ArithmeticDomain is already in omega-core) + an optional
+   landing on IntegerLiteral (constructor `with_landing`, accessors;
+   equality stays TEXT-ONLY by custom impl — spelling is identity,
+   landing is metadata).
+   CR2 — stamp at the sources: the state-values folder's land_result
+   stamps fold results (it holds the landing already — retires the
+   representative compromises: a landed u64 result rides spelling +
+   landing losslessly); typed→checked lowering stamps declared-type
+   landings (let annotations, field types).
+   CR3 — consumers read the landing FIRST: selection's
+   classify/signedness resolvers, the u64>i64::MAX validation gate, the
+   min/max operand signedness (gradually retiring the target-fallback
+   chain landed 2026-07-18, which stays as the backstop).
+   CR4 — parse-site stamping (`0u32` suffixes re-thread as landings;
+   D14 strips them today) + float literals → exact Rat (F2 rides here).
    CM1 — anonymous carrier goes EXACT: unbounded integer + Rat constants
-   (subsumes the u64>i64::MAX 165-site i128 refactor; SHARES the bignum
-   with N2 — coordinate, one engine, two consumers).
+   (now = CR1's spelling payload + value_bignum, ALREADY LANDED via D14
+   + N2; the remaining face is CR3's consumer migration).
    CM2 — landed constants carry their type/domain/format (the
    metadata-carrying constant). FIRST RUNG LANDED 2026-07-18: the
    state-values folder now folds AT THE LANDED TYPE. A DESTINATION
