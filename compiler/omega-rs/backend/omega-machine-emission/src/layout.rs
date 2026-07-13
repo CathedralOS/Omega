@@ -11,7 +11,8 @@ use omega_instruction_selection::{
     runtime_atomic_compare_exchange_width, runtime_atomic_fetch_add_width,
     runtime_byte_read_width, runtime_byte_write_width,
     dispatch_loop_enter_width, dispatch_state_write_width, function_enter_width,
-    host_call_sequence_width, vtable_call_sequence_width, return_register_integer_write_width, return_width,
+    host_call_sequence_width, machine_halt_width, vtable_call_sequence_width,
+    return_register_integer_write_width, return_width,
     runtime_frame_base_indexed_binary_write_width, runtime_frame_base_indexed_integer_write_width,
     runtime_frame_indexed_binary_write_width, runtime_frame_indexed_integer_write_width,
     runtime_frame_indexed_string_write_width, runtime_frame_string_write_width,
@@ -1173,6 +1174,7 @@ fn machine_instruction_width(
             dispatch_case_leave_width(input.target.architecture)
         }
         SelectedInstructionKind::EnterFunction => function_enter_width(input.target.architecture),
+        SelectedInstructionKind::MachineHalt => machine_halt_width(input.target.architecture),
         SelectedInstructionKind::LeaveFunction => return_width(input.target.architecture),
         SelectedInstructionKind::EvaluateDispatchGuard { .. }
         | SelectedInstructionKind::LeaveDispatchLoop

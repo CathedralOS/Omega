@@ -98,6 +98,13 @@ pub fn return_width(architecture: Architecture) -> usize {
     }
 }
 
+pub fn machine_halt_width(architecture: Architecture) -> usize {
+    match architecture {
+        Architecture::Aarch64 => aarch64::machine_halt_width(),
+        Architecture::X86_64 => x86_64::machine_halt_width(),
+    }
+}
+
 pub fn return_register_integer_write_width(architecture: Architecture) -> usize {
     match architecture {
         Architecture::Aarch64 => aarch64::return_register_integer_write_width(),

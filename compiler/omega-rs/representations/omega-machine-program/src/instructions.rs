@@ -104,5 +104,8 @@ pub enum MachineInstructionKind {
     DispatchTerminate,
     DispatchCaseLeave,
     HostCallSequence,
+    /// The x86 `hlt` privileged instruction (`asm { hlt }`). Zero operands,
+    /// no relocation. See the privileged_effects_and_binary_trust brief.
+    MachineHalt,
     Return,
 }

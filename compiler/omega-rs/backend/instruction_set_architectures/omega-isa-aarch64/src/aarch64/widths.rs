@@ -40,6 +40,10 @@ pub fn return_width() -> usize {
     28
 }
 
+pub fn machine_halt_width() -> usize {
+    4
+}
+
 pub fn return_register_integer_write_width() -> usize {
     4
 }

@@ -1549,6 +1549,15 @@ impl<'program> Evaluator<'program> {
     // ---- calls --------------------------------------------------------------
 
     fn eval_call_statement(&mut self, call: &TableCall, frame: &Frame) -> EvalResult<Value> {
+        // Asm intrinsic statement (`asm { hlt }`): the tree-walker cannot model
+        // halting the CPU, but `hlt` in an idle loop is observably a no-op step
+        // (the loop simply proceeds), so evaluate it as unit. Port I/O
+        // (`asm#port_out`) has real device effects the interpreter cannot
+        // reproduce and stays unsupported until it is modeled.
+        if call.target.as_str() == "asm#hlt" {
+            return Ok(Value::Unit);
+        }
+
         // Host boundary call? (e.g. self.console.exit_process(70))
         if let Some(value) = self.try_host_call(call, frame)? {
             return Ok(value);

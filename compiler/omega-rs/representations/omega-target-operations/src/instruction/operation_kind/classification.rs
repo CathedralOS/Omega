@@ -108,6 +108,8 @@ impl OperationSemanticQuery for TargetOperationKind {
             Self::BeginPlatformCall | Self::HostOperation { .. } => {
                 TargetOperationDomain::HostBoundary
             }
+
+            Self::MachineHalt => TargetOperationDomain::MachineControl,
         }
     }
 

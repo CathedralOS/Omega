@@ -28,6 +28,16 @@ pub fn encode_return_bytes() -> [u8; 1] {
     [0xc3]
 }
 
+pub fn machine_halt_width() -> usize {
+    1
+}
+
+/// The x86 `hlt` instruction (`asm { hlt }`): a single 0xF4 opcode that halts
+/// the CPU until the next interrupt. Position-independent, no relocation.
+pub fn encode_machine_halt_bytes() -> [u8; 1] {
+    [0xf4]
+}
+
 pub fn return_register_integer_write_width() -> usize {
     5
 }
@@ -10266,6 +10276,21 @@ mod vtable_call_encoding_tests {
         assert_eq!(&bytes[38..45], &[0x48, 0x8b, 0x81, 8, 0, 0, 0], "mov rax, [rcx+8] (slot 1)");
         assert_eq!(&bytes[45..47], &[0xff, 0xd0], "call rax");
         assert_eq!(&bytes[47..51], &[0x48, 0x83, 0xc4, 40], "add rsp, 40");
+    }
+}
+
+#[cfg(test)]
+mod machine_control_tests {
+    use super::*;
+
+    #[test]
+    fn machine_halt_is_a_single_hlt_opcode() {
+        // `asm { hlt }` must encode to exactly the one-byte x86 HLT (0xF4),
+        // and its width must agree with the emitter (privileged_effects_and_
+        // binary_trust brief, machine_control M3 subset).
+        assert_eq!(encode_machine_halt_bytes(), [0xf4]);
+        assert_eq!(machine_halt_width(), 1);
+        assert_eq!(encode_machine_halt_bytes().len(), machine_halt_width());
     }
 }
 

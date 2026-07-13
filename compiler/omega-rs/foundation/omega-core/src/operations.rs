@@ -8,6 +8,10 @@ pub enum OperationDomain {
     RuntimeWrite,
     RuntimeCopy,
     HostBoundary,
+    /// Privileged CPU control instructions (`hlt`, later `cli`/`sti`, port
+    /// I/O): raw target instructions with `machine_control`/`device_io`
+    /// contracts, touching neither runtime storage nor the host boundary.
+    MachineControl,
 }
 
 impl OperationDomain {
