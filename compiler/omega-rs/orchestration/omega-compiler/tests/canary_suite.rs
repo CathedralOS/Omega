@@ -24149,6 +24149,55 @@ fn runtime_slice_alias_indexed_field_write_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_slice_indexed_binary_rmw_exit_canary_runs() {
+    // The runtime twin of requires_slice_indexed_alias_field_binary_compile:
+    // a binary RMW through a slice-descriptor alias with a runtime index
+    // lowers to WriteRuntimeFrameIndexedBinary, whose x86_64 encoding landed
+    // 2026-07-18 (aarch64-only from birth; the compile canary refused with
+    // the zero-layout-width error on x86_64 hosts). exit 71 = the RMW missed
+    // the element.
+    let canary = pass_canary("storage/runtime_slice_indexed_binary_rmw_exit");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("slice indexed binary RMW canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should exit 70 (element 2 bumped 30 -> 31), got {}",
+        outcome.exit_code
+    );
+
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-slice-indexed-binary-rmw-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("slice indexed binary RMW canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("slice indexed binary RMW canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the descriptor-indexed binary RMW to land (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_stdin_command_branch_exit_canary_runs() {
     let canary = pass_canary("text/runtime_stdin_command_branch_exit");
     let main_path = canary.join("main.omg");
@@ -29670,6 +29719,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "storage/runtime_machine_owned_indexed_struct_copy_exit",
     "storage/runtime_dispatch_helper_local_alias_add_exit",
     "storage/requires_slice_indexed_alias_field_binary_compile",
+    "storage/runtime_slice_indexed_binary_rmw_exit",
     "text/runtime_alias_string_write",
     "text/runtime_alias_text_builder_write",
     "text/runtime_string_concat_membership_exit",

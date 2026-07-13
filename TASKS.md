@@ -907,11 +907,21 @@ rejects — an INTEGER ruling, engineering rides this ladder as F8).
   missing `clause.is_float ||` in its swap condition. All five canaries
   (f32_field_guard, newton_sqrt, scalar_pun_shared_let, std_math_sin_cos,
   value_call_terminal) flip green 70/70 from the one edit.
-  STILL OPEN, ours: (6) the storage zero-width slice-indexed alias
-  binary write (compile refusal, x86_64 layout width resolution — red at
-  least since 8d0b33b8e); (7) the windows fs host-arg materialization
-  family (fs canary + samples note_vault mkdir refusal + file_journal
-  exit 3 — red at least since 8d0b33b8e).
+  (6) STORAGE ZERO-WIDTH — FIXED 2026-07-18: WriteRuntimeFrameIndexedBinary
+  was aarch64-only from birth (`unsupported_x86_64_encoding()` + a
+  hardcoded width 0). The x86_64 encoding landed: the frame-indexed COPY's
+  34-byte descriptor-deref address prefix + the base-indexed binary
+  write's operand/op/store tail; a proper arch dispatcher for the
+  left-operand relocation offset replaced the integer-width derivation
+  (which was constant-51 on x86_64 and would have misplaced operand
+  relocations), and the record gained the x86 push-gap for the right
+  operand (identity on aarch64). Compile canary compiles; NEW runtime
+  twin storage/runtime_slice_indexed_binary_rmw_exit pins the encoding
+  green 70/70 (its left operand is itself an indexed READ, so operand
+  relocations are exercised).
+  STILL OPEN, ours: (7) the windows fs host-arg materialization family
+  (fs canary + samples note_vault mkdir refusal + file_journal exit 3 —
+  red at least since 8d0b33b8e).
 
 - **`pending_runtime_divergences_hold` — GREENED 2026-07-18 (ledger
   host-corrected):** (a) `float_to_int_overflow_divergence` now documents

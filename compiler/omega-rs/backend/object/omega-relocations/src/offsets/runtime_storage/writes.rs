@@ -24,11 +24,10 @@ pub(crate) fn runtime_frame_indexed_binary_left_operand_offset(
     element_byte_size: usize,
     field_byte_offset: usize,
 ) -> usize {
-    omega_instruction_selection::runtime_frame_indexed_integer_write_width(
+    omega_instruction_selection::runtime_frame_indexed_binary_left_operand_offset(
         architecture,
         element_byte_size,
         field_byte_offset,
-        0,
     )
 }
 
