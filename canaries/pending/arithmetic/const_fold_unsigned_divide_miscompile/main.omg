@@ -1,17 +1,19 @@
-// PARKED REPRO (probe 2026-07-04): const-folded unsigned DIVISION miscompiles --
-// the same root as const_fold_unsigned_shift_right_miscompile (see its comment).
+// PARKED REPRO (probe 2026-07-04; FOLDER FACE FIXED 2026-07-18): const-folded
+// unsigned DIVISION miscompiles -- same two-face split as
+// const_fold_unsigned_shift_right_miscompile (READ ITS HEADER for the full
+// diagnosis).
 //
 // b = 0xFFFFFFFE (4294967294).  b / 3 for u32 = 1431655764.
-// The type-blind const-folder (omega-state-values/src/simplify/folding.rs) holds
-// b as i64 -2 (`0u32 - 2` folded without wrapping to width), then folds
-// `-2 / 3` = 0. native exits 71 (0 != 1431655764); interpreter (oracle) exits 70.
+// FOLDER face FIXED (CM2 first rung): the destination-landed fold computes
+// `0 - 2` at u32 -> 4294967294 and `4294967294 / 3` UNSIGNED -> 1431655764;
+// modulo folds to 2. ARG-DELIVERY face still open: `report(y)` re-derives the
+// value as a typeless runtime binary whose division defaults SIGNED --
+// native 71 vs interp 70 until the selection-side face is fixed (see the
+// shift repro's header for the two fix directions).
 //
-// Modulo is the third face: `(0u32 - 2) % 3` -> native 0xFFFFFFFE, interp 2.
-// Shift, divide, modulo are the sign-sensitive ops; +,-,*,&,|,^,<< are safe
-// (agree mod 2^width under truncation). Fix = general expression-type derivation
-// at the fold layer; see TASKS "MISCOMPILE CLASS" + memory
-// shift-right-signedness-const-fold. RUNTIME (field-held) unsigned division is
-// correct and locked by arithmetic/runtime_unsigned_division_exit.
+// Shift, divide, modulo are the sign-sensitive ops; +,-,*,&,|,^,<< agree mod
+// 2^width under truncation. RUNTIME (field-held) unsigned division is correct
+// and locked by arithmetic/runtime_unsigned_division_exit.
 
 boundary trait Console {
     machine exit_process(return_code: i32);

@@ -8,7 +8,8 @@ use self::bindings::{
 };
 use self::call_targets::{resolve_call_target_machine, resolve_call_target_state};
 use self::folding::{
-    boolean_and, boolean_not, boolean_or, expressions_equivalent, fold_binary_expression,
+    IntegerLanding, boolean_and, boolean_not, boolean_or, expressions_equivalent,
+    fold_binary_expression,
 };
 use self::helper_stack::HelperStateStack;
 use crate::StateValueRole;
@@ -30,7 +31,7 @@ pub fn simplify_expression(
     expression: &Expression,
 ) -> Expression {
     let bindings: &[Binding] = &[];
-    simplify_expression_with_bindings(program, machine, expression, bindings, false, 0)
+    simplify_expression_with_bindings(program, machine, expression, bindings, false, 0, None)
 }
 
 pub fn simplify_state_expression(
@@ -68,8 +69,8 @@ pub fn simplify_state_expression_for_role(
     // lets it resolve to its populated slot. (Previously only Call/Transition
     // arguments preserved call locals; AssignmentValue folded them -- the source of
     // the dispatched carve_room `max(.., self.cell_index(cell) + 1)` failure.)
-    let _ = role;
     let preserve_call_locals = true;
+    let landing = statement_destination_landing(program, machine, state, statement_index, role);
     simplify_expression_with_bindings(
         program,
         machine,
@@ -77,7 +78,40 @@ pub fn simplify_state_expression_for_role(
         &bindings,
         preserve_call_locals,
         0,
+        landing,
     )
+}
+
+/// The DESTINATION landing of a statement's value expression (CM2, ch5
+/// "Constants: Two Phases"): the constant lands at the first typed site, and
+/// for an assignment value that site is the declared type of what is being
+/// written -- the `let` local's annotation or the assignment target's field.
+/// Binding substitution erases the operand Names before the fold sees them,
+/// so the destination is the reliable place to read the landed type from.
+fn statement_destination_landing(
+    program: &CheckedTrees,
+    machine: &Machine,
+    state: &State,
+    statement_index: usize,
+    role: StateValueRole,
+) -> Option<IntegerLanding> {
+    if role != StateValueRole::AssignmentValue {
+        return None;
+    }
+    let statement = program
+        .statement_table
+        .statements(state.statement_nodes)
+        .get(statement_index)?;
+    match statement {
+        StatementNode::LocalData(local) => {
+            landing_from_type_reference(program, local.type_reference)
+        }
+        StatementNode::Assignment(assignment) => {
+            let target = program.expression_table.to_tree(assignment.target);
+            derive_integer_landing(program, machine, &target, 0)
+        }
+        _ => None,
+    }
 }
 
 /// Re-entrant simplification depth cap: the guarded-helper comparison and
@@ -97,6 +131,11 @@ fn simplify_expression_with_bindings(
     bindings: &(impl BindingScope + ?Sized),
     preserve_call_locals: bool,
     depth: usize,
+    // The DESTINATION landing (CM2): the declared type the whole expression's
+    // value lands into. Propagated only along same-typed spines (binary
+    // operands, `Mutable` wrappers); every differently-typed subtree (call
+    // arguments, indices, struct fields, ...) gets `None`.
+    landing: Option<IntegerLanding>,
 ) -> Expression {
     if depth >= REENTRANT_SIMPLIFY_DEPTH_LIMIT {
         return expression.clone();
@@ -113,13 +152,20 @@ fn simplify_expression_with_bindings(
                         bindings,
                         preserve_call_locals,
                     depth,
+                    None,
                     )
                 })
                 .collect::<Arc<[_]>>(),
         )),
-        Expression::Binary(binary) => {
-            simplify_binary_expression(program, machine, binary, bindings, preserve_call_locals, depth)
-        }
+        Expression::Binary(binary) => simplify_binary_expression(
+            program,
+            machine,
+            binary,
+            bindings,
+            preserve_call_locals,
+            depth,
+            landing,
+        ),
         Expression::Boolean(_)
         | Expression::Float(_)
         | Expression::Integer(_)
@@ -136,6 +182,7 @@ fn simplify_expression_with_bindings(
                     bindings,
                     preserve_call_locals,
                 depth,
+                None,
                 ),
                 target_type: cast.target_type.clone(),
                 domain: cast.domain,
@@ -170,6 +217,7 @@ fn simplify_expression_with_bindings(
                         bindings,
                         preserve_call_locals,
                     depth,
+                    None,
                     ))
                 }),
                 end: range.end.as_ref().map(|end| {
@@ -180,6 +228,7 @@ fn simplify_expression_with_bindings(
                         bindings,
                         preserve_call_locals,
                     depth,
+                    None,
                     ))
                 }),
                 end_inclusive: range.end_inclusive,
@@ -193,6 +242,7 @@ fn simplify_expression_with_bindings(
                 bindings,
                 preserve_call_locals,
             depth,
+            None,
             );
             // Struct-literal field extraction: `Holder { f: X }.f` simplifies to
             // `X`. A local bound to a struct literal simplifies to that literal,
@@ -227,6 +277,7 @@ fn simplify_expression_with_bindings(
                 bindings,
                 preserve_call_locals,
             depth,
+            landing,
             )))
         }
         Expression::Unary(unary) => {
@@ -237,6 +288,7 @@ fn simplify_expression_with_bindings(
                 bindings,
                 preserve_call_locals,
             depth,
+            None,
             );
             match unary.operator {
                 UnaryOperator::LogicalNot => boolean_not(operand),
@@ -267,6 +319,7 @@ fn simplify_expression_with_bindings(
                             bindings,
                             preserve_call_locals,
                         depth,
+                        None,
                         ),
                     })
                     .collect::<Arc<[_]>>(),
@@ -305,7 +358,15 @@ fn simplify_collection_expression(
     {
         return collection.clone();
     }
-    simplify_expression_with_bindings(program, machine, collection, bindings, preserve_call_locals, depth)
+    simplify_expression_with_bindings(
+        program,
+        machine,
+        collection,
+        bindings,
+        preserve_call_locals,
+        depth,
+        None,
+    )
 }
 
 fn simplify_index_expression(
@@ -326,7 +387,15 @@ fn simplify_index_expression(
     {
         return index.clone();
     }
-    simplify_expression_with_bindings(program, machine, index, bindings, preserve_call_locals, depth)
+    simplify_expression_with_bindings(
+        program,
+        machine,
+        index,
+        bindings,
+        preserve_call_locals,
+        depth,
+        None,
+    )
 }
 
 fn simplify_binary_expression(
@@ -336,6 +405,7 @@ fn simplify_binary_expression(
     bindings: &(impl BindingScope + ?Sized),
     preserve_call_locals: bool,
     depth: usize,
+    landing: Option<IntegerLanding>,
 ) -> Expression {
     let left = simplify_expression_with_bindings(
         program,
@@ -344,7 +414,20 @@ fn simplify_binary_expression(
         bindings,
         preserve_call_locals,
     depth,
+    landing,
     );
+    // A shift COUNT is not a value of the subject's landed type -- keep the
+    // landing off it (counts are exact anonymous values; F8 rules their
+    // range semantics).
+    let right_landing = if matches!(
+        binary.operator,
+        omega_checked_trees::expression::BinaryOperator::ShiftLeft
+            | omega_checked_trees::expression::BinaryOperator::ShiftRight
+    ) {
+        None
+    } else {
+        landing
+    };
     let right = simplify_expression_with_bindings(
         program,
         machine,
@@ -352,6 +435,7 @@ fn simplify_binary_expression(
         bindings,
         preserve_call_locals,
     depth,
+    right_landing,
     );
 
     if let Some(expression) = simplify_guarded_helper_comparison(
@@ -374,6 +458,7 @@ fn simplify_binary_expression(
             bindings,
             preserve_call_locals,
             depth + 1,
+        None,
         );
     }
 
@@ -381,7 +466,141 @@ fn simplify_binary_expression(
         return folded;
     }
 
-    fold_binary_expression(binary.operator, left, right)
+    let landing =
+        landing.or_else(|| integer_fold_landing(program, machine, binary, &left, &right));
+    fold_binary_expression(binary.operator, left, right, landing)
+}
+
+/// The landed integer type of an about-to-fold binary expression (CM2, ch5
+/// "Constants: Two Phases"), derived from the ORIGINAL (pre-substitution)
+/// operands: binding substitution replaces `a` with its constant before the
+/// fold, but `binary.left` still spells `Name(a)`, whose DECLARED type says
+/// how the constant landed. Only derived when both simplified operands are
+/// integer literals (a fold is actually about to happen); `None` keeps the
+/// transitional bare-i64 window.
+fn integer_fold_landing(
+    program: &CheckedTrees,
+    machine: &Machine,
+    binary: &BinaryExpression,
+    left: &Expression,
+    right: &Expression,
+) -> Option<IntegerLanding> {
+    if !matches!(
+        (left, right),
+        (Expression::Integer(_), Expression::Integer(_))
+    ) {
+        return None;
+    }
+    derive_integer_landing(program, machine, &binary.left, 0)
+        .or_else(|| derive_integer_landing(program, machine, &binary.right, 0))
+}
+
+/// Bounded recursion cap for landing derivation: original operand trees are
+/// shallow; anything deeper is not worth walking for a fold hint.
+const LANDING_DERIVATION_DEPTH_LIMIT: usize = 8;
+
+fn derive_integer_landing(
+    program: &CheckedTrees,
+    machine: &Machine,
+    expression: &Expression,
+    depth: usize,
+) -> Option<IntegerLanding> {
+    if depth >= LANDING_DERIVATION_DEPTH_LIMIT {
+        return None;
+    }
+    match expression {
+        Expression::Name(path) => {
+            let type_reference = declared_type_reference(program, machine, path.symbol())?;
+            landing_from_type_reference(program, type_reference)
+        }
+        Expression::Member(member) => {
+            let type_reference = field_declared_type_reference(program, member.member_symbol)?;
+            landing_from_type_reference(program, type_reference)
+        }
+        Expression::Cast(cast) => {
+            let primitive = omega_checked_trees::types::PrimitiveType::from_name(
+                cast.target_type.last()?.as_str(),
+            )?;
+            if !primitive.accepts_integer_literal() {
+                return None;
+            }
+            Some(IntegerLanding {
+                primitive,
+                domain: cast.domain,
+            })
+        }
+        Expression::Binary(inner) => {
+            derive_integer_landing(program, machine, &inner.left, depth + 1)
+                .or_else(|| derive_integer_landing(program, machine, &inner.right, depth + 1))
+        }
+        _ => None,
+    }
+}
+
+fn landing_from_type_reference(
+    program: &CheckedTrees,
+    type_reference: omega_checked_trees::types::TypeReferenceHandle,
+) -> Option<IntegerLanding> {
+    // An inferred `let` has no annotation -- its handle is invalid.
+    if !type_reference.is_valid() {
+        return None;
+    }
+    let primitive = program.primitive_type_reference(type_reference)?;
+    if !primitive.accepts_integer_literal() {
+        return None;
+    }
+    Some(IntegerLanding {
+        primitive,
+        domain: program.type_reference_table.arithmetic_domain(type_reference),
+    })
+}
+
+/// The declared type of a symbol in this machine: a state parameter or a
+/// `let` local (scanned across the machine's states -- symbols are unique),
+/// falling back to a data FIELD (a resolved `self.x` path carries the field
+/// symbol as its tail).
+fn declared_type_reference(
+    program: &CheckedTrees,
+    machine: &Machine,
+    symbol: SymbolHandle,
+) -> Option<omega_checked_trees::types::TypeReferenceHandle> {
+    if !symbol.is_valid() {
+        return None;
+    }
+    for state in program.machine_states(machine) {
+        for parameter in program.state_parameters(state) {
+            if parameter.symbol == symbol {
+                return Some(parameter.type_reference);
+            }
+        }
+        for statement in program.statement_table.statements(state.statement_nodes) {
+            if let StatementNode::LocalData(local) = statement
+                && local.symbol == symbol
+            {
+                return Some(local.type_reference);
+            }
+        }
+    }
+    field_declared_type_reference(program, symbol)
+}
+
+fn field_declared_type_reference(
+    program: &CheckedTrees,
+    symbol: SymbolHandle,
+) -> Option<omega_checked_trees::types::TypeReferenceHandle> {
+    if !symbol.is_valid() {
+        return None;
+    }
+    for data in program.data_definitions() {
+        for member in program.data_members(data) {
+            if let omega_checked_trees::data::DataMember::Field(field) = member
+                && field.symbol == symbol
+            {
+                return Some(field.type_reference);
+            }
+        }
+    }
+    None
 }
 
 /// The TYPE-GATED reflexive fold: `x == x -> true` / `x != x -> false` for
@@ -437,19 +656,8 @@ fn member_field_primitive(
     program: &CheckedTrees,
     member_symbol: SymbolHandle,
 ) -> Option<omega_checked_trees::types::PrimitiveType> {
-    if !member_symbol.is_valid() {
-        return None;
-    }
-    for data in program.data_definitions() {
-        for member in program.data_members(data) {
-            if let omega_checked_trees::data::DataMember::Field(field) = member
-                && field.symbol == member_symbol
-            {
-                return program.primitive_type_reference(field.type_reference);
-            }
-        }
-    }
-    None
+    field_declared_type_reference(program, member_symbol)
+        .and_then(|type_reference| program.primitive_type_reference(type_reference))
 }
 
 fn simplify_call_expression(
@@ -468,6 +676,7 @@ fn simplify_call_expression(
             bindings,
             preserve_call_locals,
         depth,
+        None,
         )
     });
     let simplified_arguments: Arc<[_]> = call
@@ -481,6 +690,7 @@ fn simplify_call_expression(
                 bindings,
                 preserve_call_locals,
             depth,
+            None,
             )
         })
         .collect();
@@ -510,6 +720,7 @@ fn simplify_call_expression(
                 &argument_bindings,
                 preserve_call_locals,
                 depth + 1,
+            None,
             );
         }
     }
@@ -571,7 +782,7 @@ fn simplify_helper_call_comparison(
     depth: usize,
 ) -> Option<Expression> {
     let receiver = call.receiver.as_ref().map(|receiver| {
-        simplify_expression_with_bindings(program, machine, receiver, bindings, false, depth)
+        simplify_expression_with_bindings(program, machine, receiver, bindings, false, depth, None)
     });
     let target_machine =
         resolve_call_target_machine(program, machine, receiver.as_ref(), call.target_symbol)?;
@@ -582,7 +793,9 @@ fn simplify_helper_call_comparison(
         argument_bindings.insert(Binding {
             symbol: parameter.symbol,
             name: parameter.name.clone(),
-            value: simplify_expression_with_bindings(program, machine, argument, bindings, false, depth),
+            value: simplify_expression_with_bindings(
+                program, machine, argument, bindings, false, depth, None,
+            ),
         });
     }
 
@@ -771,6 +984,7 @@ fn helper_state_model(
                     &scoped_bindings,
                     false,
                     depth,
+                None,
                 );
                 local_bindings.insert(Binding {
                     symbol: local.symbol,
@@ -796,6 +1010,7 @@ fn helper_state_model(
                             &scoped_bindings,
                             false,
                             depth,
+                        None,
                         )
                     }
                 };
@@ -812,6 +1027,7 @@ fn helper_state_model(
                     &scoped_bindings,
                     false,
                     depth,
+                None,
                 );
                 transitions.insert(HelperTransition { guard, value });
             }
@@ -824,6 +1040,7 @@ fn helper_state_model(
                     &scoped_bindings,
                     false,
                     depth,
+                None,
                 );
                 transitions.insert(HelperTransition {
                     guard: Expression::Boolean(true),
