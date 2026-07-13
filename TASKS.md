@@ -979,18 +979,31 @@ rejects — an INTEGER ruling, engineering rides this ladder as F8).
   (`open_create(path, composed_flags_field, 438)` + `open(path,
   O_BINARY)`; identical on posix where O_BINARY is 0) — exits 7 on
   windows.
-  THE ONE REMAINING samples red = note_vault, and it is now
-  ⚠️ DESIGN-GATED, not a row-typing chore: `read_dir`, `open_at`, and
-  `unlink_at` have no Win32 mapping because Windows has NO dirfd — the
-  darwin shape is fd-relative (`getdirentries64(fd, buf, count, &pos)`,
-  `openat(dirfd, name)`) while Win32 enumeration is HANDLE-paradigm
-  (FindFirstFile/FindNextFile on a PATH, no fd-relative opens). Mapping
-  needs a seam-shape ruling: dirfd emulation (a per-process handle→path
-  table at the seam), path-reconstruction remap (the seam rebuilds full
-  paths, changing the wrapper's recursion contract), or a windows-only
-  provides machine that reimplements read_dir_all over FindFirstFile.
-  The "OS quirks remap at the seam" principle covers VALUES, not this
-  PARADIGM split — surface to owner with a short brief before building.
+  THE ONE REMAINING samples red = note_vault. ⚠️ RULED 2026-07-18
+  (owner): PORTABLE CONTRACT + PER-TARGET IMPLEMENTATIONS — long-view
+  correct over cheap. Diagnosis: the seam's `read_dir`/`open_at`/
+  `unlink_at` rows were TRACED from darwin's syscall table
+  (getdirentries64/openat shapes), not designed, and the portable
+  wrapper's dir-walk recursion was written against that Unix paradigm —
+  a paradigm leak in the middle layer (the user-facing path-shaped API
+  is fine, and the rest of the seam is genuinely portable POSIX-ish
+  that msvcrt implements). Rust avoids this by keeping the portable
+  layer path-shaped and resolving the paradigm per-platform BELOW the
+  contract (its Windows remove_dir_all uses NT handle-relative ops —
+  Win32 lacks dirfd but the NT layer HAS it). REJECTED: seam-level
+  dirfd emulation (a) and path-reconstruction (b) as endstates.
+  ENGINEERING SHAPE: the paradigm-split ops move behind a portable
+  contract with per-target implementation machines (darwin/linux keep
+  the fd/dirfd recursion; windows implements over
+  FindFirstFile/handle enumeration; the interp mirrors per the
+  cfg-mirror principle). ⚠️ ONE SPELLING DECISION remains before
+  building — how a target supplies a MACHINE implementation (the
+  provides mechanism carries value rows today; candidates from
+  existing constructs: target-filtered sibling files like
+  `targets/<t>/filesystem_impl.omg` under the settled file shape, or
+  target-keyed blocks; contract enforcement via signature match first,
+  `satisfies` later). Design pass with owner, then rungs. LAW banked
+  regardless: seam rows get DESIGNED signatures, never traced ones.
 
 - **`pending_runtime_divergences_hold` — GREENED 2026-07-18 (ledger
   host-corrected):** (a) `float_to_int_overflow_divergence` now documents
