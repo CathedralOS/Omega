@@ -1309,7 +1309,13 @@ fn select_dispatch_guard_instructions(
             let unsigned =
                 guard_comparison_operands_unsigned(input, source_dispatch_index, source_key, edge);
             for clause in clauses.iter().copied() {
-                let operator = if unsigned {
+                // Float conjuncts take the unsigned jcc forms exactly like the
+                // single-clause path below: `ucomis*` sets CF/ZF like an
+                // unsigned integer `cmp` and zeroes SF/OF, so a SIGNED
+                // condition misreads it (`jge` as the Less-failure branch is
+                // ALWAYS taken -- `self.f < 3.15` never passed on x86_64; the
+                // f32 field guard canary pins this).
+                let operator = if clause.is_float || unsigned {
                     unsigned_comparison_operator(clause.operator)
                 } else {
                     clause.operator
