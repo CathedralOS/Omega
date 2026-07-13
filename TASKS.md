@@ -996,14 +996,18 @@ rejects — an INTEGER ruling, engineering rides this ladder as F8).
   contract with per-target implementation machines (darwin/linux keep
   the fd/dirfd recursion; windows implements over
   FindFirstFile/handle enumeration; the interp mirrors per the
-  cfg-mirror principle). ⚠️ ONE SPELLING DECISION remains before
-  building — how a target supplies a MACHINE implementation (the
-  provides mechanism carries value rows today; candidates from
-  existing constructs: target-filtered sibling files like
-  `targets/<t>/filesystem_impl.omg` under the settled file shape, or
-  target-keyed blocks; contract enforcement via signature match first,
-  `satisfies` later). Design pass with owner, then rungs. LAW banked
-  regardless: seam rows get DESIGNED signatures, never traced ones.
+  cfg-mirror principle). SPELLING SETTLED 2026-07-18 (owner:
+  "push complexity to edges"): target-filtered sibling IMPL files —
+  `std/targets/<target>/filesystem_impl.omg` holds that target's
+  implementation machines beside its provides rows, gated by the same
+  target filter; the portable layer declares the contract signatures;
+  a selected target with zero or two implementations = loud compile
+  error; enforcement = name+signature match first, `satisfies` later.
+  RUNGS: contract declaration → darwin/linux impls move
+  (behavior-identical, gates prove) → windows impl over
+  FindFirstFile/handle enumeration → note_vault green, samples gate
+  fully green. LAW banked: seam rows get DESIGNED signatures, never
+  traced ones.
 
 - **`pending_runtime_divergences_hold` — GREENED 2026-07-18 (ledger
   host-corrected):** (a) `float_to_int_overflow_divergence` now documents
