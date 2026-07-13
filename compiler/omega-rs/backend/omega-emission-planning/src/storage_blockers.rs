@@ -89,6 +89,14 @@ pub(super) fn collect_state_storage_blockers(
             continue;
         }
 
+        // An `asm { in <dest>, <port> }` statement is an assignment whose value
+        // is the `asm#port_in` call; instruction selection lowers it to a raw
+        // PortRead into the destination place, so its residual mutation record
+        // is legitimately unlowered.
+        if statement_covered_by_port_read(input, mutation.source_key, mutation.statement_index) {
+            continue;
+        }
+
         let source_name = state_name(input, mutation.source_key);
         blockers.insert(blocker(
             "state mutation",
@@ -224,6 +232,28 @@ fn runtime_storage_write_is_planned(
 ) -> bool {
     runtime_storage_write_has_planned_text_write(input, write)
         || state_mutation_is_planned(input, write.source_key, write.statement_index)
+}
+
+/// True when statement `(source_key, statement_index)` emitted a raw PortRead
+/// instruction (an `asm { in .. }`), whose destination store covers the
+/// assignment's mutation record.
+fn statement_covered_by_port_read(
+    input: &EmissionPlanningInput<'_>,
+    source_key: StateKey,
+    statement_index: usize,
+) -> bool {
+    input
+        .instructions
+        .code
+        .instructions
+        .iter()
+        .any(|(_, instruction)| {
+            matches!(instruction.kind, SelectedInstructionKind::PortRead { .. })
+                && (instruction.source_key == source_key
+                    || (instruction.source_key.machine == source_key.machine
+                        && instruction.source_key.state == source_key.state))
+                && instruction.source_statement == statement_index
+        })
 }
 
 fn state_mutation_is_planned(

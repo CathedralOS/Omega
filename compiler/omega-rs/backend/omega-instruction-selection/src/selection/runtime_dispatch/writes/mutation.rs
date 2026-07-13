@@ -5,6 +5,8 @@ mod operators;
 mod static_writes;
 mod value_operands;
 
+pub(crate) use value_operands::resolve_runtime_value_operand_in_table;
+
 use crate::InstructionSelectionInput;
 use crate::selection::instruction_sink::SelectedInstructionSink;
 use crate::selection::lookups::state_parameters;
