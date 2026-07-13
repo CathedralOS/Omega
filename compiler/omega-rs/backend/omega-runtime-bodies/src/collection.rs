@@ -230,6 +230,23 @@ fn append_state_body_operations(
         {
             continue;
         }
+        // An `asm { hlt }` statement lowers to a raw MachineHalt, not a state
+        // transition -- classify it before the host-call / state-call checks so
+        // its unresolved call record does not become a StateCall body op.
+        if let OperationKind::Call {
+            target,
+            has_receiver: false,
+            ..
+        } = &operation.kind
+            && target.as_str() == "asm#hlt"
+        {
+            operations.insert(body_operation(
+                state_key,
+                operation.statement_index,
+                RuntimeDispatchBodyOperationKind::MachineHalt,
+            ));
+            continue;
+        }
         if host_call_for_statement(context, state_key, operation.statement_index).is_some() {
             operations.insert(body_operation(
                 state_key,

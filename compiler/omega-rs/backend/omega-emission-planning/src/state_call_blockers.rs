@@ -33,6 +33,7 @@ pub(super) fn collect_state_call_blockers(
         if !state_call.target_key.is_valid() {
             if unresolved_call_is_host_call(input, state_call)
                 || unresolved_call_is_wire_encode(input, state_call)
+                || unresolved_call_is_asm_intrinsic(input, state_call)
             {
                 continue;
             }
@@ -118,6 +119,7 @@ fn collect_unresolved_state_call_blockers(
         }
         if unresolved_call_is_host_call(input, state_call)
             || unresolved_call_is_wire_encode(input, state_call)
+            || unresolved_call_is_asm_intrinsic(input, state_call)
         {
             continue;
         }
@@ -133,6 +135,27 @@ fn collect_unresolved_state_call_blockers(
             ),
         ));
     }
+}
+
+/// An `asm { hlt }` statement lowered into a raw MachineHalt instruction, not
+/// a state transition -- so its call record is legitimately unresolved. (The
+/// port I/O intrinsics join this check when they land.)
+fn unresolved_call_is_asm_intrinsic(
+    input: &EmissionPlanningInput<'_>,
+    state_call: &StateCall,
+) -> bool {
+    input
+        .instructions
+        .code
+        .instructions
+        .iter()
+        .any(|(_, instruction)| {
+            matches!(
+                instruction.kind,
+                omega_target_operations::TargetOperationKind::MachineHalt
+            ) && state_key_matches_statement_source(instruction.source_key, state_call.source_key)
+                && instruction.source_statement == state_call.statement_index
+        })
 }
 
 /// A statement that lowered into the wire append/read families is the

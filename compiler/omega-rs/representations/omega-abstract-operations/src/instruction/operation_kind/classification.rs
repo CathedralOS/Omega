@@ -108,6 +108,8 @@ impl OperationSemanticQuery for AbstractOperationKind {
             | Self::HostOperation { .. }
             | Self::PreparePlatformOutputHandle { .. }
             | Self::WritePlatformNewline { .. } => AbstractOperationDomain::HostBoundary,
+
+            Self::MachineHalt => AbstractOperationDomain::MachineControl,
         }
     }
 

@@ -310,6 +310,13 @@ pub fn encode_return_bytes() -> [u8; 28] {
     bytes
 }
 
+/// The AArch64 idle instruction `wfi` (wait for interrupt, 0xD503207F) -- the
+/// semantic analog of x86 `hlt`: halt the core until an interrupt arrives.
+/// `asm { hlt }` lowers to this on AArch64.
+pub fn encode_machine_halt_bytes() -> [u8; 4] {
+    encode_instruction(0xD503207F)
+}
+
 pub fn encode_return_register_integer_write_bytes(
     byte_size: usize,
     value: i64,

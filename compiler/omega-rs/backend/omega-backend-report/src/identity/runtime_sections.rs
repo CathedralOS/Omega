@@ -21,7 +21,8 @@ pub(in crate::identity) fn count_runtime_body_strings(
 ) {
     for (_, operation) in backend_plan.runtime_bodies.operations.iter() {
         match &operation.kind {
-            RuntimeDispatchBodyOperationKind::HostCall => {}
+            RuntimeDispatchBodyOperationKind::HostCall
+            | RuntimeDispatchBodyOperationKind::MachineHalt => {}
             RuntimeDispatchBodyOperationKind::InlineLeafStateCall { .. }
             | RuntimeDispatchBodyOperationKind::InlineStateCall { .. }
             | RuntimeDispatchBodyOperationKind::StateCall { .. } => {}

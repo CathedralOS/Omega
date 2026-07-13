@@ -1246,6 +1246,7 @@ fn selected_instruction_name(
                 "copy runtime storage {region_symbol}@{byte_offset} bytes {byte_size} to return register"
             )
         }
+        SelectedInstructionKind::MachineHalt => "machine halt (hlt)".to_owned(),
         SelectedInstructionKind::LeaveFunction => "leave function".to_owned(),
     }
 }

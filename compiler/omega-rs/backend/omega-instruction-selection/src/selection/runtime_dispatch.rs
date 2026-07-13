@@ -712,6 +712,14 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
                     );
                 }
 
+                if matches!(operation.kind, RuntimeDispatchBodyOperationKind::MachineHalt) {
+                    selected_instructions.push(SelectedInstruction {
+                        kind: SelectedInstructionKind::MachineHalt,
+                        source_key: operation.source_key,
+                        source_statement: operation.statement_index,
+                    });
+                }
+
                 if matches!(operation.kind, RuntimeDispatchBodyOperationKind::HostCall)
                     && let Some(host_call) = host_call_for_statement(
                         input,

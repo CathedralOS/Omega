@@ -936,6 +936,11 @@ pub enum AbstractOperationKind {
         use_file_api: bool,
         operands: HandleSpan<InstructionOperand>,
     },
+    /// The x86 `hlt` privileged instruction (`asm { hlt }`), emitting the
+    /// `machine_control` effect. Zero operands, no relocation: it idles the
+    /// CPU until the next interrupt. Only reachable in a freestanding boundary
+    /// root (v0 discharge). See privileged_effects_and_binary_trust brief.
+    MachineHalt,
     LeaveFunction,
 }
 

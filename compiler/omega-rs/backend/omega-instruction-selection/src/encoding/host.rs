@@ -142,6 +142,16 @@ pub fn encode_return_bytes(architecture: Architecture) -> Result<(Vec<u8>, usize
     }
 }
 
+/// The privileged `hlt` (`asm { hlt }`) as target bytes: `hlt` (0xF4) on
+/// x86_64, its idle analog `wfi` on AArch64. Position-independent, no
+/// relocation site.
+pub fn encode_machine_halt_bytes(architecture: Architecture) -> Vec<u8> {
+    match architecture {
+        Architecture::Aarch64 => aarch64::encode_machine_halt_bytes().to_vec(),
+        Architecture::X86_64 => x86_64::encode_machine_halt_bytes().to_vec(),
+    }
+}
+
 pub fn encode_runtime_storage_copy_to_return_register_bytes(
     architecture: Architecture,
     byte_offset: usize,

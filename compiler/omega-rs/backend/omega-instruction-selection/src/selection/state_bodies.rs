@@ -149,6 +149,25 @@ pub(super) fn select_state_body_instructions(
             continue;
         }
 
+        // Asm intrinsic statement (`asm { hlt }`): a receiverless call on the
+        // unnameable `asm#hlt` target lowers to the raw MachineHalt
+        // instruction, not a state transition. (`asm { in/out }` port ops are
+        // the next rung.)
+        if let OperationKind::Call {
+            target,
+            has_receiver: false,
+            ..
+        } = &operation.kind
+            && target.as_str() == "asm#hlt"
+        {
+            selected_instructions.push(SelectedInstruction {
+                kind: omega_abstract_operations::SelectedInstructionKind::MachineHalt,
+                source_key: state.key,
+                source_statement: operation.statement_index,
+            });
+            continue;
+        }
+
         if matches!(operation.kind, OperationKind::Call { .. })
             && super::wire_encode::select_wire_encode_call(
                 input,

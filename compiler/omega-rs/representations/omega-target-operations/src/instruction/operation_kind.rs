@@ -786,6 +786,10 @@ pub enum TargetOperationKind {
         operation_key: HostOperationKey,
         operands: HandleSpan<InstructionOperand>,
     },
+    /// The x86 `hlt` privileged instruction (`asm { hlt }`), emitting the
+    /// `machine_control` effect. Zero operands, no relocation. See the
+    /// privileged_effects_and_binary_trust brief.
+    MachineHalt,
     LeaveFunction,
 }
 

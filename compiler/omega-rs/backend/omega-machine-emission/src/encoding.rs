@@ -1110,6 +1110,12 @@ pub(super) fn encode_machine_instruction_bytes(
             *target_offset,
             *byte_count,
         ),
+        // `hlt` (`asm { hlt }`) is position-independent with no relocation and
+        // no branch distance, so it emits its bytes HERE rather than through
+        // the branch-distance-aware instruction_bytes path.
+        SelectedInstructionKind::MachineHalt => Ok(
+            omega_instruction_selection::encode_machine_halt_bytes(input.target.architecture),
+        ),
         SelectedInstructionKind::EnterFunction
         | SelectedInstructionKind::EnterDispatchLoop { .. }
         | SelectedInstructionKind::EnterDispatchCase { .. }

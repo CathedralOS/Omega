@@ -1286,6 +1286,7 @@ impl From<&omega_abstract_operations::AbstractOperationKind> for TargetOperation
             | omega_abstract_operations::AbstractOperationKind::WritePlatformNewline { .. } => {
                 panic!("logical abstract host operations must be lowered in omega-abstract-operations-to-target-operations")
             }
+            omega_abstract_operations::AbstractOperationKind::MachineHalt => Self::MachineHalt,
             omega_abstract_operations::AbstractOperationKind::LeaveFunction => Self::LeaveFunction,
         }
     }
