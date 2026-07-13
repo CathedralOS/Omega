@@ -646,6 +646,22 @@ pub enum AbstractOperationKind {
         field_byte_offset: usize,
         target_offset: usize,
     },
+    /// The MACHINE-base sibling of
+    /// `WriteRuntimeFrameBaseIndexedAddressToRuntimeFrame`: store the ADDRESS
+    /// of a machine-owned inline-array element (`&self.buf[k]`, base at
+    /// machine[base_byte_offset], runtime index at index_region[index_offset])
+    /// into a frame slot. This is the §5b borrow-recast let whose STATED
+    /// referee is wider than a pointer (`&self.map_buf[k] as &Descriptor`):
+    /// the slot must hold a REAL POINTER — reads deref it (the referee-size
+    /// rule) — never a content spill.
+    WriteRuntimeMachineIndexedAddressToRuntimeFrame {
+        base_byte_offset: usize,
+        index_offset: usize,
+        index_region: RuntimeStorageRegion,
+        element_byte_size: usize,
+        field_byte_offset: usize,
+        target_offset: usize,
+    },
     ReadRuntimeTextLine {
         buffer: AbstractDataObjectHandle,
         target_region: RuntimeStorageRegion,

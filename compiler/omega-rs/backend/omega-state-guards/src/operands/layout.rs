@@ -244,6 +244,15 @@ fn runtime_frame_operand_layout(
             reference_scalar_referee_layout(&slot.type_descriptor, root_layout)
                 .unwrap_or(root_layout),
         )
+    } else if reference_named_record_referee(&slot.type_descriptor) {
+        // A member read THROUGH a `&Record` reference slot cannot lower as a
+        // flat place clause: the slot may hold a REAL POINTER (a wide
+        // referee's borrow-recast let, a reference param) and the clause
+        // model has no dereference -- `slot + field` read the walk guard's
+        // `d.number_of_pages` from stale frame bytes. Refuse the whole
+        // conjunction; the expression-guard path lowers the read with the
+        // deref-vs-content decision (the referee-size rule).
+        return None;
     } else if let Some(member_layout) =
         runtime_slice_descriptor_member_layout(slot, root_byte_offset, root_layout, suffix)
     {
@@ -312,6 +321,30 @@ fn reference_scalar_referee_layout(
         size,
         alignment: root_layout.alignment,
     })
+}
+
+/// Whether the slot's descriptor is a reference to a NAMED RECORD (peeling
+/// `Constrained` on both sides; primitives excluded -- their referee reads
+/// resolve at the scalar width above, and records are where member suffixes
+/// need the dereference decision).
+fn reference_named_record_referee(descriptor: &TypeLayoutDescriptor) -> bool {
+    let mut descriptor = descriptor;
+    while let TypeLayoutDescriptor::Constrained { base_type, .. } = descriptor {
+        descriptor = base_type.as_ref();
+    }
+    let TypeLayoutDescriptor::Reference { referee, .. } = descriptor else {
+        return false;
+    };
+    let mut referee = referee.as_ref();
+    while let TypeLayoutDescriptor::Constrained { base_type, .. } = referee {
+        referee = base_type.as_ref();
+    }
+    match referee {
+        TypeLayoutDescriptor::Named { name, .. } => {
+            omega_checked_trees::types::PrimitiveType::from_name(name.as_str()).is_none()
+        }
+        _ => false,
+    }
 }
 
 fn is_slice_descriptor(descriptor: &TypeLayoutDescriptor) -> bool {

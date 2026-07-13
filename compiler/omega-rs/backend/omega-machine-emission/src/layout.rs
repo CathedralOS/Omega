@@ -12,7 +12,8 @@ use omega_instruction_selection::{
     runtime_byte_read_width, runtime_byte_write_width,
     dispatch_loop_enter_width, dispatch_state_write_width, function_enter_width,
     host_call_sequence_width, machine_halt_width, port_read_width, port_write_width,
-    vtable_call_sequence_width, return_register_integer_write_width, return_width,
+    return_register_integer_write_width, return_width, table_function_call_sequence_width,
+    vtable_call_sequence_width,
     runtime_frame_base_indexed_binary_write_width, runtime_frame_base_indexed_integer_write_width,
     runtime_frame_indexed_binary_write_width, runtime_frame_indexed_integer_write_width,
     runtime_frame_indexed_string_write_width, runtime_frame_string_write_width,
@@ -127,13 +128,27 @@ fn machine_instruction_width(
                 syscall_sequence_width(input.target.architecture, operands, *number)
             }
             Some(HostBindingMechanism::VtableSlot { index }) => {
-                vtable_call_sequence_width(input.target.architecture, operands, *index)
+                vtable_call_sequence_width(input.target.architecture, operands, *index, false)
             }
             // The disp32 encoding is offset-independent: the field flavor's
-            // width is the slot flavor's width (index unused there).
-            Some(HostBindingMechanism::VtableField { .. }) => {
-                vtable_call_sequence_width(input.target.architecture, operands, 0)
-            }
+            // width is the slot flavor's width (index unused there). A call
+            // with MORE operands than the method's declared parameters
+            // carries a prepended RESULT place (`let status = ...`).
+            Some(HostBindingMechanism::VtableField {
+                parameter_count, ..
+            }) => vtable_call_sequence_width(
+                input.target.architecture,
+                operands,
+                0,
+                operands.len() > *parameter_count,
+            ),
+            Some(HostBindingMechanism::TableFunction {
+                parameter_count, ..
+            }) => table_function_call_sequence_width(
+                input.target.architecture,
+                operands,
+                operands.len() > *parameter_count,
+            ),
             _ => host_call_sequence_width(
                 input.target.architecture,
                 host_operation.operation_key,
@@ -870,6 +885,11 @@ fn machine_instruction_width(
             *field_byte_offset,
             *target_offset,
         ),
+        SelectedInstructionKind::WriteRuntimeMachineIndexedAddressToRuntimeFrame { .. } => {
+            omega_instruction_selection::runtime_machine_indexed_address_to_runtime_frame_write_width(
+                input.target.architecture,
+            )
+        }
         SelectedInstructionKind::ReadRuntimeTextLine { .. } => {
             let Some(read) = selected_host_text_read(kind) else {
                 return Err(Diagnostic::error(

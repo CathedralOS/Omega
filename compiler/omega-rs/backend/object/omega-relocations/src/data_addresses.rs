@@ -2,6 +2,7 @@ use crate::RelocationPlanningInput;
 use crate::data_address_records::insert_data_address_relocations;
 use crate::lookups::find_host_binding;
 use crate::offsets::data_address_relocation_offset;
+use crate::offsets::FieldModelCallShape;
 use omega_calling_conventions::{HostBindingMechanism, HostOperationKey};
 use omega_object_file::{
     ObjectSymbolHandle, RelocationPlan, object_symbol_handle_by_name, storage_region_symbol_name,
@@ -29,13 +30,30 @@ pub(super) fn collect_data_address_relocations(
     let is_syscall = operation_key
         .and_then(|key| find_host_binding(input, key))
         .is_some_and(|binding| matches!(binding.mechanism, HostBindingMechanism::Syscall { .. }));
-    let is_vtable = operation_key
+    // A field-model call's fixup layout depends on the mechanism's shape:
+    // whether the receiver is a wire argument (This-call vtable) or
+    // dispatch-only (service table), and whether a result place leads the
+    // operands (more operands than declared parameters).
+    let field_model_shape = operation_key
         .and_then(|key| find_host_binding(input, key))
-        .is_some_and(|binding| {
-            matches!(
-                binding.mechanism,
-                HostBindingMechanism::VtableSlot { .. } | HostBindingMechanism::VtableField { .. }
-            )
+        .and_then(|binding| match &binding.mechanism {
+            HostBindingMechanism::VtableSlot { .. } => Some(FieldModelCallShape {
+                passes_receiver: true,
+                result_present: false,
+            }),
+            HostBindingMechanism::VtableField {
+                parameter_count, ..
+            } => Some(FieldModelCallShape {
+                passes_receiver: true,
+                result_present: operands.len() > *parameter_count,
+            }),
+            HostBindingMechanism::TableFunction {
+                parameter_count, ..
+            } => Some(FieldModelCallShape {
+                passes_receiver: false,
+                result_present: operands.len() > *parameter_count,
+            }),
+            _ => None,
         });
 
     for (operand_index, operand) in operands.iter().enumerate() {
@@ -59,7 +77,7 @@ pub(super) fn collect_data_address_relocations(
                     selected_text_offset,
                     operand_index,
                     is_syscall,
-                    is_vtable,
+                    field_model_shape,
                 ),
                 symbol,
             );
@@ -103,7 +121,7 @@ pub(super) fn collect_data_address_relocations(
                     selected_text_offset,
                     operand_index,
                     is_syscall,
-                    is_vtable,
+                    field_model_shape,
                 ),
                 symbol,
             );

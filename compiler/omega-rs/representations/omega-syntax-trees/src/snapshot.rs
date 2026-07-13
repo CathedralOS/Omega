@@ -667,6 +667,9 @@ fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnapshot {
                         HostProviderMappingKind::VtableField { field } => {
                             ("vtable_field", 0, None, Some(field.as_str().to_owned()))
                         }
+                        HostProviderMappingKind::TableFunction { field } => {
+                            ("table_function", 0, None, Some(field.as_str().to_owned()))
+                        }
                         HostProviderMappingKind::Value { value } => ("value", *value, None, None),
                     };
                     HostProviderMappingSnapshot {

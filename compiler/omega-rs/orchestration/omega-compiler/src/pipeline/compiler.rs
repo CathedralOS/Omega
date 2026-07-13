@@ -80,6 +80,16 @@ fn extract_provides_rows(
             .map(|member| member.as_str())
             .collect::<Vec<_>>()
             .join("::");
+        // The trait's LAST path member names the boundary trait item; its
+        // machine signatures supply each bound method's declared parameter
+        // count (the field-model encoders compare it against a call's
+        // operand list to detect a prepended result place).
+        let trait_item_name = syntax_trees
+            .items
+            .identifier_path_members(provider.boundary_trait)
+            .last()
+            .map(|member| member.as_str().to_owned())
+            .unwrap_or_default();
         for mapping in syntax_trees.items.host_provider_mappings(provider.mappings) {
             let binding = match &mapping.binding {
                 HostProviderMappingKind::Syscall { number } => {
@@ -99,6 +109,11 @@ fn extract_provides_rows(
                         field: field.as_str().to_owned(),
                     }
                 }
+                HostProviderMappingKind::TableFunction { field } => {
+                    ProvidesBindingKind::TableFunction {
+                        field: field.as_str().to_owned(),
+                    }
+                }
                 HostProviderMappingKind::Value { value } => {
                     ProvidesBindingKind::Value { value: *value }
                 }
@@ -108,11 +123,48 @@ fn extract_provides_rows(
                 trait_name: trait_name.clone(),
                 method: mapping.machine.as_str().to_owned(),
                 vtable_struct: provider.vtable_struct.as_str().to_owned(),
+                parameter_count: boundary_trait_method_parameter_count(
+                    syntax_trees,
+                    &trait_item_name,
+                    mapping.machine.as_str(),
+                ),
                 binding,
             });
         }
     }
     rows
+}
+
+/// The declared parameter count of `method` on the boundary trait named
+/// `trait_name`, or 0 when either is not found (the static mechanisms never
+/// read it; the field-model merge sees 0 only for a binding whose trait is
+/// missing, which the resolver refuses elsewhere).
+fn boundary_trait_method_parameter_count(
+    syntax_trees: &omega_syntax_trees::SyntaxTrees,
+    trait_name: &str,
+    method: &str,
+) -> usize {
+    for item in syntax_trees.root_items() {
+        let omega_syntax_trees::item::Item::Trait(trait_definition) = item else {
+            continue;
+        };
+        if trait_definition.name.as_str() != trait_name {
+            continue;
+        }
+        for signature_handle in syntax_trees
+            .items
+            .state_signatures(trait_definition.machines)
+        {
+            let signature = syntax_trees.items.state_signature(*signature_handle);
+            if signature.name.as_str() == method {
+                return syntax_trees
+                    .items
+                    .state_parameters(signature.parameters)
+                    .len();
+            }
+        }
+    }
+    0
 }
 
 pub struct Compiler {

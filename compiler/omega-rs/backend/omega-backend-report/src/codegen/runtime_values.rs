@@ -31,8 +31,17 @@ pub(super) fn runtime_text_read_source_name(
                     table,
                     field,
                     byte_offset,
+                    ..
                 }) => {
                     format!("vtable field {table}.{field} (+{byte_offset})")
+                }
+                Some(omega_calling_conventions::HostBindingMechanism::TableFunction {
+                    table,
+                    field,
+                    byte_offset,
+                    ..
+                }) => {
+                    format!("table function {table}.{field} (+{byte_offset})")
                 }
                 Some(omega_calling_conventions::HostBindingMechanism::VtableSlot { index }) => {
                     format!("vtable slot {index}")

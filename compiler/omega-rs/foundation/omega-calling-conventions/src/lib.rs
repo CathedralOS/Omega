@@ -827,10 +827,30 @@ pub enum HostBindingMechanism {
     /// vtable-field pass (0 until then -- the encoder never sees an
     /// unresolved mechanism because the pass runs before target-operation
     /// building, and an unknown struct/field refuses the compile there).
+    /// `parameter_count` is the bound trait method's DECLARED parameter
+    /// count: the encoder compares it against the call's operand list to
+    /// detect a prepended result place (`let status = ...` prepends one;
+    /// `_ = ...` does not).
     VtableField {
         table: Arc<str>,
         field: Arc<str>,
         byte_offset: usize,
+        parameter_count: usize,
+    },
+    /// A SERVICE-TABLE function (UEFI BootServices/RuntimeServices): the
+    /// callee address is read from the table's fn-ptr FIELD exactly like
+    /// `VtableField`, but the table pointer is DISPATCH-ONLY -- the wire ABI
+    /// does not receive it. COM/protocol methods take their object as the
+    /// first argument (`OutputString(This, String)`); EFI table services do
+    /// not (`GetMemoryMap(MemoryMapSize, ...)` -- no This). The Omega
+    /// signature still declares the table first (the dispatch recipe is
+    /// parameterized by the call's first argument, extern brief SS12.1);
+    /// this mechanism keeps it off the wire.
+    TableFunction {
+        table: Arc<str>,
+        field: Arc<str>,
+        byte_offset: usize,
+        parameter_count: usize,
     },
 }
 
@@ -942,8 +962,14 @@ pub struct ProvidesRow {
     pub method: String,
     /// The `over <Struct>` clause's vtable struct (the field model, extern
     /// brief SS12.1). EMPTY when the block had no over clause; REQUIRED for
-    /// `VtableField` bindings (the merge enforces it loudly).
+    /// `VtableField`/`TableFunction` bindings (the merge enforces it loudly).
     pub vtable_struct: String,
+    /// The bound trait method's DECLARED parameter count, read from the
+    /// boundary trait's signature at row extraction. The field-model
+    /// encoders compare it against a call's operand list to detect a
+    /// prepended result place. Zero for the static mechanisms and value
+    /// rows (unused there).
+    pub parameter_count: usize,
     pub binding: ProvidesBindingKind,
 }
 
@@ -956,6 +982,10 @@ pub enum ProvidesBindingKind {
     /// model): the byte offset comes from the layout plan, resolved by the
     /// backend pass -- no magic slot counts.
     VtableField { field: String },
+    /// Dispatch by fn-ptr FIELD like `VtableField`, but the table pointer is
+    /// DISPATCH-ONLY -- never a wire argument (EFI table services take no
+    /// This; protocol/COM methods do).
+    TableFunction { field: String },
     /// A per-target named CONSTANT (`O_CREATE -> 32768`): carried on the row
     /// stream but never a call binding -- the const-resolution rung consumes
     /// it; the ABI merge skips it.
@@ -1046,6 +1076,23 @@ pub fn merge_provides_rows(
                     table: row.vtable_struct.as_str().into(),
                     field: field.as_str().into(),
                     byte_offset: 0,
+                    parameter_count: row.parameter_count,
+                }
+            }
+            ProvidesBindingKind::TableFunction { field } => {
+                if row.vtable_struct.is_empty() {
+                    return Err(format!(
+                        "provides `{}::{}`: a `TableFunction({})` binding needs the block's \
+                         `over <Struct>` clause naming the service table struct whose \
+                         fields it indexes",
+                        row.trait_name, row.method, field
+                    ));
+                }
+                HostBindingMechanism::TableFunction {
+                    table: row.vtable_struct.as_str().into(),
+                    field: field.as_str().into(),
+                    byte_offset: 0,
+                    parameter_count: row.parameter_count,
                 }
             }
             ProvidesBindingKind::DllImport { module, symbol } => HostBindingMechanism::Import {

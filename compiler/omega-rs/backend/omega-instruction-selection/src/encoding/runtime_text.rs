@@ -314,7 +314,9 @@ pub fn encode_runtime_byte_read(
                 *number_register,
                 *supervisor_call,
             ),
-            HostBindingMechanism::VtableSlot { .. } | HostBindingMechanism::VtableField { .. } => {
+            HostBindingMechanism::VtableSlot { .. }
+            | HostBindingMechanism::VtableField { .. }
+            | HostBindingMechanism::TableFunction { .. } => {
                 Err(Diagnostic::error("read_byte cannot be vtable-bound"))
             }
         },
@@ -325,7 +327,9 @@ pub fn encode_runtime_byte_read(
             HostBindingMechanism::Syscall { number, .. } => {
                 x86_64::encode_runtime_byte_read_syscall(target_offset, payload_offset, *number)
             }
-            HostBindingMechanism::VtableSlot { .. } | HostBindingMechanism::VtableField { .. } => {
+            HostBindingMechanism::VtableSlot { .. }
+            | HostBindingMechanism::VtableField { .. }
+            | HostBindingMechanism::TableFunction { .. } => {
                 Err(Diagnostic::error("read_byte cannot be vtable-bound"))
             }
         },
@@ -355,7 +359,9 @@ pub fn encode_runtime_byte_write(
                 *number_register,
                 *supervisor_call,
             ),
-            HostBindingMechanism::VtableSlot { .. } | HostBindingMechanism::VtableField { .. } => {
+            HostBindingMechanism::VtableSlot { .. }
+            | HostBindingMechanism::VtableField { .. }
+            | HostBindingMechanism::TableFunction { .. } => {
                 Err(Diagnostic::error("write_byte cannot be vtable-bound"))
             }
         },
@@ -366,7 +372,9 @@ pub fn encode_runtime_byte_write(
             HostBindingMechanism::Syscall { number, .. } => {
                 x86_64::encode_runtime_byte_write_syscall(source_offset, *number)
             }
-            HostBindingMechanism::VtableSlot { .. } | HostBindingMechanism::VtableField { .. } => {
+            HostBindingMechanism::VtableSlot { .. }
+            | HostBindingMechanism::VtableField { .. }
+            | HostBindingMechanism::TableFunction { .. } => {
                 Err(Diagnostic::error("write_byte cannot be vtable-bound"))
             }
         },
@@ -416,7 +424,9 @@ pub fn encode_runtime_text_line_read(
                     )
                 }
             }
-            HostBindingMechanism::VtableSlot { .. } | HostBindingMechanism::VtableField { .. } => {
+            HostBindingMechanism::VtableSlot { .. }
+            | HostBindingMechanism::VtableField { .. }
+            | HostBindingMechanism::TableFunction { .. } => {
                 Err(Diagnostic::error("read_line cannot be vtable-bound"))
             }
         },
@@ -443,7 +453,9 @@ pub fn encode_runtime_text_line_read(
                     )
                 }
             }
-            HostBindingMechanism::VtableSlot { .. } | HostBindingMechanism::VtableField { .. } => {
+            HostBindingMechanism::VtableSlot { .. }
+            | HostBindingMechanism::VtableField { .. }
+            | HostBindingMechanism::TableFunction { .. } => {
                 Err(Diagnostic::error("read_line cannot be vtable-bound"))
             }
         },

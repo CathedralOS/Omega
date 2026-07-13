@@ -526,6 +526,17 @@ pub enum TargetOperationKind {
         field_byte_offset: usize,
         target_offset: usize,
     },
+    /// The MACHINE-base sibling: store the ADDRESS of a machine-owned
+    /// inline-array element into a frame slot (the wide-referee borrow-recast
+    /// let -- the slot holds a real pointer; reads deref it).
+    WriteRuntimeMachineIndexedAddressToRuntimeFrame {
+        base_byte_offset: usize,
+        index_offset: usize,
+        index_region: RuntimeStorageRegion,
+        element_byte_size: usize,
+        field_byte_offset: usize,
+        target_offset: usize,
+    },
     ReadRuntimeTextLine {
         buffer: TargetDataObjectHandle,
         target_region: RuntimeStorageRegion,

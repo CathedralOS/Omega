@@ -85,14 +85,33 @@ fn write_host_binding(output: &mut String, binding: &HostBinding) {
             table,
             field,
             byte_offset,
+            parameter_count,
         } => {
             output.push_str(&format!(
-                "- {}.{} vtable field {}.{} (+{}) boundary `{}`\n",
+                "- {}.{} vtable field {}.{} (+{}) arity {} boundary `{}`\n",
                 binding.operation_key.capability_name(),
                 binding.operation_key.operation_name(),
                 table,
                 field,
                 byte_offset,
+                parameter_count,
+                binding.boundary_policy
+            ));
+        }
+        HostBindingMechanism::TableFunction {
+            table,
+            field,
+            byte_offset,
+            parameter_count,
+        } => {
+            output.push_str(&format!(
+                "- {}.{} table function {}.{} (+{}) arity {} (table not passed) boundary `{}`\n",
+                binding.operation_key.capability_name(),
+                binding.operation_key.operation_name(),
+                table,
+                field,
+                byte_offset,
+                parameter_count,
                 binding.boundary_policy
             ));
         }

@@ -744,6 +744,21 @@ pub(super) fn encode_machine_instruction_bytes(
             *field_byte_offset,
             *target_offset,
         ),
+        SelectedInstructionKind::WriteRuntimeMachineIndexedAddressToRuntimeFrame {
+            base_byte_offset,
+            index_offset,
+            index_region: _,
+            element_byte_size,
+            field_byte_offset,
+            target_offset,
+        } => runtime_storage::encode_runtime_machine_indexed_address_to_runtime_frame_write(
+            input,
+            *base_byte_offset,
+            *index_offset,
+            *element_byte_size,
+            *field_byte_offset,
+            *target_offset,
+        ),
         SelectedInstructionKind::ReadRuntimeTextLine {
             ..
         } => {

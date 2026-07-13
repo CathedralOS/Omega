@@ -877,6 +877,21 @@ impl From<&omega_abstract_operations::AbstractOperationKind> for TargetOperation
                 field_byte_offset: *field_byte_offset,
                 target_offset: *target_offset,
             },
+            omega_abstract_operations::AbstractOperationKind::WriteRuntimeMachineIndexedAddressToRuntimeFrame {
+                base_byte_offset,
+                index_offset,
+                index_region,
+                element_byte_size,
+                field_byte_offset,
+                target_offset,
+            } => Self::WriteRuntimeMachineIndexedAddressToRuntimeFrame {
+                base_byte_offset: *base_byte_offset,
+                index_offset: *index_offset,
+                index_region: *index_region,
+                element_byte_size: *element_byte_size,
+                field_byte_offset: *field_byte_offset,
+                target_offset: *target_offset,
+            },
             omega_abstract_operations::AbstractOperationKind::ReadRuntimeTextLine {
                 buffer,
                 target_region,

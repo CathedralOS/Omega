@@ -2552,7 +2552,27 @@ pub(super) fn resolve_runtime_pointee_slot_offset_in_table(
         expressions,
         expression,
     )?;
-    if slot.byte_size != input.runtime_abi.pointer_size {
+    // A pointer lives either in a pointer-sized slot (params, `&mut` locals)
+    // or at the START of a referee-sized slot: the borrow-recast let
+    // (`let d = &self.map_buf[k] as &Descriptor`) sizes its slot by the STATED
+    // referee, but a referee wider than a pointer cannot content-spill, so
+    // the lowering stores the ELEMENT ADDRESS in the slot's first pointer
+    // width (WriteRuntimeMachineIndexedAddressToRuntimeFrame) and reads must
+    // deref it.
+    let recast_referee_size = slot
+        .type_descriptor
+        .reference_referee()
+        .filter(|descriptor| {
+            // Only NAMED-record referees: a slice/trait referee's slot is a
+            // {ptr, len} DESCRIPTOR (also wider than a pointer), not an
+            // element address -- treating it as one broke every text read.
+            matches!(descriptor, omega_layout::TypeLayoutDescriptor::Named { .. })
+        })
+        .map(|descriptor| descriptor_layout(input, descriptor).size);
+    let wide_referee_slot = recast_referee_size.is_some_and(|size| {
+        size > input.runtime_abi.pointer_size && slot.byte_size == size
+    });
+    if slot.byte_size != input.runtime_abi.pointer_size && !wide_referee_slot {
         return None;
     }
     // Deref-vs-flat for a SHARED `&Named` reference param. Two conventions
