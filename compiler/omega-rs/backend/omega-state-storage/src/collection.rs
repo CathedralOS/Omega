@@ -308,7 +308,9 @@ fn state_has_initialized_locals_before(
 fn local_data_requires_storage(
     program: &CheckedTrees,
     local_is_mutable: bool,
-    machine_is_boundary: bool,
+    // Retained for signature stability; the ref-param deref materialization it
+    // used to gate now fires in every machine (bug 2026-07-12).
+    _machine_is_boundary: bool,
     state: &omega_checked_trees::state::State,
     expressions: &omega_checked_trees::expression::ExpressionTable,
     statement_table: &StatementTable,
@@ -336,8 +338,11 @@ fn local_data_requires_storage(
     // face; the guard/assignment hoists synthesize exactly this shape). Keep
     // the slot whenever the local is referenced afterwards, in ANY position
     // (including assignment values, which the liveness scan otherwise skips).
-    if machine_is_boundary
-        && initializer_is_reference_param_member(program, state, expressions, initial_value)
+    // Fires in EVERY machine, not only boundary ones: a `&Named` param holds a
+    // real pointer everywhere (bug 2026-07-12, the non-boundary `own_machine`
+    // deref); kept in lockstep with the read-side resolver in
+    // omega-instruction-selection storage_places.rs and the simplify twin.
+    if initializer_is_reference_param_member(program, state, expressions, initial_value)
         && statements
             .iter()
             .skip(local_statement_index + 1)

@@ -71,7 +71,9 @@ fn binding_matches_path(binding: &Binding, path: &NamePath) -> bool {
 
 pub(super) fn simple_local_bindings(
     program: &CheckedTrees,
-    machine: &omega_checked_trees::machine::Machine,
+    // Retained for signature stability; the ref-param deref materialization it
+    // used to gate now fires in every machine (bug 2026-07-12).
+    _machine: &omega_checked_trees::machine::Machine,
     state: &State,
     statement_index: usize,
 ) -> Arena<Binding> {
@@ -128,15 +130,15 @@ pub(super) fn simple_local_bindings(
         // member back re-creates the flat frame-garbage read the let was minted
         // to avoid (the entry-ref-param face). Mirrors
         // `initializer_is_reference_param_member` in omega-state-storage's
-        // collection.rs, which slots exactly this shape.
-        if machine.boundary
-            && initializer_is_reference_param_member(
-                program,
-                state,
-                &program.expression_table,
-                local_data.initial_value,
-            )
-        {
+        // collection.rs, which slots exactly this shape. Fires in EVERY machine,
+        // not only boundary ones: a `&Named` param is a real pointer everywhere
+        // (bug 2026-07-12, the non-boundary `own_machine` deref).
+        if initializer_is_reference_param_member(
+            program,
+            state,
+            &program.expression_table,
+            local_data.initial_value,
+        ) {
             continue;
         }
         let Some(value) = simple_local_binding_value_from_table(
