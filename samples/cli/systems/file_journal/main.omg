@@ -1,16 +1,23 @@
 // A real end-to-end filesystem workflow over Omega's raw std::fs seam
-// (`FilesystemHost`), run for real on macOS: make a directory, create and write
-// a file inside it, confirm the file exists via `stat` (`read_metadata`), reopen
-// and read the bytes back, rename it, remove the file, then remove the directory.
-// Every step must succeed; the program tallies the seven verified steps and
-// exits with that count (so a partial failure exits with fewer than 7 and the
-// harness assertion catches it).
+// (`FilesystemHost`), run for real on macOS AND windows: make a directory,
+// create and write a file inside it, confirm the file exists via `stat`
+// (`read_metadata`), reopen and read the bytes back, rename it, remove the
+// file, then remove the directory. Every step must succeed; the program
+// tallies the seven verified steps and exits with that count (so a partial
+// failure exits with fewer than 7 and the harness assertion catches it).
 //
-// This drives the raw value-returning seam directly. (HISTORY: when written,
-// the ergonomic wrapper's payload-carrying native results awaited a codegen
-// fix; that landed 2026-07-07/08 and the wrapper is native-correct end to end
-// now -- its own sample is `note_vault`, this sample's wrapper-layer
-// counterpart. Together they document both layers' idioms.)
+// This drives the raw value-returning seam directly -- which means BYTE-EXACT
+// IO is the caller's job: raw `create`/`open(flags 0)` are msvcrt TEXT MODE on
+// windows (`\n` -> `\r\n` on write, short counts on read-back -- this sample
+// exited 3 there until 2026-07-18). Compose `O_BINARY` exactly like the std
+// wrapper does (0 on posix, so darwin behavior is unchanged): creation via
+// `open_create(path, composed_flags, 438)` with the flags in a FIELD (the
+// composed-word idiom; the mode literal is required by the darwin variadic
+// encoder), reads via `open(path, O_BINARY)`. (HISTORY: when written, the
+// ergonomic wrapper's payload-carrying native results awaited a codegen fix;
+// that landed 2026-07-07/08 and the wrapper is native-correct end to end now
+// -- its own sample is `note_vault`, this sample's wrapper-layer counterpart.
+// Together they document both layers' idioms.)
 //
 // Expected exit: 7.
 
@@ -23,8 +30,11 @@ boundary trait Console {
 data Main {
     fs: FilesystemHost;
     console: Console;
-    file_mode: i32;
     dir_mode: i32;
+    // Composed open-flag words (the field idiom: a composed word must ride a
+    // FIELD so the host-call argument stays a simple value).
+    create_flags: i32;
+    read_flags: i32;
     fd: i32;
     rc: i32;
     n: i64;
@@ -37,8 +47,14 @@ data Main {
 }
 
 machine Main::main(&mut self) {
-    self.file_mode = 420; // 0o644
-    self.dir_mode = 493;  // 0o755
+    self.dir_mode = 493; // 0o755
+    // O_WRONLY|O_CREATE|O_TRUNC (`creat` semantics) + O_BINARY -- byte-exact
+    // on windows, identical to posix (O_BINARY is 0 there).
+    self.create_flags = FilesystemHost::O_WRONLY
+        | (1 << FilesystemHost::O_CREATE_BIT)
+        | (1 << FilesystemHost::O_TRUNC_BIT)
+        | FilesystemHost::O_BINARY;
+    self.read_flags = FilesystemHost::O_BINARY;
 
     // Best-effort clean slate so a re-run is deterministic (ignore the results:
     // on a fresh machine these targets do not exist yet).
@@ -52,8 +68,10 @@ machine Main::main(&mut self) {
 
     state made_dir(&mut self) {
         self.passed = self.passed + 1;
-        // Step 2 — create the file and write a known 17-byte line.
-        self.fd = self.fs.create("/tmp/omega_journal_dir/note.txt", self.file_mode);
+        // Step 2 — create the file (binary-safe composed flags; mode 438 =
+        // 0o666, a literal per the darwin variadic-encoder rule) and write a
+        // known 17-byte line.
+        self.fd = self.fs.open_create("/tmp/omega_journal_dir/note.txt", self.create_flags, 438);
         transition self.fd >= 0 { true -> opened_for_write() _ -> done() }
     }
     state opened_for_write(&mut self) {
@@ -69,8 +87,9 @@ machine Main::main(&mut self) {
     }
     state confirmed_present(&mut self) {
         self.passed = self.passed + 1;
-        // Step 4 — reopen read-only and read the 17 bytes back.
-        self.fd = self.fs.open("/tmp/omega_journal_dir/note.txt", 0);
+        // Step 4 — reopen read-only (O_RDONLY=0 + O_BINARY) and read the 17
+        // bytes back byte-exactly.
+        self.fd = self.fs.open("/tmp/omega_journal_dir/note.txt", self.read_flags);
         transition self.fd >= 0 { true -> opened_for_read() _ -> done() }
     }
     state opened_for_read(&mut self) {
