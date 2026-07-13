@@ -1,0 +1,17 @@
+// FAIL canary (float semantics F1, 2026-07-18): a `Wrapping` policy domain on
+// a float primitive is a hard compile error -- there is no modular reading of
+// a float (ch5 "Float Facts"; the same principle rejects `in Wrapping` on a
+// float source in the float-to-int cast). Before F1 this SILENTLY no-opped:
+// `f32 in Wrapping` type-checked and both engines ran plain IEEE, so the
+// declared policy was a lie. The sibling canary float_saturating_domain_rejected
+// pins the not-yet-lowered leg; integer `in Wrapping` stays legal (decision 17).
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+data Main {
+    console: Console;
+    speed: f32 in Wrapping;
+}
+machine Main::main(&mut self) {
+    self.console.exit_process(0);
+}

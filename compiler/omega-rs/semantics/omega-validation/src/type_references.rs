@@ -570,10 +570,39 @@ fn validate_type_constraints_node(
                     _ => {}
                 }
             }
-            // An arithmetic overflow domain (`Wrapping`/`Saturating`/`Trapping`)
-            // is only meaningful on integer primitives. (Stricter integer-only
-            // validation can be added when the domains gain distinct codegen.)
-            TypeConstraintNode::ArithmeticDomain(_) => {}
+            // Arithmetic policy domains (`Wrapping`/`Saturating`/`Trapping`).
+            // On INTEGERS they are meaningful today (decision 17). On FLOATS
+            // (float semantics, ch5 "Float Facts", 2026-07-18): `Wrapping` is
+            // a hard error -- there is no modular reading of a float; the
+            // other two are recognized real policies but do not lower yet
+            // (float `Trapping`/`Saturating` = the F5 rung), so they refuse
+            // LOUDLY here rather than silently no-opping. `accepts_finite_
+            // constraint()` is the floats-only test (the same one `finite`
+            // uses just above).
+            TypeConstraintNode::ArithmeticDomain(domain) => {
+                use omega_core::arithmetic::ArithmeticDomain;
+                if primitive_type.is_some_and(|primitive| primitive.accepts_finite_constraint()) {
+                    let primitive_name = primitive_type.expect("checked above").name();
+                    match domain {
+                        ArithmeticDomain::Wrapping => diagnostics.push(Diagnostic::error(
+                            format!(
+                                "{owner} applies `Wrapping` to `{primitive_name}`, but there \
+                                 is no modular reading of a float -- a wrapping policy is only \
+                                 meaningful on integers"
+                            ),
+                        )),
+                        ArithmeticDomain::Saturating | ArithmeticDomain::Trapping => {
+                            diagnostics.push(Diagnostic::error(format!(
+                                "{owner} applies a `{domain:?}` policy to `{primitive_name}`; \
+                                 float overflow policies are not lowered yet (float semantics \
+                                 F5) -- remove the domain to use the format's default \
+                                 (correctly-rounded) semantics"
+                            )))
+                        }
+                        ArithmeticDomain::Exact => {}
+                    }
+                }
+            }
         }
     }
 }

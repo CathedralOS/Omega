@@ -768,11 +768,19 @@ Record: design_briefs/float_semantics.md; UX: ch5 Float Facts. Zero new
 keywords — value/policy domains + Rat const-eval + satisfiers + provides
 rows. Rungs:
 
-- **F1 — policy-domain validation:** `Wrapping` on float types = compile
-  error; `Saturating`/`Trapping` on floats = recognized real policies
-  (loud not-yet-lowered refusal until F5); replaces the
-  type_references.rs no-op arm (`ArithmeticDomain(_) => {}`). Fail
-  canaries.
+- **F1 — policy-domain validation: LANDED 2026-07-18.** `Wrapping` on a
+  float = hard compile error ("no modular reading of a float");
+  `Saturating`/`Trapping` on floats = recognized policies that refuse
+  loudly (not lowered until F5) instead of silently no-opping; integers
+  unchanged. Replaced the type_references.rs no-op arm
+  (`ArithmeticDomain(_) => {}`). Fail canaries
+  arithmetic/float_{wrapping,saturating}_domain_rejected. Cleanup: the
+  orphaned bounded_float family (pass/arithmetic/bounded_float +
+  fail/arithmetic/bounded_float_call_unproven; 0 rust refs, dead `0.0f`
+  syntax) RETIRED. STILL STALE (different family, constraint machinery,
+  not F1 -- flagged for that lane): fail/constraints/invariant_{unknown_
+  constraint,recursive,mutual_recursion} carry the same dead `0.0f` and
+  are unregistered.
 - **F2 — exact literal/const pipeline (N2 bignum is landed):** float
   literals parse to exact Rat; compile-time float arithmetic = exact Rat
   + round once per op at operand width; specials per format (compile ==

@@ -1,1 +1,0 @@
-cannot prove call argument `speed` satisfies bounded parameter `value`
