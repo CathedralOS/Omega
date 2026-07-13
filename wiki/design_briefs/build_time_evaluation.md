@@ -99,3 +99,54 @@ evaluation entry point + error reporting), resolved→typed lowering
    equatable.rs.
 3. Const type parameters + substitution; decreases-gated recursion;
    const-driven proof witnesses.
+
+## Owner review 2026-07-18: keyword killed, access model confirmed, destructure package
+
+- **The `default` keyword DIES** (owner: "something an LLM dreamed up that I
+  was never super sold on"; the house test agrees — the marker earns no
+  compiler action). A trait machine either has a body or it doesn't: body
+  present = the default, conformance may override. Zero keywords. All
+  `default machine` spellings in the record become plain trait-machine
+  bodies; ch14's mentions swept with the engineering.
+- **The access model is confirmed and named: same visibility, earlier
+  clock.** The splice (`self.[field]`) grants nothing the code couldn't
+  already touch — the expanded body runs as one of Self's own machines, and
+  there is no iterate-all-types anywhere: splice only quantifies over Self,
+  inside a trait Self CHOSE to conform to. Conformance is the consent.
+  Build-time evaluation runs effect-free machines on VALUES (no type
+  tables, no compiler internals, no I/O — decision 12's gate). Contrast
+  recorded: proc macros (arbitrary build-time I/O over token streams), Zig
+  comptime (type objects), UHT (external parser) are amplified contexts;
+  ours is not one. Reflection = iteration + splice, NEVER descriptors —
+  a FieldInfo carrying a type would be a type-as-value on the runtime side
+  of the universe fence.
+- **Equality tiers confirmed**: conformance-generated compare is immune to
+  field drift by construction (the splice quantifies over whatever the
+  members are); a hand-written equals WINS (landed rule) and is protected
+  from drift BY CONVENTION for now (owner: "I'm not going to worry too much
+  about forcing exhaustive equality impl yet"). The prover never treats a
+  custom equals as substitutable equality — that door is the quotient.
+- **Record destructure package (SETTLED, spec direction for the
+  data-patterns follow-up):** `let`-position record destructuring is new
+  surface, wanted (it proved itself on the canonical-equals sample):
+  `let Player { health, gold as g, cached_stats as _ } = self;` —
+  bare name binds, `as` renames (colon REJECTED: `field: x` already means
+  a type annotation — a pun; `->` REJECTED: saturated, and patterns live
+  inside arms), `as _` waives (bind to nothing, visibly ignored).
+  **Exhaustive by law**: every field bound or waived — the record twin of
+  the landed no-silent-fall-through rule on sums; adding a field breaks
+  every pattern that must now decide. Arm-position record binding shares
+  the grammar. v1 binding semantics may restrict to [copy]-eligible
+  fields (exactly Equatable's existing prerequisite list). Canonical
+  hand-written equals opens with the exhaustive destructure — chapter
+  convention, NOT enforced.
+- **Parked**: a trait-level shape gate ("conformances must open with an
+  exhaustive destructure") — held until real drift proves convention
+  insufficient. The exhaustive<T>-as-requirable-fact idea was examined
+  and rejected on the stratum boundary: our facts are about VALUES;
+  "this body read every member" is a fact about CODE, and requiring it
+  would need per-field read-effect tracking — the same boundary that
+  killed rewrite-registration-as-magic and macros.
+- **Still open (the one undecided item):** the unroll spelling for
+  generator bodies — the combiner form (`all(self.[field] ==
+  other.[field])`) is recommended, unruled.
