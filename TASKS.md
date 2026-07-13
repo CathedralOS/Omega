@@ -76,10 +76,18 @@ dispatch-region + receiver-phase family. Everything queued here avoids both.
    resolve_runtime_storage_is_signed_in_table but LATENT — traced: every
    literal reaching selection carries landing=None because substituted
    locals flow through RuntimeStaticValues (PlaceKey → bare i64), the
-   THIRD strip point. Next rung = the static table carries the landing
-   (store the stamped literal or (i64, landing); stamp at record time
-   from the write's VALUE EXPRESSION, re-stamp on substitution).
-   Acceptance test pinned:
+   THIRD strip point. Next rung = the static table carries the landing:
+   change RuntimeStaticValues' tuples to (PlaceKey, IntegerLiteral) —
+   get() stays i64 (value_i64) so consumers are untouched, get_literal()
+   is the new window; set_runtime_static_value[_in_table] keep i64
+   signatures wrapping from_value, plus _literal variants for record
+   sites holding the stamped VALUE EXPRESSION. ⚠️ OPEN TRACING QUESTION
+   first (find before coding): the unstamped `-1` in the probe's arg
+   tree — the tree the signedness probe sees is NOT the
+   state-values-stamped one, so trace where selection's alias/scratch
+   machinery builds it (the builtin-call arm probes `&*call.arguments`
+   of a BOX tree; find its producer, then decide stamp-at-record vs
+   stamp-at-substitution). Acceptance test pinned:
    pending/arithmetic/unsigned_min_max_operand_position_divergence
    (operand-position max has no write target; native 78 vs interp 77).
    CR4 — parse-site stamping (`0u32` suffixes re-thread as landings;
