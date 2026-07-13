@@ -1,0 +1,52 @@
+// RUN CANARY (exit 70) + interpreter differential -- the runtime twin of
+// storage/requires_slice_indexed_alias_field_binary_compile. A binary RMW
+// through a slice-descriptor alias with a runtime index
+// (`exits[index].count = exits[index].count + 1`) lowers to
+// WriteRuntimeFrameIndexedBinary, whose x86_64 encoding landed 2026-07-18
+// (it was aarch64-only from birth -- the compile canary refused with the
+// zero-layout-width error on this host). The left operand is itself a
+// frame-fixed-indexed READ, so the operand-relocation offsets are
+// exercised too. exit 71 = the RMW missed the element (stale 30).
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Exit {
+    count: i32;
+}
+
+data Room {
+    exits: [Exit; 4];
+}
+
+data Main {
+    console: Console;
+}
+
+machine Main::main(&mut self) {
+    let room: Room = Room {
+        exits: [
+            Exit { count: 10 },
+            Exit { count: 20 },
+            Exit { count: 30 },
+            Exit { count: 40 }
+        ]
+    };
+    let exits: &mut [Exit] = room.exits.as_mut_slice();
+    let index: u64 = 2;
+
+    exits[index].count = exits[index].count + 1;
+
+    transition room.exits[2].count == 31 {
+        true -> good()
+        false -> bad()
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

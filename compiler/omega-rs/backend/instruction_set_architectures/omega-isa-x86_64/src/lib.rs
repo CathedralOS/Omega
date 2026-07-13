@@ -7595,6 +7595,81 @@ pub fn runtime_frame_base_indexed_binary_left_operand_offset() -> usize {
     27
 }
 
+/// Length of the address-computation prefix that precedes the value operands
+/// in a frame-INDEXED (slice-descriptor) binary write -- the same prefix the
+/// frame-indexed element COPY uses: `mov r14,imm64(frame)` (10) +
+/// `mov r11d,[r14+idx]` (7) + `imul r11,r11,elem` (7) + `mov r14,[r14+desc]`
+/// (7) + `add r14,r11` (3). The element address ends in r14, which operand
+/// evaluation never clobbers.
+pub fn runtime_frame_indexed_binary_left_operand_offset() -> usize {
+    34
+}
+
+pub fn runtime_frame_indexed_binary_write_width(
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    byte_size: usize,
+    left: RuntimeValueOperandHandle,
+    operator: StateGuardOperator,
+    right: RuntimeValueOperandHandle,
+) -> usize {
+    runtime_frame_indexed_binary_left_operand_offset()
+        + runtime_value_operand_width(runtime_value_operands, left)
+        + 2 // push r10
+        + runtime_value_operand_width(runtime_value_operands, right)
+        + 3 // mov r11, r10
+        + 2 // pop r10
+        + runtime_binary_operation_width(operator, byte_size)
+        + 7.max(store_width(byte_size))
+}
+
+/// `slice[i] = left OP right` through a frame-resident slice DESCRIPTOR with a
+/// runtime index: deref the descriptor's data pointer, scale the index, and
+/// run the same operand/binary/store tail as the frame-base-indexed binary
+/// write (the inline-array twin above).
+#[allow(clippy::too_many_arguments)]
+pub fn encode_runtime_frame_indexed_binary_write(
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    descriptor_offset: usize,
+    index_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    byte_size: usize,
+    left: RuntimeValueOperandHandle,
+    operator: StateGuardOperator,
+    right: RuntimeValueOperandHandle,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::with_capacity(runtime_frame_indexed_binary_write_width(
+        runtime_value_operands,
+        byte_size,
+        left,
+        operator,
+        right,
+    ));
+    // r14 = *(frame[descriptor]) + index*element (target address held across
+    // operand evaluation, which freely clobbers r15/r10/r11 but never r14).
+    append_mov_r14_imm64(&mut bytes, 0); // imm64 at +2 relocated to the frame symbol
+    append_load_r11_from_r14(&mut bytes, index_offset)?; // r11 = index (32-bit ZX)
+    append_imul_r11_imm32(&mut bytes, element_scale(element_byte_size)?);
+    bytes.extend([0x4d, 0x8b, 0xb6]); // mov r14, [r14+desc] -- the slice data ptr
+    bytes.extend(disp32(descriptor_offset)?.to_le_bytes());
+    append_add_r14_r11(&mut bytes); // r14 = ptr + index*elem
+    debug_assert_eq!(bytes.len(), runtime_frame_indexed_binary_left_operand_offset());
+    // Stash the left result across the right operand's evaluation (both
+    // accumulate in r10); r14 survives.
+    append_runtime_value_operand(runtime_value_operands, &mut bytes, Reg64::R10, left)?;
+    append_push_r10(&mut bytes);
+    append_runtime_value_operand(runtime_value_operands, &mut bytes, Reg64::R10, right)?;
+    append_mov_reg_reg(&mut bytes, Reg64::R11, Reg64::R10); // right -> r11
+    append_pop_r10(&mut bytes); // restore left -> r10
+    append_runtime_binary_operation(
+        &mut bytes,
+        operator,
+        runtime_binary_operation_byte_size(runtime_value_operands, operator, left, right, byte_size),
+    )?;
+    append_store_r10_to_r14(&mut bytes, field_byte_offset, byte_size)?;
+    Ok(bytes)
+}
+
 pub fn runtime_frame_base_indexed_binary_write_width(
     runtime_value_operands: &impl RuntimeValueOperandSource,
     byte_size: usize,

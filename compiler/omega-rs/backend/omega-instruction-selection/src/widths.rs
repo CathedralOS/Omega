@@ -1013,7 +1013,33 @@ pub fn runtime_frame_indexed_binary_write_width(
             operator,
             right,
         ),
-        Architecture::X86_64 => 0,
+        Architecture::X86_64 => x86_64::runtime_frame_indexed_binary_write_width(
+            runtime_value_operands,
+            byte_size,
+            left,
+            operator,
+            right,
+        ),
+    }
+}
+
+/// Where a frame-INDEXED (slice-descriptor) binary write's LEFT operand
+/// starts, relative to the instruction start -- the relocation walker pins
+/// operand relocations here. The aarch64 encoder's operand block starts where
+/// the frame-indexed INTEGER write's value would go (its historical
+/// derivation); the x86_64 encoder has a fixed address-computation prefix.
+pub fn runtime_frame_indexed_binary_left_operand_offset(
+    architecture: Architecture,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 => aarch64::runtime_frame_indexed_integer_write_width(
+            element_byte_size,
+            field_byte_offset,
+            0,
+        ),
+        Architecture::X86_64 => x86_64::runtime_frame_indexed_binary_left_operand_offset(),
     }
 }
 
