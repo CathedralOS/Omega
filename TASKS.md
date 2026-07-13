@@ -881,18 +881,32 @@ rejects — an INTEGER ruling, engineering rides this ladder as F8).
 
 ## Open bugs / gaps (ungated)
 
-- **⚠️⚠️ PASS-CANARY REGRESSION on main (found 2026-07-18 running the
-  pass_canaries_compile gate; NOT mine -- confirmed):
-  `storage/requires_slice_indexed_alias_field_binary_compile` fails to
-  compile** -- "WriteRuntimeFrameIndexedBinary ... has no native lowering
-  for this target (its layout width is zero); refusing to emit." Zero
-  float/domain content (not the F1 change); the last instruction-selection
-  change was `7640a6f7a` (M2/M3 "wide-referee recast pointers"), which
-  is the smoking gun -- a tracked ACTIVE pass canary went red under it and
-  the gate was not re-run. A working capability broke: the slice-indexed
-  alias field binary write now produces a zero-width instruction. This is
-  the op-enum-face disease manifesting as a regression (Place algebra,
-  Phase 6). FOR THE M2/M3 LANE -- their selection files, mid-RECAST.
+- **⚠️⚠️ HOST-DIVERGENT COVERAGE — the seven "regressions" are standing
+  x86_64-WINDOWS gaps, OURS to fix (owner directive 2026-07-18; bisected
+  same day, correcting this file's earlier attributions):** none of the
+  red canaries regressed in the recent window. Bisected on this host:
+  `runtime_f32_field_guard_exit`, `runtime_scalar_pun_shared_let_exit`,
+  and `runtime_newton_sqrt_exit` are RED AT THEIR OWN BIRTH commit
+  (`9e3875802`, the "recast native READ lands / float conjuncts fixed
+  program-wide" commit — green only on its author's aarch64-darwin
+  host); `storage/requires_slice_indexed_alias_field_binary_compile`
+  (zero-layout-width WriteRuntimeFrameIndexedBinary) and
+  `filesystem/discarded_self_call_literal_errno_exit` (host-arg
+  refusal) are red at `8d0b33b8e`, the previously-assumed-green floor.
+  `7640a6f7a` is EXONERATED — the earlier "smoking gun" flag here was
+  attribution-by-proximity, not bisection. The authoring lane gates on
+  aarch64-darwin where all seven pass; this host exposes real standing
+  gaps. THE LIST (all ours now, fix forward on HEAD):
+  (1) arithmetic/runtime_f32_field_guard_exit native 71 — f32 guard
+  compare width; (2) arithmetic/runtime_newton_sqrt_exit 71 — float
+  div/compare loop; (3) recast/runtime_scalar_pun_shared_let_exit 71 —
+  §5b scalar-pun reads; (4) calls/runtime_std_math_sin_cos_exit 72;
+  (5) calls/runtime_value_call_terminal_exit 74 — hoisted terminal-call
+  delivery; (6) the storage zero-width slice-indexed alias binary write
+  (compile refusal, x86_64 layout width resolution); (7) the windows fs
+  host-arg materialization family (fs canary + samples note_vault mkdir
+  refusal + file_journal exit 3). Gates on THIS host stay red until
+  these land; each fix should flip its canary and shrink the ledger.
 
 - **⚠️ `pending_runtime_divergences_hold` is RED on main (two drifts, both
   pre-existing / not-mine, flagged 2026-07-18):** (a)
@@ -910,26 +924,11 @@ rejects — an INTEGER ruling, engineering rides this ladder as F8).
   work, deferred with the ownership-enforcement subsystem). Renumbering
   either would mask; left for the owning lanes.
 
-- **⚠️⚠️ CONFIRMED ON MAIN (escalated 2026-07-18; was a WIP heads-up):
-  the five float/math pass-canary failures SURVIVED onto committed
-  main.** The differential gate at `e8ef7f1e0`+CM2 fails
-  `interpreter_matches_native_on_supported_canaries` with exactly the
-  five predicted natives (newton_sqrt 71, scalar_pun_shared_let 71,
-  std_math_sin_cos 72, value_call_terminal 74, f32_field_guard 71 — all
-  expect 70); f32_field_guard verified diverging on a CLEAN stash of
-  `e8ef7f1e0` (not the CM2 change; zero float content there). The
-  original WIP sighting named three float-path backend files
-  (storage_places.rs, simplify/bindings.rs, state-storage/collection.rs);
-  bisect from 8d0b33b8e. Until fixed, the differential suite is RED on
-  main (760 others match). ALSO CONFIRMED on a clean stash:
-  `filesystem/discarded_self_call_literal_errno_exit` refuses to compile
-  ("Filesystem.open ... host-call argument must be a simple value") —
-  the same host-arg disease shape as the sighting's note_vault refusal,
-  now a canary_suite RED (845 others pass). samples_compile re-checked
-  on committed main: file_journal exit 3 (expected 7; stash-verified
-  pre-existing) and the note_vault mkdir refusal are CONFIRMED — the
-  samples gate is RED too (142/143 compile); descriptor_walk recovered.
-  FOR THE OWNING (float/M2-M3) LANE.
+  (The earlier "CONFIRMED ON MAIN / five float failures survived onto
+  committed main / bisect from 8d0b33b8e" block that lived here was
+  SUPERSEDED by the host-divergence finding above — the five were never
+  green on this host, and 8d0b33b8e was not a green floor. Kept as one
+  line so the correction has a paper trail.)
 
 - **texteq arm-locals ZII for non-terminal consumers** — root-caused
   2026-07-17, analysis pre-paid in the pin headers
