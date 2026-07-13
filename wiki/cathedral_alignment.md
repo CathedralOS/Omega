@@ -216,12 +216,11 @@ VALIDATED (the ch18 await-amendment + atomics serve these docs):
 CRITICAL-PATH SHARPENING:
 - The IPC `many_to_one` mailbox REQUIRES atomic claim-a-slot (`fetch_add`
   index bump + `compare_exchange` claim + a per-slot publish release-store).
-  So the stage-1 atomic RMW ops being non-atomic DESUGARS (fetch_add,
-  compare_exchange — see TASKS / review §1b) makes the MPSC mailbox UNSOUND,
-  not just theoretically racy. The "make RMW ops real LOCK instructions"
-  task gates IPC; it is not optional polish. (load/store are fine — plain
-  aligned mov is atomic on x86; the producer's release-store on the index is
-  covered.)
+  The RMW ops lower to real LOCK instructions on x86 (`lock xadd` /
+  `lock cmpxchg`, width-dispatched 1/2/4/8; pinned by the
+  runtime_atomic_fetch_add / compare_exchange / load_store canaries), so the
+  mailbox's claim protocol is encodable today. load/store are plain aligned
+  movs — atomic on x86; the producer's release-store on the index is covered.
 
 NEW GAPS these docs surface (design TBDs, no clear implementation action yet):
 - **Wake-reason sum.** Park must return `Signaled | PeerDied | Revoked |
