@@ -677,6 +677,7 @@ pub(in crate::selection::runtime_dispatch) fn signedness_adjusted_operator_for_t
 }
 
 #[allow(clippy::too_many_arguments)]
+#[allow(clippy::too_many_arguments)]
 pub(in crate::selection::runtime_dispatch) fn select_runtime_storage_binary_write_in_table(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
@@ -689,6 +690,12 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_storage_binary_writ
     value: ExpressionHandle,
     static_values: &RuntimeStaticValues,
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
+    // The write TARGET's primitive, used ONLY as the signedness fallback of
+    // last resort when NEITHER operand resolves to a typed place (every
+    // operand folded to a typeless constant -- the erased-const-local shape).
+    // Validation guarantees the value lands at the target's declared type,
+    // so the target's signedness IS the operands' when nothing else survives.
+    target_primitive: Option<omega_checked_trees::types::PrimitiveType>,
 ) -> Option<SelectedInstructionKind> {
     if std::env::var_os("OMEGA_DEBUG_RECEIVER").is_some() {
         eprintln!(
@@ -726,16 +733,32 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_storage_binary_writ
         };
 
     // Same signedness policy as the targeted-mutation path above; this entry has
-    // no target EXPRESSION (the place is pre-resolved), so probe the operands.
-    let operator = signedness_adjusted_operator_for_operands(
+    // no target EXPRESSION (the place is pre-resolved), so probe the operands,
+    // falling back to the caller-supplied TARGET primitive when neither operand
+    // resolves (the sign-sensitive `>> / %` on fully-folded constants used to
+    // default SIGNED here -- the const-fold sign class's arg-delivery face).
+    let operand_signed = resolve_runtime_storage_is_signed_in_table(
         input,
         dispatch_index,
         source_key,
         expressions,
         left_expression,
-        right_expression,
-        operator,
-    );
+    )
+    .or_else(|| {
+        resolve_runtime_storage_is_signed_in_table(
+            input,
+            dispatch_index,
+            source_key,
+            expressions,
+            right_expression,
+        )
+    });
+    let resolved_signed =
+        operand_signed.or_else(|| target_primitive.map(|primitive| primitive.is_signed_integer()));
+    let operator = match (unsigned_operator_form(operator), resolved_signed) {
+        (Some(unsigned), Some(false)) => unsigned,
+        _ => operator,
+    };
 
     let left = resolve_runtime_comparison_operand_in_table(
         input,
@@ -811,23 +834,7 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_storage_binary_writ
         left_expression,
         right_expression,
     );
-    let target_signed = resolve_runtime_storage_is_signed_in_table(
-        input,
-        dispatch_index,
-        source_key,
-        expressions,
-        left_expression,
-    )
-    .or_else(|| {
-        resolve_runtime_storage_is_signed_in_table(
-            input,
-            dispatch_index,
-            source_key,
-            expressions,
-            right_expression,
-        )
-    })
-    .unwrap_or(false);
+    let target_signed = resolved_signed.unwrap_or(false);
     Some(SelectedInstructionKind::WriteRuntimeStorageBinary {
         target_region,
         target_offset,

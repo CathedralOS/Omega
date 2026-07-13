@@ -67,19 +67,23 @@ dispatch-region + receiver-phase family. Everything queued here avoids both.
    (`>>` `/` `%` + comparisons) are now correct at the landed type; the
    local-initializer role mislabel (CallArgument → AssignmentValue,
    runtime_dispatch.rs) was the wiring fix that lets the landing apply.
-   ⚠️ Both pending const_fold repros STILL DIVERGE via a SECOND face —
-   selection's transition-arg materialization substitutes a slot-backed
-   local's initializer tree and lowers it as a TYPELESS nested runtime
-   binary (`(0 Subtract/8 2) ShiftRight 1`) whose shift defaults signed;
-   the type truth lives only in the write TARGET (the callee param). Fix
-   directions in the shift repro's header: slot-COPY the arg (the
-   CopyRuntimeStorage arm fires if the arg stays `Name(y)`; needs
-   alias-layer + storage-slotting twins to agree) or resolve the write's
-   signedness from its TARGET. Selection files — RECAST-lane
-   coordination. Remaining CM2 scope: the metadata-carrying CARRIER
-   itself (u64-at-width-64 representatives can't ride i64 — the min/max
-   pending repro needs the domain ON the operand), the guard-folder f32
-   residue.
+   SECOND FACE ALSO CLOSED same day — selection's transition-arg
+   materialization lowers a slot-backed local's substituted initializer
+   as a TYPELESS nested runtime binary whose `>>`/`/`/`%` defaulted
+   signed; select_runtime_storage_binary_write_in_table now takes the
+   write TARGET's primitive as the signedness fallback of last resort
+   (validation guarantees the value lands at the target's type; the
+   frame-slot funnel derives it from the slot). Both former pending
+   repros PROMOTED to pass canaries
+   (arithmetic/const_fold_unsigned_{shift_right,divide}_arg_exit; the
+   divide one grew the modulo third face). The whole const-fold SIGN
+   class is closed end to end. Remaining CM2 scope: the
+   metadata-carrying CARRIER itself (u64-at-width-64 representatives
+   can't ride i64 — the min/max pending repro needs the domain ON the
+   operand for min/max selection), the guard-folder f32 residue. A
+   possible cheaper slot-COPY design for arg delivery (skip re-derivation
+   when the local is slot-backed) stays noted in the promoted canaries'
+   history but is superseded for correctness purposes.
    CM3 — fold-at-landed-type everywhere: folder + guard folder + interp
    parity; differential legs per width/signedness/domain/format.
 6. **Place algebra, Copy* pilot (FRONT-LOADED by owner 2026-07-18;

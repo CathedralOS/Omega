@@ -1,0 +1,47 @@
+// PASS canary (BOTH faces closed 2026-07-18; was pending/arithmetic/
+// const_fold_unsigned_divide_miscompile, probe 2026-07-04). Pins unsigned
+// DIVISION and MODULO -- the other two sign-sensitive ops -- through the
+// TRANSITION-ARG delivery path, same two-face split as
+// const_fold_unsigned_shift_right_arg_exit (READ ITS HEADER).
+//
+// b = 0xFFFFFFFE (4294967294). u32: b / 3 = 1431655764, b % 3 = 2. The
+// signed misfolds were `-2 / 3` = 0 and `-2 % 3` = -2 (0xFFFFFFFE). Both
+// values ride transition args (y, m) through report -> report_mod, so the
+// typeless-operand writes must take the target-primitive signedness
+// fallback on BOTH the divide and the modulo.
+//
+// exit 71 = a signed `idiv` fold or delivery regressed.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+}
+
+machine Main::main(&mut self) {
+    let a: u32 in Wrapping = 0;
+    let b: u32 in Wrapping = a - 2;   // u32 4294967294
+    let y: u32 in Wrapping = b / 3;   // unsigned -> 1431655764
+    let m: u32 in Wrapping = b % 3;   // unsigned -> 2
+
+    transition y == 1431655764 {
+        _ -> report(y, m)
+    }
+
+    state report(&mut self, y: u32 in Wrapping, m: u32 in Wrapping) {
+        transition y == 1431655764 {
+            true  -> report_mod(m)
+            false -> bad()
+        }
+    }
+    state report_mod(&mut self, m: u32 in Wrapping) {
+        transition m == 2 {
+            true  -> good()
+            false -> bad()
+        }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self)  { self.console.exit_process(71); }
+}
