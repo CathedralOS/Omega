@@ -929,13 +929,25 @@ rejects — an INTEGER ruling, engineering rides this ladder as F8).
   (pointer word at +0; LEA past the len word for bounded buffers);
   win64_import_arg_is_staged carries the width + relocation sites. The
   fs canary flips green 70/70 and note_vault's mkdir refusal clears.
-  RESIDUE, precisely attributed to the QUEUED Windows platform session
-  (NOT bugs): note_vault still refuses on `FilesystemHost.read_dir` /
-  `unlink_at` — no Win32 rows exist for them yet (the checklist item
-  "Win32 rows for the no-msvcrt fs ops"); file_journal exits 3
-  (expected 7) — the runtime face of the same missing-rows family.
-  samples_compile stays red on exactly those two until the Windows
-  session lands.
+  file_journal FIXED same day — its exit 3 was NOT missing rows: the
+  sample drove the raw seam POSIX-naively (raw `create`/`open(flags 0)`
+  = msvcrt TEXT MODE; `\n`→`\r\n` on write made the read-back short by
+  one). The sample now composes `O_BINARY` exactly like the std wrapper
+  (`open_create(path, composed_flags_field, 438)` + `open(path,
+  O_BINARY)`; identical on posix where O_BINARY is 0) — exits 7 on
+  windows.
+  THE ONE REMAINING samples red = note_vault, and it is now
+  ⚠️ DESIGN-GATED, not a row-typing chore: `read_dir`, `open_at`, and
+  `unlink_at` have no Win32 mapping because Windows has NO dirfd — the
+  darwin shape is fd-relative (`getdirentries64(fd, buf, count, &pos)`,
+  `openat(dirfd, name)`) while Win32 enumeration is HANDLE-paradigm
+  (FindFirstFile/FindNextFile on a PATH, no fd-relative opens). Mapping
+  needs a seam-shape ruling: dirfd emulation (a per-process handle→path
+  table at the seam), path-reconstruction remap (the seam rebuilds full
+  paths, changing the wrapper's recursion contract), or a windows-only
+  provides machine that reimplements read_dir_all over FindFirstFile.
+  The "OS quirks remap at the seam" principle covers VALUES, not this
+  PARADIGM split — surface to owner with a short brief before building.
 
 - **`pending_runtime_divergences_hold` — GREENED 2026-07-18 (ledger
   host-corrected):** (a) `float_to_int_overflow_divergence` now documents
