@@ -847,6 +847,19 @@ rejects — an INTEGER ruling, engineering rides this ladder as F8).
 
 ## Open bugs / gaps (ungated)
 
+- **⚠️⚠️ PASS-CANARY REGRESSION on main (found 2026-07-18 running the
+  pass_canaries_compile gate; NOT mine -- confirmed):
+  `storage/requires_slice_indexed_alias_field_binary_compile` fails to
+  compile** -- "WriteRuntimeFrameIndexedBinary ... has no native lowering
+  for this target (its layout width is zero); refusing to emit." Zero
+  float/domain content (not the F1 change); the last instruction-selection
+  change was `7640a6f7a` (M2/M3 "wide-referee recast pointers"), which
+  is the smoking gun -- a tracked ACTIVE pass canary went red under it and
+  the gate was not re-run. A working capability broke: the slice-indexed
+  alias field binary write now produces a zero-width instruction. This is
+  the op-enum-face disease manifesting as a regression (Place algebra,
+  Phase 6). FOR THE M2/M3 LANE -- their selection files, mid-RECAST.
+
 - **⚠️ `pending_runtime_divergences_hold` is RED on main (two drifts, both
   pre-existing / not-mine, flagged 2026-07-18):** (a)
   `arithmetic/float_to_int_overflow_divergence` documents native 99 (the
