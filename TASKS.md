@@ -837,6 +837,22 @@ rejects — an INTEGER ruling, engineering rides this ladder as F8).
 
 ## Open bugs / gaps (ungated)
 
+- **⚠️ `pending_runtime_divergences_hold` is RED on main (two drifts, both
+  pre-existing / not-mine, flagged 2026-07-18):** (a)
+  `arithmetic/float_to_int_overflow_divergence` documents native 99 (the
+  AARCH64 probe number) but the test runs native on the host — on x86 the
+  documented-correct native is 70 (the header records both). Host-naive
+  pending entry, not a regression; the real fix RETIRES the entry entirely
+  = float ladder F4 (float→int cast proof-or-policy, ANSWERED, unbuilt;
+  codegen, RECAST-collision). (b)
+  `arithmetic/immutable_arg_for_mut_param_not_checked` drifted native
+  -1 → segfault -1073741819: the miscompiled program (an immutable arg to
+  a `&mut` param, an unenforced borrow rule) now crashes differently. The
+  gap is DESIGN-BLOCKED per its own header — owner fence-vs-implement call,
+  and the sound fix needs semantic mutability tracking (borrow-checker
+  work, deferred with the ownership-enforcement subsystem). Renumbering
+  either would mask; left for the owning lanes.
+
 - **⚠️ HEADS-UP for the float lane (2026-07-18, corrected same hour):**
   running the full gates for the dutch_flag canary, the SHARED working
   tree carried uncommitted edits to three float-path backend files
