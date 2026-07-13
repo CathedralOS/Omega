@@ -147,6 +147,22 @@ evaluation entry point + error reporting), resolved→typed lowering
   "this body read every member" is a fact about CODE, and requiring it
   would need per-field read-effect tracking — the same boundary that
   killed rewrite-registration-as-magic and macros.
+- **Binding semantics addendum (owner-reviewed, same arc):** a destructure
+  is pure SUGAR for field lets — `let Player { health, gold as g } = self;`
+  is exactly `let health = self.health; let g = self.gold;` — and therefore
+  inherits the landed let semantics wholesale: **snapshot** (the
+  let-capture fix exists because folding across an intervening write was a
+  miscompile; copy-vs-view is OBSERVABLE under mutation, not an
+  optimization question). For scalars the "copy" is the load the body was
+  about to do anyway; the backend folds it when nothing intervenes and
+  materializes it exactly when the snapshot is load-bearing. Consequences:
+  NO reference-patterns or binding modes, ever (Rust's match-ergonomics
+  axis — their multi-year confusion generator — never opens; also
+  `&self as Player` cannot mean pattern matching, `as` in expression
+  position is the recast). Big fields cannot be silently copied: v1 binds
+  [copy]-eligible fields only (exactly Equatable's prerequisite list);
+  anything larger is waived (`as _`) or borrowed explicitly by hand
+  (`let items: &[Color; 3] = &self.items;` — landed spelling).
 - **Still open (the one undecided item):** the unroll spelling for
   generator bodies — the combiner form (`all(self.[field] ==
   other.[field])`) is recommended, unruled.

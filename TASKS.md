@@ -941,7 +941,17 @@ rejects — an INTEGER ruling, engineering rides this ladder as F8).
 
 MVP backend (fixed-register, mem-to-mem, no regalloc/SSA/SIMD) is slow for
 real-time per-pixel work; fine for demos. The "serious backend" layer waits.
-Today's bar is provably correct native output. Also queued: strengthening
+Today's bar is provably correct native output.
+
+- **Place algebra (owner-accepted diagnosis 2026-07-18; record:
+  wiki/architecture/codegen_representation_cleanup.md Phase 6):** the
+  ~100-variant op enum is a Cartesian product of operation x addressing x
+  value-category; the factoring is first-class Place (base + composable
+  ConstOffset/ScaledIndex path) + one per-target materializer + a ~15-op
+  set with category on the operand + legalization (the hoists, promoted
+  to principle). Retire the Copy* family first behind the differential
+  oracle. SEQUENCED AFTER first-boot/M2 stabilizes (main lane is
+  mid-RECAST in these exact files). Also queued: strengthening
 assigned-target allocation toward real register/stack assignment; reducing
 host/runtime special-case lowering; replacing the Windows GUI sample shortcut
 with a real app-window story.

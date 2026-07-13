@@ -245,6 +245,85 @@ Beyond type-dedup; these are correctness/representation rewrites.
   case still rests on self-looping callees and separate compilation, not on
   observed frame corruption.
 
+### Phase 6 — Place algebra: addressing modes become operands, not opcodes (Phase 5 axis)
+
+DIAGNOSIS (owner-accepted 2026-07-18; verified against the enum: ~100
+variants, 52 in the Copy/Write family alone). The abstract operation kinds
+are Cartesian coordinates — `CopyRuntimeFrameIndexedToRuntimePointee`,
+`WriteRuntimeMachineIndexedAddressToRuntimeFrame`, the
+`AppendRuntimeTextStoredPlace x {plain, ToRuntimePointee,
+ToRuntimeFrameIndexed}` text crossing — each a point in the product
+operation x source-addressing x dest-addressing x value-category, and each
+point needs its own arm in selection, encoding, layout, blockers,
+relocations, the backend report, and the abstract->target conversion (a
+single Copy variant touches ~15 files). This is why capabilities land as
+matrices ("works in read position but not RMW", "machine-indexed but not
+frame-indexed"), why the leaf-path-write-cascade parallel-arm discipline
+exists, and why the memory index catalogs bug families by FACES. The
+language's place grammar is re-enumerated at every face of every
+operation. The combinatorics is a factoring choice, not a law of
+compilers.
+
+THE FACTORING (every production backend converged here — LLVM
+getelementptr + load/store, Cranelift amode computation, GCC address
+expressions):
+
+- A first-class **Place** = base region + a path of composable steps:
+  ConstOffset(n) and ScaledIndex(operand, element_size), recursive. A
+  nested member of an indexed element of a pointee = a path of three
+  steps, not a new opcode.
+- **One materializer per target** turning a Place into an address, folding
+  trailing const offsets into ISA addressing modes where legal.
+- A **tiny op set** (~15-20: Load, Store, Copy, BinOp, Compare, Branch,
+  Call...) whose operands are Places/temps; value category (width, float,
+  descriptor, text buffer) rides ON the operand, never in the opcode name.
+- **Legalization**: shapes a target cannot address directly get rewritten
+  in the IR into temp-hoisted sequences — the computed-index auto-hoist
+  and the frontend guard-subject hoist promoted from per-bug fixes to the
+  architectural principle. "Unsupported = legalization refuses loudly"
+  preserves the fence discipline exactly.
+
+Payoff: a new place shape (third nesting level, local 2D, a new width) is
+one path composition and every position — guard, RMW, write source,
+transition arg — gets it for free. Same root as the const-folder disease
+(metadata-free `Expression::Integer(i64)`): facts (type, domain, place)
+ride on VALUES through the pipeline instead of being re-encoded
+structurally at each layer — one fix-principle, two diseases.
+
+THE HONEST FLOOR: instruction selection at the very bottom stays
+pattern-matchy (x86 addressing-mode folding, width/signedness, aarch64
+immediate ranges and branch distances), and calling conventions stay
+per-target — but that layer is bounded by the ISA (a few dozen patterns,
+once per target), not by the language surface. Today the product is paid
+at every layer above it too.
+
+WHY THE REPO WAS RIGHT ANYWAY (the bootstrap trade): each current variant
+is a self-contained fully-known byte sequence with hand-managed scratch —
+no regalloc, trivially differential-testable, and "unsupported = missing
+variant = clean blocker" is what made the fence discipline work. The
+algebra's mirror cost: one materializer becomes load-bearing for
+everything, and composed Load/Op/Store sequences force a minimal
+scratch-register discipline. The trade: a product space of shallow retail
+bugs (never finishable) for one deep routine (exhaustively testable).
+
+MIGRATION (each rung keeps the suite green, own commit):
+- [ ] Retire the **Copy\* family first** (pure data movement; most
+  variants, most parallel-arm duplication): introduce Place + the
+  per-target materializer, route Copy through it behind the existing
+  differential oracle; the canary corpus is the safety net that makes
+  this survivable.
+- [ ] Write/RMW family next (the leaf-cascade duplication dies with it).
+- [ ] Text family; then guards/operand positions consume Places.
+- [ ] Op-set shrink + value-category-on-operand; delete the retired
+  variants and their 15-file echoes.
+
+SEQUENCING (owner call, recorded lean): after first-boot/M2 stabilizes —
+the main lane is mid-RECAST in exactly these selection files; a
+foundational IR refactor underneath the highest-leverage milestone is the
+wrong overlap. The Copy\* pilot is the natural first post-boot rung, and
+it composes with (does not replace) Phases 3-4: shared vocabulary and the
+resolver funnel shrink the surface the Place refactor must touch.
+
 ## Done-when
 
 - No value-operand / operation-kind type is declared more than once.
