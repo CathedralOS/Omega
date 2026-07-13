@@ -1005,13 +1005,22 @@ with a real app-window story.
   mnemonics, register constraints, clobbers, `asm where` contracts pending.
 - **Transition data-patterns:** guard-lowering only; real pattern binding,
   multi-subject validation, domain-pattern proofs, diagnostics pending.
+  SPEC DIRECTION SETTLED (owner, 2026-07-18; record: build_time_evaluation
+  brief): grow record patterns into LET position — exhaustive by law
+  (every field bound or waived), `as` renames, `as _` waives, colon and
+  arrow rejected; arm-position record binding shares the grammar; v1 may
+  restrict bindings to [copy]-eligible fields. The canonical hand-written
+  equals opens with the exhaustive destructure (convention, unenforced).
 - **Const data parameters:** symbolic lengths flow structurally;
   instantiation-time substitution, validation, layout diagnostics, const-fact
   proof integration pending.
 - **Host providers:** rows parse + snapshot; registry validation, target
   whitelisting, syscall/import lowering, boundary report pending.
-- **Trait defaults (`default machine`):** marker + body parse; conformance,
-  reuse, override rules, dispatch pending.
+- **Trait defaults — `default` KEYWORD KILLED (owner, 2026-07-18):** a
+  trait machine with a body IS the default (body presence = the marker;
+  record: build_time_evaluation brief). Engineering: drop the keyword
+  from the parser, sweep ch14's spellings; conformance/reuse/override
+  rules, dispatch pending as before.
 - **Dynamic traits (`dyn Trait`):** structural + fat descriptor; construction,
   vtable emission, dispatch lowering, object-safety validation pending.
   NOTE from the proofs arc: dyn descriptors must carry satisfier identity
