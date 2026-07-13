@@ -17,6 +17,48 @@
 
 use std::sync::{Arc, OnceLock};
 
+/// The integer type a constant LANDED at (ch5 "Constants: Two Phases" — the
+/// two-phase law's phase-B fact, riding the literal payload so every clone,
+/// splice, and table↔tree conversion carries it). Foundation-layer mirror of
+/// the representations' integer `PrimitiveType` subset; the stamping sites map
+/// between them.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LandedIntegerType {
+    I8,
+    I16,
+    I32,
+    I64,
+    U8,
+    U16,
+    U32,
+    U64,
+    /// Pointer-width address (rides the 8-byte unsigned path).
+    Addr,
+}
+
+impl LandedIntegerType {
+    pub fn bit_width(self) -> u32 {
+        match self {
+            Self::I8 | Self::U8 => 8,
+            Self::I16 | Self::U16 => 16,
+            Self::I32 | Self::U32 => 32,
+            Self::I64 | Self::U64 | Self::Addr => 64,
+        }
+    }
+
+    pub fn is_signed(self) -> bool {
+        matches!(self, Self::I8 | Self::I16 | Self::I32 | Self::I64)
+    }
+}
+
+/// A landed constant's riding facts: the integer type it was rendered at and
+/// the arithmetic domain governing further folds (decision 17).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct IntegerLanding {
+    pub landed_type: LandedIntegerType,
+    pub domain: crate::arithmetic::ArithmeticDomain,
+}
+
 /// Radix of an integer literal's digits. Deliberately local to omega-core so
 /// the foundation layer does not depend on the token crate's `NumericBase`
 /// (the parser maps between them).
@@ -48,14 +90,31 @@ impl IntegerRadix {
     }
 }
 
-/// An integer literal carried anonymously: canonical spelling, no value.
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// An integer literal: a canonical spelling (the exact mathematical value,
+/// phase A of the two-phase law) plus, once landed, the landing riding along
+/// (phase B). EQUALITY IS TEXT-ONLY by design: the spelling is the constant's
+/// identity, the landing is metadata about how a SITE rendered it — two
+/// spellings of one value stay equal whatever they landed as, preserving
+/// every structural-equivalence consumer bit-for-bit. Consumers that need
+/// landing-sensitivity compare `landing()` explicitly.
+#[derive(Debug, Clone)]
 pub struct IntegerLiteral {
     /// Canonical form: `-`? (`0b`|`0o`|`0x`)? digits. Digits are lowercase,
     /// underscore-free, suffix-free, and carry no leading zeros (a lone `0`
     /// stays, and is never negative).
     text: Arc<str>,
+    /// `Some` once the constant has LANDED (ch5 two-phase law); `None` while
+    /// anonymous. Rides every clone/splice/table↔tree conversion.
+    landing: Option<IntegerLanding>,
 }
+
+impl PartialEq for IntegerLiteral {
+    fn eq(&self, other: &Self) -> bool {
+        self.text == other.text
+    }
+}
+
+impl Eq for IntegerLiteral {}
 
 impl IntegerLiteral {
     /// Build from parser-supplied parts. `digits` may contain underscores and
@@ -86,17 +145,19 @@ impl IntegerLiteral {
         let sign = if negative { "-" } else { "" };
         Ok(Self {
             text: Arc::from(format!("{sign}{}{digits}", radix.prefix())),
+            landing: None,
         })
     }
 
     /// A literal the COMPILER synthesizes (desugarings, defaults, generated
-    /// zeros). Canonical decimal spelling.
+    /// zeros). Canonical decimal spelling, anonymous.
     pub fn from_value(value: i64) -> Self {
         if value == 0 {
             return Self::zero();
         }
         Self {
             text: Arc::from(value.to_string()),
+            landing: None,
         }
     }
 
@@ -106,12 +167,29 @@ impl IntegerLiteral {
         static ZERO: OnceLock<Arc<str>> = OnceLock::new();
         Self {
             text: ZERO.get_or_init(|| Arc::from("0")).clone(),
+            landing: None,
         }
+    }
+
+    /// This literal LANDED at `landing` (ch5 two-phase law, phase B): the
+    /// first typed site renders the value once and the fact rides from then
+    /// on. Landing is idempotent-by-construction at the stamping sites; a
+    /// re-stamp simply records the newest site's rendering.
+    pub fn with_landing(&self, landing: IntegerLanding) -> Self {
+        Self {
+            text: self.text.clone(),
+            landing: Some(landing),
+        }
+    }
+
+    /// The landing this constant carries, if it has left the anonymous phase.
+    pub fn landing(&self) -> Option<IntegerLanding> {
+        self.landing
     }
 
     /// The literal with its sign flipped -- the parse-time negative fold
     /// (`-5` stays one constant), mirroring the Float fold that prepends `-`
-    /// to the source text. `0` has no sign.
+    /// to the source text. `0` has no sign. The landing rides.
     pub fn negated(&self) -> Self {
         let text: &str = &self.text;
         if text == "0" {
@@ -121,7 +199,10 @@ impl IntegerLiteral {
             Some(positive) => Arc::from(positive),
             None => Arc::from(format!("-{text}")),
         };
-        Self { text: flipped }
+        Self {
+            text: flipped,
+            landing: self.landing,
+        }
     }
 
     /// The value, IF it fits i64 -- the transitional status-quo accessor.
@@ -272,5 +353,25 @@ mod tests {
     fn invalid_digits_reject() {
         assert!(IntegerLiteral::from_parts(false, IntegerRadix::Binary, "102").is_err());
         assert!(IntegerLiteral::from_parts(false, IntegerRadix::Decimal, "___").is_err());
+    }
+
+    #[test]
+    fn landing_rides_clones_and_negation_but_not_equality() {
+        let landing = IntegerLanding {
+            landed_type: LandedIntegerType::U32,
+            domain: crate::arithmetic::ArithmeticDomain::Wrapping,
+        };
+        let anonymous = IntegerLiteral::from_value(5);
+        let landed = anonymous.with_landing(landing);
+        // Equality is TEXT-ONLY: spelling is identity, the landing is metadata.
+        assert_eq!(anonymous, landed);
+        assert_eq!(landed.landing(), Some(landing));
+        assert_eq!(landed.clone().landing(), Some(landing));
+        assert_eq!(landed.negated().landing(), Some(landing));
+        assert_eq!(landed.negated().value_i64(), Some(-5));
+        assert_eq!(anonymous.landing(), None);
+        assert!(!LandedIntegerType::U32.is_signed());
+        assert_eq!(LandedIntegerType::U32.bit_width(), 32);
+        assert!(LandedIntegerType::I8.is_signed());
     }
 }
