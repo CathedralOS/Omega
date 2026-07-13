@@ -71,7 +71,17 @@ dispatch-region + receiver-phase family. Everything queued here avoids both.
    CR3 — consumers read the landing FIRST: selection's
    classify/signedness resolvers, the u64>i64::MAX validation gate, the
    min/max operand signedness (gradually retiring the target-fallback
-   chain landed 2026-07-18, which stays as the backstop).
+   chain landed 2026-07-18, which stays as the backstop). FIRST SLICE
+   LANDED + DECOMPOSED same day: the landing-aware arm is IN
+   resolve_runtime_storage_is_signed_in_table but LATENT — traced: every
+   literal reaching selection carries landing=None because substituted
+   locals flow through RuntimeStaticValues (PlaceKey → bare i64), the
+   THIRD strip point. Next rung = the static table carries the landing
+   (store the stamped literal or (i64, landing); stamp at record time
+   from the write's VALUE EXPRESSION, re-stamp on substitution).
+   Acceptance test pinned:
+   pending/arithmetic/unsigned_min_max_operand_position_divergence
+   (operand-position max has no write target; native 78 vs interp 77).
    CR4 — parse-site stamping (`0u32` suffixes re-thread as landings;
    D14 strips them today) + float literals → exact Rat (F2 rides here).
    CM1 — anonymous carrier goes EXACT: unbounded integer + Rat constants
