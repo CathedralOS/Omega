@@ -941,6 +941,22 @@ pub enum AbstractOperationKind {
     /// CPU until the next interrupt. Only reachable in a freestanding boundary
     /// root (v0 discharge). See privileged_effects_and_binary_trust brief.
     MachineHalt,
+    /// The x86 `out dx, al` port write (`asm { out <port>, <value> }`),
+    /// emitting the `device_io` effect. `port` is a u16 operand, `value` a u8
+    /// operand (each an immediate or a storage read; storage operands relocate
+    /// like any runtime-value read).
+    PortWrite {
+        port: AbstractValueOperandHandle,
+        value: AbstractValueOperandHandle,
+    },
+    /// The x86 `in al, dx` port read (`asm { in <dest>, <port> }`), emitting
+    /// the `device_io` effect. `port` is a u16 operand; the byte result is
+    /// stored to the destination place (`dest_region`/`dest_byte_offset`).
+    PortRead {
+        port: AbstractValueOperandHandle,
+        dest_region: RuntimeStorageRegion,
+        dest_byte_offset: usize,
+    },
     LeaveFunction,
 }
 

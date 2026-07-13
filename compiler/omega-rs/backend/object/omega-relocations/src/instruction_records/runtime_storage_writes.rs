@@ -345,6 +345,42 @@ pub(super) fn collect_runtime_storage_write_relocations(
             collect_runtime_value_operand_relocations(context, right_offset, *right);
             true
         }
+        SelectedInstructionKind::PortWrite { port, value } => {
+            // `out dx, al`: the port operand load starts at the instruction
+            // start; the value operand load follows it plus the DX register
+            // move. Storage operands relocate; immediates are no-ops. There is
+            // no target storage region (the write goes to a hardware port).
+            let port_offset = context.selected_text_offset;
+            collect_runtime_value_operand_relocations(context, port_offset, *port);
+            let port_width = omega_instruction_selection::runtime_value_operand_width(
+                context.input.target.architecture,
+                context.input.assigned_target_operations,
+                *port,
+            );
+            let value_offset =
+                port_offset + port_width + omega_isa_x86_64::PORT_OPERAND_REGISTER_MOVE_WIDTH;
+            collect_runtime_value_operand_relocations(context, value_offset, *value);
+            true
+        }
+        SelectedInstructionKind::PortRead {
+            port, dest_region, ..
+        } => {
+            // `in al, dx`: the port operand load, then `in al, dx` (1 byte),
+            // then the destination store whose `mov r15,imm64` relocates to the
+            // destination storage region.
+            let port_offset = context.selected_text_offset;
+            collect_runtime_value_operand_relocations(context, port_offset, *port);
+            let port_width = omega_instruction_selection::runtime_value_operand_width(
+                context.input.target.architecture,
+                context.input.assigned_target_operations,
+                *port,
+            );
+            let dest_store_relative =
+                port_width + omega_isa_x86_64::PORT_OPERAND_REGISTER_MOVE_WIDTH + 1;
+            let dest_symbol = context.storage_region_symbol_handle(*dest_region);
+            context.insert_data_address_at_relative_offset(dest_store_relative, dest_symbol);
+            true
+        }
         _ => false,
     }
 }

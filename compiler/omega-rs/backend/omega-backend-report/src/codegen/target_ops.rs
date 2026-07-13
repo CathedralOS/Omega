@@ -1247,6 +1247,10 @@ fn selected_instruction_name(
             )
         }
         SelectedInstructionKind::MachineHalt => "machine halt (hlt)".to_owned(),
+        SelectedInstructionKind::PortWrite { .. } => "port write (out)".to_owned(),
+        SelectedInstructionKind::PortRead { dest_byte_offset, .. } => {
+            format!("port read (in) -> [{dest_byte_offset}]")
+        }
         SelectedInstructionKind::LeaveFunction => "leave function".to_owned(),
     }
 }

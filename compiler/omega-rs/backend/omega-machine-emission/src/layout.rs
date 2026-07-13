@@ -11,8 +11,8 @@ use omega_instruction_selection::{
     runtime_atomic_compare_exchange_width, runtime_atomic_fetch_add_width,
     runtime_byte_read_width, runtime_byte_write_width,
     dispatch_loop_enter_width, dispatch_state_write_width, function_enter_width,
-    host_call_sequence_width, machine_halt_width, vtable_call_sequence_width,
-    return_register_integer_write_width, return_width,
+    host_call_sequence_width, machine_halt_width, port_read_width, port_write_width,
+    vtable_call_sequence_width, return_register_integer_write_width, return_width,
     runtime_frame_base_indexed_binary_write_width, runtime_frame_base_indexed_integer_write_width,
     runtime_frame_indexed_binary_write_width, runtime_frame_indexed_integer_write_width,
     runtime_frame_indexed_string_write_width, runtime_frame_string_write_width,
@@ -1175,6 +1175,22 @@ fn machine_instruction_width(
         }
         SelectedInstructionKind::EnterFunction => function_enter_width(input.target.architecture),
         SelectedInstructionKind::MachineHalt => machine_halt_width(input.target.architecture),
+        SelectedInstructionKind::PortWrite { port, value } => {
+            if input.target.architecture != omega_target::Architecture::X86_64 {
+                return Err(Diagnostic::error(
+                    "port I/O (`asm { out .. }`) is x86_64-only; ARM has no port space",
+                ));
+            }
+            port_write_width(input.assigned_target_operations, *port, *value)
+        }
+        SelectedInstructionKind::PortRead { port, .. } => {
+            if input.target.architecture != omega_target::Architecture::X86_64 {
+                return Err(Diagnostic::error(
+                    "port I/O (`asm { in .. }`) is x86_64-only; ARM has no port space",
+                ));
+            }
+            port_read_width(input.assigned_target_operations, *port)
+        }
         SelectedInstructionKind::LeaveFunction => return_width(input.target.architecture),
         SelectedInstructionKind::EvaluateDispatchGuard { .. }
         | SelectedInstructionKind::LeaveDispatchLoop

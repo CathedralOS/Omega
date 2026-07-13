@@ -1116,6 +1116,25 @@ pub(super) fn encode_machine_instruction_bytes(
         SelectedInstructionKind::MachineHalt => Ok(
             omega_instruction_selection::encode_machine_halt_bytes(input.target.architecture),
         ),
+        // Port I/O (`asm { out .. }` / `asm { in .. }`) has no branch distance;
+        // its storage operands carry relocations, applied by omega-relocations
+        // against the offsets pinned in the ISA encoders.
+        SelectedInstructionKind::PortWrite { port, value } => {
+            omega_instruction_selection::encode_port_write_bytes(
+                input.assigned_target_operations,
+                *port,
+                *value,
+            )
+        }
+        SelectedInstructionKind::PortRead {
+            port,
+            dest_byte_offset,
+            ..
+        } => omega_instruction_selection::encode_port_read_bytes(
+            input.assigned_target_operations,
+            *port,
+            *dest_byte_offset,
+        ),
         SelectedInstructionKind::EnterFunction
         | SelectedInstructionKind::EnterDispatchLoop { .. }
         | SelectedInstructionKind::EnterDispatchCase { .. }

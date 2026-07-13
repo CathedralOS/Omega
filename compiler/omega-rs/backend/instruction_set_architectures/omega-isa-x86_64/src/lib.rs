@@ -38,6 +38,83 @@ pub fn encode_machine_halt_bytes() -> [u8; 1] {
     [0xf4]
 }
 
+// --- port I/O (`asm { out .. }` / `asm { in .. }`) --------------------------
+//
+// The port operand loads into DX and the byte operand into AL by REUSING the
+// generic runtime-value operand loader (into R10/R11, which handles immediate/
+// storage/pointee/indexed forms and relocates storage reads), then a 3-byte
+// register move parks the result in DX/AL for the one-byte `out`/`in`. Keeping
+// the operand loader means storage operands relocate through the same
+// machinery as every other runtime-value read (see omega-relocations); the
+// relative offsets below MUST match the encoders (a drift silently relocates
+// the wrong bytes and faults at runtime).
+
+/// Width of the `mov edx, r10d` / `mov eax, r11d` register park after an
+/// operand load (3 bytes each).
+pub const PORT_OPERAND_REGISTER_MOVE_WIDTH: usize = 3;
+
+pub fn port_write_width(
+    source: &impl RuntimeValueOperandSource,
+    port: RuntimeValueOperandHandle,
+    value: RuntimeValueOperandHandle,
+) -> usize {
+    runtime_value_operand_width(source, port)
+        + PORT_OPERAND_REGISTER_MOVE_WIDTH
+        + runtime_value_operand_width(source, value)
+        + PORT_OPERAND_REGISTER_MOVE_WIDTH
+        + 1 // out dx, al
+}
+
+/// `asm { out <port>, <value> }` -> `out dx, al`. Loads `port` into DX and the
+/// byte `value` into AL, then emits 0xEE.
+pub fn encode_port_write(
+    source: &impl RuntimeValueOperandSource,
+    port: RuntimeValueOperandHandle,
+    value: RuntimeValueOperandHandle,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::with_capacity(port_write_width(source, port, value));
+    append_runtime_value_operand(source, &mut bytes, Reg64::R10, port)?;
+    bytes.extend([0x44, 0x89, 0xd2]); // mov edx, r10d  -> DX = port
+    append_runtime_value_operand(source, &mut bytes, Reg64::R11, value)?;
+    bytes.extend([0x44, 0x89, 0xd8]); // mov eax, r11d  -> AL = value
+    bytes.push(0xee); // out dx, al
+    debug_assert_eq!(bytes.len(), port_write_width(source, port, value));
+    Ok(bytes)
+}
+
+/// The `mov r15,imm64` (10) + `mov [r15+disp32], al` (7) tail that stores the
+/// `in` result byte to a destination place.
+const PORT_READ_DESTINATION_STORE_WIDTH: usize = 10 + 7;
+
+pub fn port_read_width(
+    source: &impl RuntimeValueOperandSource,
+    port: RuntimeValueOperandHandle,
+) -> usize {
+    runtime_value_operand_width(source, port)
+        + PORT_OPERAND_REGISTER_MOVE_WIDTH
+        + 1 // in al, dx
+        + PORT_READ_DESTINATION_STORE_WIDTH
+}
+
+/// `asm { in <dest>, <port> }` -> `in al, dx`. Loads `port` into DX, reads the
+/// byte into AL (0xEC), then stores AL to the destination place. The
+/// `mov r15,imm64=0` is relocated to `dest`'s storage region by
+/// omega-relocations, exactly like any storage write.
+pub fn encode_port_read(
+    source: &impl RuntimeValueOperandSource,
+    port: RuntimeValueOperandHandle,
+    dest_byte_offset: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::with_capacity(port_read_width(source, port));
+    append_runtime_value_operand(source, &mut bytes, Reg64::R10, port)?;
+    bytes.extend([0x44, 0x89, 0xd2]); // mov edx, r10d  -> DX = port
+    bytes.push(0xec); // in al, dx  -> AL = port byte
+    append_mov_r15_imm64(&mut bytes, 0); // dest region base (relocated)
+    append_store_rax_to_r15(&mut bytes, dest_byte_offset, 1)?; // mov [r15+disp32], al
+    debug_assert_eq!(bytes.len(), port_read_width(source, port));
+    Ok(bytes)
+}
+
 pub fn return_register_integer_write_width() -> usize {
     5
 }
@@ -10291,6 +10368,129 @@ mod machine_control_tests {
         assert_eq!(encode_machine_halt_bytes(), [0xf4]);
         assert_eq!(machine_halt_width(), 1);
         assert_eq!(encode_machine_halt_bytes().len(), machine_halt_width());
+    }
+
+    /// A RuntimeValueOperandSource where every handle is an immediate integer
+    /// (handle arena index -> value). Immediates emit no relocation, so the
+    /// port-encoder byte layout is fully deterministic.
+    use omega_target_operations::RuntimeStorageRegion;
+    struct ImmediateOperands(Vec<i64>);
+    impl RuntimeValueOperandSource for ImmediateOperands {
+        fn immediate_integer(&self, handle: RuntimeValueOperandHandle) -> Option<i64> {
+            self.0.get(handle.arena_index() as usize).copied()
+        }
+        fn storage(
+            &self,
+            _: RuntimeValueOperandHandle,
+        ) -> Option<(RuntimeStorageRegion, usize, usize)> {
+            None
+        }
+        fn pointee(&self, _: RuntimeValueOperandHandle) -> Option<(usize, usize, usize)> {
+            None
+        }
+        fn frame_indexed(
+            &self,
+            _: RuntimeValueOperandHandle,
+        ) -> Option<(usize, usize, usize, usize, usize)> {
+            None
+        }
+        fn frame_base_indexed(
+            &self,
+            _: RuntimeValueOperandHandle,
+        ) -> Option<(usize, usize, usize, usize, usize)> {
+            None
+        }
+        fn frame_fixed_indexed(
+            &self,
+            _: RuntimeValueOperandHandle,
+        ) -> Option<(usize, usize, usize, usize, usize)> {
+            None
+        }
+        fn machine_indexed(
+            &self,
+            _: RuntimeValueOperandHandle,
+        ) -> Option<(usize, RuntimeStorageRegion, usize, usize, usize, usize)> {
+            None
+        }
+        fn binary(
+            &self,
+            _: RuntimeValueOperandHandle,
+        ) -> Option<(
+            RuntimeValueOperandHandle,
+            StateGuardOperator,
+            RuntimeValueOperandHandle,
+        )> {
+            None
+        }
+        fn binary_is_float(&self, _: RuntimeValueOperandHandle) -> bool {
+            false
+        }
+        fn binary_byte_width(&self, _: RuntimeValueOperandHandle) -> Option<usize> {
+            None
+        }
+        fn binary_arithmetic_domain(
+            &self,
+            _: RuntimeValueOperandHandle,
+        ) -> Option<(omega_core::arithmetic::ArithmeticDomain, bool)> {
+            None
+        }
+        fn convert(
+            &self,
+            _: RuntimeValueOperandHandle,
+        ) -> Option<(RuntimeValueOperandHandle, usize, usize, bool, bool, bool)> {
+            None
+        }
+        fn text_equals(
+            &self,
+            _: RuntimeValueOperandHandle,
+        ) -> Option<(RuntimeStorageRegion, usize, RuntimeStorageRegion, usize)> {
+            None
+        }
+        fn text_equals_literal(
+            &self,
+            _: RuntimeValueOperandHandle,
+        ) -> Option<(RuntimeValueOperandHandle, String, bool)> {
+            None
+        }
+    }
+
+    #[test]
+    fn port_write_immediate_operands_encode_out_dx_al() {
+        // `asm { out 0x3F8, 'A' }`: port 0x3F8 -> DX, value 0x41 -> AL, out.
+        let source = ImmediateOperands(vec![0x3f8, 0x41]);
+        let port = RuntimeValueOperandHandle::from_parts(0, 1);
+        let value = RuntimeValueOperandHandle::from_parts(1, 1);
+        let bytes = encode_port_write(&source, port, value).expect("encode");
+        assert_eq!(bytes.len(), port_write_width(&source, port, value));
+        // mov r10, imm64=0x3F8
+        assert_eq!(&bytes[0..2], &[0x49, 0xba]);
+        assert_eq!(&bytes[2..10], &0x3f8u64.to_le_bytes());
+        assert_eq!(&bytes[10..13], &[0x44, 0x89, 0xd2]); // mov edx, r10d
+        // mov r11, imm64=0x41
+        assert_eq!(&bytes[13..15], &[0x49, 0xbb]);
+        assert_eq!(&bytes[15..23], &0x41u64.to_le_bytes());
+        assert_eq!(&bytes[23..26], &[0x44, 0x89, 0xd8]); // mov eax, r11d
+        assert_eq!(bytes[26], 0xee); // out dx, al
+        assert_eq!(bytes.len(), 27);
+    }
+
+    #[test]
+    fn port_read_immediate_port_encodes_in_al_dx_then_store() {
+        // `asm { in status, 0x3FD }` with status at machine+4: port 0x3FD -> DX,
+        // in al,dx, then mov [r15+4], al (r15 relocated to the dest region).
+        let source = ImmediateOperands(vec![0x3fd]);
+        let port = RuntimeValueOperandHandle::from_parts(0, 1);
+        let bytes = encode_port_read(&source, port, 4).expect("encode");
+        assert_eq!(bytes.len(), port_read_width(&source, port));
+        assert_eq!(&bytes[0..2], &[0x49, 0xba]); // mov r10, imm64
+        assert_eq!(&bytes[2..10], &0x3fdu64.to_le_bytes());
+        assert_eq!(&bytes[10..13], &[0x44, 0x89, 0xd2]); // mov edx, r10d
+        assert_eq!(bytes[13], 0xec); // in al, dx
+        assert_eq!(&bytes[14..16], &[0x49, 0xbf]); // mov r15, imm64=0 (relocated)
+        assert_eq!(&bytes[16..24], &0u64.to_le_bytes());
+        assert_eq!(&bytes[24..27], &[0x41, 0x88, 0x87]); // mov [r15+disp32], al
+        assert_eq!(&bytes[27..31], &4u32.to_le_bytes()); // disp32 = dest offset
+        assert_eq!(bytes.len(), 31);
     }
 }
 

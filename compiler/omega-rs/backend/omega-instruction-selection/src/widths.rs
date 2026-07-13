@@ -105,6 +105,40 @@ pub fn machine_halt_width(architecture: Architecture) -> usize {
     }
 }
 
+/// Port I/O is x86_64-only (ARM has no port space -- MMIO instead), so these
+/// take no architecture: the layout/encoding sites reject a non-x86_64 target
+/// before calling them.
+pub fn port_write_width(
+    source: &impl RuntimeValueOperandSource,
+    port: RuntimeValueOperandHandle,
+    value: RuntimeValueOperandHandle,
+) -> usize {
+    x86_64::port_write_width(source, port, value)
+}
+
+pub fn port_read_width(
+    source: &impl RuntimeValueOperandSource,
+    port: RuntimeValueOperandHandle,
+) -> usize {
+    x86_64::port_read_width(source, port)
+}
+
+pub fn encode_port_write_bytes(
+    source: &impl RuntimeValueOperandSource,
+    port: RuntimeValueOperandHandle,
+    value: RuntimeValueOperandHandle,
+) -> Result<Vec<u8>, omega_core::diagnostics::Diagnostic> {
+    x86_64::encode_port_write(source, port, value)
+}
+
+pub fn encode_port_read_bytes(
+    source: &impl RuntimeValueOperandSource,
+    port: RuntimeValueOperandHandle,
+    dest_byte_offset: usize,
+) -> Result<Vec<u8>, omega_core::diagnostics::Diagnostic> {
+    x86_64::encode_port_read(source, port, dest_byte_offset)
+}
+
 pub fn return_register_integer_write_width(architecture: Architecture) -> usize {
     match architecture {
         Architecture::Aarch64 => aarch64::return_register_integer_write_width(),
