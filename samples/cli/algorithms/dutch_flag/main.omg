@@ -1,0 +1,195 @@
+// Dijkstra's Dutch national flag -- the classic three-pointer in-place
+// partition, over a real enum array: everything below `w` is Red, everything
+// from `b` up is Blue, and the White cursor walks the unknown middle until it
+// meets the fence.
+//
+//   [White, Blue, Red]  ->  [Red, White, Blue]
+//
+// Written in the field-counter idiom (see bubble_sort): declared Exact
+// counter ranges + literal re-guard states dominating every runtime-indexed
+// access. The `confused(9x)` arms are the loop invariants a Dafny port would
+// write as `invariant 0 <= r <= w <= b <= 3` -- relational facts today's
+// prover doesn't carry around the loop, so they stand as honest runtime
+// checks that never fire. The verified north star (design record, NOT yet
+// shipped syntax) replaces them entirely:
+//
+//     machine dutch_flag(before: &[Color], items: &mut [Color])
+//     requires Bag(items) == Bag(before)              // Dafny: old(multiset)
+//     ensures  Seq(items) in Sorted<Color::FlagRank>  // Dafny: forall i,j
+//              Bag(items) == Bag(before)
+//
+// (Bag/Seq are the proof-only roster, Sorted rides a named rank satisfier,
+// and the guard states become provably-dead arms once relational window
+// facts land -- the N4/R2 ladders.)
+//
+// ZII footnote: Color's first case is Red, so the zero-initialized array is
+// already a sorted flag.
+// Expected exit: 70.
+
+boundary trait Console {
+    machine write_line(text: String);
+    machine read_line(out_line: &mut String);
+    machine exit_process(return_code: i32);
+}
+
+data Color {
+    case Red;
+    case White;
+    case Blue;
+}
+
+data Main {
+    console: Console;
+    items: [Color; 3];
+    r: u64 [0..=3];   // red prefix end: items[0..r] are Red
+    w: u64 [0..=3];   // white cursor: items[r..w] are White
+    b: u64 [0..=3];   // blue fence: items[b..3] are Blue
+    bp: u64 [0..=2];  // b - 1 lands bounded from the b > 0 guard
+    t: Color;
+    pause: String;
+}
+
+machine Main::main(&mut self) {
+    self.console.write_line("dutch_flag: partitioning [White, Blue, Red] into [Red, White, Blue]");
+    self.items[0] = Color::White;
+    self.items[1] = Color::Blue;
+    self.items[2] = Color::Red;
+    self.r = 0;
+    self.w = 0;
+    self.b = 3;
+    transition {
+        _ -> head()
+    }
+
+    // Loop head: partition until the white cursor meets the blue fence.
+    state head(&mut self) {
+        transition self.w < self.b {
+            true -> w_guard()
+            _ -> check0()
+        }
+    }
+
+    // Literal re-guard: dominates every items[self.w] access downstream
+    // (classify and both swaps -- no state between rewrites w).
+    state w_guard(&mut self) {
+        transition self.w < 3 {
+            true -> classify()
+            _ -> confused(96)
+        }
+    }
+
+    state classify(&mut self) {
+        transition self.items[self.w] {
+            Color::Red -> r_guard()
+            Color::White -> w_bump_guard()
+            _ -> b_guard()
+        }
+    }
+
+    state r_guard(&mut self) {
+        transition self.r < 3 {
+            true -> red_swap()
+            _ -> confused(97)
+        }
+    }
+
+    // Red at the cursor: swap it into the red prefix, grow the prefix
+    // (`r + 1` proves on the DIRECT edge from r_guard), then join the
+    // white path to bump the cursor.
+    state red_swap(&mut self) {
+        self.t = self.items[self.r];
+        self.items[self.r] = self.items[self.w];
+        self.items[self.w] = self.t;
+        self.r = self.r + 1;
+        transition {
+            _ -> w_bump_guard()
+        }
+    }
+
+    // Re-guard before the increment: the bound must sit on the DIRECT edge
+    // for the `+ 1` to prove (the bubble_sort `advance` idiom). The red and
+    // white arms both join here.
+    state w_bump_guard(&mut self) {
+        transition self.w < 3 {
+            true -> w_bump()
+            _ -> confused(95)
+        }
+    }
+
+    state w_bump(&mut self) {
+        self.w = self.w + 1;
+        transition {
+            _ -> head()
+        }
+    }
+
+    state b_guard(&mut self) {
+        transition self.b > 0 {
+            true -> blue_swap()
+            _ -> confused(98)
+        }
+    }
+
+    // Blue at the cursor: shrink the blue fence, swap the blue out to it.
+    // The decremented fence lands in `bp`, whose DECLARED range [0..=2]
+    // carries the index proof (the stored `b` reads back at its wider
+    // [0..=3] range).
+    state blue_swap(&mut self) {
+        self.bp = self.b - 1;
+        self.t = self.items[self.w];
+        self.items[self.w] = self.items[self.bp];
+        self.items[self.bp] = self.t;
+        self.b = self.bp;
+        transition {
+            _ -> head()
+        }
+    }
+
+    // Verify [Red, White, Blue] element by element via case dispatch.
+    state check0(&mut self) {
+        transition self.items[0] {
+            Color::Red -> check1()
+            _ -> bad(71)
+        }
+    }
+    state check1(&mut self) {
+        transition self.items[1] {
+            Color::White -> check2()
+            _ -> bad(72)
+        }
+    }
+    state check2(&mut self) {
+        transition self.items[2] {
+            Color::Blue -> good()
+            _ -> bad(73)
+        }
+    }
+    state good(&mut self) {
+        self.console.write_line("PASS: the flag reads [Red, White, Blue] (exit 70)");
+        transition {
+            _ -> report(70)
+        }
+    }
+    state bad(&mut self, code: i32) {
+        self.console.write_line("FAIL: an element ended up out of order");
+        transition {
+            _ -> report_bad(code)
+        }
+    }
+    state confused(&mut self, code: i32) {
+        self.console.write_line("FAIL: a loop-invariant re-guard tripped");
+        transition {
+            _ -> report_bad(code)
+        }
+    }
+    state report(&mut self, code: i32) {
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(code);
+    }
+    state report_bad(&mut self, code: i32) {
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(code);
+    }
+}

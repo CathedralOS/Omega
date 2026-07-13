@@ -1,0 +1,161 @@
+// Dijkstra's Dutch national flag partition over an ENUM array -- the
+// three-pointer in-place partition written in bubble_sort's landed idiom:
+// field counters with declared Exact ranges + literal re-guard states
+// dominating every runtime-indexed access.
+//
+//   [White, Blue, Red]  ->  [Red, White, Blue]
+//
+// Pins, composed in one program: an INDEXED ENUM guard subject
+// (`transition self.items[self.w] { Color::Red -> .. }`), runtime-indexed
+// enum-element reads/writes (the swap), counter arithmetic proven by
+// dominating guards carried transitively across states, and ZII (Color's
+// first case is Red, so the zero array is already all-Red).
+//
+// The confused(9x) arms are the loop invariants Dafny would write as
+// `invariant w <= b <= 3` -- relational facts today's prover doesn't carry
+// across the loop, so they stand as honest runtime checks that never fire
+// (the dependent-types R2 window-fact target turns them into provably-dead
+// arms).
+// Expected exit: 70 (71/72/73 = wrong final element at 0/1/2; 96/97/98 =
+// invariant check tripped, 95 = increment re-guard tripped).
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+data Color {
+    case Red;
+    case White;
+    case Blue;
+}
+data Main {
+    console: Console;
+    items: [Color; 3];
+    r: u64 [0..=3];
+    w: u64 [0..=3];
+    b: u64 [0..=3];
+    bp: u64 [0..=2];  // b - 1 lands bounded from the b > 0 guard (bubble's jp idiom)
+    t: Color;
+}
+machine Main::main(&mut self) {
+    self.items[0] = Color::White;
+    self.items[1] = Color::Blue;
+    self.items[2] = Color::Red;
+    self.r = 0;
+    self.w = 0;
+    self.b = 3;
+    transition {
+        _ -> head()
+    }
+
+    // Loop head: partition until the white cursor meets the blue fence.
+    state head(&mut self) {
+        transition self.w < self.b {
+            true -> w_guard()
+            _ -> check0()
+        }
+    }
+
+    // Literal re-guard: dominates every items[self.w] access downstream
+    // (classify, red_swap, blue_swap -- no state between rewrites w).
+    state w_guard(&mut self) {
+        transition self.w < 3 {
+            true -> classify()
+            _ -> confused(96)
+        }
+    }
+
+    state classify(&mut self) {
+        transition self.items[self.w] {
+            Color::Red -> r_guard()
+            Color::White -> w_bump_guard()
+            _ -> b_guard()
+        }
+    }
+
+    state r_guard(&mut self) {
+        transition self.r < 3 {
+            true -> red_swap()
+            _ -> confused(97)
+        }
+    }
+
+    // Red at the cursor: swap it into the red prefix, grow the prefix
+    // (`r + 1` proves on the DIRECT edge from r_guard), then join the
+    // white path to bump the cursor.
+    state red_swap(&mut self) {
+        self.t = self.items[self.r];
+        self.items[self.r] = self.items[self.w];
+        self.items[self.w] = self.t;
+        self.r = self.r + 1;
+        transition {
+            _ -> w_bump_guard()
+        }
+    }
+
+    // Re-guard before the increment: the bound must sit on the DIRECT edge
+    // for the `+ 1` to prove (the bubble_sort `advance` idiom). Both the
+    // red and white arms join here.
+    state w_bump_guard(&mut self) {
+        transition self.w < 3 {
+            true -> w_bump()
+            _ -> confused(95)
+        }
+    }
+
+    state w_bump(&mut self) {
+        self.w = self.w + 1;
+        transition {
+            _ -> head()
+        }
+    }
+
+    state b_guard(&mut self) {
+        transition self.b > 0 {
+            true -> blue_swap()
+            _ -> confused(98)
+        }
+    }
+
+    // Blue at the cursor: shrink the blue fence, swap the blue out to it.
+    // The decremented fence lands in `bp`, whose DECLARED range [0..=2]
+    // carries the index proof (the stored `b` itself would read back at
+    // its wider [0..=3] range).
+    state blue_swap(&mut self) {
+        self.bp = self.b - 1;
+        self.t = self.items[self.w];
+        self.items[self.w] = self.items[self.bp];
+        self.items[self.bp] = self.t;
+        self.b = self.bp;
+        transition {
+            _ -> head()
+        }
+    }
+
+    // Verify [Red, White, Blue] element by element via case dispatch.
+    state check0(&mut self) {
+        transition self.items[0] {
+            Color::Red -> check1()
+            _ -> bad(71)
+        }
+    }
+    state check1(&mut self) {
+        transition self.items[1] {
+            Color::White -> check2()
+            _ -> bad(72)
+        }
+    }
+    state check2(&mut self) {
+        transition self.items[2] {
+            Color::Blue -> good()
+            _ -> bad(73)
+        }
+    }
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state bad(&mut self, code: i32) {
+        self.console.exit_process(code);
+    }
+    state confused(&mut self, code: i32) {
+        self.console.exit_process(code);
+    }
+}
