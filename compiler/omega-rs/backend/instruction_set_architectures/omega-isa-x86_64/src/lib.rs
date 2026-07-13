@@ -903,9 +903,20 @@ pub fn host_call_sequence_width<T: InstructionOperandLike>(
     operation_key: HostOperationKey,
     operands: &[T],
 ) -> usize {
-    encode_host_call_sequence(operation_key, operands)
-        .map(|bytes| bytes.len())
-        .unwrap_or(0)
+    match encode_host_call_sequence(operation_key, operands) {
+        Ok(bytes) => bytes.len(),
+        Err(error) => {
+            if std::env::var_os("OMEGA_DEBUG_RECEIVER").is_some() {
+                eprintln!(
+                    "BTW host call width 0: {}.{}: {}",
+                    operation_key.capability_name(),
+                    operation_key.operation_name(),
+                    error.message
+                );
+            }
+            0
+        }
+    }
 }
 
 pub fn host_call_data_relocation_site<T: InstructionOperandLike>(
@@ -1517,6 +1528,7 @@ fn win64_import_arg_is_staged<T: InstructionOperandLike>(operand: Option<&T>) ->
         operand.runtime_scalar_integer().is_some()
             || operand.runtime_storage_address().is_some()
             || operand.data_address().is_some()
+            || operand.runtime_string_pointer().is_some()
     })
 }
 
@@ -1640,6 +1652,21 @@ fn append_win64_call_arguments<T: InstructionOperandLike>(
                 append_mov_r15_imm64(bytes, 0); // relocated to the argument's region base
                 bytes.extend_from_slice(load_opcode);
                 bytes.extend(disp32(byte_offset)?.to_le_bytes());
+            } else if let Some((_, byte_offset)) = operand.runtime_string_pointer() {
+                // A string/slice DESCRIPTOR in a storage region (a path or text
+                // argument riding a runtime slot, e.g. a value-call param bound
+                // to a literal): the C-string argument is the descriptor's
+                // POINTER word (at +0), or the inline content after the len
+                // word for an owned bounded-buffer carrier -- mirroring the
+                // syscall encoder's string-pointer staging.
+                append_mov_r15_imm64(bytes, 0); // relocated to the argument's region base
+                if operand.runtime_string_is_bounded_buffer() {
+                    bytes.extend_from_slice(WIN64_ARG_LEA_OPCODES[index]);
+                    bytes.extend(disp32(byte_offset + 8)?.to_le_bytes());
+                } else {
+                    bytes.extend_from_slice(load_opcode);
+                    bytes.extend(disp32(byte_offset)?.to_le_bytes());
+                }
             } else if let Some((_, byte_offset)) = operand.runtime_storage_address() {
                 append_mov_r15_imm64(bytes, 0); // relocated to the argument's region base
                 bytes.extend_from_slice(WIN64_ARG_LEA_OPCODES[index]);

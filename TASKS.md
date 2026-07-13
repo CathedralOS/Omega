@@ -919,9 +919,23 @@ rejects — an INTEGER ruling, engineering rides this ladder as F8).
   twin storage/runtime_slice_indexed_binary_rmw_exit pins the encoding
   green 70/70 (its left operand is itself an indexed READ, so operand
   relocations are exercised).
-  STILL OPEN, ours: (7) the windows fs host-arg materialization family
-  (fs canary + samples note_vault mkdir refusal + file_journal exit 3 —
-  red at least since 8d0b33b8e).
+  (7) FS HOST-ARG — FIXED 2026-07-18 (red from the fs canary's own BIRTH
+  on this host): a path riding a runtime slot (the discarded-self-call
+  shape) resolves to a RuntimeStringPointer operand, which the win64
+  import-call marshaller had NO arm for — the encoder's rejection was
+  swallowed into width 0 and surfaced as the misleading "argument must
+  be a simple value" refusal. The marshaller now stages string
+  descriptors exactly like the darwin SYSCALL encoder always has
+  (pointer word at +0; LEA past the len word for bounded buffers);
+  win64_import_arg_is_staged carries the width + relocation sites. The
+  fs canary flips green 70/70 and note_vault's mkdir refusal clears.
+  RESIDUE, precisely attributed to the QUEUED Windows platform session
+  (NOT bugs): note_vault still refuses on `FilesystemHost.read_dir` /
+  `unlink_at` — no Win32 rows exist for them yet (the checklist item
+  "Win32 rows for the no-msvcrt fs ops"); file_journal exits 3
+  (expected 7) — the runtime face of the same missing-rows family.
+  samples_compile stays red on exactly those two until the Windows
+  session lands.
 
 - **`pending_runtime_divergences_hold` — GREENED 2026-07-18 (ledger
   host-corrected):** (a) `float_to_int_overflow_divergence` now documents
