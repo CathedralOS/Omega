@@ -13397,6 +13397,53 @@ fn const_fold_unsigned_divide_arg_canary_runs() {
 }
 
 #[test]
+fn unsigned_min_max_wrapping_local_canary_runs() {
+    // max/min on a `u64 in Wrapping` LOCAL: `z - 1` folds to the bit-faithful
+    // but signless `-1` (u64-at-width-64 can't ride a positive i64), so the
+    // operand probe finds no type and the non-table mutation write's operator
+    // adjustment falls back to the WRITE TARGET's u64 -> MaxUnsigned picks
+    // u64::MAX. exit 78 = a signed Max compared -1 < 5 again.
+    let canary = pass_canary("arithmetic/unsigned_min_max_wrapping_local_exit");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("unsigned min/max local canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 77,
+        "interpreter oracle should exit 77 (unsigned max witness), got {}",
+        outcome.exit_code
+    );
+
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-minmax-local-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("unsigned min/max local canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("unsigned min/max local canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(77),
+        "expected the target-fallback unsigned max (exit 77), got {:?} \
+         (78 = a signed Max on the folded u64 local)\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn struct_literal_field_coercion_canary_runs() {
     // A struct-literal field init coerces the field value to the field's declared
     // width/domain (interpreter eval_struct_literal): `Point { x: a+b }` with
@@ -29918,6 +29965,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "arithmetic/const_fold_unsigned_landed_ops_exit",
     "arithmetic/const_fold_unsigned_shift_right_arg_exit",
     "arithmetic/const_fold_unsigned_divide_arg_exit",
+    "arithmetic/unsigned_min_max_wrapping_local_exit",
     "arithmetic/runtime_unsigned_division_exit",
     "arithmetic/runtime_min_max_signedness_exit",
     "arithmetic/runtime_comparison_value_signedness_exit",
@@ -30641,10 +30689,6 @@ const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
     // pass/arithmetic/runtime_shift_atwidth_signed_modular_exit: the
     // shift-domain ruling made Wrapping << modular and all three engines
     // now clamp at/above-width counts to zero.
-    PendingCanary {
-        path: "arithmetic/unsigned_min_max_wrapping_local_divergence",
-        expectation: PendingCanaryExpectation::CurrentlyAccepts,
-    },
     // multiarm_texteq_local_divergence PROMOTED to
     // pass/calls/runtime_multiarm_texteq_local_exit: Terminal-value arm
     // expansions now carry their sub-state's call-free LocalData

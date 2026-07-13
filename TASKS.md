@@ -77,13 +77,20 @@ dispatch-region + receiver-phase family. Everything queued here avoids both.
    repros PROMOTED to pass canaries
    (arithmetic/const_fold_unsigned_{shift_right,divide}_arg_exit; the
    divide one grew the modulo third face). The whole const-fold SIGN
-   class is closed end to end. Remaining CM2 scope: the
-   metadata-carrying CARRIER itself (u64-at-width-64 representatives
-   can't ride i64 — the min/max pending repro needs the domain ON the
-   operand for min/max selection), the guard-folder f32 residue. A
-   possible cheaper slot-COPY design for arg delivery (skip re-derivation
-   when the local is slot-backed) stays noted in the promoted canaries'
-   history but is superseded for correctness purposes.
+   class is closed end to end. The u64 min/max face closed the same way
+   — the non-table mutation write's operator adjustment
+   (signedness_adjusted_operator_for_tree_operands) now takes the write
+   TARGET as its last-resort probe, mirroring the table variant's
+   operand-then-target order; pending repro PROMOTED
+   (arithmetic/unsigned_min_max_wrapping_local_exit, 77 both engines).
+   Remaining CM2 scope: the metadata-carrying CARRIER itself
+   (u64-at-width-64 representatives stay bit-faithful-but-signless on the
+   i64 carrier — fine now that consumers fall back to targets, but the
+   carrier change retires the whole fallback family), the guard-folder
+   f32 residue. A possible cheaper slot-COPY design for arg delivery
+   (skip re-derivation when the local is slot-backed) stays noted in the
+   promoted canaries' history but is superseded for correctness
+   purposes.
    CM3 — fold-at-landed-type everywhere: folder + guard folder + interp
    parity; differential legs per width/signedness/domain/format.
 6. **Place algebra, Copy* pilot (FRONT-LOADED by owner 2026-07-18;

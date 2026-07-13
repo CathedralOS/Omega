@@ -679,7 +679,8 @@ pub(super) fn resolve_runtime_value_operand(
 
     if let Expression::Binary(binary) = expression {
         let operator = runtime_binary_operator(binary.operator)?;
-        // Same signedness policy as the `_in_table` nested-binary path above.
+        // Same signedness policy as the `_in_table` nested-binary path above
+        // (operand-position: no write target to fall back to).
         let operator = super::binary_table_writes::signedness_adjusted_operator_for_tree_operands(
             input,
             dispatch_index,
@@ -687,6 +688,7 @@ pub(super) fn resolve_runtime_value_operand(
             &binary.left,
             &binary.right,
             operator,
+            None,
         );
         let left = resolve_runtime_value_operand(
             input,
@@ -771,7 +773,8 @@ pub(super) fn resolve_runtime_value_operand(
             return None;
         };
         // min/max builtins compare their operands -- same signedness policy as
-        // the `_in_table` builtin-call path.
+        // the `_in_table` builtin-call path (operand-position: no write target
+        // to fall back to).
         let operator = super::binary_table_writes::signedness_adjusted_operator_for_tree_operands(
             input,
             dispatch_index,
@@ -779,6 +782,7 @@ pub(super) fn resolve_runtime_value_operand(
             left,
             right,
             operator,
+            None,
         );
         let left = resolve_runtime_value_operand(
             input,

@@ -647,10 +647,15 @@ pub(in crate::selection::runtime_dispatch) fn signedness_adjusted_operator_for_o
     }
 }
 
-/// Tree-operand adapter over [`signedness_adjusted_operator_for_operands`] for
-/// the non-table write paths (alias-resolved branch-arm expressions carry OWNED
+/// Tree-operand adapter over the signedness adjustment for the non-table
+/// write paths (alias-resolved branch-arm expressions carry OWNED
 /// `Expression` trees, not table handles). Follows the standard
-/// `insert_tree`+delegate collapse pattern so the signedness decision lives once.
+/// `insert_tree`+delegate collapse pattern so the signedness decision lives
+/// once. When the caller has a write TARGET expression, pass it: it is the
+/// fallback of last resort for operands that all folded to typeless
+/// constants (the erased-const-local shape -- validation guarantees the
+/// value lands at the target's type), mirroring the table variant's
+/// operand-then-target probe order.
 pub(in crate::selection::runtime_dispatch) fn signedness_adjusted_operator_for_tree_operands(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
@@ -658,6 +663,7 @@ pub(in crate::selection::runtime_dispatch) fn signedness_adjusted_operator_for_t
     left_expression: &omega_checked_trees::expression::Expression,
     right_expression: &omega_checked_trees::expression::Expression,
     operator: StateGuardOperator,
+    target: Option<(StateKey, &omega_checked_trees::expression::Expression)>,
 ) -> StateGuardOperator {
     if unsigned_operator_form(operator).is_none() {
         return operator;
@@ -665,6 +671,20 @@ pub(in crate::selection::runtime_dispatch) fn signedness_adjusted_operator_for_t
     let mut delegated_expressions = ExpressionTable::default();
     let left = delegated_expressions.insert_tree(left_expression);
     let right = delegated_expressions.insert_tree(right_expression);
+    if let Some((target_source_key, target_expression)) = target {
+        let target = delegated_expressions.insert_tree(target_expression);
+        return signedness_adjusted_operator(
+            input,
+            dispatch_index,
+            target_source_key,
+            value_source_key,
+            &delegated_expressions,
+            target,
+            left,
+            right,
+            operator,
+        );
+    }
     signedness_adjusted_operator_for_operands(
         input,
         dispatch_index,
@@ -759,6 +779,12 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_storage_binary_writ
         (Some(unsigned), Some(false)) => unsigned,
         _ => operator,
     };
+    if std::env::var_os("OMEGA_DEBUG_RECEIVER").is_some() {
+        eprintln!(
+            "BTW signedness: operand={operand_signed:?} target={:?} -> {operator:?}",
+            target_primitive.map(|primitive| primitive.name()),
+        );
+    }
 
     let left = resolve_runtime_comparison_operand_in_table(
         input,
