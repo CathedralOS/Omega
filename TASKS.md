@@ -808,20 +808,18 @@ rejects — an INTEGER ruling, engineering rides this ladder as F8).
 
 ## Open bugs / gaps (ungated)
 
-- **⚠️ LIVE NATIVE REGRESSION CLUSTER on main (found 2026-07-18 running the
-  full gates for the dutch_flag canary; NOT bisected — flagged for the
-  owning lanes, likely candidates the M3 asm-codegen pair
-  7e58d5611/a5ddc739e):** (a) FIVE float/math canaries fail NATIVELY with
-  wrong exits (runtime_newton_sqrt_exit 71, runtime_scalar_pun_shared_let_exit
-  71, runtime_std_math_sin_cos_exit 72, runtime_value_call_terminal_exit 74,
-  runtime_f32_field_guard_exit 71 — all expected 70); (b)
-  **samples/cli/systems/descriptor_walk exits 0xC0000005 ACCESS VIOLATION**
-  (the Cathedral M2 stride showcase — was green at the "M2 BOOTS"
-  measurement); (c) file_journal exits 3 (expected 7) and note_vault refuses
-  to compile (Filesystem.mkdir "no encodable call sequence") — these two may
-  be fs-lane work-in-progress (file_journal recheck was already queued in
-  the Windows session). The float five + the descriptor_walk crash smell
-  like ONE native-codegen regression; bisect from 8d0b33b8e forward.
+- **⚠️ HEADS-UP for the float lane (2026-07-18, corrected same hour):**
+  running the full gates for the dutch_flag canary, the SHARED working
+  tree carried uncommitted edits to three float-path backend files
+  (storage_places.rs, simplify/bindings.rs, state-storage/collection.rs)
+  and the gates failed against that WIP: five float/math canaries exit
+  wrong natively (newton_sqrt 71, scalar_pun_shared_let 71,
+  std_math_sin_cos 72, value_call_terminal 74, f32_field_guard 71 — all
+  expect 70), samples/cli/systems/descriptor_walk exits 0xC0000005
+  ACCESS VIOLATION, file_journal exits 3 (expected 7), note_vault refuses
+  to compile (Filesystem.mkdir host-arg). Committed main was NOT verified
+  independently — this list is the pre-commit gate for whoever owns those
+  edits; if the failures survive their commit, bisect from 8d0b33b8e.
 
 - **texteq arm-locals ZII for non-terminal consumers** — root-caused
   2026-07-17, analysis pre-paid in the pin headers
