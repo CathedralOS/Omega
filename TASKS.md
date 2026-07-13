@@ -45,6 +45,27 @@ dispatch-region + receiver-phase family. Everything queued here avoids both.
    checks stay sound as the conservative tier). One careful agent, multi-day.
 4. **Windows platform-verification session** (section below) — checklist-
    shaped; one session on a Windows host closes the whole list.
+5. **Constant model — the two-phase law (FRONT-LOADED by owner
+   2026-07-18; law: ch5 "Constants: Two Phases"; memory:
+   anonymous-values-two-phase-constants):** file-disjoint from the RECAST
+   selection files — START IMMEDIATELY. Rungs:
+   CM1 — anonymous carrier goes EXACT: unbounded integer + Rat constants
+   (subsumes the u64>i64::MAX 165-site i128 refactor; SHARES the bignum
+   with N2 — coordinate, one engine, two consumers).
+   CM2 — landed constants carry their type/domain/format (the
+   metadata-carrying constant): closes the shift-right sign class, the
+   decision-17 Saturating/Trapping domain-stripping hole, and the
+   guard-folder f32-in-f64 residue in one stroke; flip the pending/
+   repros to pass canaries as each closes.
+   CM3 — fold-at-landed-type everywhere: folder + guard folder + interp
+   parity; differential legs per width/signedness/domain/format.
+6. **Place algebra, Copy* pilot (FRONT-LOADED by owner 2026-07-18;
+   record: codegen_representation_cleanup Phase 6):** introduce Place
+   (base + ConstOffset/ScaledIndex path) + the per-target materializer;
+   route the Copy* family through it behind the differential oracle.
+   ⚠️ COORDINATE FIRST: the main lane is mid-RECAST in the selection
+   files — claim via check-in, or start the moment M2's tail clears;
+   track 5 has no such conflict and leads.
 
 The rendering-sample sweep landed 2026-07-11 (see Language ergonomics;
 the match-subject computed-index gap closed with it).
@@ -833,9 +854,9 @@ rejects — an INTEGER ruling, engineering rides this ladder as F8).
 - **Const-folder width-blindness (latent, unreachable via the live
   spelling):** the cast-retag spelling puts a Cast node in the tree, which
   the folder's literal window refuses; the runtime operand path's
-  wrapping-truncation hole is FIXED and pinned. A width-carrying folder
-  (`omega-state-values/simplify/folding.rs` is i64-window by design, D14)
-  remains the deeper rung, gated with the type-carrying-constants design.
+  wrapping-truncation hole is FIXED and pinned. The deeper fix is now
+  QUEUED as NEXT TASKS #5 (Constant model CM2 — landed constants carry
+  their type; the two-phase law in ch5).
 - **UnloweredCaseLiteralField poison:** every known texteq shape serves
   (pinned); the poison stays as negative space — give the NEXT unloweable
   payload-field shape a fail canary when authoring surfaces one.
@@ -950,8 +971,10 @@ Today's bar is provably correct native output.
   ConstOffset/ScaledIndex path) + one per-target materializer + a ~15-op
   set with category on the operand + legalization (the hoists, promoted
   to principle). Retire the Copy* family first behind the differential
-  oracle. SEQUENCED AFTER first-boot/M2 stabilizes (main lane is
-  mid-RECAST in these exact files). Also queued: strengthening
+  oracle. RE-SEQUENCED: FRONT-LOADED by owner 2026-07-18 (NEXT TASKS
+  #6) — Copy* pilot starts on main-lane coordination or M2-tail
+  completion, whichever first; the constant-model track (#5) is
+  file-disjoint and leads immediately. Also queued: strengthening
 assigned-target allocation toward real register/stack assignment; reducing
 host/runtime special-case lowering; replacing the Windows GUI sample shortcut
 with a real app-window story.
