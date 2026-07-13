@@ -339,6 +339,36 @@ Two node-level corollaries for constants: a constant stored into a
 provably overflows a `Trapping` target still compiles and traps at runtime
 -- Trapping overflow is a runtime event, not a compile error.
 
+## Constants: Two Phases
+
+> **Settled (owner ruling, recorded as first-class law 2026-07-18 — this
+> ruling has been made repeatedly and must not dissolve into other
+> topics).** A constant is either ANONYMOUS or LANDED — never both, never
+> neither.
+
+- **Anonymous (pre-landing):** a literal is an exact mathematical value
+  with no type. `100` is one hundred; `3.14` is 157/50. Arithmetic between
+  anonymous constants is exact (unbounded integer; `Rat` for decimals).
+  No width, no signedness, no domain, no format — deliberately: the value
+  is chosen, the machine rendering is not.
+- **Landing:** the first site that requests a type renders the value ONCE
+  — range-checked into an integer type, rounded once into a float format.
+  The same literal lands as `u8`, `u64`, `f32`, or any future format with
+  no suffix; a suffix (`0u32`) merely lands the literal where it stands.
+- **Landed:** from that point the constant IS a value of its type, and the
+  type/domain/format ride with it. All further compile-time folding
+  happens at the landed type's semantics — width, signedness, domain
+  (a constant that provably overflows a `Trapping` target still compiles
+  and traps at runtime, per the node rule above), format rounding.
+
+Nothing is ever both (an anonymous value with a width) or neither (a
+landed value stripped of its type). The current folder's bare-`i64`
+constant window is a pseudo-anonymous limbo that is neither, and is being
+retired (TASKS: Constant model track); its two miscompile classes —
+sign/width-blind folds of `>>` `/` `%` and domain-stripped
+Saturating/Trapping folds — are both consequences of letting landed
+constants regress to anonymous.
+
 ## Float Facts
 
 > **Settled 2026-07-18** (record: design_briefs/float_semantics.md). A float
