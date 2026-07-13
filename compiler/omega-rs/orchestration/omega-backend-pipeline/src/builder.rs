@@ -989,7 +989,10 @@ fn resolve_vtable_field_offsets(
     use omega_calling_conventions::HostBindingMechanism;
 
     let needs_resolution = host_abi.bindings.iter().any(|(_, binding)| {
-        matches!(binding.mechanism, HostBindingMechanism::VtableField { .. })
+        matches!(
+            binding.mechanism,
+            HostBindingMechanism::VtableField { .. } | HostBindingMechanism::TableFunction { .. }
+        )
     });
     if !needs_resolution {
         return Ok(host_abi);
@@ -998,11 +1001,22 @@ fn resolve_vtable_field_offsets(
     let mut plan = std::sync::Arc::try_unwrap(host_abi).unwrap_or_else(|shared| (*shared).clone());
     let binding_handles: Vec<_> = plan.bindings.iter().map(|(handle, _)| handle).collect();
     for handle in binding_handles {
-        let HostBindingMechanism::VtableField { table, field, .. } =
-            plan.bindings.get(handle).mechanism.clone()
-        else {
-            continue;
-        };
+        let (table, field, parameter_count, is_table_function) =
+            match plan.bindings.get(handle).mechanism.clone() {
+                HostBindingMechanism::VtableField {
+                    table,
+                    field,
+                    parameter_count,
+                    ..
+                } => (table, field, parameter_count, false),
+                HostBindingMechanism::TableFunction {
+                    table,
+                    field,
+                    parameter_count,
+                    ..
+                } => (table, field, parameter_count, true),
+                _ => continue,
+            };
         let Some(data_layout) = layouts
             .data_layouts
             .iter()
@@ -1035,10 +1049,20 @@ fn resolve_vtable_field_offsets(
             ));
         };
         let resolved_offset = field_layout.offset;
-        plan.bindings.get_mut(handle).mechanism = HostBindingMechanism::VtableField {
-            table,
-            field,
-            byte_offset: resolved_offset,
+        plan.bindings.get_mut(handle).mechanism = if is_table_function {
+            HostBindingMechanism::TableFunction {
+                table,
+                field,
+                byte_offset: resolved_offset,
+                parameter_count,
+            }
+        } else {
+            HostBindingMechanism::VtableField {
+                table,
+                field,
+                byte_offset: resolved_offset,
+                parameter_count,
+            }
         };
     }
     Ok(std::sync::Arc::new(plan))

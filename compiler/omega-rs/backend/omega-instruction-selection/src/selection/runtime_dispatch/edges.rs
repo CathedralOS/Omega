@@ -1269,10 +1269,22 @@ fn select_dispatch_guard_instructions(
             // weaken the guard; otherwise fall through to the loud
             // cannot-encode diagnostic.
             let string_descriptor_size = input.runtime_abi.string_descriptor_size();
+            // A CompareRuntimeValue clause MISSING a storage side is an
+            // operand the place-based clause model could not resolve -- a
+            // member read THROUGH a reference (`d.number_of_pages` where `d`
+            // is a wide-referee borrow-recast let) needs a pointer
+            // dereference no flat clause can express. Re-select from the
+            // EXPRESSION, whose value operands lower the read as a Pointee
+            // deref; an unrescued clause still dies loudly at emission.
+            let has_unresolved_runtime_compare = clauses.iter().any(|clause| {
+                matches!(clause.lowering, StateGuardLowering::CompareRuntimeValue)
+                    && !(clause.has_storage && clause.has_right_storage)
+            });
             if edge.guard_has_expression
-                && clauses
-                    .iter()
-                    .any(|clause| clause.byte_size == string_descriptor_size)
+                && (has_unresolved_runtime_compare
+                    || clauses
+                        .iter()
+                        .any(|clause| clause.byte_size == string_descriptor_size))
             {
                 let guards = select_runtime_dispatch_expression_guard_conjuncts_in_table(
                     input,

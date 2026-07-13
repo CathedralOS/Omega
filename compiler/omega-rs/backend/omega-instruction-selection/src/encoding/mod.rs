@@ -24,7 +24,8 @@ pub use host::{
     encode_entry_argument_register_write_bytes,
     encode_entry_arguments_slice_descriptor_write_bytes, encode_function_enter_bytes,
     encode_host_call_sequence, encode_machine_halt_bytes, encode_return_bytes,
-    encode_vtable_call_sequence, encode_vtable_call_sequence_at_offset,
+    encode_table_function_call_sequence, encode_vtable_call_sequence,
+    encode_vtable_call_sequence_at_offset,
     encode_return_register_integer_write_bytes,
     encode_runtime_storage_copy_to_return_register_bytes, encode_syscall_sequence,
 };
@@ -40,6 +41,7 @@ pub use runtime_storage::{
     encode_runtime_machine_bounded_buffer_literal_append,
     encode_runtime_machine_bounded_buffer_source_append,
     encode_runtime_machine_bounded_buffer_write, encode_runtime_machine_indexed_binary_write,
+    encode_runtime_machine_indexed_address_to_runtime_frame_write,
     encode_runtime_machine_indexed_integer_write,
     encode_runtime_machine_indexed_string_write, encode_runtime_machine_integer_write,
     encode_runtime_machine_string_write,

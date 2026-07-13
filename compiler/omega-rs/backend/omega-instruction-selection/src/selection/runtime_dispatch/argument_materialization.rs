@@ -1178,6 +1178,14 @@ fn initial_value_blocks_inline_fold(
 ) -> bool {
     match input.program.expression_table.expression(initial_value) {
         ExpressionNode::ArrayLiteral(_) | ExpressionNode::StructLiteral(_) => true,
+        // A judged RECAST initializer (`let d = &self.map_buf[k] as &Descriptor`)
+        // owns a slot the lowering fills at the declaration point (an element
+        // ADDRESS for a wide referee, the content snapshot for a narrow one).
+        // Folding a member arg like `d.physical_start` back into a
+        // member-on-cast expression makes it unresolvable and the argument is
+        // silently dropped; keep the local a place so the pointee/flat slot
+        // path resolves it.
+        ExpressionNode::Cast(cast) if cast.form.is_recast() => true,
         // A result-producing call ANYWHERE in the initializer (the whole call, or
         // one nested inside a binary/cast like `let r = base + f(6) * 3`) owns a
         // computed frame slot. Folding such a local back into its initializer and

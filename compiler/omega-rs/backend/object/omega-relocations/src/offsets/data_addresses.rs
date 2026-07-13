@@ -2,6 +2,15 @@ use omega_assigned_target_operations::InstructionOperand;
 use omega_calling_conventions::HostOperationKey;
 use omega_target::Architecture;
 
+/// The fixup-relevant shape of a field-model (vtable/table-function) call:
+/// whether the receiver is a wire argument and whether a result place leads
+/// the operands. Computed from the binding mechanism at collection.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct FieldModelCallShape {
+    pub passes_receiver: bool,
+    pub result_present: bool,
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn data_address_relocation_offset(
     architecture: Architecture,
@@ -10,14 +19,28 @@ pub(crate) fn data_address_relocation_offset(
     selected_text_offset: usize,
     operand_index: usize,
     is_syscall: bool,
-    is_vtable: bool,
+    field_model_shape: Option<FieldModelCallShape>,
 ) -> usize {
-    // A VtableSlot call marshals args like an import (no leading result), then
-    // reads the callee from RCX -- the arg region-base fixups follow the
-    // vtable-call layout.
-    if architecture == Architecture::X86_64 && is_vtable {
-        return selected_text_offset
-            + omega_isa_x86_64::vtable_call_data_relocation_byte_offset(operands, operand_index);
+    // A field-model call marshals args like an import, then reads the callee
+    // from the receiver (This-call) or from the dispatch-only table pointer
+    // (service table) -- each shape has its own fixup layout.
+    if architecture == Architecture::X86_64
+        && let Some(shape) = field_model_shape
+    {
+        let byte_offset = if shape.passes_receiver {
+            omega_isa_x86_64::vtable_call_data_relocation_byte_offset(
+                operands,
+                operand_index,
+                shape.result_present,
+            )
+        } else {
+            omega_isa_x86_64::table_function_call_data_relocation_byte_offset(
+                operands,
+                operand_index,
+                shape.result_present,
+            )
+        };
+        return selected_text_offset + byte_offset;
     }
     // x86_64 Linux syscalls marshal each argument into its register independently, so
     // the data-address/runtime-storage fixup is the sum of the preceding arguments'
@@ -110,16 +133,16 @@ mod tests {
         ];
 
         assert_eq!(
-            data_address_relocation_offset(Architecture::Aarch64, None, &operands, 20, 1, false, false),
+            data_address_relocation_offset(Architecture::Aarch64, None, &operands, 20, 1, false, None),
             24
         );
         assert_eq!(
-            data_address_relocation_offset(Architecture::X86_64, None, &operands, 20, 1, false, false),
+            data_address_relocation_offset(Architecture::X86_64, None, &operands, 20, 1, false, None),
             28
         );
         // x86_64 Linux syscall layout: arg 1's data-address fixup is at 20 + 1*10 + 2.
         assert_eq!(
-            data_address_relocation_offset(Architecture::X86_64, None, &operands, 20, 1, true, false),
+            data_address_relocation_offset(Architecture::X86_64, None, &operands, 20, 1, true, None),
             32
         );
     }

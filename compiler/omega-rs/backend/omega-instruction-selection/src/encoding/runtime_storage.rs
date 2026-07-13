@@ -830,6 +830,32 @@ pub fn encode_runtime_frame_base_indexed_address_to_runtime_frame_write(
     }
 }
 
+/// The MACHINE-base element-address write (the wide-referee borrow-recast
+/// let). x86_64 only.
+pub fn encode_runtime_machine_indexed_address_to_runtime_frame_write(
+    architecture: Architecture,
+    base_byte_offset: usize,
+    index_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    target_offset: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::Aarch64 => Err(Diagnostic::error(
+            "AArch64 machine-indexed address write is not implemented (x86_64 only)",
+        )),
+        Architecture::X86_64 => {
+            x86_64::encode_runtime_machine_indexed_address_to_runtime_frame_write(
+                base_byte_offset,
+                index_offset,
+                element_byte_size,
+                field_byte_offset,
+                target_offset,
+            )
+        }
+    }
+}
+
 pub fn encode_runtime_storage_copy(
     architecture: Architecture,
     source_offset: usize,

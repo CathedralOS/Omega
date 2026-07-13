@@ -114,6 +114,11 @@ pub enum HostProviderMappingKind {
     /// names a fn-ptr FIELD of the block's `over` struct; the layout policy
     /// computes the offset -- no magic slot counts, headers fall out free.
     VtableField { field: Identifier },
+    /// A SERVICE-TABLE function: `get_memory_map -> TableFunction(get_memory_map)`
+    /// dispatches through the table's fn-ptr field like `VtableField`, but the
+    /// table pointer is DISPATCH-ONLY -- never a wire argument (EFI table
+    /// services take no This; protocol/COM methods do).
+    TableFunction { field: Identifier },
     /// A per-target named CONSTANT, not a call mechanism: `O_CREATE -> 32768`
     /// (portable-values settle, 2026-07-07 -- the libc-crate half of the Rust
     /// split). The row supplies the number a boundary trait's declared const

@@ -477,6 +477,16 @@ fn parse_host_provider_binding<'tokens, 'source>(
             let input = input.take_punctuation(PunctuationKind::RightParen, ")")?;
             Ok((HostProviderMappingKind::DllImport { module, symbol }, input))
         }
+        // A service-table function: dispatch through the `over` struct's
+        // fn-ptr FIELD like a bare-field arm, but the table pointer is
+        // dispatch-only -- never a wire argument (EFI table services take
+        // no This; protocol/COM methods do).
+        "TableFunction" => {
+            let input = input.take_punctuation(PunctuationKind::LeftParen, "(")?;
+            let (field, input) = input.take_identifier()?;
+            let input = input.take_punctuation(PunctuationKind::RightParen, ")")?;
+            Ok((HostProviderMappingKind::TableFunction { field }, input))
+        }
         // A BARE identifier (no `(`) is a VtableField arm: the RHS names a
         // fn-ptr FIELD of the block's `over` struct (the field model, extern
         // brief SS12.1). The over-clause requirement is enforced at
@@ -486,9 +496,10 @@ fn parse_host_provider_binding<'tokens, 'source>(
         }
         other => Err(input.error_here(format!(
             "unknown `provides` binding `{other}`: the compiler-known Binding sum is \
-             `Syscall(n)`, `DllImport(\"module\", \"symbol\")`, `VtableSlot(n)`, or a \
-             bare fn-ptr FIELD name of the block's `over` struct; a per-target VALUE \
-             row is a bare integer (`O_CREATE -> 32768`)"
+             `Syscall(n)`, `DllImport(\"module\", \"symbol\")`, `VtableSlot(n)`, \
+             `TableFunction(field)` (a service-table fn-ptr field, table not passed), \
+             or a bare fn-ptr FIELD name of the block's `over` struct (This-call); a \
+             per-target VALUE row is a bare integer (`O_CREATE -> 32768`)"
         ))),
     }
 }

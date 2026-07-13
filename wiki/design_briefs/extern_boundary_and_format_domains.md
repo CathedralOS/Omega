@@ -310,20 +310,30 @@ mechanism = new case + new lowering, never user-invented):
 data Binding {
     case Syscall(number: count);                    // Linux stable ABI = the number table
     case DllImport(module: Text, symbol: Text);     // Windows stable ABI = named exports
-    case VtableField(field: Symbol);                 // COM/UEFI = a fn-ptr field of a table struct
+    case VtableField(field: Symbol);                 // COM/UEFI protocol = a fn-ptr field, This-call
+    case TableFunction(field: Symbol);               // UEFI service table = a fn-ptr field, table NOT passed
 }
 ```
 
 The mapping block needs zero new grammar: `name -> value` arms (transition-arm
 shape) whose RHS is ordinary expression syntax. One honest distinction:
 `Syscall`/`DllImport` are **static** bindings (resolved at build/link time);
-`VtableField` is a **dispatch recipe parameterized by the call's first
-argument** — deref `this` as the table struct, read the named fn-ptr field, call
-it at the declared convention. A third *kind* of mechanism, not a third instance
-of the same kind. Each Binding kind also **implies the edge's calling
-convention** (`Syscall` → the target's syscall plan; `DllImport`/`VtableField`
-→ its C plan) — conventions are stated layouts over registers, one plan feeding
-both the call encoder and the entry stub (see
+`VtableField`/`TableFunction` are **dispatch recipes parameterized by the
+call's first argument** — deref it as the table struct, read the named fn-ptr
+field, call at the declared convention. A third *kind* of mechanism, not a
+third instance of the same kind. The two field-model cases split on the WIRE
+ABI: a `VtableField` method is COM-shaped — the table pointer IS the callee's
+first argument (`OutputString(This, String)`) — while a `TableFunction` is a
+plain function stored in a service table — the table locates the callee and
+stays OFF the wire (`GetMemoryMap(MemoryMapSize, ...)` takes no This; UEFI
+BootServices/RuntimeServices are all this shape). Binding EFI boot services
+as `VtableField` shifts every argument one register right — the firmware
+reads the table pointer as its first out-param and sprays the memory map over
+whatever the second register aliases (found the hard way, 2026-07-13). Each
+Binding kind also **implies the edge's calling convention** (`Syscall` → the
+target's syscall plan; `DllImport`/`VtableField`/`TableFunction` → its C
+plan) — conventions are stated layouts over registers, one plan feeding both
+the call encoder and the entry stub (see
 [`calling_plans.md`](calling_plans.md)); nobody names one in the common case.
 
 **Field model, not slot index (decided 2026-07-04).** A foreign vtable is a
@@ -356,7 +366,10 @@ windows_x64 provides ISum over ISumVtable {
 
 For a header-prefixed table (UEFI `BootServices`) the struct simply begins with
 the `EFI_TABLE_HEADER` fields, then the fn-ptr fields — the header offset falls
-out of the layout, no special case.
+out of the layout, no special case. Its arms bind as
+`get_memory_map -> TableFunction(get_memory_map)`: service-table functions
+take no This, so the table pointer is dispatch-only (the bare-field arm stays
+the This-call `VtableField` shorthand for protocols).
 
 Native `dyn` never touches foreign layouts in either direction: Omega's trait
 objects keep their private representation; foreign vtables are provides-bound

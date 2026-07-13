@@ -70,6 +70,7 @@ impl OperationSemanticQuery for TargetOperationKind {
             | Self::WriteRuntimeFrameIndexedAddressToRuntimeFrame { .. }
             | Self::WriteRuntimeFrameFixedIndexedAddressToRuntimeFrame { .. }
             | Self::WriteRuntimeFrameBaseIndexedAddressToRuntimeFrame { .. }
+            | Self::WriteRuntimeMachineIndexedAddressToRuntimeFrame { .. }
             | Self::AppendWireLiteralByte { .. }
             | Self::AppendWireScalarVarint { .. }
             | Self::AppendWireTextBytes { .. }

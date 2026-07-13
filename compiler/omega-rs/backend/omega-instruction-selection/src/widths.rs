@@ -13,10 +13,24 @@ pub fn vtable_call_sequence_width<T: InstructionOperandLike>(
     architecture: Architecture,
     operands: &[T],
     index: i64,
+    result_present: bool,
 ) -> usize {
     match architecture {
         Architecture::Aarch64 => 0,
-        Architecture::X86_64 => x86_64::win64_vtable_call_width(operands, index),
+        Architecture::X86_64 => x86_64::win64_vtable_call_width(operands, index, result_present),
+    }
+}
+
+pub fn table_function_call_sequence_width<T: InstructionOperandLike>(
+    architecture: Architecture,
+    operands: &[T],
+    result_present: bool,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 => 0,
+        Architecture::X86_64 => {
+            x86_64::win64_table_function_call_width(operands, 0, result_present)
+        }
     }
 }
 
@@ -1398,6 +1412,34 @@ pub fn runtime_frame_base_indexed_address_target_frame_offset(
     }
 }
 
+/// Width of the MACHINE-base element-address write (the wide-referee
+/// borrow-recast let). x86_64 only — aarch64 refuses via the zero-width
+/// convention (layout trips its loud zero-byte refusal).
+pub fn runtime_machine_indexed_address_to_runtime_frame_write_width(
+    architecture: Architecture,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 => 0,
+        Architecture::X86_64 => {
+            x86_64::runtime_machine_indexed_address_to_runtime_frame_write_width()
+        }
+    }
+}
+
+/// Relocation site offsets (pre-`+2`) inside the machine-indexed address
+/// write: (index region base load, target frame base load). x86_64 only.
+pub fn runtime_machine_indexed_address_relocation_offsets(
+    architecture: Architecture,
+) -> Option<(usize, usize)> {
+    match architecture {
+        Architecture::Aarch64 => None,
+        Architecture::X86_64 => Some((
+            x86_64::MACHINE_INDEXED_ADDRESS_INDEX_BASE_IMM_OFFSET,
+            x86_64::MACHINE_INDEXED_ADDRESS_TARGET_FRAME_IMM_OFFSET,
+        )),
+    }
+}
+
 /// Width of the ByteRead stdin read (0 = the refuse-to-emit convention for
 /// mechanisms the op can never bind to).
 pub fn runtime_byte_read_width(architecture: Architecture, binding: &HostBindingMechanism) -> usize {
@@ -1408,13 +1450,15 @@ pub fn runtime_byte_read_width(architecture: Architecture, binding: &HostBinding
                 aarch64::runtime_byte_read_syscall_width(*number)
             }
             HostBindingMechanism::VtableSlot { .. }
-            | HostBindingMechanism::VtableField { .. } => 0,
+            | HostBindingMechanism::VtableField { .. }
+            | HostBindingMechanism::TableFunction { .. } => 0,
         },
         Architecture::X86_64 => match binding {
             HostBindingMechanism::Import { .. } => x86_64::runtime_byte_read_import_width(),
             HostBindingMechanism::Syscall { .. } => x86_64::runtime_byte_read_syscall_width(),
             HostBindingMechanism::VtableSlot { .. }
-            | HostBindingMechanism::VtableField { .. } => 0,
+            | HostBindingMechanism::VtableField { .. }
+            | HostBindingMechanism::TableFunction { .. } => 0,
         },
     }
 }
@@ -1431,13 +1475,15 @@ pub fn runtime_byte_write_width(
                 aarch64::runtime_byte_write_syscall_width(*number)
             }
             HostBindingMechanism::VtableSlot { .. }
-            | HostBindingMechanism::VtableField { .. } => 0,
+            | HostBindingMechanism::VtableField { .. }
+            | HostBindingMechanism::TableFunction { .. } => 0,
         },
         Architecture::X86_64 => match binding {
             HostBindingMechanism::Import { .. } => x86_64::runtime_byte_write_import_width(),
             HostBindingMechanism::Syscall { .. } => x86_64::runtime_byte_write_syscall_width(),
             HostBindingMechanism::VtableSlot { .. }
-            | HostBindingMechanism::VtableField { .. } => 0,
+            | HostBindingMechanism::VtableField { .. }
+            | HostBindingMechanism::TableFunction { .. } => 0,
         },
     }
 }
@@ -1471,7 +1517,8 @@ pub fn runtime_text_line_read_width(
             }
             // read_line is never vtable-bound; 0 = the refuse-to-emit convention.
             HostBindingMechanism::VtableSlot { .. }
-            | HostBindingMechanism::VtableField { .. } => 0,
+            | HostBindingMechanism::VtableField { .. }
+            | HostBindingMechanism::TableFunction { .. } => 0,
         },
         Architecture::X86_64 => match binding {
             HostBindingMechanism::Import { .. } => {
@@ -1489,7 +1536,8 @@ pub fn runtime_text_line_read_width(
                 }
             }
             HostBindingMechanism::VtableSlot { .. }
-            | HostBindingMechanism::VtableField { .. } => 0,
+            | HostBindingMechanism::VtableField { .. }
+            | HostBindingMechanism::TableFunction { .. } => 0,
         },
     }
 }
@@ -1507,7 +1555,8 @@ pub fn runtime_text_line_read_target_address_offset(
                 aarch64::runtime_text_line_read_syscall_target_address_offset(*number)
             }
             HostBindingMechanism::VtableSlot { .. }
-            | HostBindingMechanism::VtableField { .. } => 0,
+            | HostBindingMechanism::VtableField { .. }
+            | HostBindingMechanism::TableFunction { .. } => 0,
         },
         Architecture::X86_64 => match binding {
             HostBindingMechanism::Import { .. } => {
@@ -1517,7 +1566,8 @@ pub fn runtime_text_line_read_target_address_offset(
                 x86_64::runtime_text_line_read_syscall_target_imm_offset()
             }
             HostBindingMechanism::VtableSlot { .. }
-            | HostBindingMechanism::VtableField { .. } => 0,
+            | HostBindingMechanism::VtableField { .. }
+            | HostBindingMechanism::TableFunction { .. } => 0,
         },
     }
 }

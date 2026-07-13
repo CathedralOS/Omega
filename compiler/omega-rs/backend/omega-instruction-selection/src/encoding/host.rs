@@ -22,11 +22,13 @@ pub fn encode_vtable_call_sequence<T: InstructionOperandLike>(
 }
 
 /// The FIELD-MODEL flavor (extern brief SS12.1): the byte offset came from
-/// the vtable struct's layout via the backend's vtable-field pass.
+/// the vtable struct's layout via the backend's vtable-field pass. When
+/// `result_present`, operand 0 is the RESULT place and the store tail runs.
 pub fn encode_vtable_call_sequence_at_offset<T: InstructionOperandLike>(
     architecture: Architecture,
     operands: &[T],
     byte_offset: usize,
+    result_present: bool,
 ) -> Result<Vec<u8>, Diagnostic> {
     match architecture {
         Architecture::Aarch64 => Err(Diagnostic::error(
@@ -36,6 +38,29 @@ pub fn encode_vtable_call_sequence_at_offset<T: InstructionOperandLike>(
             operands,
             i64::try_from(byte_offset)
                 .map_err(|_| Diagnostic::error("vtable field offset overflows i64"))?,
+            result_present,
+        ),
+    }
+}
+
+/// A SERVICE-TABLE function call: field-model dispatch where the table
+/// pointer is dispatch-only, never a wire argument (EFI table services take
+/// no This; protocol/COM methods do).
+pub fn encode_table_function_call_sequence<T: InstructionOperandLike>(
+    architecture: Architecture,
+    operands: &[T],
+    byte_offset: usize,
+    result_present: bool,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::Aarch64 => Err(Diagnostic::error(
+            "AArch64 table-function dispatch is not implemented (x86_64 only)",
+        )),
+        Architecture::X86_64 => x86_64::encode_win64_table_function_call(
+            operands,
+            i64::try_from(byte_offset)
+                .map_err(|_| Diagnostic::error("service table field offset overflows i64"))?,
+            result_present,
         ),
     }
 }

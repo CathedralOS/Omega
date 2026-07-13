@@ -41,6 +41,29 @@ pub(super) fn collect_runtime_storage_address_relocations(
             }
             true
         }
+        SelectedInstructionKind::WriteRuntimeMachineIndexedAddressToRuntimeFrame {
+            index_region,
+            ..
+        } => {
+            // MACHINE base (the element-address computation) at the start,
+            // the index region's base at its own load, and the target frame
+            // base at the store's reload.
+            context
+                .insert_data_address_at_instruction_start(context.machine_storage_symbol_handle());
+            if let Some((index_base_offset, target_frame_offset)) =
+                omega_instruction_selection::runtime_machine_indexed_address_relocation_offsets(
+                    context.input.target.architecture,
+                )
+            {
+                let index_symbol = context.storage_region_symbol_handle(*index_region);
+                context.insert_data_address_at_relative_offset(index_base_offset, index_symbol);
+                context.insert_data_address_at_relative_offset(
+                    target_frame_offset,
+                    context.runtime_frame_symbol_handle(),
+                );
+            }
+            true
+        }
         SelectedInstructionKind::WriteRuntimeFrameIndexedAddressToRuntimeFrame {
             index_region, ..
         } => {

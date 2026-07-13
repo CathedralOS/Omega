@@ -67,6 +67,9 @@ pub(super) fn selected_runtime_storage_address_kind(
                 *target_offset,
             ),
         ),
+        SelectedInstructionKind::WriteRuntimeMachineIndexedAddressToRuntimeFrame { .. } => {
+            Some(MachineInstructionKind::RuntimeMachineIndexedAddressToRuntimeFrameWrite)
+        }
         _ => None,
     }
 }

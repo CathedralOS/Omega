@@ -1029,6 +1029,13 @@ fn select_runtime_dispatch_local_initializer_write(
         // address is base + k (byte elements), and the view copies the
         // STATED size from it. The judged class guarantees the footprint
         // (high(k) + size <= N via the R1 interval machinery).
+        //
+        // The REFEREE-SIZE rule splits the lowering (the same rule the read
+        // side applies): a stated referee wider than a pointer cannot
+        // content-spill -- reads deref the slot -- so the slot receives the
+        // ELEMENT ADDRESS (`&self.map_buf[k] as &EfiMemoryDescriptor`, the M2
+        // walk). At or under pointer width the slot stays a content copy
+        // (the pinned `&u32`/`&f32` shape) and reads stay flat.
         if let Some(size) = target_size
             && let Some(indexed) = crate::selection::storage_places::resolve_runtime_machine_indexed_target_in_table(
                 input,
@@ -1038,8 +1045,17 @@ fn select_runtime_dispatch_local_initializer_write(
                 source,
             )
         {
-            selected_instructions.push(SelectedInstruction {
-                kind: SelectedInstructionKind::CopyRuntimeMachineIndexedToRuntimeStorage {
+            let kind = if size > input.runtime_abi.pointer_size {
+                SelectedInstructionKind::WriteRuntimeMachineIndexedAddressToRuntimeFrame {
+                    base_byte_offset: indexed.base_byte_offset,
+                    index_offset: indexed.index_offset,
+                    index_region: indexed.index_region,
+                    element_byte_size: indexed.element_byte_size,
+                    field_byte_offset: indexed.field_byte_offset,
+                    target_offset: slot.byte_offset,
+                }
+            } else {
+                SelectedInstructionKind::CopyRuntimeMachineIndexedToRuntimeStorage {
                     base_byte_offset: indexed.base_byte_offset,
                     index_offset: indexed.index_offset,
                     index_region: indexed.index_region,
@@ -1048,7 +1064,10 @@ fn select_runtime_dispatch_local_initializer_write(
                     target_region: omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame,
                     target_offset: slot.byte_offset,
                     byte_count: size,
-                },
+                }
+            };
+            selected_instructions.push(SelectedInstruction {
+                kind,
                 source_key,
                 source_statement: statement_index,
             });

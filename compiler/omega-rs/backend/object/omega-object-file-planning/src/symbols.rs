@@ -70,12 +70,13 @@ pub(super) fn insert_object_symbols(
                     kind: SymbolKind::Import,
                     import_library: library.to_string(),
                 }),
-                // Syscalls and vtable calls have no import symbol: the callee
-                // address is a number (syscall) or read from the receiver at
-                // call time (vtable).
+                // Syscalls and field-model calls have no import symbol: the
+                // callee address is a number (syscall) or read from the
+                // receiver/table at call time (vtable/table-function).
                 HostBindingMechanism::Syscall { .. }
                 | HostBindingMechanism::VtableSlot { .. }
-                | HostBindingMechanism::VtableField { .. } => None,
+                | HostBindingMechanism::VtableField { .. }
+                | HostBindingMechanism::TableFunction { .. } => None,
             }
         }));
 
