@@ -1,5 +1,5 @@
 mod fixed_array_slices;
-mod mutation;
+pub(crate) mod mutation;
 mod slice_descriptors;
 mod static_values;
 mod storage_copy;

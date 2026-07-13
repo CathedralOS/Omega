@@ -14,7 +14,7 @@ mod edges;
 mod guards;
 mod operation_aliases;
 mod text_writes;
-mod writes;
+pub(crate) mod writes;
 
 use super::host_operations::{
     runtime_string_descriptor_place, runtime_text_literal_write_for_host_call, select_host_call,
@@ -718,6 +718,81 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
                         source_key: operation.source_key,
                         source_statement: operation.statement_index,
                     });
+                }
+
+                if matches!(operation.kind, RuntimeDispatchBodyOperationKind::PortWrite)
+                    && let Some((port_expr, value_expr)) = super::lookups::asm_port_write_operands(
+                        input,
+                        operation.source_key,
+                        operation.statement_index,
+                    )
+                {
+                    let scratch = writes::RuntimeStaticValues::with_capacity(0);
+                    let port = writes::mutation::resolve_runtime_value_operand_in_table(
+                        input,
+                        dispatch_case.dispatch_index,
+                        operation.source_key,
+                        operation.statement_index,
+                        &input.state_calls.expressions,
+                        port_expr,
+                        &scratch,
+                        runtime_value_operands,
+                    );
+                    let value = writes::mutation::resolve_runtime_value_operand_in_table(
+                        input,
+                        dispatch_case.dispatch_index,
+                        operation.source_key,
+                        operation.statement_index,
+                        &input.state_calls.expressions,
+                        value_expr,
+                        &scratch,
+                        runtime_value_operands,
+                    );
+                    if let (Some(port), Some(value)) = (port, value) {
+                        selected_instructions.push(SelectedInstruction {
+                            kind: SelectedInstructionKind::PortWrite { port, value },
+                            source_key: operation.source_key,
+                            source_statement: operation.statement_index,
+                        });
+                    }
+                }
+
+                if matches!(operation.kind, RuntimeDispatchBodyOperationKind::PortRead)
+                    && let Some((port_expr, dest_expr)) = super::lookups::asm_port_read_operands(
+                        input,
+                        operation.source_key,
+                        operation.statement_index,
+                    )
+                {
+                    let scratch = writes::RuntimeStaticValues::with_capacity(0);
+                    let port = writes::mutation::resolve_runtime_value_operand_in_table(
+                        input,
+                        dispatch_case.dispatch_index,
+                        operation.source_key,
+                        operation.statement_index,
+                        &input.state_storage.expressions,
+                        port_expr,
+                        &scratch,
+                        runtime_value_operands,
+                    );
+                    let dest = crate::selection::storage_places::resolve_runtime_storage_place_in_table(
+                        input,
+                        dispatch_case.dispatch_index,
+                        operation.source_key,
+                        &input.state_storage.expressions,
+                        dest_expr,
+                    );
+                    if let (Some(port), Some(dest)) = (port, dest) {
+                        selected_instructions.push(SelectedInstruction {
+                            kind: SelectedInstructionKind::PortRead {
+                                port,
+                                dest_region: dest.region,
+                                dest_byte_offset: dest.byte_offset,
+                            },
+                            source_key: operation.source_key,
+                            source_statement: operation.statement_index,
+                        });
+                    }
                 }
 
                 if matches!(operation.kind, RuntimeDispatchBodyOperationKind::HostCall)

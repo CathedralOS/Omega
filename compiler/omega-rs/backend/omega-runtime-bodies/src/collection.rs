@@ -247,6 +247,40 @@ fn append_state_body_operations(
             ));
             continue;
         }
+        // `asm { out <port>, <value> }` -- a Call to `asm#port_out` -- lowers to
+        // a raw port write, not a state call.
+        if let OperationKind::Call {
+            target,
+            has_receiver: false,
+            ..
+        } = &operation.kind
+            && target.as_str() == "asm#port_out"
+        {
+            operations.insert(body_operation(
+                state_key,
+                operation.statement_index,
+                RuntimeDispatchBodyOperationKind::PortWrite,
+            ));
+            continue;
+        }
+        // `asm { in <dest>, <port> }` desugars to `dest = asm#port_in(port)`, an
+        // ASSIGNMENT whose value is the intrinsic call. Classify it as a raw
+        // port read BEFORE the mutation/state-call handling, which would
+        // otherwise try to lower the unresolved `asm#port_in` call.
+        if matches!(operation.kind, OperationKind::Assignment)
+            && let Some(mutation) =
+                mutation_for_statement(context, state_key, operation.statement_index)
+            && let omega_checked_trees::expression::ExpressionNode::Call(call) =
+                context.state_storage.expressions.expression(mutation.value)
+            && call.target.as_str() == "asm#port_in"
+        {
+            operations.insert(body_operation(
+                state_key,
+                operation.statement_index,
+                RuntimeDispatchBodyOperationKind::PortRead,
+            ));
+            continue;
+        }
         if host_call_for_statement(context, state_key, operation.statement_index).is_some() {
             operations.insert(body_operation(
                 state_key,

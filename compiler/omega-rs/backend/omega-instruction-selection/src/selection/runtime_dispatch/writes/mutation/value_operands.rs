@@ -77,7 +77,7 @@ pub(super) fn binary_value_operand_byte_width(
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(super) fn resolve_runtime_value_operand_in_table(
+pub(crate) fn resolve_runtime_value_operand_in_table(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
     source_key: StateKey,

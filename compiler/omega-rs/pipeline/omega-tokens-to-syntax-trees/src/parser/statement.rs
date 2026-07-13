@@ -291,8 +291,11 @@ fn parse_asm_statement_handle<'tokens, 'source>(
             let input = input.take_punctuation(PunctuationKind::Comma, ",")?;
             let (value, input) = parse_expression_handle(syntax_trees, input)?;
             let input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
+            // A statement `TableCall`'s argument span lives in the STATEMENT
+            // arena (`statements`), not the expression arena -- inserting into
+            // the wrong one leaves the span reading default (0) downstream.
             let arguments = syntax_trees
-                .expressions
+                .statements
                 .insert_expression_handles(vec![port, value]);
             Ok((
                 syntax_trees

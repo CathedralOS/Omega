@@ -57,6 +57,12 @@ pub enum RuntimeDispatchBodyOperationKind {
     /// transition or host call. See the privileged_effects_and_binary_trust
     /// brief and the parallel `HostCall` handling.
     MachineHalt,
+    /// An `asm { out <port>, <value> }` statement (a Call to `asm#port_out`):
+    /// a raw port write, operands resolved at selection.
+    PortWrite,
+    /// An `asm { in <dest>, <port> }` statement (an Assignment whose value is a
+    /// Call to `asm#port_in`): a raw port read into a destination place.
+    PortRead,
     InlineLeafStateCall {
         role: StateCallRole,
         call_ordinal: usize,

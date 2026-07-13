@@ -30,6 +30,8 @@ pub(super) fn bind_runtime_operation_aliases(
         | RuntimeDispatchBodyOperationKind::StateCall { .. } => {}
         RuntimeDispatchBodyOperationKind::HostCall
         | RuntimeDispatchBodyOperationKind::MachineHalt
+        | RuntimeDispatchBodyOperationKind::PortWrite
+        | RuntimeDispatchBodyOperationKind::PortRead
         | RuntimeDispatchBodyOperationKind::LocalStorage { .. }
         | RuntimeDispatchBodyOperationKind::Mutation { .. }
         | RuntimeDispatchBodyOperationKind::StateCallResult { .. }

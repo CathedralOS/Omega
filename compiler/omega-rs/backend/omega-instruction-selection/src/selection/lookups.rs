@@ -272,3 +272,80 @@ pub(super) fn state_mutation_for_statement<'plan>(
         })
         .map(|(_, mutation)| mutation)
 }
+
+/// The checked statement node at `(source_key, statement_index)`.
+fn checked_statement_node<'plan>(
+    input: &'plan InstructionSelectionInput<'plan>,
+    source_key: StateKey,
+    statement_index: usize,
+) -> Option<&'plan omega_checked_trees::statement::StatementNode> {
+    let machine = input
+        .program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == source_key.machine)?;
+    let state = input
+        .program
+        .machine_states(machine)
+        .iter()
+        .find(|state| state.symbol == source_key.state)?;
+    input
+        .program
+        .statement_table
+        .statements(state.statement_nodes)
+        .get(statement_index)
+}
+
+/// The `(port, value)` argument expressions of an `asm { out .. }` statement (a
+/// Call to the unnameable `asm#port_out`). The args come from the (unresolved)
+/// state-call record so they resolve against `input.state_calls.expressions` --
+/// the same table the state/host-call argument machinery uses -- rather than
+/// the raw checked program table (whose handles the operand resolver cannot
+/// map to storage places).
+pub(super) fn asm_port_write_operands<'plan>(
+    input: &'plan InstructionSelectionInput<'plan>,
+    source_key: StateKey,
+    statement_index: usize,
+) -> Option<(ExpressionHandle, ExpressionHandle)> {
+    // Confirm the statement really is the asm#port_out intrinsic.
+    let omega_checked_trees::statement::StatementNode::Call(call) =
+        checked_statement_node(input, source_key, statement_index)?
+    else {
+        return None;
+    };
+    if call.target.as_str() != "asm#port_out" {
+        return None;
+    }
+    let state_call = state_call_for_statement(input, source_key, statement_index)?;
+    let arguments = input.state_calls.arguments.span(state_call.arguments)?;
+    Some((
+        arguments.first()?.expression,
+        arguments.get(1)?.expression,
+    ))
+}
+
+/// The `(port_expr, destination_place_expr)` of an `asm { in <dest>, <port> }`
+/// statement -- an assignment whose value is the `asm#port_in` call. Both
+/// expressions are into `input.state_storage.expressions` (the mutation's
+/// table).
+pub(super) fn asm_port_read_operands<'plan>(
+    input: &'plan InstructionSelectionInput<'plan>,
+    source_key: StateKey,
+    statement_index: usize,
+) -> Option<(ExpressionHandle, ExpressionHandle)> {
+    let mutation = state_mutation_for_statement(input, source_key, statement_index)?;
+    let ExpressionNode::Call(call) =
+        input.state_storage.expressions.expression(mutation.value)
+    else {
+        return None;
+    };
+    if call.target.as_str() != "asm#port_in" {
+        return None;
+    }
+    let port = *input
+        .state_storage
+        .expressions
+        .expression_handles(call.arguments)
+        .first()?;
+    Some((port, mutation.target))
+}
