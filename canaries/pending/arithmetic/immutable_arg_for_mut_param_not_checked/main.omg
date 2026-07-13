@@ -10,6 +10,11 @@
 // SAFE direction (`&mut x` for a `&` parameter) is correctly accepted; only the
 // unsafe direction (immutable arg -> `&mut` param) needs rejecting.
 //
+// DRIFT NOTE (2026-07-18): the miscompiled program now SEGFAULTS natively
+// (exit -1073741819 / 0xC0000005, was exit -1) -- the unenforced write lands
+// somewhere less forgiving on current main. The pending-divergence ledger
+// pins the crash code so the next behavior change still fails loudly.
+//
 // This is a facet of the KNOWN "ownership enforcement is frontend-modeled but not
 // enforced" subsystem (see TASKS + memory drop-bodies-not-executed: drop bodies
 // don't run, use-after-move isn't rejected). Fence-vs-implement is Zach's call --

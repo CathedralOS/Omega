@@ -12,6 +12,11 @@
 // Rust/interp's i64 saturation, unlike x86's integer-indefinite), so the
 // divergence is now also NATIVE-vs-NATIVE across architectures -- the design
 // decision must pick trap/saturate/obligation, not "match native".
+// LEDGER NOTE (2026-07-18): the pending-divergence gate runs native on the
+// HOST, so its entry documents the x86 pair (native 70 / interp 71); this
+// header keeps aarch64's 99 as the cross-target face. The RULING has since
+// landed (proof-or-policy, OWNER_QUESTIONS 10 / float ladder F4); building
+// F4 retires this repro entirely.
 //
 // UNIFIED DESIGN QUESTION (with shift-amount-out-of-range-divergence): both are
 // UNDERSPECIFIED numeric-range operations -- a shift by >= the operand width, and

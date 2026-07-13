@@ -1917,8 +1917,17 @@ const PENDING_RUNTIME_DIVERGENCES: &[(&str, i32, PendingInterpOutcome)] = &[
     ("calls/texteq_local_guard_read_divergence", 71, PendingInterpOutcome::Exit(70)),
     ("calls/texteq_local_arg_forward_divergence", 71, PendingInterpOutcome::Exit(70)),
     ("calls/trailing_state_mut_param_phase_divergence", 71, PendingInterpOutcome::Exit(70)),
-    ("arithmetic/float_to_int_overflow_divergence", 99, PendingInterpOutcome::Exit(71)),
-    ("arithmetic/immutable_arg_for_mut_param_not_checked", -1, PendingInterpOutcome::Exit(1)),
+    // Host-correct legs (this gate runs native on the HOST): x86 truncation
+    // yields 70; the header records aarch64's 99 as the cross-target face.
+    ("arithmetic/float_to_int_overflow_divergence", 70, PendingInterpOutcome::Exit(71)),
+    // The miscompiled program (unenforced borrow rule) SEGFAULTS on current
+    // main (was exit -1); the drift-watch pins the crash code so the next
+    // behavior change still fails loudly.
+    (
+        "arithmetic/immutable_arg_for_mut_param_not_checked",
+        -1073741819,
+        PendingInterpOutcome::Exit(1),
+    ),
     // 72/72: the two legs AGREE on this host (aarch64 LSLV masks the count
     // at 64 like the interp); the parked divergence is vs x86's 32-bit mask.
     ("expressions/dead_trapping_let_not_elided", 7, PendingInterpOutcome::Traps),

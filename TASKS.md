@@ -896,33 +896,33 @@ rejects — an INTEGER ruling, engineering rides this ladder as F8).
   `7640a6f7a` is EXONERATED — the earlier "smoking gun" flag here was
   attribution-by-proximity, not bisection. The authoring lane gates on
   aarch64-darwin where all seven pass; this host exposes real standing
-  gaps. THE LIST (all ours now, fix forward on HEAD):
-  (1) arithmetic/runtime_f32_field_guard_exit native 71 — f32 guard
-  compare width; (2) arithmetic/runtime_newton_sqrt_exit 71 — float
-  div/compare loop; (3) recast/runtime_scalar_pun_shared_let_exit 71 —
-  §5b scalar-pun reads; (4) calls/runtime_std_math_sin_cos_exit 72;
-  (5) calls/runtime_value_call_terminal_exit 74 — hoisted terminal-call
-  delivery; (6) the storage zero-width slice-indexed alias binary write
-  (compile refusal, x86_64 layout width resolution); (7) the windows fs
-  host-arg materialization family (fs canary + samples note_vault mkdir
-  refusal + file_journal exit 3). Gates on THIS host stay red until
-  these land; each fix should flip its canary and shrink the ledger.
+  gaps. STATUS:
+  (1)–(5) THE FLOAT FIVE — FIXED 2026-07-18, ONE LINE: float conjuncts
+  in dispatch-edge guards (`self.f > 3.14 && self.f < 3.15`) kept SIGNED
+  jcc conditions after `ucomis*`, whose flags are unsigned-style with
+  SF=OF zeroed — the Less-failure branch (`jge`) was ALWAYS taken, so
+  every float range window failed its upper bound on x86_64. The
+  single-clause path already swapped to the unsigned forms
+  (edges.rs ~1421 documents exactly why); the CONJUNCTION loop was
+  missing `clause.is_float ||` in its swap condition. All five canaries
+  (f32_field_guard, newton_sqrt, scalar_pun_shared_let, std_math_sin_cos,
+  value_call_terminal) flip green 70/70 from the one edit.
+  STILL OPEN, ours: (6) the storage zero-width slice-indexed alias
+  binary write (compile refusal, x86_64 layout width resolution — red at
+  least since 8d0b33b8e); (7) the windows fs host-arg materialization
+  family (fs canary + samples note_vault mkdir refusal + file_journal
+  exit 3 — red at least since 8d0b33b8e).
 
-- **⚠️ `pending_runtime_divergences_hold` is RED on main (two drifts, both
-  pre-existing / not-mine, flagged 2026-07-18):** (a)
-  `arithmetic/float_to_int_overflow_divergence` documents native 99 (the
-  AARCH64 probe number) but the test runs native on the host — on x86 the
-  documented-correct native is 70 (the header records both). Host-naive
-  pending entry, not a regression; the real fix RETIRES the entry entirely
-  = float ladder F4 (float→int cast proof-or-policy, ANSWERED, unbuilt;
-  codegen, RECAST-collision). (b)
-  `arithmetic/immutable_arg_for_mut_param_not_checked` drifted native
-  -1 → segfault -1073741819: the miscompiled program (an immutable arg to
-  a `&mut` param, an unenforced borrow rule) now crashes differently. The
-  gap is DESIGN-BLOCKED per its own header — owner fence-vs-implement call,
-  and the sound fix needs semantic mutability tracking (borrow-checker
-  work, deferred with the ownership-enforcement subsystem). Renumbering
-  either would mask; left for the owning lanes.
+- **`pending_runtime_divergences_hold` — GREENED 2026-07-18 (ledger
+  host-corrected):** (a) `float_to_int_overflow_divergence` now documents
+  the x86 host pair (native 70 / interp 71; the header keeps aarch64's
+  99 as the cross-target face) — the entry retires entirely when float
+  ladder F4 (proof-or-policy, ANSWERED) is built. (b)
+  `immutable_arg_for_mut_param_not_checked` now pins the segfault code
+  (-1073741819, was -1) so the next behavior change fails loudly; the
+  GAP itself stays DESIGN-BLOCKED per its header (owner
+  fence-vs-implement call; sound fix = semantic mutability tracking with
+  the ownership-enforcement subsystem).
 
   (The earlier "CONFIRMED ON MAIN / five float failures survived onto
   committed main / bisect from 8d0b33b8e" block that lived here was
