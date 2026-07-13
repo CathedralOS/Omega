@@ -13255,6 +13255,55 @@ fn runtime_shift_right_signedness_canary_runs() {
 }
 
 #[test]
+fn const_fold_unsigned_landed_ops_canary_runs() {
+    // CM2 first rung: the state-values folder folds at the LANDED type (the
+    // destination landing from the let's declared type). `0u32 - 2` wraps to
+    // width (4294967294, not i64 -2) and the sign-sensitive ops fold unsigned:
+    // `b >> 1` logical = 2147483647, `b / 3` = 1431655764, `b % 3` = 2; their
+    // sum is guard-checked in the SAME state (the transition-arg delivery face
+    // is a separate open bug, pinned pending). exit 71 = a fold regressed to
+    // the bare-i64 window.
+    let canary = pass_canary("arithmetic/const_fold_unsigned_landed_ops_exit");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("landed-ops const-fold canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should exit 70 (u32 wrap + logical shift/unsigned div), got {}",
+        outcome.exit_code
+    );
+
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-const-fold-landed-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("landed-ops const-fold canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("landed-ops const-fold canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected landed-type const folds (exit 70), got {:?} \
+         (71 = a sign-sensitive fold ran in the bare-i64 window)\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn struct_literal_field_coercion_canary_runs() {
     // A struct-literal field init coerces the field value to the field's declared
     // width/domain (interpreter eval_struct_literal): `Point { x: a+b }` with
@@ -29773,6 +29822,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "arithmetic/struct_literal_field_coercion",
     "arithmetic/runtime_signed_division_exit",
     "arithmetic/runtime_shift_right_signedness",
+    "arithmetic/const_fold_unsigned_landed_ops_exit",
     "arithmetic/runtime_unsigned_division_exit",
     "arithmetic/runtime_min_max_signedness_exit",
     "arithmetic/runtime_comparison_value_signedness_exit",

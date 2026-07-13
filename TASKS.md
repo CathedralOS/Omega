@@ -53,10 +53,33 @@ dispatch-region + receiver-phase family. Everything queued here avoids both.
    (subsumes the u64>i64::MAX 165-site i128 refactor; SHARES the bignum
    with N2 — coordinate, one engine, two consumers).
    CM2 — landed constants carry their type/domain/format (the
-   metadata-carrying constant): closes the shift-right sign class, the
-   decision-17 Saturating/Trapping domain-stripping hole, and the
-   guard-folder f32-in-f64 residue in one stroke; flip the pending/
-   repros to pass canaries as each closes.
+   metadata-carrying constant). FIRST RUNG LANDED 2026-07-18: the
+   state-values folder now folds AT THE LANDED TYPE. A DESTINATION
+   LANDING — the let/assignment target's declared width/signedness/domain
+   — threads through the simplifier's value spine (binary operands +
+   Mutable wrappers only; indices/args/fields get None) into
+   fold_binary_expression; fold_landed (folding.rs) normalizes operands
+   to the landed type, computes exact in i128, and lands per domain:
+   Exact/Wrapping wrap to width, Saturating CLAMPS (closes the
+   domain-stripping hole's clamp face where a landing derives), Trapping
+   overflow passes the EXACT value through so the existing store-trap arm
+   fires (transitional; documented in land_result). Sign-sensitive folds
+   (`>>` `/` `%` + comparisons) are now correct at the landed type; the
+   local-initializer role mislabel (CallArgument → AssignmentValue,
+   runtime_dispatch.rs) was the wiring fix that lets the landing apply.
+   ⚠️ Both pending const_fold repros STILL DIVERGE via a SECOND face —
+   selection's transition-arg materialization substitutes a slot-backed
+   local's initializer tree and lowers it as a TYPELESS nested runtime
+   binary (`(0 Subtract/8 2) ShiftRight 1`) whose shift defaults signed;
+   the type truth lives only in the write TARGET (the callee param). Fix
+   directions in the shift repro's header: slot-COPY the arg (the
+   CopyRuntimeStorage arm fires if the arg stays `Name(y)`; needs
+   alias-layer + storage-slotting twins to agree) or resolve the write's
+   signedness from its TARGET. Selection files — RECAST-lane
+   coordination. Remaining CM2 scope: the metadata-carrying CARRIER
+   itself (u64-at-width-64 representatives can't ride i64 — the min/max
+   pending repro needs the domain ON the operand), the guard-folder f32
+   residue.
    CM3 — fold-at-landed-type everywhere: folder + guard folder + interp
    parity; differential legs per width/signedness/domain/format.
 6. **Place algebra, Copy* pilot (FRONT-LOADED by owner 2026-07-18;
@@ -876,18 +899,26 @@ rejects — an INTEGER ruling, engineering rides this ladder as F8).
   work, deferred with the ownership-enforcement subsystem). Renumbering
   either would mask; left for the owning lanes.
 
-- **⚠️ HEADS-UP for the float lane (2026-07-18, corrected same hour):**
-  running the full gates for the dutch_flag canary, the SHARED working
-  tree carried uncommitted edits to three float-path backend files
-  (storage_places.rs, simplify/bindings.rs, state-storage/collection.rs)
-  and the gates failed against that WIP: five float/math canaries exit
-  wrong natively (newton_sqrt 71, scalar_pun_shared_let 71,
+- **⚠️⚠️ CONFIRMED ON MAIN (escalated 2026-07-18; was a WIP heads-up):
+  the five float/math pass-canary failures SURVIVED onto committed
+  main.** The differential gate at `e8ef7f1e0`+CM2 fails
+  `interpreter_matches_native_on_supported_canaries` with exactly the
+  five predicted natives (newton_sqrt 71, scalar_pun_shared_let 71,
   std_math_sin_cos 72, value_call_terminal 74, f32_field_guard 71 — all
-  expect 70), samples/cli/systems/descriptor_walk exits 0xC0000005
-  ACCESS VIOLATION, file_journal exits 3 (expected 7), note_vault refuses
-  to compile (Filesystem.mkdir host-arg). Committed main was NOT verified
-  independently — this list is the pre-commit gate for whoever owns those
-  edits; if the failures survive their commit, bisect from 8d0b33b8e.
+  expect 70); f32_field_guard verified diverging on a CLEAN stash of
+  `e8ef7f1e0` (not the CM2 change; zero float content there). The
+  original WIP sighting named three float-path backend files
+  (storage_places.rs, simplify/bindings.rs, state-storage/collection.rs);
+  bisect from 8d0b33b8e. Until fixed, the differential suite is RED on
+  main (760 others match). ALSO CONFIRMED on a clean stash:
+  `filesystem/discarded_self_call_literal_errno_exit` refuses to compile
+  ("Filesystem.open ... host-call argument must be a simple value") —
+  the same host-arg disease shape as the sighting's note_vault refusal,
+  now a canary_suite RED (845 others pass). samples_compile re-checked
+  on committed main: file_journal exit 3 (expected 7; stash-verified
+  pre-existing) and the note_vault mkdir refusal are CONFIRMED — the
+  samples gate is RED too (142/143 compile); descriptor_walk recovered.
+  FOR THE OWNING (float/M2-M3) LANE.
 
 - **texteq arm-locals ZII for non-terminal consumers** — root-caused
   2026-07-17, analysis pre-paid in the pin headers

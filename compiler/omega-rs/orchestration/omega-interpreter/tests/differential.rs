@@ -116,6 +116,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("arithmetic/runtime_provable_field_construction_exit", 70),
     ("arithmetic/runtime_signed_division_exit", 70),
     ("arithmetic/runtime_shift_right_signedness", 70),
+    ("arithmetic/const_fold_unsigned_landed_ops_exit", 70),
     ("arithmetic/const_fold_cast_signedness", 70),
     ("arithmetic/wrapping_signed_divide_min_by_neg_one", 70),
     ("arithmetic/saturating_signed_divide_min_by_neg_one", 70),

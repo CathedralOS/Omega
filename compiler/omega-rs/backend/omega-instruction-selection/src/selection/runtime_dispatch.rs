@@ -1204,12 +1204,17 @@ fn simplify_runtime_local_initializer_handle(
         .machine_states(machine)
         .iter()
         .find(|state| state.symbol == source_key.state)?;
+    // The expression IS the LocalData's initializer, so its role is the
+    // assignment VALUE (the role used to be behaviorally inert -- call-locals
+    // are preserved for every role -- but it now selects the DESTINATION
+    // landing: the local's declared type is where this value's constants
+    // land, CM2).
     let simplified = simplify_state_expression_for_role(
         input.program,
         machine,
         state,
         statement_index,
-        StateValueRole::CallArgument,
+        StateValueRole::AssignmentValue,
         &expressions.to_tree(expression),
     );
     Some(expressions.insert_tree(&simplified))

@@ -1,0 +1,35 @@
+// PASS canary (CM2 first rung, 2026-07-18): the state-values folder folds at
+// the LANDED type. `a - 2` on `u32 in Wrapping` locals folds to 4294967294
+// (wrap to width, not i64 -2), and the three sign-sensitive ops fold at u32:
+// `b >> 1` LOGICAL -> 2147483647, `b / 3` UNSIGNED -> 1431655764, `b % 3` -> 2.
+// Their sum (3579139413, in u32 range, no wrap) is checked by a guard in the
+// SAME state so the value is consumed through the local's own slot -- the
+// transition-ARG delivery face is a separate open bug (see
+// pending/arithmetic/const_fold_unsigned_shift_right_miscompile) and is
+// deliberately NOT exercised here.
+//
+// The destination landing comes from each let's declared type; before the fix
+// the folder computed i64 `-2 >> 1` = -1 / `-2 / 3` = 0 / `-2 % 3` = -2 and
+// native diverged from the interpreter on every face.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+}
+
+machine Main::main(&mut self) {
+    let a: u32 in Wrapping = 0;
+    let b: u32 in Wrapping = a - 2;                        // 4294967294
+    let z: u32 in Wrapping = (b >> 1) + (b / 3) + (b % 3); // 2147483647 + 1431655764 + 2
+
+    transition z == 3579139413 {
+        true -> good()
+        false -> bad()
+    }
+
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self)  { self.console.exit_process(71); }
+}

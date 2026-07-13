@@ -1,4 +1,6 @@
 use omega_checked_trees::expression::{BinaryExpression, BinaryOperator, Expression};
+use omega_checked_trees::types::PrimitiveType;
+use omega_core::arithmetic::ArithmeticDomain;
 use omega_core::literals::IntegerLiteral;
 use omega_core::symbols::SymbolHandle;
 
@@ -10,12 +12,232 @@ fn literal_pair(a: &IntegerLiteral, b: &IntegerLiteral) -> Option<(i64, i64)> {
     Some((a.value_i64()?, b.value_i64()?))
 }
 
+/// The LANDED type of a constant fold (CM2, ch5 "Constants: Two Phases"):
+/// once a constant lands, its type, signedness, and arithmetic domain ride
+/// with it, and every subsequent fold happens at the landed type's semantics.
+/// Derived by the caller from the ORIGINAL (pre-substitution) operands'
+/// declared types; `None` keeps the transitional bare-i64 window.
+#[derive(Clone, Copy)]
+pub(super) struct IntegerLanding {
+    pub primitive: PrimitiveType,
+    pub domain: ArithmeticDomain,
+}
+
+impl IntegerLanding {
+    fn width_bits(self) -> u32 {
+        self.primitive
+            .scalar_byte_size()
+            .map(|bytes| bytes as u32 * 8)
+            .unwrap_or(64)
+    }
+
+    fn is_signed(self) -> bool {
+        self.primitive.is_signed_integer()
+    }
+}
+
+/// A stored i64 representative read as the landed type's mathematical value:
+/// truncate to the landed width, then sign- or zero-extend per signedness.
+fn landed_value(value: i64, landing: IntegerLanding) -> i128 {
+    let width = landing.width_bits();
+    if width == 64 {
+        return if landing.is_signed() {
+            value as i128
+        } else {
+            (value as u64) as i128
+        };
+    }
+    let mask = (1u64 << width) - 1;
+    let bits = (value as u64) & mask;
+    if landing.is_signed() && bits & (1u64 << (width - 1)) != 0 {
+        (bits as i128) - (1i128 << width)
+    } else {
+        bits as i128
+    }
+}
+
+/// The i64 representative a mathematical result is STORED as after wrapping
+/// to the landed width: sign-extended for signed types, zero-extended (always
+/// non-negative) for narrow unsigned types, and the raw bit pattern for
+/// 64-bit unsigned (bit-faithful; an 8-byte store materializes it exactly).
+/// Keeping representatives normalized is what makes downstream sign-sensitive
+/// folds (`>>`, `/`, `%`, comparisons) read the right value.
+fn landed_representative(result: i128, landing: IntegerLanding) -> i64 {
+    let width = landing.width_bits();
+    if width == 64 {
+        return result as u64 as i64;
+    }
+    let mask = (1u64 << width) - 1;
+    let bits = (result as u64) & mask;
+    if landing.is_signed() && bits & (1u64 << (width - 1)) != 0 {
+        (bits | !mask) as i64
+    } else {
+        bits as i64
+    }
+}
+
+fn landed_bounds(landing: IntegerLanding) -> (i128, i128) {
+    let width = landing.width_bits();
+    if landing.is_signed() {
+        (-(1i128 << (width - 1)), (1i128 << (width - 1)) - 1)
+    } else {
+        (0, (1i128 << width) - 1)
+    }
+}
+
+/// Land an exact mathematical result per the landed arithmetic domain:
+/// Exact and Wrapping wrap to width (an Exact overflow was already rejected
+/// by the validation obligation upstream, so wrapping is the identity there);
+/// Saturating clamps to the type's bounds; a Trapping result that overflows
+/// CANNOT fold to a value -- the runtime op must trap -- so it defers.
+fn land_result(result: i128, landing: IntegerLanding) -> Option<Expression> {
+    let (minimum, maximum) = landed_bounds(landing);
+    let representative = match landing.domain {
+        ArithmeticDomain::Exact | ArithmeticDomain::Wrapping => {
+            landed_representative(result, landing)
+        }
+        ArithmeticDomain::Saturating => {
+            landed_representative(result.clamp(minimum, maximum), landing)
+        }
+        ArithmeticDomain::Trapping => {
+            if result < minimum || result > maximum {
+                // TRANSITIONAL: pass the EXACT value through UNWRAPPED. The
+                // static-store path detects an out-of-range Trapping constant
+                // and emits the guaranteed runtime trap
+                // (trapping_frame_slot_constant_overflow_write and its field
+                // twin); deferring instead would lower a typeless runtime op
+                // whose domain resolution cannot see Trapping (the domain
+                // rides on operand TYPES, which a folded constant no longer
+                // has -- the CM2 carrier retires this). An overflow past i64
+                // cannot ride the carrier at all and defers.
+                return i64::try_from(result)
+                    .ok()
+                    .map(|value| Expression::Integer(IntegerLiteral::from_value(value)));
+            }
+            landed_representative(result, landing)
+        }
+    };
+    Some(Expression::Integer(IntegerLiteral::from_value(
+        representative,
+    )))
+}
+
+/// Fold an integer op AT THE LANDED TYPE. `None` means "do not fold": the
+/// expression stays a runtime op whose domain-aware instruction selection is
+/// correct (never unsound, merely unfolded). This path OWNS the fold decision
+/// when a landing is known -- it never falls back to the type-blind i64
+/// window, which is exactly the representation error it exists to retire.
+fn fold_landed(
+    operator: BinaryOperator,
+    a: i64,
+    b: i64,
+    landing: IntegerLanding,
+) -> Option<Expression> {
+    use BinaryOperator as Op;
+
+    let left = landed_value(a, landing);
+    let right = landed_value(b, landing);
+    let width = landing.width_bits();
+
+    match operator {
+        Op::Add => land_result(left + right, landing),
+        Op::Subtract => land_result(left - right, landing),
+        Op::Multiply => match left.checked_mul(right) {
+            Some(result) => land_result(result, landing),
+            // Only reachable at 64-bit-unsigned extremes (the exact product
+            // exceeds i128). Exact/Wrapping want the mod-2^64 bits; a
+            // Saturating product this large is past the maximum; Trapping
+            // must trap at runtime.
+            None => match landing.domain {
+                ArithmeticDomain::Exact | ArithmeticDomain::Wrapping => {
+                    let bits = (left as u64).wrapping_mul(right as u64);
+                    land_result(bits as i128, landing)
+                }
+                ArithmeticDomain::Saturating => land_result(landed_bounds(landing).1, landing),
+                ArithmeticDomain::Trapping => None,
+            },
+        },
+        Op::Divide | Op::Modulo => {
+            if right == 0 {
+                return None;
+            }
+            // i128 division on normalized values is exact for every landed
+            // type (unsigned values are non-negative, so `/` is unsigned
+            // division); the one out-of-range case, signed MIN / -1, lands
+            // per domain like any other overflow.
+            let result = if matches!(operator, Op::Divide) {
+                left / right
+            } else {
+                left % right
+            };
+            land_result(result, landing)
+        }
+        Op::ShiftLeft | Op::ShiftRight => {
+            // The count is read RAW (an exact anonymous value, not a value of
+            // the landed type); an out-of-range count is proof-or-policy
+            // territory (float semantics F8) -- defer rather than pick a
+            // semantics here.
+            if b < 0 || b >= width as i64 {
+                return None;
+            }
+            let count = b as u32;
+            if matches!(operator, Op::ShiftLeft) {
+                // The value face of an overflowing shl under
+                // Saturating/Trapping is not ruled (F8 rules the count face);
+                // keep today's wrap-at-width for every domain until ruled.
+                let wrapped = IntegerLanding {
+                    domain: ArithmeticDomain::Wrapping,
+                    ..landing
+                };
+                land_result(left << count, wrapped)
+            } else {
+                // Arithmetic i128 shift IS the landed shift: signed values
+                // are sign-extended (arithmetic), unsigned values are
+                // non-negative (logical automatically).
+                land_result(left >> count, landing)
+            }
+        }
+        Op::BitwiseAnd => land_result(left & right, landing),
+        Op::BitwiseOr => land_result(left | right, landing),
+        Op::BitwiseXor => land_result(left ^ right, landing),
+        // Normalized mathematical values compare correctly for every landed
+        // signedness -- this is the comparison face of the same disease.
+        Op::Equal => Some(Expression::Boolean(left == right)),
+        Op::NotEqual => Some(Expression::Boolean(left != right)),
+        Op::Greater => Some(Expression::Boolean(left > right)),
+        Op::GreaterOrEqual => Some(Expression::Boolean(left >= right)),
+        Op::Less => Some(Expression::Boolean(left < right)),
+        Op::LessOrEqual => Some(Expression::Boolean(left <= right)),
+        Op::And | Op::Or => None,
+    }
+}
+
 pub(super) fn fold_binary_expression(
     operator: BinaryOperator,
     left: Expression,
     right: Expression,
+    landing: Option<IntegerLanding>,
 ) -> Expression {
     use BinaryOperator as Op;
+
+    // The landed path (CM2) owns integer-literal folds when the expression's
+    // landed type is known: fold at that type's width/signedness/domain, or
+    // leave the op for the domain-aware runtime lowering. And/Or stay on the
+    // boolean path below.
+    if let Some(landing) = landing
+        && !matches!(operator, Op::And | Op::Or)
+        && let (Expression::Integer(a), Expression::Integer(b)) = (&left, &right)
+        && let Some((a, b)) = literal_pair(a, b)
+    {
+        return match fold_landed(operator, a, b, landing) {
+            Some(folded) => folded,
+            None => Expression::Binary(Box::new(BinaryExpression {
+                left,
+                operator,
+                right,
+            })),
+        };
+    }
 
     match operator {
         Op::And => boolean_and(left, right),
