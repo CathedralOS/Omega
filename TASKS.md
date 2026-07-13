@@ -791,6 +791,16 @@ rows. Rungs:
 - **F3 — `Finite` core domain:** promote ch5's `finite`; window
   enforcement; ranges-imply-Finite in the prover; `is_finite` std machine
   (portable spelling; `x != x` stays the IEEE-binding idiom underneath).
+  IDIOM PROVEN 2026-07-18: `is_finite(x) = (x - x == 0.0)` (finite->0,
+  inf/NaN->NaN!=0) agrees native==interp when spelled INLINE (probe exit
+  70/70). BUT wiring it as a callable std free machine returning bool,
+  consumed in a guard, MISCOMPILES NATIVELY (free-machine bool return
+  delivers ZII-ish: `is_finite(3.5) == true` took the false arm natively,
+  exit 71, vs interp 70) -- a value-call bool-result-delivery backend gap,
+  NOT float work. `is_finite` waits on that delivery path (or ships as an
+  i32-returning machine on the well-trodden integer-return path). Window
+  enforcement additionally waits on the invariant-window machinery
+  (unbuilt).
 - **F4 — float→int cast ruling** (ANSWERED — see Recently answered
   holds): build it; retire the drift-ledger entry; NaN differential legs
   become pinnable (runtime 0.0/0.0 constructs NaN portably).
