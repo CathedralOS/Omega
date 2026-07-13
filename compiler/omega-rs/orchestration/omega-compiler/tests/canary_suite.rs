@@ -28270,6 +28270,46 @@ stderr:
 }
 
 #[test]
+fn runtime_shared_ref_param_large_deref_exit_canary_runs() {
+    // The DEREF twin of the content-spill canary above (bug 2026-07-12): a
+    // shared &Struct param whose referee is LARGER than a pointer holds a real
+    // pointer (it cannot be content-spilled into the 8-byte slot), so a
+    // local-init member read (`let v = r.value`, Cathedral's `let bs =
+    // table.boot_services` shape) MUST dereference. Reading the slot inline
+    // instead fetched garbage -- Cathedral's M2 boot dispatched get_memory_map
+    // through it and #UD'd under QEMU. value=42 at offset 16 -> exit 42.
+    let canary = pass_canary("calls/runtime_shared_ref_param_large_deref_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-sharedref-large-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("large shared-ref deref canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("large shared-ref deref canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "expected value=42 dereferenced through the large shared &Struct param (exit 42); \
+         an inline (non-deref) read of the pointer-sized slot fetches garbage. got {:?}
+stderr:
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_same_type_contained_direct_fields_exit_canary_runs() {
     // The SOUND pattern for two same-type contained machines: DIRECT field access
     // (not method calls, which alias to the first field of the type). a -> 13,
@@ -29272,6 +29312,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "calls/runtime_enum_self_method_exit",
     "calls/runtime_same_type_contained_direct_fields_exit",
     "calls/runtime_shared_ref_param_member_exit",
+    "calls/runtime_shared_ref_param_large_deref_exit",
     "calls/runtime_value_call_dispatch_results_exit",
     "calls/runtime_value_call_entry_field_write_exit",
     "calls/runtime_value_call_guard_subject_exit",

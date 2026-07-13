@@ -2555,15 +2555,26 @@ pub(super) fn resolve_runtime_pointee_slot_offset_in_table(
     if slot.byte_size != input.runtime_abi.pointer_size {
         return None;
     }
-    // A SHARED `&Struct` slot is a REAL pointer only in a BOUNDARY machine
-    // (the entry hand-off vouches it). In a non-boundary machine a shared
-    // `&Struct` arg is spilled by CONTENT into the slot -- dereferencing it
-    // loads a field value as an address (probed 2026-07-04: `read(&self.inner)`
-    // then `r.b` as a binary operand segfaulted; the arg pass spills 8 content
-    // bytes while this arm treated them as a pointer). `&mut` slots stay
-    // pointee-resolvable everywhere -- a write must land in the CALLER's
-    // storage, so they hold genuine pointers (the alias-write canaries depend
-    // on it). Slice/carrier referees are {ptr,len} descriptors everywhere.
+    // Deref-vs-flat for a SHARED `&Named` reference param. Two conventions
+    // must both hold, and the distinguisher is the REFEREE SIZE, not
+    // boundary-ness (bug 2026-07-12):
+    //   * A referee that FITS in a pointer-sized slot (<= pointer_size) may be
+    //     spilled by CONTENT into the param slot -- `read(&self.inner)` with an
+    //     8-byte Inner passes the struct bytes, and flat member reads are
+    //     correct (runtime_shared_ref_param_member canary, locked 2026-07-04).
+    //     In a non-boundary machine this is the content-spill case: do NOT
+    //     dereference (a field value read as an address segfaults).
+    //   * A referee LARGER than a pointer cannot be content-spilled into an
+    //     8-byte slot, so the param necessarily holds a REAL pointer and a
+    //     field read MUST dereference -- `let bs = table.boot_services` with
+    //     `table: &EfiSystemTable` (a large firmware struct) in the
+    //     non-boundary `own_machine`. The earlier boundary-only gate got this
+    //     wrong: it read `table_slot + field_offset` inline and Cathedral's M2
+    //     boot dispatched get_memory_map through garbage and #UD'd.
+    // A BOUNDARY machine's `&Struct` param is a genuine hand-off pointer even
+    // when small, so it always dereferences. `&mut` slots were already
+    // pointee-resolvable everywhere; slice/carrier referees are {ptr,len}
+    // descriptors (not Named) and are unaffected.
     let slot_is_shared_reference = matches!(
         &slot.type_descriptor,
         omega_layout::TypeLayoutDescriptor::Reference {
@@ -2572,11 +2583,13 @@ pub(super) fn resolve_runtime_pointee_slot_offset_in_table(
         }
     );
     let pointee_descriptor = slot.type_descriptor.reference_referee()?;
+    let pointee_layout = descriptor_layout(input, pointee_descriptor);
     if slot_is_shared_reference
         && matches!(
             pointee_descriptor,
             omega_layout::TypeLayoutDescriptor::Named { .. }
         )
+        && pointee_layout.size <= input.runtime_abi.pointer_size
         && !input
             .program
             .machines()
@@ -2585,7 +2598,6 @@ pub(super) fn resolve_runtime_pointee_slot_offset_in_table(
     {
         return None;
     }
-    let pointee_layout = descriptor_layout(input, pointee_descriptor);
     let suffix = path.suffix(1);
     let (field_byte_offset, field_layout) = if path.len() <= 1 {
         (0, pointee_layout)

@@ -1,0 +1,51 @@
+// SHARED `&Struct` param whose referee is LARGER than a pointer, holding a
+// GENUINE pointer (not a `&self.field` alias) -- the deref twin of
+// runtime_shared_ref_param_member and the host-runnable analog of Cathedral's
+// `let bs = table.boot_services` in the non-boundary `own_machine`. `hold`
+// receives `&mut self.big` (a real pointer, materialized by the &mut path),
+// then re-passes it as a SHARED `&Big` to `read`. `read`'s `r: &Big` therefore
+// holds a real pointer, not an alias into self's storage, so the field read
+// MUST DEREFERENCE. Because `Big` is 24 bytes (> pointer size) it cannot be
+// content-spilled into the 8-byte slot, which is exactly the referee-size
+// signal the resolver keys on. Regression pin for the 2026-07-12 bug where the
+// non-boundary deref read the slot inline and Cathedral's M2 boot #UD'd.
+// value = 42 at offset 16; an inline read of the 8-byte slot fetches garbage.
+// exit 42.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Big {
+    pad0:  u64;
+    pad1:  u64;
+    value: i32 in Wrapping;
+}
+data Main {
+    console: Console;
+    big:     Big;
+    got:     i32 in Wrapping;
+}
+machine Main::main(&mut self) {
+    self.big.pad0 = 111;
+    self.big.pad1 = 222;
+    self.big.value = 42;
+    self.hold(&mut self.big);
+    transition self.got == 42 {
+        true  -> good()
+        false -> bad()
+    }
+    state good(&mut self) { self.console.exit_process(42); }
+    state bad(&mut self)  { self.console.exit_process(self.got); }
+}
+// Receives a real &mut pointer, then hands it on as a SHARED reference value --
+// the callee's shared param holds the pointer, not a self-field alias.
+machine Main::hold(&mut self, big: &mut Big) {
+    self.read(big);
+    transition { _ -> fin() }
+    state fin(&mut self) { }
+}
+machine Main::read(&mut self, r: &Big) {
+    // Local-init off the reference-param member -- Cathedral's `let bs =
+    // table.boot_services` shape, the path the pointee resolver materializes.
+    let v: i32 = r.value;
+    self.got = v;
+    transition { _ -> done() }
+    state done(&mut self) { }
+}
