@@ -13304,6 +13304,99 @@ fn const_fold_unsigned_landed_ops_canary_runs() {
 }
 
 #[test]
+fn const_fold_unsigned_shift_right_arg_canary_runs() {
+    // The const-fold sign class END TO END through the transition-ARG delivery
+    // path: the arg re-derives from substituted locals as a typeless nested
+    // runtime binary, and the write's signedness falls back to the WRITE
+    // TARGET's primitive (the callee param's u32) so `>>` emits logical shr.
+    // exit 71 = the target-primitive fallback (or the landed fold) regressed.
+    let canary = pass_canary("arithmetic/const_fold_unsigned_shift_right_arg_exit");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("shift-right arg-delivery canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should exit 70 (u32 logical shift through the arg), got {}",
+        outcome.exit_code
+    );
+
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-const-fold-shr-arg-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("shift-right arg-delivery canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("shift-right arg-delivery canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the arg-delivered logical shift (exit 70), got {:?} \
+         (71 = the typeless arg write emitted `sar`)\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn const_fold_unsigned_divide_arg_canary_runs() {
+    // Unsigned DIVISION and MODULO through the transition-arg delivery path --
+    // the other two sign-sensitive ops of the same class; both values ride
+    // chained transition args, so both typeless writes must take the
+    // target-primitive signedness fallback. exit 71 = a signed idiv slipped in.
+    let canary = pass_canary("arithmetic/const_fold_unsigned_divide_arg_exit");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("divide/mod arg-delivery canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should exit 70 (u32 unsigned div + mod through args), got {}",
+        outcome.exit_code
+    );
+
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-const-fold-div-arg-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("divide/mod arg-delivery canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("divide/mod arg-delivery canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected unsigned div/mod through the args (exit 70), got {:?} \
+         (71 = a signed division/modulo fold or delivery)\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn struct_literal_field_coercion_canary_runs() {
     // A struct-literal field init coerces the field value to the field's declared
     // width/domain (interpreter eval_struct_literal): `Point { x: a+b }` with
@@ -29823,6 +29916,8 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "arithmetic/runtime_signed_division_exit",
     "arithmetic/runtime_shift_right_signedness",
     "arithmetic/const_fold_unsigned_landed_ops_exit",
+    "arithmetic/const_fold_unsigned_shift_right_arg_exit",
+    "arithmetic/const_fold_unsigned_divide_arg_exit",
     "arithmetic/runtime_unsigned_division_exit",
     "arithmetic/runtime_min_max_signedness_exit",
     "arithmetic/runtime_comparison_value_signedness_exit",
@@ -30532,14 +30627,6 @@ const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
     },
     PendingCanary {
         path: "calls/trailing_state_mut_param_phase_divergence",
-        expectation: PendingCanaryExpectation::CurrentlyAccepts,
-    },
-    PendingCanary {
-        path: "arithmetic/const_fold_unsigned_divide_miscompile",
-        expectation: PendingCanaryExpectation::CurrentlyAccepts,
-    },
-    PendingCanary {
-        path: "arithmetic/const_fold_unsigned_shift_right_miscompile",
         expectation: PendingCanaryExpectation::CurrentlyAccepts,
     },
     PendingCanary {

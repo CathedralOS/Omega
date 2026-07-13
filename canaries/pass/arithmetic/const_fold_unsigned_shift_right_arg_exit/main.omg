@@ -1,0 +1,44 @@
+// PASS canary (BOTH faces closed 2026-07-18; was pending/arithmetic/
+// const_fold_unsigned_shift_right_miscompile, probe 2026-07-04). Pins the
+// const-fold sign class END TO END through the TRANSITION-ARG delivery path:
+//
+// FACE 1 (folder): destination-landed folds -- `0u32 - 2` folds to 4294967294
+// (wrap to width, not i64 -2) and `>> 1` folds LOGICAL to 2147483647 (also
+// pinned same-state by arithmetic/const_fold_unsigned_landed_ops_exit).
+//
+// FACE 2 (arg delivery): `report(y)` re-derives y's value from substituted
+// locals as a TYPELESS nested runtime binary (`(0 - 2) >> 1` -- the constant
+// local `a` has no slot, so no operand carries a type). The write's
+// signedness now falls back to the WRITE TARGET's primitive (the callee
+// param's u32) when no operand resolves --
+// select_runtime_storage_binary_write_in_table's target_primitive fallback --
+// so the shift emits logical `shr`.
+//
+// exit 71 = either face regressed (an arithmetic `sar` produced 0xFFFFFFFF).
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+}
+
+machine Main::main(&mut self) {
+    let a: u32 in Wrapping = 0;
+    let b: u32 in Wrapping = a - 2;   // u32 4294967294
+    let y: u32 in Wrapping = b >> 1;  // logical -> 2147483647
+
+    transition y == 2147483647 {
+        _ -> report(y)
+    }
+
+    state report(&mut self, y: u32 in Wrapping) {
+        transition y == 2147483647 {
+            true -> good()
+            false -> bad()
+        }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self)  { self.console.exit_process(71); }
+}
