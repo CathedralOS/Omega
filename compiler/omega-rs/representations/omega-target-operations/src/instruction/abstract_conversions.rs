@@ -1287,6 +1287,21 @@ impl From<&omega_abstract_operations::AbstractOperationKind> for TargetOperation
                 panic!("logical abstract host operations must be lowered in omega-abstract-operations-to-target-operations")
             }
             omega_abstract_operations::AbstractOperationKind::MachineHalt => Self::MachineHalt,
+            omega_abstract_operations::AbstractOperationKind::PortWrite { port, value } => {
+                Self::PortWrite {
+                    port: remap_runtime_value_handle(*port),
+                    value: remap_runtime_value_handle(*value),
+                }
+            }
+            omega_abstract_operations::AbstractOperationKind::PortRead {
+                port,
+                dest_region,
+                dest_byte_offset,
+            } => Self::PortRead {
+                port: remap_runtime_value_handle(*port),
+                dest_region: *dest_region,
+                dest_byte_offset: *dest_byte_offset,
+            },
             omega_abstract_operations::AbstractOperationKind::LeaveFunction => Self::LeaveFunction,
         }
     }

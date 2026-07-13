@@ -109,7 +109,9 @@ impl OperationSemanticQuery for TargetOperationKind {
                 TargetOperationDomain::HostBoundary
             }
 
-            Self::MachineHalt => TargetOperationDomain::MachineControl,
+            Self::MachineHalt | Self::PortWrite { .. } | Self::PortRead { .. } => {
+                TargetOperationDomain::MachineControl
+            }
         }
     }
 

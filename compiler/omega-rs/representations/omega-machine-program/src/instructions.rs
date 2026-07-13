@@ -107,5 +107,11 @@ pub enum MachineInstructionKind {
     /// The x86 `hlt` privileged instruction (`asm { hlt }`). Zero operands,
     /// no relocation. See the privileged_effects_and_binary_trust brief.
     MachineHalt,
+    /// The x86 `out dx, al` port write (`asm { out .. }`). Storage operands
+    /// relocate like any runtime-value read.
+    PortWrite,
+    /// The x86 `in al, dx` port read (`asm { in .. }`), storing the byte to a
+    /// destination place.
+    PortRead,
     Return,
 }
