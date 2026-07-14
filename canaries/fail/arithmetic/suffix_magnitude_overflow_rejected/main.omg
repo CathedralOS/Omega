@@ -1,0 +1,11 @@
+// A width suffix is the literal's OWN type claim, so the spelled value must
+// fit that type's range wherever the literal sits -- `200i8` exceeds i8's
+// 127 and is a loud error (CR4's magnitude fit; value semantics, ch5 exact
+// anonymous values: suffixes read VALUES, not bit patterns).
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine Main::main(&mut self) {
+    let a: i8 = 200i8;
+    transition a == 100 { true -> done() _ -> done() }
+    state done(&self) { self.console.exit_process(70); }
+}

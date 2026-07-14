@@ -912,6 +912,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("targets/target_machine_gating_exit", 70),
     ("traits/ring_requirement_satisfies_exit", 70),
     ("arithmetic/unsigned_min_max_operand_position_exit", 77),
+    ("arithmetic/suffix_boundary_magnitudes_exit", 70),
     ("arithmetic/suffix_landed_operand_position_exit", 77),
     ("float/suffix_f32_single_rounding_exit", 77),
     ("float/unsuffixed_f32_destination_single_rounding_exit", 77),
