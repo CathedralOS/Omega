@@ -75,6 +75,19 @@ fulfills the matching requirement from `Incrementable`.
 > supplies context; no `by` or other connective exists. `measure`
 > (chapter 10) is declaration sugar for a named satisfier of the ordering
 > trait.
+>
+> **Completions (settled 2026-07-18, the rearrange-mode arc — record in
+> the mathematical_proofs brief):** (1) a trait may declare FREE-machine
+> requirements (`machine add(a: Self, b: Self) -> Self;` — no `Self::`,
+> mirroring free proof machines); (2) a requirement may carry `ensures`
+> — a conformance THEOREM every satisfier must prove, discharged by
+> matching the binding machine's proven ensures first-order (the
+> layouts-settle mechanism, now general); (3) when requirement
+> signatures collide, the `satisfies` clause names the requirement path
+> (`satisfies CommutativeSemiring::mul as Tropical`) — the missing
+> disambiguation half of name-divergent binding, same
+> elide-when-unique/loud-when-plural pattern; (4) clause order is
+> signature → `satisfies` → `terminates` → `ensures` → body.
 
 ## Machine Binding
 

@@ -778,12 +778,33 @@ no `unbounded` property exists. Rungs:
   model build); past it the expression stays unsimplified — the
   canonicalizer's ordinary no-match behavior. Pinned
   pass/calls/statement_call_recursive_argument_compile. (4)
-  rearrange-mode = ENGINE-INTERNAL ring
-  canonicalization (L4 sum-of-monomials generalized), not lemma rules;
-  OWNER DECISION eventually needed on how a carrier earns
-  canonicalization (auto-enable when the standard law lemmas are proven
-  in scope vs an explicit per-carrier declaration citing them; the
-  one-pager with tradeoffs comes with 3b's law set).
+  rearrange-mode = ENGINE-INTERNAL ring canonicalization (L4
+  sum-of-monomials generalized), not lemma rules. ⚠️ SETTLED 2026-07-18
+  (owner, chat — full record in mathematical_proofs brief + ch14): a
+  carrier EARNS canonicalization via EXPLICIT CONFORMANCE, never
+  scope-sniffing (Lean CommRing-instance precedent; auto-enable
+  REJECTED — proof behavior must not depend on imports; the one-pager
+  debt is retired). Surface, all existing constructs completed: a core
+  `CommutativeSemiring` trait whose op requirements are FREE-machine
+  shaped (new: requirements without Self:: mirror free proof machines)
+  and whose LAW requirements carry `ensures` (the layouts-settle
+  conformance-theorem mechanism); lemma machines bind via the existing
+  per-machine `satisfies` clause, checked proven-ensures ⊨ declared-law
+  (∀-to-∀ first-order match — the N3 shape-match diagnostic promoted to
+  load-bearing); clause order = signature → satisfies → terminates →
+  ensures → body; signature collisions name the requirement path
+  (`satisfies CommutativeSemiring::mul as Tropical` — completes the
+  named-satisfier draft's missing half); zero/one = trivial machines.
+  Judge consumption: AMBIENT under the home-conformance rule, selected
+  by OP SYMBOLS + operand DOMAINS (plural algebras = named satisfiers,
+  same machine may fill different slots — Nat under (max,add) is the
+  tropical semiring; same-ops duplicates are semantically vacuous for
+  proofs; FOREIGN carriers own a `domain` on the carrier — no orphan
+  surface, no newtype: encode precedent, conformances resolve through
+  domains). ENGINEERING RUNGS: (1) trait + conformance checking; (2)
+  the judge's rearrange mode (generalize the int canonicalizer to
+  symbol-keyed ops). Acceptance = citation-free `mul_distributes`;
+  regression = `mul_succ_right`'s msr_step choreography DELETES.
   THEN: Int/Rat routing, the N2(d) arithmetic bridge
   (n > 0 => n == Succ(n - 1)). Int introduction rule: order has no floor,
   measures stay Nat-valued or range-floored.

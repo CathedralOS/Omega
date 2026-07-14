@@ -468,3 +468,55 @@ The corpus (well-definedness of the ops, ordering, completeness) is
 mathlib-scale ceremony: long, LLM-parallel, zero runtime-compiler conflict
 (nothing lowers), and the ultimate dogfood — it stress-tests measured
 recursion, schemas, quotients, and bignum simultaneously.
+
+## Rearrange-mode: how a carrier earns ring canonicalization (SETTLED 2026-07-18)
+
+The proof engine's canonicalizer (the L4 sum-of-monomials machinery,
+generalized to symbol-keyed operations) dissolves citation choreography --
+`mul_succ_right`'s three-rewrite step case, distributivity's deferred
+proof -- by normalizing both sides of a stuck equation and comparing.
+Canonicalization silently assumes the ring laws, so the question was what
+LICENSES it over a user carrier's operations.
+
+**Ruling: explicit conformance, never scope-sniffing.** The precedent is
+Lean/Coq's `ring`, which requires a declared `CommRing` instance backed by
+the law proofs. Auto-enabling on lemmas-in-scope was REJECTED: whether a
+proof compiles must never depend on the import list (the same law the
+encode settle established -- imports control whether a name resolves,
+never what ambient machinery does).
+
+**Surface -- existing constructs, completed.** A core `CommutativeSemiring`
+trait: op requirements in FREE-machine shape (`machine add(a: Self, b:
+Self) -> Self;` -- requirements without `Self::` mirror free proof
+machines, a one-line grammar completion) and LAW requirements carrying
+`ensures` (the layouts-settle conformance-theorem mechanism -- an ensures
+on a trait requirement is an obligation every satisfier proves). A carrier
+conforms machine-by-machine with the existing `satisfies` clause; a lemma
+binding checks proven-ensures |= declared-law by first-order matching
+(lemma params as pattern variables -- the N3 shape-match diagnostic
+promoted from error-hint to load-bearing). Clause order: signature ->
+satisfies -> terminates -> ensures -> body. When requirement signatures
+collide (a ring's add and mul are both `(Self, Self) -> Self`), the clause
+names the requirement path: `satisfies CommutativeSemiring::mul as
+Tropical` -- completing the named-satisfier draft's disambiguation half.
+`zero`/`one` are trivial one-transition machines, no constructor-binding
+surface.
+
+**Consumption -- ambient, home-ruled, op-keyed.** The judge picks up
+conformances under the home-conformance rule (the type's or DOMAIN's home
+package; no separate import). Selection is by the op symbols in the stuck
+goal, sharpened by operand domains: a goal over `add`/`mul` takes Nat's
+standard conformance; one over `max`/`add` takes the tropical one (Nat
+under (max, add) IS a commutative semiring -- the same `add` machine fills
+the trait's mul slot there, which is what named satisfiers exist for).
+Same-ops duplicate conformances are semantically vacuous for proofs (laws
+are theorems; any license is the same license). FOREIGN carriers: own a
+`domain` on the carrier and conform the branded type (`domain
+Nat::Tropical {}` + ops over `Nat in Tropical`) -- the encode precedent
+already resolves conformances through domains, so no orphan surface and no
+newtype wrapping exists or is needed.
+
+**Engineering:** (1) trait declaration + conformance checking; (2) the
+judge's rearrange mode. Acceptance: `mul_distributes` proves with ZERO
+citations (today it fences at the Succ arm on a four-addend shuffle).
+Regression: `mul_succ_right`'s msr_step citation choreography deletes.
