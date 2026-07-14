@@ -1114,6 +1114,16 @@ rows. Rungs:
   non-flat float operands loudly (kills the silent face); (2) the
   enabling fix = float expression-chain materialization in expansions
   (scratch discipline like sin's mut-accumulator, but planner-side).
+  CANDIDATES ELIMINATED 2026-07-18 (refusals added to BOTH and neither
+  fired -- reverted as unwitnessed): the `_in_table` producer
+  (binary_table_writes.rs select_runtime_targeted_binary_mutation_write
+  _in_table) and the TREE-form producer (mutation.rs
+  select_runtime_binary_mutation_write ~2057). The live producer of
+  the expansion's d-write (#10 RuntimeStorageBinaryWrite reading
+  a@0/b@8) is a THIRD path -- next session: OMEGA_DEBUG-print at every
+  WriteRuntimeStorageBinary construction site (mutation.rs 2363/2456,
+  binary_table_writes.rs 325/521, slice_descriptors.rs 437/480) to
+  identify it, then apply the nested-float refusal THERE.
   NOTE: a bindings.rs-level "keep computed float locals slotted" patch
   was tried and REVERTED -- the inliner's own capture (not
   simple_local_bindings) drives this path, so it changed nothing here
