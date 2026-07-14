@@ -1045,6 +1045,35 @@ rejects — an INTEGER ruling, engineering rides this ladder as F8).
   FindFirstFile/handle enumeration → note_vault green, samples gate
   fully green. LAW banked: seam rows get DESIGNED signatures, never
   traced ones.
+  MECHANISM RUNG LANDED 2026-07-18: `<target> machine Path(..) {..}` —
+  the provides-table item prefix extended to machines. Machine items
+  carry `target: Option<Identifier>`; a pre-resolution filter
+  (pipeline/target_machines.rs, called in BOTH engines' pipelines right
+  after provides substitution) clears the SELECTED target's marker
+  (ordinary machine from then on — const-v0 discipline) and leaves
+  every other target's machine inert (resolution skips marked
+  machines, the provides-row precedent; four same-name impls never
+  collide). Loud edges live in the filter: implemented-twice for the
+  selected target + no-implementation-for-selected naming who does
+  provide one (unknown target names are silently never-selected,
+  matching provides rows — that inertness is also what makes the fail
+  canaries host-portable via `demo_target`/`local_unchecked`).
+  ⚠️ Parser-order landmine: the identifier-led target-machine peek
+  sits BELOW the contextual-led items so `boundary machine` never
+  reads `boundary` as a target name (found by the fail sweep).
+  Canaries: pass/targets/target_machine_gating_exit (differential 70;
+  local_unchecked + four real-target same-name impls),
+  fail/targets/target_machine_{missing,duplicate}_rejected.
+  Cross-target SIGNATURE agreement deferred to the `satisfies`
+  enforcement rung (callers still typecheck against the selected
+  impl — the safety edge; agreement is a quality diagnostic).
+  NEXT RUNG: impl files — std/targets/<t>/filesystem_impl.omg per
+  target (windows starts as a byte-copy of the posix body so this
+  host's gates keep today's exact reds, nothing worse), imported from
+  the target def files; move the dir-walk family
+  (read_dir_count/stats/nth/is_empty/entry_fd/remove_dir_all/rda_step)
+  behind `<target> machine` markers; THEN the windows FindFirstFile
+  rewrite + kernel32 rows flips note_vault green.
 
 - **`pending_runtime_divergences_hold` — GREENED 2026-07-18 (ledger
   host-corrected):** (a) `float_to_int_overflow_divergence` now documents

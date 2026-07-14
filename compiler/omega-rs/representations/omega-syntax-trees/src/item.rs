@@ -601,6 +601,14 @@ impl Default for ProofMembershipFact {
 pub struct Machine {
     pub name: Identifier,
     pub attached_data: Option<Identifier>,
+    /// TARGET-SCOPED implementation machine (`<target> machine ...`, the fs
+    /// portable-contract settle 2026-07-18): the machine participates in the
+    /// program only when this target is SELECTED. The pre-resolution filter
+    /// clears the marker on the selected target's machine and validates the
+    /// loud edges (duplicate / zero implementations for the selected target);
+    /// a machine still carrying `Some` at resolution is inert, exactly like a
+    /// non-selected provides row.
+    pub target: Option<Identifier>,
     /// The EXPORTED-CALLABLE marking (`boundary machine ...`): this machine
     /// is a callable surface the platform (or a foreign caller) invokes; its
     /// parameters are the boundary-trusted shape over the arrival bytes.
@@ -704,6 +712,13 @@ impl ItemTable {
 
     pub fn item(&self, handle: ItemHandle) -> &Item {
         self.items.get(handle)
+    }
+
+    /// In-place item rewrite, the item-level twin of
+    /// `ExpressionStorage::replace_expression` -- used by pre-resolution
+    /// stages (the target-machine filter clears the selected target's marker).
+    pub fn replace_item(&mut self, handle: ItemHandle, item: Item) {
+        *self.items.get_mut(handle) = item;
     }
 
     pub fn state_signature(&self, handle: StateSignatureHandle) -> &StateSignatureNode {

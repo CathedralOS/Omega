@@ -1,0 +1,23 @@
+// A target-scoped machine name implemented ONLY by non-selected targets must
+// be a targeted clean error naming who does provide one -- the settle's
+// zero-or-two rule (a selected target missing its contract implementation),
+// never the generic unresolved-name diagnostic and never a silent
+// fall-through. `demo_target` resolves to no real target, so the
+// implementation is inert on every host (the provides wrong-target
+// discipline, which is also what makes this canary host-portable).
+boundary trait Console { machine exit_process(return_code: i32); }
+
+data Helper { seed: i32; }
+
+demo_target machine Helper::pick(&self) -> i32 {
+    transition { _ -> 63 }
+}
+
+data Main { console: Console; helper: Helper; }
+
+machine Main::main(&mut self) {
+    let a: i32 = self.helper.pick();
+    transition a == 63 { true -> good() _ -> bad(71) }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self, code2: i32) { self.console.exit_process(code2); }
+}

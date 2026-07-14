@@ -224,6 +224,21 @@ pub(super) fn parse_item<'tokens, 'source>(
         return Ok((Item::Trait(item), rest));
     }
 
+    // Identifier-led TARGET-SCOPED machine -- `<target> machine Path(..) {..}`
+    // (fs portable-contract settle 2026-07-18): a per-target implementation of
+    // a portable contract signature, held beside that target's provides rows.
+    // Same 2-token peek discipline as the provides table; the machine parses
+    // ordinarily and carries its target for the pre-resolution filter. Sits
+    // BELOW the contextual-led items so `boundary machine ...` (the exported
+    // callable) never reads `boundary` as a target name.
+    if input.at_identifier_then_contextual("machine") {
+        let (target, input) = input.take_identifier()?;
+        let input = input.take_keyword(KeywordKind::Machine, "machine")?;
+        let (mut machine, rest) = parse_machine(syntax_trees, input)?;
+        machine.target = Some(target);
+        return Ok((Item::Machine(machine), rest));
+    }
+
     // A standalone conformance item (frozen decision 8): `Point satisfies
     // Equatable;`. No leading keyword, so it is recognized by the
     // `satisfies` contextual after a type name.

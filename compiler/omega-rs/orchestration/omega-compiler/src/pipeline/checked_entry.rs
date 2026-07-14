@@ -36,6 +36,12 @@ pub fn compile_to_checked(
         &mut syntax.syntax_trees,
         target_name,
     )?;
+    // TARGET-SCOPED MACHINES -- exactly as the full `compile` pipeline does:
+    // the interpreter runs the SELECTED target's implementations.
+    crate::pipeline::target_machines::filter_target_machines(
+        &mut syntax.syntax_trees,
+        target_name,
+    )?;
     let resolved = syntax_trees_to_symbol_resolved_trees(syntax, &mut timings)?;
     let mut typed = symbol_resolved_trees_to_typed_trees(resolved, &mut timings)?;
     // COMPTIME STAGE 1: substitute const-evaluated fixed-array lengths before

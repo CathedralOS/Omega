@@ -201,6 +201,14 @@ impl Compiler {
             &mut syntax.syntax_trees,
             self.options.target_name.as_deref(),
         )?;
+        // TARGET-SCOPED MACHINES (fs portable-contract settle 2026-07-18):
+        // the SELECTED target's `<target> machine` implementations become
+        // ordinary machines; every other target's stay inert. Loud edges:
+        // duplicate / missing implementations for the selected target.
+        crate::pipeline::target_machines::filter_target_machines(
+            &mut syntax.syntax_trees,
+            self.options.target_name.as_deref(),
+        )?;
         // The BUILD-MACHINE identity is FILE-based (owner answer #3:
         // build.omg is the home; a `Builder::build` in ordinary source is
         // just a machine): collect the machines declared at build.omg roots
