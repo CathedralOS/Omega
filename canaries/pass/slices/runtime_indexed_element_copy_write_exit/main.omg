@@ -1,0 +1,48 @@
+// RUN CANARY (exit 70, differential) -- the RUNTIME-indexed whole-element
+// slice WRITE (`exits[index] = e` with a runtime index and a runtime struct
+// source): the CopyRuntimeStorageToRuntimeFrameIndexed face x86_64 NEVER HAD
+// (it refused with the zero-width blocker until the Place materializer's
+// shared-base indexed-target shape provided it -- the pilot's first FREE
+// capability: base in r14, index loads from it, the target hops to r15 and
+// adds the scaled index). The struct source is built IN-STATE from scalar
+// params: a struct-literal TRANSITION ARG does not deliver natively (a
+// separate pre-existing gap, pinned in pending/calls/
+// struct_literal_transition_arg_native_divergence).
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Exit {
+    destination: u32;
+    weight: u32;
+}
+
+data Room {
+    exits: [Exit; 4];
+}
+
+data Main {
+    console: Console;
+    room: Room;
+    got_d: u32;
+    got_w: u32;
+}
+
+machine Main::main(&mut self) {
+    transition { _ -> put(9, 4, 1) }
+
+    state put(&mut self, d: u32, w: u32, index: u64) {
+        let e: Exit = Exit { destination: d, weight: w };
+        let exits: &mut [Exit] = self.room.exits.as_mut_slice();
+        exits[index] = e;
+        self.got_d = self.room.exits[1].destination;
+        self.got_w = self.room.exits[1].weight;
+        transition self.got_d + self.got_w == 13 {
+            true -> good()
+            false -> bad()
+        }
+    }
+
+    state good(&self) { self.console.exit_process(70); }
+    state bad(&self) { self.console.exit_process(71); }
+}

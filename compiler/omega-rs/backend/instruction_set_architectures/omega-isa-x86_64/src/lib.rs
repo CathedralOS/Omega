@@ -8336,6 +8336,60 @@ pub fn encode_runtime_storage_copy_from_runtime_frame_indexed_to_runtime_pointee
 /// (`*(frame[descriptor]) + index*elem + field`, where `index` is read from
 /// `frame[index_offset]`) into `frame[target_offset]`. The runtime-index sibling
 /// of `encode_runtime_storage_copy_from_runtime_frame_fixed_indexed`.
+/// Width of [`encode_runtime_storage_copy_to_runtime_frame_indexed`]. MUST
+/// equal the emitter exactly. One start-anchored frame relocation (the shared
+/// base in r14).
+pub fn runtime_storage_copy_to_runtime_frame_indexed_width(
+    source_offset: usize,
+    field_byte_offset: usize,
+    byte_count: usize,
+) -> usize {
+    // The shared-base indexed-target shape: mov r14,imm64(frame) (10)
+    // + mov r11d,[r14+idx] (7) + imul r11,elem (7) + mov r15,[r14+desc] (7)
+    // + add r15,r11 (3) + per chunk: load rax (7) + store rax (7).
+    34 + runtime_storage_copy_chunk_count(source_offset, field_byte_offset, byte_count) * 14
+}
+
+/// Copy `byte_count` bytes from a runtime-frame place into a RUNTIME-indexed
+/// slice element (`*(frame[descriptor]) + index*elem + field`, index read
+/// from `frame[index_offset]`) -- the write face the old per-variant product
+/// never built on x86_64 (`exits[i] = e` refused with a zero-width blocker).
+/// The Place materializer's shared-base indexed-target shape provides it: the
+/// base lives in r14 (the source register, since the source is direct), the
+/// index loads from it, and the target hops to r15 and adds the scaled index.
+pub fn encode_runtime_storage_copy_to_runtime_frame_indexed(
+    source_offset: usize,
+    descriptor_offset: usize,
+    index_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    byte_count: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    use omega_target_operations::{Place, PlaceStep, RuntimeStorageRegion};
+    let source = Place::at(RuntimeStorageRegion::RuntimeFrame, source_offset);
+    let target = Place::at(RuntimeStorageRegion::RuntimeFrame, descriptor_offset)
+        .with_step(PlaceStep::Deref)
+        .and_then(|place| {
+            place.with_step(PlaceStep::ScaledIndex {
+                index_region: RuntimeStorageRegion::RuntimeFrame,
+                index_offset,
+                element_byte_size,
+            })
+        })
+        .and_then(|place| place.with_step(PlaceStep::ConstOffset(field_byte_offset)))
+        .ok_or_else(|| Diagnostic::error("place path exceeds PLACE_MAX_STEPS"))?;
+    let bytes = encode_place_copy_shared_base(&source, &target, byte_count)?;
+    debug_assert_eq!(
+        bytes.len(),
+        runtime_storage_copy_to_runtime_frame_indexed_width(
+            source_offset,
+            field_byte_offset,
+            byte_count
+        )
+    );
+    Ok(bytes)
+}
+
 pub fn encode_runtime_storage_copy_from_runtime_frame_indexed(
     descriptor_offset: usize,
     index_offset: usize,
