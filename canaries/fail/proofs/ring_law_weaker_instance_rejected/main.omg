@@ -1,0 +1,31 @@
+// NEGATIVE 2: a WEAKER-INSTANCE ensures (two law params proven at ONE
+// variable: assoc specialized to b == a) must NOT license the law.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Peano { case Zero; case Succ(pred: Peano); }
+trait RingOps2 {
+    machine add(a: Self, b: Self) -> Self;
+    machine add_assoc(a: Self, b: Self, c: Self) -> Self
+    ensures add(add(a, b), c) == add(a, add(b, c));
+}
+machine plus(a: Peano, b: Peano) -> Peano
+satisfies RingOps2::add
+terminates { decreases a; }
+{
+    transition a {
+        Peano::Zero -> (b)
+        Peano::Succ { pred } -> Peano::Succ { pred: plus(pred, b) }
+    }
+}
+machine narrow_assoc(a: Peano, b: Peano, c: Peano) -> Peano
+satisfies RingOps2::add_assoc
+terminates { decreases a; }
+ensures
+    (plus(plus(a, a), c)) == (plus(a, plus(a, c)))
+{
+    transition a {
+        Peano::Zero -> Peano::Zero
+        Peano::Succ { pred } -> Peano::Succ { pred: narrow_assoc(pred, b, c) }
+    }
+}
+data Main { console: Console; }
+machine Main::main(&mut self) { self.console.exit_process(70); }

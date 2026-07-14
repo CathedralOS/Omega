@@ -65,8 +65,9 @@ use omega_typed_trees::TypedTrees;
 use omega_typed_trees::domain::ProofFact;
 use omega_typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use omega_typed_trees::machine::Machine;
-use omega_typed_trees::signature::SignatureContractKind;
+use omega_typed_trees::signature::{SignatureContractKind, StateSignature};
 use omega_typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
+use omega_typed_trees::trait_definition::TraitDefinition;
 
 /// The reserved binder naming a machine's return value inside `ensures`
 /// facts. Matches the call-site substitution rule in the checked-trees
@@ -2170,6 +2171,377 @@ fn suggest_conjunct_match(
         }
     }
     None
+}
+
+/// LAW-CONFORMANCE (rearrange rung B, settle 2026-07-18): a trait requirement
+/// carrying `ensures` is a LAW -- an obligation every satisfier proves. The
+/// satisfier machine must carry a PROVEN ensures conjunct matching the
+/// declared law forall-to-forall: the requirement's parameters are pattern
+/// variables that must bind to DISTINCT parameters of the satisfier (a weaker
+/// instance -- `add(x, x) == add(x, x)` against `add(a, b) == add(b, a)` --
+/// does not license the law), and the law's op-slot applications (`add`,
+/// `mul` -- the trait's own requirement names) resolve to the CARRIER's bound
+/// machines first. This is the N3 shape-match machinery promoted from
+/// suggestion-only to load-bearing.
+pub(crate) fn check_law_conformance(
+    program: &TypedTrees,
+    machine: &Machine,
+    conformance_alias: Option<&str>,
+    trait_definition: &TraitDefinition,
+    requirement: &StateSignature,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    // The declared law conjuncts (Equal binaries; And-chains split;
+    // `result`-mentioning conjuncts are functional specs, not laws -- they
+    // stay outside this check, exactly like the suggestion path).
+    let mut law_conjuncts: Vec<ExpressionHandle> = Vec::new();
+    for contract in program.state_signature_contracts(requirement) {
+        if contract.kind != SignatureContractKind::Ensures {
+            continue;
+        }
+        for fact in program.proof_facts.span_or_empty(contract.facts) {
+            if let ProofFact::Expression(expression) = fact {
+                collect_equality_conjuncts(program, *expression, &mut law_conjuncts);
+            }
+        }
+    }
+    if law_conjuncts.is_empty() {
+        return; // an OP requirement, not a law
+    }
+
+    let requirement_parameters: Vec<String> = program
+        .state_signature_parameters(requirement)
+        .iter()
+        .map(|parameter| parameter.name.as_str().to_owned())
+        .collect();
+
+    let Some(entry_state) = program.machine_states(machine).first() else {
+        return; // the signature check already flagged a stateless machine
+    };
+    let satisfier_parameters: Vec<String> = program
+        .state_parameters(entry_state)
+        .iter()
+        .map(|parameter| parameter.name.as_str().to_owned())
+        .collect();
+
+    // The CARRIER is the satisfier's first entry parameter type (law
+    // requirements are Self-shaped; the signature check already bound Self
+    // there), or its return type for parameterless requirements.
+    let carrier = program
+        .state_parameters(entry_state)
+        .first()
+        .map(|parameter| parameter.type_reference)
+        .unwrap_or(entry_state.return_type);
+
+    // The trait's op-slot names, and the carrier's bound machine for each.
+    let slot_names: Vec<String> = program
+        .trait_machine_signatures(trait_definition)
+        .iter()
+        .map(|signature| signature.name.as_str().to_owned())
+        .collect();
+    let slot_bindings = carrier_slot_bindings(
+        program,
+        trait_definition,
+        carrier,
+        conformance_alias,
+        diagnostics,
+    );
+
+    // The satisfier's own PROVEN ensures conjuncts (machine-checked by this
+    // engine before this point -- compiling means proven).
+    let mut proven_conjuncts: Vec<ExpressionHandle> = Vec::new();
+    for contract in program.machine_contracts(machine) {
+        if contract.kind != SignatureContractKind::Ensures {
+            continue;
+        }
+        for fact in program.proof_facts.span_or_empty(contract.facts) {
+            if let ProofFact::Expression(expression) = fact {
+                collect_equality_conjuncts(program, *expression, &mut proven_conjuncts);
+            }
+        }
+    }
+
+    let result_binder = RESULT_BINDER.to_owned();
+    for law_conjunct in &law_conjuncts {
+        let ExpressionNode::Binary(binary) =
+            program.expression_table.expression(*law_conjunct)
+        else {
+            continue;
+        };
+        let (Some(law_left), Some(law_right)) = (
+            structural_term(program, binary.left),
+            structural_term(program, binary.right),
+        ) else {
+            continue; // out-of-language law conjunct: nothing to enforce yet
+        };
+        if term_mentions_variable(&law_left, &result_binder)
+            || term_mentions_variable(&law_right, &result_binder)
+        {
+            continue; // a functional spec, not a law conjunct
+        }
+
+        // Resolve the law's op-slot applications to the carrier's machines.
+        let mut missing_slots: Vec<String> = Vec::new();
+        let law_left =
+            rewrite_slot_applications(&law_left, &slot_names, &slot_bindings, &mut missing_slots);
+        let law_right =
+            rewrite_slot_applications(&law_right, &slot_names, &slot_bindings, &mut missing_slots);
+        if !missing_slots.is_empty() {
+            missing_slots.sort();
+            missing_slots.dedup();
+            diagnostics.push(Diagnostic::error(format!(
+                "machine `{}` satisfies `{}::{}`, whose law mentions `{}` -- but no machine \
+                 satisfies that requirement for this carrier (conform the op first; the law \
+                 check resolves op slots through the carrier's own conformances)",
+                machine.name,
+                trait_definition.name,
+                requirement.name,
+                missing_slots.join("`, `"),
+            )));
+            continue;
+        }
+
+        let matched = proven_conjuncts.iter().any(|proven| {
+            let ExpressionNode::Binary(proven_binary) =
+                program.expression_table.expression(*proven)
+            else {
+                return false;
+            };
+            let (Some(proven_left), Some(proven_right)) = (
+                structural_term(program, proven_binary.left),
+                structural_term(program, proven_binary.right),
+            ) else {
+                return false;
+            };
+            if term_mentions_variable(&proven_left, &result_binder)
+                || term_mentions_variable(&proven_right, &result_binder)
+            {
+                return false;
+            }
+            [
+                (&proven_left, &proven_right),
+                (&proven_right, &proven_left),
+            ]
+            .into_iter()
+            .any(|(first, second)| {
+                let mut bindings: Vec<(String, StructuralTerm)> = Vec::new();
+                diagnostic_shape_match(&law_left, first, &requirement_parameters, &mut bindings)
+                    && diagnostic_shape_match(
+                        &law_right,
+                        second,
+                        &requirement_parameters,
+                        &mut bindings,
+                    )
+                    && bindings_are_forall_general(&bindings, &satisfier_parameters)
+            })
+        });
+
+        if !matched {
+            diagnostics.push(Diagnostic::error(format!(
+                "machine `{}` satisfies `{}::{}` but proves no ensures matching the declared \
+                 law `{} == {}` -- a law requirement's satisfier must carry that equation as a \
+                 machine-checked ensures, general in every law parameter",
+                machine.name,
+                trait_definition.name,
+                requirement.name,
+                display_structural_term(&law_left),
+                display_structural_term(&law_right),
+            )));
+        }
+    }
+}
+
+/// Forall-to-forall sharpening: every law parameter must bind to a DISTINCT
+/// plain parameter VARIABLE of the satisfier -- binding two law parameters to
+/// one satisfier parameter (or to a compound term) proves only a weaker
+/// instance of the law.
+fn bindings_are_forall_general(
+    bindings: &[(String, StructuralTerm)],
+    satisfier_parameters: &[String],
+) -> bool {
+    let mut seen: Vec<&String> = Vec::new();
+    for (_, bound) in bindings {
+        let StructuralTerm::Variable(name) = bound else {
+            return false;
+        };
+        if !satisfier_parameters.iter().any(|parameter| parameter == name) {
+            return false;
+        }
+        if seen.iter().any(|previous| *previous == name) {
+            return false;
+        }
+        seen.push(name);
+    }
+    true
+}
+
+/// Split an ensures fact into its `==` conjuncts (And-chains recursively).
+fn collect_equality_conjuncts(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    out: &mut Vec<ExpressionHandle>,
+) {
+    let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
+        return;
+    };
+    match binary.operator {
+        BinaryOperator::And => {
+            collect_equality_conjuncts(program, binary.left, out);
+            collect_equality_conjuncts(program, binary.right, out);
+        }
+        BinaryOperator::Equal => out.push(expression),
+        _ => {}
+    }
+}
+
+/// The CARRIER's op-slot bindings: for each requirement of the trait, the
+/// machine conforming to it whose carrier type matches. Alias preference
+/// (plural algebras): a binding sharing the checking conformance's alias
+/// wins; otherwise unaliased bindings win; a remaining tie is ambiguous and
+/// reported.
+fn carrier_slot_bindings(
+    program: &TypedTrees,
+    trait_definition: &TraitDefinition,
+    carrier: omega_typed_trees::types::TypeReferenceHandle,
+    prefer_alias: Option<&str>,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> Vec<(String, String)> {
+    let mut bindings: Vec<(String, String)> = Vec::new();
+
+    for requirement in program.trait_machine_signatures(trait_definition) {
+        // (slot machine name, alias) candidates for this carrier.
+        let mut candidates: Vec<(String, Option<String>)> = Vec::new();
+        for candidate in program.machines() {
+            for conformance in program.machine_trait_conformances(candidate) {
+                if conformance.symbol != trait_definition.symbol {
+                    continue;
+                }
+                let bound_requirement = conformance
+                    .requirement
+                    .as_ref()
+                    .map(|name| name.as_str().to_owned())
+                    .or_else(|| {
+                        candidate
+                            .attached_data
+                            .is_none()
+                            .then(|| candidate.name.as_str().to_owned())
+                    });
+                if bound_requirement.as_deref() != Some(requirement.name.as_str()) {
+                    continue;
+                }
+                let Some(candidate_entry) = program.machine_states(candidate).first() else {
+                    continue;
+                };
+                let candidate_carrier = program
+                    .state_parameters(candidate_entry)
+                    .first()
+                    .map(|parameter| parameter.type_reference)
+                    .unwrap_or(candidate_entry.return_type);
+                if !crate::type_references::type_references_match(
+                    program,
+                    candidate_carrier,
+                    carrier,
+                ) {
+                    continue;
+                }
+                candidates.push((
+                    candidate.name.as_str().to_owned(),
+                    conformance.alias.as_ref().map(|alias| alias.as_str().to_owned()),
+                ));
+            }
+        }
+
+        if candidates.is_empty() {
+            continue; // an unbound slot only matters if a law mentions it
+        }
+        let chosen = if let Some(preferred) = candidates
+            .iter()
+            .filter(|(_, alias)| alias.as_deref() == prefer_alias)
+            .collect::<Vec<_>>()
+            .split_first()
+            .filter(|(_, rest)| rest.is_empty())
+            .map(|(first, _)| (*first).clone())
+        {
+            Some(preferred)
+        } else {
+            let unaliased: Vec<_> = candidates
+                .iter()
+                .filter(|(_, alias)| alias.is_none())
+                .collect();
+            match unaliased.as_slice() {
+                [single] => Some((*single).clone()),
+                [] if candidates.len() == 1 => Some(candidates[0].clone()),
+                [] => None,
+                _ => None,
+            }
+        };
+        match chosen {
+            Some((machine_name, _)) => {
+                bindings.push((requirement.name.as_str().to_owned(), machine_name));
+            }
+            None => {
+                diagnostics.push(Diagnostic::error(format!(
+                    "trait `{}` requirement `{}` has AMBIGUOUS satisfiers for this carrier -- \
+                     name the family with `as <Alias>` on each conformance so the law check \
+                     (and the judge) can pick one",
+                    trait_definition.name, requirement.name,
+                )));
+            }
+        }
+    }
+
+    bindings
+}
+
+/// Rewrite the law's op-slot applications (`add(a, b)` where `add` is a
+/// requirement of the SAME trait) to the carrier's bound machine names;
+/// slots with no binding are collected for the missing-slot diagnostic.
+fn rewrite_slot_applications(
+    term: &StructuralTerm,
+    slot_names: &[String],
+    slot_bindings: &[(String, String)],
+    missing: &mut Vec<String>,
+) -> StructuralTerm {
+    match term {
+        StructuralTerm::Application { machine, arguments } => {
+            let arguments = arguments
+                .iter()
+                .map(|argument| {
+                    rewrite_slot_applications(argument, slot_names, slot_bindings, missing)
+                })
+                .collect();
+            let machine = if slot_names.iter().any(|slot| slot == machine) {
+                match slot_bindings
+                    .iter()
+                    .find(|(slot, _)| slot == machine)
+                    .map(|(_, bound)| bound.clone())
+                {
+                    Some(bound) => bound,
+                    None => {
+                        missing.push(machine.clone());
+                        machine.clone()
+                    }
+                }
+            } else {
+                machine.clone()
+            };
+            StructuralTerm::Application { machine, arguments }
+        }
+        StructuralTerm::Constructor { data, case, fields } => StructuralTerm::Constructor {
+            data: data.clone(),
+            case: case.clone(),
+            fields: fields
+                .iter()
+                .map(|(name, value)| {
+                    (
+                        name.clone(),
+                        rewrite_slot_applications(value, slot_names, slot_bindings, missing),
+                    )
+                })
+                .collect(),
+        },
+        other => other.clone(),
+    }
 }
 
 fn term_mentions_variable(term: &StructuralTerm, variable: &String) -> bool {

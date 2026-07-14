@@ -821,10 +821,22 @@ no `unbounded` property exists. Rungs:
   Canaries: pass/traits/ring_requirement_satisfies_exit (differential
   70; proof-only Peano + runtime i32 carriers) + three fail edges
   (unknown requirement / Self-bound signature mismatch / bare-satisfies
-  no-name-match spells the fix). NOTE for rung B: LAW requirements'
-  ensures are currently surface-only (signature+effects checked; the
-  proven-ensures ⊨ declared-law match is rung B — the code comment in
-  validate_machine_single_requirement marks the seam).
+  no-name-match spells the fix).
+  RUNG B LANDED 2026-07-18: the law-conformance check
+  (contract_entailment::check_law_conformance, called from
+  validate_machine_single_requirement). A requirement with `ensures` is
+  a LAW; its satisfier must carry a machine-checked ensures matching it
+  ∀-to-∀: op-slot applications rewrite to the CARRIER's bound machines
+  (resolved through the carrier's own conformances; unconformed slot in
+  a law = targeted error; alias-preferring slot resolution, ambiguity =
+  the `as <Alias>` error), and every law param must bind a DISTINCT
+  plain satisfier param (weaker instances rejected). result-mentioning
+  conjuncts are functional specs, excluded both sides. CONVENTION
+  PINNED: law requirements declare `-> Self` (lemma machines return the
+  carrier). Canaries: pass/proofs/ring_law_conformance (op machine
+  named `plus` — the rewrite is real) + three fails
+  (unproven/weaker-instance/slot-unbound). Rung C (the judge) can now
+  consume carrier_slot_bindings as its license + symbol table.
   THEN: Int/Rat routing, the N2(d) arithmetic bridge
   (n > 0 => n == Succ(n - 1)). Int introduction rule: order has no floor,
   measures stay Nat-valued or range-floored.
