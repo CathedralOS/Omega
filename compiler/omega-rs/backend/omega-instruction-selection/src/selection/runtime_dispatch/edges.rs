@@ -1251,6 +1251,7 @@ fn select_dispatch_guard_instructions(
             input.layouts,
             input.runtime_storage,
             input.receiver_bases,
+            input.state_contexts,
             input.entry_key.machine,
             source_key,
             source_key.machine,

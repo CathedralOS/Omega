@@ -432,6 +432,7 @@ pub(super) fn control_flow_to_backend_plan(
 fn plan_emission(plan: &omega_backend_plan::BackendPlan) -> omega_artifacts::EmissionPlan {
     build_emission_plan(&EmissionPlanningInput {
         receiver_bases: &plan.receiver_bases,
+        state_contexts: &plan.state_contexts,
         target: plan.target,
         entry_key: plan.entry_key,
         host_abi: &plan.host_abi,

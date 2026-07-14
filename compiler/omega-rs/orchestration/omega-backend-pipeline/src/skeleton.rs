@@ -61,6 +61,7 @@ pub(super) fn build_backend_plan_skeleton(input: BackendPlanSkeletonInput) -> Ba
         layouts: Arc::new(input.layouts),
         entry_key: input.entry_key,
         receiver_bases: Vec::new(),
+        state_contexts: Vec::new(),
         phase_timings: input.phase_timings,
     }
 }

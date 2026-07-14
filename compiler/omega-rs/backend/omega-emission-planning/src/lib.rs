@@ -51,6 +51,8 @@ pub struct EmissionPlanningInput<'plan> {
     pub state_calls: &'plan StateCallPlan,
     /// See BackendPlan::receiver_bases (per-instance receiver dispatch).
     pub receiver_bases: &'plan [Option<usize>],
+    /// See BackendPlan::state_contexts (same-context slot resolution).
+    pub state_contexts: &'plan [u32],
     pub state_storage: &'plan StateStoragePlan,
     pub state_values: &'plan StateValuePlan,
     pub data: &'plan TargetDataPlan,

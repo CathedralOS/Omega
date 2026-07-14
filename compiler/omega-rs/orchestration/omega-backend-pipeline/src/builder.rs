@@ -324,6 +324,12 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
         &backend_plan.state_calls,
         &backend_plan.layouts,
     );
+    // The guard-operand resolver needs the same dispatch-index -> context table
+    // the stacking pass used: a slot lookup that falls back across contexts
+    // reads a DIFFERENT INLINING's frame region (the second wrapper dir-walk's
+    // tail guard read the first walk's `i`/`path.len` -- the repeated-slice-arg
+    // miscompile).
+    backend_plan.state_contexts = state_context_table(&runtime_flow);
     backend_plan.state_guards = record_backend_phase(&mut phase_timings, "state guards", || {
         build_state_guard_plan(
             &program,
@@ -333,6 +339,7 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
             &backend_plan.runtime_storage,
             backend_plan.entry_key.machine,
             &backend_plan.receiver_bases,
+            &backend_plan.state_contexts,
         )
     })
     .into();
@@ -382,6 +389,7 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
             let runtime_abi = build_runtime_abi_plan(backend_plan.target);
             build_abstract_operation_plan(&AbstractOperationLoweringInput {
                 receiver_bases: &backend_plan.receiver_bases,
+                state_contexts: &backend_plan.state_contexts,
                 runtime_abi: &runtime_abi,
                 entry_key: backend_plan.entry_key,
                 entry_symbol: object_entry_symbol_name(&backend_plan.object).into(),
@@ -467,6 +475,26 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
 /// built per dispatch body from offset 0; this shifts every slot by its
 /// (context, state) group's cumulative base.
 ///
+/// The dispatch-index -> call-context table. A frame slot's `dispatch_index` is
+/// the state's ARENA INDEX in the runtime flow (see omega-state-dispatch:
+/// `dispatch_index = handle.arena_index()`). Index by that arena index
+/// explicitly -- iteration position is NOT guaranteed to equal arena index, and
+/// conflating them assigns a state's slots to the wrong context's region (a
+/// caller and a dispatched callee then overlap and clobber each other's live
+/// values). Shared by the frame-region stacking below and the guard-operand
+/// resolver (which must never read a slot across contexts).
+fn state_context_table(runtime_flow: &RuntimeFlowPlan) -> Vec<u32> {
+    let mut contexts: Vec<u32> = Vec::new();
+    for (handle, state) in runtime_flow.states.iter() {
+        let index = handle.arena_index() as usize;
+        if index >= contexts.len() {
+            contexts.resize(index + 1, 0);
+        }
+        contexts[index] = state.context.0;
+    }
+    contexts
+}
+
 /// States within one context must NOT share a range: a state's local stays live
 /// across a sibling transition whenever its address escapes (`&mut local` passed
 /// as a transition argument). Overlaying siblings let the successor's guard
@@ -478,20 +506,7 @@ fn stack_runtime_storage_by_call_context(
     storage: &mut omega_runtime_storage::RuntimeStoragePlan,
     runtime_flow: &RuntimeFlowPlan,
 ) {
-    // A frame slot's `dispatch_index` is the state's ARENA INDEX in the runtime
-    // flow (see omega-state-dispatch: `dispatch_index = handle.arena_index()`).
-    // Index `contexts` by that arena index explicitly -- iteration position is NOT
-    // guaranteed to equal arena index, and conflating them assigns a state's slots
-    // to the wrong context's region (a caller and a dispatched callee then overlap
-    // and clobber each other's live values).
-    let mut contexts: Vec<u32> = Vec::new();
-    for (handle, state) in runtime_flow.states.iter() {
-        let index = handle.arena_index() as usize;
-        if index >= contexts.len() {
-            contexts.resize(index + 1, 0);
-        }
-        contexts[index] = state.context.0;
-    }
+    let contexts = state_context_table(runtime_flow);
     if contexts.is_empty() {
         return;
     }
