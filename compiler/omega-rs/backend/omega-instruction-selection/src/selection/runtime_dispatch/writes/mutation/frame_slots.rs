@@ -185,6 +185,31 @@ pub(in crate::selection) fn select_runtime_frame_slot_value_write_in_table_with_
         return Some(kind);
     }
 
+    // A FLOAT literal value (a folded terminal return, a stamped let
+    // initializer, a struct field) writes as its IEEE-754 bit pattern -- the
+    // store is bit-blind, and the landing-aware reads keep f32 slots
+    // single-rounded. This arm was MISSING: a float value fell through every
+    // arm below, the writer returned None, and the slot stayed ZII (the
+    // float value-call RETURN divergence).
+    if matches!(slot.byte_size, 4 | 8) {
+        let mut float_value = value;
+        while let ExpressionNode::Mutable(inner) = expressions.expression(float_value) {
+            float_value = *inner;
+        }
+        if let ExpressionNode::Float(literal) = expressions.expression(float_value) {
+            let bits = match slot.byte_size {
+                4 => i64::from(literal.f32_bits()),
+                _ => literal.landed_f64().to_bits() as i64,
+            };
+            return Some(SelectedInstructionKind::WriteRuntimeStorageInteger {
+                target_region: RuntimeStorageRegion::RuntimeFrame,
+                byte_offset: slot.byte_offset,
+                byte_size: slot.byte_size,
+                value: bits,
+            });
+        }
+    }
+
     if supports_scalar_integer_write(slot.byte_size)
         && let Some(value) =
             resolve_runtime_static_integer_value_in_table(input, expressions, value, static_values)

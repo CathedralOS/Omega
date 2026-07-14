@@ -13579,6 +13579,51 @@ fn suffix_boundary_magnitudes_canary_runs() {
 }
 
 #[test]
+fn float_value_call_return_canary_runs() {
+    // The frame-slot value writer's FLOAT arm: a float value-call return
+    // delivers instead of leaving the call-result slot ZII.
+    let canary = pass_canary("calls/float_value_call_return_exit");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("float return canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should exit 70 (passthru(3.5) == 3.5), got {}",
+        outcome.exit_code
+    );
+
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-float-vret-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("float return canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("float return canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the float return to deliver (exit 70), got {:?}          (71 = the call-result slot stayed ZII)
+stderr:
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn expansion_float_local_guard_canary_runs() {
     // The float-literal guard arm in the EXPANSION path: an inlined callee's
     // float-local guard (`d == 0.0`) lowers instead of refusing.
@@ -30326,6 +30371,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "calls/struct_literal_transition_arg_exit",
     "calls/bool_value_call_return_exit",
     "float/expansion_float_local_guard_exit",
+    "calls/float_value_call_return_exit",
     "collections/runtime_palindrome_two_pointer_exit",
     "collections/runtime_bracket_matcher_stack_exit",
     "collections/runtime_argmax_index_exit",
