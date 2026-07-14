@@ -1,0 +1,21 @@
+// A single-requirement satisfier whose signature disagrees with the
+// requirement must be rejected -- here `Self` binds Peano at parameter `a`,
+// so the `i32` at parameter `b` is a clean mismatch (the Self-binding half
+// of rearrange rung A: the carrier is INFERRED from the signature and must
+// be consistent across every Self position).
+boundary trait Console { machine exit_process(return_code: i32); }
+data Peano { case Zero; case Succ(pred: Peano); }
+trait RingOps {
+    machine add(a: Self, b: Self) -> Self;
+}
+machine badsig(a: Peano, b: i32) -> Peano
+satisfies RingOps::add
+terminates { decreases a; }
+{
+    transition a {
+        Peano::Zero -> (a)
+        Peano::Succ { pred } -> Peano::Succ { pred: badsig(pred, b) }
+    }
+}
+data Main { console: Console; }
+machine Main::main(&mut self) { self.console.exit_process(70); }

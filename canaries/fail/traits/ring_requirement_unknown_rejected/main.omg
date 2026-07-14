@@ -1,0 +1,19 @@
+// `satisfies Trait::requirement` naming a requirement the trait does not
+// declare must be a targeted clean error (rearrange rung A) -- never a
+// silent no-op conformance.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Peano { case Zero; case Succ(pred: Peano); }
+trait RingOps {
+    machine add(a: Self, b: Self) -> Self;
+}
+machine nopath(a: Peano, b: Peano) -> Peano
+satisfies RingOps::nope
+terminates { decreases a; }
+{
+    transition a {
+        Peano::Zero -> (b)
+        Peano::Succ { pred } -> Peano::Succ { pred: nopath(pred, b) }
+    }
+}
+data Main { console: Console; }
+machine Main::main(&mut self) { self.console.exit_process(70); }

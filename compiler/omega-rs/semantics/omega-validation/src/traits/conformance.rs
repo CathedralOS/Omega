@@ -24,6 +24,29 @@ pub(crate) fn validate_machine_trait_conformances(
             continue;
         };
 
+        // SINGLE-REQUIREMENT conformance (rearrange settle 2026-07-18): an
+        // explicit `satisfies Trait::requirement`, or a bare trait name on a
+        // FREE machine (free proof machines conform machine-by-machine to the
+        // requirement bearing their own name -- whole-trait candidate lookup
+        // never existed for them: a free machine's candidate set is itself).
+        // Data-attached machines with a bare trait name keep the whole-trait
+        // semantics below, unchanged.
+        let named_requirement = conformance.requirement.clone();
+        let single_requirement = named_requirement
+            .clone()
+            .or_else(|| machine.attached_data.is_none().then(|| machine.name.clone()));
+        if let Some(requirement_name) = single_requirement {
+            validate_machine_single_requirement(
+                program,
+                machine,
+                trait_definition,
+                &requirement_name,
+                named_requirement.is_some(),
+                diagnostics,
+            );
+            continue;
+        }
+
         let mut visited_traits = Vec::new();
         validate_machine_satisfies_trait(
             program,
@@ -33,6 +56,66 @@ pub(crate) fn validate_machine_trait_conformances(
             &mut visited_traits,
         );
     }
+}
+
+/// Conform THIS machine to ONE trait requirement (the machine-by-machine
+/// carrier model): the machine's ENTRY signature must match the requirement's
+/// (with `Self` binding to the carrier type on first use). LAW requirements
+/// (an `ensures` on the requirement) additionally demand a proven-ensures |=
+/// declared-law match -- rung B of the rearrange ladder; until it lands the
+/// signature + effect-ceiling checks are the enforced surface.
+fn validate_machine_single_requirement(
+    program: &TypedTrees,
+    machine: &Machine,
+    trait_definition: &TraitDefinition,
+    requirement_name: &omega_typed_trees::name::Identifier,
+    explicitly_named: bool,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let Some(requirement) = program
+        .trait_machine_signatures(trait_definition)
+        .iter()
+        .find(|requirement| requirement.name == *requirement_name)
+    else {
+        if explicitly_named {
+            diagnostics.push(Diagnostic::error(format!(
+                "machine `{}` satisfies `{}::{}`, but trait `{}` has no requirement named `{}`",
+                machine.name,
+                trait_definition.name,
+                requirement_name,
+                trait_definition.name,
+                requirement_name
+            )));
+        } else {
+            diagnostics.push(Diagnostic::error(format!(
+                "free machine `{}` satisfies trait `{}`, which has no requirement named `{}` -- \
+                 a free machine's bare `satisfies` binds the requirement bearing its own name; \
+                 name one explicitly with `satisfies {}::<requirement>`",
+                machine.name, trait_definition.name, machine.name, trait_definition.name
+            )));
+        }
+        return;
+    };
+
+    // The machine's conforming signature is its ENTRY state (the first state:
+    // an implicit entry always parses first, and single-entry proof machines
+    // are the shape this mode serves).
+    let Some(entry_state) = program.machine_states(machine).first() else {
+        diagnostics.push(Diagnostic::error(format!(
+            "machine `{}` satisfies `{}::{}` but has no states",
+            machine.name, trait_definition.name, requirement_name
+        )));
+        return;
+    };
+
+    validate_machine_state_satisfies_trait_signature(
+        program,
+        machine,
+        entry_state,
+        trait_definition,
+        requirement,
+        diagnostics,
+    );
 }
 
 fn validate_machine_satisfies_trait(
@@ -287,6 +370,26 @@ fn type_references_match_with_trait_bindings(
         return actual.is_valid() == required.is_valid();
     }
 
+    // `Self` in a requirement type binds to the CARRIER on first use and must
+    // match on every later use (rearrange settle 2026-07-18: free-machine
+    // requirements are Self-shaped -- `machine add(a: Self, b: Self) -> Self`
+    // -- and the carrier type is INFERRED from the satisfier's signature).
+    if required_is_self_type(program, required) {
+        if let Some(binding) = bindings
+            .iter()
+            .find(|binding| !binding.parameter_symbol.is_valid() && binding.parameter_name == "Self")
+        {
+            return type_references_match(program, actual, binding.actual);
+        }
+
+        bindings.push(TraitTypeBinding {
+            parameter_symbol: SymbolHandle::invalid(),
+            parameter_name: "Self".to_owned(),
+            actual,
+        });
+        return true;
+    }
+
     if let Some(parameter) = required_trait_type_parameter(program, required, trait_type_parameters)
     {
         if let Some(binding) = bindings.iter().find(|binding| {
@@ -418,6 +521,13 @@ fn type_references_match_with_trait_bindings(
         }
         _ => type_references_match(program, actual, required),
     }
+}
+
+fn required_is_self_type(program: &TypedTrees, required: TypeReferenceHandle) -> bool {
+    matches!(
+        program.type_reference_table.type_reference(required),
+        TypeReferenceNode::Named { name, .. } if name.as_str() == "Self"
+    )
 }
 
 fn required_trait_type_parameter<'program>(

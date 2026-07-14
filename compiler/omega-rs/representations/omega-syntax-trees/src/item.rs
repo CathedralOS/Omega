@@ -597,6 +597,21 @@ impl Default for ProofMembershipFact {
     }
 }
 
+/// One `satisfies` binding on a machine (rearrange settle 2026-07-18):
+/// `satisfies Trait`, `satisfies Trait::requirement`, or
+/// `satisfies Trait::requirement as Alias`. A REQUIREMENT-named binding
+/// conforms this machine to that single requirement (the machine-by-machine
+/// carrier model; the alias names the satisfier for plural algebras -- Nat
+/// under (max, add) is the tropical semiring); a bare trait name keeps the
+/// whole-trait semantics for data-attached machines and binds a FREE machine
+/// to the requirement matching its own name.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct SatisfiesClause {
+    pub trait_name: Identifier,
+    pub requirement: Option<Identifier>,
+    pub alias: Option<Identifier>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Machine {
     pub name: Identifier,
@@ -614,7 +629,7 @@ pub struct Machine {
     /// parameters are the boundary-trusted shape over the arrival bytes.
     pub boundary: bool,
     pub type_parameters: HandleSpan<TypeParameter>,
-    pub satisfies: HandleSpan<Identifier>,
+    pub satisfies: HandleSpan<SatisfiesClause>,
     pub terminates: bool,
     pub decreases: HandleSpan<crate::expression::ExpressionHandle>,
     pub decrease_order: HandleSpan<Identifier>,
@@ -681,6 +696,7 @@ struct StateStorage {
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct DeclarationStorage {
     identifier_path_members: Arena<Identifier>,
+    satisfies_clauses: Arena<SatisfiesClause>,
     type_parameters: Arena<TypeParameter>,
     boundary_levels: Arena<BoundaryLevel>,
     library_functions: Arena<LibraryFunction>,
@@ -749,6 +765,10 @@ impl ItemTable {
         self.declaration_storage
             .identifier_path_members
             .span_or_empty(span)
+    }
+
+    pub fn satisfies_clauses(&self, span: HandleSpan<SatisfiesClause>) -> &[SatisfiesClause] {
+        self.declaration_storage.satisfies_clauses.span_or_empty(span)
     }
 
     pub fn library_functions(&self, span: HandleSpan<LibraryFunction>) -> &[LibraryFunction] {
@@ -902,6 +922,10 @@ impl ItemTable {
         self.declaration_storage
             .identifier_path_members
             .append(member)
+    }
+
+    pub fn append_satisfies_clause(&mut self, clause: SatisfiesClause) -> Handle<SatisfiesClause> {
+        self.declaration_storage.satisfies_clauses.append(clause)
     }
 
     pub fn append_boundary_policy(&mut self, policy: BoundaryPolicy) -> Handle<BoundaryPolicy> {
@@ -1073,6 +1097,7 @@ impl DeclarationStorage {
     fn new() -> Self {
         Self {
             identifier_path_members: Arena::new(),
+            satisfies_clauses: Arena::new(),
             type_parameters: Arena::new(),
             boundary_levels: Arena::new(),
             library_functions: Arena::new(),
@@ -1121,7 +1146,7 @@ pub struct StateNode {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct MachineNode {
     pub name: Identifier,
-    pub satisfies: HandleSpan<Identifier>,
+    pub satisfies: HandleSpan<SatisfiesClause>,
     pub effects: HandleSpan<Identifier>,
     pub contracts: HandleSpan<CapabilityContract>,
     pub states: HandleSpan<StateHandle>,

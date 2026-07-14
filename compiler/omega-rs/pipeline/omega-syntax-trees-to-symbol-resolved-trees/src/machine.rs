@@ -94,11 +94,11 @@ fn lower_machine_decreases(
 fn lower_machine_trait_conformances(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
-    satisfies: HandleSpan<syntax::identifier::Identifier>,
+    satisfies: HandleSpan<syntax::item::SatisfiesClause>,
 ) -> HandleSpan<TraitConformance> {
     let mut span = HandleSpan::empty();
 
-    for trait_name in syntax_trees.items.identifier_path_members(satisfies) {
+    for clause in syntax_trees.items.satisfies_clauses(satisfies) {
         lowerer
             .symbol_resolved_trees
             .tables
@@ -108,7 +108,9 @@ fn lower_machine_trait_conformances(
                 &mut span,
                 TraitConformance {
                     symbol: SymbolHandle::invalid(),
-                    name: crate::name::lower_name(trait_name),
+                    name: crate::name::lower_name(&clause.trait_name),
+                    requirement: clause.requirement.as_ref().map(crate::name::lower_name),
+                    alias: clause.alias.as_ref().map(crate::name::lower_name),
                 },
             );
     }

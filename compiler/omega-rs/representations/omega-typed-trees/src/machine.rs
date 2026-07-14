@@ -76,6 +76,12 @@ pub struct OwnedData {
 pub struct TraitConformance {
     pub symbol: SymbolHandle,
     pub name: Identifier,
+    /// The single-requirement binding (`satisfies Trait::requirement`,
+    /// rearrange settle 2026-07-18): `Some` conforms the machine to that one
+    /// requirement instead of the whole trait; `alias` names the satisfier
+    /// (`as Name`) for plural algebras / signature collisions.
+    pub requirement: Option<Identifier>,
+    pub alias: Option<Identifier>,
 }
 
 impl Default for TraitConformance {
@@ -83,6 +89,8 @@ impl Default for TraitConformance {
         Self {
             symbol: SymbolHandle::invalid(),
             name: Identifier::default(),
+            requirement: None,
+            alias: None,
         }
     }
 }

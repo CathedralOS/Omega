@@ -805,6 +805,26 @@ no `unbounded` property exists. Rungs:
   the judge's rearrange mode (generalize the int canonicalizer to
   symbol-keyed ops). Acceptance = citation-free `mul_distributes`;
   regression = `mul_succ_right`'s msr_step choreography DELETES.
+  RUNG A LANDED 2026-07-18: the single-requirement satisfies surface.
+  Grammar: `satisfies Trait::req [as Alias]` (SatisfiesClause node
+  replaces the flat identifier span; threaded syntax→resolved→typed
+  TraitConformance as optional requirement/alias fields). Semantics:
+  path form = single-requirement conformance for ANY machine; a FREE
+  machine's bare `satisfies Trait` binds the requirement bearing its
+  own name (free machines never had whole-trait candidates);
+  data-attached bare stays whole-trait (unchanged). `Self` in
+  requirement types BINDS the carrier on first use (synthetic
+  invalid-symbol binding in the trait-bindings matcher) — the
+  free-shaped requirement infers the carrier from the satisfier, data
+  and primitive carriers both. The trait-side surface (free-shaped
+  requirements + `ensures` LAWS) already parsed — probed + pinned.
+  Canaries: pass/traits/ring_requirement_satisfies_exit (differential
+  70; proof-only Peano + runtime i32 carriers) + three fail edges
+  (unknown requirement / Self-bound signature mismatch / bare-satisfies
+  no-name-match spells the fix). NOTE for rung B: LAW requirements'
+  ensures are currently surface-only (signature+effects checked; the
+  proven-ensures ⊨ declared-law match is rung B — the code comment in
+  validate_machine_single_requirement marks the seam).
   THEN: Int/Rat routing, the N2(d) arithmetic bridge
   (n > 0 => n == Succ(n - 1)). Int introduction rule: order has no floor,
   measures stay Nat-valued or range-floored.
