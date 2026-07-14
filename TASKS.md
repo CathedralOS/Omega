@@ -203,11 +203,33 @@ dispatch-region + receiver-phase family. Everything queued here avoids both.
    second-reloc offsets are VALUE-DEPENDENT (add-constant width), and
    this host has NO aarch64 runtime oracle — byte-layout changes there
    are unverifiable; do 1d when an emulation/CI oracle exists, or
-   byte-identically per variant with golden tests. NEXT: (1c)
-   ScaledIndex materialization (index load + scale + add; scratch
-   discipline from the existing indexed encoders: r11 index, imul,
-   add) + the runtime-indexed variants — differential is the oracle,
-   walker arms update to the unified shape. (2) ONE `CopyPlaces`
+   byte-identically per variant with golden tests.
+   RUNG 1c-i LANDED 2026-07-18 (ScaledIndex): the materializer's index
+   discipline — at most ONE runtime index per place, loaded into r11
+   (32-bit ZX, the append_load_r11_from_r14/r15 helpers) and scaled
+   IMMEDIATELY AFTER the base materializes and BEFORE any deref
+   consumes the base, `add reg,r11` at the step's walk position; on
+   the shared-base path an index is legal only on a DEREFFING side
+   (a direct side's add would mutate the shared base), one side max.
+   Three runtime-indexed variants delegate: from_frame_indexed +
+   from_indexed_to_pointee (same instruction multiset REORDERED —
+   index hoisted pre-hop — same width, start-anchored single reloc,
+   walker untouched); from_indexed_to_runtime_storage CANONICALIZED
+   (target reloc +41→+34, FRAME_INDEXED_COPY_TARGET_IMM_OFFSET + the
+   walker arm + the arch-dispatched width fn in lockstep; 1|4|8
+   restriction lifted). 9 materializer unit tests incl. both indexed
+   layouts + refusal cases.
+   NEXT: (1c-ii) the to_frame_indexed WRITE face — x86_64 has NO
+   encoder today (`unsupported_x86_64_encoding`, the read-not-write
+   matrix hole): the shared-base indexed-TARGET shape already works in
+   the materializer (unit-tested layout: base r14, index from it,
+   target hops to r15 + add) — wire the selection dispatch arm, the
+   width fn x86 arm, confirm the start-only walker arm fits, lift any
+   emission blocker, and add a runtime canary for `s[i] = self.x`
+   (frame-source only; machine-source keeps its loud fence). ALSO
+   REMAINING: the machine-indexed copy variants (machine-region bases,
+   region-varying index slots — the index's own base register needs
+   the region wired) → fold into rung 2. (2) ONE `CopyPlaces`
    SelectedInstructionKind variant + a walker arm that PATCHES BY
    PLACE REGION, then selection migrates sites and the 18 variants +
    their echoes retire; then Write/RMW (the leaf-cascade duplication

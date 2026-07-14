@@ -1744,7 +1744,11 @@ pub fn runtime_storage_copy_from_runtime_frame_indexed_to_runtime_storage_width(
         }
         // Was `=> 0`: the slice-element -> storage copy silently DROPPED on x86_64.
         Architecture::X86_64 => {
-            x86_64::runtime_storage_copy_from_runtime_frame_indexed_to_runtime_storage_width()
+            x86_64::runtime_storage_copy_from_runtime_frame_indexed_to_runtime_storage_width(
+                field_byte_offset,
+                target_offset,
+                byte_count,
+            )
         }
     }
 }
