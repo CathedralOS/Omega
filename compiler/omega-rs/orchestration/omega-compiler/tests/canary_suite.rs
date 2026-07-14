@@ -13579,6 +13579,52 @@ fn suffix_boundary_magnitudes_canary_runs() {
 }
 
 #[test]
+fn bool_value_call_return_canary_runs() {
+    // Bool-returning value calls deliver in all three faces (attached
+    // let-bound, free let-bound, direct-in-guard) -- the 07-08-era
+    // mis-delivery no longer reproduces; this pins the closed class.
+    let canary = pass_canary("calls/bool_value_call_return_exit");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("bool value-call canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should exit 70 (all three bool faces), got {}",
+        outcome.exit_code
+    );
+
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-bool-vcall-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("bool value-call canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("bool value-call canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected all three bool value-call faces to deliver (exit 70), got {:?}
+stderr:
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn struct_literal_transition_arg_canary_runs() {
     // The record arm of struct-literal ARG materialization (was missing:
     // a plain record arg planned nothing and the callee param stayed ZII).
@@ -30233,6 +30279,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "filesystem/repeated_dir_walk_scan_exit",
     "slices/runtime_indexed_element_copy_write_exit",
     "calls/struct_literal_transition_arg_exit",
+    "calls/bool_value_call_return_exit",
     "collections/runtime_palindrome_two_pointer_exit",
     "collections/runtime_bracket_matcher_stack_exit",
     "collections/runtime_argmax_index_exit",
