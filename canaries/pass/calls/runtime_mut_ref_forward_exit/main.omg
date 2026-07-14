@@ -1,0 +1,28 @@
+// RUN CANARY (exit 70) -- the LEGAL shape the borrow-mutability check
+// (2026-07-18) must keep accepting: a `&mut` PARAMETER forwarded by bare
+// name to another `&mut` parameter. `step(c)` passes a Name, not a `&mut`
+// node (a shared `&` vanishes at parse time), so a SYNTACTIC mutability
+// check would false-positive here -- the enforcement resolves the name's
+// declaration instead. The callee writes through the double-hopped
+// reference and the caller observes it via the aliased field.
+// exit 71 = the forwarded write missed self.c.
+
+boundary trait Console { machine exit_process(return_code: i32); }
+
+data Counter { n: i32 in Wrapping; }
+data Main { console: Console; c: Counter; }
+
+machine Main::main(&mut self) {
+    transition { _ -> enter(&mut self.c) }
+
+    state enter(&mut self, c: &mut Counter) {
+        transition { _ -> step(c) }
+    }
+    state step(&mut self, c: &mut Counter) {
+        c.n = c.n + 59;
+        transition self.c.n == 59 { true -> good() _ -> bad() }
+    }
+
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self)  { self.console.exit_process(71); }
+}

@@ -35,7 +35,7 @@ impl WritableRoots<'_, '_> {
 
 }
 
-fn local_is_mutable_reference(
+pub(crate) fn local_is_mutable_reference(
     program: &omega_typed_trees::TypedTrees,
     local_data: &omega_typed_trees::statement::TableLocalData,
 ) -> bool {

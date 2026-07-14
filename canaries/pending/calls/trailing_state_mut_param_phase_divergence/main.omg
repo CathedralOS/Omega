@@ -36,7 +36,10 @@ machine Main::build(&mut self, random: &mut Rng) -> u32 {
     }
 }
 machine Main::main(&mut self) {
-    let r: u32 = self.build(self.rng);
+    // `&mut self.rng` spelled explicitly (2026-07-18): the borrow-mutability
+    // check now rejects a bare field lend for a `&mut` param -- the backend
+    // phase divergence this canary pins is unchanged.
+    let r: u32 = self.build(&mut self.rng);
     transition r == 70 {
         true -> good()
         _ -> bad()

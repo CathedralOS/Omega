@@ -1034,12 +1034,19 @@ rejects — an INTEGER ruling, engineering rides this ladder as F8).
   host-corrected):** (a) `float_to_int_overflow_divergence` now documents
   the x86 host pair (native 70 / interp 71; the header keeps aarch64's
   99 as the cross-target face) — the entry retires entirely when float
-  ladder F4 (proof-or-policy, ANSWERED) is built. (b)
-  `immutable_arg_for_mut_param_not_checked` now pins the segfault code
-  (-1073741819, was -1) so the next behavior change fails loudly; the
-  GAP itself stays DESIGN-BLOCKED per its header (owner
-  fence-vs-implement call; sound fix = semantic mutability tracking with
-  the ownership-enforcement subsystem).
+  ladder F4 (proof-or-policy, ANSWERED) is built. (b) RESOLVED
+  2026-07-18 (owner: "obviously implement"): the immutable-lend-for-
+  `&mut`-param hole is ENFORCED — semantic check in
+  validate_call_arguments_handles (bare-name `&mut` forwards resolve at
+  whole-machine scope; everything else errors with the fix spelled).
+  Repro PROMOTED to fail/calls/immutable_arg_for_mut_param_rejected;
+  legal forward pinned by pass/calls/runtime_mut_ref_forward_exit; two
+  corpus canaries respelled to explicit `&mut self.<field>`. NEW pin
+  found while authoring the forward canary:
+  pending/storage/local_slice_forward_segfault — a frame-LOCAL-backed
+  slice descriptor forwarded across a state boundary goes wild natively
+  (same-state use and `&mut`-PARAM-derived slices both work); backend
+  storage/argument-materialization face, pre-existing.
 
   (The earlier "CONFIRMED ON MAIN / five float failures survived onto
   committed main / bisect from 8d0b33b8e" block that lived here was

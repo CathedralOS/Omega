@@ -121,6 +121,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("arithmetic/const_fold_unsigned_divide_arg_exit", 70),
     ("arithmetic/unsigned_min_max_wrapping_local_exit", 77),
     ("storage/runtime_slice_indexed_binary_rmw_exit", 70),
+    ("calls/runtime_mut_ref_forward_exit", 70),
     ("arithmetic/const_fold_cast_signedness", 70),
     ("arithmetic/wrapping_signed_divide_min_by_neg_one", 70),
     ("arithmetic/saturating_signed_divide_min_by_neg_one", 70),
@@ -1921,14 +1922,6 @@ const PENDING_RUNTIME_DIVERGENCES: &[(&str, i32, PendingInterpOutcome)] = &[
     // Host-correct legs (this gate runs native on the HOST): x86 truncation
     // yields 70; the header records aarch64's 99 as the cross-target face.
     ("arithmetic/float_to_int_overflow_divergence", 70, PendingInterpOutcome::Exit(71)),
-    // The miscompiled program (unenforced borrow rule) SEGFAULTS on current
-    // main (was exit -1); the drift-watch pins the crash code so the next
-    // behavior change still fails loudly.
-    (
-        "arithmetic/immutable_arg_for_mut_param_not_checked",
-        -1073741819,
-        PendingInterpOutcome::Exit(1),
-    ),
     // 72/72: the two legs AGREE on this host (aarch64 LSLV masks the count
     // at 64 like the interp); the parked divergence is vs x86's 32-bit mask.
     ("expressions/dead_trapping_let_not_elided", 7, PendingInterpOutcome::Traps),
@@ -1939,6 +1932,14 @@ const PENDING_RUNTIME_DIVERGENCES: &[(&str, i32, PendingInterpOutcome)] = &[
         "arithmetic/unsigned_min_max_operand_position_divergence",
         78,
         PendingInterpOutcome::Exit(77),
+    ),
+    // A frame-LOCAL-backed slice descriptor forwarded across a state
+    // boundary goes wild natively (the known-good shapes are same-state
+    // use, or forwarding a slice derived from a `&mut` PARAM).
+    (
+        "storage/local_slice_forward_segfault",
+        -1073741819,
+        PendingInterpOutcome::Exit(70),
     ),
 ];
 

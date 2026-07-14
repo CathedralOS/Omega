@@ -24198,6 +24198,53 @@ fn runtime_slice_indexed_binary_rmw_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_mut_ref_forward_exit_canary_runs() {
+    // The LEGAL shape the borrow-mutability check must keep accepting: a
+    // `&mut` param forwarded by BARE NAME to another `&mut` param (a Name,
+    // not a `&mut` node -- a syntactic check would false-positive). The
+    // callee writes through the double-hopped reference; the caller
+    // observes it via the aliased field. exit 71 = the forwarded write
+    // missed self.c.
+    let canary = pass_canary("calls/runtime_mut_ref_forward_exit");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("mut-ref forward canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should exit 70 (forwarded write lands), got {}",
+        outcome.exit_code
+    );
+
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-mut-ref-forward-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("mut-ref forward canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("mut-ref forward canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the bare-name `&mut` forward to stay legal and deliver (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_stdin_command_branch_exit_canary_runs() {
     let canary = pass_canary("text/runtime_stdin_command_branch_exit");
     let main_path = canary.join("main.omg");
@@ -29720,6 +29767,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "storage/runtime_dispatch_helper_local_alias_add_exit",
     "storage/requires_slice_indexed_alias_field_binary_compile",
     "storage/runtime_slice_indexed_binary_rmw_exit",
+    "calls/runtime_mut_ref_forward_exit",
     "text/runtime_alias_string_write",
     "text/runtime_alias_text_builder_write",
     "text/runtime_string_concat_membership_exit",
@@ -30731,8 +30779,15 @@ const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
         path: "arithmetic/float_to_int_overflow_divergence",
         expectation: PendingCanaryExpectation::CurrentlyAccepts,
     },
+    // immutable_arg_for_mut_param_not_checked PROMOTED to
+    // fail/calls/immutable_arg_for_mut_param_rejected (borrow-mutability
+    // enforcement landed 2026-07-18).
     PendingCanary {
-        path: "arithmetic/immutable_arg_for_mut_param_not_checked",
+        path: "arithmetic/unsigned_min_max_operand_position_divergence",
+        expectation: PendingCanaryExpectation::CurrentlyAccepts,
+    },
+    PendingCanary {
+        path: "storage/local_slice_forward_segfault",
         expectation: PendingCanaryExpectation::CurrentlyAccepts,
     },
     // shift_amount_at_or_above_width_divergence PROMOTED to
@@ -31179,6 +31234,31 @@ fn runtime_dutch_flag_partition_exit_canary_runs() {
 
 // Float semantics F1: a `Wrapping` policy domain on a float primitive is a hard
 // compile error -- there is no modular reading of a float (ch5 Float Facts).
+#[test]
+fn immutable_arg_for_mut_param_rejected_canary_is_rejected() {
+    // Borrow-mutability enforcement (2026-07-18): an immutable lend
+    // (`&self.c` -- the shared `&` vanishes at parse time) for a `&mut T`
+    // parameter is a compile error; the legitimate bare-name FORWARD of a
+    // `&mut` binding stays legal (checked semantically, not syntactically).
+    let canary = fail_canary("calls/immutable_arg_for_mut_param_rejected");
+    let diagnostics = match compile_canary_without_output(&canary) {
+        Ok(report) => panic!(
+            "expected the immutable lend for a `&mut` parameter to reject, but it compiled: {}",
+            report.summary()
+        ),
+        Err(diagnostics) => diagnostics,
+    };
+    let combined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains("declared `&mut`") && combined.contains("lends only immutable access"),
+        "expected the immutable-lend diagnostic to name the mismatch, got:\n{combined}"
+    );
+}
+
 #[test]
 fn float_wrapping_domain_rejected_canary_is_rejected() {
     let canary = fail_canary("arithmetic/float_wrapping_domain_rejected");
