@@ -318,7 +318,11 @@ impl SyntaxTrees {
             target: machine.target.clone(),
             boundary: machine.boundary,
             type_parameters: self.copy_type_parameter_span(other, machine.type_parameters),
-            satisfies: self.copy_item_identifier_span(other, machine.satisfies),
+            satisfies: self.copy_mapped_span(
+                other.items.satisfies_clauses(machine.satisfies).to_vec(),
+                |_, clause| clause,
+                |this, clause| this.items.append_satisfies_clause(clause),
+            ),
             terminates: machine.terminates,
             decreases: self.copy_expression_handle_list(other, machine.decreases),
             decrease_order: self.copy_item_identifier_span(other, machine.decrease_order),

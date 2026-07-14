@@ -1,0 +1,21 @@
+// A FREE machine's bare `satisfies Trait` binds the requirement bearing the
+// machine's OWN name (the machine-by-machine carrier model); when no
+// requirement carries that name, the error must say so and spell the
+// explicit-path fix -- never fall through to whole-trait candidate lookup
+// (a free machine's candidate set is only itself).
+boundary trait Console { machine exit_process(return_code: i32); }
+data Peano { case Zero; case Succ(pred: Peano); }
+trait RingOps {
+    machine add(a: Self, b: Self) -> Self;
+}
+machine wrongname(a: Peano, b: Peano) -> Peano
+satisfies RingOps
+terminates { decreases a; }
+{
+    transition a {
+        Peano::Zero -> (b)
+        Peano::Succ { pred } -> Peano::Succ { pred: wrongname(pred, b) }
+    }
+}
+data Main { console: Console; }
+machine Main::main(&mut self) { self.console.exit_process(70); }

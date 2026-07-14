@@ -5,8 +5,10 @@ use crate::parser::type_reference::parse_type_reference_handle;
 use omega_core::arena::{Handle, HandleSpan};
 use omega_syntax_trees::SyntaxTrees;
 use omega_syntax_trees::identifier::Identifier;
-use omega_syntax_trees::item::{BoundaryLevel, CapabilityContract, CapabilityContractKind};
-use omega_tokens::PunctuationKind;
+use omega_syntax_trees::item::{
+    BoundaryLevel, CapabilityContract, CapabilityContractKind, SatisfiesClause,
+};
+use omega_tokens::{KeywordKind, PunctuationKind};
 
 type MachineClauses = (
     bool,
@@ -310,23 +312,47 @@ fn parse_decreases_clause<'tokens, 'source>(
 pub(super) fn parse_satisfies_traits<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     mut input: Input<'tokens, 'source>,
-) -> ParseResult<'tokens, 'source, HandleSpan<Identifier>> {
+) -> ParseResult<'tokens, 'source, HandleSpan<SatisfiesClause>> {
     if !input.at_contextual("satisfies") {
         return Ok((HandleSpan::empty(), input));
     }
 
     input = input.take_contextual("satisfies")?;
-    let mut trait_start = Handle::invalid();
-    let mut trait_count = 0u32;
+    let mut clause_start = Handle::invalid();
+    let mut clause_count = 0u32;
 
     loop {
         let (trait_name, rest) = input.take_identifier()?;
-        let rest = parse_optional_satisfies_type_arguments(syntax_trees, rest)?;
-        let handle = syntax_trees.items.append_identifier_path_member(trait_name);
-        if trait_count == 0 {
-            trait_start = handle;
+        let mut rest = parse_optional_satisfies_type_arguments(syntax_trees, rest)?;
+
+        // The single-requirement binding (rearrange settle 2026-07-18):
+        // `satisfies Trait::requirement [as Alias]` conforms THIS machine to
+        // that one requirement; the alias names the satisfier when signatures
+        // collide or the same machine fills different slots (plural algebras).
+        let mut requirement = None;
+        if rest.at_punctuation(PunctuationKind::ColonColon) {
+            let next = rest.take_punctuation(PunctuationKind::ColonColon, "::")?;
+            let (member, next) = next.take_identifier()?;
+            requirement = Some(member);
+            rest = next;
         }
-        trait_count = trait_count
+        let mut alias = None;
+        if rest.at_keyword(KeywordKind::As) {
+            let next = rest.take_keyword(KeywordKind::As, "as")?;
+            let (name, next) = next.take_identifier()?;
+            alias = Some(name);
+            rest = next;
+        }
+
+        let handle = syntax_trees.items.append_satisfies_clause(SatisfiesClause {
+            trait_name,
+            requirement,
+            alias,
+        });
+        if clause_count == 0 {
+            clause_start = handle;
+        }
+        clause_count = clause_count
             .checked_add(1)
             .expect("machine satisfies span count overflow");
         input = rest;
@@ -339,10 +365,10 @@ pub(super) fn parse_satisfies_traits<'tokens, 'source>(
         break;
     }
 
-    let satisfies = if trait_count == 0 {
+    let satisfies = if clause_count == 0 {
         HandleSpan::empty()
     } else {
-        HandleSpan::from_parts(trait_start, trait_count)
+        HandleSpan::from_parts(clause_start, clause_count)
     };
     Ok((satisfies, input))
 }

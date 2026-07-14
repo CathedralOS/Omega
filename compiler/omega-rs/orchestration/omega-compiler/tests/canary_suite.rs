@@ -25085,6 +25085,51 @@ stderr:
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+#[test]
+fn ring_requirement_satisfies_exit_canary_runs() {
+    // SINGLE-REQUIREMENT trait conformance (rearrange settle, rung A): the
+    // settled CommutativeSemiring surface -- free-shaped requirements, an
+    // ensures LAW, `satisfies Trait::req [as Alias]`, Self binding the
+    // carrier -- with the satisfier machines actually RUN (2 + 1 = depth 3).
+    let canary = pass_canary("traits/ring_requirement_satisfies_exit");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("ring-requirement canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should exit 70 (2 + 1 = depth 3 through the conformed ops), got {}",
+        outcome.exit_code
+    );
+
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-ring-requirement-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("ring-requirement canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("ring-requirement canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the conformed ring ops to deliver depth 3 (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // The find-enumeration seam trio (fs portable-contract rung 3a):
 // find_first/find_next/find_close over kernel32 FindFirstFileA/FindNextFileA/
 // FindClose, the windows dir-walk paradigm behind the portable contract.
@@ -29694,6 +29739,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "capabilities/host_provides_binding_forms",
     "capabilities/runtime_provides_value_exit",
     "targets/target_machine_gating_exit",
+    "traits/ring_requirement_satisfies_exit",
     "expressions/runtime_qualified_case_value_exit",
     "calls/recursive_result_bind_first_arg",
     "calls/runtime_branching_callee_chain_exit",
@@ -30558,6 +30604,9 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "capabilities/provides_value_wrong_target_rejected",
     "targets/target_machine_missing_rejected",
     "targets/target_machine_duplicate_rejected",
+    "traits/ring_requirement_unknown_rejected",
+    "traits/ring_requirement_signature_rejected",
+    "traits/free_machine_bare_satisfies_rejected",
     "expressions/undeclared_two_segment_path_rejected",
     "wire/wire_policy_plan_disagrees",
     "domains/type_constraint_unknown_domain",

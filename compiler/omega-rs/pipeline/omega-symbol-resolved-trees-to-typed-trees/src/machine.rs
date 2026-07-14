@@ -80,6 +80,11 @@ pub(crate) fn lower_machine(
             typed::machine::TraitConformance {
                 symbol: conformance.symbol,
                 name: crate::name::lower_name(&conformance.name),
+                requirement: conformance
+                    .requirement
+                    .as_ref()
+                    .map(crate::name::lower_name),
+                alias: conformance.alias.as_ref().map(crate::name::lower_name),
             },
         );
     }
