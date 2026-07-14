@@ -153,9 +153,29 @@ dispatch-region + receiver-phase family. Everything queued here avoids both.
    record: codegen_representation_cleanup Phase 6):** introduce Place
    (base + ConstOffset/ScaledIndex path) + the per-target materializer;
    route the Copy* family through it behind the differential oracle.
-   ⚠️ COORDINATE FIRST: the main lane is mid-RECAST in the selection
-   files — claim via check-in, or start the moment M2's tail clears;
-   track 5 has no such conflict and leads.
+   No lane conflict now (parallel thread ended). The queue's remaining
+   FRESH-SESSION item — a foundational IR refactor, load-bearing for
+   everything, deserving a focused run with a clean head (not a
+   tail-of-turn start).
+   RUNG-1 SCOPE MEASURED 2026-07-18 (recon): the enum
+   (representations/omega-abstract-operations/src/instruction/
+   operation_kind.rs, 979 lines) has 100 variants; 18 are Copy*; a
+   single Copy variant (CopyRuntimeStorage) echoes across 25 files
+   (selection, encoding both ISAs, layout widths, relocations,
+   blockers, backend report, abstract→target conversion). RUNG-1 PLAN:
+   (a) define `Place { base: RegionRef, path: Vec<PlaceStep> }` with
+   PlaceStep = ConstOffset(usize) | ScaledIndex{ operand, elem_size }
+   in omega-abstract-operations; (b) one `materialize_place` per target
+   (x86_64 + aarch64) folding trailing ConstOffsets into the ISA
+   addressing mode, emitting a base+index compute otherwise — this is
+   the single deep exhaustively-tested routine; (c) add ONE
+   `Copy { dst: Place, src: Place, bytes }` variant, route the 18 Copy*
+   through it, delete them + their echoes LAST (keep the differential
+   866-canary suite green each rung — the corpus IS the safety net).
+   Legalization (shapes a target can't address directly) refuses
+   loudly = the fence discipline preserved. Then Write/RMW (the
+   leaf-cascade duplication dies), Text, guards/operands, op-set shrink
+   — the wiki ladder.
 
 The rendering-sample sweep landed 2026-07-11 (see Language ergonomics;
 the match-subject computed-index gap closed with it).
