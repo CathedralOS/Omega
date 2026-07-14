@@ -939,10 +939,11 @@ rejects — an INTEGER ruling, engineering rides this ladder as F8).
   (initializer_carries_trapping_arithmetic, both the destination-declared
   and operand-declared faces); pinned
   pass/expressions/dead_trapping_let_traps (both engines abort).
-  FOLLOW-UP RUNG: a provably-always-trapping CONST computation gets a
-  compile-time WARNING (owner: warning, not error — no compelling reason
-  to forbid it; future unused-var warnings live in the same family).
-  Validation-side, the exact engine can evaluate the const operands.
+  The always-traps WARNING landed same day (S3's interval machinery:
+  a Trapping op whose result interval is provably DISJOINT from its
+  type's range warns "traps unconditionally at runtime"; warning, not
+  error, per owner — future unused-var warnings live in the same
+  family).
 
 - **Q13 console convergence — ANSWERED: (ii), the guide is the spec.**
   Platform blocks converge onto `boundary trait Console` + std provides
