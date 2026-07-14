@@ -1256,98 +1256,55 @@ rejects — an INTEGER ruling, engineering rides this ladder as F8).
   stack) go on portable `data Filesystem` (unused on posix, harmless
   ZII). THEN note_vault green natively + interp, samples gate fully
   green.
-  (3b) BODIES — AUTHORED + LOGIC-COMPLETE 2026-07-18, BACKEND-BLOCKED,
-  SHELVED as a reference (not committed live). The full windows walk is
-  written and CORRECT: interp GREEN on note_vault (exits 14) and every
-  probe; native GREEN on any SINGLE dir-walk (fresh remove_dir_all on a
-  one-file dir and a nested tree both exit 70; read_dir_count correct).
-  BLOCKER: a SECOND dir-walk wrapper call in the same process
-  miscompiles natively — scan-then-drain (note_vault's exact shape),
-  drain-then-drain, and scan-then-scan all fail; the second call
-  behaves as if its `&[u8] in Path` slice parameter has length ~0
-  (w_path built empty → find pattern seals over garbage → find_first
-  returns INVALID_HANDLE_VALUE → the walk no-ops). Isolation done: the
-  find seam ops themselves are fine (raw find_first/close/find_first
-  ×2 exits 70); the bug is in repeated VALUE-MACHINE invocation with a
-  slice arg, NOT the find ops and NOT the Omega logic. Does NOT reduce
-  to a clean minimal case (a bare `&[u8]`-walk machine called twice
-  works; the bug needs the full wrapper context — host calls + array
-  writes + nested fuel drains together), so no compiling minimal
-  pending-canary yet. Root-cause candidates: the slice-descriptor
-  (ptr+len) call-argument materialization for repeated wrapper calls
-  (see memory [[local-slice-forward-segfault]],
-  [[slice-byteslice-native-consume]],
-  [[value-machine-computed-index-miscompile]]). Two byte-level
-  LANDMINES found + fixed IN the shelved bodies (keep on revive):
-  (i) `self.w_path_len = path.len` (slice-length → field) has NO
-  runtime lowering — capture the copy recursion's terminal index `i`
-  (== path.len) as a u64 PARAM and store THAT; a field-RMW accumulator
-  read a stale static-folded zero and undercounted every second walk;
-  (ii) rda_step's rds_rootdone must zero `rda_depth` (not just the
-  verdict) or the fuel loop RE-OPENS a find enumeration on the drained
-  root every iteration (~4096 leaked find handles/call). SHELF: full
-  bodies in `omega/language/std/targets/windows_x64/reference/
-  filesystem_impl.win_bodies.reference.txt` + README. REVIVE = fix the
-  repeated-slice-arg backend bug → drop the bodies into
-  filesystem_impl.omg + restore the `w_*` scratch block in
-  filesystem.omg + re-apply target_machines.rs single-target-internal
-  relaxation (shared-name loud edge fires only for names implemented by
-  >= 2 targets; the windows walk's helper machines are single-target
-  paradigm internals) → note_vault compile-fail → green in one step.
-  BISECT STRATEGY (banked 2026-07-18 for the focused session): the
-  repro needs the shelved bundle live — do it in a GIT WORKTREE, never
-  on main: (1) `git worktree add` a scratch tree; (2) apply the bundle
-  (reference bodies over filesystem_impl.omg + the `w_*` field block
-  into filesystem.omg — diff the reference README; + the >= 2
-  relaxation + demo_target2 canary row); (3) repro = scratch probe
-  rda_p10 shape (TWO read_dir_count calls; second reads path.len ~0 —
-  exit 72); (4) go WHITE-BOX from there: `omega-run --keep` +
-  backend_report on the probe, diff the FIRST vs SECOND call's
-  emitted arg-materialization for the wrapper entry (the slice
-  descriptor ptr+len words) — the known-good twins are the &mut-param
-  slice forwards; also compare against
-  pending/storage/local_slice_forward_segfault (a possibly-shared
-  root: frame-local slice descriptors crossing state boundaries).
-  Facts already isolated: single wrapper call GREEN, raw find ×2
-  GREEN, bare slice-walk machine ×2 GREEN — the bug needs host calls +
-  array writes + nested fuel drains in ONE machine family.
-  BISECT SESSION 2026-07-18 (worktree, disasm via python capstone) —
-  DRAMATICALLY narrowed, root NOT yet closed (needs a runtime
-  watchpoint). Findings:
-  • REPEATED, not positional: single wrapper call from a DISPATCHED
-    state is GREEN; ANY TWO wrapper calls (scan+scan, scan+drain,
-    drain+drain, in any state) fail on the SECOND. Confirmed runtime:
-    the 2nd call's w_path_copy guard reads path.len == 0 (w_dbg_len
-    reads back w_path_len = 0 after two calls, = 2 after one).
-  • The two inlinings get SEPARATE, non-overlapping frame-slot regions
-    (call1 24-268, call2 280-488); no slot overlap; frame sized right;
-    drain is a LOOP back-edge (not recursion, no stack growth).
-  • AIRTIGHT STATIC/DISASM: WriteRuntimeFrameString writes call2's "wv"
-    descriptor to frame+280 len 2 (verified encoder + bytes); the
-    forward StorageCopy 280->408 and the guard's len read at 416 use
-    correctly-encoded disp32 off a UNIFORM base (frame region at
-    machine_base+2904 = 0x140008b58); instruction ORDER is correct
-    (forward at op#395 precedes guard at op#400, nothing between); NO
-    static write clobbers frame+416 between them; all within the
-    loader's zero-init page. Every static explanation ELIMINATED —
-    yet runtime reads 0. => a RUNTIME data-dependent clobber invisible
-    to static tooling (a runtime-indexed store, or a marshalling
-    scratch write, hitting call2's forwarded descriptor).
-  • NEXT SESSION = a HARDWARE WATCHPOINT (windbg/cdb `ba w8`) on the
-    2nd call's path.len word = frame_base + 0x1a0 (in the repro,
-    0x140008b58 + 0x1a0 = 0x140008cf8) to catch the clobbering store's
-    IP, then map IP -> machine/state via the emission plan.
-  • .bss OBSERVATION (NOT confirmed a bug — recheck, do not chase
-    blind): .bss vsize 3464 = machine 2904 + 560; the 560 = frame SLOTS
-    only. IF the argument-staging scratch (reserve_frame_scratch_region:
-    frame_scratch_size = slots_extent) were reserved for this program,
-    runtime_frame_storage_size would be ~1120 and .bss should be ~4024
-    — but it's 3464, so EITHER scratch is NOT reserved here (=> .bss
-    correct, no bug) OR the scratch is dropped from the .bss size (real
-    bug). RESOLVE FIRST by checking whether frame_scratch_size > 0 for
-    this program before treating it as a bug. Page granularity
-    (zero-commit to 4096) would mask an undersize in this repro anyway.
-    This is a SIDE lead, secondary to the watchpoint.
+  (3b) BODIES — LIVE 2026-07-18. The repeated-slice-arg blocker was
+  ROOT-CAUSED (cdb runtime session; see the guard-slot record below)
+  and FIXED; the shelf's reference bodies dropped into
+  filesystem_impl.omg verbatim, the `w_*` scratch block restored into
+  filesystem.omg, and the >= 2 single-target-internal relaxation
+  landed in target_machines.rs (loud missing-row edge fires only for
+  names TWO OR MORE targets implement; a single foreign implementer is
+  that target's paradigm internal and filters silently). Canary pair:
+  fail/targets/target_machine_missing_rejected grew a demo_target2 row
+  (the loud edge's >= 2 evidence) + NEW
+  pass/targets/single_target_internal_machine_skipped. The reference/
+  shelf directory is RETIRED (bodies live now; git history keeps the
+  txt). Two byte-level landmines preserved in the live bodies:
+  (i) `self.w_path_len = path.len` (slice-length -> field) has NO
+  runtime lowering — the copy recursion's terminal index param carries
+  it; (ii) rda_step's rds_rootdone zeroes `rda_depth`, or the fuel
+  loop re-opens a find enumeration on the drained root every iteration.
+  ROOT CAUSE (the repeated-slice-arg miscompile, closed 2026-07-18):
+  CROSS-CONTEXT GUARD-SLOT ALIASING. The guard-operand resolver
+  (omega-state-guards operands/layout.rs runtime_frame_operand_layout)
+  falls back from exact (dispatch_index, source_key) matching to
+  same-(machine, state) matching — but a machine expanded at TWO call
+  sites has two full frame-slot regions under the SAME (machine, state)
+  symbols (contexts stacked disjoint by
+  stack_runtime_storage_by_call_context), and the bare first-in-arena
+  match is the FIRST expansion's region. The second walk's tail-segment
+  guard (`i < path.len` at the recursion's continue-or-done decision)
+  read the FIRST call's stale i=2/len=2 slots, 2 < 2 = false, exited
+  the copy loop at iteration 0, w_path_len = 0, the find pattern sealed
+  as "/*", find_first failed, Ok(0) silently. Everything upstream
+  (descriptor writes, forwards, param slots) was byte-perfect — proven
+  by cdb value probes after hardware watchpoints FALSE-NEGATIVED (ba
+  w8 armed on the exact written address never fired on this box; trust
+  bp + dq, not ba). FIX: the pipeline exposes
+  BackendPlan::state_contexts (dispatch arena index -> call-context id,
+  the same table the stacking pass uses), threaded into
+  build_state_guard_plan / lower_guard_conjunction; each fallback tier
+  now PREFERS a same-context slot and crosses contexts only when no
+  same-context candidate exists (a caller's guard reading a
+  straight-line callee's terminal slot has NO same-context candidate —
+  the value-return keystone family; a strict same-context-only v1
+  broke three straight-line canaries). Regression pin:
+  pass/filesystem/repeated_dir_walk_scan_exit (exit 70 = 66+2+2,
+  windows-gated dual test, RUN_CANARIES row). AUDIT NOTE (banked):
+  storage_places.rs find_runtime_frame_slot_for_path has the same
+  lenient name-only tail arms — context-blind by the same argument;
+  no failing face known (its tiers 3/4 prefer nearest dispatch <=
+  query, which usually lands same-context), but a future
+  cross-context face there should get the same preference shape.
 
 - **`pending_runtime_divergences_hold` — GREENED 2026-07-18 (ledger
   host-corrected):** (a) `float_to_int_overflow_divergence` now documents

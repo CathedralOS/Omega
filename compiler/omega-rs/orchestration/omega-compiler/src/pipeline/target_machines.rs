@@ -71,6 +71,15 @@ pub(crate) fn filter_target_machines(
             let mut providers = other_targets.clone();
             providers.sort();
             providers.dedup();
+            // A name implemented by ONE foreign target is that target's
+            // paradigm INTERNAL (the windows dir-walk's find-enumeration
+            // helpers exist on no posix target), not a portable-contract
+            // surface -- filter it silently with its callers. The loud edge
+            // is for CONTRACT names: two or more targets implementing a name
+            // is the evidence a selected target is missing its row.
+            if providers.len() < 2 {
+                continue;
+            }
             return Err(vec![Diagnostic::error(format!(
                 "machine `{full_name}` has no implementation for the selected target -- \
                  target-scoped implementations exist for: {} (add this target's \

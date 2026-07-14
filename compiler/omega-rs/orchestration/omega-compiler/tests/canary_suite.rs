@@ -25125,6 +25125,53 @@ stderr:
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// SINGLE-TARGET PARADIGM INTERNALS: a machine implemented by exactly ONE
+// non-selected target (the windows dir-walk's find-enumeration helpers on a
+// posix compile) filters SILENTLY with its callers -- the loud missing-row
+// edge is reserved for names two or more targets implement (the fail canary's
+// demo_target/demo_target2 pair). Both engines run the program to 70 with the
+// inert internal present.
+#[test]
+fn single_target_internal_machine_skipped_canary_runs() {
+    let canary = pass_canary("targets/single_target_internal_machine_skipped");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("single-target internal canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should exit 70 past the filtered internal, got {}",
+        outcome.exit_code
+    );
+
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-single-target-internal-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("single-target internal canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("single-target internal canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the program to run past the filtered single-target internal (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 #[test]
 fn target_machine_gating_exit_canary_runs() {
     // TARGET-SCOPED MACHINES (fs portable-contract settle 2026-07-18):
@@ -25578,6 +25625,57 @@ fn windows_fs_wrapper_breadth_exit_canary_runs() {
         "expected the wrapper breadth pass (exit 70), got {:?} (71 write_all;          72 rename; 73 old name still opens; 74/75 append open/write; 76-78          read_all count/head/tail; 82 remove)
 stderr:
 {}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+// REPEATED dir-walk wrapper calls (the cross-context guard-slot regression
+// pin): two same-shape read_dir_count calls from different states, each
+// counting the same two entries. The second call's walk used to read the
+// FIRST expansion's `i`/`path.len` frame slots at its tail-decision guard
+// (the guard-operand fallback matched by (machine, state) across call
+// contexts), copy nothing, seal "/*", and return Ok(0). Both engines must
+// deliver 66 + 2 + 2 = 70. Windows-gated here (this host); the canary itself
+// is portable-contract only, so a posix host exercises its own bodies.
+#[cfg(windows)]
+#[test]
+fn repeated_dir_walk_scan_exit_canary_runs() {
+    let canary = pass_canary("filesystem/repeated_dir_walk_scan_exit");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("repeated dir-walk canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should exit 70 (66 + 2 + 2 across two scans), got {}",
+        outcome.exit_code
+    );
+
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-fs-repeat-scan-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("repeated dir-walk canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .current_dir(&build_dir)
+        .output()
+        .expect("repeated dir-walk canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected BOTH scans to count 2 (exit 70 = 66+2+2; 68 would be the second scan reading a stale cross-context guard slot and returning 0), got {:?}\nstderr:\n{}",
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
@@ -29877,6 +29975,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "capabilities/host_provides_binding_forms",
     "capabilities/runtime_provides_value_exit",
     "targets/target_machine_gating_exit",
+    "targets/single_target_internal_machine_skipped",
     "traits/ring_requirement_satisfies_exit",
     "proofs/ring_law_conformance",
     "proofs/ring_rearrange_core_nat",
@@ -29945,6 +30044,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "filesystem/windows_raw_roundtrip_exit",
     "filesystem/windows_wrapper_results_exit",
     "filesystem/windows_wrapper_dark_methods_exit",
+    "filesystem/repeated_dir_walk_scan_exit",
     "collections/runtime_palindrome_two_pointer_exit",
     "collections/runtime_bracket_matcher_stack_exit",
     "collections/runtime_argmax_index_exit",

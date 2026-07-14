@@ -1,0 +1,24 @@
+// A target-scoped machine implemented by exactly ONE non-selected target is
+// that target's paradigm INTERNAL (the windows dir-walk's find-enumeration
+// helpers exist on no posix target), not a portable-contract surface: the
+// target filter drops it SILENTLY with its callers, and the program compiles
+// and runs. The loud missing-row edge is reserved for names two or more
+// targets implement (see fail/targets/target_machine_missing_rejected).
+// `demo_target` resolves to no real target, so the internal is inert on every
+// host and nothing portable may call it.
+boundary trait Console { machine exit_process(return_code: i32); }
+
+data Helper { seed: i32; }
+
+demo_target machine Helper::paradigm_internal(&self) -> i32 {
+    transition { _ -> 63 }
+}
+
+data Main { console: Console; helper: Helper; }
+
+machine Main::main(&mut self) {
+    let a: i32 = self.helper.seed;
+    transition a == 0 { true -> good() _ -> bad(71) }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self, code2: i32) { self.console.exit_process(code2); }
+}

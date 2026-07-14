@@ -1,0 +1,84 @@
+// RUN CANARY (exit 70 = 66 + 2 + 2) -- the REPEATED dir-walk wrapper call,
+// the cross-context guard-slot regression pin. A machine expanded at two call
+// sites gets two frame-slot regions; the guard-operand resolver's fallback
+// tiers used to match slots by (machine, state) IGNORING call context, so the
+// SECOND walk's tail-decision guard read the FIRST call's stale `i`/`path.len`
+// (2 < 2 = false), exited its copy loop at iteration 0, sealed the find
+// pattern over an empty prefix ("/*"), and scanned nothing -- Ok(0) instead
+// of Ok(2), silently. Two same-shape scans back to back pin the fix: both
+// must count both entries. The pre-clean remove_dir_all keeps reruns
+// hermetic; the tail remove_dir_all is a third walk call past the
+// measurement.
+use omega::language::std::filesystem;
+use omega::language::std::filesystem_host;
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    fs: Filesystem;
+    open_result: OpenResult;
+    io_result: IoResult;
+    unit_result: UnitResult;
+    file_fd: i32;
+    close_rc: i32;
+    total: i32 in Wrapping;
+}
+
+machine Main::main(&mut self) {
+    self.total = 66;
+    _ = self.fs.remove_dir_all("omega_rescan");
+    self.unit_result = self.fs.create_dir_all("omega_rescan");
+    transition self.unit_result { UnitResult::Ok -> file_a() _ -> done() }
+
+    state file_a(&mut self) {
+        self.open_result = self.fs.create("omega_rescan/a.txt");
+        transition self.open_result { OpenResult::Ok { file } -> file_a_close(file) _ -> done() }
+    }
+    state file_a_close(&mut self, file: File) {
+        self.file_fd = file.fd;
+        self.close_rc = self.fs.close(File { fd: self.file_fd });
+        transition { _ -> file_b() }
+    }
+
+    state file_b(&mut self) {
+        self.open_result = self.fs.create("omega_rescan/b.txt");
+        transition self.open_result { OpenResult::Ok { file } -> file_b_close(file) _ -> done() }
+    }
+    state file_b_close(&mut self, file: File) {
+        self.file_fd = file.fd;
+        self.close_rc = self.fs.close(File { fd: self.file_fd });
+        transition { _ -> scan1() }
+    }
+
+    state scan1(&mut self) {
+        // First dir-walk wrapper call: counts both entries.
+        self.io_result = self.fs.read_dir_count("omega_rescan");
+        transition self.io_result { IoResult::Ok { count } -> scan1_ck(count) _ -> done() }
+    }
+    state scan1_ck(&mut self, count: u64) {
+        let n: i32 in Wrapping = count as i32 in Wrapping;
+        self.total = self.total + n;
+        transition { _ -> scan2() }
+    }
+
+    state scan2(&mut self) {
+        // Second call, same machine expansion family: the regression face.
+        self.io_result = self.fs.read_dir_count("omega_rescan");
+        transition self.io_result { IoResult::Ok { count } -> scan2_ck(count) _ -> done() }
+    }
+    state scan2_ck(&mut self, count: u64) {
+        let n: i32 in Wrapping = count as i32 in Wrapping;
+        self.total = self.total + n;
+        transition { _ -> cleanup() }
+    }
+
+    state cleanup(&mut self) {
+        _ = self.fs.remove_dir_all("omega_rescan");
+        transition { _ -> done() }
+    }
+
+    state done(&mut self) { self.console.exit_process(self.total); }
+}
