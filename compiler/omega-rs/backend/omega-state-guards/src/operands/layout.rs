@@ -18,6 +18,7 @@ pub(super) fn resolve_guard_operand_layout(
     layouts: &LayoutPlan,
     runtime_storage: &RuntimeStoragePlan,
     receiver_bases: &[Option<usize>],
+    state_contexts: &[u32],
     entry_machine: SymbolHandle,
     source_key: StateKey,
     source_machine: SymbolHandle,
@@ -54,6 +55,7 @@ pub(super) fn resolve_guard_operand_layout(
     if let Some(slot_layout) = runtime_frame_operand_layout(
         layouts,
         runtime_storage,
+        state_contexts,
         source_key,
         source_dispatch_index,
         &path,
@@ -170,6 +172,7 @@ pub(super) fn resolve_guard_operand_layout(
 fn runtime_frame_operand_layout(
     layouts: &LayoutPlan,
     runtime_storage: &RuntimeStoragePlan,
+    state_contexts: &[u32],
     source_key: StateKey,
     source_dispatch_index: u32,
     path: &NormalizedGuardNamePath<'_>,
@@ -184,6 +187,26 @@ fn runtime_frame_operand_layout(
     let same_state_without_segment = |slot_key: StateKey| {
         slot_key.machine == source_key.machine && slot_key.state == source_key.state
     };
+    // The fallback tiers relax segment/state matching, and each tier must
+    // PREFER its own call context before crossing one: a machine expanded at
+    // two call sites has two full slot regions keyed by the same
+    // (machine, state) symbols, and a bare first-in-arena match is the FIRST
+    // expansion's region. A tail-segment guard in the second expansion then
+    // reads the first call's stale `i`/`path.len`, exits its loop at
+    // iteration 0, and the walk sees an empty path (the repeated dir-walk
+    // `"/*"`-pattern miscompile). Cross-context stays as the LAST resort of
+    // each tier -- a caller's guard reading a straight-line callee's terminal
+    // result slot has no same-context candidate at all (the value-return
+    // keystone family), and dropping those resolutions exits the program at
+    // the wrong state.
+    let context_of = |dispatch_index: u32| -> u32 {
+        state_contexts
+            .get(dispatch_index as usize)
+            .copied()
+            .unwrap_or(0)
+    };
+    let source_context = context_of(source_dispatch_index);
+
 
     let slot = runtime_storage
         .frame_slots
@@ -196,8 +219,24 @@ fn runtime_frame_operand_layout(
         })
         .or_else(|| {
             runtime_storage.frame_slots.iter().find_map(|(_, slot)| {
+                (context_of(slot.dispatch_index) == source_context
+                    && same_state_without_segment(slot.source_key)
+                    && slot_matches_symbol(slot))
+                .then_some(slot)
+            })
+        })
+        .or_else(|| {
+            runtime_storage.frame_slots.iter().find_map(|(_, slot)| {
                 (same_state_without_segment(slot.source_key) && slot_matches_symbol(slot))
                     .then_some(slot)
+            })
+        })
+        .or_else(|| {
+            runtime_storage.frame_slots.iter().find_map(|(_, slot)| {
+                (context_of(slot.dispatch_index) == source_context
+                    && slot.source_key.machine == source_key.machine
+                    && slot_matches_symbol(slot))
+                .then_some(slot)
             })
         })
         .or_else(|| {

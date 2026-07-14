@@ -26,6 +26,7 @@ pub fn build_state_guard_plan(
     runtime_storage: &RuntimeStoragePlan,
     entry_machine: SymbolHandle,
     receiver_bases: &[Option<usize>],
+    state_contexts: &[u32],
 ) -> StateGuardPlan {
     let guard_capacity = state_dispatch.edges.len();
     let mut plan = StateGuardPlan {
@@ -64,6 +65,7 @@ pub fn build_state_guard_plan(
                 layouts,
                 runtime_storage,
                 receiver_bases,
+                state_contexts,
                 entry_machine,
                 machine,
                 &mut normalized_expressions,
@@ -193,6 +195,7 @@ fn build_state_guard(
     layouts: &LayoutPlan,
     runtime_storage: &RuntimeStoragePlan,
     receiver_bases: &[Option<usize>],
+    state_contexts: &[u32],
     entry_machine: SymbolHandle,
     source_machine: &Machine,
     normalized_expressions: &mut ExpressionTable,
@@ -227,6 +230,7 @@ fn build_state_guard(
         layouts,
         runtime_storage,
         receiver_bases,
+        state_contexts,
         entry_machine,
         source,
         source_machine.symbol,

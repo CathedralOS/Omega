@@ -56,6 +56,12 @@ pub struct BackendPlan {
     /// by guard-operand layout, selection, and the contained-receiver fence
     /// -- one prediction, no lockstep copies.
     pub receiver_bases: Vec<Option<usize>>,
+    /// Dispatch-index -> call-context id (the runtime-flow state's context).
+    /// Slot lookups that relax state matching must stay inside one context: a
+    /// machine expanded at two call sites has two slot regions under the same
+    /// (machine, state) symbols, and crossing contexts reads the other call's
+    /// frame (the repeated dir-walk guard miscompile).
+    pub state_contexts: Vec<u32>,
     pub phase_timings: Arena<BackendPlanPhaseTiming>,
 }
 
