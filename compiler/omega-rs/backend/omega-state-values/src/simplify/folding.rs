@@ -59,6 +59,42 @@ impl IntegerLanding {
             domain: self.domain,
         })
     }
+
+    /// The reverse mapping (CR3): a STAMPED literal's carrier landing back to
+    /// the fold-side landing, so an operand that already landed can drive a
+    /// fold whose destination is anonymous (arg/index positions).
+    fn from_carrier_landing(carrier: omega_core::literals::IntegerLanding) -> Option<Self> {
+        use omega_core::literals::LandedIntegerType;
+        let primitive = match carrier.landed_type {
+            LandedIntegerType::I8 => PrimitiveType::I8,
+            LandedIntegerType::I16 => PrimitiveType::I16,
+            LandedIntegerType::I32 => PrimitiveType::I32,
+            LandedIntegerType::I64 => PrimitiveType::I64,
+            LandedIntegerType::U8 => PrimitiveType::U8,
+            LandedIntegerType::U16 => PrimitiveType::U16,
+            LandedIntegerType::U32 => PrimitiveType::U32,
+            LandedIntegerType::U64 => PrimitiveType::U64,
+            LandedIntegerType::Addr => PrimitiveType::Addr,
+        };
+        Some(Self {
+            primitive,
+            domain: carrier.domain,
+        })
+    }
+}
+
+/// Normalize a plain literal AT a landing and stamp it (the binding-capture
+/// face of CR3: a `let`'s captured constant IS a value of the declared type,
+/// so the landing rides the substituted literal into every use position).
+pub(super) fn land_literal(
+    literal: &IntegerLiteral,
+    landing: IntegerLanding,
+) -> Option<Expression> {
+    if literal.landing().is_some() {
+        return Some(Expression::Integer(literal.clone()));
+    }
+    let value = literal.value_i64()?;
+    land_result(landed_value(value, landing), landing)
 }
 
 /// A stored i64 representative read as the landed type's mathematical value:
@@ -248,6 +284,22 @@ pub(super) fn fold_binary_expression(
     landing: Option<IntegerLanding>,
 ) -> Expression {
     use BinaryOperator as Op;
+
+    // A landing also DERIVES from a LANDED operand (CR3, ch5 two-phase law:
+    // the type rides ON the constant): at an anonymous destination (argument
+    // and index positions thread None) a substituted stamped local still
+    // folds at ITS OWN landed type -- one witness, left first, the signedness
+    // probe's exact discipline. Two anonymous literals keep the transitional
+    // window below.
+    let landing = landing.or_else(|| match (&left, &right) {
+        (Expression::Integer(a), _) if a.landing().is_some() => {
+            a.landing().and_then(IntegerLanding::from_carrier_landing)
+        }
+        (_, Expression::Integer(b)) => b
+            .landing()
+            .and_then(IntegerLanding::from_carrier_landing),
+        _ => None,
+    });
 
     // The landed path (CM2) owns integer-literal folds when the expression's
     // landed type is known: fold at that type's width/signedness/domain, or

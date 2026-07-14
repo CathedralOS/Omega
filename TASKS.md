@@ -68,28 +68,27 @@ dispatch-region + receiver-phase family. Everything queued here avoids both.
    representative compromises: a landed u64 result rides spelling +
    landing losslessly); typed→checked lowering stamps declared-type
    landings (let annotations, field types).
-   CR3 — consumers read the landing FIRST: selection's
-   classify/signedness resolvers, the u64>i64::MAX validation gate, the
-   min/max operand signedness (gradually retiring the target-fallback
-   chain landed 2026-07-18, which stays as the backstop). FIRST SLICE
-   LANDED + DECOMPOSED same day: the landing-aware arm is IN
-   resolve_runtime_storage_is_signed_in_table but LATENT — traced: every
-   literal reaching selection carries landing=None because substituted
-   locals flow through RuntimeStaticValues (PlaceKey → bare i64), the
-   THIRD strip point. Next rung = the static table carries the landing:
-   change RuntimeStaticValues' tuples to (PlaceKey, IntegerLiteral) —
-   get() stays i64 (value_i64) so consumers are untouched, get_literal()
-   is the new window; set_runtime_static_value[_in_table] keep i64
-   signatures wrapping from_value, plus _literal variants for record
-   sites holding the stamped VALUE EXPRESSION. ⚠️ OPEN TRACING QUESTION
-   first (find before coding): the unstamped `-1` in the probe's arg
-   tree — the tree the signedness probe sees is NOT the
-   state-values-stamped one, so trace where selection's alias/scratch
-   machinery builds it (the builtin-call arm probes `&*call.arguments`
-   of a BOX tree; find its producer, then decide stamp-at-record vs
-   stamp-at-substitution). Acceptance test pinned:
-   pending/arithmetic/unsigned_min_max_operand_position_divergence
-   (operand-position max has no write target; native 78 vs interp 77).
+   CR3 — LANDED 2026-07-18, ACCEPTANCE MET (the operand-position
+   min/max divergence promoted, both engines 77). The TRACING QUESTION
+   resolved the rung differently than scoped: the strip was NOT
+   RuntimeStaticValues — empirical trace showed the `-1` already bare
+   in the OWNED arg tree at the state-values level. The real leak: a
+   `let`-captured local RE-FOLDS inside argument positions where the
+   destination landing is None → the type-blind i64 window emitted a
+   bare literal. Fix = two pieces of the ch5 law at the source:
+   (1) BINDING-CAPTURE STAMP — simple_local_bindings stamps a plain
+   literal initializer with the local's declared landing
+   (folding::land_literal normalizes+stamps); (2) OPERAND-DERIVED
+   LANDING — fold_binary_expression at an anonymous destination derives
+   its landing from a LANDED operand (one witness, left first). Two
+   anonymous literals keep the transitional window. The latent
+   landing-aware signedness arm now fires end to end.
+   The STATIC-TABLE sub-rung (RuntimeStaticValues → IntegerLiteral)
+   stays BANKED, not built: acceptance is green without it; revive when
+   a selection-recorded static (a TABLE round-trip, not a binding
+   substitution) is caught stripping a landing. Remaining CR3 faces:
+   the u64>i64::MAX validation gate + classify resolvers reading
+   landings (consumer migration continues with CR4/CM1).
    CR4 — parse-site stamping (`0u32` suffixes re-thread as landings;
    D14 strips them today) + float literals → exact Rat (F2 rides here).
    CM1 — anonymous carrier goes EXACT: unbounded integer + Rat constants

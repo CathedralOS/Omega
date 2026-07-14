@@ -1,0 +1,30 @@
+// RUN CANARY (exit 77, differential) -- PROMOTED 2026-07-18 from
+// pending/arithmetic/unsigned_min_max_operand_position_divergence (carrier
+// CR3 acceptance). The OPERAND-POSITION twin of
+// unsigned_min_max_wrapping_local_exit: `max(big, 5) + 0` nests the builtin
+// call inside a binary, so no WRITE TARGET exists for the max itself and the
+// target-signedness fallback cannot serve. Native used to compare SIGNED
+// (picked 5, exit 78) while the interpreter took the unsigned witness
+// u64::MAX (exit 77).
+//
+// THE FIX (CR3, ch5 two-phase law -- the landing rides ON the constant):
+// (1) a `let`'s captured literal is STAMPED with the local's declared
+// landing at binding capture (`z` substitutes as a landed u64-Wrapping 0);
+// (2) a fold at an ANONYMOUS destination (argument/index positions) derives
+// its landing from a LANDED operand, so the substituted `z - 1` folds AT
+// u64/Wrapping and the stamped u64::MAX reaches selection's signedness
+// probe, whose landing-aware arm picks the unsigned comparison. Both
+// engines now exit 77.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine Main::main(&mut self) {
+    let z: u64 in Wrapping = 0;
+    let big: u64 in Wrapping = z - 1;
+    let m: u64 in Wrapping = max(big, 5) + 0;
+    transition m == big {
+        true -> good()
+        false -> bad()
+    }
+    state good(&self) { self.console.exit_process(77); }
+    state bad(&self) { self.console.exit_process(78); }
+}

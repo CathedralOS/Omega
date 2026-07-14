@@ -668,6 +668,9 @@ pub(in crate::selection::runtime_dispatch) fn signedness_adjusted_operator_for_t
     if unsigned_operator_form(operator).is_none() {
         return operator;
     }
+    if std::env::var_os("OMEGA_DEBUG_RECEIVER").is_some() {
+        eprintln!("BTW tree-operand probe: left {left_expression:?} right {right_expression:?}");
+    }
     let mut delegated_expressions = ExpressionTable::default();
     let left = delegated_expressions.insert_tree(left_expression);
     let right = delegated_expressions.insert_tree(right_expression);

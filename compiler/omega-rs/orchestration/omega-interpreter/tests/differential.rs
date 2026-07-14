@@ -910,6 +910,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("capabilities/runtime_provides_value_exit", 70),
     ("targets/target_machine_gating_exit", 70),
     ("traits/ring_requirement_satisfies_exit", 70),
+    ("arithmetic/unsigned_min_max_operand_position_exit", 77),
     ("expressions/runtime_qualified_case_value_exit", 70),
     ("calls/runtime_arm_target_host_result_exit", 70),
     ("calls/runtime_enum_self_method_exit", 70),
@@ -1930,14 +1931,10 @@ const PENDING_RUNTIME_DIVERGENCES: &[(&str, i32, PendingInterpOutcome)] = &[
     ("arithmetic/float_to_int_overflow_divergence", 70, PendingInterpOutcome::Exit(71)),
     // 72/72: the two legs AGREE on this host (aarch64 LSLV masks the count
     // at 64 like the interp); the parked divergence is vs x86's 32-bit mask.
-    // Operand-position unsigned max: no write target exists for the nested
-    // call, and the static-value table strips the carrier landing (CR3's
-    // static-table rung is the fix; the resolver arm is already in place).
-    (
-        "arithmetic/unsigned_min_max_operand_position_divergence",
-        78,
-        PendingInterpOutcome::Exit(77),
-    ),
+    // unsigned_min_max_operand_position_divergence PROMOTED 2026-07-18 to
+    // pass/arithmetic/unsigned_min_max_operand_position_exit (carrier CR3:
+    // binding-capture stamping + operand-derived anonymous-destination folds
+    // carry the landing to the signedness probe; both engines exit 77).
     // A frame-LOCAL-backed slice descriptor forwarded across a state
     // boundary goes wild natively (the known-good shapes are same-state
     // use, or forwarding a slice derived from a `&mut` PARAM).
