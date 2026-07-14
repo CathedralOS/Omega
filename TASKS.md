@@ -1291,6 +1291,42 @@ rejects — an INTEGER ruling, engineering rides this ladder as F8).
   Facts already isolated: single wrapper call GREEN, raw find ×2
   GREEN, bare slice-walk machine ×2 GREEN — the bug needs host calls +
   array writes + nested fuel drains in ONE machine family.
+  BISECT SESSION 2026-07-18 (worktree, disasm via python capstone) —
+  DRAMATICALLY narrowed, root NOT yet closed (needs a runtime
+  watchpoint). Findings:
+  • REPEATED, not positional: single wrapper call from a DISPATCHED
+    state is GREEN; ANY TWO wrapper calls (scan+scan, scan+drain,
+    drain+drain, in any state) fail on the SECOND. Confirmed runtime:
+    the 2nd call's w_path_copy guard reads path.len == 0 (w_dbg_len
+    reads back w_path_len = 0 after two calls, = 2 after one).
+  • The two inlinings get SEPARATE, non-overlapping frame-slot regions
+    (call1 24-268, call2 280-488); no slot overlap; frame sized right;
+    drain is a LOOP back-edge (not recursion, no stack growth).
+  • AIRTIGHT STATIC/DISASM: WriteRuntimeFrameString writes call2's "wv"
+    descriptor to frame+280 len 2 (verified encoder + bytes); the
+    forward StorageCopy 280->408 and the guard's len read at 416 use
+    correctly-encoded disp32 off a UNIFORM base (frame region at
+    machine_base+2904 = 0x140008b58); instruction ORDER is correct
+    (forward at op#395 precedes guard at op#400, nothing between); NO
+    static write clobbers frame+416 between them; all within the
+    loader's zero-init page. Every static explanation ELIMINATED —
+    yet runtime reads 0. => a RUNTIME data-dependent clobber invisible
+    to static tooling (a runtime-indexed store, or a marshalling
+    scratch write, hitting call2's forwarded descriptor).
+  • NEXT SESSION = a HARDWARE WATCHPOINT (windbg/cdb `ba w8`) on the
+    2nd call's path.len word = frame_base + 0x1a0 (in the repro,
+    0x140008b58 + 0x1a0 = 0x140008cf8) to catch the clobbering store's
+    IP, then map IP -> machine/state via the emission plan.
+  • SEPARATE LATENT BUG FOUND (fix regardless): .bss is UNDERSIZED for
+    the frame region — it reserves 560 bytes (machine 2904 -> .bss
+    3464) but runtime_frame_storage_size = slots(560) + argument-
+    staging scratch(560) ≈ 1120, so the scratch region extends ~560
+    bytes past .bss vsize. HARMLESS in this repro only because page
+    granularity zero-commits to 4096; a larger frame crossing the page
+    boundary would corrupt. The scratch (frame_scratch_base+size) is
+    computed by runtime_frame_storage_size but NOT reflected in the
+    .bss size (sections.rs bss_size = frame_offset + runtime_frame_size
+    — trace why the passed value drops the scratch).
 
 - **`pending_runtime_divergences_hold` — GREENED 2026-07-18 (ledger
   host-corrected):** (a) `float_to_int_overflow_divergence` now documents
