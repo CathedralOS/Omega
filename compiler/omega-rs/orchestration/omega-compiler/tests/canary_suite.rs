@@ -13486,6 +13486,54 @@ fn unsigned_min_max_wrapping_local_canary_runs() {
 }
 
 #[test]
+fn unsigned_min_max_operand_position_canary_runs() {
+    // The OPERAND-POSITION twin (carrier CR3 acceptance, promoted
+    // 2026-07-18): `max(big, 5) + 0` has no write target for the max, so the
+    // signedness must come from the CONSTANT itself -- the binding-capture
+    // stamp + the operand-derived anonymous-destination fold carry big's
+    // u64/Wrapping landing to the probe. exit 78 = a signed Max compared
+    // -1 < 5 again.
+    let canary = pass_canary("arithmetic/unsigned_min_max_operand_position_exit");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("operand-position min/max canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 77,
+        "interpreter oracle should exit 77 (unsigned max witness), got {}",
+        outcome.exit_code
+    );
+
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-minmax-operand-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("operand-position min/max canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("operand-position min/max canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(77),
+        "expected the landed-constant unsigned max (exit 77), got {:?} \
+         (78 = a signed Max on the stamped u64 constant)\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn struct_literal_field_coercion_canary_runs() {
     // A struct-literal field init coerces the field value to the field's declared
     // width/domain (interpreter eval_struct_literal): `Point { x: a+b }` with
@@ -30252,6 +30300,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "arithmetic/const_fold_unsigned_shift_right_arg_exit",
     "arithmetic/const_fold_unsigned_divide_arg_exit",
     "arithmetic/unsigned_min_max_wrapping_local_exit",
+    "arithmetic/unsigned_min_max_operand_position_exit",
     "arithmetic/runtime_unsigned_division_exit",
     "arithmetic/runtime_min_max_signedness_exit",
     "arithmetic/runtime_comparison_value_signedness_exit",
@@ -30980,10 +31029,10 @@ const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
     // immutable_arg_for_mut_param_not_checked PROMOTED to
     // fail/calls/immutable_arg_for_mut_param_rejected (borrow-mutability
     // enforcement landed 2026-07-18).
-    PendingCanary {
-        path: "arithmetic/unsigned_min_max_operand_position_divergence",
-        expectation: PendingCanaryExpectation::CurrentlyAccepts,
-    },
+    // unsigned_min_max_operand_position_divergence PROMOTED to
+    // pass/arithmetic/unsigned_min_max_operand_position_exit (carrier CR3
+    // landed 2026-07-18: binding-capture stamping + operand-derived
+    // anonymous-destination folds carry the landing to the signedness probe).
     PendingCanary {
         path: "storage/local_slice_forward_segfault",
         expectation: PendingCanaryExpectation::CurrentlyAccepts,
@@ -31000,10 +31049,6 @@ const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
     // dead_trapping_let_not_elided PROMOTED to
     // pass/expressions/dead_trapping_let_traps (abort-as-effect first
     // sentence ruled + landed 2026-07-18: a trap is an effect, never dead).
-    PendingCanary {
-        path: "arithmetic/unsigned_min_max_operand_position_divergence",
-        expectation: PendingCanaryExpectation::CurrentlyAccepts,
-    },
 ];
 
 // =============================================================================

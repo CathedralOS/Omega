@@ -843,10 +843,17 @@ pub(super) fn resolve_runtime_storage_is_signed_in_table(
     // substituted locals reach here through RuntimeStaticValues, whose
     // PlaceKey -> i64 entries strip the stamp (the pinned operand-position
     // min/max divergence is the acceptance test for that rung).
-    if let ExpressionNode::Integer(literal) = expressions.expression(expression)
-        && let Some(landing) = literal.landing()
-    {
-        return Some(landing.landed_type.is_signed());
+    if let ExpressionNode::Integer(literal) = expressions.expression(expression) {
+        if std::env::var_os("OMEGA_DEBUG_RECEIVER").is_some() {
+            eprintln!(
+                "BTW signed-probe literal: {:?} landing {:?}",
+                literal.value_i64(),
+                literal.landing()
+            );
+        }
+        if let Some(landing) = literal.landing() {
+            return Some(landing.landed_type.is_signed());
+        }
     }
     let descriptor = resolve_runtime_storage_leaf_descriptor_in_table(
         input,

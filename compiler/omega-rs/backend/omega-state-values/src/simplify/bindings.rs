@@ -147,6 +147,22 @@ pub(super) fn simple_local_bindings(
         ) else {
             continue;
         };
+        // CR3 (binding-capture stamp, ch5 two-phase law): the `let`'s
+        // captured constant IS a value of the local's declared type, so a
+        // plain literal initializer is stamped with that landing here --
+        // the fact then rides the substitution into anonymous positions
+        // (argument/index folds), where the operand-derived landing picks
+        // it up. Non-literal trees stay raw: their use-site fold derives
+        // the landing from whichever substituted operand carries one.
+        let value = match (
+            &value,
+            super::landing_from_type_reference(program, local_data.type_reference),
+        ) {
+            (Expression::Integer(literal), Some(landing)) => {
+                super::folding::land_literal(literal, landing).unwrap_or(value)
+            }
+            _ => value,
+        };
         bindings.insert(Binding {
             symbol: local_data.symbol,
             name: local_data.name.clone(),
