@@ -990,13 +990,27 @@ rows. Rungs:
   interp landed_f64 — engines bit-for-bit). ⚠️ Two strip points fixed
   en route: the resolved→typed lowerer REBUILT from f64 (now clones —
   the carrier discipline), and the unconditional f64 value() reads.
-  REMAINING (F2b/c): UNSUFFIXED literals at f32 destinations still
-  take the transitional f64-then-narrow read on BOTH engines
-  (consistent; needs float DESTINATION stamping through the
-  state-values folder); float folds at the landed width; interp
-  per-op f32 rounding; exact-Rat multi-op const chains only if a shape
-  demands more than per-op IEEE (per-op rounding at width == the
-  exact-Rat spec for homogeneous ops).
+  F2b LANDED 2026-07-18 (destination stamping): an UNSUFFIXED float
+  literal at a declared f32/f64 destination lands its format on the
+  text carrier via `land_float_literal_destinations`
+  (omega-validation/literals.rs, called from the typed->checked
+  lowerer on the STILL-MUTABLE tree pre-fork -- one stamp point, both
+  engines bit-for-bit; NOT the state-values folder, which is
+  backend-only and would have needed an interp twin). The walk
+  enumerates exactly validate_suffix_landings' destinations (struct
+  fields, assignments, lets) -- keep the two in LOCKSTEP; suffixed
+  literals untouched (their landing is the spelling's; the CR4a check
+  owns disagreement). Witness: pass/float/
+  unsuffixed_f32_destination_single_rounding_exit (77; all THREE faces
+  pinned, per-face failure exits 78/79/80). A second f64->f32 store
+  rounding after the stamp is IDEMPOTENT (the landed value is exactly
+  f32-representable), so interp store coercion stays untouched.
+  REMAINING (F2c): float folds at the landed width (the guard folder's
+  f64-window float folds); interp per-op f32 rounding; float
+  DESTINATION landing for call/transition ARGS (mirrors the integer
+  carrier's remaining arg-position work); exact-Rat multi-op const
+  chains only if a shape demands more than per-op IEEE (per-op
+  rounding at width == the exact-Rat spec for homogeneous ops).
 - **F3 — `Finite` core domain:** promote ch5's `finite`; window
   enforcement; ranges-imply-Finite in the prover; `is_finite` std machine
   (portable spelling; `x != x` stays the IEEE-binding idiom underneath).

@@ -12,6 +12,11 @@ pub(crate) fn lower_typed_trees(
     // rejects the machines that remain generic (uninferable or conflicting).
     let mut program = program;
     crate::monomorphization::monomorphize_generic_machine_value_calls(&mut program);
+    // F2b: unsuffixed float literals at declared f32/f64 destinations land
+    // their format on the text carrier HERE, while the tree is still mutable
+    // and before both engines fork off it -- every downstream read (native
+    // and interpreter) then rounds once from the spelling.
+    omega_validation::land_float_literal_destinations(&mut program);
     let validated = validate_typed_program(&program)?;
     let facts = build_check_facts(&program, &validated.proof_plan, validated.effects);
 

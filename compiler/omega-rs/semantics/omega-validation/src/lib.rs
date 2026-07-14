@@ -60,6 +60,7 @@ use omega_typed_trees::statement::{StatementNode, TransitionTargetNode};
 /// The declared type of a simple place argument (bare name / `self.field`,
 /// through the `&mut` marker), WITH its Constrained shells -- exposed for the
 /// typed-trees machine-monomorphization pass's param-position inference.
+pub use literals::land_float_literal_destinations;
 pub use places::declared_place_type_raw;
 pub use places::unwrapped_type_reference;
 pub use properties::{declared_property_names, type_satisfies_declared_property};

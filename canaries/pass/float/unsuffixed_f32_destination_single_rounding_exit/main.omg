@@ -1,0 +1,43 @@
+// RUN CANARY (exit 77, differential) -- F2b: an UNSUFFIXED float literal at a
+// declared f32 destination lands the format from the DESTINATION (ch5's
+// two-phase law: anonymous value, typed place), so it is rounded ONCE,
+// correctly, from its decimal spelling -- never through an f64 intermediate.
+// Same double-rounding witness as the suffixed twin
+// (suffix_f32_single_rounding_exit):
+//   direct-to-f32:  8388609.4999... -> 8388609.0 (0x4b000001)
+//   via f64 first:  rounds to 8388609.5 exactly, then f32 ties-to-even
+//                   -> 8388610.0 (0x4b000002)
+// All THREE stamped destination faces are pinned -- a let local, a field
+// assignment, and a struct-literal field (the exact walk of
+// land_float_literal_destinations; keep in lockstep with the suffix check's
+// destinations). The stamp happens on the still-mutable typed tree before
+// the engines fork, so native and interpreter agree bit-for-bit.
+// exit 78/79/80 = the respective face still taking the old
+// f64-then-narrow route.
+boundary trait Console { machine exit_process(return_code: i32); }
+
+data Sample [copy, zero_init] { x: f32; }
+
+data Main {
+    console: Console;
+    f: f32;
+    s: Sample;
+}
+
+machine Main::main(&mut self) {
+    let a: f32 = 8388609.499999999999999;
+    transition a == 8388609.0 { true -> field_face() _ -> bad(78) }
+
+    state field_face(&mut self) {
+        self.f = 8388609.499999999999999;
+        transition self.f == 8388609.0 { true -> struct_face() _ -> bad(79) }
+    }
+
+    state struct_face(&mut self) {
+        self.s = Sample { x: 8388609.499999999999999 };
+        transition self.s.x == 8388609.0 { true -> good() _ -> bad(80) }
+    }
+
+    state good(&self) { self.console.exit_process(77); }
+    state bad(&self, code2: i32) { self.console.exit_process(code2); }
+}

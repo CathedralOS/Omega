@@ -13624,6 +13624,54 @@ fn suffix_f32_single_rounding_canary_runs() {
 }
 
 #[test]
+fn unsuffixed_f32_destination_single_rounding_canary_runs() {
+    // F2b: the double-rounding witness UNSUFFIXED -- the destination's
+    // declared f32 lands the format on the literal's text carrier
+    // (land_float_literal_destinations, pre-fork on the typed tree), so all
+    // three stamped faces (let local, field assignment, struct-literal
+    // field) parse ONCE to f32 in both engines.
+    let canary = pass_canary("float/unsuffixed_f32_destination_single_rounding_exit");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("unsuffixed f32 destination canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 77,
+        "interpreter oracle should exit 77 (all three faces single-rounded), got {}",
+        outcome.exit_code
+    );
+
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-f32-dest-rounding-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("unsuffixed f32 destination canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("unsuffixed f32 destination canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(77),
+        "expected all three destination faces single-rounded (exit 77), got {:?} \
+         (78 = let face, 79 = field-assignment face, 80 = struct-field face \
+         still on the f64-then-narrow route)\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn struct_literal_field_coercion_canary_runs() {
     // A struct-literal field init coerces the field value to the field's declared
     // width/domain (interpreter eval_struct_literal): `Point { x: a+b }` with
@@ -30493,6 +30541,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "arithmetic/unsigned_min_max_operand_position_exit",
     "arithmetic/suffix_landed_operand_position_exit",
     "float/suffix_f32_single_rounding_exit",
+    "float/unsuffixed_f32_destination_single_rounding_exit",
     "arithmetic/runtime_unsigned_division_exit",
     "arithmetic/runtime_min_max_signedness_exit",
     "arithmetic/runtime_comparison_value_signedness_exit",
