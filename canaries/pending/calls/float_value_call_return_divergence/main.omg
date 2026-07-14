@@ -1,0 +1,19 @@
+// PENDING (native 71, found 2026-07-18 building std is_finite): a FLOAT
+// value-call RETURN does not deliver natively -- `passthru(3.5)` (literal
+// arg, so the arg side is not in play) comes back wrong and `out == 3.5`
+// takes the false arm. The INTEGER twin delivers (passthru_i(v) == 42 is
+// green), and BOOL returns deliver (pass/calls/bool_value_call_return_exit)
+// -- the float arm of terminal-return delivery is missing, the same
+// missing-float-arm disease as the struct-literal arg record arm. Blocks
+// std is_finite (reverted until this and the ARG twin land).
+boundary trait Console { machine exit_process(return_code: i32); }
+machine passthru(x: f64) -> f64 {
+    transition { _ -> (x) }
+}
+data Main { console: Console; }
+machine Main::main(&mut self) {
+    let out: f64 = passthru(3.5);
+    transition out == 3.5 { true -> good() _ -> bad() }
+    state good(&self) { self.console.exit_process(70); }
+    state bad(&self) { self.console.exit_process(71); }
+}
