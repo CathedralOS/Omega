@@ -10,6 +10,11 @@
 // canary (arithmetic/runtime_trapping_overflow_traps) runs this shape and
 // asserts the process did NOT exit 70. This sample deliberately carries no
 // exit annotation for the harness: it cannot exit cleanly by design.
+//
+// The compiler also WARNS here (2026-07-18): the interval analysis proves the
+// increment ALWAYS overflows, and an unconditional trap is worth flagging --
+// but only flagging (owner: no compelling reason to forbid it). The warning
+// appearing in this sample's compile output is expected and correct.
 boundary trait Console { machine exit_process(return_code: i32); }
 data Main { console: Console; x: i32 in Trapping; }
 machine Main::main(&mut self) {

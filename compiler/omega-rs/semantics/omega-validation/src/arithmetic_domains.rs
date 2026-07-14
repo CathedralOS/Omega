@@ -1607,6 +1607,36 @@ fn analyze(
 
             // S3: an EXACT (undomained) `+`/`-`/`*` must be provably in range.
             let effective_domain = domain.unwrap_or(ArithmeticDomain::Exact);
+            // Abort-as-effect follow-up (owner 2026-07-18): a TRAPPING op
+            // whose result interval is provably DISJOINT from its type's
+            // range ALWAYS traps at runtime -- legal (the trap is the
+            // requested effect, and a trap is never dead), but almost
+            // certainly not what the author meant, so it warns.
+            if effective_domain == ArithmeticDomain::Trapping
+                && matches!(
+                    operator,
+                    BinaryOperator::Add | BinaryOperator::Subtract | BinaryOperator::Multiply
+                )
+                && let Some(primitive) = primitive
+                && let Some(range) = primitive_range(primitive)
+            {
+                let always_above = matches!(
+                    (range.high, interval.low),
+                    (Some(bound), Some(low)) if low > bound
+                );
+                let always_below = matches!(
+                    (range.low, interval.high),
+                    (Some(bound), Some(high)) if high < bound
+                );
+                if always_above || always_below {
+                    diagnostics.push(Diagnostic::warning(format!(
+                        "trapping arithmetic in {owner} ALWAYS overflows `{}` -- this \
+                         computation traps unconditionally at runtime (the trap is an \
+                         effect and will fire even if the result is never used)",
+                        primitive_name(primitive),
+                    )));
+                }
+            }
             if effective_domain == ArithmeticDomain::Exact
                 && matches!(
                     operator,

@@ -9,8 +9,10 @@
 // path lowers the trap (the backend may optimize to any trap-EQUIVALENT
 // lowering, but never to silence). Both engines abort abnormally now.
 //
-// Follow-up (TASKS): a provably-always-trapping CONST computation like this
-// one should also get a compile-time WARNING (not an error -- owner).
+// The always-traps WARNING also fires here (landed same day): "trapping
+// arithmetic ... ALWAYS overflows `i32` -- traps unconditionally at
+// runtime". A warning, not an error (owner: no compelling reason to forbid
+// it) -- the program compiles and traps as requested.
 boundary trait Console { machine exit_process(return_code: i32); }
 data Main { console: Console; }
 machine Main::main(&mut self) {
