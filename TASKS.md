@@ -1090,13 +1090,49 @@ rejects — an INTEGER ruling, engineering rides this ladder as F8).
   PLACEHOLDER byte-copy: still fails host lowering with the SAME five
   diagnostics (note_vault the one samples red, verified byte-alike),
   nothing worse, nothing hidden.
-  NEXT RUNG (flips note_vault green): rewrite the windows impl bodies
-  over FindFirstFileA/FindNextFileA/FindClose handle enumeration +
-  kernel32 DllImport provides rows (WIN32_FIND_DATAA: dwFileAttributes
-  @0, cFileName @44, ATTRIBUTE_DIRECTORY 0x10; remove via
-  DeleteFileA/RemoveDirectoryA on joined paths INSIDE the impl — path
-  joining below the contract is the windows paradigm, exactly Rust's
-  split) — plus the interp's cfg-mirror for those rows if modeled.
+  NEXT RUNG (flips note_vault green), scoped 2026-07-18 — TWO
+  sub-rungs:
+  (3a) SEAM: three DESIGNED find-enumeration ops on FilesystemHost
+  (the law: designed signatures, never traced):
+  `find_first(pattern: &[u8], data: &mut [u8]) -> i64` (handle, -1 on
+  error; pattern is TRUSTED PLAIN bytes, the D-at trust class exactly
+  like create_dir_name — the impl constructs `dir\*` no_nul BY
+  CONSTRUCTION), `find_next(handle: i64, data: &mut [u8]) -> i32`
+  (1 found / 0 end), `find_close(handle: i64) -> i32`; plus
+  `remove_name(path: &[u8]) -> i32` + `remove_dir_name(path: &[u8])
+  -> i32` (trusted-plain twins of remove/remove_dir, same native
+  rows — the create_dir_name precedent). WIRING (layer map recon'd):
+  HostOperation variants FindFirst/FindNext/FindClose in
+  omega-calling-conventions/src/lib.rs (closed enum + Custom escape;
+  first-class variants); WINDOWS_IMPORT_ROWS += ("Filesystem",
+  "find_first", "Kernel32.dll", "FindFirstFileA") + FindNextFileA +
+  FindClose (+ remove_name→_unlink, remove_dir_name→_rmdir);
+  insert_platform_lowering("FilesystemHost", "find_first", ...) in
+  windows.rs (the darwin.rs:383 read_dir block is the template).
+  Marshalling already exists: string-descriptor + buffer args land
+  (2026-07-18 win64 work); FindFirstFileA returns HANDLE as i64
+  (INVALID_HANDLE_VALUE = -1). INTERP: model the find-cursor family
+  on the virtual FS (cfg-mirror; note_vault interp runs on windows
+  host need it) — pattern `dir\*` → snapshot the dir's entries into a
+  cursor table keyed by handle; WIN32_FIND_DATAA layout for `data`:
+  dwFileAttributes u32 @0 (FILE_ATTRIBUTE_DIRECTORY = 0x10), cFileName
+  NUL-terminated @44 (record 320 bytes; buffer >= 320). Differential
+  canary: windows-host find-enumeration exit canary (interp+native).
+  Posix targets never call these ops (their impls don't), so no
+  darwin/linux rows needed — inertness does the gating.
+  (3b) BODIES: rewrite the SEVEN windows impl machines over the trio:
+  enumeration = find_first/find_next skipping "." / ".." by name
+  bytes (NOT record position — find order is not guaranteed);
+  remove_dir_all's dirfd stack becomes a PATH-PREFIX stack (full-path
+  byte buffer + a depth array of path LENGTHS; descend = append
+  `\name`, ascend = truncate to stacked length; drain shape and fuel
+  discipline stay exactly rda_drain's); removals via
+  remove_name/remove_dir_name on the joined full path (path joining
+  below the contract IS the windows paradigm — Rust's split). Scratch
+  fields (pattern buf, full-path buf, 320-byte find-data buf, length
+  stack) go on portable `data Filesystem` (unused on posix, harmless
+  ZII). THEN note_vault green natively + interp, samples gate fully
+  green.
 
 - **`pending_runtime_divergences_hold` — GREENED 2026-07-18 (ledger
   host-corrected):** (a) `float_to_int_overflow_divergence` now documents
