@@ -1,16 +1,23 @@
-// A target-scoped machine name implemented ONLY by non-selected targets must
-// be a targeted clean error naming who does provide one -- the settle's
-// zero-or-two rule (a selected target missing its contract implementation),
-// never the generic unresolved-name diagnostic and never a silent
-// fall-through. `demo_target` resolves to no real target, so the
-// implementation is inert on every host (the provides wrong-target
-// discipline, which is also what makes this canary host-portable).
+// A CONTRACT machine name -- one implemented by TWO OR MORE non-selected
+// targets -- must be a targeted clean error naming who does provide one (a
+// selected target missing its contract row), never the generic
+// unresolved-name diagnostic. Two implementers is the evidence the name is a
+// portable-contract surface; a SINGLE foreign implementer is that target's
+// paradigm internal and filters silently instead (see
+// pass/targets/single_target_internal_machine_skipped). `demo_target`/
+// `demo_target2` resolve to no real target, so both implementations are inert
+// on every host (the provides wrong-target discipline, which is also what
+// makes this canary host-portable).
 boundary trait Console { machine exit_process(return_code: i32); }
 
 data Helper { seed: i32; }
 
 demo_target machine Helper::pick(&self) -> i32 {
     transition { _ -> 63 }
+}
+
+demo_target2 machine Helper::pick(&self) -> i32 {
+    transition { _ -> 64 }
 }
 
 data Main { console: Console; helper: Helper; }

@@ -1,411 +1,242 @@
 // windows_x64 `Filesystem` DIRECTORY-WALK implementations (fs
-// portable-contract settle 2026-07-18; bodies moved from filesystem.omg the
-// same day). The paradigm-split ops live PER TARGET behind the portable
-// contract declared in filesystem.omg's directory-walk contract block; every
-// machine here is target-scoped (`windows_x64 machine ...`), selected only
-// for this target.
+// portable-contract settle 2026-07-18; REAL bodies rung 3b, same day). The
+// paradigm-split ops live PER TARGET behind the portable contract declared in
+// filesystem.omg's directory-walk contract block; every machine here is
+// target-scoped (`windows_x64 machine ...`), selected only for this target.
 //
-// PLACEHOLDER byte-copy of the posix walk: windows has no dirfd and msvcrt
-// no `read_dir` row, so these bodies still fail host lowering for windows
-// exactly as the portable originals did (note_vault stays the one samples
-// red -- nothing worse, nothing hidden). The REAL windows implementation
-// (the next rung) rewrites these bodies over FindFirstFileA/FindNextFileA/
-// FindClose handle enumeration + kernel32 DllImport provides rows -- Rust
-// precedent: its Windows remove_dir_all resolves the paradigm below the
-// portable contract with NT handle-relative ops.
+// THE WINDOWS PARADIGM: no dirfd exists -- directory listing is HANDLE
+// ENUMERATION over a pattern (`dir/*`) via the find trio (find_first /
+// find_next / find_close, kernel32 FindFirstFileA family; rung 3a), and
+// removal inside the walk goes by JOINED FULL PATH (remove_name /
+// remove_dir_name, the trusted plain-path twins) -- path joining below the
+// contract IS the windows paradigm, exactly Rust's split (its Windows
+// remove_dir_all also resolves the paradigm beneath the portable surface).
+// Patterns and joins use `/`, which Win32 accepts natively and which matches
+// the hermetic interpreter's path keys byte-exactly.
+//
+// Shared assumptions with the posix walk (documented there as D-readdir):
+// "." and ".." are the FIRST TWO entries of every real directory in both
+// engines (NTFS returns dots first; the hermetic model packs them first), so
+// the walk skips at most two leading dot records by NAME. A find record is
+// WIN32_FIND_DATAA: attributes u32 @0 (directory bit 0x10), NUL-terminated
+// name @44 (record 320 bytes). Names longer than 255 bytes truncate at
+// capture, so their removal fails CLEANLY (Error, never a wrong-path
+// removal). One find_first failure kind is reported as NotFound (the
+// dominant cause; kernel32 sets last-error, not errno, so errno-classifying
+// it would read a STALE code -- deterministic honesty over noise).
 
-// List a directory and return its entry COUNT (Rust `fs::read_dir(path)?.count()`,
-// excluding "." and ".."). Opens the directory, fills ONE buffer of packed darwin
-// `dirent` records via the raw `read_dir` op, then walks them with a
-// runtime-indexed cursor over the little-endian `d_reclen` at record offset +16
-// (the same record layout as `___getdirentries64`, identical on both engines),
-// advancing until the filled byte count. The `d_off < 480` dominating guard keeps
-// each header read provably in bounds of the 512-byte buffer.
-//
-// JUDGEMENT CALL (recorded in TASKS_FS.md as D-readdir): counts the entries of a
-// SINGLE `read_dir` fill -- a 512-byte buffer holds a typical directory; a
-// directory with more entries than fit is undercounted (a single `getdirentries`,
-// not a drain-to-empty loop). "." and ".." are the first two records of every real
-// directory, so the child count is `records - 2`. A first, self-contained rung of
-// the `read_dir` iteration surface (name extraction / a `DirEntry` cursor and the
-// multi-fill drain build on this walk).
+// List a directory and return its entry COUNT (Rust
+// `fs::read_dir(path)?.count()`, excluding "." and ".."). Opens a `path/*`
+// enumeration and drains it through the shared scan core (w_scan_drain /
+// w_scan_step), which tallies every non-dot record. Unlike the posix walk's
+// single 512-byte fill (which undercounts a large directory), the fueled
+// enumeration counts up to 4096 records -- the fuel budget is the only cap.
 windows_x64 machine Filesystem::read_dir_count(&mut self, path: &[u8] in Path) -> IoResult {
-    self.read_flags = 0;
-    self.rd_position = 0;
-    self.rd_off = 0;
-    self.rd_count = 0;
-    let dfd: i32 = self.host.open(path, self.read_flags);
-    transition dfd >= 0 { true -> rd_read(dfd) _ -> rd_err() }
-    state rd_read(&mut self, dfd: i32) -> IoResult {
-        let total: i64 = self.host.read_dir(dfd, &mut self.dir_buf, 512, &mut self.rd_position);
-        let closed: i32 = self.host.close(dfd);
-        self.rd_total = total as u64 in Wrapping;
-        transition total > 0 { true -> rd_walk() _ -> rd_empty() }
+    self.w_scan_count = 0;
+    self.w_scan_dirs = 0;
+    self.w_scan_files = 0;
+    self.w_scan_target = 4294967295;
+    self.w_scan_hit = 0;
+    self.w_scan_done = 0;
+    self.w_scan_pending = 0;
+    self.w_path_copy(path, 0);
+    transition path.len < 509 { true -> rd_seal(path) _ -> rd_err(path) }
+    // `path` is threaded through every state (mostly unused) so the
+    // shared-param domain grant re-establishes `path in Path` after the copy
+    // value-call's conservative invalidation -- the posix impl's exact note.
+    // (`w_path_len = path.len` lives in the ENTRY: a slice-length write into
+    // a field does not lower from a dispatched arm state.)
+    state rd_seal(&mut self, path: &[u8] in Path) -> IoResult {
+        self.w_seal_pattern(0);
+        transition self.w_help_rc == 0 { true -> rd_open(path) _ -> rd_err(path) }
     }
-    state rd_walk(&mut self) -> IoResult {
-        transition self.rd_off < 480 { true -> rd_body() _ -> rd_done() }
+    state rd_open(&mut self, path: &[u8] in Path) -> IoResult {
+        self.w_find_open(self.w_pat_len);
+        transition self.w_find >= 0 { true -> rd_scan(path) _ -> rd_nf(path) }
     }
-    state rd_body(&mut self) -> IoResult {
-        // d_reclen: little-endian u16 at record offset + 16 (RUNTIME-indexed reads).
-        self.rd_idx = self.rd_off + 16;
-        self.rd_lo = self.dir_buf[self.rd_idx];
-        self.rd_idx = self.rd_off + 17;
-        self.rd_hi = self.dir_buf[self.rd_idx];
-        self.rd_lou = self.rd_lo as u64 in Wrapping;
-        self.rd_hiu = self.rd_hi as u64 in Wrapping;
-        self.rd_reclen = (self.rd_hiu << 8) | self.rd_lou;
-        self.rd_count = self.rd_count + 1;
-        self.rd_off = self.rd_off + self.rd_reclen;
-        transition self.rd_off < self.rd_total { true -> rd_walk() _ -> rd_done() }
+    state rd_scan(&mut self, path: &[u8] in Path) -> IoResult {
+        self.w_scan_pending = 1;
+        self.rda_rc = self.w_scan_drain(4096);
+        self.rda_close_rc = self.host.find_close(self.w_find);
+        transition self.rda_rc == 0 { true -> rd_ok(path) _ -> rd_err(path) }
     }
-    state rd_empty(&mut self) -> IoResult { IoResult::Ok { count: 0 } }
-    state rd_done(&mut self) -> IoResult {
-        // Every real directory yields "." and ".." first, so children = records - 2.
-        transition self.rd_count > 2 { true -> rd_ok() _ -> rd_empty() }
+    state rd_ok(&mut self, path: &[u8] in Path) -> IoResult { IoResult::Ok { count: self.w_scan_count } }
+    state rd_nf(&mut self, path: &[u8] in Path) -> IoResult {
+        let kind: ErrorKind = ErrorKind::NotFound;
+        IoResult::Error { kind: kind }
     }
-    state rd_ok(&mut self) -> IoResult {
-        self.rd_lou = (self.rd_count - 2) as u64 in Wrapping;
-        IoResult::Ok { count: self.rd_lou }
-    }
-    state rd_err(&mut self) -> IoResult {
+    state rd_err(&mut self, path: &[u8] in Path) -> IoResult {
         let kind: ErrorKind = self.last_error();
         IoResult::Error { kind: kind }
     }
 }
 
-// Summarize a directory's composition in ONE walk (`DirStats { entries, subdirs,
-// files }`) -- the type-aware companion to `read_dir_count`. Same single-fill
-// dirent walk, additionally reading each record's `d_type` byte at offset +20
-// (within the `off < 480` bound, so the read is provably in the 512-byte buffer)
-// and tallying DT_DIR (4) vs DT_REG (8). "." and ".." are DT_DIR, so the child
-// counts subtract 2 from both `entries` and `subdirs`. Same single-fill /
-// DT_UNKNOWN caveats as `read_dir_count` (D-readdir). Establishes the `d_type`
-// dispatch that a `DirEntry` cursor and `remove_dir_all` (recurse into subdirs,
-// unlink files) will reuse.
+// Summarize a directory's composition in ONE walk (`DirStats { entries,
+// subdirs, files }`). The same scan core tallies dirs (attribute bit 0x10)
+// vs files (everything else) while it counts; dots are skipped by NAME, so
+// no posix-style "subtract the two dot records" correction exists here.
 windows_x64 machine Filesystem::read_dir_stats(&mut self, path: &[u8] in Path) -> DirStatsResult {
-    self.read_flags = 0;
-    self.rd_position = 0;
-    self.rd_off = 0;
-    self.rd_count = 0;
-    self.rd_dirs = 0;
-    self.rd_files = 0;
-    let dfd: i32 = self.host.open(path, self.read_flags);
-    transition dfd >= 0 { true -> rds_read(dfd) _ -> rds_err() }
-    state rds_read(&mut self, dfd: i32) -> DirStatsResult {
-        let total: i64 = self.host.read_dir(dfd, &mut self.dir_buf, 512, &mut self.rd_position);
-        let closed: i32 = self.host.close(dfd);
-        self.rd_total = total as u64 in Wrapping;
-        transition total > 0 { true -> rds_walk() _ -> rds_empty() }
+    self.w_scan_count = 0;
+    self.w_scan_dirs = 0;
+    self.w_scan_files = 0;
+    self.w_scan_target = 4294967295;
+    self.w_scan_hit = 0;
+    self.w_scan_done = 0;
+    self.w_scan_pending = 0;
+    self.w_path_copy(path, 0);
+    transition path.len < 509 { true -> rds_seal(path) _ -> rds_err(path) }
+    // `path` threading: the posix impl's shared-param domain-grant note.
+    state rds_seal(&mut self, path: &[u8] in Path) -> DirStatsResult {
+        self.w_seal_pattern(0);
+        transition self.w_help_rc == 0 { true -> rds_open(path) _ -> rds_err(path) }
     }
-    state rds_walk(&mut self) -> DirStatsResult {
-        transition self.rd_off < 480 { true -> rds_body() _ -> rds_done() }
+    state rds_open(&mut self, path: &[u8] in Path) -> DirStatsResult {
+        self.w_find_open(self.w_pat_len);
+        transition self.w_find >= 0 { true -> rds_scan(path) _ -> rds_nf(path) }
     }
-    state rds_body(&mut self) -> DirStatsResult {
-        self.rd_idx = self.rd_off + 16;
-        self.rd_lo = self.dir_buf[self.rd_idx];
-        self.rd_idx = self.rd_off + 17;
-        self.rd_hi = self.dir_buf[self.rd_idx];
-        self.rd_lou = self.rd_lo as u64 in Wrapping;
-        self.rd_hiu = self.rd_hi as u64 in Wrapping;
-        self.rd_reclen = (self.rd_hiu << 8) | self.rd_lou;
-        self.rd_idx = self.rd_off + 20;
-        self.rd_dtype = self.dir_buf[self.rd_idx];
-        self.rd_count = self.rd_count + 1;
-        self.rd_off = self.rd_off + self.rd_reclen;
-        transition self.rd_dtype == 4 { true -> rds_dir() _ -> rds_maybe_file() }
+    state rds_scan(&mut self, path: &[u8] in Path) -> DirStatsResult {
+        self.w_scan_pending = 1;
+        self.rda_rc = self.w_scan_drain(4096);
+        self.rda_close_rc = self.host.find_close(self.w_find);
+        transition self.rda_rc == 0 { true -> rds_ok(path) _ -> rds_err(path) }
     }
-    state rds_dir(&mut self) -> DirStatsResult {
-        self.rd_dirs = self.rd_dirs + 1;
-        transition self.rd_off < self.rd_total { true -> rds_walk() _ -> rds_done() }
-    }
-    state rds_maybe_file(&mut self) -> DirStatsResult {
-        transition self.rd_dtype == 8 { true -> rds_file() _ -> rds_cont() }
-    }
-    state rds_file(&mut self) -> DirStatsResult {
-        self.rd_files = self.rd_files + 1;
-        transition self.rd_off < self.rd_total { true -> rds_walk() _ -> rds_done() }
-    }
-    state rds_cont(&mut self) -> DirStatsResult {
-        transition self.rd_off < self.rd_total { true -> rds_walk() _ -> rds_done() }
-    }
-    state rds_done(&mut self) -> DirStatsResult {
-        transition self.rd_count > 2 { true -> rds_ok() _ -> rds_empty() }
-    }
-    state rds_ok(&mut self) -> DirStatsResult {
+    state rds_ok(&mut self, path: &[u8] in Path) -> DirStatsResult {
         DirStatsResult::Ok { stats: DirStats {
-            entries: (self.rd_count - 2) as u64 in Wrapping,
-            subdirs: (self.rd_dirs - 2) as u64 in Wrapping,
-            files: self.rd_files as u64 in Wrapping,
+            entries: self.w_scan_count,
+            subdirs: self.w_scan_dirs,
+            files: self.w_scan_files,
         } }
     }
-    state rds_empty(&mut self) -> DirStatsResult {
-        DirStatsResult::Ok { stats: DirStats { entries: 0, subdirs: 0, files: 0 } }
+    state rds_nf(&mut self, path: &[u8] in Path) -> DirStatsResult {
+        let kind: ErrorKind = ErrorKind::NotFound;
+        DirStatsResult::Error { kind: kind }
     }
-    state rds_err(&mut self) -> DirStatsResult {
+    state rds_err(&mut self, path: &[u8] in Path) -> DirStatsResult {
         let kind: ErrorKind = self.last_error();
         DirStatsResult::Error { kind: kind }
     }
 }
 
-// Fetch the N-th CHILD directory entry as a `DirEntry` (Rust's `ReadDir` iterator,
-// indexed): `read_dir_nth(path, 0)` is the first child, `1` the second, … . The
-// caller loops n = 0, 1, 2, … until `End`. Walks the single-fill dirent buffer to
-// record index `n + 2` (skipping "." and ".."), then EXTRACTS the name by copying
-// `dir_buf[off+21+j]` into the entry's `[u8; 256]` name field with a field-cursor
-// loop (the `ridx < 512` guard keeps each read in the buffer; `j < 255` keeps each
-// write in the name field), and reads the `d_type` for `is_dir`/`is_file`.
-//
-// JUDGEMENT CALL (D-readdir extends): single `read_dir` fill (a directory larger
-// than the 512-byte buffer is iterable only up to what one `getdirentries` returns);
-// a name longer than 255 bytes is truncated (`name_len` is the copied length). "."
-// and ".." are the first two records of every real directory, so child n is record
-// n + 2. This is the name-bearing rung `remove_dir_all` (recurse subdirs / unlink
-// files by name) builds on.
+// Fetch the N-th CHILD entry as a `DirEntry` (Rust's `ReadDir` iterator,
+// indexed; dots skipped by NAME so n counts real children). The scan core
+// captures the n-th non-dot record's name (NUL-truncated copy into
+// entry_name) and kind while the drain runs; no capture => End.
 windows_x64 machine Filesystem::read_dir_nth(&mut self, path: &[u8] in Path, n: u64) -> DirEntryResult {
-    self.read_flags = 0;
-    self.rd_position = 0;
-    self.rd_off = 0;
-    self.rd_recno = 0;
-    self.rd_target = (n as u64 in Wrapping) + 2;
-    let dfd: i32 = self.host.open(path, self.read_flags);
-    transition dfd >= 0 { true -> rdn_read(dfd) _ -> rdn_err() }
-    state rdn_read(&mut self, dfd: i32) -> DirEntryResult {
-        let total: i64 = self.host.read_dir(dfd, &mut self.dir_buf, 512, &mut self.rd_position);
-        let closed: i32 = self.host.close(dfd);
-        self.rd_total = total as u64 in Wrapping;
-        transition total > 0 { true -> rdn_walk() _ -> rdn_end() }
+    self.w_scan_count = 0;
+    self.w_scan_dirs = 0;
+    self.w_scan_files = 0;
+    self.w_scan_target = n as u64 in Wrapping;
+    self.w_scan_hit = 0;
+    self.w_scan_done = 0;
+    self.w_scan_pending = 0;
+    self.w_path_copy(path, 0);
+    transition path.len < 509 { true -> rdn_seal(path) _ -> rdn_err(path) }
+    // `path` threading: the posix impl's shared-param domain-grant note.
+    state rdn_seal(&mut self, path: &[u8] in Path) -> DirEntryResult {
+        self.w_seal_pattern(0);
+        transition self.w_help_rc == 0 { true -> rdn_open(path) _ -> rdn_err(path) }
     }
-    state rdn_walk(&mut self) -> DirEntryResult {
-        transition self.rd_off < 480 { true -> rdn_at() _ -> rdn_end() }
+    state rdn_open(&mut self, path: &[u8] in Path) -> DirEntryResult {
+        self.w_find_open(self.w_pat_len);
+        transition self.w_find >= 0 { true -> rdn_scan(path) _ -> rdn_nf(path) }
     }
-    state rdn_at(&mut self) -> DirEntryResult {
-        transition self.rd_recno == self.rd_target { true -> rdn_extract() _ -> rdn_advance() }
+    state rdn_scan(&mut self, path: &[u8] in Path) -> DirEntryResult {
+        self.w_scan_pending = 1;
+        self.rda_rc = self.w_scan_drain(4096);
+        self.rda_close_rc = self.host.find_close(self.w_find);
+        transition self.rda_rc == 0 { true -> rdn_check(path) _ -> rdn_err(path) }
     }
-    state rdn_advance(&mut self) -> DirEntryResult {
-        self.rd_idx = self.rd_off + 16;
-        self.rd_lo = self.dir_buf[self.rd_idx];
-        self.rd_idx = self.rd_off + 17;
-        self.rd_hi = self.dir_buf[self.rd_idx];
-        self.rd_lou = self.rd_lo as u64 in Wrapping;
-        self.rd_hiu = self.rd_hi as u64 in Wrapping;
-        self.rd_reclen = (self.rd_hiu << 8) | self.rd_lou;
-        self.rd_recno = self.rd_recno + 1;
-        self.rd_off = self.rd_off + self.rd_reclen;
-        transition self.rd_off < self.rd_total { true -> rdn_walk() _ -> rdn_end() }
+    state rdn_check(&mut self, path: &[u8] in Path) -> DirEntryResult {
+        transition self.w_scan_hit == 1 { true -> rdn_kind(path) _ -> rdn_end(path) }
     }
-    state rdn_extract(&mut self) -> DirEntryResult {
-        self.rd_idx = self.rd_off + 18;
-        self.rd_lo = self.dir_buf[self.rd_idx];
-        self.rd_idx = self.rd_off + 19;
-        self.rd_hi = self.dir_buf[self.rd_idx];
-        self.rd_lou = self.rd_lo as u64 in Wrapping;
-        self.rd_hiu = self.rd_hi as u64 in Wrapping;
-        self.rd_namlen = (self.rd_hiu << 8) | self.rd_lou;
-        self.rd_idx = self.rd_off + 20;
-        self.rd_dtype = self.dir_buf[self.rd_idx];
-        self.rd_j = 0;
-        transition { _ -> rdn_copy() }
+    state rdn_kind(&mut self, path: &[u8] in Path) -> DirEntryResult {
+        transition self.w_scan_kind == 1 { true -> rdn_ok_dir(path) _ -> rdn_ok_file(path) }
     }
-    state rdn_copy(&mut self) -> DirEntryResult {
-        transition self.rd_j < self.rd_namlen { true -> rdn_cap() _ -> rdn_build() }
-    }
-    state rdn_cap(&mut self) -> DirEntryResult {
-        transition self.rd_j < 255 { true -> rdn_cbyte() _ -> rdn_build() }
-    }
-    state rdn_cbyte(&mut self) -> DirEntryResult {
-        self.rd_ridx = self.rd_off + 21 + self.rd_j;
-        transition self.rd_ridx < 512 { true -> rdn_cdo() _ -> rdn_build() }
-    }
-    state rdn_cdo(&mut self) -> DirEntryResult {
-        self.rd_nb = self.dir_buf[self.rd_ridx];
-        self.entry_name[self.rd_j] = self.rd_nb;
-        self.rd_j = self.rd_j + 1;
-        transition { _ -> rdn_copy() }
-    }
-    state rdn_build(&mut self) -> DirEntryResult {
-        transition self.rd_dtype == 4 { true -> rdn_ok_dir() _ -> rdn_maybe_file() }
-    }
-    state rdn_ok_dir(&mut self) -> DirEntryResult {
+    state rdn_ok_dir(&mut self, path: &[u8] in Path) -> DirEntryResult {
         DirEntryResult::Ok { entry: DirEntry {
             name: self.entry_name,
-            name_len: self.rd_j,
+            name_len: self.w_entry_len,
             is_dir: true,
             is_file: false,
         } }
     }
-    state rdn_maybe_file(&mut self) -> DirEntryResult {
-        transition self.rd_dtype == 8 { true -> rdn_ok_file() _ -> rdn_ok_other() }
-    }
-    state rdn_ok_file(&mut self) -> DirEntryResult {
+    state rdn_ok_file(&mut self, path: &[u8] in Path) -> DirEntryResult {
         DirEntryResult::Ok { entry: DirEntry {
             name: self.entry_name,
-            name_len: self.rd_j,
+            name_len: self.w_entry_len,
             is_dir: false,
             is_file: true,
         } }
     }
-    state rdn_ok_other(&mut self) -> DirEntryResult {
-        DirEntryResult::Ok { entry: DirEntry {
-            name: self.entry_name,
-            name_len: self.rd_j,
-            is_dir: false,
-            is_file: false,
-        } }
+    state rdn_end(&mut self, path: &[u8] in Path) -> DirEntryResult { DirEntryResult::End }
+    state rdn_nf(&mut self, path: &[u8] in Path) -> DirEntryResult {
+        let kind: ErrorKind = ErrorKind::NotFound;
+        DirEntryResult::Error { kind: kind }
     }
-    state rdn_end(&mut self) -> DirEntryResult { DirEntryResult::End }
-    state rdn_err(&mut self) -> DirEntryResult {
+    state rdn_err(&mut self, path: &[u8] in Path) -> DirEntryResult {
         let kind: ErrorKind = self.last_error();
         DirEntryResult::Error { kind: kind }
     }
 }
 
-// Fetch the N-th CHILD entry as a `DirEntry`, reading an ALREADY-OPEN directory fd
-// (the caller OWNS `dfd`; it is not closed here). Skips "." and ".." (records 0,1)
-// to record n+2 and copies the name into the entry's field. This is the fd-based
-// core `remove_dir_all` drains through (it re-reads the same fd after each removal).
-// NOTE: the dirent walk here duplicates `read_dir_nth`'s (which opens+closes a
-// path); a future refactor should route `read_dir_nth` through this fd core.
+// Fetch the N-th child of an ALREADY-OPEN directory fd -- a POSIX-paradigm op
+// (fd-relative dirent reads) with NO windows equivalent: msvcrt descriptors
+// have no directory-enumeration surface, and the find paradigm keys on
+// PATTERNS, not descriptors. Honest clean Error (never UB, never a guess);
+// nothing in the windows walk calls this -- it exists because the posix
+// targets share the name (the contract's shared-name rule) and a portable
+// caller reaching it on windows deserves a result, not a resolution hole.
 windows_x64 machine Filesystem::read_dir_entry_fd(&mut self, dfd: i32, n: u64) -> DirEntryResult {
-    self.rd_position = 0;
-    self.rd_off = 0;
-    self.rd_recno = 0;
-    self.rd_target = (n as u64 in Wrapping) + 2;
-    // REWIND the directory fd before reading (2026-07-09j): the native
-    // getdirentries cursor is the FD OFFSET -- zeroing the basep out-param
-    // does not rewind it, so a second "first entry" read on the same fd
-    // returned End natively while the hermetic interpreter (which reads at
-    // the passed position) returned the entry. The drain's per-iteration
-    // first-entry re-reads depend on this. lseek(dfd, 0, SEEK_SET) is a
-    // no-op for the interpreter's model and rewinds the native cursor.
-    self.rd_seek_rc = self.host.seek(dfd, 0, 0);
-    let total: i64 = self.host.read_dir(dfd, &mut self.dir_buf, 512, &mut self.rd_position);
-    self.rd_total = total as u64 in Wrapping;
-    transition total > 0 { true -> rdef_walk() _ -> rdef_end() }
-    state rdef_walk(&mut self) -> DirEntryResult {
-        transition self.rd_off < 480 { true -> rdef_at() _ -> rdef_end() }
+    transition { _ -> rdef_no() }
+    state rdef_no(&mut self) -> DirEntryResult {
+        let kind: ErrorKind = ErrorKind::Other;
+        DirEntryResult::Error { kind: kind }
     }
-    state rdef_at(&mut self) -> DirEntryResult {
-        transition self.rd_recno == self.rd_target { true -> rdef_extract() _ -> rdef_advance() }
-    }
-    state rdef_advance(&mut self) -> DirEntryResult {
-        self.rd_idx = self.rd_off + 16;
-        self.rd_lo = self.dir_buf[self.rd_idx];
-        self.rd_idx = self.rd_off + 17;
-        self.rd_hi = self.dir_buf[self.rd_idx];
-        self.rd_lou = self.rd_lo as u64 in Wrapping;
-        self.rd_hiu = self.rd_hi as u64 in Wrapping;
-        self.rd_reclen = (self.rd_hiu << 8) | self.rd_lou;
-        self.rd_recno = self.rd_recno + 1;
-        self.rd_off = self.rd_off + self.rd_reclen;
-        transition self.rd_off < self.rd_total { true -> rdef_walk() _ -> rdef_end() }
-    }
-    state rdef_extract(&mut self) -> DirEntryResult {
-        self.rd_idx = self.rd_off + 18;
-        self.rd_lo = self.dir_buf[self.rd_idx];
-        self.rd_idx = self.rd_off + 19;
-        self.rd_hi = self.dir_buf[self.rd_idx];
-        self.rd_lou = self.rd_lo as u64 in Wrapping;
-        self.rd_hiu = self.rd_hi as u64 in Wrapping;
-        self.rd_namlen = (self.rd_hiu << 8) | self.rd_lou;
-        self.rd_idx = self.rd_off + 20;
-        self.rd_dtype = self.dir_buf[self.rd_idx];
-        self.rd_j = 0;
-        transition { _ -> rdef_copy() }
-    }
-    state rdef_copy(&mut self) -> DirEntryResult {
-        transition self.rd_j < self.rd_namlen { true -> rdef_cap() _ -> rdef_nul() }
-    }
-    // NUL-terminate the copied name (2026-07-09k): `entry_name` is a REUSED
-    // machine buffer, so a shorter name over a longer one left the previous
-    // tail ("b" over "f1.txt" read back as "b1.txt") -- unlink_at/open_at
-    // take the subslice's POINTER and read to the NUL, so the stale tail was
-    // passed to the kernel (ENOENT; the drain's parent-remove step failed).
-    // The interpreter slices by LENGTH, which is why only native diverged.
-    state rdef_nul(&mut self) -> DirEntryResult {
-        transition self.rd_j < 256 { true -> rdef_nul_go() _ -> rdef_build() }
-    }
-    state rdef_nul_go(&mut self) -> DirEntryResult {
-        self.entry_name[self.rd_j] = 0;
-        transition { _ -> rdef_build() }
-    }
-    state rdef_cap(&mut self) -> DirEntryResult {
-        transition self.rd_j < 255 { true -> rdef_cbyte() _ -> rdef_nul() }
-    }
-    state rdef_cbyte(&mut self) -> DirEntryResult {
-        self.rd_ridx = self.rd_off + 21 + self.rd_j;
-        transition self.rd_ridx < 512 { true -> rdef_cdo() _ -> rdef_nul() }
-    }
-    state rdef_cdo(&mut self) -> DirEntryResult {
-        self.rd_nb = self.dir_buf[self.rd_ridx];
-        self.entry_name[self.rd_j] = self.rd_nb;
-        self.rd_j = self.rd_j + 1;
-        transition { _ -> rdef_copy() }
-    }
-    state rdef_build(&mut self) -> DirEntryResult {
-        transition self.rd_dtype == 4 { true -> rdef_ok_dir() _ -> rdef_maybe_file() }
-    }
-    state rdef_ok_dir(&mut self) -> DirEntryResult {
-        DirEntryResult::Ok { entry: DirEntry { name: self.entry_name, name_len: self.rd_j, is_dir: true, is_file: false } }
-    }
-    state rdef_maybe_file(&mut self) -> DirEntryResult {
-        transition self.rd_dtype == 8 { true -> rdef_ok_file() _ -> rdef_ok_other() }
-    }
-    state rdef_ok_file(&mut self) -> DirEntryResult {
-        DirEntryResult::Ok { entry: DirEntry { name: self.entry_name, name_len: self.rd_j, is_dir: false, is_file: true } }
-    }
-    state rdef_ok_other(&mut self) -> DirEntryResult {
-        DirEntryResult::Ok { entry: DirEntry { name: self.entry_name, name_len: self.rd_j, is_dir: false, is_file: false } }
-    }
-    state rdef_end(&mut self) -> DirEntryResult { DirEntryResult::End }
 }
 
 // Recursively remove a directory and ALL of its contents (Rust
-// `std::fs::remove_dir_all`). The `*at` route: never build a child path in Omega.
-// Open the dir, DRAIN it (repeatedly remove the first child until empty), then
-// `remove_dir` the now-empty dir. Draining recurses into subdirectories via
-// `open_at` (fd-relative), so no path construction and no name-domain proof.
-//
-// JUDGEMENT CALL (D-rda): a single `fuel` budget (4096) bounds TOTAL operations
-// (every removal + every descent costs 1) since a filesystem tree has no static
-// depth/breadth bound — a tree needing > 4096 ops returns an Error rather than
-// looping forever (Rust trusts finiteness; Omega must prove termination). The
-// re-read-first-child drain dodges the shared `dir_buf`-vs-recursion clobber: each
-// step re-reads the fd fresh, and the entry NAME rides a by-value `DirEntry` param
-// so a nested drain cannot overwrite it.
+// `std::fs::remove_dir_all`), the windows paradigm: the posix dirfd stack
+// becomes a PATH-PREFIX stack -- `w_path` holds the CURRENT directory's full
+// path (always NUL-terminated at `w_path_len`), `w_len_stack` holds each
+// ancestor's path LENGTH (descend = append `/name` + push the new length;
+// ascend = pop + truncate). Same drain discipline as posix (D-rda): a single
+// fuel budget (4096) bounds TOTAL operations; each step re-enumerates the
+// current directory fresh, so removal never races an open enumeration.
 windows_x64 machine Filesystem::remove_dir_all(&mut self, path: &[u8] in Path) -> UnitResult {
-    self.read_flags = 0;
-    let dfd: i32 = self.host.open(path, self.read_flags);
-    transition dfd >= 0 { true -> rda_run(dfd, path) _ -> rda_err(path) }
-    state rda_run(&mut self, dfd: i32, path: &[u8] in Path) -> UnitResult {
-        // Seed the drain stack with the root fd; the loop closes every fd it
-        // pops (including this one), so no close here.
+    self.w_path_copy(path, 0);
+    transition path.len < 509 { true -> rda_init(path) _ -> rda_err(path) }
+    state rda_init(&mut self, path: &[u8] in Path) -> UnitResult {
+        self.w_restore_nul(0);
         self.rda_depth = 1;
-        self.rda_stack[0] = dfd;
+        transition self.w_help_rc == 0 { true -> rda_seed(path) _ -> rda_err(path) }
+    }
+    state rda_seed(&mut self, path: &[u8] in Path) -> UnitResult {
+        self.w_len_stack[0] = self.w_path_len;
         self.rda_rc = self.rda_drain(4096);
         transition self.rda_rc == 0 { true -> rda_rmdir(path) _ -> rda_err(path) }
     }
+    // The drained ROOT is removed by the caller-visible `in Path` param,
+    // exactly like the posix impl (the drain leaves the root to its caller).
     state rda_rmdir(&mut self, path: &[u8] in Path) -> UnitResult {
         let rc: i32 = self.host.remove_dir(path);
         transition rc == 0 { true -> rda_ok() _ -> rda_err(path) }
     }
     state rda_ok(&mut self) -> UnitResult { UnitResult::Ok }
-    // `path` is threaded in (unused) so the shared-param domain grant re-establishes
-    // `path in Path` here after the drain value-call's conservative invalidation.
+    // `path` is threaded in (unused) so the shared-param domain grant
+    // re-establishes `path in Path` here after the drain value-call's
+    // conservative invalidation (the posix impl's exact note).
     state rda_err(&mut self, path: &[u8] in Path) -> UnitResult {
         let kind: ErrorKind = self.last_error();
         UnitResult::Error { kind: kind }
     }
 }
 
-// Drain every child of the stacked directories (files unlinked, subdirs
-// emptied + removed), ITERATIVELY: an explicit dirfd stack replaces the old
-// call recursion, which no native route can lower (the clone dispatch
-// refuses cycles; the splice runs effects once). The loop is ENTRY-recursion
-// (`rda_drain(fuel - 1)` from the entry's own transition -- the only shape
-// the decreases prover accepts, the mkall precedent); each iteration's WORK
-// is one `rda_step` STATEMENT call (the fence doctrine's prescribed shape:
-// a statement call from a dispatched state, verdict read from a field).
-// Returns 0 on success, -1 on error/fuel-exhaustion/depth overflow (> 16).
+// Drain every child of the stacked directories (files removed, subdirs
+// emptied + removed), ITERATIVELY -- the posix drain's exact fuel shape (the
+// entry's own single-comparison re-entry is the only recursion the decreases
+// prover accepts; the loop runs its full fuel and no-ops once drained, the
+// documented provable trade). Returns 0 on success, -1 on
+// error/fuel-exhaustion/depth overflow (> 16).
 windows_x64 machine Filesystem::rda_drain(&mut self, fuel: u64)
 terminates {
     decreases fuel;
@@ -413,13 +244,6 @@ terminates {
 -> i32
 {
     self.rda_step(0);
-    // The re-entry is the ENTRY's OWN single-comparison transition -- the only
-    // shape the decreases prover accepts (the mkall precedent; an arm-state
-    // re-entry or a conjunct guard is unprovable to it). The loop therefore
-    // runs its FULL fuel unconditionally; once the stack drains, rda_step
-    // no-ops (depth == 0 -> verdict 0) and the tail settles on the verdict.
-    // Cost: 4096 cheap no-op iterations after completion -- the provable
-    // trade, documented here deliberately.
     transition fuel > 0 { true -> rda_drain(fuel - 1) false -> rdd_settle() }
     state rdd_settle(&mut self) -> i32 {
         transition self.rda_verdict == 0 { true -> rdd_done() _ -> rdd_fail() }
@@ -428,100 +252,432 @@ terminates {
     state rdd_fail(&mut self) -> i32 { 0 - 1 }
 }
 
-// ONE drain step: unlink the top directory's first file, or descend into its
-// first subdir (push), or close+pop a drained directory and remove it from
-// its parent. Sets `rda_verdict` (1 continue / 0 done / -1 error). Statement-
-// called from rda_drain, so its states are real dispatch cases and the host
-// calls in arm states are legal. Every array index is guarded by a SINGLE
-// dominating conjunct in its OWN incoming transition (facts do not travel).
-// The `step` param exists so the machine has entry arguments (uniform call
-// shape); it is unused.
+// ONE drain step, the windows paradigm: enumerate the CURRENT directory
+// (`w_path/*`), find its first NON-DOT entry (dots are the first two records
+// in both engines -- at most two skips), then either remove a file child /
+// descend into a subdir child (both by JOINED full path), or -- when only
+// dots remain -- close, remove the now-empty directory (unless it is the
+// root, which the caller removes), and ascend. Sets `rda_verdict`
+// (1 continue / 0 done / -1 error). Every array index is guarded by a
+// dominating conjunct in its own incoming transition whose shape MATCHES the
+// index expression (the posix impl's prover note). The `step` param is the
+// uniform call shape; unused.
 windows_x64 machine Filesystem::rda_step(&mut self, step: u64) {
-    transition self.rda_depth == 0 { true -> rds_alldone() _ -> rds_read() }
+    transition self.rda_depth == 0 { true -> rds_alldone() _ -> rds_seal() }
 
     state rds_alldone(&mut self) { self.rda_verdict = 0; }
 
-    state rds_read(&mut self) {
-        // The guard expression matches the INDEX expression exactly (the
-        // prover threads same-shape facts only; `depth <= 16` does not imply
-        // `depth - 1 < 16` to it). The left conjunct discharges the
-        // subtraction's own underflow proof.
-        transition self.rda_depth >= 1 && self.rda_depth - 1 < 16 {
-            true -> rds_read_go()
+    // Open a fresh enumeration of the current directory. The pattern seal
+    // overwrites w_path's NUL with "/*"; restore the invariant right after
+    // the open (the pattern bytes are consumed by the call itself).
+    state rds_seal(&mut self) {
+        self.w_seal_pattern(0);
+        transition self.w_help_rc == 0 { true -> rds_open() _ -> rds_fail() }
+    }
+    state rds_open(&mut self) {
+        self.w_find_open(self.w_pat_len);
+        self.w_restore_nul(0);
+        transition self.w_find >= 0 { true -> rds_c1() _ -> rds_fail() }
+    }
+
+    // find_first already filled find_buf: skip up to TWO leading dot records
+    // by NAME ("." = 46,0; ".." = 46,46,0 at the name offset 44).
+    state rds_c1(&mut self) {
+        self.rd_lo = self.find_buf[44];
+        self.rd_hi = self.find_buf[45];
+        self.rd_nb = self.find_buf[46];
+        transition self.rd_lo == 46 { true -> rds_c1_dot() _ -> rds_entry() }
+    }
+    state rds_c1_dot(&mut self) {
+        transition self.rd_hi == 0 { true -> rds_n1() _ -> rds_c1_dot2() }
+    }
+    state rds_c1_dot2(&mut self) {
+        transition self.rd_hi == 46 { true -> rds_c1_dot3() _ -> rds_entry() }
+    }
+    state rds_c1_dot3(&mut self) {
+        transition self.rd_nb == 0 { true -> rds_n1() _ -> rds_entry() }
+    }
+    state rds_n1(&mut self) {
+        self.w_next_rc = self.host.find_next(self.w_find, &mut self.find_buf);
+        transition self.w_next_rc == 1 { true -> rds_c2() _ -> rds_empty() }
+    }
+    state rds_c2(&mut self) {
+        self.rd_lo = self.find_buf[44];
+        self.rd_hi = self.find_buf[45];
+        self.rd_nb = self.find_buf[46];
+        transition self.rd_lo == 46 { true -> rds_c2_dot() _ -> rds_entry() }
+    }
+    state rds_c2_dot(&mut self) {
+        transition self.rd_hi == 0 { true -> rds_n2() _ -> rds_c2_dot2() }
+    }
+    state rds_c2_dot2(&mut self) {
+        transition self.rd_hi == 46 { true -> rds_c2_dot3() _ -> rds_entry() }
+    }
+    state rds_c2_dot3(&mut self) {
+        transition self.rd_nb == 0 { true -> rds_n2() _ -> rds_entry() }
+    }
+    state rds_n2(&mut self) {
+        self.w_next_rc = self.host.find_next(self.w_find, &mut self.find_buf);
+        transition self.w_next_rc == 1 { true -> rds_entry() _ -> rds_empty() }
+    }
+
+    // ONLY DOTS: the current directory is drained. Close the enumeration;
+    // the ROOT (depth 1) is the caller's to remove -- everything deeper is
+    // removed here by its full path, then the walk ascends to the parent.
+    state rds_empty(&mut self) {
+        self.rda_close_rc = self.host.find_close(self.w_find);
+        transition self.rda_depth == 1 { true -> rds_rootdone() _ -> rds_rmcur() }
+    }
+    // Zero the depth so the drain's remaining fuel iterations no-op (the
+    // `depth == 0 -> alldone` head) instead of RE-OPENING a find enumeration
+    // on the drained root every iteration -- that redundant re-open leaked
+    // ~4096 find handles per call (single calls survived; a second dir-walk
+    // in the same process hit the handle cap and its find_first returned
+    // INVALID_HANDLE_VALUE). w_scan_step idles the same way after `done`.
+    state rds_rootdone(&mut self) {
+        self.rda_depth = 0;
+        self.rda_verdict = 0;
+    }
+    state rds_rmcur(&mut self) {
+        self.w_remove_dir_at(self.w_path_len);
+        transition self.rda_rc == 0 { true -> rds_ascend() _ -> rds_fail() }
+    }
+    state rds_ascend(&mut self) {
+        // The parent's length is stacked at depth - 2 (the guard shape
+        // matches the index expression exactly; read BEFORE the decrement).
+        transition self.rda_depth >= 2 && self.rda_depth - 2 < 16 {
+            true -> rds_ascend_go()
             _ -> rds_fail()
         }
     }
-    state rds_read_go(&mut self) {
-        self.rda_fd = self.rda_stack[self.rda_depth - 1];
-        self.rdn_result = self.read_dir_entry_fd(self.rda_fd, 0);
-        transition self.rdn_result {
-            DirEntryResult::End -> rds_pop()
-            DirEntryResult::Ok { entry } -> rds_entry(entry)
-            DirEntryResult::Error { kind } -> rds_fail()
-        }
-    }
-
-    // TOP is empty: close + pop. If a parent remains, the drained child is
-    // (still) the parent's FIRST entry -- re-read its name fresh and remove
-    // it (AT_REMOVEDIR = 128). The ROOT (depth hits 0) is the caller's.
-    state rds_pop(&mut self) {
-        self.rda_close_rc = self.host.close(self.rda_fd);
-        transition self.rda_depth >= 1 { true -> rds_pop_go() _ -> rds_fail() }
-    }
-    state rds_pop_go(&mut self) {
+    state rds_ascend_go(&mut self) {
+        self.w_path_len = self.w_len_stack[self.rda_depth - 2];
         self.rda_depth = self.rda_depth - 1;
-        transition self.rda_depth == 0 { true -> rds_continue() _ -> rds_parent() }
+        transition self.w_path_len < 512 { true -> rds_ascend_nul() _ -> rds_fail() }
     }
-    state rds_parent(&mut self) {
-        transition self.rda_depth >= 1 && self.rda_depth - 1 < 16 {
-            true -> rds_parent_go()
-            _ -> rds_fail()
-        }
-    }
-    state rds_parent_go(&mut self) {
-        self.rda_fd = self.rda_stack[self.rda_depth - 1];
-        self.rdn_result = self.read_dir_entry_fd(self.rda_fd, 0);
-        transition self.rdn_result {
-            DirEntryResult::Ok { entry } -> rds_rm_child(entry)
-            DirEntryResult::End -> rds_continue()
-            DirEntryResult::Error { kind } -> rds_fail()
-        }
-    }
-    state rds_rm_child(&mut self, entry: DirEntry) {
-        transition entry.name_len < 256 { true -> rds_rm_child_go(entry) _ -> rds_fail() }
-    }
-    state rds_rm_child_go(&mut self, entry: DirEntry) {
-        self.rda_rc = self.host.unlink_at(self.rda_fd, entry.name[0..entry.name_len], 128);
-        transition self.rda_rc == 0 { true -> rds_continue() _ -> rds_fail() }
+    state rds_ascend_nul(&mut self) {
+        self.w_path[self.w_path_len] = 0;
+        self.rda_verdict = 1;
     }
 
-    // A live first entry: files unlink; subdirs open + PUSH (descend).
-    state rds_entry(&mut self, entry: DirEntry) {
-        transition entry.name_len < 256 { true -> rds_kind(entry) _ -> rds_fail() }
+    // A REAL entry: capture its name (NUL-truncated into entry_name) and
+    // kind, close the enumeration BEFORE mutating the tree, then join the
+    // child's full path and remove-or-descend.
+    state rds_entry(&mut self) {
+        self.w_capture_name(0);
+        self.w_attr = self.find_buf[0];
+        transition { _ -> rds_close() }
     }
-    state rds_kind(&mut self, entry: DirEntry) {
-        transition entry.is_dir {
-            true -> rds_descend(entry)
-            false -> rds_unlink(entry)
-        }
+    state rds_close(&mut self) {
+        self.rda_close_rc = self.host.find_close(self.w_find);
+        self.rd_lou = self.w_attr as u64 in Wrapping;
+        self.rd_hiu = self.rd_lou & 16;
+        transition self.rd_hiu == 16 { true -> rds_mark_dir() _ -> rds_mark_file() }
     }
-    state rds_unlink(&mut self, entry: DirEntry) {
-        self.rda_rc = self.host.unlink_at(self.rda_fd, entry.name[0..entry.name_len], 0);
-        transition self.rda_rc == 0 { true -> rds_continue() _ -> rds_fail() }
+    state rds_mark_dir(&mut self) {
+        self.w_scan_kind = 1;
+        transition { _ -> rds_join() }
     }
-    state rds_descend(&mut self, entry: DirEntry) {
-        self.rda_sub = self.host.open_at(self.rda_fd, entry.name[0..entry.name_len], self.read_flags);
-        transition self.rda_sub >= 0 { true -> rds_push() _ -> rds_fail() }
+    state rds_mark_file(&mut self) {
+        self.w_scan_kind = 2;
+        transition { _ -> rds_join() }
     }
-    state rds_push(&mut self) {
-        transition self.rda_depth < 16 { true -> rds_push_go() _ -> rds_fail() }
+
+    // JOIN: w_path[w_path_len] = '/', the captured name after it, NUL at
+    // w_child_len = w_path_len + 1 + w_entry_len.
+    state rds_join(&mut self) {
+        self.w_child_len = self.w_path_len + 1 + self.w_entry_len;
+        transition self.w_child_len < 512 { true -> rds_join_slash() _ -> rds_fail() }
     }
-    state rds_push_go(&mut self) {
-        self.rda_stack[self.rda_depth] = self.rda_sub;
+    state rds_join_slash(&mut self) {
+        transition self.w_path_len < 512 { true -> rds_join_slash_go() _ -> rds_fail() }
+    }
+    state rds_join_slash_go(&mut self) {
+        self.w_path[self.w_path_len] = 47;
+        self.rd_j = 0;
+        transition { _ -> rds_jloop() }
+    }
+    state rds_jloop(&mut self) {
+        transition self.rd_j < self.w_entry_len { true -> rds_jcap() _ -> rds_jnul() }
+    }
+    state rds_jcap(&mut self) {
+        transition self.rd_j < 256 { true -> rds_jbyte() _ -> rds_fail() }
+    }
+    state rds_jbyte(&mut self) {
+        self.mkall_byte = self.entry_name[self.rd_j];
+        self.rd_ridx = self.w_path_len + 1 + self.rd_j;
+        transition self.rd_ridx < 512 { true -> rds_jput() _ -> rds_fail() }
+    }
+    state rds_jput(&mut self) {
+        self.w_path[self.rd_ridx] = self.mkall_byte;
+        self.rd_j = self.rd_j + 1;
+        transition { _ -> rds_jloop() }
+    }
+    state rds_jnul(&mut self) {
+        transition self.w_child_len < 512 { true -> rds_jnul_go() _ -> rds_fail() }
+    }
+    state rds_jnul_go(&mut self) {
+        self.w_path[self.w_child_len] = 0;
+        transition self.w_scan_kind == 1 { true -> rds_descend() _ -> rds_unlink() }
+    }
+
+    // FILE child: remove by full joined path, then truncate back to the
+    // current directory (restore the NUL at w_path_len).
+    state rds_unlink(&mut self) {
+        self.w_remove_file_at(self.w_child_len);
+        transition self.rda_rc == 0 { true -> rds_untrunc() _ -> rds_fail() }
+    }
+    state rds_untrunc(&mut self) {
+        transition self.w_path_len < 512 { true -> rds_untrunc_go() _ -> rds_fail() }
+    }
+    state rds_untrunc_go(&mut self) {
+        self.w_path[self.w_path_len] = 0;
+        self.rda_verdict = 1;
+    }
+
+    // DIRECTORY child: descend -- the joined path BECOMES the current path
+    // (already NUL-terminated at w_child_len); push its length.
+    state rds_descend(&mut self) {
+        transition self.rda_depth < 16 { true -> rds_descend_go() _ -> rds_fail() }
+    }
+    state rds_descend_go(&mut self) {
+        self.w_len_stack[self.rda_depth] = self.w_child_len;
         self.rda_depth = self.rda_depth + 1;
-        transition true { true -> rds_continue() _ -> rds_fail() }
+        self.w_path_len = self.w_child_len;
+        self.rda_verdict = 1;
     }
 
-    state rds_continue(&mut self) { self.rda_verdict = 1; }
     state rds_fail(&mut self) { self.rda_verdict = 0 - 1; }
+}
+
+// ---------------------------------------------------------------------------
+// WINDOWS-INTERNAL helpers (single-target names -- paradigm internals, not
+// contract machines; the filter's shared-name rule leaves them silent on
+// posix targets).
+// ---------------------------------------------------------------------------
+
+// Copy the `in Path` param into w_path, byte by byte -- the mkall_walk /
+// mkall_step forward-recursion shape (decreases BoundedDistance). Bytes past
+// index 508 are skipped (the caller's `path.len < 509` gate rejects such
+// paths before any use). STATEMENT-CALLED, like every helper below: their
+// effects live in guarded arm states, which the value-call fence rejects --
+// the fence's own prescription is statement call + field result.
+windows_x64 machine Filesystem::w_path_copy(&mut self, path: &[u8] in Path, i: u64)
+terminates {
+    decreases (i, path.len) -> Nat::BoundedDistance;
+}
+{
+    self.w_path_put(path, i);
+    transition i < path.len {
+        true -> w_path_copy(path, i + 1)
+        false -> wpc_done(i)
+    }
+    // At termination `i == path.len`: store it as w_path_len. `i` is a u64
+    // PARAMETER (a param->field write lowers), NOT the slice's `.len` (a
+    // slice-length->field write has no runtime lowering) -- and there is NO
+    // field RMW accumulator, which on re-invocation read a stale
+    // static-folded zero and undercounted (the chained-RMW-static-fold face;
+    // it silently corrupted every SECOND dir-walk in a process).
+    state wpc_done(&mut self, i: u64) { self.w_path_len = i; }
+}
+
+// One byte of the path copy. Both facts (in the slice, in the buffer) ride
+// ONE incoming conjunct so the reads/writes are dominated in their own
+// transition (facts do not travel across hops).
+windows_x64 machine Filesystem::w_path_put(&mut self, path: &[u8] in Path, i: u64) {
+    transition i < path.len && i < 509 {
+        true -> wpp_go(path, i)
+        _ -> wpp_skip()
+    }
+    state wpp_go(&mut self, path: &[u8] in Path, i: u64) {
+        self.mkall_byte = path[i];
+        self.w_path[i] = self.mkall_byte;
+    }
+    state wpp_skip(&mut self) { self.copy_rc = 0; }
+}
+
+// Overwrite w_path's terminator with the find pattern tail: '/' at
+// w_path_len, '*' after it, NUL after that; w_pat_len = w_path_len + 2.
+// w_help_rc = 0, or -1 when the path leaves no room (>= 509).
+windows_x64 machine Filesystem::w_seal_pattern(&mut self, step: u64) {
+    transition self.w_path_len < 509 { true -> wsp_slash() _ -> wsp_bad() }
+    state wsp_slash(&mut self) {
+        transition self.w_path_len < 512 { true -> wsp_slash_go() _ -> wsp_bad() }
+    }
+    state wsp_slash_go(&mut self) {
+        self.w_path[self.w_path_len] = 47;
+        self.rd_ridx = self.w_path_len + 1;
+        transition self.rd_ridx < 512 { true -> wsp_star_go() _ -> wsp_bad() }
+    }
+    state wsp_star_go(&mut self) {
+        self.w_path[self.rd_ridx] = 42;
+        self.rd_ridx = self.w_path_len + 2;
+        transition self.rd_ridx < 512 { true -> wsp_nul_go() _ -> wsp_bad() }
+    }
+    state wsp_nul_go(&mut self) {
+        self.w_path[self.rd_ridx] = 0;
+        self.w_pat_len = self.w_path_len + 2;
+        self.w_help_rc = 0;
+    }
+    state wsp_bad(&mut self) { self.w_help_rc = 0 - 1; }
+}
+
+// Restore the NUL terminator at w_path_len (after a pattern seal or a
+// child-path truncation). w_help_rc = 0, or -1 out of bounds.
+windows_x64 machine Filesystem::w_restore_nul(&mut self, step: u64) {
+    transition self.w_path_len < 512 { true -> wrn_go() _ -> wrn_bad() }
+    state wrn_go(&mut self) {
+        self.w_path[self.w_path_len] = 0;
+        self.w_help_rc = 0;
+    }
+    state wrn_bad(&mut self) { self.w_help_rc = 0 - 1; }
+}
+
+// The guarded find_first on w_path[0..k] -- the host call lives in a guarded
+// chain of THIS machine's states, so the subslice is provably in bounds; the
+// base pointer is a valid C string because the seal NUL-terminated the
+// pattern. Result rides `w_find` (-1 on out-of-bounds, matching
+// INVALID_HANDLE_VALUE).
+windows_x64 machine Filesystem::w_find_open(&mut self, k: u64) {
+    transition k < 512 { true -> wfo_go(k) _ -> wfo_bad() }
+    state wfo_go(&mut self, k: u64) {
+        self.w_find = self.host.find_first(self.w_path[0..k], &mut self.find_buf);
+    }
+    state wfo_bad(&mut self) { self.w_find = 0 - 1; }
+}
+
+// Guarded remove of the FILE at w_path[0..k] (the joined child path;
+// NUL-terminated at k). Result rides `rda_rc`.
+windows_x64 machine Filesystem::w_remove_file_at(&mut self, k: u64) {
+    transition k < 512 { true -> wrf_go(k) _ -> wrf_bad() }
+    state wrf_go(&mut self, k: u64) {
+        self.rda_rc = self.host.remove_name(self.w_path[0..k]);
+    }
+    state wrf_bad(&mut self) { self.rda_rc = 0 - 1; }
+}
+
+// Guarded remove of the empty DIRECTORY at w_path[0..k]. Result rides
+// `rda_rc`.
+windows_x64 machine Filesystem::w_remove_dir_at(&mut self, k: u64) {
+    transition k < 512 { true -> wrd_go(k) _ -> wrd_bad() }
+    state wrd_go(&mut self, k: u64) {
+        self.rda_rc = self.host.remove_dir_name(self.w_path[0..k]);
+    }
+    state wrd_bad(&mut self) { self.rda_rc = 0 - 1; }
+}
+
+// Copy the current find record's name (NUL-terminated at find_buf[44..])
+// into entry_name, NUL-truncating at 255 bytes; seals entry_name with its
+// own NUL and records w_entry_len. The rdef_copy/rdef_nul state-cycle shape.
+windows_x64 machine Filesystem::w_capture_name(&mut self, step: u64) {
+    self.rd_j = 0;
+    transition { _ -> wcn_loop() }
+    state wcn_loop(&mut self) {
+        self.rd_ridx = 44 + self.rd_j;
+        transition self.rd_ridx < 320 { true -> wcn_read() _ -> wcn_seal() }
+    }
+    state wcn_read(&mut self) {
+        self.rd_nb = self.find_buf[self.rd_ridx];
+        transition self.rd_nb == 0 { true -> wcn_seal() _ -> wcn_put() }
+    }
+    state wcn_put(&mut self) {
+        transition self.rd_j < 255 { true -> wcn_put_go() _ -> wcn_seal() }
+    }
+    state wcn_put_go(&mut self) {
+        self.entry_name[self.rd_j] = self.rd_nb;
+        self.rd_j = self.rd_j + 1;
+        transition { _ -> wcn_loop() }
+    }
+    state wcn_seal(&mut self) {
+        transition self.rd_j < 256 { true -> wcn_seal_go() _ -> wcn_done() }
+    }
+    state wcn_seal_go(&mut self) {
+        self.entry_name[self.rd_j] = 0;
+        self.w_entry_len = self.rd_j;
+        transition { _ -> wcn_done() }
+    }
+    state wcn_done(&mut self) { self.copy_rc = 0; }
+}
+
+// The fueled scan loop -- rda_drain's exact shape over w_scan_step (full
+// fuel, no-op once done; verdict protocol). Returns 0 clean / -1 error.
+windows_x64 machine Filesystem::w_scan_drain(&mut self, fuel: u64)
+terminates {
+    decreases fuel;
+}
+-> i32
+{
+    self.w_scan_step(0);
+    transition fuel > 0 { true -> w_scan_drain(fuel - 1) false -> wsd_settle() }
+    state wsd_settle(&mut self) -> i32 {
+        transition self.w_scan_verdict == 0 { true -> wsd_done() _ -> wsd_fail() }
+    }
+    state wsd_done(&mut self) -> i32 { 0 }
+    state wsd_fail(&mut self) -> i32 { 0 - 1 }
+}
+
+// ONE scan step: consume the pending find_first record or pull the next one;
+// skip dots by NAME; tally non-dot records (dirs by the attribute bit 0x10);
+// capture the target-indexed record's name + kind. Sets `w_scan_verdict`
+// (1 continue / 0 done). The `step` param is the uniform call shape; unused.
+windows_x64 machine Filesystem::w_scan_step(&mut self, step: u64) {
+    transition self.w_scan_done == 1 { true -> ws_idle() _ -> ws_fetch() }
+    state ws_idle(&mut self) { self.w_scan_verdict = 0; }
+
+    state ws_fetch(&mut self) {
+        transition self.w_scan_pending == 1 { true -> ws_first() _ -> ws_next() }
+    }
+    state ws_first(&mut self) {
+        self.w_scan_pending = 0;
+        transition { _ -> ws_classify() }
+    }
+    state ws_next(&mut self) {
+        self.w_next_rc = self.host.find_next(self.w_find, &mut self.find_buf);
+        transition self.w_next_rc == 1 { true -> ws_classify() _ -> ws_end() }
+    }
+    state ws_end(&mut self) {
+        self.w_scan_done = 1;
+        self.w_scan_verdict = 0;
+    }
+
+    state ws_classify(&mut self) {
+        self.rd_lo = self.find_buf[44];
+        self.rd_hi = self.find_buf[45];
+        self.rd_nb = self.find_buf[46];
+        transition self.rd_lo == 46 { true -> ws_dot1() _ -> ws_real() }
+    }
+    state ws_dot1(&mut self) {
+        transition self.rd_hi == 0 { true -> ws_skip() _ -> ws_dot2() }
+    }
+    state ws_dot2(&mut self) {
+        transition self.rd_hi == 46 { true -> ws_dot3() _ -> ws_real() }
+    }
+    state ws_dot3(&mut self) {
+        transition self.rd_nb == 0 { true -> ws_skip() _ -> ws_real() }
+    }
+    state ws_skip(&mut self) { self.w_scan_verdict = 1; }
+
+    state ws_real(&mut self) {
+        self.w_scan_count = self.w_scan_count + 1;
+        self.w_attr = self.find_buf[0];
+        self.rd_lou = self.w_attr as u64 in Wrapping;
+        self.rd_hiu = self.rd_lou & 16;
+        transition self.rd_hiu == 16 { true -> ws_dir() _ -> ws_file() }
+    }
+    state ws_dir(&mut self) {
+        self.w_scan_dirs = self.w_scan_dirs + 1;
+        self.w_scan_kind = 1;
+        transition self.w_scan_count - 1 == self.w_scan_target { true -> ws_hit() _ -> ws_cont() }
+    }
+    state ws_file(&mut self) {
+        self.w_scan_files = self.w_scan_files + 1;
+        self.w_scan_kind = 2;
+        transition self.w_scan_count - 1 == self.w_scan_target { true -> ws_hit() _ -> ws_cont() }
+    }
+    state ws_hit(&mut self) {
+        self.w_capture_name(0);
+        self.w_scan_hit = 1;
+        transition { _ -> ws_cont() }
+    }
+    state ws_cont(&mut self) { self.w_scan_verdict = 1; }
 }

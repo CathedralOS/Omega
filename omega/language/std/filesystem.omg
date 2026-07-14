@@ -428,6 +428,31 @@ data Filesystem {
     // write's LOCAL source does not resolve under a dispatched arm; a FIELD
     // source always does -- the canonical discipline).
     mkall_byte: u8;
+    // Windows dir-walk scratch (rung 3b): the find-enumeration walk keeps a
+    // path-prefix stack (no dirfd exists on windows -- `w_path` holds the
+    // current directory's full path, `w_len_stack` each ancestor's length)
+    // plus the shared scan-core tallies. Unused on posix targets
+    // (ZII-harmless).
+    find_buf: [u8; 320];
+    w_find: i64;
+    w_next_rc: i32;
+    w_help_rc: i32;
+    w_scan_verdict: i32;
+    w_attr: u8;
+    w_scan_count: u64 in Wrapping;
+    w_scan_dirs: u64 in Wrapping;
+    w_scan_files: u64 in Wrapping;
+    w_scan_target: u64 in Wrapping;
+    w_scan_hit: u64 in Wrapping;
+    w_scan_done: u64 in Wrapping;
+    w_scan_pending: u64 in Wrapping;
+    w_scan_kind: u64 in Wrapping;
+    w_entry_len: u64 in Wrapping;
+    w_path_len: u64 in Wrapping;
+    w_child_len: u64 in Wrapping;
+    w_pat_len: u64 in Wrapping;
+    w_len_stack: [u64 in Wrapping; 16];
+    w_path: [u8; 512];
 }
 
 // Create (or truncate) a file for writing, returning an open `File`. Composed
