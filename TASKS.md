@@ -1101,9 +1101,23 @@ rows. Rungs:
   float arms (int/bool twins green): (i) FLOAT RETURNS — FIXED
   same day: the frame-slot value writer gained its FLOAT arm (IEEE
   bits; f32 slots take landing-aware single-rounded bits) — promoted
-  to pass/calls/float_value_call_return_exit; (ii) RUNTIME float-local ARGS don't deliver -- callee
-  sees ZII 0.0 (pending/calls/float_local_value_call_arg_divergence;
-  bind-foldable locals substitute and work). std `is_finite` was
+  to pass/calls/float_value_call_return_exit; (ii) RUNTIME float-local ARGS still don't deliver
+  (pending/calls/float_local_value_call_arg_divergence) -- ROOT
+  SHARPENED 2026-07-18: the value-call INLINER (simplify.rs
+  local_bindings, line ~989, unconditional and load-bearing)
+  substitutes the local's computed initializer into the callee, so
+  `d = x - x` becomes the NESTED float tree `(a/b) - (a/b)`; the
+  BinaryWrite planner then ACCEPTS the nested tree and lowers ONLY the
+  top operation over the wrong operand places (the emitted
+  RuntimeStorageBinaryWrite reads a@0/b@8 directly) -- d gets a wrong
+  value SILENTLY. Fix ladder: (1) the binary-write planner must REFUSE
+  non-flat float operands loudly (kills the silent face); (2) the
+  enabling fix = float expression-chain materialization in expansions
+  (scratch discipline like sin's mut-accumulator, but planner-side).
+  NOTE: a bindings.rs-level "keep computed float locals slotted" patch
+  was tried and REVERTED -- the inliner's own capture (not
+  simple_local_bindings) drives this path, so it changed nothing here
+  and was unwitnessed risk elsewhere. std `is_finite` was
   BUILT + REVERTED same day (unshippable while its runtime-arg path
   silently answers true); it lands the moment (i)+(ii) close -- the
   hoisted-let spelling and the three-leg canary are in this entry's
