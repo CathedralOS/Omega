@@ -1118,12 +1118,23 @@ rows. Rungs:
   fired -- reverted as unwitnessed): the `_in_table` producer
   (binary_table_writes.rs select_runtime_targeted_binary_mutation_write
   _in_table) and the TREE-form producer (mutation.rs
-  select_runtime_binary_mutation_write ~2057). The live producer of
-  the expansion's d-write (#10 RuntimeStorageBinaryWrite reading
-  a@0/b@8) is a THIRD path -- next session: OMEGA_DEBUG-print at every
-  WriteRuntimeStorageBinary construction site (mutation.rs 2363/2456,
-  binary_table_writes.rs 325/521, slice_descriptors.rs 437/480) to
-  identify it, then apply the nested-float refusal THERE.
+  select_runtime_binary_mutation_write ~2057). HUNT COMPLETE 2026-07-18 (the trail, exact):
+  the live producer IS binary_table_writes.rs's PRE-RESOLVED-PLACE
+  entry (select_runtime_storage_binary_write_in_table, the Some(...)
+  at its tail) -- debug-print proven; its operands arrive NESTED
+  (display-name `a / b` on BOTH sides). The refusal placed there did
+  NOT fire because `binary_value_operands_are_float` returns FALSE
+  for the nested trees AND ALSO for their f64-param Name leaves in
+  the EXPANSION context -- while PLACE resolution for the same names
+  works (the emitted write reads a@0/b@8). So the write lowers as an
+  INTEGER op over float bits (a second face of the same disease).
+  NEXT CYCLE STARTS AT: binary_value_operands_are_float's
+  implementation -- find why its float-place query fails for
+  expansion-context param Names when the comparison-operand resolver
+  succeeds; fix the classifier there, THEN the nested refusal (whose
+  exact diff is in this entry's git history, 52c1b430d..) fires and
+  the pin turns loud. All point-patch refusals reverted (none fired;
+  unwitnessed).
   NOTE: a bindings.rs-level "keep computed float locals slotted" patch
   was tried and REVERTED -- the inliner's own capture (not
   simple_local_bindings) drives this path, so it changed nothing here
