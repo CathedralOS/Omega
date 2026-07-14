@@ -38,7 +38,7 @@ pub(super) fn resolved_guard_operand_value(
         // A float literal resolves to its IEEE-754 bit pattern so a guard like
         // `self.a == 5.0` becomes a CompareStaticValue; the emission compares
         // against these bits via `comisd` (selected by the guard's is_float).
-        ExpressionNode::Float(literal) => return Some(literal.value().to_bits() as i64),
+        ExpressionNode::Float(literal) => return Some(literal.landed_f64().to_bits() as i64),
         // A CONSTANT float-arith RHS (`self.a == 0.0 - 6.0`) folds to its bits too, so it
         // is a CompareStaticValue like the integer case (`0 - 6` is folded to a literal
         // upstream; float arith is not, so it arrives here as a Binary node). A place
@@ -63,7 +63,7 @@ pub(super) fn resolved_guard_operand_value(
 /// arithmetic would produce at runtime.
 fn const_fold_float(table: &ExpressionTable, expression: ExpressionHandle) -> Option<f64> {
     match table.expression(expression) {
-        ExpressionNode::Float(literal) => Some(literal.value()),
+        ExpressionNode::Float(literal) => Some(literal.landed_f64()),
         ExpressionNode::Binary(binary) => {
             let left = const_fold_float(table, binary.left)?;
             let right = const_fold_float(table, binary.right)?;

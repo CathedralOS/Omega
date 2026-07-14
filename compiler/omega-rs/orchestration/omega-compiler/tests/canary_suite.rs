@@ -13579,6 +13579,51 @@ fn suffix_landed_operand_position_canary_runs() {
 }
 
 #[test]
+fn suffix_f32_single_rounding_canary_runs() {
+    // F2a: the double-rounding witness -- an f32-suffixed literal parses
+    // ONCE, correctly, to f32 (8388609.0); the old f64 route rounds twice
+    // (8388610.0). Both engines key the landed read identically.
+    let canary = pass_canary("float/suffix_f32_single_rounding_exit");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("f32 single-rounding canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 77,
+        "interpreter oracle should exit 77 (single-rounded f32 witness), got {}",
+        outcome.exit_code
+    );
+
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-f32-rounding-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("f32 single-rounding canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("f32 single-rounding canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(77),
+        "expected the single-rounded f32 witness (exit 77), got {:?} \
+         (78 = the retired f64 double-rounding route)\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn struct_literal_field_coercion_canary_runs() {
     // A struct-literal field init coerces the field value to the field's declared
     // width/domain (interpreter eval_struct_literal): `Point { x: a+b }` with
@@ -30347,6 +30392,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "arithmetic/unsigned_min_max_wrapping_local_exit",
     "arithmetic/unsigned_min_max_operand_position_exit",
     "arithmetic/suffix_landed_operand_position_exit",
+    "float/suffix_f32_single_rounding_exit",
     "arithmetic/runtime_unsigned_division_exit",
     "arithmetic/runtime_min_max_signedness_exit",
     "arithmetic/runtime_comparison_value_signedness_exit",
@@ -30697,6 +30743,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "arithmetic/narrowing_wide_local_unproven",
     "arithmetic/narrowing_signedness_rejected",
     "arithmetic/suffix_type_disagrees_rejected",
+    "float/suffix_format_disagrees_rejected",
     "capabilities/host_provides_unknown_binding",
     "capabilities/host_provides_two_unknown_rejected",
     "capabilities/provides_value_wrong_target_rejected",

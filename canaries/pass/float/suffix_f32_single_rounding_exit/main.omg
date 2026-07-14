@@ -1,0 +1,20 @@
+// RUN CANARY (exit 77, differential) -- F2a: an f32-SUFFIXED literal is
+// rounded ONCE, correctly, from its decimal spelling -- never through an f64
+// intermediate. The spelling below is a DOUBLE-ROUNDING WITNESS:
+//   direct-to-f32:  8388609.4999... -> 8388609.0 (0x4b000001)
+//   via f64 first:  rounds to 8388609.5 exactly, then f32 ties-to-even
+//                   -> 8388610.0 (0x4b000002)
+// The suffix lands the F32 format at parse (the float twin of the integer
+// carrier's CR4a); every literal read -- native store, guard compare, arg
+// materialization, AND the interpreter's eval -- keys the same landed read,
+// so both engines agree bit-for-bit. exit 78 = the old f64 route.
+// Unsuffixed literals keep the transitional f64-then-narrow read on BOTH
+// engines (consistent; retired by destination stamping, F2b).
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine Main::main(&mut self) {
+    let a: f32 = 8388609.499999999999999f32;
+    transition a == 8388609.0 { true -> good() _ -> bad() }
+    state good(&self) { self.console.exit_process(77); }
+    state bad(&self) { self.console.exit_process(78); }
+}

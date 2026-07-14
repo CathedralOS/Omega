@@ -319,7 +319,7 @@ fn simple_local_binding_value_from_table(
             right: simple_local_binding_value_from_table(table, binary.right)?,
         }))),
         ExpressionNode::Boolean(value) => Some(Expression::Boolean(*value)),
-        ExpressionNode::Float(value) => Some(Expression::Float(*value)),
+        ExpressionNode::Float(value) => Some(Expression::Float(value.clone())),
         ExpressionNode::Integer(value) => Some(Expression::Integer(value.clone())),
         ExpressionNode::String(value) => Some(Expression::String(value.clone())),
         ExpressionNode::Indexed(indexed) => {

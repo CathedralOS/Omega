@@ -464,7 +464,7 @@ fn select_runtime_dispatch_call_result_return(
         input.control_flow.expressions.expression(value_expr)
     {
         let value = if byte_size == 4 {
-            i64::from((literal.value() as f32).to_bits())
+            i64::from(literal.f32_bits())
         } else {
             literal.value().to_bits() as i64
         };
@@ -957,7 +957,7 @@ fn select_dispatch_binary_terminal_return(
     };
     let float_literal_value = |handle: ExpressionHandle| -> Option<f64> {
         match expressions.expression(handle) {
-            ExpressionNode::Float(literal) => Some(literal.value()),
+            ExpressionNode::Float(literal) => Some(literal.landed_f64()),
             _ => None,
         }
     };

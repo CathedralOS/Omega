@@ -6,12 +6,6 @@ use crate::expression::{
 };
 use crate::name::DiagnosticName;
 
-impl fmt::Display for FloatLiteral {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(formatter, "{}", self.value())
-    }
-}
-
 impl ExpressionNode {
     pub fn display_name(&self, table: &ExpressionTable) -> String {
         match self {

@@ -4114,7 +4114,11 @@ impl<'program> Evaluator<'program> {
                 )),
             },
             ExpressionNode::Boolean(value) => Ok(Value::Bool(value)),
-            ExpressionNode::Float(value) => Ok(Value::Float(value.value())),
+            // The LANDED read (F2a): an f32-suffixed literal means its
+            // correctly-rounded f32 value everywhere -- widened exactly to the
+            // carrier f64. Keyed on the landing, identically to the native
+            // literal reads (f32_bits), so the engines stay bit-for-bit.
+            ExpressionNode::Float(value) => Ok(Value::Float(value.landed_f64())),
             ExpressionNode::String(value) => Ok(Value::str(value.to_string())),
             ExpressionNode::Name(path) => self.eval_name(&path, frame),
             ExpressionNode::Member(member) => {
