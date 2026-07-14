@@ -1098,9 +1098,10 @@ rows. Rungs:
   bits under the float-kinded static-value guard, mirroring the clause
   path) -- pass/float/expansion_float_local_guard_exit pins it. Probing
   onward found the REAL remaining blockers, both value-call delivery
-  float arms (int/bool twins green): (i) FLOAT RETURNS don't deliver
-  (pending/calls/float_value_call_return_divergence, literal arg,
-  native 71); (ii) RUNTIME float-local ARGS don't deliver -- callee
+  float arms (int/bool twins green): (i) FLOAT RETURNS — FIXED
+  same day: the frame-slot value writer gained its FLOAT arm (IEEE
+  bits; f32 slots take landing-aware single-rounded bits) — promoted
+  to pass/calls/float_value_call_return_exit; (ii) RUNTIME float-local ARGS don't deliver -- callee
   sees ZII 0.0 (pending/calls/float_local_value_call_arg_divergence;
   bind-foldable locals substitute and work). std `is_finite` was
   BUILT + REVERTED same day (unshippable while its runtime-arg path
