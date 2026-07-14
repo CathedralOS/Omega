@@ -1,0 +1,100 @@
+// RUN CANARY (exit 70, WINDOWS-HOST ONLY) -- the find-enumeration seam trio
+// (fs portable-contract rung 3a): find_first/find_next/find_close, the
+// windows dir-walk paradigm behind the portable contract. Creates a
+// directory with two files, opens `finddir/*` (the pattern joins with `/`,
+// which Win32 accepts natively and which matches the hermetic FS keys
+// byte-exactly), then walks: first entry "." (directory bit set), then
+// "..", "a.txt", "b.txt" (both engines list dots first, then children in
+// sorted order), then end (find_next == 0), then find_close == 1.
+//
+// Attribute checks use ONLY the directory bit (0x10): native files carry
+// ARCHIVE (0x20) and friends while the interpreter models NORMAL (0x80) --
+// the BIT is the contract, full attribute equality is not. Not in the
+// cross-host sweep lists: posix targets have NO lowering for the trio BY
+// DESIGN (their impls walk dirent records instead); the #[cfg(windows)]
+// suite test is the runner.
+// exits: 70 good; 71 setup failed; 72 find_first failed; 73 first entry not
+// "."/not a dir; 74 second not ".."; 75 third not "a.txt"; 76 fourth not
+// "b.txt"/dir bit set on a file; 77 enumeration did not end; 78 find_close
+// failed.
+
+use omega::language::std::filesystem_host;
+
+boundary trait Console { machine exit_process(return_code: i32); }
+
+data Main {
+    console: Console;
+    raw: FilesystemHost;
+    data_buf: [u8; 320];
+    handle: i64;
+    fd: i32;
+    rc: i32;
+}
+
+machine Main::main(&mut self) {
+    self.rc = self.raw.create_dir("finddir", 493);
+    self.fd = self.raw.create("finddir/a.txt", 438);
+    self.rc = self.raw.close(self.fd);
+    self.fd = self.raw.create("finddir/b.txt", 438);
+    self.rc = self.raw.close(self.fd);
+    transition self.fd >= 0 { true -> open_find() _ -> bad(71) }
+
+    state open_find(&mut self) {
+        self.handle = self.raw.find_first("finddir/*", &mut self.data_buf);
+        transition self.handle >= 0 { true -> check_dot() _ -> bad(72) }
+    }
+
+    state check_dot(&mut self) {
+        // "." -- name byte 46 at the WIN32_FIND_DATAA name offset (44).
+        transition self.data_buf[44] == 46 { true -> check_dot_attr() _ -> bad(73) }
+    }
+    state check_dot_attr(&mut self) {
+        let attr: u8 = self.data_buf[0];
+        transition (attr & 16) == 16 { true -> next_dotdot() _ -> bad(73) }
+    }
+
+    state next_dotdot(&mut self) {
+        self.rc = self.raw.find_next(self.handle, &mut self.data_buf);
+        transition self.rc == 1 { true -> check_dotdot() _ -> bad(74) }
+    }
+    state check_dotdot(&mut self) {
+        // ".." -- two dot bytes then the terminating NUL.
+        transition self.data_buf[45] == 46 { true -> next_a() _ -> bad(74) }
+    }
+
+    state next_a(&mut self) {
+        self.rc = self.raw.find_next(self.handle, &mut self.data_buf);
+        transition self.rc == 1 { true -> check_a() _ -> bad(75) }
+    }
+    state check_a(&mut self) {
+        // "a.txt" -- name starts with 'a' (97).
+        transition self.data_buf[44] == 97 { true -> next_b() _ -> bad(75) }
+    }
+
+    state next_b(&mut self) {
+        self.rc = self.raw.find_next(self.handle, &mut self.data_buf);
+        transition self.rc == 1 { true -> check_b() _ -> bad(76) }
+    }
+    state check_b(&mut self) {
+        transition self.data_buf[44] == 98 { true -> check_b_attr() _ -> bad(76) }
+    }
+    state check_b_attr(&mut self) {
+        // A FILE: the directory bit must be CLEAR (native ARCHIVE 0x20 /
+        // interp NORMAL 0x80 both leave bit 4 clear).
+        let attr: u8 = self.data_buf[0];
+        transition (attr & 16) == 0 { true -> check_end() _ -> bad(76) }
+    }
+
+    state check_end(&mut self) {
+        self.rc = self.raw.find_next(self.handle, &mut self.data_buf);
+        transition self.rc == 0 { true -> close_find() _ -> bad(77) }
+    }
+
+    state close_find(&mut self) {
+        self.rc = self.raw.find_close(self.handle);
+        transition self.rc == 1 { true -> good() _ -> bad(78) }
+    }
+
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self, code: i32) { self.console.exit_process(code); }
+}

@@ -294,6 +294,22 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         [host_operation("Filesystem", "unlink")],
         PlatformCallData::None,
     );
+    // The TRUSTED plain-path removal twins (D-at trust class, the
+    // create_dir_name precedent) -- same native rows as remove/remove_dir.
+    insert_platform_lowering(
+        plan,
+        "FilesystemHost",
+        "remove_name",
+        [host_operation("Filesystem", "unlink")],
+        PlatformCallData::None,
+    );
+    insert_platform_lowering(
+        plan,
+        "FilesystemHost",
+        "remove_dir_name",
+        [host_operation("Filesystem", "rmdir")],
+        PlatformCallData::None,
+    );
     insert_platform_lowering(
         plan,
         "FilesystemHost",

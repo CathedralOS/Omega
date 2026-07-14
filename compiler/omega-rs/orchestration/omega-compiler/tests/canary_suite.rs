@@ -25085,6 +25085,57 @@ stderr:
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// The find-enumeration seam trio (fs portable-contract rung 3a):
+// find_first/find_next/find_close over kernel32 FindFirstFileA/FindNextFileA/
+// FindClose, the windows dir-walk paradigm behind the portable contract.
+// WINDOWS-HOST ONLY by design: posix targets have no lowering for the trio
+// (their impls walk dirent records), so the canary lives outside the
+// cross-host sweep lists and this gated test is its runner. Interp + native
+// differential (the hermetic find-cursor model mirrors Win32 semantics:
+// dots first, snapshot-at-open, directory bit at data[0], name at data[44]).
+#[cfg(windows)]
+#[test]
+fn windows_find_enumeration_exit_canary_runs() {
+    let canary = pass_canary("filesystem/windows_find_enumeration_exit");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("find-enumeration canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should exit 70 (dots + a.txt + b.txt + end + close), got {}",
+        outcome.exit_code
+    );
+
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-find-enum-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("find-enumeration canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .current_dir(&build_dir)
+        .output()
+        .expect("find-enumeration canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the find trio walk to exit 70 (71 setup; 72 find_first; 73 \".\"; 74 \"..\"; 75 a.txt; 76 b.txt/dir-bit; 77 end; 78 close), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // Native windows metadata via msvcrt `_stat64` (the per-target stat-offset
 // migration payoff). The wrapper's `decode_metadata` reads `stat_buf[ST_*_OFF + k]`
 // -- a pure-const binary index that now const-folds -- at the windows `_stat64`

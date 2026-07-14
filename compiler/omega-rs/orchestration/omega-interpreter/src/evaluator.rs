@@ -502,6 +502,12 @@ struct Evaluator<'program> {
     virtual_next_fd: i32,
     /// Directories in the virtual filesystem (create_dir/remove_dir).
     virtual_dirs: std::collections::BTreeSet<Vec<u8>>,
+    /// Open find-enumeration cursors (`find_first`/`find_next`/`find_close`,
+    /// the windows dir-walk seam ops, fs rung 3a): handle -> the REMAINING
+    /// entries (name bytes, is_dir), snapshotted at `find_first` exactly like
+    /// a Win32 find handle. Handles start at 1 (-1 is INVALID_HANDLE_VALUE).
+    virtual_finds: BTreeMap<i64, std::collections::VecDeque<(Vec<u8>, bool)>>,
+    virtual_next_find: i64,
     /// Explicitly-set permission bits per path (`set_permissions`/chmod). A path
     /// absent from this map is treated as writable (the default); only a path
     /// chmod'd to drop the owner-write bit (mode & 0o200 == 0) makes a write-open
@@ -578,6 +584,8 @@ impl<'program> Evaluator<'program> {
             virtual_fds: BTreeMap::new(),
             virtual_next_fd: 3,
             virtual_dirs: std::collections::BTreeSet::new(),
+            virtual_finds: BTreeMap::new(),
+            virtual_next_find: 1,
             virtual_perms: BTreeMap::new(),
             virtual_symlinks: BTreeMap::new(),
             virtual_times: BTreeMap::new(),
@@ -2924,7 +2932,10 @@ impl<'program> Evaluator<'program> {
                     }
                 }
             }
-            "remove" => {
+            // `remove_name` is the TRUSTED plain-path twin (D-at trust class,
+            // the create_dir_name precedent): the arg bytes ARE the path, so
+            // both spellings share one model.
+            "remove" | "remove_name" => {
                 let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
                 if self.virtual_files.remove(&path).is_some() {
                     0
@@ -3025,7 +3036,7 @@ impl<'program> Evaluator<'program> {
                     -1
                 }
             }
-            "remove_dir" => {
+            "remove_dir" | "remove_dir_name" => {
                 let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
                 if self.virtual_dirs.remove(&path) {
                     0
@@ -3253,6 +3264,63 @@ impl<'program> Evaluator<'program> {
                             n as i64
                         }
                     }
+                }
+            }
+            "find_first" => {
+                // `find_first(pattern, &data)` -- the windows dir-walk seam (fs
+                // rung 3a). `pattern` is `dir/*`: the impl joins with `/`, which
+                // Win32 accepts natively and which matches the hermetic FS keys
+                // byte-exactly. Snapshot the directory's entries (".", "..",
+                // then the immediate children -- the same set read_dir packs)
+                // into a cursor keyed by a fresh handle, fill the FIRST entry's
+                // find-data record, and return the handle; -1
+                // (INVALID_HANDLE_VALUE, ENOENT) when the directory does not
+                // exist. A real directory always yields "." first, so an open
+                // enumeration always has a first entry -- exactly Win32.
+                let pattern = self.eval_fs_bytes(arguments.first().copied(), frame)?;
+                let entries = pattern
+                    .strip_suffix(b"/*")
+                    .filter(|dir_path| self.virtual_dirs.contains(*dir_path))
+                    .map(|dir_path| self.build_find_entries(dir_path));
+                match entries {
+                    Some(mut entries) => {
+                        let (name, is_dir) =
+                            entries.pop_front().expect("dot entries are always present");
+                        self.write_find_data(arguments.get(1).copied(), frame, &name, is_dir);
+                        let handle = self.virtual_next_find;
+                        self.virtual_next_find += 1;
+                        self.virtual_finds.insert(handle, entries);
+                        handle
+                    }
+                    None => {
+                        self.virtual_errno = 2; // ENOENT
+                        -1
+                    }
+                }
+            }
+            "find_next" => {
+                // `find_next(handle, &data)`: fill the next snapshotted entry
+                // (1 = filled, 0 = end-of-enumeration or unknown handle).
+                let handle = self.eval_fs_scalar(arguments.first().copied(), frame)?;
+                match self
+                    .virtual_finds
+                    .get_mut(&handle)
+                    .and_then(std::collections::VecDeque::pop_front)
+                {
+                    Some((name, is_dir)) => {
+                        self.write_find_data(arguments.get(1).copied(), frame, &name, is_dir);
+                        1
+                    }
+                    None => 0,
+                }
+            }
+            "find_close" => {
+                // `find_close(handle)`: release the cursor (BOOL, like Win32).
+                let handle = self.eval_fs_scalar(arguments.first().copied(), frame)?;
+                if self.virtual_finds.remove(&handle).is_some() {
+                    1
+                } else {
+                    0
                 }
             }
             "read_metadata" => {
@@ -3528,6 +3596,58 @@ impl<'program> Evaluator<'program> {
         full.push(b'/');
         full.extend_from_slice(name);
         Some(full)
+    }
+
+    /// The find-enumeration twin of `build_dirent_records` (fs rung 3a): the
+    /// same entry set (".", "..", then the immediate children of `dir_path`)
+    /// as (name, is_dir) pairs for a `find_first` cursor snapshot.
+    fn build_find_entries(
+        &self,
+        dir_path: &[u8],
+    ) -> std::collections::VecDeque<(Vec<u8>, bool)> {
+        let mut entries: std::collections::VecDeque<(Vec<u8>, bool)> =
+            std::collections::VecDeque::from([(b".".to_vec(), true), (b"..".to_vec(), true)]);
+        let mut prefix = dir_path.to_vec();
+        prefix.push(b'/');
+        let immediate_child = |path: &[u8]| -> Option<Vec<u8>> {
+            let rest = path.strip_prefix(prefix.as_slice())?;
+            if rest.is_empty() || rest.contains(&b'/') {
+                None
+            } else {
+                Some(rest.to_vec())
+            }
+        };
+        for path in self.virtual_files.keys() {
+            if let Some(name) = immediate_child(path) {
+                entries.push_back((name, false));
+            }
+        }
+        for path in &self.virtual_dirs {
+            if let Some(name) = immediate_child(path) {
+                entries.push_back((name, true));
+            }
+        }
+        entries
+    }
+
+    /// Fill a caller find-data buffer (`&mut [u8]`, >= 320 bytes) the way
+    /// `FindFirstFileA`/`FindNextFileA` write WIN32_FIND_DATAA: file
+    /// attributes u32 little-endian at byte 0 (FILE_ATTRIBUTE_DIRECTORY 0x10 /
+    /// FILE_ATTRIBUTE_NORMAL 0x80) and the NUL-terminated entry name at byte
+    /// 44. Other fields are left zero.
+    fn write_find_data(
+        &mut self,
+        argument: Option<ExpressionHandle>,
+        frame: &Frame,
+        name: &[u8],
+        is_dir: bool,
+    ) {
+        let mut record = vec![0u8; 320];
+        let attributes: u32 = if is_dir { 0x10 } else { 0x80 };
+        record[0..4].copy_from_slice(&attributes.to_le_bytes());
+        let name_len = name.len().min(259);
+        record[44..44 + name_len].copy_from_slice(&name[..name_len]);
+        self.write_fs_buffer(argument, frame, &record);
     }
 
     fn build_dirent_records(&self, dir_path: &[u8]) -> Vec<u8> {

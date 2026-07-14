@@ -71,6 +71,12 @@ pub const WINDOWS_IMPORT_ROWS: &[(&str, &str, &str, &str)] = &[
     // stat variant matching the wrapper's per-target `_stat64` offset layout.
     ("Filesystem", "stat", "msvcrt.dll", "_stat64"),
     ("Filesystem", "fstat", "msvcrt.dll", "_fstat64"),
+    // The find-enumeration trio (fs portable-contract rung 3a): the windows
+    // dir-walk paradigm. FindFirstFileA(pattern, &data) returns a HANDLE
+    // (INVALID_HANDLE_VALUE = -1); FindNextFileA/FindClose return BOOL.
+    ("Filesystem", "find_first", "Kernel32.dll", "FindFirstFileA"),
+    ("Filesystem", "find_next", "Kernel32.dll", "FindNextFileA"),
+    ("Filesystem", "find_close", "Kernel32.dll", "FindClose"),
     // set_len -> `_chsize_s(fd, __int64 size)` (ftruncate's msvcrt analogue). The
     // 64-bit variant so the i64 length is not truncated to `_chsize`'s 32-bit
     // `long`; returns 0 on success like ftruncate (the wrapper checks rc == 0 and
@@ -395,6 +401,49 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
             "FilesystemHost",
             "remove",
             [host_operation("Filesystem", "unlink")],
+            PlatformCallData::None,
+        );
+        // The TRUSTED plain-path removal twins (D-at trust class, the
+        // create_dir_name precedent): a path JOINED from enumeration names
+        // inside the windows dir-walk is no_nul by construction. Same native
+        // rows as remove/remove_dir.
+        insert_platform_lowering(
+            plan,
+            "FilesystemHost",
+            "remove_name",
+            [host_operation("Filesystem", "unlink")],
+            PlatformCallData::None,
+        );
+        insert_platform_lowering(
+            plan,
+            "FilesystemHost",
+            "remove_dir_name",
+            [host_operation("Filesystem", "rmdir")],
+            PlatformCallData::None,
+        );
+        // The find-enumeration trio -- the windows dir-walk paradigm behind
+        // the portable contract (fs rung 3a). Posix targets have NO lowering
+        // for these (their impls walk dirent records instead); the per-target
+        // impl split keeps the asymmetry honest.
+        insert_platform_lowering(
+            plan,
+            "FilesystemHost",
+            "find_first",
+            [host_operation("Filesystem", "find_first")],
+            PlatformCallData::None,
+        );
+        insert_platform_lowering(
+            plan,
+            "FilesystemHost",
+            "find_next",
+            [host_operation("Filesystem", "find_next")],
+            PlatformCallData::None,
+        );
+        insert_platform_lowering(
+            plan,
+            "FilesystemHost",
+            "find_close",
+            [host_operation("Filesystem", "find_close")],
             PlatformCallData::None,
         );
         insert_platform_lowering(

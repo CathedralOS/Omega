@@ -348,6 +348,18 @@ pub enum HostOperation {
     /// (0 at end). Underpins Rust `fs::read_dir`. Four args incl. an in/out
     /// position pointer.
     ReadDir,
+    /// `FindFirstFileA(pattern, &find_data)` -- open a windows directory
+    /// enumeration for `pattern` (typically `dir\*`) and fill the FIRST entry's
+    /// WIN32_FIND_DATAA record (attributes u32 @0, directory bit 0x10;
+    /// NUL-terminated cFileName @44; record 320 bytes). Returns the find HANDLE
+    /// as i64, or -1 (INVALID_HANDLE_VALUE). The windows half of the fs
+    /// portable-contract dir-walk (rung 3a); posix targets never lower it.
+    FindFirst,
+    /// `FindNextFileA(handle, &find_data)` -- fill the NEXT entry of an open
+    /// enumeration (BOOL: 1 = filled, 0 = end).
+    FindNext,
+    /// `FindClose(handle)` -- release a find handle (BOOL).
+    FindClose,
     /// `stat(path, buf)` -- fill a `struct stat` buffer for a PATH (Rust
     /// `fs::metadata`). A path pointer + a buffer pointer (the kernel writes the
     /// 144-byte darwin stat record through it); the Omega layer reads `st_size`
@@ -616,6 +628,9 @@ impl HostOperation {
             "symlink" => Self::Symlink,
             "readlink" => Self::ReadLink,
             "getdirentries64" => Self::ReadDir,
+            "find_first" => Self::FindFirst,
+            "find_next" => Self::FindNext,
+            "find_close" => Self::FindClose,
             "stat" => Self::Stat,
             "fstat" => Self::FStat,
             "lstat" => Self::LStat,
@@ -708,6 +723,9 @@ impl HostOperation {
             Self::Symlink => "symlink",
             Self::ReadLink => "readlink",
             Self::ReadDir => "getdirentries64",
+            Self::FindFirst => "find_first",
+            Self::FindNext => "find_next",
+            Self::FindClose => "find_close",
             Self::Stat => "stat",
             Self::FStat => "fstat",
             Self::LStat => "lstat",
