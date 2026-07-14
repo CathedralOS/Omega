@@ -1,0 +1,21 @@
+// PASS canary (abort-as-effect first sentence, RULED + LANDED 2026-07-18;
+// was pending/expressions/dead_trapping_let_not_elided, found 2026-07-08).
+// A DEAD trapping let -- `let b: i32 in Trapping = a + a;` whose overflow
+// would trap, but `b` is never used -- must STILL TRAP: the trap is an
+// EFFECT, so the computation "actually traps on paper; it's not dead code
+// anymore" (owner ruling). Native used to DCE the write and the trap away
+// (exit 7 past the overflow) while the interpreter trapped; the storage
+// layer now keeps a trap-carrying initializer's slot so the ordinary write
+// path lowers the trap (the backend may optimize to any trap-EQUIVALENT
+// lowering, but never to silence). Both engines abort abnormally now.
+//
+// Follow-up (TASKS): a provably-always-trapping CONST computation like this
+// one should also get a compile-time WARNING (not an error -- owner).
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine Main::main(&mut self) {
+    let a: i32 in Trapping = 2000000000;
+    let b: i32 in Trapping = a + a;
+    self.console.exit_process(7);
+}
+machine Main::run(&mut self) { self.main(); }

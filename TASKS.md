@@ -929,6 +929,21 @@ rejects — an INTEGER ruling, engineering rides this ladder as F8).
 
 ## Recently answered holds (rulings 2026-07-18; now ungated engineering)
 
+- **Dead trapping computation — RULED + LANDED: a trap is an EFFECT,
+  never dead** (the first sentence of abort-as-effect #65; the full
+  effect-model design stays its own future item). A Trapping op "actually
+  traps on paper — it's not dead code anymore"; the backend may lower to
+  any trap-EQUIVALENT effect but never to silence, and NO contract
+  auto-narrowing ever (boundary signatures are the truth as written).
+  Landed: the storage layer keeps trap-carrying initializers' slots
+  (initializer_carries_trapping_arithmetic, both the destination-declared
+  and operand-declared faces); pinned
+  pass/expressions/dead_trapping_let_traps (both engines abort).
+  FOLLOW-UP RUNG: a provably-always-trapping CONST computation gets a
+  compile-time WARNING (owner: warning, not error — no compelling reason
+  to forbid it; future unused-var warnings live in the same family).
+  Validation-side, the exact engine can evaluate the const operands.
+
 - **Q13 console convergence — ANSWERED: (ii), the guide is the spec.**
   Platform blocks converge onto `boundary trait Console` + std provides
   rows (ch19 shape; `console: Console` field spelling stays). Work: the
