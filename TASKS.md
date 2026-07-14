@@ -1274,6 +1274,23 @@ rejects — an INTEGER ruling, engineering rides this ladder as F8).
   relaxation (shared-name loud edge fires only for names implemented by
   >= 2 targets; the windows walk's helper machines are single-target
   paradigm internals) → note_vault compile-fail → green in one step.
+  BISECT STRATEGY (banked 2026-07-18 for the focused session): the
+  repro needs the shelved bundle live — do it in a GIT WORKTREE, never
+  on main: (1) `git worktree add` a scratch tree; (2) apply the bundle
+  (reference bodies over filesystem_impl.omg + the `w_*` field block
+  into filesystem.omg — diff the reference README; + the >= 2
+  relaxation + demo_target2 canary row); (3) repro = scratch probe
+  rda_p10 shape (TWO read_dir_count calls; second reads path.len ~0 —
+  exit 72); (4) go WHITE-BOX from there: `omega-run --keep` +
+  backend_report on the probe, diff the FIRST vs SECOND call's
+  emitted arg-materialization for the wrapper entry (the slice
+  descriptor ptr+len words) — the known-good twins are the &mut-param
+  slice forwards; also compare against
+  pending/storage/local_slice_forward_segfault (a possibly-shared
+  root: frame-local slice descriptors crossing state boundaries).
+  Facts already isolated: single wrapper call GREEN, raw find ×2
+  GREEN, bare slice-walk machine ×2 GREEN — the bug needs host calls +
+  array writes + nested fuel drains in ONE machine family.
 
 - **`pending_runtime_divergences_hold` — GREENED 2026-07-18 (ledger
   host-corrected):** (a) `float_to_int_overflow_divergence` now documents
