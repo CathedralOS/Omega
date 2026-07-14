@@ -1,0 +1,24 @@
+// RUN CANARY (exit 70, differential) -- a FLOAT-typed local guarded inside
+// an INLINED value machine (`let d: f64 = x - x; transition d == 0.0`)
+// lowers: the expansion guard path gained the float-literal arm (IEEE bits
+// under the float-kinded static-value guard, the same shape the plain-
+// machine clause path emits). Before the arm, this refused loudly with
+// "guard needs runtime guard lowering" -- the re-attributed is_finite
+// blocker's GUARD half. The arg is a LITERAL deliberately: float value-call
+// RETURN and runtime-float-local ARG delivery are still open (pinned in
+// pending/calls/float_value_call_*_divergence), and this canary isolates
+// the guard face from those.
+boundary trait Console { machine exit_process(return_code: i32); }
+machine finite_probe(x: f64) -> bool {
+    let d: f64 = x - x;
+    transition d == 0.0 { true -> yes() _ -> no() }
+    state yes() -> bool { true }
+    state no() -> bool { false }
+}
+data Main { console: Console; }
+machine Main::main(&mut self) {
+    let ok: bool = finite_probe(3.5);
+    transition ok == true { true -> good() _ -> bad() }
+    state good(&self) { self.console.exit_process(70); }
+    state bad(&self) { self.console.exit_process(71); }
+}

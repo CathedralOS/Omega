@@ -13579,6 +13579,51 @@ fn suffix_boundary_magnitudes_canary_runs() {
 }
 
 #[test]
+fn expansion_float_local_guard_canary_runs() {
+    // The float-literal guard arm in the EXPANSION path: an inlined callee's
+    // float-local guard (`d == 0.0`) lowers instead of refusing.
+    let canary = pass_canary("float/expansion_float_local_guard_exit");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("expansion float guard canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should exit 70 (finite literal routes true), got {}",
+        outcome.exit_code
+    );
+
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-exp-float-guard-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("expansion float guard canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("expansion float guard canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the inlined float-local guard to lower and route true (exit 70), got {:?}
+stderr:
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn bool_value_call_return_canary_runs() {
     // Bool-returning value calls deliver in all three faces (attached
     // let-bound, free let-bound, direct-in-guard) -- the 07-08-era
@@ -30280,6 +30325,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "slices/runtime_indexed_element_copy_write_exit",
     "calls/struct_literal_transition_arg_exit",
     "calls/bool_value_call_return_exit",
+    "float/expansion_float_local_guard_exit",
     "collections/runtime_palindrome_two_pointer_exit",
     "collections/runtime_bracket_matcher_stack_exit",
     "collections/runtime_argmax_index_exit",

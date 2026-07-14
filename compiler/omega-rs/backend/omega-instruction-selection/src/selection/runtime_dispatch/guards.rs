@@ -7,7 +7,7 @@ use omega_checked_trees::name::Identifier;
 use omega_checked_trees::statement::TransitionGuard;
 use omega_core::arena::Arena;
 use omega_runtime_branching::{RuntimeLeafBranchExpansion, RuntimeStraightLineBranchExpansion};
-use omega_state_guards::{StateGuardKind, StateGuardOperator};
+use omega_state_guards::{StateGuardKind, StateGuardLowering, StateGuardOperator};
 
 use super::super::storage_places::{
     clamp_runtime_case_comparison_operands, clamp_runtime_case_comparison_operands_in_table,
@@ -1475,6 +1475,47 @@ pub(super) fn runtime_storage_guard_in_table(
             byte_size: left.byte_count,
             operator,
             is_float: false,
+        });
+    }
+
+    // A FLOAT-literal side compares as its IEEE-754 bit pattern under the
+    // float-kinded static-value guard (the same EvaluateDispatchGuard shape
+    // the plain-machine CLAUSE path emits -- comisd against the bits). This
+    // arm was MISSING from the expansion path, so an inlined callee's
+    // `d == 0.0` refused loudly while the identical plain-machine guard
+    // lowered fine (the is_finite face).
+    let float_literal_bits = |expression: ExpressionHandle| -> Option<i64> {
+        match expressions.expression(expression) {
+            ExpressionNode::Float(literal) => Some(literal.landed_f64().to_bits() as i64),
+            _ => None,
+        }
+    };
+    if let Some(place) = left.clone()
+        && let Some(expected_value) = float_literal_bits(binary.right)
+    {
+        return Some(SelectedInstructionKind::EvaluateDispatchGuard {
+            guard_lowering: StateGuardLowering::CompareStaticValue,
+            operator,
+            storage_region: place.region,
+            byte_offset: place.byte_offset,
+            byte_size: place.byte_count,
+            expected_value,
+            has_storage: true,
+            is_float: true,
+        });
+    }
+    if let Some(place) = right.clone()
+        && let Some(expected_value) = float_literal_bits(binary.left)
+    {
+        return Some(SelectedInstructionKind::EvaluateDispatchGuard {
+            guard_lowering: StateGuardLowering::CompareStaticValue,
+            operator,
+            storage_region: place.region,
+            byte_offset: place.byte_offset,
+            byte_size: place.byte_count,
+            expected_value,
+            has_storage: true,
+            is_float: true,
         });
     }
 

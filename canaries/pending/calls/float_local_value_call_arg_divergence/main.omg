@@ -1,0 +1,25 @@
+// PENDING (found 2026-07-18 building std is_finite): a RUNTIME float local
+// (not bind-foldable -- here constructed by division) does not DELIVER as a
+// value-call argument natively; the callee sees ZII 0.0. Exposed as
+// is_finite(inf) returning true (x arrived 0.0, so x - x == 0.0). Integer
+// local args deliver; bind-foldable float locals substitute as literals and
+// deliver. The BOOL return keeps this canary independent of the float
+// RETURN gap (its own pin sits beside this one).
+boundary trait Console { machine exit_process(return_code: i32); }
+machine is_zeroish(x: f64) -> bool {
+    let d: f64 = x - x;
+    transition d == 0.0 { true -> yes() _ -> no() }
+    state yes() -> bool { true }
+    state no() -> bool { false }
+}
+data Main { console: Console; }
+machine Main::main(&mut self) {
+    transition { _ -> check(1.0, 0.0) }
+    state check(&mut self, a: f64, b: f64) {
+        let inf: f64 = a / b;
+        let verdict: bool = is_zeroish(inf);
+        transition verdict == false { true -> good() _ -> bad() }
+    }
+    state good(&self) { self.console.exit_process(70); }
+    state bad(&self) { self.console.exit_process(71); }
+}

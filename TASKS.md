@@ -1093,9 +1093,21 @@ rows. Rungs:
   fence is the INLINED CALLEE'S FLOAT-LOCAL GUARD: `let d: f64 = x - x;
   transition d == 0.0` inside the machine refuses loudly at the CALLER
   ("guard needs runtime guard lowering") because the expansion's float
-  local does not resolve as a guard operand. That is the float-guard
-  resolution face (same family as float_local_misfold's GUARD-position
-  inline float arith), NOT a delivery gap. `is_finite` waits on it. Window
+  local does not resolve as a guard operand. The GUARD half was FIXED
+  the same day: the expansion path gained the float-literal arm (IEEE
+  bits under the float-kinded static-value guard, mirroring the clause
+  path) -- pass/float/expansion_float_local_guard_exit pins it. Probing
+  onward found the REAL remaining blockers, both value-call delivery
+  float arms (int/bool twins green): (i) FLOAT RETURNS don't deliver
+  (pending/calls/float_value_call_return_divergence, literal arg,
+  native 71); (ii) RUNTIME float-local ARGS don't deliver -- callee
+  sees ZII 0.0 (pending/calls/float_local_value_call_arg_divergence;
+  bind-foldable locals substitute and work). std `is_finite` was
+  BUILT + REVERTED same day (unshippable while its runtime-arg path
+  silently answers true); it lands the moment (i)+(ii) close -- the
+  hoisted-let spelling and the three-leg canary are in this entry's
+  history (6f7ed41fa..). Inline guard-position float arith stays
+  loudly fenced (unchanged). Window
   enforcement additionally waits on the invariant-window machinery
   (unbuilt).
 - **F4 — float→int cast ruling** (ANSWERED — see Recently answered
