@@ -1140,10 +1140,20 @@ rows. Rungs:
   (71). ⚠️ THE REAL HOLE: the mutation-not-planned emission blocker
   does NOT cover INLINED-EXPANSION statements -- planner None-returns
   silently drop there TODAY (a latent silent-miscompile class beyond
-  this face). CORRECT FIX LADDER: (1) extend state_mutation_is_planned
-  /storage_blockers coverage to expansion statements so refusals are
-  LOUD; (2) land the three-door nested-float refusal (exact diffs in
-  git history around this entry); (3) the enabling fix = float
+  this face). CORRECT FIX LADDER: (1) extend the LOCAL-INITIALIZER
+  planned-write coverage in storage_blockers (a slot alone is not
+  delivery) -- FIRST ATTEMPT 2026-07-18 over-fired and was REVERTED:
+  gating on state_mutation_is_planned flags legitimate
+  pointee-materialization locals (`let con_out = table.con_out`, the
+  EFI reference-param-member deref shape: 5 EFI canaries + samples
+  failed) whose writes are planned under kinds/anchors outside the
+  mutation list. CALIBRATE next time: run the check in WARN/census
+  mode over the whole corpus, enumerate every legitimate
+  initializer-write kind (pointee deref reads, call-result copies,
+  string writes, ...), THEN enforce. (2) land the three-door
+  nested-float refusal (exact diffs in git history around this
+  entry: pre-resolved + targeted entries in binary_table_writes.rs,
+  tree-form in mutation.rs). (3) the enabling fix = float
   expression-chain materialization in expansions. The pin
   (pending/calls/float_local_value_call_arg_divergence) stays.
   NOTE: a bindings.rs-level "keep computed float locals slotted" patch
