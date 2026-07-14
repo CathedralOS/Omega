@@ -1128,13 +1128,24 @@ rows. Rungs:
   the EXPANSION context -- while PLACE resolution for the same names
   works (the emitted write reads a@0/b@8). So the write lowers as an
   INTEGER op over float bits (a second face of the same disease).
-  NEXT CYCLE STARTS AT: binary_value_operands_are_float's
-  implementation -- find why its float-place query fails for
-  expansion-context param Names when the comparison-operand resolver
-  succeeds; fix the classifier there, THEN the nested refusal (whose
-  exact diff is in this entry's git history, 52c1b430d..) fires and
-  the pin turns loud. All point-patch refusals reverted (none fired;
-  unwitnessed).
+  MAP COMPLETE 2026-07-18 (second dig; supersedes the
+  type-blind-classifier attribution, which was a stale-binary
+  phantom -- the classifier WORKS: classifier_float=true at the
+  pre-resolved entry, target f64 at the tree-form entry): the
+  BinaryWrite producer FALLBACK CHAIN is three doors deep --
+  binary_table_writes pre-resolved entry -> its targeted entry ->
+  mutation.rs tree-form entry -- and refusing at ALL THREE (verified
+  fresh, refusals fired in sequence) produced a SILENT DROP: the
+  d-write vanished, the compile stayed CLEAN, and the pin ran wrong
+  (71). ⚠️ THE REAL HOLE: the mutation-not-planned emission blocker
+  does NOT cover INLINED-EXPANSION statements -- planner None-returns
+  silently drop there TODAY (a latent silent-miscompile class beyond
+  this face). CORRECT FIX LADDER: (1) extend state_mutation_is_planned
+  /storage_blockers coverage to expansion statements so refusals are
+  LOUD; (2) land the three-door nested-float refusal (exact diffs in
+  git history around this entry); (3) the enabling fix = float
+  expression-chain materialization in expansions. The pin
+  (pending/calls/float_local_value_call_arg_divergence) stays.
   NOTE: a bindings.rs-level "keep computed float locals slotted" patch
   was tried and REVERTED -- the inliner's own capture (not
   simple_local_bindings) drives this path, so it changed nothing here
