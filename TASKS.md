@@ -1067,13 +1067,36 @@ rejects — an INTEGER ruling, engineering rides this ladder as F8).
   Cross-target SIGNATURE agreement deferred to the `satisfies`
   enforcement rung (callers still typecheck against the selected
   impl — the safety edge; agreement is a quality diagnostic).
-  NEXT RUNG: impl files — std/targets/<t>/filesystem_impl.omg per
-  target (windows starts as a byte-copy of the posix body so this
-  host's gates keep today's exact reds, nothing worse), imported from
-  the target def files; move the dir-walk family
-  (read_dir_count/stats/nth/is_empty/entry_fd/remove_dir_all/rda_step)
-  behind `<target> machine` markers; THEN the windows FindFirstFile
-  rewrite + kernel32 rows flips note_vault green.
+  IMPL-FILE RUNG LANDED 2026-07-18: the dir-walk family — SEVEN
+  machines (read_dir_count/stats/nth, read_dir_entry_fd,
+  remove_dir_all, rda_drain, rda_step; read_dir_is_empty STAYS
+  portable, it composes read_dir_nth) — moved verbatim from
+  filesystem.omg into four `std/targets/<t>/filesystem_impl.omg`
+  files as `<t> machine` items, imported by the WRAPPER
+  (filesystem.omg) -- ⚠️ NOT by the target defs: the raw seam imports
+  every target def, so target-def-imported impl machines LEAKED into
+  raw-seam programs with no `data Filesystem` (file_journal + 8 suite
+  canaries broke on ghost wrapper machines; caught by the gate
+  battery, import edge moved same day). Provides ROWS are
+  self-contained facts and suit target-def imports; impl MACHINES are
+  wrapper parts and ride the wrapper's imports. The files still LIVE
+  beside their provides rows (the settled shape). filesystem.omg keeps
+  the CONTRACT block (the seven signatures + the loud-edge note) where
+  the bodies were.
+  The three posix copies are byte-identical today; the linux headers
+  flag the getdents64 record-layout divergence (d_type@18/name@19 vs
+  darwin's @20/@21) to diverge WHEN linux dir canaries arrive — that
+  divergence is what the shape exists for. The windows copy is a
+  PLACEHOLDER byte-copy: still fails host lowering with the SAME five
+  diagnostics (note_vault the one samples red, verified byte-alike),
+  nothing worse, nothing hidden.
+  NEXT RUNG (flips note_vault green): rewrite the windows impl bodies
+  over FindFirstFileA/FindNextFileA/FindClose handle enumeration +
+  kernel32 DllImport provides rows (WIN32_FIND_DATAA: dwFileAttributes
+  @0, cFileName @44, ATTRIBUTE_DIRECTORY 0x10; remove via
+  DeleteFileA/RemoveDirectoryA on joined paths INSIDE the impl — path
+  joining below the contract is the windows paradigm, exactly Rust's
+  split) — plus the interp's cfg-mirror for those rows if modeled.
 
 - **`pending_runtime_divergences_hold` — GREENED 2026-07-18 (ledger
   host-corrected):** (a) `float_to_int_overflow_divergence` now documents
