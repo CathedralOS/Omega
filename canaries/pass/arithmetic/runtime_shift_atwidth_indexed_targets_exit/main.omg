@@ -53,7 +53,8 @@ machine Main::main(&mut self) {
         }
     }
     state pointee(&mut self) {
-        self.write_slot(self.h);
+        // `&mut self.h` spelled explicitly (2026-07-18 borrow-mutability check).
+        self.write_slot(&mut self.h);
         transition self.h.slot == 0 {
             true  -> exact_count_shl()
             false -> bad_pointee()

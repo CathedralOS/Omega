@@ -1,0 +1,31 @@
+// FAIL CANARY (borrow-mutability enforcement, LANDED 2026-07-18; was
+// pending/arithmetic/immutable_arg_for_mut_param_not_checked). `handle`
+// takes `c: &mut Counter` (it may mutate through it), but `main` passes an
+// IMMUTABLE reference `&self.c` (a shared `&` vanishes at parse time, so a
+// bare place expression IS the immutable-lend spelling). This used to
+// compile silently -- `validate_call_arguments_handles` skipped the
+// mismatch with a `continue` -- and the unenforced write SEGFAULTED
+// natively (0xC0000005). Now it rejects.
+//
+// The check is SEMANTIC, not syntactic: a bare-name FORWARD of something
+// that is already a `&mut` reference stays legal -- a `&mut` parameter
+// passed onward, or a local declared `&mut T` / bound to a `&mut place`
+// initializer. Only a genuinely immutable lend for a `&mut` parameter
+// errors. The safe direction (`&mut x` for a `&` parameter) was always
+// accepted and still is.
+//
+// expected error: argument `c` for state `handle` is declared `&mut`
+// (`&mut Counter`), but the caller lends only immutable access
+
+boundary trait Console { machine exit_process(return_code: i32); }
+
+data Counter { n: i32 in Wrapping; }
+data Main { console: Console; c: Counter; }
+
+machine Main::main(&mut self) {
+    transition { _ -> handle(&self.c) } // &self.c (immutable) for a `&mut Counter` param
+    state handle(&mut self, c: &mut Counter) {
+        c.n = c.n + 1; // would mutate through a borrow the caller lent immutably
+        self.console.exit_process(c.n);
+    }
+}

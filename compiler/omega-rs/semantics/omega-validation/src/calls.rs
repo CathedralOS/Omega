@@ -549,6 +549,54 @@ pub(crate) fn report_argument_count_mismatch(
     false
 }
 
+/// Whether an argument that is NOT spelled `&mut ...` still DELIVERS a
+/// mutable reference: a bare name forwarding a `&mut` parameter, or a local
+/// that is itself a `&mut` reference (declared `&mut T`, or bound to a
+/// `&mut place` initializer). Everything else lends immutable access -- a
+/// shared `&` vanishes at parse time, so a bare place expression IS the
+/// immutable-lend spelling. Bindings resolve at WHOLE-MACHINE scope (a
+/// sub-state legitimately reads the entry state's params and locals), so
+/// every state of the current machine is consulted.
+fn argument_forwards_mutable_reference(
+    program: &TypedTrees,
+    current_machine: &Machine,
+    argument: ExpressionHandle,
+) -> bool {
+    let ExpressionNode::Name(path) = program.expression_table.expression(argument) else {
+        return false;
+    };
+    let [name] = program.expression_table.name_path_members(path.members) else {
+        return false;
+    };
+    program.machine_states(current_machine).iter().any(|state| {
+        if program
+            .state_parameters(state)
+            .iter()
+            .any(|parameter| parameter.is_mutable && parameter.name == *name)
+        {
+            return true;
+        }
+        program
+            .statement_table
+            .statements(state.statement_nodes)
+            .iter()
+            .any(|statement| {
+                let StatementNode::LocalData(local_data) = statement else {
+                    return false;
+                };
+                if local_data.name != *name {
+                    return false;
+                }
+                crate::locals::local_is_mutable_reference(program, local_data)
+                    || (local_data.initial_value.is_valid()
+                        && matches!(
+                            program.expression_table.expression(local_data.initial_value),
+                            ExpressionNode::Mutable(_)
+                        ))
+            })
+    })
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn validate_call_arguments_handles(
     program: &TypedTrees,
@@ -575,6 +623,24 @@ pub(crate) fn validate_call_arguments_handles(
         );
 
         if parameter.is_mutable && !is_mutable {
+            // Not spelled `&mut ...`. The only legitimate remaining shape is
+            // a FORWARD: a bare name that is itself already a `&mut`
+            // reference (a `&mut` parameter passed onward, or a local bound
+            // to a `&mut` borrow). Anything else lends IMMUTABLE access to a
+            // parameter that may write through it -- the borrow-safety hole
+            // this arm used to skip silently (a shared `&` vanishes at parse
+            // time, so a bare place expression IS the immutable-lend
+            // spelling; the unenforced write segfaulted natively).
+            if !argument_forwards_mutable_reference(program, current_machine, *argument) {
+                diagnostics.push(Diagnostic::error(format!(
+                    "argument `{}` for state `{}` is declared `&mut` (`{}`), but the \
+                     caller lends only immutable access -- pass `&mut ...` or forward a \
+                     `&mut` binding",
+                    parameter.name,
+                    target_name,
+                    program.display_type_reference_with_constraints(parameter.type_reference),
+                )));
+            }
             continue;
         }
 
