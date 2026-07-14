@@ -1317,16 +1317,17 @@ rejects — an INTEGER ruling, engineering rides this ladder as F8).
     2nd call's path.len word = frame_base + 0x1a0 (in the repro,
     0x140008b58 + 0x1a0 = 0x140008cf8) to catch the clobbering store's
     IP, then map IP -> machine/state via the emission plan.
-  • SEPARATE LATENT BUG FOUND (fix regardless): .bss is UNDERSIZED for
-    the frame region — it reserves 560 bytes (machine 2904 -> .bss
-    3464) but runtime_frame_storage_size = slots(560) + argument-
-    staging scratch(560) ≈ 1120, so the scratch region extends ~560
-    bytes past .bss vsize. HARMLESS in this repro only because page
-    granularity zero-commits to 4096; a larger frame crossing the page
-    boundary would corrupt. The scratch (frame_scratch_base+size) is
-    computed by runtime_frame_storage_size but NOT reflected in the
-    .bss size (sections.rs bss_size = frame_offset + runtime_frame_size
-    — trace why the passed value drops the scratch).
+  • .bss OBSERVATION (NOT confirmed a bug — recheck, do not chase
+    blind): .bss vsize 3464 = machine 2904 + 560; the 560 = frame SLOTS
+    only. IF the argument-staging scratch (reserve_frame_scratch_region:
+    frame_scratch_size = slots_extent) were reserved for this program,
+    runtime_frame_storage_size would be ~1120 and .bss should be ~4024
+    — but it's 3464, so EITHER scratch is NOT reserved here (=> .bss
+    correct, no bug) OR the scratch is dropped from the .bss size (real
+    bug). RESOLVE FIRST by checking whether frame_scratch_size > 0 for
+    this program before treating it as a bug. Page granularity
+    (zero-commit to 4096) would mask an undersize in this repro anyway.
+    This is a SIDE lead, secondary to the watchpoint.
 
 - **`pending_runtime_divergences_hold` — GREENED 2026-07-18 (ledger
   host-corrected):** (a) `float_to_int_overflow_divergence` now documents
