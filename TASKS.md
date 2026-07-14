@@ -1145,6 +1145,44 @@ rejects — an INTEGER ruling, engineering rides this ladder as F8).
   stack) go on portable `data Filesystem` (unused on posix, harmless
   ZII). THEN note_vault green natively + interp, samples gate fully
   green.
+  (3b) BODIES — AUTHORED + LOGIC-COMPLETE 2026-07-18, BACKEND-BLOCKED,
+  SHELVED as a reference (not committed live). The full windows walk is
+  written and CORRECT: interp GREEN on note_vault (exits 14) and every
+  probe; native GREEN on any SINGLE dir-walk (fresh remove_dir_all on a
+  one-file dir and a nested tree both exit 70; read_dir_count correct).
+  BLOCKER: a SECOND dir-walk wrapper call in the same process
+  miscompiles natively — scan-then-drain (note_vault's exact shape),
+  drain-then-drain, and scan-then-scan all fail; the second call
+  behaves as if its `&[u8] in Path` slice parameter has length ~0
+  (w_path built empty → find pattern seals over garbage → find_first
+  returns INVALID_HANDLE_VALUE → the walk no-ops). Isolation done: the
+  find seam ops themselves are fine (raw find_first/close/find_first
+  ×2 exits 70); the bug is in repeated VALUE-MACHINE invocation with a
+  slice arg, NOT the find ops and NOT the Omega logic. Does NOT reduce
+  to a clean minimal case (a bare `&[u8]`-walk machine called twice
+  works; the bug needs the full wrapper context — host calls + array
+  writes + nested fuel drains together), so no compiling minimal
+  pending-canary yet. Root-cause candidates: the slice-descriptor
+  (ptr+len) call-argument materialization for repeated wrapper calls
+  (see memory [[local-slice-forward-segfault]],
+  [[slice-byteslice-native-consume]],
+  [[value-machine-computed-index-miscompile]]). Two byte-level
+  LANDMINES found + fixed IN the shelved bodies (keep on revive):
+  (i) `self.w_path_len = path.len` (slice-length → field) has NO
+  runtime lowering — capture the copy recursion's terminal index `i`
+  (== path.len) as a u64 PARAM and store THAT; a field-RMW accumulator
+  read a stale static-folded zero and undercounted every second walk;
+  (ii) rda_step's rds_rootdone must zero `rda_depth` (not just the
+  verdict) or the fuel loop RE-OPENS a find enumeration on the drained
+  root every iteration (~4096 leaked find handles/call). SHELF: full
+  bodies in `omega/language/std/targets/windows_x64/reference/
+  filesystem_impl.win_bodies.reference.txt` + README. REVIVE = fix the
+  repeated-slice-arg backend bug → drop the bodies into
+  filesystem_impl.omg + restore the `w_*` scratch block in
+  filesystem.omg + re-apply target_machines.rs single-target-internal
+  relaxation (shared-name loud edge fires only for names implemented by
+  >= 2 targets; the windows walk's helper machines are single-target
+  paradigm internals) → note_vault compile-fail → green in one step.
 
 - **`pending_runtime_divergences_hold` — GREENED 2026-07-18 (ledger
   host-corrected):** (a) `float_to_int_overflow_divergence` now documents
