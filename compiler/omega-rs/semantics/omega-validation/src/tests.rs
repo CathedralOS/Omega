@@ -1936,7 +1936,11 @@ mod structural_entailment {
     #[test]
     fn mul_succ_right_without_choreography_fences() {
         // Dropping the three rearrangement citations strands the step case:
-        // the IH alone cannot bridge the summand order.
+        // the IH alone cannot bridge the summand order. Since rearrange-mode
+        // (2026-07-18) this test ALSO pins the license discipline: the comm
+        // and assoc lemmas are IN SCOPE in this very program, but no
+        // CommutativeSemiring conformance is declared, so the rearrange tier
+        // must NOT fire -- explicit conformance, never scope-sniffing.
         let uncited = MUL_SUCC_RIGHT
             .replace("add_comm(b, add(prev, mul(prev, b))); ", "")
             .replace("add_assoc(prev, mul(prev, b), b); ", "")

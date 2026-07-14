@@ -124,7 +124,7 @@ pub(crate) fn validate_machine_contract_entailment(
     // engine's vacuity rule. Payload-carrying constructor TERMS in facts are
     // grammar-gated today (struct literals do not parse in contract
     // position), so injectivity decomposition is the recorded next rung.
-    let mut structural = StructuralJudge::from_requires(program, &requires);
+    let mut structural = StructuralJudge::from_requires(program, machine, &requires);
     // CITATIONS (ch10 "Citing Proofs"; the OWNER_QUESTIONS #14 answer):
     // each statement call to a free proof machine carries the callee's
     // proven ensures to this proof, instantiated at the call's argument
@@ -3099,6 +3099,20 @@ enum StructuralTerm {
     Opaque(String),
 }
 
+/// REARRANGE-MODE license (settle 2026-07-18, rung C): a carrier EARNS ring
+/// canonicalization over an op through EXPLICIT conformance, never
+/// scope-sniffing. A license exists for op machine `add_machine` when some
+/// trait declares an op slot with BOTH a commutativity law and an
+/// associativity law over it (detected by SHAPE, not by name -- `R(x, y) ==
+/// R(y, x)` and `R(R(x, y), z) == R(x, R(y, z))` with distinct requirement
+/// params), the op slot is conformed by `add_machine`, and BOTH law slots
+/// have satisfiers for the same carrier (whose proofs rung B already
+/// machine-checked against the declared laws).
+#[derive(Clone, Debug)]
+struct RingLicense {
+    add_machine: String,
+}
+
 struct StructuralJudge<'program> {
     program: &'program TypedTrees,
     substitutions: Vec<(String, StructuralTerm)>,
@@ -3108,6 +3122,7 @@ struct StructuralJudge<'program> {
     /// variable into it, which also serves asymmetric goals.
     rewrites: Vec<(StructuralTerm, StructuralTerm)>,
     hypotheses_contradictory: bool,
+    ring_licenses: Vec<RingLicense>,
 }
 
 impl Clone for StructuralJudge<'_> {
@@ -3117,17 +3132,23 @@ impl Clone for StructuralJudge<'_> {
             substitutions: self.substitutions.clone(),
             rewrites: self.rewrites.clone(),
             hypotheses_contradictory: self.hypotheses_contradictory,
+            ring_licenses: self.ring_licenses.clone(),
         }
     }
 }
 
 impl<'program> StructuralJudge<'program> {
-    fn from_requires(program: &'program TypedTrees, requires: &[ExpressionHandle]) -> Self {
+    fn from_requires(
+        program: &'program TypedTrees,
+        judged_machine: &Machine,
+        requires: &[ExpressionHandle],
+    ) -> Self {
         let mut judge = Self {
             program,
             substitutions: Vec::new(),
             rewrites: Vec::new(),
             hypotheses_contradictory: false,
+            ring_licenses: compute_ring_licenses(program, judged_machine),
         };
         for fact in requires {
             judge.intake(program, *fact);
@@ -3639,7 +3660,12 @@ impl<'program> StructuralJudge<'program> {
 
     /// Judge one resolved structural equation: identical terms prove,
     /// same-case constructors decompose pairwise (all fields prove =>
-    /// proven, any refutes => refuted), distinct cases refute.
+    /// proven, any refutes => refuted), distinct cases refute. A stuck
+    /// equation gets the REARRANGE tier before standing down: under a ring
+    /// license, both sides flatten to addend MULTISETS over the licensed op
+    /// (the commutativity + associativity closure the carrier's conformance
+    /// proved) -- equal multisets prove; unequal ones stay Unknown (atoms may
+    /// alias, so rearrangement never refutes).
     fn judge_equation(
         &self,
         left: StructuralTerm,
@@ -3665,6 +3691,9 @@ impl<'program> StructuralJudge<'program> {
             },
         ) = (&left, &right)
         else {
+            if self.ring_rearranged_equal(&left, &right) {
+                return StructuralJudgment::Proven;
+            }
             return StructuralJudgment::Unknown;
         };
         if data_l != data_r {
@@ -3687,6 +3716,360 @@ impl<'program> StructuralJudge<'program> {
         }
         verdict
     }
+
+    /// The rearrange tier's comparison: for each ring license whose op
+    /// appears in the equation, flatten both sides into addend multisets
+    /// (nested applications of the licensed op associate away; everything
+    /// else is an atom by canonical display) and compare. At least two
+    /// addends must appear -- a single atom has nothing to rearrange.
+    fn ring_rearranged_equal(&self, left: &StructuralTerm, right: &StructuralTerm) -> bool {
+        for license in &self.ring_licenses {
+            let op = license.add_machine.as_str();
+            if !term_uses_application(left, op) && !term_uses_application(right, op) {
+                continue;
+            }
+            let mut left_addends = Vec::new();
+            additive_addends(left, op, &mut left_addends);
+            let mut right_addends = Vec::new();
+            additive_addends(right, op, &mut right_addends);
+            if left_addends.len() != right_addends.len() || left_addends.len() < 2 {
+                continue;
+            }
+            left_addends.sort();
+            right_addends.sort();
+            if left_addends == right_addends {
+                return true;
+            }
+        }
+        false
+    }
+}
+
+/// Flatten nested applications of the licensed op into its addend list; any
+/// other term is one addend, compared by canonical display (the Opaque
+/// discipline).
+fn additive_addends(term: &StructuralTerm, op: &str, out: &mut Vec<String>) {
+    if let StructuralTerm::Application { machine, arguments } = term {
+        if machine == op && arguments.len() == 2 {
+            additive_addends(&arguments[0], op, out);
+            additive_addends(&arguments[1], op, out);
+            return;
+        }
+    }
+    out.push(display_structural_term(term));
+}
+
+fn term_uses_application(term: &StructuralTerm, op: &str) -> bool {
+    match term {
+        StructuralTerm::Application { machine, arguments } => {
+            machine == op
+                || arguments
+                    .iter()
+                    .any(|argument| term_uses_application(argument, op))
+        }
+        StructuralTerm::Constructor { fields, .. } => fields
+            .iter()
+            .any(|(_, value)| term_uses_application(value, op)),
+        _ => false,
+    }
+}
+
+/// Compute the program's REARRANGE licenses (settle 2026-07-18): for every
+/// trait, find op slots carrying BOTH a commutativity law and an
+/// associativity law (matched by SHAPE over the trait's own requirement
+/// names), then license each conforming op machine whose carrier also has
+/// satisfiers for both law slots. Conformance is the license -- rung B
+/// machine-checked those satisfiers against the declared laws, so the
+/// closure the canonicalizer assumes is exactly what the carrier proved.
+///
+/// NO CIRCULAR LICENSING: a machine that itself binds a comm/assoc LAW slot
+/// of a trait gets NO licenses from that trait -- the axiom base always
+/// proves ring-free. This kills self-licensing (add_comm rearranging its own
+/// goal into triviality) AND multi-machine cycles (two comm satisfiers each
+/// licensed by the other's conformance, none carrying a real proof).
+fn compute_ring_licenses(program: &TypedTrees, judged_machine: &Machine) -> Vec<RingLicense> {
+    let mut licenses = Vec::new();
+
+    for trait_definition in program.traits() {
+        // Op slot name -> (has commutativity law named, has associativity law
+        // named): the LAW requirement names matter later (their satisfiers
+        // must exist for the carrier).
+        let mut comm_laws: Vec<(String, String)> = Vec::new(); // (op, law requirement)
+        let mut assoc_laws: Vec<(String, String)> = Vec::new();
+
+        for requirement in program.trait_machine_signatures(trait_definition) {
+            let parameters: Vec<String> = program
+                .state_signature_parameters(requirement)
+                .iter()
+                .map(|parameter| parameter.name.as_str().to_owned())
+                .collect();
+            for contract in program.state_signature_contracts(requirement) {
+                if contract.kind != SignatureContractKind::Ensures {
+                    continue;
+                }
+                for fact in program.proof_facts.span_or_empty(contract.facts) {
+                    let ProofFact::Expression(expression) = fact else {
+                        continue;
+                    };
+                    let mut conjuncts = Vec::new();
+                    collect_equality_conjuncts(program, *expression, &mut conjuncts);
+                    for conjunct in conjuncts {
+                        let ExpressionNode::Binary(binary) =
+                            program.expression_table.expression(conjunct)
+                        else {
+                            continue;
+                        };
+                        let (Some(left), Some(right)) = (
+                            structural_term(program, binary.left),
+                            structural_term(program, binary.right),
+                        ) else {
+                            continue;
+                        };
+                        if let Some(op) = commutativity_shape(&left, &right, &parameters) {
+                            comm_laws.push((op, requirement.name.as_str().to_owned()));
+                        }
+                        if let Some(op) = associativity_shape(&left, &right, &parameters) {
+                            assoc_laws.push((op, requirement.name.as_str().to_owned()));
+                        }
+                    }
+                }
+            }
+        }
+
+        // The judged machine binding ANY comm/assoc law slot of this trait
+        // disqualifies the whole trait as a license source for it.
+        let law_slot_names: Vec<&String> = comm_laws
+            .iter()
+            .chain(assoc_laws.iter())
+            .map(|(_, law)| law)
+            .collect();
+        let judged_binds_law_slot =
+            program
+                .machine_trait_conformances(judged_machine)
+                .iter()
+                .any(|conformance| {
+                    if conformance.symbol != trait_definition.symbol {
+                        return false;
+                    }
+                    let bound = conformance
+                        .requirement
+                        .as_ref()
+                        .map(|name| name.as_str().to_owned())
+                        .or_else(|| {
+                            judged_machine
+                                .attached_data
+                                .is_none()
+                                .then(|| judged_machine.name.as_str().to_owned())
+                        });
+                    bound
+                        .as_deref()
+                        .is_some_and(|name| law_slot_names.iter().any(|law| law.as_str() == name))
+                });
+        if judged_binds_law_slot {
+            continue;
+        }
+
+        for (op_slot, comm_law) in &comm_laws {
+            let Some((_, assoc_law)) = assoc_laws.iter().find(|(op, _)| op == op_slot) else {
+                continue;
+            };
+            // Every machine conforming the op slot is a candidate license --
+            // provided its carrier also conformed BOTH law slots.
+            for candidate in program.machines() {
+                for conformance in program.machine_trait_conformances(candidate) {
+                    if conformance.symbol != trait_definition.symbol {
+                        continue;
+                    }
+                    let bound_requirement = conformance
+                        .requirement
+                        .as_ref()
+                        .map(|name| name.as_str().to_owned())
+                        .or_else(|| {
+                            candidate
+                                .attached_data
+                                .is_none()
+                                .then(|| candidate.name.as_str().to_owned())
+                        });
+                    if bound_requirement.as_deref() != Some(op_slot.as_str()) {
+                        continue;
+                    }
+                    let Some(candidate_entry) = program.machine_states(candidate).first() else {
+                        continue;
+                    };
+                    let carrier = program
+                        .state_parameters(candidate_entry)
+                        .first()
+                        .map(|parameter| parameter.type_reference)
+                        .unwrap_or(candidate_entry.return_type);
+                    if slot_satisfier_exists(program, trait_definition, comm_law, carrier)
+                        && slot_satisfier_exists(program, trait_definition, assoc_law, carrier)
+                    {
+                        licenses.push(RingLicense {
+                            add_machine: candidate.name.as_str().to_owned(),
+                        });
+                    }
+                }
+            }
+        }
+    }
+
+    licenses
+}
+
+/// Whether SOME machine conforms `(trait, requirement)` for this carrier.
+fn slot_satisfier_exists(
+    program: &TypedTrees,
+    trait_definition: &TraitDefinition,
+    requirement_name: &str,
+    carrier: omega_typed_trees::types::TypeReferenceHandle,
+) -> bool {
+    program.machines().iter().any(|candidate| {
+        program
+            .machine_trait_conformances(candidate)
+            .iter()
+            .any(|conformance| {
+                if conformance.symbol != trait_definition.symbol {
+                    return false;
+                }
+                let bound_requirement = conformance
+                    .requirement
+                    .as_ref()
+                    .map(|name| name.as_str().to_owned())
+                    .or_else(|| {
+                        candidate
+                            .attached_data
+                            .is_none()
+                            .then(|| candidate.name.as_str().to_owned())
+                    });
+                if bound_requirement.as_deref() != Some(requirement_name) {
+                    return false;
+                }
+                let Some(candidate_entry) = program.machine_states(candidate).first() else {
+                    return false;
+                };
+                let candidate_carrier = program
+                    .state_parameters(candidate_entry)
+                    .first()
+                    .map(|parameter| parameter.type_reference)
+                    .unwrap_or(candidate_entry.return_type);
+                crate::type_references::type_references_match(program, candidate_carrier, carrier)
+            })
+    })
+}
+
+/// `R(x, y) == R(y, x)` with `x`/`y` DISTINCT requirement parameters -> the
+/// op slot `R` is declared commutative by this law.
+fn commutativity_shape(
+    left: &StructuralTerm,
+    right: &StructuralTerm,
+    parameters: &[String],
+) -> Option<String> {
+    let StructuralTerm::Application {
+        machine: op_l,
+        arguments: args_l,
+    } = left
+    else {
+        return None;
+    };
+    let StructuralTerm::Application {
+        machine: op_r,
+        arguments: args_r,
+    } = right
+    else {
+        return None;
+    };
+    if op_l != op_r || args_l.len() != 2 || args_r.len() != 2 {
+        return None;
+    }
+    let [StructuralTerm::Variable(x), StructuralTerm::Variable(y)] = args_l.as_slice() else {
+        return None;
+    };
+    let [StructuralTerm::Variable(rx), StructuralTerm::Variable(ry)] = args_r.as_slice() else {
+        return None;
+    };
+    let is_parameter = |name: &String| parameters.iter().any(|parameter| parameter == name);
+    (x != y && rx == y && ry == x && is_parameter(x) && is_parameter(y))
+        .then(|| op_l.clone())
+}
+
+/// `R(R(x, y), z) == R(x, R(y, z))` (either orientation) with distinct
+/// requirement parameters -> the op slot `R` is declared associative.
+fn associativity_shape(
+    left: &StructuralTerm,
+    right: &StructuralTerm,
+    parameters: &[String],
+) -> Option<String> {
+    for (first, second) in [(left, right), (right, left)] {
+        let StructuralTerm::Application {
+            machine: op_outer,
+            arguments: outer_args,
+        } = first
+        else {
+            continue;
+        };
+        if outer_args.len() != 2 {
+            continue;
+        }
+        let StructuralTerm::Application {
+            machine: op_inner,
+            arguments: inner_args,
+        } = &outer_args[0]
+        else {
+            continue;
+        };
+        if op_inner != op_outer || inner_args.len() != 2 {
+            continue;
+        }
+        let (
+            StructuralTerm::Variable(x),
+            StructuralTerm::Variable(y),
+            StructuralTerm::Variable(z),
+        ) = (&inner_args[0], &inner_args[1], &outer_args[1])
+        else {
+            continue;
+        };
+        let StructuralTerm::Application {
+            machine: op_right,
+            arguments: right_args,
+        } = second
+        else {
+            continue;
+        };
+        if op_right != op_outer || right_args.len() != 2 {
+            continue;
+        }
+        let StructuralTerm::Variable(rx) = &right_args[0] else {
+            continue;
+        };
+        let StructuralTerm::Application {
+            machine: op_right_inner,
+            arguments: right_inner_args,
+        } = &right_args[1]
+        else {
+            continue;
+        };
+        if op_right_inner != op_outer || right_inner_args.len() != 2 {
+            continue;
+        }
+        let (StructuralTerm::Variable(ry), StructuralTerm::Variable(rz)) =
+            (&right_inner_args[0], &right_inner_args[1])
+        else {
+            continue;
+        };
+        let is_parameter = |name: &String| parameters.iter().any(|parameter| parameter == name);
+        let distinct = x != y && y != z && x != z;
+        if distinct
+            && rx == x
+            && ry == y
+            && rz == z
+            && is_parameter(x)
+            && is_parameter(y)
+            && is_parameter(z)
+        {
+            return Some(op_outer.clone());
+        }
+    }
+    None
 }
 
 /// Whether `haystack` contains `needle` as a subterm (occurs check for the

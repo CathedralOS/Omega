@@ -1,0 +1,21 @@
+// THE REARRANGE-MODE ACCEPTANCE PIN (settle 2026-07-18, rung C): importing
+// core nat compiles its CommutativeSemiring conformance AND the two
+// artifacts the settle named:
+// - `mul_distributes` proves with ZERO citations (its step case's
+//   four-addend shuffle is discharged by the engine's rearrange tier,
+//   licensed by Nat's explicit conformance -- add_comm + add_assoc proven
+//   and bound);
+// - `mul_succ_right`'s msr_step citation choreography is DELETED (the
+//   comm/assoc/comm rewrite dance the brief called the showcase) -- bare
+//   induction now proves it.
+// The license is EXPLICIT conformance, never lemmas-in-scope: the
+// no-license and false-shuffle fences are pinned by
+// fail/proofs/ring_rearrange_unlicensed_rejected and
+// ring_rearrange_false_shuffle_rejected.
+use omega::language::core::nat;
+
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine Main::main(&mut self) {
+    self.console.exit_process(70);
+}
