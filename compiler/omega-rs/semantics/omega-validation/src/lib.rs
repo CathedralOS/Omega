@@ -70,6 +70,7 @@ pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
     let fact_plan = omega_facts::build_definition_fact_plan(program);
 
     literals::validate_literal_widths(program, &mut diagnostics);
+    literals::validate_suffix_landings(program, &mut diagnostics);
     validate_domain_definitions(program, &symbols, &fact_plan, &mut diagnostics);
     validate_invariant_definitions(program, &fact_plan, &mut diagnostics);
     validate_callable_state_signatures(program, &symbols, &mut diagnostics);

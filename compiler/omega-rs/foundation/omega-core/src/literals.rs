@@ -49,6 +49,20 @@ impl LandedIntegerType {
     pub fn is_signed(self) -> bool {
         matches!(self, Self::I8 | Self::I16 | Self::I32 | Self::I64)
     }
+
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::I8 => "i8",
+            Self::I16 => "i16",
+            Self::I32 => "i32",
+            Self::I64 => "i64",
+            Self::U8 => "u8",
+            Self::U16 => "u16",
+            Self::U32 => "u32",
+            Self::U64 => "u64",
+            Self::Addr => "addr",
+        }
+    }
 }
 
 /// A landed constant's riding facts: the integer type it was rendered at and

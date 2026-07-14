@@ -1,12 +1,19 @@
-use omega_core::literals::{IntegerLiteral, IntegerRadix};
+use omega_core::arithmetic::ArithmeticDomain;
+use omega_core::literals::{IntegerLanding, IntegerLiteral, IntegerRadix, LandedIntegerType};
 use omega_tokens::{FloatLiteralKind, IntegerLiteralKind, NumericBase};
 
-/// Parse an integer literal token into its ANONYMOUS payload (D14): the token
-/// is validated (digits legal for the radix, known suffix) and canonicalized,
-/// but NO numeric value is produced -- any magnitude is representable. The
-/// fit-check happens wherever a USE gives the literal a type; positions that
-/// genuinely need a number at parse time go through `take_integer`'s i64
-/// ceiling instead.
+/// Parse an integer literal token into its payload. UNSUFFIXED literals stay
+/// ANONYMOUS (D14): the token is validated (digits legal for the radix) and
+/// canonicalized, but NO numeric value is produced -- any magnitude is
+/// representable, and the fit-check happens wherever a USE gives the literal
+/// a type. A WIDTH SUFFIX (`0u32`) is the ch5 two-phase law's parse-site
+/// landing (carrier CR4): the type is chosen AT the literal, so the landing
+/// rides the payload from birth (Exact domain -- the decision-17 default; a
+/// landed DESTINATION's domain still governs its folds, which prefer the
+/// destination landing over an operand-derived one). `isize`/`usize`/`nat`
+/// suffixes stay accepted-but-anonymous (no LandedIntegerType maps them;
+/// `usize` is design-dead). Positions that genuinely need a number at parse
+/// time go through `take_integer`'s i64 ceiling instead.
 pub(super) fn parse_integer_literal(
     text: &str,
     kind: IntegerLiteralKind,
@@ -32,12 +39,19 @@ pub(super) fn parse_integer_literal(
     };
 
     let body = body.ok_or("invalid integer literal")?;
-    let body = if kind.has_suffix {
+    let (body, landed_type) = if kind.has_suffix {
         strip_integer_suffix(body)?
     } else {
-        body
+        (body, None)
     };
-    IntegerLiteral::from_parts(false, radix, body)
+    let literal = IntegerLiteral::from_parts(false, radix, body)?;
+    Ok(match landed_type {
+        Some(landed_type) => literal.with_landing(IntegerLanding {
+            landed_type,
+            domain: ArithmeticDomain::Exact,
+        }),
+        None => literal,
+    })
 }
 
 pub(super) fn validate_float_literal(
@@ -54,10 +68,10 @@ pub(super) fn validate_float_literal(
     Ok(())
 }
 
-fn strip_integer_suffix(text: &str) -> Result<&str, &'static str> {
-    for suffix in INTEGER_SUFFIXES {
+fn strip_integer_suffix(text: &str) -> Result<(&str, Option<LandedIntegerType>), &'static str> {
+    for (suffix, landed_type) in INTEGER_SUFFIXES {
         if let Some(digits) = text.strip_suffix(suffix) {
-            return Ok(digits);
+            return Ok((digits, *landed_type));
         }
     }
 
@@ -74,8 +88,19 @@ fn strip_float_suffix(text: &str) -> Result<&str, &'static str> {
     Err("unknown float literal suffix")
 }
 
-const INTEGER_SUFFIXES: &[&str] = &[
-    "isize", "usize", "nat", "Nat", "i8", "i16", "i32", "i64", "u8", "u16", "u32", "u64",
+const INTEGER_SUFFIXES: &[(&str, Option<LandedIntegerType>)] = &[
+    ("isize", None),
+    ("usize", None),
+    ("nat", None),
+    ("Nat", None),
+    ("i8", Some(LandedIntegerType::I8)),
+    ("i16", Some(LandedIntegerType::I16)),
+    ("i32", Some(LandedIntegerType::I32)),
+    ("i64", Some(LandedIntegerType::I64)),
+    ("u8", Some(LandedIntegerType::U8)),
+    ("u16", Some(LandedIntegerType::U16)),
+    ("u32", Some(LandedIntegerType::U32)),
+    ("u64", Some(LandedIntegerType::U64)),
 ];
 
 const FLOAT_SUFFIXES: &[&str] = &["real", "Real", "f32", "f64"];

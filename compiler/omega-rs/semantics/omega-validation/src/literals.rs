@@ -216,6 +216,128 @@ fn bless_fact_literals(
     }
 }
 
+/// CR4 (carrier, ch5 two-phase law): a width-SUFFIXED literal (`5i8`) landed
+/// at parse time, so a destination whose declared type DISAGREES with the
+/// suffix is a loud error -- silently stripping the suffix (yesterday's
+/// behavior) let a wrong suffix mean nothing; silently honoring it would
+/// steer signedness/width decisions against the declared type. Domain is NOT
+/// checked (a suffix lands the TYPE; the destination's arithmetic domain is
+/// contextual and governs its own folds). Checked at the same destination
+/// positions the width gate enumerates: let initializers, assignments, and
+/// struct-literal fields, with the literal read through `Mutable` wrappers.
+pub(crate) fn validate_suffix_landings(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>) {
+    use omega_core::literals::LandedIntegerType;
+
+    let landed_of_primitive = |primitive: PrimitiveType| -> Option<LandedIntegerType> {
+        Some(match primitive {
+            PrimitiveType::I8 => LandedIntegerType::I8,
+            PrimitiveType::I16 => LandedIntegerType::I16,
+            PrimitiveType::I32 => LandedIntegerType::I32,
+            PrimitiveType::I64 => LandedIntegerType::I64,
+            PrimitiveType::U8 => LandedIntegerType::U8,
+            PrimitiveType::U16 => LandedIntegerType::U16,
+            PrimitiveType::U32 => LandedIntegerType::U32,
+            PrimitiveType::U64 => LandedIntegerType::U64,
+            PrimitiveType::Addr => LandedIntegerType::Addr,
+            _ => return None,
+        })
+    };
+
+    let literal_landing = |expression: ExpressionHandle| -> Option<(
+        ExpressionHandle,
+        LandedIntegerType,
+    )> {
+        let mut current = expression;
+        loop {
+            match program.expression_table.expression(current) {
+                ExpressionNode::Mutable(inner) => current = *inner,
+                ExpressionNode::Integer(literal) => {
+                    return literal
+                        .landing()
+                        .map(|landing| (current, landing.landed_type));
+                }
+                _ => return None,
+            }
+        }
+    };
+
+    let mut check = |value: ExpressionHandle,
+                     declared: omega_typed_trees::types::TypeReferenceHandle,
+                     diagnostics: &mut Vec<Diagnostic>| {
+        let Some((literal_handle, suffix_type)) = literal_landing(value) else {
+            return;
+        };
+        let Some(unwrapped) = crate::places::unwrapped_type_reference(program, declared) else {
+            return;
+        };
+        let Some(primitive) = program.primitive_type_reference(unwrapped) else {
+            return;
+        };
+        let Some(declared_type) = landed_of_primitive(primitive) else {
+            return;
+        };
+        if declared_type != suffix_type {
+            let literal = program.expression_table.display_name(literal_handle);
+            diagnostics.push(Diagnostic::error(format!(
+                "literal `{literal}` is suffixed `{suffix}` but lands in a `{declared}` place -- \
+                 a width suffix chooses the literal's type at the spelling, so it must agree \
+                 with the destination's declared type (drop the suffix or fix one side)",
+                suffix = suffix_type.name(),
+                declared = primitive.name(),
+            )));
+        }
+    };
+
+    for (_, node) in program.expression_table.expression_entries() {
+        let ExpressionNode::StructLiteral(literal) = node else {
+            continue;
+        };
+        let Some(data_definition) = program
+            .data_definitions()
+            .iter()
+            .find(|definition| definition.name.as_str() == literal.type_name.as_str())
+        else {
+            continue;
+        };
+        for field in program.expression_table.struct_fields(literal.fields) {
+            let Some(field_type) = crate::struct_literals::construction_field_type(
+                program,
+                data_definition,
+                literal.case_name.as_ref().map(|name| name.as_str()),
+                field.name.as_str(),
+            ) else {
+                continue;
+            };
+            check(field.value, field_type, diagnostics);
+        }
+    }
+
+    for machine in program.machines() {
+        for state in program.machine_states(machine) {
+            for statement in program.statement_table.statements(state.statement_nodes) {
+                match statement {
+                    StatementNode::Assignment(assignment) => {
+                        if let Some(declared) = crate::places::declared_place_type_raw(
+                            program,
+                            machine,
+                            Some(state),
+                            assignment.target,
+                        ) {
+                            check(assignment.value, declared, diagnostics);
+                        }
+                    }
+                    StatementNode::LocalData(local) => {
+                        if local.initial_value.is_valid() && local.type_reference.is_valid() {
+                            check(local.initial_value, local.type_reference, diagnostics);
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+}
+
 fn oversize_literal(program: &TypedTrees, expression: ExpressionHandle) -> bool {
     match program.expression_table.expression(expression) {
         ExpressionNode::Integer(literal) => {
