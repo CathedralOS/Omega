@@ -1,0 +1,22 @@
+// RUN CANARY (exit 77, differential) -- CR4a: a width-SUFFIXED literal is
+// BORN LANDED (ch5 two-phase law: the type is chosen at the spelling), so
+// the landing rides into anonymous positions exactly like a CR3-stamped
+// fold result. `z - 1u64` folds with the suffix's u64 landing carried by
+// the right operand; the operand-position max then compares UNSIGNED and
+// takes the u64::MAX witness. The let destinations' Wrapping domain governs
+// the destination folds (a suffix lands the TYPE; domain stays contextual).
+// exit 78 = the suffix was stripped (yesterday's behavior) and a signed max
+// picked 5. Disagreement twin: fail/arithmetic/suffix_type_disagrees_rejected.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine Main::main(&mut self) {
+    let z: u64 in Wrapping = 0;
+    let big: u64 in Wrapping = z - 1u64;
+    let m: u64 in Wrapping = max(big, 5) + 0;
+    transition m == big {
+        true -> good()
+        false -> bad()
+    }
+    state good(&self) { self.console.exit_process(77); }
+    state bad(&self) { self.console.exit_process(78); }
+}

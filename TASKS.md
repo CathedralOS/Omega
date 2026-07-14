@@ -89,8 +89,22 @@ dispatch-region + receiver-phase family. Everything queued here avoids both.
    substitution) is caught stripping a landing. Remaining CR3 faces:
    the u64>i64::MAX validation gate + classify resolvers reading
    landings (consumer migration continues with CR4/CM1).
-   CR4 — parse-site stamping (`0u32` suffixes re-thread as landings;
-   D14 strips them today) + float literals → exact Rat (F2 rides here).
+   CR4 — parse-site stamping. INTEGER HALF (CR4a) LANDED 2026-07-18:
+   width suffixes stamp landings at parse (Exact domain — destination
+   landings still govern their own folds by precedence);
+   isize/usize/nat stay accepted-but-anonymous. The soundness edge that
+   makes stamping safe: suffix-vs-declared-type DISAGREEMENT is a loud
+   error (validate_suffix_landings — let/assignment/struct-field
+   destinations, through Mutable). Payoff rides CR3's operand-derived
+   folds unchanged: `z - 1u64` folds at u64 and the operand-position
+   max compares unsigned (pass/arithmetic/
+   suffix_landed_operand_position_exit, differential 77; fail twin
+   suffix_type_disagrees_rejected). Remaining CR4 faces: float literals
+   → exact Rat (= the float ladder's F2 rung, tracked there); a
+   parse-site FIT check for suffixed magnitudes (`300u8` — today the
+   destination range obligations catch the destination cases; the
+   anonymous-position fit check needs the `-128i8` negation caveat
+   resolved first).
    CM1 — anonymous carrier goes EXACT: unbounded integer + Rat constants
    (now = CR1's spelling payload + value_bignum, ALREADY LANDED via D14
    + N2; the remaining face is CR3's consumer migration).

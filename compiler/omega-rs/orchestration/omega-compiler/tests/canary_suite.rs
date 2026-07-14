@@ -13534,6 +13534,51 @@ fn unsigned_min_max_operand_position_canary_runs() {
 }
 
 #[test]
+fn suffix_landed_operand_position_canary_runs() {
+    // CR4a: a width-suffixed literal is BORN LANDED, so `z - 1u64` folds at
+    // the suffix's u64 landing and the operand-position max compares
+    // UNSIGNED. exit 78 = the suffix was stripped and a signed max picked 5.
+    let canary = pass_canary("arithmetic/suffix_landed_operand_position_exit");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("suffix-landed canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 77,
+        "interpreter oracle should exit 77 (unsigned max witness), got {}",
+        outcome.exit_code
+    );
+
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-suffix-landed-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("suffix-landed canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("suffix-landed canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(77),
+        "expected the suffix-landed unsigned max (exit 77), got {:?} \
+         (78 = the suffix stripped, signed Max)\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn struct_literal_field_coercion_canary_runs() {
     // A struct-literal field init coerces the field value to the field's declared
     // width/domain (interpreter eval_struct_literal): `Point { x: a+b }` with
@@ -30301,6 +30346,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "arithmetic/const_fold_unsigned_divide_arg_exit",
     "arithmetic/unsigned_min_max_wrapping_local_exit",
     "arithmetic/unsigned_min_max_operand_position_exit",
+    "arithmetic/suffix_landed_operand_position_exit",
     "arithmetic/runtime_unsigned_division_exit",
     "arithmetic/runtime_min_max_signedness_exit",
     "arithmetic/runtime_comparison_value_signedness_exit",
@@ -30650,6 +30696,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "arithmetic/narrowing_literal_wider_than_target",
     "arithmetic/narrowing_wide_local_unproven",
     "arithmetic/narrowing_signedness_rejected",
+    "arithmetic/suffix_type_disagrees_rejected",
     "capabilities/host_provides_unknown_binding",
     "capabilities/host_provides_two_unknown_rejected",
     "capabilities/provides_value_wrong_target_rejected",
