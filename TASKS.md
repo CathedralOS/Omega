@@ -166,23 +166,39 @@ dispatch-region + receiver-phase family. Everything queued here avoids both.
    tail-of-turn start).
    RUNG-1 SCOPE MEASURED 2026-07-18 (recon): the enum
    (representations/omega-abstract-operations/src/instruction/
-   operation_kind.rs, 979 lines) has 100 variants; 18 are Copy*; a
-   single Copy variant (CopyRuntimeStorage) echoes across 25 files
-   (selection, encoding both ISAs, layout widths, relocations,
-   blockers, backend report, abstract→target conversion). RUNG-1 PLAN:
-   (a) define `Place { base: RegionRef, path: Vec<PlaceStep> }` with
-   PlaceStep = ConstOffset(usize) | ScaledIndex{ operand, elem_size }
-   in omega-abstract-operations; (b) one `materialize_place` per target
-   (x86_64 + aarch64) folding trailing ConstOffsets into the ISA
-   addressing mode, emitting a base+index compute otherwise — this is
-   the single deep exhaustively-tested routine; (c) add ONE
-   `Copy { dst: Place, src: Place, bytes }` variant, route the 18 Copy*
-   through it, delete them + their echoes LAST (keep the differential
-   866-canary suite green each rung — the corpus IS the safety net).
-   Legalization (shapes a target can't address directly) refuses
-   loudly = the fence discipline preserved. Then Write/RMW (the
-   leaf-cascade duplication dies), Text, guards/operands, op-set shrink
-   — the wiki ladder.
+   operation_kind.rs, 979 lines) has 100 variants; 18 are Copy*; the
+   LIVE dispatch spine is SelectedInstructionKind → machine-emission
+   encoding.rs (96 arms) → per-ISA encoders + the omega-relocations
+   per-kind byte-walkers. (MachineInstructionKind is a parallel
+   representation used by branch distances/shapes, NOT the encoding
+   spine.)
+   RUNG 1a LANDED 2026-07-18 (the pilot's pilot — bottom-up,
+   byte-for-byte): `Place`/`PlaceStep` (ConstOffset | Deref |
+   ScaledIndex; inline [PlaceStep; 4], Copy, ZII-inert, adjacent
+   const offsets merge, depth saturates loudly) lives in
+   omega-abstract-operations (re-exported through target-ops for the
+   ISA crates); `encode_place_copy` (omega-isa-x86_64/place_copy.rs) =
+   the materializer (r14 source / r15 target / rax chunk scratch;
+   trailing const offsets fold into chunk displacements; ScaledIndex
+   REFUSES loudly until the indexed rung). Three variants delegate
+   BYTE-FOR-BYTE (unit-tested identity): plain CopyRuntimeStorage +
+   both pointee shapes. Relocation walker untouched (same bytes, same
+   kinds; Place::region is documentation on this path until the walker
+   consumes places).
+   NEXT RUNGS: (1b) delegate the FIXED-indexed variants (const-folded
+   deref shapes — verify each encoder's byte layout matches the
+   materializer order first, walker arms in lockstep where layout
+   shifts); (1c) ScaledIndex materialization (index load + scale +
+   add; pick scratch discipline consistent with existing indexed
+   encoders) + runtime-indexed variants — the first REAL byte-layout
+   unification, differential is the oracle, walker arms update to the
+   unified shape; (1d) the aarch64 materializer twin (its
+   runtime_storage.rs encoders are the same product); (2) ONE
+   `CopyPlaces` SelectedInstructionKind variant + walker arm that
+   PATCHES BY PLACE REGION, then selection migrates sites and the 18
+   variants + their echoes retire; then Write/RMW (the leaf-cascade
+   duplication dies), Text, guards/operands, op-set shrink — the wiki
+   ladder. Legalization refuses loudly at every rung.
 
 The rendering-sample sweep landed 2026-07-11 (see Language ergonomics;
 the match-subject computed-index gap closed with it).
