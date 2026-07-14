@@ -37,9 +37,10 @@ pub(crate) fn runtime_storage_copy_from_runtime_frame_fixed_indexed_target_addre
                 .saturating_add(field_byte_offset);
             12 + add_constant_width(source_offset)
         }
-        // Start of the target-base `mov r15,imm64`: mov r14,imm64 (10)
-        // + descriptor deref (7) + element load (7); planner adds +2.
-        Architecture::X86_64 => 24,
+        // Start of the target-base `mov r15,imm64` in the Place
+        // materializer's canonical shape: source base mov r14,imm64 (10)
+        // + descriptor deref (7); the planner adds the +2 itself.
+        Architecture::X86_64 => 17,
     }
 }
 
