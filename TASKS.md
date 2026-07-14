@@ -229,12 +229,15 @@ dispatch-region + receiver-phase family. Everything queued here avoids both.
    the materializer) + widths.rs x86 arm + the selection dispatch arm.
    Canary pass/slices/runtime_indexed_element_copy_write_exit (70,
    differential; runtime index AND runtime struct source).
-   FOUND EN ROUTE (pre-existing, pinned): a STRUCT-LITERAL transition
-   ARG does not deliver natively — the entry case plans only scalar
-   sibling args; the struct's field writes are absent, callee param
-   stays ZII (pending/calls/
-   struct_literal_transition_arg_native_divergence, native 71).
-   Argument-materialization writes-planning face.
+   FOUND EN ROUTE + FIXED SAME DAY: a STRUCT-LITERAL transition ARG
+   did not deliver natively — argument materialization had a
+   field-wise arm ONLY for CASE-BEARING literals; a plain record arg
+   fell through to the scalar writer (plans nothing for an aggregate)
+   and the callee param stayed ZII silently. The record arm now
+   mirrors the variant arm (no tag; DataShape::Record field layout;
+   int fast path + general per-field writer). Canary pass/calls/
+   struct_literal_transition_arg_exit (70, differential; constant AND
+   runtime field legs).
    ALSO REMAINING: the machine-indexed copy variants (machine-region
    bases, region-varying index slots — the index's own base register
    needs the region wired) → fold into rung 2. (2) ONE `CopyPlaces`

@@ -5,9 +5,9 @@
 // shared-base indexed-target shape provided it -- the pilot's first FREE
 // capability: base in r14, index loads from it, the target hops to r15 and
 // adds the scaled index). The struct source is built IN-STATE from scalar
-// params: a struct-literal TRANSITION ARG does not deliver natively (a
-// separate pre-existing gap, pinned in pending/calls/
-// struct_literal_transition_arg_native_divergence).
+// params (kept as-is even though the struct-literal ARG gap this exposed is
+// now FIXED -- pass/calls/struct_literal_transition_arg_exit pins delivery --
+// so this canary keeps a single face: the indexed element write).
 boundary trait Console {
     machine exit_process(return_code: i32);
 }

@@ -1,0 +1,46 @@
+// RUN CANARY (exit 70, differential) -- STRUCT-LITERAL transition arguments
+// deliver natively, BOTH field shapes: constant fields (the integer fast
+// path) and runtime fields (the general per-field writer). The record arm
+// was MISSING from argument materialization (only case-bearing literals had
+// field-wise delivery) -- a plain record arg fell through to the scalar
+// writer, which plans nothing for an aggregate, so the callee param stayed
+// ZII {0,0} silently. Found 2026-07-18 wiring the indexed element write;
+// fixed the same day.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Exit {
+    destination: u32 in Wrapping;
+    weight: u32 in Wrapping;
+}
+
+data Main {
+    console: Console;
+    total: u32 in Wrapping;
+}
+
+machine Main::main(&mut self) {
+    transition { _ -> put_const(Exit { destination: 9, weight: 4 }) }
+
+    // Leg 1: CONSTANT fields (the integer fast path).
+    state put_const(&mut self, e: Exit) {
+        self.total = e.destination + e.weight;
+        transition self.total == 13 { true -> seed(3) _ -> bad() }
+    }
+
+    // Leg 2: RUNTIME fields (the general per-field writer) -- v arrives as a
+    // state param, so the literal's fields are runtime values.
+    state seed(&mut self, v: u32 in Wrapping) {
+        transition { _ -> put_runtime(Exit { destination: v, weight: v }) }
+    }
+    state put_runtime(&mut self, e: Exit) {
+        transition self.total + e.destination + e.weight == 19 {
+            true -> good()
+            false -> bad()
+        }
+    }
+
+    state good(&self) { self.console.exit_process(70); }
+    state bad(&self) { self.console.exit_process(71); }
+}
