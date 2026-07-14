@@ -185,31 +185,34 @@ dispatch-region + receiver-phase family. Everything queued here avoids both.
    both pointee shapes. Relocation walker untouched (same bytes, same
    kinds; Place::region is documentation on this path until the walker
    consumes places).
-   NEXT RUNGS — 1b RECON DONE 2026-07-18 (read before building):
-   (1b) the fixed-indexed family is NOT byte-neutral to delegate; two
-   old-encoder idioms differ from the canonical
-   source-addr/target-addr/chunks shape: (i)
-   fixed_indexed_to_runtime_frame SHARES one base (mov r15 frame;
-   mov r14,[r15+desc]; ONE reloc @start) — teach the materializer
-   REGION-AWARE BASE SHARING (same-region + source-deref pair: emit
-   target base first, source's first deref loads r14 THROUGH r15)
-   to keep byte-identity and better codegen; (ii)
-   fixed_indexed_to_runtime_storage INTERLEAVES its single-chunk load
-   between the two address materializations
-   (FRAME_FIXED_INDEXED_COPY_TARGET_IMM_OFFSET = 26; canonicalizing
-   moves the target reloc to +19) — walker offset fns are
-   ARCH-CONDITIONAL and shared with the un-delegated aarch64 layouts,
-   so EITHER do 1b together with (1d) the aarch64 twin (keeps walker
-   arms arch-uniform — RECOMMENDED) or make the offset fns
-   arch-forked transitionally. (1c) ScaledIndex materialization
-   (index load + scale + add; scratch discipline from the existing
-   indexed encoders) + runtime-indexed variants — differential is
-   the oracle, walker arms update to the unified shape. (2) ONE
-   `CopyPlaces` SelectedInstructionKind variant + a walker arm that
-   PATCHES BY PLACE REGION, then selection migrates sites and the 18
-   variants + their echoes retire; then Write/RMW (the leaf-cascade
-   duplication dies), Text, guards/operands, op-set shrink — the wiki
-   ladder. Legalization refuses loudly at every rung.
+   RUNG 1b LANDED 2026-07-18 (x86_64; the fixed-indexed family):
+   `encode_place_copy_shared_base` = the materializer's second entry
+   (same-region pair, source starts with a deref: ONE base mov into
+   r15, the source's first deref hops to r14 BEFORE a target deref
+   consumes r15; a direct source REFUSES). to_frame + to_pointee
+   delegate BYTE-FOR-BYTE through it (identity unit tests);
+   to_runtime_storage CANONICALIZED to the two-base shape — target
+   reloc moved +24→+17 (FRAME_FIXED_INDEXED_COPY_TARGET_IMM_OFFSET +
+   the walker's offsets arm + the arch-dispatched width fn all in
+   lockstep) and the old 1|4|8 single-chunk restriction LIFTED (any
+   byte_count chunks now). PREMISE CORRECTION vs the old recon: the
+   walker offset fns are ARCH-PARAMETERIZED FUNCTIONS (not shared
+   constants) — x86-only canonicalization forks cleanly, no aarch64
+   coupling. (1d) aarch64 DEFERRED DELIBERATELY: its encoders are
+   register-nonuniform per variant (x16/x17/x20 shifting roles),
+   second-reloc offsets are VALUE-DEPENDENT (add-constant width), and
+   this host has NO aarch64 runtime oracle — byte-layout changes there
+   are unverifiable; do 1d when an emulation/CI oracle exists, or
+   byte-identically per variant with golden tests. NEXT: (1c)
+   ScaledIndex materialization (index load + scale + add; scratch
+   discipline from the existing indexed encoders: r11 index, imul,
+   add) + the runtime-indexed variants — differential is the oracle,
+   walker arms update to the unified shape. (2) ONE `CopyPlaces`
+   SelectedInstructionKind variant + a walker arm that PATCHES BY
+   PLACE REGION, then selection migrates sites and the 18 variants +
+   their echoes retire; then Write/RMW (the leaf-cascade duplication
+   dies), Text, guards/operands, op-set shrink — the wiki ladder.
+   Legalization refuses loudly at every rung.
 
 The rendering-sample sweep landed 2026-07-11 (see Language ergonomics;
 the match-subject computed-index gap closed with it).

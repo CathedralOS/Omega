@@ -1,5 +1,5 @@
 mod place_copy;
-pub use place_copy::encode_place_copy;
+pub use place_copy::{encode_place_copy, encode_place_copy_shared_base};
 
 use omega_calling_conventions::{HostCapability, HostOperation, HostOperationKey};
 use omega_core::arithmetic::ArithmeticDomain;
@@ -457,17 +457,28 @@ pub fn encode_runtime_frame_fixed_indexed_address_to_runtime_frame_write(
 }
 
 /// Width of [`encode_runtime_storage_copy_from_runtime_frame_fixed_indexed_to_runtime_storage`].
-/// MUST equal the emitter exactly. Relocs: frame @+2, target region @+24+2.
-pub fn runtime_storage_copy_from_runtime_frame_fixed_indexed_to_runtime_storage_width() -> usize {
-    // mov r14,imm64(frame) (10) + mov r14,[r14+desc] (7)
-    // + mov rax,[r14 + idx*elem + field] (7) + mov r15,imm64(target) (10)
-    // + store [r15+target],rax (7).
-    41
+/// MUST equal the emitter exactly. Relocs: frame @+2, target region
+/// @+FRAME_FIXED_INDEXED_COPY_TARGET_IMM_OFFSET+2.
+pub fn runtime_storage_copy_from_runtime_frame_fixed_indexed_to_runtime_storage_width(
+    element_index: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    target_offset: usize,
+    byte_count: usize,
+) -> usize {
+    // The canonical materializer shape: mov r14,imm64(frame) (10)
+    // + mov r14,[r14+desc] (7) + mov r15,imm64(target) (10)
+    // + per chunk: load rax (7) + store rax (7).
+    let source_displacement = element_index
+        .saturating_mul(element_byte_size)
+        .saturating_add(field_byte_offset);
+    27 + runtime_storage_copy_chunk_count(source_displacement, target_offset, byte_count) * 14
 }
 
 /// Relocation imm offset (pre-`+2`) of the TARGET region base `mov` in the
-/// fixed-indexed slice-element copy.
-pub const FRAME_FIXED_INDEXED_COPY_TARGET_IMM_OFFSET: usize = 24;
+/// fixed-indexed slice-element copy (the materializer's canonical shape:
+/// source base mov (10) + descriptor deref (7)).
+pub const FRAME_FIXED_INDEXED_COPY_TARGET_IMM_OFFSET: usize = 17;
 
 /// Read `s[K]` (a CONST-index element of a slice DESCRIPTOR in the frame) and
 /// copy it into a runtime-storage target (machine field or frame slot). This
@@ -481,28 +492,31 @@ pub fn encode_runtime_storage_copy_from_runtime_frame_fixed_indexed_to_runtime_s
     target_offset: usize,
     byte_count: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
-    if !matches!(byte_count, 1 | 4 | 8) {
-        return Err(Diagnostic::error(format!(
-            "X86_64 MVP encoder cannot copy {byte_count}-byte slice elements yet"
-        )));
-    }
     let element_displacement = element_index
         .checked_mul(element_byte_size)
         .and_then(|scaled| scaled.checked_add(field_byte_offset))
         .ok_or_else(|| Diagnostic::error("X86_64 fixed slice element offset overflow"))?;
-    let mut bytes = Vec::with_capacity(
-        runtime_storage_copy_from_runtime_frame_fixed_indexed_to_runtime_storage_width(),
-    );
-    append_mov_r14_imm64(&mut bytes, 0); // frame base (reloc @ +2)
-    bytes.extend([0x4d, 0x8b, 0xb6]); // mov r14, [r14+desc] -- the slice data ptr
-    bytes.extend(disp32(descriptor_offset)?.to_le_bytes());
-    append_load_rax_from_r14(&mut bytes, element_displacement, byte_count)?;
-    debug_assert_eq!(bytes.len(), FRAME_FIXED_INDEXED_COPY_TARGET_IMM_OFFSET);
-    append_mov_r15_imm64(&mut bytes, 0); // target region base (reloc @ +2)
-    append_store_rax_to_r15(&mut bytes, target_offset, byte_count)?;
+    // Delegated to the two-base Place materializer (regions differ, so no
+    // base sharing): the canonicalization moved the target base mov from +24
+    // to +17 -- FRAME_FIXED_INDEXED_COPY_TARGET_IMM_OFFSET and the relocation
+    // walker's offset arm moved in lockstep -- and lifted the old 1|4|8
+    // single-chunk restriction (any byte_count now chunks).
+    use omega_target_operations::{Place, PlaceStep, RuntimeStorageRegion};
+    let source = Place::at(RuntimeStorageRegion::RuntimeFrame, descriptor_offset)
+        .with_step(PlaceStep::Deref)
+        .and_then(|place| place.with_step(PlaceStep::ConstOffset(element_displacement)))
+        .ok_or_else(|| Diagnostic::error("place path exceeds PLACE_MAX_STEPS"))?;
+    let target = Place::at(RuntimeStorageRegion::Machine, target_offset);
+    let bytes = encode_place_copy(&source, &target, byte_count)?;
     debug_assert_eq!(
         bytes.len(),
-        runtime_storage_copy_from_runtime_frame_fixed_indexed_to_runtime_storage_width()
+        runtime_storage_copy_from_runtime_frame_fixed_indexed_to_runtime_storage_width(
+            element_index,
+            element_byte_size,
+            field_byte_offset,
+            target_offset,
+            byte_count
+        )
     );
     Ok(bytes)
 }
@@ -8166,28 +8180,17 @@ pub fn encode_runtime_storage_copy_from_runtime_frame_fixed_indexed(
         .ok_or_else(|| {
             Diagnostic::error("X86_64 MVP encoder cannot address overflowing fixed indexed copy")
         })?;
-    let mut bytes =
-        Vec::with_capacity(runtime_storage_copy_from_runtime_frame_fixed_indexed_width(
-            element_index,
-            element_byte_size,
-            field_byte_offset,
-            target_offset,
-            byte_count,
-        ));
-    // r15 = frame base (imm64 at +2 relocated). r14 = slice data pointer from the
-    // descriptor; copy source [r14 + source_offset] -> target [r15 + target_offset].
-    append_mov_r15_imm64(&mut bytes, 0);
-    append_load_r14_from_r15(&mut bytes, descriptor_offset)?;
-    for_each_runtime_copy_chunk(
-        source_offset,
-        target_offset,
-        byte_count,
-        |offset, chunk_size| {
-            append_load_rax_from_r14(&mut bytes, source_offset + offset, chunk_size)?;
-            append_store_rax_to_r15(&mut bytes, target_offset + offset, chunk_size)?;
-            Ok(())
-        },
-    )?;
+    // Delegated to the SHARED-BASE Place materializer (byte-for-byte with the
+    // hand-spelled shape this replaced: one frame base in r15, the descriptor
+    // deref hops the source to r14, the const element+field offset folds into
+    // the chunk displacements).
+    use omega_target_operations::{Place, PlaceStep, RuntimeStorageRegion};
+    let source = Place::at(RuntimeStorageRegion::RuntimeFrame, descriptor_offset)
+        .with_step(PlaceStep::Deref)
+        .and_then(|place| place.with_step(PlaceStep::ConstOffset(source_offset)))
+        .ok_or_else(|| Diagnostic::error("place path exceeds PLACE_MAX_STEPS"))?;
+    let target = Place::at(RuntimeStorageRegion::RuntimeFrame, target_offset);
+    let bytes = encode_place_copy_shared_base(&source, &target, byte_count)?;
     debug_assert_eq!(
         bytes.len(),
         runtime_storage_copy_from_runtime_frame_fixed_indexed_width(
@@ -8230,29 +8233,19 @@ pub fn encode_runtime_storage_copy_from_runtime_frame_fixed_indexed_to_runtime_p
         .ok_or_else(|| {
             Diagnostic::error("X86_64 MVP encoder cannot address overflowing fixed indexed copy")
         })?;
-    let mut bytes = Vec::with_capacity(
-        runtime_storage_copy_from_runtime_frame_fixed_indexed_to_runtime_pointee_width(
-            element_index,
-            element_byte_size,
-            source_field_byte_offset,
-            target_field_byte_offset,
-            byte_count,
-        ),
-    );
-    append_mov_r15_imm64(&mut bytes, 0);
-    append_load_r14_from_r15(&mut bytes, descriptor_offset)?;
-    append_load_r15_from_r15(&mut bytes, pointer_byte_offset)?;
-    for_each_runtime_copy_chunk(
-        source_offset,
-        target_field_byte_offset,
-        byte_count,
-        |offset, chunk_size| {
-            append_load_rax_from_r14(&mut bytes, source_offset + offset, chunk_size)?;
-            append_store_rax_to_r15(&mut bytes, target_field_byte_offset + offset, chunk_size)?;
-            Ok(())
-        },
-    )?;
-    Ok(bytes)
+    // Delegated to the SHARED-BASE Place materializer (byte-for-byte: one
+    // frame base, the source's descriptor deref hops to r14 BEFORE the
+    // target's pointer deref consumes r15).
+    use omega_target_operations::{Place, PlaceStep, RuntimeStorageRegion};
+    let source = Place::at(RuntimeStorageRegion::RuntimeFrame, descriptor_offset)
+        .with_step(PlaceStep::Deref)
+        .and_then(|place| place.with_step(PlaceStep::ConstOffset(source_offset)))
+        .ok_or_else(|| Diagnostic::error("place path exceeds PLACE_MAX_STEPS"))?;
+    let target = Place::at(RuntimeStorageRegion::RuntimeFrame, pointer_byte_offset)
+        .with_step(PlaceStep::Deref)
+        .and_then(|place| place.with_step(PlaceStep::ConstOffset(target_field_byte_offset)))
+        .ok_or_else(|| Diagnostic::error("place path exceeds PLACE_MAX_STEPS"))?;
+    encode_place_copy_shared_base(&source, &target, byte_count)
 }
 
 pub fn runtime_storage_copy_from_runtime_frame_indexed_width(
