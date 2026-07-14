@@ -274,10 +274,15 @@ pub(super) fn select_host_operation_operands(
                 None => HandleSpan::empty(),
             }
         }
-        (HostCapability::Filesystem, HostOperation::Close | HostOperation::Dup) => {
+        (
+            HostCapability::Filesystem,
+            HostOperation::Close | HostOperation::Dup | HostOperation::FindClose,
+        ) => {
             // Value-returning `rc = close(fd) -> _close(fd)` and
             // `new_fd = duplicate(fd) -> _dup(fd)` (identical one-fd shape; dup
-            // returns the new fd instead of a status). operand[0] is the
+            // returns the new fd instead of a status). `rc = find_close(handle)
+            // -> FindClose(handle)` (fs rung 3a) is the same shape with the find
+            // HANDLE as the scalar. operand[0] is the
             // result place (the assignment target, prepended by the
             // assignment-result collection); operand[1] is the fd. Either
             // unresolvable => no operands, so the encoder hard-errors rather
@@ -853,12 +858,17 @@ pub(super) fn select_host_operation_operands(
                 _ => HandleSpan::empty(),
             }
         }
-        (HostCapability::Filesystem, HostOperation::FStat | HostOperation::SetFileTimes) => {
+        (
+            HostCapability::Filesystem,
+            HostOperation::FStat | HostOperation::SetFileTimes | HostOperation::FindNext,
+        ) => {
             // `rc = read_file_metadata(fd, buf) -> _fstat(fd, buf)` and
             // `rc = set_file_times(fd, times) -> _futimens(fd, times)`: both are
             // `[result, fd scalar, buffer pointer]` (fstat's kernel WRITES the stat
             // record through the buffer; futimens READS two timespecs from it).
             // Same as `read` without the count -- keyed by an open descriptor.
+            // `rc = find_next(handle, data) -> FindNextFileA(handle, &data)` (fs
+            // rung 3a) is the same shape with the find HANDLE as the scalar.
             let result = first_scalar_argument_operand(input, host_call, dispatch_index);
             let fd = scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 1);
             let buffer = address_argument_operand_at(input, host_call, dispatch_index, alias_context, 2);
@@ -957,13 +967,20 @@ pub(super) fn select_host_operation_operands(
         }
         (
             HostCapability::Filesystem,
-            HostOperation::Stat | HostOperation::LStat | HostOperation::Realpath,
+            HostOperation::Stat
+            | HostOperation::LStat
+            | HostOperation::Realpath
+            | HostOperation::FindFirst,
         ) => {
             // Value-returning `rc = read_metadata(path, buf) -> _stat(path, buf)`,
             // `rc = read_symlink_metadata(path, buf) -> _lstat(path, buf)`, and
             // `ptr = canonicalize(path, buf) -> _realpath(path, buf)` -- all share
             // the [result, path pointer, buffer pointer] shape (realpath's result
             // is the resolved-buffer pointer, used only as a non-NULL success flag).
+            // `handle = find_first(pattern, data) -> FindFirstFileA(pattern, &data)`
+            // (fs rung 3a) is the same shape: pattern pointer + the 320-byte
+            // WIN32_FIND_DATAA buffer the system writes through; the result is
+            // the find HANDLE (-1 = INVALID_HANDLE_VALUE).
             // operand[0]=result, [1]=path POINTER (NUL-terminated C string),
             // [2]=buffer POINTER (the kernel writes the 144-byte stat record).
             let result = first_scalar_argument_operand(input, host_call, dispatch_index);

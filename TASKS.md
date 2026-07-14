@@ -1092,7 +1092,19 @@ rejects — an INTEGER ruling, engineering rides this ladder as F8).
   nothing worse, nothing hidden.
   NEXT RUNG (flips note_vault green), scoped 2026-07-18 — TWO
   sub-rungs:
-  (3a) SEAM: three DESIGNED find-enumeration ops on FilesystemHost
+  (3a) SEAM — LANDED 2026-07-18, all layers: the trio + _name twins
+  declared; HostOperation variants; kernel32 rows; windows (+darwin
+  _name) lowerings; x86_64 operand shapes reuse THREE EXISTING arms
+  (find_first==Stat, find_next==FStat, find_close==Close — zero new
+  marshalling); hermetic find-cursor model + real-fs mirror.
+  pass/filesystem/windows_find_enumeration_exit green interp+native
+  (#[cfg(windows)] gated, outside cross-host sweeps BY DESIGN — posix
+  has no trio lowering). ⚠️ Landmine class rediscovered: a new
+  HostOperation with no operand-shape arm = empty operands = the
+  misleading "argument must be a simple value" refusal (surfaced via
+  OMEGA_DEBUG_RECEIVER "result storage place did not lower"). Original
+  spec follows for the record:
+  three DESIGNED find-enumeration ops on FilesystemHost
   (the law: designed signatures, never traced):
   `find_first(pattern: &[u8], data: &mut [u8]) -> i64` (handle, -1 on
   error; pattern is TRUSTED PLAIN bytes, the D-at trust class exactly

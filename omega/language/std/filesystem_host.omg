@@ -76,6 +76,27 @@ boundary trait FilesystemHost {
     // d_namlen u16 @18, d_type u8 @20, d_name @21; advance by d_reclen. Walking
     // them needs runtime-indexed buffer reads (see TASKS_FS.md step 13).
     machine read_dir(fd: i32, buffer: &mut [u8], count: u64, position: &mut i64) -> i64 effects filesystem_io;
+    // The FIND-ENUMERATION family (fs portable-contract rung 3a, 2026-07-18):
+    // windows' directory paradigm, DESIGNED signatures (the seam law) over the
+    // Win32 find trio. `pattern` is TRUSTED PLAIN bytes -- the D-at trust class
+    // exactly like `create_dir_name`: the caller constructs `dir\*` from a
+    // `&[u8] in Path` source plus literal bytes, no_nul BY CONSTRUCTION, so no
+    // domain re-proof. `data` receives one entry record (WIN32_FIND_DATAA
+    // shape, >= 320 bytes): file attributes u32 @0 (directory bit 0x10), the
+    // NUL-terminated entry name @44. `find_first` opens the enumeration and
+    // fills the FIRST entry, returning a HANDLE (i64; -1 on error/no match);
+    // `find_next` fills the next (1 = filled, 0 = end); `find_close` releases
+    // the handle. Posix targets never call these (their impls walk dirent
+    // records); the per-target impl split is what keeps this asymmetry honest.
+    machine find_first(pattern: &[u8], data: &mut [u8]) -> i64 effects filesystem_io;
+    machine find_next(handle: i64, data: &mut [u8]) -> i32 effects filesystem_io;
+    machine find_close(handle: i64) -> i32 effects filesystem_io;
+    // Remove a FILE / an empty DIRECTORY by a TRUSTED plain `&[u8]` path -- the
+    // D-at trust class twins of `remove` / `remove_dir` (same native rows, the
+    // `create_dir_name` precedent): a path JOINED inside a dir-walk from
+    // enumeration names is no_nul by construction and skips the Path re-proof.
+    machine remove_name(path: &[u8]) -> i32 effects filesystem_io;
+    machine remove_dir_name(path: &[u8]) -> i32 effects filesystem_io;
     // Fill `buffer` (>= 144 bytes) with the path's `struct stat` record (Rust
     // `fs::metadata`). The Omega layer reads st_size/st_mode back out.
     machine read_metadata(path: &[u8] in Path, buffer: &mut [u8]) -> i32 effects filesystem_io;

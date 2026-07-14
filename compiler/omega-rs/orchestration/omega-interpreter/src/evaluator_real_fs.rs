@@ -417,7 +417,9 @@ impl<'program> super::Evaluator<'program> {
                     }
                 }
             }
-            "remove" => {
+            // `remove_name` is the TRUSTED plain-path twin (D-at trust class):
+            // the arg bytes ARE the path, so both spellings share one arm.
+            "remove" | "remove_name" => {
                 let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
                 match self.authorized_path(&path, true) {
                     Some(path) => self.real_result_unit(std::fs::remove_file(path)),
@@ -431,7 +433,7 @@ impl<'program> super::Evaluator<'program> {
                     None => -1,
                 }
             }
-            "remove_dir" => {
+            "remove_dir" | "remove_dir_name" => {
                 let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
                 match self.authorized_path(&path, true) {
                     Some(path) => self.real_result_unit(std::fs::remove_dir(path)),
@@ -539,6 +541,67 @@ impl<'program> super::Evaluator<'program> {
                             -1
                         }
                     }
+                }
+            }
+            "find_first" => {
+                // `find_first(pattern, &data)` -- the windows dir-walk seam
+                // (fs rung 3a) served against the real filesystem: strip the
+                // `/*` tail (the impl joins with `/`, which Win32 accepts),
+                // list the directory (the same dot-prefixed sorted set
+                // read_dir packs), snapshot the tail into a cursor keyed by a
+                // fresh handle, and fill the FIRST entry's find-data record.
+                let pattern = self.eval_fs_bytes(arguments.first().copied(), frame)?;
+                let listed = match pattern.strip_suffix(b"/*") {
+                    Some(dir_path) => match self.authorized_path(dir_path, false) {
+                        Some(path) => real_dirent_entries(&path),
+                        None => {
+                            return Ok(Some(Value::Int(-1)));
+                        }
+                    },
+                    None => Err(ENOENT),
+                };
+                match listed {
+                    Ok(entries) => {
+                        let mut queue: std::collections::VecDeque<(Vec<u8>, bool)> = entries
+                            .into_iter()
+                            .map(|(name, d_type)| (name, d_type == 4))
+                            .collect();
+                        let (name, is_dir) =
+                            queue.pop_front().expect("dot entries are always present");
+                        self.write_find_data(arguments.get(1).copied(), frame, &name, is_dir);
+                        let handle = self.virtual_next_find;
+                        self.virtual_next_find += 1;
+                        self.virtual_finds.insert(handle, queue);
+                        handle
+                    }
+                    Err(errno) => {
+                        self.real_fs_mut().errno = errno;
+                        -1
+                    }
+                }
+            }
+            "find_next" => {
+                // Cursor-only (the snapshot was taken at find_first) -- the
+                // same arm shape as the hermetic dispatcher.
+                let handle = self.eval_fs_scalar(arguments.first().copied(), frame)?;
+                match self
+                    .virtual_finds
+                    .get_mut(&handle)
+                    .and_then(std::collections::VecDeque::pop_front)
+                {
+                    Some((name, is_dir)) => {
+                        self.write_find_data(arguments.get(1).copied(), frame, &name, is_dir);
+                        1
+                    }
+                    None => 0,
+                }
+            }
+            "find_close" => {
+                let handle = self.eval_fs_scalar(arguments.first().copied(), frame)?;
+                if self.virtual_finds.remove(&handle).is_some() {
+                    1
+                } else {
+                    0
                 }
             }
             "read_metadata" | "read_symlink_metadata" => {

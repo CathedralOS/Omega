@@ -1020,6 +1020,10 @@ const EXCLUDED_RUN_CANARIES: &[(&str, &str)] = &[
         "NATIVE-ONLY (windows-gated run test): an AUTHORED provides import (msvcrt abs through the program's own DllImport row) -- the interpreter has no provider for authored bindings yet (open item, TASKS_FS provides thread)",
     ),
     (
+        "filesystem/windows_find_enumeration_exit",
+        "windows-gated dual test (interp oracle + native run, both 70, asserted in its canary_suite test): the find-enumeration trio (fs rung 3a) has NO posix lowering BY DESIGN (posix impls walk dirent records), so a darwin-host differential compile would fail at host lowering",
+    ),
+    (
         "time/runtime_time_host_native_exit",
         "NATIVE-ONLY (windows-gated run test): asserts the WINDOWS calibration constants (10^7 / 11_644_473_600) and real-clock inequalities; the interpreter's virtual clock reports 1000/0 and exits 3 by design (its exact values are pinned by time/runtime_time_host_virtual_exit)",
     ),
