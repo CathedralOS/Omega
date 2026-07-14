@@ -1,0 +1,51 @@
+// RUN CANARY (exit 70, differential): TARGET-SCOPED MACHINES (fs
+// portable-contract settle 2026-07-18). `<target> machine Path(..) {..}`
+// participates in the program only when its target is SELECTED: the
+// pre-resolution filter clears the selected machine's marker and every other
+// target's same-name machine stays inert (resolution skips it), exactly like
+// a non-selected provides row.
+//
+// Host-portable discrimination: `pick` is implemented ONLY by
+// `local_unchecked` (which resolves to the HOST target on every machine),
+// and `delta` by all FOUR real targets with identical bodies -- exactly one
+// of the four is selected on any host, and the three inert same-name
+// machines beside it prove the collision-avoidance (four ORDINARY machines
+// sharing a name would be a duplicate-machine error). Exit 70 needs BOTH
+// selected implementations to resolve and deliver (63 then 7, chained
+// guards -- no arithmetic, so no decision-17 obligation on the opaque call
+// results). Loud-edge siblings:
+// fail/targets/target_machine_missing_rejected and
+// fail/targets/target_machine_duplicate_rejected.
+boundary trait Console { machine exit_process(return_code: i32); }
+
+data Helper { seed: i32; }
+
+local_unchecked machine Helper::pick(&self) -> i32 {
+    transition { _ -> 63 }
+}
+
+windows_x64 machine Helper::delta(&self) -> i32 {
+    transition { _ -> 7 }
+}
+macos_arm64 machine Helper::delta(&self) -> i32 {
+    transition { _ -> 7 }
+}
+linux_x64 machine Helper::delta(&self) -> i32 {
+    transition { _ -> 7 }
+}
+linux_arm64 machine Helper::delta(&self) -> i32 {
+    transition { _ -> 7 }
+}
+
+data Main { console: Console; helper: Helper; }
+
+machine Main::main(&mut self) {
+    let a: i32 = self.helper.pick();
+    let b: i32 = self.helper.delta();
+    transition a == 63 { true -> check_delta(b) _ -> bad(71) }
+    state check_delta(&mut self, b2: i32) {
+        transition b2 == 7 { true -> good() _ -> bad(72) }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self, code2: i32) { self.console.exit_process(code2); }
+}

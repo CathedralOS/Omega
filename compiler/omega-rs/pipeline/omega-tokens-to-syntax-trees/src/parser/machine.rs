@@ -152,6 +152,7 @@ pub(super) fn parse_machine<'tokens, 'source>(
         Machine {
             name,
             attached_data,
+            target: None,
             boundary: false,
             type_parameters,
             satisfies,

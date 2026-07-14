@@ -68,7 +68,15 @@ pub(crate) fn lower_item(
                 .push(domain_definition);
         }
         syntax::item::Item::Machine(machine) => {
-            lower_machine_into(lowerer, syntax_trees, machine)?;
+            // A machine still carrying a target marker here was NOT selected:
+            // the pre-resolution filter (pipeline/target_machines.rs) clears
+            // the selected target's marker and validates the loud edges, so a
+            // marked machine is inert -- exactly like a non-selected provides
+            // row. (Without the filter, EVERY target machine stays inert and
+            // its call sites fail resolution loudly -- never a silent success.)
+            if machine.target.is_none() {
+                lower_machine_into(lowerer, syntax_trees, machine)?;
+            }
         }
         syntax::item::Item::Platform(platform) => {
             let platform = lower_platform(lowerer, syntax_trees, platform)?;

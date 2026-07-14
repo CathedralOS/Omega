@@ -1,0 +1,97 @@
+//! Target-scoped machine selection (fs portable-contract settle 2026-07-18):
+//! `<target> machine Path(..) {..}` declares a PER-TARGET implementation of a
+//! portable contract signature, held beside that target's provides rows and
+//! gated by the same target filter. This stage runs BEFORE symbol resolution
+//! in both engines' pipelines (the differential contract: the interpreter
+//! sees the SAME selected program natives are built from):
+//!
+//! - the SELECTED target's machine has its marker cleared -- from resolution
+//!   onward it is an ordinary machine, and no downstream stage grows a
+//!   per-target concept (const-v0 discipline, exactly like provides values);
+//! - non-selected machines keep their marker and stay INERT (resolution skips
+//!   them), so four targets' same-name implementations never collide.
+//!
+//! Loud edges (the settle's zero-or-two rule):
+//! - two selected-target machines with one name = implemented twice;
+//! - a name implemented ONLY by non-selected targets = the selected target is
+//!   missing its implementation -- an unconditional error naming who does
+//!   provide one (the contract is the cross-target name set; waiting for an
+//!   unresolved call site would bury the real cause).
+//!
+//! An unknown target name on a machine is silently never-selected, matching
+//! the provides-row semantic (a row for a hypothetical target is inert
+//! everywhere, which is also what makes fail-canaries host-portable).
+
+use omega_core::diagnostics::Diagnostic;
+use omega_syntax_trees::SyntaxTrees;
+use omega_syntax_trees::item::Item;
+use omega_target::NativeTarget;
+use std::collections::BTreeMap;
+
+pub(crate) fn filter_target_machines(
+    syntax: &mut SyntaxTrees,
+    target_name: Option<&str>,
+) -> Result<(), Vec<Diagnostic>> {
+    let selected =
+        NativeTarget::from_omega_target_name(target_name).map_err(|diagnostic| vec![diagnostic])?;
+
+    // full machine name -> (selected handles, non-selected target names).
+    // BTreeMap keeps diagnostics deterministic across runs.
+    let mut rows: BTreeMap<String, (Vec<omega_syntax_trees::item::ItemHandle>, Vec<String>)> =
+        BTreeMap::new();
+    for handle in syntax.root_item_handles().to_vec() {
+        let Item::Machine(machine) = syntax.root_item(handle) else {
+            continue;
+        };
+        let Some(target) = &machine.target else {
+            continue;
+        };
+        let full_name = match &machine.attached_data {
+            Some(data) => format!("{}::{}", data.as_str(), machine.name.as_str()),
+            None => machine.name.as_str().to_owned(),
+        };
+        let row_selected = NativeTarget::from_omega_target_name(Some(target.as_str()))
+            .is_ok_and(|resolved| resolved == selected);
+        let entry = rows.entry(full_name).or_default();
+        if row_selected {
+            entry.0.push(handle);
+        } else {
+            entry.1.push(target.as_str().to_owned());
+        }
+    }
+
+    for (full_name, (selected_handles, other_targets)) in &rows {
+        if selected_handles.len() > 1 {
+            return Err(vec![Diagnostic::error(format!(
+                "machine `{full_name}` is implemented twice for the selected target -- \
+                 a target supplies exactly one implementation of a contract machine",
+            ))]);
+        }
+        if selected_handles.is_empty() {
+            let mut providers = other_targets.clone();
+            providers.sort();
+            providers.dedup();
+            return Err(vec![Diagnostic::error(format!(
+                "machine `{full_name}` has no implementation for the selected target -- \
+                 target-scoped implementations exist for: {} (add this target's \
+                 `<target> machine {full_name}(..)` beside its provides rows)",
+                providers.join(", "),
+            ))]);
+        }
+    }
+
+    // Clear the selected machines' markers LAST, after the loud edges passed:
+    // from here on they are ordinary machines.
+    for (_, (selected_handles, _)) in rows {
+        for handle in selected_handles {
+            let Item::Machine(machine) = syntax.root_item(handle) else {
+                continue;
+            };
+            let mut machine = machine.clone();
+            machine.target = None;
+            syntax.items.replace_item(handle, Item::Machine(machine));
+        }
+    }
+
+    Ok(())
+}

@@ -24987,6 +24987,52 @@ stderr:
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+#[test]
+fn target_machine_gating_exit_canary_runs() {
+    // TARGET-SCOPED MACHINES (fs portable-contract settle 2026-07-18):
+    // `pick` comes from `local_unchecked` (= host everywhere) and `delta`
+    // from the host's real target while THREE inert same-name machines sit
+    // beside it -- 63 + 7 reaches 70 only if selection and inertness both
+    // hold in both engines.
+    let canary = pass_canary("targets/target_machine_gating_exit");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("target-machine canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should exit 70 (63 + 7 through two selected target machines), got {}",
+        outcome.exit_code
+    );
+
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-target-machine-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("target-machine canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("target-machine canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the selected target machines to deliver 70, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // create_new UNFENCED on windows_x64 (portable-values payoff): the wrapper now
 // composes the SELECTED TARGET's open flags from the FilesystemHost provides
 // values, so on windows it emits msvcrt O_CREAT|O_EXCL (not darwin's O_CREAT
@@ -29596,6 +29642,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "capabilities/stores_capability",
     "capabilities/host_provides_binding_forms",
     "capabilities/runtime_provides_value_exit",
+    "targets/target_machine_gating_exit",
     "expressions/runtime_qualified_case_value_exit",
     "calls/recursive_result_bind_first_arg",
     "calls/runtime_branching_callee_chain_exit",
@@ -30458,6 +30505,8 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "capabilities/host_provides_unknown_binding",
     "capabilities/host_provides_two_unknown_rejected",
     "capabilities/provides_value_wrong_target_rejected",
+    "targets/target_machine_missing_rejected",
+    "targets/target_machine_duplicate_rejected",
     "expressions/undeclared_two_segment_path_rejected",
     "wire/wire_policy_plan_disagrees",
     "domains/type_constraint_unknown_domain",

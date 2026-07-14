@@ -1,0 +1,24 @@
+// TWO target-scoped implementations of one machine name for the SAME target
+// must be a clean error -- the settle's zero-or-two rule (a target supplies
+// exactly one implementation of a contract machine). `local_unchecked`
+// resolves to the HOST target on every machine, so both rows are selected on
+// any host and the duplicate fires host-portably.
+boundary trait Console { machine exit_process(return_code: i32); }
+
+data Helper { seed: i32; }
+
+local_unchecked machine Helper::pick(&self) -> i32 {
+    transition { _ -> 63 }
+}
+local_unchecked machine Helper::pick(&self) -> i32 {
+    transition { _ -> 7 }
+}
+
+data Main { console: Console; helper: Helper; }
+
+machine Main::main(&mut self) {
+    let a: i32 = self.helper.pick();
+    transition a == 63 { true -> good() _ -> bad(71) }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self, code2: i32) { self.console.exit_process(code2); }
+}
