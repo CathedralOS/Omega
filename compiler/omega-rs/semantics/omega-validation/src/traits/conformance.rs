@@ -42,6 +42,7 @@ pub(crate) fn validate_machine_trait_conformances(
                 trait_definition,
                 &requirement_name,
                 named_requirement.is_some(),
+                conformance.alias.as_ref().map(|alias| alias.as_str()),
                 diagnostics,
             );
             continue;
@@ -62,14 +63,14 @@ pub(crate) fn validate_machine_trait_conformances(
 /// carrier model): the machine's ENTRY signature must match the requirement's
 /// (with `Self` binding to the carrier type on first use). LAW requirements
 /// (an `ensures` on the requirement) additionally demand a proven-ensures |=
-/// declared-law match -- rung B of the rearrange ladder; until it lands the
-/// signature + effect-ceiling checks are the enforced surface.
+/// declared-law match (rung B: contract_entailment::check_law_conformance).
 fn validate_machine_single_requirement(
     program: &TypedTrees,
     machine: &Machine,
     trait_definition: &TraitDefinition,
     requirement_name: &omega_typed_trees::name::Identifier,
     explicitly_named: bool,
+    conformance_alias: Option<&str>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let Some(requirement) = program
@@ -112,6 +113,17 @@ fn validate_machine_single_requirement(
         program,
         machine,
         entry_state,
+        trait_definition,
+        requirement,
+        diagnostics,
+    );
+
+    // A LAW requirement (ensures on the requirement) demands the satisfier
+    // PROVE the law: proven-ensures |= declared-law, forall-to-forall.
+    crate::contract_entailment::check_law_conformance(
+        program,
+        machine,
+        conformance_alias,
         trait_definition,
         requirement,
         diagnostics,

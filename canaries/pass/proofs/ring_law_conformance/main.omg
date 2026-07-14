@@ -1,0 +1,50 @@
+// LAW-CONFORMANCE PROBE (rearrange rung B): a trait LAW requirement
+// (ensures on the requirement) must be backed by the satisfier's PROVEN
+// ensures, with the law's op slots resolved through the carrier's own
+// conformances -- the op machine is named `plus`, NOT `add`, so the slot
+// rewrite is really exercised.
+boundary trait Console { machine exit_process(return_code: i32); }
+
+data Peano {
+    case Zero;
+    case Succ(pred: Peano);
+}
+
+trait RingOps2 {
+    machine add(a: Self, b: Self) -> Self;
+    machine add_assoc(a: Self, b: Self, c: Self) -> Self
+    ensures add(add(a, b), c) == add(a, add(b, c));
+}
+
+machine plus(a: Peano, b: Peano) -> Peano
+satisfies RingOps2::add
+terminates {
+    decreases a;
+}
+{
+    transition a {
+        Peano::Zero -> (b)
+        Peano::Succ { pred } -> Peano::Succ { pred: plus(pred, b) }
+    }
+}
+
+// The nat.omg add_assoc shape (pure induction, no citations), over Peano's
+// `plus`: proves the LAW the trait declares, so the conformance holds.
+machine plus_assoc(a: Peano, b: Peano, c: Peano) -> Peano
+satisfies RingOps2::add_assoc
+terminates {
+    decreases a;
+}
+ensures
+    (plus(plus(a, b), c)) == (plus(a, plus(b, c)))
+{
+    transition a {
+        Peano::Zero -> Peano::Zero
+        Peano::Succ { pred } -> Peano::Succ { pred: plus_assoc(pred, b, c) }
+    }
+}
+
+data Main { console: Console; }
+machine Main::main(&mut self) {
+    self.console.exit_process(70);
+}
