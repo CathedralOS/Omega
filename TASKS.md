@@ -219,17 +219,25 @@ dispatch-region + receiver-phase family. Everything queued here avoids both.
    walker arm + the arch-dispatched width fn in lockstep; 1|4|8
    restriction lifted). 9 materializer unit tests incl. both indexed
    layouts + refusal cases.
-   NEXT: (1c-ii) the to_frame_indexed WRITE face — x86_64 has NO
-   encoder today (`unsupported_x86_64_encoding`, the read-not-write
-   matrix hole): the shared-base indexed-TARGET shape already works in
-   the materializer (unit-tested layout: base r14, index from it,
-   target hops to r15 + add) — wire the selection dispatch arm, the
-   width fn x86 arm, confirm the start-only walker arm fits, lift any
-   emission blocker, and add a runtime canary for `s[i] = self.x`
-   (frame-source only; machine-source keeps its loud fence). ALSO
-   REMAINING: the machine-indexed copy variants (machine-region bases,
-   region-varying index slots — the index's own base register needs
-   the region wired) → fold into rung 2. (2) ONE `CopyPlaces`
+   RUNG 1c-ii LANDED 2026-07-18 — THE PILOT'S FIRST FREE CAPABILITY:
+   the runtime-indexed whole-element slice WRITE (`exits[index] = e`)
+   now lowers on x86_64 (it refused with the zero-width blocker; the
+   producer already guarded frame-source only, so the shared-base
+   indexed-target shape covers every producible instance and the
+   start-only walker arm fits unchanged). Wired: the ISA encoder
+   (encode_runtime_storage_copy_to_runtime_frame_indexed delegating to
+   the materializer) + widths.rs x86 arm + the selection dispatch arm.
+   Canary pass/slices/runtime_indexed_element_copy_write_exit (70,
+   differential; runtime index AND runtime struct source).
+   FOUND EN ROUTE (pre-existing, pinned): a STRUCT-LITERAL transition
+   ARG does not deliver natively — the entry case plans only scalar
+   sibling args; the struct's field writes are absent, callee param
+   stays ZII (pending/calls/
+   struct_literal_transition_arg_native_divergence, native 71).
+   Argument-materialization writes-planning face.
+   ALSO REMAINING: the machine-indexed copy variants (machine-region
+   bases, region-varying index slots — the index's own base register
+   needs the region wired) → fold into rung 2. (2) ONE `CopyPlaces`
    SelectedInstructionKind variant + a walker arm that PATCHES BY
    PLACE REGION, then selection migrates sites and the 18 variants +
    their echoes retire; then Write/RMW (the leaf-cascade duplication

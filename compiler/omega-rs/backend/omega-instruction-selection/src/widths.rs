@@ -1699,7 +1699,13 @@ pub fn runtime_storage_copy_to_runtime_frame_indexed_width(
             field_byte_offset,
             byte_count,
         ),
-        Architecture::X86_64 => 0,
+        // The Place materializer's shared-base indexed-target shape (was 0:
+        // the write face never existed on x86_64 and refused loudly).
+        Architecture::X86_64 => x86_64::runtime_storage_copy_to_runtime_frame_indexed_width(
+            source_offset,
+            field_byte_offset,
+            byte_count,
+        ),
     }
 }
 

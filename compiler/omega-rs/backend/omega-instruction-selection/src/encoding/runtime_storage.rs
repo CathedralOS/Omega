@@ -900,7 +900,14 @@ pub fn encode_runtime_storage_copy_to_runtime_frame_indexed(
             field_byte_offset,
             byte_count,
         ),
-        Architecture::X86_64 => unsupported_x86_64_encoding(),
+        Architecture::X86_64 => x86_64::encode_runtime_storage_copy_to_runtime_frame_indexed(
+            source_offset,
+            descriptor_offset,
+            index_offset,
+            element_byte_size,
+            field_byte_offset,
+            byte_count,
+        ),
     }
 }
 

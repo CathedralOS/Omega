@@ -13579,6 +13579,53 @@ fn suffix_boundary_magnitudes_canary_runs() {
 }
 
 #[test]
+fn runtime_indexed_element_copy_write_canary_runs() {
+    // Place 1c-ii: the runtime-indexed whole-element slice write
+    // (`exits[index] = e`, runtime index + runtime struct source) -- the
+    // write face x86_64 refused with the zero-width blocker until the
+    // materializer's shared-base indexed-target shape provided it.
+    let canary = pass_canary("slices/runtime_indexed_element_copy_write_exit");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("indexed element write canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should exit 70 (element 1 = {{9,4}}), got {}",
+        outcome.exit_code
+    );
+
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-idx-elem-write-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("indexed element write canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("indexed element write canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the runtime-indexed element write to land (exit 70), got {:?}          (71 = the element missed or the source never materialized)
+stderr:
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn suffix_landed_operand_position_canary_runs() {
     // CR4a: a width-suffixed literal is BORN LANDED, so `z - 1u64` folds at
     // the suffix's u64 landing and the operand-position max compares
@@ -30138,6 +30185,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "filesystem/windows_wrapper_results_exit",
     "filesystem/windows_wrapper_dark_methods_exit",
     "filesystem/repeated_dir_walk_scan_exit",
+    "slices/runtime_indexed_element_copy_write_exit",
     "collections/runtime_palindrome_two_pointer_exit",
     "collections/runtime_bracket_matcher_stack_exit",
     "collections/runtime_argmax_index_exit",
