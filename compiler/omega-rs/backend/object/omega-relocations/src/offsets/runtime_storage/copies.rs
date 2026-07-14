@@ -17,10 +17,11 @@ pub(crate) fn runtime_storage_copy_from_runtime_frame_indexed_target_address_off
         Architecture::Aarch64 => {
             runtime_frame_index_setup_width(element_byte_size, field_byte_offset)
         }
-        // Start of the target-base `mov r15,imm64`: mov r14,imm64 (10)
-        // + index load (7) + imul (7) + descriptor deref (7) + add (3)
-        // + element load (7); the planner adds the +2 itself.
-        Architecture::X86_64 => 41,
+        // Start of the target-base `mov r15,imm64` in the Place
+        // materializer's canonical shape: mov r14,imm64 (10) + index load (7)
+        // + imul (7) + descriptor deref (7) + add (3); the planner adds the
+        // +2 itself.
+        Architecture::X86_64 => 34,
     }
 }
 

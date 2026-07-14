@@ -13,9 +13,15 @@
 //! the place's own region when the kinds themselves collapse -- until then
 //! `Place::region` is documentation, not behavior, on this path.
 //!
-//! Legalization discipline: shapes this materializer cannot yet address
-//! (runtime scaled indices) REFUSE LOUDLY -- callers keep routing those
-//! through their dedicated encoders until the indexed rung lands.
+//! Index discipline (the ScaledIndex rung): a place may carry AT MOST ONE
+//! runtime scaled index, its slot readable from the place's own base region
+//! -- the index loads into r11 (32-bit, zero-extended) and scales IMMEDIATELY
+//! AFTER the base materializes and BEFORE any deref consumes the base, then
+//! `add reg, r11` fires at the step's position in the walk. On the
+//! shared-base path an index is legal only on a side that DEREFS (a direct
+//! side's add would mutate the base the other side still needs), and only
+//! one side may be indexed (r11 is the single index scratch). Everything
+//! else REFUSES LOUDLY -- legalization, not silent truncation.
 
 use omega_core::diagnostics::Diagnostic;
 use omega_target_operations::{Place, PlaceStep};
@@ -41,6 +47,9 @@ fn materialize_place_address(
         AddressRegister::Source => super::append_mov_r14_imm64(bytes, 0),
         AddressRegister::Target => super::append_mov_r15_imm64(bytes, 0),
     }
+    // The index (at most one) loads and scales BEFORE any deref consumes the
+    // base register its slot is addressed from.
+    prepare_place_index(bytes, place, register)?;
     let mut displacement = 0usize;
     for step in place.steps() {
         match step {
@@ -56,16 +65,50 @@ fn materialize_place_address(
                 }
                 displacement = 0;
             }
-            PlaceStep::ScaledIndex { .. } => {
-                return Err(Diagnostic::error(
-                    "place materializer: runtime-indexed place steps are not lowered yet -- \
-                     this shape still routes through its dedicated indexed encoder \
-                     (the Copy* pilot's indexed rung)",
-                ));
-            }
+            PlaceStep::ScaledIndex { .. } => append_scaled_index_add(bytes, register),
         }
     }
     Ok(displacement)
+}
+
+/// Pre-load the place's runtime index (if any) into r11 and scale it by the
+/// element size. Refuses more than one index per place: r11 is the single
+/// index scratch.
+fn prepare_place_index(
+    bytes: &mut Vec<u8>,
+    place: &Place,
+    base_register: AddressRegister,
+) -> Result<(), Diagnostic> {
+    let mut indices = place.steps().iter().filter_map(|step| match step {
+        PlaceStep::ScaledIndex {
+            index_offset,
+            element_byte_size,
+            ..
+        } => Some((*index_offset, *element_byte_size)),
+        _ => None,
+    });
+    let Some((index_offset, element_byte_size)) = indices.next() else {
+        return Ok(());
+    };
+    if indices.next().is_some() {
+        return Err(Diagnostic::error(
+            "place materializer: at most one runtime scaled index per place \
+             (r11 is the single index scratch)",
+        ));
+    }
+    match base_register {
+        AddressRegister::Source => super::append_load_r11_from_r14(bytes, index_offset)?,
+        AddressRegister::Target => super::append_load_index_r11_from_r15(bytes, index_offset)?,
+    }
+    super::append_imul_r11_imm32(bytes, super::element_scale(element_byte_size)?);
+    Ok(())
+}
+
+fn append_scaled_index_add(bytes: &mut Vec<u8>, register: AddressRegister) {
+    match register {
+        AddressRegister::Source => super::append_add_r14_r11(bytes),
+        AddressRegister::Target => super::append_add_r15_r11(bytes),
+    }
 }
 
 /// Copy `byte_count` bytes from `source` to `target`: materialize both
@@ -99,12 +142,89 @@ pub fn encode_place_copy_shared_base(
     target: &Place,
     byte_count: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = Vec::new();
-    super::append_mov_r15_imm64(&mut bytes, 0);
+    let source_derefs = place_derefs(source);
+    let target_derefs = place_derefs(target);
+    let source_indexed = place_has_index(source);
+    let target_indexed = place_has_index(target);
+    if source_indexed && target_indexed {
+        return Err(Diagnostic::error(
+            "shared-base place copy: only one side may carry a runtime index \
+             (r11 is the single index scratch)",
+        ));
+    }
+    if (source_indexed && !source_derefs) || (target_indexed && !target_derefs) {
+        return Err(Diagnostic::error(
+            "shared-base place copy: a runtime index is only legal on a \
+             dereferencing side (an index add on a direct side would mutate the \
+             shared base) -- route this pair through encode_place_copy",
+        ));
+    }
 
-    // Source: const prefix positions the pointer slot; the first deref hops
-    // to r14; the rest of the path continues there.
-    let mut steps = source.steps().iter();
+    let mut bytes = Vec::new();
+    if source_derefs {
+        // Base lives in r15 (the target register); the first source deref
+        // hops its address to r14 BEFORE any target deref consumes r15.
+        super::append_mov_r15_imm64(&mut bytes, 0);
+        prepare_place_index(
+            &mut bytes,
+            if source_indexed { source } else { target },
+            AddressRegister::Target,
+        )?;
+        let source_displacement =
+            walk_hopping_side(&mut bytes, source, HopDirection::BaseR15SourceHops)?;
+        let target_displacement = walk_base_side(&mut bytes, target, AddressRegister::Target)?;
+        append_copy_chunks(&mut bytes, source_displacement, target_displacement, byte_count)?;
+        Ok(bytes)
+    } else if target_derefs {
+        // The mirror: the source is direct, so the base lives in r14 (the
+        // source register) and the first target deref hops to r15.
+        super::append_mov_r14_imm64(&mut bytes, 0);
+        prepare_place_index(&mut bytes, target, AddressRegister::Source)?;
+        let target_displacement =
+            walk_hopping_side(&mut bytes, target, HopDirection::BaseR14TargetHops)?;
+        let source_displacement = walk_base_side(&mut bytes, source, AddressRegister::Source)?;
+        append_copy_chunks(&mut bytes, source_displacement, target_displacement, byte_count)?;
+        Ok(bytes)
+    } else {
+        Err(Diagnostic::error(
+            "shared-base place copy requires a dereferencing side -- \
+             a direct pair routes through encode_place_copy",
+        ))
+    }
+}
+
+fn place_derefs(place: &Place) -> bool {
+    place
+        .steps()
+        .iter()
+        .any(|step| matches!(step, PlaceStep::Deref))
+}
+
+fn place_has_index(place: &Place) -> bool {
+    place
+        .steps()
+        .iter()
+        .any(|step| matches!(step, PlaceStep::ScaledIndex { .. }))
+}
+
+#[derive(Clone, Copy)]
+enum HopDirection {
+    /// The shared base is r15; the hopping side address lands in r14.
+    BaseR15SourceHops,
+    /// The shared base is r14; the hopping side address lands in r15.
+    BaseR14TargetHops,
+}
+
+/// Walk the side whose first deref HOPS off the shared base into its own
+/// register; subsequent steps continue there. Returns the residual
+/// displacement. An index add fires only after the hop (enforced by the
+/// dereferencing-side check above).
+fn walk_hopping_side(
+    bytes: &mut Vec<u8>,
+    place: &Place,
+    direction: HopDirection,
+) -> Result<usize, Diagnostic> {
+    let mut steps = place.steps().iter();
     let mut prefix = 0usize;
     loop {
         match steps.next() {
@@ -112,59 +232,68 @@ pub fn encode_place_copy_shared_base(
             Some(PlaceStep::Deref) => break,
             Some(PlaceStep::ScaledIndex { .. }) => {
                 return Err(Diagnostic::error(
-                    "place materializer: runtime-indexed place steps are not lowered yet -- \
-                     this shape still routes through its dedicated indexed encoder \
-                     (the Copy* pilot's indexed rung)",
+                    "shared-base place copy: a runtime index cannot precede the \
+                     hopping deref (the add would target the shared base)",
                 ));
             }
-            None => {
-                return Err(Diagnostic::error(
-                    "shared-base place copy requires a dereferencing source -- \
-                     a direct pair routes through encode_place_copy",
-                ));
-            }
+            None => unreachable!("walk_hopping_side requires a dereferencing place"),
         }
     }
-    super::append_load_r14_from_r15(&mut bytes, prefix)?;
-    let mut source_displacement = 0usize;
+    match direction {
+        HopDirection::BaseR15SourceHops => super::append_load_r14_from_r15(bytes, prefix)?,
+        HopDirection::BaseR14TargetHops => super::append_load_r15_from_r14(bytes, prefix)?,
+    }
+    let own_register = match direction {
+        HopDirection::BaseR15SourceHops => AddressRegister::Source,
+        HopDirection::BaseR14TargetHops => AddressRegister::Target,
+    };
+    let mut displacement = 0usize;
     for step in steps {
         match step {
-            PlaceStep::ConstOffset(offset) => source_displacement += offset,
+            PlaceStep::ConstOffset(offset) => displacement += offset,
             PlaceStep::Deref => {
-                super::append_load_r14_from_r14(&mut bytes, source_displacement)?;
-                source_displacement = 0;
+                match own_register {
+                    AddressRegister::Source => {
+                        super::append_load_r14_from_r14(bytes, displacement)?
+                    }
+                    AddressRegister::Target => {
+                        super::append_load_r15_from_r15(bytes, displacement)?
+                    }
+                }
+                displacement = 0;
             }
-            PlaceStep::ScaledIndex { .. } => {
-                return Err(Diagnostic::error(
-                    "place materializer: runtime-indexed place steps are not lowered yet -- \
-                     this shape still routes through its dedicated indexed encoder \
-                     (the Copy* pilot's indexed rung)",
-                ));
-            }
+            PlaceStep::ScaledIndex { .. } => append_scaled_index_add(bytes, own_register),
         }
     }
+    Ok(displacement)
+}
 
-    // Target: walk in place on r15 (a pure-const path leaves it the base).
-    let mut target_displacement = 0usize;
-    for step in target.steps() {
+/// Walk the side that stays ON the shared base register (its derefs, if any,
+/// consume the base in place -- legal because the hopping side already left).
+fn walk_base_side(
+    bytes: &mut Vec<u8>,
+    place: &Place,
+    register: AddressRegister,
+) -> Result<usize, Diagnostic> {
+    let mut displacement = 0usize;
+    for step in place.steps() {
         match step {
-            PlaceStep::ConstOffset(offset) => target_displacement += offset,
+            PlaceStep::ConstOffset(offset) => displacement += offset,
             PlaceStep::Deref => {
-                super::append_load_r15_from_r15(&mut bytes, target_displacement)?;
-                target_displacement = 0;
+                match register {
+                    AddressRegister::Source => {
+                        super::append_load_r14_from_r14(bytes, displacement)?
+                    }
+                    AddressRegister::Target => {
+                        super::append_load_r15_from_r15(bytes, displacement)?
+                    }
+                }
+                displacement = 0;
             }
-            PlaceStep::ScaledIndex { .. } => {
-                return Err(Diagnostic::error(
-                    "place materializer: runtime-indexed place steps are not lowered yet -- \
-                     this shape still routes through its dedicated indexed encoder \
-                     (the Copy* pilot's indexed rung)",
-                ));
-            }
+            PlaceStep::ScaledIndex { .. } => append_scaled_index_add(bytes, register),
         }
     }
-
-    append_copy_chunks(&mut bytes, source_displacement, target_displacement, byte_count)?;
-    Ok(bytes)
+    Ok(displacement)
 }
 
 fn append_copy_chunks(
@@ -319,17 +448,107 @@ mod tests {
         assert_eq!(&bytes[17..19], &[0x49, 0xbf]);
     }
 
-    /// Runtime-indexed steps refuse loudly until the indexed rung lands.
+    /// The shared-base runtime-indexed source (the from_frame_indexed
+    /// family): the index loads from the SHARED base and scales BEFORE the
+    /// hopping deref, then adds onto the hopped source address.
     #[test]
-    fn scaled_index_refuses_loudly() {
-        let source = Place::at(RuntimeStorageRegion::RuntimeFrame, 0)
+    fn shared_base_indexed_source_layout() {
+        let source = Place::at(RuntimeStorageRegion::RuntimeFrame, 48)
+            .with_step(PlaceStep::Deref)
+            .unwrap()
+            .with_step(PlaceStep::ScaledIndex {
+                index_region: RuntimeStorageRegion::RuntimeFrame,
+                index_offset: 56,
+                element_byte_size: 4,
+            })
+            .unwrap()
+            .with_step(PlaceStep::ConstOffset(8))
+            .unwrap();
+        let target = Place::at(RuntimeStorageRegion::RuntimeFrame, 96);
+        let bytes = encode_place_copy_shared_base(&source, &target, 4).expect("encodes");
+
+        let mut expected = Vec::new();
+        super::super::append_mov_r15_imm64(&mut expected, 0);
+        super::super::append_load_index_r11_from_r15(&mut expected, 56).expect("index");
+        super::super::append_imul_r11_imm32(&mut expected, 4);
+        super::super::append_load_r14_from_r15(&mut expected, 48).expect("hop");
+        super::super::append_add_r14_r11(&mut expected);
+        super::super::for_each_runtime_copy_chunk(8, 96, 4, |offset, chunk_size| {
+            super::super::append_load_rax_from_r14(&mut expected, 8 + offset, chunk_size)?;
+            super::super::append_store_rax_to_r15(&mut expected, 96 + offset, chunk_size)?;
+            Ok(())
+        })
+        .expect("chunks");
+        assert_eq!(bytes, expected);
+    }
+
+    /// The mirror: a runtime-indexed TARGET (the to_frame_indexed write face
+    /// the old product never built on x86_64) -- base in r14, the index loads
+    /// from it, the target hops to r15 and adds the scaled index.
+    #[test]
+    fn shared_base_indexed_target_layout() {
+        let source = Place::at(RuntimeStorageRegion::RuntimeFrame, 24);
+        let target = Place::at(RuntimeStorageRegion::RuntimeFrame, 48)
+            .with_step(PlaceStep::Deref)
+            .unwrap()
+            .with_step(PlaceStep::ScaledIndex {
+                index_region: RuntimeStorageRegion::RuntimeFrame,
+                index_offset: 56,
+                element_byte_size: 8,
+            })
+            .unwrap();
+        let bytes = encode_place_copy_shared_base(&source, &target, 8).expect("encodes");
+
+        let mut expected = Vec::new();
+        super::super::append_mov_r14_imm64(&mut expected, 0);
+        super::super::append_load_r11_from_r14(&mut expected, 56).expect("index");
+        super::super::append_imul_r11_imm32(&mut expected, 8);
+        super::super::append_load_r15_from_r14(&mut expected, 48).expect("hop");
+        super::super::append_add_r15_r11(&mut expected);
+        super::super::for_each_runtime_copy_chunk(24, 0, 8, |offset, chunk_size| {
+            super::super::append_load_rax_from_r14(&mut expected, 24 + offset, chunk_size)?;
+            super::super::append_store_rax_to_r15(&mut expected, offset, chunk_size)?;
+            Ok(())
+        })
+        .expect("chunks");
+        assert_eq!(bytes, expected);
+    }
+
+    /// Index refusals: two indices on one place; both sides indexed; an index
+    /// on a direct shared side.
+    #[test]
+    fn scaled_index_refusals() {
+        let indexed = |offset: usize| {
+            Place::at(RuntimeStorageRegion::RuntimeFrame, offset)
+                .with_step(PlaceStep::Deref)
+                .unwrap()
+                .with_step(PlaceStep::ScaledIndex {
+                    index_region: RuntimeStorageRegion::RuntimeFrame,
+                    index_offset: 8,
+                    element_byte_size: 4,
+                })
+                .unwrap()
+        };
+        // Two indices on one place (two-base path).
+        let double = indexed(0)
+            .with_step(PlaceStep::ScaledIndex {
+                index_region: RuntimeStorageRegion::RuntimeFrame,
+                index_offset: 16,
+                element_byte_size: 4,
+            })
+            .unwrap();
+        let plain = Place::at(RuntimeStorageRegion::Machine, 64);
+        assert!(encode_place_copy(&double, &plain, 4).is_err());
+        // Both sides indexed (shared base).
+        assert!(encode_place_copy_shared_base(&indexed(0), &indexed(32), 4).is_err());
+        // Index on a DIRECT side (shared base): would mutate the shared base.
+        let direct_indexed = Place::at(RuntimeStorageRegion::RuntimeFrame, 0)
             .with_step(PlaceStep::ScaledIndex {
                 index_region: RuntimeStorageRegion::RuntimeFrame,
                 index_offset: 8,
                 element_byte_size: 4,
             })
             .unwrap();
-        let target = Place::at(RuntimeStorageRegion::RuntimeFrame, 64);
-        assert!(encode_place_copy(&source, &target, 4).is_err());
+        assert!(encode_place_copy_shared_base(&direct_indexed, &indexed(32), 4).is_err());
     }
 }
