@@ -699,6 +699,90 @@ pub(super) fn select_runtime_dispatch_argument_materialization(
                 }
                 continue;
             }
+
+            // A PLAIN RECORD literal argument (`Exit { destination: d, weight: w }`,
+            // no case): same field-wise delivery, no tag. This arm was MISSING --
+            // the record shape fell through to the scalar writer, which plans
+            // nothing for an aggregate, so the callee's param slot stayed ZII
+            // (pending/calls/struct_literal_transition_arg_native_divergence).
+            let record_fields: Vec<(omega_checked_trees::name::Identifier, usize, usize)> = {
+                let type_name = &struct_literal.type_name;
+                input
+                    .layouts
+                    .data_layouts
+                    .iter()
+                    .find(|(_, dl)| dl.name == *type_name)
+                    .and_then(|(_, dl)| {
+                        if let DataShape::Record { fields } = &dl.shape {
+                            Some(
+                                input
+                                    .layouts
+                                    .fields
+                                    .span_or_empty(*fields)
+                                    .iter()
+                                    .map(|f| (f.name.clone(), f.offset, f.layout.size))
+                                    .collect(),
+                            )
+                        } else {
+                            None
+                        }
+                    })
+                    .unwrap_or_default()
+            };
+            if !record_fields.is_empty() {
+                for offset in 0..struct_literal.fields.count() {
+                    let field = expressions
+                        .struct_field_at_offset(struct_literal.fields, offset)
+                        .clone();
+                    let Some((_, field_offset, field_size)) =
+                        record_fields.iter().find(|(name, _, _)| *name == field.name)
+                    else {
+                        continue;
+                    };
+                    let frame_offset = slot.byte_offset + field_offset;
+                    if let Some(int_val) =
+                        static_runtime_argument_value(expressions.expression(field.value))
+                    {
+                        if matches!(field_size, 1 | 2 | 4 | 8) {
+                            selected_instructions.push(SelectedInstruction {
+                                kind: SelectedInstructionKind::WriteRuntimeStorageInteger {
+                                    target_region: RuntimeStorageRegion::RuntimeFrame,
+                                    byte_offset: frame_offset,
+                                    byte_size: *field_size,
+                                    value: int_val,
+                                },
+                                source_key,
+                                source_statement: statement_index,
+                            });
+                        }
+                        continue;
+                    }
+                    let mut field_slot = slot.clone();
+                    field_slot.byte_offset = frame_offset;
+                    field_slot.byte_size = *field_size;
+                    if let Some(kind) =
+                        select_runtime_frame_slot_value_write_in_table_with_source_anchor(
+                            input,
+                            source_dispatch_index,
+                            argument_source_key,
+                            statement_index,
+                            expressions,
+                            &field_slot,
+                            field.value,
+                            &static_values,
+                            runtime_value_operands,
+                            frame_offset,
+                        )
+                    {
+                        selected_instructions.push(SelectedInstruction {
+                            kind,
+                            source_key,
+                            source_statement: statement_index,
+                        });
+                    }
+                }
+                continue;
+            }
         }
 
         if let Some(kind) = select_runtime_frame_slot_value_write_in_table_with_source_anchor(

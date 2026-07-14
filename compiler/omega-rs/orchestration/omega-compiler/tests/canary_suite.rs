@@ -13579,6 +13579,52 @@ fn suffix_boundary_magnitudes_canary_runs() {
 }
 
 #[test]
+fn struct_literal_transition_arg_canary_runs() {
+    // The record arm of struct-literal ARG materialization (was missing:
+    // a plain record arg planned nothing and the callee param stayed ZII).
+    // Both field shapes: constant (int fast path) + runtime (general writer).
+    let canary = pass_canary("calls/struct_literal_transition_arg_exit");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("struct-literal arg canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should exit 70 (13 + 6 across both legs), got {}",
+        outcome.exit_code
+    );
+
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-struct-arg-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("struct-literal arg canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("struct-literal arg canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected both struct-literal arg legs to deliver (exit 70), got {:?}          (71 = a leg's fields arrived ZII)
+stderr:
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_indexed_element_copy_write_canary_runs() {
     // Place 1c-ii: the runtime-indexed whole-element slice write
     // (`exits[index] = e`, runtime index + runtime struct source) -- the
@@ -30186,6 +30232,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "filesystem/windows_wrapper_dark_methods_exit",
     "filesystem/repeated_dir_walk_scan_exit",
     "slices/runtime_indexed_element_copy_write_exit",
+    "calls/struct_literal_transition_arg_exit",
     "collections/runtime_palindrome_two_pointer_exit",
     "collections/runtime_bracket_matcher_stack_exit",
     "collections/runtime_argmax_index_exit",
