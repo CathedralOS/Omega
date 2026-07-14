@@ -1,0 +1,23 @@
+// NO OVER-ACCEPTANCE: core nat's CommutativeSemiring license is LIVE here,
+// and the claim is a FALSE shuffle -- the addend multisets {a, b, c} and
+// {a, a, c} differ, so the rearrange tier stands down (it proves multiset
+// equality only; it never certifies inequality away) and the fence fires.
+use omega::language::core::nat;
+
+boundary trait Console { machine exit_process(return_code: i32); }
+
+machine bogus_shuffle(a: Nat, b: Nat, c: Nat) -> Nat
+terminates {
+    decreases a;
+}
+ensures
+    (add(a, add(b, c))) == (add(a, add(a, c)))
+{
+    transition a {
+        Nat::Zero -> Nat::Zero
+        Nat::Succ { prev } -> Nat::Succ { prev: bogus_shuffle(prev, b, c) }
+    }
+}
+
+data Main { console: Console; }
+machine Main::main(&mut self) { self.console.exit_process(70); }

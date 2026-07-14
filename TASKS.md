@@ -837,6 +837,32 @@ no `unbounded` property exists. Rungs:
   named `plus` — the rewrite is real) + three fails
   (unproven/weaker-instance/slot-unbound). Rung C (the judge) can now
   consume carrier_slot_bindings as its license + symbol table.
+  RUNG C LANDED 2026-07-18 — THE ACCEPTANCE MET. The structural judge's
+  REARRANGE tier (judge_equation's stuck-equation fallback): flatten
+  both sides to addend MULTISETS over a licensed op; equal proves,
+  unequal stays Unknown (never refutes — atoms may alias). LICENSE
+  (compute_ring_licenses): a trait op slot with BOTH comm+assoc LAWS
+  (detected by SHAPE over requirement names, never name-keyed), the op
+  conformed, both law slots satisfied for the carrier. ⚠️ NO CIRCULAR
+  LICENSING: a machine binding any comm/assoc law slot of a trait gets
+  NO licenses from that trait (kills self-licensing AND multi-machine
+  license cycles — the axiom base always proves ring-free).
+  Core surface: core/algebra.omg = the settled CommutativeSemiring
+  (zero/one/add/mul slots + 5 laws; identity laws deferred — their
+  facts need the zero()-application vs Nat::Zero-constructor bridging
+  rung, noted in the file). nat.omg conforms machine-by-machine (+ new
+  trivial zero/one machines). ACCEPTANCE ARTIFACTS: mul_distributes in
+  core nat.omg with ZERO citations; mul_succ_right's msr_step
+  choreography DELETED. Load-bearing verified: pulling add_comm's
+  conformance re-fences mul_distributes. Canaries:
+  pass/proofs/ring_rearrange_core_nat + fails unlicensed (lemmas in
+  scope, NO conformance → fence: the no-scope-sniffing pin) +
+  false_shuffle (live license, differing multisets → fence).
+  REMAINING (follow-up rungs, not blockers): tier-2 full polynomial
+  (mul distributing through the canonical form — needs all five laws
+  conformed; today mul applications are atoms, sufficient for the whole
+  acceptance); zero/one identity-law bridging; Int/Rat routing + the
+  N2(d) arithmetic bridge (unchanged).
   THEN: Int/Rat routing, the N2(d) arithmetic bridge
   (n > 0 => n == Succ(n - 1)). Int introduction rule: order has no floor,
   measures stay Nat-valued or range-floored.

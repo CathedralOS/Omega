@@ -1,0 +1,55 @@
+// NO SCOPE-SNIFFING (the rearrange settle's central ruling): comm and assoc
+// lemmas for `plus` are IN SCOPE below -- proven, importable, sitting right
+// there -- but NOTHING declares a CommutativeSemiring conformance, so the
+// rearrange tier has no license and the shuffle lemma must fence exactly as
+// before the tier existed. Whether a proof compiles must never depend on
+// what happens to be in scope (the Lean CommRing-instance precedent).
+boundary trait Console { machine exit_process(return_code: i32); }
+
+data Peano {
+    case Zero;
+    case Succ(pred: Peano);
+}
+
+machine plus(a: Peano, b: Peano) -> Peano
+terminates {
+    decreases a;
+}
+{
+    transition a {
+        Peano::Zero -> (b)
+        Peano::Succ { pred } -> Peano::Succ { pred: plus(pred, b) }
+    }
+}
+
+machine plus_assoc(a: Peano, b: Peano, c: Peano) -> Peano
+terminates {
+    decreases a;
+}
+ensures
+    (plus(plus(a, b), c)) == (plus(a, plus(b, c)))
+{
+    transition a {
+        Peano::Zero -> Peano::Zero
+        Peano::Succ { pred } -> Peano::Succ { pred: plus_assoc(pred, b, c) }
+    }
+}
+
+// A shuffle only rearrangement could bridge -- with no conformance
+// declared, it must stay fenced (its truth is beside the point; the LICENSE
+// is the point).
+machine needs_rearrange(a: Peano, b: Peano, c: Peano) -> Peano
+terminates {
+    decreases a;
+}
+ensures
+    (plus(b, plus(a, c))) == (plus(a, plus(b, c)))
+{
+    transition a {
+        Peano::Zero -> Peano::Zero
+        Peano::Succ { pred } -> Peano::Succ { pred: needs_rearrange(pred, b, c) }
+    }
+}
+
+data Main { console: Console; }
+machine Main::main(&mut self) { self.console.exit_process(70); }

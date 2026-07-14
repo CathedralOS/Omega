@@ -14,6 +14,13 @@
 
 operator Nat::Descending(value: u64) -> u64;
 
+// The core algebraic conformance surface: Nat EARNS ring canonicalization
+// (rearrange-mode) by conforming `CommutativeSemiring` machine-by-machine
+// below -- ops via `satisfies CommutativeSemiring::<op>`, laws via the lemma
+// machines binding the law slots (each proof machine-checked against the
+// declared law, forall-to-forall).
+use omega::language::core::algebra;
+
 // Math roster N4, first slice (2026-07-11): Nat as ORDINARY RECURSIVE
 // DATA -- legal to declare and proof-only by N1's computed
 // classification (recursive data has no layout; every runtime
@@ -33,6 +40,7 @@ data Nat {
 // Extraction lemmas (add_zero, add_succ, commutativity) ride N3/N4's
 // ensures-extraction rung.
 machine add(a: Nat, b: Nat) -> Nat
+satisfies CommutativeSemiring::add
 terminates {
     decreases a;
 }
@@ -44,6 +52,7 @@ terminates {
 }
 
 machine mul(a: Nat, b: Nat) -> Nat
+satisfies CommutativeSemiring::mul
 terminates {
     decreases a;
 }
@@ -52,6 +61,20 @@ terminates {
         Nat::Zero -> Nat::Zero
         Nat::Succ { prev } -> (add(b, mul(prev, b)))
     }
+}
+
+// The semiring constants -- trivial one-transition machines (the settle's
+// zero/one rule: no constructor-binding surface).
+machine zero() -> Nat
+satisfies CommutativeSemiring::zero
+{
+    transition { _ -> Nat::Zero }
+}
+
+machine one() -> Nat
+satisfies CommutativeSemiring::one
+{
+    transition { _ -> Nat::Succ { prev: Nat::Zero } }
 }
 
 // N4 extraction lemmas (2026-07-11): the first PROVEN library lemmas --
@@ -129,6 +152,7 @@ ensures
 // (provenance: every transition into comm_step binds it from `a`'s Succ
 // payload).
 machine add_comm(a: Nat, b: Nat) -> Nat
+satisfies CommutativeSemiring::add_comm
 terminates {
     decreases a;
 }
@@ -154,6 +178,7 @@ ensures
 // ASSOCIATIVITY: pure induction on `a`, no citations -- both sides
 // normalize by unfolding plus the inductive hypothesis.
 machine add_assoc(a: Nat, b: Nat, c: Nat) -> Nat
+satisfies CommutativeSemiring::add_assoc
 terminates {
     decreases a;
 }
@@ -181,10 +206,14 @@ ensures
     }
 }
 
-// mul's right-successor law. The step case is the citation CHOREOGRAPHY
-// showcase: three reducing rewrites (comm, assoc, comm) normalize
-// `add(b, add(prev, mul(prev, b)))` onto the goal's other side --
-// explicit proof text, each step a cited instance, no search anywhere.
+// mul's right-successor law -- CITATION-FREE since rearrange-mode
+// (2026-07-18). This step case was the citation-choreography showcase:
+// three cited rewrites (comm, assoc, comm) hand-normalized
+// `add(b, add(prev, mul(prev, b)))` onto the goal's other side. The
+// rearrange tier dissolves the choreography: after unfolding and the
+// inductive hypothesis, both sides flatten to the same addend multiset
+// under Nat's CommutativeSemiring conformance, and the msr_step sub-state
+// deletes entirely.
 machine mul_succ_right(a: Nat, b: Nat) -> Nat
 terminates {
     decreases a;
@@ -194,20 +223,37 @@ ensures
 {
     transition a {
         Nat::Zero -> Nat::Zero
-        Nat::Succ { prev } -> msr_step(prev, b)
+        Nat::Succ { prev } -> Nat::Succ { prev: mul_succ_right(prev, b) }
     }
+}
 
-    state msr_step(prev: Nat, b: Nat) -> Nat {
-        add_comm(b, add(prev, mul(prev, b)));
-        add_assoc(prev, mul(prev, b), b);
-        add_comm(mul(prev, b), b);
-        transition { _ -> Nat::Succ { prev: mul_succ_right(prev, b) } }
+// DISTRIBUTIVITY -- CITATION-FREE (the rearrange-mode acceptance,
+// 2026-07-18): induction on `a`, no sub-states, no cited instances. The
+// step case unfolds mul/add and applies the inductive hypothesis, leaving a
+// four-addend shuffle (`add(b, add(c, X))` against `add(add(b, X'), ...)`)
+// that the engine's REARRANGE tier discharges: Nat's explicit
+// `CommutativeSemiring` conformance (add_comm + add_assoc proven above)
+// licenses flattening both sides into addend multisets and comparing --
+// exactly Lean's `ring` discipline, license by declared instance, never by
+// imports in scope.
+machine mul_distributes(a: Nat, b: Nat, c: Nat) -> Nat
+satisfies CommutativeSemiring::mul_distributes
+terminates {
+    decreases a;
+}
+ensures
+    (mul(a, add(b, c))) == (add(mul(a, b), mul(a, c)))
+{
+    transition a {
+        Nat::Zero -> Nat::Zero
+        Nat::Succ { prev } -> Nat::Succ { prev: mul_distributes(prev, b, c) }
     }
 }
 
 // MULTIPLICATION COMMUTES: base cites mul_zero_right; step cites
 // mul_succ_right at (b, prev) plus the inductive hypothesis.
 machine mul_comm(a: Nat, b: Nat) -> Nat
+satisfies CommutativeSemiring::mul_comm
 terminates {
     decreases a;
 }
