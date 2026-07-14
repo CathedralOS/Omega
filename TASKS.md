@@ -185,16 +185,27 @@ dispatch-region + receiver-phase family. Everything queued here avoids both.
    both pointee shapes. Relocation walker untouched (same bytes, same
    kinds; Place::region is documentation on this path until the walker
    consumes places).
-   NEXT RUNGS: (1b) delegate the FIXED-indexed variants (const-folded
-   deref shapes — verify each encoder's byte layout matches the
-   materializer order first, walker arms in lockstep where layout
-   shifts); (1c) ScaledIndex materialization (index load + scale +
-   add; pick scratch discipline consistent with existing indexed
-   encoders) + runtime-indexed variants — the first REAL byte-layout
-   unification, differential is the oracle, walker arms update to the
-   unified shape; (1d) the aarch64 materializer twin (its
-   runtime_storage.rs encoders are the same product); (2) ONE
-   `CopyPlaces` SelectedInstructionKind variant + walker arm that
+   NEXT RUNGS — 1b RECON DONE 2026-07-18 (read before building):
+   (1b) the fixed-indexed family is NOT byte-neutral to delegate; two
+   old-encoder idioms differ from the canonical
+   source-addr/target-addr/chunks shape: (i)
+   fixed_indexed_to_runtime_frame SHARES one base (mov r15 frame;
+   mov r14,[r15+desc]; ONE reloc @start) — teach the materializer
+   REGION-AWARE BASE SHARING (same-region + source-deref pair: emit
+   target base first, source's first deref loads r14 THROUGH r15)
+   to keep byte-identity and better codegen; (ii)
+   fixed_indexed_to_runtime_storage INTERLEAVES its single-chunk load
+   between the two address materializations
+   (FRAME_FIXED_INDEXED_COPY_TARGET_IMM_OFFSET = 26; canonicalizing
+   moves the target reloc to +19) — walker offset fns are
+   ARCH-CONDITIONAL and shared with the un-delegated aarch64 layouts,
+   so EITHER do 1b together with (1d) the aarch64 twin (keeps walker
+   arms arch-uniform — RECOMMENDED) or make the offset fns
+   arch-forked transitionally. (1c) ScaledIndex materialization
+   (index load + scale + add; scratch discipline from the existing
+   indexed encoders) + runtime-indexed variants — differential is
+   the oracle, walker arms update to the unified shape. (2) ONE
+   `CopyPlaces` SelectedInstructionKind variant + a walker arm that
    PATCHES BY PLACE REGION, then selection migrates sites and the 18
    variants + their echoes retire; then Write/RMW (the leaf-cascade
    duplication dies), Text, guards/operands, op-set shrink — the wiki
