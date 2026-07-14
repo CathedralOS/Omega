@@ -1,0 +1,11 @@
+// A NEGATIVE spelling never fits an unsigned suffix: the parse-time negation
+// fold makes `-1u8` one literal valued -1 landed u8, and u8 has no negative
+// values (spell `255u8` for the wraparound bit pattern -- suffixes read
+// VALUES, ch5 exact anonymous values).
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine Main::main(&mut self) {
+    let a: u8 = -1u8;
+    transition a == 255 { true -> done() _ -> done() }
+    state done(&self) { self.console.exit_process(70); }
+}

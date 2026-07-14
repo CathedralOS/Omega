@@ -1,0 +1,23 @@
+// RUN CANARY (exit 70, differential) -- the suffixed-magnitude fit check's
+// BOUNDARY pins: every extreme that DOES fit must stay legal. The parse-time
+// negation fold makes `-128i8` ONE literal valued -128 (fits i8) even though
+// a bare `128i8` would not -- the negation caveat the fit check is built
+// around. Sums verify the values arrived intact: 70 + (-128 + 127) + (255 -
+// 254) - 1 + 1 = 70.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; total: i32 in Wrapping; }
+machine Main::main(&mut self) {
+    let a: i8 = -128i8;
+    let b: i8 = 127i8;
+    let c: u8 = 255u8;
+    let d: u8 = 254u8;
+    let e: i64 = -9223372036854775808i64;
+    let lo: i32 in Wrapping = a as i32 in Wrapping;
+    let hi: i32 in Wrapping = b as i32 in Wrapping;
+    let cu: i32 in Wrapping = c as i32 in Wrapping;
+    let du: i32 in Wrapping = d as i32 in Wrapping;
+    self.total = 70 + lo + hi + cu - du - 1 + 1;
+    transition e == -9223372036854775808 { true -> done() _ -> bad() }
+    state done(&self) { self.console.exit_process(self.total); }
+    state bad(&self) { self.console.exit_process(99); }
+}

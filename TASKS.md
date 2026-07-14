@@ -99,12 +99,19 @@ dispatch-region + receiver-phase family. Everything queued here avoids both.
    folds unchanged: `z - 1u64` folds at u64 and the operand-position
    max compares unsigned (pass/arithmetic/
    suffix_landed_operand_position_exit, differential 77; fail twin
-   suffix_type_disagrees_rejected). Remaining CR4 faces: float literals
-   → exact Rat (= the float ladder's F2 rung, tracked there); a
-   parse-site FIT check for suffixed magnitudes (`300u8` — today the
-   destination range obligations catch the destination cases; the
-   anonymous-position fit check needs the `-128i8` negation caveat
-   resolved first).
+   suffix_type_disagrees_rejected). MAGNITUDE FIT LANDED 2026-07-18:
+   validate_suffix_magnitudes (omega-validation/literals.rs) checks
+   every landed literal's spelled VALUE against its suffix's range at
+   validation (post-negation-fold, so `-128i8` is one literal valued
+   -128 and fits while a bare `128i8` errors — the caveat resolves
+   itself). Value semantics per ch5 (suffixes read VALUES, not bit
+   patterns): `0xFFi8` is 255 and errors; spell `-1i8` or `0xFFu8`.
+   Canaries: fail suffix_magnitude_overflow_rejected (200i8) +
+   suffix_negative_unsigned_rejected (-1u8); pass
+   suffix_boundary_magnitudes_exit (70; -128i8/127i8/255u8/i64::MIN
+   boundaries pinned, differential). Remaining CR4 face: float
+   literals → exact Rat (= the float ladder's F2 rung, tracked there;
+   F2a/F2b landed).
    CM1 — anonymous carrier goes EXACT: unbounded integer + Rat constants
    (now = CR1's spelling payload + value_bignum, ALREADY LANDED via D14
    + N2; the remaining face is CR3's consumer migration).

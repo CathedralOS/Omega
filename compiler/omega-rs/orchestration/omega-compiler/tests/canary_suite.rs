@@ -13534,6 +13534,51 @@ fn unsigned_min_max_operand_position_canary_runs() {
 }
 
 #[test]
+fn suffix_boundary_magnitudes_canary_runs() {
+    // CR4 magnitude fit -- the BOUNDARY pins: -128i8 / 127i8 / 255u8 /
+    // i64::MIN all fit their suffixes (the parse-time negation fold makes
+    // `-128i8` one literal valued -128) and must stay legal while 200i8 and
+    // -1u8 are loud errors (the fail twins).
+    let canary = pass_canary("arithmetic/suffix_boundary_magnitudes_exit");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("suffix boundary canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should exit 70 (all boundary magnitudes intact), got {}",
+        outcome.exit_code
+    );
+
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-suffix-boundary-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("suffix boundary canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("suffix boundary canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the boundary magnitudes to arrive intact (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn suffix_landed_operand_position_canary_runs() {
     // CR4a: a width-suffixed literal is BORN LANDED, so `z - 1u64` folds at
     // the suffix's u64 landing and the operand-position max compares
@@ -30540,6 +30585,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "arithmetic/unsigned_min_max_wrapping_local_exit",
     "arithmetic/unsigned_min_max_operand_position_exit",
     "arithmetic/suffix_landed_operand_position_exit",
+    "arithmetic/suffix_boundary_magnitudes_exit",
     "float/suffix_f32_single_rounding_exit",
     "float/unsuffixed_f32_destination_single_rounding_exit",
     "arithmetic/runtime_unsigned_division_exit",
@@ -30892,6 +30938,8 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "arithmetic/narrowing_wide_local_unproven",
     "arithmetic/narrowing_signedness_rejected",
     "arithmetic/suffix_type_disagrees_rejected",
+    "arithmetic/suffix_magnitude_overflow_rejected",
+    "arithmetic/suffix_negative_unsigned_rejected",
     "float/suffix_format_disagrees_rejected",
     "capabilities/host_provides_unknown_binding",
     "capabilities/host_provides_two_unknown_rejected",

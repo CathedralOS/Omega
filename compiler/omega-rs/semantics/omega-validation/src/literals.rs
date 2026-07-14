@@ -225,6 +225,59 @@ fn bless_fact_literals(
 /// contextual and governs its own folds). Checked at the same destination
 /// positions the width gate enumerates: let initializers, assignments, and
 /// struct-literal fields, with the literal read through `Mutable` wrappers.
+/// CR4 (suffixed-magnitude fit): a width suffix is the literal's OWN claim of
+/// type, so the spelled value must fit that type's range wherever the literal
+/// sits -- `200i8` is a loud error even in an anonymous position. Runs after
+/// the parse-time negative fold, so `-128i8` is ONE literal valued -128 (fits)
+/// while a bare `128i8` does not -- the negation caveat resolves itself.
+/// Value semantics throughout (ch5 exact anonymous values): `0xFFi8` is 255
+/// and does not fit i8 -- a bit-pattern intent spells `0xFFu8` or `-1i8`.
+pub(crate) fn validate_suffix_magnitudes(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>) {
+    for (_, node) in program.expression_table.expression_entries() {
+        let ExpressionNode::Integer(literal) = node else {
+            continue;
+        };
+        let Some(landing) = literal.landing() else {
+            continue;
+        };
+        let landed = landing.landed_type;
+        let width = landed.bit_width();
+        let fits = if landed.is_signed() {
+            literal.value_i64().is_some_and(|value| {
+                if width == 64 {
+                    true
+                } else {
+                    let min = -(1i64 << (width - 1));
+                    let max = (1i64 << (width - 1)) - 1;
+                    (min..=max).contains(&value)
+                }
+            })
+        } else {
+            // A negative spelling never fits an unsigned suffix; beyond that,
+            // the value must sit inside the width's window. u64/addr accept
+            // the full u64 window (an even larger spelling fails value_u64
+            // and lands here too).
+            !literal.text().starts_with('-')
+                && literal.value_u64().is_some_and(|value| {
+                    if width == 64 {
+                        true
+                    } else {
+                        value <= (1u64 << width) - 1
+                    }
+                })
+        };
+        if !fits {
+            diagnostics.push(Diagnostic::error(format!(
+                "literal `{}` does not fit its `{}` suffix -- a width suffix chooses the \
+                 literal's type at the spelling, and the spelled value must fit that type's \
+                 range (suffixes read VALUES, not bit patterns: spell `-1i8`, not `0xFFi8`)",
+                literal.text(),
+                landed.name(),
+            )));
+        }
+    }
+}
+
 /// F2b -- float DESTINATION stamping (ch5 two-phase constants, the float
 /// half): an UNSUFFIXED float literal initializing a declared `f32`/`f64`
 /// place lands that format ON ITS TEXT CARRIER, so every downstream read --
