@@ -225,6 +225,109 @@ fn bless_fact_literals(
 /// contextual and governs its own folds). Checked at the same destination
 /// positions the width gate enumerates: let initializers, assignments, and
 /// struct-literal fields, with the literal read through `Mutable` wrappers.
+/// F2b -- float DESTINATION stamping (ch5 two-phase constants, the float
+/// half): an UNSUFFIXED float literal initializing a declared `f32`/`f64`
+/// place lands that format ON ITS TEXT CARRIER, so every downstream read --
+/// native store, guard compare, argument materialization, AND the
+/// interpreter's eval -- rounds ONCE, correctly, from the decimal spelling.
+/// Without the stamp an anonymous literal at an f32 place takes the
+/// transitional f64-then-narrow route (double rounding; the
+/// 8388609.499999999999999 witness lands on the wrong side of the tie).
+///
+/// The walk enumerates EXACTLY the destinations of `validate_suffix_landings`
+/// below (struct-literal fields, assignments, let locals) -- keep the two in
+/// lockstep. Already-landed (suffixed) literals are untouched: their landing
+/// was chosen at the spelling, and the suffix-vs-destination check owns any
+/// disagreement. Runs on the still-mutable typed tree BEFORE validation, so
+/// both engines consume one stamped tree.
+pub fn land_float_literal_destinations(program: &mut TypedTrees) {
+    use omega_core::literals::FloatFormat;
+
+    let mut pairs: Vec<(
+        ExpressionHandle,
+        omega_typed_trees::types::TypeReferenceHandle,
+    )> = Vec::new();
+
+    for (handle, node) in program.expression_table.expression_entries() {
+        let _ = handle;
+        let ExpressionNode::StructLiteral(literal) = node else {
+            continue;
+        };
+        let Some(data_definition) = program
+            .data_definitions()
+            .iter()
+            .find(|definition| definition.name.as_str() == literal.type_name.as_str())
+        else {
+            continue;
+        };
+        for field in program.expression_table.struct_fields(literal.fields) {
+            let Some(field_type) = crate::struct_literals::construction_field_type(
+                program,
+                data_definition,
+                literal.case_name.as_ref().map(|name| name.as_str()),
+                field.name.as_str(),
+            ) else {
+                continue;
+            };
+            pairs.push((field.value, field_type));
+        }
+    }
+
+    for machine in program.machines() {
+        for state in program.machine_states(machine) {
+            for statement in program.statement_table.statements(state.statement_nodes) {
+                match statement {
+                    StatementNode::Assignment(assignment) => {
+                        if let Some(declared) = crate::places::declared_place_type_raw(
+                            program,
+                            machine,
+                            Some(state),
+                            assignment.target,
+                        ) {
+                            pairs.push((assignment.value, declared));
+                        }
+                    }
+                    StatementNode::LocalData(local) => {
+                        if local.initial_value.is_valid() && local.type_reference.is_valid() {
+                            pairs.push((local.initial_value, local.type_reference));
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+
+    for (value, declared) in pairs {
+        let Some(unwrapped) = crate::places::unwrapped_type_reference(program, declared) else {
+            continue;
+        };
+        let Some(primitive) = program.primitive_type_reference(unwrapped) else {
+            continue;
+        };
+        let format = match primitive {
+            PrimitiveType::F32 => FloatFormat::F32,
+            PrimitiveType::F64 => FloatFormat::F64,
+            _ => continue,
+        };
+        let mut current = value;
+        loop {
+            match program.expression_table.expression(current) {
+                ExpressionNode::Mutable(inner) => current = *inner,
+                ExpressionNode::Float(literal) => {
+                    if literal.landing().is_none() {
+                        let landed = literal.with_landing(format);
+                        *program.expression_table.expression_mut(current) =
+                            ExpressionNode::Float(landed);
+                    }
+                    break;
+                }
+                _ => break,
+            }
+        }
+    }
+}
+
 pub(crate) fn validate_suffix_landings(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>) {
     use omega_core::literals::LandedIntegerType;
 

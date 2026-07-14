@@ -688,6 +688,13 @@ impl ExpressionTable {
         field_span
     }
 
+    /// Mutable node access for tree-normalization passes (the F2b float
+    /// destination stamp rewrites an unlanded literal in place; handles and
+    /// spans are untouched).
+    pub fn expression_mut(&mut self, handle: ExpressionHandle) -> &mut ExpressionNode {
+        self.expressions.get_mut(handle)
+    }
+
     pub fn expression(&self, handle: ExpressionHandle) -> &ExpressionNode {
         self.expressions.get(handle)
     }

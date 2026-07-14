@@ -914,6 +914,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("arithmetic/unsigned_min_max_operand_position_exit", 77),
     ("arithmetic/suffix_landed_operand_position_exit", 77),
     ("float/suffix_f32_single_rounding_exit", 77),
+    ("float/unsuffixed_f32_destination_single_rounding_exit", 77),
     ("expressions/runtime_qualified_case_value_exit", 70),
     ("calls/runtime_arm_target_host_result_exit", 70),
     ("calls/runtime_enum_self_method_exit", 70),
