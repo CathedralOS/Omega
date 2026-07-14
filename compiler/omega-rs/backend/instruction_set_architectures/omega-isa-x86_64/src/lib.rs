@@ -1,3 +1,6 @@
+mod place_copy;
+pub use place_copy::encode_place_copy;
+
 use omega_calling_conventions::{HostCapability, HostOperation, HostOperationKey};
 use omega_core::arithmetic::ArithmeticDomain;
 use omega_core::diagnostics::Diagnostic;
@@ -8064,24 +8067,15 @@ pub fn encode_runtime_storage_copy(
     target_offset: usize,
     byte_count: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = Vec::with_capacity(runtime_storage_copy_width(
-        source_offset,
-        target_offset,
+    // Delegated to the Place materializer (byte-for-byte; the region on the
+    // transitional places is documentation -- the relocation walker still
+    // patches by operation kind).
+    use omega_target_operations::{Place, RuntimeStorageRegion};
+    encode_place_copy(
+        &Place::at(RuntimeStorageRegion::RuntimeFrame, source_offset),
+        &Place::at(RuntimeStorageRegion::RuntimeFrame, target_offset),
         byte_count,
-    ));
-    append_mov_r14_imm64(&mut bytes, 0);
-    append_mov_r15_imm64(&mut bytes, 0);
-    for_each_runtime_copy_chunk(
-        source_offset,
-        target_offset,
-        byte_count,
-        |offset, chunk_size| {
-            append_load_rax_from_r14(&mut bytes, source_offset + offset, chunk_size)?;
-            append_store_rax_to_r15(&mut bytes, target_offset + offset, chunk_size)?;
-            Ok(())
-        },
-    )?;
-    Ok(bytes)
+    )
 }
 
 pub fn runtime_storage_copy_to_runtime_pointee_width(
@@ -8105,27 +8099,16 @@ pub fn encode_runtime_storage_copy_to_runtime_pointee(
     field_byte_offset: usize,
     byte_count: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = Vec::with_capacity(runtime_storage_copy_to_runtime_pointee_width(
-        source_offset,
-        field_byte_offset,
-        byte_count,
-    ));
-    append_mov_r14_imm64(&mut bytes, 0); // source base (reloc @ +2)
-    append_mov_r15_imm64(&mut bytes, 0); // frame base (reloc @ +12)
-    append_load_r15_from_r15(&mut bytes, pointer_byte_offset)?; // r15 = target pointer
-    // The chunk planner aligns on source/target offsets; use field_byte_offset as
-    // the target base so chunking matches the relocation-free store displacements.
-    for_each_runtime_copy_chunk(
-        source_offset,
-        field_byte_offset,
-        byte_count,
-        |offset, chunk_size| {
-            append_load_rax_from_r14(&mut bytes, source_offset + offset, chunk_size)?;
-            append_store_rax_to_r15(&mut bytes, field_byte_offset + offset, chunk_size)?;
-            Ok(())
-        },
-    )?;
-    Ok(bytes)
+    // Delegated to the Place materializer: source is a direct place, the
+    // target derefs the pointer slot then walks to the field (byte-for-byte
+    // with the hand-spelled sequence this replaced).
+    use omega_target_operations::{Place, PlaceStep, RuntimeStorageRegion};
+    let source = Place::at(RuntimeStorageRegion::RuntimeFrame, source_offset);
+    let target = Place::at(RuntimeStorageRegion::RuntimeFrame, pointer_byte_offset)
+        .with_step(PlaceStep::Deref)
+        .and_then(|place| place.with_step(PlaceStep::ConstOffset(field_byte_offset)))
+        .ok_or_else(|| Diagnostic::error("place path exceeds PLACE_MAX_STEPS"))?;
+    encode_place_copy(&source, &target, byte_count)
 }
 
 pub fn runtime_storage_copy_from_runtime_pointee_to_runtime_frame_width(
@@ -8146,27 +8129,16 @@ pub fn encode_runtime_storage_copy_from_runtime_pointee_to_runtime_frame(
     target_offset: usize,
     byte_count: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = Vec::with_capacity(
-        runtime_storage_copy_from_runtime_pointee_to_runtime_frame_width(
-            field_byte_offset,
-            target_offset,
-            byte_count,
-        ),
-    );
-    append_mov_r14_imm64(&mut bytes, 0); // frame base for source pointer (reloc @ +2)
-    append_load_r14_from_r14(&mut bytes, pointer_byte_offset)?; // r14 = source pointer
-    append_mov_r15_imm64(&mut bytes, 0); // frame base for target slot (reloc at instruction +17)
-    for_each_runtime_copy_chunk(
-        field_byte_offset,
-        target_offset,
-        byte_count,
-        |offset, chunk_size| {
-            append_load_rax_from_r14(&mut bytes, field_byte_offset + offset, chunk_size)?;
-            append_store_rax_to_r15(&mut bytes, target_offset + offset, chunk_size)?;
-            Ok(())
-        },
-    )?;
-    Ok(bytes)
+    // Delegated to the Place materializer: the source derefs the pointer
+    // slot then walks to the field, the target is a direct place
+    // (byte-for-byte with the hand-spelled sequence this replaced).
+    use omega_target_operations::{Place, PlaceStep, RuntimeStorageRegion};
+    let source = Place::at(RuntimeStorageRegion::RuntimeFrame, pointer_byte_offset)
+        .with_step(PlaceStep::Deref)
+        .and_then(|place| place.with_step(PlaceStep::ConstOffset(field_byte_offset)))
+        .ok_or_else(|| Diagnostic::error("place path exceeds PLACE_MAX_STEPS"))?;
+    let target = Place::at(RuntimeStorageRegion::RuntimeFrame, target_offset);
+    encode_place_copy(&source, &target, byte_count)
 }
 
 pub fn runtime_storage_copy_from_runtime_frame_fixed_indexed_width(
