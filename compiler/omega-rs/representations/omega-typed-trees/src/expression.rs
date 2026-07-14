@@ -287,7 +287,7 @@ impl ExpressionTable {
                     arguments,
                 }))
             }
-            ExpressionNode::Float(value) => self.insert(ExpressionNode::Float(*value)),
+            ExpressionNode::Float(value) => self.insert(ExpressionNode::Float(value.clone())),
             ExpressionNode::Indexed(indexed) => {
                 let collection = self.copy_from(source, indexed.collection);
                 let index = self.copy_from(source, indexed.index);
@@ -1245,7 +1245,7 @@ impl ExpressionTable {
                     arguments,
                 }))
             }
-            Expression::Float(value) => self.insert(ExpressionNode::Float(*value)),
+            Expression::Float(value) => self.insert(ExpressionNode::Float(value.clone())),
             Expression::Indexed(indexed) => {
                 let collection = self.insert_tree(&indexed.collection);
                 let index = self.insert_tree(&indexed.index);
@@ -1349,7 +1349,7 @@ impl ExpressionTable {
                     .map(|argument| self.to_tree(*argument))
                     .collect::<Arc<[_]>>(),
             })),
-            ExpressionNode::Float(value) => Expression::Float(*value),
+            ExpressionNode::Float(value) => Expression::Float(value.clone()),
             ExpressionNode::Indexed(indexed) => Expression::Indexed(Box::new(IndexedExpression {
                 collection: self.to_tree(indexed.collection),
                 index: self.to_tree(indexed.index),
@@ -1892,10 +1892,11 @@ impl<'path> IntoIterator for &'path NamePath {
     }
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub struct FloatLiteral {
-    bits: u64,
-}
+/// The shared TEXT-based float carrier (F2): the source spelling plus an
+/// optional format landing ride every tree layer, exactly like
+/// IntegerLiteral -- per-format reads are each correctly rounded from the
+/// spelling, so f32 never routes through f64.
+pub use omega_core::literals::FloatLiteral;
 
 fn identifier_texts_equal(a: &[Identifier], b: &[Identifier]) -> bool {
     a.len() == b.len()
@@ -1904,32 +1905,6 @@ fn identifier_texts_equal(a: &[Identifier], b: &[Identifier]) -> bool {
             .all(|(left, right)| left.as_str() == right.as_str())
 }
 
-impl FloatLiteral {
-    pub fn new(value: f64) -> Self {
-        Self {
-            bits: value.to_bits(),
-        }
-    }
-
-    pub fn parse(source: &str) -> Option<Self> {
-        let normalized = strip_float_literal_suffix(source);
-        normalized.parse::<f64>().ok().map(Self::new)
-    }
-
-    pub fn value(self) -> f64 {
-        f64::from_bits(self.bits)
-    }
-}
-
-fn strip_float_literal_suffix(source: &str) -> &str {
-    for suffix in ["real", "Real", "f32", "f64"] {
-        if let Some(value) = source.strip_suffix(suffix) {
-            return value;
-        }
-    }
-
-    source.trim_end_matches(['f', 'F'])
-}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BinaryExpression {

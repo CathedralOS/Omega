@@ -251,7 +251,7 @@ pub(super) fn resolve_runtime_static_float_value_in_table(
     expression: ExpressionHandle,
 ) -> Option<f64> {
     match expressions.expression(expression) {
-        ExpressionNode::Float(literal) => Some(literal.value()),
+        ExpressionNode::Float(literal) => Some(literal.landed_f64()),
         _ => None,
     }
 }

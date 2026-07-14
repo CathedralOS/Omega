@@ -1,0 +1,10 @@
+// F2a's loud edge (the float twin of the integer suffix check): a width
+// suffix chooses the literal's FORMAT at the spelling, so a destination
+// declaring the other format is an error -- an f32-suffixed literal in an
+// f64 place would silently mean the f32-rounded value.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine Main::main(&mut self) {
+    let x: f64 = 1.5f32;
+    self.console.exit_process(70);
+}

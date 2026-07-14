@@ -599,7 +599,7 @@ fn float_range_for_transition_argument(
         .expression(obligation.argument)
     {
         ExpressionNode::Float(value) => {
-            let value = finite_float_literal(*value)?;
+            let value = finite_float_literal(value)?;
             Some(FloatRange {
                 minimum: value,
                 maximum: value,
@@ -622,7 +622,7 @@ fn float_range_for_assignment(
         .expression(obligation.value)
     {
         ExpressionNode::Float(value) => {
-            let value = finite_float_literal(*value)?;
+            let value = finite_float_literal(value)?;
             Some(FloatRange {
                 minimum: value,
                 maximum: value,
@@ -644,7 +644,7 @@ fn float_range_for_call_argument(
         .expression(obligation.argument)
     {
         ExpressionNode::Float(value) => {
-            let value = finite_float_literal(*value)?;
+            let value = finite_float_literal(value)?;
             Some(FloatRange {
                 minimum: value,
                 maximum: value,
@@ -667,7 +667,7 @@ fn float_range_for_return_value(
         .expression(obligation.value)
     {
         ExpressionNode::Float(value) => {
-            let value = finite_float_literal(*value)?;
+            let value = finite_float_literal(value)?;
             Some(FloatRange {
                 minimum: value,
                 maximum: value,
@@ -689,7 +689,7 @@ fn float_range_for_initializer(
         .expression(obligation.value)
     {
         ExpressionNode::Float(value) => {
-            let value = finite_float_literal(*value)?;
+            let value = finite_float_literal(value)?;
             Some(FloatRange {
                 minimum: value,
                 maximum: value,
@@ -1341,7 +1341,7 @@ fn float_range_from_constraints(constraints: &[ProofConstraint]) -> Option<Float
     range
 }
 
-fn finite_float_literal(value: omega_typed_trees::expression::FloatLiteral) -> Option<f64> {
+fn finite_float_literal(value: &omega_typed_trees::expression::FloatLiteral) -> Option<f64> {
     let value = value.value();
     value.is_finite().then_some(value)
 }
@@ -1915,7 +1915,7 @@ fn argument_handle_satisfies_named_constraint(
             proof_plan.program.expression_table.expression(argument),
         ) {
             ("exact", ExpressionNode::Integer(_)) => true,
-            ("finite", ExpressionNode::Float(value)) => finite_float_literal(*value).is_some(),
+            ("finite", ExpressionNode::Float(value)) => finite_float_literal(value).is_some(),
             ("finite", ExpressionNode::Integer(_)) => true,
             ("non_negative", ExpressionNode::Integer(value)) => {
                 value.value_i64().is_some_and(|value| value >= 0)
@@ -2011,7 +2011,7 @@ fn initializer_satisfies_named_constraint(
             .expression_table
             .expression(obligation.value),
     ) {
-        ("finite", ExpressionNode::Float(value)) => finite_float_literal(*value).is_some(),
+        ("finite", ExpressionNode::Float(value)) => finite_float_literal(value).is_some(),
         ("exact", ExpressionNode::Integer(_)) => true,
         ("non_negative", ExpressionNode::Integer(value)) => {
                 value.value_i64().is_some_and(|value| value >= 0)

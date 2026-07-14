@@ -73,6 +73,172 @@ pub struct IntegerLanding {
     pub domain: crate::arithmetic::ArithmeticDomain,
 }
 
+/// A float FORMAT a literal has landed at (F2, the float half of the ch5
+/// two-phase law). Names mean formats permanently: `f32` never rebinds.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FloatFormat {
+    F32,
+    F64,
+}
+
+impl FloatFormat {
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::F32 => "f32",
+            Self::F64 => "f64",
+        }
+    }
+}
+
+/// A float literal: the canonical SOURCE SPELLING plus an optional format
+/// landing (F2, ch5 two-phase law). The spelling is the exact rational the
+/// author wrote ("unitless until a site requests a type"); each format read
+/// rounds ONCE, correctly, from the decimal spelling -- Rust's std float
+/// parses are correctly rounded per format, so an f32 read NEVER routes
+/// through f64 (the double-rounding residue this type retires). A width
+/// suffix (`1.5f32`) is a parse-site landing, exactly the integer carrier's
+/// CR4a. Equality is TEXT-ONLY like IntegerLiteral: spelling is identity,
+/// the landing is metadata.
+#[derive(Debug, Clone)]
+pub struct FloatLiteral {
+    text: Arc<str>,
+    landing: Option<FloatFormat>,
+}
+
+impl PartialEq for FloatLiteral {
+    fn eq(&self, other: &Self) -> bool {
+        self.text == other.text
+    }
+}
+
+impl Eq for FloatLiteral {}
+
+impl Default for FloatLiteral {
+    /// The arena-default payload (mirrors the old `bits: 0` = `0.0`).
+    fn default() -> Self {
+        Self::from_f64(0.0)
+    }
+}
+
+impl FloatLiteral {
+    /// Compat constructor for synthesized values (the old bits-based `new`).
+    pub fn new(value: f64) -> Self {
+        Self::from_f64(value)
+    }
+
+    /// Parse a source spelling (width/`real` suffixes stripped; a width
+    /// suffix lands the format). `None` = not a float spelling.
+    pub fn parse(source: &str) -> Option<Self> {
+        let (body, landing) = strip_float_literal_suffix(source);
+        // Validate the spelling once; the TEXT stays authoritative (reads
+        // re-parse at their format, each correctly rounded from the source).
+        body.parse::<f64>().ok()?;
+        Some(Self {
+            text: Arc::from(body),
+            landing,
+        })
+    }
+
+    /// A literal the COMPILER synthesizes. `{:?}` formatting is the shortest
+    /// spelling that round-trips to the same f64 bits, so the text stays the
+    /// exact value (specials included: `NaN`/`inf` re-parse).
+    pub fn from_f64(value: f64) -> Self {
+        Self {
+            text: Arc::from(format!("{value:?}")),
+            landing: None,
+        }
+    }
+
+    /// The spelling, correctly rounded to f64.
+    pub fn value_f64(&self) -> f64 {
+        self.text.parse().unwrap_or(0.0)
+    }
+
+    /// The spelling, correctly rounded DIRECTLY to f32 (never via f64).
+    pub fn value_f32(&self) -> f32 {
+        self.text.parse().unwrap_or(0.0)
+    }
+
+    /// Transitional f64 window for pre-F2 consumers; landed reads go through
+    /// `value_f32`/`value_f64` per the riding format.
+    pub fn value(&self) -> f64 {
+        self.value_f64()
+    }
+
+    /// The f32 bit pattern this literal stores: an F32-LANDED literal (width
+    /// suffix) is read by its own correctly-rounded f32 parse; an anonymous
+    /// literal keeps the TRANSITIONAL f64-then-narrow read (double-rounding
+    /// on halfway spellings -- consistent across both engines, retired when
+    /// destination stamping lands, F2b). Both engines must key this identical
+    /// decision on the landing, never on position.
+    pub fn f32_bits(&self) -> u32 {
+        match self.landing {
+            Some(FloatFormat::F32) => self.value_f32().to_bits(),
+            _ => (self.value_f64() as f32).to_bits(),
+        }
+    }
+
+    /// The f64 read at the literal's landing: an F32-landed literal reads as
+    /// its f32 value widened exactly (f32 -> f64 is lossless), so a suffixed
+    /// literal means the same bits everywhere it flows.
+    pub fn landed_f64(&self) -> f64 {
+        match self.landing {
+            Some(FloatFormat::F32) => f64::from(self.value_f32()),
+            _ => self.value_f64(),
+        }
+    }
+
+    pub fn with_landing(&self, landing: FloatFormat) -> Self {
+        Self {
+            text: self.text.clone(),
+            landing: Some(landing),
+        }
+    }
+
+    pub fn landing(&self) -> Option<FloatFormat> {
+        self.landing
+    }
+
+    /// The parse-time negative fold (`-1.5` stays one constant); the landing
+    /// rides, mirroring IntegerLiteral::negated.
+    pub fn negated(&self) -> Self {
+        let text: &str = &self.text;
+        let flipped = match text.strip_prefix('-') {
+            Some(positive) => Arc::from(positive),
+            None => Arc::from(format!("-{text}")),
+        };
+        Self {
+            text: flipped,
+            landing: self.landing,
+        }
+    }
+
+    pub fn text(&self) -> &str {
+        &self.text
+    }
+}
+
+impl std::fmt::Display for FloatLiteral {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(&self.text)
+    }
+}
+
+fn strip_float_literal_suffix(source: &str) -> (&str, Option<FloatFormat>) {
+    if let Some(body) = source.strip_suffix("f32") {
+        return (body, Some(FloatFormat::F32));
+    }
+    if let Some(body) = source.strip_suffix("f64") {
+        return (body, Some(FloatFormat::F64));
+    }
+    for suffix in ["real", "Real"] {
+        if let Some(body) = source.strip_suffix(suffix) {
+            return (body, None);
+        }
+    }
+    (source.trim_end_matches(['f', 'F']), None)
+}
+
 /// Radix of an integer literal's digits. Deliberately local to omega-core so
 /// the foundation layer does not depend on the token crate's `NumericBase`
 /// (the parser maps between them).

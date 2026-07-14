@@ -896,7 +896,7 @@ fn narrow_f32_literal_operands(
 ) {
     match expressions.expression(operand_expression) {
         ExpressionNode::Float(literal) => {
-            let narrowed = (literal.value() as f32).to_bits() as i64;
+            let narrowed = literal.f32_bits() as i64;
             if let RuntimeValueOperand::Immediate(bits) = runtime_value_operands.get_mut(operand) {
                 *bits = narrowed;
             }

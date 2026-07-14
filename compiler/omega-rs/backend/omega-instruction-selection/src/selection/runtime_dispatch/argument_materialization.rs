@@ -538,10 +538,10 @@ pub(super) fn select_runtime_dispatch_argument_materialization(
         // bit pattern is stable at compile time, so WriteRuntimeStorageInteger
         // with the reinterpreted bits is the correct and simplest lowering.
         if let ExpressionNode::Float(float_literal) = expressions.expression(argument) {
-            let bits = float_literal.value().to_bits();
+            let bits = float_literal.landed_f64().to_bits();
             let value = if slot.byte_size == 4 {
                 // f32 slot: narrow the f64 bit pattern to f32 bits
-                (float_literal.value() as f32).to_bits() as i64
+                float_literal.f32_bits() as i64
             } else {
                 // f64 slot (8 bytes): use the full f64 bit pattern
                 bits as i64

@@ -1611,7 +1611,7 @@ fn expression_constraints(
         ExpressionNode::Unary(unary) => {
             expression_constraints(program, machine, state, unary.operand)
         }
-        ExpressionNode::Float(value) => float_literal_constraints(*value),
+        ExpressionNode::Float(value) => float_literal_constraints(value),
         ExpressionNode::Integer(value) => integer_literal_constraints(value),
         ExpressionNode::Name(path)
             if program
@@ -2135,7 +2135,7 @@ fn integer_literal_constraints(
     constraints
 }
 
-fn float_literal_constraints(value: FloatLiteral) -> ConstraintBuffer {
+fn float_literal_constraints(value: &FloatLiteral) -> ConstraintBuffer {
     let value = value.value();
     if !value.is_finite() {
         return ConstraintBuffer::new();

@@ -215,7 +215,7 @@ impl ExpressionTable {
                     arguments,
                 }))
             }
-            ExpressionNode::Float(value) => self.insert(ExpressionNode::Float(*value)),
+            ExpressionNode::Float(value) => self.insert(ExpressionNode::Float(value.clone())),
             ExpressionNode::Indexed(indexed) => {
                 let collection = self.copy_from(source, indexed.collection);
                 let index = self.copy_from(source, indexed.index);
@@ -973,37 +973,11 @@ impl Default for TableStructLiteralField {
     }
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub struct FloatLiteral {
-    bits: u64,
-}
-
-impl FloatLiteral {
-    pub fn new(value: f64) -> Self {
-        Self {
-            bits: value.to_bits(),
-        }
-    }
-
-    pub fn parse(source: &str) -> Option<Self> {
-        let normalized = strip_float_literal_suffix(source);
-        normalized.parse::<f64>().ok().map(Self::new)
-    }
-
-    pub fn value(self) -> f64 {
-        f64::from_bits(self.bits)
-    }
-}
-
-fn strip_float_literal_suffix(source: &str) -> &str {
-    for suffix in ["real", "Real", "f32", "f64"] {
-        if let Some(value) = source.strip_suffix(suffix) {
-            return value;
-        }
-    }
-
-    source.trim_end_matches(['f', 'F'])
-}
+/// The shared TEXT-based float carrier (F2): the source spelling plus an
+/// optional format landing ride every tree layer, exactly like
+/// IntegerLiteral -- per-format reads are each correctly rounded from the
+/// spelling, so f32 never routes through f64.
+pub use omega_core::literals::FloatLiteral;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BinaryOperator {

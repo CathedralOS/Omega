@@ -109,8 +109,11 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                 )))
             }
             resolved::expression::ExpressionNode::Float(value) => {
+                // The carrier CLONES across layers (spelling + landing ride);
+                // rebuilding from the f64 value was the strip-on-lowering
+                // disease the shared payload exists to kill.
                 Ok(self.target.insert(typed::expression::ExpressionNode::Float(
-                    typed::expression::FloatLiteral::new(value.value()),
+                    value.clone(),
                 )))
             }
             resolved::expression::ExpressionNode::Indexed(indexed) => {

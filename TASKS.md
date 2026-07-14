@@ -957,6 +957,26 @@ rows. Rungs:
   residues: FloatLiteral-as-f64-bits (f32 literal double-rounding), the
   guard folder's f64-window float folds, interp per-op f32 rounding.
   Differential canaries incl. the 2^24 plateau legs.
+  F2a LANDED 2026-07-18: FloatLiteral = ONE shared omega-core TEXT
+  carrier (spelling + Option<FloatFormat> landing; the bits-based
+  resolved/typed twins retired into re-exports; text-only Eq). Width
+  suffixes land the format at parse (CR4a's float twin) + the
+  suffix-vs-destination float check. Per-format reads correctly
+  rounded from the spelling (Rust std parses): an F32-landed literal
+  NEVER routes through f64 — pinned by the double-rounding witness
+  8388609.499999999999999f32 (pass/float/
+  suffix_f32_single_rounding_exit, differential 77). ALL literal reads
+  key the landing identically (5 selection/state-guard sites +
+  interp landed_f64 — engines bit-for-bit). ⚠️ Two strip points fixed
+  en route: the resolved→typed lowerer REBUILT from f64 (now clones —
+  the carrier discipline), and the unconditional f64 value() reads.
+  REMAINING (F2b/c): UNSUFFIXED literals at f32 destinations still
+  take the transitional f64-then-narrow read on BOTH engines
+  (consistent; needs float DESTINATION stamping through the
+  state-values folder); float folds at the landed width; interp
+  per-op f32 rounding; exact-Rat multi-op const chains only if a shape
+  demands more than per-op IEEE (per-op rounding at width == the
+  exact-Rat spec for homogeneous ops).
 - **F3 — `Finite` core domain:** promote ch5's `finite`; window
   enforcement; ranges-imply-Finite in the prover; `is_finite` std machine
   (portable spelling; `x != x` stays the IEEE-binding idiom underneath).

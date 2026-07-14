@@ -7,12 +7,6 @@ use crate::expression::{
 };
 use crate::name::Identifier;
 
-impl fmt::Display for FloatLiteral {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(formatter, "{}", self.value())
-    }
-}
-
 impl Expression {
     pub fn display_name(&self) -> String {
         match self {

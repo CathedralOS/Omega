@@ -261,30 +261,67 @@ pub(crate) fn validate_suffix_landings(program: &TypedTrees, diagnostics: &mut V
         }
     };
 
+    // The FLOAT twin (F2a): a width-suffixed float literal landed its FORMAT
+    // at the spelling; a destination declaring the other format is the same
+    // loud error.
+    let float_landing = |expression: ExpressionHandle| -> Option<(
+        ExpressionHandle,
+        omega_core::literals::FloatFormat,
+    )> {
+        let mut current = expression;
+        loop {
+            match program.expression_table.expression(current) {
+                ExpressionNode::Mutable(inner) => current = *inner,
+                ExpressionNode::Float(literal) => {
+                    return literal.landing().map(|landing| (current, landing));
+                }
+                _ => return None,
+            }
+        }
+    };
+
     let mut check = |value: ExpressionHandle,
                      declared: omega_typed_trees::types::TypeReferenceHandle,
                      diagnostics: &mut Vec<Diagnostic>| {
-        let Some((literal_handle, suffix_type)) = literal_landing(value) else {
-            return;
-        };
         let Some(unwrapped) = crate::places::unwrapped_type_reference(program, declared) else {
             return;
         };
         let Some(primitive) = program.primitive_type_reference(unwrapped) else {
             return;
         };
-        let Some(declared_type) = landed_of_primitive(primitive) else {
+        if let Some((literal_handle, suffix_type)) = literal_landing(value) {
+            let Some(declared_type) = landed_of_primitive(primitive) else {
+                return;
+            };
+            if declared_type != suffix_type {
+                let literal = program.expression_table.display_name(literal_handle);
+                diagnostics.push(Diagnostic::error(format!(
+                    "literal `{literal}` is suffixed `{suffix}` but lands in a `{declared}` place -- \
+                     a width suffix chooses the literal's type at the spelling, so it must agree \
+                     with the destination's declared type (drop the suffix or fix one side)",
+                    suffix = suffix_type.name(),
+                    declared = primitive.name(),
+                )));
+            }
             return;
-        };
-        if declared_type != suffix_type {
-            let literal = program.expression_table.display_name(literal_handle);
-            diagnostics.push(Diagnostic::error(format!(
-                "literal `{literal}` is suffixed `{suffix}` but lands in a `{declared}` place -- \
-                 a width suffix chooses the literal's type at the spelling, so it must agree \
-                 with the destination's declared type (drop the suffix or fix one side)",
-                suffix = suffix_type.name(),
-                declared = primitive.name(),
-            )));
+        }
+        if let Some((literal_handle, suffix_format)) = float_landing(value) {
+            use omega_core::literals::FloatFormat;
+            let declared_format = match primitive {
+                PrimitiveType::F32 => FloatFormat::F32,
+                PrimitiveType::F64 => FloatFormat::F64,
+                _ => return,
+            };
+            if declared_format != suffix_format {
+                let literal = program.expression_table.display_name(literal_handle);
+                diagnostics.push(Diagnostic::error(format!(
+                    "literal `{literal}` is suffixed `{suffix}` but lands in a `{declared}` place -- \
+                     a width suffix chooses the literal's format at the spelling, so it must agree \
+                     with the destination's declared type (drop the suffix or fix one side)",
+                    suffix = suffix_format.name(),
+                    declared = primitive.name(),
+                )));
+            }
         }
     };
 
