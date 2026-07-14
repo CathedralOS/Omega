@@ -11996,6 +11996,48 @@ fn arithmetic_domain_trapping_const_fold_overflow_aborts() {
 }
 
 #[test]
+fn dead_trapping_let_traps_aborts() {
+    // Abort-as-effect first sentence (owner, 2026-07-18): a trap is an
+    // EFFECT, so a DEAD trapping computation is not dead -- the storage layer
+    // keeps a trap-carrying initializer's slot and the trap lowers. Before,
+    // native DCE'd the write AND the trap and exited 7 while the interpreter
+    // trapped. Named without `_canary_runs` (non-clean-exit; outside the
+    // RUN-list drift guard, like the const-fold overflow twin above).
+    let canary = pass_canary("expressions/dead_trapping_let_traps");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-dead-trapping-let-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("dead trapping let canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("dead trapping let canary should run");
+
+    assert_ne!(
+        output.status.code(),
+        Some(7),
+        "expected the DEAD `i32 in Trapping` overflow to trap, but the program ran past it to \
+         exit 7 (the trap was dead-code-eliminated)\nstderr:\n{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(
+        !output.status.success(),
+        "expected the dead trapping computation to terminate abnormally, but it exited successfully"
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn f32_field_binary_to_local_cast_exit_canary_runs() {
     // Scalar-width-rederivation fix: a folded f32 binary (`self.a + self.b`)
     // feeding `as i32` must compute single-precision (`addss`), not the old
@@ -30799,10 +30841,9 @@ const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
     // expansions now carry their sub-state's call-free LocalData
     // initializers and the leaf writer serves texteq via the frame-slot
     // text-comparison write.
-    PendingCanary {
-        path: "expressions/dead_trapping_let_not_elided",
-        expectation: PendingCanaryExpectation::CurrentlyAccepts,
-    },
+    // dead_trapping_let_not_elided PROMOTED to
+    // pass/expressions/dead_trapping_let_traps (abort-as-effect first
+    // sentence ruled + landed 2026-07-18: a trap is an effect, never dead).
     PendingCanary {
         path: "arithmetic/unsigned_min_max_operand_position_divergence",
         expectation: PendingCanaryExpectation::CurrentlyAccepts,

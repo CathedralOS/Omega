@@ -1924,7 +1924,6 @@ const PENDING_RUNTIME_DIVERGENCES: &[(&str, i32, PendingInterpOutcome)] = &[
     ("arithmetic/float_to_int_overflow_divergence", 70, PendingInterpOutcome::Exit(71)),
     // 72/72: the two legs AGREE on this host (aarch64 LSLV masks the count
     // at 64 like the interp); the parked divergence is vs x86's 32-bit mask.
-    ("expressions/dead_trapping_let_not_elided", 7, PendingInterpOutcome::Traps),
     // Operand-position unsigned max: no write target exists for the nested
     // call, and the static-value table strips the carrier landing (CR3's
     // static-table rung is the fix; the resolver arm is already in place).

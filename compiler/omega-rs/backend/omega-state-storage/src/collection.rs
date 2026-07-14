@@ -305,6 +305,158 @@ fn state_has_initialized_locals_before(
         })
 }
 
+/// Whether an initializer contains a TRAPPING arithmetic operation (the
+/// abort-as-effect carve-out in `local_data_requires_storage`). Domains
+/// resolve per decision-17's operand-driven rule: the local's own declared
+/// `in Trapping` (the canonical dead-let spelling), a Trapping `as` cast, or
+/// an arithmetic operand naming a Trapping-declared parameter, earlier local,
+/// or data field.
+fn initializer_carries_trapping_arithmetic(
+    program: &CheckedTrees,
+    state: &omega_checked_trees::state::State,
+    expressions: &omega_checked_trees::expression::ExpressionTable,
+    statements: &[StatementNode],
+    local_statement_index: usize,
+    initial_value: ExpressionHandle,
+) -> bool {
+    use omega_core::arithmetic::ArithmeticDomain;
+
+    if let Some(StatementNode::LocalData(local_data)) = statements.get(local_statement_index)
+        && local_data.type_reference.is_valid()
+        && program
+            .type_reference_table
+            .arithmetic_domain(local_data.type_reference)
+            == ArithmeticDomain::Trapping
+        && matches!(
+            expressions.expression(initial_value),
+            omega_checked_trees::expression::ExpressionNode::Binary(_)
+                | omega_checked_trees::expression::ExpressionNode::Cast(_)
+        )
+    {
+        return true;
+    }
+    expression_contains_trapping_op(
+        program,
+        state,
+        expressions,
+        statements,
+        local_statement_index,
+        initial_value,
+    )
+}
+
+fn expression_contains_trapping_op(
+    program: &CheckedTrees,
+    state: &omega_checked_trees::state::State,
+    expressions: &omega_checked_trees::expression::ExpressionTable,
+    statements: &[StatementNode],
+    local_statement_index: usize,
+    expression: ExpressionHandle,
+) -> bool {
+    use omega_checked_trees::expression::{BinaryOperator, ExpressionNode};
+    use omega_core::arithmetic::ArithmeticDomain;
+
+    match expressions.expression(expression) {
+        ExpressionNode::Binary(binary) => {
+            let arithmetic = matches!(
+                binary.operator,
+                BinaryOperator::Add
+                    | BinaryOperator::Subtract
+                    | BinaryOperator::Multiply
+                    | BinaryOperator::Divide
+                    | BinaryOperator::Modulo
+                    | BinaryOperator::ShiftLeft
+                    | BinaryOperator::ShiftRight
+            );
+            let (left, right) = (binary.left, binary.right);
+            (arithmetic
+                && (operand_declared_trapping(program, state, expressions, statements, local_statement_index, left)
+                    || operand_declared_trapping(program, state, expressions, statements, local_statement_index, right)))
+                || expression_contains_trapping_op(program, state, expressions, statements, local_statement_index, left)
+                || expression_contains_trapping_op(program, state, expressions, statements, local_statement_index, right)
+        }
+        ExpressionNode::Cast(cast) => {
+            cast.domain == ArithmeticDomain::Trapping
+                || expression_contains_trapping_op(
+                    program,
+                    state,
+                    expressions,
+                    statements,
+                    local_statement_index,
+                    cast.value,
+                )
+        }
+        ExpressionNode::Mutable(inner) => expression_contains_trapping_op(
+            program,
+            state,
+            expressions,
+            statements,
+            local_statement_index,
+            *inner,
+        ),
+        _ => false,
+    }
+}
+
+/// Whether an arithmetic OPERAND names something whose declared type carries
+/// the Trapping domain: a parameter of this state, an earlier local of this
+/// state, or a data field (member path).
+fn operand_declared_trapping(
+    program: &CheckedTrees,
+    state: &omega_checked_trees::state::State,
+    expressions: &omega_checked_trees::expression::ExpressionTable,
+    statements: &[StatementNode],
+    local_statement_index: usize,
+    operand: ExpressionHandle,
+) -> bool {
+    use omega_checked_trees::expression::ExpressionNode;
+    use omega_core::arithmetic::ArithmeticDomain;
+
+    let reference_is_trapping = |handle: omega_checked_trees::types::TypeReferenceHandle| {
+        handle.is_valid()
+            && program.type_reference_table.arithmetic_domain(handle) == ArithmeticDomain::Trapping
+    };
+
+    match expressions.expression(operand) {
+        ExpressionNode::Name(path) => {
+            let symbol = path.symbol;
+            if !symbol.is_valid() {
+                return false;
+            }
+            program
+                .state_parameters(state)
+                .iter()
+                .any(|parameter| parameter.symbol == symbol && reference_is_trapping(parameter.type_reference))
+                || statements
+                    .iter()
+                    .take(local_statement_index)
+                    .any(|statement| {
+                        matches!(
+                            statement,
+                            StatementNode::LocalData(local)
+                                if local.symbol == symbol && reference_is_trapping(local.type_reference)
+                        )
+                    })
+        }
+        ExpressionNode::Member(member) => {
+            if !member.member_symbol.is_valid() {
+                return false;
+            }
+            program.data_definitions().iter().any(|data| {
+                program.data_members(data).iter().any(|data_member| {
+                    matches!(
+                        data_member,
+                        omega_checked_trees::data::DataMember::Field(field)
+                            if field.symbol == member.member_symbol
+                                && reference_is_trapping(field.type_reference)
+                    )
+                })
+            })
+        }
+        _ => false,
+    }
+}
+
 fn local_data_requires_storage(
     program: &CheckedTrees,
     local_is_mutable: bool,
@@ -358,6 +510,25 @@ fn local_data_requires_storage(
                     || assignment_value_references_symbol(expressions, statement, local_symbol, local_name)
             })
     {
+        return true;
+    }
+
+    // Owner ruling 2026-07-18 (the first sentence of abort-as-effect #65): a
+    // TRAPPING operation's trap is an EFFECT -- a computation that can trap
+    // "actually traps on paper; it's not dead code anymore". A local whose
+    // initializer carries Trapping arithmetic therefore keeps its slot even
+    // when nothing reads it, so the ordinary write path lowers the trap (the
+    // interpreter always evaluated it -- the pinned dead_trapping_let
+    // divergence was native-side elision). The backend may later optimize to
+    // any trap-EQUIVALENT lowering, but never to silence.
+    if initializer_carries_trapping_arithmetic(
+        program,
+        state,
+        expressions,
+        statements,
+        local_statement_index,
+        initial_value,
+    ) {
         return true;
     }
 
