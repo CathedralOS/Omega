@@ -2359,7 +2359,6 @@ fn select_runtime_binary_mutation_write(
                 )
             })
             .unwrap_or(false);
-
     Some(SelectedInstructionKind::WriteRuntimeStorageBinary {
         target_region: target_place.region,
         target_offset: target_place.byte_offset,
