@@ -1086,12 +1086,16 @@ rows. Rungs:
   (portable spelling; `x != x` stays the IEEE-binding idiom underneath).
   IDIOM PROVEN 2026-07-18: `is_finite(x) = (x - x == 0.0)` (finite->0,
   inf/NaN->NaN!=0) agrees native==interp when spelled INLINE (probe exit
-  70/70). BUT wiring it as a callable std free machine returning bool,
-  consumed in a guard, MISCOMPILES NATIVELY (free-machine bool return
-  delivers ZII-ish: `is_finite(3.5) == true` took the false arm natively,
-  exit 71, vs interp 70) -- a value-call bool-result-delivery backend gap,
-  NOT float work. `is_finite` waits on that delivery path (or ships as an
-  i32-returning machine on the well-trodden integer-return path). Window
+  70/70). BLOCKER RE-ATTRIBUTED 2026-07-18 (probed after the guard-slot
+  and delivery fixes): bool value-call RETURNS deliver in every face now
+  (pass/calls/bool_value_call_return_exit pins attached/free/in-guard,
+  all 70) and float PARAMS on value machines are fine -- the surviving
+  fence is the INLINED CALLEE'S FLOAT-LOCAL GUARD: `let d: f64 = x - x;
+  transition d == 0.0` inside the machine refuses loudly at the CALLER
+  ("guard needs runtime guard lowering") because the expansion's float
+  local does not resolve as a guard operand. That is the float-guard
+  resolution face (same family as float_local_misfold's GUARD-position
+  inline float arith), NOT a delivery gap. `is_finite` waits on it. Window
   enforcement additionally waits on the invariant-window machinery
   (unbuilt).
 - **F4 — float→int cast ruling** (ANSWERED — see Recently answered
