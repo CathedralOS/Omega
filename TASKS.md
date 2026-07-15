@@ -259,16 +259,25 @@ dispatch-region + receiver-phase family. Everything queued here avoids both.
    none). Canary pass/data/runtime_whole_struct_mutation_copy_exit
    (cross-region field writes + same-region 16-byte whole-struct copy,
    report spells `copy places`, dual-engine + differential).
-   REMAINING rung 2b+: migrate the rest of the CopyRuntimeStorage
-   producers (leaf/straight_line/edges/mutation/frame_slots/
-   argument_materialization/runtime_dispatch/subslice — ~14 sites),
-   then the pointee/indexed variant producers build Places with
-   Deref/ScaledIndex steps and the 18 variants + their echoes retire;
-   machine-indexed variants need ScaledIndex.index_region wired into
-   the materializer (its own base register). Then Write/RMW (the
-   leaf-cascade duplication dies), Text, guards/operands, op-set
-   shrink — the wiki ladder. Legalization refuses loudly at every
-   rung.
+   RUNG 2b LANDED 2026-07-14 — ZERO CopyRuntimeStorage PRODUCERS: all
+   17 remaining construction sites migrated through ONE
+   `copy_places_direct` constructor (selection/runtime_dispatch.rs) —
+   argument_materialization x4, leaf, straight_line x2, edges x2,
+   frame_slots x2, mutation x2, subslice_copy x2, runtime_dispatch x2
+   — plus the two rung-2a sites converted to the same helper. The
+   variant's consumer arms (encoding/layout/relocations/shapes/report/
+   blockers/conversion) stay until the deliberate retirement rung.
+   Every dispatch copy in the corpus now rides CopyPlaces (suite
+   877/877 incl. EFI cross-targets + the aarch64 cross-emit,
+   differential 14/14, samples green).
+   REMAINING rung 2c+: the pointee/indexed variant producers build
+   Places with Deref/ScaledIndex steps and the 18 variants + their
+   echoes retire (CopyRuntimeStorage itself is now retire-ready:
+   zero producers); machine-indexed variants need
+   ScaledIndex.index_region wired into the materializer (its own
+   base register). Then Write/RMW (the leaf-cascade duplication
+   dies), Text, guards/operands, op-set shrink — the wiki ladder.
+   Legalization refuses loudly at every rung.
 
 The rendering-sample sweep landed 2026-07-11 (see Language ergonomics;
 the match-subject computed-index gap closed with it).

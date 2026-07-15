@@ -507,13 +507,7 @@ fn select_runtime_dispatch_call_result_return(
             );
         }
         selected_instructions.push(SelectedInstruction {
-            kind: SelectedInstructionKind::CopyRuntimeStorage {
-                source_region: place.region,
-                source_offset: place.byte_offset,
-                target_region,
-                target_offset,
-                byte_count: byte_size,
-            },
+            kind: crate::selection::runtime_dispatch::copy_places_direct(place.region, place.byte_offset, target_region, target_offset, byte_size),
             source_key,
             source_statement: edge.statement_index,
         });
@@ -901,13 +895,7 @@ fn select_dispatch_case_literal_terminal_return(
             }
             FieldWrite::Copy(offset, region, source_offset, size) => {
                 selected_instructions.push(SelectedInstruction {
-                    kind: SelectedInstructionKind::CopyRuntimeStorage {
-                        source_region: region,
-                        source_offset,
-                        target_region,
-                        target_offset: target_offset + offset,
-                        byte_count: size,
-                    },
+                    kind: crate::selection::runtime_dispatch::copy_places_direct(region, source_offset, target_region, target_offset + offset, size),
                     source_key,
                     source_statement: edge.statement_index,
                 });

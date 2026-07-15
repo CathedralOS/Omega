@@ -119,13 +119,7 @@ pub(in crate::selection::runtime_dispatch) fn runtime_fixed_array_subslice_index
         return None;
     }
 
-    Some(SelectedInstructionKind::CopyRuntimeStorage {
-        source_region: source.region,
-        source_offset: source.byte_offset,
-        target_region: target_place.region,
-        target_offset: target_place.byte_offset,
-        byte_count: target_place.byte_count,
-    })
+    Some(crate::selection::runtime_dispatch::copy_places_direct(source.region, source.byte_offset, target_place.region, target_place.byte_offset, target_place.byte_count))
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -160,13 +154,7 @@ pub(in crate::selection::runtime_dispatch) fn runtime_fixed_array_subslice_index
         return None;
     }
 
-    Some(SelectedInstructionKind::CopyRuntimeStorage {
-        source_region: source.region,
-        source_offset: source.byte_offset,
-        target_region: target_place.region,
-        target_offset: target_place.byte_offset,
-        byte_count: target_place.byte_count,
-    })
+    Some(crate::selection::runtime_dispatch::copy_places_direct(source.region, source.byte_offset, target_place.region, target_place.byte_offset, target_place.byte_count))
 }
 
 #[allow(clippy::too_many_arguments)]

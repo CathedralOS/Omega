@@ -1385,13 +1385,7 @@ pub(super) fn select_runtime_resolved_target_value_source_mutation_writes(
         ) && target_place.byte_count == source_place.byte_count
         {
             selected_instructions.push(SelectedInstruction {
-                kind: SelectedInstructionKind::CopyRuntimeStorage {
-                    source_region: source_place.region,
-                    source_offset: source_place.byte_offset,
-                    target_region: target_place.region,
-                    target_offset: target_place.byte_offset,
-                    byte_count: target_place.byte_count,
-                },
+                kind: crate::selection::runtime_dispatch::copy_places_direct(source_place.region, source_place.byte_offset, target_place.region, target_place.byte_offset, target_place.byte_count),
                 source_key: operation_source_key,
                 source_statement: statement_index,
             });
@@ -1505,13 +1499,7 @@ pub(super) fn select_runtime_resolved_target_value_source_mutation_writes(
                 selected_instructions,
             );
             selected_instructions.push(SelectedInstruction {
-                kind: SelectedInstructionKind::CopyRuntimeStorage {
-                    source_region: source_place.region,
-                    source_offset: source_place.byte_offset,
-                    target_region: target_place.region,
-                    target_offset: target_place.byte_offset,
-                    byte_count: target_place.byte_count,
-                },
+                kind: crate::selection::runtime_dispatch::copy_places_direct(source_place.region, source_place.byte_offset, target_place.region, target_place.byte_offset, target_place.byte_count),
                 source_key: operation_source_key,
                 source_statement: statement_index,
             });

@@ -52,6 +52,23 @@ fn state_key_matches_statement_source(expected: StateKey, actual: StateKey) -> b
     expected == actual || (expected.machine == actual.machine && expected.state == actual.state)
 }
 
+/// The rung-2 migration constructor: a DIRECT (const-path) place-pair copy.
+/// Every retired `CopyRuntimeStorage` producer routes here -- addressing in
+/// the Place operands, relocations patched by each place's own region.
+pub(crate) fn copy_places_direct(
+    source_region: RuntimeStorageRegion,
+    source_offset: usize,
+    target_region: RuntimeStorageRegion,
+    target_offset: usize,
+    byte_count: usize,
+) -> SelectedInstructionKind {
+    SelectedInstructionKind::CopyPlaces {
+        source: omega_abstract_operations::Place::at(source_region, source_offset),
+        target: omega_abstract_operations::Place::at(target_region, target_offset),
+        byte_count,
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn select_runtime_unaliased_storage_mutation_write_with_scratch(
     input: &InstructionSelectionInput<'_>,
@@ -1013,13 +1030,7 @@ fn select_runtime_dispatch_local_initializer_write(
             && size != place.byte_count
         {
             selected_instructions.push(SelectedInstruction {
-                kind: SelectedInstructionKind::CopyRuntimeStorage {
-                    source_region: place.region,
-                    source_offset: place.byte_offset,
-                    target_region: omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame,
-                    target_offset: slot.byte_offset,
-                    byte_count: size,
-                },
+                kind: crate::selection::runtime_dispatch::copy_places_direct(place.region, place.byte_offset, omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame, slot.byte_offset, size),
                 source_key,
                 source_statement: statement_index,
             });
@@ -1174,13 +1185,7 @@ fn copy_assignment_value_call_result_into_local(
     }
 
     selected_instructions.push(SelectedInstruction {
-        kind: SelectedInstructionKind::CopyRuntimeStorage {
-            source_region: omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame,
-            source_offset: call_result_slot.byte_offset,
-            target_region: omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame,
-            target_offset: local_slot.byte_offset,
-            byte_count: local_slot.byte_size,
-        },
+        kind: crate::selection::runtime_dispatch::copy_places_direct(omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame, call_result_slot.byte_offset, omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame, local_slot.byte_offset, local_slot.byte_size),
         source_key: local_source_key,
         source_statement: statement_index,
     });
