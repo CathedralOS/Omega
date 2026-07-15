@@ -398,29 +398,6 @@ pub(super) fn collect_runtime_storage_copy_relocations(
             );
             true
         }
-        SelectedInstructionKind::CopyRuntimeStorageToRuntimePointee { source_region, .. } => {
-            let source_symbol = context.storage_region_symbol_handle(*source_region);
-            context.insert_data_address_at_instruction_start(source_symbol);
-            context.insert_data_address_at_relative_offset(
-                runtime_storage_copy_target_address_offset(context.input.target.architecture),
-                context.runtime_frame_symbol_handle(),
-            );
-            true
-        }
-        SelectedInstructionKind::CopyRuntimePointeeToRuntimeFrame { target_region, .. } => {
-            // Source pointer lives in the FRAME; the copied bytes land in
-            // `target_region` (frame or machine statics).
-            let symbol = context.runtime_frame_symbol_handle();
-            context.insert_data_address_at_instruction_start(symbol);
-            let target_symbol = context.storage_region_symbol_handle(*target_region);
-            context.insert_data_address_at_relative_offset(
-                runtime_storage_copy_from_runtime_pointee_to_runtime_frame_target_address_offset(
-                    context.input.target.architecture,
-                ),
-                target_symbol,
-            );
-            true
-        }
         _ => false,
     }
 }

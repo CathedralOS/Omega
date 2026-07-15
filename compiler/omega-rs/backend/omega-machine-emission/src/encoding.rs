@@ -1098,32 +1098,6 @@ pub(super) fn encode_machine_instruction_bytes(
             *target_field_byte_offset,
             *byte_count,
         ),
-        SelectedInstructionKind::CopyRuntimeStorageToRuntimePointee {
-            source_offset,
-            pointer_byte_offset,
-            field_byte_offset,
-            byte_count,
-            ..
-        } => runtime_storage::encode_runtime_storage_copy_to_runtime_pointee(
-            input,
-            *source_offset,
-            *pointer_byte_offset,
-            *field_byte_offset,
-            *byte_count,
-        ),
-        SelectedInstructionKind::CopyRuntimePointeeToRuntimeFrame {
-            target_region: _,
-            pointer_byte_offset,
-            field_byte_offset,
-            target_offset,
-            byte_count,
-        } => runtime_storage::encode_runtime_storage_copy_from_runtime_pointee_to_runtime_frame(
-            input,
-            *pointer_byte_offset,
-            *field_byte_offset,
-            *target_offset,
-            *byte_count,
-        ),
         // `hlt` (`asm { hlt }`) is position-independent with no relocation and
         // no branch distance, so it emits its bytes HERE rather than through
         // the branch-distance-aware instruction_bytes path.

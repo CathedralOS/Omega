@@ -907,23 +907,6 @@ pub enum AbstractOperationKind {
         target_field_byte_offset: usize,
         byte_count: usize,
     },
-    CopyRuntimeStorageToRuntimePointee {
-        source_region: RuntimeStorageRegion,
-        source_offset: usize,
-        pointer_byte_offset: usize,
-        field_byte_offset: usize,
-        byte_count: usize,
-    },
-    CopyRuntimePointeeToRuntimeFrame {
-        /// Where the copied bytes LAND (frame or machine statics). The
-        /// encoder's target base comes from the relocation, so one encoding
-        /// serves both -- the region only picks the relocated symbol.
-        target_region: RuntimeStorageRegion,
-        pointer_byte_offset: usize,
-        field_byte_offset: usize,
-        target_offset: usize,
-        byte_count: usize,
-    },
     SetDispatchState {
         dispatch_index: u32,
     },

@@ -1239,32 +1239,6 @@ impl From<&omega_abstract_operations::AbstractOperationKind> for TargetOperation
                 byte_size: *byte_size,
                 value: *value,
             },
-            omega_abstract_operations::AbstractOperationKind::CopyRuntimeStorageToRuntimePointee {
-                source_region,
-                source_offset,
-                pointer_byte_offset,
-                field_byte_offset,
-                byte_count,
-            } => Self::CopyRuntimeStorageToRuntimePointee {
-                source_region: *source_region,
-                source_offset: *source_offset,
-                pointer_byte_offset: *pointer_byte_offset,
-                field_byte_offset: *field_byte_offset,
-                byte_count: *byte_count,
-            },
-            omega_abstract_operations::AbstractOperationKind::CopyRuntimePointeeToRuntimeFrame {
-                target_region,
-                pointer_byte_offset,
-                field_byte_offset,
-                target_offset,
-                byte_count,
-            } => Self::CopyRuntimePointeeToRuntimeFrame {
-                target_region: *target_region,
-                pointer_byte_offset: *pointer_byte_offset,
-                field_byte_offset: *field_byte_offset,
-                target_offset: *target_offset,
-                byte_count: *byte_count,
-            },
             omega_abstract_operations::AbstractOperationKind::SetDispatchState {
                 dispatch_index,
             } => Self::SetDispatchState {

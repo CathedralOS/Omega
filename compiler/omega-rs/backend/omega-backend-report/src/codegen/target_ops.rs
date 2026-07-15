@@ -1188,30 +1188,6 @@ fn selected_instruction_name(
                 "write int {value} ({byte_size}b) -> runtime-machine double-indexed base@{base_byte_offset} outer@{outer_index_offset}({outer_index_region:?})*{outer_stride} inner@{inner_index_offset}({inner_index_region:?})*{inner_stride} field +{field_byte_offset}"
             )
         }
-        SelectedInstructionKind::CopyRuntimeStorageToRuntimePointee {
-            source_region,
-            source_offset,
-            pointer_byte_offset,
-            field_byte_offset,
-            byte_count,
-        } => {
-            let source_symbol =
-                storage_region_symbol_name(*source_region, backend_plan.entry_machine_name());
-            format!(
-                "copy runtime storage {source_symbol}@{source_offset} -> runtime pointee runtime_frame@{pointer_byte_offset} +{field_byte_offset} bytes {byte_count}"
-            )
-        }
-        SelectedInstructionKind::CopyRuntimePointeeToRuntimeFrame {
-            target_region: _,
-            pointer_byte_offset,
-            field_byte_offset,
-            target_offset,
-            byte_count,
-        } => {
-            format!(
-                "copy runtime pointee runtime_frame@{pointer_byte_offset} +{field_byte_offset} -> runtime_frame@{target_offset} bytes {byte_count}"
-            )
-        }
         SelectedInstructionKind::SetDispatchState { dispatch_index } => {
             format!("set dispatch state #{dispatch_index}")
         }

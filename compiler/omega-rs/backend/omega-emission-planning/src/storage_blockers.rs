@@ -406,7 +406,6 @@ fn state_mutation_is_planned(
                     | SelectedInstructionKind::CopyRuntimeFrameBaseIndexedToRuntimeFrame { .. }
                     | SelectedInstructionKind::CopyRuntimeStorageToRuntimeMachineIndexed { .. }
                     | SelectedInstructionKind::CopyRuntimeMachineIndexedToRuntimeMachineIndexed { .. }
-                    | SelectedInstructionKind::CopyRuntimeStorageToRuntimePointee { .. }
             )
         })
 }

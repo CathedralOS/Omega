@@ -295,16 +295,22 @@ dispatch-region + receiver-phase family. Everything queued here avoids both.
    GOTCHA HIT (own memory note): two EFI report pins asserted the OLD
    kind's report spelling — updated to the place spelling incl. the
    flat-fold anti-assert (`[ConstOffset(72)]`).
-   CopyRuntimeStorageToRuntimePointee + CopyRuntimePointeeToRuntimeFrame
-   are now retire-ready (zero producers).
-   REMAINING rung 2c+: retire the two pointee variants (next 2c-iii);
-   then the indexed variant producers build ScaledIndex places and
-   the remaining variants + echoes retire the same way;
-   machine-indexed variants need ScaledIndex.index_region wired into
-   the materializer (its own base register). Then Write/RMW (the
-   leaf-cascade duplication dies), Text, guards/operands, op-set
-   shrink — the wiki ladder. Legalization refuses loudly at every
-   rung.
+   RUNG 2c-iii LANDED 2026-07-14 — BOTH POINTEE VARIANTS RETIRED
+   (variants 2 and 3 of 18): CopyRuntimeStorageToRuntimePointee +
+   CopyRuntimePointeeToRuntimeFrame deleted from both enums with
+   every echo (conversion, classifications, shapes, encoding/layout
+   arms, both walker arms, report arms, blocker rows, the
+   x86 ISA encode/width fns and all four cross-arch dispatchers).
+   KEPT: aarch64 ISA pointee encode/width fns (the CopyPlaces
+   decompose rides them) + both walker offset fns (the CopyPlaces
+   aarch64 arm). 15 Copy variants remain.
+   REMAINING rung 2c+: the indexed variant producers build
+   ScaledIndex places and the remaining variants + echoes retire the
+   same way; machine-indexed variants need ScaledIndex.index_region
+   wired into the materializer (its own base register). Then
+   Write/RMW (the leaf-cascade duplication dies), Text,
+   guards/operands, op-set shrink — the wiki ladder. Legalization
+   refuses loudly at every rung.
 
 The rendering-sample sweep landed 2026-07-11 (see Language ergonomics;
 the match-subject computed-index gap closed with it).

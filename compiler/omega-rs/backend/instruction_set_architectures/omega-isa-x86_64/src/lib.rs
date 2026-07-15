@@ -8082,69 +8082,6 @@ pub fn encode_runtime_storage_copy_from_runtime_frame_base_double_indexed_to_run
     Ok(bytes)
 }
 
-pub fn runtime_storage_copy_to_runtime_pointee_width(
-    source_offset: usize,
-    field_byte_offset: usize,
-    byte_count: usize,
-) -> usize {
-    // mov r14,imm64(source) (10) + mov r15,imm64(frame) (10)
-    // + mov r15,[r15+ptr] (7) + per-chunk load/store (14 each).
-    27 + runtime_storage_copy_chunk_count(source_offset, field_byte_offset, byte_count) * 14
-}
-
-/// Copies `byte_count` bytes from the source storage region (`source_offset`)
-/// into the memory pointed at by a frame pointer slot
-/// (`*(frame[pointer_byte_offset]) + field_byte_offset`). r14 holds the source
-/// base (relocated to the source region), r15 the dereferenced target pointer
-/// (loaded after relocating the frame base).
-pub fn encode_runtime_storage_copy_to_runtime_pointee(
-    source_offset: usize,
-    pointer_byte_offset: usize,
-    field_byte_offset: usize,
-    byte_count: usize,
-) -> Result<Vec<u8>, Diagnostic> {
-    // Delegated to the Place materializer: source is a direct place, the
-    // target derefs the pointer slot then walks to the field (byte-for-byte
-    // with the hand-spelled sequence this replaced).
-    use omega_target_operations::{Place, PlaceStep, RuntimeStorageRegion};
-    let source = Place::at(RuntimeStorageRegion::RuntimeFrame, source_offset);
-    let target = Place::at(RuntimeStorageRegion::RuntimeFrame, pointer_byte_offset)
-        .with_step(PlaceStep::Deref)
-        .and_then(|place| place.with_step(PlaceStep::ConstOffset(field_byte_offset)))
-        .ok_or_else(|| Diagnostic::error("place path exceeds PLACE_MAX_STEPS"))?;
-    encode_place_copy(&source, &target, byte_count)
-}
-
-pub fn runtime_storage_copy_from_runtime_pointee_to_runtime_frame_width(
-    field_byte_offset: usize,
-    target_offset: usize,
-    byte_count: usize,
-) -> usize {
-    // mov r14,imm64(frame) + mov r14,[r14+ptr] + mov r15,imm64(frame)
-    // + per-chunk load/store.
-    27 + runtime_storage_copy_chunk_count(field_byte_offset, target_offset, byte_count) * 14
-}
-
-/// Copies `byte_count` bytes from memory pointed at by a frame pointer slot
-/// (`*(frame[pointer_byte_offset]) + field_byte_offset`) into `frame[target_offset]`.
-pub fn encode_runtime_storage_copy_from_runtime_pointee_to_runtime_frame(
-    pointer_byte_offset: usize,
-    field_byte_offset: usize,
-    target_offset: usize,
-    byte_count: usize,
-) -> Result<Vec<u8>, Diagnostic> {
-    // Delegated to the Place materializer: the source derefs the pointer
-    // slot then walks to the field, the target is a direct place
-    // (byte-for-byte with the hand-spelled sequence this replaced).
-    use omega_target_operations::{Place, PlaceStep, RuntimeStorageRegion};
-    let source = Place::at(RuntimeStorageRegion::RuntimeFrame, pointer_byte_offset)
-        .with_step(PlaceStep::Deref)
-        .and_then(|place| place.with_step(PlaceStep::ConstOffset(field_byte_offset)))
-        .ok_or_else(|| Diagnostic::error("place path exceeds PLACE_MAX_STEPS"))?;
-    let target = Place::at(RuntimeStorageRegion::RuntimeFrame, target_offset);
-    encode_place_copy(&source, &target, byte_count)
-}
-
 pub fn runtime_storage_copy_from_runtime_frame_fixed_indexed_width(
     _element_index: usize,
     _element_byte_size: usize,

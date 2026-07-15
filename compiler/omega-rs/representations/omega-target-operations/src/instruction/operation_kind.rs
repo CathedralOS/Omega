@@ -764,20 +764,6 @@ pub enum TargetOperationKind {
         byte_size: usize,
         value: i64,
     },
-    CopyRuntimeStorageToRuntimePointee {
-        source_region: RuntimeStorageRegion,
-        source_offset: usize,
-        pointer_byte_offset: usize,
-        field_byte_offset: usize,
-        byte_count: usize,
-    },
-    CopyRuntimePointeeToRuntimeFrame {
-        target_region: RuntimeStorageRegion,
-        pointer_byte_offset: usize,
-        field_byte_offset: usize,
-        target_offset: usize,
-        byte_count: usize,
-    },
     SetDispatchState {
         dispatch_index: u32,
     },
