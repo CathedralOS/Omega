@@ -8,6 +8,10 @@ pub use operands::*;
 pub use selection::build_instruction_plan;
 pub use widths::*;
 
+/// Re-exported for the relocation walker: the `CopyPlaces` site list is the
+/// x86_64 materializer's own record of where its base movs sit.
+pub use omega_isa_x86_64::{PlaceCopySide, PlaceCopySites};
+
 use omega_abstract_operations::AbstractDataPlan;
 use omega_checked_trees::CheckedTrees;
 use omega_control_flow::{ControlFlowPlan, StateKey};

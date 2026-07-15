@@ -803,6 +803,16 @@ pub(super) fn encode_machine_instruction_bytes(
             *target_offset,
             *byte_count,
         ),
+        SelectedInstructionKind::CopyPlaces {
+            source,
+            target,
+            byte_count,
+        } => omega_instruction_selection::encode_copy_places(
+            input.target.architecture,
+            source,
+            target,
+            *byte_count,
+        ),
         SelectedInstructionKind::CopyRuntimeStorageToRuntimeFrameIndexed {
             source_offset,
             descriptor_offset,

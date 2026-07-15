@@ -1,0 +1,32 @@
+// The first migrated CopyPlaces sites (Place pilot rung 2a, 2026-07-14):
+// runtime mutation copies ride the Place-pair kind -- addressing in the
+// operands, the relocation walker patching each base mov BY PLACE REGION
+// from the materializer's own site list (never a per-kind offset constant).
+// Three shapes in one program: two CROSS-REGION field writes (frame param ->
+// machine field: `self.scratch.a = x`) and one same-region whole-struct
+// 16-byte copy (`self.spot = self.scratch`). The backend report spells them
+// `copy places`. Exit 71 = a base patched to the wrong region's symbol
+// (reads land in the wrong storage), the exact failure the per-side site
+// tags exist to prevent.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Pair { a: i64; b: i64; }
+data Main { console: Console; spot: Pair; scratch: Pair; }
+machine Main::main(&mut self) {
+    transition { _ -> fill(68, 2) }
+    state fill(&mut self, x: i64, y: i64) {
+        self.scratch.a = x;
+        self.scratch.b = y;
+        self.spot = self.scratch;
+        transition { _ -> verify() }
+    }
+    state verify(&self) {
+        let a: i64 = self.spot.a;
+        transition a == 68 { true -> check_b() _ -> bad() }
+    }
+    state check_b(&self) {
+        let b: i64 = self.spot.b;
+        transition b == 2 { true -> good() _ -> bad() }
+    }
+    state good(&self) { self.console.exit_process(70); }
+    state bad(&self) { self.console.exit_process(71); }
+}

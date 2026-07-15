@@ -26,6 +26,48 @@
 use omega_core::diagnostics::Diagnostic;
 use omega_target_operations::{Place, PlaceStep};
 
+/// Which side of the copy a base-materialization relocation site belongs to.
+/// The relocation walker maps a side to that place's own region -- this is
+/// how `CopyPlaces` patches BY PLACE REGION instead of by per-kind offset
+/// functions.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum PlaceCopySide {
+    #[default]
+    Source,
+    Target,
+}
+
+/// Four covers every emitted shape: two bases today, plus room for the
+/// machine-indexed rung's separate index-base materializations.
+pub const PLACE_COPY_MAX_SITES: usize = 4;
+
+/// The base-materialization relocation sites of one place copy: the byte
+/// position of each `mov r??, imm64(0)` placeholder WITHIN the encoded
+/// instruction, tagged with the side whose region patches it. Recorded by
+/// the SAME walk that emits the bytes -- lockstep by construction, never a
+/// hand-maintained offset constant.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct PlaceCopySites {
+    sites: [(u32, PlaceCopySide); PLACE_COPY_MAX_SITES],
+    len: u8,
+}
+
+impl PlaceCopySites {
+    fn record(&mut self, byte_offset: usize, side: PlaceCopySide) {
+        debug_assert!(usize::from(self.len) < PLACE_COPY_MAX_SITES);
+        if usize::from(self.len) < PLACE_COPY_MAX_SITES {
+            self.sites[usize::from(self.len)] = (byte_offset as u32, side);
+            self.len += 1;
+        }
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = (usize, PlaceCopySide)> + '_ {
+        self.sites[..usize::from(self.len)]
+            .iter()
+            .map(|(offset, side)| (*offset as usize, *side))
+    }
+}
+
 #[derive(Clone, Copy)]
 enum AddressRegister {
     /// The source-address register (r14).
@@ -34,15 +76,26 @@ enum AddressRegister {
     Target,
 }
 
+impl AddressRegister {
+    fn side(self) -> PlaceCopySide {
+        match self {
+            AddressRegister::Source => PlaceCopySide::Source,
+            AddressRegister::Target => PlaceCopySide::Target,
+        }
+    }
+}
+
 /// Emit the address computation for `place` into the chosen register and
 /// return the RESIDUAL displacement: the trailing run of constant offsets is
 /// folded into the subsequent load/store displacements instead of being
 /// added to the register, exactly as the retired per-variant encoders did.
 fn materialize_place_address(
     bytes: &mut Vec<u8>,
+    sites: &mut PlaceCopySites,
     place: &Place,
     register: AddressRegister,
 ) -> Result<usize, Diagnostic> {
+    sites.record(bytes.len(), register.side());
     match register {
         AddressRegister::Source => super::append_mov_r14_imm64(bytes, 0),
         AddressRegister::Target => super::append_mov_r15_imm64(bytes, 0),
@@ -118,13 +171,42 @@ pub fn encode_place_copy(
     target: &Place,
     byte_count: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
+    encode_place_copy_with_sites(source, target, byte_count).map(|(bytes, _)| bytes)
+}
+
+fn encode_place_copy_with_sites(
+    source: &Place,
+    target: &Place,
+    byte_count: usize,
+) -> Result<(Vec<u8>, PlaceCopySites), Diagnostic> {
     let mut bytes = Vec::new();
+    let mut sites = PlaceCopySites::default();
     let source_displacement =
-        materialize_place_address(&mut bytes, source, AddressRegister::Source)?;
+        materialize_place_address(&mut bytes, &mut sites, source, AddressRegister::Source)?;
     let target_displacement =
-        materialize_place_address(&mut bytes, target, AddressRegister::Target)?;
+        materialize_place_address(&mut bytes, &mut sites, target, AddressRegister::Target)?;
     append_copy_chunks(&mut bytes, source_displacement, target_displacement, byte_count)?;
-    Ok(bytes)
+    Ok((bytes, sites))
+}
+
+/// The `CopyPlaces` entry: ONE routine that picks the emission shape from the
+/// place pair itself -- shared-base when both places root in the SAME region
+/// and a side derefs (the shape every retired same-region indexed/pointee
+/// encoder hand-spelled), two-base otherwise (including same-region direct
+/// pairs, which the retired plain copy materialized as two identical
+/// patched bases). Returns the bytes AND the base relocation sites recorded
+/// by the same walk; the relocation walker patches each site from the
+/// corresponding place's own region.
+pub fn encode_copy_places(
+    source: &Place,
+    target: &Place,
+    byte_count: usize,
+) -> Result<(Vec<u8>, PlaceCopySites), Diagnostic> {
+    if source.region == target.region && (place_derefs(source) || place_derefs(target)) {
+        encode_place_copy_shared_base_with_sites(source, target, byte_count)
+    } else {
+        encode_place_copy_with_sites(source, target, byte_count)
+    }
 }
 
 /// The SHARED-BASE copy: both places root in the SAME region, so ONE base
@@ -142,6 +224,14 @@ pub fn encode_place_copy_shared_base(
     target: &Place,
     byte_count: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
+    encode_place_copy_shared_base_with_sites(source, target, byte_count).map(|(bytes, _)| bytes)
+}
+
+fn encode_place_copy_shared_base_with_sites(
+    source: &Place,
+    target: &Place,
+    byte_count: usize,
+) -> Result<(Vec<u8>, PlaceCopySites), Diagnostic> {
     let source_derefs = place_derefs(source);
     let target_derefs = place_derefs(target);
     let source_indexed = place_has_index(source);
@@ -161,9 +251,13 @@ pub fn encode_place_copy_shared_base(
     }
 
     let mut bytes = Vec::new();
+    let mut sites = PlaceCopySites::default();
     if source_derefs {
         // Base lives in r15 (the target register); the first source deref
         // hops its address to r14 BEFORE any target deref consumes r15.
+        // The single base serves BOTH places (same region by precondition);
+        // the site carries the register's own side.
+        sites.record(bytes.len(), PlaceCopySide::Target);
         super::append_mov_r15_imm64(&mut bytes, 0);
         prepare_place_index(
             &mut bytes,
@@ -174,17 +268,18 @@ pub fn encode_place_copy_shared_base(
             walk_hopping_side(&mut bytes, source, HopDirection::BaseR15SourceHops)?;
         let target_displacement = walk_base_side(&mut bytes, target, AddressRegister::Target)?;
         append_copy_chunks(&mut bytes, source_displacement, target_displacement, byte_count)?;
-        Ok(bytes)
+        Ok((bytes, sites))
     } else if target_derefs {
         // The mirror: the source is direct, so the base lives in r14 (the
         // source register) and the first target deref hops to r15.
+        sites.record(bytes.len(), PlaceCopySide::Source);
         super::append_mov_r14_imm64(&mut bytes, 0);
         prepare_place_index(&mut bytes, target, AddressRegister::Source)?;
         let target_displacement =
             walk_hopping_side(&mut bytes, target, HopDirection::BaseR14TargetHops)?;
         let source_displacement = walk_base_side(&mut bytes, source, AddressRegister::Source)?;
         append_copy_chunks(&mut bytes, source_displacement, target_displacement, byte_count)?;
-        Ok(bytes)
+        Ok((bytes, sites))
     } else {
         Err(Diagnostic::error(
             "shared-base place copy requires a dereferencing side -- \

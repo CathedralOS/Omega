@@ -882,6 +882,57 @@ pub fn encode_runtime_storage_copy(
     }
 }
 
+/// The `CopyPlaces` encoder: x86_64 routes through the place materializer,
+/// which picks the emission shape from the pair itself; aarch64 serves
+/// DIRECT (const-path) pairs by decomposing to the retired plain-copy
+/// encoder -- byte-identical to what `CopyRuntimeStorage` emitted -- and
+/// refuses deref/indexed places until the aarch64 materializer rung lands
+/// (no runtime oracle to verify new byte layouts there).
+pub fn encode_copy_places(
+    architecture: Architecture,
+    source: &omega_target_operations::Place,
+    target: &omega_target_operations::Place,
+    byte_count: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::X86_64 => {
+            x86_64::encode_copy_places(source, target, byte_count).map(|(bytes, _)| bytes)
+        }
+        Architecture::Aarch64 => {
+            let (source_offset, target_offset) = copy_places_direct_offsets(source, target)?;
+            aarch64::encode_runtime_storage_copy(source_offset, target_offset, byte_count)
+        }
+    }
+}
+
+/// The x86_64 `CopyPlaces` encode WITH its relocation sites -- the
+/// relocation walker's source of truth for where each base mov sits (the
+/// SAME walk that emits the bytes; by relocation time layout has already
+/// encoded this shape successfully, so a refusal here is unreachable).
+pub fn x86_64_encode_copy_places_with_sites(
+    source: &omega_target_operations::Place,
+    target: &omega_target_operations::Place,
+    byte_count: usize,
+) -> Result<(Vec<u8>, omega_isa_x86_64::PlaceCopySites), Diagnostic> {
+    x86_64::encode_copy_places(source, target, byte_count)
+}
+
+/// Decompose a direct place pair to (source_offset, target_offset); the
+/// aarch64 transitional path and its relocation offsets both use this, so
+/// a non-direct place refuses in ONE spot.
+pub fn copy_places_direct_offsets(
+    source: &omega_target_operations::Place,
+    target: &omega_target_operations::Place,
+) -> Result<(usize, usize), Diagnostic> {
+    match (source.const_offset(), target.const_offset()) {
+        (Some(source_offset), Some(target_offset)) => Ok((source_offset, target_offset)),
+        _ => Err(Diagnostic::error(
+            "CopyPlaces on aarch64 serves direct (const-path) places only until \
+             the aarch64 place materializer lands; deref/indexed places refuse loudly",
+        )),
+    }
+}
+
 pub fn encode_runtime_storage_copy_to_runtime_frame_indexed(
     architecture: Architecture,
     source_offset: usize,

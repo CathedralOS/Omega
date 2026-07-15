@@ -1,5 +1,5 @@
 use crate::{
-    HostOperationKey, InstructionOperand, RuntimeStorageRegion, RuntimeTextReadSource,
+    HostOperationKey, InstructionOperand, Place, RuntimeStorageRegion, RuntimeTextReadSource,
     StateGuardLowering, StateGuardOperator, TargetDataObjectHandle, TargetValueOperandHandle,
 };
 use omega_core::arena::HandleSpan;
@@ -572,6 +572,17 @@ pub enum TargetOperationKind {
         source_offset: usize,
         target_region: RuntimeStorageRegion,
         target_offset: usize,
+        byte_count: usize,
+    },
+    /// The Place-pair copy (codegen cleanup Phase 6, rung 2): addressing
+    /// lives in the two [`Place`] operands -- base region + composable
+    /// steps -- not in the variant name. The relocation walker patches each
+    /// base-materialization site from the corresponding place's own region;
+    /// the per-variant Copy* kinds above retire into this one as selection
+    /// migrates.
+    CopyPlaces {
+        source: Place,
+        target: Place,
         byte_count: usize,
     },
     CopyRuntimeStorageToRuntimeFrameIndexed {

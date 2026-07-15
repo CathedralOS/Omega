@@ -308,6 +308,11 @@ fn instruction_frame_write_range(kind: &SelectedInstructionKind) -> Option<(usiz
             byte_count,
             ..
         } => Some((*target_offset, *byte_count)),
+        SelectedInstructionKind::CopyPlaces {
+            target, byte_count, ..
+        } if target.region == RuntimeStorageRegion::RuntimeFrame => target
+            .const_offset()
+            .map(|target_offset| (target_offset, *byte_count)),
         SelectedInstructionKind::WriteRuntimeStorageAddressToRuntimeFrame {
             target_offset, ..
         }

@@ -37,6 +37,53 @@ pub(super) fn collect_runtime_storage_copy_relocations(
             );
             true
         }
+        SelectedInstructionKind::CopyPlaces {
+            source,
+            target,
+            byte_count,
+        } => {
+            // The rung-2 walker arm: patch BY PLACE REGION. On x86_64 the
+            // materializer reports its base-mov sites from the SAME walk that
+            // emitted the bytes (never a hand-maintained offset constant);
+            // each site patches from the region of the place on its side. On
+            // aarch64 the transitional direct-pair shape reuses the retired
+            // plain-copy layout: source base at the start, target base at the
+            // arch offset.
+            match context.input.target.architecture {
+                Architecture::X86_64 => {
+                    let (_, sites) =
+                        omega_instruction_selection::x86_64_encode_copy_places_with_sites(
+                            source, target, *byte_count,
+                        )
+                        .expect(
+                            "CopyPlaces reached relocation with a shape the materializer \
+                             refuses; layout/encoding would have failed first",
+                        );
+                    for (byte_offset, side) in sites.iter() {
+                        let region = match side {
+                            omega_instruction_selection::PlaceCopySide::Source => source.region,
+                            omega_instruction_selection::PlaceCopySide::Target => target.region,
+                        };
+                        context.insert_data_address_at_relative_offset(
+                            byte_offset,
+                            context.storage_region_symbol_handle(region),
+                        );
+                    }
+                }
+                Architecture::Aarch64 => {
+                    context.insert_data_address_at_instruction_start(
+                        context.storage_region_symbol_handle(source.region),
+                    );
+                    context.insert_data_address_at_relative_offset(
+                        runtime_storage_copy_target_address_offset(
+                            context.input.target.architecture,
+                        ),
+                        context.storage_region_symbol_handle(target.region),
+                    );
+                }
+            }
+            true
+        }
         SelectedInstructionKind::CopyRuntimeStorageToReturnRegister { region, .. } => {
             // The terminal-value load's leading region-base materialization
             // (adrp+add on aarch64, `mov r15, imm64` on x86_64) anchors at the
