@@ -931,13 +931,88 @@ pub fn encode_copy_places(
                     byte_count,
                 )
             }
-            CopyPlacesShape::PointeePair { .. } | CopyPlacesShape::General => {
-                Err(Diagnostic::error(
-                    "CopyPlaces on aarch64 serves direct, single-pointee, and \
-                     frame-rooted pointee-pair place shapes only until the \
-                     aarch64 place materializer lands; this shape refuses loudly",
-                ))
+            // The runtime-indexed decomposes: descriptor + index slots are
+            // frame-resident by classification; the place regions must match
+            // the retired encoders' frame assumptions or refuse loudly.
+            CopyPlacesShape::FromIndexed {
+                descriptor_offset,
+                index_offset,
+                element_byte_size,
+                field_byte_offset,
+                target_offset,
+            } if source.region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame => {
+                match target.region {
+                    omega_target_operations::RuntimeStorageRegion::RuntimeFrame => {
+                        aarch64::encode_runtime_storage_copy_from_runtime_frame_indexed(
+                            descriptor_offset,
+                            index_offset,
+                            element_byte_size,
+                            field_byte_offset,
+                            target_offset,
+                            byte_count,
+                        )
+                    }
+                    omega_target_operations::RuntimeStorageRegion::Machine => {
+                        aarch64::encode_runtime_storage_copy_from_runtime_frame_indexed_to_runtime_storage(
+                            descriptor_offset,
+                            index_offset,
+                            element_byte_size,
+                            field_byte_offset,
+                            target_offset,
+                            byte_count,
+                        )
+                    }
+                }
             }
+            CopyPlacesShape::ToIndexed {
+                source_offset,
+                descriptor_offset,
+                index_offset,
+                element_byte_size,
+                field_byte_offset,
+            } if source.region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
+                && target.region
+                    == omega_target_operations::RuntimeStorageRegion::RuntimeFrame =>
+            {
+                aarch64::encode_runtime_storage_copy_to_runtime_frame_indexed(
+                    source_offset,
+                    descriptor_offset,
+                    index_offset,
+                    element_byte_size,
+                    field_byte_offset,
+                    byte_count,
+                )
+            }
+            CopyPlacesShape::IndexedToPointee {
+                descriptor_offset,
+                index_offset,
+                element_byte_size,
+                source_field_byte_offset,
+                pointer_byte_offset,
+                target_field_byte_offset,
+            } if source.region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
+                && target.region
+                    == omega_target_operations::RuntimeStorageRegion::RuntimeFrame =>
+            {
+                aarch64::encode_runtime_storage_copy_from_runtime_frame_indexed_to_runtime_pointee(
+                    descriptor_offset,
+                    index_offset,
+                    element_byte_size,
+                    source_field_byte_offset,
+                    pointer_byte_offset,
+                    target_field_byte_offset,
+                    byte_count,
+                )
+            }
+            CopyPlacesShape::PointeePair { .. }
+            | CopyPlacesShape::FromIndexed { .. }
+            | CopyPlacesShape::ToIndexed { .. }
+            | CopyPlacesShape::IndexedToPointee { .. }
+            | CopyPlacesShape::General => Err(Diagnostic::error(
+                "CopyPlaces on aarch64 serves direct, single-pointee, pointee-pair, \
+                 and frame-rooted single-indexed place shapes only until the \
+                 aarch64 place materializer lands; this shape refuses loudly",
+            )),
         },
     }
 }
@@ -974,7 +1049,35 @@ pub enum CopyPlacesShape {
         target_pointer_byte_offset: usize,
         target_field_byte_offset: usize,
     },
-    /// Anything else (runtime-indexed, multi-deref): x86_64-materializer only.
+    /// Runtime-indexed source into a direct target: the retired
+    /// from-frame-indexed copies (the descriptor and index slots are
+    /// frame-resident in every producible instance).
+    FromIndexed {
+        descriptor_offset: usize,
+        index_offset: usize,
+        element_byte_size: usize,
+        field_byte_offset: usize,
+        target_offset: usize,
+    },
+    /// Direct source into a runtime-indexed target: the retired
+    /// to-frame-indexed element write.
+    ToIndexed {
+        source_offset: usize,
+        descriptor_offset: usize,
+        index_offset: usize,
+        element_byte_size: usize,
+        field_byte_offset: usize,
+    },
+    /// Runtime-indexed source landing through a pointer slot.
+    IndexedToPointee {
+        descriptor_offset: usize,
+        index_offset: usize,
+        element_byte_size: usize,
+        source_field_byte_offset: usize,
+        pointer_byte_offset: usize,
+        target_field_byte_offset: usize,
+    },
+    /// Anything else (multi-index, multi-deref): x86_64-materializer only.
     General,
 }
 
@@ -982,6 +1085,50 @@ pub fn classify_copy_places_shape(
     source: &omega_target_operations::Place,
     target: &omega_target_operations::Place,
 ) -> CopyPlacesShape {
+    // The indexed shapes first: an indexed path is NOT a single-deref path,
+    // so these never shadow the pointee arms below. Frame-resident index
+    // slots only (the retired encoders' assumption); anything else falls to
+    // General.
+    if let Some(indexed) = single_indexed_path(source) {
+        if indexed.index_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame {
+            if let Some(target_offset) = target.const_offset() {
+                return CopyPlacesShape::FromIndexed {
+                    descriptor_offset: indexed.pointer_offset,
+                    index_offset: indexed.index_offset,
+                    element_byte_size: indexed.element_byte_size,
+                    field_byte_offset: indexed.field_offset,
+                    target_offset,
+                };
+            }
+            if let Some((pointer_byte_offset, target_field_byte_offset)) =
+                single_deref_path(target)
+            {
+                return CopyPlacesShape::IndexedToPointee {
+                    descriptor_offset: indexed.pointer_offset,
+                    index_offset: indexed.index_offset,
+                    element_byte_size: indexed.element_byte_size,
+                    source_field_byte_offset: indexed.field_offset,
+                    pointer_byte_offset,
+                    target_field_byte_offset,
+                };
+            }
+        }
+        return CopyPlacesShape::General;
+    }
+    if let Some(indexed) = single_indexed_path(target) {
+        if indexed.index_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
+            && let Some(source_offset) = source.const_offset()
+        {
+            return CopyPlacesShape::ToIndexed {
+                source_offset,
+                descriptor_offset: indexed.pointer_offset,
+                index_offset: indexed.index_offset,
+                element_byte_size: indexed.element_byte_size,
+                field_byte_offset: indexed.field_offset,
+            };
+        }
+        return CopyPlacesShape::General;
+    }
     match (
         source.const_offset(),
         target.const_offset(),
@@ -1019,6 +1166,51 @@ pub fn classify_copy_places_shape(
         },
         _ => CopyPlacesShape::General,
     }
+}
+
+/// One runtime-indexed hop: `[ConstOffset(p)?, Deref, ScaledIndex, ConstOffset(f)?]`.
+struct SingleIndexedPath {
+    pointer_offset: usize,
+    index_region: omega_target_operations::RuntimeStorageRegion,
+    index_offset: usize,
+    element_byte_size: usize,
+    field_offset: usize,
+}
+
+fn single_indexed_path(place: &omega_target_operations::Place) -> Option<SingleIndexedPath> {
+    let mut steps = place.steps().iter();
+    let mut pointer_offset = 0usize;
+    loop {
+        match steps.next() {
+            Some(omega_target_operations::PlaceStep::ConstOffset(offset)) => {
+                pointer_offset += offset
+            }
+            Some(omega_target_operations::PlaceStep::Deref) => break,
+            _ => return None,
+        }
+    }
+    let Some(omega_target_operations::PlaceStep::ScaledIndex {
+        index_region,
+        index_offset,
+        element_byte_size,
+    }) = steps.next()
+    else {
+        return None;
+    };
+    let mut field_offset = 0usize;
+    for step in steps {
+        match step {
+            omega_target_operations::PlaceStep::ConstOffset(offset) => field_offset += offset,
+            _ => return None,
+        }
+    }
+    Some(SingleIndexedPath {
+        pointer_offset,
+        index_region: *index_region,
+        index_offset: *index_offset,
+        element_byte_size: *element_byte_size,
+        field_offset,
+    })
 }
 
 /// `[ConstOffset(p)?, Deref, ConstOffset(f)?]` -> `(p, f)`; anything else

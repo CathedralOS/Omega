@@ -154,26 +154,17 @@ pub(in crate::selection::runtime_dispatch) fn runtime_storage_indexed_source_cop
             return None;
         }
 
-        let kind = if target_place.region == RuntimeStorageRegion::RuntimeFrame {
-            SelectedInstructionKind::CopyRuntimeFrameIndexedToRuntimeFrame {
-                descriptor_offset: indexed_source.descriptor_offset,
-                index_offset: indexed_source.index_offset,
-                element_byte_size: indexed_source.element_byte_size,
-                field_byte_offset: indexed_source.field_byte_offset,
-                target_offset: target_place.byte_offset,
-                byte_count: target_place.byte_count,
-            }
-        } else {
-            SelectedInstructionKind::CopyRuntimeFrameIndexedToRuntimeStorage {
-                descriptor_offset: indexed_source.descriptor_offset,
-                index_offset: indexed_source.index_offset,
-                element_byte_size: indexed_source.element_byte_size,
-                field_byte_offset: indexed_source.field_byte_offset,
-                target_region: target_place.region,
-                target_offset: target_place.byte_offset,
-                byte_count: target_place.byte_count,
-            }
-        };
+        // The retired ToFrame/ToStorage split collapses: the target region
+        // rides the place (rung 2c-v).
+        let kind = crate::selection::runtime_dispatch::copy_places_from_indexed(
+            indexed_source.descriptor_offset,
+            indexed_source.index_offset,
+            indexed_source.element_byte_size,
+            indexed_source.field_byte_offset,
+            target_place.region,
+            target_place.byte_offset,
+            target_place.byte_count,
+        );
 
         return Some(kind);
     }
@@ -361,15 +352,7 @@ pub(in crate::selection::runtime_dispatch) fn runtime_storage_indirect_copy(
     }
 
     Some(
-        SelectedInstructionKind::CopyRuntimeStorageToRuntimeFrameIndexed {
-            source_region: source_place.region,
-            source_offset: source_place.byte_offset,
-            descriptor_offset: indexed_target.descriptor_offset,
-            index_offset: indexed_target.index_offset,
-            element_byte_size: indexed_target.element_byte_size,
-            field_byte_offset: indexed_target.field_byte_offset,
-            byte_count: indexed_target.byte_count,
-        },
+        crate::selection::runtime_dispatch::copy_places_to_indexed(source_place.region, source_place.byte_offset, indexed_target.descriptor_offset, indexed_target.index_offset, indexed_target.element_byte_size, indexed_target.field_byte_offset, indexed_target.byte_count),
     )
 }
 
@@ -430,15 +413,7 @@ pub(in crate::selection::runtime_dispatch) fn runtime_storage_indirect_copy_in_t
     }
 
     Some(
-        SelectedInstructionKind::CopyRuntimeStorageToRuntimeFrameIndexed {
-            source_region: source_place.region,
-            source_offset: source_place.byte_offset,
-            descriptor_offset: indexed_target.descriptor_offset,
-            index_offset: indexed_target.index_offset,
-            element_byte_size: indexed_target.element_byte_size,
-            field_byte_offset: indexed_target.field_byte_offset,
-            byte_count: indexed_target.byte_count,
-        },
+        crate::selection::runtime_dispatch::copy_places_to_indexed(source_place.region, source_place.byte_offset, indexed_target.descriptor_offset, indexed_target.index_offset, indexed_target.element_byte_size, indexed_target.field_byte_offset, indexed_target.byte_count),
     )
 }
 
@@ -473,15 +448,7 @@ pub(in crate::selection::runtime_dispatch) fn runtime_storage_indexed_source_cop
         && indexed_source.byte_count > 0
     {
         return Some(
-            SelectedInstructionKind::CopyRuntimeFrameIndexedToRuntimePointee {
-                descriptor_offset: indexed_source.descriptor_offset,
-                index_offset: indexed_source.index_offset,
-                element_byte_size: indexed_source.element_byte_size,
-                source_field_byte_offset: indexed_source.field_byte_offset,
-                pointer_byte_offset: pointer_target.pointer_byte_offset,
-                target_field_byte_offset: pointer_target.field_byte_offset,
-                byte_count: indexed_source.byte_count,
-            },
+            crate::selection::runtime_dispatch::copy_places_indexed_to_pointee(indexed_source.descriptor_offset, indexed_source.index_offset, indexed_source.element_byte_size, indexed_source.field_byte_offset, pointer_target.pointer_byte_offset, pointer_target.field_byte_offset, indexed_source.byte_count),
         );
     }
 
@@ -517,26 +484,17 @@ pub(in crate::selection::runtime_dispatch) fn runtime_storage_indexed_source_cop
             return None;
         }
 
-        let kind = if target_place.region == RuntimeStorageRegion::RuntimeFrame {
-            SelectedInstructionKind::CopyRuntimeFrameIndexedToRuntimeFrame {
-                descriptor_offset: indexed_source.descriptor_offset,
-                index_offset: indexed_source.index_offset,
-                element_byte_size: indexed_source.element_byte_size,
-                field_byte_offset: indexed_source.field_byte_offset,
-                target_offset: target_place.byte_offset,
-                byte_count: target_place.byte_count,
-            }
-        } else {
-            SelectedInstructionKind::CopyRuntimeFrameIndexedToRuntimeStorage {
-                descriptor_offset: indexed_source.descriptor_offset,
-                index_offset: indexed_source.index_offset,
-                element_byte_size: indexed_source.element_byte_size,
-                field_byte_offset: indexed_source.field_byte_offset,
-                target_region: target_place.region,
-                target_offset: target_place.byte_offset,
-                byte_count: target_place.byte_count,
-            }
-        };
+        // The retired ToFrame/ToStorage split collapses: the target region
+        // rides the place (rung 2c-v).
+        let kind = crate::selection::runtime_dispatch::copy_places_from_indexed(
+            indexed_source.descriptor_offset,
+            indexed_source.index_offset,
+            indexed_source.element_byte_size,
+            indexed_source.field_byte_offset,
+            target_place.region,
+            target_place.byte_offset,
+            target_place.byte_count,
+        );
 
         return Some(kind);
     }

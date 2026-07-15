@@ -142,6 +142,101 @@ pub(crate) fn copy_places_from_fixed_indexed(
     }
 }
 
+/// A RUNTIME-indexed element place: deref the frame-resident descriptor,
+/// scale the frame-resident index, walk to the field. Four steps -- the
+/// PLACE_MAX_STEPS shape (a zero field offset merges away).
+fn indexed_place(
+    descriptor_offset: usize,
+    index_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+) -> omega_abstract_operations::Place {
+    omega_abstract_operations::Place::at(RuntimeStorageRegion::RuntimeFrame, descriptor_offset)
+        .with_step(omega_abstract_operations::PlaceStep::Deref)
+        .and_then(|place| {
+            place.with_step(omega_abstract_operations::PlaceStep::ScaledIndex {
+                index_region: RuntimeStorageRegion::RuntimeFrame,
+                index_offset,
+                element_byte_size,
+            })
+        })
+        .and_then(|place| {
+            place.with_step(omega_abstract_operations::PlaceStep::ConstOffset(
+                field_byte_offset,
+            ))
+        })
+        .expect("an indexed place is four steps, within PLACE_MAX_STEPS")
+}
+
+/// Rung 2c-v: the retired runtime-indexed element READ -- the target region
+/// rides the place (the ToFrame/ToStorage split collapses).
+pub(crate) fn copy_places_from_indexed(
+    descriptor_offset: usize,
+    index_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    target_region: RuntimeStorageRegion,
+    target_offset: usize,
+    byte_count: usize,
+) -> SelectedInstructionKind {
+    SelectedInstructionKind::CopyPlaces {
+        source: indexed_place(
+            descriptor_offset,
+            index_offset,
+            element_byte_size,
+            field_byte_offset,
+        ),
+        target: omega_abstract_operations::Place::at(target_region, target_offset),
+        byte_count,
+    }
+}
+
+/// Rung 2c-v: the retired runtime-indexed element WRITE (`exits[i] = e`).
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn copy_places_to_indexed(
+    source_region: RuntimeStorageRegion,
+    source_offset: usize,
+    descriptor_offset: usize,
+    index_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    byte_count: usize,
+) -> SelectedInstructionKind {
+    SelectedInstructionKind::CopyPlaces {
+        source: omega_abstract_operations::Place::at(source_region, source_offset),
+        target: indexed_place(
+            descriptor_offset,
+            index_offset,
+            element_byte_size,
+            field_byte_offset,
+        ),
+        byte_count,
+    }
+}
+
+/// Rung 2c-v: the runtime-indexed read landing THROUGH a pointer slot.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn copy_places_indexed_to_pointee(
+    descriptor_offset: usize,
+    index_offset: usize,
+    element_byte_size: usize,
+    source_field_byte_offset: usize,
+    pointer_byte_offset: usize,
+    target_field_byte_offset: usize,
+    byte_count: usize,
+) -> SelectedInstructionKind {
+    SelectedInstructionKind::CopyPlaces {
+        source: indexed_place(
+            descriptor_offset,
+            index_offset,
+            element_byte_size,
+            source_field_byte_offset,
+        ),
+        target: pointee_place(pointer_byte_offset, target_field_byte_offset),
+        byte_count,
+    }
+}
+
 /// Rung 2c-iv: the fixed-indexed read landing THROUGH a pointer slot --
 /// both sides deref (the PointeePair shape).
 #[allow(clippy::too_many_arguments)]

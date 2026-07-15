@@ -380,14 +380,7 @@ pub(in crate::selection) fn select_runtime_frame_slot_value_write_in_table_with_
         && indexed_source.byte_count > 0
     {
         return Some(
-            SelectedInstructionKind::CopyRuntimeFrameIndexedToRuntimeFrame {
-                descriptor_offset: indexed_source.descriptor_offset,
-                index_offset: indexed_source.index_offset,
-                element_byte_size: indexed_source.element_byte_size,
-                field_byte_offset: indexed_source.field_byte_offset,
-                target_offset: slot.byte_offset,
-                byte_count: slot.byte_size,
-            },
+            crate::selection::runtime_dispatch::copy_places_from_indexed(indexed_source.descriptor_offset, indexed_source.index_offset, indexed_source.element_byte_size, indexed_source.field_byte_offset, RuntimeStorageRegion::RuntimeFrame, slot.byte_offset, slot.byte_size),
         );
     }
 

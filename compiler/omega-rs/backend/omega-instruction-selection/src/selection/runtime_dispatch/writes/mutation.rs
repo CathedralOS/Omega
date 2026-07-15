@@ -1309,15 +1309,7 @@ pub(super) fn select_runtime_resolved_target_value_source_mutation_writes(
             && source_place.byte_count == indexed_target.byte_count
         {
             selected_instructions.push(SelectedInstruction {
-                kind: SelectedInstructionKind::CopyRuntimeStorageToRuntimeFrameIndexed {
-                    source_region: source_place.region,
-                    source_offset: source_place.byte_offset,
-                    descriptor_offset: indexed_target.descriptor_offset,
-                    index_offset: indexed_target.index_offset,
-                    element_byte_size: indexed_target.element_byte_size,
-                    field_byte_offset: indexed_target.field_byte_offset,
-                    byte_count: indexed_target.byte_count,
-                },
+                kind: crate::selection::runtime_dispatch::copy_places_to_indexed(source_place.region, source_place.byte_offset, indexed_target.descriptor_offset, indexed_target.index_offset, indexed_target.element_byte_size, indexed_target.field_byte_offset, indexed_target.byte_count),
                 source_key: operation_source_key,
                 source_statement: statement_index,
             });
@@ -1517,15 +1509,7 @@ pub(super) fn select_runtime_resolved_target_value_source_mutation_writes(
         ) && source_place.region == omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame
         {
             selected_instructions.push(SelectedInstruction {
-                kind: SelectedInstructionKind::CopyRuntimeStorageToRuntimeFrameIndexed {
-                    source_region: source_place.region,
-                    source_offset: source_place.byte_offset,
-                    descriptor_offset: indexed_target.descriptor_offset,
-                    index_offset: indexed_target.index_offset,
-                    element_byte_size: indexed_target.element_byte_size,
-                    field_byte_offset: indexed_target.field_byte_offset,
-                    byte_count: indexed_target.byte_count,
-                },
+                kind: crate::selection::runtime_dispatch::copy_places_to_indexed(source_place.region, source_place.byte_offset, indexed_target.descriptor_offset, indexed_target.index_offset, indexed_target.element_byte_size, indexed_target.field_byte_offset, indexed_target.byte_count),
                 source_key: operation_source_key,
                 source_statement: statement_index,
             });
