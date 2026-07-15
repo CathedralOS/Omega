@@ -325,12 +325,30 @@ dispatch-region + receiver-phase family. Everything queued here avoids both.
    aarch64's fixed_indexed_to_pointee encode/width (the PointeePair
    decompose rides it); the +17 layout pin lives on as a place_copy
    unit test. SIX variants retired total; 12 remain.
-   REMAINING rung 2c+: the runtime-indexed producers build
-   ScaledIndex places; machine-indexed variants need
-   ScaledIndex.index_region wired into the materializer (its own
-   base register). Then Write/RMW (the leaf-cascade duplication
-   dies), Text, guards/operands, op-set shrink — the wiki ladder.
-   Legalization refuses loudly at every rung.
+   RUNG 2c-v LANDED 2026-07-14 — THE RUNTIME-INDEXED FAMILY ON
+   ScaledIndex PLACES: all producers of the four frame-indexed
+   variants (FromIndexed ToFrame/ToStorage — both region splits
+   COLLAPSED, incl. the edges.rs call-result copy — ToIndexed
+   element writes, IndexedToPointee) build
+   [Const(desc), Deref, ScaledIndex{frame}, Const(field)] places
+   via copy_places_from_indexed/_to_indexed/_indexed_to_pointee.
+   Classifier gains FromIndexed | ToIndexed | IndexedToPointee
+   (single_indexed_path; frame index slots only, else General);
+   aarch64 decomposes route to the four retired encoders with
+   frame-region guards (FromIndexed picks ToFrame/ToStorage by the
+   TARGET PLACE REGION); walker arms mirror the retired reloc
+   shapes (machine targets reload their base at the indexed offset
+   fn; all-frame shapes ride the one start reloc). x86 = the 1c
+   materializer discipline (shared-base same-region, two-base
+   cross-region; machine-source indexed writes now lower correctly
+   by construction where the retired kind was frame-assumed).
+   Four more variants producer-free (retire → 2c-vi).
+   REMAINING rung 2c+: retire the four runtime-indexed variants;
+   machine-indexed variants need ScaledIndex.index_region wired into
+   the materializer (its own base register). Then Write/RMW (the
+   leaf-cascade duplication dies), Text, guards/operands, op-set
+   shrink — the wiki ladder. Legalization refuses loudly at every
+   rung.
 
 The rendering-sample sweep landed 2026-07-11 (see Language ergonomics;
 the match-subject computed-index gap closed with it).

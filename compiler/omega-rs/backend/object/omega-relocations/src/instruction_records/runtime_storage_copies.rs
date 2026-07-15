@@ -91,6 +91,35 @@ pub(super) fn collect_runtime_storage_copy_relocations(
                             // frame base for both derefs -- the start
                             // relocation above is the only site.
                         }
+                        omega_instruction_selection::CopyPlacesShape::FromIndexed {
+                            element_byte_size,
+                            field_byte_offset,
+                            ..
+                        } => {
+                            // Frame-to-frame reuses the one frame base; a
+                            // MACHINE target reloads its own base at the
+                            // retired to-storage offset.
+                            if target.region
+                                == omega_target_operations::RuntimeStorageRegion::Machine
+                            {
+                                context.insert_data_address_at_relative_offset(
+                                    runtime_storage_copy_from_runtime_frame_indexed_target_address_offset(
+                                        context.input.target.architecture,
+                                        element_byte_size,
+                                        field_byte_offset,
+                                    ),
+                                    context.storage_region_symbol_handle(target.region),
+                                );
+                            }
+                        }
+                        omega_instruction_selection::CopyPlacesShape::ToIndexed { .. }
+                        | omega_instruction_selection::CopyPlacesShape::IndexedToPointee {
+                            ..
+                        } => {
+                            // Frame-rooted on both sides (the decompose's
+                            // precondition): one frame base serves the
+                            // descriptor, index, and the other side.
+                        }
                         omega_instruction_selection::CopyPlacesShape::General => {
                             unreachable!(
                                 "CopyPlaces General shape reached aarch64 relocation; \

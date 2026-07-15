@@ -565,26 +565,17 @@ fn select_runtime_dispatch_call_result_return(
                     byte_size,
                 );
             }
-            let kind = if target_region == RuntimeStorageRegion::RuntimeFrame {
-                SelectedInstructionKind::CopyRuntimeFrameIndexedToRuntimeFrame {
-                    descriptor_offset: indexed.descriptor_offset,
-                    index_offset: indexed.index_offset,
-                    element_byte_size: indexed.element_byte_size,
-                    field_byte_offset: indexed.field_byte_offset,
-                    target_offset,
-                    byte_count: byte_size,
-                }
-            } else {
-                SelectedInstructionKind::CopyRuntimeFrameIndexedToRuntimeStorage {
-                    descriptor_offset: indexed.descriptor_offset,
-                    index_offset: indexed.index_offset,
-                    element_byte_size: indexed.element_byte_size,
-                    field_byte_offset: indexed.field_byte_offset,
-                    target_region,
-                    target_offset,
-                    byte_count: byte_size,
-                }
-            };
+            // The retired ToFrame/ToStorage split collapses: the target
+            // region rides the place (rung 2c-v).
+            let kind = crate::selection::runtime_dispatch::copy_places_from_indexed(
+                indexed.descriptor_offset,
+                indexed.index_offset,
+                indexed.element_byte_size,
+                indexed.field_byte_offset,
+                target_region,
+                target_offset,
+                byte_size,
+            );
             selected_instructions.push(SelectedInstruction {
                 kind,
                 source_key,
