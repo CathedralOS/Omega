@@ -1157,9 +1157,18 @@ rows. Rungs:
   the pin's locals (d/inf/verdict) are all NON-`required` in the
   state-storage arena (the value-call inliner claims them), so the
   locals loop never reaches them (loop-census: zero records). THE
-  BLOCKER MUST LIVE IN THE EXPANSION RECORDS: walk
-  runtime_branching_calls expansions x statements x planned writes in
-  emission-planning -- a new coverage walk, the true remaining piece.
+  BLOCKER MUST LIVE IN THE EXPANSION RECORDS -- with one prerequisite
+  mapped first: the ANCHORING CONVENTION. The pin's d-write plans
+  under the CALLER's key ((35,46), BINW5-proven) while d's slot keys
+  to the CALLEE ((34,39)) and its local record sits non-required in
+  the callee's arena -- so any coverage walk must first write down
+  which (source_key, statement) pairs the planners stamp for
+  inliner-substituted callee statements (leaf/straight-line expansion
+  records carry their own anchors; the simplify-driven value-machine
+  fold apparently stamps the caller's). Map that convention, THEN the
+  coverage walk is mechanical, THEN the verified three-door refusal
+  lands with it (never alone -- doors without the blocker are a
+  proven silent drop).
   The three-door refusal is VERIFIED WORKING (all doors fire, zero
   writes emitted) but without the expansion blocker it is a SILENT
   DROP (proven: clean compile, wrong exit) -- land the two TOGETHER,
