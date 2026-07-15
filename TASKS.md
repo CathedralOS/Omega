@@ -1147,10 +1147,24 @@ rows. Rungs:
   pointee-materialization locals (`let con_out = table.con_out`, the
   EFI reference-param-member deref shape: 5 EFI canaries + samples
   failed) whose writes are planned under kinds/anchors outside the
-  mutation list. CALIBRATE next time: run the check in WARN/census
-  mode over the whole corpus, enumerate every legitimate
-  initializer-write kind (pointee deref reads, call-result copies,
-  string writes, ...), THEN enforce. (2) land the three-door
+  mutation list. CENSUS RUN 2026-07-18 (complete, 1233 canaries + samples +
+  EFI cross-target): the ONLY legitimate-unplanned initializers are
+  pure PLACE-PATH shapes (`table.con_out` ref-param-member
+  materialization ×8, `window[2]` const-indexed view read ×1); zero
+  computed-initializer hits. A calibrated blocker (computed
+  initializers must have a planned write; place paths exempt) was
+  BUILT AND VERIFIED HARMLESS -- but it CANNOT see the expansion case:
+  the pin's locals (d/inf/verdict) are all NON-`required` in the
+  state-storage arena (the value-call inliner claims them), so the
+  locals loop never reaches them (loop-census: zero records). THE
+  BLOCKER MUST LIVE IN THE EXPANSION RECORDS: walk
+  runtime_branching_calls expansions x statements x planned writes in
+  emission-planning -- a new coverage walk, the true remaining piece.
+  The three-door refusal is VERIFIED WORKING (all doors fire, zero
+  writes emitted) but without the expansion blocker it is a SILENT
+  DROP (proven: clean compile, wrong exit) -- land the two TOGETHER,
+  never the doors alone. All diffs in git history at/around this
+  entry. (2) land the three-door
   nested-float refusal (exact diffs in git history around this
   entry: pre-resolved + targeted entries in binary_table_writes.rs,
   tree-form in mutation.rs). (3) the enabling fix = float
