@@ -87,9 +87,6 @@ impl OperationSemanticQuery for AbstractOperationKind {
             | Self::CopyRuntimeStorageToRuntimeFrameIndexed { .. }
             | Self::CopyRuntimeFrameIndexedToRuntimeFrame { .. }
             | Self::CopyRuntimeFrameIndexedToRuntimeStorage { .. }
-            | Self::CopyRuntimeFrameFixedIndexedToRuntimeFrame { .. }
-            | Self::CopyRuntimeFrameFixedIndexedToRuntimeStorage { .. }
-            | Self::CopyRuntimeFrameFixedIndexedToRuntimePointee { .. }
             | Self::CopyRuntimeFrameIndexedToRuntimePointee { .. }
             | Self::CopyRuntimeMachineIndexedToRuntimeStorage { .. }
             | Self::CopyRuntimeMachineDoubleIndexedToRuntimeStorage { .. }

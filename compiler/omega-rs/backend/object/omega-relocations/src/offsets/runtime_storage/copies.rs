@@ -25,26 +25,6 @@ pub(crate) fn runtime_storage_copy_from_runtime_frame_indexed_target_address_off
     }
 }
 
-pub(crate) fn runtime_storage_copy_from_runtime_frame_fixed_indexed_target_address_offset(
-    architecture: Architecture,
-    element_index: usize,
-    element_byte_size: usize,
-    field_byte_offset: usize,
-) -> usize {
-    match architecture {
-        Architecture::Aarch64 => {
-            let source_offset = element_index
-                .saturating_mul(element_byte_size)
-                .saturating_add(field_byte_offset);
-            12 + add_constant_width(source_offset)
-        }
-        // Start of the target-base `mov r15,imm64` in the Place
-        // materializer's canonical shape: source base mov r14,imm64 (10)
-        // + descriptor deref (7); the planner adds the +2 itself.
-        Architecture::X86_64 => 17,
-    }
-}
-
 pub(crate) fn runtime_storage_copy_from_runtime_machine_indexed_runtime_frame_address_offset(
     architecture: Architecture,
     base_byte_offset: usize,

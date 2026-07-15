@@ -735,32 +735,6 @@ pub enum AbstractOperationKind {
         target_offset: usize,
         byte_count: usize,
     },
-    CopyRuntimeFrameFixedIndexedToRuntimeFrame {
-        descriptor_offset: usize,
-        element_index: usize,
-        element_byte_size: usize,
-        field_byte_offset: usize,
-        target_offset: usize,
-        byte_count: usize,
-    },
-    CopyRuntimeFrameFixedIndexedToRuntimeStorage {
-        descriptor_offset: usize,
-        element_index: usize,
-        element_byte_size: usize,
-        field_byte_offset: usize,
-        target_region: RuntimeStorageRegion,
-        target_offset: usize,
-        byte_count: usize,
-    },
-    CopyRuntimeFrameFixedIndexedToRuntimePointee {
-        descriptor_offset: usize,
-        element_index: usize,
-        element_byte_size: usize,
-        source_field_byte_offset: usize,
-        pointer_byte_offset: usize,
-        target_field_byte_offset: usize,
-        byte_count: usize,
-    },
     /// Copy a runtime-frame slice element field (`*(frame[descriptor]) +
     /// index*elem + source_field`, index read from `frame[index_offset]`) through
     /// a `&mut` reference into its pointee field (`*(frame[pointer]) +

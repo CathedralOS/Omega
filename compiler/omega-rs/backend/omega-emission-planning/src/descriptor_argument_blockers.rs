@@ -325,11 +325,6 @@ fn instruction_frame_write_range(kind: &SelectedInstructionKind) -> Option<(usiz
             target_offset,
             ..
         } => Some((*target_offset, 8)),
-        SelectedInstructionKind::CopyRuntimeFrameFixedIndexedToRuntimeFrame {
-            target_offset,
-            byte_count,
-            ..
-        } => Some((*target_offset, *byte_count)),
         _ => None,
     }
 }
