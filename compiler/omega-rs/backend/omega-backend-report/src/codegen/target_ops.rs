@@ -967,61 +967,6 @@ fn selected_instruction_name(
                 target.steps()
             )
         }
-        SelectedInstructionKind::CopyRuntimeStorageToRuntimeFrameIndexed {
-            source_region,
-            source_offset,
-            descriptor_offset,
-            index_offset,
-            element_byte_size,
-            field_byte_offset,
-            byte_count,
-        } => {
-            let source_symbol =
-                storage_region_symbol_name(*source_region, backend_plan.entry_machine_name());
-            format!(
-                "copy runtime storage {source_symbol}@{source_offset} -> runtime-frame indexed descriptor@{descriptor_offset} index@{index_offset} elem {element_byte_size} field +{field_byte_offset} bytes {byte_count}"
-            )
-        }
-        SelectedInstructionKind::CopyRuntimeFrameIndexedToRuntimeFrame {
-            descriptor_offset,
-            index_offset,
-            element_byte_size,
-            field_byte_offset,
-            target_offset,
-            byte_count,
-        } => {
-            format!(
-                "copy runtime-frame indexed descriptor@{descriptor_offset} index@{index_offset} elem {element_byte_size} field +{field_byte_offset} -> runtime_frame@{target_offset} bytes {byte_count}"
-            )
-        }
-        SelectedInstructionKind::CopyRuntimeFrameIndexedToRuntimeStorage {
-            descriptor_offset,
-            index_offset,
-            element_byte_size,
-            field_byte_offset,
-            target_region,
-            target_offset,
-            byte_count,
-        } => {
-            let target_symbol =
-                storage_region_symbol_name(*target_region, backend_plan.entry_machine_name());
-            format!(
-                "copy runtime-frame indexed descriptor@{descriptor_offset} index@{index_offset} elem {element_byte_size} field +{field_byte_offset} -> {target_symbol}@{target_offset} bytes {byte_count}"
-            )
-        }
-        SelectedInstructionKind::CopyRuntimeFrameIndexedToRuntimePointee {
-            descriptor_offset,
-            index_offset,
-            element_byte_size,
-            source_field_byte_offset,
-            pointer_byte_offset,
-            target_field_byte_offset,
-            byte_count,
-        } => {
-            format!(
-                "copy runtime-frame indexed descriptor@{descriptor_offset} index@{index_offset} elem {element_byte_size} field +{source_field_byte_offset} -> pointee pointer@{pointer_byte_offset} field +{target_field_byte_offset} bytes {byte_count}"
-            )
-        }
         SelectedInstructionKind::CopyRuntimeMachineIndexedToRuntimeStorage {
             base_byte_offset,
             index_offset,

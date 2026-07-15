@@ -578,43 +578,8 @@ pub enum TargetOperationKind {
         target: Place,
         byte_count: usize,
     },
-    CopyRuntimeStorageToRuntimeFrameIndexed {
-        source_region: RuntimeStorageRegion,
-        source_offset: usize,
-        descriptor_offset: usize,
-        index_offset: usize,
-        element_byte_size: usize,
-        field_byte_offset: usize,
-        byte_count: usize,
-    },
-    CopyRuntimeFrameIndexedToRuntimeFrame {
-        descriptor_offset: usize,
-        index_offset: usize,
-        element_byte_size: usize,
-        field_byte_offset: usize,
-        target_offset: usize,
-        byte_count: usize,
-    },
-    CopyRuntimeFrameIndexedToRuntimeStorage {
-        descriptor_offset: usize,
-        index_offset: usize,
-        element_byte_size: usize,
-        field_byte_offset: usize,
-        target_region: RuntimeStorageRegion,
-        target_offset: usize,
-        byte_count: usize,
-    },
     /// Runtime-index sibling of `CopyRuntimeFrameFixedIndexedToRuntimePointee`:
     /// `out.f = items[i].f` where `out` is a `&mut` parameter.
-    CopyRuntimeFrameIndexedToRuntimePointee {
-        descriptor_offset: usize,
-        index_offset: usize,
-        element_byte_size: usize,
-        source_field_byte_offset: usize,
-        pointer_byte_offset: usize,
-        target_field_byte_offset: usize,
-        byte_count: usize,
-    },
     CopyRuntimeMachineIndexedToRuntimeStorage {
         base_byte_offset: usize,
         index_offset: usize,

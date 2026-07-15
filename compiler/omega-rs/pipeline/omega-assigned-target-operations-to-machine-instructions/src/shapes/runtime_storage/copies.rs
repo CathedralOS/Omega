@@ -10,66 +10,6 @@ pub(super) fn selected_runtime_storage_copy_kind(
         SelectedInstructionKind::CopyPlaces { .. } => {
             Some(MachineInstructionKind::RuntimeStorageCopy)
         }
-        SelectedInstructionKind::CopyRuntimeStorageToRuntimeFrameIndexed {
-            source_offset,
-            descriptor_offset,
-            index_offset,
-            element_byte_size,
-            field_byte_offset,
-            byte_count,
-            ..
-        } => Some(runtime_storage_copy_to_runtime_frame_indexed_kind(
-            *source_offset,
-            *descriptor_offset,
-            *index_offset,
-            *element_byte_size,
-            *field_byte_offset,
-            *byte_count,
-        )),
-        SelectedInstructionKind::CopyRuntimeFrameIndexedToRuntimeFrame {
-            descriptor_offset,
-            index_offset,
-            element_byte_size,
-            field_byte_offset,
-            target_offset,
-            byte_count,
-            ..
-        }
-        | SelectedInstructionKind::CopyRuntimeFrameIndexedToRuntimeStorage {
-            descriptor_offset,
-            index_offset,
-            element_byte_size,
-            field_byte_offset,
-            target_offset,
-            byte_count,
-            ..
-        } => Some(runtime_storage_copy_from_runtime_frame_indexed_kind(
-            *descriptor_offset,
-            *index_offset,
-            *element_byte_size,
-            *field_byte_offset,
-            *target_offset,
-            *byte_count,
-        )),
-        SelectedInstructionKind::CopyRuntimeFrameIndexedToRuntimePointee {
-            descriptor_offset,
-            index_offset,
-            element_byte_size,
-            source_field_byte_offset,
-            pointer_byte_offset,
-            target_field_byte_offset,
-            byte_count,
-        } => Some(
-            runtime_storage_copy_from_runtime_frame_indexed_to_runtime_pointee_kind(
-                *descriptor_offset,
-                *index_offset,
-                *element_byte_size,
-                *source_field_byte_offset,
-                *pointer_byte_offset,
-                *target_field_byte_offset,
-                *byte_count,
-            ),
-        ),
         SelectedInstructionKind::CopyRuntimeMachineIndexedToRuntimeStorage {
             base_byte_offset,
             index_offset,

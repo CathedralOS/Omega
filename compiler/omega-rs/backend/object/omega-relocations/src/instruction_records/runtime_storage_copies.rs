@@ -139,30 +139,6 @@ pub(super) fn collect_runtime_storage_copy_relocations(
             context.insert_data_address_at_instruction_start(symbol);
             true
         }
-        SelectedInstructionKind::CopyRuntimeStorageToRuntimeFrameIndexed { .. }
-        | SelectedInstructionKind::CopyRuntimeFrameIndexedToRuntimeFrame { .. }
-        | SelectedInstructionKind::CopyRuntimeFrameIndexedToRuntimePointee { .. } => {
-            let symbol = context.runtime_frame_symbol_handle();
-            context.insert_data_address_at_instruction_start(symbol);
-            true
-        }
-        SelectedInstructionKind::CopyRuntimeFrameIndexedToRuntimeStorage {
-            target_region,
-            element_byte_size,
-            field_byte_offset,
-            ..
-        } => {
-            context.insert_data_address_at_instruction_start(context.runtime_frame_symbol_handle());
-            context.insert_data_address_at_relative_offset(
-                runtime_storage_copy_from_runtime_frame_indexed_target_address_offset(
-                    context.input.target.architecture,
-                    *element_byte_size,
-                    *field_byte_offset,
-                ),
-                context.storage_region_symbol_handle(*target_region),
-            );
-            true
-        }
         SelectedInstructionKind::CopyRuntimeMachineIndexedToRuntimeStorage {
             target_region,
             base_byte_offset,
