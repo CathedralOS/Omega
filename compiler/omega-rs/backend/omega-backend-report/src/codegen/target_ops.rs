@@ -967,18 +967,6 @@ fn selected_instruction_name(
                 target.steps()
             )
         }
-        SelectedInstructionKind::CopyRuntimeFrameBaseIndexedToRuntimeFrame {
-            base_byte_offset,
-            index_offset,
-            element_byte_size,
-            field_byte_offset,
-            target_offset,
-            byte_count,
-        } => {
-            format!(
-                "copy runtime-frame base-indexed base@{base_byte_offset} index@{index_offset} elem {element_byte_size} field +{field_byte_offset} -> frame@{target_offset} bytes {byte_count}"
-            )
-        }
         SelectedInstructionKind::CopyRuntimeMachineIndexedToRuntimeMachineIndexed {
             source_base_byte_offset,
             source_index_offset,

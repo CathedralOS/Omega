@@ -10,9 +10,6 @@ pub(super) fn selected_runtime_storage_copy_kind(
         SelectedInstructionKind::CopyPlaces { .. } => {
             Some(MachineInstructionKind::RuntimeStorageCopy)
         }
-        SelectedInstructionKind::CopyRuntimeFrameBaseIndexedToRuntimeFrame { .. } => {
-            Some(MachineInstructionKind::RuntimeStorageCopyFromRuntimeFrameBaseIndexed)
-        }
         SelectedInstructionKind::CopyRuntimeMachineIndexedToRuntimeMachineIndexed { .. } => {
             Some(MachineInstructionKind::RuntimeStorageCopyMachineIndexedToMachineIndexed)
         }

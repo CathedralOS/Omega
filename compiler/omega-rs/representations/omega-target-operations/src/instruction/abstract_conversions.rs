@@ -952,21 +952,6 @@ impl From<&omega_abstract_operations::AbstractOperationKind> for TargetOperation
                 target: *target,
                 byte_count: *byte_count,
             },
-            omega_abstract_operations::AbstractOperationKind::CopyRuntimeFrameBaseIndexedToRuntimeFrame {
-                base_byte_offset,
-                index_offset,
-                element_byte_size,
-                field_byte_offset,
-                target_offset,
-                byte_count,
-            } => Self::CopyRuntimeFrameBaseIndexedToRuntimeFrame {
-                base_byte_offset: *base_byte_offset,
-                index_offset: *index_offset,
-                element_byte_size: *element_byte_size,
-                field_byte_offset: *field_byte_offset,
-                target_offset: *target_offset,
-                byte_count: *byte_count,
-            },
             omega_abstract_operations::AbstractOperationKind::CopyRuntimeMachineIndexedToRuntimeMachineIndexed {
                 source_base_byte_offset,
                 source_index_offset,

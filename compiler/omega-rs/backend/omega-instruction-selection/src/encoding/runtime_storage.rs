@@ -1039,14 +1039,28 @@ pub fn encode_copy_places(
                 field_byte_offset,
                 byte_count,
             ),
+            CopyPlacesShape::FromFrameBaseIndexed {
+                base_byte_offset,
+                index_offset,
+                element_byte_size,
+                field_byte_offset,
+                target_offset,
+            } => aarch64::encode_runtime_storage_copy_from_runtime_frame_base_indexed_to_runtime_frame(
+                base_byte_offset,
+                index_offset,
+                element_byte_size,
+                field_byte_offset,
+                target_offset,
+                byte_count,
+            ),
             CopyPlacesShape::PointeePair { .. }
             | CopyPlacesShape::FromIndexed { .. }
             | CopyPlacesShape::ToIndexed { .. }
             | CopyPlacesShape::IndexedToPointee { .. }
             | CopyPlacesShape::General => Err(Diagnostic::error(
                 "CopyPlaces on aarch64 serves direct, single-pointee, pointee-pair, \
-                 frame-rooted single-indexed, and machine inline-array place shapes \
-                 only until the aarch64 place materializer lands; this shape refuses \
+                 frame-rooted single-indexed, and inline-array place shapes only \
+                 until the aarch64 place materializer lands; this shape refuses \
                  loudly",
             )),
         },
@@ -1133,6 +1147,15 @@ pub enum CopyPlacesShape {
         element_byte_size: usize,
         field_byte_offset: usize,
     },
+    /// A FRAME-resident inline-array element read into a frame slot (the
+    /// retired frame-base-indexed copy): all-frame, single index, no deref.
+    FromFrameBaseIndexed {
+        base_byte_offset: usize,
+        index_offset: usize,
+        element_byte_size: usize,
+        field_byte_offset: usize,
+        target_offset: usize,
+    },
     /// Anything else (multi-index, multi-deref): x86_64-materializer only.
     General,
 }
@@ -1152,6 +1175,19 @@ pub fn classify_copy_places_shape(
             return CopyPlacesShape::FromMachineIndexed {
                 base_byte_offset: indexed.pointer_offset,
                 index_region: indexed.index_region,
+                index_offset: indexed.index_offset,
+                element_byte_size: indexed.element_byte_size,
+                field_byte_offset: indexed.field_offset,
+                target_offset,
+            };
+        }
+        if source.region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
+            && indexed.index_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
+            && target.region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
+            && let Some(target_offset) = target.const_offset()
+        {
+            return CopyPlacesShape::FromFrameBaseIndexed {
+                base_byte_offset: indexed.pointer_offset,
                 index_offset: indexed.index_offset,
                 element_byte_size: indexed.element_byte_size,
                 field_byte_offset: indexed.field_offset,
@@ -1373,39 +1409,6 @@ pub fn x86_64_encode_copy_places_with_sites(
     x86_64::encode_copy_places(source, target, byte_count)
 }
 
-
-pub fn encode_runtime_storage_copy_from_runtime_frame_base_indexed_to_runtime_frame(
-    architecture: Architecture,
-    base_byte_offset: usize,
-    index_offset: usize,
-    element_byte_size: usize,
-    field_byte_offset: usize,
-    target_offset: usize,
-    byte_count: usize,
-) -> Result<Vec<u8>, Diagnostic> {
-    match architecture {
-        Architecture::Aarch64 => {
-            aarch64::encode_runtime_storage_copy_from_runtime_frame_base_indexed_to_runtime_frame(
-                base_byte_offset,
-                index_offset,
-                element_byte_size,
-                field_byte_offset,
-                target_offset,
-                byte_count,
-            )
-        }
-        Architecture::X86_64 => {
-            x86_64::encode_runtime_storage_copy_from_runtime_frame_base_indexed_to_runtime_frame(
-                base_byte_offset,
-                index_offset,
-                element_byte_size,
-                field_byte_offset,
-                target_offset,
-                byte_count,
-            )
-        }
-    }
-}
 
 pub fn encode_runtime_storage_copy_machine_indexed_to_machine_indexed(
     architecture: Architecture,

@@ -774,14 +774,6 @@ pub enum AbstractOperationKind {
     /// and the LOAD counterpart of the address computation in
     /// `WriteRuntimeFrameBaseIndexedAddressToRuntimeFrame` -- `let v = arr[k]`
     /// where `arr` is frame-resident.
-    CopyRuntimeFrameBaseIndexedToRuntimeFrame {
-        base_byte_offset: usize,
-        index_offset: usize,
-        element_byte_size: usize,
-        field_byte_offset: usize,
-        target_offset: usize,
-        byte_count: usize,
-    },
     /// The BOTH-RUNTIME nested read of a FRAME-resident inline 2D array
     /// (`g[i][j]` where `g` is a by-value param or local `[[T; C]; R]`, no
     /// descriptor): frame_base + base + outer*outer_stride +

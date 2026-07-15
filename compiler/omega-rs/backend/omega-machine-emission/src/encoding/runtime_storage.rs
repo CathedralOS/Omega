@@ -868,26 +868,6 @@ pub(super) fn encode_runtime_machine_double_indexed_integer_write(
     )
 }
 
-pub(super) fn encode_runtime_storage_copy_from_runtime_frame_base_indexed_to_runtime_frame(
-    input: MachineEmissionContext<'_>,
-    base_byte_offset: usize,
-    index_offset: usize,
-    element_byte_size: usize,
-    field_byte_offset: usize,
-    target_offset: usize,
-    byte_count: usize,
-) -> Result<Vec<u8>, Diagnostic> {
-    architecture::encode_runtime_storage_copy_from_runtime_frame_base_indexed_to_runtime_frame(
-        input.target.architecture,
-        base_byte_offset,
-        index_offset,
-        element_byte_size,
-        field_byte_offset,
-        target_offset,
-        byte_count,
-    )
-}
-
 pub(super) fn encode_runtime_storage_copy_machine_indexed_to_machine_indexed(
     input: MachineEmissionContext<'_>,
     source_base_byte_offset: usize,
