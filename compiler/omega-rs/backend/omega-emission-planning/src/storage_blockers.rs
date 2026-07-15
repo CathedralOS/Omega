@@ -395,7 +395,6 @@ fn state_mutation_is_planned(
                     | SelectedInstructionKind::CopyRuntimeFrameBaseDoubleIndexedToRuntimeStorage { .. }
                     | SelectedInstructionKind::CopyRuntimeStorageToRuntimeMachineDoubleIndexed { .. }
                     | SelectedInstructionKind::WriteRuntimeMachineDoubleIndexedInteger { .. }
-                    | SelectedInstructionKind::CopyRuntimeFrameBaseIndexedToRuntimeFrame { .. }
                     | SelectedInstructionKind::CopyRuntimeMachineIndexedToRuntimeMachineIndexed { .. }
             )
         })

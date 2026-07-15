@@ -377,12 +377,18 @@ dispatch-region + receiver-phase family. Everything queued here avoids both.
    keep that coverage; the two x86-only to-machine walker offset fns
    died with their arm). KEPT: both aarch64 encoders (the decomposes)
    + the machine-indexed offset fns the CopyPlaces walker arms use.
-   TWELVE of 18 variants retired; 6 remain — ALL two-index exotics or
-   frame-base shapes (machine-to-machine indexed, double-indexed
-   pair, FrameBaseIndexed + FrameBaseDoubleIndexed,
-   machine-indexed-to-machine-indexed): each needs either a SECOND
-   index register in the materializer or stays hand-spelled — decide
-   at their rung (r11 is deliberately the single index scratch).
+   RUNG 2c-ix LANDED 2026-07-14 — FrameBaseIndexed RETIRED (variant
+   13): the frame inline-array read is a no-deref frame-rooted
+   single-index place (no new capability); classifier
+   FromFrameBaseIndexed shape, aarch64 decompose to the retired
+   encoder (all-frame = the one start reloc), the single producer
+   migrated, the variant + echoes deleted (incl. the dead x86 chunk
+   helpers the machine-indexed retirement orphaned).
+   THIRTEEN of 18 variants retired; 4 remain — ALL two-runtime-index
+   exotics (machine-to-machine indexed, MachineDoubleIndexed pair,
+   FrameBaseDoubleIndexed): each needs a SECOND index register in
+   the materializer or stays hand-spelled — decide at their rung
+   (r11 is deliberately the single index scratch).
    Then Write/RMW (the leaf-cascade duplication dies), Text,
    guards/operands, op-set shrink — the wiki ladder. Legalization
    refuses loudly at every rung.

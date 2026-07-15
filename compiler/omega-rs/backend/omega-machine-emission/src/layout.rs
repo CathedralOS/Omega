@@ -25,7 +25,6 @@ use omega_instruction_selection::{
     runtime_pointee_bounded_buffer_write_width, runtime_pointee_string_write_width,
     runtime_storage_binary_write_width,
     runtime_storage_compare_width, runtime_storage_convert_width,
-    runtime_storage_copy_from_runtime_frame_base_indexed_to_runtime_frame_width,
     runtime_storage_copy_from_runtime_machine_double_indexed_to_runtime_storage_width,
     runtime_storage_copy_to_runtime_machine_double_indexed_from_runtime_storage_width,
     runtime_machine_double_indexed_integer_write_width,
@@ -972,15 +971,6 @@ fn machine_instruction_width(
             *outer_index_region,
             *inner_index_region,
             *value,
-        ),
-        SelectedInstructionKind::CopyRuntimeFrameBaseIndexedToRuntimeFrame {
-            target_offset,
-            byte_count,
-            ..
-        } => runtime_storage_copy_from_runtime_frame_base_indexed_to_runtime_frame_width(
-            input.target.architecture,
-            *target_offset,
-            *byte_count,
         ),
         SelectedInstructionKind::CopyRuntimeMachineIndexedToRuntimeMachineIndexed {
             source_index_region,

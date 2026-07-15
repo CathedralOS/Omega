@@ -88,7 +88,6 @@ impl OperationSemanticQuery for TargetOperationKind {
             | Self::CopyRuntimeMachineDoubleIndexedToRuntimeStorage { .. }
             | Self::CopyRuntimeFrameBaseDoubleIndexedToRuntimeStorage { .. }
             | Self::CopyRuntimeStorageToRuntimeMachineDoubleIndexed { .. }
-            | Self::CopyRuntimeFrameBaseIndexedToRuntimeFrame { .. }
             | Self::CopyRuntimeMachineIndexedToRuntimeMachineIndexed { .. } => TargetOperationDomain::RuntimeCopy,
 
             Self::ReadRuntimeTextLine { .. }

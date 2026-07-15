@@ -477,16 +477,31 @@ pub(in crate::selection) fn select_runtime_frame_slot_value_write_in_table_with_
     ) && frame_source.byte_count == slot.byte_size
         && frame_source.byte_count > 0
     {
-        return Some(
-            SelectedInstructionKind::CopyRuntimeFrameBaseIndexedToRuntimeFrame {
-                base_byte_offset: frame_source.base_byte_offset,
+        // Rung 2c-ix: a FRAME inline array is a no-deref frame-rooted
+        // indexed place -- the same materializer discipline as every other
+        // indexed shape.
+        return Some(SelectedInstructionKind::CopyPlaces {
+            source: omega_abstract_operations::Place::at(
+                RuntimeStorageRegion::RuntimeFrame,
+                frame_source.base_byte_offset,
+            )
+            .with_step(omega_abstract_operations::PlaceStep::ScaledIndex {
+                index_region: RuntimeStorageRegion::RuntimeFrame,
                 index_offset: frame_source.index_offset,
                 element_byte_size: frame_source.element_byte_size,
-                field_byte_offset: frame_source.field_byte_offset,
-                target_offset: slot.byte_offset,
-                byte_count: slot.byte_size,
-            },
-        );
+            })
+            .and_then(|place| {
+                place.with_step(omega_abstract_operations::PlaceStep::ConstOffset(
+                    frame_source.field_byte_offset,
+                ))
+            })
+            .expect("a frame-base-indexed place is three steps, within PLACE_MAX_STEPS"),
+            target: omega_abstract_operations::Place::at(
+                RuntimeStorageRegion::RuntimeFrame,
+                slot.byte_offset,
+            ),
+            byte_count: slot.byte_size,
+        });
     }
 
     if let Some(kind) = super::select_runtime_frame_slot_convert_write_in_table(
