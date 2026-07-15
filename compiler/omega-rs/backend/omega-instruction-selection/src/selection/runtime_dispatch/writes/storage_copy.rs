@@ -112,28 +112,17 @@ pub(in crate::selection::runtime_dispatch) fn runtime_storage_fixed_indexed_sour
         return None;
     }
 
-    let kind = if target_place.region == RuntimeStorageRegion::RuntimeFrame {
-        SelectedInstructionKind::CopyRuntimeFrameFixedIndexedToRuntimeFrame {
-            descriptor_offset: fixed_source.descriptor_offset,
-            element_index: fixed_source.element_index,
-            element_byte_size: fixed_source.element_byte_size,
-            field_byte_offset: fixed_source.field_byte_offset,
-            target_offset: target_place.byte_offset,
-            byte_count: target_place.byte_count,
-        }
-    } else {
-        SelectedInstructionKind::CopyRuntimeFrameFixedIndexedToRuntimeStorage {
-            descriptor_offset: fixed_source.descriptor_offset,
-            element_index: fixed_source.element_index,
-            element_byte_size: fixed_source.element_byte_size,
-            field_byte_offset: fixed_source.field_byte_offset,
-            target_region: target_place.region,
-            target_offset: target_place.byte_offset,
-            byte_count: target_place.byte_count,
-        }
-    };
-
-    Some(kind)
+    // The retired ToFrame/ToStorage split collapses: the target region rides
+    // the place (rung 2c-iv).
+    Some(crate::selection::runtime_dispatch::copy_places_from_fixed_indexed(
+        fixed_source.descriptor_offset,
+        fixed_source.element_index,
+        fixed_source.element_byte_size,
+        fixed_source.field_byte_offset,
+        target_place.region,
+        target_place.byte_offset,
+        target_place.byte_count,
+    ))
 }
 
 pub(in crate::selection::runtime_dispatch) fn runtime_storage_indexed_source_copy(
@@ -321,15 +310,15 @@ pub(in crate::selection::runtime_dispatch) fn runtime_storage_indirect_copy(
         && fixed_source.byte_count == pointer_target.pointee_byte_size
     {
         return Some(
-            SelectedInstructionKind::CopyRuntimeFrameFixedIndexedToRuntimePointee {
-                descriptor_offset: fixed_source.descriptor_offset,
-                element_index: fixed_source.element_index,
-                element_byte_size: fixed_source.element_byte_size,
-                source_field_byte_offset: fixed_source.field_byte_offset,
-                pointer_byte_offset: pointer_target.pointer_byte_offset,
-                target_field_byte_offset: pointer_target.field_byte_offset,
-                byte_count: fixed_source.byte_count,
-            },
+            crate::selection::runtime_dispatch::copy_places_fixed_indexed_to_pointee(
+                fixed_source.descriptor_offset,
+                fixed_source.element_index,
+                fixed_source.element_byte_size,
+                fixed_source.field_byte_offset,
+                pointer_target.pointer_byte_offset,
+                pointer_target.field_byte_offset,
+                fixed_source.byte_count,
+            ),
         );
     }
 
@@ -665,26 +654,15 @@ pub(in crate::selection::runtime_dispatch) fn runtime_storage_fixed_indexed_sour
         return None;
     }
 
-    let kind = if target_place.region == RuntimeStorageRegion::RuntimeFrame {
-        SelectedInstructionKind::CopyRuntimeFrameFixedIndexedToRuntimeFrame {
-            descriptor_offset: fixed_source.descriptor_offset,
-            element_index: fixed_source.element_index,
-            element_byte_size: fixed_source.element_byte_size,
-            field_byte_offset: fixed_source.field_byte_offset,
-            target_offset: target_place.byte_offset,
-            byte_count: target_place.byte_count,
-        }
-    } else {
-        SelectedInstructionKind::CopyRuntimeFrameFixedIndexedToRuntimeStorage {
-            descriptor_offset: fixed_source.descriptor_offset,
-            element_index: fixed_source.element_index,
-            element_byte_size: fixed_source.element_byte_size,
-            field_byte_offset: fixed_source.field_byte_offset,
-            target_region: target_place.region,
-            target_offset: target_place.byte_offset,
-            byte_count: target_place.byte_count,
-        }
-    };
-
-    Some(kind)
+    // The retired ToFrame/ToStorage split collapses: the target region rides
+    // the place (rung 2c-iv).
+    Some(crate::selection::runtime_dispatch::copy_places_from_fixed_indexed(
+        fixed_source.descriptor_offset,
+        fixed_source.element_index,
+        fixed_source.element_byte_size,
+        fixed_source.field_byte_offset,
+        target_place.region,
+        target_place.byte_offset,
+        target_place.byte_count,
+    ))
 }

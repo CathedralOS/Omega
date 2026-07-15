@@ -118,6 +118,52 @@ pub(crate) fn copy_places_from_pointee(
     }
 }
 
+/// Rung 2c-iv: a FIXED-indexed element read folds to a pure deref place --
+/// the compile-time index scales into the constant displacement
+/// (`*(frame[descriptor]) + index*size + field`), the same shape as a
+/// pointee read. The retired ToFrame/ToStorage variant split collapses:
+/// the target region rides the place.
+pub(crate) fn copy_places_from_fixed_indexed(
+    descriptor_offset: usize,
+    element_index: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    target_region: RuntimeStorageRegion,
+    target_offset: usize,
+    byte_count: usize,
+) -> SelectedInstructionKind {
+    SelectedInstructionKind::CopyPlaces {
+        source: pointee_place(
+            descriptor_offset,
+            element_index * element_byte_size + field_byte_offset,
+        ),
+        target: omega_abstract_operations::Place::at(target_region, target_offset),
+        byte_count,
+    }
+}
+
+/// Rung 2c-iv: the fixed-indexed read landing THROUGH a pointer slot --
+/// both sides deref (the PointeePair shape).
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn copy_places_fixed_indexed_to_pointee(
+    descriptor_offset: usize,
+    element_index: usize,
+    element_byte_size: usize,
+    source_field_byte_offset: usize,
+    pointer_byte_offset: usize,
+    target_field_byte_offset: usize,
+    byte_count: usize,
+) -> SelectedInstructionKind {
+    SelectedInstructionKind::CopyPlaces {
+        source: pointee_place(
+            descriptor_offset,
+            element_index * element_byte_size + source_field_byte_offset,
+        ),
+        target: pointee_place(pointer_byte_offset, target_field_byte_offset),
+        byte_count,
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn select_runtime_unaliased_storage_mutation_write_with_scratch(
     input: &InstructionSelectionInput<'_>,

@@ -85,6 +85,13 @@ pub(super) fn collect_runtime_storage_copy_relocations(
                                 context.storage_region_symbol_handle(target.region),
                             );
                         }
+                        omega_instruction_selection::CopyPlacesShape::PointeePair { .. } => {
+                            // Both pointer slots are frame-resident (the
+                            // decompose's precondition); the retired
+                            // fixed-indexed-to-pointee encoder reuses ONE
+                            // frame base for both derefs -- the start
+                            // relocation above is the only site.
+                        }
                         omega_instruction_selection::CopyPlacesShape::General => {
                             unreachable!(
                                 "CopyPlaces General shape reached aarch64 relocation; \

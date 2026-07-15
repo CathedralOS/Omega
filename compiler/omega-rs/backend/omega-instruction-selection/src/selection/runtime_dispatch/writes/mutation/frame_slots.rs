@@ -350,16 +350,15 @@ pub(in crate::selection) fn select_runtime_frame_slot_value_write_in_table_with_
     ) && indexed_source.byte_count == slot.byte_size
         && indexed_source.byte_count > 0
     {
-        return Some(
-            SelectedInstructionKind::CopyRuntimeFrameFixedIndexedToRuntimeFrame {
-                descriptor_offset: indexed_source.descriptor_offset,
-                element_index: indexed_source.element_index,
-                element_byte_size: indexed_source.element_byte_size,
-                field_byte_offset: indexed_source.field_byte_offset,
-                target_offset: slot.byte_offset,
-                byte_count: slot.byte_size,
-            },
-        );
+        return Some(crate::selection::runtime_dispatch::copy_places_from_fixed_indexed(
+            indexed_source.descriptor_offset,
+            indexed_source.element_index,
+            indexed_source.element_byte_size,
+            indexed_source.field_byte_offset,
+            RuntimeStorageRegion::RuntimeFrame,
+            slot.byte_offset,
+            slot.byte_size,
+        ));
     }
 
     if let Some(indexed_source) = resolve_runtime_frame_indexed_target_near_slot_in_table(
