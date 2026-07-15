@@ -867,11 +867,11 @@ pub fn encode_runtime_machine_indexed_address_to_runtime_frame_write(
 }
 
 /// The `CopyPlaces` encoder: x86_64 routes through the place materializer,
-/// which picks the emission shape from the pair itself; aarch64 serves
-/// DIRECT (const-path) pairs by decomposing to the retired plain-copy
-/// encoder -- byte-identical to what `CopyRuntimeStorage` emitted -- and
-/// refuses deref/indexed places until the aarch64 materializer rung lands
-/// (no runtime oracle to verify new byte layouts there).
+/// which picks the emission shape from the pair itself; aarch64 serves the
+/// RECOGNIZED transitional shapes by decomposing to the retired per-variant
+/// encoders (byte-identical to what the retired kinds emitted) and refuses
+/// anything else until the aarch64 materializer rung lands (no runtime
+/// oracle to verify new byte layouts there).
 pub fn encode_copy_places(
     architecture: Architecture,
     source: &omega_target_operations::Place,
@@ -882,11 +882,122 @@ pub fn encode_copy_places(
         Architecture::X86_64 => {
             x86_64::encode_copy_places(source, target, byte_count).map(|(bytes, _)| bytes)
         }
-        Architecture::Aarch64 => {
-            let (source_offset, target_offset) = copy_places_direct_offsets(source, target)?;
-            aarch64::encode_runtime_storage_copy(source_offset, target_offset, byte_count)
+        Architecture::Aarch64 => match classify_copy_places_shape(source, target) {
+            CopyPlacesShape::Direct {
+                source_offset,
+                target_offset,
+            } => aarch64::encode_runtime_storage_copy(source_offset, target_offset, byte_count),
+            CopyPlacesShape::ToPointee {
+                source_offset,
+                pointer_byte_offset,
+                field_byte_offset,
+            } => aarch64::encode_runtime_storage_copy_to_runtime_pointee(
+                source_offset,
+                pointer_byte_offset,
+                field_byte_offset,
+                byte_count,
+            ),
+            CopyPlacesShape::FromPointee {
+                pointer_byte_offset,
+                field_byte_offset,
+                target_offset,
+            } => aarch64::encode_runtime_storage_copy_from_runtime_pointee_to_runtime_frame(
+                pointer_byte_offset,
+                field_byte_offset,
+                target_offset,
+                byte_count,
+            ),
+            CopyPlacesShape::General => Err(Diagnostic::error(
+                "CopyPlaces on aarch64 serves direct and single-pointee place \
+                 pairs only until the aarch64 place materializer lands; this \
+                 shape refuses loudly",
+            )),
+        },
+    }
+}
+
+/// The place-pair shapes the TRANSITIONAL aarch64 path recognizes. The
+/// relocation walker and the encoder classify with the SAME function, so a
+/// pair either decomposes consistently in both or refuses at layout time.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CopyPlacesShape {
+    /// Both paths are pure const offsets: the retired plain copy.
+    Direct {
+        source_offset: usize,
+        target_offset: usize,
+    },
+    /// Direct source into a deref target (`*(base[ptr]) + field`): the
+    /// retired to-pointee copy. The pointer slot lives in the target
+    /// place's own region.
+    ToPointee {
+        source_offset: usize,
+        pointer_byte_offset: usize,
+        field_byte_offset: usize,
+    },
+    /// Deref source into a direct target: the retired from-pointee copy.
+    FromPointee {
+        pointer_byte_offset: usize,
+        field_byte_offset: usize,
+        target_offset: usize,
+    },
+    /// Anything else (indexed, multi-deref): x86_64-materializer only.
+    General,
+}
+
+pub fn classify_copy_places_shape(
+    source: &omega_target_operations::Place,
+    target: &omega_target_operations::Place,
+) -> CopyPlacesShape {
+    match (
+        source.const_offset(),
+        target.const_offset(),
+        single_deref_path(source),
+        single_deref_path(target),
+    ) {
+        (Some(source_offset), Some(target_offset), _, _) => CopyPlacesShape::Direct {
+            source_offset,
+            target_offset,
+        },
+        (Some(source_offset), None, _, Some((pointer_byte_offset, field_byte_offset))) => {
+            CopyPlacesShape::ToPointee {
+                source_offset,
+                pointer_byte_offset,
+                field_byte_offset,
+            }
+        }
+        (None, Some(target_offset), Some((pointer_byte_offset, field_byte_offset)), _) => {
+            CopyPlacesShape::FromPointee {
+                pointer_byte_offset,
+                field_byte_offset,
+                target_offset,
+            }
+        }
+        _ => CopyPlacesShape::General,
+    }
+}
+
+/// `[ConstOffset(p)?, Deref, ConstOffset(f)?]` -> `(p, f)`; anything else
+/// (no deref, several derefs, an index) is `None`.
+fn single_deref_path(place: &omega_target_operations::Place) -> Option<(usize, usize)> {
+    let mut steps = place.steps().iter();
+    let mut pointer_offset = 0usize;
+    loop {
+        match steps.next() {
+            Some(omega_target_operations::PlaceStep::ConstOffset(offset)) => {
+                pointer_offset += offset
+            }
+            Some(omega_target_operations::PlaceStep::Deref) => break,
+            _ => return None,
         }
     }
+    let mut field_offset = 0usize;
+    for step in steps {
+        match step {
+            omega_target_operations::PlaceStep::ConstOffset(offset) => field_offset += offset,
+            _ => return None,
+        }
+    }
+    Some((pointer_offset, field_offset))
 }
 
 /// The x86_64 `CopyPlaces` encode WITH its relocation sites -- the
@@ -901,21 +1012,6 @@ pub fn x86_64_encode_copy_places_with_sites(
     x86_64::encode_copy_places(source, target, byte_count)
 }
 
-/// Decompose a direct place pair to (source_offset, target_offset); the
-/// aarch64 transitional path and its relocation offsets both use this, so
-/// a non-direct place refuses in ONE spot.
-pub fn copy_places_direct_offsets(
-    source: &omega_target_operations::Place,
-    target: &omega_target_operations::Place,
-) -> Result<(usize, usize), Diagnostic> {
-    match (source.const_offset(), target.const_offset()) {
-        (Some(source_offset), Some(target_offset)) => Ok((source_offset, target_offset)),
-        _ => Err(Diagnostic::error(
-            "CopyPlaces on aarch64 serves direct (const-path) places only until \
-             the aarch64 place materializer lands; deref/indexed places refuse loudly",
-        )),
-    }
-}
 
 pub fn encode_runtime_storage_copy_to_runtime_frame_indexed(
     architecture: Architecture,

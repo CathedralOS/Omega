@@ -57,15 +57,41 @@ pub(super) fn collect_runtime_storage_copy_relocations(
                     }
                 }
                 Architecture::Aarch64 => {
+                    // The transitional decompose: the SAME classifier the
+                    // encoder uses picks the retired shape, so the reloc
+                    // offsets below always describe the bytes actually
+                    // emitted. Both bases anchor the same way the retired
+                    // kinds did: the source-side base at the instruction
+                    // start, the target-side base at the shape's offset fn.
                     context.insert_data_address_at_instruction_start(
                         context.storage_region_symbol_handle(source.region),
                     );
-                    context.insert_data_address_at_relative_offset(
-                        runtime_storage_copy_target_address_offset(
-                            context.input.target.architecture,
-                        ),
-                        context.storage_region_symbol_handle(target.region),
-                    );
+                    match omega_instruction_selection::classify_copy_places_shape(source, target)
+                    {
+                        omega_instruction_selection::CopyPlacesShape::Direct { .. }
+                        | omega_instruction_selection::CopyPlacesShape::ToPointee { .. } => {
+                            context.insert_data_address_at_relative_offset(
+                                runtime_storage_copy_target_address_offset(
+                                    context.input.target.architecture,
+                                ),
+                                context.storage_region_symbol_handle(target.region),
+                            );
+                        }
+                        omega_instruction_selection::CopyPlacesShape::FromPointee { .. } => {
+                            context.insert_data_address_at_relative_offset(
+                                runtime_storage_copy_from_runtime_pointee_to_runtime_frame_target_address_offset(
+                                    context.input.target.architecture,
+                                ),
+                                context.storage_region_symbol_handle(target.region),
+                            );
+                        }
+                        omega_instruction_selection::CopyPlacesShape::General => {
+                            unreachable!(
+                                "CopyPlaces General shape reached aarch64 relocation; \
+                                 layout/encoding refuses it first"
+                            );
+                        }
+                    }
                 }
             }
             true

@@ -281,13 +281,30 @@ dispatch-region + receiver-phase family. Everything queued here avoids both.
    CopyPlaces direct-pair decompose rides them) and
    runtime_storage_copy_target_address_offset (the aarch64 walker
    arm). 17 variants remain.
-   REMAINING rung 2c+: the pointee/indexed variant producers build
-   Places with Deref/ScaledIndex steps and the remaining 17 variants
-   + their echoes retire the same way; machine-indexed variants need
-   ScaledIndex.index_region wired into the materializer (its own
-   base register). Then Write/RMW (the leaf-cascade duplication
-   dies), Text, guards/operands, op-set shrink — the wiki ladder.
-   Legalization refuses loudly at every rung.
+   RUNG 2c-ii LANDED 2026-07-14 — THE POINTEE FAMILY MIGRATED: all 15
+   producers (10 to-pointee + 5 from-pointee) build [Const, Deref,
+   Const] places via copy_places_to_pointee/_from_pointee helpers.
+   The aarch64 transitional path generalized into
+   classify_copy_places_shape (instruction-selection encoding) —
+   Direct | ToPointee | FromPointee decompose to the retired aarch64
+   encoders; General refuses; the relocation walker's aarch64 arm
+   routes by the SAME classifier so offsets always describe the
+   emitted bytes (linux_arm64 cross-compile of the deref shape
+   verified). x86 same-region pointee pairs now take the tighter
+   shared-base form (behaviorally equal, differential-verified).
+   GOTCHA HIT (own memory note): two EFI report pins asserted the OLD
+   kind's report spelling — updated to the place spelling incl. the
+   flat-fold anti-assert (`[ConstOffset(72)]`).
+   CopyRuntimeStorageToRuntimePointee + CopyRuntimePointeeToRuntimeFrame
+   are now retire-ready (zero producers).
+   REMAINING rung 2c+: retire the two pointee variants (next 2c-iii);
+   then the indexed variant producers build ScaledIndex places and
+   the remaining variants + echoes retire the same way;
+   machine-indexed variants need ScaledIndex.index_region wired into
+   the materializer (its own base register). Then Write/RMW (the
+   leaf-cascade duplication dies), Text, guards/operands, op-set
+   shrink — the wiki ladder. Legalization refuses loudly at every
+   rung.
 
 The rendering-sample sweep landed 2026-07-11 (see Language ergonomics;
 the match-subject computed-index gap closed with it).

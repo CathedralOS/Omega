@@ -56,13 +56,7 @@ pub(in crate::selection::runtime_dispatch) fn runtime_storage_copy(
     ) && pointee.pointee_byte_size == target_place.byte_count
         && pointee.pointee_byte_size > 0
     {
-        return Some(SelectedInstructionKind::CopyRuntimePointeeToRuntimeFrame {
-            target_region: target_place.region,
-            pointer_byte_offset: pointee.pointer_byte_offset,
-            field_byte_offset: pointee.field_byte_offset,
-            target_offset: target_place.byte_offset,
-            byte_count: target_place.byte_count,
-        });
+        return Some(crate::selection::runtime_dispatch::copy_places_from_pointee(pointee.pointer_byte_offset, pointee.field_byte_offset, target_place.region, target_place.byte_offset, target_place.byte_count));
     }
 
     let source_place = resolve_runtime_storage_place(
@@ -353,13 +347,7 @@ pub(in crate::selection::runtime_dispatch) fn runtime_storage_indirect_copy(
         && source_place.byte_count > 0
     {
         return Some(
-            SelectedInstructionKind::CopyRuntimeStorageToRuntimePointee {
-                source_region: source_place.region,
-                source_offset: source_place.byte_offset,
-                pointer_byte_offset: pointer_target.pointer_byte_offset,
-                field_byte_offset: pointer_target.field_byte_offset,
-                byte_count: source_place.byte_count,
-            },
+            crate::selection::runtime_dispatch::copy_places_to_pointee(source_place.region, source_place.byte_offset, pointer_target.pointer_byte_offset, pointer_target.field_byte_offset, source_place.byte_count),
         );
     }
 
@@ -371,13 +359,7 @@ pub(in crate::selection::runtime_dispatch) fn runtime_storage_indirect_copy(
     ) && source_place.byte_count > 0
     {
         return Some(
-            SelectedInstructionKind::CopyRuntimeStorageToRuntimePointee {
-                source_region: source_place.region,
-                source_offset: source_place.byte_offset,
-                pointer_byte_offset: pointer_target.pointer_byte_offset,
-                field_byte_offset: pointer_target.field_byte_offset,
-                byte_count: source_place.byte_count,
-            },
+            crate::selection::runtime_dispatch::copy_places_to_pointee(source_place.region, source_place.byte_offset, pointer_target.pointer_byte_offset, pointer_target.field_byte_offset, source_place.byte_count),
         );
     }
 
@@ -428,13 +410,7 @@ pub(in crate::selection::runtime_dispatch) fn runtime_storage_indirect_copy_in_t
     ) && source_place.byte_count > 0
     {
         return Some(
-            SelectedInstructionKind::CopyRuntimeStorageToRuntimePointee {
-                source_region: source_place.region,
-                source_offset: source_place.byte_offset,
-                pointer_byte_offset: pointer_target.pointer_byte_offset,
-                field_byte_offset: pointer_target.field_byte_offset,
-                byte_count: source_place.byte_count,
-            },
+            crate::selection::runtime_dispatch::copy_places_to_pointee(source_place.region, source_place.byte_offset, pointer_target.pointer_byte_offset, pointer_target.field_byte_offset, source_place.byte_count),
         );
     }
 
@@ -447,13 +423,7 @@ pub(in crate::selection::runtime_dispatch) fn runtime_storage_indirect_copy_in_t
     ) && source_place.byte_count > 0
     {
         return Some(
-            SelectedInstructionKind::CopyRuntimeStorageToRuntimePointee {
-                source_region: source_place.region,
-                source_offset: source_place.byte_offset,
-                pointer_byte_offset: pointer_target.pointer_byte_offset,
-                field_byte_offset: pointer_target.field_byte_offset,
-                byte_count: source_place.byte_count,
-            },
+            crate::selection::runtime_dispatch::copy_places_to_pointee(source_place.region, source_place.byte_offset, pointer_target.pointer_byte_offset, pointer_target.field_byte_offset, source_place.byte_count),
         );
     }
 

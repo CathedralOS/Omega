@@ -29264,20 +29264,20 @@ fn efi_ref_param_direct_faces_deref_not_flat() {
     let report = fs::read_to_string(build_dir.join("backend_report.txt"))
         .expect("backend report should be written");
     assert!(
-        report.contains("copy runtime pointee runtime_frame@8 +64"),
-        "expected the con_out DEREF (pointee frame@8 +64) in the report"
+        report.contains("omega_runtime_frame_storage[ConstOffset(8), Deref, ConstOffset(64)]"),
+        "expected the con_out DEREF (place frame[8].deref+64) in the report"
     );
     assert!(
-        report.contains("copy runtime pointee runtime_frame@8 +32"),
-        "expected the firmware_revision DEREF (pointee frame@8 +32) in the report"
+        report.contains("omega_runtime_frame_storage[ConstOffset(8), Deref, ConstOffset(32)]"),
+        "expected the firmware_revision DEREF (place frame[8].deref+32) in the report"
     );
     assert!(
-        report.contains("copy runtime pointee runtime_frame@8 +48"),
-        "expected the con_in DEREF (pointee frame@8 +48) feeding the transition arg"
+        report.contains("omega_runtime_frame_storage[ConstOffset(8), Deref, ConstOffset(48)]"),
+        "expected the con_in DEREF (place frame[8].deref+48) feeding the transition arg"
     );
     assert!(
-        !report.contains("frame_storage@72"),
-        "flat slot+field read (frame_storage@72 = con_out) regressed -- an          entry-ref-param member folded flat instead of dereferencing"
+        !report.contains("omega_runtime_frame_storage[ConstOffset(72)]"),
+        "flat slot+field read (frame place ConstOffset(72) = con_out) regressed -- an entry-ref-param member folded flat instead of dereferencing"
     );
     let _ = fs::remove_dir_all(&build_dir);
 }
@@ -29301,12 +29301,12 @@ fn efi_ref_param_call_arg_derefs_and_dispatches() {
     let report = fs::read_to_string(build_dir.join("backend_report.txt"))
         .expect("backend report should be written");
     assert!(
-        report.contains("copy runtime pointee runtime_frame@8 +64"),
-        "expected the con_out DEREF (pointee frame@8 +64) feeding the call arg"
+        report.contains("omega_runtime_frame_storage[ConstOffset(8), Deref, ConstOffset(64)]"),
+        "expected the con_out DEREF (place frame[8].deref+64) feeding the call arg"
     );
     assert!(
-        !report.contains("frame_storage@72"),
-        "flat slot+field read (frame_storage@72) regressed for the call-arg face"
+        !report.contains("omega_runtime_frame_storage[ConstOffset(72)]"),
+        "flat slot+field read (frame place ConstOffset(72)) regressed for the call-arg face"
     );
     let bytes = fs::read(build_dir.join("omega-program.exe")).expect("read emitted PE");
     let needle = [0x48u8, 0x8b, 0x81, 0x08, 0x00, 0x00, 0x00, 0xff, 0xd0];

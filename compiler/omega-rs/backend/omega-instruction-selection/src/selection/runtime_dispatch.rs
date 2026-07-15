@@ -69,6 +69,55 @@ pub(crate) fn copy_places_direct(
     }
 }
 
+/// A pointee place: deref the frame-resident pointer slot at
+/// `pointer_byte_offset`, then walk to `field_byte_offset`. Three steps,
+/// always within `PLACE_MAX_STEPS`.
+fn pointee_place(pointer_byte_offset: usize, field_byte_offset: usize) -> omega_abstract_operations::Place {
+    omega_abstract_operations::Place::at(
+        RuntimeStorageRegion::RuntimeFrame,
+        pointer_byte_offset,
+    )
+    .with_step(omega_abstract_operations::PlaceStep::Deref)
+    .and_then(|place| {
+        place.with_step(omega_abstract_operations::PlaceStep::ConstOffset(
+            field_byte_offset,
+        ))
+    })
+    .expect("a pointee place is three steps, within PLACE_MAX_STEPS")
+}
+
+/// Rung 2c-ii: the retired to-pointee copy -- a direct source into
+/// `*(frame[pointer_byte_offset]) + field_byte_offset`.
+pub(crate) fn copy_places_to_pointee(
+    source_region: RuntimeStorageRegion,
+    source_offset: usize,
+    pointer_byte_offset: usize,
+    field_byte_offset: usize,
+    byte_count: usize,
+) -> SelectedInstructionKind {
+    SelectedInstructionKind::CopyPlaces {
+        source: omega_abstract_operations::Place::at(source_region, source_offset),
+        target: pointee_place(pointer_byte_offset, field_byte_offset),
+        byte_count,
+    }
+}
+
+/// Rung 2c-ii: the retired from-pointee copy -- a pointee source into a
+/// direct target place.
+pub(crate) fn copy_places_from_pointee(
+    pointer_byte_offset: usize,
+    field_byte_offset: usize,
+    target_region: RuntimeStorageRegion,
+    target_offset: usize,
+    byte_count: usize,
+) -> SelectedInstructionKind {
+    SelectedInstructionKind::CopyPlaces {
+        source: pointee_place(pointer_byte_offset, field_byte_offset),
+        target: omega_abstract_operations::Place::at(target_region, target_offset),
+        byte_count,
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn select_runtime_unaliased_storage_mutation_write_with_scratch(
     input: &InstructionSelectionInput<'_>,
