@@ -10,41 +10,9 @@ pub(super) fn selected_runtime_storage_copy_kind(
         SelectedInstructionKind::CopyPlaces { .. } => {
             Some(MachineInstructionKind::RuntimeStorageCopy)
         }
-        SelectedInstructionKind::CopyRuntimeMachineIndexedToRuntimeStorage {
-            base_byte_offset,
-            index_offset,
-            element_byte_size,
-            field_byte_offset,
-            target_offset,
-            byte_count,
-            ..
-        } => Some(runtime_storage_copy_from_runtime_machine_indexed_kind(
-            *base_byte_offset,
-            *index_offset,
-            *element_byte_size,
-            *field_byte_offset,
-            *target_offset,
-            *byte_count,
-        )),
         SelectedInstructionKind::CopyRuntimeFrameBaseIndexedToRuntimeFrame { .. } => {
             Some(MachineInstructionKind::RuntimeStorageCopyFromRuntimeFrameBaseIndexed)
         }
-        SelectedInstructionKind::CopyRuntimeStorageToRuntimeMachineIndexed {
-            source_offset,
-            base_byte_offset,
-            index_offset,
-            element_byte_size,
-            field_byte_offset,
-            byte_count,
-            ..
-        } => Some(runtime_storage_copy_to_runtime_machine_indexed_kind(
-            *source_offset,
-            *base_byte_offset,
-            *index_offset,
-            *element_byte_size,
-            *field_byte_offset,
-            *byte_count,
-        )),
         SelectedInstructionKind::CopyRuntimeMachineIndexedToRuntimeMachineIndexed { .. } => {
             Some(MachineInstructionKind::RuntimeStorageCopyMachineIndexedToMachineIndexed)
         }

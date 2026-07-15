@@ -580,16 +580,6 @@ pub enum TargetOperationKind {
     },
     /// Runtime-index sibling of `CopyRuntimeFrameFixedIndexedToRuntimePointee`:
     /// `out.f = items[i].f` where `out` is a `&mut` parameter.
-    CopyRuntimeMachineIndexedToRuntimeStorage {
-        base_byte_offset: usize,
-        index_offset: usize,
-        index_region: RuntimeStorageRegion,
-        element_byte_size: usize,
-        field_byte_offset: usize,
-        target_region: RuntimeStorageRegion,
-        target_offset: usize,
-        byte_count: usize,
-    },
     /// Read a FRAME-resident inline array element (or its field) at a runtime
     /// index and copy it into another frame slot -- the frame-base sibling of
     /// `CopyRuntimeMachineIndexedToRuntimeStorage` (`let v = arr[k]` where
@@ -607,16 +597,6 @@ pub enum TargetOperationKind {
     /// machine-owned inline array, sourced from a runtime storage place.
     /// The target is machine-owned by definition, so there is no
     /// `target_region`.
-    CopyRuntimeStorageToRuntimeMachineIndexed {
-        source_region: RuntimeStorageRegion,
-        source_offset: usize,
-        base_byte_offset: usize,
-        index_offset: usize,
-        index_region: RuntimeStorageRegion,
-        element_byte_size: usize,
-        field_byte_offset: usize,
-        byte_count: usize,
-    },
     /// The DUAL-indexed copy `arr[i] = arr[j]` (task #38): source and target
     /// are both runtime-indexed machine-owned elements; composes the read half
     /// of `CopyRuntimeMachineIndexedToRuntimeStorage` with the write half of

@@ -1,10 +1,30 @@
 # Chapter 8: Domains
 
-Domains are named proof predicates over existing values.
+A domain is a zero-cost semantic theory attached to a value's unchanged
+carrier.
 
-They are not runtime tags, wrapper types, hidden storage, or a second object
-model. A domain names a meaningful semantic state that the compiler can prove
-for a value.
+> **Two FACETS (settled 2026-07-18, frozen decision 19; record:
+> [domain_facets_and_qualification.md](../design_briefs/domain_facets_and_qualification.md)).**
+> A domain has two independently governed facets:
+>
+> - a **predicate facet** — propositions about a value, resource, or current
+>   program state, established by *proof* (flow-establishable,
+>   lattice-composing, freely droppable, fully erased);
+> - a **semantic facet** — an explicitly selected interpretation and operator
+>   meaning, introduced by *authorized commitment* (declaration, mint, or
+>   signature only; never flow-acquired, never silently dropped; reaches
+>   codegen through operator selection).
+>
+> A domain may carry either facet or both: `Utf8` is predicate-only,
+> `Wrapping` is semantic-only, `Degrees` is both. The governing law:
+> **flow inference may change what is known; only declarations, mints, and
+> signatures change what operations mean.** Prover growth turns rejections
+> into acceptances — it never reinterprets a valid program.
+
+Domains are not runtime tags, wrapper types, hidden storage, or a second
+object model. Attaching, proving, selecting, or forgetting a domain never
+changes representation or adds runtime metadata; validation and conversion
+remain ordinary operations and may perform runtime work.
 
 > **Every data type has a DEFAULT DOMAIN (settled 2026-07-05).** The invariants a
 > `data` type "always has" are its default domain — the one domain that is always in
@@ -108,17 +128,78 @@ ways, and no others:
   directly: a literal `"hello"` is provably `Utf8`; `0` is provably `[0..=100]`.
 - **Flow.** A dominating guard narrows a value: in the `true` arm of
   `transition level <= 100`, `level` carries `[0..=100]` (Chapter 9). The guard
-  *is* the proof.
-- **`as`.** The explicit minter, for a fact that holds here but is not evident
-  from the type. `value as T in D` is licensed **only when the prover discharges
-  every invariant of `D` at that exact point**. If it cannot, it is a compile
-  error — you restructure (add the guards that establish the fact) until the
-  proof exists.
+  *is* the proof. **Flow establishes predicate facets only** — a semantic
+  facet is never acquired through control flow.
+- **`as`.** The explicit minter. For a predicate facet, `value as T in D` is
+  licensed **only when the prover discharges every invariant of `D` at that
+  exact point**. If it cannot, it is a compile error — you restructure (add
+  the guards that establish the fact) until the proof exists. For a semantic
+  facet, `as` makes an explicit, authorized commitment (see Introduction
+  Authority below). Minting into a hybrid domain does both at once.
 
-There is no unsafe cast and no "assert, on me" escape. `as` never asserts a
-fact it has not proven, so a value never carries a domain that was not
-established. This applies to **every** domain — ranges, encodings, layouts,
-behaviour policies alike.
+There is no unsafe cast and no "assert, on me" escape. **`as` proves facts
+and declares commitments — it never asserts a fact unproven, and never
+invents a commitment unstated.** A predicate is a fact about the value,
+provable; a semantic qualification is a commitment by the author, not
+falsifiable from the bits (no checker can determine that a raw `1.0` "really
+came from" a kilometre measurement). Diagnostics keep the two failure classes
+separate: *"predicate obligation not discharged"* (a proof is owed) versus
+*"introduction authority unavailable"* (a permission is owed).
+
+### The Five Transitions
+
+| Operation | Representation | Effect | Runtime cost |
+|---|---|---|---|
+| Refinement mint (`as`) | unchanged | certifies already-proved facts | none |
+| Semantic qualification (`as`) | unchanged | makes an explicit, authorized commitment | none |
+| Forgetting | unchanged | discards facts (free) or meaning (per weakening rules) | none |
+| Conversion | may change | preserves denotation across representations | ordinary contracted call |
+| Validation | unchanged | performs work whose postcondition establishes facts | ordinary contracted call |
+
+Forgetting and conversion are different operations: forgetting `raw 1 in Km`
+yields `raw 1` (denotation deliberately discarded); *converting* it yields
+the canonical `1000` in metres. Only conversion and validation may cost at
+runtime, and both are ordinary contracted calls — never hidden inside `as`.
+
+### Introduction Authority
+
+Semantic introduction is **sealed by default**: only the owning package, or
+holders of an exported, attenuable `MintAuthority<D>` (contract-visible,
+proof-erased), may qualify a value into the domain. Open introduction is a
+one-line opt-in at the declaration site — the right posture for units, where
+qualifying your own measurement is an ordinary authorial commitment:
+
+```omega
+domain f64::Km { introduction open; }
+domain Quantity::Torque { introduction sealed; }
+```
+
+A forgotten annotation must never become an ambient authority leak, so the
+dangerous case is the default and the harmless case requests openness once.
+
+Predicate facets need no introduction policy — facts are proved, not
+authorized. But provability is scoped by **body visibility**: a predicate
+whose body (or named-predicate machines) is package-private cannot be
+unfolded by outsiders' flow or `as`; outsiders establish or propagate it only
+through owner-exported evidence — a transformer's postcondition
+(`sanitize_sql -> Bytes in SanitizedForSQL`) or an exported decision
+procedure's true-arm. The owner chooses the evidence surface.
+
+### Weakening
+
+A semantic domain weakens implicitly to its carrier only if (1) the identity
+representation map **preserves denotation** and (2) every default operation
+**agrees with the qualified operation** throughout the default's accepted
+region. Certified arithmetic policies pass both; units fail (1) even where
+raw arithmetic coincides. Each semantic domain declares its denotation map,
+so the criterion is checked, not intuited: **mechanically decidable for
+recognized schemas** (rationally scaled units, blessed policies), **otherwise
+proof-obligated via an explicit `weakens_to` certificate — never guessed.**
+Once a certificate is accepted, the certified operator theory is **sealed**:
+overlapping later extensions must re-prove the agreement law or be rejected.
+Units and kinds therefore never weaken silently; certified policies weaken
+implicitly — sound because the exact-loud default reinstates obligations on
+the far side.
 
 Establishing a domain over *runtime* data is therefore ordinary code, not a
 compiler builtin. To turn untrusted bytes into `&[u8] in Utf8` you write a
@@ -403,9 +484,13 @@ Domains are primarily proof facts about values. Omega also allows proven
 domains to participate in operator resolution when the meaning is unique.
 
 The intuition is that operators are shorthand for resolved semantic
-operations. If a domain supplies the only valid `+`, `-`, or similar operator
-meaning for a value in the current proof context, the compiler may resolve the
-operator through that domain's operation contract.
+operations. If a value's *declared* semantic facet supplies a `+`, `-`, or
+similar operator meaning, the compiler resolves the operator through that
+domain's operation contract. **Activation is a property of bindings, not of
+values and not of proof state**: a binding declared, minted, or
+`requires`-qualified into `Degrees` resolves `+` through Degrees within its
+scope; a plain `i32` binding never does, regardless of what has been proven
+about the value it holds.
 
 ```omega
 domain i32::Degrees {
@@ -419,15 +504,21 @@ requires value in i32::Degrees
 }
 ```
 
-In that shape, `+` is not mystical. The machine body already knows that
-`value` is in `i32::Degrees`, so the compiler can resolve `value + delta`
-through the `Degrees`-specific addition meaning if that meaning is unique.
+In that shape, `+` is not mystical. The `requires` clause is a signature-site
+selection: `value` is *bound* into `i32::Degrees` for this machine's scope,
+so `value + delta` resolves through the `Degrees`-specific addition meaning
+if that meaning is unique.
 
-This should stay strict:
+This stays strict:
 
-- Only proven domains may participate in operator resolution.
-- Resolution must be unambiguous.
-- Competing domain-provided meanings are compile errors.
+- Only binding-site selections (declaration, mint, `requires`) participate in
+  operator resolution; flow-established membership never does.
+  `if x in Degrees { x + delta }` proves the range fact — the `+` stays
+  ordinary exact addition.
+- Resolution reads the complete static operand-domain tuple and must be
+  unambiguous; competing meanings are compile errors, never ranked.
+- Adding proof knowledge can move a program from compiling to rejected
+  (a new ambiguity is a loud error), never from meaning-A to meaning-B.
 - No hidden runtime tag is introduced for dispatch.
 
 This is especially attractive for semantic abstractions such as strings and
@@ -472,9 +563,25 @@ Decided model:
   compiler/runtime operations below the public core surface.
 - User/library types can expose ordinary operator definitions when the language
   supports that surface.
-- Domains may provide or select operator meanings when the value is proven to
-  be in that domain.
-- Resolution must be static and unambiguous.
+- Domains may provide or select operator meanings when the value's *binding*
+  is declared, minted, or `requires`-qualified into that domain — never from
+  flow-established membership.
+- Resolution must be static and unambiguous, over the complete operand-domain
+  tuple. Commutative flips are one-line delegations
+  (`operator add(left: Metres, right: Km) -> Km = add(right, left);`).
+- **Coherence.** Operator families are closed by default; an open family
+  declares a designated dispatch-owner position (one owner per implementation
+  key, killing independent sibling claims on the same cross-domain tuple).
+  A package owning neither operand writes an explicit adapter domain.
+  Candidates come only from the participating domains, their owning packages,
+  and the declared family — imports are never scanned. The test: **adding an
+  unrelated dependency cannot change resolution, invalidate typechecking, or
+  introduce a new collision for an existing expression.**
+- **Resolution is a compile-time decision recorded in the checked artifact;
+  runtime dispatch never repeats domain resolution.** At swap boundaries,
+  bodies swap gated by the declaration's contract and laws; resolutions never
+  travel (a declaration-surface change is a version change requiring dependent
+  recompilation, chapter 22 — never a silent runtime rebind).
 - Operator declarations with the same name may form an overload set only when
   their parameter types differ. Return-only overloads and alpha-equivalent
   generic duplicates are ambiguous and should reject before resolution. Generic
@@ -503,9 +610,10 @@ requires value in i32::Degrees
 }
 ```
 
-Here the ordinary integer `+` is not automatically replaced. The domain fact
-`value in i32::Degrees` participates in resolution only if it exposes a unique
-operator meaning for this expression.
+Here the ordinary integer `+` is not automatically replaced. The `requires`
+clause binds `value` into `i32::Degrees` for this scope, and that binding
+participates in resolution only if it exposes a unique operator meaning for
+this expression.
 
 Ambiguity is an error:
 
@@ -517,11 +625,25 @@ If both domains expose different `+` meanings for the same expression, the
 program must choose a clearer operation or narrow the proof context before using
 operator syntax.
 
-Not every domain needs this power. Some ideas, especially arithmetic policy
-concepts such as `wrapping` or `checked`, may turn out to fit better as a
-separate evaluation-mode concept than as ordinary value domains. The important
-point is that domain-sensitive operators are resolved from compile-time proof
-knowledge, not from runtime type mutation.
+Not every domain needs this power — a predicate-only domain supplies no
+operator meanings at all. The earlier open question of whether arithmetic
+policies belong in a separate evaluation-mode concept is resolved by the
+facet model (frozen decision 19): `Wrapping`, `Saturating`, and `Trapping`
+are semantic-only domains — the compiler-blessed closed subset, special only
+because primitive arithmetic needs direct lowering. Decision 17 is unchanged
+and conforms. The important point stands: domain-sensitive operators are
+resolved from static binding-site selections, not from runtime type mutation
+and not from the flow-fact environment.
+
+**Normalization is not entailment.** A small deterministic, confluent,
+terminating normalizer owns what a domain expression *is* (canonical
+dimension vectors, scale products, kind tags); type identity, semantic
+interface identity, and monomorphization keys depend only on it. The
+entailment engine proves propositions *about* expressions and can never
+redefine canonical identity. Physical ABI remains the **carrier's** ABI
+(representation erasure holds); semantic interface identity includes
+normalized domains. Units and the full quantity model (dimension x kind x
+scale x presentation) are specified in the design brief.
 
 ## Domains On Strings And Encodings
 
@@ -773,8 +895,18 @@ Working interpretation:
   runtime-checkable.
 - A fixed operator spelling is declared with an optional `spelling` clause on a
   named `operator`; domain operators may carry a `spelling`.
-- Proven domains may participate in operator resolution when the applicable
-  operator meaning is unique; competing domain meanings for the same spelling
-  are a compile error.
-- Domain facts erase from ordinary runtime code unless a diagnostic build
-  explicitly asks for checks.
+- Semantic facets selected at a binding site (declaration, mint, or
+  `requires`) participate in operator resolution; flow-established membership
+  never does. Competing meanings for the same spelling are a compile error,
+  never ranked.
+- Semantic introduction is sealed by default; `introduction open` is the
+  declaration-site opt-in; exported `MintAuthority<D>` delegates sealed
+  introduction.
+- Predicate facets erase completely from ordinary runtime code unless a
+  diagnostic build explicitly asks for checks. Semantic facets add no runtime
+  metadata but reach codegen through operator selection.
+- The five transitions are distinct: refinement mint and semantic
+  qualification (representation-identity, free), forgetting
+  (representation-identity, free, explicit for meaning), conversion
+  (denotation-preserving, may change representation, ordinary contracted
+  call), validation (fact-establishing work, ordinary contracted call).

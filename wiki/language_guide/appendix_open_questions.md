@@ -314,6 +314,34 @@ This page tracks design pressure that is not fully nailed down yet.
   (done) + which-case + slice-length. The remaining open spelling is how a fact
   attaches to a case payload field (`ensures Found.index in 0..16` is the working
   sketch).
+- Domain facets and semantic qualification (frozen decision 19, settled
+  2026-07-18; record: design_briefs/domain_facets_and_qualification.md): a
+  domain is a zero-cost semantic theory over an unchanged carrier with two
+  independently enforced facets — inferable **predicate** propositions and
+  explicitly selected **semantic** meaning. Flow inference changes what is
+  KNOWN; only declarations, mints, and signatures change what operations
+  MEAN — operator resolution reads binding-site selections, never the fact
+  environment, so prover growth turns rejections into acceptances and nothing
+  else. One `as` serves both facets ("proves facts and declares commitments"),
+  with distinct diagnostics for missing proof vs missing authority; semantic
+  introduction is SEALED by default (`introduction open` is the
+  declaration-site opt-in; exported attenuable `MintAuthority<D>` delegates);
+  private predicate bodies are established externally only through
+  owner-exported evidence. Five transitions: refinement mint / semantic
+  qualification / forgetting / conversion / validation — only the last two may
+  cost, both as ordinary contracted calls. Implicit weakening requires
+  denotation preservation + operation agreement (schema-decided for blessed
+  policies and rational-scale units, else a `weakens_to` certificate that
+  SEALS the certified operator theory); certified arithmetic policies weaken
+  implicitly, units and kinds never weaken silently. Operator families are
+  closed by default; open families carry a designated dispatch-owner position;
+  adding an unrelated dependency cannot change resolution, invalidate
+  typechecking, or introduce a new collision. Type identity is owned by a
+  deterministic normalizer, never the prover. Units decompose as structural
+  dimension x nominal kind x rational scale x non-semantic presentation, scale
+  surviving cancellation until an explicit conversion; mixed-scale `+`/`-`
+  requires explicit conversion in v1. Decisions 17/18 unchanged and
+  conforming. Seven acceptance tests in the brief.
 
 ## Still Open
 
@@ -355,9 +383,20 @@ This page tracks design pressure that is not fully nailed down yet.
   and discharging a few preservation lemmas as operator contracts (concat and
   boundary-slice preserve UTF-8) so downstream code never re-scans. Richer
   sequence-wide invariants (the loop-invariant/inductive prover) are staged later.
-- When domains can participate in operator resolution, what exact ambiguity
+- ~~When domains can participate in operator resolution, what exact ambiguity
   rules should apply, and which concepts should remain ordinary value domains
-  versus a separate evaluation-mode/policy system?
+  versus a separate evaluation-mode/policy system?~~ RESOLVED (frozen decision
+  19, 2026-07-18): binding-site activation only, tuple-resolved, collisions
+  hard errors; policies are semantic-only domains, no separate mode system.
+  See design_briefs/domain_facets_and_qualification.md.
+- Domain-facet deferred spaces (decision 19; deliberately open, not
+  contradictions): the external quantity-kind extension regime (contributed
+  kind equations under a separate coherence discipline); general open-family
+  linking beyond the designated-dispatch-owner rule; surface grammar for
+  `introduction open / sealed(Authority)`, mint-authority passing
+  (`as Torque using authority` sketch), and `weakens_to` certificate blocks;
+  affine quantities (Timestamp/Duration, CelsiusPoint/CelsiusDelta) staged
+  after vector dimensions are stable.
 - Should invariant windows ever permit graph-edge proof debt, or should
   transitions remain consumption points (the settled position, 2026-07-17)?
 - How explicit should weakened machine invariants be in target state signatures?

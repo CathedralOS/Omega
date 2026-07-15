@@ -26,8 +26,6 @@ use omega_instruction_selection::{
     runtime_storage_binary_write_width,
     runtime_storage_compare_width, runtime_storage_convert_width,
     runtime_storage_copy_from_runtime_frame_base_indexed_to_runtime_frame_width,
-    runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage_width,
-    runtime_storage_copy_to_runtime_machine_indexed_from_runtime_storage_width,
     runtime_storage_copy_from_runtime_machine_double_indexed_to_runtime_storage_width,
     runtime_storage_copy_to_runtime_machine_double_indexed_from_runtime_storage_width,
     runtime_machine_double_indexed_integer_write_width,
@@ -939,25 +937,6 @@ fn machine_instruction_width(
             target,
             *byte_count,
         )?,
-        SelectedInstructionKind::CopyRuntimeMachineIndexedToRuntimeStorage {
-            base_byte_offset,
-            index_region,
-            index_offset,
-            element_byte_size,
-            field_byte_offset,
-            target_offset,
-            byte_count,
-            ..
-        } => runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage_width(
-            input.target.architecture,
-            *base_byte_offset,
-            *index_region,
-            *index_offset,
-            *element_byte_size,
-            *field_byte_offset,
-            *target_offset,
-            *byte_count,
-        ),
         SelectedInstructionKind::CopyRuntimeMachineDoubleIndexedToRuntimeStorage {
             outer_index_region,
             inner_index_region,
@@ -1001,27 +980,6 @@ fn machine_instruction_width(
         } => runtime_storage_copy_from_runtime_frame_base_indexed_to_runtime_frame_width(
             input.target.architecture,
             *target_offset,
-            *byte_count,
-        ),
-        SelectedInstructionKind::CopyRuntimeStorageToRuntimeMachineIndexed {
-            source_region,
-            source_offset,
-            base_byte_offset,
-            index_region,
-            index_offset,
-            element_byte_size,
-            field_byte_offset,
-            byte_count,
-            ..
-        } => runtime_storage_copy_to_runtime_machine_indexed_from_runtime_storage_width(
-            input.target.architecture,
-            *source_region,
-            *source_offset,
-            *base_byte_offset,
-            *index_region,
-            *index_offset,
-            *element_byte_size,
-            *field_byte_offset,
             *byte_count,
         ),
         SelectedInstructionKind::CopyRuntimeMachineIndexedToRuntimeMachineIndexed {

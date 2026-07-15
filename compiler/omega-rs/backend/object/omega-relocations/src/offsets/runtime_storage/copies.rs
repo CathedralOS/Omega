@@ -1,4 +1,4 @@
-use crate::offsets::runtime_frame::{add_constant_width, runtime_frame_index_setup_width};
+use crate::offsets::runtime_frame::{runtime_frame_index_setup_width};
 use omega_target::Architecture;
 
 pub(crate) fn runtime_storage_copy_target_address_offset(architecture: Architecture) -> usize {
@@ -138,41 +138,6 @@ pub(crate) fn runtime_storage_copy_machine_indexed_frame_index_offset(
         source_index_region,
         target_side,
     )
-}
-
-/// Start of the second `mov r15,imm64` (the machine base) inside the
-/// FRAME-SOURCE variant of the storage->machine-indexed write; the relocation
-/// planner adds the +2 immediate offset itself. x86_64 only.
-pub(crate) fn runtime_storage_copy_to_runtime_machine_indexed_frame_source_machine_base_offset(
-    architecture: Architecture,
-) -> usize {
-    match architecture {
-        Architecture::Aarch64 => 0,
-        // mov r15,imm64 (10) + load rax (7) precede it.
-        Architecture::X86_64 => 17,
-    }
-}
-
-/// Start of the `mov r10,imm64` (the frame base for a FRAME-resident INDEX)
-/// inside the storage->machine-indexed write; the relocation planner adds the
-/// +2 immediate offset itself. x86_64 only (aarch64 relocates the frame index
-/// via the shared read-side offset in its own record branch).
-pub(crate) fn runtime_storage_copy_to_runtime_machine_indexed_frame_index_base_offset(
-    architecture: Architecture,
-    source_region: omega_target_operations::RuntimeStorageRegion,
-) -> usize {
-    match architecture {
-        Architecture::Aarch64 => 0,
-        // mov r15,imm64 (10) + load rax (7) precede it; a FRAME source adds
-        // its machine re-load `mov r15,imm64` (10) in between.
-        Architecture::X86_64 => {
-            if source_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame {
-                27
-            } else {
-                17
-            }
-        }
-    }
 }
 
 /// Frame-base relocation start (pre-`+2`) inside the double-indexed read,

@@ -1682,37 +1682,6 @@ pub fn copy_places_width(
         .map(|bytes| bytes.len())
 }
 
-pub fn runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage_width(
-    architecture: Architecture,
-    base_byte_offset: usize,
-    index_region: omega_target_operations::RuntimeStorageRegion,
-    index_offset: usize,
-    element_byte_size: usize,
-    field_byte_offset: usize,
-    target_offset: usize,
-    byte_count: usize,
-) -> usize {
-    match architecture {
-        Architecture::Aarch64 => {
-            aarch64::runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage_width(
-                base_byte_offset,
-                index_region,
-                index_offset,
-                element_byte_size,
-                field_byte_offset,
-                target_offset,
-                byte_count,
-            )
-        }
-        Architecture::X86_64 => {
-            x86_64::runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage_width(
-                index_region,
-                byte_count,
-            )
-        }
-    }
-}
-
 pub fn runtime_storage_copy_from_runtime_frame_base_indexed_to_runtime_frame_width(
     architecture: Architecture,
     target_offset: usize,
@@ -1741,39 +1710,6 @@ pub fn runtime_storage_copy_from_runtime_frame_base_indexed_target_frame_offset(
     match architecture {
         Architecture::Aarch64 => None,
         Architecture::X86_64 => Some(x86_64::FRAME_BASE_INDEXED_COPY_TARGET_FRAME_IMM_OFFSET),
-    }
-}
-
-#[allow(clippy::too_many_arguments)]
-pub fn runtime_storage_copy_to_runtime_machine_indexed_from_runtime_storage_width(
-    architecture: Architecture,
-    source_region: omega_target_operations::RuntimeStorageRegion,
-    source_offset: usize,
-    base_byte_offset: usize,
-    index_region: omega_target_operations::RuntimeStorageRegion,
-    index_offset: usize,
-    element_byte_size: usize,
-    field_byte_offset: usize,
-    byte_count: usize,
-) -> usize {
-    match architecture {
-        Architecture::Aarch64 => {
-            aarch64::runtime_storage_copy_to_runtime_machine_indexed_from_runtime_storage_width(
-                source_offset,
-                base_byte_offset,
-                index_region,
-                index_offset,
-                element_byte_size,
-                field_byte_offset,
-                byte_count,
-            )
-        }
-        Architecture::X86_64 => {
-            x86_64::runtime_storage_copy_to_runtime_machine_indexed_from_runtime_storage_width(
-                source_region,
-                index_region,
-            )
-        }
     }
 }
 

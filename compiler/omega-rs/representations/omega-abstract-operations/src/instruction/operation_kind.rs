@@ -715,16 +715,6 @@ pub enum AbstractOperationKind {
     /// target_field`). The runtime-index sibling of
     /// `CopyRuntimeFrameFixedIndexedToRuntimePointee` -- the `out.f = items[i].f`
     /// shape where `out` is a reference parameter.
-    CopyRuntimeMachineIndexedToRuntimeStorage {
-        base_byte_offset: usize,
-        index_offset: usize,
-        index_region: RuntimeStorageRegion,
-        element_byte_size: usize,
-        field_byte_offset: usize,
-        target_region: RuntimeStorageRegion,
-        target_offset: usize,
-        byte_count: usize,
-    },
     /// The BOTH-RUNTIME nested read `grid[i][j]` (both indices runtime): the
     /// element address is base + outer*outer_stride + inner*inner_stride +
     /// field, with each index loaded from its own region. The single-index op
@@ -815,16 +805,6 @@ pub enum AbstractOperationKind {
     /// machine-owned inline array, sourced from a runtime storage place.
     /// The target is machine-owned by definition, so there is no
     /// `target_region`.
-    CopyRuntimeStorageToRuntimeMachineIndexed {
-        source_region: RuntimeStorageRegion,
-        source_offset: usize,
-        base_byte_offset: usize,
-        index_offset: usize,
-        index_region: RuntimeStorageRegion,
-        element_byte_size: usize,
-        field_byte_offset: usize,
-        byte_count: usize,
-    },
     /// The DUAL-indexed copy `arr[i] = arr[j]` (task #38): both the source and
     /// the target are runtime-indexed elements of machine-owned inline arrays.
     /// Composes the two halves above -- read the source element exactly as

@@ -758,28 +758,6 @@ pub(super) fn encode_runtime_machine_indexed_address_to_runtime_frame_write(
     )
 }
 
-pub(super) fn encode_runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage(
-    input: MachineEmissionContext<'_>,
-    base_byte_offset: usize,
-    index_offset: usize,
-    index_region: omega_target_operations::RuntimeStorageRegion,
-    element_byte_size: usize,
-    field_byte_offset: usize,
-    target_offset: usize,
-    byte_count: usize,
-) -> Result<Vec<u8>, Diagnostic> {
-    architecture::encode_runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage(
-        input.target.architecture,
-        base_byte_offset,
-        index_offset,
-        index_region,
-        element_byte_size,
-        field_byte_offset,
-        target_offset,
-        byte_count,
-    )
-}
-
 pub(super) fn encode_runtime_storage_copy_from_runtime_machine_double_indexed_to_runtime_storage(
     input: MachineEmissionContext<'_>,
     base_byte_offset: usize,
@@ -906,30 +884,6 @@ pub(super) fn encode_runtime_storage_copy_from_runtime_frame_base_indexed_to_run
         element_byte_size,
         field_byte_offset,
         target_offset,
-        byte_count,
-    )
-}
-
-pub(super) fn encode_runtime_storage_copy_to_runtime_machine_indexed_from_runtime_storage(
-    input: MachineEmissionContext<'_>,
-    source_region: omega_target_operations::RuntimeStorageRegion,
-    source_offset: usize,
-    base_byte_offset: usize,
-    index_offset: usize,
-    index_region: omega_target_operations::RuntimeStorageRegion,
-    element_byte_size: usize,
-    field_byte_offset: usize,
-    byte_count: usize,
-) -> Result<Vec<u8>, Diagnostic> {
-    architecture::encode_runtime_storage_copy_to_runtime_machine_indexed_from_runtime_storage(
-        input.target.architecture,
-        source_region,
-        source_offset,
-        base_byte_offset,
-        index_offset,
-        index_region,
-        element_byte_size,
-        field_byte_offset,
         byte_count,
     )
 }
