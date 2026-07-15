@@ -2261,55 +2261,6 @@ pub fn runtime_storage_copy_from_runtime_frame_base_double_indexed_target_base_o
     }
 }
 
-pub fn runtime_storage_copy_to_runtime_pointee_width(
-    architecture: Architecture,
-    source_offset: usize,
-    pointer_byte_offset: usize,
-    field_byte_offset: usize,
-    byte_count: usize,
-) -> usize {
-    match architecture {
-        Architecture::Aarch64 => aarch64::runtime_storage_copy_to_runtime_pointee_width(
-            source_offset,
-            pointer_byte_offset,
-            field_byte_offset,
-            byte_count,
-        ),
-        Architecture::X86_64 => x86_64::runtime_storage_copy_to_runtime_pointee_width(
-            source_offset,
-            field_byte_offset,
-            byte_count,
-        ),
-    }
-}
-
-pub fn runtime_storage_copy_from_runtime_pointee_to_runtime_frame_width(
-    architecture: Architecture,
-    pointer_byte_offset: usize,
-    field_byte_offset: usize,
-    target_offset: usize,
-    byte_count: usize,
-) -> usize {
-    match architecture {
-        Architecture::Aarch64 => {
-            aarch64::runtime_storage_copy_from_runtime_pointee_to_runtime_frame_width(
-                pointer_byte_offset,
-                field_byte_offset,
-                target_offset,
-                byte_count,
-            )
-        }
-        Architecture::X86_64 => {
-            let _ = pointer_byte_offset;
-            x86_64::runtime_storage_copy_from_runtime_pointee_to_runtime_frame_width(
-                field_byte_offset,
-                target_offset,
-                byte_count,
-            )
-        }
-    }
-}
-
 pub fn append_wire_literal_byte_width(
     architecture: Architecture,
     out_offset: usize,

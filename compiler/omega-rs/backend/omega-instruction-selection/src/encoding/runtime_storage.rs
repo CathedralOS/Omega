@@ -1574,56 +1574,6 @@ pub fn encode_runtime_storage_copy_from_runtime_frame_base_double_indexed_to_run
     }
 }
 
-pub fn encode_runtime_storage_copy_to_runtime_pointee(
-    architecture: Architecture,
-    source_offset: usize,
-    pointer_byte_offset: usize,
-    field_byte_offset: usize,
-    byte_count: usize,
-) -> Result<Vec<u8>, Diagnostic> {
-    match architecture {
-        Architecture::Aarch64 => aarch64::encode_runtime_storage_copy_to_runtime_pointee(
-            source_offset,
-            pointer_byte_offset,
-            field_byte_offset,
-            byte_count,
-        ),
-        Architecture::X86_64 => x86_64::encode_runtime_storage_copy_to_runtime_pointee(
-            source_offset,
-            pointer_byte_offset,
-            field_byte_offset,
-            byte_count,
-        ),
-    }
-}
-
-pub fn encode_runtime_storage_copy_from_runtime_pointee_to_runtime_frame(
-    architecture: Architecture,
-    pointer_byte_offset: usize,
-    field_byte_offset: usize,
-    target_offset: usize,
-    byte_count: usize,
-) -> Result<Vec<u8>, Diagnostic> {
-    match architecture {
-        Architecture::Aarch64 => {
-            aarch64::encode_runtime_storage_copy_from_runtime_pointee_to_runtime_frame(
-                pointer_byte_offset,
-                field_byte_offset,
-                target_offset,
-                byte_count,
-            )
-        }
-        Architecture::X86_64 => {
-            x86_64::encode_runtime_storage_copy_from_runtime_pointee_to_runtime_frame(
-                pointer_byte_offset,
-                field_byte_offset,
-                target_offset,
-                byte_count,
-            )
-        }
-    }
-}
-
 fn unsupported_x86_64_encoding() -> Result<Vec<u8>, Diagnostic> {
     Err(Diagnostic::error(
         "X86_64 runtime storage encoding is not implemented",
