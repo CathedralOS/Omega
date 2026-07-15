@@ -308,13 +308,7 @@ pub(super) fn select_runtime_dispatch_argument_materialization(
                 );
             }
             selected_instructions.push(SelectedInstruction {
-                kind: SelectedInstructionKind::CopyRuntimeStorage {
-                    source_region: place.region,
-                    source_offset: place.byte_offset,
-                    target_region: RuntimeStorageRegion::RuntimeFrame,
-                    target_offset: slot.byte_offset,
-                    byte_count: slot.byte_size,
-                },
+                kind: crate::selection::runtime_dispatch::copy_places_direct(place.region, place.byte_offset, RuntimeStorageRegion::RuntimeFrame, slot.byte_offset, slot.byte_size),
                 source_key,
                 source_statement: statement_index,
             });
@@ -439,13 +433,7 @@ pub(super) fn select_runtime_dispatch_argument_materialization(
             // `&mut SomeEightByteStruct`): it must store the referent's ADDRESS, so
             // it likewise falls through to the address-write strategy below.
             selected_instructions.push(SelectedInstruction {
-                kind: SelectedInstructionKind::CopyRuntimeStorage {
-                    source_region: place.region,
-                    source_offset: place.byte_offset,
-                    target_region: RuntimeStorageRegion::RuntimeFrame,
-                    target_offset: slot.byte_offset,
-                    byte_count: slot.byte_size,
-                },
+                kind: crate::selection::runtime_dispatch::copy_places_direct(place.region, place.byte_offset, RuntimeStorageRegion::RuntimeFrame, slot.byte_offset, slot.byte_size),
                 source_key,
                 source_statement: statement_index,
             });
@@ -810,13 +798,7 @@ pub(super) fn select_runtime_dispatch_argument_materialization(
     // disjoint from all real slots, so these copies cannot clobber one another.
     for (scratch_offset, target_offset, byte_count) in staged_copies {
         selected_instructions.push(SelectedInstruction {
-            kind: SelectedInstructionKind::CopyRuntimeStorage {
-                source_region: RuntimeStorageRegion::RuntimeFrame,
-                source_offset: scratch_offset,
-                target_region: RuntimeStorageRegion::RuntimeFrame,
-                target_offset,
-                byte_count,
-            },
+            kind: crate::selection::runtime_dispatch::copy_places_direct(RuntimeStorageRegion::RuntimeFrame, scratch_offset, RuntimeStorageRegion::RuntimeFrame, target_offset, byte_count),
             source_key,
             source_statement: statement_index,
         });
@@ -1217,13 +1199,7 @@ fn emit_runtime_detached_frame_slice_argument_materialization(
     *scratch_cursor += source_place.byte_count;
 
     selected_instructions.push(SelectedInstruction {
-        kind: SelectedInstructionKind::CopyRuntimeStorage {
-            source_region: RuntimeStorageRegion::RuntimeFrame,
-            source_offset: source_place.byte_offset,
-            target_region: RuntimeStorageRegion::RuntimeFrame,
-            target_offset: scratch_offset,
-            byte_count: source_place.byte_count,
-        },
+        kind: crate::selection::runtime_dispatch::copy_places_direct(RuntimeStorageRegion::RuntimeFrame, source_place.byte_offset, RuntimeStorageRegion::RuntimeFrame, scratch_offset, source_place.byte_count),
         source_key,
         source_statement: statement_index,
     });

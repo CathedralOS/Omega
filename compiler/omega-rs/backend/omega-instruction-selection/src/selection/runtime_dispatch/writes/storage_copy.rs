@@ -81,17 +81,13 @@ pub(in crate::selection::runtime_dispatch) fn runtime_storage_copy(
     // the Place operands; the materializer emits byte-for-byte what the
     // CopyRuntimeStorage encoder emitted for this direct pair, and the
     // relocation walker patches each base from the place's own region.
-    Some(SelectedInstructionKind::CopyPlaces {
-        source: omega_abstract_operations::Place::at(
-            source_place.region,
-            source_place.byte_offset,
-        ),
-        target: omega_abstract_operations::Place::at(
-            target_place.region,
-            target_place.byte_offset,
-        ),
-        byte_count: target_place.byte_count,
-    })
+    Some(crate::selection::runtime_dispatch::copy_places_direct(
+        source_place.region,
+        source_place.byte_offset,
+        target_place.region,
+        target_place.byte_offset,
+        target_place.byte_count,
+    ))
 }
 
 pub(in crate::selection::runtime_dispatch) fn runtime_storage_fixed_indexed_source_copy(
@@ -301,17 +297,13 @@ pub(in crate::selection::runtime_dispatch) fn runtime_storage_copy_in_table(
 
     // The in-table twin of the migrated CopyPlaces site above (rung 2):
     // identical direct-pair shape, same byte-for-byte materialization.
-    Some(SelectedInstructionKind::CopyPlaces {
-        source: omega_abstract_operations::Place::at(
-            source_place.region,
-            source_place.byte_offset,
-        ),
-        target: omega_abstract_operations::Place::at(
-            target_place.region,
-            target_place.byte_offset,
-        ),
-        byte_count: target_place.byte_count,
-    })
+    Some(crate::selection::runtime_dispatch::copy_places_direct(
+        source_place.region,
+        source_place.byte_offset,
+        target_place.region,
+        target_place.byte_offset,
+        target_place.byte_count,
+    ))
 }
 
 pub(in crate::selection::runtime_dispatch) fn runtime_storage_indirect_copy(

@@ -338,13 +338,7 @@ pub(in crate::selection) fn select_runtime_frame_slot_value_write_in_table_with_
         && source_place.byte_count == 4
         && slot.byte_size <= input.runtime_abi.slice_descriptor().len_size()
     {
-        return Some(SelectedInstructionKind::CopyRuntimeStorage {
-            source_region: source_place.region,
-            source_offset: source_place.byte_offset,
-            target_region: RuntimeStorageRegion::RuntimeFrame,
-            target_offset: slot.byte_offset,
-            byte_count: slot.byte_size,
-        });
+        return Some(crate::selection::runtime_dispatch::copy_places_direct(source_place.region, source_place.byte_offset, RuntimeStorageRegion::RuntimeFrame, slot.byte_offset, slot.byte_size));
     }
 
     if let Some(source_place) = resolve_runtime_storage_place_in_table(
@@ -356,13 +350,7 @@ pub(in crate::selection) fn select_runtime_frame_slot_value_write_in_table_with_
     ) && source_place.byte_count == slot.byte_size
         && source_place.byte_count > 0
     {
-        return Some(SelectedInstructionKind::CopyRuntimeStorage {
-            source_region: source_place.region,
-            source_offset: source_place.byte_offset,
-            target_region: RuntimeStorageRegion::RuntimeFrame,
-            target_offset: slot.byte_offset,
-            byte_count: slot.byte_size,
-        });
+        return Some(crate::selection::runtime_dispatch::copy_places_direct(source_place.region, source_place.byte_offset, RuntimeStorageRegion::RuntimeFrame, slot.byte_offset, slot.byte_size));
     }
 
     if let Some(indexed_source) = resolve_runtime_frame_fixed_indexed_target_in_table(

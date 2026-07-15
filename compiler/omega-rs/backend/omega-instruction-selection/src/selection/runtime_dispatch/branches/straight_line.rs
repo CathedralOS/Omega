@@ -336,13 +336,7 @@ fn select_runtime_straight_line_assignment_value_target_copy(
     }
 
     selected_instructions.push(SelectedInstruction {
-        kind: SelectedInstructionKind::CopyRuntimeStorage {
-            source_region: RuntimeStorageRegion::RuntimeFrame,
-            source_offset: source_slot.byte_offset,
-            target_region: target_place.region,
-            target_offset: target_place.byte_offset,
-            byte_count: source_slot.byte_size,
-        },
+        kind: crate::selection::runtime_dispatch::copy_places_direct(RuntimeStorageRegion::RuntimeFrame, source_slot.byte_offset, target_place.region, target_place.byte_offset, source_slot.byte_size),
         source_key: expansion.source_key,
         source_statement: expansion.statement_index,
     });
@@ -1059,13 +1053,7 @@ pub(in crate::selection) fn select_assignment_value_call_result_local_copy(
         return;
     }
     selected_instructions.push(SelectedInstruction {
-        kind: SelectedInstructionKind::CopyRuntimeStorage {
-            source_region: RuntimeStorageRegion::RuntimeFrame,
-            source_offset: source_slot.byte_offset,
-            target_region: RuntimeStorageRegion::RuntimeFrame,
-            target_offset: target_slot.byte_offset,
-            byte_count: source_slot.byte_size,
-        },
+        kind: crate::selection::runtime_dispatch::copy_places_direct(RuntimeStorageRegion::RuntimeFrame, source_slot.byte_offset, RuntimeStorageRegion::RuntimeFrame, target_slot.byte_offset, source_slot.byte_size),
         source_key,
         source_statement: statement_index,
     });
