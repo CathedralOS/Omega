@@ -369,13 +369,23 @@ dispatch-region + receiver-phase family. Everything queued here avoids both.
    START symbol PER SHAPE (the machine-array WRITE opens with the
    machine base, not the source). All 5 machine-indexed producers
    migrated; both variants producer-free.
-   REMAINING rung 2c+: retire the machine-indexed pair; the exotics
-   (machine-to-machine indexed = two runtime indices, r11 single
-   scratch refuses; double-indexed pair; FrameBaseIndexed) need
-   either a second index register or stay hand-spelled — decide at
-   their rung. Then Write/RMW (the leaf-cascade duplication dies),
-   Text, guards/operands, op-set shrink — the wiki ladder.
-   Legalization refuses loudly at every rung.
+   RUNG 2c-viii LANDED 2026-07-14 — THE MACHINE-INDEXED PAIR RETIRED
+   (variants 11-12 of 18): CopyRuntimeMachineIndexedToRuntimeStorage +
+   CopyRuntimeStorageToRuntimeMachineIndexed deleted with every echo
+   (incl. the x86 chunked-read internal helper + its retired-encoder
+   test module — the materializer's own chunk pins in place_copy.rs
+   keep that coverage; the two x86-only to-machine walker offset fns
+   died with their arm). KEPT: both aarch64 encoders (the decomposes)
+   + the machine-indexed offset fns the CopyPlaces walker arms use.
+   TWELVE of 18 variants retired; 6 remain — ALL two-index exotics or
+   frame-base shapes (machine-to-machine indexed, double-indexed
+   pair, FrameBaseIndexed + FrameBaseDoubleIndexed,
+   machine-indexed-to-machine-indexed): each needs either a SECOND
+   index register in the materializer or stays hand-spelled — decide
+   at their rung (r11 is deliberately the single index scratch).
+   Then Write/RMW (the leaf-cascade duplication dies), Text,
+   guards/operands, op-set shrink — the wiki ladder. Legalization
+   refuses loudly at every rung.
 
 The rendering-sample sweep landed 2026-07-11 (see Language ergonomics;
 the match-subject computed-index gap closed with it).
@@ -1735,6 +1745,22 @@ with a real app-window story.
   packed = a no-padding policy); remaining work is surface polish, no
   arc.
 - **Proof engine arcs** beyond L7 induction.
+- **Domain facets & qualification (frozen decision 19, settled 2026-07-18;
+  record: wiki/design_briefs/domain_facets_and_qualification.md):**
+  engineering ladder, roughly in dependency order — (1) facet kinds in the
+  checker (predicate vs semantic, mechanically enforced at merges, joins,
+  casts, generic substitution; per-axis composition algebra); (2)
+  binding-site operator resolution (declaration/mint/`requires` select;
+  flow facts never consulted; tuple-resolved; collisions hard errors);
+  (3) introduction authority (sealed default, `introduction open`,
+  `MintAuthority<D>`; split diagnostics: missing proof vs missing
+  authority); (4) the deterministic domain-expression normalizer (owns
+  type/monomorphization identity; entailment engine may never redefine it);
+  (5) `weakens_to` certificates + sealed-theory enforcement (hash of the
+  normalized operator theory detects staleness; the sealing law is the
+  soundness rule); (6) the units family (see Vertical slices). The unbuilt
+  mint arc (encoding/layout recast surface) builds to these rules —
+  arithmetic-domain mints (decision 17) already conform.
 - **Hot-swap semantics:** quiescence proofs, borrows as swap barriers.
 - **Wire encoding families + negotiation** (beyond stage-2 encoders).
 - **Serialized capabilities:** attenuation + revocability across boundaries.
@@ -1790,6 +1816,19 @@ with a real app-window story.
 
 ## Vertical slices
 
+- **Units slice (decision-19 stress test; run EARLY, before the generics
+  arc):** two units, one dimension, no generics — pin the model with the
+  brief's seven acceptance tests: (1) `Km + Metre` rejects without explicit
+  conversion; (2) `Km / Metre` = scaled dimensionless preserving the 1000 —
+  explicit forgetting yields raw 1, conversion yields canonical 1000,
+  implicit erasure forbidden; (3) Energy vs Torque: same dimension, distinct
+  kinds; (4) `Vec<f64 in Km>` survives a generic identity machine
+  unweakened; (5) `f64 in Km` to a plain-`f64` param fails without explicit
+  forgetting or conversion; (6) Energy cannot SILENTLY launder into Torque;
+  (7) sibling packages cannot independently claim one cross-domain operator
+  tuple. Depends on facet kinds + binding-site resolution (Big arcs entry);
+  tests 4/7 additionally gate on domains-over-carriers generics and package
+  coherence machinery — stage them last within the slice.
 - **Vec[T]:** owned dynamic storage with length/capacity (surface declared;
   storage/lowering pending; allocator-story dependent).
 - **as_slice/as_mut_slice:** back with real boundary-primitive storage.

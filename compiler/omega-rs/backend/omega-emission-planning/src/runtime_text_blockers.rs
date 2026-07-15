@@ -149,13 +149,11 @@ fn state_value_has_planned_storage_write(
                         | SelectedInstructionKind::WriteRuntimeFrameBaseIndexedAddressToRuntimeFrame { .. }
                         | SelectedInstructionKind::WriteRuntimeMachineIndexedAddressToRuntimeFrame { .. }
                         | SelectedInstructionKind::CopyPlaces { .. }
-                        | SelectedInstructionKind::CopyRuntimeMachineIndexedToRuntimeStorage { .. }
                         | SelectedInstructionKind::CopyRuntimeMachineDoubleIndexedToRuntimeStorage { .. }
                         | SelectedInstructionKind::CopyRuntimeFrameBaseDoubleIndexedToRuntimeStorage { .. }
                         | SelectedInstructionKind::CopyRuntimeStorageToRuntimeMachineDoubleIndexed { .. }
                         | SelectedInstructionKind::WriteRuntimeMachineDoubleIndexedInteger { .. }
                         | SelectedInstructionKind::CopyRuntimeFrameBaseIndexedToRuntimeFrame { .. }
-                        | SelectedInstructionKind::CopyRuntimeStorageToRuntimeMachineIndexed { .. }
                         | SelectedInstructionKind::CopyRuntimeMachineIndexedToRuntimeMachineIndexed { .. }
                         // `asm { in <local>, <port> }`: the PortRead writes the
                         // byte into the local's place, covering the assignment
@@ -365,13 +363,11 @@ fn runtime_text_write_has_selected_instruction(
                         | SelectedInstructionKind::AppendRuntimeTextLiteralToRuntimePointee { .. }
                         | SelectedInstructionKind::AppendRuntimeTextLiteralToRuntimeFrameIndexed { .. }
                         | SelectedInstructionKind::CopyPlaces { .. }
-                        | SelectedInstructionKind::CopyRuntimeMachineIndexedToRuntimeStorage { .. }
                         | SelectedInstructionKind::CopyRuntimeMachineDoubleIndexedToRuntimeStorage { .. }
                         | SelectedInstructionKind::CopyRuntimeFrameBaseDoubleIndexedToRuntimeStorage { .. }
                         | SelectedInstructionKind::CopyRuntimeStorageToRuntimeMachineDoubleIndexed { .. }
                         | SelectedInstructionKind::WriteRuntimeMachineDoubleIndexedInteger { .. }
                         | SelectedInstructionKind::CopyRuntimeFrameBaseIndexedToRuntimeFrame { .. }
-                        | SelectedInstructionKind::CopyRuntimeStorageToRuntimeMachineIndexed { .. }
                         | SelectedInstructionKind::CopyRuntimeMachineIndexedToRuntimeMachineIndexed { .. }
                         // `asm { in <local>, <port> }`: the PortRead writes the
                         // byte into the local's place, covering the assignment

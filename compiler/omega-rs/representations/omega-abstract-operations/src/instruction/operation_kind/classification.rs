@@ -84,12 +84,10 @@ impl OperationSemanticQuery for AbstractOperationKind {
             | Self::CopyRuntimeStorageToReturnRegister { .. } => AbstractOperationDomain::RuntimeWrite,
 
             Self::CopyPlaces { .. }
-            | Self::CopyRuntimeMachineIndexedToRuntimeStorage { .. }
             | Self::CopyRuntimeMachineDoubleIndexedToRuntimeStorage { .. }
             | Self::CopyRuntimeFrameBaseDoubleIndexedToRuntimeStorage { .. }
             | Self::CopyRuntimeStorageToRuntimeMachineDoubleIndexed { .. }
             | Self::CopyRuntimeFrameBaseIndexedToRuntimeFrame { .. }
-            | Self::CopyRuntimeStorageToRuntimeMachineIndexed { .. }
             | Self::CopyRuntimeMachineIndexedToRuntimeMachineIndexed { .. } => AbstractOperationDomain::RuntimeCopy,
 
             Self::ReadRuntimeTextLine { .. }
