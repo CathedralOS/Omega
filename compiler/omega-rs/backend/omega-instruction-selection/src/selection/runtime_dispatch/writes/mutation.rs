@@ -1252,13 +1252,7 @@ pub(super) fn select_runtime_resolved_target_value_source_mutation_writes(
         &resolved_value.expression,
     ) {
         selected_instructions.push(SelectedInstruction {
-            kind: SelectedInstructionKind::CopyRuntimeStorageToRuntimePointee {
-                source_region: source_place.region,
-                source_offset: source_place.byte_offset,
-                pointer_byte_offset: pointer_target.pointer_byte_offset,
-                field_byte_offset: pointer_target.field_byte_offset,
-                byte_count: source_place.byte_count,
-            },
+            kind: crate::selection::runtime_dispatch::copy_places_to_pointee(source_place.region, source_place.byte_offset, pointer_target.pointer_byte_offset, pointer_target.field_byte_offset, source_place.byte_count),
             source_key: operation_source_key,
             source_statement: statement_index,
         });
@@ -1299,13 +1293,7 @@ pub(super) fn select_runtime_resolved_target_value_source_mutation_writes(
         ) && source_place.byte_count > 0
         {
             selected_instructions.push(SelectedInstruction {
-                kind: SelectedInstructionKind::CopyRuntimeStorageToRuntimePointee {
-                    source_region: source_place.region,
-                    source_offset: source_place.byte_offset,
-                    pointer_byte_offset: pointer_target.pointer_byte_offset,
-                    field_byte_offset: pointer_target.field_byte_offset,
-                    byte_count: source_place.byte_count,
-                },
+                kind: crate::selection::runtime_dispatch::copy_places_to_pointee(source_place.region, source_place.byte_offset, pointer_target.pointer_byte_offset, pointer_target.field_byte_offset, source_place.byte_count),
                 source_key: operation_source_key,
                 source_statement: statement_index,
             });
@@ -1362,13 +1350,7 @@ pub(super) fn select_runtime_resolved_target_value_source_mutation_writes(
             && pointee.pointee_byte_size > 0
         {
             selected_instructions.push(SelectedInstruction {
-                kind: SelectedInstructionKind::CopyRuntimePointeeToRuntimeFrame {
-                    target_region: target_place.region,
-                    pointer_byte_offset: pointee.pointer_byte_offset,
-                    field_byte_offset: pointee.field_byte_offset,
-                    target_offset: target_place.byte_offset,
-                    byte_count: target_place.byte_count,
-                },
+                kind: crate::selection::runtime_dispatch::copy_places_from_pointee(pointee.pointer_byte_offset, pointee.field_byte_offset, target_place.region, target_place.byte_offset, target_place.byte_count),
                 source_key: operation_source_key,
                 source_statement: statement_index,
             });
@@ -1421,13 +1403,7 @@ pub(super) fn select_runtime_resolved_target_value_source_mutation_writes(
                 selected_instructions,
             );
             selected_instructions.push(SelectedInstruction {
-                kind: SelectedInstructionKind::CopyRuntimeStorageToRuntimePointee {
-                    source_region: source_place.region,
-                    source_offset: source_place.byte_offset,
-                    pointer_byte_offset: indexed_target.descriptor_offset,
-                    field_byte_offset,
-                    byte_count: indexed_target.byte_count,
-                },
+                kind: crate::selection::runtime_dispatch::copy_places_to_pointee(source_place.region, source_place.byte_offset, indexed_target.descriptor_offset, field_byte_offset, indexed_target.byte_count),
                 source_key: operation_source_key,
                 source_statement: statement_index,
             });
@@ -1459,13 +1435,7 @@ pub(super) fn select_runtime_resolved_target_value_source_mutation_writes(
                 selected_instructions,
             );
             selected_instructions.push(SelectedInstruction {
-                kind: SelectedInstructionKind::CopyRuntimeStorageToRuntimePointee {
-                    source_region: source_place.region,
-                    source_offset: source_place.byte_offset,
-                    pointer_byte_offset: pointer_target.pointer_byte_offset,
-                    field_byte_offset: pointer_target.field_byte_offset,
-                    byte_count: source_place.byte_count,
-                },
+                kind: crate::selection::runtime_dispatch::copy_places_to_pointee(source_place.region, source_place.byte_offset, pointer_target.pointer_byte_offset, pointer_target.field_byte_offset, source_place.byte_count),
                 source_key: operation_source_key,
                 source_statement: statement_index,
             });

@@ -310,13 +310,7 @@ fn select_runtime_straight_line_assignment_value_target_copy(
         && source_slot.byte_size > 0
     {
         selected_instructions.push(SelectedInstruction {
-            kind: SelectedInstructionKind::CopyRuntimeStorageToRuntimePointee {
-                source_region: RuntimeStorageRegion::RuntimeFrame,
-                source_offset: source_slot.byte_offset,
-                pointer_byte_offset: pointer_target.pointer_byte_offset,
-                field_byte_offset: pointer_target.field_byte_offset,
-                byte_count: source_slot.byte_size,
-            },
+            kind: crate::selection::runtime_dispatch::copy_places_to_pointee(RuntimeStorageRegion::RuntimeFrame, source_slot.byte_offset, pointer_target.pointer_byte_offset, pointer_target.field_byte_offset, source_slot.byte_size),
             source_key: expansion.source_key,
             source_statement: expansion.statement_index,
         });

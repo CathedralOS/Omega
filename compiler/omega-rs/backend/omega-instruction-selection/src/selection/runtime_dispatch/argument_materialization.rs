@@ -367,13 +367,7 @@ pub(super) fn select_runtime_dispatch_argument_materialization(
             && slot.type_descriptor.reference_referee().is_none()
         {
             selected_instructions.push(SelectedInstruction {
-                kind: SelectedInstructionKind::CopyRuntimePointeeToRuntimeFrame {
-                    target_region: RuntimeStorageRegion::RuntimeFrame,
-                    pointer_byte_offset: pointee.pointer_byte_offset,
-                    field_byte_offset: pointee.field_byte_offset,
-                    target_offset: slot.byte_offset,
-                    byte_count: slot.byte_size,
-                },
+                kind: crate::selection::runtime_dispatch::copy_places_from_pointee(pointee.pointer_byte_offset, pointee.field_byte_offset, RuntimeStorageRegion::RuntimeFrame, slot.byte_offset, slot.byte_size),
                 source_key,
                 source_statement: statement_index,
             });

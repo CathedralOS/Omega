@@ -277,13 +277,7 @@ pub(in crate::selection) fn select_runtime_frame_slot_value_write_in_table_with_
         && pointee.pointee_byte_size > 0
         && !matches!(expressions.expression(value), ExpressionNode::Mutable(_))
     {
-        return Some(SelectedInstructionKind::CopyRuntimePointeeToRuntimeFrame {
-            target_region: RuntimeStorageRegion::RuntimeFrame,
-            pointer_byte_offset: pointee.pointer_byte_offset,
-            field_byte_offset: pointee.field_byte_offset,
-            target_offset: slot.byte_offset,
-            byte_count: slot.byte_size,
-        });
+        return Some(crate::selection::runtime_dispatch::copy_places_from_pointee(pointee.pointer_byte_offset, pointee.field_byte_offset, RuntimeStorageRegion::RuntimeFrame, slot.byte_offset, slot.byte_size));
     }
 
     // `let d = rooms[2].depth` where `rooms: &[Room]` is a slice DESCRIPTOR local:
@@ -303,13 +297,7 @@ pub(in crate::selection) fn select_runtime_frame_slot_value_write_in_table_with_
     ) && pointee.pointee_byte_size == slot.byte_size
         && pointee.pointee_byte_size > 0
     {
-        return Some(SelectedInstructionKind::CopyRuntimePointeeToRuntimeFrame {
-            target_region: RuntimeStorageRegion::RuntimeFrame,
-            pointer_byte_offset: pointee.pointer_byte_offset,
-            field_byte_offset: pointee.field_byte_offset,
-            target_offset: slot.byte_offset,
-            byte_count: slot.byte_size,
-        });
+        return Some(crate::selection::runtime_dispatch::copy_places_from_pointee(pointee.pointer_byte_offset, pointee.field_byte_offset, RuntimeStorageRegion::RuntimeFrame, slot.byte_offset, slot.byte_size));
     }
 
     // `let n: usize = s.len` where `s` is a runtime slice DESCRIPTOR whose length
