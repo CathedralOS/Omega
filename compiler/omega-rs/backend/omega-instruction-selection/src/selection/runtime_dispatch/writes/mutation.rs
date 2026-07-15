@@ -1630,16 +1630,7 @@ pub(super) fn select_runtime_resolved_target_value_source_mutation_writes(
         ) && source_place.byte_count == indexed_target.byte_count
         {
             selected_instructions.push(SelectedInstruction {
-                kind: SelectedInstructionKind::CopyRuntimeStorageToRuntimeMachineIndexed {
-                    source_region: source_place.region,
-                    source_offset: source_place.byte_offset,
-                    base_byte_offset: indexed_target.base_byte_offset,
-                    index_offset: indexed_target.index_offset,
-                    index_region: indexed_target.index_region,
-                    element_byte_size: indexed_target.element_byte_size,
-                    field_byte_offset: indexed_target.field_byte_offset,
-                    byte_count: indexed_target.byte_count,
-                },
+                kind: crate::selection::runtime_dispatch::copy_places_to_machine_indexed(source_place.region, source_place.byte_offset, indexed_target.base_byte_offset, indexed_target.index_region, indexed_target.index_offset, indexed_target.element_byte_size, indexed_target.field_byte_offset, indexed_target.byte_count),
                 source_key: operation_source_key,
                 source_statement: statement_index,
             });

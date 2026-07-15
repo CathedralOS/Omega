@@ -9418,6 +9418,25 @@ fn append_mov_r14_imm64(bytes: &mut Vec<u8>, value: u64) {
     bytes.extend(value.to_le_bytes());
 }
 
+/// The CROSS-REGION index base (place materializer): when a ScaledIndex
+/// slot lives in a different region than the place's own base, r11 first
+/// holds the INDEX region's base, then loads the index through itself --
+/// no extra scratch register enters the discipline.
+fn append_mov_r11_imm64(bytes: &mut Vec<u8>, value: u64) {
+    bytes.extend([0x49, 0xbb]);
+    bytes.extend(value.to_le_bytes());
+}
+
+/// 32-bit zero-extended index load through r11's own value (the
+/// cross-region index base pattern; see `append_load_r11_from_r14`'s
+/// width rationale).
+fn append_load_r11_from_r11(bytes: &mut Vec<u8>, byte_offset: usize) -> Result<(), Diagnostic> {
+    let displacement = disp32(byte_offset)?;
+    bytes.extend([0x45, 0x8b, 0x9b]); // mov r11d, [r11 + disp32]
+    bytes.extend(displacement.to_le_bytes());
+    Ok(())
+}
+
 fn append_mov_r15_imm64(bytes: &mut Vec<u8>, value: u64) {
     bytes.extend([0x49, 0xbf]);
     bytes.extend(value.to_le_bytes());

@@ -355,11 +355,26 @@ dispatch-region + receiver-phase family. Everything queued here avoids both.
    (the CopyPlaces walker's machine-target FromIndexed arm). TEN of 18
    variants retired; 8 remain (machine-indexed group + double-indexed
    + FrameBaseIndexed + machine-to-machine).
-   REMAINING rung 2c+: machine-indexed variants need
-   ScaledIndex.index_region wired into the materializer (its own
-   base register — the index slot can live in a DIFFERENT region
-   than the place base). Then Write/RMW (the leaf-cascade duplication
-   dies), Text, guards/operands, op-set shrink — the wiki ladder.
+   RUNG 2c-vii LANDED 2026-07-14 — THE CROSS-REGION INDEX + THE
+   MACHINE-INDEXED PAIR: prepare_place_index serves an index slot in
+   a DIFFERENT region than the place base — r11 first materializes
+   the INDEX region's base (a recorded SourceIndex/TargetIndex
+   relocation site; Place::scaled_index_region feeds the walker),
+   then loads the index through itself (no new scratch register
+   enters the discipline; unit-pinned byte layout + site list). New
+   direct_indexed_path classifier (no deref — machine statics inline
+   arrays) with FromMachineIndexed | ToMachineIndexed shapes; aarch64
+   decomposes to the retired machine-indexed encoders (which take
+   index_region themselves); the walker's aarch64 arm now picks the
+   START symbol PER SHAPE (the machine-array WRITE opens with the
+   machine base, not the source). All 5 machine-indexed producers
+   migrated; both variants producer-free.
+   REMAINING rung 2c+: retire the machine-indexed pair; the exotics
+   (machine-to-machine indexed = two runtime indices, r11 single
+   scratch refuses; double-indexed pair; FrameBaseIndexed) need
+   either a second index register or stay hand-spelled — decide at
+   their rung. Then Write/RMW (the leaf-cascade duplication dies),
+   Text, guards/operands, op-set shrink — the wiki ladder.
    Legalization refuses loudly at every rung.
 
 The rendering-sample sweep landed 2026-07-11 (see Language ergonomics;

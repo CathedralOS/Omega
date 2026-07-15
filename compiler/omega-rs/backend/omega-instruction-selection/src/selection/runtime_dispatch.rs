@@ -214,6 +214,80 @@ pub(crate) fn copy_places_to_indexed(
     }
 }
 
+/// A MACHINE inline-array element place (no deref -- machine statics), the
+/// index slot in ITS OWN region (the cross-region index the materializer
+/// serves with r11's own base).
+fn machine_indexed_place(
+    base_byte_offset: usize,
+    index_region: RuntimeStorageRegion,
+    index_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+) -> omega_abstract_operations::Place {
+    omega_abstract_operations::Place::at(RuntimeStorageRegion::Machine, base_byte_offset)
+        .with_step(omega_abstract_operations::PlaceStep::ScaledIndex {
+            index_region,
+            index_offset,
+            element_byte_size,
+        })
+        .and_then(|place| {
+            place.with_step(omega_abstract_operations::PlaceStep::ConstOffset(
+                field_byte_offset,
+            ))
+        })
+        .expect("a machine-indexed place is three steps, within PLACE_MAX_STEPS")
+}
+
+/// Rung 2c-vii: the retired machine inline-array element READ.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn copy_places_from_machine_indexed(
+    base_byte_offset: usize,
+    index_region: RuntimeStorageRegion,
+    index_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    target_region: RuntimeStorageRegion,
+    target_offset: usize,
+    byte_count: usize,
+) -> SelectedInstructionKind {
+    SelectedInstructionKind::CopyPlaces {
+        source: machine_indexed_place(
+            base_byte_offset,
+            index_region,
+            index_offset,
+            element_byte_size,
+            field_byte_offset,
+        ),
+        target: omega_abstract_operations::Place::at(target_region, target_offset),
+        byte_count,
+    }
+}
+
+/// Rung 2c-vii: the retired machine inline-array element WRITE.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn copy_places_to_machine_indexed(
+    source_region: RuntimeStorageRegion,
+    source_offset: usize,
+    base_byte_offset: usize,
+    index_region: RuntimeStorageRegion,
+    index_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    byte_count: usize,
+) -> SelectedInstructionKind {
+    SelectedInstructionKind::CopyPlaces {
+        source: omega_abstract_operations::Place::at(source_region, source_offset),
+        target: machine_indexed_place(
+            base_byte_offset,
+            index_region,
+            index_offset,
+            element_byte_size,
+            field_byte_offset,
+        ),
+        byte_count,
+    }
+}
+
 /// Rung 2c-v: the runtime-indexed read landing THROUGH a pointer slot.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn copy_places_indexed_to_pointee(
@@ -1256,16 +1330,7 @@ fn select_runtime_dispatch_local_initializer_write(
                     target_offset: slot.byte_offset,
                 }
             } else {
-                SelectedInstructionKind::CopyRuntimeMachineIndexedToRuntimeStorage {
-                    base_byte_offset: indexed.base_byte_offset,
-                    index_offset: indexed.index_offset,
-                    index_region: indexed.index_region,
-                    element_byte_size: indexed.element_byte_size,
-                    field_byte_offset: indexed.field_byte_offset,
-                    target_region: omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame,
-                    target_offset: slot.byte_offset,
-                    byte_count: size,
-                }
+                crate::selection::runtime_dispatch::copy_places_from_machine_indexed(indexed.base_byte_offset, indexed.index_region, indexed.index_offset, indexed.element_byte_size, indexed.field_byte_offset, omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame, slot.byte_offset, size)
             };
             selected_instructions.push(SelectedInstruction {
                 kind,
