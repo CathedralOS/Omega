@@ -13669,6 +13669,98 @@ stderr:
 }
 
 #[test]
+fn float_value_call_runtime_arg_canary_runs() {
+    // The arm-guard failure distance: an inlined callee's failed guard
+    // (`d == 0.0` with d = inf - inf = NaN) lands on its SIBLING no-arm,
+    // not the caller's failure trailer -- is_zeroish(inf) returns false.
+    let canary = pass_canary("calls/float_value_call_runtime_arg_exit");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("float runtime-arg canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should exit 70 (is_zeroish(inf) == false), got {}",
+        outcome.exit_code
+    );
+
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-float-varg-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("float runtime-arg canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("float runtime-arg canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the failed arm guard to route to the no-arm (exit 70), got {:?} (71 = the failure branch sailed past the sibling arm into the state trailer)
+stderr:
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_std_is_finite_canary_runs() {
+    // std is_finite three-leg: finite -> true, runtime inf -> false,
+    // runtime NaN -> false; the false legs ride the inlined arm-guard
+    // failure branch (the no() arm).
+    let canary = pass_canary("float/runtime_std_is_finite_exit");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("is_finite canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should exit 70 (all three is_finite legs), got {}",
+        outcome.exit_code
+    );
+
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-std-isfin-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("is_finite canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("is_finite canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected all three is_finite legs to hold (exit 70), got {:?} (72 = finite leg, 73 = inf leg, 74 = NaN leg)
+stderr:
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn bool_value_call_return_canary_runs() {
     // Bool-returning value calls deliver in all three faces (attached
     // let-bound, free let-bound, direct-in-guard) -- the 07-08-era
@@ -30372,6 +30464,8 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "calls/bool_value_call_return_exit",
     "float/expansion_float_local_guard_exit",
     "calls/float_value_call_return_exit",
+    "calls/float_value_call_runtime_arg_exit",
+    "float/runtime_std_is_finite_exit",
     "collections/runtime_palindrome_two_pointer_exit",
     "collections/runtime_bracket_matcher_stack_exit",
     "collections/runtime_argmax_index_exit",

@@ -995,6 +995,8 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("filesystem/repeated_dir_walk_scan_exit", 70),
     ("calls/bool_value_call_return_exit", 70),
     ("calls/float_value_call_return_exit", 70),
+    ("calls/float_value_call_runtime_arg_exit", 70),
+    ("float/runtime_std_is_finite_exit", 70),
     ("calls/struct_literal_transition_arg_exit", 70),
     ("slices/runtime_indexed_element_copy_write_exit", 70),
     ("filesystem/windows_wrapper_breadth_exit", 70),

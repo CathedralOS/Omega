@@ -2,7 +2,7 @@ use omega_core::diagnostics::Diagnostic;
 
 use crate::MachineEmissionContext;
 use crate::layout::LaidOutMachineInstruction;
-use omega_assigned_target_operations::SelectedInstructionKind;
+use omega_assigned_target_operations::{SelectedInstructionKind, StateGuardLowering};
 use omega_machine_instructions::MachineInstructionKind;
 
 pub(crate) fn byte_distance_to_case_end(
@@ -35,26 +35,44 @@ pub(crate) fn byte_distance_to_next_dispatch_action_end(
     let Some(current) = machine_instructions.get(machine_instruction_index) else {
         return Ok(0);
     };
-    let Some(dispatch_action) = machine_instructions
+    // An ARM guard -- an inlined multi-arm transition's compare, sitting among a
+    // dispatch case's STATEMENT instructions -- fails to its SIBLING arm, not to
+    // the state's failure dispatch write. The arm boundary is the
+    // `ForwardBranchSkip` jump emitted after the matched arm's body: failure
+    // lands immediately AFTER that jump (the trailing NoOp marker = the next
+    // arm's first byte). `ForwardBranchSkip` never appears as a dispatch-edge
+    // guard (leaf-arm only), so meeting one before any dispatch action proves
+    // this guard is an arm guard; a state-level guard reaches its
+    // DispatchStateWrite/DispatchTerminate first and keeps the failure-action
+    // target. Without the early stop, a failed arm guard sails past its own
+    // no-arm into the state trailer: the no-arm body is emitted but orphaned,
+    // and `is_zeroish(inf)`'s NaN compare routed straight to the caller's
+    // failure exit.
+    let branch_program_counter = current.offset + current.byte_width.saturating_sub(4);
+    for instruction in machine_instructions
         .iter()
         .skip(machine_instruction_index + 1)
-        .find(|instruction| {
-            matches!(
-                instruction.kind,
-                MachineInstructionKind::DispatchStateWrite
-                    | MachineInstructionKind::DispatchTerminate
-            )
-        })
-    else {
-        return Err(Diagnostic::error(format!(
-            "cannot encode dispatch guard at byte {}: missing guarded dispatch action",
-            current.offset
-        )));
-    };
-
-    let branch_program_counter = current.offset + current.byte_width.saturating_sub(4);
-    let target = dispatch_action.offset + dispatch_action.byte_width;
-    Ok(target as isize - branch_program_counter as isize)
+    {
+        let is_dispatch_action = matches!(
+            instruction.kind,
+            MachineInstructionKind::DispatchStateWrite | MachineInstructionKind::DispatchTerminate
+        );
+        let is_arm_skip = matches!(
+            instruction.source_kind,
+            SelectedInstructionKind::EvaluateDispatchGuard {
+                guard_lowering: StateGuardLowering::ForwardBranchSkip,
+                ..
+            }
+        );
+        if is_dispatch_action || is_arm_skip {
+            let target = instruction.offset + instruction.byte_width;
+            return Ok(target as isize - branch_program_counter as isize);
+        }
+    }
+    Err(Diagnostic::error(format!(
+        "cannot encode dispatch guard at byte {}: missing guarded dispatch action",
+        current.offset
+    )))
 }
 
 pub(crate) fn byte_distance_to_case_leave(

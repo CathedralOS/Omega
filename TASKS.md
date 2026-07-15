@@ -1082,60 +1082,38 @@ rows. Rungs:
   chains only if a shape demands more than per-op IEEE (per-op
   rounding at width == the exact-Rat spec for homogeneous ops).
 - **F3 — `Finite` core domain:** promote ch5's `finite`; window
-  enforcement; ranges-imply-Finite in the prover; `is_finite` std machine
-  (portable spelling; `x != x` stays the IEEE-binding idiom underneath).
-  IDIOM PROVEN 2026-07-18: `is_finite(x) = (x - x == 0.0)` (finite->0,
-  inf/NaN->NaN!=0) agrees native==interp when spelled INLINE (probe exit
-  70/70). BLOCKER RE-ATTRIBUTED 2026-07-18 (probed after the guard-slot
-  and delivery fixes): bool value-call RETURNS deliver in every face now
-  (pass/calls/bool_value_call_return_exit pins attached/free/in-guard,
-  all 70) and float PARAMS on value machines are fine -- the surviving
-  fence is the INLINED CALLEE'S FLOAT-LOCAL GUARD: `let d: f64 = x - x;
-  transition d == 0.0` inside the machine refuses loudly at the CALLER
-  ("guard needs runtime guard lowering") because the expansion's float
-  local does not resolve as a guard operand. The GUARD half was FIXED
-  the same day: the expansion path gained the float-literal arm (IEEE
-  bits under the float-kinded static-value guard, mirroring the clause
-  path) -- pass/float/expansion_float_local_guard_exit pins it. Probing
-  onward found the REAL remaining blockers, both value-call delivery
-  float arms (int/bool twins green): (i) FLOAT RETURNS — FIXED
-  same day: the frame-slot value writer gained its FLOAT arm (IEEE
-  bits; f32 slots take landing-aware single-rounded bits) — promoted
-  to pass/calls/float_value_call_return_exit; (ii) RUNTIME float-local ARGS — ROOT CORRECTED 2026-07-18
-  (final form after three digs): NESTED float operands are FULLY
-  SUPPORTED in plain machines (runtime_float_nested_operand_exit,
-  sin/cos, mandelbrot, deep chains — all green via the
-  RuntimeValueOperand operand-CHAIN lowering), so the three-door
-  "refuse nested floats" approach is DEAD (it broke those 8 canaries;
-  diffs in history). The pin's wrongness is EXPANSION-SPECIFIC CHAIN
-  EXECUTION: the inliner-substituted `d = (a/b) - (a/b)` lowers
-  through the same chain machinery but computes 0.0 instead of NaN in
-  the expansion context. NEXT (precise): dump the RuntimeValueOperand
-  tree the expansion's d-write carries + the executed ops; find where
-  the chain's sub-operand resolution or execution diverges from the
-  plain-machine case; fix THERE. LANDED and KEPT from this arc: the
-  FLOAT-ARITHMETIC-INITIALIZER BLOCKER (storage_blockers, runs on
-  BOTH paths — the dispatch path never walked locals before): a
-  required f32/f64 local with a Binary initializer must have a
-  planned write at its own anchor. Boundary calibrated across TWO
-  census rounds + one suite catch: calls/places exempt (view
-  builders, host/value calls, builtins deliver elsewhere) AND
-  integer arithmetic exempt (delivers via folding — `let sum =
-  arr[0] + a1 + px` is green with no anchored write). Zero corpus
-  fires today = a pure vanish-guard: any future planner refusal of
-  the float shape turns LOUD instead of silently dropping (the b15
-  vanish, proven). The pin
-  (pending/calls/float_local_value_call_arg_divergence) carries the
-  corrected root in its header.
-  NOTE: a bindings.rs-level "keep computed float locals slotted" patch
-  was tried and REVERTED -- the inliner's own capture (not
-  simple_local_bindings) drives this path, so it changed nothing here
-  and was unwitnessed risk elsewhere. std `is_finite` was
-  BUILT + REVERTED same day (unshippable while its runtime-arg path
-  silently answers true); it lands the moment (i)+(ii) close -- the
-  hoisted-let spelling and the three-leg canary are in this entry's
-  history (6f7ed41fa..). Inline guard-position float arith stays
-  loudly fenced (unchanged). Window
+  enforcement; ranges-imply-Finite in the prover. std `is_finite`
+  LANDED 2026-07-14 (omega/language/std/math.omg, the hoisted-let
+  spelling `let d = x - x; transition d == 0.0`; `x != x` stays the
+  IEEE-binding idiom underneath, never in the grammar) --
+  pass/float/runtime_std_is_finite_exit pins all three legs
+  (finite/inf/NaN) dual-engine. The whole value-call float arc that
+  blocked it is CLOSED: bool + float returns deliver
+  (pass/calls/bool_value_call_return_exit,
+  float_value_call_return_exit), inlined float-local guards lower
+  (pass/float/expansion_float_local_guard_exit), and the last face --
+  RUNTIME float-local ARGS -- fell 2026-07-14 to the ARM-GUARD FAILURE
+  DISTANCE fix: the pin's every emitted op was statically correct
+  (three digs: args deliver real bits, the substituted
+  `d = (a/b) - (a/b)` chain computes NaN, the guard has the jp
+  NaN-parity branch), but an inlined multi-arm transition's compare
+  took the STATE-guard failure convention (next dispatch action = the
+  caller's failure trailer) and sailed past its emitted-but-orphaned
+  no() arm. byte_distance_to_next_dispatch_action_end
+  (machine-emission branch_distances/dispatch.rs) now stops early at
+  the arm's ForwardBranchSkip (leaf-arm-only marker), landing failure
+  on the sibling arm's first byte; state guards never meet a skip
+  before their dispatch action and keep the old target. Promoted pin:
+  pass/calls/float_value_call_runtime_arg_exit. Integer twins never
+  showed it because constant args let the guard fold statically.
+  KEPT from the arc: the float-arithmetic-initializer vanish-guard
+  (storage_blockers, both paths, census-calibrated: calls/places and
+  integer arith exempt) -- zero corpus fires; planner refusals of the
+  float shape stay LOUD. DEAD ENDS (don't re-chase): three-door
+  "refuse nested floats" (broke 8 green canaries; nested float chains
+  are fully supported), bindings.rs "keep computed float locals
+  slotted" (the inliner's own capture drives the path). Inline
+  guard-position float arith stays loudly fenced (unchanged). Window
   enforcement additionally waits on the invariant-window machinery
   (unbuilt).
 - **F4 — float→int cast ruling** (ANSWERED — see Recently answered
