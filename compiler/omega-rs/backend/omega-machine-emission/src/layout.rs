@@ -44,7 +44,7 @@ use omega_instruction_selection::{
     entry_argument_register_write_width, entry_arguments_slice_descriptor_write_width,
     runtime_storage_copy_to_return_register_width,
     runtime_storage_copy_to_runtime_frame_indexed_width,
-    runtime_storage_copy_to_runtime_pointee_width, runtime_storage_copy_width,
+    runtime_storage_copy_to_runtime_pointee_width,
     runtime_storage_value_compare_width, runtime_text_buffer_materialize_width,
     runtime_text_line_read_width, runtime_text_literal_append_width,
     runtime_text_literal_compare_width, runtime_text_literal_segment_write_width,
@@ -938,17 +938,6 @@ fn machine_instruction_width(
             };
             runtime_byte_write_width(input.target.architecture, &binding.mechanism)
         }
-        SelectedInstructionKind::CopyRuntimeStorage {
-            source_offset,
-            target_offset,
-            byte_count,
-            ..
-        } => runtime_storage_copy_width(
-            input.target.architecture,
-            *source_offset,
-            *target_offset,
-            *byte_count,
-        ),
         SelectedInstructionKind::CopyPlaces {
             source,
             target,

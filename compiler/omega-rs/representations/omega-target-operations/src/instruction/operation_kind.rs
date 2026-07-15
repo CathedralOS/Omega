@@ -567,19 +567,12 @@ pub enum TargetOperationKind {
         source_is_place: bool,
         source: RuntimeTextReadSource,
     },
-    CopyRuntimeStorage {
-        source_region: RuntimeStorageRegion,
-        source_offset: usize,
-        target_region: RuntimeStorageRegion,
-        target_offset: usize,
-        byte_count: usize,
-    },
     /// The Place-pair copy (codegen cleanup Phase 6, rung 2): addressing
     /// lives in the two [`Place`] operands -- base region + composable
     /// steps -- not in the variant name. The relocation walker patches each
     /// base-materialization site from the corresponding place's own region;
-    /// the per-variant Copy* kinds above retire into this one as selection
-    /// migrates.
+    /// the per-variant Copy* kinds retire into this one as selection
+    /// migrates (`CopyRuntimeStorage` was the first, retired 2026-07-14).
     CopyPlaces {
         source: Place,
         target: Place,

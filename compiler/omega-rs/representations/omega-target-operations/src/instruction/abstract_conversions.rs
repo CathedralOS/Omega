@@ -943,19 +943,6 @@ impl From<&omega_abstract_operations::AbstractOperationKind> for TargetOperation
                     ),
                 },
             },
-            omega_abstract_operations::AbstractOperationKind::CopyRuntimeStorage {
-                source_region,
-                source_offset,
-                target_region,
-                target_offset,
-                byte_count,
-            } => Self::CopyRuntimeStorage {
-                source_region: *source_region,
-                source_offset: *source_offset,
-                target_region: *target_region,
-                target_offset: *target_offset,
-                byte_count: *byte_count,
-            },
             omega_abstract_operations::AbstractOperationKind::CopyPlaces {
                 source,
                 target,

@@ -1669,22 +1669,6 @@ pub fn runtime_text_line_read_get_std_handle_call_offset(
     }
 }
 
-pub fn runtime_storage_copy_width(
-    architecture: Architecture,
-    source_offset: usize,
-    target_offset: usize,
-    byte_count: usize,
-) -> usize {
-    match architecture {
-        Architecture::Aarch64 => {
-            aarch64::runtime_storage_copy_width(source_offset, target_offset, byte_count)
-        }
-        Architecture::X86_64 => {
-            x86_64::runtime_storage_copy_width(source_offset, target_offset, byte_count)
-        }
-    }
-}
-
 /// The `CopyPlaces` width IS the encoder's output length -- one source of
 /// truth, no hand-maintained width math to move in lockstep. Copies are tens
 /// of bytes; the extra encode at layout time is noise.

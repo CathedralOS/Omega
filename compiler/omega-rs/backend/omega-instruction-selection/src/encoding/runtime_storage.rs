@@ -866,22 +866,6 @@ pub fn encode_runtime_machine_indexed_address_to_runtime_frame_write(
     }
 }
 
-pub fn encode_runtime_storage_copy(
-    architecture: Architecture,
-    source_offset: usize,
-    target_offset: usize,
-    byte_count: usize,
-) -> Result<Vec<u8>, Diagnostic> {
-    match architecture {
-        Architecture::Aarch64 => {
-            aarch64::encode_runtime_storage_copy(source_offset, target_offset, byte_count)
-        }
-        Architecture::X86_64 => {
-            x86_64::encode_runtime_storage_copy(source_offset, target_offset, byte_count)
-        }
-    }
-}
-
 /// The `CopyPlaces` encoder: x86_64 routes through the place materializer,
 /// which picks the emission shape from the pair itself; aarch64 serves
 /// DIRECT (const-path) pairs by decomposing to the retired plain-copy

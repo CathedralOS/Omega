@@ -952,21 +952,6 @@ fn selected_instruction_name(
                 )
             }
         }
-        SelectedInstructionKind::CopyRuntimeStorage {
-            source_region,
-            source_offset,
-            target_region,
-            target_offset,
-            byte_count,
-        } => {
-            let source_symbol =
-                storage_region_symbol_name(*source_region, backend_plan.entry_machine_name());
-            let target_symbol =
-                storage_region_symbol_name(*target_region, backend_plan.entry_machine_name());
-            format!(
-                "copy runtime storage {source_symbol}@{source_offset} -> {target_symbol}@{target_offset} bytes {byte_count}"
-            )
-        }
         SelectedInstructionKind::CopyPlaces {
             source,
             target,

@@ -119,14 +119,8 @@ fn instruction_write_target(kind: &SelectedInstructionKind) -> Option<(bool, usi
             byte_size,
             ..
         } => (*target_region, *byte_offset, *byte_size),
-        SelectedInstructionKind::CopyRuntimeStorage {
-            target_region,
-            target_offset,
-            byte_count,
-            ..
-        } => (*target_region, *target_offset, *byte_count),
-        // A direct (const-path) place target serves like the plain copy; a
-        // deref/indexed place has no flat byte range to claim.
+        // A direct (const-path) place target serves like the retired plain
+        // copy; a deref/indexed place has no flat byte range to claim.
         SelectedInstructionKind::CopyPlaces {
             target, byte_count, ..
         } => match target.const_offset() {

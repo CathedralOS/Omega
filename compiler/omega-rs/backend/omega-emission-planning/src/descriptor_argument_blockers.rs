@@ -302,12 +302,6 @@ fn instruction_frame_write_range(kind: &SelectedInstructionKind) -> Option<(usiz
             byte_size,
             ..
         } => Some((*target_offset, *byte_size)),
-        SelectedInstructionKind::CopyRuntimeStorage {
-            target_region: RuntimeStorageRegion::RuntimeFrame,
-            target_offset,
-            byte_count,
-            ..
-        } => Some((*target_offset, *byte_count)),
         SelectedInstructionKind::CopyPlaces {
             target, byte_count, ..
         } if target.region == RuntimeStorageRegion::RuntimeFrame => target
