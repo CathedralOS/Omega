@@ -304,13 +304,24 @@ dispatch-region + receiver-phase family. Everything queued here avoids both.
    KEPT: aarch64 ISA pointee encode/width fns (the CopyPlaces
    decompose rides them) + both walker offset fns (the CopyPlaces
    aarch64 arm). 15 Copy variants remain.
-   REMAINING rung 2c+: the indexed variant producers build
-   ScaledIndex places and the remaining variants + echoes retire the
-   same way; machine-indexed variants need ScaledIndex.index_region
-   wired into the materializer (its own base register). Then
-   Write/RMW (the leaf-cascade duplication dies), Text,
-   guards/operands, op-set shrink — the wiki ladder. Legalization
-   refuses loudly at every rung.
+   RUNG 2c-iv-a LANDED 2026-07-14 — THE FIXED-INDEXED FAMILY FOLDS TO
+   DEREF PLACES: all 7 producers build [Const(desc), Deref,
+   Const(idx*size + field)] sources (a compile-time index is just
+   displacement); the retired ToFrame/ToStorage region split
+   COLLAPSES at both storage_copy sites (the region rides the
+   place). New PointeePair shape (both sides deref) in
+   classify_copy_places_shape: aarch64 decomposes it to the retired
+   fixed_indexed_to_pointee encoder (index 0 / size 1 fold, both
+   pointer slots frame-guarded, refuses otherwise); its walker arm =
+   the start reloc only (one frame base serves both derefs). All
+   three fixed-indexed variants now have zero producers
+   (retire-ready → 2c-iv-b).
+   REMAINING rung 2c+: retire the fixed-indexed variants; the
+   runtime-indexed producers build ScaledIndex places; machine-indexed
+   variants need ScaledIndex.index_region wired into the materializer
+   (its own base register). Then Write/RMW (the leaf-cascade
+   duplication dies), Text, guards/operands, op-set shrink — the wiki
+   ladder. Legalization refuses loudly at every rung.
 
 The rendering-sample sweep landed 2026-07-11 (see Language ergonomics;
 the match-subject computed-index gap closed with it).

@@ -907,11 +907,37 @@ pub fn encode_copy_places(
                 target_offset,
                 byte_count,
             ),
-            CopyPlacesShape::General => Err(Diagnostic::error(
-                "CopyPlaces on aarch64 serves direct and single-pointee place \
-                 pairs only until the aarch64 place materializer lands; this \
-                 shape refuses loudly",
-            )),
+            // The retired fixed-indexed-to-pointee encoder folds
+            // index*size into the source displacement; passing index 0 /
+            // size 1 with the already-folded field reuses it for ANY
+            // deref-to-deref pair. Both pointer slots must be
+            // frame-resident (the encoder reuses the frame base).
+            CopyPlacesShape::PointeePair {
+                source_pointer_byte_offset,
+                source_field_byte_offset,
+                target_pointer_byte_offset,
+                target_field_byte_offset,
+            } if source.region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
+                && target.region
+                    == omega_target_operations::RuntimeStorageRegion::RuntimeFrame =>
+            {
+                aarch64::encode_runtime_storage_copy_from_runtime_frame_fixed_indexed_to_runtime_pointee(
+                    source_pointer_byte_offset,
+                    0,
+                    1,
+                    source_field_byte_offset,
+                    target_pointer_byte_offset,
+                    target_field_byte_offset,
+                    byte_count,
+                )
+            }
+            CopyPlacesShape::PointeePair { .. } | CopyPlacesShape::General => {
+                Err(Diagnostic::error(
+                    "CopyPlaces on aarch64 serves direct, single-pointee, and \
+                     frame-rooted pointee-pair place shapes only until the \
+                     aarch64 place materializer lands; this shape refuses loudly",
+                ))
+            }
         },
     }
 }
@@ -940,7 +966,15 @@ pub enum CopyPlacesShape {
         field_byte_offset: usize,
         target_offset: usize,
     },
-    /// Anything else (indexed, multi-deref): x86_64-materializer only.
+    /// Both sides deref (a fixed-indexed or pointee read landing through a
+    /// pointer slot): the retired fixed-indexed-to-pointee copy.
+    PointeePair {
+        source_pointer_byte_offset: usize,
+        source_field_byte_offset: usize,
+        target_pointer_byte_offset: usize,
+        target_field_byte_offset: usize,
+    },
+    /// Anything else (runtime-indexed, multi-deref): x86_64-materializer only.
     General,
 }
 
@@ -972,6 +1006,17 @@ pub fn classify_copy_places_shape(
                 target_offset,
             }
         }
+        (
+            None,
+            None,
+            Some((source_pointer_byte_offset, source_field_byte_offset)),
+            Some((target_pointer_byte_offset, target_field_byte_offset)),
+        ) => CopyPlacesShape::PointeePair {
+            source_pointer_byte_offset,
+            source_field_byte_offset,
+            target_pointer_byte_offset,
+            target_field_byte_offset,
+        },
         _ => CopyPlacesShape::General,
     }
 }

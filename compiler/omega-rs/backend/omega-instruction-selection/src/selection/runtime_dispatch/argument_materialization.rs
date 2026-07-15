@@ -393,14 +393,15 @@ pub(super) fn select_runtime_dispatch_argument_materialization(
             && slot.type_descriptor.reference_referee().is_none()
         {
             selected_instructions.push(SelectedInstruction {
-                kind: SelectedInstructionKind::CopyRuntimeFrameFixedIndexedToRuntimeFrame {
-                    descriptor_offset: indexed_source.descriptor_offset,
-                    element_index: indexed_source.element_index,
-                    element_byte_size: indexed_source.element_byte_size,
-                    field_byte_offset: indexed_source.field_byte_offset,
-                    target_offset: slot.byte_offset,
-                    byte_count: slot.byte_size,
-                },
+                kind: crate::selection::runtime_dispatch::copy_places_from_fixed_indexed(
+                    indexed_source.descriptor_offset,
+                    indexed_source.element_index,
+                    indexed_source.element_byte_size,
+                    indexed_source.field_byte_offset,
+                    RuntimeStorageRegion::RuntimeFrame,
+                    slot.byte_offset,
+                    slot.byte_size,
+                ),
                 source_key,
                 source_statement: statement_index,
             });
