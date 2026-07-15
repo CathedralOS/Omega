@@ -798,26 +798,6 @@ pub(super) fn encode_runtime_storage_copy_from_runtime_frame_indexed(
     )
 }
 
-pub(super) fn encode_runtime_storage_copy_from_runtime_frame_fixed_indexed(
-    input: MachineEmissionContext<'_>,
-    descriptor_offset: usize,
-    element_index: usize,
-    element_byte_size: usize,
-    field_byte_offset: usize,
-    target_offset: usize,
-    byte_count: usize,
-) -> Result<Vec<u8>, Diagnostic> {
-    architecture::encode_runtime_storage_copy_from_runtime_frame_fixed_indexed(
-        input.target.architecture,
-        descriptor_offset,
-        element_index,
-        element_byte_size,
-        field_byte_offset,
-        target_offset,
-        byte_count,
-    )
-}
-
 pub(super) fn encode_runtime_storage_copy_from_runtime_frame_indexed_to_runtime_storage(
     input: MachineEmissionContext<'_>,
     descriptor_offset: usize,
@@ -834,48 +814,6 @@ pub(super) fn encode_runtime_storage_copy_from_runtime_frame_indexed_to_runtime_
         element_byte_size,
         field_byte_offset,
         target_offset,
-        byte_count,
-    )
-}
-
-pub(super) fn encode_runtime_storage_copy_from_runtime_frame_fixed_indexed_to_runtime_storage(
-    input: MachineEmissionContext<'_>,
-    descriptor_offset: usize,
-    element_index: usize,
-    element_byte_size: usize,
-    field_byte_offset: usize,
-    target_offset: usize,
-    byte_count: usize,
-) -> Result<Vec<u8>, Diagnostic> {
-    architecture::encode_runtime_storage_copy_from_runtime_frame_fixed_indexed_to_runtime_storage(
-        input.target.architecture,
-        descriptor_offset,
-        element_index,
-        element_byte_size,
-        field_byte_offset,
-        target_offset,
-        byte_count,
-    )
-}
-
-pub(super) fn encode_runtime_storage_copy_from_runtime_frame_fixed_indexed_to_runtime_pointee(
-    input: MachineEmissionContext<'_>,
-    descriptor_offset: usize,
-    element_index: usize,
-    element_byte_size: usize,
-    source_field_byte_offset: usize,
-    pointer_byte_offset: usize,
-    target_field_byte_offset: usize,
-    byte_count: usize,
-) -> Result<Vec<u8>, Diagnostic> {
-    architecture::encode_runtime_storage_copy_from_runtime_frame_fixed_indexed_to_runtime_pointee(
-        input.target.architecture,
-        descriptor_offset,
-        element_index,
-        element_byte_size,
-        source_field_byte_offset,
-        pointer_byte_offset,
-        target_field_byte_offset,
         byte_count,
     )
 }

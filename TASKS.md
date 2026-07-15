@@ -316,12 +316,21 @@ dispatch-region + receiver-phase family. Everything queued here avoids both.
    the start reloc only (one frame base serves both derefs). All
    three fixed-indexed variants now have zero producers
    (retire-ready → 2c-iv-b).
-   REMAINING rung 2c+: retire the fixed-indexed variants; the
-   runtime-indexed producers build ScaledIndex places; machine-indexed
-   variants need ScaledIndex.index_region wired into the materializer
-   (its own base register). Then Write/RMW (the leaf-cascade
-   duplication dies), Text, guards/operands, op-set shrink — the wiki
-   ladder. Legalization refuses loudly at every rung.
+   RUNG 2c-iv-b LANDED 2026-07-14 — THE FIXED-INDEXED TRIO RETIRED
+   (variants 4-6 of 18): all three CopyRuntimeFrameFixedIndexed*
+   variants deleted from both enums with every echo (conversions,
+   classifications, shapes, encoding/layout arms, walker arms + the
+   fixed-indexed offset fn, report arms, blocker rows, all six
+   cross-arch dispatchers, all six x86 ISA encode/width fns). KEPT:
+   aarch64's fixed_indexed_to_pointee encode/width (the PointeePair
+   decompose rides it); the +17 layout pin lives on as a place_copy
+   unit test. SIX variants retired total; 12 remain.
+   REMAINING rung 2c+: the runtime-indexed producers build
+   ScaledIndex places; machine-indexed variants need
+   ScaledIndex.index_region wired into the materializer (its own
+   base register). Then Write/RMW (the leaf-cascade duplication
+   dies), Text, guards/operands, op-set shrink — the wiki ladder.
+   Legalization refuses loudly at every rung.
 
 The rendering-sample sweep landed 2026-07-11 (see Language ergonomics;
 the match-subject computed-index gap closed with it).

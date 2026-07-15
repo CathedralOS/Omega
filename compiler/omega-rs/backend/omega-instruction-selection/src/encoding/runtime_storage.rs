@@ -1116,39 +1116,6 @@ pub fn encode_runtime_storage_copy_from_runtime_frame_indexed(
     }
 }
 
-pub fn encode_runtime_storage_copy_from_runtime_frame_fixed_indexed(
-    architecture: Architecture,
-    descriptor_offset: usize,
-    element_index: usize,
-    element_byte_size: usize,
-    field_byte_offset: usize,
-    target_offset: usize,
-    byte_count: usize,
-) -> Result<Vec<u8>, Diagnostic> {
-    match architecture {
-        Architecture::Aarch64 => {
-            aarch64::encode_runtime_storage_copy_from_runtime_frame_fixed_indexed(
-                descriptor_offset,
-                element_index,
-                element_byte_size,
-                field_byte_offset,
-                target_offset,
-                byte_count,
-            )
-        }
-        Architecture::X86_64 => {
-            x86_64::encode_runtime_storage_copy_from_runtime_frame_fixed_indexed(
-                descriptor_offset,
-                element_index,
-                element_byte_size,
-                field_byte_offset,
-                target_offset,
-                byte_count,
-            )
-        }
-    }
-}
-
 pub fn encode_runtime_storage_copy_from_runtime_frame_indexed_to_runtime_storage(
     architecture: Architecture,
     descriptor_offset: usize,
@@ -1176,75 +1143,6 @@ pub fn encode_runtime_storage_copy_from_runtime_frame_indexed_to_runtime_storage
                 element_byte_size,
                 field_byte_offset,
                 target_offset,
-                byte_count,
-            )
-        }
-    }
-}
-
-pub fn encode_runtime_storage_copy_from_runtime_frame_fixed_indexed_to_runtime_storage(
-    architecture: Architecture,
-    descriptor_offset: usize,
-    element_index: usize,
-    element_byte_size: usize,
-    field_byte_offset: usize,
-    target_offset: usize,
-    byte_count: usize,
-) -> Result<Vec<u8>, Diagnostic> {
-    match architecture {
-        Architecture::Aarch64 => {
-            aarch64::encode_runtime_storage_copy_from_runtime_frame_fixed_indexed_to_runtime_storage(
-                descriptor_offset,
-                element_index,
-                element_byte_size,
-                field_byte_offset,
-                target_offset,
-                byte_count,
-            )
-        }
-        Architecture::X86_64 => {
-            x86_64::encode_runtime_storage_copy_from_runtime_frame_fixed_indexed_to_runtime_storage(
-                descriptor_offset,
-                element_index,
-                element_byte_size,
-                field_byte_offset,
-                target_offset,
-                byte_count,
-            )
-        }
-    }
-}
-
-pub fn encode_runtime_storage_copy_from_runtime_frame_fixed_indexed_to_runtime_pointee(
-    architecture: Architecture,
-    descriptor_offset: usize,
-    element_index: usize,
-    element_byte_size: usize,
-    source_field_byte_offset: usize,
-    pointer_byte_offset: usize,
-    target_field_byte_offset: usize,
-    byte_count: usize,
-) -> Result<Vec<u8>, Diagnostic> {
-    match architecture {
-        Architecture::Aarch64 => {
-            aarch64::encode_runtime_storage_copy_from_runtime_frame_fixed_indexed_to_runtime_pointee(
-                descriptor_offset,
-                element_index,
-                element_byte_size,
-                source_field_byte_offset,
-                pointer_byte_offset,
-                target_field_byte_offset,
-                byte_count,
-            )
-        }
-        Architecture::X86_64 => {
-            x86_64::encode_runtime_storage_copy_from_runtime_frame_fixed_indexed_to_runtime_pointee(
-                descriptor_offset,
-                element_index,
-                element_byte_size,
-                source_field_byte_offset,
-                pointer_byte_offset,
-                target_field_byte_offset,
                 byte_count,
             )
         }
