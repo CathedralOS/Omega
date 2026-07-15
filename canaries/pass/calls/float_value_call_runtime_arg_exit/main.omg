@@ -1,0 +1,32 @@
+// A RUNTIME float local passed to a value machine whose body does float
+// ARITHMETIC on the param delivers the RIGHT value -- is_zeroish(inf)
+// returns false (d = inf - inf = NaN, NaN != 0.0). FIXED 2026-07-14 after
+// three digs proved every emitted op statically correct (args deliver real
+// float bits, the substituted `d = (a/b) - (a/b)` operand chain computes
+// NaN, the guard carries the jp NaN-parity branch): the last lie was the
+// ARM GUARD'S FAILURE DISTANCE. An inlined multi-arm transition's compare
+// rode the STATE-guard convention (fail -> the case's next dispatch
+// action = the caller's failure trailer, exit 71) instead of landing on
+// its SIBLING arm -- the `no()` body was emitted but orphaned, unreachable
+// by any branch. byte_distance_to_next_dispatch_action_end now stops
+// early at the arm's ForwardBranchSkip jump (leaf-arm only, never a
+// dispatch-edge guard), landing failure exactly on the next arm's first
+// byte. Exit 71 here = a failed arm guard sailed past its no-arm again.
+boundary trait Console { machine exit_process(return_code: i32); }
+machine is_zeroish(x: f64) -> bool {
+    let d: f64 = x - x;
+    transition d == 0.0 { true -> yes() _ -> no() }
+    state yes() -> bool { true }
+    state no() -> bool { false }
+}
+data Main { console: Console; }
+machine Main::main(&mut self) {
+    transition { _ -> check(1.0, 0.0) }
+    state check(&mut self, a: f64, b: f64) {
+        let inf: f64 = a / b;
+        let verdict: bool = is_zeroish(inf);
+        transition verdict == false { true -> good() _ -> bad() }
+    }
+    state good(&self) { self.console.exit_process(70); }
+    state bad(&self) { self.console.exit_process(71); }
+}
