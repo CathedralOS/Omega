@@ -105,6 +105,16 @@ impl Place {
         }
     }
 
+    /// The region of the place's (single) ScaledIndex slot, if any step
+    /// carries one -- the relocation walker patches cross-region index
+    /// bases from it.
+    pub fn scaled_index_region(&self) -> Option<RuntimeStorageRegion> {
+        self.steps().iter().find_map(|step| match step {
+            PlaceStep::ScaledIndex { index_region, .. } => Some(*index_region),
+            _ => None,
+        })
+    }
+
     /// The place's constant byte offset when the whole path is const -- the
     /// direct-operand fast path (and the shape the plain Copy encoders
     /// expect). `None` if any step derefs or indexes.

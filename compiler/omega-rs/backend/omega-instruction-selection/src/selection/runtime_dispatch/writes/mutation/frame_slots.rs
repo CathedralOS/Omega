@@ -401,16 +401,7 @@ pub(in crate::selection) fn select_runtime_frame_slot_value_write_in_table_with_
         && machine_source.byte_count > 0
     {
         return Some(
-            SelectedInstructionKind::CopyRuntimeMachineIndexedToRuntimeStorage {
-                base_byte_offset: machine_source.base_byte_offset,
-                index_offset: machine_source.index_offset,
-                index_region: machine_source.index_region,
-                element_byte_size: machine_source.element_byte_size,
-                field_byte_offset: machine_source.field_byte_offset,
-                target_region: RuntimeStorageRegion::RuntimeFrame,
-                target_offset: slot.byte_offset,
-                byte_count: slot.byte_size,
-            },
+            crate::selection::runtime_dispatch::copy_places_from_machine_indexed(machine_source.base_byte_offset, machine_source.index_region, machine_source.index_offset, machine_source.element_byte_size, machine_source.field_byte_offset, RuntimeStorageRegion::RuntimeFrame, slot.byte_offset, slot.byte_size),
         );
     }
 

@@ -177,16 +177,7 @@ pub(in crate::selection::runtime_dispatch) fn runtime_storage_indexed_source_cop
         }
 
         return Some(
-            SelectedInstructionKind::CopyRuntimeMachineIndexedToRuntimeStorage {
-                base_byte_offset: indexed_source.base_byte_offset,
-                index_offset: indexed_source.index_offset,
-                index_region: indexed_source.index_region,
-                element_byte_size: indexed_source.element_byte_size,
-                field_byte_offset: indexed_source.field_byte_offset,
-                target_region: target_place.region,
-                target_offset: target_place.byte_offset,
-                byte_count: target_place.byte_count,
-            },
+            crate::selection::runtime_dispatch::copy_places_from_machine_indexed(indexed_source.base_byte_offset, indexed_source.index_region, indexed_source.index_offset, indexed_source.element_byte_size, indexed_source.field_byte_offset, target_place.region, target_place.byte_offset, target_place.byte_count),
         );
     }
 
@@ -511,16 +502,7 @@ pub(in crate::selection::runtime_dispatch) fn runtime_storage_indexed_source_cop
         }
 
         return Some(
-            SelectedInstructionKind::CopyRuntimeMachineIndexedToRuntimeStorage {
-                base_byte_offset: indexed_source.base_byte_offset,
-                index_offset: indexed_source.index_offset,
-                index_region: indexed_source.index_region,
-                element_byte_size: indexed_source.element_byte_size,
-                field_byte_offset: indexed_source.field_byte_offset,
-                target_region: target_place.region,
-                target_offset: target_place.byte_offset,
-                byte_count: target_place.byte_count,
-            },
+            crate::selection::runtime_dispatch::copy_places_from_machine_indexed(indexed_source.base_byte_offset, indexed_source.index_region, indexed_source.index_offset, indexed_source.element_byte_size, indexed_source.field_byte_offset, target_place.region, target_place.byte_offset, target_place.byte_count),
         );
     }
 

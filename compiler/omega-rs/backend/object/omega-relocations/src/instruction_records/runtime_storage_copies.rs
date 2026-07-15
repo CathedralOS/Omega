@@ -48,6 +48,12 @@ pub(super) fn collect_runtime_storage_copy_relocations(
                         let region = match side {
                             omega_instruction_selection::PlaceCopySide::Source => source.region,
                             omega_instruction_selection::PlaceCopySide::Target => target.region,
+                            omega_instruction_selection::PlaceCopySide::SourceIndex => source
+                                .scaled_index_region()
+                                .expect("a SourceIndex site implies a source ScaledIndex step"),
+                            omega_instruction_selection::PlaceCopySide::TargetIndex => target
+                                .scaled_index_region()
+                                .expect("a TargetIndex site implies a target ScaledIndex step"),
                         };
                         context.insert_data_address_at_relative_offset(
                             byte_offset,
@@ -59,14 +65,23 @@ pub(super) fn collect_runtime_storage_copy_relocations(
                     // The transitional decompose: the SAME classifier the
                     // encoder uses picks the retired shape, so the reloc
                     // offsets below always describe the bytes actually
-                    // emitted. Both bases anchor the same way the retired
-                    // kinds did: the source-side base at the instruction
-                    // start, the target-side base at the shape's offset fn.
+                    // emitted. Every retired layout anchors its FIRST base
+                    // at the instruction start -- the source side for all
+                    // shapes except the machine-array WRITE, whose layout
+                    // opens with the machine (target) base for the index
+                    // address setup.
+                    let shape =
+                        omega_instruction_selection::classify_copy_places_shape(source, target);
+                    let start_region = match shape {
+                        omega_instruction_selection::CopyPlacesShape::ToMachineIndexed {
+                            ..
+                        } => target.region,
+                        _ => source.region,
+                    };
                     context.insert_data_address_at_instruction_start(
-                        context.storage_region_symbol_handle(source.region),
+                        context.storage_region_symbol_handle(start_region),
                     );
-                    match omega_instruction_selection::classify_copy_places_shape(source, target)
-                    {
+                    match shape {
                         omega_instruction_selection::CopyPlacesShape::Direct { .. }
                         | omega_instruction_selection::CopyPlacesShape::ToPointee { .. } => {
                             context.insert_data_address_at_relative_offset(
@@ -119,6 +134,76 @@ pub(super) fn collect_runtime_storage_copy_relocations(
                             // Frame-rooted on both sides (the decompose's
                             // precondition): one frame base serves the
                             // descriptor, index, and the other side.
+                        }
+                        omega_instruction_selection::CopyPlacesShape::FromMachineIndexed {
+                            base_byte_offset,
+                            index_region,
+                            index_offset,
+                            element_byte_size,
+                            field_byte_offset,
+                            ..
+                        } => {
+                            // Machine base at start (above); a frame-resident
+                            // index reloads the frame base mid-sequence; the
+                            // target base at the shape's offset fn.
+                            if index_region
+                                == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
+                            {
+                                context.insert_data_address_at_relative_offset(
+                                    runtime_storage_copy_from_runtime_machine_indexed_runtime_frame_address_offset(
+                                        context.input.target.architecture,
+                                        base_byte_offset,
+                                    ),
+                                    context.runtime_frame_symbol_handle(),
+                                );
+                            }
+                            context.insert_data_address_at_relative_offset(
+                                runtime_storage_copy_from_runtime_machine_indexed_target_address_offset(
+                                    context.input.target.architecture,
+                                    base_byte_offset,
+                                    index_region,
+                                    index_offset,
+                                    element_byte_size,
+                                    field_byte_offset,
+                                    *byte_count,
+                                ),
+                                context.storage_region_symbol_handle(target.region),
+                            );
+                        }
+                        omega_instruction_selection::CopyPlacesShape::ToMachineIndexed {
+                            base_byte_offset,
+                            index_region,
+                            index_offset,
+                            element_byte_size,
+                            field_byte_offset,
+                            ..
+                        } => {
+                            // Machine base at start (above); a frame-resident
+                            // index adds its frame page-pair at the same
+                            // offset as the read layout; the SOURCE base at
+                            // the write shape's offset fn.
+                            if index_region
+                                == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
+                            {
+                                context.insert_data_address_at_relative_offset(
+                                    runtime_storage_copy_from_runtime_machine_indexed_runtime_frame_address_offset(
+                                        context.input.target.architecture,
+                                        base_byte_offset,
+                                    ),
+                                    context.runtime_frame_symbol_handle(),
+                                );
+                            }
+                            context.insert_data_address_at_relative_offset(
+                                runtime_storage_copy_to_runtime_machine_indexed_source_address_offset(
+                                    context.input.target.architecture,
+                                    base_byte_offset,
+                                    index_region,
+                                    index_offset,
+                                    element_byte_size,
+                                    field_byte_offset,
+                                ),
+                                context.storage_region_symbol_handle(source.region),
+                            );
                         }
                         omega_instruction_selection::CopyPlacesShape::General => {
                             unreachable!(

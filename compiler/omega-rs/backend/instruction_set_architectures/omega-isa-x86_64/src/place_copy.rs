@@ -35,6 +35,11 @@ pub enum PlaceCopySide {
     #[default]
     Source,
     Target,
+    /// The source place's ScaledIndex slot base (cross-region index): the
+    /// walker patches it from the step's own `index_region`.
+    SourceIndex,
+    /// The target place's ScaledIndex slot base.
+    TargetIndex,
 }
 
 /// Four covers every emitted shape: two bases today, plus room for the
@@ -102,7 +107,11 @@ fn materialize_place_address(
     }
     // The index (at most one) loads and scales BEFORE any deref consumes the
     // base register its slot is addressed from.
-    prepare_place_index(bytes, place, register)?;
+    let index_side = match register {
+        AddressRegister::Source => PlaceCopySide::SourceIndex,
+        AddressRegister::Target => PlaceCopySide::TargetIndex,
+    };
+    prepare_place_index(bytes, sites, place, register, index_side)?;
     let mut displacement = 0usize;
     for step in place.steps() {
         match step {
@@ -126,21 +135,26 @@ fn materialize_place_address(
 
 /// Pre-load the place's runtime index (if any) into r11 and scale it by the
 /// element size. Refuses more than one index per place: r11 is the single
-/// index scratch.
+/// index scratch. A SAME-region index reads through the place's own base
+/// register; a CROSS-region index first materializes the index region's
+/// base into r11 itself (a recorded relocation site), then loads through it
+/// -- no extra scratch register enters the discipline.
 fn prepare_place_index(
     bytes: &mut Vec<u8>,
+    sites: &mut PlaceCopySites,
     place: &Place,
     base_register: AddressRegister,
+    index_side: PlaceCopySide,
 ) -> Result<(), Diagnostic> {
     let mut indices = place.steps().iter().filter_map(|step| match step {
         PlaceStep::ScaledIndex {
+            index_region,
             index_offset,
             element_byte_size,
-            ..
-        } => Some((*index_offset, *element_byte_size)),
+        } => Some((*index_region, *index_offset, *element_byte_size)),
         _ => None,
     });
-    let Some((index_offset, element_byte_size)) = indices.next() else {
+    let Some((index_region, index_offset, element_byte_size)) = indices.next() else {
         return Ok(());
     };
     if indices.next().is_some() {
@@ -149,9 +163,15 @@ fn prepare_place_index(
              (r11 is the single index scratch)",
         ));
     }
-    match base_register {
-        AddressRegister::Source => super::append_load_r11_from_r14(bytes, index_offset)?,
-        AddressRegister::Target => super::append_load_index_r11_from_r15(bytes, index_offset)?,
+    if index_region == place.region {
+        match base_register {
+            AddressRegister::Source => super::append_load_r11_from_r14(bytes, index_offset)?,
+            AddressRegister::Target => super::append_load_index_r11_from_r15(bytes, index_offset)?,
+        }
+    } else {
+        sites.record(bytes.len(), index_side);
+        super::append_mov_r11_imm64(bytes, 0);
+        super::append_load_r11_from_r11(bytes, index_offset)?;
     }
     super::append_imul_r11_imm32(bytes, super::element_scale(element_byte_size)?);
     Ok(())
@@ -261,8 +281,14 @@ fn encode_place_copy_shared_base_with_sites(
         super::append_mov_r15_imm64(&mut bytes, 0);
         prepare_place_index(
             &mut bytes,
+            &mut sites,
             if source_indexed { source } else { target },
             AddressRegister::Target,
+            if source_indexed {
+                PlaceCopySide::SourceIndex
+            } else {
+                PlaceCopySide::TargetIndex
+            },
         )?;
         let source_displacement =
             walk_hopping_side(&mut bytes, source, HopDirection::BaseR15SourceHops)?;
@@ -274,7 +300,13 @@ fn encode_place_copy_shared_base_with_sites(
         // source register) and the first target deref hops to r15.
         sites.record(bytes.len(), PlaceCopySide::Source);
         super::append_mov_r14_imm64(&mut bytes, 0);
-        prepare_place_index(&mut bytes, target, AddressRegister::Source)?;
+        prepare_place_index(
+            &mut bytes,
+            &mut sites,
+            target,
+            AddressRegister::Source,
+            PlaceCopySide::TargetIndex,
+        )?;
         let target_displacement =
             walk_hopping_side(&mut bytes, target, HopDirection::BaseR14TargetHops)?;
         let source_displacement = walk_base_side(&mut bytes, source, AddressRegister::Source)?;
@@ -607,6 +639,54 @@ mod tests {
         })
         .expect("chunks");
         assert_eq!(bytes, expected);
+    }
+
+    /// The CROSS-REGION index (rung 2c-vii, the machine-indexed family): a
+    /// MACHINE-region array indexed by a FRAME-resident slot. r11 first
+    /// materializes the index region's base (a recorded SourceIndex
+    /// relocation site), then loads the index through itself -- no extra
+    /// scratch register. The machine base has no deref (inline array), so
+    /// the scaled add fires at the step's walk position.
+    #[test]
+    fn cross_region_index_materializes_its_own_base() {
+        let source = Place::at(RuntimeStorageRegion::Machine, 32)
+            .with_step(PlaceStep::ScaledIndex {
+                index_region: RuntimeStorageRegion::RuntimeFrame,
+                index_offset: 16,
+                element_byte_size: 4,
+            })
+            .unwrap()
+            .with_step(PlaceStep::ConstOffset(0))
+            .unwrap();
+        let target = Place::at(RuntimeStorageRegion::RuntimeFrame, 64);
+        let (bytes, sites) = encode_copy_places(&source, &target, 4).expect("encodes");
+
+        let mut expected = Vec::new();
+        super::super::append_mov_r14_imm64(&mut expected, 0); // machine base (Source site @0)
+        let index_base_offset = expected.len();
+        super::super::append_mov_r11_imm64(&mut expected, 0); // frame base for the index
+        super::super::append_load_r11_from_r11(&mut expected, 16).expect("index");
+        super::super::append_imul_r11_imm32(&mut expected, 4);
+        super::super::append_add_r14_r11(&mut expected);
+        let target_base_offset = expected.len();
+        super::super::append_mov_r15_imm64(&mut expected, 0); // frame target base
+        super::super::for_each_runtime_copy_chunk(32, 64, 4, |offset, chunk_size| {
+            super::super::append_load_rax_from_r14(&mut expected, 32 + offset, chunk_size)?;
+            super::super::append_store_rax_to_r15(&mut expected, 64 + offset, chunk_size)?;
+            Ok(())
+        })
+        .expect("chunks");
+        assert_eq!(bytes, expected);
+
+        let recorded: Vec<(usize, PlaceCopySide)> = sites.iter().collect();
+        assert_eq!(
+            recorded,
+            vec![
+                (0, PlaceCopySide::Source),
+                (index_base_offset, PlaceCopySide::SourceIndex),
+                (target_base_offset, PlaceCopySide::Target),
+            ]
+        );
     }
 
     /// Index refusals: two indices on one place; both sides indexed; an index

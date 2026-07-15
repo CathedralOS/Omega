@@ -1004,14 +1004,50 @@ pub fn encode_copy_places(
                     byte_count,
                 )
             }
+            // The machine inline-array decomposes: the encoders take the
+            // index region themselves (a frame-resident index reloads the
+            // frame base mid-sequence).
+            CopyPlacesShape::FromMachineIndexed {
+                base_byte_offset,
+                index_region,
+                index_offset,
+                element_byte_size,
+                field_byte_offset,
+                target_offset,
+            } => aarch64::encode_runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage(
+                base_byte_offset,
+                index_offset,
+                index_region,
+                element_byte_size,
+                field_byte_offset,
+                target_offset,
+                byte_count,
+            ),
+            CopyPlacesShape::ToMachineIndexed {
+                source_offset,
+                base_byte_offset,
+                index_region,
+                index_offset,
+                element_byte_size,
+                field_byte_offset,
+            } => aarch64::encode_runtime_storage_copy_to_runtime_machine_indexed_from_runtime_storage(
+                source_offset,
+                base_byte_offset,
+                index_offset,
+                index_region,
+                element_byte_size,
+                field_byte_offset,
+                byte_count,
+            ),
             CopyPlacesShape::PointeePair { .. }
             | CopyPlacesShape::FromIndexed { .. }
             | CopyPlacesShape::ToIndexed { .. }
             | CopyPlacesShape::IndexedToPointee { .. }
             | CopyPlacesShape::General => Err(Diagnostic::error(
                 "CopyPlaces on aarch64 serves direct, single-pointee, pointee-pair, \
-                 and frame-rooted single-indexed place shapes only until the \
-                 aarch64 place materializer lands; this shape refuses loudly",
+                 frame-rooted single-indexed, and machine inline-array place shapes \
+                 only until the aarch64 place materializer lands; this shape refuses \
+                 loudly",
             )),
         },
     }
@@ -1077,6 +1113,26 @@ pub enum CopyPlacesShape {
         pointer_byte_offset: usize,
         target_field_byte_offset: usize,
     },
+    /// A MACHINE-resident inline array element read (no deref -- the array
+    /// is machine statics, not a descriptor): the retired
+    /// machine-indexed-to-storage copy. The index slot's region varies.
+    FromMachineIndexed {
+        base_byte_offset: usize,
+        index_region: omega_target_operations::RuntimeStorageRegion,
+        index_offset: usize,
+        element_byte_size: usize,
+        field_byte_offset: usize,
+        target_offset: usize,
+    },
+    /// The machine inline-array element WRITE.
+    ToMachineIndexed {
+        source_offset: usize,
+        base_byte_offset: usize,
+        index_region: omega_target_operations::RuntimeStorageRegion,
+        index_offset: usize,
+        element_byte_size: usize,
+        field_byte_offset: usize,
+    },
     /// Anything else (multi-index, multi-deref): x86_64-materializer only.
     General,
 }
@@ -1085,6 +1141,40 @@ pub fn classify_copy_places_shape(
     source: &omega_target_operations::Place,
     target: &omega_target_operations::Place,
 ) -> CopyPlacesShape {
+    // MACHINE inline-array shapes first (no deref -- the array lives in
+    // machine statics): the index slot's region rides the ScaledIndex step.
+    // A FRAME-rooted no-deref indexed place (the FrameBaseIndexed family)
+    // stays General until its rung.
+    if let Some(indexed) = direct_indexed_path(source) {
+        if source.region == omega_target_operations::RuntimeStorageRegion::Machine
+            && let Some(target_offset) = target.const_offset()
+        {
+            return CopyPlacesShape::FromMachineIndexed {
+                base_byte_offset: indexed.pointer_offset,
+                index_region: indexed.index_region,
+                index_offset: indexed.index_offset,
+                element_byte_size: indexed.element_byte_size,
+                field_byte_offset: indexed.field_offset,
+                target_offset,
+            };
+        }
+        return CopyPlacesShape::General;
+    }
+    if let Some(indexed) = direct_indexed_path(target) {
+        if target.region == omega_target_operations::RuntimeStorageRegion::Machine
+            && let Some(source_offset) = source.const_offset()
+        {
+            return CopyPlacesShape::ToMachineIndexed {
+                source_offset,
+                base_byte_offset: indexed.pointer_offset,
+                index_region: indexed.index_region,
+                index_offset: indexed.index_offset,
+                element_byte_size: indexed.element_byte_size,
+                field_byte_offset: indexed.field_offset,
+            };
+        }
+        return CopyPlacesShape::General;
+    }
     // The indexed shapes first: an indexed path is NOT a single-deref path,
     // so these never shadow the pointee arms below. Frame-resident index
     // slots only (the retired encoders' assumption); anything else falls to
@@ -1175,6 +1265,40 @@ struct SingleIndexedPath {
     index_offset: usize,
     element_byte_size: usize,
     field_offset: usize,
+}
+
+/// A DIRECT indexed hop (no deref -- the inline-array shape):
+/// `[ConstOffset(base)?, ScaledIndex, ConstOffset(field)?]`.
+fn direct_indexed_path(place: &omega_target_operations::Place) -> Option<SingleIndexedPath> {
+    let mut steps = place.steps().iter();
+    let mut pointer_offset = 0usize;
+    let (index_region, index_offset, element_byte_size) = loop {
+        match steps.next() {
+            Some(omega_target_operations::PlaceStep::ConstOffset(offset)) => {
+                pointer_offset += offset
+            }
+            Some(omega_target_operations::PlaceStep::ScaledIndex {
+                index_region,
+                index_offset,
+                element_byte_size,
+            }) => break (*index_region, *index_offset, *element_byte_size),
+            _ => return None,
+        }
+    };
+    let mut field_offset = 0usize;
+    for step in steps {
+        match step {
+            omega_target_operations::PlaceStep::ConstOffset(offset) => field_offset += offset,
+            _ => return None,
+        }
+    }
+    Some(SingleIndexedPath {
+        pointer_offset,
+        index_region,
+        index_offset,
+        element_byte_size,
+        field_offset,
+    })
 }
 
 fn single_indexed_path(place: &omega_target_operations::Place) -> Option<SingleIndexedPath> {
