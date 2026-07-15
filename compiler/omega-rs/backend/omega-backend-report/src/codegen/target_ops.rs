@@ -967,6 +967,21 @@ fn selected_instruction_name(
                 "copy runtime storage {source_symbol}@{source_offset} -> {target_symbol}@{target_offset} bytes {byte_count}"
             )
         }
+        SelectedInstructionKind::CopyPlaces {
+            source,
+            target,
+            byte_count,
+        } => {
+            let source_symbol =
+                storage_region_symbol_name(source.region, backend_plan.entry_machine_name());
+            let target_symbol =
+                storage_region_symbol_name(target.region, backend_plan.entry_machine_name());
+            format!(
+                "copy places {source_symbol}{:?} -> {target_symbol}{:?} bytes {byte_count}",
+                source.steps(),
+                target.steps()
+            )
+        }
         SelectedInstructionKind::CopyRuntimeStorageToRuntimeFrameIndexed {
             source_region,
             source_offset,

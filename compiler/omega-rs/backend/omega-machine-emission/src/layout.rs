@@ -949,6 +949,16 @@ fn machine_instruction_width(
             *target_offset,
             *byte_count,
         ),
+        SelectedInstructionKind::CopyPlaces {
+            source,
+            target,
+            byte_count,
+        } => omega_instruction_selection::copy_places_width(
+            input.target.architecture,
+            source,
+            target,
+            *byte_count,
+        )?,
         SelectedInstructionKind::CopyRuntimeStorageToRuntimeFrameIndexed {
             source_offset,
             element_byte_size,

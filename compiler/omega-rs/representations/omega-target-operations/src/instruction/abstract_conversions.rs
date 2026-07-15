@@ -956,6 +956,15 @@ impl From<&omega_abstract_operations::AbstractOperationKind> for TargetOperation
                 target_offset: *target_offset,
                 byte_count: *byte_count,
             },
+            omega_abstract_operations::AbstractOperationKind::CopyPlaces {
+                source,
+                target,
+                byte_count,
+            } => Self::CopyPlaces {
+                source: *source,
+                target: *target,
+                byte_count: *byte_count,
+            },
             omega_abstract_operations::AbstractOperationKind::CopyRuntimeStorageToRuntimeFrameIndexed {
                 source_region,
                 source_offset,

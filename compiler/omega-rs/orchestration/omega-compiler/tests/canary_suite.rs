@@ -12764,6 +12764,52 @@ fn runtime_struct_value_copy_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_whole_struct_mutation_copy_canary_runs() {
+    // The first migrated CopyPlaces sites (Place rung 2a): cross-region
+    // field writes + a same-region whole-struct copy, relocations patched
+    // BY PLACE REGION from the materializer's site list.
+    let canary = pass_canary("data/runtime_whole_struct_mutation_copy_exit");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("whole-struct mutation copy canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should exit 70 (both fields survive the copy), got {}",
+        outcome.exit_code
+    );
+
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-copy-places-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("whole-struct mutation copy canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("whole-struct mutation copy canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the CopyPlaces mutation copies to deliver (exit 70), got {:?} (71 = a base patched to the wrong region's symbol)
+stderr:
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_data_properties_exit_canary_runs() {
     let canary = pass_canary("data/runtime_data_properties_exit");
     let main_path = canary.join("main.omg");
@@ -30486,6 +30532,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "data/runtime_case_reassignment_exit",
     "data/runtime_mixed_shape_exit",
     "data/runtime_struct_literal_string_field_exit",
+    "data/runtime_whole_struct_mutation_copy_exit",
     "domains/call_requires_preserved_across_imported_disjoint_mutation",
     "domains/call_requires_preserved_across_disjoint_mutation",
     "domains/call_requires_satisfied_by_caller_requires",

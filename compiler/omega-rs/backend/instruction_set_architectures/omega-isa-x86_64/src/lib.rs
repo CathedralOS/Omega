@@ -1,5 +1,8 @@
 mod place_copy;
-pub use place_copy::{encode_place_copy, encode_place_copy_shared_base};
+pub use place_copy::{
+    PLACE_COPY_MAX_SITES, PlaceCopySide, PlaceCopySites, encode_copy_places, encode_place_copy,
+    encode_place_copy_shared_base,
+};
 
 use omega_calling_conventions::{HostCapability, HostOperation, HostOperationKey};
 use omega_core::arithmetic::ArithmeticDomain;

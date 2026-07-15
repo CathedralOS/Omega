@@ -1685,6 +1685,19 @@ pub fn runtime_storage_copy_width(
     }
 }
 
+/// The `CopyPlaces` width IS the encoder's output length -- one source of
+/// truth, no hand-maintained width math to move in lockstep. Copies are tens
+/// of bytes; the extra encode at layout time is noise.
+pub fn copy_places_width(
+    architecture: Architecture,
+    source: &omega_target_operations::Place,
+    target: &omega_target_operations::Place,
+    byte_count: usize,
+) -> Result<usize, omega_core::diagnostics::Diagnostic> {
+    crate::encoding::encode_copy_places(architecture, source, target, byte_count)
+        .map(|bytes| bytes.len())
+}
+
 pub fn runtime_storage_copy_to_runtime_frame_indexed_width(
     architecture: Architecture,
     source_offset: usize,

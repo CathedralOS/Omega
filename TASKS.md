@@ -238,14 +238,37 @@ dispatch-region + receiver-phase family. Everything queued here avoids both.
    int fast path + general per-field writer). Canary pass/calls/
    struct_literal_transition_arg_exit (70, differential; constant AND
    runtime field legs).
-   ALSO REMAINING: the machine-indexed copy variants (machine-region
-   bases, region-varying index slots — the index's own base register
-   needs the region wired) → fold into rung 2. (2) ONE `CopyPlaces`
-   SelectedInstructionKind variant + a walker arm that PATCHES BY
-   PLACE REGION, then selection migrates sites and the 18 variants +
-   their echoes retire; then Write/RMW (the leaf-cascade duplication
-   dies), Text, guards/operands, op-set shrink — the wiki ladder.
-   Legalization refuses loudly at every rung.
+   RUNG 2a LANDED 2026-07-14 — THE CopyPlaces SPINE IS LIVE: ONE
+   `CopyPlaces { source: Place, target: Place, byte_count }` variant in
+   BOTH kind enums (+ conversion, classification, machine-kind →
+   RuntimeStorageCopy so branch distances see the same guarded-effect
+   class), and the relocation walker's arm PATCHES BY PLACE REGION:
+   the x86_64 materializer records its base-mov sites from the SAME
+   walk that emits the bytes (PlaceCopySites, side-tagged; never a
+   hand-maintained offset constant — that whole lockstep failure class
+   retires), and width = the encoder's output length (one source of
+   truth). `encode_copy_places` picks the shape from the pair itself
+   (same region + a dereffing side → shared-base; else two-base).
+   aarch64 transitional: direct pairs decompose to the retired plain
+   copy (byte-identical, old offset fn); deref/indexed refuse loudly.
+   TWO producers migrated (writes/storage_copy.rs runtime_storage_copy
+   + its in-table twin — the mutation-statement copies); blocker
+   matchers extended in lockstep (storage/text/call-result/descriptor
+   — a CopyPlaces write counts everywhere CopyRuntimeStorage did;
+   direct-place targets expose their flat range, deref places claim
+   none). Canary pass/data/runtime_whole_struct_mutation_copy_exit
+   (cross-region field writes + same-region 16-byte whole-struct copy,
+   report spells `copy places`, dual-engine + differential).
+   REMAINING rung 2b+: migrate the rest of the CopyRuntimeStorage
+   producers (leaf/straight_line/edges/mutation/frame_slots/
+   argument_materialization/runtime_dispatch/subslice — ~14 sites),
+   then the pointee/indexed variant producers build Places with
+   Deref/ScaledIndex steps and the 18 variants + their echoes retire;
+   machine-indexed variants need ScaledIndex.index_region wired into
+   the materializer (its own base register). Then Write/RMW (the
+   leaf-cascade duplication dies), Text, guards/operands, op-set
+   shrink — the wiki ladder. Legalization refuses loudly at every
+   rung.
 
 The rendering-sample sweep landed 2026-07-11 (see Language ergonomics;
 the match-subject computed-index gap closed with it).

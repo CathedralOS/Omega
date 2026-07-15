@@ -85,6 +85,7 @@ impl OperationSemanticQuery for TargetOperationKind {
             | Self::CopyRuntimeStorageToReturnRegister { .. } => TargetOperationDomain::RuntimeWrite,
 
             Self::CopyRuntimeStorage { .. }
+            | Self::CopyPlaces { .. }
             | Self::CopyRuntimeStorageToRuntimeFrameIndexed { .. }
             | Self::CopyRuntimeFrameIndexedToRuntimeFrame { .. }
             | Self::CopyRuntimeFrameIndexedToRuntimeStorage { .. }
