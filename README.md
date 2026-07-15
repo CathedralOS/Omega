@@ -4,7 +4,7 @@ Omega is a systems programming language with zero-cost abstractions and no unsaf
 
 In other words:
 - No deadlocks.
-- No infinite loops.
+- No accidental infinite loops — iteration is explicit state transitions; call cycles must prove termination; a `terminates` claim is enforced transitively.
 - No stack overflows.
 - No out-of-bounds indexing.
 - No divide-by-zero.
