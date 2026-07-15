@@ -390,7 +390,6 @@ fn state_mutation_is_planned(
                     | SelectedInstructionKind::AppendRuntimeTextLiteralToRuntimePointee { .. }
                     | SelectedInstructionKind::AppendRuntimeTextLiteralToRuntimeFrameIndexed { .. }
                     | SelectedInstructionKind::AppendRuntimeTextStoredSuffix { .. }
-                    | SelectedInstructionKind::CopyRuntimeStorage { .. }
                     | SelectedInstructionKind::CopyPlaces { .. }
                     | SelectedInstructionKind::CopyRuntimeStorageToRuntimeFrameIndexed { .. }
                     | SelectedInstructionKind::CopyRuntimeFrameIndexedToRuntimeFrame { .. }

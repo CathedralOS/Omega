@@ -270,10 +270,20 @@ dispatch-region + receiver-phase family. Everything queued here avoids both.
    Every dispatch copy in the corpus now rides CopyPlaces (suite
    877/877 incl. EFI cross-targets + the aarch64 cross-emit,
    differential 14/14, samples green).
+   RUNG 2c-i LANDED 2026-07-14 — CopyRuntimeStorage RETIRED, the
+   pilot's FIRST variant deletion: the variant is gone from BOTH
+   enums plus every echo (conversion arm, 2 classifications, encoding
+   arm, layout arm + width dispatcher + both ISA width/encode fns,
+   shapes arm, relocation walker arm, report arm, 5 blocker rows, 2
+   unit tests) — the ~15-file echo product for one variant, deleted
+   compiler-driven. KEPT deliberately: aarch64's ISA-level
+   encode_runtime_storage_copy + runtime_storage_copy_width (the
+   CopyPlaces direct-pair decompose rides them) and
+   runtime_storage_copy_target_address_offset (the aarch64 walker
+   arm). 17 variants remain.
    REMAINING rung 2c+: the pointee/indexed variant producers build
-   Places with Deref/ScaledIndex steps and the 18 variants + their
-   echoes retire (CopyRuntimeStorage itself is now retire-ready:
-   zero producers); machine-indexed variants need
+   Places with Deref/ScaledIndex steps and the remaining 17 variants
+   + their echoes retire the same way; machine-indexed variants need
    ScaledIndex.index_region wired into the materializer (its own
    base register). Then Write/RMW (the leaf-cascade duplication
    dies), Text, guards/operands, op-set shrink — the wiki ladder.

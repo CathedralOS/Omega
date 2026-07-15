@@ -758,20 +758,6 @@ pub(super) fn encode_runtime_machine_indexed_address_to_runtime_frame_write(
     )
 }
 
-pub(super) fn encode_runtime_storage_copy(
-    input: MachineEmissionContext<'_>,
-    source_offset: usize,
-    target_offset: usize,
-    byte_count: usize,
-) -> Result<Vec<u8>, Diagnostic> {
-    architecture::encode_runtime_storage_copy(
-        input.target.architecture,
-        source_offset,
-        target_offset,
-        byte_count,
-    )
-}
-
 pub(super) fn encode_runtime_storage_copy_to_runtime_frame_indexed(
     input: MachineEmissionContext<'_>,
     source_offset: usize,

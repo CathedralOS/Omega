@@ -8082,30 +8082,6 @@ pub fn encode_runtime_storage_copy_from_runtime_frame_base_double_indexed_to_run
     Ok(bytes)
 }
 
-pub fn runtime_storage_copy_width(
-    source_offset: usize,
-    target_offset: usize,
-    byte_count: usize,
-) -> usize {
-    20 + runtime_storage_copy_chunk_count(source_offset, target_offset, byte_count) * 14
-}
-
-pub fn encode_runtime_storage_copy(
-    source_offset: usize,
-    target_offset: usize,
-    byte_count: usize,
-) -> Result<Vec<u8>, Diagnostic> {
-    // Delegated to the Place materializer (byte-for-byte; the region on the
-    // transitional places is documentation -- the relocation walker still
-    // patches by operation kind).
-    use omega_target_operations::{Place, RuntimeStorageRegion};
-    encode_place_copy(
-        &Place::at(RuntimeStorageRegion::RuntimeFrame, source_offset),
-        &Place::at(RuntimeStorageRegion::RuntimeFrame, target_offset),
-        byte_count,
-    )
-}
-
 pub fn runtime_storage_copy_to_runtime_pointee_width(
     source_offset: usize,
     field_byte_offset: usize,

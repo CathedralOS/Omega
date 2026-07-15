@@ -5,18 +5,8 @@ pub(super) fn selected_runtime_storage_copy_kind(
     kind: &SelectedInstructionKind,
 ) -> Option<MachineInstructionKind> {
     match kind {
-        SelectedInstructionKind::CopyRuntimeStorage {
-            source_offset,
-            target_offset,
-            byte_count,
-            ..
-        } => Some(runtime_storage_copy_kind(
-            *source_offset,
-            *target_offset,
-            *byte_count,
-        )),
-        // The Place-pair copy shares the plain copy's machine shape: branch
-        // distances treat it as the same guarded-effect class.
+        // The Place-pair copy keeps the retired plain copy's machine shape:
+        // branch distances treat it as the same guarded-effect class.
         SelectedInstructionKind::CopyPlaces { .. } => {
             Some(MachineInstructionKind::RuntimeStorageCopy)
         }

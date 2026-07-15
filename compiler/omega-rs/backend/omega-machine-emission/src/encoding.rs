@@ -792,17 +792,6 @@ pub(super) fn encode_machine_instruction_bytes(
             let offset = if *source_is_place { *source_offset } else { 0 };
             runtime_text::encode_runtime_byte_write(input, offset, source)
         }
-        SelectedInstructionKind::CopyRuntimeStorage {
-            source_offset,
-            target_offset,
-            byte_count,
-            ..
-        } => runtime_storage::encode_runtime_storage_copy(
-            input,
-            *source_offset,
-            *target_offset,
-            *byte_count,
-        ),
         SelectedInstructionKind::CopyPlaces {
             source,
             target,

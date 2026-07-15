@@ -31,11 +31,9 @@ fn operation_kinds_expose_runtime_storage_domains() {
         has_storage: true,
         is_float: false,
     };
-    let copy = AbstractOperationKind::CopyRuntimeStorage {
-        source_region: RuntimeStorageRegion::Machine,
-        source_offset: 0,
-        target_region: RuntimeStorageRegion::RuntimeFrame,
-        target_offset: 8,
+    let copy = AbstractOperationKind::CopyPlaces {
+        source: crate::Place::at(RuntimeStorageRegion::Machine, 0),
+        target: crate::Place::at(RuntimeStorageRegion::RuntimeFrame, 8),
         byte_count: 8,
     };
     let read = AbstractOperationKind::ReadRuntimeTextLine {

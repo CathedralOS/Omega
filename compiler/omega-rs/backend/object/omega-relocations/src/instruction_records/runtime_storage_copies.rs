@@ -23,20 +23,6 @@ pub(super) fn collect_runtime_storage_copy_relocations(
     instruction: &SelectedInstructionKind,
 ) -> bool {
     match instruction {
-        SelectedInstructionKind::CopyRuntimeStorage {
-            source_region,
-            target_region,
-            ..
-        } => {
-            let source_symbol = context.storage_region_symbol_handle(*source_region);
-            let target_symbol = context.storage_region_symbol_handle(*target_region);
-            context.insert_data_address_at_instruction_start(source_symbol);
-            context.insert_data_address_at_relative_offset(
-                runtime_storage_copy_target_address_offset(context.input.target.architecture),
-                target_symbol,
-            );
-            true
-        }
         SelectedInstructionKind::CopyPlaces {
             source,
             target,
