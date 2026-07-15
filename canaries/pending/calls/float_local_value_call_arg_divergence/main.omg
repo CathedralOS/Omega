@@ -1,10 +1,19 @@
-// PENDING (found 2026-07-18 building std is_finite): a RUNTIME float local
-// (not bind-foldable -- here constructed by division) does not DELIVER as a
-// value-call argument natively; the callee sees ZII 0.0. Exposed as
-// is_finite(inf) returning true (x arrived 0.0, so x - x == 0.0). Integer
-// local args deliver; bind-foldable float locals substitute as literals and
-// deliver. The BOOL return keeps this canary independent of the float
-// RETURN gap (its own pin sits beside this one).
+// PENDING (native 71, interp-expected 70): a RUNTIME float local passed to a
+// value machine whose body does float ARITHMETIC on the param delivers a
+// WRONG VALUE natively -- is_zeroish(inf) returns true (d computed 0.0, not
+// NaN). ROOT (mapped 2026-07-18 across two digs): the value-call inliner
+// substitutes the computed arg into the callee (`d = (a/b) - (a/b)`), and
+// the OPERAND-CHAIN lowering of that nested tree executes WRONGLY in the
+// EXPANSION context -- nested float operands are fully supported in plain
+// machines (runtime_float_nested_operand_exit et al. are green), so the
+// wrongness is expansion-specific chain execution, NOT nestedness. A
+// three-door "refuse nested floats" attempt broke 8 working float canaries
+// and is DEAD (diffs in git history). NEXT: debug the RuntimeValueOperand
+// chain the expansion's d-write actually carries (dump its operand tree +
+// executed ops) and fix the chain lowering there. The
+// arithmetic-initializer blocker (storage_blockers, census-calibrated)
+// stays landed as the vanish-guard: if a planner ever refuses this shape,
+// the drop is loud, never silent.
 boundary trait Console { machine exit_process(return_code: i32); }
 machine is_zeroish(x: f64) -> bool {
     let d: f64 = x - x;

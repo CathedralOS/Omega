@@ -1101,84 +1101,32 @@ rows. Rungs:
   float arms (int/bool twins green): (i) FLOAT RETURNS — FIXED
   same day: the frame-slot value writer gained its FLOAT arm (IEEE
   bits; f32 slots take landing-aware single-rounded bits) — promoted
-  to pass/calls/float_value_call_return_exit; (ii) RUNTIME float-local ARGS still don't deliver
-  (pending/calls/float_local_value_call_arg_divergence) -- ROOT
-  SHARPENED 2026-07-18: the value-call INLINER (simplify.rs
-  local_bindings, line ~989, unconditional and load-bearing)
-  substitutes the local's computed initializer into the callee, so
-  `d = x - x` becomes the NESTED float tree `(a/b) - (a/b)`; the
-  BinaryWrite planner then ACCEPTS the nested tree and lowers ONLY the
-  top operation over the wrong operand places (the emitted
-  RuntimeStorageBinaryWrite reads a@0/b@8 directly) -- d gets a wrong
-  value SILENTLY. Fix ladder: (1) the binary-write planner must REFUSE
-  non-flat float operands loudly (kills the silent face); (2) the
-  enabling fix = float expression-chain materialization in expansions
-  (scratch discipline like sin's mut-accumulator, but planner-side).
-  CANDIDATES ELIMINATED 2026-07-18 (refusals added to BOTH and neither
-  fired -- reverted as unwitnessed): the `_in_table` producer
-  (binary_table_writes.rs select_runtime_targeted_binary_mutation_write
-  _in_table) and the TREE-form producer (mutation.rs
-  select_runtime_binary_mutation_write ~2057). HUNT COMPLETE 2026-07-18 (the trail, exact):
-  the live producer IS binary_table_writes.rs's PRE-RESOLVED-PLACE
-  entry (select_runtime_storage_binary_write_in_table, the Some(...)
-  at its tail) -- debug-print proven; its operands arrive NESTED
-  (display-name `a / b` on BOTH sides). The refusal placed there did
-  NOT fire because `binary_value_operands_are_float` returns FALSE
-  for the nested trees AND ALSO for their f64-param Name leaves in
-  the EXPANSION context -- while PLACE resolution for the same names
-  works (the emitted write reads a@0/b@8). So the write lowers as an
-  INTEGER op over float bits (a second face of the same disease).
-  MAP COMPLETE 2026-07-18 (second dig; supersedes the
-  type-blind-classifier attribution, which was a stale-binary
-  phantom -- the classifier WORKS: classifier_float=true at the
-  pre-resolved entry, target f64 at the tree-form entry): the
-  BinaryWrite producer FALLBACK CHAIN is three doors deep --
-  binary_table_writes pre-resolved entry -> its targeted entry ->
-  mutation.rs tree-form entry -- and refusing at ALL THREE (verified
-  fresh, refusals fired in sequence) produced a SILENT DROP: the
-  d-write vanished, the compile stayed CLEAN, and the pin ran wrong
-  (71). ⚠️ THE REAL HOLE: the mutation-not-planned emission blocker
-  does NOT cover INLINED-EXPANSION statements -- planner None-returns
-  silently drop there TODAY (a latent silent-miscompile class beyond
-  this face). CORRECT FIX LADDER: (1) extend the LOCAL-INITIALIZER
-  planned-write coverage in storage_blockers (a slot alone is not
-  delivery) -- FIRST ATTEMPT 2026-07-18 over-fired and was REVERTED:
-  gating on state_mutation_is_planned flags legitimate
-  pointee-materialization locals (`let con_out = table.con_out`, the
-  EFI reference-param-member deref shape: 5 EFI canaries + samples
-  failed) whose writes are planned under kinds/anchors outside the
-  mutation list. CENSUS RUN 2026-07-18 (complete, 1233 canaries + samples +
-  EFI cross-target): the ONLY legitimate-unplanned initializers are
-  pure PLACE-PATH shapes (`table.con_out` ref-param-member
-  materialization ×8, `window[2]` const-indexed view read ×1); zero
-  computed-initializer hits. A calibrated blocker (computed
-  initializers must have a planned write; place paths exempt) was
-  BUILT AND VERIFIED HARMLESS -- but it CANNOT see the expansion case:
-  the pin's locals (d/inf/verdict) are all NON-`required` in the
-  state-storage arena (the value-call inliner claims them), so the
-  locals loop never reaches them (loop-census: zero records). THE
-  BLOCKER MUST LIVE IN THE EXPANSION RECORDS -- with one prerequisite
-  mapped first: the ANCHORING CONVENTION. The pin's d-write plans
-  under the CALLER's key ((35,46), BINW5-proven) while d's slot keys
-  to the CALLEE ((34,39)) and its local record sits non-required in
-  the callee's arena -- so any coverage walk must first write down
-  which (source_key, statement) pairs the planners stamp for
-  inliner-substituted callee statements (leaf/straight-line expansion
-  records carry their own anchors; the simplify-driven value-machine
-  fold apparently stamps the caller's). Map that convention, THEN the
-  coverage walk is mechanical, THEN the verified three-door refusal
-  lands with it (never alone -- doors without the blocker are a
-  proven silent drop).
-  The three-door refusal is VERIFIED WORKING (all doors fire, zero
-  writes emitted) but without the expansion blocker it is a SILENT
-  DROP (proven: clean compile, wrong exit) -- land the two TOGETHER,
-  never the doors alone. All diffs in git history at/around this
-  entry. (2) land the three-door
-  nested-float refusal (exact diffs in git history around this
-  entry: pre-resolved + targeted entries in binary_table_writes.rs,
-  tree-form in mutation.rs). (3) the enabling fix = float
-  expression-chain materialization in expansions. The pin
-  (pending/calls/float_local_value_call_arg_divergence) stays.
+  to pass/calls/float_value_call_return_exit; (ii) RUNTIME float-local ARGS — ROOT CORRECTED 2026-07-18
+  (final form after three digs): NESTED float operands are FULLY
+  SUPPORTED in plain machines (runtime_float_nested_operand_exit,
+  sin/cos, mandelbrot, deep chains — all green via the
+  RuntimeValueOperand operand-CHAIN lowering), so the three-door
+  "refuse nested floats" approach is DEAD (it broke those 8 canaries;
+  diffs in history). The pin's wrongness is EXPANSION-SPECIFIC CHAIN
+  EXECUTION: the inliner-substituted `d = (a/b) - (a/b)` lowers
+  through the same chain machinery but computes 0.0 instead of NaN in
+  the expansion context. NEXT (precise): dump the RuntimeValueOperand
+  tree the expansion's d-write carries + the executed ops; find where
+  the chain's sub-operand resolution or execution diverges from the
+  plain-machine case; fix THERE. LANDED and KEPT from this arc: the
+  FLOAT-ARITHMETIC-INITIALIZER BLOCKER (storage_blockers, runs on
+  BOTH paths — the dispatch path never walked locals before): a
+  required f32/f64 local with a Binary initializer must have a
+  planned write at its own anchor. Boundary calibrated across TWO
+  census rounds + one suite catch: calls/places exempt (view
+  builders, host/value calls, builtins deliver elsewhere) AND
+  integer arithmetic exempt (delivers via folding — `let sum =
+  arr[0] + a1 + px` is green with no anchored write). Zero corpus
+  fires today = a pure vanish-guard: any future planner refusal of
+  the float shape turns LOUD instead of silently dropping (the b15
+  vanish, proven). The pin
+  (pending/calls/float_local_value_call_arg_divergence) carries the
+  corrected root in its header.
   NOTE: a bindings.rs-level "keep computed float locals slotted" patch
   was tried and REVERTED -- the inliner's own capture (not
   simple_local_bindings) drives this path, so it changed nothing here

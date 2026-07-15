@@ -18,6 +18,64 @@ pub(super) fn collect_state_storage_blockers(
     needs_runtime_dispatch: bool,
     blockers: &mut Arena<EmissionBlocker>,
 ) {
+    // A slot alone is not delivery: a local whose initializer is ARITHMETIC
+    // (a Binary tree after peeling Mutable) needs a planned WRITE anchored at
+    // its own (key, statement), or the slot stays ZII and every read is
+    // silently wrong -- the inlined `let d: f64 = x - x` whose write planners
+    // refused VANISHED with a clean compile (the expansion silent-drop hole).
+    // The boundary is CORPUS-CENSUSED (2026-07-18, both dispatch and
+    // straight-line paths, 1233 canaries + samples + EFI cross-target):
+    // every legitimately-unplanned initializer is CALL-shaped (slice-view
+    // builders, host calls, value-machine calls, builtins -- their delivery
+    // lowers via call-result/host/descriptor machinery anchored elsewhere)
+    // or a pure place path; pure-arithmetic initializers had ZERO unplanned
+    // instances, so enforcing on exactly that class has zero false positives
+    // and catches the proven silent-drop shape. Runs BEFORE the dispatch
+    // early-return below: the dispatch path never walks locals otherwise.
+    for (_, local) in input.state_storage.locals.iter() {
+        if !local.required || !local.initial_value.is_valid() {
+            continue;
+        }
+        if !initializer_is_arithmetic(&input.state_storage.expressions, local.initial_value) {
+            continue;
+        }
+        // FLOAT-typed locals only: integer arithmetic initializers deliver
+        // via folding/substitution (`let sum = arr[0] + a1 + px` is green
+        // with no anchored write), while float arithmetic is the class whose
+        // planner refusal proved to vanish silently. The corpus census found
+        // ZERO unplanned float-arithmetic initializers, so this fires only
+        // on true future vanishes.
+        if !matches!(
+            input
+                .state_storage
+                .type_references
+                .display_name(local.type_reference)
+                .as_str(),
+            "f32" | "f64"
+        ) {
+            continue;
+        }
+        if state_mutation_is_planned(input, local.source_key, local.statement_index)
+            || statement_covered_by_port_read(input, local.source_key, local.statement_index)
+        {
+            continue;
+        }
+        let source_name = state_name(input, local.source_key);
+        blockers.insert(blocker(
+            "state storage",
+            &format!(
+                "{} statement {} local `{}` = `{}`{}: the float arithmetic initializer                  has no planned write -- the slot would stay zero-initialized and reads                  would be silently wrong; this shape needs its write lowering",
+                source_name,
+                local.statement_index,
+                local.name,
+                input
+                    .state_storage
+                    .expressions
+                    .display_name(local.initial_value),
+                proof_scope_suffix(input, local.source_key)
+            ),
+        ));
+    }
     if needs_runtime_dispatch {
         collect_runtime_body_storage_blockers(input, blockers);
         return;
@@ -115,6 +173,22 @@ pub(super) fn collect_state_storage_blockers(
             ),
         ));
     }
+}
+
+/// An ARITHMETIC initializer: a Binary tree after peeling Mutable. The
+/// corpus-censused enforcement class -- calls, place paths, and literals all
+/// deliver through machinery anchored outside the mutation-kind list, but an
+/// arithmetic chain must have its own planned write.
+fn initializer_is_arithmetic(
+    expressions: &omega_checked_trees::expression::ExpressionTable,
+    expression: omega_checked_trees::expression::ExpressionHandle,
+) -> bool {
+    use omega_checked_trees::expression::ExpressionNode;
+    let mut current = expression;
+    while let ExpressionNode::Mutable(inner) = expressions.expression(current) {
+        current = *inner;
+    }
+    matches!(expressions.expression(current), ExpressionNode::Binary(_))
 }
 
 fn state_local_is_planned(
