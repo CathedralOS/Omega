@@ -149,10 +149,6 @@ fn state_value_has_planned_storage_write(
                         | SelectedInstructionKind::WriteRuntimeFrameBaseIndexedAddressToRuntimeFrame { .. }
                         | SelectedInstructionKind::WriteRuntimeMachineIndexedAddressToRuntimeFrame { .. }
                         | SelectedInstructionKind::CopyPlaces { .. }
-                        | SelectedInstructionKind::CopyRuntimeStorageToRuntimeFrameIndexed { .. }
-                        | SelectedInstructionKind::CopyRuntimeFrameIndexedToRuntimeFrame { .. }
-                        | SelectedInstructionKind::CopyRuntimeFrameIndexedToRuntimeStorage { .. }
-                        | SelectedInstructionKind::CopyRuntimeFrameIndexedToRuntimePointee { .. }
                         | SelectedInstructionKind::CopyRuntimeMachineIndexedToRuntimeStorage { .. }
                         | SelectedInstructionKind::CopyRuntimeMachineDoubleIndexedToRuntimeStorage { .. }
                         | SelectedInstructionKind::CopyRuntimeFrameBaseDoubleIndexedToRuntimeStorage { .. }
@@ -369,10 +365,6 @@ fn runtime_text_write_has_selected_instruction(
                         | SelectedInstructionKind::AppendRuntimeTextLiteralToRuntimePointee { .. }
                         | SelectedInstructionKind::AppendRuntimeTextLiteralToRuntimeFrameIndexed { .. }
                         | SelectedInstructionKind::CopyPlaces { .. }
-                        | SelectedInstructionKind::CopyRuntimeStorageToRuntimeFrameIndexed { .. }
-                        | SelectedInstructionKind::CopyRuntimeFrameIndexedToRuntimeFrame { .. }
-                        | SelectedInstructionKind::CopyRuntimeFrameIndexedToRuntimeStorage { .. }
-                        | SelectedInstructionKind::CopyRuntimeFrameIndexedToRuntimePointee { .. }
                         | SelectedInstructionKind::CopyRuntimeMachineIndexedToRuntimeStorage { .. }
                         | SelectedInstructionKind::CopyRuntimeMachineDoubleIndexedToRuntimeStorage { .. }
                         | SelectedInstructionKind::CopyRuntimeFrameBaseDoubleIndexedToRuntimeStorage { .. }

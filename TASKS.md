@@ -342,13 +342,25 @@ dispatch-region + receiver-phase family. Everything queued here avoids both.
    materializer discipline (shared-base same-region, two-base
    cross-region; machine-source indexed writes now lower correctly
    by construction where the retired kind was frame-assumed).
-   Four more variants producer-free (retire → 2c-vi).
-   REMAINING rung 2c+: retire the four runtime-indexed variants;
-   machine-indexed variants need ScaledIndex.index_region wired into
-   the materializer (its own base register). Then Write/RMW (the
-   leaf-cascade duplication dies), Text, guards/operands, op-set
-   shrink — the wiki ladder. Legalization refuses loudly at every
-   rung.
+   RUNG 2c-vi LANDED 2026-07-14 — THE RUNTIME-INDEXED FOUR RETIRED
+   (variants 7-10 of 18): CopyRuntimeStorageToRuntimeFrameIndexed +
+   the three CopyRuntimeFrameIndexedTo* variants deleted from both
+   enums with every echo (conversions, classifications, shapes,
+   encoding/layout arms, walker arms, report arms, blocker rows incl.
+   the call-result write-target extractors — CopyPlaces' direct-target
+   arm covers those ranges — all eight cross-arch dispatchers, all
+   eight x86 ISA encode/width fns). KEPT: all four aarch64 indexed
+   encoders (the decomposes ride them) +
+   runtime_storage_copy_from_runtime_frame_indexed_target_address_offset
+   (the CopyPlaces walker's machine-target FromIndexed arm). TEN of 18
+   variants retired; 8 remain (machine-indexed group + double-indexed
+   + FrameBaseIndexed + machine-to-machine).
+   REMAINING rung 2c+: machine-indexed variants need
+   ScaledIndex.index_region wired into the materializer (its own
+   base register — the index slot can live in a DIFFERENT region
+   than the place base). Then Write/RMW (the leaf-cascade duplication
+   dies), Text, guards/operands, op-set shrink — the wiki ladder.
+   Legalization refuses loudly at every rung.
 
 The rendering-sample sweep landed 2026-07-11 (see Language ergonomics;
 the match-subject computed-index gap closed with it).

@@ -25,9 +25,6 @@ use omega_instruction_selection::{
     runtime_pointee_bounded_buffer_write_width, runtime_pointee_string_write_width,
     runtime_storage_binary_write_width,
     runtime_storage_compare_width, runtime_storage_convert_width,
-    runtime_storage_copy_from_runtime_frame_indexed_to_runtime_pointee_width,
-    runtime_storage_copy_from_runtime_frame_indexed_to_runtime_storage_width,
-    runtime_storage_copy_from_runtime_frame_indexed_width,
     runtime_storage_copy_from_runtime_frame_base_indexed_to_runtime_frame_width,
     runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage_width,
     runtime_storage_copy_to_runtime_machine_indexed_from_runtime_storage_width,
@@ -39,7 +36,6 @@ use omega_instruction_selection::{
     runtime_storage_copy_machine_indexed_to_machine_indexed_width,
     entry_argument_register_write_width, entry_arguments_slice_descriptor_write_width,
     runtime_storage_copy_to_return_register_width,
-    runtime_storage_copy_to_runtime_frame_indexed_width,
     runtime_storage_value_compare_width, runtime_text_buffer_materialize_width,
     runtime_text_line_read_width, runtime_text_literal_append_width,
     runtime_text_literal_compare_width, runtime_text_literal_segment_write_width,
@@ -943,58 +939,6 @@ fn machine_instruction_width(
             target,
             *byte_count,
         )?,
-        SelectedInstructionKind::CopyRuntimeStorageToRuntimeFrameIndexed {
-            source_offset,
-            element_byte_size,
-            field_byte_offset,
-            byte_count,
-            ..
-        } => runtime_storage_copy_to_runtime_frame_indexed_width(
-            input.target.architecture,
-            *source_offset,
-            *element_byte_size,
-            *field_byte_offset,
-            *byte_count,
-        ),
-        SelectedInstructionKind::CopyRuntimeFrameIndexedToRuntimeFrame {
-            element_byte_size,
-            field_byte_offset,
-            target_offset,
-            byte_count,
-            ..
-        } => runtime_storage_copy_from_runtime_frame_indexed_width(
-            input.target.architecture,
-            *element_byte_size,
-            *field_byte_offset,
-            *target_offset,
-            *byte_count,
-        ),
-        SelectedInstructionKind::CopyRuntimeFrameIndexedToRuntimeStorage {
-            element_byte_size,
-            field_byte_offset,
-            target_offset,
-            byte_count,
-            ..
-        } => runtime_storage_copy_from_runtime_frame_indexed_to_runtime_storage_width(
-            input.target.architecture,
-            *element_byte_size,
-            *field_byte_offset,
-            *target_offset,
-            *byte_count,
-        ),
-        SelectedInstructionKind::CopyRuntimeFrameIndexedToRuntimePointee {
-            element_byte_size,
-            source_field_byte_offset,
-            target_field_byte_offset,
-            byte_count,
-            ..
-        } => runtime_storage_copy_from_runtime_frame_indexed_to_runtime_pointee_width(
-            input.target.architecture,
-            *element_byte_size,
-            *source_field_byte_offset,
-            *target_field_byte_offset,
-            *byte_count,
-        ),
         SelectedInstructionKind::CopyRuntimeMachineIndexedToRuntimeStorage {
             base_byte_offset,
             index_region,

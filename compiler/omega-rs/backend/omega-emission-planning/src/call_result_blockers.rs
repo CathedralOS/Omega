@@ -133,17 +133,6 @@ fn instruction_write_target(kind: &SelectedInstructionKind) -> Option<(bool, usi
             byte_size,
             ..
         } => (*target_region, *target_offset, *byte_size),
-        SelectedInstructionKind::CopyRuntimeFrameIndexedToRuntimeFrame {
-            target_offset,
-            byte_count,
-            ..
-        } => (RuntimeStorageRegion::RuntimeFrame, *target_offset, *byte_count),
-        SelectedInstructionKind::CopyRuntimeFrameIndexedToRuntimeStorage {
-            target_region,
-            target_offset,
-            byte_count,
-            ..
-        } => (*target_region, *target_offset, *byte_count),
         _ => return None,
     };
     Some((
