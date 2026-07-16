@@ -1,0 +1,37 @@
+// SITE DISCHARGE positive (math roster N3): citing a REQUIRES-bearing
+// lemma works when the citer's own hypotheses establish the instantiated
+// requires. The citation is LOAD-BEARING (probed: removing it fences) --
+// minus is unlicensed/opaque, so only minus_swap's injected ensures links
+// minus(x, z) to minus(y, z). RUNS exit 70.
+use omega::language::core::nat;
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine Main::main(&mut self) { self.console.exit_process(70); }
+
+machine minus(a: Nat, b: Nat) -> Nat {
+    transition { _ -> (a) }
+}
+
+// Conditional lemma: needs its own citation to prove (a == b via
+// add_zero_right bridging the requires' spelling).
+machine minus_swap(a: Nat, b: Nat, c: Nat) -> Nat
+requires
+    (a) == (add(b, Nat::Zero {}))
+ensures
+    (minus(a, c)) == (minus(b, c))
+{
+    add_zero_right(b);
+    transition { _ -> (minus(a, c)) }
+}
+
+// The citer: SAME requires shape at (x, y) -- site discharge must prove
+// the instantiated requires, then the injected ensures settles the goal.
+machine cite_with_requires(x: Nat, y: Nat, z: Nat) -> Nat
+requires
+    (x) == (add(y, Nat::Zero {}))
+ensures
+    (minus(x, z)) == (minus(y, z))
+{
+    _ = minus_swap(x, y, z);
+    transition { _ -> (minus(x, z)) }
+}

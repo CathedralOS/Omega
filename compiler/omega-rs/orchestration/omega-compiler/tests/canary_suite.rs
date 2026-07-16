@@ -31421,6 +31421,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "core/collections_text_core_surface",
     "core/nat_core_surface",
     "core/int_core_surface",
+    "proofs/citation_requires_discharged",
     "core/ptr_core_surface",
     "core/slice_core_surface",
     "core/str_core_surface",

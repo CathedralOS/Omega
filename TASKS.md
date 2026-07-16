@@ -1606,11 +1606,35 @@ no `unbounded` property exists. Rungs:
   fact grammar has no member-of-call). Probes run-verified: wrong
   goal refuses, requires REMOVED refuses (the hypothesis is doing
   the work); pinned fail proofs/ring_exchange_unhypothesized_rejected.
-  THEN: more quotient lemmas (mul_int respects ~ -- needs the
-  exchange under MONOMIAL multisets, i.e. tier-2 hypothesis
-  exchange; transitivity/symmetry of ~ as lemmas), semiring
-  conformance for IntPair (trait slots over a non-builtin carrier),
-  the N2(d) arithmetic bridge
+  SITE DISCHARGE LANDED 2026-07-16 (the N3 rung the old refusal
+  named) + two LATENT-HOLE closes found auditing for it: (A)
+  citations of REQUIRES-bearing lemmas now instantiate the callee's
+  requires at the call's argument terms and judge them against the
+  citing machine's hypothesis base -- Proven injects the ensures,
+  anything else refuses NAMING the undischarged fact (v1: a
+  citation cannot lean on another citation's fact; per-arm sites
+  discharge against the same machine-wide base). int_eq_symmetric /
+  add_int_respects_eq are now CITABLE. Pinned: pass
+  proofs/citation_requires_discharged (citation LOAD-BEARING --
+  probed: removing it fences; opaque `minus` links only through the
+  injected ensures), fail citation_requires_bearing_rejected
+  (re-pinned to the new naming message) + unit-test pair. (B)
+  unfold_application's functional-ensures shortcut EXCLUDED
+  requires-bearing callees -- it injected the conditional result
+  term with no site to discharge the condition (latent, no exploit
+  in-tree; bodies still unfold). (C) the INDUCTIVE HYPOTHESIS is
+  now DENIED to requires-bearing machines -- the IH is conditional
+  on the requires at the self-call's operands and injecting it
+  unconditioned was a latent unsoundness; requires-bearing
+  INDUCTION (the cancellation lemma add(c,a)==add(c,b) => a==b,
+  which needs per-arm requires re-intake + IH premise discharge) is
+  the recorded follow-up rung.
+  THEN: requires-bearing induction (per-arm requires re-intake under
+  the case hypothesis + IH premise discharge) -> Nat CANCELLATION ->
+  quotient transitivity; mul_int respects ~ (tier-2 hypothesis
+  exchange under monomial multisets); semiring conformance for
+  IntPair (trait slots over a non-builtin carrier); the N2(d)
+  arithmetic bridge
   (n > 0 => n == Succ(n - 1)). Int introduction rule: order has no floor,
   measures stay Nat-valued or range-floored.
 - **N4 — roster library (Nat ops + Seq LANDED 2026-07-11):** core
