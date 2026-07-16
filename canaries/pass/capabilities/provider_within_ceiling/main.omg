@@ -1,0 +1,20 @@
+// The admission fixtures' positive twin: a provider declaring within its
+// requirement's ceiling (and reaching nothing beyond) conforms and the
+// program RUNS exit 70.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+
+trait Meter {
+    machine read_value(a: u64) -> u64 effects clock_read;
+}
+
+machine honest(a: u64) -> u64
+satisfies Meter::read_value
+effects clock_read
+{
+    transition { _ -> (a) }
+}
+
+machine Main::main(&mut self) {
+    self.console.exit_process(70);
+}

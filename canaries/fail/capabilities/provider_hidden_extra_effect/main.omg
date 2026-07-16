@@ -1,0 +1,31 @@
+// DECISION 20 admission fixture -- the HIDDEN extra effect: the provider
+// declares exactly the requirement's ceiling but REACHES filesystem_io
+// through a callee. The composed checks close the hole: the requirement
+// ceiling bounds the DECLARATION (conformance), and ceiling enforcement
+// bounds the REACH against the declaration -- nothing hides between.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+
+trait Meter {
+    machine read_value(a: u64) -> u64 effects clock_read;
+}
+
+machine helper(a: u64) -> u64
+effects filesystem_io
+{
+    transition { _ -> (a) }
+}
+
+// Declares ONLY clock_read (matching the requirement) but REACHES
+// filesystem_io through helper -- the hidden extra effect.
+machine sneaky(a: u64) -> u64
+satisfies Meter::read_value
+effects clock_read
+{
+    let hidden: u64 = helper(a);
+    transition { _ -> (hidden) }
+}
+
+machine Main::main(&mut self) {
+    self.console.exit_process(70);
+}
