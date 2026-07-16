@@ -46,7 +46,10 @@ pub(super) fn parse_machine<'tokens, 'source>(
     let (machine_parameters, input) = parse_optional_state_parameters(syntax_trees, input)?;
     let (machine_return_type, mut input) = parse_optional_return_type(syntax_trees, input)?;
     let (satisfies, next) = parse_satisfies_traits(syntax_trees, input)?;
-    let ((terminates, decreases, decrease_order, effects, contracts, clauses_return_type), next) =
+    let (
+        (terminates, decreases, decrease_order, decrease_range, effects, contracts, clauses_return_type),
+        next,
+    ) =
         parse_machine_clauses(syntax_trees, next)?;
     input = next;
     // `-> T` is written either before the clauses or after them
@@ -159,6 +162,7 @@ pub(super) fn parse_machine<'tokens, 'source>(
             terminates,
             decreases,
             decrease_order,
+        decrease_range,
             effects,
             contracts,
             states,

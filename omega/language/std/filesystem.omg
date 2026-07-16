@@ -925,9 +925,7 @@ machine Filesystem::create_dir_all(&mut self, path: &[u8] in Path) -> UnitResult
 // proof accepts. `path`'s domain survives the interleaved `mkall_step` call
 // because a SHARED parameter's declared domain is invariant (checker grant).
 machine Filesystem::mkall_walk(&mut self, path: &[u8] in Path, i: u64)
-terminates {
-    decreases (i, path.len) -> Nat::BoundedDistance;
-}
+terminates by (i, path.len) -> Nat::BoundedDistance;
 -> UnitResult
 {
     self.walk_rc = self.mkall_step(path, i);
@@ -985,9 +983,7 @@ machine Filesystem::mkall_step(&mut self, path: &[u8] in Path, i: u64) -> i32 {
 // error by design). The byte writer also lays the C-string NUL at j == i,
 // so the mkdir fires on a complete prefix.
 machine Filesystem::mkall_copy(&mut self, path: &[u8] in Path, i: u64, j: u64)
-terminates {
-    decreases (j, i) -> Nat::BoundedDistance;
-}
+terminates by (j, i) -> Nat::BoundedDistance;
 -> i32
 {
     self.mkall_put(path, i, j);

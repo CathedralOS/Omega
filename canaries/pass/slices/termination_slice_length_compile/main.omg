@@ -15,9 +15,7 @@ machine Main::main(&mut self) -> u64 {
 }
 
 machine Main::walk(&mut self, entries: &[Entry])
-terminates {
-    decreases entries -> Slice::Length;
-}
+terminates by entries -> Slice::Length;
 -> u64
 {
     transition entries.len > 0 {

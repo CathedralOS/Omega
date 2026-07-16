@@ -19,9 +19,7 @@ data Main {
 }
 
 machine burn(remaining: u64, acc: u64)
-terminates {
-    decreases remaining;
-}
+terminates by remaining;
 -> u64
 {
     transition remaining > 0 {

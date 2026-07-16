@@ -1,0 +1,14 @@
+// TPR1 parses the witness's `in <range>` constraint (decision 23's rank
+// range), but nothing consumes it until TPR3's cycle checker -- the
+// lowering refuses loudly rather than silently dropping the constraint.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine countdown(n: u64) -> u64
+terminates by n in 0..=100;
+{
+    transition n {
+        0 -> (0)
+        _ -> (countdown(n - 1))
+    }
+}
+machine Main::run(&mut self) { self.console.exit_process(70); }

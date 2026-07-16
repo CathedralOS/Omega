@@ -18,9 +18,7 @@ machine Main::main(&mut self) {
     self.console.exit_process(70);
 }
 machine double(n: Nat) -> Nat
-terminates {
-    decreases n;
-}
+terminates by n;
 {
     transition n {
         Nat::Zero -> Nat::Zero

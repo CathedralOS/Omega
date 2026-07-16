@@ -403,9 +403,7 @@ macos_arm64 machine Filesystem::remove_dir_all(&mut self, path: &[u8] in Path) -
 // a statement call from a dispatched state, verdict read from a field).
 // Returns 0 on success, -1 on error/fuel-exhaustion/depth overflow (> 16).
 macos_arm64 machine Filesystem::rda_drain(&mut self, fuel: u64)
-terminates {
-    decreases fuel;
-}
+terminates by fuel;
 -> i32
 {
     self.rda_step(0);

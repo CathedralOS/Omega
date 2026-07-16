@@ -8,7 +8,7 @@
 boundary trait Console { machine exit_process(return_code: i32); }
 data Main { console: Console; }
 machine Main::pick(&mut self, n: i32, acc: f64)
-terminates { decreases n -> Nat::Descending; }
+terminates by n -> Nat::Descending;
 -> f64
 {
     transition n > 0 { true -> pick(n - 1, acc) false -> leaf(acc) }
