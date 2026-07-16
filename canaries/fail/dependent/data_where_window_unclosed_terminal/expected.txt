@@ -1,0 +1,1 @@
+window opened on `self.map` in a predecessor state must close first

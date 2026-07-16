@@ -1074,7 +1074,19 @@ bounded-escape store-containment keystone. Open rungs:
   chains. Pinned: pass data_where_chained_hypothesis (RUNS exit 70)
   / fail data_where_cyclic_hypothesis_refuses. (Direct
   field-vs-field with a RANGED co-field was already slice 7's
-  MemoryMap shape.) Remaining R2: window transport across states. The rest of the big semantic build:** the
+  MemoryMap shape.) WINDOW TRANSPORT LANDED same day -- THE R2
+  REFINEMENT LIST IS CLEARED: an open ch11 window may cross a
+  transition and close in a successor state. walk_state carries
+  entry windows ((spelling, data) pairs) and a terminal flag; the
+  fixpoint MAY-unions windows over predecessors (an obligation from
+  ANY path in); calls and TERMINAL exits (no outgoing transition --
+  where the machine returns) stay hard consumption points; reads of
+  a transported-open place refuse; a write that re-proves the facts
+  closes the inherited window. Pinned: pass
+  data_where_window_transport (open in entry, restore in successor,
+  RUNS exit 70) / fail data_where_window_unclosed_terminal (never
+  restored -- the exit call and terminal exit both refuse, naming
+  the predecessor-state window). The rest of the big semantic build:** the
   big semantic build — where-clause parsing on data, the default-domain
   layer, gating (zero-excluding domains legal, construction mandatory
   fields), consumption-point windows (ADDITIVE relaxation of the landed
