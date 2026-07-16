@@ -1672,8 +1672,26 @@ no `unbounded` property exists. Rungs:
   trivial) with BOTH congruences (add + mul) -- the ZZ quotient
   story, machine-checked end to end. Probes run-verified: requires
   dropped refuses, corrupted goal refuses.
-  THEN: semiring conformance for IntPair (trait slots over a
-  non-builtin carrier); the N2(d) arithmetic bridge
+  INTPAIR CONFORMS CommutativeSemiring LANDED 2026-07-16 -- all 11
+  slots (zero_int/one_int/add_int/mul_int + the 7 law lemmas bind
+  their slots), the SECOND carrier to earn the licenses. Two
+  enablers: (1) RECORD ETA in judge_equation -- a record literal
+  rebuilding EVERY declared field of a variable from that same
+  variable's field reads IS the variable (product extensionality;
+  fields matched BY NAME, a permuted rebuild refuses) -- which is
+  what the identity laws reduce to after add_zero_right /
+  mul_one_right / mul_zero_right / add_zero_left citations fold the
+  components; (2) the NO-CIRCULAR-LICENSING rule refined from
+  trait-wide to PER-LICENSE (excluded only when the judged machine
+  binds the license's own comm/assoc law slots FOR THE SAME
+  CARRIER, by type_references_match) -- the trait-wide skip had
+  wrongly stripped IntPair's mul lemmas of NAT's earned licenses
+  the moment they bound their own slots; a law lemma's goal is the
+  law shape over its own op, so per-carrier exclusion still breaks
+  every cycle (the 5 ring_law_* fail canaries all still pin).
+  Probes run-verified: eta PERMUTATION (neg_int(a) == a) refuses,
+  false identity (one_int for zero_int) refuses.
+  THEN: the N2(d) arithmetic bridge
   (n > 0 => n == Succ(n - 1)). Int introduction rule: order has no floor,
   measures stay Nat-valued or range-floored.
 - **N4 — roster library (Nat ops + Seq LANDED 2026-07-11):** core
