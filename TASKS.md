@@ -1066,8 +1066,15 @@ bounded-escape store-containment keystone. Open rungs:
   Pinned: pass data_where_multistate_callee (two-arm dispatch, both
   exits establish, RUNS exit 70) / fail
   data_where_multistate_partial_refuses (one arm does not establish
-  -- the intersection empties and the read refuses). Remaining R2:
-  field-vs-field read hypotheses, window transport across states. The rest of the big semantic build:** the
+  -- the intersection empties and the read refuses). TRANSITIVE
+  field-vs-field hypotheses LANDED same day: bound_source_interval
+  falls back from the co-field's declared range to the co-field's
+  OWN where-fact interval (depth-capped at 4; cycles resolve None --
+  over-refusal only), so `count <= mid, mid <= capacity[0..=100]`
+  chains. Pinned: pass data_where_chained_hypothesis (RUNS exit 70)
+  / fail data_where_cyclic_hypothesis_refuses. (Direct
+  field-vs-field with a RANGED co-field was already slice 7's
+  MemoryMap shape.) Remaining R2: window transport across states. The rest of the big semantic build:** the
   big semantic build — where-clause parsing on data, the default-domain
   layer, gating (zero-excluding domains legal, construction mandatory
   fields), consumption-point windows (ADDITIVE relaxation of the landed
