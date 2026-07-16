@@ -29,6 +29,7 @@ pub(crate) fn lower_machine(
         decreases: omega_core::arena::HandleSpan::empty(),
         decrease_order: omega_core::arena::HandleSpan::empty(),
         decrease_view_arguments: omega_core::arena::HandleSpan::empty(),
+        decrease_range: typed::expression::ExpressionHandle::invalid(),
         effects: omega_core::arena::HandleSpan::empty(),
         contracts: omega_core::arena::HandleSpan::empty(),
         states: omega_core::arena::HandleSpan::empty(),
@@ -125,6 +126,10 @@ pub(crate) fn lower_machine(
         .typed_trees
         .expression_table
         .insert_expression_handles(view_arguments);
+    // TPR3 slice 3: the rank-range constraint (invalid = absent).
+    if machine.decrease_range.is_valid() {
+        typed_machine.decrease_range = lower_expression_handle(lowerer, machine.decrease_range)?;
+    }
     for member in lowerer
         .source_trees
         .machine_decrease_order(machine.decrease_order)

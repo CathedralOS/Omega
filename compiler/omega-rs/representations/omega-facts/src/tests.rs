@@ -321,6 +321,7 @@ fn expression_places_resolve_attached_data_members() {
         decreases: HandleSpan::empty(),
         decrease_order: HandleSpan::empty(),
         decrease_view_arguments: HandleSpan::empty(),
+        decrease_range: Default::default(),
         effects: HandleSpan::empty(),
         contracts: HandleSpan::empty(),
         states: HandleSpan::empty(),

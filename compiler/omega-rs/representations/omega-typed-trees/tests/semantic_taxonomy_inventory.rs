@@ -72,6 +72,7 @@ fn machine_record_carries_the_termination_plan_beside_the_compat_bools() {
             decreases: _,    // compatibility witness material until TPR3
             decrease_order: _,
             decrease_view_arguments: _, // TPR3: argumented-view arguments
+            decrease_range: _,          // TPR3: the rank-range constraint
             effects: _,      // STILL decision 22's kinded rows, as a flat name span
             contracts: _,
             states: _,
@@ -99,6 +100,7 @@ fn termination_plan_witness_swap_is_contract_invisible() {
             ranking_view: RankingViewId::NAT_DESCENDING,
             view_path: "Nat::Descending".to_string(),
             view_arguments: Vec::new(),
+            rank_range: None,
         }),
     };
     let swapped = MachineTerminationPlan {
@@ -107,6 +109,7 @@ fn termination_plan_witness_swap_is_contract_invisible() {
             ranking_view: RankingViewId::NAT_BOUNDED_DISTANCE,
             view_path: "Nat::BoundedDistance".to_string(),
             view_arguments: Vec::new(),
+            rank_range: None,
         }),
         ..descending.clone()
     };

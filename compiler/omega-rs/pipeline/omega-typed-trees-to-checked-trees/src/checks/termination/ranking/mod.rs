@@ -134,6 +134,15 @@ pub(super) fn machine_decrease_outcome(
         };
     }
 
+    // TPR3 slice 3: the `in <range>` rank constraint is CONSUMED here. V1
+    // verifies the structurally-true shape and rejects everything else with
+    // a directed message -- never a silent drop, never an unproven fact.
+    if machine.decrease_range.is_valid()
+        && let Some(message) = rank_range_violation(program, machine, &order)
+    {
+        return DecreaseOutcome::Rejected(message);
+    }
+
     let adjacency = graph::machine_adjacency(program, machine);
     let components = graph::strongly_connected_components(&adjacency);
 
@@ -181,6 +190,66 @@ pub(super) fn machine_decrease_outcome(
     }
 
     DecreaseOutcome::Unproven
+}
+
+/// TPR3 slice 3: verify the authored `in <range>` rank constraint against
+/// the resolved view. V1 accepts exactly the shape that is TRUE BY THE
+/// VIEW'S DEFINITION -- floor `0` (every builtin view produces a natural
+/// rank) and a ceiling equal to the argumented view's own bound, spelled
+/// identically and inclusively (`in 0..=limit` on `Nat::IncreasingTo(limit)`:
+/// the rank IS the distance up to that bound). Everything else needs an
+/// invariant proof that does not exist yet and is rejected with a directed
+/// message.
+fn rank_range_violation(
+    program: &omega_typed_trees::TypedTrees,
+    machine: &omega_typed_trees::machine::Machine,
+    order: &RankingOrder,
+) -> Option<String> {
+    use omega_typed_trees::expression::ExpressionNode;
+
+    let ExpressionNode::Range(range) = program.expression_table.expression(machine.decrease_range)
+    else {
+        return Some(
+            "internal: the rank-range constraint did not lower to a Range expression".to_string(),
+        );
+    };
+    let floor_is_zero = matches!(
+        program.expression_table.expression(range.start),
+        ExpressionNode::Integer(literal) if literal.text() == "0"
+    );
+    if !floor_is_zero {
+        return Some(
+            "a rank floor above the natural floor `0` is not consumed yet (decision 23 \
+             TPR3): every builtin view produces a natural rank -- spell `in 0..=<bound>` \
+             or omit the range"
+                .to_string(),
+        );
+    }
+    match order {
+        RankingOrder::IncreasingTo(limit) => {
+            let bound = decreasing_value_text(program, *limit);
+            if !range.end_inclusive {
+                return Some(format!(
+                    "the rank of `Nat::IncreasingTo({bound})` reaches `{bound}` itself -- \
+                     spell the ceiling inclusively (`in 0..={bound}`)"
+                ));
+            }
+            let ceiling = decreasing_value_text(program, range.end);
+            (ceiling != bound).then(|| {
+                format!(
+                    "the rank ceiling `{ceiling}` is not the view's own bound `{bound}`: \
+                     only `in 0..={bound}` verifies structurally on \
+                     `Nat::IncreasingTo({bound})` today (decision 23 TPR3)"
+                )
+            })
+        }
+        _ => Some(
+            "a rank range is only consumed on the argumented `Nat::IncreasingTo(bound)` \
+             today (`in 0..=bound`, decision 23 TPR3) -- other views' ceilings need \
+             invariant proofs that do not exist yet"
+                .to_string(),
+        ),
+    }
 }
 
 /// The canonical spelling of a BUILTIN resolved order (`None` for declared

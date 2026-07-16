@@ -44,6 +44,9 @@ pub struct MachineStorage {
     pub decrease_order: HandleSpan<DiagnosticName>,
     /// TPR3: argumented-view arguments (`-> Nat::IncreasingTo(limit)`).
     pub decrease_view_arguments: HandleSpan<ExpressionHandle>,
+    /// TPR3: the optional `in <range>` rank constraint (a Range expression;
+    /// invalid = absent). The checker verifies it structurally.
+    pub decrease_range: ExpressionHandle,
     pub effects: HandleSpan<DiagnosticName>,
     pub contracts: HandleSpan<SignatureContract>,
     pub states: HandleSpan<Handle<State>>,
