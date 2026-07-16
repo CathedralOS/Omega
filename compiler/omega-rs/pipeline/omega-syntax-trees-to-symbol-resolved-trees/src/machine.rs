@@ -39,6 +39,21 @@ pub(crate) fn lower_machine_into(
         omega_symbol_resolved_trees::expression::ExpressionHandle::invalid()
     };
     let effects = lower_signature_effects(lowerer, syntax_trees, machine.effects);
+    // STR4 (decision 22): the normalized effect-row identity -- standard
+    // member names map to canonical member ids and intern as a SET
+    // (order/duplicate-blind; the legacy bits never enter the identity).
+    // Non-standard names stay on the flat compatibility span only, exactly
+    // as the bitset ignores them today.
+    let effect_members: Vec<omega_core::semantics::EffectMemberId> = lowerer
+        .symbol_resolved_trees
+        .signature_effects(effects)
+        .iter()
+        .filter_map(|name| omega_core::semantics::effect_member_id(name.as_str()))
+        .collect();
+    let effect_row = lowerer
+        .symbol_resolved_trees
+        .effect_rows
+        .intern(effect_members);
     let contracts = lower_signature_contracts(lowerer, syntax_trees, machine.contracts)?;
     let machine_name = crate::name::lower_name(&machine.name);
     let attached_data = machine.attached_data.as_ref().map(crate::name::lower_name);
@@ -59,6 +74,8 @@ pub(crate) fn lower_machine_into(
         // TPR2: the termination plan's ONE population site (see
         // build_termination_plan below).
         termination_plan,
+        // STR4: the effect row's ONE population site.
+        effect_row,
         storage: MachineStorage {
             type_parameters,
             contains: HandleSpan::empty(),

@@ -30,6 +30,12 @@ pub struct Machine {
     /// `decrease_order` in the storage below remain the compatibility
     /// shape the current checker consumes until TPR3/TPR6 retire them.
     pub termination_plan: omega_core::semantics::MachineTerminationPlan,
+    /// STR4 (decision 22): the machine's NORMALIZED effect-row identity
+    /// (into the tree's `effect_rows` table) -- order/duplicate-blind and
+    /// independent of the legacy bits. Populated ONCE at syntax->resolved
+    /// from the flat `effects` span (the compatibility carrier until STR7),
+    /// copied downstream.
+    pub effect_row: omega_core::semantics::EffectRowId,
     pub storage: MachineStorage,
 }
 

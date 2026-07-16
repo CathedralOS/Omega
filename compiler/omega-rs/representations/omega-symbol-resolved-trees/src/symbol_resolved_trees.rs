@@ -12,6 +12,10 @@ pub struct SymbolResolvedTrees {
     pub roots: SymbolResolvedRoots,
     pub tables: SymbolResolvedTableStorage,
     pub symbols: SymbolTable,
+    /// STR4 (decision 22): the deterministic effect-row interner --
+    /// machines carry `effect_row` ids into THIS table. Populated at the
+    /// syntax->resolved lowering, copied verbatim downstream.
+    pub effect_rows: omega_core::semantics::EffectRowTable,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -108,6 +112,7 @@ impl SymbolResolvedTrees {
             roots,
             tables,
             symbols,
+            effect_rows: omega_core::semantics::EffectRowTable::default(),
         }
     }
 

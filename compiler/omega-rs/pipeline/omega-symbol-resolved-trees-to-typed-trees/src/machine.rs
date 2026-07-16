@@ -24,6 +24,9 @@ pub(crate) fn lower_machine(
         // authored `terminates;` INHERITS the published guarantee (see
         // inherit_requirement_guarantee below).
         termination_plan: inherit_requirement_guarantee(lowerer, machine),
+        // STR4: copied, never re-derived (the row table copies verbatim at
+        // the tree level, so ids stay valid).
+        effect_row: machine.effect_row,
         type_parameters: omega_core::arena::HandleSpan::empty(),
         contains: omega_core::arena::HandleSpan::empty(),
         owned_data: omega_core::arena::HandleSpan::empty(),

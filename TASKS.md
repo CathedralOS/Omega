@@ -602,7 +602,23 @@ sealed progress profiles + grants, TPR4's remaining big half).
    the termination spelling — populating MachineTerminationPlan from
    the OLD terminates/decreases shape would be re-derivation the TPR
    pass immediately replaces; the core types from STR2 stand ready);
-   the effect-row propagation rides STR4's normalizer (decision 22);
+   the effect-row propagation rides STR4's normalizer (decision 22) --
+   STR4 SLICE 1 LANDED 2026-07-16: omega-core gained the CANONICAL
+   kinded member catalog (23 names, name-for-name consistency with
+   omega-effects' legacy bit table PINNED by a cross-crate test that
+   already caught one drift; OperationalMay = {thread_block,
+   sync_wait}, ServiceReach otherwise) + the deterministic
+   EffectRowTable interner (sorted/deduped member sets;
+   EffectRowId(1) = the fixed EMPTY row; identity independent of
+   spelling order and the legacy bits); SymbolResolvedTrees +
+   TypedTrees carry the interner (copied verbatim); both Machine
+   records carry `effect_row: EffectRowId` populated ONCE at
+   syntax->resolved from the flat effects span, copied downstream;
+   LOSS-2 + LOSS-4 pins re-pinned (the flat EffectSet remains an
+   independently-built compatibility carrier until STR6/7 make it a
+   derived projection). Remaining STR4: published ceilings vs
+   inferred summaries, pinned-slot refinement, EffectPlan
+   integration;
    snapshots gain the new fields as those slices land;
    STR4 checked semantic
    qualification + permission + normalized-machine-contract plans; STR5
