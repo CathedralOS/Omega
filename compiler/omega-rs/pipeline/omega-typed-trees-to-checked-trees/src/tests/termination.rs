@@ -1156,3 +1156,116 @@ fn rejects_view_argument_arity_misuse_with_directed_messages() {
         );
     }
 }
+
+/// TPR3 slice 3: the `in <range>` rank constraint is CONSUMED -- v1 accepts
+/// exactly the shape true by the view's definition (`in 0..=limit` on
+/// `Nat::IncreasingTo(limit)`) and records the verified fact in the plan
+/// witness; every other shape gets a directed rejection.
+#[test]
+fn rank_range_on_increasing_to_is_consumed_and_recorded() {
+    let source = r#"
+    data Main {}
+
+    machine Main::main(&mut self) {
+        let value: u64 = self.climb(4, 0);
+    }
+
+    machine Main::climb(&mut self, limit: u64, index: u64)
+    terminates by index -> Nat::IncreasingTo(limit) in 0..=limit;
+    -> u64
+    {
+        transition index < limit {
+            true -> self.climb(limit, index + 1)
+            false -> index
+        }
+    }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+
+    let witness = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Main::climb")
+        .expect("climb machine")
+        .termination_plan
+        .implementation_witness
+        .as_ref()
+        .expect("climb witness");
+    let range = witness.rank_range.as_ref().expect("recorded rank range");
+    assert_eq!(range.floor, "0");
+    assert_eq!(range.ceiling, "limit");
+    assert!(range.ceiling_inclusive);
+
+    lower_typed_trees(typed).expect("the structurally-true rank range should verify");
+}
+
+/// TPR3 slice 3: the range shapes v1 cannot verify are rejected with
+/// DIRECTED messages -- nonzero floor, ceiling that is not the view's own
+/// bound, exclusive ceiling, and a range on a non-argumented view.
+#[test]
+fn rank_range_unverifiable_shapes_are_rejected_with_directed_messages() {
+    let cases = [
+        (
+            "terminates by index -> Nat::IncreasingTo(limit) in 1..=limit;",
+            "rank floor above the natural floor",
+        ),
+        (
+            "terminates by index -> Nat::IncreasingTo(limit) in 0..=index;",
+            "is not the view's own bound",
+        ),
+        (
+            "terminates by index -> Nat::IncreasingTo(limit) in 0..limit;",
+            "spell the ceiling inclusively",
+        ),
+        (
+            "terminates by index in 0..=limit;",
+            "rank range is only consumed on the argumented",
+        ),
+    ];
+    for (clause, expected) in cases {
+        let source = format!(
+            r#"
+    data Main {{}}
+
+    machine Main::main(&mut self) {{
+        let value: u64 = self.climb(4, 0);
+    }}
+
+    machine Main::climb(&mut self, limit: u64, index: u64)
+    {clause}
+    -> u64
+    {{
+        transition index < limit {{
+            true -> self.climb(limit, index + 1)
+            false -> index
+        }}
+    }}
+    "#
+        );
+
+        let tokens = Lexer::new(source.as_str())
+            .tokenize()
+            .expect("tokenize should succeed");
+        let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+        let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+        let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+        let diagnostics =
+            lower_typed_trees(typed).expect_err("an unverifiable range must be rejected");
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains(expected)),
+            "clause `{clause}`: expected `{expected}`, got: {:?}",
+            diagnostics
+                .iter()
+                .map(|diagnostic| diagnostic.message.clone())
+                .collect::<Vec<_>>()
+        );
+    }
+}

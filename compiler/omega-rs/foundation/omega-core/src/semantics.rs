@@ -87,6 +87,21 @@ pub struct RankingWitness {
     /// The bound is part of the view — an unbounded increasing view is not
     /// a valid ranking.
     pub view_arguments: Vec<String>,
+    /// The optional `in <range>` constraint on the RANK the view produces
+    /// (TPR3, decision 23): a termination FACT, no storage. Authored
+    /// material like the subjects — the checker verifies it structurally
+    /// and FAILS compilation otherwise, so a compiled artifact never
+    /// carries an unverified range.
+    pub rank_range: Option<RankRange>,
+}
+
+/// The rank-range fact (`in 0..=capacity`), rendered source-like. Its floor
+/// establishes the well-founded floor; the ceiling bounds the produced rank.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct RankRange {
+    pub floor: String,
+    pub ceiling: String,
+    pub ceiling_inclusive: bool,
 }
 
 /// The interface/implementation split for one machine's termination story

@@ -19,21 +19,25 @@ pub(crate) fn lower_machine_into(
     lowerer.current_machine_is_boundary = false;
     let type_parameters = lower_type_parameters(lowerer, syntax_trees, machine.type_parameters)?;
     let satisfies = lower_machine_trait_conformances(lowerer, syntax_trees, machine.satisfies);
-    // TPR1: the `in <range>` rank constraint parses and stores, but nothing
-    // consumes it until TPR3's cycle checker -- refuse loudly, never drop.
-    if machine.decrease_range.is_valid() {
-        return Err(omega_core::diagnostics::Diagnostic::error(format!(
-            "machine `{}`: the ranking witness's `in <range>` constraint is not \
-             consumed yet (decision 23 TPR3) -- omit the range for now",
-            machine.name.as_str()
-        )));
-    }
     let decreases = lower_machine_decreases(lowerer, syntax_trees, machine.decreases)?;
     let decrease_order =
         lower_machine_decrease_order(lowerer, syntax_trees, machine.decrease_order);
     // TPR3: argumented-view arguments lower exactly like the subjects.
     let decrease_view_arguments =
         lower_machine_decreases(lowerer, syntax_trees, machine.decrease_view_arguments)?;
+    // TPR3 slice 3: the `in <range>` rank constraint lowers as an ordinary
+    // expression; the CHECKER verifies it structurally (v1: floor 0 +
+    // ceiling equal to the argumented view's own bound) and fails
+    // compilation otherwise -- consumed, never silently dropped.
+    let decrease_range = if machine.decrease_range.is_valid() {
+        lower_expression_into_table(
+            syntax_trees,
+            &mut lowerer.symbol_resolved_trees.tables.bodies.expressions,
+            machine.decrease_range,
+        )?
+    } else {
+        omega_symbol_resolved_trees::expression::ExpressionHandle::invalid()
+    };
     let effects = lower_signature_effects(lowerer, syntax_trees, machine.effects);
     let contracts = lower_signature_contracts(lowerer, syntax_trees, machine.contracts)?;
     let machine_name = crate::name::lower_name(&machine.name);
@@ -64,6 +68,7 @@ pub(crate) fn lower_machine_into(
             decreases,
             decrease_order,
             decrease_view_arguments,
+            decrease_range,
             effects,
             contracts,
             states,
@@ -123,6 +128,21 @@ fn build_termination_plan(
                 .iter()
                 .map(|argument| render_ranked_subject(syntax_trees, *argument))
                 .collect(),
+            // TPR3 slice 3: the authored rank-range fact, rendered
+            // source-like; the checker verifies it structurally and fails
+            // compilation otherwise.
+            rank_range: machine.decrease_range.is_valid().then(|| {
+                let syntax::expression::ExpressionNode::Range(range) =
+                    syntax_trees.expressions.expression(machine.decrease_range)
+                else {
+                    return omega_core::semantics::RankRange::default();
+                };
+                omega_core::semantics::RankRange {
+                    floor: render_ranked_subject(syntax_trees, range.start),
+                    ceiling: render_ranked_subject(syntax_trees, range.end),
+                    ceiling_inclusive: range.end_inclusive,
+                }
+            }),
         }
     });
 
@@ -140,6 +160,8 @@ fn render_ranked_subject(
     subject: syntax::expression::ExpressionHandle,
 ) -> String {
     match syntax_trees.expressions.expression(subject) {
+        // Range endpoints are commonly literals (`in 0..=capacity`).
+        syntax::expression::ExpressionNode::Integer(literal) => literal.text().to_string(),
         syntax::expression::ExpressionNode::Name(path) => syntax_trees
             .expressions
             .identifier_path_members(*path)

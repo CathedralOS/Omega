@@ -31451,6 +31451,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "termination/default_order_bounded_distance_compile",
     "termination/bounded_distance_named_view",
     "termination/increasing_cursor_bounded_view",
+    "termination/increasing_cursor_rank_range",
     "termination/default_order_unsigned_width_countdown_compile",
     "termination/runtime_shrinking_slice_recursion_exit",
     // --- Language-guide chapter coverage (Ch1-22) ---
@@ -31841,6 +31842,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "arithmetic/float_cast_unproven_rejected",
     "termination/terminates_block_form_retired",
     "termination/increasing_unbounded_rejected",
+    "termination/rank_floor_unconsumed",
     "termination/standalone_decreases_retired",
     "termination/rank_range_unconsumed",
     "arithmetic/suffix_negative_unsigned_rejected",

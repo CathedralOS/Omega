@@ -34,6 +34,9 @@ pub struct Machine {
     pub decrease_order: HandleSpan<Identifier>,
     /// TPR3: argumented-view arguments (`-> Nat::IncreasingTo(limit)`).
     pub decrease_view_arguments: HandleSpan<ExpressionHandle>,
+    /// TPR3: the optional `in <range>` rank constraint (a Range expression;
+    /// invalid = absent). The checker verifies it structurally.
+    pub decrease_range: ExpressionHandle,
     pub effects: HandleSpan<Identifier>,
     pub contracts: HandleSpan<SignatureContract>,
     pub states: HandleSpan<State>,
@@ -56,6 +59,7 @@ impl Default for Machine {
             decreases: HandleSpan::empty(),
             decrease_order: HandleSpan::empty(),
             decrease_view_arguments: HandleSpan::empty(),
+            decrease_range: ExpressionHandle::invalid(),
             effects: HandleSpan::empty(),
             contracts: HandleSpan::empty(),
             states: HandleSpan::empty(),

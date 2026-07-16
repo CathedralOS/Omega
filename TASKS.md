@@ -92,11 +92,25 @@ names the bounded spelling; argument-arity misuse and arguments on
 plain views name the fix (pinned: pass
 termination/increasing_cursor_bounded_view RUNS exit 4; fail
 increasing_unbounded_rejected; 3 pipeline tests + 1 parser unit).
-Remaining TPR3: in-checker completion of pending elaborations +
-subject resolution FROM the witness (retiring the compat spans),
-range-on-rank (IncreasingTo now gives ranges something to constrain),
-runtime tail lowering vs proof-stratum non-tail eligibility
-(acceptance test 4), joint SCC semantics across machines; then TPR4
+TPR3 SLICE 3 LANDED 2026-07-16 -- RANGE-ON-RANK v1: the TPR1 blanket
+lowering refusal is LIFTED; the `in <range>` constraint lowers through
+resolved->typed (new decrease_range handles), records into the witness
+(RankRange {floor, ceiling, inclusive} strings), and the CHECKER
+consumes it -- v1 accepts exactly the shape TRUE BY THE VIEW'S
+DEFINITION (`in 0..=limit` on `Nat::IncreasingTo(limit)`: the rank IS
+the distance up to that bound, so 0 <= rank <= limit structurally);
+nonzero floors, foreign/exclusive ceilings, and ranges on plain views
+get DIRECTED rejections naming what proof is missing -- consumed or
+refused, never a silently recorded unproven fact (pinned: pass
+increasing_cursor_rank_range; fail rank_range_unconsumed re-aimed at
+the directed plain-view message + new rank_floor_unconsumed; 2
+pipeline tests, 4 rejection shapes). ACCEPTANCE TEST 4 verified
+ALREADY-PINNED: runtime non-tail measured recursion is rejected at
+lowering (fail/calls/nontail_value_self_call_rejected) while the same
+measured non-tail shape runs the proof stratum (the whole N4 Nat/Seq
+lemma zoo). Remaining TPR3: in-checker completion of pending
+elaborations + subject resolution FROM the witness (retiring the
+compat spans), joint SCC semantics across machines; then TPR4
 requirement inheritance, published omission/default rules, sealed progress
 profiles, receipts, and pinned premises; TPR5 atomic corpus sweep across
 omega core/std, samples, all canary families, and compiler-lattice fixtures,
