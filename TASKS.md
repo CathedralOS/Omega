@@ -1530,8 +1530,17 @@ no `unbounded` property exists. Rungs:
   REMAINING (follow-up rungs, not blockers): tier-2 full polynomial
   (mul distributing through the canonical form — needs all five laws
   conformed; today mul applications are atoms, sufficient for the whole
-  acceptance); zero/one identity-law bridging; Int/Rat routing + the
-  N2(d) arithmetic bridge (unchanged).
+  acceptance); zero/one identity-law bridging LANDED 2026-07-16:
+  check_law_conformance normalizes NULLARY applications of trivial
+  CONSTANT machines (single state, one un-guarded transition to a
+  CLOSED constructor -- the settled zero/one shape) to their
+  constructor bodies on BOTH sides of the match, so
+  `add(a, zero())` and the proof's `add(a, Nat::Zero)` are one term;
+  CommutativeSemiring gained add_identity + mul_identity and nat.omg
+  conforms them via add_zero_right/mul_one_right (run-verified: the
+  misconformed add_zero_left refuses with the law rendered in its
+  BRIDGED form). Int/Rat routing + the N2(d) arithmetic bridge
+  (unchanged).
   THEN: Int/Rat routing, the N2(d) arithmetic bridge
   (n > 0 => n == Succ(n - 1)). Int introduction rule: order has no floor,
   measures stay Nat-valued or range-floored.
