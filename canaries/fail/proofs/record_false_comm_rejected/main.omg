@@ -1,0 +1,28 @@
+// RECORD-CONGRUENCE negative twin (int_core_surface's fail side): a FALSE
+// componentwise claim over a plain-record proof type -- add_int(a, b) is
+// NOT add_int(a, a). The structural judge unfolds both sides to record
+// constructors and decomposes field-by-field; the citations rewrite toward
+// add(b.neg, a.neg), never add(a.neg, a.neg), so the conjunct stays
+// unproven and the fence fires.
+use omega::language::core::nat;
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine Main::main(&mut self) { self.console.exit_process(70); }
+
+data IntPair2 {
+    neg: Nat;
+    pos: Nat;
+}
+
+machine add_int2(a: IntPair2, b: IntPair2) -> IntPair2 {
+    transition { _ -> (IntPair2 { neg: add(a.neg, b.neg), pos: add(a.pos, b.pos) }) }
+}
+
+machine add_int2_false_comm(a: IntPair2, b: IntPair2) -> IntPair2
+ensures
+    (add_int2(a, b)) == (add_int2(a, a))
+{
+    add_comm(a.neg, b.neg);
+    add_comm(a.pos, b.pos);
+    transition { _ -> (add_int2(a, b)) }
+}

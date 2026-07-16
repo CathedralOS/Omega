@@ -1,0 +1,17 @@
+// The core IntPair surface (difference pairs): the program-side consumer
+// CITES the module's add_int_comm, so the citation face (fact injection at
+// the call's argument terms) is exercised alongside the module lemmas' own
+// validation. RUNS exit 70. (NOT named `Int` -- that is a BUILTIN type name,
+// and a data definition shadowing it is fenced.)
+use omega::language::core::int;
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine Main::main(&mut self) { self.console.exit_process(70); }
+
+machine int_comm_consumer(a: IntPair, b: IntPair) -> IntPair
+ensures
+    (add_int(a, b)) == (add_int(b, a))
+{
+    _ = add_int_comm(a, b);
+    transition { _ -> (add_int(a, b)) }
+}
