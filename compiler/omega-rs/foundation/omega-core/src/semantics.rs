@@ -82,6 +82,11 @@ pub struct RankingWitness {
     /// elaboration (the one canonical-default case that needs the subject's
     /// carrier type; TPR3 completes it inside the migrated checker).
     pub view_path: String,
+    /// An ARGUMENTED view's arguments (`Nat::IncreasingTo(limit)` carries
+    /// `["limit"]`), rendered source-like in order; empty for plain views.
+    /// The bound is part of the view — an unbounded increasing view is not
+    /// a valid ranking.
+    pub view_arguments: Vec<String>,
 }
 
 /// The interface/implementation split for one machine's termination story
@@ -170,13 +175,20 @@ impl RankingViewId {
     pub const NAT_BOUNDED_DISTANCE: Self = Self(2);
     /// `Slice::Length` — a slice decreasing by its length.
     pub const SLICE_LENGTH: Self = Self(3);
+    /// `Nat::IncreasingTo(limit)` — a cursor climbing toward the bound the
+    /// view NAMES (the bound is part of the view: this is well-founded
+    /// because the distance to `limit` descends; an unbounded `Increasing`
+    /// is not a valid ranking).
+    pub const NAT_INCREASING_TO: Self = Self(4);
 
-    /// Look up a builtin canonical view by its explicit spelling.
+    /// Look up a builtin canonical view by its explicit spelling (the BASE
+    /// path — an argumented view's arguments live beside it).
     pub fn canonical(path: &str) -> Option<Self> {
         match path {
             "Nat::Descending" => Some(Self::NAT_DESCENDING),
             "Nat::BoundedDistance" => Some(Self::NAT_BOUNDED_DISTANCE),
             "Slice::Length" => Some(Self::SLICE_LENGTH),
+            "Nat::IncreasingTo" => Some(Self::NAT_INCREASING_TO),
             _ => None,
         }
     }
@@ -187,6 +199,7 @@ impl RankingViewId {
             Self::NAT_DESCENDING => Some("Nat::Descending"),
             Self::NAT_BOUNDED_DISTANCE => Some("Nat::BoundedDistance"),
             Self::SLICE_LENGTH => Some("Slice::Length"),
+            Self::NAT_INCREASING_TO => Some("Nat::IncreasingTo"),
             _ => None,
         }
     }
@@ -255,6 +268,7 @@ mod tests {
             RankingViewId::NAT_DESCENDING,
             RankingViewId::NAT_BOUNDED_DISTANCE,
             RankingViewId::SLICE_LENGTH,
+            RankingViewId::NAT_INCREASING_TO,
         ] {
             assert!(id.is_valid());
             let path = id.canonical_path().expect("builtin has a spelling");

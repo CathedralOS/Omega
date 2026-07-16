@@ -1,0 +1,22 @@
+// TPR3 (decision 23): an unbounded increasing view is NOT a well-founded
+// ranking -- the bound is part of the view. The rejection is DIRECTED at the
+// bounded spelling `Nat::IncreasingTo(limit)` instead of a bare
+// "cannot prove".
+
+data Main {}
+
+machine Main::main(&mut self) -> u64 {
+    transition {
+        _ -> self.climb(4, 0)
+    }
+}
+
+machine Main::climb(&mut self, limit: u64, index: u64)
+terminates by index -> Nat::Increasing;
+-> u64
+{
+    transition index < limit {
+        true -> climb(limit, index + 1)
+        false -> index
+    }
+}

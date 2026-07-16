@@ -776,23 +776,42 @@ fn discharges_strict_decrease(
         .expression_table
         .expression_handles(machine.decreases);
     let order = program.machine_decrease_order(machine.decrease_order);
-    let polynomial_order = order.is_empty()
+    // TPR3: the argumented `Nat::IncreasingTo(limit)` is polynomial too --
+    // its measure is the distance `limit - subject` with the bound taken
+    // from the view's argument.
+    let increasing_to =
+        order.len() == 2 && order[0].as_str() == "Nat" && order[1].as_str() == "IncreasingTo";
+    let polynomial_order = increasing_to
+        || order.is_empty()
         || (order.len() == 2
             && order[0].as_str() == "Nat"
             && matches!(order[1].as_str(), "Descending" | "BoundedDistance"));
     if !polynomial_order {
         return false;
     }
-    let measure = match decreases {
-        [single] => engine.normalize(*single),
-        // The two-subject bounded distance: the subjects bind in order to the
-        // view's (lower, upper) parameters and the measure polynomial is the
-        // distance `upper - lower`.
-        [lower, upper] => engine
-            .normalize(*upper)
-            .zip(engine.normalize(*lower))
-            .map(|(upper, lower)| upper.sub(&lower)),
-        _ => None,
+    let measure = if increasing_to {
+        let arguments = program
+            .expression_table
+            .expression_handles(machine.decrease_view_arguments);
+        match (decreases, arguments) {
+            ([subject], [limit]) => engine
+                .normalize(*limit)
+                .zip(engine.normalize(*subject))
+                .map(|(limit, subject)| limit.sub(&subject)),
+            _ => None,
+        }
+    } else {
+        match decreases {
+            [single] => engine.normalize(*single),
+            // The two-subject bounded distance: the subjects bind in order to the
+            // view's (lower, upper) parameters and the measure polynomial is the
+            // distance `upper - lower`.
+            [lower, upper] => engine
+                .normalize(*upper)
+                .zip(engine.normalize(*lower))
+                .map(|(upper, lower)| upper.sub(&lower)),
+            _ => None,
+        }
     };
     let Some(measure) = measure else {
         return false;

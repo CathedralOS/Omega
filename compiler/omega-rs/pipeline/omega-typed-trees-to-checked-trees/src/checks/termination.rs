@@ -72,6 +72,12 @@ pub(crate) fn check_machine_termination(
                     &inverted,
                 )));
             }
+            ranking::DecreaseOutcome::Rejected(message) => {
+                diagnostics.push(Diagnostic::error(format!(
+                    "terminating machine {}: {message}",
+                    machine_name(program, machine.symbol)
+                )));
+            }
             ranking::DecreaseOutcome::PlanViewDivergence { recorded, resolved } => {
                 // Internal invariant (TPR3 slice 1): the lowering's recorded
                 // elaboration mirrors the checker's inference exactly; a

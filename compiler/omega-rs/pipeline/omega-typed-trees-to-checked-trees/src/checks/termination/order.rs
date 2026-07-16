@@ -18,6 +18,14 @@ pub(super) enum RankingOrder {
     BoundedDistance,
     /// Built-in `Slice::Length`.
     SliceLength,
+    /// Built-in argumented `Nat::IncreasingTo(limit)` (TPR3, decision 23's
+    /// acceptance test 5): one climbing subject ranked by its distance UP TO
+    /// the bound the view names -- well-founded BECAUSE the bound is part of
+    /// the view; authors never write the `limit - subject` subtraction. The
+    /// stored handle is the bound argument; the provers run it through the
+    /// bounded-distance machinery with `(subject, limit)` as `(lower,
+    /// upper)`.
+    IncreasingTo(ExpressionHandle),
     /// A declared `measure` whose body forwards the (already numeric) parameter.
     CustomNatDescending,
     /// A declared `measure` whose body projects a field of a struct parameter,
@@ -42,6 +50,10 @@ pub(super) enum OrderResolution {
     /// An explicit `-> Order` was supplied but does not name a supported or
     /// declared, well-formed measure.
     Unsupported,
+    /// A DIRECTED rejection (TPR3): the spelling is recognizably wrong in a
+    /// specific way (an unbounded increasing view, an argument-arity
+    /// mismatch, arguments on a plain view) and the message names the fix.
+    Rejected { message: String },
 }
 
 /// Why a plain `decreases value` clause could not infer a default ranking, plus
@@ -88,7 +100,43 @@ impl RankingOrder {
         state: &omega_typed_trees::state::State,
         subjects: &[ExpressionHandle],
         order: &[omega_typed_trees::name::Identifier],
+        view_arguments: &[ExpressionHandle],
     ) -> OrderResolution {
+        // TPR3: the argumented-view surface resolves (or rejects) FIRST --
+        // its spellings are specific enough for directed diagnostics.
+        if path_matches(order, &["Nat", "Increasing"]) {
+            return OrderResolution::Rejected {
+                message: "unbounded `Nat::Increasing` is not a well-founded ranking --                           the bound is part of the view: name it with                           `-> Nat::IncreasingTo(limit)`"
+                    .to_string(),
+            };
+        }
+        if path_matches(order, &["Nat", "IncreasingTo"]) {
+            if subjects.len() != 1 {
+                return OrderResolution::Rejected {
+                    message: "`Nat::IncreasingTo(limit)` ranks exactly ONE climbing                               subject -- the bound is the view's argument, not a second                               subject"
+                        .to_string(),
+                };
+            }
+            let [limit] = view_arguments else {
+                return OrderResolution::Rejected {
+                    message: "`Nat::IncreasingTo` names exactly one bound argument --                               spell `-> Nat::IncreasingTo(limit)`"
+                        .to_string(),
+                };
+            };
+            return OrderResolution::Resolved(Self::IncreasingTo(*limit));
+        }
+        if !view_arguments.is_empty() {
+            let path = order
+                .iter()
+                .map(|member| member.as_str())
+                .collect::<Vec<_>>()
+                .join("::");
+            return OrderResolution::Rejected {
+                message: format!(
+                    "view arguments are only meaningful on an argumented view                      (`Nat::IncreasingTo(limit)`); `{path}` takes none"
+                ),
+            };
+        }
         match subjects {
             [single] => {
                 if order.is_empty() {

@@ -1003,3 +1003,156 @@ fn recorded_view_divergence_is_loud() {
             .collect::<Vec<_>>()
     );
 }
+
+/// TPR3 (decision 23's acceptance test 5): an INCREASING cursor is accepted
+/// through the bounded argumented view `Nat::IncreasingTo(limit)` without an
+/// authored subtraction -- the bound is part of the view, the measure is the
+/// distance up to it, and the plan witness records the base path plus the
+/// argument.
+#[test]
+fn accepts_increasing_cursor_via_bounded_argumented_view() {
+    use omega_core::semantics::RankingViewId;
+
+    let source = r#"
+    data Main {}
+
+    machine Main::main(&mut self) {
+        let value: u64 = self.climb(4, 0);
+    }
+
+    machine Main::climb(&mut self, limit: u64, index: u64)
+    terminates by index -> Nat::IncreasingTo(limit);
+    -> u64
+    {
+        transition index < limit {
+            true -> self.climb(limit, index + 1)
+            false -> index
+        }
+    }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+
+    let witness = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Main::climb")
+        .expect("climb machine")
+        .termination_plan
+        .implementation_witness
+        .as_ref()
+        .expect("climb witness");
+    assert_eq!(witness.subjects, vec!["index".to_string()]);
+    assert_eq!(witness.ranking_view, RankingViewId::NAT_INCREASING_TO);
+    assert_eq!(witness.view_path, "Nat::IncreasingTo");
+    assert_eq!(witness.view_arguments, vec!["limit".to_string()]);
+
+    lower_typed_trees(typed).expect("the bounded increasing cursor should prove");
+}
+
+/// TPR3: the unbounded `Nat::Increasing` is NOT a valid ranking -- the
+/// rejection is directed at the bounded spelling instead of a bare
+/// "cannot prove".
+#[test]
+fn rejects_unbounded_increasing_view_with_directed_message() {
+    let source = r#"
+    data Main {}
+
+    machine Main::main(&mut self) {
+        let value: u64 = self.climb(4, 0);
+    }
+
+    machine Main::climb(&mut self, limit: u64, index: u64)
+    terminates by index -> Nat::Increasing;
+    -> u64
+    {
+        transition index < limit {
+            true -> self.climb(limit, index + 1)
+            false -> index
+        }
+    }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let diagnostics =
+        lower_typed_trees(typed).expect_err("the unbounded increasing view must be rejected");
+
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("unbounded `Nat::Increasing` is not a well-founded ranking")
+                && diagnostic.message.contains("`-> Nat::IncreasingTo(limit)`")
+        }),
+        "expected the directed unbounded-increasing rejection, got: {:?}",
+        diagnostics
+            .iter()
+            .map(|diagnostic| diagnostic.message.clone())
+            .collect::<Vec<_>>()
+    );
+}
+
+/// TPR3: argument-arity misuse gets directed rejections too -- a missing
+/// bound on `IncreasingTo`, and arguments on a plain view.
+#[test]
+fn rejects_view_argument_arity_misuse_with_directed_messages() {
+    let cases = [
+        (
+            "terminates by index -> Nat::IncreasingTo;",
+            "`Nat::IncreasingTo` names exactly one bound argument",
+        ),
+        (
+            "terminates by index -> Nat::Descending(limit);",
+            "view arguments are only meaningful on an argumented view",
+        ),
+    ];
+    for (clause, expected) in cases {
+        let source = format!(
+            r#"
+    data Main {{}}
+
+    machine Main::main(&mut self) {{
+        let value: u64 = self.climb(4, 0);
+    }}
+
+    machine Main::climb(&mut self, limit: u64, index: u64)
+    {clause}
+    -> u64
+    {{
+        transition index < limit {{
+            true -> self.climb(limit, index + 1)
+            false -> index
+        }}
+    }}
+    "#
+        );
+
+        let tokens = Lexer::new(source.as_str())
+            .tokenize()
+            .expect("tokenize should succeed");
+        let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+        let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+        let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+        let diagnostics = lower_typed_trees(typed).expect_err("arity misuse must be rejected");
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains(expected)),
+            "clause `{clause}`: expected `{expected}`, got: {:?}",
+            diagnostics
+                .iter()
+                .map(|diagnostic| diagnostic.message.clone())
+                .collect::<Vec<_>>()
+        );
+    }
+}

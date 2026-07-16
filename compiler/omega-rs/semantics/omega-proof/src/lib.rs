@@ -676,6 +676,7 @@ mod tests {
             terminates_guarantee: false,
             decreases: HandleSpan::empty(),
             decrease_order: HandleSpan::empty(),
+            decrease_view_arguments: HandleSpan::empty(),
             decrease_range: omega_syntax_trees::expression::ExpressionHandle::invalid(),
             effects: HandleSpan::empty(),
             contracts: HandleSpan::empty(),
@@ -725,6 +726,7 @@ mod tests {
             terminates_guarantee: false,
             decreases: HandleSpan::empty(),
             decrease_order: HandleSpan::empty(),
+            decrease_view_arguments: HandleSpan::empty(),
             decrease_range: omega_syntax_trees::expression::ExpressionHandle::invalid(),
             effects: HandleSpan::empty(),
             contracts: HandleSpan::from_parts(

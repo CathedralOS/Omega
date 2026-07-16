@@ -76,12 +76,27 @@ DecreaseOutcome::PlanViewDivergence invariant makes any disagreement
 between the RECORDED elaborated view and the checker's independently
 resolved builtin order LOUD (pinned by a mutate-the-plan unit test;
 declared measures agree by construction, pending views constrain
-nothing). Remaining TPR3: in-checker completion of pending
-elaborations + subject resolution FROM the witness (retiring the
-compat spans), range-on-rank (needs an argumented view like
-Nat::IncreasingTo -- grammar + prover), runtime tail lowering vs
-proof-stratum non-tail eligibility (acceptance test 4), joint SCC
-semantics across machines; then TPR4
+nothing). TPR3 SLICE 2 LANDED 2026-07-16 -- Nat::IncreasingTo(limit),
+the ARGUMENTED ranking view (decision 23's acceptance test 5): the
+by-clause grammar takes an optional parenthesized argument list after
+the view path (new decrease_view_arguments span through
+syntax/resolved/typed; witness gains view_arguments strings; core
+catalog gains NAT_INCREASING_TO=4); the checker resolves it to
+RankingOrder::IncreasingTo(limit) and runs the SAME bounded-distance
+machinery with the view-fixed (subject, limit) orientation -- an
+increasing cursor proves WITHOUT an authored subtraction; the
+entailment judge's polynomial arm reads the measure `limit - subject`
+from the view argument. DIRECTED rejections (new
+OrderResolution/DecreaseOutcome::Rejected): unbounded `Nat::Increasing`
+names the bounded spelling; argument-arity misuse and arguments on
+plain views name the fix (pinned: pass
+termination/increasing_cursor_bounded_view RUNS exit 4; fail
+increasing_unbounded_rejected; 3 pipeline tests + 1 parser unit).
+Remaining TPR3: in-checker completion of pending elaborations +
+subject resolution FROM the witness (retiring the compat spans),
+range-on-rank (IncreasingTo now gives ranges something to constrain),
+runtime tail lowering vs proof-stratum non-tail eligibility
+(acceptance test 4), joint SCC semantics across machines; then TPR4
 requirement inheritance, published omission/default rules, sealed progress
 profiles, receipts, and pinned premises; TPR5 atomic corpus sweep across
 omega core/std, samples, all canary families, and compiler-lattice fixtures,

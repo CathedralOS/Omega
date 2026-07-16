@@ -320,6 +320,7 @@ fn expression_places_resolve_attached_data_members() {
         terminates: false,
         decreases: HandleSpan::empty(),
         decrease_order: HandleSpan::empty(),
+        decrease_view_arguments: HandleSpan::empty(),
         effects: HandleSpan::empty(),
         contracts: HandleSpan::empty(),
         states: HandleSpan::empty(),

@@ -20,6 +20,8 @@ type MachineClauses = (
     bool,
     HandleSpan<omega_syntax_trees::expression::ExpressionHandle>,
     HandleSpan<Identifier>,
+    // TPR3: argumented-view arguments (`-> Nat::IncreasingTo(limit)`).
+    HandleSpan<omega_syntax_trees::expression::ExpressionHandle>,
     omega_syntax_trees::expression::ExpressionHandle,
     HandleSpan<Identifier>,
     HandleSpan<CapabilityContract>,
@@ -29,6 +31,8 @@ type MachineClauses = (
 type RankedSubjects = (
     HandleSpan<omega_syntax_trees::expression::ExpressionHandle>,
     HandleSpan<Identifier>,
+    // TPR3: an argumented view's arguments (`-> Nat::IncreasingTo(limit)`).
+    HandleSpan<omega_syntax_trees::expression::ExpressionHandle>,
     omega_syntax_trees::expression::ExpressionHandle,
 );
 
@@ -40,6 +44,7 @@ pub(super) fn parse_machine_clauses<'tokens, 'source>(
     let mut terminates_guarantee = false;
     let mut decreases = HandleSpan::empty();
     let mut decrease_order = HandleSpan::empty();
+    let mut decrease_view_arguments = HandleSpan::empty();
     let mut decrease_range = omega_syntax_trees::expression::ExpressionHandle::invalid();
     let mut effect_start = Handle::invalid();
     let mut effect_count = 0u32;
@@ -57,11 +62,12 @@ pub(super) fn parse_machine_clauses<'tokens, 'source>(
             // RETIRED loudly below.
             if input.at_contextual("by") {
                 let by_input = input.take_contextual("by")?;
-                let ((clause_decreases, clause_order, clause_range), rest) =
+                let ((clause_decreases, clause_order, clause_view_arguments, clause_range), rest) =
                     parse_ranked_subjects(syntax_trees, by_input)?;
                 input = rest.take_punctuation(PunctuationKind::Semicolon, ";")?;
                 decreases = clause_decreases;
                 decrease_order = clause_order;
+                decrease_view_arguments = clause_view_arguments;
                 decrease_range = clause_range;
                 continue;
             }
@@ -233,6 +239,7 @@ pub(super) fn parse_machine_clauses<'tokens, 'source>(
             terminates_guarantee,
             decreases,
             decrease_order,
+            decrease_view_arguments,
             decrease_range,
             effects,
             contracts,
@@ -304,6 +311,7 @@ fn parse_ranked_subjects<'tokens, 'source>(
     };
     let decreases = syntax_trees.expressions.insert_expression_handles(subjects);
     let mut decrease_order = HandleSpan::empty();
+    let mut decrease_view_arguments = HandleSpan::empty();
 
     if rest.at_punctuation(PunctuationKind::Arrow) {
         rest = rest.take_punctuation(PunctuationKind::Arrow, "->")?;
@@ -312,6 +320,27 @@ fn parse_ranked_subjects<'tokens, 'source>(
         })?;
         decrease_order = order;
         rest = next;
+
+        // TPR3: an ARGUMENTED view (`-> Nat::IncreasingTo(limit)`) -- the
+        // bound is part of the view, bound in order to its parameters.
+        if rest.at_punctuation(PunctuationKind::LeftParen) {
+            let mut argument_input = rest.take_punctuation(PunctuationKind::LeftParen, "(")?;
+            let mut arguments = Vec::new();
+            loop {
+                let (argument, after_argument) =
+                    parse_expression_handle_without_struct_literals(syntax_trees, argument_input)?;
+                arguments.push(argument);
+                if after_argument.at_punctuation(PunctuationKind::Comma) {
+                    argument_input = after_argument.take_punctuation(PunctuationKind::Comma, ",")?;
+                    continue;
+                }
+                argument_input =
+                    after_argument.take_punctuation(PunctuationKind::RightParen, ")")?;
+                break;
+            }
+            decrease_view_arguments = syntax_trees.expressions.insert_expression_handles(arguments);
+            rest = argument_input;
+        }
     }
 
     let mut decrease_range = omega_syntax_trees::expression::ExpressionHandle::invalid();
@@ -351,7 +380,10 @@ fn parse_ranked_subjects<'tokens, 'source>(
         rest = next;
     }
 
-    Ok(((decreases, decrease_order, decrease_range), rest))
+    Ok((
+        (decreases, decrease_order, decrease_view_arguments, decrease_range),
+        rest,
+    ))
 }
 
 pub(super) fn parse_satisfies_traits<'tokens, 'source>(

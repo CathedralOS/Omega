@@ -31,6 +31,9 @@ pub(crate) fn lower_machine_into(
     let decreases = lower_machine_decreases(lowerer, syntax_trees, machine.decreases)?;
     let decrease_order =
         lower_machine_decrease_order(lowerer, syntax_trees, machine.decrease_order);
+    // TPR3: argumented-view arguments lower exactly like the subjects.
+    let decrease_view_arguments =
+        lower_machine_decreases(lowerer, syntax_trees, machine.decrease_view_arguments)?;
     let effects = lower_signature_effects(lowerer, syntax_trees, machine.effects);
     let contracts = lower_signature_contracts(lowerer, syntax_trees, machine.contracts)?;
     let machine_name = crate::name::lower_name(&machine.name);
@@ -60,6 +63,7 @@ pub(crate) fn lower_machine_into(
             terminates: machine.terminates,
             decreases,
             decrease_order,
+            decrease_view_arguments,
             effects,
             contracts,
             states,
@@ -111,6 +115,14 @@ fn build_termination_plan(
                 .collect(),
             ranking_view,
             view_path,
+            // TPR3: an argumented view's arguments, rendered source-like in
+            // order (`Nat::IncreasingTo(limit)` carries `["limit"]`).
+            view_arguments: syntax_trees
+                .expressions
+                .expression_handles(machine.decrease_view_arguments)
+                .iter()
+                .map(|argument| render_ranked_subject(syntax_trees, *argument))
+                .collect(),
         }
     });
 
