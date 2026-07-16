@@ -1,0 +1,16 @@
+// TPR1 (decision 23): the `terminates { decreases ...; }` block form is
+// RETIRED -- the ranking witness spells as `terminates by <subjects>
+// [-> View] [in <range>];`, the guarantee alone as bare `terminates;`.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine countdown(n: u64) -> u64
+terminates {
+    decreases n;
+}
+{
+    transition n {
+        0 -> (0)
+        _ -> (countdown(n - 1))
+    }
+}
+machine Main::run(&mut self) { self.console.exit_process(70); }

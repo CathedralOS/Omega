@@ -16,9 +16,7 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
 data Nat { case Zero; case Succ(prev: Nat); }
 
 machine add(a: Nat, b: Nat) -> Nat
-terminates {
-    decreases a;
-}
+terminates by a;
 {
     transition a {
         Nat::Zero -> (b)

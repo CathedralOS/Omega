@@ -11,7 +11,7 @@
 boundary trait Console { machine exit_process(return_code: i32); }
 data Main { console: Console; }
 machine Main::sum(&mut self, n: u64 [0..=100], acc: u64 [0..=5050])
-terminates { decreases n; }
+terminates by n;
 -> u64
 {
     transition n > 0 && acc <= 4950 { true -> step(n, acc) _ -> leaf(acc) }

@@ -19,6 +19,15 @@ pub(crate) fn lower_machine_into(
     lowerer.current_machine_is_boundary = false;
     let type_parameters = lower_type_parameters(lowerer, syntax_trees, machine.type_parameters)?;
     let satisfies = lower_machine_trait_conformances(lowerer, syntax_trees, machine.satisfies);
+    // TPR1: the `in <range>` rank constraint parses and stores, but nothing
+    // consumes it until TPR3's cycle checker -- refuse loudly, never drop.
+    if machine.decrease_range.is_valid() {
+        return Err(omega_core::diagnostics::Diagnostic::error(format!(
+            "machine `{}`: the ranking witness's `in <range>` constraint is not \
+             consumed yet (decision 23 TPR3) -- omit the range for now",
+            machine.name.as_str()
+        )));
+    }
     let decreases = lower_machine_decreases(lowerer, syntax_trees, machine.decreases)?;
     let decrease_order =
         lower_machine_decrease_order(lowerer, syntax_trees, machine.decrease_order);

@@ -6,7 +6,7 @@
 boundary trait Console { machine exit_process(return_code: i32); }
 data Main { console: Console; }
 machine Main::countdown(&mut self, n: u64 [0..=100]) -> u64
-terminates { decreases n; }
+terminates by n;
 {
     transition n == 0 { true -> 7 }
     self.countdown(n)

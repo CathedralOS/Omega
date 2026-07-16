@@ -1,0 +1,13 @@
+// TPR1 (decision 23): a standalone `decreases` clause is RETIRED -- the
+// witness attaches to the guarantee as `terminates by ...;`.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine countdown(n: u64) -> u64
+decreases n
+{
+    transition n {
+        0 -> (0)
+        _ -> (countdown(n - 1))
+    }
+}
+machine Main::run(&mut self) { self.console.exit_process(70); }

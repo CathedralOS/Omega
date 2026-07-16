@@ -5,9 +5,7 @@ machine Main::main(&mut self) {
 }
 
 machine Main::countdown(&mut self, remaining: u32)
-terminates {
-    decreases remaining;
-}
+terminates by remaining;
 -> u32
 {
     transition remaining > 0 {

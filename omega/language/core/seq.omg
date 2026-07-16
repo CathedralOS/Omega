@@ -18,9 +18,7 @@ use omega::language::core::nat;
 // type. The structural entailment judge (N3) is parametric over
 // constructor names, so it discharges Seq lemmas exactly as it does Nat's.
 machine length(s: Seq<u64>) -> Nat
-terminates {
-    decreases s;
-}
+terminates by s;
 {
     transition s {
         Seq::Empty -> Nat::Zero
@@ -46,9 +44,7 @@ ensures
 
 // Concatenation, structurally recursive on the first sequence.
 machine append(s: Seq<u64>, t: Seq<u64>) -> Seq<u64>
-terminates {
-    decreases s;
-}
+terminates by s;
 {
     transition s {
         Seq::Empty -> (t)
@@ -59,9 +55,7 @@ terminates {
 // append's right identity, by induction on `s`. Lean analog:
 // `List.append_nil`.
 machine append_empty_right(s: Seq<u64>) -> Seq<u64>
-terminates {
-    decreases s;
-}
+terminates by s;
 ensures
     (append(s, Seq::Empty)) == s
 {
@@ -74,9 +68,7 @@ ensures
 // append associates, by induction on the outermost first sequence. Lean
 // analog: `List.append_assoc`.
 machine append_assoc(s: Seq<u64>, t: Seq<u64>, u: Seq<u64>) -> Seq<u64>
-terminates {
-    decreases s;
-}
+terminates by s;
 ensures
     (append(append(s, t), u)) == (append(s, append(t, u)))
 {
@@ -91,9 +83,7 @@ ensures
 // inside length inside add) plus the inductive hypothesis; no citations
 // needed. Lean analog: `List.length_append`.
 machine length_append(s: Seq<u64>, t: Seq<u64>) -> Nat
-terminates {
-    decreases s;
-}
+terminates by s;
 ensures
     (length(append(s, t))) == (add(length(s), length(t)))
 {
@@ -107,9 +97,7 @@ ensures
 // appends the head as a singleton on the right). Lean analog:
 // `List.reverse` (the non-accumulator spelling).
 machine reverse(s: Seq<u64>) -> Seq<u64>
-terminates {
-    decreases s;
-}
+terminates by s;
 {
     transition s {
         Seq::Empty -> Seq::Empty
@@ -127,9 +115,7 @@ terminates {
 // fuel budget): the backend used to crash, then hang, expanding the
 // proof machine's recursion. Lean analog: `List.length_reverse`.
 machine length_reverse(s: Seq<u64>) -> Nat
-terminates {
-    decreases s;
-}
+terminates by s;
 ensures
     (length(reverse(s))) == (length(s))
 {
@@ -157,9 +143,7 @@ ensures
 // its initializer and joins the arm environment). Lean analog:
 // `List.reverse_append`.
 machine reverse_append(s: Seq<u64>, t: Seq<u64>) -> Seq<u64>
-terminates {
-    decreases s;
-}
+terminates by s;
 ensures
     (reverse(append(s, t))) == (append(reverse(t), reverse(s)))
 {
@@ -187,9 +171,7 @@ ensures
 // closes `reverse(reverse(tail)) == tail`. Lean analog:
 // `List.reverse_reverse`.
 machine reverse_reverse(s: Seq<u64>) -> Seq<u64>
-terminates {
-    decreases s;
-}
+terminates by s;
 ensures
     (reverse(reverse(s))) == s
 {

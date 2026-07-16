@@ -8,9 +8,7 @@ boundary trait Console { machine exit_process(return_code: i32); }
 data Main { console: Console; }
 machine Main::main(&mut self) { self.console.exit_process(70); }
 machine spin(n: Nat) -> Nat
-terminates {
-    decreases n;
-}
+terminates by n;
 {
     transition n {
         Nat::Zero -> Nat::Zero

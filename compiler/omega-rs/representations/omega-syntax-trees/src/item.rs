@@ -633,6 +633,11 @@ pub struct Machine {
     pub terminates: bool,
     pub decreases: HandleSpan<crate::expression::ExpressionHandle>,
     pub decrease_order: HandleSpan<Identifier>,
+    /// TPR1: the witness clause's optional `in <range>` (decision 23's
+    /// rank-range constraint). Invalid = absent. Parsed and stored here;
+    /// the syntax->resolved lowering refuses it loudly until TPR3's cycle
+    /// checker consumes ranges (never silently dropped).
+    pub decrease_range: crate::expression::ExpressionHandle,
     pub effects: HandleSpan<Identifier>,
     pub contracts: HandleSpan<CapabilityContract>,
     pub states: HandleSpan<StateHandle>,

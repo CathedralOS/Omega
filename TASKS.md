@@ -26,9 +26,21 @@ typed representation, proof-cache shape, diagnostics, and essentially the
 whole executable/proof sample corpus. At inventory time, 113 `.omg` files
 contain `terminates` and 104 contain standalone `decreases`. Do not preserve
 compatibility syntax at this age; migrate the compiler and corpus as one
-explicit breaking pass. Rungs: TPR1 parser/AST (`terminates;` and
-`terminates by subjects [-> View] [in range];`, retire block-form and
-standalone direction clauses); TPR2 normalized public guarantee versus
+explicit breaking pass. Rungs: TPR1 parser/AST — LANDED 2026-07-16
+ATOMICALLY WITH ITS CORPUS SWEEP: the parser accepts bare `terminates;`
+and `terminates by <subjects> [-> View] [in <range>];` (subjects parse
+with the NO-MEMBERSHIP expression variant so the clause's own `in` is
+never eaten; the range builds a Range node inline — index-position was
+the only structural range parser); the block form and standalone
+`decreases` are RETIRED with loud decision-23 diagnostics (pinned:
+fail/termination/terminates_block_form_retired +
+standalone_decreases_retired); the `in <range>` constraint parses into
+the NEW syntax-Machine `decrease_range` field and the lowering refuses
+it until TPR3 consumes ranges (pinned: rank_range_unconsumed — never a
+silent drop). Corpus: 97 files regex-swept + 3 manual (a bare-
+terminates body brace the sweep must not touch, a no-semicolon
+standalone form, comment spellings) + 2 parser unit tests; every gate
+green over the migrated corpus first try. Remaining rungs unchanged:; TPR2 normalized public guarantee versus
 private `RankingWitness`, including canonical-default elaboration; TPR3
 cycle checker migration (state loops, calls, range-on-rank, runtime tail
 lowering, proof-stratum non-tail eligibility, joint SCC semantics); TPR4

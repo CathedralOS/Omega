@@ -13,9 +13,7 @@ machine Main::main(&mut self) -> u64 {
 }
 
 machine Main::walk(&mut self, limit: u64, index: u64)
-terminates {
-    decreases (limit, index);
-}
+terminates by (limit, index);
 -> u64
 {
     transition index < limit {

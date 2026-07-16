@@ -1,4 +1,7 @@
-use crate::parser::expression::parse_expression_handle_without_struct_literals;
+use crate::parser::expression::{
+    parse_expression_handle_without_struct_literals,
+    parse_expression_handle_without_struct_literals_or_membership,
+};
 use crate::parser::input::{Input, ParseResult, parse_path_handle_span};
 use crate::parser::proof_fact::parse_proof_facts_until;
 use crate::parser::type_reference::parse_type_reference_handle;
@@ -14,14 +17,16 @@ type MachineClauses = (
     bool,
     HandleSpan<omega_syntax_trees::expression::ExpressionHandle>,
     HandleSpan<Identifier>,
+    omega_syntax_trees::expression::ExpressionHandle,
     HandleSpan<Identifier>,
     HandleSpan<CapabilityContract>,
     omega_syntax_trees::types::TypeReferenceHandle,
 );
 
-type DecreasesClause = (
+type RankedSubjects = (
     HandleSpan<omega_syntax_trees::expression::ExpressionHandle>,
     HandleSpan<Identifier>,
+    omega_syntax_trees::expression::ExpressionHandle,
 );
 
 pub(super) fn parse_machine_clauses<'tokens, 'source>(
@@ -31,6 +36,7 @@ pub(super) fn parse_machine_clauses<'tokens, 'source>(
     let mut terminates = false;
     let mut decreases = HandleSpan::empty();
     let mut decrease_order = HandleSpan::empty();
+    let mut decrease_range = omega_syntax_trees::expression::ExpressionHandle::invalid();
     let mut effect_start = Handle::invalid();
     let mut effect_count = 0u32;
     let mut contract_start = Handle::invalid();
@@ -41,26 +47,41 @@ pub(super) fn parse_machine_clauses<'tokens, 'source>(
         if input.at_contextual("terminates") {
             input = input.take_contextual("terminates")?;
             terminates = true;
+            // Decision 23 (TPR1): bare `terminates;` authors the public
+            // guarantee; `terminates by <subjects> [-> View] [in <range>];`
+            // supplies the private ranking witness. The old block form is
+            // RETIRED loudly below.
+            if input.at_contextual("by") {
+                let by_input = input.take_contextual("by")?;
+                let ((clause_decreases, clause_order, clause_range), rest) =
+                    parse_ranked_subjects(syntax_trees, by_input)?;
+                input = rest.take_punctuation(PunctuationKind::Semicolon, ";")?;
+                decreases = clause_decreases;
+                decrease_order = clause_order;
+                decrease_range = clause_range;
+                continue;
+            }
+            if input.at_punctuation(PunctuationKind::Semicolon) {
+                input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
+                continue;
+            }
             if starts_termination_clause_block(input) {
-                let ((block_decreases, block_order), rest) =
-                    parse_termination_clause_block(syntax_trees, input)?;
-                input = rest;
-                if !block_decreases.is_empty() {
-                    decreases = block_decreases;
-                    decrease_order = block_order;
-                }
+                return Err(input.error_here(
+                    "the `terminates { decreases ...; }` block form is retired \
+                     (decision 23): spell the ranking witness as `terminates by \
+                     <subjects> [-> View] [in <range>];`, or bare `terminates;` \
+                     for the guarantee alone",
+                ));
             }
             continue;
         }
 
         if input.at_contextual("decreases") {
-            let ((clause_decreases, clause_order), rest) =
-                parse_decreases_clause(syntax_trees, input)?;
-            input = rest;
-            decreases = clause_decreases;
-            decrease_order = clause_order;
-
-            continue;
+            return Err(input.error_here(
+                "a standalone `decreases` clause is retired (decision 23): \
+                 attach the ranking witness to the guarantee as `terminates by \
+                 <subjects> [-> View] [in <range>];`",
+            ));
         }
 
         if input.at_contextual("effects") {
@@ -202,6 +223,7 @@ pub(super) fn parse_machine_clauses<'tokens, 'source>(
             terminates,
             decreases,
             decrease_order,
+            decrease_range,
             effects,
             contracts,
             return_type,
@@ -235,46 +257,18 @@ fn starts_termination_clause_block(input: Input<'_, '_>) -> bool {
     })
 }
 
-fn parse_termination_clause_block<'tokens, 'source>(
-    syntax_trees: &mut SyntaxTrees,
-    mut input: Input<'tokens, 'source>,
-) -> ParseResult<'tokens, 'source, DecreasesClause> {
-    input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
-    let mut decreases = HandleSpan::empty();
-    let mut decrease_order = HandleSpan::empty();
-
-    while !input.at_punctuation(PunctuationKind::RightBrace) {
-        if input.at_contextual("decreases") {
-            let ((clause_decreases, clause_order), rest) =
-                parse_decreases_clause(syntax_trees, input)?;
-            input = rest.take_punctuation(PunctuationKind::Semicolon, ";")?;
-            decreases = clause_decreases;
-            decrease_order = clause_order;
-            continue;
-        }
-
-        if input.at_contextual("increases") {
-            return Err(input.error_here(
-                "`increases` termination clauses are not implemented yet; use `decreases` for now",
-            ));
-        }
-
-        return Err(input.expected_one_of_here(&["`decreases`", "`}`"]));
-    }
-
-    input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
-    Ok(((decreases, decrease_order), input))
-}
-
-fn parse_decreases_clause<'tokens, 'source>(
+/// Decision 23's ranking-witness body: `<subject>` or `(<s1>, <s2>, ..)`
+/// followed by an optional `-> View::Path` and an optional `in <range>`
+/// (the rank-range constraint; stored on the machine, refused downstream
+/// until TPR3's cycle checker consumes ranges).
+fn parse_ranked_subjects<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
-) -> ParseResult<'tokens, 'source, DecreasesClause> {
-    let input = input.take_contextual("decreases")?;
+) -> ParseResult<'tokens, 'source, RankedSubjects> {
     let (subjects, mut rest) = if input.at_punctuation(PunctuationKind::LeftParen) {
-        // The tuple form `decreases (index, limit) -> View`: the arrow's left
-        // side is uniformly the ranked subjects, bound in order to the named
-        // view's parameters.
+        // The tuple form `terminates by (index, limit) -> View`: the arrow's
+        // left side is uniformly the ranked subjects, bound in order to the
+        // named view's parameters.
         let mut tuple_input = input.take_punctuation(PunctuationKind::LeftParen, "(")?;
         let mut subjects = Vec::new();
         loop {
@@ -290,8 +284,12 @@ fn parse_decreases_clause<'tokens, 'source>(
         }
         (subjects, tuple_input)
     } else {
-        let (expression, rest) =
-            parse_expression_handle_without_struct_literals(syntax_trees, input)?;
+        // NO-MEMBERSHIP variant: the clause's own `in <range>` must not be
+        // eaten as a membership expression on the subject.
+        let (expression, rest) = parse_expression_handle_without_struct_literals_or_membership(
+            syntax_trees,
+            input,
+        )?;
         (vec![expression], rest)
     };
     let decreases = syntax_trees.expressions.insert_expression_handles(subjects);
@@ -306,7 +304,44 @@ fn parse_decreases_clause<'tokens, 'source>(
         rest = next;
     }
 
-    Ok(((decreases, decrease_order), rest))
+    let mut decrease_range = omega_syntax_trees::expression::ExpressionHandle::invalid();
+    if rest.at_contextual("in") {
+        let range_input = rest.take_contextual("in")?;
+        // `<start> ..(=) <end>`: ranges only parse structurally in index
+        // position, so build the Range node here.
+        let (start, after_start) = parse_expression_handle_without_struct_literals_or_membership(
+            syntax_trees,
+            range_input,
+        )?;
+        let end_inclusive = if after_start.at_punctuation(PunctuationKind::DotDotEqual) {
+            true
+        } else if after_start.at_punctuation(PunctuationKind::DotDot) {
+            false
+        } else {
+            return Err(after_start.expected_one_of_here(&["`..`", "`..=`"]));
+        };
+        let after_separator = if end_inclusive {
+            after_start.take_punctuation(PunctuationKind::DotDotEqual, "..=")?
+        } else {
+            after_start.take_punctuation(PunctuationKind::DotDot, "..")?
+        };
+        let (end, next) = parse_expression_handle_without_struct_literals_or_membership(
+            syntax_trees,
+            after_separator,
+        )?;
+        decrease_range = syntax_trees.expressions.insert(
+            omega_syntax_trees::expression::ExpressionNode::Range(
+                omega_syntax_trees::expression::TableRangeExpression {
+                    start,
+                    end,
+                    end_inclusive,
+                },
+            ),
+        );
+        rest = next;
+    }
+
+    Ok(((decreases, decrease_order, decrease_range), rest))
 }
 
 pub(super) fn parse_satisfies_traits<'tokens, 'source>(

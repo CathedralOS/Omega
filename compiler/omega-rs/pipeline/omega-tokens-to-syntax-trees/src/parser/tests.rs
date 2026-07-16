@@ -162,9 +162,7 @@ fn parses_machine_contract_clauses() {
 fn parses_machine_termination_clauses() {
     let source = r#"
         machine walk(items: &[Item], remaining: usize)
-        terminates {
-            decreases remaining -> Nat::Descending;
-        }
+        terminates by remaining -> Nat::Descending;
         {
         }
         "#;
@@ -204,9 +202,7 @@ fn parses_machine_termination_tuple_subjects() {
     // ranked-subject tuple, bound in order to the named view's parameters.
     let source = r#"
         machine walk(limit: usize, index: usize)
-        terminates {
-            decreases (index, limit) -> Nat::BoundedDistance;
-        }
+        terminates by (index, limit) -> Nat::BoundedDistance;
         {
         }
         "#;

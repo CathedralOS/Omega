@@ -12,9 +12,7 @@ machine Main::main(&mut self) {
 }
 
 machine Main::weaken(&mut self, card: Card)
-terminates {
-    decreases card;
-}
+terminates by card;
 -> u64
 {
     transition card.power > 0 {

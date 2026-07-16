@@ -41,9 +41,7 @@ data Nat {
 // ensures-extraction rung.
 machine add(a: Nat, b: Nat) -> Nat
 satisfies CommutativeSemiring::add
-terminates {
-    decreases a;
-}
+terminates by a;
 {
     transition a {
         Nat::Zero -> (b)
@@ -53,9 +51,7 @@ terminates {
 
 machine mul(a: Nat, b: Nat) -> Nat
 satisfies CommutativeSemiring::mul
-terminates {
-    decreases a;
-}
+terminates by a;
 {
     transition a {
         Nat::Zero -> Nat::Zero
@@ -99,9 +95,7 @@ ensures
 // `add(b, Zero) == b` at those operands). Both are discharged per arm
 // with the machine's own ensures as the inductive hypothesis.
 machine add_zero_right(a: Nat) -> Nat
-terminates {
-    decreases a;
-}
+terminates by a;
 ensures
     result == a;
     (add(a, Nat::Zero)) == a
@@ -130,9 +124,7 @@ ensures
 // `lhs == rhs` law rewriting matching applications everywhere), not the
 // laws themselves.
 machine add_succ_law(a: Nat, b: Nat) -> Nat
-terminates {
-    decreases a;
-}
+terminates by a;
 ensures
     (add(a, Nat::Succ { prev: b })) == (Nat::Succ { prev: add(a, b) })
 {
@@ -153,9 +145,7 @@ ensures
 // payload).
 machine add_comm(a: Nat, b: Nat) -> Nat
 satisfies CommutativeSemiring::add_comm
-terminates {
-    decreases a;
-}
+terminates by a;
 ensures
     (add(a, b)) == (add(b, a))
 {
@@ -179,9 +169,7 @@ ensures
 // normalize by unfolding plus the inductive hypothesis.
 machine add_assoc(a: Nat, b: Nat, c: Nat) -> Nat
 satisfies CommutativeSemiring::add_assoc
-terminates {
-    decreases a;
-}
+terminates by a;
 ensures
     (add(add(a, b), c)) == (add(a, add(b, c)))
 {
@@ -194,9 +182,7 @@ ensures
 // mul's RIGHT annihilator (the left one is compute-mode; this one is the
 // induction).
 machine mul_zero_right(a: Nat) -> Nat
-terminates {
-    decreases a;
-}
+terminates by a;
 ensures
     (mul(a, Nat::Zero)) == Nat::Zero
 {
@@ -215,9 +201,7 @@ ensures
 // under Nat's CommutativeSemiring conformance, and the msr_step sub-state
 // deletes entirely.
 machine mul_succ_right(a: Nat, b: Nat) -> Nat
-terminates {
-    decreases a;
-}
+terminates by a;
 ensures
     (mul(a, Nat::Succ { prev: b })) == (add(a, mul(a, b)))
 {
@@ -238,9 +222,7 @@ ensures
 // imports in scope.
 machine mul_distributes(a: Nat, b: Nat, c: Nat) -> Nat
 satisfies CommutativeSemiring::mul_distributes
-terminates {
-    decreases a;
-}
+terminates by a;
 ensures
     (mul(a, add(b, c))) == (add(mul(a, b), mul(a, c)))
 {
@@ -256,9 +238,7 @@ ensures
 // `add(add(c, X), Y)`) the rearrange tier discharges under the
 // CommutativeSemiring conformance.
 machine mul_distributes_right(a: Nat, b: Nat, c: Nat) -> Nat
-terminates {
-    decreases a;
-}
+terminates by a;
 ensures
     (mul(add(a, b), c)) == (add(mul(a, c), mul(b, c)))
 {
@@ -277,9 +257,7 @@ ensures
 // which both sides meet at `add(mul(b, c), mul(prev, mul(b, c)))`.
 machine mul_assoc(a: Nat, b: Nat, c: Nat) -> Nat
 satisfies CommutativeSemiring::mul_assoc
-terminates {
-    decreases a;
-}
+terminates by a;
 ensures
     (mul(mul(a, b), c)) == (mul(a, mul(b, c)))
 {
@@ -298,9 +276,7 @@ ensures
 // mul_succ_right at (b, prev) plus the inductive hypothesis.
 machine mul_comm(a: Nat, b: Nat) -> Nat
 satisfies CommutativeSemiring::mul_comm
-terminates {
-    decreases a;
-}
+terminates by a;
 ensures
     (mul(a, b)) == (mul(b, a))
 {
