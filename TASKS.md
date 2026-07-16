@@ -2595,8 +2595,16 @@ rejects — an INTEGER ruling, engineering rides this ladder as F8).
   state's declared return. State synthesis needs fresh names
   (__arm_k_N) + appending to the machine's state list in
   machine/state lowering (statement.rs does not own it — the
-  cross-file part). The existing fence canary flips to a pass twin
-  when this lands; keep a fail twin for the non-name-argument gate.
+  cross-file part). LANDED NOTES: the target's argument NAMES are
+  minted FRESH (the original handles stay inside the synthesized
+  body — sharing one node across two scopes let the second symbol
+  resolution overwrite the first's, the probe-found bug); duplicate
+  arguments dedup to one parameter. Pinned: pass
+  calls/guarded_value_call_arm_exit (BOTH arms observed — pick(60)
+  takes the call arm -> 120, pick(10) takes the else arm -> raw 10;
+  RUNS exit 70); fail guarded_value_call_terminal_rejected re-pinned
+  to the V1 gate (a computed argument `dbl(x + 1)` keeps the honest
+  fence).
 - **Rendering-sample sweep (R0 follow-on) — SWEPT 2026-07-11:**
   bouncing_particles dropped its flat-field sidestep (plot + render paths
   now spell `grid[b*20+a]` / `grid[ry*20+cx]` under one dominating
