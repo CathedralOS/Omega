@@ -365,6 +365,55 @@ pub fn land_float_literal_destinations(program: &mut TypedTrees) {
                                 program, machine, state, guard, &mut pairs,
                             );
                         }
+                        // A transition ARG adopts the TARGET state's declared
+                        // param type (the arg IS a delivery into that
+                        // destination -- same law as a `let`): `check(2.0e0 +
+                        // tiny)` into `got: f32` folds/evaluates per-op at
+                        // f32. Same-machine targets only (value-machine call
+                        // args ride the Call statement, a later face).
+                        for target in [transition.target, transition.continuation] {
+                            if !target.is_valid() {
+                                continue;
+                            }
+                            let omega_typed_trees::statement::TransitionTargetNode::Named {
+                                path,
+                                arguments,
+                            } = program.statement_table.transition_target(target)
+                            else {
+                                continue;
+                            };
+                            // The Named target's path members live in the
+                            // STATEMENT table's identifier arena (the target
+                            // node's home), not the expression table's.
+                            let target_members =
+                                program.statement_table.name_path_members(path.members);
+                            let [target_name] = target_members else {
+                                continue;
+                            };
+                            let Some(target_state) = program
+                                .machine_states(machine)
+                                .iter()
+                                .find(|candidate| candidate.name.as_str() == target_name.as_str())
+                            else {
+                                continue;
+                            };
+                            // The `&mut self` receiver rides the param list but
+                            // never pairs with a spelled argument -- zip only the
+                            // value params.
+                            let parameters = program
+                                .state_parameters(target_state)
+                                .iter()
+                                .filter(|parameter| !parameter.is_self);
+                            let argument_handles =
+                                program.statement_table.expression_handles(*arguments);
+                            for (parameter, argument) in
+                                parameters.zip(argument_handles.iter().copied())
+                            {
+                                if parameter.type_reference.is_valid() {
+                                    pairs.push((argument, parameter.type_reference));
+                                }
+                            }
+                        }
                     }
                     _ => {}
                 }
