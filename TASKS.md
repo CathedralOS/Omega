@@ -692,9 +692,13 @@ sealed progress profiles + grants, TPR4's remaining big half).
    semantic_cast_fact_false (self >= 10 at 5 -- the "predicate
    obligation not discharged" class); fail semantic_cast_mint_staged
    re-pinned to the flow-integration fence (runtime values route
-   through validating calls/guards until that rung). Remaining
-   checked plans: flow-integrated minting (non-literal values via
-   guards/facts); QualificationFacts rows for declared-domain mints;
+   through validating calls/guards until that rung). QualificationFacts
+   DECLARED-DOMAIN ROWS LANDED same day: an accepted mint's cast
+   resolves its short name to the declaration (the judge's
+   exact-or-::suffix rule) and commits the declaration's interned
+   identity beside the policy ids (pin extended: Main::minted
+   commits Km's id). Remaining checked plans: flow-integrated
+   minting (non-literal values via guards/facts);
    permission + normalized-machine-contract plans; STR5
    validation/resolution; STR6 lower only from checked selections while
    preserving semantic contract IDs in artifacts; STR7 retire compatibility
