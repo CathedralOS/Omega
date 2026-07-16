@@ -86,3 +86,33 @@ Blocked pending: the declaration spelling ruling + a scoping decision on
 whether the grant/receipt subsystem lands as part of TPR4 or as its own
 front-loaded arc. Everything else in TPR1–TPR5 is landed; TPR6's
 firewall/acceptance work continues where it doesn't depend on profiles.
+
+## 2026-07-16: N2(d) arithmetic bridge (n > 0 => n == Succ(n - 1)) — DESIGN GAP
+
+The N-ladder's remaining N2 item wants INTEGER-measured induction to consume
+Nat lemmas: from an integer hypothesis `n > 0`, expose the structural reading
+`n == Succ(n - 1)` so integer-typed subjects can meet structural machinery
+(and dually, Nat lemma ensures could extract to polynomial facts).
+
+What is NOT settled — the bridge's sanctioned surface:
+
+1. **The homomorphism direction and spelling.** Does a Nat lemma's ensures
+   EXTRACT to integer facts (add(a,b) => a + b under a Nat->integer measure
+   map, with which trust story?), or do integer facts REFLECT into Nat
+   structure (an integer-typed variable gaining constructor readings under
+   range hypotheses)? Both are sound in principle; they lead to different
+   engine plumbing (polynomial engine consuming structural ensures vs the
+   structural judge consuming range facts), different fence surfaces, and
+   different soundness audits.
+2. **Which types participate.** u64-only? All unsigned? Signed with what
+   floor discipline? (The Int introduction rule says order has no floor for
+   IntPair — measures stay Nat-valued — so the bridge presumably speaks
+   unsigned integers only, but that is my inference, not a ruling.)
+3. **Where the bridge fact lives.** A judge rule (structural side), an
+   entailment tier (polynomial side), or an explicit citable core lemma with
+   a kernel-recognized discharge?
+
+The quotient/conformance arc (IntPair rungs 1-6, landed 2026-07-16) did not
+need the bridge; nothing else in the current queue is blocked on it. Parking
+until the direction is ruled; both engines are healthy and the bridge can
+land as a bounded slice once the surface is chosen.
