@@ -1188,14 +1188,15 @@ no `unbounded` property exists. Rungs:
   roster canary compiles them; judge discharged first try). All five
   CommutativeSemiring laws now bound for Nat. SEQ ZOO 2026-07-16:
   `reverse` landed (naive append-singleton form, proven terminating);
-  `length_reverse` PARKED — asking the judge to discharge
-  `length(reverse(s)) == length(s)` over the generic core Seq<u64>
-  OVERFLOWS THE COMPILE-THREAD STACK (repro:
-  pending/proofs/length_reverse_judge_overflow, self-contained; a
-  non-generic inline copy is rejected cleanly, so the
-  generic-instantiation judge path is implicated; needs a fuel
-  bound/seen-set turning divergence into a loud rejection — a
-  compiler must never crash). REMAINING:
+  `length_reverse` PARKED — compiling it OVERFLOWS THE COMPILE-THREAD
+  STACK; lldb locates the crash in the STATE-VALUES SIMPLIFIER
+  (omega_state_values::simplify::folding::boolean_or recursing
+  unboundedly), NOT the judge (whose unfolder is depth-capped and
+  traces a normal finite discharge first). Repro:
+  pending/proofs/length_reverse_judge_overflow (self-contained). Fix
+  shape: cycle detection / depth budget in the simplify recursion —
+  divergence must become a loud diagnostic, never a crash (same
+  family as the tamed value-call cyclic-callee overflow). REMAINING:
   more of the lemma zoo as the judge widens (commutativity needs
   double induction / rearrange-mode), extraction INTO consumer proofs
   (a caller citing a lemma's ensures — the fact-consumption face), the
