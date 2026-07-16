@@ -24885,6 +24885,51 @@ fn runtime_mut_ref_forward_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_local_slice_forward_exit_canary_runs() {
+    // A frame-LOCAL-backed `&mut [T]` descriptor (view of a struct-literal
+    // local's array field) forwarded as a transition arg, then indexed-RMW'd
+    // through the param. Exit 71 = the RMW read the wrong initial value;
+    // a SIGNAL death = the descriptor went ZII/wild (the promoted segfault).
+    let canary = pass_canary("storage/runtime_local_slice_forward_exit");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("local-slice forward canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should exit 70 (forwarded slice RMW lands), got {}",
+        outcome.exit_code
+    );
+
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-local-slice-forward-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("local-slice forward canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("local-slice forward canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the forwarded local-backed slice descriptor to stay live (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_stdin_command_branch_exit_canary_runs() {
     let canary = pass_canary("text/runtime_stdin_command_branch_exit");
     let main_path = canary.join("main.omg");
@@ -30662,6 +30707,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "storage/requires_slice_indexed_alias_field_binary_compile",
     "storage/runtime_slice_indexed_binary_rmw_exit",
     "calls/runtime_mut_ref_forward_exit",
+    "storage/runtime_local_slice_forward_exit",
     "text/runtime_alias_string_write",
     "text/runtime_alias_text_builder_write",
     "text/runtime_string_concat_membership_exit",
@@ -31699,10 +31745,9 @@ const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
     // pass/arithmetic/unsigned_min_max_operand_position_exit (carrier CR3
     // landed 2026-07-18: binding-capture stamping + operand-derived
     // anonymous-destination folds carry the landing to the signedness probe).
-    PendingCanary {
-        path: "storage/local_slice_forward_segfault",
-        expectation: PendingCanaryExpectation::CurrentlyAccepts,
-    },
+    // local_slice_forward_segfault PROMOTED to
+    // pass/storage/runtime_local_slice_forward_exit (the struct-literal
+    // slice-view slot carve-out landed; see the canary header).
     // shift_amount_at_or_above_width_divergence PROMOTED to
     // pass/arithmetic/runtime_shift_atwidth_signed_modular_exit: the
     // shift-domain ruling made Wrapping << modular and all three engines

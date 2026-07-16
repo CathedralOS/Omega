@@ -30,7 +30,8 @@ use super::primitives::{
     encode_conditional_branch_lower_or_same, encode_conditional_branch_not_equal,
     encode_conditional_branch_plus,
     encode_load_w_from_x, encode_load_x_from_x, encode_asrv_w_register, encode_asrv_x_register,
-    encode_lslv_x_register, encode_lsrv_x_register, encode_move_w_register, encode_move_x_register, encode_movz,
+    encode_lslv_x_register, encode_lsrv_w_register, encode_lsrv_x_register, encode_move_w_register,
+    encode_move_x_register, encode_movz,
     encode_movz_w,
     encode_msub_w_register, encode_msub_x_register, encode_mul_x_register, encode_orr_x_register,
     encode_adds_x_register, encode_compare_x_register_sign_broadcast,
@@ -4119,13 +4120,38 @@ fn append_runtime_binary_operation(
                 )
             });
         }
-        // Logical (zero-filling) right shift for an unsigned `>>`.
+        // Logical (zero-filling) right shift for an unsigned `>>`. The zero
+        // fill must start at the OPERAND width: a narrow value may sit in a
+        // register with garbage/wrapped HIGH bits (a 64-bit nested Wrapping op
+        // hands its parent the untruncated result), and the X form would shift
+        // those down into the live word. Sub-word values are zero-extended
+        // first (the logical twin of the ShiftRight arm's sign-extension);
+        // width 4 rides the W form directly (it reads only the low 32 bits).
         StateGuardOperator::ShiftRightLogical => {
-            bytes.extend(encode_lsrv_x_register(
-                destination_register,
-                destination_register,
-                right_register,
-            ));
+            if byte_size == 1 {
+                bytes.extend(encode_zero_extend_byte_to_w(
+                    destination_register,
+                    destination_register,
+                ));
+            } else if byte_size == 2 {
+                bytes.extend(encode_zero_extend_halfword_to_w(
+                    destination_register,
+                    destination_register,
+                ));
+            }
+            bytes.extend(if narrow {
+                encode_lsrv_w_register(
+                    destination_register,
+                    destination_register,
+                    right_register,
+                )
+            } else {
+                encode_lsrv_x_register(
+                    destination_register,
+                    destination_register,
+                    right_register,
+                )
+            });
         }
         StateGuardOperator::Divide | StateGuardOperator::DivideUnsigned => {
             let signed = matches!(operator, StateGuardOperator::Divide);
