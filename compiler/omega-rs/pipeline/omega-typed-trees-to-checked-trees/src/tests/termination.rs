@@ -1634,9 +1634,18 @@ fn qualification_facts_record_policy_commitments() {
     let source = r#"
     data Main {}
 
+    domain i64::Km {
+        self >= 0;
+    }
+
     machine Main::clamped(&mut self, value: u64) -> u8 {
         let squeezed: u8 = value as u8 in Saturating;
         squeezed
+    }
+
+    machine Main::minted(&mut self) -> i64 {
+        let distance: i64 = 5 as i64 in Km;
+        distance
     }
 
     machine Main::main(&mut self) -> u64 {
@@ -1659,7 +1668,9 @@ fn qualification_facts_record_policy_commitments() {
             .symbol
     };
     let clamped_symbol = symbol_of("Main::clamped");
+    let minted_symbol = symbol_of("Main::minted");
     let main_symbol = symbol_of("Main::main");
+    let km_id = typed.semantic_domains.lookup("i64::Km").expect("Km interned");
     let checked = lower_typed_trees(typed).expect("checked lowering should succeed");
 
     let clamped = checked
@@ -1672,6 +1683,13 @@ fn qualification_facts_record_policy_commitments() {
         vec![SemanticDomainTable::SATURATING],
         "the saturating cast commits to the fixed Saturating identity"
     );
+    // The MINT commits to the DECLARED domain's interned identity.
+    let minted = checked
+        .facts
+        .qualifications
+        .for_machine(minted_symbol)
+        .expect("minted's qualification fact");
+    assert_eq!(minted.body_committed, vec![km_id]);
     assert!(
         checked
             .facts

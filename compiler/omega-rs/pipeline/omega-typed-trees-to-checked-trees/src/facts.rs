@@ -91,6 +91,27 @@ fn build_qualification_facts(program: &TypedTrees) -> omega_checked_trees::Quali
                 if let Some(policy) = policy {
                     committed.push(policy);
                 }
+                // A DECLARED-domain qualification (the mint, decision 19):
+                // the cast carries the domain's SHORT name; resolve it to
+                // the declaration (exact or `Carrier::Name` suffix -- the
+                // validation judge's rule) and take its interned identity.
+                // Compiled programs only carry ACCEPTED mints -- a failed
+                // mint refuses at validation.
+                if cast.semantic_domain.count() > 0
+                    && let Some(name) = program
+                        .expression_table
+                        .name_path_members(cast.semantic_domain)
+                        .first()
+                    && let Some(domain) = program.domain_definitions().iter().find(|domain| {
+                        domain.name.as_str() == name.as_str()
+                            || domain
+                                .name
+                                .as_str()
+                                .ends_with(&format!("::{}", name.as_str()))
+                    })
+                {
+                    committed.push(domain.semantic_id);
+                }
                 collect_casts(program, cast.value, committed);
             }
             ExpressionNode::Binary(binary) => {
