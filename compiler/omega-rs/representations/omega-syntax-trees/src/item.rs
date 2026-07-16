@@ -246,6 +246,7 @@ impl Default for LibraryFunction {
                 return_type: crate::types::TypeReferenceHandle::invalid(),
                 effects: HandleSpan::empty(),
                 contracts: HandleSpan::empty(),
+                terminates_guarantee: false,
             },
             symbol: None,
             calling_convention: None,
@@ -684,6 +685,12 @@ pub struct StateSignature {
     pub return_type: crate::types::TypeReferenceHandle,
     pub effects: HandleSpan<Identifier>,
     pub contracts: HandleSpan<CapabilityContract>,
+    /// TPR4 (decision 23): the bodyless requirement authored bare
+    /// `terminates;` -- the PUBLIC eventual-terminal guarantee its
+    /// implementations inherit. A requirement never carries a witness
+    /// (`terminates by ...` is rejected at parse: the witness belongs to
+    /// implementations).
+    pub terminates_guarantee: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1045,6 +1052,7 @@ impl ItemTable {
             return_type: signature.return_type,
             effects: signature.effects,
             contracts: signature.contracts,
+            terminates_guarantee: signature.terminates_guarantee,
         })
     }
 
@@ -1147,6 +1155,8 @@ pub struct StateSignatureNode {
     pub return_type: crate::types::TypeReferenceHandle,
     pub effects: HandleSpan<Identifier>,
     pub contracts: HandleSpan<CapabilityContract>,
+    /// TPR4 (decision 23): the bodyless requirement's authored guarantee.
+    pub terminates_guarantee: bool,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

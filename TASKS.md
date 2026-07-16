@@ -126,8 +126,22 @@ predictable)"), and within-machine multi-state SCCs already use ONE
 joint witness (nonstrict-edge-acyclicity checker, pinned by the
 mutually-recursive-states tests) -- the brief's deferred item is only
 the cross-shape source SPELLING. Remaining TPR3: subject resolution
-FROM the witness (retiring the compat spans -- TPR6-adjacent); then
-TPR4
+FROM the witness (retiring the compat spans -- TPR6-adjacent). TPR4
+SLICE 1 LANDED 2026-07-16 -- trait requirements PARSE the guarantee:
+the bodyless-signature clause parser's skip-any-token fallback was
+SILENTLY EATING `terminates;` on trait requirements (decision 23's
+PRIMARY bare-form use!); it now parses into the new syntax
+StateSignature.terminates_guarantee flag, and `terminates by ...` on
+a requirement is rejected loudly (the witness belongs to the
+implementation that discharges the inherited claim -- pinned:
+fail/termination/requirement_witness_rejected + 2 parser units).
+Remaining TPR4: propagate the requirement's guarantee through
+resolved/typed trait-requirement records; INHERITANCE at conformance
+(an implementation inherits the published guarantee + premises, its
+`terminates by` supplies only the discharging witness; a cyclic
+inheriting implementation without a witness must fail); published
+omission/default rules; sealed progress profiles + receipts + pinned
+premises (grant machinery); then
 requirement inheritance, published omission/default rules, sealed progress
 profiles, receipts, and pinned premises; TPR5 atomic corpus sweep across
 omega core/std, samples, all canary families, and compiler-lattice fixtures,

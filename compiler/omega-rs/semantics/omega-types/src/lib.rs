@@ -221,6 +221,7 @@ pub fn build_type_surface_report(syntax_trees: &SyntaxTrees) -> TypeSurfaceRepor
                             return_type: signature.return_type,
                             effects: signature.effects,
                             contracts: signature.contracts,
+                            terminates_guarantee: signature.terminates_guarantee,
                         },
                         &format!("platform `{}` state `{}`", platform.name, signature.name),
                     );
@@ -248,6 +249,7 @@ pub fn build_type_surface_report(syntax_trees: &SyntaxTrees) -> TypeSurfaceRepor
                             return_type: signature.return_type,
                             effects: signature.effects,
                             contracts: signature.contracts,
+                            terminates_guarantee: signature.terminates_guarantee,
                         },
                         &format!(
                             "trait `{}` machine `{}`",

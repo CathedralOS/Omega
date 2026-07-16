@@ -44,6 +44,7 @@ pub(super) fn parse_state_signature<'tokens, 'source>(
             return_type,
             effects: HandleSpan::empty(),
             contracts: HandleSpan::empty(),
+            terminates_guarantee: false,
         },
         input,
     ))

@@ -31843,6 +31843,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "termination/terminates_block_form_retired",
     "termination/increasing_unbounded_rejected",
     "termination/rank_floor_unconsumed",
+    "termination/requirement_witness_rejected",
     "termination/standalone_decreases_retired",
     "termination/rank_range_unconsumed",
     "arithmetic/suffix_negative_unsigned_rejected",

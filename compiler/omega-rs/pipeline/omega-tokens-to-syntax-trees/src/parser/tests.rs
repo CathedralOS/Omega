@@ -287,6 +287,64 @@ fn parses_machine_termination_argumented_view() {
 }
 
 #[test]
+fn parses_trait_requirement_termination_guarantee() {
+    // TPR4 (decision 23): a bodyless requirement authors the PUBLIC
+    // guarantee with bare `terminates` -- previously the signature clause
+    // parser's skip-any-token fallback ATE it silently.
+    let source = r#"
+        trait Worker {
+            machine run(&mut self, n: u64) -> u64 terminates;
+            machine peek(&self) -> u64;
+        }
+        "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let parsed = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let trait_definition = parsed
+        .root_items()
+        .find_map(|item| match item {
+            omega_syntax_trees::item::Item::Trait(definition) => Some(definition),
+            _ => None,
+        })
+        .expect("trait root item");
+
+    let signatures: Vec<_> = parsed
+        .items
+        .state_signatures(trait_definition.machines)
+        .iter()
+        .map(|handle| parsed.items.state_signature(*handle))
+        .collect();
+    assert_eq!(signatures.len(), 2);
+    assert!(signatures[0].terminates_guarantee, "run authored `terminates`");
+    assert!(!signatures[1].terminates_guarantee, "peek promised nothing");
+}
+
+#[test]
+fn rejects_ranking_witness_on_trait_requirement() {
+    // The witness belongs to implementations: a bodyless requirement has no
+    // body to prove.
+    let source = r#"
+        trait Worker {
+            machine run(&mut self, n: u64) -> u64 terminates by n;
+        }
+        "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let error = parse_syntax_trees(&tokens).expect_err("the witness must be rejected");
+    assert!(
+        error
+            .message
+            .contains("does not belong on a bodyless requirement"),
+        "got: {}",
+        error.message
+    );
+}
+
+#[test]
 fn rejects_bare_arrow_transition_in_explicit_state_body() {
     let source = r#"
         machine Main::main(&mut self) {
