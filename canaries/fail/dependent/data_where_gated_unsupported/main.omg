@@ -1,0 +1,16 @@
+// R2 rung 2 slice 1 (ch12 gating): `stride >= 40` FAILS at the zero value,
+// so MemoryMap is GATED -- not zero-constructible. Gated construction
+// (mandatory fields proving the domain at the literal) is rung 2b; until
+// then the gate refuses loudly. Never a silent drop of an authored domain.
+boundary trait Console { machine exit_process(return_code: i32); }
+data MemoryMap
+where
+    count <= len,
+    stride >= 40,
+{
+    len: u32;
+    stride: u32;
+    count: u32;
+}
+data Main { console: Console; }
+machine Main::main(&mut self) { self.console.exit_process(70); }

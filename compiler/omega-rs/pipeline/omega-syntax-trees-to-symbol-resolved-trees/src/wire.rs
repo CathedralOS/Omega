@@ -68,6 +68,7 @@ pub(crate) fn data_definition_from_wire_schema(
         name: schema.name.clone(),
         storage: DataDefinitionStorage {
             type_parameters: omega_core::arena::HandleSpan::empty(),
+            where_facts: omega_core::arena::HandleSpan::empty(),
             properties: DataProperties::default(),
             members,
         },

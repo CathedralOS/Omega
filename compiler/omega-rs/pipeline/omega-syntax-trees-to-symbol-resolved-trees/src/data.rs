@@ -15,15 +15,6 @@ pub(crate) fn lower_data_definition(
     syntax_trees: &SyntaxTrees,
     data_definition: &syntax::item::DataDefinition,
 ) -> Result<DataDefinition, Diagnostic> {
-    // R2 rung 1: the default-domain `where` clause parses and stores, but
-    // nothing consumes the model until R2 rung 2 (gating + establishment)
-    // -- refuse loudly, never drop.
-    if !data_definition.where_facts.is_empty() {
-        return Err(Diagnostic::error(format!(
-            "data `{}`: the default-domain `where` clause is not consumed yet              (dependent types R2 rung 2) -- remove it for now",
-            data_definition.name.as_str()
-        )));
-    }
     // `Versioned` is the permanent builtin era-tagged container (frozen
     // decision 14): every `Versioned<T>` reference folds to the synthesized
     // container of a versioned data type, so a user definition of the same
@@ -36,6 +27,48 @@ pub(crate) fn lower_data_definition(
     let type_parameters =
         lower_type_parameters(lowerer, syntax_trees, data_definition.type_parameters)?;
     let members = lower_data_members(lowerer, syntax_trees, data_definition.members)?;
+    // R2 rung 2 slice 1 (ch12 gating): lower the default-domain facts and
+    // classify AT ZERO. Zero-satisfying facts are admitted -- the value is
+    // born established (the zero-constructible tier); they stay INERT until
+    // rung 3 wires entailment hypotheses and write obligations ATOMICALLY.
+    // A GATED type (zero violates the domain) refuses until rung 2b lands
+    // construction-mandatory fields; a fact the folder cannot evaluate at
+    // zero refuses as unsupported (v1 fence). Never a silent drop.
+    let where_facts =
+        crate::domain::lower_proof_facts(lowerer, syntax_trees, data_definition.where_facts)?;
+    for fact in lowerer.symbol_resolved_trees.proof_facts(where_facts) {
+        let omega_symbol_resolved_trees::domain::ProofFact::Expression(expression) = fact else {
+            return Err(Diagnostic::error(format!(
+                "data `{}`: a domain-membership fact in the default-domain `where` \
+                 clause is not supported yet (R2) -- spell arithmetic facts over the \
+                 fields",
+                data_definition.name.as_str()
+            )));
+        };
+        match zero_fold(
+            &lowerer.symbol_resolved_trees.tables.bodies.expressions,
+            *expression,
+        ) {
+            Some(value) if value != 0 => {}
+            Some(_) => {
+                return Err(Diagnostic::error(format!(
+                    "data `{}` is GATED: its zero value violates the default domain \
+                     (`where` fact fails at zero) -- gated construction \
+                     (mandatory fields) is not implemented yet (R2 rung 2b); make \
+                     the facts hold at zero for now",
+                    data_definition.name.as_str()
+                )));
+            }
+            None => {
+                return Err(Diagnostic::error(format!(
+                    "data `{}`: a default-domain `where` fact is outside the v1 \
+                     zero-foldable fragment (field names, integer literals, + - *, \
+                     comparisons, && ) -- simplify the fact for now (R2)",
+                    data_definition.name.as_str()
+                )));
+            }
+        }
+    }
 
     Ok(DataDefinition {
         symbol: SymbolHandle::invalid(),
@@ -54,9 +87,43 @@ pub(crate) fn lower_data_definition(
                     omega_core::semantics::Multiplicity::Affine
                 },
             },
+            where_facts,
             members,
         },
     })
+}
+
+/// R2 rung 2 slice 1: fold one default-domain fact AT THE ZERO VALUE --
+/// every field name reads 0, literals read themselves, `+ - *` fold,
+/// comparisons and `&&`/`||` yield 1/0. `None` = outside the fragment.
+fn zero_fold(
+    expressions: &omega_symbol_resolved_trees::expression::ExpressionTable,
+    expression: omega_symbol_resolved_trees::expression::ExpressionHandle,
+) -> Option<i128> {
+    use omega_symbol_resolved_trees::expression::{BinaryOperator, ExpressionNode};
+    match expressions.expression(expression) {
+        ExpressionNode::Name(_) => Some(0),
+        ExpressionNode::Integer(literal) => literal.text().parse::<i128>().ok(),
+        ExpressionNode::Binary(binary) => {
+            let left = zero_fold(expressions, binary.left)?;
+            let right = zero_fold(expressions, binary.right)?;
+            match binary.operator {
+                BinaryOperator::Add => left.checked_add(right),
+                BinaryOperator::Subtract => left.checked_sub(right),
+                BinaryOperator::Multiply => left.checked_mul(right),
+                BinaryOperator::LessOrEqual => Some(i128::from(left <= right)),
+                BinaryOperator::Less => Some(i128::from(left < right)),
+                BinaryOperator::GreaterOrEqual => Some(i128::from(left >= right)),
+                BinaryOperator::Greater => Some(i128::from(left > right)),
+                BinaryOperator::Equal => Some(i128::from(left == right)),
+                BinaryOperator::NotEqual => Some(i128::from(left != right)),
+                BinaryOperator::And => Some(i128::from(left != 0 && right != 0)),
+                BinaryOperator::Or => Some(i128::from(left != 0 || right != 0)),
+                _ => None,
+            }
+        }
+        _ => None,
+    }
 }
 
 /// Lower each `version vN { ... }` block of a data declaration into its own
@@ -114,6 +181,7 @@ pub(crate) fn lower_data_version_definitions(
             )),
             storage: DataDefinitionStorage {
                 type_parameters: HandleSpan::empty(),
+                where_facts: omega_core::arena::HandleSpan::empty(),
                 // Historical shapes carry no declared properties; a property
                 // describes the CURRENT shape only.
                 properties: DataProperties::default(),
@@ -209,6 +277,7 @@ pub(crate) fn lower_versioned_container_definition(
         )),
         storage: DataDefinitionStorage {
             type_parameters: HandleSpan::empty(),
+            where_facts: omega_core::arena::HandleSpan::empty(),
             // The container itself is plain runtime state: zero-initialized
             // like any other field-bearing data (a zeroed container reads as
             // the oldest declared era with a zeroed payload).
