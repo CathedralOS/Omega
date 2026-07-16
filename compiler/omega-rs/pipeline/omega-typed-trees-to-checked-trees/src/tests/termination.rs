@@ -1601,6 +1601,11 @@ fn effect_row_facts_split_ceiling_from_inferred_summaries() {
     assert_ne!(quiet.published_ceiling, EffectRowTable::EMPTY_ROW);
     assert_eq!(quiet.inferred_direct, EffectRowTable::EMPTY_ROW);
     assert_ne!(quiet.published_ceiling, quiet.inferred_direct);
+    // Seed rework: the TRANSITIVE summary is declaration-free too -- the
+    // body reaches nothing, so the honest reach is the EMPTY row even
+    // though the ceiling names filesystem_io. (Callers still see the
+    // CEILING through their call edges -- the modular bound.)
+    assert_eq!(quiet.inferred_transitive, EffectRowTable::EMPTY_ROW);
     assert_eq!(
         checked.facts.effect_rows.rows.members(quiet.published_ceiling),
         &[omega_core::semantics::effect_member_id("filesystem_io").expect("catalog")]

@@ -73,9 +73,11 @@ fn build_effect_row_facts(
     };
     let mut machines = Vec::new();
     for machine_effects in effects.machines() {
-        // STR4 slice 3: the honest declaration-free direct summary.
+        // STR4 slice 3 + seed rework: the honest declaration-free
+        // summaries (the authored clause lives in published_ceiling; the
+        // inferred rows carry only what the body observes and reaches).
         let inferred_direct = intern_set(machine_effects.body_observed);
-        let inferred_transitive = intern_set(machine_effects.transitive);
+        let inferred_transitive = intern_set(machine_effects.body_transitive);
         let published_ceiling = program
             .machines()
             .iter()
