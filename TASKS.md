@@ -1429,7 +1429,15 @@ no `unbounded` property exists. Rungs:
   definitional wrapper body IS the lowering's `let __hoist =
   append(..)` shape) — the fact normalizer now binds LocalData
   statements exactly like the two recognizers (three sites total ride
-  the let-binding rung). Lean List.reverse_concat. Next zoo:
+  the let-binding rung). Lean List.reverse_concat. add_one_right +
+  length_snoc + snoc_append LANDED 2026-07-16 (zoo at 13 Seq + 1 new
+  Nat lemma): add_one_right is the add_zero_right induction shifted by
+  one (Lean Nat.add_one); length_snoc chains TWO citations
+  (length_append at (s,[x]) + add_one_right at length(s)) -- the
+  first two-citation proof in the zoo; snoc_append is one
+  append_assoc citation at (s,t,[x]) (Lean concat_append mirrored).
+  All three discharged FIRST TRY; negative probe run-verified (a
+  broken length_snoc claim rejects). Next zoo:
   map/filter once generics-over-machines land. REMAINING:
   more of the lemma zoo as the judge widens (commutativity needs
   double induction / rearrange-mode), extraction INTO consumer proofs

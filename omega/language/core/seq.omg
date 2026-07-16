@@ -207,3 +207,28 @@ ensures
     reverse_append(s, Seq::Cons { head: x, tail: Seq::Empty });
     transition { _ -> (reverse(s)) }
 }
+
+// length of a snoc is the successor: length(snoc(s, x)) == Succ(length(s)).
+// Two citations: length_append at (s, [x]) rewrites the snoc's append to
+// `add(length(s), length([x]))`; the singleton's length computes to
+// Succ(Zero); add_one_right at length(s) collapses the trailing add.
+// Lean analog: `List.length_concat`.
+machine length_snoc(s: Seq<u64>, x: u64) -> Nat
+ensures
+    (length(snoc(s, x))) == (Nat::Succ { prev: length(s) })
+{
+    length_append(s, Seq::Cons { head: x, tail: Seq::Empty });
+    add_one_right(length(s));
+    transition { _ -> (length(s)) }
+}
+
+// Snoc distributes over append: snoc(append(s, t), x) == append(s, snoc(t, x))
+// -- ONE citation of append_assoc at (s, t, [x]); both sides unfold to the
+// same right-associated shape. Lean analog: `List.concat_append` mirrored.
+machine snoc_append(s: Seq<u64>, t: Seq<u64>, x: u64) -> Seq<u64>
+ensures
+    (snoc(append(s, t), x)) == (append(s, snoc(t, x)))
+{
+    append_assoc(s, t, Seq::Cons { head: x, tail: Seq::Empty });
+    transition { _ -> (append(s, t)) }
+}

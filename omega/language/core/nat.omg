@@ -106,6 +106,22 @@ ensures
     }
 }
 
+// add's one-step successor: add(a, Succ(Zero)) == Succ(a) -- structural
+// induction on `a`, the add_zero_right pattern shifted by one (the Zero
+// arm computes; each Succ arm's ensures is the inductive hypothesis).
+// Bridges length_append's trailing `add(length(s), Succ(Zero))` to
+// `Succ(length(s))` in seq.omg's length_snoc. Lean analog: `Nat.add_one`.
+machine add_one_right(a: Nat) -> Nat
+terminates by a;
+ensures
+    (add(a, Nat::Succ { prev: Nat::Zero })) == (Nat::Succ { prev: a })
+{
+    transition a {
+        Nat::Zero -> Nat::Succ { prev: Nat::Zero }
+        Nat::Succ { prev } -> Nat::Succ { prev: add_one_right(prev) }
+    }
+}
+
 // mul's left annihilator: mul(Zero, b) == Zero (compute-mode, unfolds the
 // Zero arm).
 machine mul_zero_left(b: Nat) -> Nat
