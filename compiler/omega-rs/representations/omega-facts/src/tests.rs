@@ -310,6 +310,8 @@ fn expression_places_resolve_attached_data_members() {
         symbol: machine_symbol,
         name: Identifier::generated("Main::main"),
         boundary: false,
+        supply_mode: Default::default(),
+        termination_plan: Default::default(),
         type_parameters: HandleSpan::empty(),
         attached_data: Some(Identifier::generated("Main")),
         contains: HandleSpan::empty(),

@@ -38,18 +38,19 @@ fn domain_definition_is_still_the_undifferentiated_shape() {
     let _ = witness; // compile-time witness; never called
 }
 
-/// LOSS 2 (record §Machines): the machine record carries `boundary: bool` +
-/// `terminates: bool` + a FLAT effect-name span -- no normalized
-/// `MachineSemanticContract`, no `MachineSupplyMode`, and the terminates
-/// boolean + decreases span CONFLATE the public eventual-terminal guarantee
-/// with the private ranking witness (decision 23 splits them:
-/// `TerminationGuarantee` participates in contract identity, the
-/// `RankingWitness` never does). When STR3/4 land the split, this pin's
-/// update must check: an inherited guarantee with an implementation-local
-/// witness is representable, and swapping one valid witness for another
-/// leaves caller/import-slot contract identity unchanged.
+/// LOSS 2 -- PARTIALLY RE-PINNED (TPR2, 2026-07-16): the machine record now
+/// carries the normalized `MachineTerminationPlan` -- decision 23's split of
+/// the PUBLIC eventual-terminal guarantee (authored by bare `terminates;`,
+/// contract identity) from the PRIVATE `RankingWitness` (subjects + explicit
+/// view, never contract identity) -- populated ONCE at the syntax->resolved
+/// lowering and COPIED downstream. The distinction the old pin named is
+/// representable; the invariant test below witnesses the firewall. STILL
+/// LOST here: no normalized `MachineSemanticContract`, the effect span is
+/// STILL flat (decision 22's kinded rows ride STR4), and the
+/// `terminates`/`decreases`/`decrease_order` compatibility shape remains the
+/// checker's input until TPR3 migrates it onto the plan (TPR6 retires it).
 #[test]
-fn machine_record_still_conflates_guarantee_and_witness() {
+fn machine_record_carries_the_termination_plan_beside_the_compat_bools() {
     fn witness(machine: Machine) {
         let Machine {
             symbol: _,
@@ -61,12 +62,14 @@ fn machine_record_still_conflates_guarantee_and_witness() {
             // CheckedBody today; Requirement/Accepted when their spellings
             // reach the record) and copied downstream.
             supply_mode: _,
+            // TPR2 (2026-07-16): the normalized guarantee/witness split.
+            termination_plan: _,
             type_parameters: _,
             contains: _,
             owned_data: _,
             satisfies: _,
-            terminates: _,   // STILL guarantee AND witness, as one bool
-            decreases: _,    // STILL the private witness material, in the interface record
+            terminates: _,   // compatibility: the checker's input until TPR3
+            decreases: _,    // compatibility witness material until TPR3
             decrease_order: _,
             effects: _,      // STILL decision 22's kinded rows, as a flat name span
             contracts: _,
@@ -74,6 +77,38 @@ fn machine_record_still_conflates_guarantee_and_witness() {
         } = machine;
     }
     let _ = witness;
+}
+
+/// The decision-23 firewall on the LANDED shape: an inherited/public
+/// guarantee with an implementation-local witness is representable, and
+/// swapping one valid witness for another leaves the published half (the
+/// contract-identity carrier) unchanged.
+#[test]
+fn termination_plan_witness_swap_is_contract_invisible() {
+    use omega_core::semantics::{
+        MachineTerminationPlan, RankingViewId, RankingWitness, TerminationGuarantee,
+    };
+    let descending = MachineTerminationPlan {
+        published: Some(TerminationGuarantee::EventualTerminal {
+            premises: Vec::new(),
+        }),
+        checked_summary: TerminationGuarantee::NoGuarantee,
+        implementation_witness: Some(RankingWitness {
+            subjects: vec!["remaining".to_string()],
+            ranking_view: RankingViewId::NAT_DESCENDING,
+            view_path: "Nat::Descending".to_string(),
+        }),
+    };
+    let swapped = MachineTerminationPlan {
+        implementation_witness: Some(RankingWitness {
+            subjects: vec!["index".to_string(), "limit".to_string()],
+            ranking_view: RankingViewId::NAT_BOUNDED_DISTANCE,
+            view_path: "Nat::BoundedDistance".to_string(),
+        }),
+        ..descending.clone()
+    };
+    assert_ne!(descending, swapped);
+    assert_eq!(descending.published, swapped.published);
 }
 
 /// LOSS 3 -- RE-PINNED (STR3 first slice, 2026-07-16): `DataProperties`

@@ -15,6 +15,9 @@ use omega_tokens::{KeywordKind, PunctuationKind};
 
 type MachineClauses = (
     bool,
+    // TPR2: authored BARE `terminates;` (the public guarantee); the by-form
+    // supplies only the witness and leaves this false.
+    bool,
     HandleSpan<omega_syntax_trees::expression::ExpressionHandle>,
     HandleSpan<Identifier>,
     omega_syntax_trees::expression::ExpressionHandle,
@@ -34,6 +37,7 @@ pub(super) fn parse_machine_clauses<'tokens, 'source>(
     mut input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, MachineClauses> {
     let mut terminates = false;
+    let mut terminates_guarantee = false;
     let mut decreases = HandleSpan::empty();
     let mut decrease_order = HandleSpan::empty();
     let mut decrease_range = omega_syntax_trees::expression::ExpressionHandle::invalid();
@@ -63,6 +67,8 @@ pub(super) fn parse_machine_clauses<'tokens, 'source>(
             }
             if input.at_punctuation(PunctuationKind::Semicolon) {
                 input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
+                // TPR2: the bare form authors the PUBLIC guarantee.
+                terminates_guarantee = true;
                 continue;
             }
             if starts_termination_clause_block(input) {
@@ -73,6 +79,9 @@ pub(super) fn parse_machine_clauses<'tokens, 'source>(
                      for the guarantee alone",
                 ));
             }
+            // Tolerated no-semicolon bare form (immediately before the body
+            // brace or another clause): still the authored public guarantee.
+            terminates_guarantee = true;
             continue;
         }
 
@@ -169,8 +178,8 @@ pub(super) fn parse_machine_clauses<'tokens, 'source>(
             continue;
         }
 
-        // A return type may follow the clauses (`machine f(..) terminates {..}
-        // -> usize { .. }`). This used to be eaten by a skip-any-token
+        // A return type may follow the clauses (`machine f(..) terminates
+        // by ..; -> usize { .. }`). This used to be eaten by a skip-any-token
         // fallback, so the machine silently parsed as VOID -- the declared
         // `-> usize` never reached any state.
         if input.at_punctuation(PunctuationKind::Arrow) {
@@ -221,6 +230,7 @@ pub(super) fn parse_machine_clauses<'tokens, 'source>(
     Ok((
         (
             terminates,
+            terminates_guarantee,
             decreases,
             decrease_order,
             decrease_range,

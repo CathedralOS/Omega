@@ -631,6 +631,12 @@ pub struct Machine {
     pub type_parameters: HandleSpan<TypeParameter>,
     pub satisfies: HandleSpan<SatisfiesClause>,
     pub terminates: bool,
+    /// TPR2 (decision 23): the machine authored BARE `terminates;` — the
+    /// public eventual-terminal guarantee. `terminates by ...` supplies only
+    /// the private ranking witness and does NOT set this; `terminates`
+    /// above stays the compatibility bool (true for either spelling) until
+    /// the TPR6 firewall retires it.
+    pub terminates_guarantee: bool,
     pub decreases: HandleSpan<crate::expression::ExpressionHandle>,
     pub decrease_order: HandleSpan<Identifier>,
     /// TPR1: the witness clause's optional `in <range>` (decision 23's

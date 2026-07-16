@@ -200,7 +200,7 @@ fn leaf_expansion_matches_operation(
 }
 
 /// A machine is RE-ENTRANT when any of its states transitions back to its
-/// ENTRY state (the first StateFlow) -- the `terminates {{ decreases .. }}`
+/// ENTRY state (the first StateFlow) -- the `terminates by ..;`
 /// walk shape (`true -> walk(path, i + 1)`). Ordinary forward state chains
 /// never target the entry, so they are not flagged.
 fn order_return_value_fallbacks_first(expansions: &mut [&RuntimeLeafBranchExpansion]) {

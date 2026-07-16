@@ -91,9 +91,7 @@ fn materializes_checked_value_facts_for_machine_decreases() {
         data Main {}
 
         machine Main::countdown(&mut self, remaining: u64)
-        terminates {
-            decreases remaining -> Nat::Descending;
-        }
+        terminates by remaining -> Nat::Descending;
         {
             transition remaining > 0 {
                 true -> self.countdown(remaining - 1)
