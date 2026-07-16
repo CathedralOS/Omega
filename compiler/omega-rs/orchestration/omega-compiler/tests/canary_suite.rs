@@ -31850,6 +31850,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "dependent/data_where_literal_violates",
     "dependent/data_where_write_violates",
     "dependent/data_where_read_before_establish",
+    "dependent/data_where_cross_state_unknown_refuses",
     "termination/standalone_decreases_retired",
     "termination/rank_range_unconsumed",
     "arithmetic/suffix_negative_unsigned_rejected",
