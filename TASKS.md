@@ -941,11 +941,20 @@ bounded-escape store-containment keystone. Open rungs:
   Strict store-time semantics; ch11 windows are the sanctioned
   relaxation (pinned: fail data_where_write_violates -- count=9
   against zeroed len; the sequential len=8-then-count=3 pass canary
-  discharges). Remaining R2: hypotheses (readers assume the facts --
-  legal only now that the write net is total for self-places; needs
-  the parameter/alias story first), the zeroed-storage ACCESS gate
-  for gated types, windows (ch11), runtime-valued construction via
-  the prover. The rest of the big semantic build:** the
+  discharges). RUNG 3 SLICE 2 LANDED same day -- the ACCESS GATE:
+  TrackedPlace gains `established` (zero-satisfying places born
+  established; a GATED place earns it through rung 2b's proven
+  literal or an accepted constrained write, since every accepted
+  write re-proves the whole domain); reads of an unestablished gated
+  self-place refuse with direction (member chains in value positions,
+  scanned before each statement's write effect; cross-state
+  establishment is a later rung -- v1 same-state only, no corpus
+  impact). Pinned: fail data_where_read_before_establish (zeroed
+  Player.health read); the gated-literal pass canary now reads AFTER
+  construction (the gate opens). Remaining R2: hypotheses (readers
+  assume the facts -- the parameter/alias story), cross-state
+  establishment, windows (ch11), runtime-valued construction via the
+  prover. The rest of the big semantic build:** the
   big semantic build — where-clause parsing on data, the default-domain
   layer, gating (zero-excluding domains legal, construction mandatory
   fields), consumption-point windows (ADDITIVE relaxation of the landed

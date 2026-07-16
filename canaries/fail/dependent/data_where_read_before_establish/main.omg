@@ -1,0 +1,15 @@
+// R2 rung 3 slice 2 (ch12's access gate): a GATED type's zeroed storage is
+// legal AS STORAGE, but reading it as the type before establishment
+// refuses -- zero health is not a Player.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Player
+where
+    health >= 1,
+{
+    health: i32;
+}
+data Main { console: Console; champion: Player; }
+machine Main::main(&mut self) {
+    let strength: i32 = self.champion.health;
+    self.console.exit_process(70);
+}

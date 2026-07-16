@@ -41,6 +41,12 @@ struct TrackedPlace<'program> {
     spelling: String,
     definition: &'program DataDefinition,
     fields: Vec<(String, Option<i128>)>,
+    /// R2 rung 3 slice 2: the ACCESS GATE. A `zero_gated` place starts
+    /// UNESTABLISHED (its zero violates the domain); a proven whole-place
+    /// literal or an accepted constrained write establishes it (every
+    /// accepted write leaves the facts true). Reads before establishment
+    /// refuse. Zero-satisfying places are born established.
+    established: bool,
 }
 
 fn validate_state(
@@ -52,6 +58,9 @@ fn validate_state(
     let mut tracked: Vec<TrackedPlace> = Vec::new();
 
     for statement in program.statement_table.statements(state.statement_nodes) {
+        // R2 rung 3 slice 2: reads of an unestablished GATED place refuse
+        // BEFORE this statement's own write effect is applied.
+        scan_statement_reads(program, machine, state, statement, &tracked, diagnostics);
         match statement {
             StatementNode::Assignment(assignment) => {
                 handle_assignment(
@@ -114,6 +123,8 @@ fn handle_assignment<'program>(
             spelling,
             definition,
             fields,
+            // Rung 2b proved this literal against the domain.
+            established: true,
         });
         return;
     }
@@ -149,6 +160,10 @@ fn handle_assignment<'program>(
             spelling: receiver_spelling,
             definition,
             fields: Vec::new(),
+            // Zero-satisfying data is born established; gated data must
+            // earn it (the accepted write below does, since it re-proves
+            // the whole domain).
+            established: !definition.zero_gated,
         });
         let last = tracked.len() - 1;
         &mut tracked[last]
@@ -166,6 +181,7 @@ fn handle_assignment<'program>(
         .iter()
         .map(|(name, value)| (name.as_str(), *value))
         .collect();
+    let mut all_hold = true;
     for fact in program
         .proof_facts
         .span_or_empty(place.definition.where_facts)
@@ -175,22 +191,129 @@ fn handle_assignment<'program>(
         };
         match fold_with_valuation(program, &valuation, *expression) {
             Some(value) if value != 0 => {}
-            Some(_) => diagnostics.push(Diagnostic::error(format!(
-                "write to `{}.{field_name}` violates data `{}`'s default domain: a \
-                 `where` fact evaluates FALSE at the post-write valuation (strict \
-                 store-time semantics; ch11 windows are the future relaxation)",
-                place.spelling,
-                place.definition.name.as_str()
-            ))),
-            None => diagnostics.push(Diagnostic::error(format!(
-                "write to `{}.{field_name}` cannot PROVE data `{}`'s default domain: \
-                 a `where`-mentioned field's value is not an integer literal here \
-                 (the entailment integration relaxes this) -- restructure with \
-                 literal stores for now",
-                place.spelling,
-                place.definition.name.as_str()
-            ))),
+            Some(_) => {
+                all_hold = false;
+                diagnostics.push(Diagnostic::error(format!(
+                    "write to `{}.{field_name}` violates data `{}`'s default domain: a \
+                     `where` fact evaluates FALSE at the post-write valuation (strict \
+                     store-time semantics; ch11 windows are the future relaxation)",
+                    place.spelling,
+                    place.definition.name.as_str()
+                )));
+            }
+            None => {
+                all_hold = false;
+                diagnostics.push(Diagnostic::error(format!(
+                    "write to `{}.{field_name}` cannot PROVE data `{}`'s default domain: \
+                     a `where`-mentioned field's value is not an integer literal here \
+                     (the entailment integration relaxes this) -- restructure with \
+                     literal stores for now",
+                    place.spelling,
+                    place.definition.name.as_str()
+                )));
+            }
         }
+    }
+    // Every fact re-proven at the post-write valuation: the place now
+    // satisfies its domain (relevant for a GATED place's access gate).
+    if all_hold {
+        place.established = true;
+    }
+}
+
+/// R2 rung 3 slice 2: refuse reads of an unestablished GATED place. V1
+/// scans value-position expressions for member chains whose self-rooted
+/// receiver names a tracked-or-fresh gated place; cross-state
+/// establishment is not trackable yet and refuses with direction.
+fn scan_statement_reads(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    statement: &StatementNode,
+    tracked: &[TrackedPlace<'_>],
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let mut reads: Vec<ExpressionHandle> = Vec::new();
+    match statement {
+        StatementNode::Assignment(assignment) => reads.push(assignment.value),
+        StatementNode::Expression(expression) => reads.push(*expression),
+        StatementNode::LocalData(local) => {
+            if local.initial_value.is_valid() {
+                reads.push(local.initial_value);
+            }
+        }
+        StatementNode::Call(call) => reads.extend(
+            program
+                .expression_table
+                .expression_handles(call.arguments)
+                .iter()
+                .copied(),
+        ),
+        StatementNode::Transition(transition) => {
+            if let omega_typed_trees::statement::TransitionGuardNode::When(guard) =
+                &transition.guard
+            {
+                reads.push(*guard);
+            }
+        }
+        _ => {}
+    }
+    for read in reads {
+        scan_expression_reads(program, machine, state, read, tracked, diagnostics);
+    }
+}
+
+fn scan_expression_reads(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    expression: ExpressionHandle,
+    tracked: &[TrackedPlace<'_>],
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if !expression.is_valid() {
+        return;
+    }
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Member(member) => {
+            if let Some(receiver_spelling) = self_place_spelling(program, member.receiver)
+                && let Some(receiver_type) =
+                    crate::places::declared_place_type(program, machine, Some(state), member.receiver)
+                && let Some(definition) = data_definition_for_type(program, receiver_type)
+                && definition.zero_gated
+            {
+                let established = tracked
+                    .iter()
+                    .find(|place| place.spelling == receiver_spelling)
+                    .map(|place| place.established)
+                    .unwrap_or(false);
+                if !established {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "reading `{receiver_spelling}.{}` before data `{}`'s default \
+                         domain is established: the zeroed value is not a `{}` \
+                         (ch12's access gate) -- construct it first in this state \
+                         (cross-state establishment tracking is a later rung)",
+                        member.member.as_str(),
+                        definition.name.as_str(),
+                        definition.name.as_str()
+                    )));
+                }
+            }
+            scan_expression_reads(program, machine, state, member.receiver, tracked, diagnostics);
+        }
+        ExpressionNode::Binary(binary) => {
+            scan_expression_reads(program, machine, state, binary.left, tracked, diagnostics);
+            scan_expression_reads(program, machine, state, binary.right, tracked, diagnostics);
+        }
+        ExpressionNode::Mutable(inner) => {
+            scan_expression_reads(program, machine, state, *inner, tracked, diagnostics);
+        }
+        ExpressionNode::Call(call) => {
+            for argument in program.expression_table.expression_handles(call.arguments) {
+                scan_expression_reads(program, machine, state, *argument, tracked, diagnostics);
+            }
+        }
+        _ => {}
     }
 }
 
