@@ -1,0 +1,16 @@
+// The plain-bind face of record patterns: every field bound by its own
+// name, no rename, no waiver. Run-verified natively: 30 + 40 = 70.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Pair {
+    x: i32 [0..=100];
+    y: i32 [0..=100];
+}
+data Main { console: Console; pair: Pair; }
+machine Main::main(&mut self) {
+    self.pair = Pair { x: 30, y: 40 };
+    let { x, y } = self.pair;
+    let total: i32 = x + y;
+    transition total == 70 { true -> good() _ -> bad() }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(1); }
+}

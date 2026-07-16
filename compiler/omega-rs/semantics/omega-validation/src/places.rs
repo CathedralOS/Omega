@@ -463,7 +463,7 @@ pub(crate) fn nested_receiver_type_name<'program>(
 
 /// The data/sum definition behind a type reference (through `&`/`in Domain`
 /// shells). `None` for primitives, arrays, and unknown names.
-fn data_definition_for_type(
+pub(crate) fn data_definition_for_type(
     program: &TypedTrees,
     type_reference: TypeReferenceHandle,
 ) -> Option<&omega_typed_trees::data::DataDefinition> {

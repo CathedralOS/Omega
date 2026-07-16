@@ -1,0 +1,21 @@
+// Record patterns in LET position (owner spec 2026-07-18): exhaustive by
+// law, `as` renames, `as _` waives. Desugars at parse time to the
+// __destructure__* marker (exhaustiveness carrier) + per-bound-field
+// Unit-sentinel lets whose types flow through hoist inference. Ranged
+// fields keep the decision-17 exact-arithmetic obligation dischargeable.
+// Run-verified natively: 30 + 40 = 70.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Point {
+    x: i32 [0..=100];
+    y: i32 [0..=100];
+    z: i32 [0..=100];
+}
+data Main { console: Console; point: Point; }
+machine Main::main(&mut self) {
+    self.point = Point { x: 30, y: 40, z: 5 };
+    let { x, y as vertical, z as _ } = self.point;
+    let total: i32 = x + vertical;
+    transition total == 70 { true -> good() _ -> bad() }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(1); }
+}
