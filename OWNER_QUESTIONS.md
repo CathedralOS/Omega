@@ -61,3 +61,28 @@ Last pruned: 2026-07-18.
    Still needed: outbound-call semantics for old continuations, version
    budgets and eviction, linking mechanics, and the boundary between v1
    coexistence and later continuation migration.
+
+## 2026-07-16: Sealed progress profiles (decision 23 / TPR4's grant half) — DESIGN GAP
+
+The termination brief settles progress-profile SEMANTICS (named opaque
+commitments on boundary traits/providers/slots; sealed by default; no
+self-grant; inert until granted; receipts; deterministic admission) and the
+REFERENCE spelling (`requires scheduler in WeakFair` through the normal
+requirement surface). It does NOT settle:
+
+1. **The profile DECLARATION spelling** — how does a boundary trait author
+   declare/mint `WeakFair`? (A trait-body item? `profile WeakFair;`? A
+   boundary-clause form?) The brief only says profiles are "named, opaque
+   semantic commitments on boundary traits, providers, and slots".
+2. **The grant/receipt carrier** — the brief leans on "the existing boundary
+   grant machinery", but the omega-rs line's grant machinery today is
+   BoundaryLevel/BoundaryPolicy clauses + host-call authorization checks;
+   there is no package-grant/receipt/trust-report subsystem to ride. Building
+   one is a subsystem-scale arc that deserves its own design pass (it also
+   gates acceptance tests 8 and 9, and TPR6's export-omission half needs the
+   artifact-serialization story).
+
+Blocked pending: the declaration spelling ruling + a scoping decision on
+whether the grant/receipt subsystem lands as part of TPR4 or as its own
+front-loaded arc. Everything else in TPR1–TPR5 is landed; TPR6's
+firewall/acceptance work continues where it doesn't depend on profiles.
