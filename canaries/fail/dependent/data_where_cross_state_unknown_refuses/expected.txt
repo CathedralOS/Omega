@@ -1,1 +1,1 @@
-violates data `Tally`
+invariant window opened on `self.tally` must close

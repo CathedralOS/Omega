@@ -1010,9 +1010,23 @@ bounded-escape store-containment keystone. Open rungs:
   flow knowledge, `target.count * 16` proves Exact ONLY via the
   standing `count <= len` + len's [0..=4096] (negative probe without
   the clause refuses with the decision-17 obligation); RUNS exit 70.
-  Remaining R2: windows (ch11), runtime-valued construction via the
-  prover, richer hypothesis shapes (field-vs-field at read sites,
-  products). The rest of the big semantic build:** the
+  RUNG 3 SLICE 8 LANDED same day -- ch11 INVARIANT WINDOWS, the
+  sanctioned ADDITIVE relaxation: a checkable-but-FALSE constrained
+  write no longer refuses at the store -- it OPENS a window
+  (TrackedPlace.window_open); a later write folding the facts TRUE
+  closes it; CONSUMPTION POINTS refuse while open (reads of the place
+  -- any domain-carrying type, the gate generalized past zero_gated
+  with the establishment refusal correctly narrowed back to gated
+  types; CALL statements -- the callee observes state; and STATE
+  EXIT). Unfoldable writes stay refused (closure must be checkable).
+  Pinned: pass data_where_window_closes (the shrink-len-then-count
+  reorder that strict store-time refused, RUNS exit 70); the
+  write-violates and cross-state-unknown fail pins re-aimed at the
+  window-closure message (their violations now surface at the call
+  consumption point). Remaining R2: runtime-valued construction via
+  the prover, richer hypothesis shapes (field-vs-field at read sites,
+  products), window transport across states (windows currently must
+  close within their state -- conservative). The rest of the big semantic build:** the
   big semantic build — where-clause parsing on data, the default-domain
   layer, gating (zero-excluding domains legal, construction mandatory
   fields), consumption-point windows (ADDITIVE relaxation of the landed
