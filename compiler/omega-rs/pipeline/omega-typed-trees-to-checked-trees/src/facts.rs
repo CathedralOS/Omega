@@ -30,6 +30,10 @@ pub(crate) fn build_check_facts(
     // the operator evidence.
     select_pending_domain_operator_meanings(program, &mut operators, &mut semantic, &flow);
     let capabilities = build_capability_facts(program, &effects, &flow);
+    // TPR3 slice 4: the checker-established termination summaries (built
+    // from the same pure functions the termination CHECK uses -- facts and
+    // diagnostics cannot disagree).
+    let termination = crate::checks::termination::build_termination_facts(program);
 
     CheckFacts::with_roots(
         semantic,
@@ -42,5 +46,6 @@ pub(crate) fn build_check_facts(
         effects,
         capabilities,
         flow,
+        termination,
     )
 }

@@ -101,6 +101,51 @@ pub(crate) fn check_machine_termination(
     }
 }
 
+/// TPR3 slice 4 (decision 23): build the checked termination facts -- the
+/// `checked_summary`'s producer. Derives from the SAME pure resolution and
+/// proof functions the check uses, so facts and diagnostics cannot
+/// disagree; an unproven claimant records `NoGuarantee` AND fails
+/// compilation, so a compiled artifact never carries an unestablished
+/// claim. An ACYCLIC claiming body derives eventual termination without a
+/// witness (the brief: "an acyclic checked body derives termination
+/// without source annotation").
+pub(crate) fn build_termination_facts(
+    program: &omega_typed_trees::TypedTrees,
+) -> omega_checked_trees::TerminationFacts {
+    use omega_core::semantics::TerminationGuarantee;
+
+    let mut machines = Vec::new();
+    for machine in program.machines().iter().filter(|machine| {
+        let plan = &machine.termination_plan;
+        plan.published.is_some() || plan.implementation_witness.is_some()
+    }) {
+        let established = if retired_subtraction_message(program, machine).is_some() {
+            false
+        } else if !graph::machine_has_cycle(program, machine) {
+            true
+        } else if machine.termination_plan.implementation_witness.is_some() {
+            matches!(
+                ranking::machine_decrease_outcome(program, machine),
+                ranking::DecreaseOutcome::Proven
+            )
+        } else {
+            false
+        };
+        machines.push(omega_checked_trees::MachineTerminationFact {
+            machine: machine.symbol,
+            checked_summary: if established {
+                TerminationGuarantee::EventualTerminal {
+                    premises: Vec::new(),
+                }
+            } else {
+                TerminationGuarantee::NoGuarantee
+            },
+            resolved_view_path: ranking::machine_resolved_view_path(program, machine),
+        });
+    }
+    omega_checked_trees::TerminationFacts { machines }
+}
+
 /// Render the diagnostic for a plain `decreases value` clause whose value has
 /// no inferable builtin ranking: name the value, say why inference failed, and
 /// suggest the explicit `-> View` form. Declared measures matching the value's

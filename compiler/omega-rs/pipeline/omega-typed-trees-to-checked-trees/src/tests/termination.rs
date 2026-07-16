@@ -1269,3 +1269,75 @@ fn rank_range_unverifiable_shapes_are_rejected_with_directed_messages() {
         );
     }
 }
+
+/// TPR3 slice 4: the checked termination facts -- the `checked_summary`'s
+/// producer. An acyclic claimant derives EventualTerminal without a
+/// witness; a proven witness establishes it WITH the resolved explicit
+/// view; a machine claiming nothing gets NO fact (its termination story is
+/// nobody's to assume).
+#[test]
+fn termination_facts_record_checked_summaries_and_resolved_views() {
+    use omega_core::semantics::TerminationGuarantee;
+
+    let source = r#"
+    data Main {}
+
+    machine Main::main(&mut self) {
+        let a: u64 = self.promise();
+        let b: u64 = self.countdown(2);
+    }
+
+    machine Main::promise(&mut self) -> u64 terminates; { 7 }
+
+    machine Main::countdown(&mut self, remaining: u64)
+    terminates by remaining;
+    {
+        transition remaining > 0 {
+            true -> self.countdown(remaining - 1)
+            false -> 0
+        }
+    }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+
+    let facts = crate::checks::termination::build_termination_facts(&typed);
+    let machine_symbol = |name: &str| {
+        typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == name)
+            .unwrap_or_else(|| panic!("machine {name}"))
+            .symbol
+    };
+
+    let promise = facts
+        .for_machine(machine_symbol("Main::promise"))
+        .expect("acyclic claimant fact");
+    assert_eq!(
+        promise.checked_summary,
+        TerminationGuarantee::EventualTerminal {
+            premises: Vec::new()
+        }
+    );
+    assert!(promise.resolved_view_path.is_empty());
+
+    let countdown = facts
+        .for_machine(machine_symbol("Main::countdown"))
+        .expect("proven witness fact");
+    assert_eq!(
+        countdown.checked_summary,
+        TerminationGuarantee::EventualTerminal {
+            premises: Vec::new()
+        }
+    );
+    assert_eq!(countdown.resolved_view_path, "Nat::Descending");
+
+    // A machine claiming nothing carries NO fact.
+    assert!(facts.for_machine(machine_symbol("Main::main")).is_none());
+}
