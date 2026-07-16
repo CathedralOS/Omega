@@ -998,8 +998,21 @@ bounded-escape store-containment keystone. Open rungs:
   stays self-rooted (params are per-invocation). Pinned: fail
   data_where_param_write_unproven; pass data_where_param_write_proves
   (single-field fact folds without co-field knowledge, RUNS exit 70).
-  Remaining R2: reader HYPOTHESES (now legal -- the net is total),
-  windows (ch11), runtime-valued construction via the prover. The rest of the big semantic build:** the
+  RUNG 3 SLICE 7 LANDED same day -- READER HYPOTHESES, the payoff:
+  a Member read of a domain-carrying place intersects its interval
+  with the where-fact-implied bounds (where_fact_interval in
+  default_domains, hooked into arithmetic_domains' operand fallback;
+  symmetric comparison shapes; bounds from literals or the co-field's
+  DECLARED range -- never flow values). Sound because the write net
+  is total and gated reads are access-gated: the facts hold at every
+  legal observation. The pin is a TRUE differential:
+  pass data_where_hypothesis_discharges -- inside a callee with NO
+  flow knowledge, `target.count * 16` proves Exact ONLY via the
+  standing `count <= len` + len's [0..=4096] (negative probe without
+  the clause refuses with the decision-17 obligation); RUNS exit 70.
+  Remaining R2: windows (ch11), runtime-valued construction via the
+  prover, richer hypothesis shapes (field-vs-field at read sites,
+  products). The rest of the big semantic build:** the
   big semantic build — where-clause parsing on data, the default-domain
   layer, gating (zero-excluding domains legal, construction mandatory
   fields), consumption-point windows (ADDITIVE relaxation of the landed

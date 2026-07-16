@@ -1,0 +1,24 @@
+// R2 rung 3 slice 7 -- READER HYPOTHESES: inside the callee nothing is
+// flow-known about `target.count`, yet `count * 16` proves Exact because
+// the STANDING fact `count <= len` with `len: u32 [0..=4096]` bounds every
+// legal observation of count at 4096 (4096 * 16 fits u32). The default
+// domain does proof work at the consumption site with NO spelled requires
+// -- sound because the write net is total and gated reads are gated.
+boundary trait Console { machine exit_process(return_code: i32); }
+data MemoryMap
+where
+    count <= len,
+{
+    len: u32 [0..=4096];
+    count: u32;
+}
+data Main { console: Console; map: MemoryMap; }
+machine Main::scaled(&mut self, target: &mut MemoryMap) -> u32 {
+    target.count * 16
+}
+machine Main::main(&mut self) {
+    self.map.len = 8;
+    self.map.count = 3;
+    let bytes: u32 = self.scaled(&mut self.map);
+    self.console.exit_process(70);
+}

@@ -840,8 +840,8 @@ pub(crate) fn enforced_declared_range(
 /// the containment test and so is reported as a possible overflow.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct Interval {
-    low: Option<i64>,
-    high: Option<i64>,
+    pub(crate) low: Option<i64>,
+    pub(crate) high: Option<i64>,
 }
 
 impl Interval {
@@ -2000,6 +2000,17 @@ fn analyze(
                     .or_else(|| range_constraint_interval(program, handle))
                     .map(|proven| proven.intersect(type_range))
                     .unwrap_or(type_range);
+                // R2 rung 3 slice 7 (READER HYPOTHESES): a domain-carrying
+                // place's standing where facts refine the read -- sound
+                // because the write net is TOTAL and gated reads are
+                // access-gated, so the facts hold at every legal
+                // observation.
+                let interval = match crate::default_domains::where_fact_interval(
+                    program, machine, state, expression,
+                ) {
+                    Some(facts) => interval.intersect(facts),
+                    None => interval,
+                };
                 // Atomic integer types (AtomicU32, ...) have hardware wrap-around
                 // semantics, so their arithmetic is Wrapping, not Exact -- a
                 // `fetch_add` never raises an overflow proof obligation.
