@@ -1,0 +1,23 @@
+// R2 rung 3 slice 3: CROSS-STATE establishment -- the gated Player is
+// constructed in the entry state and READ in a successor state; the
+// must-analysis fixpoint carries establishment across the transition
+// (established at entry of a state = established at exit of every
+// predecessor; monotone in the strict store-time model).
+boundary trait Console { machine exit_process(return_code: i32); }
+data Player
+where
+    health >= 1,
+{
+    health: i32;
+}
+data Main { console: Console; champion: Player; }
+machine Main::main(&mut self) {
+    self.champion = Player { health: 50 };
+    transition {
+        _ -> report()
+    }
+    state report(&mut self) {
+        let strength: i32 = self.champion.health;
+        self.console.exit_process(70);
+    }
+}
