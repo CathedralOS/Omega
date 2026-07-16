@@ -4044,6 +4044,80 @@ impl<'program> StructuralJudge<'program> {
             if left_poly == right_poly {
                 return true;
             }
+            // SCALED-HYPOTHESIS EXCHANGE (tier-2 twin of the addend
+            // exchange): a hypothesis equation polynomial-normalizes to a
+            // monomial-multiset pair (hl, hr), and multiplying BOTH sides by
+            // any monomial factor m keeps it an equation (the semiring's
+            // conformed distributivity is exactly that license), so hl*m
+            // exchanges for hr*m inside the goal's monomials. Factors are
+            // drawn from the goal's own atoms (plus unscaled) -- this is
+            // what proves mul-CONGRUENCE over a quotient: the cross-sum
+            // hypothesis scaled by b.pos and by b.neg equalizes the product
+            // components in two exchanges. Depth-2 frontier-capped BFS.
+            let mut atoms: Vec<String> = left_poly
+                .iter()
+                .chain(right_poly.iter())
+                .flatten()
+                .cloned()
+                .collect();
+            atoms.sort();
+            atoms.dedup();
+            let mut scales: Vec<Vec<String>> = vec![Vec::new()];
+            scales.extend(atoms.into_iter().map(|atom| vec![atom]));
+            let mut hypothesis_polys: Vec<(Vec<Vec<String>>, Vec<Vec<String>>)> = Vec::new();
+            for (pattern, replacement) in &self.rewrites {
+                if let (Some(mut hl), Some(mut hr)) = (
+                    polynomial_normal_form(pattern, license),
+                    polynomial_normal_form(replacement, license),
+                ) {
+                    hl.sort();
+                    hr.sort();
+                    hypothesis_polys.push((hl, hr));
+                }
+            }
+            let scaled = |poly: &[Vec<String>], scale: &[String]| -> Vec<Vec<String>> {
+                poly.iter()
+                    .map(|monomial| {
+                        let mut product = monomial.clone();
+                        product.extend(scale.iter().cloned());
+                        product.sort();
+                        product
+                    })
+                    .collect()
+            };
+            let mut frontier: Vec<Vec<Vec<String>>> = vec![left_poly.clone()];
+            for _depth in 0..2 {
+                let mut next: Vec<Vec<Vec<String>>> = Vec::new();
+                for current in &frontier {
+                    for (hypothesis_left, hypothesis_right) in &hypothesis_polys {
+                        for (from, to) in [
+                            (hypothesis_left, hypothesis_right),
+                            (hypothesis_right, hypothesis_left),
+                        ] {
+                            for scale in &scales {
+                                let from_scaled = scaled(from, scale);
+                                let Some(mut candidate) =
+                                    sorted_multiset_subtract(current, &from_scaled)
+                                else {
+                                    continue;
+                                };
+                                candidate.extend(scaled(to, scale));
+                                candidate.sort();
+                                if candidate == right_poly {
+                                    return true;
+                                }
+                                if next.len() < 64 {
+                                    next.push(candidate);
+                                }
+                            }
+                        }
+                    }
+                }
+                frontier = next;
+                if frontier.is_empty() {
+                    break;
+                }
+            }
         }
         false
     }
@@ -4085,9 +4159,10 @@ fn polynomial_normal_form(
     Some(vec![vec![display_structural_term(term)]])
 }
 
-/// `left - from` as sorted multisets of canonical displays; `None` when
-/// `from` is not a sub-multiset of `left` (the exchange does not apply).
-fn sorted_multiset_subtract(left: &[String], from: &[String]) -> Option<Vec<String>> {
+/// `left - from` as multisets; `None` when `from` is not a sub-multiset of
+/// `left` (the exchange does not apply). Generic over the element (tier-1
+/// addend displays, tier-2 monomial factor lists).
+fn sorted_multiset_subtract<T: Clone + PartialEq>(left: &[T], from: &[T]) -> Option<Vec<T>> {
     let mut remaining = left.to_vec();
     for item in from {
         let index = remaining.iter().position(|candidate| candidate == item)?;

@@ -1658,9 +1658,22 @@ no `unbounded` property exists. Rungs:
   underivable) refuses, transitivity with a hypothesis DROPPED
   refuses naming the undischarged cancellation premise, corrupted
   goal refuses.
-  THEN: mul_int respects ~ (tier-2 hypothesis exchange under
-  monomial multisets); semiring conformance for IntPair (trait
-  slots over a non-builtin carrier); the N2(d) arithmetic bridge
+  MUL-CONGRUENCE LANDED 2026-07-16 -- the QUOTIENT IS COMPLETE:
+  tier-2 gains the SCALED-HYPOTHESIS EXCHANGE (a hypothesis
+  equation polynomial-normalizes to a monomial-multiset pair, and
+  multiplying both sides by a monomial factor m -- drawn from the
+  goal's own atoms, plus unscaled -- keeps it an equation under the
+  conformed distributivity, so hl*m exchanges for hr*m; depth-2
+  frontier-capped BFS, twin of the tier-1 addend exchange).
+  int.omg gains mul_int_respects_eq: the cross-sum hypothesis
+  scaled by b.pos and by b.neg equalizes the product components in
+  two exchanges. The difference-pair construction now carries a
+  PROVEN equivalence relation (symmetric, transitive; refl ring-
+  trivial) with BOTH congruences (add + mul) -- the ZZ quotient
+  story, machine-checked end to end. Probes run-verified: requires
+  dropped refuses, corrupted goal refuses.
+  THEN: semiring conformance for IntPair (trait slots over a
+  non-builtin carrier); the N2(d) arithmetic bridge
   (n > 0 => n == Succ(n - 1)). Int introduction rule: order has no floor,
   measures stay Nat-valued or range-floored.
 - **N4 — roster library (Nat ops + Seq LANDED 2026-07-11):** core
