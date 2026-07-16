@@ -1,1 +1,1 @@
-cannot PROVE data `Tally`
+violates data `Tally`

@@ -972,11 +972,23 @@ bounded-escape store-containment keystone. Open rungs:
   incoming edges); elsewhere untracked fields POISON the fold and
   refuse with a directed message naming both causes (pinned: fail
   data_where_cross_state_unknown_refuses -- the len=3-then-count=3
-  `count != len` shape; entry-state canaries unaffected). Remaining
-  R2: hypotheses (readers assume the facts -- the parameter/alias
-  story), windows (ch11), runtime-valued construction via the prover,
-  cross-state VALUATION transport (restores the precision this fix
-  deliberately gave up). The rest of the big semantic build:** the
+  `count != len` shape; entry-state canaries unaffected). RUNG 3
+  SLICE 5 LANDED same day -- cross-state VALUATION transport: the
+  fixpoint is now COMBINED (establishment as before + Kildall must
+  constant propagation: non-boot entries start TOP/unvisited; meet
+  keeps a field only when every visited predecessor exits it with the
+  SAME literal; a CALL poisons valuations at exit while establishment
+  survives -- it is globally monotone). walk_state seeds
+  freshly-tracked places from the transported entry valuation, so the
+  len=8-in-entry-then-count=3 shape DISCHARGES again (pinned: pass
+  data_where_cross_state_valuation RUNS exit 70), and the slice-4
+  `!=` shape now refuses with the PRECISE violation (len=3
+  transported -> 3 != 3 folds FALSE; its pin re-aimed from the poison
+  message to `violates`). Bodyless machines guarded (the zero-state
+  seed panicked -- caught by the canary gate, fixed same commit).
+  Remaining R2: hypotheses (readers assume the facts -- the
+  parameter/alias story), windows (ch11), runtime-valued construction
+  via the prover. The rest of the big semantic build:** the
   big semantic build — where-clause parsing on data, the default-domain
   layer, gating (zero-excluding domains legal, construction mandatory
   fields), consumption-point windows (ADDITIVE relaxation of the landed
