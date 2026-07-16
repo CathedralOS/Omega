@@ -345,6 +345,27 @@ pub fn land_float_literal_destinations(program: &mut TypedTrees) {
                             pairs.push((local.initial_value, local.type_reference));
                         }
                     }
+                    // A float COMPARISON in a transition guard adopts the
+                    // PLACE side's format (the operand-derived landing law,
+                    // float flavor): `self.f == 16777216.0 + 1.0` with an f32
+                    // place must fold/evaluate its literal side per-op at f32
+                    // -- unstamped, the tree computed in the anonymous f64
+                    // window and the engines diverged at the f32 precision
+                    // cliff (2^24 + 1.0). Recursive like
+                    // bless_equality_guard_literals: the multi-arm desugar
+                    // wraps the spelled compare as `(subject) == true`, and
+                    // conjunctions nest comparisons under And/Or legs.
+                    // Suffixed literals keep their own landing (stamp-if-none
+                    // in the shared loop below).
+                    StatementNode::Transition(transition) => {
+                        if let omega_typed_trees::statement::TransitionGuardNode::When(guard) =
+                            transition.guard
+                        {
+                            collect_guard_float_comparison_pairs(
+                                program, machine, state, guard, &mut pairs,
+                            );
+                        }
+                    }
                     _ => {}
                 }
             }
@@ -363,21 +384,101 @@ pub fn land_float_literal_destinations(program: &mut TypedTrees) {
             PrimitiveType::F64 => FloatFormat::F64,
             _ => continue,
         };
-        let mut current = value;
-        loop {
-            match program.expression_table.expression(current) {
-                ExpressionNode::Mutable(inner) => current = *inner,
-                ExpressionNode::Float(literal) => {
-                    if literal.landing().is_none() {
-                        let landed = literal.with_landing(format);
-                        *program.expression_table.expression_mut(current) =
-                            ExpressionNode::Float(landed);
-                    }
-                    break;
-                }
-                _ => break,
+        stamp_float_tree(program, value, format);
+    }
+}
+
+/// Stamp every UNSTAMPED float literal reachable through Mutable/Unary/Binary
+/// wrappers with `format` -- the destination/comparison landing propagates
+/// through a constant arithmetic tree so each NODE folds/evaluates per-op at
+/// the landed width (ch5; float ladder F2c). Suffixed literals keep their own
+/// landing (disagreement is validate_suffix_landings' domain). Deliberately
+/// does NOT descend into calls/indexes/places -- only the pure literal-
+/// arithmetic spine the folders fold.
+/// Collect (float-literal-tree, place-declared-type) pairs from every
+/// comparison reachable in a guard expression: And/Or legs recurse, and each
+/// Equal/NotEqual/ordering node pairs its literal side with its place side's
+/// declared type (either orientation). The multi-arm desugar wraps the spelled
+/// compare as `(subject) == true`, so comparisons nest inside equality legs --
+/// recurse through comparison legs too, exactly like
+/// bless_equality_guard_literals.
+fn collect_guard_float_comparison_pairs(
+    program: &TypedTrees,
+    machine: &omega_typed_trees::machine::Machine,
+    state: &omega_typed_trees::state::State,
+    guard: ExpressionHandle,
+    pairs: &mut Vec<(
+        ExpressionHandle,
+        omega_typed_trees::types::TypeReferenceHandle,
+    )>,
+) {
+    if !guard.is_valid() {
+        return;
+    }
+    let ExpressionNode::Binary(binary) = program.expression_table.expression(guard) else {
+        return;
+    };
+    use omega_typed_trees::expression::BinaryOperator;
+    match binary.operator {
+        BinaryOperator::Equal
+        | BinaryOperator::NotEqual
+        | BinaryOperator::Less
+        | BinaryOperator::LessOrEqual
+        | BinaryOperator::Greater
+        | BinaryOperator::GreaterOrEqual => {
+            if let Some(declared) = crate::places::declared_place_type_raw(
+                program,
+                machine,
+                Some(state),
+                binary.left,
+            ) {
+                pairs.push((binary.right, declared));
+            } else if let Some(declared) = crate::places::declared_place_type_raw(
+                program,
+                machine,
+                Some(state),
+                binary.right,
+            ) {
+                pairs.push((binary.left, declared));
+            }
+            collect_guard_float_comparison_pairs(program, machine, state, binary.left, pairs);
+            collect_guard_float_comparison_pairs(program, machine, state, binary.right, pairs);
+        }
+        BinaryOperator::And | BinaryOperator::Or => {
+            collect_guard_float_comparison_pairs(program, machine, state, binary.left, pairs);
+            collect_guard_float_comparison_pairs(program, machine, state, binary.right, pairs);
+        }
+        _ => {}
+    }
+}
+
+fn stamp_float_tree(
+    program: &mut TypedTrees,
+    expression: ExpressionHandle,
+    format: omega_core::literals::FloatFormat,
+) {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Mutable(inner) => {
+            let inner = *inner;
+            stamp_float_tree(program, inner, format);
+        }
+        ExpressionNode::Unary(unary) => {
+            let operand = unary.operand;
+            stamp_float_tree(program, operand, format);
+        }
+        ExpressionNode::Binary(binary) => {
+            let (left, right) = (binary.left, binary.right);
+            stamp_float_tree(program, left, format);
+            stamp_float_tree(program, right, format);
+        }
+        ExpressionNode::Float(literal) => {
+            if literal.landing().is_none() {
+                let landed = literal.with_landing(format);
+                *program.expression_table.expression_mut(expression) =
+                    ExpressionNode::Float(landed);
             }
         }
+        _ => {}
     }
 }
 
