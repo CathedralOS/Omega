@@ -20,11 +20,16 @@ pub struct DataDefinitionStorage {
 
 /// Declared type properties (`data Point [copy, zero_init]`). The spelling
 /// set is closed at parse time, so only the resolved flags travel here.
+/// STR3: `multiplicity` is the first-class usage model (`[copy]` ->
+/// Unrestricted, ordinary data -> Affine; `[linear]` has no spelling yet);
+/// `copy` survives as the compatibility bool until STR7 retires it —
+/// consumers migrate to the multiplicity, never the other way.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct DataProperties {
     pub copy: bool,
     pub zero_init: bool,
     pub send: bool,
+    pub multiplicity: omega_core::semantics::Multiplicity,
 }
 
 impl Deref for DataDefinition {
