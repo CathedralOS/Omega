@@ -1217,9 +1217,18 @@ no `unbounded` property exists. Rungs:
   shape is why IT lands). The nested value-call fence is NOT a
   blocker: binding the inner call to a local (`let ih =
   reverse_append(tail, t);`) passes it cleanly, per its own hint.
-  Next zoo growth = the judge rung (contract_entailment.rs, step-case
-  goal rewriting via the IH as an equation, not just result-spine
-  correspondence). REMAINING:
+  Next zoo growth = the judge rung, RECONNED 2026-07-16: the IH
+  machinery is ALREADY shape-agnostic (contract_entailment.rs ~260:
+  StructuralJudge::self_applications WALKS the arm value term and
+  instantiates the ensures for every self-application — no
+  constructor-spine requirement) — the gap is in ARM RECOGNITION:
+  recognize_structural_case_arms stands down on ra_step's shape (a
+  sub-state whose terminal is a CALL wrapping the self-application,
+  `(append(reverse_append(..), singleton))`), so no tier claims the
+  fact. Debug entry: OMEGA_STRUCT_TRACE on the no-let reverse_append
+  spelling; extend the recognizer to term-ify call terminals (and
+  possibly `let`-bound locals) in sub-states. mc_step/ma_step land
+  because their terminals are constructor-wrapped. REMAINING:
   more of the lemma zoo as the judge widens (commutativity needs
   double induction / rearrange-mode), extraction INTO consumer proofs
   (a caller citing a lemma's ensures — the fact-consumption face), the
