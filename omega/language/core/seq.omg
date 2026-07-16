@@ -117,3 +117,31 @@ terminates {
             (append(reverse(tail), Seq::Cons { head: head, tail: Seq::Empty }))
     }
 }
+
+// Reversal preserves length, by induction on `s` -- the zoo's deepest
+// citation chain yet: the step case rewrites through length_append (at
+// the reversed tail and the singleton), then lands the arithmetic with
+// nat's add_succ_law + add_zero_right, plus the inductive hypothesis.
+// Landing this lemma required the state-values simplifier hardening
+// (boolean depth budget + distribution size gate + the helper-expansion
+// fuel budget): the backend used to crash, then hang, expanding the
+// proof machine's recursion. Lean analog: `List.length_reverse`.
+machine length_reverse(s: Seq<u64>) -> Nat
+terminates {
+    decreases s;
+}
+ensures
+    (length(reverse(s))) == (length(s))
+{
+    transition s {
+        Seq::Empty -> Nat::Zero
+        Seq::Cons { head, tail } -> lr_step(head, tail)
+    }
+
+    state lr_step(head: u64, tail: Seq<u64>) -> Nat {
+        length_append(reverse(tail), Seq::Cons { head: head, tail: Seq::Empty });
+        add_succ_law(length(tail), Nat::Zero);
+        add_zero_right(length(tail));
+        transition { _ -> Nat::Succ { prev: length_reverse(tail) } }
+    }
+}
