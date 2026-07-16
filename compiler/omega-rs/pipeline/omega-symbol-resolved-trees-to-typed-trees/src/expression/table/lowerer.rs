@@ -87,11 +87,17 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                 let value = self.lower(cast.value)?;
                 let target_type =
                     lower_name_path_members_into_table(self.source, self.target, cast.target_type);
+                let semantic_domain = lower_name_path_members_into_table(
+                    self.source,
+                    self.target,
+                    cast.semantic_domain,
+                );
                 Ok(self.target.insert(typed::expression::ExpressionNode::Cast(
                     typed::expression::TableCastExpression {
                         value,
                         target_type,
                         domain: cast.domain,
+                        semantic_domain,
                         form: cast.form,
                     },
                 )))

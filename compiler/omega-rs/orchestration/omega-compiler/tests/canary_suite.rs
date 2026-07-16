@@ -31801,6 +31801,8 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "proofs/structural_ensures_unjudged_rejected",
     "proofs/record_false_comm_rejected",
     "proofs/ring_exchange_unhypothesized_rejected",
+    "domains/semantic_cast_mint_staged",
+    "domains/semantic_cast_unknown_domain",
     "proofs/nat_structural_disproof_refuted",
     "proofs/nat_payload_disjointness_refuted",
     "proofs/nat_ground_compute_refuted",

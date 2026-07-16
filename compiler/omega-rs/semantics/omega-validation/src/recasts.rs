@@ -104,6 +104,42 @@ pub(crate) fn validate_recasts(program: &TypedTrees, diagnostics: &mut Vec<Diagn
                     .to_string(),
             ));
         }
+        // STR4 checked plans, slice 3 (decision 19): a NON-policy `in <Name>`
+        // cast suffix is the semantic-domain QUALIFICATION spelling. It is
+        // recognized here but its MINT rung (introduction authority +
+        // predicate discharge) has not landed -- the staged fence names the
+        // declared domain; an unmatched name gets the honest unknown error
+        // the parser used to give (now with the declaration check the parser
+        // could not perform).
+        if let ExpressionNode::Cast(cast) = node
+            && cast.semantic_domain.count() > 0
+        {
+            let members = program
+                .expression_table
+                .name_path_members(cast.semantic_domain);
+            let name = members
+                .first()
+                .map(|member| member.as_str().to_owned())
+                .unwrap_or_default();
+            let declared = program.domain_definitions().iter().any(|domain| {
+                domain.name.as_str() == name
+                    || domain.name.as_str().ends_with(&format!("::{name}"))
+            });
+            if declared {
+                diagnostics.push(Diagnostic::error(format!(
+                    "`as ... in {name}` is a semantic-domain qualification of declared \
+                     domain `{name}`, whose mint rung (introduction authority + \
+                     predicate discharge) has not landed -- route the value's entry \
+                     through a validating call for now (decision 19 stages the mint)",
+                )));
+            } else {
+                diagnostics.push(Diagnostic::error(format!(
+                    "unknown cast domain `{name}`: the arithmetic policies are \
+                     `Wrapping`, `Saturating`, and `Trapping`, and no domain \
+                     declaration names `{name}`",
+                )));
+            }
+        }
     }
 }
 

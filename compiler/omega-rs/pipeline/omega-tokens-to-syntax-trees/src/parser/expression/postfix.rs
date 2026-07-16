@@ -176,6 +176,7 @@ pub(super) fn parse_postfix_expression_handle<'tokens, 'source>(
             // legally take part in domained arithmetic (the escape hatch for the
             // mixed-domain rejection). `in` is the contextual membership keyword.
             let mut domain = omega_core::arithmetic::ArithmeticDomain::Exact;
+            let mut semantic_domain = omega_core::arena::HandleSpan::empty();
             if input.at_contextual("in") {
                 if form.is_recast() {
                     return Err(input.error_here(
@@ -184,14 +185,21 @@ pub(super) fn parse_postfix_expression_handle<'tokens, 'source>(
                 }
                 let after_in = input.take_contextual("in")?;
                 let (domain_name, rest) = after_in.take_identifier()?;
-                let Some(parsed) =
-                    omega_core::arithmetic::ArithmeticDomain::from_name(domain_name.as_str())
-                else {
-                    return Err(rest.error_here(
-                        "unknown arithmetic domain; expected `Wrapping`, `Saturating`, or `Trapping`",
-                    ));
-                };
-                domain = parsed;
+                match omega_core::arithmetic::ArithmeticDomain::from_name(domain_name.as_str()) {
+                    Some(parsed) => domain = parsed,
+                    // A non-policy name is the semantic-domain qualification
+                    // spelling (decision 19) -- carried whole; validation
+                    // judges it against the program's DECLARED domains (the
+                    // parser cannot see other items).
+                    None => {
+                        syntax_trees
+                            .expressions
+                            .append_identifier_path_member_to_span(
+                                &mut semantic_domain,
+                                domain_name.clone(),
+                            );
+                    }
+                }
                 input = rest;
             }
             expression =
@@ -201,6 +209,7 @@ pub(super) fn parse_postfix_expression_handle<'tokens, 'source>(
                         value: expression,
                         target_type,
                         domain,
+                        semantic_domain,
                         form,
                     }));
             continue;

@@ -1,0 +1,17 @@
+// SEMANTIC-DOMAIN QUALIFICATION (decision 19, staged): `as i64 in Km`
+// with a DECLARED domain is RECOGNIZED as the qualification spelling, and
+// the staged fence names the domain and the missing mint rung
+// (introduction authority + predicate discharge) -- never the misleading
+// "unknown arithmetic domain" the parser used to give.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+
+domain i64::Km {
+    self >= 0;
+}
+
+machine Main::main(&mut self) {
+    let raw: i64 = 5;
+    let distance: i64 = raw as i64 in Km;
+    self.console.exit_process(70);
+}

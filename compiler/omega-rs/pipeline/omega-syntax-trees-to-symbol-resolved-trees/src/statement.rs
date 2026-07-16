@@ -364,6 +364,7 @@ fn rewrite_children(
                     value,
                     target_type: cast.target_type,
                     domain: cast.domain,
+                    semantic_domain: cast.semantic_domain,
                     form: cast.form,
                 }),
             );
