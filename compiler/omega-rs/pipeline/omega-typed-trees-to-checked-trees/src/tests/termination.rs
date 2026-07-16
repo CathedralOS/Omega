@@ -1700,6 +1700,53 @@ fn qualification_facts_record_policy_commitments() {
     );
 }
 
+#[test]
+fn contract_plans_fingerprint_published_halves() {
+    // STR4 checked plans (machine_taxonomy.md): the contract fingerprint
+    // covers ONLY the published halves -- two machines with the same
+    // declared surface share it; a different effects clause changes it;
+    // inferred rows never enter (prover-independence by construction).
+    let source = r#"
+    data Main {}
+
+    machine Main::quiet_a(&mut self) -> u64 effects filesystem_io { 1 }
+    machine Main::quiet_b(&mut self) -> u64 effects filesystem_io { 2 }
+    machine Main::loud(&mut self) -> u64 effects network_io { 3 }
+    machine Main::main(&mut self) -> u64 { 7 }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let symbol_of = |name: &str| {
+        typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == name)
+            .unwrap_or_else(|| panic!("machine {name}"))
+            .symbol
+    };
+    let quiet_a = symbol_of("Main::quiet_a");
+    let quiet_b = symbol_of("Main::quiet_b");
+    let loud = symbol_of("Main::loud");
+    let checked = lower_typed_trees(typed).expect("checked lowering should succeed");
+
+    let plan = |symbol| {
+        checked
+            .facts
+            .contract_plans
+            .for_machine(symbol)
+            .expect("contract plan")
+    };
+    // Same declared surface (different BODIES) -> same fingerprint.
+    assert_eq!(plan(quiet_a).fingerprint, plan(quiet_b).fingerprint);
+    // A different effects clause -> a different fingerprint.
+    assert_ne!(plan(quiet_a).fingerprint, plan(loud).fingerprint);
+}
+
 /// R2 rung 2 slice 2: the admitted zero-satisfying default-domain facts
 /// travel to the TYPED data definition -- rung 3's consumer substrate.
 #[test]

@@ -721,8 +721,22 @@ sealed progress profiles + grants, TPR4's remaining big half).
    pass domains/semantic_cast_guard_chain_mint (RUNS exit 70); fail
    semantic_cast_requires_missing (requires dropped -- the caller's
    guard cannot reach inside the callee; the requires is the
-   sanctioned carrier). Remaining checked plans: permission +
-   normalized-machine-contract plans; STR5
+   sanctioned carrier). CONTRACT PLANS SLICE 1 LANDED
+   same day: CheckFacts gains MachineContractPlans -- per machine,
+   the published halves already carried on the records (supply
+   mode, effect-row ceiling, published termination guarantee) plus
+   a deterministic FNV fingerprint over them, folding the row's
+   catalog-fixed MEMBER ids (never program-local table indices).
+   Prover-independence (acceptance 8) holds by construction: only
+   declared material enters. Pinned:
+   contract_plans_fingerprint_published_halves (same declared
+   surface -> same fingerprint across different bodies; a changed
+   effects clause -> different). Follow-up: requires/ensures fact
+   canonicalization into the fingerprint; the boundary-facing
+   calling plan. PERMISSION PLANS PARKED (OWNER_QUESTIONS.md 2026-07-16):
+   introduction authority bites only at package boundaries -- the
+   same grant-carrier gap as #81; design once for both consumers.
+   Remaining: STR5
    validation/resolution; STR6 lower only from checked selections while
    preserving semantic contract IDs in artifacts; STR7 retire compatibility
    paths. Decision 22 now supplies the effect-row target: kinded

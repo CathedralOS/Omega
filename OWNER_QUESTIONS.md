@@ -116,3 +116,20 @@ The quotient/conformance arc (IntPair rungs 1-6, landed 2026-07-16) did not
 need the bridge; nothing else in the current queue is blocked on it. Parking
 until the direction is ruled; both engines are healthy and the bridge can
 land as a bounded slice once the surface is chosen.
+
+## 2026-07-16: Permission plans (decision 19's authority half) — SHARES THE #81 GRANT-CARRIER GAP
+
+The mint's three v1 discharge routes are live (literals, declared ranges,
+guard-carried requires). The remaining decision-19 half is INTRODUCTION
+AUTHORITY: sealed-by-default qualification, `introduction open;` opt-ins,
+and `MintAuthority<D>` as an exported, attenuable, contract-visible
+capability. All of it bites only at PACKAGE boundaries — in-program, the
+owning package qualifies its own domains, which v1 grants uniformly.
+
+The blocker is the same one recorded for #81 (sealed progress profiles):
+there is no package-grant/receipt/trust-report subsystem to carry an
+exported authority. Building it is a subsystem-scale arc that should be
+designed once for BOTH consumers (progress-profile grants and mint
+authorities — likely the same carrier). Parking the permission-plan work
+behind that design; the checked-plans arc continues with the
+normalized-machine-contract plans, which have no such dependency.
