@@ -102,3 +102,18 @@ ensures
         Seq::Cons { head, tail } -> Nat::Succ { prev: length_append(tail, t) }
     }
 }
+
+// Reversal, structurally recursive (the naive quadratic form: each step
+// appends the head as a singleton on the right). Lean analog:
+// `List.reverse` (the non-accumulator spelling).
+machine reverse(s: Seq<u64>) -> Seq<u64>
+terminates {
+    decreases s;
+}
+{
+    transition s {
+        Seq::Empty -> Seq::Empty
+        Seq::Cons { head, tail } ->
+            (append(reverse(tail), Seq::Cons { head: head, tail: Seq::Empty }))
+    }
+}
