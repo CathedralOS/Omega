@@ -631,9 +631,17 @@ sealed progress profiles + grants, TPR4's remaining big half).
    declared seed was ALREADY structurally separate -- `direct` is the
    authored clause, never mutated) and the checked inferred_direct
    row normalizes the declaration-free observation set; the slice-2
-   test now pins ceiling != inferred_direct on the declaring machine
-   (transitive still includes the own declaration via its seed until
-   a later fixpoint rework). CEILING ENFORCEMENT verified
+   test now pins ceiling != inferred_direct on the declaring machine.
+   TRANSITIVE-SEED REWORK LANDED 2026-07-16: MachineEffects gains
+   `body_transitive` -- the same call-graph fixpoint seeded WITHOUT
+   the machine's own clause; a callee contributes its declared
+   CEILING when it has one (ceiling enforcement guarantees it covers
+   the body; the callee may change within it without recompiling the
+   caller -- the modular bound), else its own honest reach.
+   EffectRowFacts.inferred_transitive now carries it; the slice-2
+   pin extended (the declaring machine's inferred_transitive is the
+   EMPTY row while its ceiling names filesystem_io; the caller still
+   sees the ceiling through the call edge). CEILING ENFORCEMENT verified
    ALREADY LIVE 2026-07-16 (run-probed: "declares effects `clock_read`
    but reaches undeclared effects `host_boundary`"; pinned:
    fail/capabilities/effect_ceiling_exceeded). Remaining STR4:
