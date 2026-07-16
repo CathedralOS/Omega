@@ -31460,6 +31460,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "dependent/data_where_window_closes",
     "dependent/data_where_ranged_param_constructs",
     "dependent/data_where_product_hypothesis",
+    "dependent/data_where_callee_establishes",
     "dependent/data_where_gated_literal_proves",
     "termination/default_order_unsigned_width_countdown_compile",
     "termination/runtime_shrinking_slice_recursion_exit",

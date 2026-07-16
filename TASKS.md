@@ -1044,10 +1044,21 @@ bounded-escape store-containment keystone. Open rungs:
   differential pinned: pass data_where_product_hypothesis (the
   callee's `target.count * 32` proves u32 ONLY via the product
   chain, RUNS exit 70; dropping the stride fact refuses with the
-  decision-17 obligation). Remaining R2: field-vs-field read
-  hypotheses, window transport across states, cross-machine
-  establishment (a callee's construction is invisible to the
-  caller's gate -- over-refusal). The rest of the big semantic build:** the
+  decision-17 obligation). RUNG 3 SLICE 11 LANDED same day --
+  CROSS-MACHINE ESTABLISHMENT: per-machine SUMMARIES (v1:
+  single-state machines, walked with born_zero=false and no nested
+  summaries -- sound alone since internal calls clear tracking)
+  record the self places a callee DEFINITELY establishes; call sites
+  (statement + expression positions, target STATE symbol resolved to
+  its owning machine -- the effects builder's proven rule, the
+  first-try bug) join the summary into call_established, consulted by
+  the read gate, exit-establishment, and fresh-place seeding.
+  Establishment is globally monotone, so a call only ADDS. Pinned:
+  pass data_where_callee_establishes (construct in recruit, read in
+  main -- the slice-9 flow that had to be reworked, now RUNS exit 70);
+  the no-call fail pin keeps refusing. Remaining R2: field-vs-field
+  read hypotheses, window transport across states, multi-state callee
+  summaries. The rest of the big semantic build:** the
   big semantic build — where-clause parsing on data, the default-domain
   layer, gating (zero-excluding domains legal, construction mandatory
   fields), consumption-point windows (ADDITIVE relaxation of the landed
