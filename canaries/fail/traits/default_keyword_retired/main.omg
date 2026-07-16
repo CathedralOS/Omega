@@ -1,0 +1,8 @@
+// The `default` keyword is KILLED (owner, 2026-07-18): a trait machine
+// with a body IS the default -- body presence is the marker. The old
+// spelling refuses with direction.
+trait T {
+    default machine reset(&mut self) { }
+}
+data Main {}
+machine Main::main(&mut self) { }
