@@ -33,6 +33,8 @@ fn collects_nested_state_call_ordinals_for_checked_borrow_facts() {
         name: Identifier::generated("Game"),
         attached_data: None,
         boundary: false,
+        supply_mode: Default::default(),
+        termination_plan: Default::default(),
         type_parameters: Default::default(),
         contains: Default::default(),
         owned_data: Default::default(),

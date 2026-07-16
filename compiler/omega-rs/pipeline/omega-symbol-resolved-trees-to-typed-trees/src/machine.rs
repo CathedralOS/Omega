@@ -19,6 +19,8 @@ pub(crate) fn lower_machine(
         boundary: machine.boundary,
         // STR3: copied, never re-derived.
         supply_mode: machine.supply_mode,
+        // TPR2: copied, never re-derived (populated at syntax->resolved).
+        termination_plan: machine.termination_plan.clone(),
         type_parameters: omega_core::arena::HandleSpan::empty(),
         contains: omega_core::arena::HandleSpan::empty(),
         owned_data: omega_core::arena::HandleSpan::empty(),

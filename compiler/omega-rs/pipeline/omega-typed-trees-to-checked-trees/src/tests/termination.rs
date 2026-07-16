@@ -66,9 +66,7 @@ fn accepts_terminating_countdown_machine_with_decreases() {
     }
 
     machine Main::countdown(&mut self, remaining: u64)
-    terminates {
-        decreases remaining -> Nat::Descending;
-    }
+    terminates by remaining -> Nat::Descending;
     {
         transition remaining > 0 {
             true -> self.countdown(remaining - 1)
@@ -97,9 +95,7 @@ fn accepts_terminating_distance_machine_with_decreases() {
     }
 
     machine Main::walk(&mut self, limit: u64, index: u64)
-    terminates {
-        decreases (index, limit) -> Nat::BoundedDistance;
-    }
+    terminates by (index, limit) -> Nat::BoundedDistance;
     -> u64
     {
         transition index < limit {
@@ -136,9 +132,7 @@ fn accepts_terminating_slice_distance_machine_with_decreases() {
     }
 
     machine Main::walk(&mut self, entries: &[Entry], index: u64)
-    terminates {
-        decreases (index, entries.len) -> Nat::BoundedDistance;
-    }
+    terminates by (index, entries.len) -> Nat::BoundedDistance;
     -> u64
     {
         transition index < entries.len {
@@ -168,9 +162,7 @@ fn rejects_terminating_countdown_machine_with_stalled_decrease() {
     }
 
     machine Main::countdown(&mut self, remaining: u64)
-    terminates {
-        decreases remaining -> Nat::Descending;
-    }
+    terminates by remaining -> Nat::Descending;
     {
         transition remaining > 0 {
             true -> self.countdown(remaining)
@@ -211,9 +203,7 @@ fn rejects_terminating_slice_distance_machine_with_stalled_index() {
     }
 
     machine Main::walk(&mut self, entries: &[Entry], index: u64)
-    terminates {
-        decreases (index, entries.len) -> Nat::BoundedDistance;
-    }
+    terminates by (index, entries.len) -> Nat::BoundedDistance;
     -> u64
     {
         transition index < entries.len {
@@ -255,9 +245,7 @@ fn rejects_terminating_slice_length_order_without_supported_progress_shape() {
     }
 
     machine Main::walk(&mut self, entries: &[Entry], index: u64)
-    terminates {
-        decreases entries -> Slice::Length;
-    }
+    terminates by entries -> Slice::Length;
     -> u64
     {
         transition index < entries.len {
@@ -299,9 +287,7 @@ fn accepts_terminating_slice_length_order_with_shrinking_subslice() {
     }
 
     machine Main::walk(&mut self, entries: &[Entry])
-    terminates {
-        decreases entries -> Slice::Length;
-    }
+    terminates by entries -> Slice::Length;
     -> u64
     {
         transition entries.len > 0 {
@@ -333,9 +319,7 @@ fn accepts_terminating_mutually_recursive_states_with_decreases() {
     }
 
     machine Main::ping(&mut self, remaining: u64)
-    terminates {
-        decreases remaining -> Nat::Descending;
-    }
+    terminates by remaining -> Nat::Descending;
     -> u64
     {
         transition remaining > 0 {
@@ -374,9 +358,7 @@ fn rejects_terminating_mutually_recursive_states_without_decrease() {
     }
 
     machine Main::ping(&mut self, remaining: u64)
-    terminates {
-        decreases remaining -> Nat::Descending;
-    }
+    terminates by remaining -> Nat::Descending;
     -> u64
     {
         transition remaining > 0 {
@@ -418,9 +400,7 @@ fn infers_default_nat_descending_for_plain_usize_decreases() {
     }
 
     machine Main::countdown(&mut self, remaining: u64)
-    terminates {
-        decreases remaining;
-    }
+    terminates by remaining;
     {
         transition remaining > 0 {
             true -> self.countdown(remaining - 1)
@@ -456,9 +436,7 @@ fn infers_default_slice_length_for_plain_slice_decreases() {
     }
 
     machine Main::walk(&mut self, entries: &[Entry])
-    terminates {
-        decreases entries;
-    }
+    terminates by entries;
     -> u64
     {
         transition entries.len > 0 {
@@ -488,9 +466,7 @@ fn infers_default_bounded_distance_for_plain_two_subject_tuple() {
     }
 
     machine Main::walk(&mut self, limit: u64, index: u64)
-    terminates {
-        decreases (index, limit);
-    }
+    terminates by (index, limit);
     -> u64
     {
         transition index < limit {
@@ -520,9 +496,7 @@ fn accepts_explicit_named_bounded_distance_view() {
     }
 
     machine Main::walk(&mut self, limit: u64, index: u64)
-    terminates {
-        decreases (index, limit) -> Nat::BoundedDistance;
-    }
+    terminates by (index, limit) -> Nat::BoundedDistance;
     -> u64
     {
         transition index < limit {
@@ -552,9 +526,7 @@ fn rejects_inverted_bounded_distance_with_naming_diagnostic() {
     }
 
     machine Main::walk(&mut self, limit: u64, index: u64)
-    terminates {
-        decreases (limit, index);
-    }
+    terminates by (limit, index);
     -> u64
     {
         transition index < limit {
@@ -600,9 +572,7 @@ fn rejects_retired_subtraction_decreases_spelling_with_tuple_guidance() {
     }
 
     machine Main::walk(&mut self, limit: u64, index: u64)
-    terminates {
-        decreases limit - index;
-    }
+    terminates by limit - index;
     -> u64
     {
         transition index < limit {
@@ -649,9 +619,7 @@ fn rejects_named_bounded_distance_view_over_single_subject() {
     }
 
     machine Main::countdown(&mut self, remaining: u64)
-    terminates {
-        decreases remaining -> Nat::BoundedDistance;
-    }
+    terminates by remaining -> Nat::BoundedDistance;
     {
         transition remaining > 0 {
             true -> self.countdown(remaining - 1)
@@ -688,9 +656,7 @@ fn rejects_ambiguous_default_order_requiring_explicit_form() {
     }
 
     machine Main::countdown(&mut self, remaining: i32)
-    terminates {
-        decreases remaining;
-    }
+    terminates by remaining;
     -> i32
     {
         transition remaining > 0 {
@@ -736,9 +702,7 @@ fn infers_default_nat_descending_for_plain_u32_decreases() {
     }
 
     machine Main::countdown(&mut self, remaining: u32)
-    terminates {
-        decreases remaining;
-    }
+    terminates by remaining;
     -> u32
     {
         transition remaining > 0 {
@@ -775,9 +739,7 @@ fn plain_decreases_never_selects_a_declared_measure_even_when_unique() {
     }
 
     machine Main::weaken(&mut self, card: Card)
-    terminates {
-        decreases card;
-    }
+    terminates by card;
     -> u64
     {
         transition card.power > 0 {
@@ -814,4 +776,170 @@ fn plain_decreases_never_selects_a_declared_measure_even_when_unique() {
             .map(|diagnostic| diagnostic.message.clone())
             .collect::<Vec<_>>()
     );
+}
+
+/// TPR2 (decision 23): the normalized `MachineTerminationPlan` populates at
+/// the syntax->resolved lowering and copies -- never re-derives -- through
+/// resolved->typed. Bare `terminates;` authors the PUBLIC guarantee and no
+/// witness; `terminates by ...` supplies the PRIVATE witness and publishes
+/// NOTHING; canonical defaults elaborate immediately to the explicit view
+/// (single unsigned subject -> Nat::Descending, two subjects ->
+/// Nat::BoundedDistance); `checked_summary` stays NoGuarantee at this stage
+/// (the checker's to establish, TPR3).
+#[test]
+fn termination_plan_splits_guarantee_from_witness_with_elaborated_defaults() {
+    use omega_core::semantics::{RankingViewId, TerminationGuarantee};
+
+    let source = r#"
+    data Main {}
+
+    machine Main::main(&mut self) {
+        let a: u64 = self.promise();
+        let b: u64 = self.countdown(2);
+        let c: u64 = self.walk(4, 0);
+    }
+
+    machine Main::promise(&mut self) -> u64 terminates; { 7 }
+
+    machine Main::countdown(&mut self, remaining: u64)
+    terminates by remaining;
+    {
+        transition remaining > 0 {
+            true -> self.countdown(remaining - 1)
+            false -> 0
+        }
+    }
+
+    machine Main::walk(&mut self, limit: u64, index: u64)
+    terminates by (index, limit);
+    -> u64
+    {
+        transition index < limit {
+            true -> self.walk(limit, index + 1)
+            false -> index
+        }
+    }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+
+    let plan_of = |name: &str| {
+        &typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == name)
+            .unwrap_or_else(|| panic!("machine {name}"))
+            .termination_plan
+    };
+
+    // Bare `terminates;`: the authored public promise, no witness.
+    let promise = plan_of("Main::promise");
+    assert_eq!(
+        promise.published,
+        Some(TerminationGuarantee::EventualTerminal {
+            premises: Vec::new()
+        })
+    );
+    assert!(promise.implementation_witness.is_none());
+
+    // `terminates by remaining;`: witness only (publishes nothing); the
+    // single u64 subject's canonical default elaborates immediately.
+    let countdown = plan_of("Main::countdown");
+    assert_eq!(countdown.published, None);
+    let witness = countdown
+        .implementation_witness
+        .as_ref()
+        .expect("countdown witness");
+    assert_eq!(witness.subjects, vec!["remaining".to_string()]);
+    assert_eq!(witness.ranking_view, RankingViewId::NAT_DESCENDING);
+    assert_eq!(witness.view_path, "Nat::Descending");
+
+    // Two-subject short form: the only builtin two-subject view.
+    let walk = plan_of("Main::walk");
+    assert_eq!(walk.published, None);
+    let witness = walk.implementation_witness.as_ref().expect("walk witness");
+    assert_eq!(
+        witness.subjects,
+        vec!["index".to_string(), "limit".to_string()]
+    );
+    assert_eq!(witness.ranking_view, RankingViewId::NAT_BOUNDED_DISTANCE);
+    assert_eq!(witness.view_path, "Nat::BoundedDistance");
+
+    // Nothing claims a checked summary before the checker runs (TPR3).
+    for name in ["Main::promise", "Main::countdown", "Main::walk"] {
+        assert_eq!(
+            plan_of(name).checked_summary,
+            TerminationGuarantee::NoGuarantee
+        );
+    }
+}
+
+/// TPR2: an authored `-> View` records verbatim -- canonical builtins carry
+/// their fixed ids; a declared measure keeps the spelled path with a NULL id
+/// until TPR3 assigns normalized measure identity.
+#[test]
+fn termination_plan_records_authored_views_verbatim() {
+    use omega_core::semantics::RankingViewId;
+
+    let source = r#"
+    data Card { power: u64 }
+    data Main {}
+
+    measure Card::PowerOrder(card: Card) -> u64 { card.power }
+
+    machine Main::main(&mut self) {
+        let a: u64 = self.countdown(2);
+    }
+
+    machine Main::countdown(&mut self, remaining: u64)
+    terminates by remaining -> Nat::Descending;
+    {
+        transition remaining > 0 {
+            true -> self.countdown(remaining - 1)
+            false -> 0
+        }
+    }
+
+    machine Main::weaken(&mut self, card: Card)
+    terminates by card -> Card::PowerOrder;
+    -> u64
+    {
+        transition card.power > 0 {
+            true -> self.weaken(Card { power: card.power - 1 })
+            false -> card.power
+        }
+    }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+
+    let witness_of = |name: &str| {
+        typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == name)
+            .unwrap_or_else(|| panic!("machine {name}"))
+            .termination_plan
+            .implementation_witness
+            .as_ref()
+            .unwrap_or_else(|| panic!("{name} witness"))
+    };
+
+    let countdown = witness_of("Main::countdown");
+    assert_eq!(countdown.ranking_view, RankingViewId::NAT_DESCENDING);
+    assert_eq!(countdown.view_path, "Nat::Descending");
+
+    let weaken = witness_of("Main::weaken");
+    assert_eq!(weaken.ranking_view, RankingViewId::NULL);
+    assert_eq!(weaken.view_path, "Card::PowerOrder");
 }

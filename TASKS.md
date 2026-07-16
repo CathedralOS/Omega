@@ -40,8 +40,33 @@ it until TPR3 consumes ranges (pinned: rank_range_unconsumed — never a
 silent drop). Corpus: 97 files regex-swept + 3 manual (a bare-
 terminates body brace the sweep must not touch, a no-semicolon
 standalone form, comment spellings) + 2 parser unit tests; every gate
-green over the migrated corpus first try. Remaining rungs unchanged:; TPR2 normalized public guarantee versus
-private `RankingWitness`, including canonical-default elaboration; TPR3
+green over the migrated corpus first try. TPR2 LANDED 2026-07-16: the
+resolved+typed Machine records carry the normalized
+`MachineTerminationPlan` (published guarantee vs private RankingWitness),
+populated ONCE at syntax->resolved and COPIED downstream -- bare
+`terminates;` (or the tolerated no-semicolon form) authors the PUBLIC
+guarantee via the new syntax `terminates_guarantee` flag; `terminates by`
+publishes NOTHING and supplies the witness (subjects rendered
+source-like, explicit view). Canonical defaults elaborate IMMEDIATELY at
+lowering (mirroring the checker's inference exactly): two subjects ->
+Nat::BoundedDistance; single `.len` member or root-state parameter of
+unsigned {u8,u16,u32,u64,nat} (constraint/reference shells stripped) ->
+Nat::Descending; slice/fixed-array parameter -> Slice::Length; the rest
+stay pending (empty view_path) for TPR3's in-checker elaboration.
+omega-core gained the FIXED-ID canonical view catalog
+(RankingViewId::{NAT_DESCENDING,NAT_BOUNDED_DISTANCE,SLICE_LENGTH} +
+canonical()/canonical_path()); RankingWitness gained `view_path` (the
+private witness's honest spelling carrier; declared measures carry NULL
+id + spelled path until TPR3 measure identity). checked_summary stays
+NoGuarantee until TPR3. LOSS-2 re-pinned (plan beside compat bools +
+witness-swap-is-contract-invisible invariant test); 2 population tests in
+typed-trees-to-checked-trees/tests/termination.rs. SIDE HARVEST: the TPR1
+sweep missed EMBEDDED Rust-string omega sources -- 46 block forms + 1
+brace-escaped + diagnostics/comments teaching the retired spelling
+migrated across 6 crates, and 5 long-stale test fixtures (missing
+supply_mode/target/decrease_range/TraitConformance fields) repaired; the
+whole `cargo test --workspace` battery (158 targets) is green again and
+joins the gate list. Remaining rungs unchanged: TPR3
 cycle checker migration (state loops, calls, range-on-rank, runtime tail
 lowering, proof-stratum non-tail eligibility, joint SCC semantics); TPR4
 requirement inheritance, published omission/default rules, sealed progress

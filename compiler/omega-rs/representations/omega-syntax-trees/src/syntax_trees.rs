@@ -324,6 +324,7 @@ impl SyntaxTrees {
                 |this, clause| this.items.append_satisfies_clause(clause),
             ),
             terminates: machine.terminates,
+            terminates_guarantee: machine.terminates_guarantee,
             decreases: self.copy_expression_handle_list(other, machine.decreases),
             decrease_order: self.copy_item_identifier_span(other, machine.decrease_order),
             decrease_range: if machine.decrease_range.is_valid() {

@@ -71,8 +71,17 @@ pub struct RankingWitness {
     pub subjects: Vec<String>,
     /// The canonical ranking view. Stable defaults elaborate IMMEDIATELY
     /// to an explicit view — the checker never selects a noncanonical view
-    /// heuristically.
+    /// heuristically. `NULL` when the view is a user-declared measure (its
+    /// normalized identity lands with the TPR3 checker migration) or while
+    /// a single-subject short form awaits its type-directed elaboration.
     pub ranking_view: RankingViewId,
+    /// The explicit, elaborated view SPELLING (`Nat::Descending`,
+    /// `Card::PowerOrder`) — the witness is private, so a rendered path is
+    /// its honest identity carrier for diagnostics and proof-cache keys.
+    /// Empty ONLY while a single-subject short form awaits type-directed
+    /// elaboration (the one canonical-default case that needs the subject's
+    /// carrier type; TPR3 completes it inside the migrated checker).
+    pub view_path: String,
 }
 
 /// The interface/implementation split for one machine's termination story
@@ -147,6 +156,42 @@ semantic_id!(
     RankingViewId
 );
 
+/// The BUILTIN canonical ranking-view catalog (decision 23, TPR2). The ids
+/// are FIXED (deterministic across programs — they may enter proof-cache
+/// keys); user-declared measures are NOT here (they get per-program
+/// normalized identity with the TPR3 checker migration and carry
+/// `RankingViewId::NULL` until then).
+impl RankingViewId {
+    /// `Nat::Descending` — an unsigned/bounded scalar counting down.
+    pub const NAT_DESCENDING: Self = Self(1);
+    /// `Nat::BoundedDistance` — a `(lower, upper)` pair ranked by the
+    /// distance from `lower` up to the fixed `upper`; the only builtin
+    /// two-subject view (and therefore the two-subject short-form default).
+    pub const NAT_BOUNDED_DISTANCE: Self = Self(2);
+    /// `Slice::Length` — a slice decreasing by its length.
+    pub const SLICE_LENGTH: Self = Self(3);
+
+    /// Look up a builtin canonical view by its explicit spelling.
+    pub fn canonical(path: &str) -> Option<Self> {
+        match path {
+            "Nat::Descending" => Some(Self::NAT_DESCENDING),
+            "Nat::BoundedDistance" => Some(Self::NAT_BOUNDED_DISTANCE),
+            "Slice::Length" => Some(Self::SLICE_LENGTH),
+            _ => None,
+        }
+    }
+
+    /// The explicit spelling of a builtin canonical view.
+    pub fn canonical_path(self) -> Option<&'static str> {
+        match self {
+            Self::NAT_DESCENDING => Some("Nat::Descending"),
+            Self::NAT_BOUNDED_DISTANCE => Some("Nat::BoundedDistance"),
+            Self::SLICE_LENGTH => Some("Slice::Length"),
+            _ => None,
+        }
+    }
+}
+
 /// The domain-theory facet PAIR (record §Domain theory): optional facets,
 /// NOT a mutually exclusive enum — hybrids are first-class. The facet
 /// bodies land with STR3+ (they need tree vocabulary); the skeleton lands
@@ -200,5 +245,23 @@ mod tests {
     fn semantic_ids_are_zii_inert() {
         assert!(!SemanticDomainId::default().is_valid());
         assert!(EffectRowId(1).is_valid());
+    }
+
+    #[test]
+    fn canonical_view_catalog_round_trips() {
+        // Fixed, deterministic ids: the catalog may enter proof-cache keys,
+        // so a builtin's id and spelling must round-trip exactly.
+        for id in [
+            RankingViewId::NAT_DESCENDING,
+            RankingViewId::NAT_BOUNDED_DISTANCE,
+            RankingViewId::SLICE_LENGTH,
+        ] {
+            assert!(id.is_valid());
+            let path = id.canonical_path().expect("builtin has a spelling");
+            assert_eq!(RankingViewId::canonical(path), Some(id));
+        }
+        // Declared measures are NOT canonical builtins.
+        assert_eq!(RankingViewId::canonical("Card::PowerOrder"), None);
+        assert_eq!(RankingViewId::NULL.canonical_path(), None);
     }
 }

@@ -18,6 +18,13 @@ pub struct Machine {
     /// Requirement/Accepted gain their own sources when their spellings
     /// reach this record.
     pub supply_mode: omega_core::semantics::MachineSupplyMode,
+    /// TPR2 (decision 23): the normalized termination plan (published
+    /// guarantee vs private ranking witness), populated ONCE at the
+    /// syntax->resolved lowering and COPIED here -- never re-derived. The
+    /// `terminates`/`decreases`/`decrease_order` fields below remain the
+    /// compatibility shape the current cycle checker consumes until TPR3
+    /// migrates it onto this plan.
+    pub termination_plan: omega_core::semantics::MachineTerminationPlan,
     pub type_parameters: HandleSpan<crate::data::TypeParameter>,
     pub contains: HandleSpan<ContainedObject>,
     pub owned_data: HandleSpan<OwnedData>,
@@ -38,6 +45,7 @@ impl Default for Machine {
             attached_data: None,
             boundary: false,
             supply_mode: omega_core::semantics::MachineSupplyMode::CheckedBody,
+            termination_plan: omega_core::semantics::MachineTerminationPlan::default(),
             type_parameters: HandleSpan::empty(),
             contains: HandleSpan::empty(),
             owned_data: HandleSpan::empty(),

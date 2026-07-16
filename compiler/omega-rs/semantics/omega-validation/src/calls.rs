@@ -1115,7 +1115,7 @@ pub(crate) fn validate_self_recursive_call_positions(
                 diagnostics.push(Diagnostic::error(format!(
                     "`{call_display}` in terminal position is TAIL self-recursion on an \
                      UNMEASURED machine. Recursive call spellings are legal only when \
-                     measured: declare `terminates {{ decreases ... }}` and the terminal \
+                     measured: declare `terminates by ...;` and the terminal \
                      call rewrites onto the loop-back edge; unmeasured repetition spells \
                      as the bare loop `-> {entry_name}(..)` (constant stack, may diverge).",
                 )));
@@ -1199,7 +1199,7 @@ pub(crate) fn validate_proof_machine_recursion(
     let [subject] = subjects else {
         diagnostics.push(Diagnostic::error(format!(
             "recursive proof machine `{}` needs a single structural measure: declare \
-             `terminates {{ decreases <param> }}` naming one proof-data parameter -- a \
+             `terminates by <param>;` naming one proof-data parameter -- a \
              cycle without a measure is an unproven termination claim (measured \
              recursion, both strata)",
             machine.name,

@@ -52,8 +52,8 @@ pub(super) fn plan_transition_target(
 
             // Measured recursion MR1 (2026-07-18 ruling, landed 2026-07-11):
             // `-> self.X(..)` resolving to a LOCAL segment. When X is the
-            // machine's OWN ENTRY and the machine is MEASURED (`terminates {
-            // decreases ... }`), this is the sanctioned TAIL spelling -- it
+            // machine's OWN ENTRY and the machine is MEASURED (`terminates
+            // by ...;`), this is the sanctioned TAIL spelling -- it
             // resolves to the SAME loop-back edge as the bare `-> X(..)`
             // (a jump with re-bound arguments; the termination pass already
             // proves the strict decrease across this edge by symbol).
@@ -249,7 +249,7 @@ fn unmeasured_recursion_message(name: &str) -> String {
     format!(
         "`self.{name}(..)` in a transition arm is call-spelled self-recursion \
          WITHOUT a measure. Recursive call spellings are legal only on a \
-         measured machine (`terminates {{ decreases ... }}`; the decrease is \
+         measured machine (`terminates by ...;`; the decrease is \
          proven across the loop edge). Measure the machine, or spell \
          unmeasured repetition as the bare loop `-> {name}(..)` -- a jump \
          with re-bound arguments (constant stack, may diverge)."

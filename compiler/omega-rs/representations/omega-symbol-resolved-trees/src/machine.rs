@@ -19,6 +19,17 @@ pub struct Machine {
     /// Requirement/Accepted gain their own sources when their spellings
     /// reach this record.
     pub supply_mode: omega_core::semantics::MachineSupplyMode,
+    /// TPR2 (decision 23): the normalized termination plan -- the authored
+    /// PUBLIC guarantee and the PRIVATE ranking witness as separate fields.
+    /// Populated ONCE at the syntax->resolved lowering (bare `terminates;`
+    /// -> published guarantee; `terminates by ...` -> witness subjects +
+    /// explicit view, canonical defaults elaborated where the root-state
+    /// parameter type determines them), copied -- never re-derived --
+    /// downstream. `checked_summary` stays `NoGuarantee` until TPR3's
+    /// migrated cycle checker establishes it. `terminates`/`decreases`/
+    /// `decrease_order` in the storage below remain the compatibility
+    /// shape the current checker consumes until TPR3/TPR6 retire them.
+    pub termination_plan: omega_core::semantics::MachineTerminationPlan,
     pub storage: MachineStorage,
 }
 
