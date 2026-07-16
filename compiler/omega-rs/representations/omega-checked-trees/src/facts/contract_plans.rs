@@ -51,6 +51,7 @@ pub fn contract_fingerprint(
     published_effect_row: EffectRowId,
     published_effect_members: &[omega_core::semantics::EffectMemberId],
     published_termination: &TerminationGuarantee,
+    canonical_facts: &[Vec<u8>],
 ) -> u64 {
     const OFFSET: u64 = 0xcbf29ce484222325;
     const PRIME: u64 = 0x100000001b3;
@@ -84,6 +85,15 @@ pub fn contract_fingerprint(
                 }
             }
         }
+    }
+    // Slice 2: the declared requires/ensures facts, pre-sorted by the
+    // caller (clause order never enters the identity).
+    fold(0xfd);
+    for fact in canonical_facts {
+        for byte in fact {
+            fold(*byte);
+        }
+        fold(0xfc);
     }
     hash
 }

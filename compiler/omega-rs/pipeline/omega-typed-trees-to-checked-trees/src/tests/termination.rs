@@ -1712,6 +1712,21 @@ fn contract_plans_fingerprint_published_halves() {
     machine Main::quiet_a(&mut self) -> u64 effects filesystem_io { 1 }
     machine Main::quiet_b(&mut self) -> u64 effects filesystem_io { 2 }
     machine Main::loud(&mut self) -> u64 effects network_io { 3 }
+    machine bounded_ab(x: u64, y: u64) -> u64
+    requires
+        x >= 1;
+        y >= 2
+    { x }
+    machine bounded_ba(x: u64, y: u64) -> u64
+    requires
+        y >= 2;
+        x >= 1
+    { x }
+    machine bounded_wider(x: u64, y: u64) -> u64
+    requires
+        x >= 1;
+        y >= 3
+    { x }
     machine Main::main(&mut self) -> u64 { 7 }
     "#;
 
@@ -1745,6 +1760,25 @@ fn contract_plans_fingerprint_published_halves() {
     assert_eq!(plan(quiet_a).fingerprint, plan(quiet_b).fingerprint);
     // A different effects clause -> a different fingerprint.
     assert_ne!(plan(quiet_a).fingerprint, plan(loud).fingerprint);
+    // Slice 2: REQUIRES clause ORDER never enters the identity...
+    let ab = symbol_of_checked(&checked, "bounded_ab");
+    let ba = symbol_of_checked(&checked, "bounded_ba");
+    let wider = symbol_of_checked(&checked, "bounded_wider");
+    assert_eq!(plan(ab).fingerprint, plan(ba).fingerprint);
+    // ...but a changed BOUND does.
+    assert_ne!(plan(ab).fingerprint, plan(wider).fingerprint);
+}
+
+fn symbol_of_checked(
+    checked: &omega_checked_trees::CheckedTrees,
+    name: &str,
+) -> omega_core::symbols::SymbolHandle {
+    checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == name)
+        .unwrap_or_else(|| panic!("machine {name}"))
+        .symbol
 }
 
 /// R2 rung 2 slice 2: the admitted zero-satisfying default-domain facts

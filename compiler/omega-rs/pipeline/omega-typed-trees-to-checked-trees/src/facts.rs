@@ -79,11 +79,53 @@ fn build_contract_plans(
             .published
             .clone()
             .unwrap_or_default();
+        // Slice 2: the declared requires/ensures facts in a CANONICAL,
+        // clause-order-independent encoding (each fact serializes to a
+        // stable byte form; the set sorts before folding). Parameter
+        // RENAMES change the identity in v1 -- positional normalization is
+        // the recorded follow-up.
+        let mut canonical_facts: Vec<Vec<u8>> = Vec::new();
+        for contract in program.machine_contracts(machine) {
+            let kind_tag: u8 = match contract.kind {
+                omega_typed_trees::signature::SignatureContractKind::Requires => 1,
+                omega_typed_trees::signature::SignatureContractKind::Ensures => 2,
+                omega_typed_trees::signature::SignatureContractKind::Boundary => 3,
+            };
+            for fact in program.proof_facts.span_or_empty(contract.facts) {
+                let mut encoded = vec![kind_tag];
+                match fact {
+                    omega_typed_trees::domain::ProofFact::Expression(expression) => {
+                        encoded.push(1);
+                        encode_expression_canonical(program, *expression, &mut encoded);
+                    }
+                    omega_typed_trees::domain::ProofFact::Membership(membership) => {
+                        encoded.push(2);
+                        encoded.extend(
+                            program
+                                .expression_table
+                                .display_name(membership.value)
+                                .as_bytes(),
+                        );
+                        encoded.push(0);
+                        for member in program
+                            .expression_table
+                            .name_path_members(membership.domain)
+                        {
+                            encoded.extend(member.as_str().as_bytes());
+                            encoded.push(b':');
+                        }
+                    }
+                }
+                canonical_facts.push(encoded);
+            }
+        }
+        canonical_facts.sort();
         let fingerprint = omega_checked_trees::contract_fingerprint(
             machine.supply_mode,
             published_effect_row,
             &members,
             &published_termination,
+            &canonical_facts,
         );
         machines.push(omega_checked_trees::MachineContractPlan {
             machine: machine.symbol,
@@ -295,4 +337,81 @@ fn build_effect_row_facts(
         });
     }
     omega_checked_trees::EffectRowFacts { rows, machines }
+}
+
+
+/// A stable, spelling-independent byte encoding of a contract fact
+/// expression: prefix walk with operator tags, name paths as text, integer
+/// literals as text (exact at any magnitude). Deterministic across
+/// programs for the same declared clause.
+fn encode_expression_canonical(
+    program: &TypedTrees,
+    expression: omega_typed_trees::expression::ExpressionHandle,
+    out: &mut Vec<u8>,
+) {
+    use omega_typed_trees::expression::ExpressionNode;
+    if !expression.is_valid() {
+        out.push(0);
+        return;
+    }
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Binary(binary) => {
+            out.push(1);
+            out.push(binary.operator as u8);
+            encode_expression_canonical(program, binary.left, out);
+            encode_expression_canonical(program, binary.right, out);
+        }
+        ExpressionNode::Unary(unary) => {
+            out.push(2);
+            out.push(unary.operator as u8);
+            encode_expression_canonical(program, unary.operand, out);
+        }
+        ExpressionNode::Integer(value) => {
+            out.push(3);
+            out.extend(value.text().as_bytes());
+            out.push(0);
+        }
+        ExpressionNode::Boolean(value) => {
+            out.push(4);
+            out.push(u8::from(*value));
+        }
+        ExpressionNode::Name(path) => {
+            out.push(5);
+            for member in program.expression_table.name_path_members(path.members) {
+                out.extend(member.as_str().as_bytes());
+                out.push(b'.');
+            }
+            out.push(0);
+        }
+        ExpressionNode::Member(member) => {
+            out.push(6);
+            encode_expression_canonical(program, member.receiver, out);
+            out.extend(member.member.as_str().as_bytes());
+            out.push(0);
+        }
+        ExpressionNode::Call(call) => {
+            out.push(7);
+            out.extend(call.target.as_str().as_bytes());
+            out.push(0);
+            encode_expression_canonical(program, call.receiver, out);
+            for argument in program.expression_table.expression_handles(call.arguments) {
+                encode_expression_canonical(program, *argument, out);
+            }
+            out.push(0xfe);
+        }
+        // Anything else falls back to the display name -- stable per
+        // spelling (a conservative widening; refine per-node as shapes
+        // arrive in contracts).
+        other => {
+            let _ = other;
+            out.push(8);
+            out.extend(
+                program
+                    .expression_table
+                    .display_name(expression)
+                    .as_bytes(),
+            );
+            out.push(0);
+        }
+    }
 }
