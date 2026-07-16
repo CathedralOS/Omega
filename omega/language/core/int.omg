@@ -128,3 +128,16 @@ ensures
 {
     transition { _ -> (add_int(a, b)) }
 }
+
+// ~ is symmetric: the hypothesis read right-to-left. (Transitivity needs
+// CANCELLATION -- a + c == b + c => a == b, a Nat injectivity lemma the
+// exchange tier cannot derive from comm+assoc -- recorded as the next
+// quotient rung.)
+machine int_eq_symmetric(a: IntPair, b: IntPair) -> IntPair
+requires
+    (add(a.pos, b.neg)) == (add(b.pos, a.neg))
+ensures
+    (add(b.pos, a.neg)) == (add(a.pos, b.neg))
+{
+    transition { _ -> (add_int(a, b)) }
+}
