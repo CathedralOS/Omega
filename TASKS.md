@@ -1445,6 +1445,21 @@ rows. Rungs:
   host only): the Saturating/Trapping cvttsd2si fixup sequences.
 - **F5 — policy lowering:** float Trapping (invalid/overflow/div-by-zero
   trap) + Saturating (clamp to ±MAX_FINITE) on both ISAs + interp.
+  INTERP FACE LANDED 2026-07-16 (groundwork behind the fence):
+  eval_float_binary's arith closure applies the domain — Saturating
+  clamps the LANDED result to ±MAX_FINITE(width) when both operands
+  are finite (overflow face only; the finite/0.0 divide is fenced to
+  pass its non-finite through, per the brief's no-clamp ruling);
+  Trapping traps on invalid (NaN from non-NaN operands) and
+  overflow/div-zero (Inf from finite operands). UNREACHABLE TODAY:
+  the existing validation fence still rejects float `in
+  Saturating/Trapping` declarations ("not lowered yet — F5"), so no
+  behavior changes until the aarch64 native guards land and the
+  fence lifts WITH them (atomically — lifting early would pin an
+  interp-vs-native divergence). Remaining: the aarch64 post-op FP
+  guard sequences (WriteRuntimeStorageBinary already carries domain +
+  is_float), the fence lift, per-policy canaries (arch-gated for
+  x86), then x86 on its host.
 - **F6 — TotalOrder named satisfiers** for f32/f64 (sign-magnitude
   integer compare) once satisfier machinery lands.
 - **F7 — format records in omega::core + Float provides rows:** needs the
