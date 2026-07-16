@@ -1,0 +1,22 @@
+// The requires-route's negative twin: qualify drops its requires, so the
+// mint inside it has NO hypothesis bounding `raw` -- the staged fence
+// stays (the guard at the CALLER cannot reach inside the callee; the
+// requires is the sanctioned carrier).
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+domain i64::Km {
+    self >= 0;
+}
+machine qualify(raw: i64) -> i64
+{
+    transition { _ -> (raw as i64 in Km) }
+}
+machine Main::main(&mut self) {
+    let sensed: i64 = 9;
+    transition sensed >= 0 { true -> take(qualify(sensed)) _ -> bad() }
+    state take(&mut self, d: i64) {
+        transition d == 9 { true -> good() _ -> bad() }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(1); }
+}

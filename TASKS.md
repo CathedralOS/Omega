@@ -707,10 +707,22 @@ sealed progress profiles + grants, TPR4's remaining big half).
    Pinned: pass domains/semantic_cast_range_mint
    (raw: i64 [0..=4096] entails self >= 0, RUNS exit 70); fail
    semantic_cast_range_insufficient ([-10..=4096] does not entail --
-   undischarged, not false). Remaining checked plans: guard-fact
-   minting (a dominating `raw >= 0` guard discharging -- the full
-   flow integration); permission + normalized-machine-contract
-   plans; STR5
+   undischarged, not false). THE GUARD CHAIN
+   LANDED same day -- the mint's third discharge route: the
+   machine's own REQUIRES facts about the cast value accumulate
+   one-sided bounds (`requires raw >= 0` -> low = 0) that entail
+   the domain facts; the CALLER proves those requires at a
+   co-located guarded call site through the EXISTING R1 machinery
+   -- so `transition sensed >= 0 { true -> take(qualify(sensed)) }`
+   + `machine qualify(raw) requires raw >= 0 { -> (raw as i64 in
+   Km) }` runs a RUNTIME value through a guard into a semantic
+   domain END TO END. (The statement walker also gained transition
+   TARGETS -- casts in arm values/arguments were unjudged.) Pinned:
+   pass domains/semantic_cast_guard_chain_mint (RUNS exit 70); fail
+   semantic_cast_requires_missing (requires dropped -- the caller's
+   guard cannot reach inside the callee; the requires is the
+   sanctioned carrier). Remaining checked plans: permission +
+   normalized-machine-contract plans; STR5
    validation/resolution; STR6 lower only from checked selections while
    preserving semantic contract IDs in artifacts; STR7 retire compatibility
    paths. Decision 22 now supplies the effect-row target: kinded

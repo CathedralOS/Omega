@@ -168,6 +168,18 @@ fn judge_qualification_cast(
             {
                 judgment = judged;
             }
+            // The GUARD chain's landing: the machine's own REQUIRES facts
+            // about the cast value bound it one-sidedly; callers prove the
+            // requires at their call sites (incoming guards already serve
+            // there), so `transition raw >= 0 { true -> use(raw) }` +
+            // `machine use(..) requires raw >= 0` mints inside `use`.
+            if matches!(judgment, MintJudgment::NotLiteral)
+                && let Some((machine, _)) = context
+                && let Some(judged) =
+                    requires_mint_discharges(program, machine, domain, cast.value)
+            {
+                judgment = judged;
+            }
             match judgment {
                 MintJudgment::Discharged => {}
                 MintJudgment::FactFalse => {
@@ -1140,6 +1152,29 @@ fn judge_statement_qualification_casts(
             {
                 roots.push(*guard);
             }
+            for target in [transition.target, transition.continuation] {
+                if !target.is_valid() {
+                    continue;
+                }
+                match program.statement_table.transition_target(target) {
+                    omega_typed_trees::statement::TransitionTargetNode::Value(value) => {
+                        roots.push(*value);
+                    }
+                    omega_typed_trees::statement::TransitionTargetNode::Named {
+                        arguments,
+                        ..
+                    } => {
+                        roots.extend(
+                            program
+                                .statement_table
+                                .expression_handles(*arguments)
+                                .iter()
+                                .copied(),
+                        );
+                    }
+                    _ => {}
+                }
+            }
         }
     }
     for root in roots {
@@ -1271,4 +1306,159 @@ fn literal_mint_discharges(
         }
     }
     MintJudgment::Discharged
+}
+
+
+/// Requires-route discharge: the machine's REQUIRES facts about the cast
+/// value's NAME accumulate one-sided bounds (`raw >= 0` -> low = 0); the
+/// domain facts must be entailed by those bounds. `None` when the value is
+/// not a bare name or no requires fact speaks about it.
+fn requires_mint_discharges(
+    program: &TypedTrees,
+    machine: &omega_typed_trees::machine::Machine,
+    domain: &omega_typed_trees::domain::DomainDefinition,
+    value: ExpressionHandle,
+) -> Option<MintJudgment> {
+    use omega_typed_trees::expression::BinaryOperator;
+    use omega_typed_trees::signature::SignatureContractKind;
+
+    let ExpressionNode::Name(path) = program.expression_table.expression(value) else {
+        return None;
+    };
+    let [value_name] = program.expression_table.name_path_members(path.members) else {
+        return None;
+    };
+
+    let mut low: Option<i64> = None;
+    let mut high: Option<i64> = None;
+    let mut spoke = false;
+    for contract in program.machine_contracts(machine) {
+        if contract.kind != SignatureContractKind::Requires {
+            continue;
+        }
+        for fact in program.proof_facts.span_or_empty(contract.facts) {
+            let omega_typed_trees::domain::ProofFact::Expression(expression) = fact else {
+                continue;
+            };
+            let ExpressionNode::Binary(binary) =
+                program.expression_table.expression(*expression)
+            else {
+                continue;
+            };
+            let names_value = |handle: ExpressionHandle| {
+                matches!(
+                    program.expression_table.expression(handle),
+                    ExpressionNode::Name(fact_path)
+                        if matches!(
+                            program.expression_table.name_path_members(fact_path.members),
+                            [only] if only.as_str() == value_name.as_str()
+                        )
+                )
+            };
+            let literal_of = |handle: ExpressionHandle| -> Option<i64> {
+                match program.expression_table.expression(handle) {
+                    ExpressionNode::Integer(value) => value.text().parse::<i64>().ok(),
+                    _ => None,
+                }
+            };
+            let (operator, bound) = if names_value(binary.left) {
+                let Some(bound) = literal_of(binary.right) else {
+                    continue;
+                };
+                (binary.operator, bound)
+            } else if names_value(binary.right) {
+                let Some(bound) = literal_of(binary.left) else {
+                    continue;
+                };
+                let flipped = match binary.operator {
+                    BinaryOperator::Less => BinaryOperator::Greater,
+                    BinaryOperator::LessOrEqual => BinaryOperator::GreaterOrEqual,
+                    BinaryOperator::Greater => BinaryOperator::Less,
+                    BinaryOperator::GreaterOrEqual => BinaryOperator::LessOrEqual,
+                    other => other,
+                };
+                (flipped, bound)
+            } else {
+                continue;
+            };
+            spoke = true;
+            match operator {
+                BinaryOperator::GreaterOrEqual => low = Some(low.map_or(bound, |l| l.max(bound))),
+                BinaryOperator::Greater => {
+                    let floor = bound.saturating_add(1);
+                    low = Some(low.map_or(floor, |l| l.max(floor)));
+                }
+                BinaryOperator::LessOrEqual => high = Some(high.map_or(bound, |h| h.min(bound))),
+                BinaryOperator::Less => {
+                    let ceiling = bound.saturating_sub(1);
+                    high = Some(high.map_or(ceiling, |h| h.min(ceiling)));
+                }
+                BinaryOperator::Equal => {
+                    low = Some(low.map_or(bound, |l| l.max(bound)));
+                    high = Some(high.map_or(bound, |h| h.min(bound)));
+                }
+                _ => {}
+            }
+        }
+    }
+    if !spoke {
+        return None;
+    }
+
+    for fact in program.proof_facts.span_or_empty(domain.facts) {
+        let omega_typed_trees::domain::ProofFact::Expression(expression) = fact else {
+            continue;
+        };
+        let ExpressionNode::Binary(binary) = program.expression_table.expression(*expression)
+        else {
+            continue;
+        };
+        let is_self = |handle: ExpressionHandle| {
+            matches!(
+                program.expression_table.expression(handle),
+                ExpressionNode::Name(fact_path)
+                    if matches!(
+                        program.expression_table.name_path_members(fact_path.members),
+                        [only] if only.as_str() == "self"
+                    )
+            )
+        };
+        let literal_of = |handle: ExpressionHandle| -> Option<i64> {
+            match program.expression_table.expression(handle) {
+                ExpressionNode::Integer(value) => value.text().parse::<i64>().ok(),
+                _ => None,
+            }
+        };
+        let (operator, bound) = if is_self(binary.left) {
+            (binary.operator, literal_of(binary.right)?)
+        } else if is_self(binary.right) {
+            let flipped = match binary.operator {
+                BinaryOperator::Less => BinaryOperator::Greater,
+                BinaryOperator::LessOrEqual => BinaryOperator::GreaterOrEqual,
+                BinaryOperator::Greater => BinaryOperator::Less,
+                BinaryOperator::GreaterOrEqual => BinaryOperator::LessOrEqual,
+                other => other,
+            };
+            (flipped, literal_of(binary.left)?)
+        } else {
+            return None;
+        };
+        let holds = match operator {
+            BinaryOperator::GreaterOrEqual => low.is_some_and(|l| l >= bound),
+            BinaryOperator::Greater => low.is_some_and(|l| l > bound),
+            BinaryOperator::LessOrEqual => high.is_some_and(|h| h <= bound),
+            BinaryOperator::Less => high.is_some_and(|h| h < bound),
+            BinaryOperator::Equal => {
+                low.is_some_and(|l| l == bound) && high.is_some_and(|h| h == bound)
+            }
+            BinaryOperator::NotEqual => {
+                high.is_some_and(|h| h < bound) || low.is_some_and(|l| l > bound)
+            }
+            _ => return None,
+        };
+        if !holds {
+            return Some(MintJudgment::NotLiteral);
+        }
+    }
+    Some(MintJudgment::Discharged)
 }
