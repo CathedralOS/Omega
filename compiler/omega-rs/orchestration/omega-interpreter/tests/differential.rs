@@ -63,6 +63,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("arithmetic/runtime_shl_saturating_value_overflow_exit", 70),
     ("arithmetic/runtime_shift_count_proven_range_exit", 70),
     ("arithmetic/runtime_shift_subword_masked_count_exit", 70),
+    ("arithmetic/u64_magnitude_transition_arg_exit", 70),
     // F4 Saturating float->int (NaN -> 0, OOR clamp): aarch64 FCVTZS is
     // natively these semantics; x86's cvttsd2si fixup is the F4 remainder
     // (its host's oracle builds it), so the row is arch-gated like the

@@ -17992,6 +17992,32 @@ fn trapping_shift_count_traps_aborts() {
 }
 
 #[test]
+fn u64_magnitude_transition_arg_exit_canary_runs() {
+    // D14 Fire H (the CR3 remaining face): a u64-magnitude literal in
+    // transition-argument position delivers into a u64-classed param.
+    let canary = pass_canary("arithmetic/u64_magnitude_transition_arg_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-u64arg-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("u64-magnitude transition-arg canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("u64-magnitude transition-arg canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the u64-magnitude arg delivery (exit 70), got {:?}",
+        output.status.code(),
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_shift_count_proven_range_exit_canary_runs() {
     // F8 proof side: a RANGED runtime count (u32 [0..=7]) proves count <
     // width, so the Exact shift carries no obligation and computes exactly.
@@ -30965,6 +30991,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "arithmetic/runtime_shl_saturating_value_overflow_exit",
     "arithmetic/runtime_shift_count_proven_range_exit",
     "arithmetic/runtime_shift_subword_masked_count_exit",
+    "arithmetic/u64_magnitude_transition_arg_exit",
     "proofs/runtime_decreases_u64_measure_exit",
     "arithmetic/runtime_wrapping_operand_truncation_exit",
     "text/case_literal_texteq_field_store_exit",
@@ -31705,6 +31732,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "arithmetic/shift_count_unproven_rejected",
     "arithmetic/shift_count_saturating_oor_rejected",
     "arithmetic/float_cast_wrapping_rejected",
+    "arithmetic/u64_magnitude_arg_non_u64_rejected",
     "arithmetic/suffix_negative_unsigned_rejected",
     "float/suffix_format_disagrees_rejected",
     "capabilities/host_provides_unknown_binding",

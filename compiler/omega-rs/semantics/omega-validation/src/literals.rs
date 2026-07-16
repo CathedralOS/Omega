@@ -159,6 +159,61 @@ fn u64_blessed_literals(program: &TypedTrees) -> Vec<ExpressionHandle> {
                                 program, machine, state, guard, &mut blessed,
                             );
                         }
+                        // Fire H (2026-07-16, the CR3 remaining face): a
+                        // TRANSITION ARGUMENT into a u64-classed target-state
+                        // parameter -- the arg IS a delivery into that
+                        // declared slot (the same law the F2c float stamping
+                        // rides), and the frame-slot arg writer already reads
+                        // literals through the bits-capable static resolver.
+                        // Same-machine Named targets only, receiver filtered.
+                        for target in [transition.target, transition.continuation] {
+                            if !target.is_valid() {
+                                continue;
+                            }
+                            let omega_typed_trees::statement::TransitionTargetNode::Named {
+                                path,
+                                arguments,
+                            } = program.statement_table.transition_target(target)
+                            else {
+                                continue;
+                            };
+                            let target_members =
+                                program.statement_table.name_path_members(path.members);
+                            let [target_name] = target_members else {
+                                continue;
+                            };
+                            let Some(target_state) = program
+                                .machine_states(machine)
+                                .iter()
+                                .find(|candidate| {
+                                    candidate.name.as_str() == target_name.as_str()
+                                })
+                            else {
+                                continue;
+                            };
+                            let parameters = program
+                                .state_parameters(target_state)
+                                .iter()
+                                .filter(|parameter| !parameter.is_self);
+                            let argument_handles =
+                                program.statement_table.expression_handles(*arguments);
+                            for (parameter, argument) in
+                                parameters.zip(argument_handles.iter().copied())
+                            {
+                                if !oversize_literal(program, argument) {
+                                    continue;
+                                }
+                                let Some(unwrapped) = crate::places::unwrapped_type_reference(
+                                    program,
+                                    parameter.type_reference,
+                                ) else {
+                                    continue;
+                                };
+                                if primitive_is_u64_classed(program, unwrapped) {
+                                    blessed.push(argument);
+                                }
+                            }
+                        }
                     }
                     _ => {}
                 }
