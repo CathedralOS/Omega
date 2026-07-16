@@ -1342,6 +1342,28 @@ rows. Rungs:
 - **F4 — float→int proof-or-policy cast:** build it; retire the drift-ledger
   entry; NaN differential legs
   become pinnable (runtime 0.0/0.0 constructs NaN portably).
+  F4a LANDED (aarch64 lane, 2026-07-16): (1) `in Wrapping` float→int
+  casts REJECTED at validation (no modular reading of a float, ch5;
+  fail/arithmetic/float_cast_wrapping_rejected; corpus migrated — 4
+  canaries + 2 samples respelled `in Saturating`, cast_operand takes
+  the decision-17 chain-cast `(f as i32 in Saturating) as i32 in
+  Wrapping` to meet its Wrapping operand); (2) interp eval_cast is
+  DOMAIN-AWARE for float sources — Saturating = NaN→0 (cast-specific
+  per the brief) + trunc + clamp to the target range, Trapping = trap
+  on NaN/OOR (float_fits_integer with the exact power-of-two bound
+  compares; i64's lower bound inclusive since MIN-1 isn't
+  representable); (3) the Saturating pin
+  pass/arithmetic/float_to_int_saturating_exit (1e20→MAX, -1e20→MIN,
+  runtime 0.0/0.0 NaN→0, -3.7→-3) — ARCH-GATED (suite test +
+  differential row cfg aarch64): aarch64 FCVTZS natively IS the
+  Saturating semantics, x86's cvttsd2si integer-indefinite fixup is
+  the F4 remainder for the x86 host's oracle.
+  REMAINING (F4b): the Exact VALUE obligation (needs float constant
+  tracking in validation — bare casts keep transitional truncation);
+  native Trapping cast guards on both ISAs (the interp side traps
+  now); the x86 Saturating/Trapping fixup sequences; then the pending
+  float_to_int_overflow_divergence repro retires fully (its header
+  updated with the F4a state).
 - **F5 — policy lowering:** float Trapping (invalid/overflow/div-by-zero
   trap) + Saturating (clamp to ±MAX_FINITE) on both ISAs + interp.
 - **F6 — TotalOrder named satisfiers** for f32/f64 (sign-magnitude

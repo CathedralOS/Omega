@@ -1,0 +1,7 @@
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; f: f64; r: i32; }
+machine Main::main(&mut self) {
+    self.f = 5.5;
+    self.r = self.f as i32 in Wrapping;
+    self.console.exit_process(0);
+}
