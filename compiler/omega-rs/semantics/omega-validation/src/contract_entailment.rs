@@ -766,7 +766,10 @@ fn discharges_strict_decrease(
     engine: &mut Engine<'_>,
     argument_map: &BTreeMap<String, Polynomial>,
 ) -> bool {
-    if !machine.terminates {
+    // TPR3 slice 1: the hypothesis gate keys on the WITNESS (a measured
+    // body), read from the normalized plan (decision 23); the compatibility
+    // bools agree by construction until TPR6 retires them.
+    if machine.termination_plan.implementation_witness.is_none() {
         return false;
     }
     let decreases = program

@@ -220,7 +220,9 @@ fn machine_is_measured(source_key: StateKey, program: &CheckedTrees) -> bool {
         .machines()
         .iter()
         .find(|machine| machine.symbol == source_key.machine)
-        .is_some_and(|machine| machine.terminates && !machine.decreases.is_empty())
+        // TPR3 slice 1: "measured" = carries a ranking witness, read from
+        // the normalized plan (decision 23).
+        .is_some_and(|machine| machine.termination_plan.implementation_witness.is_some())
 }
 
 /// Does `name` spell the CURRENT machine's own entry (its simple method
