@@ -1,8 +1,8 @@
-// Citation v1 boundary (ch10 "Citing Proofs"): a theorem applies only at
-// operands satisfying its REQUIRES, and the site-discharge rung has not
-// landed -- so citing a requires-bearing lemma errors loudly instead of
-// silently injecting a conditional fact as if it were unconditional.
-// (`sym` itself PROVES fine; only the citation is refused.)
+// SITE DISCHARGE negative (ch10 "Citing Proofs"): a theorem applies only
+// at operands satisfying its REQUIRES. The citer has no hypothesis
+// establishing `x == y`, so the instantiated requires cannot discharge and
+// the citation refuses -- naming the undischarged fact. (`sym` itself
+// PROVES fine; the discharged twin is pass/proofs/citation_requires_discharged.)
 use omega::language::core::nat;
 
 boundary trait Console { machine exit_process(return_code: i32); }

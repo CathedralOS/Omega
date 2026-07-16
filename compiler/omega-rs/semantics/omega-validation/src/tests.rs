@@ -1713,18 +1713,32 @@ mod structural_entailment {
 
     #[test]
     fn requires_bearing_citation_rejected() {
-        // v1 boundary: site discharge of the callee's requires has not
-        // landed, so citing a conditional lemma errors loudly.
+        // SITE DISCHARGE negative: the citer has no hypothesis establishing
+        // the callee's instantiated requires, so the citation refuses and
+        // names the undischarged fact.
         let error = validate(
             "machine sym(a: Nat, b: Nat) requires a == b; ensures b == a; {} \
              machine conditional_cite(x: Nat, y: Nat) ensures y == x { \
              sym(x, y); }",
         )
-        .expect_err("citing a requires-bearing lemma should reject");
+        .expect_err("citing a requires-bearing lemma without establishing its requires should reject");
         assert!(
-            error.contains("requires contract is not discharged at citation sites yet"),
-            "expected the citation v1 boundary error, got: {error}"
+            error.contains("is not established at this citation site"),
+            "expected the site-discharge refusal, got: {error}"
         );
+    }
+
+    #[test]
+    fn requires_bearing_citation_discharged() {
+        // SITE DISCHARGE positive: the citer's own requires establish the
+        // callee's instantiated requires, so the citation injects the
+        // conditional ensures and the goal proves.
+        validate(
+            "machine sym(a: Nat, b: Nat) requires a == b; ensures b == a; {} \
+             machine conditional_cite(x: Nat, y: Nat) requires x == y; \
+             ensures y == x { sym(x, y); }",
+        )
+        .expect("a citation whose requires are established at the site should prove");
     }
 
     /// The successor-shift law, the step case's citation material.

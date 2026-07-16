@@ -104,6 +104,13 @@ pub(crate) fn validate_machine_contract_entailment(
     if ensures.is_empty() {
         return;
     }
+    // Whether ANY requires fact exists (expression or membership) -- the
+    // inductive-hypothesis guard: a requires-bearing machine's ensures is
+    // CONDITIONAL, so it must not self-cite as an unconditional IH.
+    let machine_has_requires = program.machine_contracts(machine).iter().any(|contract| {
+        matches!(contract.kind, SignatureContractKind::Requires)
+            && !program.proof_facts.span_or_empty(contract.facts).is_empty()
+    });
 
     // STRUCTURAL claims -- ensures conjuncts whose operands mention
     // PROOF-ONLY data (`result == Nat::Zero`, `add(a, b) == add(b, a)`) --
@@ -130,7 +137,20 @@ pub(crate) fn validate_machine_contract_entailment(
     // proven ensures to this proof, instantiated at the call's argument
     // terms -- fact injection, the explicit default. Nothing is global:
     // the call IS the use declaration.
-    for (left, right) in collect_citation_equations(program, &proof_only, machine, diagnostics) {
+    // Citations discharge their callee's requires against the judge's
+    // HYPOTHESIS BASE (the requires just intaken) -- v1 site discharge; a
+    // citation cannot lean on another citation's fact.
+    let citation_equations = {
+        let judge_for_discharge = &structural;
+        collect_citation_equations(
+            program,
+            &proof_only,
+            machine,
+            diagnostics,
+            Some(judge_for_discharge),
+        )
+    };
+    for (left, right) in citation_equations {
         structural.intake_equation(left, right, 0);
     }
     let structural = structural;
@@ -256,9 +276,20 @@ pub(crate) fn validate_machine_contract_entailment(
                 bound.intake_equation(left.clone(), right.clone(), 0);
             }
             // Inductive hypotheses: instantiate every ensures conjunct for
-            // each self-application in the arm's value term.
+            // each self-application in the arm's value term. REQUIRES-bearing
+            // machines get NO inductive hypothesis: the IH is conditional on
+            // the requires holding at the self-call's operands, and this rung
+            // does not discharge that premise -- injecting it unconditioned
+            // would be unsound (the requires-bearing induction rung is the
+            // recorded follow-up; sole-arm requires lemmas are unaffected).
             let mut applications = Vec::new();
-            StructuralJudge::self_applications(&arm.value, &arm.machine_name, &mut applications);
+            if !machine_has_requires {
+                StructuralJudge::self_applications(
+                    &arm.value,
+                    &arm.machine_name,
+                    &mut applications,
+                );
+            }
             for application in applications {
                 let StructuralTerm::Application { arguments, .. } = application else {
                     continue;
@@ -2011,6 +2042,7 @@ fn collect_citation_equations(
     classification: &omega_typed_trees::proof_only::ProofOnlyClassification,
     machine: &Machine,
     diagnostics: &mut Vec<Diagnostic>,
+    judge: Option<&StructuralJudge>,
 ) -> Vec<(StructuralTerm, StructuralTerm)> {
     let mut equations = Vec::new();
     // Machine level reads the ENTRY state only: sub-state citations
@@ -2045,6 +2077,7 @@ fn collect_citation_equations(
             &argument_terms,
             diagnostics,
             &mut equations,
+            judge,
         );
     }
     if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
@@ -2740,6 +2773,7 @@ fn instantiate_citation(
     argument_terms: &[StructuralTerm],
     diagnostics: &mut Vec<Diagnostic>,
     equations: &mut Vec<(StructuralTerm, StructuralTerm)>,
+    judge: Option<&StructuralJudge>,
 ) {
     let Some(callee) = program.machines().iter().find(|candidate| {
         candidate.attached_data.is_none() && candidate.name.as_str() == target.as_str()
@@ -2749,15 +2783,20 @@ fn instantiate_citation(
     if std::ptr::eq(callee, machine) || !classification.is_proof_machine(program, callee) {
         return;
     }
-    let mut has_requires = false;
+    let mut requires_facts: Vec<ExpressionHandle> = Vec::new();
+    let mut requires_out_of_language = false;
     let mut ensures_facts: Vec<ExpressionHandle> = Vec::new();
     for contract in program.machine_contracts(callee) {
         match contract.kind {
             SignatureContractKind::Requires => {
-                has_requires |= !program
-                    .proof_facts
-                    .span_or_empty(contract.facts)
-                    .is_empty();
+                for fact in program.proof_facts.span_or_empty(contract.facts) {
+                    match fact {
+                        ProofFact::Expression(expression) => requires_facts.push(*expression),
+                        // Membership requires are outside the structural
+                        // judge's language: the site cannot discharge them.
+                        ProofFact::Membership(_) => requires_out_of_language = true,
+                    }
+                }
             }
             SignatureContractKind::Ensures => {
                 for fact in program.proof_facts.span_or_empty(contract.facts) {
@@ -2768,15 +2807,6 @@ fn instantiate_citation(
             }
             SignatureContractKind::Boundary => {}
         }
-    }
-    if has_requires {
-        diagnostics.push(Diagnostic::error(format!(
-            "machine `{}` cites `{}`, whose requires contract is not \
-             discharged at citation sites yet -- cite a requires-free \
-             lemma, or wait for the site-discharge rung (math roster N3)",
-            machine.name, callee.name,
-        )));
-        return;
     }
     // The ENTRY state carries the signature; further states are the
     // lemma's own sub-proofs (add_comm's per-arm states) and do not affect
@@ -2792,6 +2822,37 @@ fn instantiate_citation(
     for (parameter, term) in parameters.iter().zip(argument_terms) {
         map.push((parameter.name.as_str().to_owned(), term.clone()));
     }
+    // SITE DISCHARGE (math roster N3): a theorem applies only at operands
+    // satisfying its REQUIRES, so each requires conjunct instantiates under
+    // the citation's argument map and must judge PROVEN against the citing
+    // machine's own hypotheses (its requires; not other citations -- v1
+    // discharges against the hypothesis base only). Sites without a judge
+    // (per-arm citations) keep the blanket refusal.
+    if requires_out_of_language || (!requires_facts.is_empty() && judge.is_none()) {
+        diagnostics.push(Diagnostic::error(format!(
+            "machine `{}` cites `{}`, whose requires contract is not \
+             discharged at citation sites yet -- cite a requires-free \
+             lemma, or wait for the site-discharge rung (math roster N3)",
+            machine.name, callee.name,
+        )));
+        return;
+    }
+    if let Some(judge) = judge {
+        for fact in &requires_facts {
+            if !instantiated_fact_established(program, judge, *fact, &map) {
+                diagnostics.push(Diagnostic::error(format!(
+                    "machine `{}` cites `{}`, but the callee's requires fact \
+                     `{}` is not established at this citation site under the \
+                     citing machine's hypotheses -- add the matching requires \
+                     (or cite at operands that satisfy it)",
+                    machine.name,
+                    callee.name,
+                    program.expression_table.display_name(*fact),
+                )));
+                return;
+            }
+        }
+    }
     // `result` in the callee's ensures denotes the application itself at
     // these operands.
     map.push((
@@ -2803,6 +2864,42 @@ fn instantiate_citation(
     ));
     for fact in ensures_facts {
         collect_instantiated_conjuncts(program, fact, &map, equations);
+    }
+}
+
+/// Does the callee's requires fact, instantiated at the citation's argument
+/// map, judge PROVEN under the citing machine's hypotheses? `&&` recurses;
+/// only `==` conjuncts are in the judge's language (anything else is
+/// conservatively NOT established).
+fn instantiated_fact_established(
+    program: &TypedTrees,
+    judge: &StructuralJudge,
+    fact: ExpressionHandle,
+    map: &[(String, StructuralTerm)],
+) -> bool {
+    let ExpressionNode::Binary(binary) = program.expression_table.expression(fact) else {
+        return false;
+    };
+    match binary.operator {
+        BinaryOperator::And => {
+            instantiated_fact_established(program, judge, binary.left, map)
+                && instantiated_fact_established(program, judge, binary.right, map)
+        }
+        BinaryOperator::Equal => {
+            let (Some(left), Some(right)) = (
+                structural_term(program, binary.left),
+                structural_term(program, binary.right),
+            ) else {
+                return false;
+            };
+            let left = StructuralJudge::substitute_term(&left, map);
+            let right = StructuralJudge::substitute_term(&right, map);
+            matches!(
+                judge.judge_equation(judge.resolve(left), judge.resolve(right), 0),
+                StructuralJudgment::Proven
+            )
+        }
+        _ => false,
     }
 }
 
@@ -3071,6 +3168,11 @@ fn recognize_structural_case_arms(
                                 argument_terms.push(term);
                             }
                             if arguments_termify {
+                                // The machine-level judge (requires already
+                                // intaken) discharges the callee's requires
+                                // here too -- arm citations instantiate at
+                                // arm-environment terms, but the hypothesis
+                                // base is machine-wide.
                                 instantiate_citation(
                                     program,
                                     classification,
@@ -3079,6 +3181,7 @@ fn recognize_structural_case_arms(
                                     &argument_terms,
                                     diagnostics,
                                     &mut citations,
+                                    Some(judge),
                                 );
                             }
                             continue;
@@ -3428,22 +3531,34 @@ impl<'program> StructuralJudge<'program> {
         // symbolic argument (`add_zero_right(a) == a`). Sound because the
         // callee's ensures is proven in the same validation batch (a false
         // one raises its own error, so no compiling program cites an
-        // unproven fact). Prefer it over body unfolding.
-        for contract in program.machine_contracts(machine) {
-            if !matches!(
+        // unproven fact). Prefer it over body unfolding. REQUIRES-bearing
+        // callees are EXCLUDED: their ensures is conditional and this path
+        // has no site to discharge the condition at -- injecting it
+        // unconditioned would be unsound (probed 2026-07-16). Their BODY
+        // still unfolds below (computation is unconditional).
+        let requires_bearing = program.machine_contracts(machine).iter().any(|contract| {
+            matches!(
                 contract.kind,
-                omega_typed_trees::signature::SignatureContractKind::Ensures
-            ) {
-                continue;
-            }
-            for fact in program.proof_facts.span_or_empty(contract.facts) {
-                let ProofFact::Expression(expression) = fact else {
+                omega_typed_trees::signature::SignatureContractKind::Requires
+            ) && !program.proof_facts.span_or_empty(contract.facts).is_empty()
+        });
+        if !requires_bearing {
+            for contract in program.machine_contracts(machine) {
+                if !matches!(
+                    contract.kind,
+                    omega_typed_trees::signature::SignatureContractKind::Ensures
+                ) {
                     continue;
-                };
-                if let Some(term) =
-                    self.functional_ensures_result(*expression, &environment, depth + 1)
-                {
-                    return Some(term);
+                }
+                for fact in program.proof_facts.span_or_empty(contract.facts) {
+                    let ProofFact::Expression(expression) = fact else {
+                        continue;
+                    };
+                    if let Some(term) =
+                        self.functional_ensures_result(*expression, &environment, depth + 1)
+                    {
+                        return Some(term);
+                    }
                 }
             }
         }
