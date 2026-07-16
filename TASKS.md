@@ -442,8 +442,18 @@ and decision-23's ten acceptance tests. Until TPR5 lands, the checked-in
    bit surface; the move/drop-only StateOwnershipSummary), each with
    the record's must-survive invariant in its doc — a pin break means
    RE-PIN the new shape and check the named distinction survived,
-   never delete; STR2 core facet-pair, multiplicity,
-   supply-mode, termination-plan, progress-profile, and semantic-ID types; STR3 propagation through
+   never delete; STR2 core enums/IDs — LANDED 2026-07-16 (no behavior
+   change, zero consumers yet): foundation/omega-core/src/semantics.rs
+   carries Multiplicity (default Affine), MachineSupplyMode
+   (CheckedBody | Requirement | Boundary | Accepted), decision 23's
+   TerminationGuarantee / RankingWitness / MachineTerminationPlan (the
+   witness lives BESIDE the published half — the firewall is the
+   shape), decision 22's EffectMemberKind, the ZII-inert identity
+   handles (SemanticDomainId, EffectMemberId, EffectRowId,
+   ProgressProfileId, RankingViewId), and the DomainFacets PAIR
+   skeleton (optional facets, never an enum — hybrids first-class);
+   unit tests pin the defaults and the witness-blind published half;
+   STR3 propagation through
    symbol-resolved/typed trees and snapshots; STR4 checked semantic
    qualification + permission + normalized-machine-contract plans; STR5
    validation/resolution; STR6 lower only from checked selections while
