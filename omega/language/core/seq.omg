@@ -204,3 +204,24 @@ ensures
     }
 }
 
+
+// Append-one-element (the reverse-facing constructor twin). Definitional
+// wrapper: snoc(s, x) = append(s, [x]).
+machine snoc(s: Seq<u64>, x: u64) -> Seq<u64>
+{
+    transition { _ -> (append(s, Seq::Cons { head: x, tail: Seq::Empty })) }
+}
+
+// Reversing a snoc CONSES: reverse(snoc(s, x)) == Cons(x, reverse(s)) --
+// compute-mode over the definitions plus ONE citation of reverse_append
+// at (s, [x]); the singleton's reversal and the outer append unfold.
+// (Landing this took the unfold_application let-binding rung: snoc's own
+// body is the lowering's hoisted `let __hoist = append(..)` shape.)
+// Lean analog: `List.reverse_concat`.
+machine reverse_snoc(s: Seq<u64>, x: u64) -> Seq<u64>
+ensures
+    (reverse(snoc(s, x))) == (Seq::Cons { head: x, tail: reverse(s) })
+{
+    reverse_append(s, Seq::Cons { head: x, tail: Seq::Empty });
+    transition { _ -> (reverse(s)) }
+}

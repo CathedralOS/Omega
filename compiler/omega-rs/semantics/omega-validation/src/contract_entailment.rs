@@ -3398,7 +3398,19 @@ impl<'program> StructuralJudge<'program> {
             }
         }
 
+        let mut environment = environment;
         for statement in program.statement_table.statements(state.statement_nodes) {
+            // A `let` (spelled, or the lowering's __hoist_N of a call-valued
+            // terminal -- e.g. a definitional wrapper like
+            // `snoc(s, x) = (append(s, [x]))`) BINDS: its initializer
+            // termifies under the environment built so far and the local
+            // joins it, so the terminal's name resolves. Mirrors the
+            // sole-arm and case-arm recognizers.
+            if let StatementNode::LocalData(local) = statement {
+                let term = self.callee_term(local.initial_value, &environment, depth + 1)?;
+                environment.push((local.name.as_str().to_owned(), term));
+                continue;
+            }
             let StatementNode::Transition(transition) = statement else {
                 return None;
             };

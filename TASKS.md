@@ -1224,12 +1224,13 @@ no `unbounded` property exists. Rungs:
   its own hint. reverse_reverse LANDED same day
   (first try — the involution, step citing reverse_append at the
   reversed tail + singleton, constructor-spine IH; Lean
-  List.reverse_reverse). Next zoo: map/filter once
-  generics-over-machines land. snoc/reverse_snoc PROBED and reverted:
-  a NON-inductive proof body (no self-call — just a citation + a
-  terminal) with a constructor-carrying ensures rides a different
-  judge path that does not read root-state citations; the corollary
-  waits on that recognizer face (or the rewrite tier). REMAINING:
+  List.reverse_reverse). snoc + reverse_snoc LANDED same day: the
+  refusal was the SAME hoist blindness in unfold_application (snoc's
+  definitional wrapper body IS the lowering's `let __hoist =
+  append(..)` shape) — the fact normalizer now binds LocalData
+  statements exactly like the two recognizers (three sites total ride
+  the let-binding rung). Lean List.reverse_concat. Next zoo:
+  map/filter once generics-over-machines land. REMAINING:
   more of the lemma zoo as the judge widens (commutativity needs
   double induction / rearrange-mode), extraction INTO consumer proofs
   (a caller citing a lemma's ensures — the fact-consumption face), the
