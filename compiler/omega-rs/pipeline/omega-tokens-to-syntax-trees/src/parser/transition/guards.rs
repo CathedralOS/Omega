@@ -29,16 +29,6 @@ pub(super) struct DestructureBinding {
     pub(super) case_variant: Option<Identifier>,
 }
 
-impl DestructureBinding {
-    fn field(name: Identifier, case_variant: Option<Identifier>) -> Self {
-        Self {
-            member: name.clone(),
-            binding: name,
-            case_variant,
-        }
-    }
-}
-
 /// The named bindings a destructure pattern arm introduces: each bound `field`
 /// rewrites to `subject.field` in the arm's guard and transition-target arguments.
 pub(super) struct DestructureBindings {
@@ -471,9 +461,17 @@ fn parse_destructure_pattern_arm<'tokens, 'source>(
             None
         }
     };
+    // Waived fields (`as _`) are spelled but introduce NO binding; renamed
+    // fields (`as name`) bind the new name to the same `subject.member` read.
     let fields = fields
         .into_iter()
-        .map(|name| DestructureBinding::field(name, case_variant.clone()))
+        .filter_map(|(member, binding)| {
+            binding.map(|binding| DestructureBinding {
+                binding,
+                member,
+                case_variant: case_variant.clone(),
+            })
+        })
         .collect::<Vec<_>>();
     if !pattern_rest.tokens.is_empty() {
         return Err(pattern_rest.error_here("expected data destructure pattern"));
@@ -555,11 +553,16 @@ fn find_top_level_keyword(input: Input<'_, '_>, keyword: KeywordKind) -> Option<
 }
 
 /// Parse the `{ field, .. }` part of a destructure pattern (the leading path is
-/// already consumed by the caller).
+/// already consumed by the caller). Arm position SHARES the record-pattern
+/// field grammar (owner spec 2026-07-18): `field as name` renames the binding
+/// and `field as _` waives it (spelled but unbound). `..` stays the arm-only
+/// rest escape (predates the spec; the LET form has no `..` -- its
+/// exhaustiveness law makes waivers explicit instead). Each entry is
+/// `(member, binding)`: `binding = None` for a waived field.
 fn parse_data_destructure_pattern_fields<'tokens, 'source>(
     _syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
-) -> ParseResult<'tokens, 'source, Vec<Identifier>> {
+) -> ParseResult<'tokens, 'source, Vec<(Identifier, Option<Identifier>)>> {
     let mut input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
     let mut fields = Vec::new();
 
@@ -568,7 +571,24 @@ fn parse_data_destructure_pattern_fields<'tokens, 'source>(
             input = input.take_punctuation(PunctuationKind::DotDot, "..")?;
         } else {
             let (field, rest) = input.take_identifier()?;
-            fields.push(field);
+            let mut binding = Some(field.clone());
+            let mut rest = rest;
+            if rest.at_keyword(KeywordKind::As) {
+                let after_as = rest.take_keyword(KeywordKind::As, "as")?;
+                if after_as.at_contextual("_") {
+                    binding = None;
+                    rest = after_as.take_contextual("_")?;
+                } else {
+                    let (renamed, after_renamed) = after_as.take_identifier()?;
+                    if renamed.as_str() == "_" {
+                        binding = None;
+                    } else {
+                        binding = Some(renamed);
+                    }
+                    rest = after_renamed;
+                }
+            }
+            fields.push((field, binding));
             input = rest;
         }
 
