@@ -220,3 +220,24 @@ ensures
     let unit: IntPair = one_int();
     transition { _ -> (mul_int(a, unit)) }
 }
+
+// Negation is an involution: two pair swaps rebuild every field of `a`
+// from `a` itself -- pure unfolding closed by record ETA, no citations.
+machine neg_int_involution(a: IntPair) -> IntPair
+ensures
+    (neg_int(neg_int(a))) == (a)
+{
+    let flipped: IntPair = neg_int(a);
+    transition { _ -> (neg_int(flipped)) }
+}
+
+// neg_int RESPECTS ~: swapping both pairs mirrors the cross-sum equation
+// -- the hypothesis read through one addend exchange.
+machine neg_int_respects_eq(a: IntPair, a2: IntPair) -> IntPair
+requires
+    (add(a.pos, a2.neg)) == (add(a2.pos, a.neg))
+ensures
+    (add(a.neg, a2.pos)) == (add(a2.neg, a.pos))
+{
+    transition { _ -> (neg_int(a)) }
+}
