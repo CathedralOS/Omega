@@ -1,8 +1,20 @@
 # Omega Language Guide
 
-This guide is a chaptered sketch of Omega's language direction.
+This guide is the current semantic authority for Omega's language direction.
+Syntax may still change, but each chapter should describe one present model—not
+the sequence of arguments that produced it. When a ruling changes, rewrite the
+affected chapter in place and move any still-useful rationale to a design
+brief; do not retain contradictory “proposal / owner answer / amendment” layers
+in the guide.
 
-The syntax is not final. These chapters exist so language ideas can be organized, challenged, and eventually turned into parser/compiler work.
+Documentation roles:
+
+- language-guide chapters state current language behavior;
+- frozen design briefs supply laws, rationale, and acceptance cases;
+- architecture documents state compiler representation and ownership;
+- `TASKS.md` contains engineering status and remaining work, not language
+  decision transcripts; and
+- `OWNER_QUESTIONS.md` contains unresolved owner decisions only.
 
 Compiler architecture notes live in [Architecture](../architecture/architecture.md).
 

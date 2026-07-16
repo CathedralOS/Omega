@@ -3,13 +3,13 @@
 A type, contract, or layout may name in-scope, proof-visible values — fields,
 parameters, and locals, not only constants.
 
-> **Status (drafted 2026-07-15): direction for owner review, NOT settled.**
-> Motivation, prior-art evidence, and the implementation ladder live in the
-> companion design brief
-> ([dependent_types.md](../design_briefs/dependent_types.md)). Chapters
-> [7](chapter_7_types_constraints_invariants.md),
-> [8](chapter_8_domains.md), [11](chapter_11_invariant_windows.md), and
-> [13](chapter_13_generics.md) are assumed.
+The staged systems fragment is settled; implementation remains incomplete.
+Motivation, prior-art evidence, and the implementation ladder live in the
+companion design brief
+([dependent_types.md](../design_briefs/dependent_types.md)). Chapters
+[7](chapter_7_types_constraints_invariants.md),
+[8](chapter_8_domains.md), [11](chapter_11_invariant_windows.md), and
+[13](chapter_13_generics.md) are assumed.
 
 ```omega
 machine Math::clamp(
@@ -86,7 +86,7 @@ Working rules:
 ## Dependent Data
 
 A data type's fields may witness each other. The default domain is declared
-on the data signature as a `where` clause (settled — owner): bare field
+on the data signature as a `where` clause: bare field
 names, any number of facts, holding at every observation of the value. A
 field constraint is single-field sugar for a `where` fact; the body stays
 pure layout. Semantically and in the implementation these facts ARE the
@@ -312,7 +312,7 @@ call (`stores self.map` frames a whole subtree). For Omega callees it is
 checked callee-side by the store pass (an undeclared store is a compile
 error, fails closed); on a boundary trait there is no body to check, so
 the clause is an audited promise in the same trust class as the boundary's
-`ensures`. Tiering (settled — owner): mandatory on boundary traits;
+`ensures`. The clause is mandatory on boundary traits,
 optional on exported machines (omitted = the whole-receiver frame, sound
 but coarse); inferred within a compilation unit — no clause exists:
 
@@ -328,7 +328,7 @@ ensures self.len == n + 1
 A state's signature is its arrival contract. Parameter refinements —
 dependent ones included — plus a state-level `requires` are proven at every
 in-edge, entry path and back-edges alike, and assumed at entry; that assumed
-set is the induction hypothesis the `decreases` rung consumes. A
+set is the induction hypothesis the ranking-witness rung consumes. A
 self-transitioning state is a loop whose invariant is its own signature:
 
 ```omega

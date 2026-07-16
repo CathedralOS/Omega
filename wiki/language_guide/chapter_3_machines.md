@@ -1,9 +1,38 @@
 # Chapter 3: Machines
 
-A machine is the callable boundary.
+A machine is a **named, contracted transition system**. Given its inputs,
+state, and authority, it produces a contract-observable trace and may produce
+a terminal outcome. A productive machine may run forever, so an ordinary
+function-like call is one important use of a machine, not its definition.
+
+> **Machine taxonomy settled 2026-07-18.** Runtime calls, compile-time
+> evaluation, proof citation, spawning, trait satisfaction, and boundary
+> provision consume the same semantic construct. Checked bodies, requirements,
+> external providers, and accepted trust declarations are supply modes, not
+> separate machine species. See
+> [machine_taxonomy.md](../design_briefs/machine_taxonomy.md).
 
 Machines may be attached to data, or free-standing when there is no natural
 owning data type.
+
+## One Construct, Several Uses
+
+The same machine can be called at runtime and evaluated by the compiler when
+its contract, effects, and totality make that evaluation legal. It can also be
+cited as proof, spawned, or used to satisfy a trait/boundary requirement.
+Those contexts change eligibility and lowering; they do not create parallel
+`async`, `proof`, or `const` machine identities.
+
+A machine's substitutable contract is wider than its input/output relation. It
+also includes failure and cancellation, effects and authority, progress and
+suspension, atomicity and reentrancy, context-visible resource bounds, and a
+boundary calling plan where applicable. Provider substitution must refine the
+whole contract.
+
+Internal compiler/runtime transitions may be hidden only after projection
+through the declared observation surface and only above the floor imposed by
+the caller. A machine cannot hide blocking, authority, failure, or another
+context-forbidden behavior merely by calling it unobservable.
 
 ## Attached Machines
 
@@ -63,7 +92,8 @@ This keeps process-owned state under one explicit owner.
 ## Parameters And Returns
 
 Machine parameters are entry data. A machine return type is the value shape its
-body or internal state graph eventually produces.
+body or internal state graph produces if it reaches a returned terminal
+outcome. The type alone is not a termination guarantee.
 
 ```omega
 machine Parser::resolve(
@@ -89,24 +119,20 @@ Calls and transitions are different. A call enters another machine. A transition
 jumps to a state inside the current machine. Chapter 4 introduces states and
 transitions directly.
 
-## Measured Recursion
+## Termination And Ranked Cycles
 
-> **Settled 2026-07-18; amended in the same review: runtime cycles are
-> tail-only.** Recursive call cycles are legal if and only if they carry a
-> `decreases` measure (chapter 9), and in runtime code every recursive call
-> must be in tail position, where the cycle lowers to loop machinery. An
-> unmeasured call cycle is a compile error; a measured non-tail cycle in
-> runtime code is a compile error. Transition loop-backs (chapter 4) are
-> unchanged: they are jumps, not calls — unmeasured, constant-stack, free to
-> run forever.
+A machine may promise eventual terminal progress with `terminates`. Checked
+acyclic bodies derive that guarantee without annotation. Every cycle in a
+terminating machine instead needs an authored, checker-verified ranking
+witness written with `terminates by` (chapter 9):
 
 A machine may call itself, directly or through a mutual cycle, when every
-cycle through the call graph strictly decreases a well-founded measure and
+cycle through the call graph strictly decreases a well-founded rank and
 each recursive call is the last thing its arm does:
 
 ```omega
 machine Gauss::sum(n: u64, acc: u64) -> u64
-terminates { decreases n; }
+terminates by n -> Nat::Descending;
 {
     transition n {
         0 -> acc
@@ -115,10 +141,15 @@ terminates { decreases n; }
 }
 ```
 
+The same rule covers explicit state/transition loops and recursive call
+cycles. A productive machine may deliberately run forever; a loop that makes
+no termination promise owes no ranking.
+
 Working rules:
 
-- **Legality is the measure, not the position.** Every runtime cycle needs
-  both: `decreases` proves it terminates; tail position gives it a lowering.
+- **Legality is the ranking, not the position.** Every terminating runtime
+  cycle needs both: `terminates by` proves progress; tail position gives a
+  recursive call cycle a lowering.
   Spelling encodes intent: a transition arrow says "process — may run
   forever, constant space, no proof owed"; a recursive call says
   "terminating walk — measured, or it does not compile."
@@ -133,8 +164,9 @@ Working rules:
   with explicit storage the machine declares and sizes — a fixed-capacity
   field today, a Region when the allocator arc lands. Activation frames are
   storage the author never sees or sizes; depth does not hide there.
-- **The range is a termination fact, never a size.** `decreases cursor in
-  lo..=hi` states where the measure lives; the floor is the well-foundedness
+- **The range is a termination fact, never a size.** `terminates by cursor ->
+  Cursor::TowardStart in lo..=hi` constrains the rank produced by the view;
+  the floor is the well-foundedness
   bound (any start, not only zero, so a cursor walking `hi` down to `lo`
   needs no re-zeroed distance measure). Dependent endpoints are legal —
   pinned witnesses, re-proven at every back-edge, the same fact the loop
@@ -143,7 +175,7 @@ Working rules:
 - **Lexicographic measures compose freely.** The measure gates legality and
   sizes nothing, so dictionary orders need no special case; bounded
   components may still flatten to a single linear measure (`m*B + n`).
-- **Mutual cycles share a joint measure** (lexicographic when needed); every
+- **Mutual cycles share a joint ranking** (lexicographic when needed); every
   cycle through the call graph must decrease it, and at runtime every call
   along the cycle must be tail.
 - **The whole program's worst-case stack is a static constant.** After
@@ -151,11 +183,16 @@ Working rules:
   activation storage along any call chain is computable at build time and
   appears in the layout report.
 
-Proof-stratum machines (chapter 10) follow the same legality rule with no
-tail restriction: non-tail shapes — `1 + max(Tree::depth(node.left),
+Proof-stratum machines (chapter 10) use the same clause and legality rule with
+no tail restriction: non-tail shapes — `1 + max(Tree::depth(node.left),
 Tree::depth(node.right))`, induction over a tree — are legal there, because
 fact-only machines evaluate at compile time under the checker's fuel budget
 and never lower. No frame ever materializes.
+
+The ranking witness is implementation evidence, not public contract identity.
+Changing a valid witness revalidates the implementation without changing what
+callers or import slots see. See
+[termination_ranking_and_progress.md](../design_briefs/termination_ranking_and_progress.md).
 
 ## Contracts
 
@@ -185,3 +222,7 @@ Working rules:
 - Every reachable terminal path in a typed machine graph must produce the
   declared return type.
 - Transition dispatch arms add proof assumptions for the target edge.
+
+> **Implementation gate:** the current Rust trees do not yet carry the
+> normalized complete machine contract or explicit supply mode. See
+> [semantic_taxonomy_representation.md](../architecture/semantic_taxonomy_representation.md).

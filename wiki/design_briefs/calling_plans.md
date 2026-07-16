@@ -1,7 +1,7 @@
 # Design Brief — Calling Plans (conventions as stated layouts over registers)
 
-> **For:** Omega maintainer · **Status:** SETTLED (chat 2026-07-02 mechanism;
-> chat 2026-07-04 programmability + spelling, Zach) — see §7. · **Driver:** the UEFI/QEMU first-boot ladder needs a
+> **Status:** Settled design; engineering incomplete. **Driver:** the UEFI/QEMU
+> first-boot ladder needs a
 > runtime-pointer call *now* and entry stubs *soon*; Linux syscalls and
 > kernel32 calls already exist as hardcoded conventions in the backend; COM,
 > AAPCS, and the interrupt frame are queued behind them. · **Sibling of:**
@@ -67,8 +67,8 @@ convention.plan(signature) ──► validated CallPlan ──┬──► call 
 A caller and a callee derived from one stated plan cannot disagree about where
 argument 2 lives. Since entry stubs are needed regardless (interrupt entry,
 the UEFI export table, outbound callbacks — one foreign-initiated-activation
-design, extern brief §12), the plan is the artifact that keeps both directions
-honest.
+design, `extern_boundary_and_format_domains.md`), the plan is the artifact
+that keeps both directions honest.
 
 **Validation** (before any deriver trusts a plan): no register
 double-assignment, every parameter placed, placements type-compatible
@@ -110,12 +110,11 @@ Differential validation comes free at that point: call known-good libc/kernel
 functions from plan-derived adapters and compare against clang-compiled
 callers — the house oracle style, applied to ABI conformance.
 
-## 7. SETTLED 2026-07-04 (chat, Zach): programmable; `boundary(<Plan>)`; inference the norm
+## 7. Programmable plans; inferred selection
 
-**Programmable, with the augmentation boundary at MEANING, not values.** The
-question "programmable or compiler-defined?" resolves the way layouts and
-grammars did: the placement VOCABULARY and the derivers are compiler-owned
-(closed; a new placement kind or a new architecture = a compiler release);
+The augmentation boundary is meaning, not values. The placement vocabulary and
+the derivers are compiler-owned (closed; a new placement kind or a new
+architecture = a compiler release);
 the PLANS are policy-authored data over that vocabulary. The acceptance test
 is the UEFI counterfactual: a platform the compiler never heard of, on a known
 architecture, must be reachable with zero compiler changes — a stated

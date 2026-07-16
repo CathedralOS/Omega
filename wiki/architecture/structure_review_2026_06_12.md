@@ -1,5 +1,12 @@
 # Omega Compiler: Structural Health Review — 2026-06-12
 
+> **2026-07-18 amendment:** the review's conclusion that triplicated
+> `DataProperties` was low-priority applied to the old three-boolean model.
+> Decision 21 makes multiplicity a first-class semantic enum with a permission
+> algebra; decisions 19/20 similarly expose domain and machine representation
+> loss. The superseding audit and front-loaded migration are in
+> [semantic_taxonomy_representation.md](semantic_taxonomy_representation.md).
+
 Performed by a dedicated review agent. Worktree: `agent-af6337b67f5674720`.
 Suite baseline at review start: **256 pass / 0 fail** (omega-compiler + omega-interpreter).
 

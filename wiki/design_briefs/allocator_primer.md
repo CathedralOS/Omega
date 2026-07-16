@@ -7,14 +7,19 @@
 > regions/multi-heap, proofs/guarantees, Omega-fit); every Omega claim verified
 > against `region.omg` / `vec.omg` / `fixed_vec.omg` / `omega-runtime-abi`.
 
+The durable model is an explicit allocator or region capability with dependent
+resource contracts; reaching an allocator boundary contributes its
+boundary-trait service identity. Quantitative `Alloc<Peak, Retained>` rows
+remain deferred to the resource algebra.
+
 **Where Omega is today.** No heap, no allocator. Storage is inline (`[T;N]`,
 struct fields), bounded (`FixedVec<T,N>` — `push` is a *compile-time* proof
 obligation `len < N`, never a runtime trap), or borrowed (`{ptr,len}` slice
 descriptors). ZII (all-zero is a valid inhabitant) is the soundness backbone.
 The allocator is **designed but unbuilt**: `allocator_story.md` (A1–A5, REC:yes,
 awaiting sign-off) specifies `Region<'r>` as a capability bound through the
-reserved `Allocation` boundary-provider category, with `alloc`/`dealloc` as
-effect names. Concretely blocked: `Vec<u8> in Utf8` (owned/growable text),
+reserved `Allocation` boundary-provider category, with explicit allocation
+authority and resource contracts. Concretely blocked: `Vec<u8> in Utf8` (owned/growable text),
 copy-out wire decode, `read_line(&mut String)`.
 
 ## What other languages do (and the one lesson each)
@@ -32,27 +37,28 @@ scoped data, and **an allocator is functionally a capability** (unforgeable
 authority to obtain memory) — "pass the allocator" *is* capability-passing, "the
 ambient context" *is* a dynamically-scoped effect.
 
-## The questions you raised, answered
-- **"Is multi-heap the future?"** For an OS, largely yes — *but* "multi-heap"
+## Design pressures
+
+- **Multiple heaps.** For an OS, they are largely inevitable — but “multi-heap”
   bundles three independent wins: lifetime (per-request/per-frame bulk reset),
   contention/locality (per-core/NUMA heaps — jemalloc/tcmalloc/mimalloc, an
   implementation detail), and isolation/accounting (per-component quotas — seL4,
   Zircon VMOs). Treat them separately; only lifetime and isolation belong in the
   type system. Per-core/NUMA is a backend detail that should NOT.
-- **Avionics/robotics perspective.** The whole field already agrees: **no
+- **Avionics and robotics.** The whole field already agrees: **no
   dynamic heap after init.** Three reasons each fatal to certification —
   malloc/free have unbounded WCET (breaks scheduling), general heaps fragment (a
   request fails after long uptime despite free bytes), and OOM is unprovable.
   Enforced today by *coding-standard bans* (MISRA 21.3, NASA Power-of-10 R3,
   ARINC-653 init-only), **not by any language.**
-- **"Pre-allocate in main and PROVE it fits / no OOM in flight?"** This *is*
+- **Pre-allocation with a no-OOM proof.** This *is*
   hard-real-time practice — static budgets, fixed pools, per-cycle arenas. But
   the "proof" is a patchwork: linker budgets + WCET tools (aiT/RapiTime) +
   stack-depth analysis + partial formal proof (SPARK/GNATprove). **No language
   unifies it.** Tellingly, SPARK proves absence of *all* run-time errors
   **except `Storage_Error` (memory exhaustion)** — its answer there is "don't
   allocate dynamically." **That residual is exactly Omega's opening.**
-- **"Or solved by not allowing an allocator at all?"** Yes — the no-heap model
+- **No allocator.** The no-heap model
   (Rust heapless, Ada bounded containers, Omega's `FixedVec`) makes OOM
   *unrepresentable*: strongest guarantee, lowest proof burden. Cost: every
   variable-length thing carries a compile-time capacity `N`, so you
@@ -163,54 +169,26 @@ declare the budget bound; disambiguate when >1 region is live; mark each
 **split/fan-out** (a sequential thread can be hidden, a partition cannot); mark
 each fallible escape hatch; state `outlives` at escape.
 
-## Open design decisions (what you must pick)
-1. **Net vs peak — RESOLVED to peak.** Track **high-water-mark (peak live set)**,
-   not net — a persistent arena never frees mid-life. Lever: proving two phases
-   **don't co-exist** makes peak `max(A, B+C)` not `A+B+C`; a **region reset
-   between phases IS that disjointness proof**. Sub-decision: prove non-coexistence
-   via automatic liveness (fragile) or declared region/phase boundaries
-   (predictable — rung-2 arena reset gives it free). *Leaning declared.*
-2. **Affine-handle ergonomics — briefed above (R1–R5 + residuals).** Open: how far
-   `inout` + effect-row inference + elision collapse the noise before the
-   residuals bite.
-3. **Input-bound policy.** When is a site *required* to carry a worst-case input
-   refinement (`input: &[u8] [len <= N]`) vs allowed to demote to fallible/abort?
-   Embedded culture caps inputs; general-purpose stays fallible — pick a default.
-4. **Stack depth — clarified.** Omega HAS recursion and bounds it via
-   `terminates { decreases }` (gives *termination*, canaried incl. a runtime
-   recursive value-call). "No recursion" is only a future Cathedral stackless-task
-   stance. Bounded recursion ≠ a proven *stack-byte* bound — whether stack depth
-   is a first-class discharged obligation (vs external tool) is the open question.
-5. **Destructors on bulk region free (A5).** Must arenas *reject* storing
-   affine/capability-owning values (or prove cleanup trivial) to avoid the
-   bumpalo Drop-skipping footgun, given element drops are separate from bulk free?
-6. **`SharedRegion<Untrusted>` — RESOLVED in the IPC deep dive** (Cathedral repo
-   `part_3_communication/00_ipc_and_service_invocation.md` + `cathedral_alignment.md`).
-   It is **NOT a new memory category**: untrusted bytes arrive as `&[u8, []]`
-   (empty proven-invariant set) over existing primitives; the invariant/pointer
-   contract system forces snapshot-then-validate *structurally* (a TOCTOU
-   re-read/index/tag-read does not typecheck). Remaining (minor): stdlib-only vs
-   small compiler help (leaning stdlib); the minimal kernel surface
-   (`grant_region`/`set_permissions`/`revoke`/`send_capability`); scheduler layer
-   (wake-reason sum, typed `protocol` RPC surface).
-7. **seL4 untyped+Retype as the Cathedral *kernel* model.** Should physical
-   memory be a splittable capability the prover tracks (parent/child
-   derivation), and does that unify with the userspace `Region<'r>` surface or
-   sit beneath it?
-8. **Generic-machine instantiation.** Is fixing it (FixedVec bodies can't be
-   carried generically — layout fails on `[T;N]` with no concrete extent) a
-   prerequisite for an ergonomic generic `Vec`, or can stage 2 ship
-   concrete-instantiated like FixedVec does today?
-9. **Automatic size inference (RAML/AARA) — ANSWERED, see
-   [`growth_inference_and_allocator.md`](growth_inference_and_allocator.md).**
-   Verdict: do **not** build AARA (polynomial-only; assigns invariant/no-usable
-   potential to mutable cells — exactly the buffer length↔inputs relation we need)
-   nor a string solver nor whole-program region inference nor size-indexed `Vect`.
-   Instead infer a **linear length bound** for the bounded-string case: straight-
-   line/literal concat folds for free; the **bounded-loop** case needs a *blessed*
-   `len ≤ iters·elem_len` invariant axiom (or octagons) because the interval engine
-   is **non-relational** — *not* free on what's shipped. Beyond the linear/bounded
-   frontier (unbounded loops, `n·len(s)` both symbolic, parse-back) it is
-   undecidable (Ganesh–Berzish) → widen to ⊤ and force the next rung up. This
-   turns the unsound 256-byte text-buffer hack into a `FixedVec<u8,B>` whose
-   compile-time push obligation is discharged for the whole concat chain.
+## Settled accounting law
+
+Track peak live bytes, not net allocation. A persistent arena does not regain
+capacity merely because an object becomes unreachable. A declared reset or
+proved phase separation can reduce the bound from a sum to a maximum. Linear
+growth-bound inference is specified in
+[`growth_inference_and_allocator.md`](growth_inference_and_allocator.md); do not
+build a general AARA/string solver or whole-program region inference.
+
+## Remaining design decisions
+
+1. How far can `inout`, row inference, and lifetime elision reduce affine-handle
+   noise before explicit region identity is required?
+2. When must an API state a worst-case input refinement rather than returning a
+   fallible capacity outcome?
+3. Does bounded recursion also require a first-class stack-byte proof, or is
+   stack accounting an external artifact?
+4. May a bulk-freed region store affine/capability-owning values, and if so how
+   are their cleanup obligations discharged before reset?
+5. Does Cathedral's splittable physical-memory capability unify with
+   userspace `Region<'r>` or remain a lower layer?
+6. Must generic-machine instantiation land before an ergonomic generic `Vec`,
+   or can the first dynamic container ship only at concrete instantiations?

@@ -108,8 +108,8 @@ Core ships the roster: `Nat`, `Seq<T>`, `Bag<T>`, and `Rat` — every finite
 float embeds into `Rat` exactly (IEEE values are dyadic rationals), so float
 verification is exact Rat-versus-Rat error bounding. `Int` follows when
 subtraction-closed reasoning wants it, with one rule stated at introduction:
-`Int`'s order has no floor, so `decreases` measures stay `Nat`-valued or
-range-floored.
+`Int`'s order has no floor, so ranking views over it must produce a
+well-founded `Nat` rank or carry a proven floor.
 
 A quotient coarsens a type: sort its values into buckets of things a
 proven equivalence calls interchangeable, and the buckets become the
@@ -225,7 +225,7 @@ A relational property is defined by an ordinary measured machine:
 
 ```omega
 machine sorted(items: &[i32]) -> bool
-terminates { decreases items -> Slice::Length; }
+terminates by items -> Slice::Length;
 {
     transition items.len <= 1 {
         true  -> true
@@ -246,7 +246,7 @@ predicate — an induction, written once by the predicate's author:
 machine sorted_extracts(items: &[i32], i: u64, j: u64)
 requires sorted(items) == true && i < j && j < items.len
 ensures items[i] <= items[j]
-terminates { decreases j - i; }
+terminates by i -> Nat::IncreasingTo(j);
 { ... }
 ```
 
@@ -264,10 +264,10 @@ Instances injected by the lemma are ordinary atom-facts, so the
 difference-bound engine composes them — transitivity, everything-left-of-mid,
 min-at-ends are downstream chains, not further lemmas.
 
-## Induction Is Measured Recursion
+## Induction Is Ranked Recursion
 
 A proof-stratum machine recurses under the same rule as every machine: a
-`decreases` measure, checked at every cycle (chapter 3). Read as a proof, the
+`terminates by` ranking, checked at every cycle (chapter 3). Read as a proof, the
 machine *is* the induction: transition dispatch is the case analysis
 (exhaustiveness enforced — no missed constructor), the measured cycle is the
 appeal to the induction hypothesis, and a state's arrival contract (parameter
@@ -277,77 +277,38 @@ state machine was already its shape.
 
 ## Termination Proofs
 
-Termination is another proof shape the checker should eventually understand.
-
-Unlike ordinary pre/postcondition checking, termination is a claim about every
-cycle in the reachable machine/state graph.
-
-Working direction:
+Termination is a proof over every cycle in the reachable machine/state graph,
+not an `ensures` proposition evaluated after a return and not an effect-row
+member.
 
 ```omega
 machine walk(items: &[Nat])
-terminates {
-    decreases items -> Slice::Length;
-}
+terminates by items -> Slice::Length;
 {
 }
 ```
 
-The key idea is a ranking argument:
+The ranking argument is ordinary proof vocabulary:
 
-- choose a value to track
-- choose a well-founded ranking view for that value
-- prove every recursive or cyclic step makes that ranked value strictly smaller
+- choose explicit subjects;
+- select a well-founded ranking view; and
+- prove every cyclic edge makes the produced rank strictly smaller.
 
-This is a natural fit for proof-oriented helper vocabulary. The language
-provides built-in well-founded measures for common cases such as naturals,
-slice lengths, and bounded distances (`decreases limit - index` is the named
-`Nat::BoundedDistance` ranking; see chapter 9). Names such as `Slice::Length`
-come from the browsable core semantic surface for slices, while richer rankings
-such as lexicographic tuples or domain/type-provided orders are declared with a
-dedicated `measure` keyword.
+Direction belongs to the view rather than a blessed `decreases` or `increases`
+keyword. `Nat::Descending`, `Nat::IncreasingTo(limit)`,
+`Tree::ProperSubtree`, and lexicographic views all satisfy the same checker
+role. A standalone `measure` declaration supplies a named custom view and
+multiple measures per carrier are legal.
 
-A `measure` is a standalone item: a function from the decreasing value into a
-well-founded domain such as `u64`. It is not an abused `operator` declaration.
-Semantically it is declaration sugar for a *named satisfier* of the key-shaped
-ordering trait (chapter 14) — a plain measure is a pure machine; the
-`lexicographic { }` form earns the sugar, because dictionary order over
-components that can be reset to unbounded fresh values is the one ranking
-shape that cannot flatten into a single natural (bounded components flatten
-as `m*B + n` and are linear again).
+Proof-stratum machines use exactly the same `terminates by` source and checking
+rule as runtime machines. Their eligibility differs only at lowering: measured
+non-tail recursion is legal when evaluation remains in the proof/compile-time
+stratum and is rejected if runtime lowering is requested.
 
-```omega
-measure Card::PowerOrder(card: Card) -> u64 { card.power }
-measure Quest::Difficulty lexicographic { tier, remaining_steps }
-```
-
-`lexicographic { a, b, ... }` declares an ordered tuple compared left-to-right,
-and multiple named measures per type are allowed.
-
-Surface rules:
-
-- put progress clauses under `terminates`
-- keep `decreases` / `increases` as the user-facing proof words
-- use `->` to select the ranking view/order: a built-in view like
-  `Slice::Length` or a named `measure`
-- plain `decreases value` uses the default descending-naturals order
-
-Examples:
-
-```omega
-terminates {
-    decreases items -> Slice::Length;
-}
-```
-
-```omega
-terminates {
-    decreases card -> Card::PowerOrder;
-}
-```
-
-The important design boundary is that `terminates` is not an effect. It is a
-proof claim over control flow.
+The normalized artifact separates the public termination guarantee from the
+private ranking witness. A witness change invalidates its provider proof cache,
+not caller or import-slot contract identity. See chapter 9 and
+[Termination, Ranking, And Progress](../design_briefs/termination_ranking_and_progress.md).
 
 ## Citing Proofs
 

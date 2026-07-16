@@ -5,6 +5,30 @@ mutating, and cleaning up a value.
 
 This chapter is the place for the rules other chapters rely on.
 
+> **Core multiplicity settled 2026-07-18.** Usage is an explicit type
+> property with three cases: unrestricted, affine, and linear. Facts and
+> permissions share control-flow/place infrastructure but not one algebra. See
+> [core_multiplicity_and_linearity.md](../design_briefs/core_multiplicity_and_linearity.md).
+
+## Usage Multiplicity
+
+- **Unrestricted** values may be copied and discarded. `[copy]` establishes
+  this property.
+- **Affine** values may be moved at most once and may be discarded. This is
+  the default for owned data.
+- **Linear** values must be transferred or explicitly consumed exactly once.
+  `[linear]` establishes this property.
+
+Multiplicity is a type property, not a trait and not a qualifier repeated at
+every binding. It composes structurally through records, sums, and generic
+containers. `[copy]` and `[linear]` are mutually exclusive.
+
+Establishing a new linear value creates exactly one obligation. Moves, calls,
+returns, receives, and storage operations transfer that obligation; terminal
+consumers discharge it. Implicit zero-filling does none of these. Linearity is
+about use, not bit patterns: an explicitly constructed all-zero linear value
+is owed if that bit pattern is valid for its type.
+
 ## Owned Values
 
 An owned value may be moved into another location.
@@ -29,7 +53,26 @@ let next_depth: u32 = depth + 1;
 ```
 
 Copy is a type property. Machine integers, booleans, and small proof values are
-natural copy candidates. Data with cleanup responsibility is not.
+natural copy candidates. A copied value is unrestricted. Data with unique
+cleanup responsibility is not.
+
+## Linear Values
+
+Linear values represent protocols that must reach an explicit conclusion:
+task joins, transactions, acknowledgements, DMA submissions, and similar
+resources. A move transfers the live obligation. Ordinary scope exit with an
+unconsumed linear value is a compile error; automatic drop cannot silently
+discharge it.
+
+Conditional ownership uses an ordinary sum such as `Empty | Live(Join<T>)`.
+The obligation belongs only to the live payload. Zeroed storage is not a
+universal consumed linear value.
+
+Flow analysis therefore carries two different kinds of context. Propositions
+can weaken or duplicate where logic permits. Permissions track establishment,
+multiplicity, access (`owned`, `shared`, `exclusive`), and provenance with
+their own path-join rules. One CFG walk may carry both, but a fact catalog must
+never silently forget a resource obligation.
 
 ## Shared Borrows
 
@@ -182,3 +225,8 @@ aliasing every ref argument.
 
 Ownership decides who must clean up a value. The cleanup machinery itself is
 covered later in [Drops And Cleanup](chapter_17_drops_and_cleanup.md).
+
+The compiler's current move/drop summaries predate first-class multiplicity
+and do not yet represent establishment or linear consumption. The migration is
+tracked in
+[semantic_taxonomy_representation.md](../architecture/semantic_taxonomy_representation.md).

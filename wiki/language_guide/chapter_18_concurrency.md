@@ -19,17 +19,18 @@ Working rules:
 - Shared mutation must go through data types whose contracts permit concurrent
   access.
 - A spawn used as a statement is fire-and-forget when the proof checker proves
-  the spawned graph is self-contained.
-- Dropping a `Join<T>` JOINS: an unconsumed handle blocks at its scope's end
-  until the child completes. Strict result use (frozen decision 9) already
-  prevents silently ignoring the handle.
+  the spawned graph is self-contained; statement-form spawn is the explicit,
+  authorized detach operation.
+- `Join<T>` is linear. `join`, `cancel`, or an authorized `detach` consumes it.
+  A live handle at scope exit is a compile error. Automatic cleanup never
+  blocks, and strict result use alone would not catch a bound handle that
+  reaches scope end.
 
 ## Scoped Spawns (no keyword)
 
 There is no `scope` construct: the lexical block IS the scope. A spawn may
-borrow parent locals; the borrows are ordinary loans, loans must end before
-the block ends, and drop-of-`Join` joins -- so the borrow checker forces every
-borrowing spawn to be joined inside the block, with no new syntax:
+borrow parent locals; the borrows are ordinary loans and every borrowing spawn
+must be explicitly joined or cancelled before those loans can end:
 
 ```omega
 machine Main::main(&mut self) {
@@ -38,7 +39,9 @@ machine Main::main(&mut self) {
     {
         let first: Join<()> = spawn { Worker::run(&self.ring, &mut totals[0]) };
         let second: Join<()> = spawn { Worker::run(&self.ring, &mut totals[1]) };
-    }   // handles drop here -> implicit joins; the loans end; tasks are dead
+        first.join();
+        second.join();
+    }   // handles were consumed; the loans end; tasks are dead
 
     let sum: u32 = totals[0] + totals[1];   // legal: provably no live task
 }
@@ -48,86 +51,58 @@ Disjoint `&mut` windows (distinct array elements above) follow the ordinary
 borrow rules. A spawn that escapes any enclosing borrow scope stays
 move/copy-only.
 
-## Suspension: The `await` Marker (amends frozen decision 16)
+## Suspension (elaboration pending)
 
-Blocking is still calling -- a wait is an ordinary call to a boundary wait
-primitive, not a separate `async` type, so there is NO function coloring and no
-`Future`. But the call is MARKED with `await`, so every suspension point is
-visible in source rather than hiding behind a plain call. Decision 16's
-original no-keyword stance is amended here for exactly that visibility:
+Suspension is an operational property of an ordinary machine. Decision 22
+supplies distinct `Suspend` and `Block` row members; absence of each is the
+corresponding negative guarantee. The continuation, loan, and lowering rules
+remain to be frozen.
 
-```omega
-machine Server::handle(&mut self) {
-    let frame: Frame = await self.ring.take();   // PARK here, visibly
-    self.process(frame);                          // straight-line code resumes
-}
-```
+Decision 23 keeps positive progress separate. Pinned operations/providers may
+carry sealed opaque progress profiles authorized through boundary grants. A
+termination guarantee records the actual required profiles; the presence of
+`Suspend` or `Block` says only that such an event is possible and cannot name
+what will wake it. General trace entailment remains deferred.
 
-The model:
+The constraints that *are* settled are:
 
-- Waiting originates ONLY at boundary wait primitives -- a `Scheduler`
-  boundary trait (`wait_until_nonzero(flag: &AtomicU32) effects suspend;`
-  plus `wake_one`). Per-target bindings ride the existing host-provider
-  machinery: hosted targets bind futex/WaitOnAddress syscalls; Cathedral
-  userland binds the scheduler capability; the Cathedral kernel implements
-  it over hlt/interrupt wakeups. Waiting lives where it physically exists,
-  the same reflex that puts era tags only at boundaries (decision 14).
-- `await` marks the call; `suspend` is the effect it carries. One concept,
-  two spellings -- `await` at the call site, `effects suspend` on the machine
-  signature -- and the compiler REQUIRES `await` on any call that carries
-  `suspend`, so a park can never hide in a plain call. This is call-site
-  marking, not signature coloring: the marker never infects a caller's type.
-- A parked task is just data: machine frames are planned storage, not a
-  native stack, so the continuation-capture problem that forces `Future` as a
-  type in stackless languages does not exist here. `await` is a visibility
-  marker, not a continuation type.
-- SUSPEND-IN-CALL IS FORBIDDEN. A machine carrying `suspend` can be SPAWNED but
-  not CALLED: ordinary calls run to completion and cannot park their caller, so
-  `suspend` does not propagate up through call sites. Suspension is therefore
-  never nested through a call chain -- a parked task's carry-set is always a
-  SINGLE machine's locals at its own `await`, never a chain of suspended
-  frames. This is the enforceable form of "calls run to completion," and it is
-  what keeps carry-set storage single-level (see Task Storage). A helper that
-  must wait is restructured as its own spawned machine + channel, not a call.
-- Borrows may not live across an `await` (the world moves while parked).
-  Effect ceilings forbid `suspend` where parking is illegal -- a trait
-  requirement without `suspend` IS the interrupt-handler safety rule; build
-  artifacts surface every `await`.
-- The ATOMIC-STATE guarantee, now exact: a task is parked ONLY at its own
-  `await` points; a call never parks the caller. This is NOT mutual exclusion
-  -- other tasks run simultaneously on other cores; cross-task safety comes
-  from ownership, `[send]`, and atomics. The language is scheduler-agnostic (a
-  host may preempt); the guarantees come from ownership, never from
-  non-preemption.
+- suspension is an operational part of the ordinary machine contract, not a
+  `Future` return type or a separate `async machine` species;
+- a caller/context imposes an effect and resource ceiling, so a provider whose
+  row contains `Suspend` or `Block` cannot satisfy a slot that omits it;
+- suspension composes through ordinary calls without a call-site marker;
+  visibility comes from inferred effects, public contract ceilings,
+  diagnostics, and artifacts;
+- automatic cleanup may execute but may never suspend or fail;
+- `Join<T>` is linear and must be consumed explicitly; and
+- a loan may cross suspension only when the eventual suspension model can
+  prove its storage, pinning, aliasing, and cancellation safety. Blanket
+  acceptance and blanket rejection are both premature.
 
-## Task Storage: No Stack Sizes
+Suspension composes through ordinary calls, with the effect propagated/inferred
+and bounded continuation storage planned by the compiler. Public rows are
+explicit ceilings; internal rows infer. Exact
+continuation lowering and suspension-safe-loan rules remain the queued
+suspension amendment. See
+[effects_authority_and_observation.md](../design_briefs/effects_authority_and_observation.md).
 
-Recursion is measured and runtime cycles are tail-only (chapter 3): every
-cycle lowers to a loop, the call graph is acyclic after lowering, and frames
-are planner-computed — so the compiler still knows each spawned machine's
-EXACT worst-case storage. Nobody declares a stack size; overflow is impossible by
-construction. Task pools are per-machine-type `M x N`: M computed, N
-declared per spawn site (Embassy/RTIC precedent); spawning past N is a proof
-obligation or boundary failure. Region-backed dynamic N arrives with the
-allocator arc.
+## Task Storage: Bounded, Compiler-Planned
 
-Because suspend-in-call is forbidden, the per-task carry-set is SINGLE-LEVEL:
-the live locals of one machine at its own `await`, sized to the MAX over that
-machine's await points, never the sum -- a task is parked at exactly one point
-at a time, so reserving every await point's locals at once would be waste. And
-N is not a free constant: the rigorous form DERIVES it from the finite resource
-the task parks on (a single-consumer mailbox -> 1; a permit/budget pool -> its
-capacity; a channel -> its endpoint count), so spawning is capability-gated and
-`M x N` is a proven bound, not a guess -- a wrong N fails a model-checked
-invariant at design time, not as an OOM in production. The run-to-completion
-actor pattern (one machine with a receive loop, handlers that `transition` back
-to it) collapses the carry-set to the actor's own `self`: nothing is held
-across the `await` but state that already had to exist. A continuation across
-several `await`s is threaded as data in a `self` field (a sum tagging the step),
-not as a paused call stack. Such a field is sized to its biggest case like any
-sum; shrinking it with out-of-line handles is the author's call, optionally
-pinned by a `[max_size = N]` property checked against the layout report
-(chapter 20).
+Measured, tail-only runtime recursion leaves an acyclic lowered call graph, so
+the compiler can compute a finite worst-case activation bound. If ordinary
+calls may suspend, a parked continuation can contain a bounded chain of
+planned frames; bounded does not mean single-frame or free. Task capacity is
+frame requirement times maximum simultaneous activations, with the activation
+bound declared or proved.
+
+Task pools are capacity-bearing resources. Their budget is the planned frame
+requirement times the maximum simultaneous activations, with the activation
+bound declared or justified from a finite resource such as permits, endpoints,
+or a region budget. Spawning past the admitted capacity is a proof obligation
+or explicit boundary failure. Actor-shaped machines often collapse retained
+storage to their owned `self`; that remains a useful pattern rather than a
+restriction imposed on all suspending helpers. Region-backed dynamic capacity
+arrives with the allocator arc.
 
 ## Cancellation Is A Value At The Wait
 
@@ -143,7 +118,7 @@ data Take {
 }
 
 machine Worker::run(&mut self, ring: &mut Ring) {
-    let taken: Take = await ring.take();
+    let taken: Take = ring.take();  // may suspend under the eventual effect contract
     transition taken {
         Take::Got(frame) -> work(frame)
         Take::Cancelled  -> finish()    // ordinary transition; nothing interrupted
@@ -152,8 +127,9 @@ machine Worker::run(&mut self, ring: &mut Ring) {
 }
 ```
 
-A task that never suspends is joinable but not cancellable -- its effect
-surface says which kind it is. Cancellation rides the same propagation
+A task that never suspends is joinable but not necessarily cancellable -- its
+complete machine contract says which cancellation behavior it supports.
+Cancellation rides the same propagation
 channel as recoverable errors ([chapter 16](chapter_16_errors_traps_failure.md));
 the exact spelling follows that chapter's model.
 
@@ -173,7 +149,7 @@ data Event {
 }
 
 machine Server::run(&mut self) {
-    let event: Event = await self.inbox.take();   // ONE wait, ONE word
+    let event: Event = self.inbox.take();   // one wait source; may suspend
 
     transition event {                       // a completely ordinary transition
         Event::Packet(frame) -> handle(frame)
@@ -225,9 +201,10 @@ machine Scheduler::run(job: Job) -> WorkResult {
 `Worker::run` returns `WorkResult`. The `spawn` expression returns
 `Join<WorkResult>` because the machine is running concurrently.
 
-If the worker traps, the first model should probably trap the whole thread
-group. Programs that want recoverable failure should return an explicit result
-shape from the spawned machine.
+Programs that want recoverable failure return an explicit result sum from the
+spawned machine. Trap propagation and thread-group termination belong to the
+spawn/scheduler contract and must be settled there rather than inferred from
+`Join<T>`.
 
 ## Fire And Forget
 
@@ -251,12 +228,12 @@ machine App::run(message: String) {
 If the spawn result is not bound, the proof checker treats it as intentionally
 unjoined and proves the spawned graph does not depend on the parent stack.
 
-## Waitable Contracts: One Primitive
+## Waitable Contracts: Retained Substrate Direction
 
-Deadlock checking only works when waitable operations are visible -- and
-visibility is cheap here because there is exactly ONE wait mechanism: the
-futex-shaped boundary primitive (wait on a word's value, wake N waiters).
-Everything that blocks is library code over it:
+Deadlock checking requires visible wait contracts. The retained v1 direction
+uses one futex-shaped scheduler boundary (wait on a word/value condition and
+wake N waiters), with higher-level operations implemented as libraries where
+the target permits it:
 
 - `Join<T>::join` waits on the child's completion word.
 - `Mutex<T>::lock` waits on the lock word (happy path never waits).
@@ -264,11 +241,12 @@ Everything that blocks is library code over it:
 - `Pipe::read` / `Socket::recv` / event queues wait on their buffer words;
   the OS/ISR side POSTS to the word and wakes.
 
-The anti-sprawl rule is deliberate (no epoll/eventfd/io_uring zoo): no
-second wait mechanism, ever. Every blocking operation therefore carries the
-`suspend` effect by inference, and "what can unblock it" is always "who
-writes this word" -- a question the deadlock model below can actually
-answer.
+The abstraction must remain honest. A target mechanism that cannot refine the
+pinned wait contract is an accepted/opaque boundary rather than a fake futex.
+Wait operations carry `Suspend`, `Block`, or both as their contracts require;
+wake-only operations carry neither merely because they reach the scheduler.
+“What can unblock this wait?” remains part of the temporal contract used by the
+deadlock model below.
 
 ## Atomics
 
@@ -376,8 +354,9 @@ Different builds may ask for different concurrency guarantees.
 - Internal-deadlock-free: no cycle among known internal waitable resources.
 - Blocking-audited: every waitable host boundary is modeled, boundary, or
   reported.
-- Progress-proven: external waits require fairness, timeout, cancellation, or
-  explicit environment assumptions.
+- Progress-admitted: external waits name granted progress profiles, timeout,
+  cancellation, or explicit environment assumptions. General machine-side
+  progress proofs wait for trace logic.
 
 Servers, kernels, drivers, CLIs, and embedded firmware do not all want the same
 definition of "may block." The proof mode should be explicit in build artifacts.

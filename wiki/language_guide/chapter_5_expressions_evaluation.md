@@ -341,10 +341,7 @@ provably overflows a `Trapping` target still compiles and traps at runtime
 
 ## Constants: Two Phases
 
-> **Settled (owner ruling, recorded as first-class law 2026-07-18 — this
-> ruling has been made repeatedly and must not dissolve into other
-> topics).** A constant is either ANONYMOUS or LANDED — never both, never
-> neither.
+A constant is either anonymous or landed—never both and never neither.
 
 - **Anonymous (pre-landing):** a literal is an exact mathematical value
   with no type. `100` is one hundred; `3.14` is 157/50. Arithmetic between
@@ -361,18 +358,14 @@ provably overflows a `Trapping` target still compiles and traps at runtime
   (a constant that provably overflows a `Trapping` target still compiles
   and traps at runtime, per the node rule above), format rounding.
 
-Nothing is ever both (an anonymous value with a width) or neither (a
-landed value stripped of its type). The current folder's bare-`i64`
-constant window is a pseudo-anonymous limbo that is neither, and is being
-retired (TASKS: Constant model track); its two miscompile classes —
-sign/width-blind folds of `>>` `/` `%` and domain-stripped
-Saturating/Trapping folds — are both consequences of letting landed
-constants regress to anonymous.
+Nothing is ever both (an anonymous value with a width) or neither (a landed
+value stripped of its type). Constant folding must preserve the landed type,
+domain, and format; it cannot regress a landed value to an untyped integer.
 
 ## Float Facts
 
-> **Settled 2026-07-18** (record: design_briefs/float_semantics.md). A float
-> is a format-parameterized approximation carrier: every operation is "exact
+> A float is a format-parameterized approximation carrier: every operation is
+> "exact
 > rational arithmetic, then round once" under a FORMAT the target binds.
 > `f32`/`f64` name the IEEE binary32/64 formats — a fact recorded in target
 > provides data, never in the grammar. Every finite float is exactly a

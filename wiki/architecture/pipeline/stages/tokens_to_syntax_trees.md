@@ -34,7 +34,7 @@ source shape without turning nested syntax into scattered heap objects.
 - `parser/expression/primary.rs` owns literals, grouped expressions, array literals, path names, and struct literals.
 - `parser/expression/postfix.rs` owns calls, argument lists, indexing/ranges, member access, and casts.
 - `parser/machine.rs` owns machine headers, body/member sequencing, implicit entry construction, and attached-data path splitting.
-- `parser/machine/clauses.rs` owns machine `satisfies`, `terminates`, `decreases`, `effects`, `requires`, and `ensures` clauses.
+- `parser/machine/clauses.rs` owns machine `satisfies`, `terminates [by ...]`, `effects`, `requires`, and `ensures` clauses. The current standalone `decreases` parser is migration debt under decision 23.
 - `parser/transition.rs` owns transition block assembly.
 - `parser/transition/guards.rs` owns transition subjects, guard patterns, wildcard matching, and guard expression synthesis.
 - `parser/transition/targets.rs` owns transition target parsing and

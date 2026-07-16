@@ -18,19 +18,11 @@ The design splits into two independent concerns, each with exactly one home:
   (see [Memory Layout And ABI](chapter_20_memory_layout_abi.md) and
   `design_briefs/programmable_layouts.md`).
 
-There is no separate wire declaration form.[^wire-data-retired] One `data`
-keyword declares every shape; schemas that cross evolution-durable edges add
-identity numbers; policies consume the schema facts their grammar needs and
-ignore the rest.
-
-[^wire-data-retired]: `wire data` was retired as a construct on 2026-07-02
-(`design_briefs/programmable_layouts.md` §7). What it actually provided —
-durable field identity — became optional syntax on plain `data`; its
-serialization role moved to layout policies; its schema-identity checking,
-tag diagnostics, and codec generation carry over unchanged in substance. The
-implemented encoder slice below still parses the legacy `wire data` form;
-migrating the surface (declaration form, `reserved` → `retired`) is
-mechanical and tracked in TASKS.
+There is no separate wire declaration form. One `data` keyword declares every
+shape; schemas that cross evolution-durable edges add identity numbers;
+policies consume the schema facts their grammar needs and ignore the rest.
+Compatibility-parser removal is tracked in `TASKS.md`, not in the language
+model.
 
 ## Field Identity
 
@@ -116,8 +108,7 @@ CounterMessage::encode(&save, &mut scratch, &mut written);
 - Foreign grammars (`Protobuf`, C-ABI layouts, …) are sibling policies over
   the same schemas; a provides-mapping to a foreign symbol implies its format
   (see the extern brief).
-- **Decoding is not a compiler-derived operation** (SETTLED 2026-07-04, Zach —
-  supersedes the earlier "derived validate" framing). Turning inbound `&[u8]`
+- **Decoding is not a compiler-derived operation.** Turning inbound `&[u8]`
   into a domain-refined view is domain MINTING, and minting is ordinary
   user-written code that ends in an `as` the compiler accepts only once every
   invariant is proven (Chapter 8, "Establishing A Domain"). There is no
@@ -399,6 +390,3 @@ details.
   decode rule?
 - The publish-time predecessor diff: exactly where it runs (package manager,
   build artifact comparison) and what it blocks.
-- Surface migration of the implemented slice: legacy `wire data` form and
-  `reserved` spelling → `data` + numbers + `retired` (mechanical; tracked in
-  TASKS).

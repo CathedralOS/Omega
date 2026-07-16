@@ -1,12 +1,10 @@
 # Design Brief: Domain Facets And Semantic Qualification
 
-Settled 2026-07-18 (owner-ratified; frozen decision 19). This brief is the
+Settled 2026-07-18 (frozen decision 19). This brief is the
 authoritative record of the domains settlement: the facet model, the
 qualification/weakening/authority laws, operator coherence, and the staged
 units model. Chapter 8 carries the language-guide surface; this brief carries
-the laws and their rationale. Supersedes chapter 8's earlier implications that
-domain facts always erase and that flow-proven membership can participate in
-operator resolution.
+the laws and their rationale.
 
 ## The model
 
@@ -139,7 +137,7 @@ qualification unless its signature says so — `Vec<f64 in Km>` is not
   family; imports are never scanned for injectable meanings.
 - **Resolution is a compile-time decision recorded in the checked artifact;
   runtime dispatch never repeats domain resolution.** Interaction with
-  hot-swap (owner-ratified as in-scope here, since the systems interact):
+  hot-swap:
   **bodies swap at machine boundaries gated by contracts; resolutions never
   travel.** A swapped-in operator body must re-discharge the declaration's
   contract and laws; a change to the declaration surface is a version change
@@ -228,7 +226,7 @@ Distilled from an extended adversarial design review (2026-07). Key
 corrections absorbed along the way: the facet model over a kind-split or a
 separate vocabulary construct; the denotation clause in the weakening law; the
 mint/qualification/forgetting/conversion/validation transition split;
-sealed-by-default introduction (owner-ratified); owner-exported evidence for
+sealed-by-default introduction; owner-exported evidence for
 abstract predicates; the sealed-theory rule for weakening certificates;
 normalization/entailment role separation; presentation excluded from identity.
 Rejected en route: nominal wrapper types (`Wrapping<u8>` — the cost is the
@@ -243,4 +241,5 @@ domains — unchanged, conforms), decision 18 (fact catalog — carries predicat
 facets), proof_caching.md (certificate hashing discipline),
 proof_engine_north_star.md (schema-decided vs certificate-proved is the
 automation-plus-kernel pattern; domains-over-carriers is the named
-substrate investment).
+substrate investment), architecture/semantic_taxonomy_representation.md
+(required compiler representation and migration gate).

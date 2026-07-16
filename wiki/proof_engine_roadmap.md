@@ -11,7 +11,13 @@ today (2026-06).
 > [design_briefs/proof_engine_north_star.md](design_briefs/proof_engine_north_star.md).
 > This roadmap is the rung-by-rung status; that brief is the endpoint.
 
-## UPDATE 2026-06-12: L7 IS DISCHARGED (induction via recursive contracts + decreases)
+> **Syntax migration:** frozen decision 23 replaces the compiler's currently
+> implemented `terminates { decreases ...; }` spelling with
+> `terminates by ...;`. The L7 checker behavior below remains landed substrate;
+> TPR1–TPR6 in `TASKS.md` migrate its source and representation without
+> discarding the proof work.
+
+## UPDATE 2026-06-12: L7 IS DISCHARGED (induction via recursive contracts + ranking)
 
 The entailment engine now judges INDUCTIVE theorems: single-state machines
 whose body is a chain of guarded transitions whose arms are either values or
@@ -29,13 +35,14 @@ parameter atoms by argument polynomials; `result` stays shared because the
 arm's result IS the call's result), exactly as a nested callee's ensures
 enters a caller context. SOUNDNESS GATE, per call site: the hypothesis enters
 only after the engine proves, from that arm's own facts (requires + guard, no
-hypothesis), that the declared `decreases` measure is BOTH strictly smaller at
+hypothesis), that the declared ranking is BOTH strictly smaller at
 the call's arguments AND still non-negative there -- a strictly decreasing
 integer measure bounded below admits no infinite descent, which is the
 well-foundedness that makes assuming the contract for the smaller instance
-sound. Only the plain descending-naturals reading (`decreases value` /
-`-> Nat::Descending`) is verified; view and declared-measure orders never gate
-a hypothesis in. No decreases claim, or an undischarged one at that call site,
+sound. Only the plain descending-naturals reading (normalized by decision 23
+to `terminates by value -> Nat::Descending`) is verified; other view and
+declared-measure orders never gate a hypothesis in. No ranking witness, or an
+undischarged one at that call site,
 means no hypothesis -- and rejection is then suppressed (the missing
 hypothesis, not the theorem, may be at fault), so the bodied status quo of
 accept-by-default is preserved. The machine-level termination pass
@@ -117,7 +124,7 @@ passed `--check` until the contract refutation pass landed (see below).
 Meanwhile, several specific obligation families ARE enforced today:
 
 - slice bounds ("cannot prove index 15 is within length 8"),
-- termination via `terminates { decreases ... }` (`canaries/pass/termination/`),
+- ranked termination (`canaries/pass/termination/`; source migration pending),
 - caller-side `requires` discharge at call sites (`constraints/scalar_requires_satisfied_by_literal`, fail twin `scalar_requires_unproven_literal`),
 - exit `ensures` for machines WITH bodies, via domain-fact flow (`domains/exit_ensures_unproven` and friends),
 - bounded-type constraints (`omega-proof/src/checker.rs` interval checks on assignments, initializers, call arguments).

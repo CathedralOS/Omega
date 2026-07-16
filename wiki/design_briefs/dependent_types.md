@@ -1,7 +1,7 @@
 # Design Brief: Dependent Types — the Systems Fragment, Lifetimes, and the Lean Path
 
-Drafted 2026-07-15. Status: **direction, not a decided plan.** Companion to
-[Chapter 12](../language_guide/chapter_12_dependent_types.md) (the proposed
+Current staged design as of 2026-07-18; implementation remains incomplete.
+Companion to [Chapter 12](../language_guide/chapter_12_dependent_types.md) (the
 user-facing surface) and
 [proof_engine_north_star.md](proof_engine_north_star.md) (the automation/kernel
 fork this feature climbs). Sources: a six-track research sweep (theory, systems
@@ -257,13 +257,9 @@ name the missing fact and the minimal guard), and obligations must float
 into `requires` so libraries export them instead of guarding internally —
 without contract floating the stance is compositionally unusable.
 
-### ZII and gating (settled 2026-07-17, superseding this brief's first draft)
+### ZII and gating
 
-The first draft of chapter 12 carried a rule — "the zero value must satisfy
-every standing coupling" — generalizing the landed range-must-include-0
-check. Owner discussion replaced it with a strictly more expressive model,
-**gating**, which resolves the ZII/invariant tension instead of legislating
-one side of it:
+Gating resolves the ZII/invariant tension:
 
 - Every type has a default domain, declared with the data declaration
   (undeclared = the empty domain). ZII stays a **storage** guarantee
@@ -301,12 +297,10 @@ firmware semantic truth is not decodable. Length witnesses at zero mean
 empty (len=0 → nothing to access) for zero-constructible types; gated types
 are never observed zeroed.
 
-### Invariant windows retire `relax` (settled 2026-07-17)
+### Invariant windows
 
-The second owner-driven supersession in this design's history, and the
-deeper one: store-time invariant enforcement (writes must prove the domain;
-`relax` scopes suspend it locally) is replaced by **consumption-point
-enforcement**. Writes never fail a domain check. A write the checker can
+Invariant preservation uses **consumption-point enforcement**. Writes never
+fail a domain check. A write the checker can
 prove domain-preserving changes nothing (facts stay standing — the common
 case and every landed range-checked store). A write it cannot prove opens a
 **window** on the place; the window must close — the domain re-proven from
@@ -386,7 +380,7 @@ The staged path (no rewrite at any stage):
    runtime resources; Omega's split is cheaper still because ghost values are
    never borrowed and need no layout.
 5. **Proof machines as the escape hatch** — state machines run at compile
-   time by the existing interpreter, terminating by the existing decreases
+   time by the existing interpreter, terminating by the existing ranked-cycle
    discipline, emitting derivation records the checker validates. No foreign
    "tactic" concept; mathlib hammer data (~37% automatable) calibrates the
    front-line/escape-hatch split.
@@ -404,8 +398,8 @@ systems fragment never blocks the math rung:
   proposition is inconsistency by construction); never write "every value
   has a machine layout" into the record — ghost unbounded integers arrive in
   Stage 4.
-- Scope NO RECURSION to the runtime stratum — induction IS measured
-  recursion, and the decreases discipline is the gate.
+- Scope NO RECURSION to the runtime stratum — induction IS ranked recursion,
+  and the `terminates by` discipline is the gate.
 - Never make folder-normal-form identity the semantics of fact equality (the
   existing const-fold bug class would turn from completeness gaps into
   soundness holes).
@@ -440,36 +434,7 @@ Ordered rungs, each independently shippable, each with its acceptance driver:
   state-level `requires` + arrival facts; Houdini pass over the engine.
   Driver: dependent facts across sibling-machine calls.
 
-## 9. Open questions (owner)
-
-1. ~~The default-domain declaration surface~~ **SETTLED:** a `where`
-   clause on the data signature (bare field names, N facts) — the same
-   clause position as generics, one construct at two binding times
-   (const operand = instantiation-time proof; runtime fields = standing,
-   windowed). Field constraints remain single-field sugar. Implementation
-   note (owner): treat the clause as pure spelling over the DEFAULT DOMAIN
-   model, so re-skinning the syntax later stays near-trivial.
-2. ~~`stores` naming/mandatory rule~~ **SETTLED:** `stores`, as an
-   UPPER-BOUND may-write set (over-declaring is sound; subtree paths ok).
-   Mandatory on boundary traits (no body exists; the clause is an audited
-   promise in the ensures trust class); optional on exported machines
-   (omitted = whole-receiver frame); inferred intra-unit.
-3. ~~The ZII generalization~~ **ANSWERED 2026-07-17 by the gating model
-   (§6):** zero-excluding default domains are legal and gate the type; the
-   zero-satisfies rule survives only as the description of the
-   zero-constructible tier.
-4. Chapter numbering: 23-at-the-end with reading-path placement (chosen to
-   avoid breaking ~455 chapter-number references incl. live Cathedral wiki
-   links) vs a renumber pass.
-5. ~~v1 dynamic-sized storage~~ **SETTLED, and permanent rather than v1:**
-   views + fixed-capacity buffers now; `Region` allocations ({handle, len},
-   Vec-shaped) complete the set. Owned INLINE runtime-sized data
-   (`payload: [u8; len]` in memory) is banned outright — Ada is the
-   cautionary precedent, and no driver needs it. The spelling stays legal
-   in wire schemas, where it describes bytes; decode mints into the three
-   shapes.
-
-## Key sources
+## 9. Key sources
 
 Xi & Pfenning, *Dependent Types in Practical Programming* (DML); Rondon &
 Jhala, liquid types; Flux (PLDI 2023); McBride *I Got Plenty o' Nuttin'* /

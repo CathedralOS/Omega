@@ -6,32 +6,23 @@ Proof obligations live in contracts, domains, and local flow facts. Values are
 still stored as ordinary machine types; the compiler is responsible for proving
 the facts that APIs and mutations require.
 
-> **Invariants are the data's DEFAULT DOMAIN (settled 2026-07-05).** A `data`
-> declaration is layout only; a data type's invariants live in its **default
-> domain** — the domain that is always in scope for that data and travels with it
-> everywhere (nothing to shed or track: every use of the value is already inside
-> it). A per-field constraint is sugar for a single-field invariant of the default
-> domain, maintained *standing* by the store-check obligations (checked at every
-> write). "Top-level" domains like `Player::New` or `Quantity::Additive` are
-> **subdomains** that refine the default domain (tighter invariants, operators,
-> facts) and are proven at a mint point (`as`). Cross-field invariants
-> (`start <= end`) live in the default domain too, declared as a `where`
-> clause on the data signature (settled — bare field names; field constraints
-> are single-field sugar for it; see
-> [Chapter 12](chapter_12_dependent_types.md)); a store the checker cannot
-> prove domain-preserving opens an [invariant
-> window](chapter_11_invariant_windows.md), re-proven at the next consumption
-> point (settled 2026-07-17 — supersedes the earlier store-rejection +
-> `relax` model). There are **no default *values*** on data
-> (see [Chapter 1](chapter_1_data_values_literals.md)); ZII is the substrate and
-> construction forces the overrides where zero is invalid. **A default domain the
-> zero value cannot satisfy GATES the type (settled 2026-07-17):** such data is not
-> zero-constructible — its zeroed form exists only as storage, inaccessible as the
-> type until construction or an `as` mint proves the domain, monotonically
-> thereafter (every later store re-proves it). The gate propagates through
-> containment and is absorbed by a zero-valid first sum case (`case Empty;`); see
-> [Chapter 12](chapter_12_dependent_types.md). *Settled model; not yet
-> implemented.*
+Invariants are the data's default domain. A `data` declaration supplies layout;
+its default domain is always part of the value's static interface. Per-field
+constraints are single-field predicates in that domain. Cross-field invariants
+such as `start <= end` use a `where` clause on the data signature (see
+[Chapter 12](chapter_12_dependent_types.md)).
+
+Domains such as `Player::New` or `Quantity::Additive` refine or semantically
+qualify that default theory according to chapter 8. A write that does not
+immediately prove the default predicates opens an
+[invariant window](chapter_11_invariant_windows.md); the predicates must be
+re-established before the next consumption point.
+
+Data has no default *values* beyond zero-initialized storage. When the default
+domain excludes zero, the storage is gated: it cannot be observed as the type
+until construction or qualification establishes the domain. Gating propagates
+through containment and is absorbed by a zero-valid first sum case such as
+`case Empty;`. The full model is settled but not yet implemented.
 
 ```omega
 data Body {
@@ -199,20 +190,28 @@ The likely durable homes are:
 
 ## Type Properties
 
-Some facts are about the TYPE itself, not any particular value: "copies are
-sound", "the zero value is the canonical empty value", "values may cross a
-spawn boundary". These are PROPERTIES -- declared as a lowercase fact list in
-brackets on the data declaration, the same bracket syntax invariant parameters
-use in type positions (`&[u8, [non_empty]]`):
+Some static laws are about the TYPE itself, not any particular value: "copies
+are sound", "the zero value is the canonical empty value", "values may cross a
+spawn boundary", "established values must be consumed exactly once". These are
+PROPERTIES -- declared as a lowercase list in brackets on the data declaration,
+the same bracket syntax invariant parameters use in type positions
+(`&[u8, [non_empty]]`):
 
 ```omega
 data Point [copy, zero_init] {
     x: i32;
     y: i32;
 }
+
+data Join<T> [linear] {
+    // representation omitted
+}
 ```
 
-Properties are facts, not behavior: declaring one generates nothing callable.
+Properties are static checker laws, not behavior: declaring one generates
+nothing callable. Most contribute type facts; `[linear]` instead selects the
+linear permission algebra for established values. It must not be stored as a
+weakenable flow fact.
 They are acquired exactly three ways:
 
 - COMPUTED: the compiler always knows (`sized`); never written. The
@@ -221,7 +220,9 @@ They are acquired exactly three ways:
 - DECLARED + VERIFIED: the bracket list requests the property and the compiler
   checks its structural rule at the declaration (`copy`: every field copies;
   `zero_init`: the zero case is payload-free and no field invariant excludes
-  zero). Failure is a loud error at the declaration.
+  zero; `linear`: mutually exclusive with `copy`, and every contained linear
+  obligation is structurally preserved). Failure is a loud error at the
+  declaration.
 - BOUNDARY-ASSERTED: a boundary provider asserts a property for an opaque host
   type, audited like every other boundary guarantee.
 
@@ -251,7 +252,7 @@ The spelling leaves room for trait bounds without collision
 (`T [copy] satisfies Equatable`).[^property-open]
 
 [^property-open]: Open: the initial core property set beyond
-copy/zero_init/send; whether evolution-contract facts join the same surface
+copy/linear/zero_init/send; whether evolution-contract facts join the same surface
 (`[open]` was ruled OUT for sums -- unknown-case handling is a wire decode
 policy, frozen decision 10; `must_use` was ruled out by strict result use,
 frozen decision 9). A `[max_size = N]` property is a candidate for this

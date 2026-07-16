@@ -3,10 +3,9 @@
 Writes never fail an invariant check. Invariants are checked where a value
 can be observed.
 
-> **Settled 2026-07-17.** This model supersedes the explicit `relax` scope
-> this chapter previously specified (retired — see the note at the end).
-> Chapter 7 owns what the invariants are; this chapter owns when they are
-> checked.
+Chapter 7 owns what invariants mean; this chapter owns when they must be
+re-established. No explicit `relax` construct exists—the checker derives an
+invariant window from writes and closes it at the next consumption point.
 
 ```omega
 data Span {
@@ -117,20 +116,3 @@ machine Tree::rotate(&mut self) {
 
 Whether a whole-value mid-window helper signature is ever needed is an open
 question deferred until a real case demands it.
-
-## Retired: `relax`
-
-> **Retired 2026-07-17.** This chapter previously specified an explicit
-> `relax target { ... }` scope: a declared block that suspended the target's
-> invariant and re-proved it at exit, with an exclusivity pass to ensure
-> nothing observed the relaxed value. The construct is subsumed: ownership
-> already provides the exclusivity, the flow-fact catalog already tracks
-> what was written, and consumption points already mark where re-proof is
-> due — so the declared scope added a keyword, a parameter marker
-> (`&mut relaxed`), and an unbuilt enforcement pass to express windows the
-> checker infers. Its rules survive as theorems of this model: "no
-> transitions inside relax" is *transitions are consumption points*;
-> "restore before exit" is *return is a consumption point*; "calls must
-> accept the relaxed view" is *calls are consumption points, split helpers
-> over fields*. The design record and prior art live in
-> [dependent_types.md](../design_briefs/dependent_types.md).

@@ -22,7 +22,7 @@ Packages expose public data, machines, traits, domains, wire schemas, and
 boundary surfaces.
 
 A package's dependencies — the external packages it may reach — are declared in
-its **`build.omg`**, an effect-free machine that augments a `Build` (see
+its **`build.omg`**, a build-time-admissible machine that augments a `Build` (see
 [`../design_briefs/build_and_package_model.md`](../design_briefs/build_and_package_model.md)).
 Each dependency is a local alias bound to a pinned source (content hash), so
 code names a stable alias while the binding is what moves. There is no version

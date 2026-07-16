@@ -90,139 +90,97 @@ derive those facts automatically. They are covered in the next chapter.
 
 ## Termination Claims
 
-Termination should be a separate proof claim, not an effect.
-
-Working direction:
+Termination is a machine-level progress guarantee, not an effect and not a
+postcondition over a returned value. Omega uses one source family:
 
 ```omega
+boundary trait FiniteReader {
+    machine read_all(&mut self, out: &mut Vec<u8>) -> ReadResult
+        terminates;
+}
+
 machine walk(items: &[Item])
-terminates {
-    decreases items -> Slice::Length;
-}
+terminates by items -> Slice::Length;
 {
 }
 ```
 
-The intended meaning is:
+These spell two semantic fields:
 
-- `terminates` claims that the machine always completes.
-- That claim is transitive through the reachable call graph and internal state
-  graph.
-- A terminating root such as `Main::main` should force every reachable cycle to
-  justify progress, rather than requiring unrelated leaf machines to all carry
-  standalone termination annotations by default.
-- Progress clauses belong under `terminates` because they are consumed by the
-  termination checker, not by the ordinary pre/postcondition checker.
-- `decreases value -> OrderOrMeasure` means "prove recursive or cyclic
-  back-edges make `value` strictly smaller under this selected ranking view."
-- Plain `decreases value` should remain available when the ranking is builtin or
-  otherwise unambiguous.
-- `decreases value -> View in a..=b` additionally states the measure's range:
-  the floor is the well-foundedness bound (any start, not only zero). The
-  range is a termination fact only — nothing is sized from it. Runtime
-  recursion is tail-only (chapter 3).
+- bare `terminates;` authors the public guarantee that an invocation reaches a
+  terminal outcome, conditional on its explicit requirements and pinned
+  progress premises;
+- `terminates by subject -> View` supplies private ranking evidence for every
+  cycle in a checked implementation.
 
-The important semantic piece is a well-founded ordering. A decrease metric is
-accepted only when the compiler knows how to compare successive values in a
-well-founded way.
+Checked acyclic bodies derive the guarantee and write nothing. A cyclic body
+must author a ranking witness because the compiler never invents subjects or
+heuristically selects noncanonical ranking theories. A body satisfying a
+terminating requirement inherits the guarantee; its `terminates by` text only
+supplies the witness and does not redefine the interface.
 
-Built-in ranking shapes:
+Derived summaries remain local. An exported machine that omits bare
+`terminates;` publishes no termination guarantee, even if its current body is
+acyclic. Trait/import calls use the pinned authored or inherited guarantee;
+direct local calls may use the tighter checked summary.
 
-- natural numbers or bounded integers (the default descending-naturals order)
-- slice/view extents such as `items` under `Slice::Length`
-- named domain/type-specific ranking orders such as `Card::PowerOrder`
-- lexicographic tuples of decreasing metrics
+Every cyclic edge must make the selected well-founded rank strictly smaller.
+Useful views include:
 
-`Slice::Length` is a named ranking view, not a runtime field lookup and not a
-domain membership predicate by itself. It means "rank this slice by its current
-length using the well-founded natural-number order." The name should be visible
-through the core `Slice` surface so users can discover what the termination
-checker is using.
-
-A custom well-founded ordering is declared with a dedicated `measure` keyword as
-a standalone item. A measure is **not** an abused `operator` declaration: it is a
-function from the decreasing value into a well-founded domain such as `u64`.
-
-```omega
-measure Card::PowerOrder(card: Card) -> u64 { card.power }
-measure Quest::Difficulty lexicographic { tier, remaining_steps }
-```
-
-`lexicographic { a, b, ... }` declares an ordered tuple compared left-to-right.
-Multiple named measures per type are allowed, so the same type can be ranked
-different ways at different use sites.
-
-The use site is unchanged. `terminates { decreases card -> Card::PowerOrder; }`
-selects the named measure; plain `decreases value` still uses the default
-descending-naturals order; built-in views such as `Slice::Length` remain
-available without a `measure` declaration.
-
-Plain `decreases value` infers a ranking only when the value's type makes the
-builtin reading unambiguous: unsigned/natural integer kinds (and `slice.len`)
-count down via descending naturals, slice-typed values decrease under
-`Slice::Length`, and `upper - lower` is the named bounded distance
-`Nat::BoundedDistance`. A declared `measure` is never selected implicitly —
-even when it is the only measure declared for the value's type — because
-inferring it would make declaring a second measure a breaking change at a
-distance. Signed integers, floats, and structs therefore require the explicit
-`decreases value -> View` form; the diagnostic suggests any matching declared
-measures by name.
-
-The climbing-index loop is the canonical bounded-distance use. The checker
-ranks the pair by the named view `Nat::BoundedDistance` — "rank by the
-natural-number distance from the lower value up to the upper bound" — which is
-what diagnostics and the termination checker report, browsable like
-`Slice::Length`:
-
-```omega
-machine walk(limit: u64, index: u64)
-terminates {
-    decreases limit - index -> Nat::BoundedDistance;
-}
-{
-}
-```
-
-Plain `decreases limit - index` selects the same ranking implicitly. The
-inverted spelling `index - limit` is rejected with a diagnostic that names the
-right shape (the view ranks `upper - lower`, which descends as the lower value
-climbs) rather than a bare proof failure. An argumented view spelling that
-removes the subtraction from the use site entirely (for example
-`decreases index -> Distance::To(limit)`) is an open surface question: the
-ranking-view position currently accepts plain `Type::Name` paths only.
-
-For slices, `decreases items -> Slice::Length` naturally means each back-edge
-must operate on a strictly smaller remaining view, usually by carrying a
-narrower slice window such as `items[1..]`.
-
-`increases` and `decreases` are still useful as the user-facing proof words, but
-the working direction is to make `->` consistently select the ranking view
-rather than overloading it to mean "toward a bound."
+- `Nat::Descending` for a descending unsigned/natural value;
+- `Nat::IncreasingTo(limit)` for a value climbing toward a finite bound;
+- `Slice::Length` for a narrowing slice/view;
+- named structural views such as `Tree::ProperSubtree`; and
+- lexicographic rankings for multi-part progress.
 
 For example:
 
 ```omega
-machine weaken(card: Card)
-terminates {
-    decreases card -> Card::PowerOrder;
-}
+machine walk_up(limit: u64, index: u64)
+terminates by index -> Nat::IncreasingTo(limit) in 0..=limit;
 {
 }
 ```
 
-and:
+Authors do not manufacture `limit - index`: the view owns the deterministic
+rank normalization. The optional range constrains the rank produced by the
+view, establishes its well-founded floor, and allocates nothing.
 
-```omega
-machine walk(items: &[Item])
-terminates {
-    decreases items -> Slice::Length;
-}
-{
-}
-```
+The short form `terminates by n` is available only when the carrier declares a
+stable canonical default ranking. It normalizes immediately to the explicit
+view. A declared custom measure is never inferred merely because it is the
+only visible candidate; adding another measure must not reinterpret a checked
+program.
 
-The core obligation is still a ranking proof. The surface just names the value
-being tracked plus the ranking view being used.
+Custom ranking views remain declared through the dedicated `measure` surface,
+not as operators. Multiple named measures per carrier are legal. Mutual cycles
+share a joint ranking and every cyclic edge must decrease it; the exact source
+spelling for differently shaped participants remains deferred.
+
+Runtime recursive calls remain tail-only for constant-stack lowering;
+proof-time and compile-time machines use the same clause without the runtime
+tail restriction. Explicit state loops use the same ranking law when they
+promise termination. Productive loops may omit the promise and run forever.
+
+`ensures` remains partial correctness: it states what is true **if** a return
+edge is reached. Result domains therefore cannot replace termination.
+`effects` remains an event/service/operational ceiling and cannot replace
+termination either. The normalized artifact derives its terminal-outcome
+classification from the termination guarantee, reachable outcomes, and
+explicit premises without adding phantom `Completes<...>` surface syntax.
+
+Pinned operations and providers, not effect rows, identify positive progress
+premises. V1 boundary progress profiles are opaque, sealed commitments using
+the existing grant/receipt machinery; they participate in deterministic slot
+admission and appear through ordinary requirements such as
+`requires scheduler in WeakFair`, but do not entail proof facts. General trace
+logic and profile entailment remain deferred.
+
+The ranking witness is excluded from published contract identity. Swapping one
+valid view for another revalidates the implementation and proof cache only;
+callers and import slots continue to see the same guarantee. The complete
+ruling and acceptance register are frozen in
+[termination_ranking_and_progress.md](../design_briefs/termination_ranking_and_progress.md).
 
 ## Example
 

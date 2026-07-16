@@ -684,7 +684,7 @@ domain Slice<u8>::NoNul { no_interior_nul(self) }   // per-element predicate
 domain Slice<u8>::Utf8  { utf8_ok(self) }           // sequence recogniser (below)
 ```
 
-`utf8_ok` is an ordinary machine, not a builtin. Measured recursion is legal
+`utf8_ok` is an ordinary machine, not a builtin. Ranked recursion is legal
 (settled 2026-07-18; chapter 3) and a tail-recursive spelling lowers to the
 same loop — the idiomatic sequence walk remains a **state machine that narrows
 the slice** — slicing over indexing, no index variable:
@@ -910,3 +910,9 @@ Working interpretation:
   (representation-identity, free, explicit for meaning), conversion
   (denotation-preserving, may change representation, ordinary contracted
   call), validation (fact-establishing work, ordinary contracted call).
+
+> **Implementation gate:** the current Rust trees still store facts and
+> operators in one undifferentiated domain record. General domain work must
+> first preserve the two facets and normalized semantic qualification in the
+> IR; see
+> [semantic_taxonomy_representation.md](../architecture/semantic_taxonomy_representation.md).
