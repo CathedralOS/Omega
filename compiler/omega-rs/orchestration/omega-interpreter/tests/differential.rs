@@ -62,6 +62,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("arithmetic/runtime_shl_saturating_exit", 70),
     ("arithmetic/runtime_shl_saturating_value_overflow_exit", 70),
     ("arithmetic/runtime_shift_count_proven_range_exit", 70),
+    ("arithmetic/runtime_shift_subword_masked_count_exit", 70),
     ("proofs/runtime_decreases_u64_measure_exit", 70),
     ("arithmetic/runtime_wrapping_operand_truncation_exit", 70),
     ("text/case_literal_texteq_field_store_exit", 70),

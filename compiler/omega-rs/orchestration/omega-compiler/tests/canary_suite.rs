@@ -225,7 +225,12 @@ fn linux_x64_recent_encoder_canaries_compile() {
 /// behavior is pinned natively on aarch64 + the interpreter by the canary's
 /// own suite tests.)
 #[test]
-fn linux_x64_wrapping_shl_clamp_bytes_present() {
+fn linux_x64_wrapping_shift_masked_count_bytes() {
+    // F8b (ch5 shift-count ruling): a Wrapping shift MASKS its count to the
+    // operand width. On x86 the hardware `shl` masks mod 32/64 already, so
+    // the retired modular-value zero CLAMP must be GONE and the plain
+    // width-correct shl present; sub-word operands carry the explicit
+    // `and r11d, 7/15`.
     let canary = pass_canary("arithmetic/runtime_shift_count_domain_exit");
     let scratch =
         std::env::temp_dir().join(format!("omega-x64-shlclamp-{}", std::process::id()));
@@ -247,17 +252,24 @@ fn linux_x64_wrapping_shl_clamp_bytes_present() {
     .expect("at-width shift canary should cross-compile for linux_x64");
     let elf =
         fs::read(scratch.join("out").join("omega-program")).expect("linux_x64 ELF emitted");
+    // The plain width-correct shl (mov ecx, r11d + shl r10d, cl) runs the
+    // hardware mask; the retired zero clamp must not follow anywhere.
+    let shl32 = [0x44, 0x89, 0xd9, 0x41, 0xd3, 0xe2];
+    assert!(
+        elf.windows(shl32.len()).any(|window| window == shl32),
+        "the width-correct 32-bit shl must be emitted"
+    );
     for width_bits in [32u8, 64] {
         let clamp = [0x31, 0xc0, 0x49, 0x83, 0xfb, width_bits, 0x4c, 0x0f, 0x43, 0xd0];
         assert!(
-            elf.windows(clamp.len()).any(|window| window == clamp),
-            "the Wrapping shl count clamp at width {width_bits} must be emitted"
+            !elf.windows(clamp.len()).any(|window| window == clamp),
+            "the RETIRED Wrapping shl zero clamp at width {width_bits} must be gone (F8b)"
         );
     }
 
-    // The OPERAND-POSITION arm (the promoted at-width canary nests `b << c`
-    // under an add): clamp at the node width followed by the node-width
-    // extension (mov r10d, r10d for unsigned width 4).
+    // The OPERAND-POSITION arm (the at-width canary nests `b << c` under an
+    // add): the plain node-width shl followed DIRECTLY by the node-width
+    // extension (mov r10d, r10d for unsigned width 4) -- no clamp between.
     let atwidth = pass_canary("arithmetic/runtime_shift_atwidth_signed_modular_exit");
     fs::copy(atwidth.join("main.omg"), src_dir.join("main.omg")).expect("copy atwidth canary");
     let out2 = scratch.join("out2");
@@ -269,14 +281,33 @@ fn linux_x64_wrapping_shl_clamp_bytes_present() {
     })
     .expect("at-width modular canary should cross-compile for linux_x64");
     let elf2 = fs::read(out2.join("omega-program")).expect("linux_x64 ELF emitted");
-    let operand_clamp_then_extend = [
-        0x31, 0xc0, 0x49, 0x83, 0xfb, 32, 0x4c, 0x0f, 0x43, 0xd0, 0x45, 0x89, 0xd2,
-    ];
+    let operand_shl_then_extend = [0x44, 0x89, 0xd9, 0x41, 0xd3, 0xe2, 0x45, 0x89, 0xd2];
     assert!(
-        elf2.windows(operand_clamp_then_extend.len())
-            .any(|window| window == operand_clamp_then_extend),
-        "the operand-position clamp + node-width extension must be emitted"
+        elf2.windows(operand_shl_then_extend.len())
+            .any(|window| window == operand_shl_then_extend),
+        "the operand-position masked shl + node-width extension must be emitted"
     );
+
+    // SUB-WORD masked counts: the explicit AND (and r11d, 7 / 15) before the
+    // width-correct shift (the new subword canary exercises u8 + i16).
+    let subword = pass_canary("arithmetic/runtime_shift_subword_masked_count_exit");
+    fs::copy(subword.join("main.omg"), src_dir.join("main.omg")).expect("copy subword canary");
+    let out3 = scratch.join("out3");
+    compile(CompileOptions {
+        root_path: src_dir.join("main.omg"),
+        build_dir: Some(out3.clone()),
+        target_name: Some("linux_x64".to_owned()),
+        write_output: true,
+    })
+    .expect("sub-word masked-count canary should cross-compile for linux_x64");
+    let elf3 = fs::read(out3.join("omega-program")).expect("linux_x64 ELF emitted");
+    for mask in [7u8, 15] {
+        let and_mask = [0x41, 0x83, 0xe3, mask];
+        assert!(
+            elf3.windows(and_mask.len()).any(|window| window == and_mask),
+            "the sub-word count mask (and r11d, {mask}) must be emitted"
+        );
+    }
 
     // Saturating `<<` (the promoted slice-C canary): the count cap
     // (mov eax,#w + cmp r11,#w + cmovae r11,rax -- the COUNT register)
@@ -309,36 +340,48 @@ fn linux_x64_wrapping_shl_clamp_bytes_present() {
         "the saturating shl cap + shift + clamp sequence must be emitted"
     );
 
-    // Arithmetic `>>` (the shr at-width canary): the count SATURATION
-    // (mov eax,width-1 + cmp r11,#width + cmovae r11,rax -- the count
-    // register, not the value) followed by the plain mov-ecx + sar, at both
-    // widths.
+    // Arithmetic `>>` (the shr at-width canary, WRAPPING): F8b masks the
+    // count -- the plain mov-ecx + sar runs the hardware mask at both
+    // widths, and the RETIRED count SATURATION (mov eax,width-1 + cmp +
+    // cmovae into the count register) must be gone.
     let shr = pass_canary("arithmetic/runtime_shift_right_atwidth_exit");
     fs::copy(shr.join("main.omg"), src_dir.join("main.omg")).expect("copy shr canary");
-    let out3 = scratch.join("out3");
+    let out_shr = scratch.join("out-shr");
     compile(CompileOptions {
         root_path: src_dir.join("main.omg"),
-        build_dir: Some(out3.clone()),
+        build_dir: Some(out_shr.clone()),
         target_name: Some("linux_x64".to_owned()),
         write_output: true,
     })
     .expect("at-width shr canary should cross-compile for linux_x64");
-    let elf3 = fs::read(out3.join("omega-program")).expect("linux_x64 ELF emitted");
-    let saturate_sar_32 = [
-        0xb8, 31, 0, 0, 0, 0x49, 0x83, 0xfb, 32, 0x4c, 0x0f, 0x43, 0xd8, // saturate count
-        0x44, 0x89, 0xd9, 0x41, 0xd3, 0xfa, // mov ecx, r11d + sar r10d, cl
-    ];
-    let saturate_sar_64 = [
-        0xb8, 63, 0, 0, 0, 0x49, 0x83, 0xfb, 64, 0x4c, 0x0f, 0x43, 0xd8, // saturate count
-        0x4c, 0x89, 0xd9, 0x49, 0xd3, 0xfa, // mov rcx, r11 + sar r10, cl
-    ];
-    for (name, sequence) in [
-        ("32-bit", &saturate_sar_32[..]),
-        ("64-bit", &saturate_sar_64[..]),
-    ] {
+    let elf_shr = fs::read(out_shr.join("omega-program")).expect("linux_x64 ELF emitted");
+    let sar_32 = [0x44, 0x89, 0xd9, 0x41, 0xd3, 0xfa]; // mov ecx, r11d + sar r10d, cl
+    let sar_64 = [0x4c, 0x89, 0xd9, 0x49, 0xd3, 0xfa]; // mov rcx, r11 + sar r10, cl
+    for (name, sequence) in [("32-bit", &sar_32[..]), ("64-bit", &sar_64[..])] {
         assert!(
-            elf3.windows(sequence.len()).any(|window| window == sequence),
-            "the {name} arithmetic >> count-saturate + sar must be emitted"
+            elf_shr.windows(sequence.len()).any(|window| window == sequence),
+            "the {name} width-correct sar must be emitted"
+        );
+    }
+    for width_bits in [32u8, 64] {
+        let saturate = [
+            0xb8,
+            width_bits - 1,
+            0,
+            0,
+            0,
+            0x49,
+            0x83,
+            0xfb,
+            width_bits,
+            0x4c,
+            0x0f,
+            0x43,
+            0xd8,
+        ];
+        assert!(
+            !elf_shr.windows(saturate.len()).any(|window| window == saturate),
+            "the RETIRED Wrapping >> count saturation at width {width_bits} must be gone (F8b)"
         );
     }
 
@@ -17773,6 +17816,32 @@ fn runtime_shl_saturating_value_overflow_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_shift_subword_masked_count_exit_canary_runs() {
+    // F8b: sub-word Wrapping shifts mask the count at the OPERAND width via
+    // the explicit AND (counts chosen to uniquely witness mask 7/15).
+    let canary = pass_canary("arithmetic/runtime_shift_subword_masked_count_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-shsubw-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("sub-word masked-count canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("sub-word masked-count canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected sub-word masked-count shifts (exit 70), got {:?}",
+        output.status.code(),
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_shift_count_proven_range_exit_canary_runs() {
     // F8 proof side: a RANGED runtime count (u32 [0..=7]) proves count <
     // width, so the Exact shift carries no obligation and computes exactly.
@@ -30745,6 +30814,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "arithmetic/runtime_shl_saturating_exit",
     "arithmetic/runtime_shl_saturating_value_overflow_exit",
     "arithmetic/runtime_shift_count_proven_range_exit",
+    "arithmetic/runtime_shift_subword_masked_count_exit",
     "proofs/runtime_decreases_u64_measure_exit",
     "arithmetic/runtime_wrapping_operand_truncation_exit",
     "text/case_literal_texteq_field_store_exit",

@@ -5954,25 +5954,25 @@ pub fn runtime_storage_binary_write_width(
                 StateGuardOperator::ShiftRight | StateGuardOperator::ShiftRightLogical
             ))
     {
-        // Domain-governed shifts: the plain shift + the at-width count fix
-        // (`>>` under every non-Exact domain; `<<` under Wrapping -- its
-        // Saturating/Trapping clamp/trap sequences are not emitted yet).
-        // Same operand-derived byte size as the emission arm.
-        let fix = if operator == StateGuardOperator::ShiftRight {
+        // Domain-governed shifts: F8b WRAPPING masks the COUNT (sub-word AND
+        // only; the hardware mask IS the ruling at widths 4/8), while
+        // Saturating/Trapping `>>` keep the floor-semantics count fixes
+        // until F8c. Same operand-derived byte size as the emission arm.
+        let operation_byte_size = runtime_binary_operation_byte_size(
+            runtime_value_operands,
+            operator,
+            left,
+            right,
+            byte_size,
+        );
+        let fix = if domain == ArithmeticDomain::Wrapping {
+            wrapping_shift_count_mask_width(operation_byte_size)
+        } else if operator == StateGuardOperator::ShiftRight {
             WRAPPING_SHIFT_RIGHT_COUNT_SATURATE_WIDTH
         } else {
             WRAPPING_SHIFT_ZERO_CLAMP_WIDTH
         };
-        runtime_binary_operation_width(
-            operator,
-            runtime_binary_operation_byte_size(
-                runtime_value_operands,
-                operator,
-                left,
-                right,
-                byte_size,
-            ),
-        ) + fix
+        runtime_binary_operation_width(operator, operation_byte_size) + fix
     } else if is_float {
         runtime_float_binary_operation_width(operator)
     } else {
@@ -6064,7 +6064,10 @@ enum OperandDomainOperation {
     Multiply { domain: ArithmeticDomain, operands_signed: bool },
     SaturatingSignedDivMod { want_remainder: bool },
     WrappingSignedDivMod { want_remainder: bool },
-    WrappingShift { operands_signed: bool },
+    // Carries the domain: Wrapping masks the COUNT (F8b), while
+    // Saturating/Trapping `>>` keep the floor-semantics count fixes (F8c
+    // pending) -- one variant, domain-dispatched at emission.
+    DomainShift { domain: ArithmeticDomain, operands_signed: bool },
     SaturatingTrappingShiftLeft { domain: ArithmeticDomain, operands_signed: bool },
 }
 
@@ -6096,7 +6099,7 @@ fn operand_position_domain_operation(
             want_remainder: operator == StateGuardOperator::Modulo,
         }),
         (StateGuardOperator::ShiftLeft, ArithmeticDomain::Wrapping) => {
-            Some(OperandDomainOperation::WrappingShift { operands_signed })
+            Some(OperandDomainOperation::DomainShift { domain, operands_signed })
         }
         (
             StateGuardOperator::ShiftLeft,
@@ -6105,13 +6108,13 @@ fn operand_position_domain_operation(
             domain,
             operands_signed,
         }),
-        // `>>` cannot overflow: the floor-semantics count fix applies under
-        // every non-Exact domain. (Saturating/Trapping `<<` need clamp/trap
-        // sequences instead -- not emitted yet; parked shl_saturating canary.)
+        // `>>` cannot overflow: Wrapping masks the count (F8b); the
+        // floor-semantics count fix survives under Saturating/Trapping
+        // until F8c. Both dispatch on the carried domain at emission.
         (
             StateGuardOperator::ShiftRight | StateGuardOperator::ShiftRightLogical,
             ArithmeticDomain::Wrapping | ArithmeticDomain::Saturating | ArithmeticDomain::Trapping,
-        ) => Some(OperandDomainOperation::WrappingShift { operands_signed }),
+        ) => Some(OperandDomainOperation::DomainShift { domain, operands_signed }),
         _ => None,
     }
 }
@@ -6250,11 +6253,14 @@ pub fn encode_runtime_storage_binary_write(
                 StateGuardOperator::ShiftRight | StateGuardOperator::ShiftRightLogical
             ))
     {
-        // Domain-governed shifts (shift-domain ruling): the hardware masks the count
-        // to the op width, so fix at/above-TYPE-width counts -- << and logical
-        // >> clamp the result to 0, arithmetic >> saturates the count to
-        // width-1 (sign-fill) BEFORE the sar (matches interp + aarch64). The
-        // store's truncation remains the in-range wrap.
+        // Domain-governed shifts: F8b (ch5 shift-count ruling) WRAPPING masks
+        // the COUNT to the operand width -- the hardware `shl`/`shr`/`sar`
+        // mask mod 32/64 already (the ruling at widths 4/8), sub-word widths
+        // take the explicit AND. Saturating/Trapping `>>` keep the floor
+        // fixes (arithmetic >> saturates the count to width-1 BEFORE the
+        // sar; logical >> zero-clamps after) until F8c lands the count trap.
+        // Matches interp + aarch64. The store's truncation remains the
+        // in-range wrap.
         let operation_byte_size = runtime_binary_operation_byte_size(
             runtime_value_operands,
             operator,
@@ -6262,12 +6268,17 @@ pub fn encode_runtime_storage_binary_write(
             right,
             byte_size,
         );
-        if operator == StateGuardOperator::ShiftRight {
-            append_wrapping_shift_right_count_saturate(&mut bytes, operation_byte_size);
-        }
-        append_runtime_binary_operation(&mut bytes, operator, operation_byte_size)?;
-        if operator != StateGuardOperator::ShiftRight {
-            append_wrapping_shift_zero_clamp(&mut bytes, operation_byte_size);
+        if domain == ArithmeticDomain::Wrapping {
+            append_wrapping_shift_count_mask(&mut bytes, operation_byte_size);
+            append_runtime_binary_operation(&mut bytes, operator, operation_byte_size)?;
+        } else {
+            if operator == StateGuardOperator::ShiftRight {
+                append_wrapping_shift_right_count_saturate(&mut bytes, operation_byte_size);
+            }
+            append_runtime_binary_operation(&mut bytes, operator, operation_byte_size)?;
+            if operator != StateGuardOperator::ShiftRight {
+                append_wrapping_shift_zero_clamp(&mut bytes, operation_byte_size);
+            }
         }
     } else {
         append_runtime_binary_operation(
@@ -7739,8 +7750,10 @@ pub fn runtime_value_operand_width(
                 OperandDomainOperation::WrappingSignedDivMod { want_remainder } => {
                     wrapping_signed_divide_modulo_width(byte_width, want_remainder)
                 }
-                OperandDomainOperation::WrappingShift { .. } => {
-                    let fix = if operator == StateGuardOperator::ShiftRight {
+                OperandDomainOperation::DomainShift { domain, .. } => {
+                    let fix = if domain == ArithmeticDomain::Wrapping {
+                        wrapping_shift_count_mask_width(byte_width)
+                    } else if operator == StateGuardOperator::ShiftRight {
                         WRAPPING_SHIFT_RIGHT_COUNT_SATURATE_WIDTH
                     } else {
                         WRAPPING_SHIFT_ZERO_CLAMP_WIDTH
@@ -7987,17 +8000,23 @@ fn append_runtime_value_operand(
                 OperandDomainOperation::WrappingSignedDivMod { want_remainder } => {
                     append_wrapping_signed_divide_modulo(bytes, byte_width, want_remainder)?;
                 }
-                OperandDomainOperation::WrappingShift { operands_signed } => {
-                    // Width-correct shift (the hardware masks the count mod the
-                    // op width) + the at-width fix (arithmetic >> saturates the
-                    // count BEFORE the sar; << and logical >> zero-clamp after)
-                    // + the node-width extension the parent contract requires.
-                    if operator == StateGuardOperator::ShiftRight {
-                        append_wrapping_shift_right_count_saturate(bytes, byte_width);
-                    }
-                    append_runtime_binary_operation(bytes, operator, byte_width)?;
-                    if operator != StateGuardOperator::ShiftRight {
-                        append_wrapping_shift_zero_clamp(bytes, byte_width);
+                OperandDomainOperation::DomainShift { domain, operands_signed } => {
+                    // Width-correct shift + the domain count fix (F8b:
+                    // Wrapping masks the count -- sub-word AND only, the
+                    // hardware mask IS the ruling at widths 4/8; Sat/Trap
+                    // `>>` keep the floor fixes until F8c) + the node-width
+                    // extension the parent contract requires.
+                    if domain == ArithmeticDomain::Wrapping {
+                        append_wrapping_shift_count_mask(bytes, byte_width);
+                        append_runtime_binary_operation(bytes, operator, byte_width)?;
+                    } else {
+                        if operator == StateGuardOperator::ShiftRight {
+                            append_wrapping_shift_right_count_saturate(bytes, byte_width);
+                        }
+                        append_runtime_binary_operation(bytes, operator, byte_width)?;
+                        if operator != StateGuardOperator::ShiftRight {
+                            append_wrapping_shift_zero_clamp(bytes, byte_width);
+                        }
                     }
                     append_wrapping_node_width_extension(bytes, byte_width, operands_signed);
                 }
@@ -8698,15 +8717,14 @@ fn append_runtime_binary_operation(
     Ok(())
 }
 
-/// Wrapping `<<` / logical `>>` zero clamp (shift-domain ruling): both are
-/// value operations -- x * 2^n (mod 2^w) and floor(x / 2^n) -- so a count
-/// at/above the TYPE width yields 0, but the hardware `shl`/`shr` mask the
-/// count to the op width instead (40 & 31 = 8). The FULL count survives in
-/// r11 (the shift arm only copies it to cl), so compare it UNSIGNED against
-/// the bit width and cmov zero over the shifted result -- a negative signed
-/// count is huge unsigned and clamps, exactly like the interpreter's
-/// `count as u64 >= width`. rax is scratch mid-operation, as in the
-/// div/setcc arms.
+/// Saturating/Trapping logical `>>` zero clamp (floor semantics, until F8c):
+/// floor(x / 2^n) with a count at/above the TYPE width yields 0, but the
+/// hardware `shr` masks the count to the op width instead (40 & 31 = 8). The
+/// FULL count survives in r11 (the shift arm only copies it to cl), so
+/// compare it UNSIGNED against the bit width and cmov zero over the shifted
+/// result -- a negative signed count is huge unsigned and clamps. rax is
+/// scratch mid-operation, as in the div/setcc arms. WRAPPING shifts no
+/// longer take this fix: F8b masks their count instead (ch5 ruling).
 fn append_wrapping_shift_zero_clamp(bytes: &mut Vec<u8>, byte_size: usize) {
     bytes.extend([0x31, 0xc0]); // xor eax, eax
     bytes.extend([0x49, 0x83, 0xfb, (byte_size * 8) as u8]); // cmp r11, width_bits
@@ -8716,11 +8734,13 @@ fn append_wrapping_shift_zero_clamp(bytes: &mut Vec<u8>, byte_size: usize) {
 /// Bytes of [`append_wrapping_shift_zero_clamp`]: xor (2) + cmp (4) + cmov (4).
 const WRAPPING_SHIFT_ZERO_CLAMP_WIDTH: usize = 10;
 
-/// Arithmetic `>>` count saturation: floor(x / 2^n) SIGN-FILLS for an
-/// at/above-width count, and a post-fix cannot recover the sign once the
-/// hardware-masked `sar` has consumed the value -- so saturate the COUNT to
-/// width-1 first (`sar` by width-1 IS the sign-fill). Runs BEFORE the plain
-/// shift arm, which copies the (now saturated) r11 into cl. rax is scratch.
+/// Saturating/Trapping arithmetic `>>` count saturation (floor semantics,
+/// until F8c): floor(x / 2^n) SIGN-FILLS for an at/above-width count, and a
+/// post-fix cannot recover the sign once the hardware-masked `sar` has
+/// consumed the value -- so saturate the COUNT to width-1 first (`sar` by
+/// width-1 IS the sign-fill). Runs BEFORE the plain shift arm, which copies
+/// the (now saturated) r11 into cl. rax is scratch. WRAPPING `>>` no longer
+/// takes this fix: F8b masks its count instead (ch5 ruling).
 fn append_wrapping_shift_right_count_saturate(bytes: &mut Vec<u8>, byte_size: usize) {
     let width_bits = (byte_size * 8) as u8;
     bytes.push(0xb8); // mov eax, imm32
@@ -8732,6 +8752,27 @@ fn append_wrapping_shift_right_count_saturate(bytes: &mut Vec<u8>, byte_size: us
 /// Bytes of [`append_wrapping_shift_right_count_saturate`]: mov (5) + cmp (4)
 /// + cmov (4).
 const WRAPPING_SHIFT_RIGHT_COUNT_SATURATE_WIDTH: usize = 13;
+
+/// F8b (ch5 shift-count ruling): a WRAPPING shift masks the COUNT to the
+/// operand width (`k & (width - 1)`). The hardware `shl`/`shr`/`sar` already
+/// mask mod the OP width (32/64) -- exactly the ruling at widths 4/8 -- so
+/// only sub-word operands need the explicit mask. Runs BEFORE the plain
+/// shift arm (which copies r11 into cl); masks r11 in place.
+fn append_wrapping_shift_count_mask(bytes: &mut Vec<u8>, byte_size: usize) {
+    if matches!(byte_size, 1 | 2) {
+        let mask = (byte_size * 8 - 1) as u8;
+        bytes.extend([0x41, 0x83, 0xe3, mask]); // and r11d, mask
+    }
+}
+
+/// Bytes of [`append_wrapping_shift_count_mask`]: and r11d, imm8 (4) for
+/// sub-word operands; 0 at widths 4/8 (the hardware mask IS the ruling).
+const fn wrapping_shift_count_mask_width(byte_size: usize) -> usize {
+    match byte_size {
+        1 | 2 => 4,
+        _ => 0,
+    }
+}
 
 /// A nested WRAPPING binary hands its PARENT the width-wrapped VALUE in r10
 /// (the interpreter wraps AT THE NODE, decision 17; the store-truncation
@@ -10158,6 +10199,26 @@ mod wrapping_shift_clamp_tests {
             assert_eq!(&bytes[2..5], &[0x49, 0x83, 0xfb], "cmp r11, imm8");
             assert_eq!(bytes[5] as usize, byte_size * 8, "width_bits immediate");
             assert_eq!(&bytes[6..10], &[0x4c, 0x0f, 0x43, 0xd0], "cmovae r10, rax");
+        }
+    }
+
+    #[test]
+    fn wrapping_count_mask_masks_subword_only() {
+        // F8b: the Wrapping count mask is an explicit AND at sub-word widths
+        // (`and r11d, 7/15`) and ABSENT at 4/8 -- the hardware `shl`/`sar`
+        // mask mod 32/64 there, which IS the ch5 masked-count ruling.
+        for &(byte_size, expect) in &[(1usize, Some(7u8)), (2, Some(15)), (4, None), (8, None)] {
+            let mut bytes = Vec::new();
+            append_wrapping_shift_count_mask(&mut bytes, byte_size);
+            assert_eq!(
+                bytes.len(),
+                wrapping_shift_count_mask_width(byte_size),
+                "emission and width accounting must agree at {byte_size} bytes"
+            );
+            match expect {
+                Some(mask) => assert_eq!(bytes, vec![0x41, 0x83, 0xe3, mask], "and r11d, mask"),
+                None => assert!(bytes.is_empty(), "no mask at width {byte_size}"),
+            }
         }
     }
 

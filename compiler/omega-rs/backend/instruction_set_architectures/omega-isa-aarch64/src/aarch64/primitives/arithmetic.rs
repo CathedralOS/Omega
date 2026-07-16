@@ -374,6 +374,44 @@ pub(in crate::aarch64) fn encode_lslv_x_register(
     )
 }
 
+/// `LSLV Wd, Wn, Wm` — 32-bit logical shift left. The W form masks the count
+/// mod 32, which IS the F8 Wrapping masked-count semantics for 4-byte (and,
+/// with the explicit sub-word count mask, 1/2-byte) operands; the X form's
+/// mod-64 masking would let a count in [32, 63] compute wide and truncate to
+/// the RETIRED modular-value semantics instead.
+pub(in crate::aarch64) fn encode_lslv_w_register(
+    destination_register: u8,
+    left_register: u8,
+    right_register: u8,
+) -> [u8; 4] {
+    encode_instruction(
+        0x1AC02000
+            | (u32::from(right_register) << 16)
+            | (u32::from(left_register) << 5)
+            | u32::from(destination_register),
+    )
+}
+
+/// `AND Wd, Wn, #((1 << ones) - 1)` — 32-bit bitmask-immediate AND keeping the
+/// low `ones` bits (2..=31). Bitmask-immediate encoding for a 32-bit element:
+/// `N = 0`, `immr = 0` (no rotation), `imms = ones - 1` (a run of `ones` set
+/// bits from bit 0). The F8 Wrapping shift-count mask for sub-word operands
+/// (`count & 7` / `count & 15`); the 32/64-bit widths ride the register-form
+/// shifts' own masking instead.
+pub(in crate::aarch64) fn encode_and_w_low_ones(
+    destination_register: u8,
+    source_register: u8,
+    ones: u32,
+) -> [u8; 4] {
+    debug_assert!((2..=31).contains(&ones), "low-ones mask needs 2..=31 bits");
+    encode_instruction(
+        0x12000000
+            | ((ones - 1) << 10)
+            | (u32::from(source_register) << 5)
+            | u32::from(destination_register),
+    )
+}
+
 /// `LSRV Xd, Xn, Xm` — LOGICAL shift right (zero-fill), opcode `0b001001`. Used for
 /// an unsigned `>>` (`ShiftRightLogical`).
 pub(in crate::aarch64) fn encode_lsrv_x_register(
