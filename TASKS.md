@@ -460,8 +460,14 @@ and decision-23's ten acceptance tests. Until TPR5 lands, the checked-in
    ordinary -> Affine; [linear] unspelled yet) and COPIED — never
    re-derived — through resolved->typed (all four construction sites);
    the STR1 LOSS-3 pin re-pinned per its own protocol (`copy` = the
-   compatibility bool until STR7). Remaining STR3: the Machine record's
-   supply-mode/termination-plan/effect-row propagation + snapshots;
+   compatibility bool until STR7). SLICE 2 LANDED same day: both Machine
+   records carry `supply_mode: MachineSupplyMode` (populated ONCE at
+   syntax->resolved — Boundary | CheckedBody today, Requirement/
+   Accepted when their spellings reach the record — copied through
+   resolved->typed; `boundary` = the compatibility bool; LOSS-2 pin
+   re-pinned, noting the guarantee/witness conflation and flat effect
+   span REMAIN). Remaining STR3: the termination-plan + effect-row
+   propagation + snapshots;
    STR4 checked semantic
    qualification + permission + normalized-machine-contract plans; STR5
    validation/resolution; STR6 lower only from checked selections while

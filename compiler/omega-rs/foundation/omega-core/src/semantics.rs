@@ -29,9 +29,10 @@ pub enum Multiplicity {
 /// `boundary: bool` conflates all four; provider admission, proof
 /// artifacts, manifests, and lowering must consume THIS, not re-derive
 /// supply from syntax and lookup context.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum MachineSupplyMode {
-    /// An ordinary checked body compiled in this program.
+    /// An ordinary checked body compiled in this program (the ZII default).
+    #[default]
     CheckedBody,
     /// A requirement slot: the signature is the contract; a provider is
     /// admitted against it.
