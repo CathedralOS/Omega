@@ -1023,10 +1023,20 @@ bounded-escape store-containment keystone. Open rungs:
   reorder that strict store-time refused, RUNS exit 70); the
   write-violates and cross-state-unknown fail pins re-aimed at the
   window-closure message (their violations now surface at the call
-  consumption point). Remaining R2: runtime-valued construction via
-  the prover, richer hypothesis shapes (field-vs-field at read sites,
-  products), window transport across states (windows currently must
-  close within their state -- conservative). The rest of the big semantic build:** the
+  consumption point). RUNG 3 SLICE 9 LANDED same day --
+  PROVER-BACKED CONSTRUCTION: the literal check folds over INTERVALS
+  (integer literals as points; Name/Member values by their DECLARED
+  ranges via declared_place_type_RAW -- the unwrapping variant strips
+  the Constrained shell, the first-try bug; omitted fields read 0);
+  saturating interval +,-,* (4-product min/max); comparisons yield
+  tri-state truth composing through &&/||; definitely-false refuses
+  as violation, unknown refuses directed. Ch12's Player constructs
+  from a RUNTIME `strength: i32 [1..=100]` parameter with no spelled
+  requires (pinned: pass data_where_ranged_param_constructs RUNS exit
+  70; point pins unchanged). Remaining R2: richer hypothesis shapes
+  (field-vs-field at read sites, products), window transport across
+  states, cross-machine establishment (a callee's construction is
+  invisible to the caller's gate -- over-refusal). The rest of the big semantic build:** the
   big semantic build — where-clause parsing on data, the default-domain
   layer, gating (zero-excluding domains legal, construction mandatory
   fields), consumption-point windows (ADDITIVE relaxation of the landed
