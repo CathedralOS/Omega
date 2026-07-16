@@ -1437,7 +1437,11 @@ no `unbounded` property exists. Rungs:
   first two-citation proof in the zoo; snoc_append is one
   append_assoc citation at (s,t,[x]) (Lean concat_append mirrored).
   All three discharged FIRST TRY; negative probe run-verified (a
-  broken length_snoc claim rejects). Next zoo:
+  broken length_snoc claim rejects). mul_one_left + mul_one_right
+  LANDED same day (both first try): the semiring's multiplicative
+  IDENTITIES (Lean one_mul/mul_one) -- left is compute + one
+  add_zero_right citation, right is structural induction with the
+  head add computing through. Next zoo:
   map/filter once generics-over-machines land. REMAINING:
   more of the lemma zoo as the judge widens (commutativity needs
   double induction / rearrange-mode), extraction INTO consumer proofs
