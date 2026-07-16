@@ -72,11 +72,19 @@ fn lower_expression_node_into_table(
             {
                 expressions.push_name_path_member(&mut target_type, lower_name(member));
             }
+            let mut semantic_domain = HandleSpan::empty();
+            for member in syntax_trees
+                .expressions
+                .identifier_path_members(cast.semantic_domain)
+            {
+                expressions.push_name_path_member(&mut semantic_domain, lower_name(member));
+            }
             Ok(
                 expressions.insert(ExpressionNode::Cast(TableCastExpression {
                     value,
                     target_type,
                     domain: cast.domain,
+                    semantic_domain,
                     form: cast.form,
                 })),
             )

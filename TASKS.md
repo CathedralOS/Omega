@@ -669,9 +669,21 @@ sealed progress profiles + grants, TPR4's remaining big half).
    the published AUTHORITY half waits on the permission model).
    Pinned: qualification_facts_record_policy_commitments (a
    Saturating cast commits the fixed id; a cast-free machine is
-   absent). Remaining checked plans: general declared-domain
-   qualification when its cast spelling lowers; permission +
-   normalized-machine-contract plans; STR5
+   absent). SLICE 3 LANDED same day -- the qualification SPELLING
+   is recognized: the cast's `in` slot accepts any identifier (the
+   parser carries non-policy names as `semantic_domain`, a
+   HandleSpan through all three Cast representations + every
+   copier/rebuilder); validation judges it -- a DECLARED domain gets
+   the STAGED fence naming it and the missing mint rung
+   (introduction authority + predicate discharge), an unmatched name
+   gets the honest unknown error WITH the declaration check the
+   parser could not perform (the old "unknown arithmetic domain" at
+   parse time was misleading for declared domains). Pinned: fail
+   domains/semantic_cast_mint_staged +
+   domains/semantic_cast_unknown_domain. Remaining checked plans:
+   the MINT rung itself (authority + predicate discharge at
+   qualification casts, riding the staged fence's carried name);
+   permission + normalized-machine-contract plans; STR5
    validation/resolution; STR6 lower only from checked selections while
    preserving semantic contract IDs in artifacts; STR7 retire compatibility
    paths. Decision 22 now supplies the effect-row target: kinded

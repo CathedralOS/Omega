@@ -1,0 +1,15 @@
+// A cast domain matching NEITHER an arithmetic policy NOR any domain
+// declaration refuses with the honest unknown error (the declaration
+// check the parser could not perform).
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+
+domain i64::Km {
+    self >= 0;
+}
+
+machine Main::main(&mut self) {
+    let raw: i64 = 5;
+    let distance: i64 = raw as i64 in Miles;
+    self.console.exit_process(70);
+}
