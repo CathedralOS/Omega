@@ -1552,3 +1552,67 @@ fn machine_effect_rows_normalize_and_propagate() {
     assert_eq!(row_of("Main::plain"), EffectRowTable::EMPTY_ROW);
     assert_eq!(row_of("Main::main"), EffectRowTable::EMPTY_ROW);
 }
+
+/// STR4 slice 2 (decision 22): the checked facts split the PUBLISHED
+/// ceiling (the authored `effects` clause) from the checker-INFERRED
+/// direct/transitive summaries, all as normalized kinded row identities.
+/// A ceiling wider than the body's reality is visible as row inequality.
+#[test]
+fn effect_row_facts_split_ceiling_from_inferred_summaries() {
+    use omega_core::semantics::EffectRowTable;
+
+    let source = r#"
+    data Main {}
+
+    machine Main::quiet(&mut self) -> u64 effects filesystem_io { 1 }
+
+    machine Main::main(&mut self) -> u64 {
+        let a: u64 = self.quiet();
+        a
+    }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let symbol_of = |name: &str| {
+        typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == name)
+            .unwrap_or_else(|| panic!("machine {name}"))
+            .symbol
+    };
+    let quiet_symbol = symbol_of("Main::quiet");
+    let main_symbol = symbol_of("Main::main");
+    let checked = lower_typed_trees(typed).expect("checked lowering should succeed");
+
+    // quiet: the authored ceiling names filesystem_io; today's plan counts
+    // the DECLARATION into its direct set too, so ceiling == inferred here
+    // (splitting declaration out of inference is a later STR4 slice).
+    let quiet = checked
+        .facts
+        .effect_rows
+        .for_machine(quiet_symbol)
+        .expect("quiet's effect-row fact");
+    assert_ne!(quiet.published_ceiling, EffectRowTable::EMPTY_ROW);
+    assert_eq!(
+        checked.facts.effect_rows.rows.members(quiet.published_ceiling),
+        &[omega_core::semantics::effect_member_id("filesystem_io").expect("catalog")]
+    );
+
+    // main: NO authored clause (ceiling = the fixed EMPTY row) but the
+    // TRANSITIVE summary reaches quiet's filesystem_io -- the published
+    // ceiling and the inferred reality are visibly DIFFERENT rows.
+    let main = checked
+        .facts
+        .effect_rows
+        .for_machine(main_symbol)
+        .expect("main's effect-row fact");
+    assert_eq!(main.published_ceiling, EffectRowTable::EMPTY_ROW);
+    assert_eq!(main.inferred_transitive, quiet.published_ceiling);
+    assert_ne!(main.published_ceiling, main.inferred_transitive);
+}

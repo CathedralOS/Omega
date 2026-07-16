@@ -1,6 +1,6 @@
 use crate::{
     BorrowFacts, CheckedOperatorFacts, CheckedValueFacts, DomainFacts, FlowFacts, InvariantFacts,
-    ProofFacts, TerminationFacts,
+    EffectRowFacts, ProofFacts, TerminationFacts,
 };
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -18,6 +18,9 @@ pub struct CheckFacts {
     /// TPR3 slice 4 (decision 23): the checker-established termination
     /// summaries + completed witness elaborations.
     pub termination: TerminationFacts,
+    /// STR4 slice 2 (decision 22): kinded effect rows -- published ceiling
+    /// vs inferred direct/transitive summaries.
+    pub effect_rows: EffectRowFacts,
 }
 
 impl CheckFacts {
@@ -33,6 +36,7 @@ impl CheckFacts {
         capabilities: omega_effects::CapabilityFlowPlan,
         flow: FlowFacts,
         termination: TerminationFacts,
+        effect_rows: EffectRowFacts,
     ) -> Self {
         Self {
             semantic,
@@ -46,6 +50,7 @@ impl CheckFacts {
             capabilities,
             flow,
             termination,
+            effect_rows,
         }
     }
 }
