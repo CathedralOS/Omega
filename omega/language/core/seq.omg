@@ -203,3 +203,4 @@ ensures
         transition { _ -> Seq::Cons { head: head, tail: reverse_reverse(tail) } }
     }
 }
+
