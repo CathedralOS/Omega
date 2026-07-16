@@ -252,6 +252,48 @@ fn rank_range_violation(
     }
 }
 
+/// TPR3 slice 4: the RESOLVED view's explicit spelling for the checked
+/// termination facts -- the canonical builtin path, or the authored
+/// declared-measure path (the plan's recorded spelling). Empty when the
+/// machine carries no witness or nothing resolves.
+pub(in crate::checks::termination) fn machine_resolved_view_path(
+    program: &omega_typed_trees::TypedTrees,
+    machine: &omega_typed_trees::machine::Machine,
+) -> String {
+    let subjects = program
+        .expression_table
+        .expression_handles(machine.decreases);
+    if subjects.is_empty() {
+        return String::new();
+    }
+    let Some(root_state) = program.machine_states(machine).first() else {
+        return String::new();
+    };
+    let decrease_order = program.machine_decrease_order(machine.decrease_order);
+    let view_arguments = program
+        .expression_table
+        .expression_handles(machine.decrease_view_arguments);
+    match RankingOrder::resolve(
+        program,
+        root_state,
+        subjects,
+        decrease_order,
+        view_arguments,
+    ) {
+        OrderResolution::Resolved(order) => canonical_order_path(&order)
+            .map(str::to_string)
+            .unwrap_or_else(|| {
+                machine
+                    .termination_plan
+                    .implementation_witness
+                    .as_ref()
+                    .map(|witness| witness.view_path.clone())
+                    .unwrap_or_default()
+            }),
+        _ => String::new(),
+    }
+}
+
 /// The canonical spelling of a BUILTIN resolved order (`None` for declared
 /// measures, whose normalized identity lands with the rest of TPR3).
 fn canonical_order_path(order: &RankingOrder) -> Option<&'static str> {

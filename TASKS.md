@@ -108,9 +108,26 @@ pipeline tests, 4 rejection shapes). ACCEPTANCE TEST 4 verified
 ALREADY-PINNED: runtime non-tail measured recursion is rejected at
 lowering (fail/calls/nontail_value_self_call_rejected) while the same
 measured non-tail shape runs the proof stratum (the whole N4 Nat/Seq
-lemma zoo). Remaining TPR3: in-checker completion of pending
-elaborations + subject resolution FROM the witness (retiring the
-compat spans), joint SCC semantics across machines; then TPR4
+lemma zoo). TPR3 SLICE 4 LANDED 2026-07-16 -- the CHECKED TERMINATION FACTS:
+CheckFacts gains `termination: TerminationFacts` (one fact per
+CLAIMING machine: checked_summary + resolved explicit view path),
+built in build_check_facts from the SAME pure resolution/proof
+functions the termination check uses (facts and diagnostics cannot
+disagree; an unproven claimant records NoGuarantee AND fails
+compilation). checked_summary's PRODUCER at last: an acyclic claimant
+derives EventualTerminal without a witness (the brief's derivation
+rule); a proven witness establishes it WITH the resolved view --
+completing lowering-pending elaborations at the checked stage; a
+machine claiming nothing gets NO fact. JOINT-SCC-ACROSS-MACHINES
+verified SETTLED BY CONSTRUCTION: cross-machine call cycles are
+source-banned with a directed fold-into-one-machine diagnostic
+(run-probed: "machine call cycle ... banned (stack size must be
+predictable)"), and within-machine multi-state SCCs already use ONE
+joint witness (nonstrict-edge-acyclicity checker, pinned by the
+mutually-recursive-states tests) -- the brief's deferred item is only
+the cross-shape source SPELLING. Remaining TPR3: subject resolution
+FROM the witness (retiring the compat spans -- TPR6-adjacent); then
+TPR4
 requirement inheritance, published omission/default rules, sealed progress
 profiles, receipts, and pinned premises; TPR5 atomic corpus sweep across
 omega core/std, samples, all canary families, and compiler-lattice fixtures,

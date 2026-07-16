@@ -3,7 +3,7 @@ mod capabilities;
 mod contracts;
 mod operators;
 mod ranges;
-mod termination;
+pub(crate) mod termination;
 
 use omega_core::diagnostics::Diagnostic;
 
