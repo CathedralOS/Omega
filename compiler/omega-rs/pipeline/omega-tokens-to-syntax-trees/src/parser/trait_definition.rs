@@ -57,15 +57,21 @@ pub(super) fn parse_trait_definition<'tokens, 'source>(
             continue;
         }
 
-        let (is_default, after_default) = if input.at_contextual("default") {
-            (true, input.take_contextual("default")?)
-        } else {
-            (false, input)
-        };
-        input = after_default.take_keyword(KeywordKind::Machine, "machine")?;
+        // The `default` KEYWORD IS KILLED (owner, 2026-07-18): a trait
+        // machine WITH A BODY is the default -- body presence is the
+        // marker. The old spelling refuses with direction.
+        if input.at_contextual("default") {
+            return Err(input.error_here(
+                "the `default` keyword is retired: a trait machine with a body IS \
+                 the default -- drop the keyword and keep the body",
+            ));
+        }
+        input = input.take_keyword(KeywordKind::Machine, "machine")?;
         let (mut signature, rest) = parse_trait_machine_signature(syntax_trees, input)?;
         let ((effects, contracts, terminates_guarantee), rest) =
             parse_signature_clauses(syntax_trees, rest)?;
+        // Body presence = the default marker.
+        let is_default = rest.at_punctuation(PunctuationKind::LeftBrace);
         signature.is_default = is_default;
         signature.effects = effects;
         signature.contracts = contracts;

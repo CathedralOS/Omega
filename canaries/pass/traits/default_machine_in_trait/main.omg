@@ -1,7 +1,7 @@
 trait ResettableCounter {
     machine set(&mut self, value: i32);
 
-    default machine reset(&mut self) {
+    machine reset(&mut self) {
         self.set(0);
     }
 }

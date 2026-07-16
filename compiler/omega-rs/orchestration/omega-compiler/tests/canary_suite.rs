@@ -31892,6 +31892,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "capabilities/provides_value_wrong_target_rejected",
     "targets/target_machine_missing_rejected",
     "targets/target_machine_duplicate_rejected",
+    "traits/default_keyword_retired",
     "traits/ring_requirement_unknown_rejected",
     "traits/ring_requirement_signature_rejected",
     "traits/free_machine_bare_satisfies_rejected",

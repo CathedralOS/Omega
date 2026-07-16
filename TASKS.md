@@ -2902,9 +2902,13 @@ with a real app-window story.
   whitelisting, syscall/import lowering, boundary report pending.
 - **Trait defaults — `default` KEYWORD KILLED (owner, 2026-07-18):** a
   trait machine with a body IS the default (body presence = the marker;
-  record: build_time_evaluation brief). Engineering: drop the keyword
-  from the parser, sweep ch14's spellings; conformance/reuse/override
-  rules, dispatch pending as before.
+  record: build_time_evaluation brief). KEYWORD DROPPED 2026-07-16:
+  the parser marks defaults by BODY PRESENCE (a `{` after the
+  signature clauses); the retired spelling refuses with direction
+  (pinned fail traits/default_keyword_retired); the one corpus use
+  (pass/traits/default_machine_in_trait) dropped the keyword and
+  still runs; ch14 carries no stale spellings. Remaining:
+  conformance/reuse/override rules, dispatch pending as before.
 - **Dynamic traits (`dyn Trait`):** structural + fat descriptor; construction,
   vtable emission, dispatch lowering, object-safety validation pending.
   NOTE from the proofs arc: dyn descriptors must carry satisfier identity
