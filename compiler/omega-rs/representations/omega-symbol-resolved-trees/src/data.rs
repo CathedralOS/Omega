@@ -15,6 +15,13 @@ pub struct DataDefinition {
 pub struct DataDefinitionStorage {
     pub type_parameters: HandleSpan<TypeParameter>,
     pub properties: DataProperties,
+    /// R2 rung 2 slice 1 (ch12): the DEFAULT-DOMAIN facts. Admitted only
+    /// when every fact HOLDS AT ZERO (born established -- the
+    /// zero-constructible tier); gated types refuse at lowering until rung
+    /// 2b lands construction-mandatory fields. INERT until rung 3 wires
+    /// the entailment hypotheses and write obligations ATOMICALLY (a
+    /// standing invariant nobody enforces must not be consumable).
+    pub where_facts: HandleSpan<crate::domain::ProofFact>,
     pub members: HandleSpan<DataMember>,
 }
 

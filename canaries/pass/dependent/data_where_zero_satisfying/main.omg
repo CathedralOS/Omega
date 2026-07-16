@@ -1,0 +1,18 @@
+// R2 rung 2 slice 1 (ch12 gating): every default-domain fact HOLDS AT ZERO
+// (0 <= 0), so the type is zero-constructible -- born established, facts
+// standing. The facts store on the RESOLVED definition and stay INERT
+// until rung 3 wires entailment hypotheses + write obligations atomically.
+boundary trait Console { machine exit_process(return_code: i32); }
+data MemoryMap
+where
+    count <= len,
+{
+    len: u32;
+    count: u32;
+}
+data Main { console: Console; map: MemoryMap; }
+machine Main::main(&mut self) {
+    self.map.len = 8;
+    self.map.count = 3;
+    self.console.exit_process(70);
+}

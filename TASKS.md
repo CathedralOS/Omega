@@ -904,7 +904,19 @@ bounded-escape store-containment keystone. Open rungs:
   position generics will use) and the syntax->resolved lowering
   REFUSES it loudly until rung 2 consumes the default-domain model
   (pinned: fail/dependent/data_where_clause_unconsumed + a parser
-  unit). Remaining R2 = the big semantic build:** the
+  unit). RUNG 2 SLICE 1 LANDED same day -- ZERO-GATING
+  classification: the facts lower onto the RESOLVED
+  DataDefinitionStorage.where_facts and classify AT ZERO via a v1
+  constant folder (names read 0; literals; + - *; comparisons;
+  &&/||): zero-SATISFYING clauses are ADMITTED (born established;
+  facts stay INERT until rung 3 wires entailment hypotheses + write
+  obligations ATOMICALLY -- an unenforced standing invariant must not
+  be consumable); a GATED type (zero violates the domain) refuses
+  until rung 2b lands construction-mandatory fields; an unfoldable
+  fact refuses as outside the v1 fragment (pinned: pass
+  dependent/data_where_zero_satisfying RUNS exit 70; fail
+  data_where_gated_unsupported replaced the rung-1 unconsumed pin).
+  Remaining R2 = the big semantic build:** the
   big semantic build — where-clause parsing on data, the default-domain
   layer, gating (zero-excluding domains legal, construction mandatory
   fields), consumption-point windows (ADDITIVE relaxation of the landed
