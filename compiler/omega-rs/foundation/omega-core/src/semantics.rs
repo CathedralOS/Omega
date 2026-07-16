@@ -1,0 +1,203 @@
+//! STR2 — the core semantic vocabulary (semantic-taxonomy migration rung 2;
+//! record: wiki/architecture/semantic_taxonomy_representation.md).
+//!
+//! These are the settled distinctions the old shapes LOSE (the STR1 pins in
+//! omega-typed-trees witness the loss): first-class multiplicity, the
+//! machine supply mode, decision 23's termination guarantee/ranking-witness
+//! firewall, and decision 22's kinded effect members. Landed here, in the
+//! lowest dependency-safe crate, with NO consumer yet — rungs STR3+
+//! propagate them through the trees and plans. Nothing in this module may
+//! grow behavior: it is vocabulary, identity handles, and the invariants
+//! spelled next to them.
+
+/// First-class usage multiplicity (record §Multiplicity). Replaces `copy`
+/// as the whole usage model: `[copy]` maps to `Unrestricted`, ordinary data
+/// defaults to `Affine`, `[linear]` maps to `Linear`. `zero_init` and
+/// `send` remain orthogonal properties, never folded in.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Multiplicity {
+    /// Freely duplicable and discardable (`[copy]`).
+    Unrestricted,
+    /// Use at most once; silent discard is legal (ordinary data).
+    #[default]
+    Affine,
+    /// Use exactly once; discard is an error (`[linear]`).
+    Linear,
+}
+
+/// How a machine is supplied to its consumers (record §Machines). The old
+/// `boundary: bool` conflates all four; provider admission, proof
+/// artifacts, manifests, and lowering must consume THIS, not re-derive
+/// supply from syntax and lookup context.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MachineSupplyMode {
+    /// An ordinary checked body compiled in this program.
+    CheckedBody,
+    /// A requirement slot: the signature is the contract; a provider is
+    /// admitted against it.
+    Requirement,
+    /// A boundary declaration: supplied by the host/component seam, claims
+    /// gated by grants.
+    Boundary,
+    /// An accepted (axiom-tier) declaration: trusted without proof, shown
+    /// in the trust report.
+    Accepted,
+}
+
+/// Decision 23's PUBLIC half: the eventual-terminal guarantee that
+/// participates in published machine-contract and import-slot identity.
+/// The premises are explicit; an exported omission normalizes to
+/// `NoGuarantee` (never to an implied promise).
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub enum TerminationGuarantee {
+    #[default]
+    NoGuarantee,
+    EventualTerminal {
+        /// Progress-profile premises the guarantee is conditional on
+        /// (sealed semantic commitments with grant/receipt identity).
+        premises: Vec<ProgressProfileId>,
+    },
+}
+
+/// Decision 23's PRIVATE half: the ranking witness proving one body. It
+/// feeds checker legality, proof-cache identity, diagnostics, and
+/// provider-local revalidation — and NEVER enters published contract
+/// identity (the record's ordering constraint: swapping one valid witness
+/// for another revalidates only the provider/proof artifact).
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct RankingWitness {
+    /// The ranked subjects (parameter/field names, in rank order).
+    pub subjects: Vec<String>,
+    /// The canonical ranking view. Stable defaults elaborate IMMEDIATELY
+    /// to an explicit view — the checker never selects a noncanonical view
+    /// heuristically.
+    pub ranking_view: RankingViewId,
+}
+
+/// The interface/implementation split for one machine's termination story
+/// (record §Machines): the published guarantee is contract identity, the
+/// checked summary serves local consumers, the witness stays private.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct MachineTerminationPlan {
+    /// `None` = internal/derived (not serialized as an authored external
+    /// promise); `Some` = published, participating in contract identity.
+    pub published: Option<TerminationGuarantee>,
+    /// What the checker established for THIS body (local consumers only).
+    pub checked_summary: TerminationGuarantee,
+    /// The private proof material, if a ranked body carried one.
+    pub implementation_witness: Option<RankingWitness>,
+}
+
+/// Decision 22's member kinds: the qualitative effect row is KINDED, never
+/// one undifferentiated name list. A provider carrying an `OperationalMay`
+/// member (e.g. `Block`) cannot satisfy a slot pinned without it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EffectMemberKind {
+    /// Reach to a boundary service (minted by boundary-trait declarations).
+    ServiceReach,
+    /// An operational possibility the caller must tolerate (core-minted v1
+    /// set: `Suspend`, `Block`).
+    OperationalMay,
+}
+
+macro_rules! semantic_id {
+    ($(#[$doc:meta])* $name:ident) => {
+        $(#[$doc])*
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+        pub struct $name(pub u32);
+
+        impl $name {
+            /// The ZII-inert null identity (index 0 is reserved).
+            pub const NULL: Self = Self(0);
+
+            pub fn is_valid(self) -> bool {
+                self.0 != 0
+            }
+        }
+    };
+}
+
+semantic_id!(
+    /// Normalized semantic-domain identity (record §Domain theory): the
+    /// deterministic normalizer owns it; checked types/bindings carry it;
+    /// layout keeps using the carrier ABI (semantic interface identity and
+    /// physical ABI identity are DISTINCT and both queryable).
+    SemanticDomainId
+);
+semantic_id!(
+    /// Normalized declaration/core identity of one effect member.
+    EffectMemberId
+);
+semantic_id!(
+    /// Normalized effect-row identity (member set + parent closure). Must
+    /// never depend on prover strength, provider selection, or the legacy
+    /// numeric bit assigned to a name.
+    EffectRowId
+);
+semantic_id!(
+    /// A sealed boundary progress profile (grant/receipt identity);
+    /// participates in provider admission, outside the ordinary proof-fact
+    /// catalog in v1.
+    ProgressProfileId
+);
+semantic_id!(
+    /// A canonical ranking view (e.g. `Nat::Descending`); the witness names
+    /// it explicitly, defaults elaborate at once.
+    RankingViewId
+);
+
+/// The domain-theory facet PAIR (record §Domain theory): optional facets,
+/// NOT a mutually exclusive enum — hybrids are first-class. The facet
+/// bodies land with STR3+ (they need tree vocabulary); the skeleton lands
+/// now so no checked-stage query ever infers predicate-vs-semantic behavior
+/// by testing whether a domain happens to have facts or operators.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct DomainFacets {
+    pub predicate: bool,
+    pub semantic: Option<SemanticDomainId>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn multiplicity_default_is_affine() {
+        // Ordinary data defaults to Affine (the record's mapping); `[copy]`
+        // opts into Unrestricted, `[linear]` into Linear.
+        assert_eq!(Multiplicity::default(), Multiplicity::Affine);
+    }
+
+    #[test]
+    fn termination_guarantee_default_is_no_guarantee() {
+        // Exported omission normalizes to NoGuarantee — never an implied
+        // promise.
+        assert_eq!(
+            TerminationGuarantee::default(),
+            TerminationGuarantee::NoGuarantee
+        );
+    }
+
+    #[test]
+    fn witness_stays_out_of_the_published_half() {
+        // The plan SHAPE enforces the firewall: the witness lives beside
+        // the published guarantee, never inside it — equality of two plans'
+        // published halves is witness-blind by construction.
+        let with_witness = MachineTerminationPlan {
+            published: Some(TerminationGuarantee::NoGuarantee),
+            checked_summary: TerminationGuarantee::NoGuarantee,
+            implementation_witness: Some(RankingWitness::default()),
+        };
+        let without_witness = MachineTerminationPlan {
+            implementation_witness: None,
+            ..with_witness.clone()
+        };
+        assert_eq!(with_witness.published, without_witness.published);
+    }
+
+    #[test]
+    fn semantic_ids_are_zii_inert() {
+        assert!(!SemanticDomainId::default().is_valid());
+        assert!(EffectRowId(1).is_valid());
+    }
+}
