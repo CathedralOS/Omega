@@ -1,0 +1,42 @@
+// PARKED REPRO (2026-07-16, found growing the N4 Seq zoo): asking the
+// structural entailment judge to discharge `length(reverse(s)) == length(s)`
+// over the GENERIC core Seq<u64> OVERFLOWS THE COMPILE-THREAD STACK
+// (fatal runtime error: stack overflow) instead of judging or rejecting.
+// The suspect: normalizing the ensures' `length(reverse(s))` unfolds
+// `reverse`, whose Cons arm terminal is `append(reverse(tail), ...)` --
+// the unfolder chases the nested self-application without a depth bound
+// or unfold-cycle detection. A NON-generic inline copy of the same shape
+// is instead REJECTED cleanly ("no entailment tier judges yet"), so the
+// generic-instantiation path is implicated; the crash needs the FULL
+// compile (with an entry point -- the check-only path bails earlier).
+// The reverse machine alone (no lemma) compiles fine. FIX SHAPE: the judge/normalizer needs a fuel
+// bound or seen-set that turns divergence into a loud rejection -- a
+// compiler must never crash on any input. The lemma itself is true
+// (Lean: List.length_reverse); its intended proof cites length_append +
+// add_succ_law + add_zero_right in the step sub-state.
+use omega::language::core::nat;
+use omega::language::core::seq;
+
+machine length_reverse(s: Seq<u64>) -> Nat
+terminates {
+    decreases s;
+}
+ensures
+    (length(reverse(s))) == (length(s))
+{
+    transition s {
+        Seq::Empty -> Nat::Zero
+        Seq::Cons { head, tail } -> lr_step(head, tail)
+    }
+
+    state lr_step(head: u64, tail: Seq<u64>) -> Nat {
+        length_append(reverse(tail), Seq::Cons { head: head, tail: Seq::Empty });
+        add_succ_law(length(tail), Nat::Zero);
+        add_zero_right(length(tail));
+        transition { _ -> Nat::Succ { prev: length_reverse(tail) } }
+    }
+}
+
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine Main::run(&mut self) { self.console.exit_process(70); }
