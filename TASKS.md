@@ -731,9 +731,16 @@ sealed progress profiles + grants, TPR4's remaining big half).
    declared material enters. Pinned:
    contract_plans_fingerprint_published_halves (same declared
    surface -> same fingerprint across different bodies; a changed
-   effects clause -> different). Follow-up: requires/ensures fact
-   canonicalization into the fingerprint; the boundary-facing
-   calling plan. PERMISSION PLANS PARKED (OWNER_QUESTIONS.md 2026-07-16):
+   effects clause -> different). FACT CANONICALIZATION
+   LANDED same day (slice 2): the declared requires/ensures facts
+   enter the fingerprint in a stable prefix-walk byte encoding
+   (operator tags, name paths as text, exact literals; Membership
+   folds the domain path), the fact SET sorted before folding so
+   clause order never enters the identity. Pin extended: reordered
+   requires -> same fingerprint; a changed bound -> different.
+   Parameter RENAMES change the identity in v1 -- positional
+   normalization is the recorded follow-up, with the
+   boundary-facing calling plan. PERMISSION PLANS PARKED (OWNER_QUESTIONS.md 2026-07-16):
    introduction authority bites only at package boundaries -- the
    same grant-carrier gap as #81; design once for both consumers.
    Remaining: STR5
