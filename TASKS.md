@@ -1209,13 +1209,17 @@ no `unbounded` property exists. Rungs:
   declines the fold (never unsound, merely unfolded). The pending
   overflow repro RETIRED (the landed lemma is the living regression
   witness — every seq.omg import re-verifies it). reverse_append
-  PROBED and reverted — two loud frontier edges: (a) the judge refuses
-  an ensures whose step RESULT wraps the self-application inside
-  another CALL (`append(reverse_append(..), singleton)` — the IH is
-  only taken from a constructor spine today); (b) the value-call
-  lowering refuses a machine call nested as a call ARGUMENT ("bind
-  the inner call to a local first"). Both named by their diagnostics;
-  next zoo growth rides those two rungs. REMAINING:
+  PROBED TWICE and reverted — the ONE remaining blocker is the
+  judge's IH-THROUGH-CALL rung: an ensures whose step RESULT wraps
+  the self-application inside another CALL (`append(ih, singleton)`)
+  is not judged (the structural tier only takes the IH from a
+  CONSTRUCTOR result spine; append_assoc's `Cons { .., append_assoc }`
+  shape is why IT lands). The nested value-call fence is NOT a
+  blocker: binding the inner call to a local (`let ih =
+  reverse_append(tail, t);`) passes it cleanly, per its own hint.
+  Next zoo growth = the judge rung (contract_entailment.rs, step-case
+  goal rewriting via the IH as an equation, not just result-spine
+  correspondence). REMAINING:
   more of the lemma zoo as the judge widens (commutativity needs
   double induction / rearrange-mode), extraction INTO consumer proofs
   (a caller citing a lemma's ensures — the fact-consumption face), the
