@@ -71,3 +71,45 @@ ensures
     let negated: IntPair = neg_int(a);
     transition { _ -> (add_int(a, negated)) }
 }
+
+// Multiplication: (p1 - n1)(p2 - n2) = (p1 p2 + n1 n2) - (p1 n2 + n1 p2).
+machine mul_int(a: IntPair, b: IntPair) -> IntPair {
+    transition { _ -> (IntPair {
+        neg: add(mul(a.pos, b.neg), mul(a.neg, b.pos)),
+        pos: add(mul(a.pos, b.pos), mul(a.neg, b.neg)),
+    }) }
+}
+
+// Commutativity: mul_comm rewrites each product; the pos field then matches
+// outright, and the neg field's swapped ADDEND order settles under Nat's
+// earned add ring license (multiset flattening).
+machine mul_int_comm(a: IntPair, b: IntPair) -> IntPair
+ensures
+    (mul_int(a, b)) == (mul_int(b, a))
+{
+    mul_comm(a.pos, b.neg);
+    mul_comm(a.neg, b.pos);
+    mul_comm(a.pos, b.pos);
+    mul_comm(a.neg, b.neg);
+    transition { _ -> (mul_int(a, b)) }
+}
+
+// Associativity: both sides unfold to two-level products of the six Nat
+// components; each field equation is a polynomial identity the SEMIRING
+// license (Nat's conformed add+mul with distributivity) normalizes
+// citation-free -- the tier-2 monomial multiset settles it.
+machine mul_int_assoc(a: IntPair, b: IntPair, c: IntPair) -> IntPair
+ensures
+    (mul_int(mul_int(a, b), c)) == (mul_int(a, mul_int(b, c)))
+{
+    transition { _ -> (mul_int(a, b)) }
+}
+
+// Distributivity over add_int: componentwise polynomial identity, same
+// citation-free tier-2 discharge.
+machine mul_int_distributes(a: IntPair, b: IntPair, c: IntPair) -> IntPair
+ensures
+    (mul_int(a, add_int(b, c))) == (add_int(mul_int(a, b), mul_int(a, c)))
+{
+    transition { _ -> (mul_int(a, b)) }
+}

@@ -15,3 +15,12 @@ ensures
     _ = add_int_comm(a, b);
     transition { _ -> (add_int(a, b)) }
 }
+
+// The mul surface: cites the module's mul_int_comm; the goal restates it.
+machine int_mul_consumer(a: IntPair, b: IntPair) -> IntPair
+ensures
+    (mul_int(a, b)) == (mul_int(b, a))
+{
+    _ = mul_int_comm(a, b);
+    transition { _ -> (mul_int(a, b)) }
+}
