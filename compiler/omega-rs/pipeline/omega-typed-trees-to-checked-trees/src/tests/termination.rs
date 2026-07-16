@@ -1727,6 +1727,11 @@ fn contract_plans_fingerprint_published_halves() {
         x >= 1;
         y >= 3
     { x }
+    machine bounded_renamed(alpha: u64, beta: u64) -> u64
+    requires
+        alpha >= 1;
+        beta >= 2
+    { alpha }
     machine Main::main(&mut self) -> u64 { 7 }
     "#;
 
@@ -1767,6 +1772,9 @@ fn contract_plans_fingerprint_published_halves() {
     assert_eq!(plan(ab).fingerprint, plan(ba).fingerprint);
     // ...but a changed BOUND does.
     assert_ne!(plan(ab).fingerprint, plan(wider).fingerprint);
+    // Parameter RENAMES normalize positionally -- identical contracts.
+    let renamed = symbol_of_checked(&checked, "bounded_renamed");
+    assert_eq!(plan(ab).fingerprint, plan(renamed).fingerprint);
 }
 
 fn symbol_of_checked(

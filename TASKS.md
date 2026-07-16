@@ -738,9 +738,11 @@ sealed progress profiles + grants, TPR4's remaining big half).
    folds the domain path), the fact SET sorted before folding so
    clause order never enters the identity. Pin extended: reordered
    requires -> same fingerprint; a changed bound -> different.
-   Parameter RENAMES change the identity in v1 -- positional
-   normalization is the recorded follow-up, with the
-   boundary-facing calling plan. PERMISSION PLANS PARKED (OWNER_QUESTIONS.md 2026-07-16):
+   POSITIONAL NORMALIZATION LANDED
+   same day (slice 3): a contract fact naming the machine's Nth
+   parameter encodes as P<N>, so renames never change the identity
+   (pin: bounded_renamed with alpha/beta matches bounded_ab's x/y
+   fingerprint). Remaining: the boundary-facing calling plan. PERMISSION PLANS PARKED (OWNER_QUESTIONS.md 2026-07-16):
    introduction authority bites only at package boundaries -- the
    same grant-carrier gap as #81; design once for both consumers.
    Remaining: STR5

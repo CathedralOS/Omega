@@ -85,6 +85,20 @@ fn build_contract_plans(
         // RENAMES change the identity in v1 -- positional normalization is
         // the recorded follow-up.
         let mut canonical_facts: Vec<Vec<u8>> = Vec::new();
+        // Positional parameter normalization: a contract fact naming the
+        // machine's Nth parameter encodes as P<N>, so RENAMES never change
+        // the identity (the substitutable contract is positional).
+        let parameter_names: Vec<String> = program
+            .machine_states(machine)
+            .first()
+            .map(|entry| {
+                program
+                    .state_parameters(entry)
+                    .iter()
+                    .map(|parameter| parameter.name.as_str().to_owned())
+                    .collect()
+            })
+            .unwrap_or_default();
         for contract in program.machine_contracts(machine) {
             let kind_tag: u8 = match contract.kind {
                 omega_typed_trees::signature::SignatureContractKind::Requires => 1,
@@ -96,7 +110,12 @@ fn build_contract_plans(
                 match fact {
                     omega_typed_trees::domain::ProofFact::Expression(expression) => {
                         encoded.push(1);
-                        encode_expression_canonical(program, *expression, &mut encoded);
+                        encode_expression_canonical(
+                            program,
+                            *expression,
+                            &parameter_names,
+                            &mut encoded,
+                        );
                     }
                     omega_typed_trees::domain::ProofFact::Membership(membership) => {
                         encoded.push(2);
@@ -347,6 +366,7 @@ fn build_effect_row_facts(
 fn encode_expression_canonical(
     program: &TypedTrees,
     expression: omega_typed_trees::expression::ExpressionHandle,
+    parameter_names: &[String],
     out: &mut Vec<u8>,
 ) {
     use omega_typed_trees::expression::ExpressionNode;
@@ -358,13 +378,13 @@ fn encode_expression_canonical(
         ExpressionNode::Binary(binary) => {
             out.push(1);
             out.push(binary.operator as u8);
-            encode_expression_canonical(program, binary.left, out);
-            encode_expression_canonical(program, binary.right, out);
+            encode_expression_canonical(program, binary.left, parameter_names, out);
+            encode_expression_canonical(program, binary.right, parameter_names, out);
         }
         ExpressionNode::Unary(unary) => {
             out.push(2);
             out.push(unary.operator as u8);
-            encode_expression_canonical(program, unary.operand, out);
+            encode_expression_canonical(program, unary.operand, parameter_names, out);
         }
         ExpressionNode::Integer(value) => {
             out.push(3);
@@ -376,8 +396,24 @@ fn encode_expression_canonical(
             out.push(u8::from(*value));
         }
         ExpressionNode::Name(path) => {
+            let members = program.expression_table.name_path_members(path.members);
+            // A bare parameter name normalizes to its POSITION -- renames
+            // never change the contract identity.
+            if let [single] = members
+                && let Some(index) = parameter_names
+                    .iter()
+                    .position(|name| name == single.as_str())
+            {
+                out.push(9);
+                out.extend(
+                    u32::try_from(index)
+                        .expect("parameter index fits u32")
+                        .to_le_bytes(),
+                );
+                return;
+            }
             out.push(5);
-            for member in program.expression_table.name_path_members(path.members) {
+            for member in members {
                 out.extend(member.as_str().as_bytes());
                 out.push(b'.');
             }
@@ -385,7 +421,7 @@ fn encode_expression_canonical(
         }
         ExpressionNode::Member(member) => {
             out.push(6);
-            encode_expression_canonical(program, member.receiver, out);
+            encode_expression_canonical(program, member.receiver, parameter_names, out);
             out.extend(member.member.as_str().as_bytes());
             out.push(0);
         }
@@ -393,9 +429,9 @@ fn encode_expression_canonical(
             out.push(7);
             out.extend(call.target.as_str().as_bytes());
             out.push(0);
-            encode_expression_canonical(program, call.receiver, out);
+            encode_expression_canonical(program, call.receiver, parameter_names, out);
             for argument in program.expression_table.expression_handles(call.arguments) {
-                encode_expression_canonical(program, *argument, out);
+                encode_expression_canonical(program, *argument, parameter_names, out);
             }
             out.push(0xfe);
         }
