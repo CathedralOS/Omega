@@ -29,7 +29,8 @@ use super::primitives::{
     encode_conditional_branch_higher_or_same, encode_conditional_branch_lower,
     encode_conditional_branch_lower_or_same, encode_conditional_branch_not_equal,
     encode_conditional_branch_plus,
-    encode_load_w_from_x, encode_load_x_from_x, encode_and_w_low_ones, encode_asrv_w_register,
+    encode_load_w_from_x, encode_load_x_from_x, encode_and_w_low_ones, encode_and_w_top_bit,
+    encode_and_x_low_ones, encode_and_x_top_bit, encode_asrv_w_register,
     encode_asrv_x_register, encode_lslv_w_register, encode_lslv_x_register, encode_lsrv_w_register,
     encode_lsrv_x_register, encode_move_w_register,
     encode_move_x_register, encode_movz,
@@ -733,6 +734,10 @@ pub fn encode_runtime_storage_binary_write(
             17,
             operator,
             26,
+            domain,
+            // x15/x14 are free on the write path (the float arm uses only
+            // x17/x26 + v0/v1); the F5 guard clobbers them.
+            [15, 14],
         )?;
     } else if saturating_or_trapping
         && matches!(
@@ -3607,6 +3612,13 @@ fn append_runtime_value_operand(
                 destination_register,
                 operator,
                 rhs_register,
+                runtime_value_operands
+                    .binary_arithmetic_domain(operand)
+                    .map(|(domain, _)| domain)
+                    .unwrap_or(omega_core::arithmetic::ArithmeticDomain::Exact),
+                // x15/x14 are outside the operand register set on this path;
+                // the F5 guard clobbers them.
+                [15, 14],
             )?;
         } else if let Some((domain, operands_signed)) = runtime_value_operands
             .binary_arithmetic_domain(operand)
@@ -4170,6 +4182,198 @@ fn append_runtime_binary_operation_with_domain(
     Ok(())
 }
 
+/// Width of [`float_policy_guard_bytes`]: the emitter run with fixed
+/// registers -- register numbers never change instruction lengths on
+/// aarch64, so the length IS the width (one source of truth).
+pub(in crate::aarch64) fn float_policy_guard_width(
+    operator: StateGuardOperator,
+    byte_size: usize,
+    domain: omega_core::arithmetic::ArithmeticDomain,
+) -> usize {
+    float_policy_guard_bytes(domain, operator, byte_size, 17, 26, 15, 14)
+        .map(|bytes| bytes.len())
+        .unwrap_or(0)
+}
+
+/// F5 float ARITHMETIC policy guard, emitted right after the FP op leaves
+/// its result in v0 (the raw OPERAND bits stay live in `left`/`right` -- the
+/// FMOVs copied them). ALL-INTEGER: sign-clearing a float's bit pattern and
+/// comparing against the format's Inf pattern classifies it in ONE integer
+/// compare -- LO = finite, EQ = infinite, HI = NaN.
+///
+/// - `Saturating` (overflow only, per the float brief): an INFINITE landed
+///   result from FINITE operands clamps to +-MAX_FINITE carrying the
+///   result's sign; a divide whose divisor is +-0.0 keeps its non-finite
+///   (division by zero does not clamp), and NaN results pass through
+///   (invalid ops stay `Finite` obligations).
+/// - `Trapping`: NaN-from-non-NaN operands (invalid) and Inf-from-finite
+///   operands (overflow AND division by zero) both `brk`.
+///
+/// Every other operator/domain returns no bytes. Clobbers `left`, `right`
+/// (dead: the result rides v0), and both scratches. The WIDTH twin calls
+/// this with fixed registers and takes `.len()` -- one source of truth (the
+/// place-copy rung-2a discipline), no hand-counted lockstep constant.
+fn float_policy_guard_bytes(
+    domain: omega_core::arithmetic::ArithmeticDomain,
+    operator: StateGuardOperator,
+    byte_size: usize,
+    left: u8,
+    right: u8,
+    s0: u8,
+    s1: u8,
+) -> Result<Vec<u8>, Diagnostic> {
+    use omega_core::arithmetic::ArithmeticDomain;
+    if !matches!(
+        domain,
+        ArithmeticDomain::Saturating | ArithmeticDomain::Trapping
+    ) || !matches!(
+        operator,
+        StateGuardOperator::Add
+            | StateGuardOperator::Subtract
+            | StateGuardOperator::Multiply
+            | StateGuardOperator::Divide
+    ) {
+        return Ok(Vec::new());
+    }
+    let (inf_bits, max_bits): (u64, u64) = if byte_size <= 4 {
+        (0x7F80_0000, 0x7F7F_FFFF)
+    } else {
+        (0x7FF0_0000_0000_0000, 0x7FEF_FFFF_FFFF_FFFF)
+    };
+    let abs = |register: u8| -> [u8; 4] {
+        if byte_size <= 4 {
+            encode_and_w_low_ones(register, register, 31)
+        } else {
+            encode_and_x_low_ones(register, register, 63)
+        }
+    };
+    let sign = |register: u8| -> [u8; 4] {
+        if byte_size <= 4 {
+            encode_and_w_top_bit(register, register)
+        } else {
+            encode_and_x_top_bit(register, register)
+        }
+    };
+    let mut bytes = Vec::new();
+    // Classify the result: s0 = |result bits|, s1 = Inf pattern.
+    bytes.extend(encode_float_move_to_gpr(byte_size, s0, 0)?);
+    bytes.extend(abs(s0));
+    append_unsigned_immediate_padded(&mut bytes, s1, inf_bits);
+    bytes.extend(encode_compare_x_register(s0, s1));
+    match domain {
+        ArithmeticDomain::Saturating => {
+            // The CLAMP tail (fixed content, assembled first so every skip
+            // branch knows its distance): MAX_FINITE | sign(result) -> v0.
+            let mut clamp = Vec::new();
+            clamp.extend(encode_float_move_to_gpr(byte_size, s0, 0)?);
+            clamp.extend(sign(s0));
+            append_unsigned_immediate_padded(&mut clamp, s1, max_bits);
+            clamp.extend(encode_orr_x_register(s1, s1, s0));
+            clamp.extend(encode_float_move_from_gpr(byte_size, 0, s1)?);
+            // The CHECK chain between the result classify and the clamp;
+            // every branch skips to the end (past the clamp).
+            let mut checks: Vec<(fn(isize) -> Result<[u8; 4], Diagnostic>, Vec<[u8; 4]>)> =
+                Vec::new();
+            // result not infinite -> keep (NaN passes through under
+            // Saturating: invalid ops stay Finite obligations).
+            checks.push((encode_conditional_branch_not_equal, Vec::new()));
+            if operator == StateGuardOperator::Divide {
+                // divisor +-0.0 -> keep the IEEE non-finite (no clamp).
+                checks.push((encode_conditional_branch_equal, vec![abs(right)]));
+            } else {
+                checks.push((encode_conditional_branch_higher_or_same, vec![abs(right)]));
+            }
+            if operator == StateGuardOperator::Divide {
+                // After the zero check the divisor's |bits| are already in
+                // `right`: compare against Inf for the finiteness face.
+                checks.push((
+                    encode_conditional_branch_higher_or_same,
+                    vec![encode_compare_x_register(right, s1)],
+                ));
+            }
+            checks.push((encode_conditional_branch_higher_or_same, vec![abs(left)]));
+            // Assemble: compute each branch's distance to the end.
+            let mut segments: Vec<Vec<u8>> = Vec::new();
+            for (index, (branch, setup)) in checks.iter().enumerate() {
+                let mut segment = Vec::new();
+                for instruction in setup {
+                    segment.extend(instruction);
+                }
+                // The compare feeding this branch: the FIRST check reuses the
+                // result classify above; the divisor-zero check compares
+                // against zero; the finiteness checks compare against s1.
+                match (operator == StateGuardOperator::Divide, index) {
+                    (_, 0) => {}
+                    (true, 1) => segment.extend(encode_compare_x_immediate(right, 0)?),
+                    (true, 2) => {} // compare emitted via setup above
+                    (true, 3) => segment.extend(encode_compare_x_register(left, s1)),
+                    (false, 1) => segment.extend(encode_compare_x_register(right, s1)),
+                    (false, 2) => segment.extend(encode_compare_x_register(left, s1)),
+                    _ => unreachable!("check chain shape"),
+                }
+                segment.extend([0, 0, 0, 0]); // branch placeholder
+                segments.push(segment);
+            }
+            // Distances: from each placeholder to the end of the clamp.
+            let mut tail_after: Vec<usize> = Vec::new();
+            let mut running = clamp.len();
+            for segment in segments.iter().rev() {
+                tail_after.push(running);
+                running += segment.len();
+            }
+            tail_after.reverse();
+            for ((branch, _), (segment, after)) in
+                checks.iter().zip(segments.iter_mut().zip(tail_after))
+            {
+                let position = segment.len() - 4;
+                // The branch offset counts from the branch instruction
+                // itself: 4 (the branch) + the bytes after this segment.
+                let encoded = branch((4 + after) as isize)?;
+                segment[position..].copy_from_slice(&encoded);
+                bytes.extend(segment.iter());
+            }
+            bytes.extend(clamp);
+        }
+        ArithmeticDomain::Trapping => {
+            // finite result -> done (skip everything below).
+            // Layout: b.lo END ; b.hi NAN ; INF: [left fin? right fin? brk] ;
+            // NAN: [left non-NaN? right non-NaN? brk] ; END.
+            let inf_case: usize = 4 * 7; // abs+cmp+b.hs, abs+cmp+b.hs, brk
+            let nan_case: usize = 4 * 7;
+            bytes.extend(encode_conditional_branch_lower(
+                (4 + 4 + inf_case + nan_case) as isize,
+            )?);
+            bytes.extend(encode_conditional_branch_higher((4 + inf_case) as isize)?);
+            // INF case: an operand at/above Inf (|bits| >= Inf pattern:
+            // itself Inf or NaN) legalizes the result -> skip its brk AND
+            // the NaN case.
+            bytes.extend(abs(left));
+            bytes.extend(encode_compare_x_register(left, s1));
+            bytes.extend(encode_conditional_branch_higher_or_same(
+                (4 + 4 * 3 + 4 + nan_case) as isize,
+            )?);
+            bytes.extend(abs(right));
+            bytes.extend(encode_compare_x_register(right, s1));
+            bytes.extend(encode_conditional_branch_higher_or_same(
+                (4 + 4 + nan_case) as isize,
+            )?);
+            bytes.extend(encode_brk(0));
+            // NAN case: only an operand STRICTLY above Inf (a NaN) makes a
+            // NaN result legal propagation; an Inf operand (Inf - Inf,
+            // 0 * Inf, Inf / Inf) is an INVALID op and traps.
+            bytes.extend(abs(left));
+            bytes.extend(encode_compare_x_register(left, s1));
+            bytes.extend(encode_conditional_branch_higher((4 + 4 * 3 + 4) as isize)?);
+            bytes.extend(abs(right));
+            bytes.extend(encode_compare_x_register(right, s1));
+            bytes.extend(encode_conditional_branch_higher((4 + 4) as isize)?);
+            bytes.extend(encode_brk(0));
+        }
+        _ => unreachable!("gated above"),
+    }
+    Ok(bytes)
+}
+
 /// F4 float->int trap guard: the value in FP register 0 must be NaN-free and
 /// within the SIGNED target range or the cast traps (ch5 cast ruling;
 /// Trapping = trap on NaN/out-of-range, where FCVTZS would saturate).
@@ -4551,7 +4755,7 @@ fn is_comparison_operator(operator: StateGuardOperator) -> bool {
 
 /// Value width of a runtime operand, looking through nested binary operands.
 /// `None` for immediates (which carry no width).
-fn runtime_value_operand_value_byte_size(
+pub(in crate::aarch64) fn runtime_value_operand_value_byte_size(
     operands: &impl RuntimeValueOperandSource,
     operand: RuntimeValueOperandHandle,
 ) -> Option<usize> {
@@ -4669,14 +4873,42 @@ fn append_runtime_float_binary_operation(
     left_register: u8,
     operator: StateGuardOperator,
     right_register: u8,
+    domain: omega_core::arithmetic::ArithmeticDomain,
+    guard_scratches: [u8; 2],
 ) -> Result<(), Diagnostic> {
     bytes.extend(encode_float_move_from_gpr(byte_size, 0, left_register)?);
     bytes.extend(encode_float_move_from_gpr(byte_size, 1, right_register)?);
+    // F5: the arithmetic ops append the policy guard AFTER the op (the raw
+    // operand bits stay live in the GPRs -- the FMOVs copy, never move).
+    let mut guard = |bytes: &mut Vec<u8>| -> Result<(), Diagnostic> {
+        bytes.extend(float_policy_guard_bytes(
+            domain,
+            operator,
+            byte_size,
+            left_register,
+            right_register,
+            guard_scratches[0],
+            guard_scratches[1],
+        )?);
+        Ok(())
+    };
     match operator {
-        StateGuardOperator::Add => bytes.extend(encode_float_add(byte_size, 0, 0, 1)?),
-        StateGuardOperator::Subtract => bytes.extend(encode_float_subtract(byte_size, 0, 0, 1)?),
-        StateGuardOperator::Multiply => bytes.extend(encode_float_multiply(byte_size, 0, 0, 1)?),
-        StateGuardOperator::Divide => bytes.extend(encode_float_divide(byte_size, 0, 0, 1)?),
+        StateGuardOperator::Add => {
+            bytes.extend(encode_float_add(byte_size, 0, 0, 1)?);
+            guard(bytes)?;
+        }
+        StateGuardOperator::Subtract => {
+            bytes.extend(encode_float_subtract(byte_size, 0, 0, 1)?);
+            guard(bytes)?;
+        }
+        StateGuardOperator::Multiply => {
+            bytes.extend(encode_float_multiply(byte_size, 0, 0, 1)?);
+            guard(bytes)?;
+        }
+        StateGuardOperator::Divide => {
+            bytes.extend(encode_float_divide(byte_size, 0, 0, 1)?);
+            guard(bytes)?;
+        }
         // FMAX/FMIN(NM) do NOT match the pinned SSE semantics (`a > b ? a : b`;
         // NaN or equal returns b -- see the interpreter's eval_min_max), so
         // min/max lower as FCMP + FCSEL with GT/MI, both false on unordered.

@@ -17877,6 +17877,83 @@ fn float_to_int_saturating_exit_canary_runs() {
 
 #[cfg(target_arch = "aarch64")]
 #[test]
+fn float_saturating_overflow_exit_canary_runs() {
+    // F5: Saturating float arithmetic clamps magnitude overflow to
+    // +-MAX_FINITE (div-by-zero keeps its Inf). Arch-gated: x86's float
+    // policy lowering is its host session's rung.
+    let canary = pass_canary("arithmetic/float_saturating_overflow_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-f5sat-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("saturating float overflow canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("saturating float overflow canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the Saturating clamp semantics (exit 70), got {:?}",
+        output.status.code(),
+    );
+    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+        .expect("saturating float overflow canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(outcome.exit_code, 70, "interp Saturating clamp should agree");
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[cfg(target_arch = "aarch64")]
+#[test]
+fn float_trapping_overflow_traps_aborts() {
+    // F5: Trapping float arithmetic traps on overflow. Abort-style +
+    // arch-gated (x86 passes through until its host session).
+    let canary = pass_canary("arithmetic/float_trapping_overflow_traps");
+    let build_dir = std::env::temp_dir().join(format!("omega-f5trap-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("trapping float overflow canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("trapping float overflow canary should run");
+    assert_ne!(
+        output.status.code(),
+        Some(7),
+        "expected the float overflow to trap, but the program sailed past to exit 7"
+    );
+    assert_ne!(
+        output.status.code(),
+        Some(71),
+        "the in-range Trapping product computed wrong"
+    );
+    assert!(
+        !output.status.success(),
+        "expected the overflow trap to terminate abnormally"
+    );
+    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+        .expect("trapping float overflow canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let reason = outcome
+        .error
+        .expect("the interpreter must trap the float overflow");
+    assert!(
+        reason.contains("float overflow"),
+        "expected the overflow trap reason, got: {reason}"
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[cfg(target_arch = "aarch64")]
+#[test]
 fn trapping_float_to_int_cast_traps_aborts() {
     // F4: a Trapping float->int cast traps on an out-of-range value (1e20
     // -> i32) instead of FCVTZS's silent saturate. In-range computes first
@@ -32638,27 +32715,7 @@ fn float_wrapping_domain_rejected_canary_is_rejected() {
     );
 }
 
-// Float semantics F1: a `Saturating`/`Trapping` policy on a float is recognized
-// but does not lower yet (the F5 rung) -- it refuses loudly rather than silently
-// no-opping.
-#[test]
-fn float_saturating_domain_rejected_canary_is_rejected() {
-    let canary = fail_canary("arithmetic/float_saturating_domain_rejected");
-    let diagnostics = match compile_canary_without_output(&canary) {
-        Ok(report) => panic!(
-            "expected `f64 in Saturating` to reject, but it compiled: {}",
-            report.summary()
-        ),
-        Err(diagnostics) => diagnostics,
-    };
-    let combined = diagnostics
-        .iter()
-        .map(ToString::to_string)
-        .collect::<Vec<_>>()
-        .join("\n");
-    assert!(
-        combined.contains("Saturating") && combined.contains("not lowered yet"),
-        "expected the saturating-on-float diagnostic to name the policy and the F5 \
-         deferral, got:\n{combined}"
-    );
-}
+// float_saturating_domain_rejected RETIRED 2026-07-16: the F5 fence lifted
+// -- Saturating/Trapping float policies now LOWER (interp + aarch64; the
+// pinned semantics live in pass/arithmetic/float_saturating_overflow_exit
+// + float_trapping_overflow_traps, arch-gated for x86's pass-through).

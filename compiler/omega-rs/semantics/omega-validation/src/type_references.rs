@@ -591,15 +591,16 @@ fn validate_type_constraints_node(
                                  meaningful on integers"
                             ),
                         )),
-                        ArithmeticDomain::Saturating | ArithmeticDomain::Trapping => {
-                            diagnostics.push(Diagnostic::error(format!(
-                                "{owner} applies a `{domain:?}` policy to `{primitive_name}`; \
-                                 float overflow policies are not lowered yet (float semantics \
-                                 F5) -- remove the domain to use the format's default \
-                                 (correctly-rounded) semantics"
-                            )))
-                        }
-                        ArithmeticDomain::Exact => {}
+                        // F5 LANDED (2026-07-16): Saturating clamps magnitude
+                        // overflow to +-MAX_FINITE (div-by-zero/invalid keep
+                        // their non-finites, per the brief); Trapping traps on
+                        // invalid/overflow/div-by-zero. Lowered on the
+                        // interpreter + aarch64; x86_64 passes through until
+                        // its host session (the documented status-quo
+                        // divergence, same as the float->int cast policies).
+                        ArithmeticDomain::Saturating
+                        | ArithmeticDomain::Trapping
+                        | ArithmeticDomain::Exact => {}
                     }
                 }
             }

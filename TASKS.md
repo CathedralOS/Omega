@@ -1443,40 +1443,28 @@ rows. Rungs:
   float_cast_unproven_rejected + pass/arithmetic/
   float_literal_cast_proves_exit (differential 70). REMAINING (x86
   host only): the Saturating/Trapping cvttsd2si fixup sequences.
-- **F5 — policy lowering:** float Trapping (invalid/overflow/div-by-zero
-  trap) + Saturating (clamp to ±MAX_FINITE) on both ISAs + interp.
-  INTERP FACE LANDED 2026-07-16 (groundwork behind the fence):
-  eval_float_binary's arith closure applies the domain — Saturating
-  clamps the LANDED result to ±MAX_FINITE(width) when both operands
-  are finite (overflow face only; the finite/0.0 divide is fenced to
-  pass its non-finite through, per the brief's no-clamp ruling);
-  Trapping traps on invalid (NaN from non-NaN operands) and
-  overflow/div-zero (Inf from finite operands). UNREACHABLE TODAY:
-  the existing validation fence still rejects float `in
-  Saturating/Trapping` declarations ("not lowered yet — F5"), so no
-  behavior changes until the aarch64 native guards land and the
-  fence lifts WITH them (atomically — lifting early would pin an
-  interp-vs-native divergence). Remaining: the aarch64 post-op FP
-  guard sequences (WriteRuntimeStorageBinary already carries domain +
-  is_float), the fence lift, per-policy canaries (arch-gated for
-  x86), then x86 on its host. SEQUENCE DESIGN v2 (banked,
-  ALL-INTEGER — no new FP primitives): the operands' RAW BITS already
-  sit in GPRs (left/right_register) before the FMOVs, and one integer
-  compare classifies finite/Inf/NaN — clear the sign bit
-  (and #0x7fffffff for f32 via encode_and_w_low_ones(31); f64 needs
-  the X-form twin, low-63-ones bitmask N=1/immr=0/imms=62), then cmp
-  against the format's Inf bits (padded immediate): LO=finite,
-  EQ=infinite, HI=NaN. Guard: (1) pre-op classify both operand GPRs
-  (branch-chain or cset flags into a scratch); (2) run the FP op;
-  (3) fmov result → GPR, classify; Saturating: infinite result +
-  finite operands (and divisor != +-0.0 for Divide — an integer
-  compare of the right GPR's sign-cleared bits against zero) → clamp:
-  MAX_FINITE bits OR the result's sign bit (and #sign-mask + orr) →
-  fmov back; Trapping: NaN-from-non-NaN or Inf-from-finite → brk.
-  Widths in lockstep (runtime_float_binary_operation_width grows a
-  domain param); the operand-position float path gets the same
-  treatment or a loud fence; the FENCE in validation lifts only with
-  this landing.
+- **F5 — policy lowering: LANDED 2026-07-16 (aarch64 lane).** Float
+  `Saturating` clamps MAGNITUDE OVERFLOW to ±MAX_FINITE at the landed
+  width and nothing else (div-by-zero/invalid keep their non-finites,
+  per the brief — 0/0 has no defensible clamp); `Trapping` traps on
+  invalid (NaN-from-non-NaN), overflow, and div-by-zero. Interp:
+  eval_float_binary's domain arms. aarch64:
+  float_policy_guard_bytes — ALL-INTEGER classification (sign-cleared
+  bits vs the format's Inf pattern: LO/EQ/HI = finite/Inf/NaN in ONE
+  compare; the raw operand bits stay live in the GPRs), patched-branch
+  assembly, the Saturating MAX_FINITE|sign clamp vs the Trapping brk,
+  the Divide zero-divisor carve-out; NEW encoders
+  encode_and_x_low_ones + encode_and_{w,x}_top_bit; the WIDTH is the
+  emitter's own length (fixed-register call + .len(), the rung-2a
+  one-source-of-truth discipline — no lockstep constant). The
+  validation fence LIFTED (the old float_saturating_domain_rejected
+  fail canary retired with it); x86_64 passes through until its host
+  session (documented status-quo divergence, the F4-cast precedent).
+  Pinned (arch-gated + differential):
+  pass/arithmetic/float_saturating_overflow_exit (1e160² clamps,
+  re-clamp idempotent, 5/0 keeps +Inf) +
+  float_trapping_overflow_traps (abort-style, both engine legs).
+  Remaining: the x86 guard sequences on its host.
 - **F6 — TotalOrder named satisfiers** for f32/f64 (sign-magnitude
   integer compare) once satisfier machinery lands.
 - **F7 — format records in omega::core + Float provides rows:** needs the
