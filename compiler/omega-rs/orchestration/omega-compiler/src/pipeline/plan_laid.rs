@@ -221,6 +221,7 @@ pub(crate) fn desugar_plan_laid_value_types(
             name: Identifier::generated(record.synthetic_name.as_str()),
             type_parameters: HandleSpan::default(),
             properties: schema_info.properties,
+                where_facts: omega_core::arena::HandleSpan::empty(),
             members: HandleSpan::from_parts(first, count),
         }));
     }

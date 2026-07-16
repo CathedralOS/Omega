@@ -1,0 +1,14 @@
+// R2 rung 1: the default-domain `where` clause on data PARSES and stores,
+// but nothing consumes the model until R2 rung 2 (gating + establishment)
+// -- the lowering refuses loudly, never silently dropping an authored
+// domain fact (the TPR1 staged-surface pattern).
+boundary trait Console { machine exit_process(return_code: i32); }
+data MemoryMap
+where
+    count <= len,
+{
+    len: u32;
+    count: u32;
+}
+data Main { console: Console; }
+machine Main::main(&mut self) { self.console.exit_process(70); }

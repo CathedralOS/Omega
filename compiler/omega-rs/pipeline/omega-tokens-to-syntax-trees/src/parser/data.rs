@@ -45,6 +45,20 @@ pub(super) fn parse_data_definition<'tokens, 'source>(
     input = next;
     let (properties, next) = parse_property_brackets(input)?;
     input = next;
+    // R2 rung 1 (ch12 "Dependent Data"): the DEFAULT-DOMAIN facts --
+    // `data M where count * stride <= len, { ... }` -- bare field names,
+    // comma-separated, ending at the body brace (trailing comma tolerated
+    // by the fact parser).
+    let mut where_facts = HandleSpan::empty();
+    if input.at_contextual("where") {
+        input = input.take_contextual("where")?;
+        let ((facts, _token_count), rest) =
+            crate::parser::proof_fact::parse_proof_facts_until(syntax_trees, input, |input| {
+                input.at_punctuation(PunctuationKind::LeftBrace) || input.tokens.is_empty()
+            })?;
+        where_facts = facts;
+        input = rest;
+    }
     input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
 
     // An IDENTITY-NUMBERED data (ch20): the first member starting with an
@@ -90,6 +104,7 @@ pub(super) fn parse_data_definition<'tokens, 'source>(
             name,
             type_parameters,
             properties,
+            where_facts,
             members,
         }),
         input,

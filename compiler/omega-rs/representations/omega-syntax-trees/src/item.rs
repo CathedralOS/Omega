@@ -447,6 +447,12 @@ pub struct DataDefinition {
     pub name: Identifier,
     pub type_parameters: HandleSpan<TypeParameter>,
     pub properties: DataProperties,
+    /// R2 rung 1 (ch12 "Dependent Data"): the DEFAULT-DOMAIN facts --
+    /// `data M where count * stride <= len, { ... }` -- bare field names,
+    /// any number of facts, holding at every observation. Parsed and
+    /// stored; the syntax->resolved lowering refuses them loudly until R2
+    /// rung 2 consumes the model (never a silent drop).
+    pub where_facts: HandleSpan<ProofFact>,
     pub members: HandleSpan<DataMember>,
 }
 

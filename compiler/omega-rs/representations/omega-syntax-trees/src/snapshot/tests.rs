@@ -29,6 +29,7 @@ fn snapshots_materialize_handle_backed_syntax_shape() {
         name: Identifier::generated("Example"),
         type_parameters: omega_core::arena::HandleSpan::empty(),
         properties: crate::item::DataProperties::default(),
+        where_facts: omega_core::arena::HandleSpan::empty(),
         members: omega_core::arena::HandleSpan::from_parts(
             syntax_trees
                 .items

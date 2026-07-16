@@ -15,6 +15,15 @@ pub(crate) fn lower_data_definition(
     syntax_trees: &SyntaxTrees,
     data_definition: &syntax::item::DataDefinition,
 ) -> Result<DataDefinition, Diagnostic> {
+    // R2 rung 1: the default-domain `where` clause parses and stores, but
+    // nothing consumes the model until R2 rung 2 (gating + establishment)
+    // -- refuse loudly, never drop.
+    if !data_definition.where_facts.is_empty() {
+        return Err(Diagnostic::error(format!(
+            "data `{}`: the default-domain `where` clause is not consumed yet              (dependent types R2 rung 2) -- remove it for now",
+            data_definition.name.as_str()
+        )));
+    }
     // `Versioned` is the permanent builtin era-tagged container (frozen
     // decision 14): every `Versioned<T>` reference folds to the synthesized
     // container of a versioned data type, so a user definition of the same

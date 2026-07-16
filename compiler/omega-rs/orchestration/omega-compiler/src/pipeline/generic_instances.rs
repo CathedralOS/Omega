@@ -233,6 +233,7 @@ pub(crate) fn desugar_generic_data_instances(
                 name: Identifier::generated(instance.synthetic_name.as_str()),
                 type_parameters: HandleSpan::default(),
                 properties,
+                where_facts: omega_core::arena::HandleSpan::empty(),
                 members: HandleSpan::from_parts(first, count),
             }));
 
