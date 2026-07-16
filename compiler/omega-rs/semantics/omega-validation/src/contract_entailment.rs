@@ -3927,6 +3927,15 @@ impl<'program> StructuralJudge<'program> {
             },
         ) = (&left, &right)
         else {
+            // RECORD ETA (product extensionality): a record literal that
+            // rebuilds EVERY declared field of a variable from that same
+            // variable (`IntPair { neg: a.neg, pos: a.pos } == a`) IS the
+            // variable -- the shape identity lemmas reduce to. Field values
+            // must be the variable's own field reads by name; a permuted
+            // rebuild (neg: a.pos) does NOT match.
+            if self.record_eta_matches(&left, &right) || self.record_eta_matches(&right, &left) {
+                return StructuralJudgment::Proven;
+            }
             if self.ring_rearranged_equal(&left, &right) {
                 return StructuralJudgment::Proven;
             }
@@ -3951,6 +3960,52 @@ impl<'program> StructuralJudge<'program> {
             }
         }
         verdict
+    }
+
+    /// RECORD ETA: does `constructor` rebuild every declared field of the
+    /// plain-record variable `variable` from that variable's own field
+    /// reads? All fields must be present, matched BY NAME to `{v}.{field}`
+    /// opaques -- a permutation or a partial rebuild does not match.
+    fn record_eta_matches(&self, constructor: &StructuralTerm, variable: &StructuralTerm) -> bool {
+        let StructuralTerm::Constructor { data, case, fields } = constructor else {
+            return false;
+        };
+        if !case.is_empty() {
+            return false;
+        }
+        let StructuralTerm::Variable(name) = variable else {
+            return false;
+        };
+        let Some(definition) = self
+            .program
+            .data_definitions()
+            .iter()
+            .find(|definition| definition.name.as_str() == data.as_str())
+        else {
+            return false;
+        };
+        let declared: Vec<&str> = self
+            .program
+            .data_members(definition)
+            .iter()
+            .filter_map(|member| match member {
+                omega_typed_trees::data::DataMember::Field(field) => Some(field.name.as_str()),
+                omega_typed_trees::data::DataMember::Variant(_) => None,
+            })
+            .collect();
+        if declared.is_empty() || declared.len() != fields.len() {
+            return false;
+        }
+        declared.iter().all(|field_name| {
+            fields.iter().any(|(field, value)| {
+                field == field_name
+                    && matches!(
+                        self.resolve(value.clone()),
+                        StructuralTerm::Opaque(opaque)
+                            if opaque == format!("{name}.{field_name}")
+                    )
+            })
+        })
     }
 
     /// The rearrange tier's comparison: for each ring license whose op
@@ -4262,38 +4317,41 @@ fn compute_ring_licenses(program: &TypedTrees, judged_machine: &Machine) -> Vec<
             }
         }
 
-        // The judged machine binding ANY comm/assoc law slot of this trait
-        // disqualifies the whole trait as a license source for it.
-        let law_slot_names: Vec<&String> = comm_laws
+        // PER-LICENSE circularity break (refined 2026-07-16 from the old
+        // trait-wide skip): the judged machine is excluded only from
+        // licenses it ITSELF underpins -- the ones whose comm/assoc law
+        // slots it binds FOR THE SAME CARRIER. A law lemma's goal is
+        // exactly the law shape over its own op, so no other carrier's
+        // license can rearrange it -- per-carrier exclusion breaks every
+        // cycle while letting IntPair's mul_comm keep using NAT's earned
+        // licenses (the trait-wide skip wrongly stripped those).
+        let judged_bound_laws: Vec<String> = program
+            .machine_trait_conformances(judged_machine)
             .iter()
-            .chain(assoc_laws.iter())
-            .map(|(_, law)| law)
+            .filter(|conformance| conformance.symbol == trait_definition.symbol)
+            .filter_map(|conformance| {
+                conformance
+                    .requirement
+                    .as_ref()
+                    .map(|name| name.as_str().to_owned())
+                    .or_else(|| {
+                        judged_machine
+                            .attached_data
+                            .is_none()
+                            .then(|| judged_machine.name.as_str().to_owned())
+                    })
+            })
             .collect();
-        let judged_binds_law_slot =
-            program
-                .machine_trait_conformances(judged_machine)
-                .iter()
-                .any(|conformance| {
-                    if conformance.symbol != trait_definition.symbol {
-                        return false;
-                    }
-                    let bound = conformance
-                        .requirement
-                        .as_ref()
-                        .map(|name| name.as_str().to_owned())
-                        .or_else(|| {
-                            judged_machine
-                                .attached_data
-                                .is_none()
-                                .then(|| judged_machine.name.as_str().to_owned())
-                        });
-                    bound
-                        .as_deref()
-                        .is_some_and(|name| law_slot_names.iter().any(|law| law.as_str() == name))
-                });
-        if judged_binds_law_slot {
-            continue;
-        }
+        let judged_carrier = program
+            .machine_states(judged_machine)
+            .first()
+            .map(|entry| {
+                program
+                    .state_parameters(entry)
+                    .first()
+                    .map(|parameter| parameter.type_reference)
+                    .unwrap_or(entry.return_type)
+            });
 
         for (op_slot, comm_law) in &comm_laws {
             let Some((_, assoc_law)) = assoc_laws.iter().find(|(op, _)| op == op_slot) else {
@@ -4327,6 +4385,17 @@ fn compute_ring_licenses(program: &TypedTrees, judged_machine: &Machine) -> Vec<
                         .first()
                         .map(|parameter| parameter.type_reference)
                         .unwrap_or(candidate_entry.return_type);
+                    let judged_underpins_this_license = judged_bound_laws
+                        .iter()
+                        .any(|law| law == comm_law || law == assoc_law)
+                        && judged_carrier.is_some_and(|judged| {
+                            crate::type_references::type_references_match(
+                                program, judged, carrier,
+                            )
+                        });
+                    if judged_underpins_this_license {
+                        continue;
+                    }
                     if slot_satisfier_exists(program, trait_definition, comm_law, carrier)
                         && slot_satisfier_exists(program, trait_definition, assoc_law, carrier)
                     {
@@ -4521,16 +4590,18 @@ fn compute_semiring_licenses(
                 continue;
             };
             let law_slots = [add_comm, add_assoc, mul_comm, mul_assoc, dist_law];
-            // No circular licensing: the judged machine binding any of the
-            // five law slots proves ring-free.
-            let judged_binds = program
+            // PER-LICENSE circularity break (refined 2026-07-16, mirroring
+            // compute_ring_licenses): the judged machine is excluded only
+            // from paired licenses it underpins -- binding one of the five
+            // law slots FOR THE SAME CARRIER. A law lemma's goal is the law
+            // shape over its own carrier's ops, so other carriers' licenses
+            // cannot rearrange it.
+            let judged_bound_laws: Vec<String> = program
                 .machine_trait_conformances(judged_machine)
                 .iter()
-                .any(|conformance| {
-                    if conformance.symbol != trait_definition.symbol {
-                        return false;
-                    }
-                    let bound = conformance
+                .filter(|conformance| conformance.symbol == trait_definition.symbol)
+                .filter_map(|conformance| {
+                    conformance
                         .requirement
                         .as_ref()
                         .map(|name| name.as_str().to_owned())
@@ -4539,14 +4610,20 @@ fn compute_semiring_licenses(
                                 .attached_data
                                 .is_none()
                                 .then(|| judged_machine.name.as_str().to_owned())
-                        });
-                    bound
-                        .as_deref()
-                        .is_some_and(|name| law_slots.iter().any(|law| law.as_str() == name))
+                        })
+                })
+                .filter(|name| law_slots.iter().any(|law| law.as_str() == name))
+                .collect();
+            let judged_carrier = program
+                .machine_states(judged_machine)
+                .first()
+                .map(|entry| {
+                    program
+                        .state_parameters(entry)
+                        .first()
+                        .map(|parameter| parameter.type_reference)
+                        .unwrap_or(entry.return_type)
                 });
-            if judged_binds {
-                continue;
-            }
             // Each carrier conforming BOTH op slots with all five law slots
             // satisfied earns the paired license.
             for add_candidate in program.machines() {
@@ -4575,6 +4652,15 @@ fn compute_semiring_licenses(
                         .first()
                         .map(|parameter| parameter.type_reference)
                         .unwrap_or(entry.return_type);
+                    if !judged_bound_laws.is_empty()
+                        && judged_carrier.is_some_and(|judged| {
+                            crate::type_references::type_references_match(
+                                program, judged, carrier,
+                            )
+                        })
+                    {
+                        continue;
+                    }
                     if !law_slots
                         .iter()
                         .all(|law| slot_satisfier_exists(program, trait_definition, law, carrier))
