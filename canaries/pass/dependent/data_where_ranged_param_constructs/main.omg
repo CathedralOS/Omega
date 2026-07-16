@@ -1,0 +1,21 @@
+// R2 rung 3 slice 9 -- PROVER-BACKED CONSTRUCTION: the literal's field
+// value is a RUNTIME parameter, but its declared range `[1..=100]` decides
+// the gated fact `health >= 1` by interval folding -- ch12's Player
+// constructs from runtime data with no spelled requires, and the access
+// gate opens in the constructing machine.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Player
+where
+    health >= 1,
+{
+    health: i32;
+}
+data Main { console: Console; champion: Player; }
+machine Main::recruit(&mut self, strength: i32 [1..=100]) -> i32 {
+    self.champion = Player { health: strength };
+    self.champion.health
+}
+machine Main::main(&mut self) {
+    let power: i32 = self.recruit(50);
+    self.console.exit_process(70);
+}

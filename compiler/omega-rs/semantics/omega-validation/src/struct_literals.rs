@@ -98,7 +98,7 @@ fn scan_expression(
 
     match program.expression_table.expression(expression) {
         ExpressionNode::StructLiteral(literal) => {
-            validate_literal_field_names(program, &literal, diagnostics);
+            validate_literal_field_names(program, machine, state, &literal, diagnostics);
             enforce_construction_field_obligations(program, machine, state, &literal, diagnostics);
             for field in program.expression_table.struct_fields(literal.fields) {
                 scan_expression(program, machine, state,field.value, diagnostics);
@@ -144,6 +144,8 @@ fn scan_expression(
 /// members; case literals construct the named variant's PAYLOAD fields.
 fn validate_literal_field_names(
     program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
     literal: &TableStructLiteral,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -192,13 +194,13 @@ fn validate_literal_field_names(
         return;
     }
 
-    // R2 rung 2b (ch12 "Construction is the gate"): a literal of a
-    // domain-carrying type must PROVE the default domain -- every `where`
-    // fact folds at the literal's field valuation (named integer-literal
-    // values; omitted fields read 0). A field the facts mention whose value
-    // is not an integer literal makes the fact unverifiable in v1 and
-    // refuses (runtime-valued constructions need rung 3's prover).
-    validate_literal_default_domain(program, literal, data_definition, diagnostics);
+    // R2 rung 2b + slice 9 (ch12 "Construction is the gate"): a literal of
+    // a domain-carrying type must PROVE the default domain -- every `where`
+    // fact folds over the field-value INTERVALS (integer literals as
+    // points; ranged places by their DECLARED intervals; omitted fields
+    // read 0). Definitely-false refuses as a violation; unprovable refuses
+    // with direction.
+    validate_literal_default_domain(program, machine, state, literal, data_definition, diagnostics);
 
     match &literal.case_name {
         None => {
@@ -297,13 +299,8 @@ fn enforce_construction_field_obligations(
         return;
     }
 
-    // R2 rung 2b (ch12 "Construction is the gate"): a literal of a
-    // domain-carrying type must PROVE the default domain -- every `where`
-    // fact folds at the literal's field valuation (named integer-literal
-    // values; omitted fields read 0). A field the facts mention whose value
-    // is not an integer literal makes the fact unverifiable in v1 and
-    // refuses (runtime-valued constructions need rung 3's prover).
-    validate_literal_default_domain(program, literal, data_definition, diagnostics);
+    // Slice 9: the case-payload path proves the domain over intervals too.
+    validate_literal_default_domain(program, machine, state, literal, data_definition, diagnostics);
 
     for field in program.expression_table.struct_fields(literal.fields) {
         let Some(field_type) = construction_field_type(
@@ -652,6 +649,8 @@ fn construction_field_literal(program: &TypedTrees, value: ExpressionHandle) -> 
 /// refuses as unverifiable.
 fn validate_literal_default_domain(
     program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
     literal: &TableStructLiteral,
     data_definition: &DataDefinition,
     diagnostics: &mut Vec<Diagnostic>,
@@ -660,72 +659,255 @@ fn validate_literal_default_domain(
         return;
     }
     let type_name = literal.type_name.as_str();
-    let mut valuation: Vec<(&str, Option<i128>)> = Vec::new();
+    // Slice 9: each field's value resolves to an INTERVAL -- an integer
+    // literal is a point; a place with a declared `[a..=b]` range (a ranged
+    // parameter, a range-refined field) contributes its DECLARED interval
+    // (declared ranges always hold); anything else is unknown.
+    let mut valuation: Vec<(&str, Bounds)> = Vec::new();
     for field in program.expression_table.struct_fields(literal.fields) {
-        let value = literal_fold(program, &[], field.value);
+        let value = value_bounds(program, machine, state, field.value);
         valuation.push((field.name.as_str(), value));
     }
     for fact in program.proof_facts.span_or_empty(data_definition.where_facts) {
         let omega_typed_trees::domain::ProofFact::Expression(expression) = fact else {
             continue;
         };
-        match literal_fold(program, &valuation, *expression) {
-            Some(value) if value != 0 => {}
-            Some(_) => diagnostics.push(Diagnostic::error(format!(
+        match bounds_fold(program, &valuation, *expression) {
+            Truth::True => {}
+            Truth::False => diagnostics.push(Diagnostic::error(format!(
                 "data `{type_name}` literal violates the default domain: a `where` \
                  fact evaluates FALSE at this construction (ch12: construction is \
                  the gate)"
             ))),
-            None => diagnostics.push(Diagnostic::error(format!(
+            Truth::Unknown => diagnostics.push(Diagnostic::error(format!(
                 "data `{type_name}` literal cannot PROVE the default domain: a \
-                 `where`-mentioned field's value is not an integer literal \
-                 (runtime-valued gated construction needs the R2 rung 3 prover) -- \
-                 spell literal values for the constrained fields"
+                 `where`-mentioned field's value is neither a literal nor a \
+                 declared-range place whose interval decides the fact -- spell a \
+                 literal, or constrain the value's declared range"
             ))),
         }
     }
 }
 
-/// Fold a typed expression over a field valuation: names read the valuation
-/// (absent -> 0, the ZII default; a name PRESENT with a non-literal value
-/// poisons the fold), integer literals read themselves.
-fn literal_fold(
+/// A conservative value interval (both ends optional).
+#[derive(Clone, Copy)]
+struct Bounds {
+    low: Option<i64>,
+    high: Option<i64>,
+}
+
+impl Bounds {
+    const UNKNOWN: Bounds = Bounds {
+        low: None,
+        high: None,
+    };
+    fn point(value: i64) -> Bounds {
+        Bounds {
+            low: Some(value),
+            high: Some(value),
+        }
+    }
+}
+
+enum Truth {
+    True,
+    False,
+    Unknown,
+}
+
+/// Slice 9: a literal field VALUE's sound interval -- an integer literal is
+/// a point; a Name/Member place with a declared range contributes that
+/// range intersected with its primitive width; anything else is unknown.
+fn value_bounds(
     program: &TypedTrees,
-    valuation: &[(&str, Option<i128>)],
+    machine: &Machine,
+    state: &State,
     expression: ExpressionHandle,
-) -> Option<i128> {
+) -> Bounds {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Integer(value) => value
+            .text()
+            .parse::<i64>()
+            .map(Bounds::point)
+            .unwrap_or(Bounds::UNKNOWN),
+        ExpressionNode::Mutable(inner) => value_bounds(program, machine, state, *inner),
+        ExpressionNode::Name(_) | ExpressionNode::Member(_) => {
+            // RAW keeps the Constrained shell that carries the declared
+            // range (the unwrapping variant strips it).
+            let Some(handle) = crate::places::declared_place_type_raw(
+                program,
+                machine,
+                Some(state),
+                expression,
+            ) else {
+                return Bounds::UNKNOWN;
+            };
+            match crate::arithmetic_domains::range_constraint_interval(program, handle) {
+                Some(interval) => Bounds {
+                    low: interval.low,
+                    high: interval.high,
+                },
+                None => Bounds::UNKNOWN,
+            }
+        }
+        _ => Bounds::UNKNOWN,
+    }
+}
+
+/// Fold a `where` fact over the field-value intervals. Comparisons yield a
+/// TRI-STATE truth encoded as bounds ([1,1] true / [0,0] false / [0,1]
+/// unknown) so `&&`/`||` compose; arithmetic uses saturating interval ops.
+fn bounds_fold(
+    program: &TypedTrees,
+    valuation: &[(&str, Bounds)],
+    expression: ExpressionHandle,
+) -> Truth {
+    let bounds = bounds_eval(program, valuation, expression);
+    match (bounds.low, bounds.high) {
+        (Some(low), _) if low >= 1 => Truth::True,
+        (_, Some(high)) if high <= 0 => Truth::False,
+        _ => Truth::Unknown,
+    }
+}
+
+fn bounds_eval(
+    program: &TypedTrees,
+    valuation: &[(&str, Bounds)],
+    expression: ExpressionHandle,
+) -> Bounds {
     use omega_typed_trees::expression::BinaryOperator;
     match program.expression_table.expression(expression) {
         ExpressionNode::Name(path) => {
-            let last = program
+            let Some(last) = program
                 .expression_table
                 .name_path_members(path.members)
-                .last()?
-                .as_str();
-            match valuation.iter().find(|(name, _)| *name == last) {
-                Some((_, value)) => *value,
-                None => Some(0),
-            }
+                .last()
+            else {
+                return Bounds::UNKNOWN;
+            };
+            valuation
+                .iter()
+                .find(|(name, _)| *name == last.as_str())
+                .map(|(_, bounds)| *bounds)
+                // Omitted fields read the ZII zero at construction.
+                .unwrap_or(Bounds::point(0))
         }
-        ExpressionNode::Integer(value) => value.text().parse::<i128>().ok(),
+        ExpressionNode::Integer(value) => value
+            .text()
+            .parse::<i64>()
+            .map(Bounds::point)
+            .unwrap_or(Bounds::UNKNOWN),
         ExpressionNode::Binary(binary) => {
-            let left = literal_fold(program, valuation, binary.left)?;
-            let right = literal_fold(program, valuation, binary.right)?;
+            let left = bounds_eval(program, valuation, binary.left);
+            let right = bounds_eval(program, valuation, binary.right);
             match binary.operator {
-                BinaryOperator::Add => left.checked_add(right),
-                BinaryOperator::Subtract => left.checked_sub(right),
-                BinaryOperator::Multiply => left.checked_mul(right),
-                BinaryOperator::LessOrEqual => Some(i128::from(left <= right)),
-                BinaryOperator::Less => Some(i128::from(left < right)),
-                BinaryOperator::GreaterOrEqual => Some(i128::from(left >= right)),
-                BinaryOperator::Greater => Some(i128::from(left > right)),
-                BinaryOperator::Equal => Some(i128::from(left == right)),
-                BinaryOperator::NotEqual => Some(i128::from(left != right)),
-                BinaryOperator::And => Some(i128::from(left != 0 && right != 0)),
-                BinaryOperator::Or => Some(i128::from(left != 0 || right != 0)),
-                _ => None,
+                BinaryOperator::Add => Bounds {
+                    low: left.low.zip(right.low).map(|(a, b)| a.saturating_add(b)),
+                    high: left.high.zip(right.high).map(|(a, b)| a.saturating_add(b)),
+                },
+                BinaryOperator::Subtract => Bounds {
+                    low: left.low.zip(right.high).map(|(a, b)| a.saturating_sub(b)),
+                    high: left.high.zip(right.low).map(|(a, b)| a.saturating_sub(b)),
+                },
+                BinaryOperator::Multiply => {
+                    match (left.low, left.high, right.low, right.high) {
+                        (Some(a), Some(b), Some(c), Some(d)) => {
+                            let products = [
+                                a.saturating_mul(c),
+                                a.saturating_mul(d),
+                                b.saturating_mul(c),
+                                b.saturating_mul(d),
+                            ];
+                            Bounds {
+                                low: products.iter().min().copied(),
+                                high: products.iter().max().copied(),
+                            }
+                        }
+                        _ => Bounds::UNKNOWN,
+                    }
+                }
+                BinaryOperator::LessOrEqual => tri(compare(left, right, |a, b| a <= b)),
+                BinaryOperator::Less => tri(compare(left, right, |a, b| a < b)),
+                BinaryOperator::GreaterOrEqual => tri(compare(right, left, |a, b| a <= b)),
+                BinaryOperator::Greater => tri(compare(right, left, |a, b| a < b)),
+                BinaryOperator::Equal => tri(equality(left, right, true)),
+                BinaryOperator::NotEqual => tri(equality(left, right, false)),
+                BinaryOperator::And => tri(truth_and(
+                    to_truth(left),
+                    to_truth(right),
+                )),
+                BinaryOperator::Or => tri(truth_or(to_truth(left), to_truth(right))),
+                _ => Bounds::UNKNOWN,
             }
         }
-        _ => None,
+        ExpressionNode::Mutable(inner) => bounds_eval(program, valuation, *inner),
+        _ => Bounds::UNKNOWN,
+    }
+}
+
+/// `left OP right` decided from interval ends: definitely true when every
+/// left value relates to every right value; definitely false when none do.
+fn compare(left: Bounds, right: Bounds, relates: fn(i64, i64) -> bool) -> Truth {
+    if let (Some(left_high), Some(right_low)) = (left.high, right.low)
+        && relates(left_high, right_low)
+    {
+        return Truth::True;
+    }
+    if let (Some(left_low), Some(right_high)) = (left.low, right.high)
+        && !relates(left_low, right_high)
+    {
+        return Truth::False;
+    }
+    Truth::Unknown
+}
+
+fn equality(left: Bounds, right: Bounds, wants_equal: bool) -> Truth {
+    // Equal iff both are the SAME point; definitely unequal iff the
+    // intervals are disjoint.
+    let same_point = left.low == left.high
+        && right.low == right.high
+        && left.low.is_some()
+        && left.low == right.low;
+    let disjoint = matches!((left.high, right.low), (Some(a), Some(b)) if a < b)
+        || matches!((right.high, left.low), (Some(a), Some(b)) if a < b);
+    match (same_point, disjoint, wants_equal) {
+        (true, _, true) | (_, true, false) => Truth::True,
+        (true, _, false) | (_, true, true) => Truth::False,
+        _ => Truth::Unknown,
+    }
+}
+
+fn to_truth(bounds: Bounds) -> Truth {
+    match (bounds.low, bounds.high) {
+        (Some(low), _) if low >= 1 => Truth::True,
+        (_, Some(high)) if high <= 0 => Truth::False,
+        _ => Truth::Unknown,
+    }
+}
+
+fn truth_and(left: Truth, right: Truth) -> Truth {
+    match (left, right) {
+        (Truth::False, _) | (_, Truth::False) => Truth::False,
+        (Truth::True, Truth::True) => Truth::True,
+        _ => Truth::Unknown,
+    }
+}
+
+fn truth_or(left: Truth, right: Truth) -> Truth {
+    match (left, right) {
+        (Truth::True, _) | (_, Truth::True) => Truth::True,
+        (Truth::False, Truth::False) => Truth::False,
+        _ => Truth::Unknown,
+    }
+}
+
+fn tri(truth: Truth) -> Bounds {
+    match truth {
+        Truth::True => Bounds::point(1),
+        Truth::False => Bounds::point(0),
+        Truth::Unknown => Bounds {
+            low: Some(0),
+            high: Some(1),
+        },
     }
 }
