@@ -269,6 +269,17 @@ pub(crate) fn validate_machine_contract_entailment(
                 bound
                     .substitutions
                     .insert(0, (subject.clone(), constructor.clone()));
+                // REQUIRES-BEARING INDUCTION: re-intake the requires under
+                // the case hypothesis -- `add(c, a) == add(c, b)` under
+                // c := Succ(prev) unfolds to Succ-wrapped sides whose
+                // INJECTIVITY decomposition yields the prev-level equation
+                // the inductive hypothesis's premise needs. The machine-level
+                // intake saw the un-refined spelling; this sees the arm's.
+                if machine_has_requires {
+                    for fact in &requires {
+                        bound.intake(program, *fact);
+                    }
+                }
             }
             // Per-arm citations (N3 rung 2): the arm's sub-state facts,
             // already instantiated under this arm's environment.
@@ -276,14 +287,15 @@ pub(crate) fn validate_machine_contract_entailment(
                 bound.intake_equation(left.clone(), right.clone(), 0);
             }
             // Inductive hypotheses: instantiate every ensures conjunct for
-            // each self-application in the arm's value term. REQUIRES-bearing
-            // machines get NO inductive hypothesis: the IH is conditional on
-            // the requires holding at the self-call's operands, and this rung
-            // does not discharge that premise -- injecting it unconditioned
-            // would be unsound (the requires-bearing induction rung is the
-            // recorded follow-up; sole-arm requires lemmas are unaffected).
+            // each self-application in the arm's value term. For a
+            // REQUIRES-bearing machine the IH is CONDITIONAL: its requires,
+            // instantiated at the self-call's operands, must judge PROVEN
+            // against the arm's hypotheses before the ensures intakes --
+            // otherwise that application contributes no IH (over-refusal
+            // safe). Membership requires are outside the judge's language:
+            // no IH at all (`all_facts_are_expressions` guards).
             let mut applications = Vec::new();
-            if !machine_has_requires {
+            if !machine_has_requires || all_facts_are_expressions {
                 StructuralJudge::self_applications(
                     &arm.value,
                     &arm.machine_name,
@@ -300,6 +312,13 @@ pub(crate) fn validate_machine_contract_entailment(
                     .cloned()
                     .zip(arguments.iter().cloned())
                     .collect();
+                if machine_has_requires
+                    && !requires.iter().all(|fact| {
+                        instantiated_fact_established(program, &bound, *fact, &map)
+                    })
+                {
+                    continue;
+                }
                 map.push((RESULT_BINDER.to_owned(), application.clone()));
                 for conjunct in &ensures_terms {
                     let Some((left, right)) = conjunct else {
@@ -3957,34 +3976,49 @@ impl<'program> StructuralJudge<'program> {
             if left_addends.len() == right_addends.len() && left_addends == right_addends {
                 return true;
             }
-            // HYPOTHESIS EXCHANGE (one bounded application): a requires /
-            // citation / IH equation whose sides flatten over this SAME
-            // licensed op licenses swapping that sub-multiset of addends --
-            // sum(left) == sum(left - from + to) because sum(from) == sum(to)
-            // is the hypothesis and the op's comm+assoc closure is exactly
-            // what the license's conformance proved. This is what makes
-            // QUOTIENT congruence lemmas provable (IntPair's cross-sum
-            // equivalence: `a.pos + a2.neg == a2.pos + a.neg` exchanges
-            // inside `a.pos + b.pos + a2.neg + b.neg`). Whole-term matches
-            // were already rewritten during resolve; this reaches the
-            // sub-multiset the rewriter cannot see.
-            for (pattern, replacement) in &self.rewrites {
-                for (from, to) in [(pattern, replacement), (replacement, pattern)] {
-                    let mut from_addends = Vec::new();
-                    additive_addends(from, op, &mut from_addends);
-                    let mut to_addends = Vec::new();
-                    additive_addends(to, op, &mut to_addends);
-                    from_addends.sort();
-                    let Some(mut candidate) =
-                        sorted_multiset_subtract(&left_addends, &from_addends)
-                    else {
-                        continue;
-                    };
-                    candidate.extend(to_addends.iter().cloned());
-                    candidate.sort();
-                    if candidate == right_addends {
-                        return true;
+            // HYPOTHESIS EXCHANGE (bounded, depth 2): a requires / citation /
+            // IH equation whose sides flatten over this SAME licensed op
+            // licenses swapping that sub-multiset of addends -- sum(left) ==
+            // sum(left - from + to) because sum(from) == sum(to) is the
+            // hypothesis and the op's comm+assoc closure is exactly what the
+            // license's conformance proved. This is what makes QUOTIENT
+            // lemmas provable: congruence needs ONE exchange (a.pos + a2.neg
+            // exchanges inside a.pos + b.pos + a2.neg + b.neg), transitivity
+            // needs TWO (h1 then h2 inside the cancellation citation's
+            // requires). Whole-term matches were already rewritten during
+            // resolve; this reaches the sub-multisets the rewriter cannot
+            // see. Frontier-capped BFS -- over-refusal past the cap, never
+            // unsound.
+            let mut frontier: Vec<Vec<String>> = vec![left_addends.clone()];
+            for _depth in 0..2 {
+                let mut next: Vec<Vec<String>> = Vec::new();
+                for current in &frontier {
+                    for (pattern, replacement) in &self.rewrites {
+                        for (from, to) in [(pattern, replacement), (replacement, pattern)] {
+                            let mut from_addends = Vec::new();
+                            additive_addends(from, op, &mut from_addends);
+                            let mut to_addends = Vec::new();
+                            additive_addends(to, op, &mut to_addends);
+                            from_addends.sort();
+                            let Some(mut candidate) =
+                                sorted_multiset_subtract(current, &from_addends)
+                            else {
+                                continue;
+                            };
+                            candidate.extend(to_addends.iter().cloned());
+                            candidate.sort();
+                            if candidate == right_addends {
+                                return true;
+                            }
+                            if next.len() < 64 {
+                                next.push(candidate);
+                            }
+                        }
                     }
+                }
+                frontier = next;
+                if frontier.is_empty() {
+                    break;
                 }
             }
         }

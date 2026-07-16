@@ -341,3 +341,31 @@ ensures
         transition { _ -> Nat::Succ { prev: mul_comm(prev, b) } }
     }
 }
+
+// CANCELLATION (requires-bearing induction, 2026-07-16): add is left-
+// cancellative. Induction on c: the Zero arm's requires unfolds to a == b
+// outright; the Succ arm's requires unfolds to Succ-wrapped sides whose
+// injectivity yields the prev-level equation -- exactly the inductive
+// hypothesis's PREMISE, so the IH discharges and closes the arm. This is
+// the lemma quotient transitivity stands on (comm+assoc alone cannot
+// cancel).
+machine add_cancel(c: Nat, a: Nat, b: Nat) -> Nat
+terminates by c;
+requires
+    (add(c, a)) == (add(c, b))
+ensures
+    (a) == (b)
+{
+    transition c {
+        Nat::Zero -> ac_base(a, b)
+        Nat::Succ { prev } -> ac_step(prev, a, b)
+    }
+
+    state ac_base(a: Nat, b: Nat) -> Nat {
+        transition { _ -> (a) }
+    }
+
+    state ac_step(prev: Nat, a: Nat, b: Nat) -> Nat {
+        transition { _ -> (add_cancel(prev, a, b)) }
+    }
+}
