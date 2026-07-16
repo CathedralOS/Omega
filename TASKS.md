@@ -680,9 +680,21 @@ sealed progress profiles + grants, TPR4's remaining big half).
    parser could not perform (the old "unknown arithmetic domain" at
    parse time was misleading for declared domains). Pinned: fail
    domains/semantic_cast_mint_staged +
-   domains/semantic_cast_unknown_domain. Remaining checked plans:
-   the MINT rung itself (authority + predicate discharge at
-   qualification casts, riding the staged fence's carried name);
+   domains/semantic_cast_unknown_domain. THE MINT v1 LANDED same
+   day -- the FIRST live semantic-domain qualification:
+   `5 as i64 in Km` mints a LITERAL into a declared domain
+   (in-program authority is the owning package's -- sealed-vs-open
+   bites at package boundaries, which do not exist in-program; the
+   PREDICATE obligation folds every domain fact at the literal,
+   `self := 5`). Three outcomes pinned: pass
+   domains/semantic_cast_literal_mint (facts true, RUNS exit 70 --
+   zero-cost, representation unchanged); fail
+   semantic_cast_fact_false (self >= 10 at 5 -- the "predicate
+   obligation not discharged" class); fail semantic_cast_mint_staged
+   re-pinned to the flow-integration fence (runtime values route
+   through validating calls/guards until that rung). Remaining
+   checked plans: flow-integrated minting (non-literal values via
+   guards/facts); QualificationFacts rows for declared-domain mints;
    permission + normalized-machine-contract plans; STR5
    validation/resolution; STR6 lower only from checked selections while
    preserving semantic contract IDs in artifacts; STR7 retire compatibility

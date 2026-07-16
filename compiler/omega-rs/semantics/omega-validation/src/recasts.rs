@@ -121,23 +121,47 @@ pub(crate) fn validate_recasts(program: &TypedTrees, diagnostics: &mut Vec<Diagn
                 .first()
                 .map(|member| member.as_str().to_owned())
                 .unwrap_or_default();
-            let declared = program.domain_definitions().iter().any(|domain| {
+            let declared = program.domain_definitions().iter().find(|domain| {
                 domain.name.as_str() == name
                     || domain.name.as_str().ends_with(&format!("::{name}"))
             });
-            if declared {
-                diagnostics.push(Diagnostic::error(format!(
-                    "`as ... in {name}` is a semantic-domain qualification of declared \
-                     domain `{name}`, whose mint rung (introduction authority + \
-                     predicate discharge) has not landed -- route the value's entry \
-                     through a validating call for now (decision 19 stages the mint)",
-                )));
-            } else {
-                diagnostics.push(Diagnostic::error(format!(
-                    "unknown cast domain `{name}`: the arithmetic policies are \
-                     `Wrapping`, `Saturating`, and `Trapping`, and no domain \
-                     declaration names `{name}`",
-                )));
+            match declared {
+                Some(domain) => {
+                    // THE MINT v1 (decision 19): in-program qualification is
+                    // the OWNING package qualifying its own domain --
+                    // authority is granted (sealed-vs-open bites at package
+                    // boundaries, which do not exist in-program). The
+                    // PREDICATE obligation must still discharge: every
+                    // domain fact folds TRUE at the cast's LITERAL value
+                    // (`self := <literal>`); non-literal values await the
+                    // flow-integration rung and keep a staged refusal.
+                    match literal_mint_discharges(program, domain, cast.value) {
+                        MintJudgment::Discharged => {}
+                        MintJudgment::FactFalse => {
+                            diagnostics.push(Diagnostic::error(format!(
+                                "`as ... in {name}` cannot mint: a `{name}` domain \
+                                 fact is FALSE at this literal value -- the predicate \
+                                 obligation is owed (decision 19's \"predicate \
+                                 obligation not discharged\" class)",
+                            )));
+                        }
+                        MintJudgment::NotLiteral => {
+                            diagnostics.push(Diagnostic::error(format!(
+                                "`as ... in {name}` mints only LITERAL values in this \
+                                 rung (the domain facts fold at the literal); a \
+                                 runtime value's entry routes through a validating \
+                                 call or guard until the flow-integration rung lands",
+                            )));
+                        }
+                    }
+                }
+                None => {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "unknown cast domain `{name}`: the arithmetic policies are \
+                         `Wrapping`, `Saturating`, and `Trapping`, and no domain \
+                         declaration names `{name}`",
+                    )));
+                }
             }
         }
     }
@@ -973,4 +997,71 @@ fn guard_lower_bound_for(
         }
         _ => None,
     }
+}
+
+
+/// The mint's tri-state judgment for one qualification cast.
+enum MintJudgment {
+    Discharged,
+    FactFalse,
+    NotLiteral,
+}
+
+/// Fold every domain fact at the cast's literal value (`self := literal`).
+/// Only integer literals and `self <op> literal` / `literal <op> self`
+/// comparison facts fold; anything else is conservatively NotLiteral.
+/// `introduction`-clause pseudo-facts (non-Binary) are skipped -- they are
+/// policy, not predicate.
+fn literal_mint_discharges(
+    program: &TypedTrees,
+    domain: &omega_typed_trees::domain::DomainDefinition,
+    value: ExpressionHandle,
+) -> MintJudgment {
+    let ExpressionNode::Integer(literal) = program.expression_table.expression(value) else {
+        return MintJudgment::NotLiteral;
+    };
+    let Ok(minted) = literal.text().parse::<i128>() else {
+        return MintJudgment::NotLiteral;
+    };
+    for fact in program.proof_facts.span_or_empty(domain.facts) {
+        let omega_typed_trees::domain::ProofFact::Expression(expression) = fact else {
+            continue;
+        };
+        let ExpressionNode::Binary(binary) = program.expression_table.expression(*expression)
+        else {
+            continue;
+        };
+        let side_value = |handle: ExpressionHandle| -> Option<i128> {
+            match program.expression_table.expression(handle) {
+                ExpressionNode::Name(path)
+                    if matches!(
+                        program.expression_table.name_path_members(path.members),
+                        [only] if only.as_str() == "self"
+                    ) =>
+                {
+                    Some(minted)
+                }
+                ExpressionNode::Integer(value) => value.text().parse::<i128>().ok(),
+                _ => None,
+            }
+        };
+        let (Some(left), Some(right)) = (side_value(binary.left), side_value(binary.right))
+        else {
+            return MintJudgment::NotLiteral;
+        };
+        use omega_typed_trees::expression::BinaryOperator;
+        let holds = match binary.operator {
+            BinaryOperator::Less => left < right,
+            BinaryOperator::LessOrEqual => left <= right,
+            BinaryOperator::Greater => left > right,
+            BinaryOperator::GreaterOrEqual => left >= right,
+            BinaryOperator::Equal => left == right,
+            BinaryOperator::NotEqual => left != right,
+            _ => return MintJudgment::NotLiteral,
+        };
+        if !holds {
+            return MintJudgment::FactFalse;
+        }
+    }
+    MintJudgment::Discharged
 }
