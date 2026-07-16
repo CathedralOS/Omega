@@ -22,6 +22,10 @@ pub struct DataDefinitionStorage {
     /// the entailment hypotheses and write obligations ATOMICALLY (a
     /// standing invariant nobody enforces must not be consumable).
     pub where_facts: HandleSpan<crate::domain::ProofFact>,
+    /// R2 rung 2b: zero VIOLATES the default domain -- the type is GATED
+    /// (not zero-constructible; literals must prove the domain; reading
+    /// zeroed storage as the type is refused by rung 3's access gate).
+    pub zero_gated: bool,
     pub members: HandleSpan<DataMember>,
 }
 
