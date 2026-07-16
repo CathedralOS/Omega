@@ -66,9 +66,22 @@ brace-escaped + diagnostics/comments teaching the retired spelling
 migrated across 6 crates, and 5 long-stale test fixtures (missing
 supply_mode/target/decrease_range/TraitConformance fields) repaired; the
 whole `cargo test --workspace` battery (158 targets) is green again and
-joins the gate list. Remaining rungs unchanged: TPR3
-cycle checker migration (state loops, calls, range-on-rank, runtime tail
-lowering, proof-stratum non-tail eligibility, joint SCC semantics); TPR4
+joins the gate list. TPR3 SLICE 1 LANDED 2026-07-16 (the checker steps
+onto the plan): checks/termination gates on the NORMALIZED plan
+(published-or-witness) instead of the `terminates` bool; the
+missing-witness diagnostic teaches the current spelling; the
+entailment judge's hypothesis gate and the state-graph's
+machine_is_measured read witness-presence from the plan; and a
+DecreaseOutcome::PlanViewDivergence invariant makes any disagreement
+between the RECORDED elaborated view and the checker's independently
+resolved builtin order LOUD (pinned by a mutate-the-plan unit test;
+declared measures agree by construction, pending views constrain
+nothing). Remaining TPR3: in-checker completion of pending
+elaborations + subject resolution FROM the witness (retiring the
+compat spans), range-on-rank (needs an argumented view like
+Nat::IncreasingTo -- grammar + prover), runtime tail lowering vs
+proof-stratum non-tail eligibility (acceptance test 4), joint SCC
+semantics across machines; then TPR4
 requirement inheritance, published omission/default rules, sealed progress
 profiles, receipts, and pinned premises; TPR5 atomic corpus sweep across
 omega core/std, samples, all canary families, and compiler-lattice fixtures,

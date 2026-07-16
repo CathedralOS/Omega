@@ -25,6 +25,13 @@ pub(super) enum DecreaseOutcome {
     /// as the named bounded distance on every cyclic edge. The diagnostic
     /// names the right shape instead of a bare "cannot prove".
     InvertedDistance(InvertedDistance),
+    /// TPR3 slice 1 (decision 23): the plan's RECORDED witness view (the
+    /// canonical-default elaboration at the syntax->resolved lowering) and
+    /// the checker's independently resolved order DISAGREE. This is an
+    /// internal invariant, never a user error -- the lowering mirrors the
+    /// checker's inference exactly, so a divergence means one of them
+    /// changed without the other.
+    PlanViewDivergence { recorded: String, resolved: String },
 }
 
 /// The subject texts the inverted-distance diagnostic renders: the clause as
@@ -86,6 +93,25 @@ pub(super) fn machine_decrease_outcome(
         OrderResolution::Unsupported => return DecreaseOutcome::Unproven,
     };
 
+    // TPR3 slice 1 (decision 23): when the plan RECORDED an elaborated view
+    // (TPR2's lowering-time canonical defaults / authored builtins) and the
+    // checker's resolution lands on a canonical builtin, the two must agree
+    // -- the recorded witness is what proof-cache keys and diagnostics will
+    // trust, so a silent divergence is unacceptable. Declared-measure orders
+    // resolve from the same authored path the plan recorded (agreement by
+    // construction), and a PENDING plan view (empty path) constrains
+    // nothing.
+    if let Some(witness) = machine.termination_plan.implementation_witness.as_ref()
+        && !witness.view_path.is_empty()
+        && let Some(resolved_path) = canonical_order_path(&order)
+        && witness.view_path != resolved_path
+    {
+        return DecreaseOutcome::PlanViewDivergence {
+            recorded: witness.view_path.clone(),
+            resolved: resolved_path.to_string(),
+        };
+    }
+
     let adjacency = graph::machine_adjacency(program, machine);
     let components = graph::strongly_connected_components(&adjacency);
 
@@ -133,6 +159,19 @@ pub(super) fn machine_decrease_outcome(
     }
 
     DecreaseOutcome::Unproven
+}
+
+/// The canonical spelling of a BUILTIN resolved order (`None` for declared
+/// measures, whose normalized identity lands with the rest of TPR3).
+fn canonical_order_path(order: &RankingOrder) -> Option<&'static str> {
+    match order {
+        RankingOrder::NatDescending => Some("Nat::Descending"),
+        RankingOrder::BoundedDistance => Some("Nat::BoundedDistance"),
+        RankingOrder::SliceLength => Some("Slice::Length"),
+        RankingOrder::CustomNatDescending
+        | RankingOrder::CustomStructView(_)
+        | RankingOrder::Lexicographic(_) => None,
+    }
 }
 
 /// A cyclic component terminates when the measure strictly decreases across

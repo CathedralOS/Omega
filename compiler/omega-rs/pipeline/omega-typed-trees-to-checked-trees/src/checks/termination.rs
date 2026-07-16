@@ -23,11 +23,15 @@ pub(crate) fn check_machine_termination(
         }
     }
 
-    for machine in program
-        .machines()
-        .iter()
-        .filter(|machine| machine.terminates)
-    {
+    for machine in program.machines().iter().filter(|machine| {
+        // TPR3 slice 1: the checker gates on the NORMALIZED plan (decision
+        // 23) -- a machine claims termination when it authored the public
+        // guarantee or supplied a ranking witness. The `terminates`
+        // compatibility bool is populated from the same authorship and
+        // agrees by construction until TPR6 retires it.
+        let plan = &machine.termination_plan;
+        plan.published.is_some() || plan.implementation_witness.is_some()
+    }) {
         // A retired-spelling machine already has its directed diagnostic; the
         // ranking checks below would only stack a misleading "cannot prove".
         if retired_subtraction_message(program, machine).is_some() {
@@ -38,9 +42,11 @@ pub(crate) fn check_machine_termination(
             continue;
         }
 
-        if machine.decreases.is_empty() {
+        if machine.termination_plan.implementation_witness.is_none() {
             diagnostics.push(Diagnostic::error(format!(
-                "terminating machine {} contains a recursive cycle but has no decreases clause",
+                "terminating machine {} contains a recursive cycle but carries no \
+                 ranking witness -- spell one with `terminates by <subjects> [-> View];` \
+                 (decision 23)",
                 machine_name(program, machine.symbol)
             )));
             continue;
@@ -64,6 +70,19 @@ pub(crate) fn check_machine_termination(
                 diagnostics.push(Diagnostic::error(inverted_distance_message(
                     &machine_name(program, machine.symbol),
                     &inverted,
+                )));
+            }
+            ranking::DecreaseOutcome::PlanViewDivergence { recorded, resolved } => {
+                // Internal invariant (TPR3 slice 1): the lowering's recorded
+                // elaboration mirrors the checker's inference exactly; a
+                // divergence means one changed without the other. Loud and
+                // named, never silent.
+                diagnostics.push(Diagnostic::error(format!(
+                    "internal: terminating machine {}'s recorded ranking view `{recorded}` \
+                     diverges from the checker's resolved view `{resolved}` (decision 23 \
+                     firewall) -- the syntax->resolved elaboration and the checker's \
+                     inference must stay in lockstep",
+                    machine_name(program, machine.symbol)
                 )));
             }
         }

@@ -943,3 +943,63 @@ fn termination_plan_records_authored_views_verbatim() {
     assert_eq!(weaken.ranking_view, RankingViewId::NULL);
     assert_eq!(weaken.view_path, "Card::PowerOrder");
 }
+
+/// TPR3 slice 1 (decision 23 firewall): a recorded witness view that
+/// DIVERGES from the checker's independently resolved order is an internal
+/// invariant violation surfaced loudly -- never a silent preference for
+/// either side. (Constructed by mutating the plan post-typing; the real
+/// lowering mirrors the checker's inference exactly.)
+#[test]
+fn recorded_view_divergence_is_loud() {
+    let source = r#"
+    data Main {}
+
+    machine Main::main(&mut self) {
+        let a: u64 = self.countdown(2);
+    }
+
+    machine Main::countdown(&mut self, remaining: u64)
+    terminates by remaining;
+    {
+        transition remaining > 0 {
+            true -> self.countdown(remaining - 1)
+            false -> 0
+        }
+    }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let mut typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+
+    let machine = typed
+        .machines_mut()
+        .iter_mut()
+        .find(|machine| machine.name.as_str() == "Main::countdown")
+        .expect("countdown machine");
+    let witness = machine
+        .termination_plan
+        .implementation_witness
+        .as_mut()
+        .expect("countdown witness");
+    assert_eq!(witness.view_path, "Nat::Descending");
+    witness.view_path = "Slice::Length".to_string();
+    witness.ranking_view = omega_core::semantics::RankingViewId::SLICE_LENGTH;
+
+    let diagnostics =
+        lower_typed_trees(typed).expect_err("a diverging recorded view must be loud");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.message.contains("recorded ranking view `Slice::Length`")
+                && diagnostic.message.contains("resolved view `Nat::Descending`")
+        }),
+        "expected the divergence invariant diagnostic, got: {:?}",
+        diagnostics
+            .iter()
+            .map(|diagnostic| diagnostic.message.clone())
+            .collect::<Vec<_>>()
+    );
+}
