@@ -9,6 +9,10 @@ pub struct DataDefinition {
     pub name: Identifier,
     pub type_parameters: HandleSpan<TypeParameter>,
     pub properties: DataProperties,
+    /// R2 rung 2 slice 2 (ch12): the ADMITTED zero-satisfying
+    /// default-domain facts, copied from the resolved record. INERT until
+    /// rung 3 wires entailment hypotheses + write obligations ATOMICALLY.
+    pub where_facts: HandleSpan<crate::domain::ProofFact>,
     pub members: HandleSpan<DataMember>,
 }
 
@@ -19,6 +23,7 @@ impl Default for DataDefinition {
             name: Identifier::default(),
             type_parameters: HandleSpan::empty(),
             properties: DataProperties::default(),
+            where_facts: HandleSpan::empty(),
             members: HandleSpan::empty(),
         }
     }

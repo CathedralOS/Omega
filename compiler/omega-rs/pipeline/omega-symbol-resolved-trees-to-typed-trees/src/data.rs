@@ -19,6 +19,9 @@ pub(crate) fn lower_data_definition(
             send: data_definition.properties.send,
             multiplicity: data_definition.properties.multiplicity,
         },
+        // R2 rung 2 slice 2: copied (re-lowered) from the resolved record;
+        // inert until rung 3's atomic consumer.
+        where_facts: crate::domain::lower_proof_facts(lowerer, data_definition.where_facts)?,
         members: omega_core::arena::HandleSpan::empty(),
     };
 
