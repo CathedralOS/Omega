@@ -918,8 +918,22 @@ bounded-escape store-containment keystone. Open rungs:
   data_where_gated_unsupported replaced the rung-1 unconsumed pin).
   SLICE 2 LANDED same day: the admitted facts COPY to the TYPED
   DataDefinition.where_facts (re-lowered like machine-contract facts;
-  inert, propagation-pinned) -- rung 3's consumer substrate is in
-  place. Remaining R2 = the big semantic build:** the
+  inert, propagation-pinned). RUNG 2b LANDED same day -- GATED
+  CONSTRUCTION: gated types are ADMITTED (zero_gated stored on both
+  records; the slice-1 refusal retired) and every LITERAL of a
+  domain-carrying type must PROVE the default domain -- the where
+  facts fold at the literal's field valuation (named integer values;
+  omitted fields read the ZII zero; a where-mentioned runtime-valued
+  field refuses as unverifiable until rung 3's prover). Ch12's Player
+  example is the acceptance shape (pinned: pass
+  data_where_gated_literal_proves RUNS exit 70; fail
+  data_where_literal_violates -- omitted health reads 0, not a
+  Player). Remaining R2: rung 3 (the ATOMIC consumer: entailment
+  hypotheses + field-write obligations + the zeroed-storage access
+  gate for gated types -- currently storage-legal per ch12's
+  machine-owned rule but reads are NOT yet gated), windows (ch11
+  consumption-point relaxation), runtime-valued gated construction
+  via the prover. The rest of the big semantic build:** the
   big semantic build — where-clause parsing on data, the default-domain
   layer, gating (zero-excluding domains legal, construction mandatory
   fields), consumption-point windows (ADDITIVE relaxation of the landed

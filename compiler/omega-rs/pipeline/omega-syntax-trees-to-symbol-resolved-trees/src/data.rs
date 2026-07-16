@@ -36,6 +36,7 @@ pub(crate) fn lower_data_definition(
     // zero refuses as unsupported (v1 fence). Never a silent drop.
     let where_facts =
         crate::domain::lower_proof_facts(lowerer, syntax_trees, data_definition.where_facts)?;
+    let mut zero_gated = false;
     for fact in lowerer.symbol_resolved_trees.proof_facts(where_facts) {
         let omega_symbol_resolved_trees::domain::ProofFact::Expression(expression) = fact else {
             return Err(Diagnostic::error(format!(
@@ -50,15 +51,10 @@ pub(crate) fn lower_data_definition(
             *expression,
         ) {
             Some(value) if value != 0 => {}
-            Some(_) => {
-                return Err(Diagnostic::error(format!(
-                    "data `{}` is GATED: its zero value violates the default domain \
-                     (`where` fact fails at zero) -- gated construction \
-                     (mandatory fields) is not implemented yet (R2 rung 2b); make \
-                     the facts hold at zero for now",
-                    data_definition.name.as_str()
-                )));
-            }
+            // R2 rung 2b: zero violates the domain -- the type is GATED
+            // (admitted; its literals must PROVE the domain, and rung 3's
+            // access gate covers zeroed storage).
+            Some(_) => zero_gated = true,
             None => {
                 return Err(Diagnostic::error(format!(
                     "data `{}`: a default-domain `where` fact is outside the v1 \
@@ -88,6 +84,7 @@ pub(crate) fn lower_data_definition(
                 },
             },
             where_facts,
+            zero_gated,
             members,
         },
     })
@@ -182,6 +179,7 @@ pub(crate) fn lower_data_version_definitions(
             storage: DataDefinitionStorage {
                 type_parameters: HandleSpan::empty(),
                 where_facts: omega_core::arena::HandleSpan::empty(),
+                zero_gated: false,
                 // Historical shapes carry no declared properties; a property
                 // describes the CURRENT shape only.
                 properties: DataProperties::default(),
@@ -278,6 +276,7 @@ pub(crate) fn lower_versioned_container_definition(
         storage: DataDefinitionStorage {
             type_parameters: HandleSpan::empty(),
             where_facts: omega_core::arena::HandleSpan::empty(),
+                zero_gated: false,
             // The container itself is plain runtime state: zero-initialized
             // like any other field-bearing data (a zeroed container reads as
             // the oldest declared era with a zeroed payload).

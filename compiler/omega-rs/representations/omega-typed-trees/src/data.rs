@@ -13,6 +13,9 @@ pub struct DataDefinition {
     /// default-domain facts, copied from the resolved record. INERT until
     /// rung 3 wires entailment hypotheses + write obligations ATOMICALLY.
     pub where_facts: HandleSpan<crate::domain::ProofFact>,
+    /// R2 rung 2b: zero violates the default domain (copied; see the
+    /// resolved record).
+    pub zero_gated: bool,
     pub members: HandleSpan<DataMember>,
 }
 
@@ -24,6 +27,7 @@ impl Default for DataDefinition {
             type_parameters: HandleSpan::empty(),
             properties: DataProperties::default(),
             where_facts: HandleSpan::empty(),
+            zero_gated: false,
             members: HandleSpan::empty(),
         }
     }

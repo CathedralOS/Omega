@@ -192,6 +192,14 @@ fn validate_literal_field_names(
         return;
     }
 
+    // R2 rung 2b (ch12 "Construction is the gate"): a literal of a
+    // domain-carrying type must PROVE the default domain -- every `where`
+    // fact folds at the literal's field valuation (named integer-literal
+    // values; omitted fields read 0). A field the facts mention whose value
+    // is not an integer literal makes the fact unverifiable in v1 and
+    // refuses (runtime-valued constructions need rung 3's prover).
+    validate_literal_default_domain(program, literal, data_definition, diagnostics);
+
     match &literal.case_name {
         None => {
             // A case-bearing type (sum or mixed) has no record-form literal:
@@ -288,6 +296,14 @@ fn enforce_construction_field_obligations(
     if data_definition.type_parameters.count() > 0 {
         return;
     }
+
+    // R2 rung 2b (ch12 "Construction is the gate"): a literal of a
+    // domain-carrying type must PROVE the default domain -- every `where`
+    // fact folds at the literal's field valuation (named integer-literal
+    // values; omitted fields read 0). A field the facts mention whose value
+    // is not an integer literal makes the fact unverifiable in v1 and
+    // refuses (runtime-valued constructions need rung 3's prover).
+    validate_literal_default_domain(program, literal, data_definition, diagnostics);
 
     for field in program.expression_table.struct_fields(literal.fields) {
         let Some(field_type) = construction_field_type(
@@ -625,6 +641,91 @@ pub(crate) fn construction_field_type(
 fn construction_field_literal(program: &TypedTrees, value: ExpressionHandle) -> Option<i64> {
     match program.expression_table.expression(value) {
         ExpressionNode::Integer(literal) => literal.value_i64(),
+        _ => None,
+    }
+}
+
+/// R2 rung 2b: fold every default-domain fact at the LITERAL's field
+/// valuation. Field names read the literal's integer value (omitted -> 0);
+/// literals, `+ - *`, comparisons, and `&&`/`||` fold. A fact that fails
+/// refuses naming it; a fact that cannot fold (a runtime-valued field)
+/// refuses as unverifiable.
+fn validate_literal_default_domain(
+    program: &TypedTrees,
+    literal: &TableStructLiteral,
+    data_definition: &DataDefinition,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if data_definition.where_facts.is_empty() {
+        return;
+    }
+    let type_name = literal.type_name.as_str();
+    let mut valuation: Vec<(&str, Option<i128>)> = Vec::new();
+    for field in program.expression_table.struct_fields(literal.fields) {
+        let value = literal_fold(program, &[], field.value);
+        valuation.push((field.name.as_str(), value));
+    }
+    for fact in program.proof_facts.span_or_empty(data_definition.where_facts) {
+        let omega_typed_trees::domain::ProofFact::Expression(expression) = fact else {
+            continue;
+        };
+        match literal_fold(program, &valuation, *expression) {
+            Some(value) if value != 0 => {}
+            Some(_) => diagnostics.push(Diagnostic::error(format!(
+                "data `{type_name}` literal violates the default domain: a `where` \
+                 fact evaluates FALSE at this construction (ch12: construction is \
+                 the gate)"
+            ))),
+            None => diagnostics.push(Diagnostic::error(format!(
+                "data `{type_name}` literal cannot PROVE the default domain: a \
+                 `where`-mentioned field's value is not an integer literal \
+                 (runtime-valued gated construction needs the R2 rung 3 prover) -- \
+                 spell literal values for the constrained fields"
+            ))),
+        }
+    }
+}
+
+/// Fold a typed expression over a field valuation: names read the valuation
+/// (absent -> 0, the ZII default; a name PRESENT with a non-literal value
+/// poisons the fold), integer literals read themselves.
+fn literal_fold(
+    program: &TypedTrees,
+    valuation: &[(&str, Option<i128>)],
+    expression: ExpressionHandle,
+) -> Option<i128> {
+    use omega_typed_trees::expression::BinaryOperator;
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Name(path) => {
+            let last = program
+                .expression_table
+                .name_path_members(path.members)
+                .last()?
+                .as_str();
+            match valuation.iter().find(|(name, _)| *name == last) {
+                Some((_, value)) => *value,
+                None => Some(0),
+            }
+        }
+        ExpressionNode::Integer(value) => value.text().parse::<i128>().ok(),
+        ExpressionNode::Binary(binary) => {
+            let left = literal_fold(program, valuation, binary.left)?;
+            let right = literal_fold(program, valuation, binary.right)?;
+            match binary.operator {
+                BinaryOperator::Add => left.checked_add(right),
+                BinaryOperator::Subtract => left.checked_sub(right),
+                BinaryOperator::Multiply => left.checked_mul(right),
+                BinaryOperator::LessOrEqual => Some(i128::from(left <= right)),
+                BinaryOperator::Less => Some(i128::from(left < right)),
+                BinaryOperator::GreaterOrEqual => Some(i128::from(left >= right)),
+                BinaryOperator::Greater => Some(i128::from(left > right)),
+                BinaryOperator::Equal => Some(i128::from(left == right)),
+                BinaryOperator::NotEqual => Some(i128::from(left != right)),
+                BinaryOperator::And => Some(i128::from(left != 0 && right != 0)),
+                BinaryOperator::Or => Some(i128::from(left != 0 || right != 0)),
+                _ => None,
+            }
+        }
         _ => None,
     }
 }

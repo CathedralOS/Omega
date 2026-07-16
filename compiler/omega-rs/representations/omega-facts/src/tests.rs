@@ -287,6 +287,7 @@ fn expression_places_resolve_attached_data_members() {
         type_parameters: HandleSpan::empty(),
         properties: omega_typed_trees::data::DataProperties::default(),
         where_facts: Default::default(),
+        zero_gated: false,
         members: HandleSpan::empty(),
     });
     let mut main_data = omega_typed_trees::data::DataDefinition {
@@ -295,6 +296,7 @@ fn expression_places_resolve_attached_data_members() {
         type_parameters: HandleSpan::empty(),
         properties: omega_typed_trees::data::DataProperties::default(),
         where_facts: Default::default(),
+        zero_gated: false,
         members: HandleSpan::empty(),
     };
     program.push_data_member(
