@@ -1,0 +1,18 @@
+// The range-mint's negative twin: [-10..=4096] does NOT entail
+// self >= 0 (the value MAY satisfy it at runtime -- undischarged, not
+// false), so the staged fence stays.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+domain i64::Km {
+    self >= 0;
+}
+machine Main::measure(&mut self, raw: i64 [-10..=4096]) -> i64 {
+    let distance: i64 = raw as i64 in Km;
+    distance
+}
+machine Main::main(&mut self) {
+    let d: i64 = self.measure(7);
+    transition d == 7 { true -> good() _ -> bad() }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(1); }
+}

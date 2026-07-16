@@ -697,9 +697,20 @@ sealed progress profiles + grants, TPR4's remaining big half).
    resolves its short name to the declaration (the judge's
    exact-or-::suffix rule) and commits the declaration's interned
    identity beside the policy ids (pin extended: Main::minted
-   commits Km's id). Remaining checked plans: flow-integrated
-   minting (non-literal values via guards/facts);
-   permission + normalized-machine-contract plans; STR5
+   commits Km's id). FLOW-INTEGRATED MINT v1
+   LANDED same day: a RUNTIME value qualifies when its DECLARED
+   RANGE entails every domain fact (interval entailment, the R2
+   slice-9 discipline -- and the same declared_place_type_RAW gotcha:
+   the plain variant strips the Constrained shell the range lives
+   in). The judge moved into the machine/state loop for context;
+   the positional sweep keeps literal-only judging for strays.
+   Pinned: pass domains/semantic_cast_range_mint
+   (raw: i64 [0..=4096] entails self >= 0, RUNS exit 70); fail
+   semantic_cast_range_insufficient ([-10..=4096] does not entail --
+   undischarged, not false). Remaining checked plans: guard-fact
+   minting (a dominating `raw >= 0` guard discharging -- the full
+   flow integration); permission + normalized-machine-contract
+   plans; STR5
    validation/resolution; STR6 lower only from checked selections while
    preserving semantic contract IDs in artifacts; STR7 retire compatibility
    paths. Decision 22 now supplies the effect-row target: kinded
