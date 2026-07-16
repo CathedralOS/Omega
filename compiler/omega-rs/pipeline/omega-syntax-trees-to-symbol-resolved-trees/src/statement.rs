@@ -129,8 +129,14 @@ fn lower_statement_node(
             Ok(hoisted)
         }
         syntax::statement::StatementNode::LocalData(local_data) => {
-            let type_reference =
-                lower_type_reference_handle(lowerer, syntax_trees, local_data.type_reference)?;
+            // Parse-time desugars (destructure lets) mint TYPELESS locals;
+            // the Unit sentinel defers typing to the initializer (the
+            // hoist rule the resolved->typed layer already serves).
+            let type_reference = if local_data.type_reference.is_valid() {
+                lower_type_reference_handle(lowerer, syntax_trees, local_data.type_reference)?
+            } else {
+                TypeReference::Unit
+            };
             let initial_value = if local_data.initial_value.is_valid() {
                 lower_statement_expression(lowerer, syntax_trees, local_data.initial_value)?
             } else {

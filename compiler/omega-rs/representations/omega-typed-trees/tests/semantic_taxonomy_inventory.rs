@@ -30,6 +30,10 @@ fn domain_definition_is_still_the_undifferentiated_shape() {
             name: _,
             target_type: _,
             classifier: _,
+            // STR4 checked plans (2026-07-19): the normalized SemanticDomainId
+            // landed -- LOSS 1's "no normalized SemanticDomainId" clause is
+            // PARTIALLY re-pinned (facet split + mint authority still absent).
+            semantic_id: _,
             facts: _,
             operators: _,
             body_token_count: _,

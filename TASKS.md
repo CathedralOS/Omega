@@ -2895,6 +2895,23 @@ with a real app-window story.
   arrow rejected; arm-position record binding shares the grammar; v1 may
   restrict bindings to [copy]-eligible fields. The canonical hand-written
   equals opens with the exhaustive destructure (convention, unenforced).
+  LET POSITION SHIPPED (2026-07-19): `let { x, y as v, z as _ } = place;`
+  parses via try_parse_destructure_let (parser/statement.rs) — desugars at
+  parse time to a `__destructure__<fields>` MARKER let (the exhaustiveness
+  carrier; initializer = the place) + per-BOUND-field Unit-sentinel lets
+  reading the place's members (types via hoist inference); v1 place gate
+  (Name/self/member chains — calls would double-evaluate); colon/arrow fall
+  through to the plain parser's error. The LAW half:
+  omega-validation/src/destructure.rs resolves the marker's place type
+  (declared_place_type_raw) to its data definition and refuses missing
+  fields (named, with the bind/rename/waive menu) and unknown fields;
+  sum types are redirected to `case`. Canaries:
+  pass/data/record_pattern_{let,bind_all}_exit (run-verified 70),
+  fail/data/record_pattern_{missing_field,unknown_field}. REMAINING:
+  arm-position sharing the grammar; [copy]-eligibility restriction if
+  non-copy fields surface unsoundly; field names containing `__` mis-split
+  the marker encoding (spurious unknown-field error, never a masked
+  missing-field).
 - **Const data parameters:** symbolic lengths flow structurally;
   instantiation-time substitution, validation, layout diagnostics, const-fact
   proof integration pending.

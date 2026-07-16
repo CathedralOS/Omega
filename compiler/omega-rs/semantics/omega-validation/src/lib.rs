@@ -3,6 +3,7 @@ mod call_cycles;
 mod calls;
 mod contract_entailment;
 mod data;
+mod destructure;
 mod domains;
 mod effects;
 mod entry_point;
@@ -93,6 +94,9 @@ pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
     // before membership lowering synthesizes its internal tag compares; see
     // omega-symbol-resolved-trees-to-typed-trees/src/equality.rs.
     struct_literals::validate_struct_literal_fields(program, &mut diagnostics);
+    // Record patterns in LET (owner spec 2026-07-18): the exhaustiveness
+    // law on the parse-minted `__destructure__*` marker.
+    destructure::validate_destructure_exhaustiveness(program, &mut diagnostics);
     // R2 rung 3 slice 1: the default-domain write obligation (strict
     // store-time semantics; obligations before hypotheses).
     default_domains::validate_default_domain_writes(program, &mut diagnostics);
