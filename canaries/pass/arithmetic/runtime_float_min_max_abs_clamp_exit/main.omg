@@ -20,7 +20,7 @@ machine Main::main(&mut self) {
     self.mn = min(3.0, 7.0);
     self.ab = abs(0.0 - 12.0);
     self.cl = clamp(300.0, 0.0, 200.0);
-    self.total = (self.mx + self.mn + self.ab + self.cl) as i32;
+    self.total = (self.mx + self.mn + self.ab + self.cl) as i32 in Saturating; // F4: proof-or-policy (in-range value; Saturating = same result)
     transition self.total == 222 {
         true -> good()
         false -> bad()

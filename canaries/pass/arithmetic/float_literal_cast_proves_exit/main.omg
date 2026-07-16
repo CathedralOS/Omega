@@ -1,0 +1,19 @@
+// RUN CANARY (exit 70) + interpreter differential. F4's proof side: a bare
+// float->int cast with a LITERAL source proves when the truncation fits the
+// target's range (the fold-visible face -- validation reads the literal at
+// its landed format). 10.5 as i32 truncates toward zero to 10; -3.7 as i32
+// to -3.
+// exits: 71 = positive truncation wrong; 72 = negative truncation wrong.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; a: i32; b: i32; }
+machine Main::main(&mut self) {
+    self.a = 10.5 as i32;
+    self.b = (0.0 - 3.7) as i32 in Saturating; // an EXPRESSION source needs the policy
+    transition self.a == 10 { true -> neg() _ -> bad() }
+    state neg(&mut self) {
+        transition self.b == (0 as i32 in Wrapping) - 3 { true -> good() _ -> bad2() }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self)  { self.console.exit_process(71); }
+    state bad2(&mut self) { self.console.exit_process(72); }
+}

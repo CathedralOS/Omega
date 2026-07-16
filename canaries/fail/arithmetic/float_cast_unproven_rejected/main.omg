@@ -1,0 +1,12 @@
+// F4 Exact cast obligation (ch5, proof-or-policy): a BARE float->int cast
+// requires the value provably in the target's range; a runtime source (a
+// field) is not provable today, and the out-of-range case was a pinned
+// THREE-WAY native divergence (x86 integer-indefinite vs aarch64/interp
+// saturation) -- rejecting is the ruling, policies are the escape.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; f: f64; r: i32; }
+machine Main::main(&mut self) {
+    self.f = 100000000000000000000.0;
+    self.r = self.f as i32;
+    self.console.exit_process(0);
+}

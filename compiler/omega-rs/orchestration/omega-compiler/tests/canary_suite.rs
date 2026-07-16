@@ -17992,6 +17992,32 @@ fn trapping_shift_count_traps_aborts() {
 }
 
 #[test]
+fn float_literal_cast_proves_exit_canary_runs() {
+    // F4's proof side: a bare float->int cast with a LITERAL source proves
+    // when the truncation fits the target range.
+    let canary = pass_canary("arithmetic/float_literal_cast_proves_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-f2ilit-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("float-literal cast canary should compile (the literal proves)");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("float-literal cast canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the proven literal truncations (exit 70), got {:?}",
+        output.status.code(),
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn u64_magnitude_transition_arg_exit_canary_runs() {
     // D14 Fire H (the CR3 remaining face): a u64-magnitude literal in
     // transition-argument position delivers into a u64-classed param.
@@ -30992,6 +31018,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "arithmetic/runtime_shift_count_proven_range_exit",
     "arithmetic/runtime_shift_subword_masked_count_exit",
     "arithmetic/u64_magnitude_transition_arg_exit",
+    "arithmetic/float_literal_cast_proves_exit",
     "proofs/runtime_decreases_u64_measure_exit",
     "arithmetic/runtime_wrapping_operand_truncation_exit",
     "text/case_literal_texteq_field_store_exit",
@@ -31733,6 +31760,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "arithmetic/shift_count_saturating_oor_rejected",
     "arithmetic/float_cast_wrapping_rejected",
     "arithmetic/u64_magnitude_arg_non_u64_rejected",
+    "arithmetic/float_cast_unproven_rejected",
     "arithmetic/suffix_negative_unsigned_rejected",
     "float/suffix_format_disagrees_rejected",
     "capabilities/host_provides_unknown_binding",
@@ -32107,10 +32135,13 @@ const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
         path: "calls/trailing_state_mut_param_phase_divergence",
         expectation: PendingCanaryExpectation::CurrentlyAccepts,
     },
-    PendingCanary {
-        path: "arithmetic/float_to_int_overflow_divergence",
-        expectation: PendingCanaryExpectation::CurrentlyAccepts,
-    },
+    // float_to_int_overflow_divergence RETIRED 2026-07-16 by the F4 Exact
+    // cast obligation: a BARE out-of-range float->int cast is now a compile
+    // error (proof-or-policy), so the pinned three-way native divergence is
+    // unreachable; the defined policies are pinned by
+    // pass/arithmetic/float_to_int_saturating_exit +
+    // trapping_float_to_int_cast_traps (arch-gated; the x86 policy fixups
+    // are its host session's rung).
     // immutable_arg_for_mut_param_not_checked PROMOTED to
     // fail/calls/immutable_arg_for_mut_param_rejected (borrow-mutability
     // enforcement landed 2026-07-18).
