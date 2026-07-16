@@ -633,8 +633,12 @@ sealed progress profiles + grants, TPR4's remaining big half).
    row normalizes the declaration-free observation set; the slice-2
    test now pins ceiling != inferred_direct on the declaring machine
    (transitive still includes the own declaration via its seed until
-   a later fixpoint rework). Remaining STR4: pinned-slot refinement,
-   ceiling-vs-inferred enforcement, transitive-seed rework;
+   a later fixpoint rework). CEILING ENFORCEMENT verified
+   ALREADY LIVE 2026-07-16 (run-probed: "declares effects `clock_read`
+   but reaches undeclared effects `host_boundary`"; pinned:
+   fail/capabilities/effect_ceiling_exceeded). Remaining STR4:
+   pinned-slot refinement (provider-slot machinery -- profile-
+   adjacent), transitive-seed rework;
    snapshots gain the new fields as those slices land;
    STR4 checked semantic
    qualification + permission + normalized-machine-contract plans; STR5
