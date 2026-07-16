@@ -10108,6 +10108,9 @@ mod machine_control_tests {
         ) -> Option<(RuntimeValueOperandHandle, usize, usize, bool, bool, bool)> {
             None
         }
+        fn convert_trapping(&self, _: RuntimeValueOperandHandle) -> bool {
+            false
+        }
         fn text_equals(
             &self,
             _: RuntimeValueOperandHandle,

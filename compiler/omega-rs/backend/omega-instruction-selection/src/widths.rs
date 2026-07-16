@@ -624,6 +624,7 @@ pub fn runtime_storage_convert_width(
     source_is_float: bool,
     target_is_float: bool,
     source_signed: bool,
+    trapping: bool,
 ) -> usize {
     match architecture {
         Architecture::Aarch64 => aarch64::runtime_storage_convert_width(
@@ -635,12 +636,15 @@ pub fn runtime_storage_convert_width(
             source_is_float,
             target_is_float,
             source_signed,
+            trapping,
         ),
         Architecture::X86_64 => {
             // The x86_64 converting store reaches the target through `r14`-relative
             // addressing with a fixed-width displacement, so its width is
-            // offset-independent; ignore `target_offset` here.
-            let _ = target_offset;
+            // offset-independent; ignore `target_offset` here. `trapping` is
+            // ignored too: the x86 value guard is its host session's rung
+            // (the cast lowers as today; documented divergence).
+            let _ = (target_offset, trapping);
             x86_64::runtime_storage_convert_width(
                 runtime_value_operands,
                 source,

@@ -398,6 +398,7 @@ fn machine_instruction_width(
             source_is_float,
             target_is_float,
             source_signed,
+            trapping,
             ..
         } => runtime_storage_convert_width(
             input.target.architecture,
@@ -409,6 +410,7 @@ fn machine_instruction_width(
             *source_is_float,
             *target_is_float,
             *source_signed,
+            *trapping,
         ),
         SelectedInstructionKind::AtomicFetchAdd {
             target_offset,
