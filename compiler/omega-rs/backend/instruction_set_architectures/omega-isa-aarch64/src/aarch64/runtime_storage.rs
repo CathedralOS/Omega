@@ -840,6 +840,13 @@ fn append_saturating_trapping_arithmetic(
         // unsigned iff UMULH != 0. The high half computes BEFORE the low
         // half overwrites x17.
         if operator == StateGuardOperator::ShiftLeft {
+            // F8c: a TRAPPING out-of-range COUNT traps before the value
+            // math -- regardless of x (`0 << 70` traps). The recovery
+            // witness below keeps its own count-caveat branches for the
+            // Saturating clamp.
+            if domain == ArithmeticDomain::Trapping {
+                append_shift_count_trap_guard(bytes, rhs, byte_size)?;
+            }
             // 64-bit `<<` loses the shifted-out bits, so the witness is
             // RECOVERY: y = x << n, then y >> n (arithmetic for signed,
             // logical for unsigned) equals x exactly when nothing was lost.
@@ -985,6 +992,13 @@ fn append_saturating_trapping_arithmetic(
     }
 
     if operator == StateGuardOperator::ShiftLeft {
+        // F8c: a TRAPPING out-of-range COUNT traps before the value math --
+        // regardless of x (`0 << 40` traps; the count is invalid, not the
+        // result). Saturating cannot reach one post-F8a; its count cap
+        // below stays for robustness.
+        if domain == ArithmeticDomain::Trapping {
+            append_shift_count_trap_guard(bytes, rhs, byte_size)?;
+        }
         // Narrow `<<`: cap the COUNT at the type width w -- any count >= w
         // overflows every nonzero x, and the cap keeps the 64-bit LSLV EXACT
         // (|x| <= 2^31-ish shifted by <= 32 fits 64 bits) -- then range-check
@@ -4093,15 +4107,35 @@ fn append_runtime_binary_operation_with_domain(
             byte_size,
         );
     }
+    let trapping = domain == omega_core::arithmetic::ArithmeticDomain::Trapping;
+    if trapping
+        && matches!(
+            operator,
+            StateGuardOperator::ShiftRight | StateGuardOperator::ShiftRightLogical
+        )
+    {
+        // F8c (ch5 shift-count ruling): a TRAPPING shift with an
+        // out-of-range count TRAPS -- regardless of the shifted value (the
+        // count is invalid, not the result). Guard BEFORE the op: an
+        // in-range count skips the brk and the plain W/X-form shift computes
+        // it exactly.
+        append_shift_count_trap_guard(bytes, rhs_register, byte_size)?;
+        return append_runtime_binary_operation(
+            bytes,
+            destination_register,
+            operator,
+            rhs_register,
+            byte_size,
+        );
+    }
     if non_exact && operator == StateGuardOperator::ShiftRight {
-        // SATURATING/TRAPPING arithmetic `>>` keep floor(x / 2^n) semantics:
-        // an at/above-width count must SIGN-FILL, and a post-fix cannot
-        // recover the sign once the masked shift consumed the value -- so
-        // saturate the COUNT first. CSINV turns at/above-width counts into
-        // ~0, which ASRV masks to the form width - 1 (31/63): exactly the
-        // sign-fill shift. Clobbers the rhs register (dead after the
-        // operation, as on x86_64). Post-F8a only Trapping can reach an
-        // out-of-range count; F8c replaces this with the count trap.
+        // SATURATING arithmetic `>>` keeps floor(x / 2^n) semantics for an
+        // (unreachable post-F8a) at/above-width count: it must SIGN-FILL,
+        // and a post-fix cannot recover the sign once the masked shift
+        // consumed the value -- so saturate the COUNT first. CSINV turns
+        // at/above-width counts into ~0, which ASRV masks to the form
+        // width - 1 (31/63): exactly the sign-fill shift. Clobbers the rhs
+        // register (dead after the operation, as on x86_64).
         let width_bits = u32::try_from(byte_size * 8).unwrap_or(64);
         bytes.extend(encode_compare_x_immediate(rhs_register, width_bits)?);
         // LO (unsigned <): in-range counts keep rhs; otherwise NOT(XZR).
@@ -4109,8 +4143,8 @@ fn append_runtime_binary_operation_with_domain(
     }
     append_runtime_binary_operation(bytes, destination_register, operator, rhs_register, byte_size)?;
     if non_exact && operator == StateGuardOperator::ShiftRightLogical {
-        // Saturating/Trapping logical `>>`: zero at/above-width (floor
-        // semantics), same F8c caveat as the arithmetic arm above.
+        // Saturating logical `>>`: zero at/above-width (floor semantics;
+        // unreachable post-F8a, kept for robustness).
         let width_bits = u32::try_from(byte_size * 8).unwrap_or(64);
         bytes.extend(encode_compare_x_immediate(rhs_register, width_bits)?);
         // HS (unsigned >=): count at or above the width selects XZR.
@@ -4118,6 +4152,25 @@ fn append_runtime_binary_operation_with_domain(
     }
     Ok(())
 }
+
+/// F8c count guard: `cmp count, #width ; b.lo +8 ; brk #0` -- a TRAPPING
+/// shift's out-of-range count traps before the shift runs. 12 bytes; the
+/// width fns add SHIFT_COUNT_TRAP_GUARD_WIDTH in lockstep.
+fn append_shift_count_trap_guard(
+    bytes: &mut Vec<u8>,
+    count_register: u8,
+    byte_size: usize,
+) -> Result<(), Diagnostic> {
+    let width_bits = u32::try_from(byte_size * 8).unwrap_or(64);
+    bytes.extend(encode_compare_x_immediate(count_register, width_bits)?);
+    // LO (unsigned <): an in-range count hops over the brk.
+    bytes.extend(encode_conditional_branch_lower(8)?);
+    bytes.extend(encode_brk(0));
+    Ok(())
+}
+
+/// Bytes of [`append_shift_count_trap_guard`]: cmp (4) + b.lo (4) + brk (4).
+pub(in crate::aarch64) const SHIFT_COUNT_TRAP_GUARD_WIDTH: usize = 12;
 
 fn append_runtime_binary_operation(
     bytes: &mut Vec<u8>,

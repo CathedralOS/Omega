@@ -1420,11 +1420,32 @@ rejects — an INTEGER ruling, engineering rides this ladder as F8).
   unit tests cover it structurally). The state-values folder is
   UNCHANGED (it defers OOR-count folds to the runtime — consistent
   either way; folding masked is a possible later nicety).
-  REMAINING: F8c — Trapping count-trap (count >= width traps even when
-  the VALUE fits: `0 << 40` Trapping currently exits 0 on both
-  engines; the value-overflow trap already fires; the Sat/Trap `>>`
-  floor fixes on both ISAs + the interp's Trapping arms migrate
-  then).
+  F8c LANDED (aarch64 lane, 2026-07-16) — TRAPPING COUNT-TRAP,
+  value-blind: an out-of-range count traps BEFORE the shift on all
+  three engines (`0 << 40` Trapping aborts even though 0 fits; the
+  COUNT is invalid, not the result). interp: one Trapping count check
+  ahead of the Sat/Trap shift arms ("shift count out of range in
+  Trapping domain"). aarch64: append_shift_count_trap_guard (cmp +
+  b.lo + brk, SHIFT_COUNT_TRAP_GUARD_WIDTH=12) — with_domain's
+  Trapping `>>`/`>>>` take guard+plain-op (the CSINV/CSEL floor fixes
+  are now Saturating-only, unreachable post-F8a, kept for
+  robustness); both Trapping `<<` value blocks (64-bit recovery
+  witness + narrow wide-compute) prepend the guard. x86_64 mirrors
+  (cmp r11 + jb + ud2, 8 bytes) in the binary-write arm, the
+  DomainShift operand arm, and append_saturating_trapping_shift_left;
+  all width fns in lockstep. Pinned:
+  pass/arithmetic/trapping_shift_count_traps (abort-style suite test
+  with BOTH engine legs — native != exit 7 + abnormal termination,
+  interp error contains the trap reason; in-range Trapping legs
+  compute exactly first; the `>>` count face probe-verified — one
+  canary can only die once). F8 IS COMPLETE: Exact obligation (F8a) +
+  Wrapping masked count (F8b) + Trapping count trap (F8c); the
+  shift-count ruling is fully engineered per ch5. Known residual
+  (pre-existing, out of F8 scope): the state-values folder folds a
+  CONSTANT Trapping `<<` VALUE overflow with wrap semantics (its own
+  comment marks the value face unruled) while the runtime traps —
+  fold/runtime divergence only for constant Trapping shl overflow;
+  ruled by the F5/value-face work when it lands.
 
 ## Settled rulings with remaining engineering
 
