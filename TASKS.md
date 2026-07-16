@@ -1179,7 +1179,14 @@ no `unbounded` property exists. Rungs:
   citations; Lean analog List.length_append), consumed by
   cite_length_append in the roster canary + a lib test — plus
   append_empty_right and append_assoc (same-day; pure inductions, Lean
-  analogs List.append_nil / List.append_assoc). REMAINING:
+  analogs List.append_nil / List.append_assoc). NAT SEMIRING COMPLETE
+  2026-07-16: mul_distributes_right (citation-free — the rearrange
+  tier flattens the step case's three-addend shuffle) + mul_assoc
+  (satisfies CommutativeSemiring::mul_assoc — the LAST unbound law
+  slot; step cites right-distributivity at (b, mul(prev,b), c) in a
+  sub-state + the IH), both machine-checked on every import (the
+  roster canary compiles them; judge discharged first try). All five
+  CommutativeSemiring laws now bound for Nat. REMAINING:
   more of the lemma zoo as the judge widens (commutativity needs
   double induction / rearrange-mode), extraction INTO consumer proofs
   (a caller citing a lemma's ensures — the fact-consumption face), the

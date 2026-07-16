@@ -250,6 +250,50 @@ ensures
     }
 }
 
+// RIGHT distributivity -- CITATION-FREE like its left twin: induction on
+// `a`; the step case unfolds mul/add and applies the inductive
+// hypothesis, leaving a three-addend shuffle (`add(c, add(X, Y))` against
+// `add(add(c, X), Y)`) the rearrange tier discharges under the
+// CommutativeSemiring conformance.
+machine mul_distributes_right(a: Nat, b: Nat, c: Nat) -> Nat
+terminates {
+    decreases a;
+}
+ensures
+    (mul(add(a, b), c)) == (add(mul(a, c), mul(b, c)))
+{
+    transition a {
+        Nat::Zero -> Nat::Zero
+        Nat::Succ { prev } -> Nat::Succ { prev: mul_distributes_right(prev, b, c) }
+    }
+}
+
+// MULTIPLICATION ASSOCIATES -- the last CommutativeSemiring law slot for
+// Nat. Induction on `a`; the base case is compute-mode (both sides
+// unfold to Zero); the step case cites RIGHT distributivity at
+// (b, mul(prev, b), c) -- rewriting the unfolded left side
+// `mul(add(b, mul(prev, b)), c)` into `add(mul(b, c), mul(mul(prev, b), c))`
+// -- and takes the inductive hypothesis from its self-application, after
+// which both sides meet at `add(mul(b, c), mul(prev, mul(b, c)))`.
+machine mul_assoc(a: Nat, b: Nat, c: Nat) -> Nat
+satisfies CommutativeSemiring::mul_assoc
+terminates {
+    decreases a;
+}
+ensures
+    (mul(mul(a, b), c)) == (mul(a, mul(b, c)))
+{
+    transition a {
+        Nat::Zero -> Nat::Zero
+        Nat::Succ { prev } -> ma_step(prev, b, c)
+    }
+
+    state ma_step(prev: Nat, b: Nat, c: Nat) -> Nat {
+        mul_distributes_right(b, mul(prev, b), c);
+        transition { _ -> Nat::Succ { prev: mul_assoc(prev, b, c) } }
+    }
+}
+
 // MULTIPLICATION COMMUTES: base cites mul_zero_right; step cites
 // mul_succ_right at (b, prev) plus the inductive hypothesis.
 machine mul_comm(a: Nat, b: Nat) -> Nat
