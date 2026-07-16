@@ -2308,6 +2308,12 @@ pub(crate) fn check_law_conformance(
             rewrite_slot_applications(&law_left, &slot_names, &slot_bindings, &mut missing_slots);
         let law_right =
             rewrite_slot_applications(&law_right, &slot_names, &slot_bindings, &mut missing_slots);
+        // N4 identity-law bridging: nullary CONSTANT applications
+        // (`zero()`, `one()`) normalize to their constructor bodies, so
+        // `add(a, zero())` and the proof's `add(a, Nat::Zero)` are one
+        // term.
+        let law_left = unfold_constant_applications(program, law_left);
+        let law_right = unfold_constant_applications(program, law_right);
         if !missing_slots.is_empty() {
             missing_slots.sort();
             missing_slots.dedup();
@@ -2340,6 +2346,8 @@ pub(crate) fn check_law_conformance(
             {
                 return false;
             }
+            let proven_left = unfold_constant_applications(program, proven_left);
+            let proven_right = unfold_constant_applications(program, proven_right);
             [
                 (&proven_left, &proven_right),
                 (&proven_right, &proven_left),
@@ -4155,6 +4163,85 @@ fn term_contains(haystack: &StructuralTerm, needle: &StructuralTerm) -> bool {
 /// payload-carrying constructor with fields sorted by name; everything else
 /// is opaque by display name (identical applications still prove reflexively
 /// through term equality).
+/// N4 identity-law bridging: a NULLARY application of a trivial CONSTANT
+/// machine (single state, a single un-guarded transition to a constructor
+/// terminal -- the settled zero/one shape) normalizes to that constructor.
+fn unfold_constant_applications(program: &TypedTrees, term: StructuralTerm) -> StructuralTerm {
+    match term {
+        StructuralTerm::Application { machine, arguments } if arguments.is_empty() => {
+            match constant_machine_constructor(program, &machine) {
+                Some(constructor) => constructor,
+                None => StructuralTerm::Application {
+                    machine,
+                    arguments,
+                },
+            }
+        }
+        StructuralTerm::Application { machine, arguments } => StructuralTerm::Application {
+            machine,
+            arguments: arguments
+                .into_iter()
+                .map(|argument| unfold_constant_applications(program, argument))
+                .collect(),
+        },
+        StructuralTerm::Constructor { data, case, fields } => StructuralTerm::Constructor {
+            data,
+            case,
+            fields: fields
+                .into_iter()
+                .map(|(name, value)| (name, unfold_constant_applications(program, value)))
+                .collect(),
+        },
+        other => other,
+    }
+}
+
+/// The constructor value a trivial CONSTANT machine returns, when its shape
+/// is exactly the settled one: a single state whose only statement is an
+/// un-guarded transition to a VALUE target that is a closed constructor.
+fn constant_machine_constructor(program: &TypedTrees, name: &str) -> Option<StructuralTerm> {
+    use omega_typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
+    let machine = program.machines().iter().find(|machine| {
+        machine.name.as_str() == name
+            || machine
+                .name
+                .as_str()
+                .rsplit("::")
+                .next()
+                .is_some_and(|simple| simple == name)
+    })?;
+    let states = program.machine_states(machine);
+    let [state] = states else {
+        return None;
+    };
+    let [statement] = program.statement_table.statements(state.statement_nodes) else {
+        return None;
+    };
+    let StatementNode::Transition(transition) = statement else {
+        return None;
+    };
+    if !matches!(transition.guard, TransitionGuardNode::Always) {
+        return None;
+    }
+    let TransitionTargetNode::Value(value) = program
+        .statement_table
+        .transition_target(transition.target)
+    else {
+        return None;
+    };
+    let term = structural_term(program, *value)?;
+    // Closed constructors only (no variables -- a constant).
+    fn is_closed(term: &StructuralTerm) -> bool {
+        match term {
+            StructuralTerm::Constructor { fields, .. } => {
+                fields.iter().all(|(_, value)| is_closed(value))
+            }
+            _ => false,
+        }
+    }
+    is_closed(&term).then_some(term)
+}
+
 fn structural_term(program: &TypedTrees, expression: ExpressionHandle) -> Option<StructuralTerm> {
     match program.expression_table.expression(expression) {
         ExpressionNode::Name(path) => {
