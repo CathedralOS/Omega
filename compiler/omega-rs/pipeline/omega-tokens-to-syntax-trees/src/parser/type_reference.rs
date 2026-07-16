@@ -303,11 +303,16 @@ pub(super) fn parse_type_reference_handle_allowing_borrow<'tokens, 'source>(
             } else {
                 (false, input)
             };
-            let (is_relaxed, input) = if input.at_contextual("relaxed") {
-                (true, input.take_contextual("relaxed")?)
-            } else {
-                (false, input)
-            };
+            // `relaxed` references RETIRED with the relax surface (owner,
+            // 2026-07-17): ch11 windows carry the momentary-violation
+            // semantics; the reference marker has no meaning left.
+            if input.at_contextual("relaxed") {
+                return Err(input.error_here(
+                    "`&relaxed` is retired: invariant windows (ch11) supersede the \
+                     relax surface -- take the ordinary reference",
+                ));
+            }
+            let is_relaxed = false;
             (true, lifetime, is_mutable, is_relaxed, input)
         } else {
             (false, None, false, false, input)
