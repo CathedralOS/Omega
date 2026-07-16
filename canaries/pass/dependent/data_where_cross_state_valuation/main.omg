@@ -1,0 +1,24 @@
+// R2 rung 3 slice 5: cross-state VALUATION transport -- len = 8 written in
+// the entry state travels the must-analysis (Kildall constant propagation)
+// into the successor, so count = 3 folds `count <= len` as 3 <= 8 and the
+// write discharges (this exact shape over-refused under slice 4's
+// poison-everything-non-boot rule).
+boundary trait Console { machine exit_process(return_code: i32); }
+data MemoryMap
+where
+    count <= len,
+{
+    len: u32;
+    count: u32;
+}
+data Main { console: Console; map: MemoryMap; }
+machine Main::main(&mut self) {
+    self.map.len = 8;
+    transition {
+        _ -> fill()
+    }
+    state fill(&mut self) {
+        self.map.count = 3;
+        self.console.exit_process(70);
+    }
+}

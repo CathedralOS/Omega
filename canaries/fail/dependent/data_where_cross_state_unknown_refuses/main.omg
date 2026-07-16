@@ -1,8 +1,8 @@
-// R2 rung 3 slice 4 (SOUNDNESS): in a non-boot state an untracked field
-// may hold ANY prior value -- here len was set to 3 in the entry state, so
-// folding it as the born zero would wrongly ACCEPT `count != len` for
-// count = 3 (3 != 0) while the real valuation violates the domain
-// (3 != 3 is FALSE). The fold poisons instead and refuses with direction.
+// R2 rung 3 slices 4+5 (SOUNDNESS, then PRECISION): folding the untracked
+// len as the born zero would wrongly ACCEPT `count != len` for count = 3
+// (3 != 0). Slice 4 poisoned the fold; slice 5's valuation transport now
+// carries len = 3 across the transition, so the fold sees the REAL
+// violation (3 != 3 is FALSE) and refuses precisely.
 boundary trait Console { machine exit_process(return_code: i32); }
 data Tally
 where

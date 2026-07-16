@@ -30,6 +30,11 @@ pub(crate) fn validate_default_domain_writes(
 ) {
     for machine in program.machines() {
         let states = program.machine_states(machine);
+        // Bodyless machines (boundary/requirement declarations) own no
+        // states -- nothing to walk.
+        if states.is_empty() {
+            continue;
+        }
         // R2 rung 3 slice 3: CROSS-STATE establishment. Establishment is
         // globally monotone in the strict model (every accepted write
         // anywhere re-proves the domain), so a MUST analysis over the
@@ -45,17 +50,32 @@ pub(crate) fn validate_default_domain_writes(
         // directed refusal; cross-state valuation transport is the
         // precision rung).
         let born_zero = |index: usize| index == 0 && !edges.iter().any(|(_, to)| *to == 0);
+        // R2 rung 3 slice 5: the combined MUST fixpoint -- establishment
+        // (as slice 3) and per-place field VALUATIONS (Kildall constant
+        // propagation: non-boot entries start TOP/unvisited; meet keeps a
+        // field only when every visited predecessor exits it with the SAME
+        // literal; establishment survives calls, valuations do not).
         let mut throwaway = Vec::new();
-        let local: Vec<Vec<String>> = states
-            .iter()
-            .enumerate()
-            .map(|(index, state)| {
-                walk_state(program, machine, state, &[], born_zero(index), &mut throwaway)
-            })
-            .collect();
-        let mut entry: Vec<Vec<String>> = vec![Vec::new(); states.len()];
+        let mut entry_established: Vec<Vec<String>> = vec![Vec::new(); states.len()];
+        let mut entry_valuations: Vec<Option<Vec<PlaceValuation>>> = vec![None; states.len()];
+        entry_valuations[0] = Some(Vec::new());
         loop {
             let mut changed = false;
+            let exits: Vec<(Vec<String>, Vec<PlaceValuation>)> = states
+                .iter()
+                .enumerate()
+                .map(|(index, state)| {
+                    walk_state(
+                        program,
+                        machine,
+                        state,
+                        &entry_established[index],
+                        entry_valuations[index].as_deref().unwrap_or(&[]),
+                        born_zero(index),
+                        &mut throwaway,
+                    )
+                })
+                .collect();
             for index in 1..states.len() {
                 let predecessors: Vec<usize> = edges
                     .iter()
@@ -65,23 +85,45 @@ pub(crate) fn validate_default_domain_writes(
                 if predecessors.is_empty() {
                     continue;
                 }
-                let mut meet: Option<Vec<String>> = None;
-                for predecessor in predecessors {
-                    let mut exit = entry[predecessor].clone();
-                    exit.extend(local[predecessor].iter().cloned());
-                    exit.sort();
-                    exit.dedup();
-                    meet = Some(match meet {
-                        None => exit,
+                // Establishment meet (intersection over ALL predecessors).
+                let mut established_meet: Option<Vec<String>> = None;
+                for predecessor in &predecessors {
+                    let exit = &exits[*predecessor].0;
+                    established_meet = Some(match established_meet {
+                        None => exit.clone(),
                         Some(current) => current
                             .into_iter()
                             .filter(|place| exit.contains(place))
                             .collect(),
                     });
                 }
-                let meet = meet.unwrap_or_default();
-                if meet != entry[index] {
-                    entry[index] = meet;
+                let established_meet = established_meet.unwrap_or_default();
+                if established_meet != entry_established[index] {
+                    entry_established[index] = established_meet;
+                    changed = true;
+                }
+                // Valuation meet (over VISITED predecessors only -- the
+                // Kildall optimism; unvisited preds resolve as iteration
+                // reaches them, only ever REMOVING knowledge).
+                let visited: Vec<usize> = predecessors
+                    .iter()
+                    .copied()
+                    .filter(|predecessor| entry_valuations[*predecessor].is_some())
+                    .collect();
+                if visited.is_empty() {
+                    continue;
+                }
+                let mut valuation_meet: Option<Vec<PlaceValuation>> = None;
+                for predecessor in visited {
+                    let exit = &exits[predecessor].1;
+                    valuation_meet = Some(match valuation_meet {
+                        None => exit.clone(),
+                        Some(current) => meet_valuations(&current, exit),
+                    });
+                }
+                let valuation_meet = valuation_meet.unwrap_or_default();
+                if entry_valuations[index].as_ref() != Some(&valuation_meet) {
+                    entry_valuations[index] = Some(valuation_meet);
                     changed = true;
                 }
             }
@@ -94,12 +136,38 @@ pub(crate) fn validate_default_domain_writes(
                 program,
                 machine,
                 state,
-                &entry[index],
+                &entry_established[index],
+                entry_valuations[index].as_deref().unwrap_or(&[]),
                 born_zero(index),
                 diagnostics,
             );
         }
     }
+}
+
+/// One place's transported field valuation (`None` value = known-unknown).
+type PlaceValuation = (String, Vec<(String, Option<i128>)>);
+
+/// MUST meet of two exit valuations: a place survives only when present in
+/// both; a field survives only when both sides agree on the SAME literal.
+fn meet_valuations(left: &[PlaceValuation], right: &[PlaceValuation]) -> Vec<PlaceValuation> {
+    let mut result = Vec::new();
+    for (spelling, left_fields) in left {
+        let Some((_, right_fields)) = right.iter().find(|(name, _)| name == spelling) else {
+            continue;
+        };
+        let mut fields = Vec::new();
+        for (field, left_value) in left_fields {
+            if let Some((_, right_value)) = right_fields.iter().find(|(name, _)| name == field)
+                && left_value == right_value
+                && left_value.is_some()
+            {
+                fields.push((field.clone(), *left_value));
+            }
+        }
+        result.push((spelling.clone(), fields));
+    }
+    result
 }
 
 /// The machine's state-transition edges by state INDEX (Named targets
@@ -172,10 +240,14 @@ fn walk_state(
     machine: &Machine,
     state: &State,
     entry_established: &[String],
+    entry_valuations: &[PlaceValuation],
     born_zero: bool,
     diagnostics: &mut Vec<Diagnostic>,
-) -> Vec<String> {
+) -> (Vec<String>, Vec<PlaceValuation>) {
     let mut tracked: Vec<TrackedPlace> = Vec::new();
+    // A call statement poisons transported valuations (the callee may write
+    // any place); establishment survives (globally monotone).
+    let mut poisoned = false;
 
     for statement in program.statement_table.statements(state.statement_nodes) {
         // R2 rung 3 slice 2: reads of an unestablished GATED place refuse
@@ -198,15 +270,21 @@ fn walk_state(
                     assignment.target,
                     assignment.value,
                     &mut tracked,
+                    entry_valuations,
+                    poisoned,
                     born_zero,
                     diagnostics,
                 );
             }
             // Conservative aliasing fence: a call may write any place.
-            StatementNode::Call(_) => tracked.clear(),
+            StatementNode::Call(_) => {
+                tracked.clear();
+                poisoned = true;
+            }
             StatementNode::Expression(expression) => {
                 if expression_contains_call(program, *expression) {
                     tracked.clear();
+                    poisoned = true;
                 }
             }
             StatementNode::LocalData(local) => {
@@ -214,22 +292,37 @@ fn walk_state(
                     && expression_contains_call(program, local.initial_value)
                 {
                     tracked.clear();
+                    poisoned = true;
                 }
             }
             _ => {}
         }
     }
 
-    let mut exit: Vec<String> = entry_established.to_vec();
-    exit.extend(
+    let mut exit_established: Vec<String> = entry_established.to_vec();
+    exit_established.extend(
         tracked
             .iter()
             .filter(|place| place.established)
             .map(|place| place.spelling.clone()),
     );
-    exit.sort();
-    exit.dedup();
-    exit
+    exit_established.sort();
+    exit_established.dedup();
+
+    // Exit valuations: in-state tracked places, plus (when no call poisoned
+    // the state) the untouched entry places passing through.
+    let mut exit_valuations: Vec<PlaceValuation> = tracked
+        .iter()
+        .map(|place| (place.spelling.clone(), place.fields.clone()))
+        .collect();
+    if !poisoned {
+        for (spelling, fields) in entry_valuations {
+            if !exit_valuations.iter().any(|(name, _)| name == spelling) {
+                exit_valuations.push((spelling.clone(), fields.clone()));
+            }
+        }
+    }
+    (exit_established, exit_valuations)
 }
 
 fn handle_assignment<'program>(
@@ -239,6 +332,8 @@ fn handle_assignment<'program>(
     target: ExpressionHandle,
     value: ExpressionHandle,
     tracked: &mut Vec<TrackedPlace<'program>>,
+    entry_valuations: &[PlaceValuation],
+    poisoned: bool,
     born_zero: bool,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -297,10 +392,21 @@ fn handle_assignment<'program>(
     {
         &mut tracked[position]
     } else {
+        // R2 rung 3 slice 5: seed the fresh place from the transported
+        // entry valuation (unless a call poisoned this state's view).
+        let seeded_fields = if poisoned {
+            Vec::new()
+        } else {
+            entry_valuations
+                .iter()
+                .find(|(name, _)| *name == receiver_spelling)
+                .map(|(_, fields)| fields.clone())
+                .unwrap_or_default()
+        };
         tracked.push(TrackedPlace {
             spelling: receiver_spelling,
             definition,
-            fields: Vec::new(),
+            fields: seeded_fields,
             // Zero-satisfying data is born established; gated data must
             // earn it (the accepted write below does, since it re-proves
             // the whole domain).
