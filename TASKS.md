@@ -1726,7 +1726,11 @@ no `unbounded` property exists. Rungs:
   law shape over its own op, so per-carrier exclusion still breaks
   every cycle (the 5 ring_law_* fail canaries all still pin).
   Probes run-verified: eta PERMUTATION (neg_int(a) == a) refuses,
-  false identity (one_int for zero_int) refuses.
+  false identity (one_int for zero_int) refuses. ZOO GROWTH same
+  day: neg_int_involution (two swaps rebuild `a` -- pure unfold
+  closed by record eta, ZERO citations) and neg_int_respects_eq
+  (the third congruence: ~ is respected by add, mul, AND neg; one
+  addend exchange). Negative twins probe-verified.
   N2(d) BRIDGE PARKED 2026-07-16 (design gap, OWNER_QUESTIONS.md):
   the Nat<->integer surface is unruled -- extraction (Nat ensures ->
   polynomial facts) vs reflection (integer range facts -> constructor
