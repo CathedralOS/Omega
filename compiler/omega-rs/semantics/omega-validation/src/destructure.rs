@@ -138,7 +138,13 @@ fn validate_arm_pattern_marker(
 ) {
     let mut parts = encoded.split('#');
     let variant = parts.next().unwrap_or("");
-    let spelled: Vec<&str> = parts.collect();
+    let mut spelled: Vec<&str> = parts.collect();
+    // The trailing `#~rest` sentinel = the pattern spelled `..`: unknown
+    // spelled fields still refuse, but the missing-field law is waived.
+    let has_rest = spelled.last() == Some(&"~rest");
+    if has_rest {
+        spelled.pop();
+    }
 
     let declared = crate::places::declared_place_type_raw(
         program,
@@ -208,12 +214,14 @@ fn validate_arm_pattern_marker(
     } else {
         format!("{}::{}", data.name, variant)
     };
-    for field in &declared_fields {
-        if !spelled.contains(field) {
-            diagnostics.push(Diagnostic::error(format!(
-                "destructure arm in machine `{}` state `{}` does not mention field `{}` of `{}` -- record patterns are exhaustive by law: bind it, rename it with `as`, waive it with `as _`, or opt out with `..`",
-                machine.name, state.name, field, subject_name,
-            )));
+    if !has_rest {
+        for field in &declared_fields {
+            if !spelled.contains(field) {
+                diagnostics.push(Diagnostic::error(format!(
+                    "destructure arm in machine `{}` state `{}` does not mention field `{}` of `{}` -- record patterns are exhaustive by law: bind it, rename it with `as`, waive it with `as _`, or opt out with `..`",
+                    machine.name, state.name, field, subject_name,
+                )));
+            }
         }
     }
     for field in &spelled {

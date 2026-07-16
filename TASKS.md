@@ -2931,9 +2931,14 @@ with a real app-window story.
   induction lemmas broke shape recognition and the lemmas fell through to
   the proof-only fence. Canaries: fail/control_flow/arm_pattern_missing_field,
   pass/control_flow/arm_pattern_rest_optout_exit (run-verified 70).
+  REST-PATTERN EXISTENCE CHECK CLOSED (2026-07-19): `..` patterns now
+  ALSO mint markers, suffixed `#~rest` -- validation skips only the
+  missing-field half; a spelled field that is not a field of the case
+  still refuses (fail/control_flow/arm_pattern_rest_unknown_field). The
+  parser unit test indexing arm statements by position was re-anchored
+  to filter Transitions (markers precede them).
   REMAINING: non-place subjects skip the law (no declared type to
-  resolve); unknown WAIVED fields in `..` patterns go unchecked (bound
-  ones still refuse as member reads); [copy]-eligibility restriction if
+  resolve); [copy]-eligibility restriction if
   non-copy fields surface unsoundly; field names containing `__` mis-split
   the LET marker encoding (spurious unknown-field error, never a masked
   missing-field).
