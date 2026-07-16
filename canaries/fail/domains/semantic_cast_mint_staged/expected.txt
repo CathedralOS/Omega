@@ -1,1 +1,1 @@
-mints only LITERAL values in this rung
+other values route through a validating call or guard
