@@ -179,14 +179,27 @@ fn lower_statement_node(
                 if rewritten != expression {
                     target = TransitionTarget::Value(rewritten);
                 }
+            } else {
+                // GUARDED-ARM DEEP FIX (task #45): a guarded arm's value call
+                // cannot hoist above the transition (the callee would run when
+                // the arm is not taken), so rewrite `cond -> (call(a, b))`
+                // into `cond -> __arm_k_N(a, b)` plus a synthesized
+                // continuation state whose Always terminal hoists the call --
+                // the mul_comm/mc_step shape the language already serves,
+                // automated. V1 gates the arguments to enclosing-parameter
+                // NAMES (the synthesized state's parameter types copy over).
+                target = rewrite_guarded_call_arm(lowerer, target);
             }
             let continuation = if transition.continuation.is_valid() {
-                Some(lower_transition_target_node(
+                // A continuation arm is conditional by construction (it runs
+                // only when the guard fails) -- same rewrite, never a hoist.
+                let lowered = lower_transition_target_node(
                     lowerer,
                     syntax_trees,
                     transition.continuation,
                     &mut hoisted,
-                )?)
+                )?;
+                Some(rewrite_guarded_call_arm(lowerer, lowered))
             } else {
                 None
             };
@@ -819,6 +832,95 @@ fn hoist_terminal_value_machine_call(
         head_symbol: SymbolHandle::invalid(),
         symbol: SymbolHandle::invalid(),
     }))
+}
+
+/// GUARDED-ARM VALUE-CALL REWRITE (task #45): when a guarded (or
+/// continuation) arm's target is a free user value-machine call whose every
+/// argument is a bare NAME of an enclosing state parameter, rewrite the arm
+/// to a Named target on a synthesized continuation state (recorded on the
+/// lowerer; the machine lowering appends it after the authored states). The
+/// synthesized state re-declares the SAME-named parameters, so the original
+/// call expression's Names resolve against them verbatim. Anything outside
+/// the gate returns unchanged and keeps the honest backend fence.
+fn rewrite_guarded_call_arm(lowerer: &mut Lowerer, target: TransitionTarget) -> TransitionTarget {
+    let TransitionTarget::Value(expression) = target else {
+        return target;
+    };
+    let expressions = &lowerer.symbol_resolved_trees.tables.bodies.expressions;
+    let ExpressionNode::Call(call) = expressions.expression(expression) else {
+        return TransitionTarget::Value(expression);
+    };
+    if call.receiver.is_valid() || matches!(call.target.as_str(), "min" | "max" | "sqrt") {
+        return TransitionTarget::Value(expression);
+    }
+    let argument_handles = expressions.expression_handles(call.arguments).to_vec();
+    let mut parameters: Vec<(String, TypeReference)> = Vec::new();
+    for argument in &argument_handles {
+        let ExpressionNode::Name(path) = expressions.expression(*argument) else {
+            return TransitionTarget::Value(expression);
+        };
+        let members = expressions.name_path_members(path.members);
+        let [single] = members else {
+            return TransitionTarget::Value(expression);
+        };
+        let Some((name, type_reference)) = lowerer
+            .current_state_parameters
+            .iter()
+            .find(|(name, _)| name == single.as_str())
+        else {
+            return TransitionTarget::Value(expression);
+        };
+        // Dedup: `call(x, x)` declares ONE parameter x; both body Names
+        // resolve to it, and the target passes it once.
+        if !parameters.iter().any(|(existing, _)| existing == name) {
+            parameters.push((name.clone(), type_reference.clone()));
+        }
+    }
+    let Some(return_type) = lowerer.current_state_return_type.clone() else {
+        return TransitionTarget::Value(expression);
+    };
+    let state_name = lowerer.next_arm_state_name();
+    lowerer
+        .pending_synthesized_states
+        .push(crate::lowerer::SynthesizedArmState {
+            name: state_name.clone(),
+            parameters: parameters.clone(),
+            return_type,
+            call: expression,
+        });
+    let mut path = HandleSpan::empty();
+    lowerer
+        .symbol_resolved_trees
+        .tables
+        .declarations
+        .statement_path_members
+        .append_to_span(&mut path, DiagnosticName::generated(state_name));
+    // FRESH Name nodes for the target's arguments: the original handles
+    // stay inside the synthesized state's call (where they resolve against
+    // ITS parameters); sharing one node across two scopes would let the
+    // second resolution overwrite the first's symbol.
+    let expressions = &mut lowerer.symbol_resolved_trees.tables.bodies.expressions;
+    let mut arguments = HandleSpan::empty();
+    for (name, _) in &parameters {
+        let mut members = HandleSpan::empty();
+        expressions.push_name_path_member(&mut members, DiagnosticName::generated(name.clone()));
+        let fresh = expressions.insert(ExpressionNode::Name(TableNamePath {
+            members,
+            is_self_value: false,
+            head_symbol: SymbolHandle::invalid(),
+            symbol: SymbolHandle::invalid(),
+        }));
+        expressions.push_expression_handle(&mut arguments, fresh);
+    }
+    TransitionTarget::Named(NamedTransitionTarget {
+        head_symbol: SymbolHandle::invalid(),
+        symbol: SymbolHandle::invalid(),
+        storage: NamedTransitionTargetStorage {
+            path,
+            path_starts_at_self: false,
+            arguments,
+        },
+    })
 }
 
 /// Whether `expression` is a pure-builtin call (`min`/`max`/`sqrt`; `abs`/`clamp`
