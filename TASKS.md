@@ -434,7 +434,15 @@ and decision-23's ten acceptance tests. Until TPR5 lands, the checked-in
    `DataProperties { copy, zero_init, send }`, move/drop-only ownership
    summaries). Land explicit semantic representations before building the
    feature arcs on conditionals that later have to be excavated. Rungs:
-   STR1 audit/snapshot invariants; STR2 core facet-pair, multiplicity,
+   STR1 audit/snapshot invariants — LANDED 2026-07-16:
+   representations/omega-typed-trees/tests/semantic_taxonomy_inventory.rs
+   pins all FIVE loss shapes by destructure (DomainDefinition's
+   undifferentiated fields; Machine's boundary/terminates booleans +
+   flat effects span; DataProperties' three booleans; EffectSet's flat
+   bit surface; the move/drop-only StateOwnershipSummary), each with
+   the record's must-survive invariant in its doc — a pin break means
+   RE-PIN the new shape and check the named distinction survived,
+   never delete; STR2 core facet-pair, multiplicity,
    supply-mode, termination-plan, progress-profile, and semantic-ID types; STR3 propagation through
    symbol-resolved/typed trees and snapshots; STR4 checked semantic
    qualification + permission + normalized-machine-contract plans; STR5

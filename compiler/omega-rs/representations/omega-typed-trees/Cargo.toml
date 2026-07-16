@@ -12,3 +12,9 @@ path = "src/lib.rs"
 omega-core = { path = "../../foundation/omega-core" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+
+[dev-dependencies]
+# STR1 inventory pins (tests/semantic_taxonomy_inventory.rs) witness the
+# representation-loss shapes across layers.
+omega-effects = { path = "../omega-effects" }
+omega-control-flow = { path = "../omega-control-flow" }
