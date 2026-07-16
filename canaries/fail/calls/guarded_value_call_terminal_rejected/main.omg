@@ -1,19 +1,18 @@
-// FAIL CANARY: a free value-machine call as the TERMINAL value of a
-// GUARDED arm. The ALWAYS-arm hoist (runtime_value_call_terminal_exit)
-// must NOT extend here: hoisted statements run whenever control reaches
-// them, so hoisting out of a guarded arm would run the callee -- which
-// may be effectful -- even when the arm is not taken. The honest fence
-// asks for the explicit let-bound spelling instead.
+// FAIL CANARY (task #45's V1 gate): a guarded arm's value call rewrites
+// to a synthesized continuation state ONLY when every argument is a bare
+// NAME of an enclosing state parameter (the synthesized state's parameter
+// types copy over). A computed argument (`dbl(x + 1)`) is untypeable at
+// the lowering layer, so the honest backend fence stays.
 boundary trait Console { machine exit_process(return_code: i32); }
 data Main { console: Console; }
 machine dbl(x: i32 [0..=1000]) -> i32 {
     transition { _ -> (x + x) }
 }
 machine pick(x: i32 [0..=1000]) -> i32 {
-    transition x > 50 { true -> (dbl(x)) _ -> (x) }
+    transition x > 50 { true -> (dbl(x + 1)) _ -> (x) }
 }
 machine Main::main(&mut self) {
     let p: i32 = pick(60);
-    transition p == 120 { true -> good() _ -> good() }
+    transition p == 122 { true -> good() _ -> good() }
     state good(&mut self) { self.console.exit_process(70); }
 }

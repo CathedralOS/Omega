@@ -404,5 +404,26 @@ fn lower_machine_states(
             .append_to_span(&mut span, state);
     }
 
+    // GUARDED-ARM DEEP FIX (task #45): append the continuation states the
+    // value-call rewrite synthesized while lowering this machine's arms --
+    // they join the state list BEFORE symbol assignment, so they mint
+    // symbols exactly like authored states.
+    let synthesized = std::mem::take(&mut lowerer.pending_synthesized_states);
+    for arm in synthesized {
+        let state = crate::state::build_synthesized_arm_state(lowerer, arm);
+        let state = lowerer
+            .symbol_resolved_trees
+            .tables
+            .declarations
+            .machine_states
+            .append(state);
+        lowerer
+            .symbol_resolved_trees
+            .tables
+            .declarations
+            .machine_state_handles
+            .append_to_span(&mut span, state);
+    }
+
     Ok(span)
 }

@@ -31401,6 +31401,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "recast/runtime_multi_edge_offset_meet_exit",
     "calls/runtime_std_math_sin_cos_exit",
     "calls/runtime_value_call_terminal_exit",
+    "calls/guarded_value_call_arm_exit",
     "constants/runtime_free_const_exit",
     "proofs/runtime_core_nat_declared_exit",
     "proofs/runtime_nat_structural_recursion_exit",
