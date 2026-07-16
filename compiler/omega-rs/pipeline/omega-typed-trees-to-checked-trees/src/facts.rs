@@ -34,6 +34,8 @@ pub(crate) fn build_check_facts(
     // from the same pure functions the termination CHECK uses -- facts and
     // diagnostics cannot disagree).
     let termination = crate::checks::termination::build_termination_facts(program);
+    // STR4 slice 2: kinded effect rows (published ceiling vs inferred).
+    let effect_rows = build_effect_row_facts(program, &effects);
 
     CheckFacts::with_roots(
         semantic,
@@ -47,5 +49,44 @@ pub(crate) fn build_check_facts(
         capabilities,
         flow,
         termination,
+        effect_rows,
     )
+}
+
+/// STR4 slice 2 (decision 22): build the kinded effect-row facts. The
+/// typed trees' interner extends (prefix-stable, so machine `effect_row`
+/// ids stay valid) with rows for the checker-INFERRED direct/transitive
+/// summaries. The bit->member hop goes through the CANONICAL NAME, never
+/// the bit value; the omega-effects consistency pin holds the
+/// correspondence.
+fn build_effect_row_facts(
+    program: &TypedTrees,
+    effects: &EffectPlan,
+) -> omega_checked_trees::EffectRowFacts {
+    let mut rows = program.effect_rows.clone();
+    let mut intern_set = |set: omega_effects::EffectSet| {
+        let members: Vec<omega_core::semantics::EffectMemberId> = set
+            .names()
+            .filter_map(omega_core::semantics::effect_member_id)
+            .collect();
+        rows.intern(members)
+    };
+    let mut machines = Vec::new();
+    for machine_effects in effects.machines() {
+        let inferred_direct = intern_set(machine_effects.direct);
+        let inferred_transitive = intern_set(machine_effects.transitive);
+        let published_ceiling = program
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == machine_effects.symbol)
+            .map(|machine| machine.effect_row)
+            .unwrap_or(omega_core::semantics::EffectRowId::NULL);
+        machines.push(omega_checked_trees::MachineEffectRows {
+            machine: machine_effects.symbol,
+            published_ceiling,
+            inferred_direct,
+            inferred_transitive,
+        });
+    }
+    omega_checked_trees::EffectRowFacts { rows, machines }
 }
