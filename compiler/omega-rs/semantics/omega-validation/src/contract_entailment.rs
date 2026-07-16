@@ -3834,13 +3834,43 @@ impl<'program> StructuralJudge<'program> {
             additive_addends(left, op, &mut left_addends);
             let mut right_addends = Vec::new();
             additive_addends(right, op, &mut right_addends);
-            if left_addends.len() != right_addends.len() || left_addends.len() < 2 {
+            if left_addends.len() < 2 {
                 continue;
             }
             left_addends.sort();
             right_addends.sort();
-            if left_addends == right_addends {
+            if left_addends.len() == right_addends.len() && left_addends == right_addends {
                 return true;
+            }
+            // HYPOTHESIS EXCHANGE (one bounded application): a requires /
+            // citation / IH equation whose sides flatten over this SAME
+            // licensed op licenses swapping that sub-multiset of addends --
+            // sum(left) == sum(left - from + to) because sum(from) == sum(to)
+            // is the hypothesis and the op's comm+assoc closure is exactly
+            // what the license's conformance proved. This is what makes
+            // QUOTIENT congruence lemmas provable (IntPair's cross-sum
+            // equivalence: `a.pos + a2.neg == a2.pos + a.neg` exchanges
+            // inside `a.pos + b.pos + a2.neg + b.neg`). Whole-term matches
+            // were already rewritten during resolve; this reaches the
+            // sub-multiset the rewriter cannot see.
+            for (pattern, replacement) in &self.rewrites {
+                for (from, to) in [(pattern, replacement), (replacement, pattern)] {
+                    let mut from_addends = Vec::new();
+                    additive_addends(from, op, &mut from_addends);
+                    let mut to_addends = Vec::new();
+                    additive_addends(to, op, &mut to_addends);
+                    from_addends.sort();
+                    let Some(mut candidate) =
+                        sorted_multiset_subtract(&left_addends, &from_addends)
+                    else {
+                        continue;
+                    };
+                    candidate.extend(to_addends.iter().cloned());
+                    candidate.sort();
+                    if candidate == right_addends {
+                        return true;
+                    }
+                }
             }
         }
         // Tier-2 FULL POLYNOMIAL: under a paired license, both sides
@@ -3904,6 +3934,17 @@ fn polynomial_normal_form(
         }
     }
     Some(vec![vec![display_structural_term(term)]])
+}
+
+/// `left - from` as sorted multisets of canonical displays; `None` when
+/// `from` is not a sub-multiset of `left` (the exchange does not apply).
+fn sorted_multiset_subtract(left: &[String], from: &[String]) -> Option<Vec<String>> {
+    let mut remaining = left.to_vec();
+    for item in from {
+        let index = remaining.iter().position(|candidate| candidate == item)?;
+        remaining.remove(index);
+    }
+    Some(remaining)
 }
 
 /// Flatten nested applications of the licensed op into its addend list; any

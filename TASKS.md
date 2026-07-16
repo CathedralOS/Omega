@@ -1592,11 +1592,25 @@ no `unbounded` property exists. Rungs:
   int_mul_consumer cites mul_int_comm (RUNS exit 70). Negative
   probes run-verified: false comm / wrong assoc regrouping / wrong
   distributivity split each refuse.
-  THEN: Int/Rat routing (cross-sum equivalence as the IntPair
-  quotient -- int_eq(a,b) := a.pos + b.neg == b.pos + a.neg spelled
-  as a Nat fact, then lemmas UP TO that equivalence; semiring
-  conformance for IntPair needs trait slots over a non-builtin
-  carrier), the N2(d) arithmetic bridge
+  INT RUNG STEP 3 LANDED 2026-07-16 -- the QUOTIENT enters:
+  hypothesis-aware RING EXCHANGE in ring_rearranged_equal (one
+  bounded application): a requires/citation/IH equation whose sides
+  flatten over the licensed op licenses swapping that SUB-MULTISET
+  of the goal's addends (sound: sum(from) == sum(to) is the
+  hypothesis and comm+assoc closure is what the license's
+  conformance proved; whole-term matches were already rewritten
+  during resolve -- this reaches what the rewriter cannot see).
+  First consumer: add_int_respects_eq -- the cross-sum equivalence
+  a ~ a2 (a.pos + a2.neg == a2.pos + a.neg, as requires) is
+  RESPECTED by add_int, spelled in unfolded Nat component form (the
+  fact grammar has no member-of-call). Probes run-verified: wrong
+  goal refuses, requires REMOVED refuses (the hypothesis is doing
+  the work); pinned fail proofs/ring_exchange_unhypothesized_rejected.
+  THEN: more quotient lemmas (mul_int respects ~ -- needs the
+  exchange under MONOMIAL multisets, i.e. tier-2 hypothesis
+  exchange; transitivity/symmetry of ~ as lemmas), semiring
+  conformance for IntPair (trait slots over a non-builtin carrier),
+  the N2(d) arithmetic bridge
   (n > 0 => n == Succ(n - 1)). Int introduction rule: order has no floor,
   measures stay Nat-valued or range-floored.
 - **N4 — roster library (Nat ops + Seq LANDED 2026-07-11):** core
