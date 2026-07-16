@@ -2579,6 +2579,24 @@ rejects — an INTEGER ruling, engineering rides this ladder as F8).
   callee classes exercised by pass/calls/runtime_value_call_terminal_exit.
   Follow-ons recorded in math.omg: Cody-Waite constants for large args,
   sub-ulp accuracy.
+  GUARDED-ARM DEEP FIX DESIGN (settled 2026-07-16, implementation
+  queued — needs a fresh-context session; the surface spans two
+  files of the symbol-resolved lowering): a guarded arm
+  `cond -> (call(args))` cannot hoist ABOVE the transition (the
+  callee would run when the arm is not taken — the fence's reason),
+  but the language ALREADY serves the target shape: named-target
+  arms with arguments + a sub-state whose Always terminal
+  auto-hoists (mul_comm's mc_step). AUTOMATE that rewrite:
+  `cond -> __arm_k_N(a, b)` + synthesize
+  `state __arm_k_N(p: T, ..) -> R { transition { _ -> (call(p, ..)) } }`.
+  V1 gate: every call argument must be a NAME of an enclosing state
+  parameter (types copy over; general expressions keep the fence —
+  the temp would be untypeable at this layer). R = the enclosing
+  state's declared return. State synthesis needs fresh names
+  (__arm_k_N) + appending to the machine's state list in
+  machine/state lowering (statement.rs does not own it — the
+  cross-file part). The existing fence canary flips to a pass twin
+  when this lands; keep a fail twin for the non-name-argument gate.
 - **Rendering-sample sweep (R0 follow-on) — SWEPT 2026-07-11:**
   bouncing_particles dropped its flat-field sidestep (plot + render paths
   now spell `grid[b*20+a]` / `grid[ry*20+cx]` under one dominating
