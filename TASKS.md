@@ -616,9 +616,19 @@ sealed progress profiles + grants, TPR4's remaining big half).
    syntax->resolved from the flat effects span, copied downstream;
    LOSS-2 + LOSS-4 pins re-pinned (the flat EffectSet remains an
    independently-built compatibility carrier until STR6/7 make it a
-   derived projection). Remaining STR4: published ceilings vs
-   inferred summaries, pinned-slot refinement, EffectPlan
-   integration;
+   derived projection). STR4 SLICE 2 LANDED 2026-07-16: CheckFacts
+   gains `effect_rows: EffectRowFacts` -- per machine, the PUBLISHED
+   ceiling (the authored clause's normalized row) beside the
+   checker-INFERRED direct/transitive summary rows, interned into the
+   typed table EXTENDED prefix-stably (bit->member hops through the
+   CANONICAL NAME, never the bit value); pinned by a ceiling-vs-
+   reality test (main has no clause -- EMPTY ceiling -- but its
+   transitive row equals its callee's declared row). NOTE: today's
+   EffectPlan counts the DECLARATION into its direct set, so
+   declared==inferred on the declaring machine; splitting declaration
+   out of inference is a later STR4 slice. Remaining STR4:
+   declaration-free inference split, pinned-slot refinement,
+   ceiling-vs-inferred enforcement;
    snapshots gain the new fields as those slices land;
    STR4 checked semantic
    qualification + permission + normalized-machine-contract plans; STR5
