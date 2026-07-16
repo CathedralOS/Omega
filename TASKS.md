@@ -1225,7 +1225,11 @@ no `unbounded` property exists. Rungs:
   (first try — the involution, step citing reverse_append at the
   reversed tail + singleton, constructor-spine IH; Lean
   List.reverse_reverse). Next zoo: map/filter once
-  generics-over-machines land; snoc/last as judge appetite allows. REMAINING:
+  generics-over-machines land. snoc/reverse_snoc PROBED and reverted:
+  a NON-inductive proof body (no self-call — just a citation + a
+  terminal) with a constructor-carrying ensures rides a different
+  judge path that does not read root-state citations; the corollary
+  waits on that recognizer face (or the rewrite tier). REMAINING:
   more of the lemma zoo as the judge widens (commutativity needs
   double induction / rearrange-mode), extraction INTO consumer proofs
   (a caller citing a lemma's ensures — the fact-consumption face), the
