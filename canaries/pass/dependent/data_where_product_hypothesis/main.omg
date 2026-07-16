@@ -1,0 +1,26 @@
+// R2 rung 3 slice 10 -- PRODUCT HYPOTHESES, ch12's MemoryMap verbatim:
+// `count * stride <= len` with `stride >= 40` (a sibling fact) and
+// `len: u32 [0..=4096]` bounds count at 4096/40 = 102 at every legal
+// observation, so the callee's `target.count * 32` (max 3264) proves u32
+// Exact with NO flow knowledge and NO spelled requires.
+boundary trait Console { machine exit_process(return_code: i32); }
+data MemoryMap
+where
+    count * stride <= len,
+    stride >= 40,
+{
+    len: u32 [0..=4096];
+    stride: u32;
+    count: u32;
+}
+data Main { console: Console; map: MemoryMap; }
+machine Main::scaled(&mut self, target: &mut MemoryMap) -> u32 {
+    target.count * 32
+}
+machine Main::main(&mut self) {
+    self.map.len = 4096;
+    self.map.stride = 40;
+    self.map.count = 2;
+    let bytes: u32 = self.scaled(&mut self.map);
+    self.console.exit_process(70);
+}
