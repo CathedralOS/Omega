@@ -288,6 +288,34 @@ ensures
     }
 }
 
+// mul's left identity: mul(Succ(Zero), b) == b -- compute unfolds the
+// Succ arm to add(b, mul(Zero, b)), the Zero arm annihilates, and ONE
+// citation of add_zero_right collapses the trailing add. Lean analog:
+// `Nat.one_mul`.
+machine mul_one_left(b: Nat) -> Nat
+ensures
+    (mul(Nat::Succ { prev: Nat::Zero }, b)) == b
+{
+    add_zero_right(b);
+    transition { _ -> (b) }
+}
+
+// mul's right identity: mul(a, Succ(Zero)) == a -- structural induction:
+// the Zero arm computes; each Succ arm unfolds to
+// add(Succ(Zero), mul(prev, Succ(Zero))), the head add computes one Succ,
+// and the machine's own ensures is the inductive hypothesis. Lean analog:
+// `Nat.mul_one`.
+machine mul_one_right(a: Nat) -> Nat
+terminates by a;
+ensures
+    (mul(a, Nat::Succ { prev: Nat::Zero })) == a
+{
+    transition a {
+        Nat::Zero -> Nat::Zero
+        Nat::Succ { prev } -> Nat::Succ { prev: mul_one_right(prev) }
+    }
+}
+
 // MULTIPLICATION COMMUTES: base cites mul_zero_right; step cites
 // mul_succ_right at (b, prev) plus the inductive hypothesis.
 machine mul_comm(a: Nat, b: Nat) -> Nat
