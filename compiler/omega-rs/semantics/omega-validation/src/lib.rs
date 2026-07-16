@@ -18,6 +18,7 @@ mod recasts;
 mod proof_only_faces;
 mod properties;
 mod state_signatures;
+mod default_domains;
 mod struct_literals;
 mod symbols;
 #[cfg(test)]
@@ -92,6 +93,9 @@ pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
     // before membership lowering synthesizes its internal tag compares; see
     // omega-symbol-resolved-trees-to-typed-trees/src/equality.rs.
     struct_literals::validate_struct_literal_fields(program, &mut diagnostics);
+    // R2 rung 3 slice 1: the default-domain write obligation (strict
+    // store-time semantics; obligations before hypotheses).
+    default_domains::validate_default_domain_writes(program, &mut diagnostics);
     recasts::validate_recasts(program, &mut diagnostics);
     wire::validate_wire_schemas(program, &symbols, &mut diagnostics);
     operators::validate_operator_declarations(program, &mut diagnostics);

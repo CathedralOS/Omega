@@ -31847,6 +31847,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "termination/rank_floor_unconsumed",
     "termination/requirement_witness_rejected",
     "dependent/data_where_literal_violates",
+    "dependent/data_where_write_violates",
     "termination/standalone_decreases_retired",
     "termination/rank_range_unconsumed",
     "arithmetic/suffix_negative_unsigned_rejected",

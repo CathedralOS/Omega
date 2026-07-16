@@ -1,0 +1,17 @@
+// R2 rung 3 slice 1: the default-domain WRITE obligation -- storing
+// count = 9 while len still reads its ZII zero makes `count <= len`
+// FALSE at the post-write valuation (strict store-time semantics; ch11
+// windows are the future relaxation).
+boundary trait Console { machine exit_process(return_code: i32); }
+data MemoryMap
+where
+    count <= len,
+{
+    len: u32;
+    count: u32;
+}
+data Main { console: Console; map: MemoryMap; }
+machine Main::main(&mut self) {
+    self.map.count = 9;
+    self.console.exit_process(70);
+}
