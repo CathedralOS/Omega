@@ -13,6 +13,12 @@ pub struct Machine {
     pub name: DiagnosticName,
     pub attached_data: Option<DiagnosticName>,
     pub boundary: bool,
+    /// STR3: the first-class supply mode (`boundary: bool` is the
+    /// compatibility flag until STR7 retires it). Populated at the
+    /// syntax->resolved lowering, copied -- never re-derived -- downstream.
+    /// Requirement/Accepted gain their own sources when their spellings
+    /// reach this record.
+    pub supply_mode: omega_core::semantics::MachineSupplyMode,
     pub storage: MachineStorage,
 }
 

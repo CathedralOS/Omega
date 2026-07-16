@@ -12,6 +12,12 @@ pub struct Machine {
     pub name: Identifier,
     pub attached_data: Option<Identifier>,
     pub boundary: bool,
+    /// STR3: the first-class supply mode (`boundary: bool` is the
+    /// compatibility flag until STR7 retires it). Populated at the
+    /// syntax->resolved lowering, copied -- never re-derived -- downstream.
+    /// Requirement/Accepted gain their own sources when their spellings
+    /// reach this record.
+    pub supply_mode: omega_core::semantics::MachineSupplyMode,
     pub type_parameters: HandleSpan<crate::data::TypeParameter>,
     pub contains: HandleSpan<ContainedObject>,
     pub owned_data: HandleSpan<OwnedData>,
@@ -31,6 +37,7 @@ impl Default for Machine {
             name: Identifier::default(),
             attached_data: None,
             boundary: false,
+            supply_mode: omega_core::semantics::MachineSupplyMode::CheckedBody,
             type_parameters: HandleSpan::empty(),
             contains: HandleSpan::empty(),
             owned_data: HandleSpan::empty(),
