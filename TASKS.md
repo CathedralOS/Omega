@@ -1530,7 +1530,19 @@ no `unbounded` property exists. Rungs:
   REMAINING (follow-up rungs, not blockers): tier-2 full polynomial
   (mul distributing through the canonical form — needs all five laws
   conformed; today mul applications are atoms, sufficient for the whole
-  acceptance); zero/one identity-law bridging LANDED 2026-07-16:
+  acceptance) -- TIER-2 FULL POLYNOMIAL LANDED 2026-07-16: a
+  SemiringLicense pairs the add/mul ops when a conformed
+  DISTRIBUTIVITY law connects them (shape-detected like comm/assoc;
+  no-circularity extended over all FIVE law slots; the carrier match
+  is STRUCTURAL type_references_match -- handle equality was the
+  first-try bug); ring_rearranged_equal's polynomial tier normalizes
+  both sides by distributing mul through add into sorted monomial
+  multisets (64-monomial cap). Pinned: pass
+  proofs/polynomial_expand_core_nat -- the binomial expansion
+  (a+b)(c+d) = ac+ad+bc+bd discharges by INDUCTION with ZERO
+  citations, RUNS exit 70; fail polynomial_false_expand (a wrong
+  monomial multiset stands down to the fence). zero/one
+  identity-law bridging LANDED 2026-07-16:
   check_law_conformance normalizes NULLARY applications of trivial
   CONSTANT machines (single state, one un-guarded transition to a
   CLOSED constructor -- the settled zero/one shape) to their
