@@ -1,0 +1,25 @@
+// WINDOW TRANSPORT (ch11 across states): shrinking len below count OPENS
+// a window in the entry state; the transition carries it (a non-terminal
+// exit is not a consumption point any more) and the successor's write
+// restores the facts (1 <= 2) BEFORE the exit call. RUNS exit 70.
+boundary trait Console { machine exit_process(return_code: i32); }
+data MemoryMap
+where
+    count <= len,
+{
+    len: u32;
+    count: u32;
+}
+data Main { console: Console; map: MemoryMap; }
+machine Main::main(&mut self) {
+    self.map.len = 8;
+    self.map.count = 3;
+    self.map.len = 2;
+    transition {
+        _ -> repair()
+    }
+    state repair(&mut self) {
+        self.map.count = 1;
+        self.console.exit_process(70);
+    }
+}

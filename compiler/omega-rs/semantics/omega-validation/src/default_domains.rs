@@ -56,7 +56,9 @@ pub(crate) fn validate_default_domain_writes(
                         &[],
                         &[],
                         &[],
+                        &[],
                         false,
+                        true,
                         &mut throwaway,
                     )
                     .0,
@@ -78,7 +80,9 @@ pub(crate) fn validate_default_domain_writes(
                             &entry[index],
                             &[],
                             &[],
+                            &[],
                             false,
+                            true,
                             &mut throwaway,
                         )
                         .0
@@ -174,9 +178,15 @@ pub(crate) fn validate_default_domain_writes(
         let mut entry_established: Vec<Vec<String>> = vec![Vec::new(); states.len()];
         let mut entry_valuations: Vec<Option<Vec<PlaceValuation>>> = vec![None; states.len()];
         entry_valuations[0] = Some(Vec::new());
+        // WINDOW TRANSPORT: open windows at each state's entry -- the
+        // MAY-union of predecessor exits (an obligation from ANY path in).
+        let mut entry_windows: Vec<Vec<(String, String)>> = vec![Vec::new(); states.len()];
+        // A TERMINAL state (no outgoing transition) is where the machine
+        // returns: its exit is a hard consumption point for open windows.
+        let is_terminal = |index: usize| !edges.iter().any(|(from, _)| *from == index);
         loop {
             let mut changed = false;
-            let exits: Vec<(Vec<String>, Vec<PlaceValuation>)> = states
+            let exits: Vec<(Vec<String>, Vec<PlaceValuation>, Vec<(String, String)>)> = states
                 .iter()
                 .enumerate()
                 .map(|(index, state)| {
@@ -186,8 +196,10 @@ pub(crate) fn validate_default_domain_writes(
                         state,
                         &entry_established[index],
                         entry_valuations[index].as_deref().unwrap_or(&[]),
+                        &entry_windows[index],
                         &summaries,
                         born_zero(index),
+                        is_terminal(index),
                         &mut throwaway,
                     )
                 })
@@ -216,6 +228,20 @@ pub(crate) fn validate_default_domain_writes(
                 let established_meet = established_meet.unwrap_or_default();
                 if established_meet != entry_established[index] {
                     entry_established[index] = established_meet;
+                    changed = true;
+                }
+                // Window MAY-union: open from ANY predecessor -> open here.
+                let mut window_union: Vec<(String, String)> = Vec::new();
+                for predecessor in &predecessors {
+                    for window in &exits[*predecessor].2 {
+                        if !window_union.contains(window) {
+                            window_union.push(window.clone());
+                        }
+                    }
+                }
+                window_union.sort();
+                if window_union != entry_windows[index] {
+                    entry_windows[index] = window_union;
                     changed = true;
                 }
                 // Valuation meet (over VISITED predecessors only -- the
@@ -254,8 +280,10 @@ pub(crate) fn validate_default_domain_writes(
                 state,
                 &entry_established[index],
                 entry_valuations[index].as_deref().unwrap_or(&[]),
+                &entry_windows[index],
                 &summaries,
                 born_zero(index),
+                is_terminal(index),
                 diagnostics,
             );
         }
@@ -368,16 +396,23 @@ fn walk_state(
     state: &State,
     entry_established: &[String],
     entry_valuations: &[PlaceValuation],
+    entry_windows: &[(String, String)],
     summaries: &[(omega_core::symbols::SymbolHandle, Vec<String>)],
     born_zero: bool,
+    exit_is_terminal: bool,
     diagnostics: &mut Vec<Diagnostic>,
-) -> (Vec<String>, Vec<PlaceValuation>) {
+) -> (Vec<String>, Vec<PlaceValuation>, Vec<(String, String)>) {
     let mut tracked: Vec<TrackedPlace> = Vec::new();
     // A call statement poisons transported valuations (the callee may write
     // any place); establishment survives (globally monotone).
     let mut poisoned = false;
     // Slice 11: establishment ADDED by callee summaries at call sites.
     let mut call_established: Vec<String> = Vec::new();
+    // WINDOW TRANSPORT: windows still open from predecessor states
+    // ((spelling, data name) pairs, MAY-union over predecessors). A write
+    // in this state that re-proves the facts closes the inherited window;
+    // calls and TERMINAL exits stay hard consumption points.
+    let mut inherited_windows: Vec<(String, String)> = entry_windows.to_vec();
 
     for statement in program.statement_table.statements(state.statement_nodes) {
         // R2 rung 3 slice 2: reads of an unestablished GATED place refuse
@@ -390,6 +425,7 @@ fn walk_state(
             &tracked,
             entry_established,
             &call_established,
+            &inherited_windows,
             diagnostics,
         );
         match statement {
@@ -406,12 +442,19 @@ fn walk_state(
                     born_zero,
                     diagnostics,
                 );
+                // A write that re-proved the facts (tracked window CLOSED)
+                // closes the inherited window on the same place.
+                inherited_windows.retain(|(spelling, _)| {
+                    !tracked
+                        .iter()
+                        .any(|place| place.spelling == *spelling && !place.window_open)
+                });
             }
             // Conservative aliasing fence: a call may write any place --
             // and OBSERVES state, so it is a consumption point (ch11): any
             // open window must have closed.
             StatementNode::Call(call) => {
-                refuse_open_windows(&tracked, "a call", diagnostics);
+                refuse_open_windows(&tracked, &inherited_windows, "a call", diagnostics);
                 tracked.clear();
                 poisoned = true;
                 // Slice 11: the callee's establishment summary joins
@@ -427,7 +470,7 @@ fn walk_state(
             }
             StatementNode::Expression(expression) => {
                 if expression_contains_call(program, *expression) {
-                    refuse_open_windows(&tracked, "a call", diagnostics);
+                    refuse_open_windows(&tracked, &inherited_windows, "a call", diagnostics);
                     tracked.clear();
                     poisoned = true;
                     collect_call_summaries(program, *expression, summaries, &mut call_established);
@@ -437,7 +480,7 @@ fn walk_state(
                 if local.initial_value.is_valid()
                     && expression_contains_call(program, local.initial_value)
                 {
-                    refuse_open_windows(&tracked, "a call", diagnostics);
+                    refuse_open_windows(&tracked, &inherited_windows, "a call", diagnostics);
                     tracked.clear();
                     poisoned = true;
                     collect_call_summaries(
@@ -452,9 +495,13 @@ fn walk_state(
         }
     }
 
-    // Ch11 (slice 8): STATE EXIT is a consumption point -- an open window
-    // may not escape the state (the place would be observable violated).
-    refuse_open_windows(&tracked, "state exit", diagnostics);
+    // Ch11 (slice 8, transport-relaxed): a TERMINAL exit is a consumption
+    // point -- an open window may not escape the machine. A non-terminal
+    // exit passes its open windows to the successors (the fixpoint
+    // MAY-unions them), whose own consumption points police closure.
+    if exit_is_terminal {
+        refuse_open_windows(&tracked, &inherited_windows, "state exit", diagnostics);
+    }
 
     let mut exit_established: Vec<String> = entry_established.to_vec();
     exit_established.extend(call_established.iter().cloned());
@@ -483,7 +530,25 @@ fn walk_state(
             }
         }
     }
-    (exit_established, exit_valuations)
+    // Exit windows: inherited ones not closed here, plus windows this
+    // state's own writes opened (self-rooted only -- parameters are
+    // per-invocation).
+    let mut exit_windows = inherited_windows;
+    for place in tracked
+        .iter()
+        .filter(|place| place.window_open && is_self_rooted(&place.spelling))
+    {
+        if !exit_windows
+            .iter()
+            .any(|(spelling, _)| *spelling == place.spelling)
+        {
+            exit_windows.push((
+                place.spelling.clone(),
+                place.definition.name.as_str().to_owned(),
+            ));
+        }
+    }
+    (exit_established, exit_valuations, exit_windows)
 }
 
 /// Slice 11: the machine owning a state symbol (call targets carry the
@@ -546,9 +611,11 @@ fn collect_call_summaries(
 }
 
 /// Ch11 (slice 8): refuse every open invariant window at a consumption
-/// point, naming the place and the point.
+/// point, naming the place and the point -- both this state's own open
+/// windows and the ones transported from predecessor states.
 fn refuse_open_windows(
     tracked: &[TrackedPlace<'_>],
+    inherited_windows: &[(String, String)],
     consumption_point: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -559,6 +626,18 @@ fn refuse_open_windows(
              `where` facts before this consumption point (ch11)",
             place.definition.name.as_str(),
             place.spelling
+        )));
+    }
+    for (spelling, data_name) in inherited_windows {
+        if tracked.iter().any(|place| place.spelling == *spelling) {
+            // The tracked entry already reported (open) or closed it.
+            continue;
+        }
+        diagnostics.push(Diagnostic::error(format!(
+            "data `{data_name}`'s default domain is still FALSE at {consumption_point}: \
+             the invariant window opened on `{spelling}` in a predecessor state must \
+             close first -- restore the `where` facts before this consumption point \
+             (ch11 window transport)"
         )));
     }
 }
@@ -726,6 +805,7 @@ fn scan_statement_reads(
     tracked: &[TrackedPlace<'_>],
     entry_established: &[String],
     call_established: &[String],
+    inherited_windows: &[(String, String)],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let mut reads: Vec<ExpressionHandle> = Vec::new();
@@ -762,6 +842,7 @@ fn scan_statement_reads(
             tracked,
             entry_established,
             call_established,
+            inherited_windows,
             diagnostics,
         );
     }
@@ -775,6 +856,7 @@ fn scan_expression_reads(
     tracked: &[TrackedPlace<'_>],
     entry_established: &[String],
     call_established: &[String],
+    inherited_windows: &[(String, String)],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     if !expression.is_valid() {
@@ -825,6 +907,24 @@ fn scan_expression_reads(
                         definition.name.as_str()
                     )));
                 }
+                // Window TRANSPORT: an open window inherited from a
+                // predecessor state (no closing write here yet -- the
+                // tracked entry, if any, still holds it open or the
+                // inherited list was pruned by the closing write).
+                if place.is_none()
+                    && inherited_windows
+                        .iter()
+                        .any(|(spelling, _)| *spelling == receiver_spelling)
+                {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "reading `{receiver_spelling}.{}` inside an OPEN invariant \
+                         window carried from a predecessor state: data `{}`'s default \
+                         domain is FALSE -- restore the facts before this consumption \
+                         point (ch11 window transport)",
+                        member.member.as_str(),
+                        definition.name.as_str()
+                    )));
+                }
             }
             scan_expression_reads(
                 program,
@@ -834,6 +934,7 @@ fn scan_expression_reads(
                 tracked,
                 entry_established,
                 call_established,
+                inherited_windows,
                 diagnostics,
                 );
         }
@@ -846,6 +947,7 @@ fn scan_expression_reads(
                 tracked,
                 entry_established,
                 call_established,
+                inherited_windows,
                 diagnostics,
                 );
             scan_expression_reads(
@@ -856,6 +958,7 @@ fn scan_expression_reads(
                 tracked,
                 entry_established,
                 call_established,
+                inherited_windows,
                 diagnostics,
                 );
         }
@@ -868,6 +971,7 @@ fn scan_expression_reads(
                 tracked,
                 entry_established,
                 call_established,
+                inherited_windows,
                 diagnostics,
                 );
         }
@@ -881,6 +985,7 @@ fn scan_expression_reads(
                     tracked,
                     entry_established,
                     call_established,
+                    inherited_windows,
                     diagnostics,
                     );
             }
