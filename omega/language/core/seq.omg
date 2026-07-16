@@ -147,3 +147,35 @@ ensures
 }
 
 
+
+// Reversal anti-distributes over append, by induction on `s`: the base
+// case needs append's RIGHT identity; the step case rewrites the appended
+// singleton through append_assoc, with the inductive self-application
+// BOUND TO A LOCAL (the nested value-call fence's own hint) -- landing
+// this shape took the recognizer's let-binding rung (a sub-proof `let`,
+// spelled or the lowering's own __hoist_N of a call terminal, termifies
+// its initializer and joins the arm environment). Lean analog:
+// `List.reverse_append`.
+machine reverse_append(s: Seq<u64>, t: Seq<u64>) -> Seq<u64>
+terminates {
+    decreases s;
+}
+ensures
+    (reverse(append(s, t))) == (append(reverse(t), reverse(s)))
+{
+    transition s {
+        Seq::Empty -> ra_base(t)
+        Seq::Cons { head, tail } -> ra_step(head, tail, t)
+    }
+
+    state ra_base(t: Seq<u64>) -> Seq<u64> {
+        append_empty_right(reverse(t));
+        transition { _ -> (reverse(t)) }
+    }
+
+    state ra_step(head: u64, tail: Seq<u64>, t: Seq<u64>) -> Seq<u64> {
+        let ih: Seq<u64> = reverse_append(tail, t);
+        append_assoc(reverse(t), reverse(tail), Seq::Cons { head: head, tail: Seq::Empty });
+        transition { _ -> (append(ih, Seq::Cons { head: head, tail: Seq::Empty })) }
+    }
+}
