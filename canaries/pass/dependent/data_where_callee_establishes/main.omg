@@ -1,0 +1,21 @@
+// R2 rung 3 slice 11 -- CROSS-MACHINE ESTABLISHMENT: recruit (a
+// single-state machine) definitely establishes self.champion on every
+// path; its summary joins main's tracking at the call site, so the read
+// AFTER the call passes the access gate (establishment is globally
+// monotone -- a call can only add it).
+boundary trait Console { machine exit_process(return_code: i32); }
+data Player
+where
+    health >= 1,
+{
+    health: i32;
+}
+data Main { console: Console; champion: Player; }
+machine Main::recruit(&mut self, strength: i32 [1..=100]) {
+    self.champion = Player { health: strength };
+}
+machine Main::main(&mut self) {
+    self.recruit(50);
+    let power: i32 = self.champion.health;
+    self.console.exit_process(70);
+}

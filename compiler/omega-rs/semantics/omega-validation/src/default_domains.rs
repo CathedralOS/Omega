@@ -28,6 +28,37 @@ pub(crate) fn validate_default_domain_writes(
     program: &TypedTrees,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    // R2 rung 3 slice 11: per-machine establishment SUMMARIES (v1:
+    // single-state machines) -- the self places a callee DEFINITELY
+    // establishes, walked with born_zero=false (a callee runs at arbitrary
+    // times) and no nested summaries (conservative). Establishment is
+    // globally monotone, so a call can only ADD it at the call site.
+    let mut summaries: Vec<(omega_core::symbols::SymbolHandle, Vec<String>)> = Vec::new();
+    let mut throwaway = Vec::new();
+    for machine in program.machines() {
+        let states = program.machine_states(machine);
+        if states.len() != 1 {
+            continue;
+        }
+        let (established, _) = walk_state(
+            program,
+            machine,
+            &states[0],
+            &[],
+            &[],
+            &[],
+            false,
+            &mut throwaway,
+        );
+        let self_rooted: Vec<String> = established
+            .into_iter()
+            .filter(|spelling| is_self_rooted(spelling))
+            .collect();
+        if !self_rooted.is_empty() {
+            summaries.push((machine.symbol, self_rooted));
+        }
+    }
+
     for machine in program.machines() {
         let states = program.machine_states(machine);
         // Bodyless machines (boundary/requirement declarations) own no
@@ -55,7 +86,6 @@ pub(crate) fn validate_default_domain_writes(
         // propagation: non-boot entries start TOP/unvisited; meet keeps a
         // field only when every visited predecessor exits it with the SAME
         // literal; establishment survives calls, valuations do not).
-        let mut throwaway = Vec::new();
         let mut entry_established: Vec<Vec<String>> = vec![Vec::new(); states.len()];
         let mut entry_valuations: Vec<Option<Vec<PlaceValuation>>> = vec![None; states.len()];
         entry_valuations[0] = Some(Vec::new());
@@ -71,6 +101,7 @@ pub(crate) fn validate_default_domain_writes(
                         state,
                         &entry_established[index],
                         entry_valuations[index].as_deref().unwrap_or(&[]),
+                        &summaries,
                         born_zero(index),
                         &mut throwaway,
                     )
@@ -138,6 +169,7 @@ pub(crate) fn validate_default_domain_writes(
                 state,
                 &entry_established[index],
                 entry_valuations[index].as_deref().unwrap_or(&[]),
+                &summaries,
                 born_zero(index),
                 diagnostics,
             );
@@ -251,6 +283,7 @@ fn walk_state(
     state: &State,
     entry_established: &[String],
     entry_valuations: &[PlaceValuation],
+    summaries: &[(omega_core::symbols::SymbolHandle, Vec<String>)],
     born_zero: bool,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> (Vec<String>, Vec<PlaceValuation>) {
@@ -258,6 +291,8 @@ fn walk_state(
     // A call statement poisons transported valuations (the callee may write
     // any place); establishment survives (globally monotone).
     let mut poisoned = false;
+    // Slice 11: establishment ADDED by callee summaries at call sites.
+    let mut call_established: Vec<String> = Vec::new();
 
     for statement in program.statement_table.statements(state.statement_nodes) {
         // R2 rung 3 slice 2: reads of an unestablished GATED place refuse
@@ -269,6 +304,7 @@ fn walk_state(
             statement,
             &tracked,
             entry_established,
+            &call_established,
             diagnostics,
         );
         match statement {
@@ -289,16 +325,27 @@ fn walk_state(
             // Conservative aliasing fence: a call may write any place --
             // and OBSERVES state, so it is a consumption point (ch11): any
             // open window must have closed.
-            StatementNode::Call(_) => {
+            StatementNode::Call(call) => {
                 refuse_open_windows(&tracked, "a call", diagnostics);
                 tracked.clear();
                 poisoned = true;
+                // Slice 11: the callee's establishment summary joins
+                // (call.target_symbol is the target STATE's symbol; resolve
+                // to its owning machine).
+                let target_machine = machine_symbol_for_state(program, call.target_symbol);
+                if let Some((_, established)) = summaries
+                    .iter()
+                    .find(|(symbol, _)| *symbol == target_machine)
+                {
+                    call_established.extend(established.iter().cloned());
+                }
             }
             StatementNode::Expression(expression) => {
                 if expression_contains_call(program, *expression) {
                     refuse_open_windows(&tracked, "a call", diagnostics);
                     tracked.clear();
                     poisoned = true;
+                    collect_call_summaries(program, *expression, summaries, &mut call_established);
                 }
             }
             StatementNode::LocalData(local) => {
@@ -308,6 +355,12 @@ fn walk_state(
                     refuse_open_windows(&tracked, "a call", diagnostics);
                     tracked.clear();
                     poisoned = true;
+                    collect_call_summaries(
+                        program,
+                        local.initial_value,
+                        summaries,
+                        &mut call_established,
+                    );
                 }
             }
             _ => {}
@@ -319,6 +372,7 @@ fn walk_state(
     refuse_open_windows(&tracked, "state exit", diagnostics);
 
     let mut exit_established: Vec<String> = entry_established.to_vec();
+    exit_established.extend(call_established.iter().cloned());
     exit_established.extend(
         tracked
             .iter()
@@ -345,6 +399,65 @@ fn walk_state(
         }
     }
     (exit_established, exit_valuations)
+}
+
+/// Slice 11: the machine owning a state symbol (call targets carry the
+/// STATE's symbol -- the effects builder's proven resolution rule).
+fn machine_symbol_for_state(
+    program: &TypedTrees,
+    state_symbol: omega_core::symbols::SymbolHandle,
+) -> omega_core::symbols::SymbolHandle {
+    if !state_symbol.is_valid() {
+        return omega_core::symbols::SymbolHandle::invalid();
+    }
+    for machine in program.machines() {
+        if program
+            .machine_states(machine)
+            .iter()
+            .any(|state| state.symbol == state_symbol)
+        {
+            return machine.symbol;
+        }
+    }
+    omega_core::symbols::SymbolHandle::invalid()
+}
+
+/// Slice 11: find call targets inside an expression and join their
+/// establishment summaries.
+fn collect_call_summaries(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    summaries: &[(omega_core::symbols::SymbolHandle, Vec<String>)],
+    call_established: &mut Vec<String>,
+) {
+    if !expression.is_valid() {
+        return;
+    }
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Call(call) => {
+            let target_machine = machine_symbol_for_state(program, call.target_symbol);
+            if let Some((_, established)) = summaries
+                .iter()
+                .find(|(symbol, _)| *symbol == target_machine)
+            {
+                call_established.extend(established.iter().cloned());
+            }
+            for argument in program.expression_table.expression_handles(call.arguments) {
+                collect_call_summaries(program, *argument, summaries, call_established);
+            }
+        }
+        ExpressionNode::Binary(binary) => {
+            collect_call_summaries(program, binary.left, summaries, call_established);
+            collect_call_summaries(program, binary.right, summaries, call_established);
+        }
+        ExpressionNode::Member(member) => {
+            collect_call_summaries(program, member.receiver, summaries, call_established);
+        }
+        ExpressionNode::Mutable(inner) => {
+            collect_call_summaries(program, *inner, summaries, call_established);
+        }
+        _ => {}
+    }
 }
 
 /// Ch11 (slice 8): refuse every open invariant window at a consumption
@@ -527,6 +640,7 @@ fn scan_statement_reads(
     statement: &StatementNode,
     tracked: &[TrackedPlace<'_>],
     entry_established: &[String],
+    call_established: &[String],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let mut reads: Vec<ExpressionHandle> = Vec::new();
@@ -562,6 +676,7 @@ fn scan_statement_reads(
             read,
             tracked,
             entry_established,
+            call_established,
             diagnostics,
         );
     }
@@ -574,6 +689,7 @@ fn scan_expression_reads(
     expression: ExpressionHandle,
     tracked: &[TrackedPlace<'_>],
     entry_established: &[String],
+    call_established: &[String],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     if !expression.is_valid() {
@@ -596,6 +712,8 @@ fn scan_expression_reads(
                     // (the caller's total net enforced it) -- arrival
                     // establishes, mirroring the write path's rule.
                     entry_established.contains(&receiver_spelling)
+                        // Slice 11: a callee summary established it.
+                        || call_established.contains(&receiver_spelling)
                         || !is_self_rooted(&receiver_spelling)
                 });
                 // The zero-gate applies only to GATED types (zero-satisfying
@@ -630,8 +748,9 @@ fn scan_expression_reads(
                 member.receiver,
                 tracked,
                 entry_established,
+                call_established,
                 diagnostics,
-            );
+                );
         }
         ExpressionNode::Binary(binary) => {
             scan_expression_reads(
@@ -641,8 +760,9 @@ fn scan_expression_reads(
                 binary.left,
                 tracked,
                 entry_established,
+                call_established,
                 diagnostics,
-            );
+                );
             scan_expression_reads(
                 program,
                 machine,
@@ -650,8 +770,9 @@ fn scan_expression_reads(
                 binary.right,
                 tracked,
                 entry_established,
+                call_established,
                 diagnostics,
-            );
+                );
         }
         ExpressionNode::Mutable(inner) => {
             scan_expression_reads(
@@ -661,8 +782,9 @@ fn scan_expression_reads(
                 *inner,
                 tracked,
                 entry_established,
+                call_established,
                 diagnostics,
-            );
+                );
         }
         ExpressionNode::Call(call) => {
             for argument in program.expression_table.expression_handles(call.arguments) {
@@ -673,8 +795,9 @@ fn scan_expression_reads(
                     *argument,
                     tracked,
                     entry_established,
+                    call_established,
                     diagnostics,
-                );
+                    );
             }
         }
         _ => {}
