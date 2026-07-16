@@ -1,6 +1,6 @@
 use crate::{
     BorrowFacts, CheckedOperatorFacts, CheckedValueFacts, DomainFacts, FlowFacts, InvariantFacts,
-    EffectRowFacts, ProofFacts, QualificationFacts, TerminationFacts,
+    EffectRowFacts, MachineContractPlans, ProofFacts, QualificationFacts, TerminationFacts,
 };
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -24,6 +24,9 @@ pub struct CheckFacts {
     /// STR4 checked plans, slice 2 (decision 19): the semantic-domain
     /// commitments each machine's body makes (arithmetic-policy casts v1).
     pub qualifications: QualificationFacts,
+    /// STR4 checked plans (machine_taxonomy.md): the normalized machine
+    /// semantic contracts -- published halves + deterministic fingerprint.
+    pub contract_plans: MachineContractPlans,
 }
 
 impl CheckFacts {
@@ -41,6 +44,7 @@ impl CheckFacts {
         termination: TerminationFacts,
         effect_rows: EffectRowFacts,
         qualifications: QualificationFacts,
+        contract_plans: MachineContractPlans,
     ) -> Self {
         Self {
             semantic,
@@ -56,6 +60,7 @@ impl CheckFacts {
             termination,
             effect_rows,
             qualifications,
+            contract_plans,
         }
     }
 }

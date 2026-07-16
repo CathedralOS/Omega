@@ -38,6 +38,9 @@ pub(crate) fn build_check_facts(
     let effect_rows = build_effect_row_facts(program, &effects);
     // STR4 checked plans, slice 2: semantic-domain commitments per machine.
     let qualifications = build_qualification_facts(program);
+    // STR4 checked plans: the normalized machine contracts (published
+    // halves + fingerprint; prover-independent by construction).
+    let contract_plans = build_contract_plans(program, &effect_rows);
 
     CheckFacts::with_roots(
         semantic,
@@ -53,7 +56,44 @@ pub(crate) fn build_check_facts(
         termination,
         effect_rows,
         qualifications,
+        contract_plans,
     )
+}
+
+/// STR4 checked plans (machine_taxonomy.md): assemble each machine's
+/// normalized contract plan from the published halves already carried on
+/// the records (supply mode, effect-row ceiling, published termination),
+/// with a deterministic fingerprint over them. Only DECLARED material
+/// enters -- acceptance 8 (a stronger prover cannot change an exported
+/// contract ID) holds by construction.
+fn build_contract_plans(
+    program: &TypedTrees,
+    effect_rows: &omega_checked_trees::EffectRowFacts,
+) -> omega_checked_trees::MachineContractPlans {
+    let mut machines = Vec::new();
+    for machine in program.machines() {
+        let published_effect_row = machine.effect_row;
+        let members = effect_rows.rows.members(published_effect_row).to_vec();
+        let published_termination = machine
+            .termination_plan
+            .published
+            .clone()
+            .unwrap_or_default();
+        let fingerprint = omega_checked_trees::contract_fingerprint(
+            machine.supply_mode,
+            published_effect_row,
+            &members,
+            &published_termination,
+        );
+        machines.push(omega_checked_trees::MachineContractPlan {
+            machine: machine.symbol,
+            supply_mode: machine.supply_mode,
+            published_effect_row,
+            published_termination,
+            fingerprint,
+        });
+    }
+    omega_checked_trees::MachineContractPlans { machines }
 }
 
 /// STR4 checked plans, slice 2 (decision 19): collect each machine's
