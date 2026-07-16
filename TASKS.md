@@ -153,11 +153,20 @@ the missing-witness diagnostic, `terminates by n;` discharges it
 omission/default rules for EXPORTS; sealed progress profiles +
 receipts + pinned premises (grant machinery -- the big half); then
 requirement inheritance, published omission/default rules, sealed progress
-profiles, receipts, and pinned premises; TPR5 atomic corpus sweep across
-omega core/std, samples, all canary families, and compiler-lattice fixtures,
-with retired-syntax fail canaries; TPR6 artifact/cache/diagnostic firewall
-and decision-23's ten acceptance tests. Until TPR5 lands, the checked-in
-`.omg` corpus demonstrates the old implementation, not normative syntax.
+profiles, receipts, and pinned premises; TPR5 LANDED 2026-07-16 (the
+atomic corpus sweep is COMPLETE): omega core/std + samples + all
+canary families swept in TPR1 (97 files + 3 manual); embedded
+Rust-string sources in TPR2's side harvest (46 + 1 brace-escaped);
+the last stragglers -- 4 compiler-lattice fixtures (7 block forms) --
+swept this rung and RUN-VERIFIED natively (exit 70 each). Retired
+spellings survive ONLY in the three deliberate fail canaries that pin
+the retirement diagnostics and in clearly-labeled historical wiki
+notes. The checked-in `.omg` corpus now demonstrates NORMATIVE
+decision-23 syntax everywhere. TPR6 (artifact/cache/diagnostic
+firewall + the ten acceptance tests) remains; of the ten, 2/3/4/5/6/7/
+10 are already pinned by the TPR2-TPR4 test batteries -- outstanding:
+1's export-omission half (needs artifact serialization), 8/9 (need
+sealed progress profiles + grants, TPR4's remaining big half).
 
 1. **Math roster ladder N1→N4** (section below) — zero backend/codegen
    contact; N1 LANDED 2026-07-11 (proof-only classification + all faces);
