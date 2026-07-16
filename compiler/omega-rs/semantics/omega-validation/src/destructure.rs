@@ -13,6 +13,11 @@ use omega_core::diagnostics::Diagnostic;
 use omega_typed_trees::TypedTrees;
 
 const MARKER_PREFIX: &str = "__destructure__";
+/// Arm-position twin (`..`-free destructure arms): `#`/`=` cannot appear in
+/// identifiers, so the encoding splits unambiguously -- the first segment
+/// after `V=` is the case variant (empty for a record arm), the rest are the
+/// spelled fields.
+const ARM_MARKER_PREFIX: &str = "__arm_destructure#V=";
 
 pub(crate) fn validate_destructure_exhaustiveness(
     program: &TypedTrees,
@@ -25,6 +30,17 @@ pub(crate) fn validate_destructure_exhaustiveness(
                 else {
                     continue;
                 };
+                if let Some(encoded) = local.name.as_str().strip_prefix(ARM_MARKER_PREFIX) {
+                    validate_arm_pattern_marker(
+                        program,
+                        machine,
+                        state,
+                        local,
+                        encoded,
+                        diagnostics,
+                    );
+                    continue;
+                }
                 let Some(encoded) = local.name.as_str().strip_prefix(MARKER_PREFIX) else {
                     continue;
                 };
@@ -104,6 +120,108 @@ pub(crate) fn validate_destructure_exhaustiveness(
                     }
                 }
             }
+        }
+    }
+}
+
+/// The arm-position exhaustiveness law: a `..`-free destructure arm's marker
+/// (`__arm_destructure#V=<variant>#<f1>...`) must spell every field of the
+/// record (empty variant) or of the named case's payload. `..` in the arm
+/// opts out at parse time (no marker is minted).
+fn validate_arm_pattern_marker(
+    program: &TypedTrees,
+    machine: &omega_typed_trees::machine::Machine,
+    state: &omega_typed_trees::state::State,
+    local: &omega_typed_trees::statement::TableLocalData,
+    encoded: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let mut parts = encoded.split('#');
+    let variant = parts.next().unwrap_or("");
+    let spelled: Vec<&str> = parts.collect();
+
+    let declared = crate::places::declared_place_type_raw(
+        program,
+        machine,
+        Some(state),
+        local.initial_value,
+    )
+    .or_else(|| {
+        local
+            .type_reference
+            .is_valid()
+            .then_some(local.type_reference)
+    });
+    let Some(declared) = declared else {
+        // The parse-time place gate admitted the subject but the declared
+        // type is unresolvable here (e.g. a shape places.rs does not walk).
+        // The law cannot check what it cannot see -- stay silent rather
+        // than refuse working code; bound fields are still checked as
+        // member reads.
+        return;
+    };
+    let Some(data) = crate::places::data_definition_for_type(program, declared) else {
+        return;
+    };
+
+    let declared_fields: Vec<&str> = if variant.is_empty() {
+        let mut fields = Vec::new();
+        for member in program.data_members(data) {
+            match member {
+                omega_typed_trees::data::DataMember::Field(field) => {
+                    fields.push(field.name.as_str());
+                }
+                omega_typed_trees::data::DataMember::Variant(_) => {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "record pattern arm in machine `{}` state `{}` destructures sum type `{}` without naming a case -- spell the variant (`{}::Case {{ .. }}`)",
+                        machine.name, state.name, data.name, data.name,
+                    )));
+                    return;
+                }
+            }
+        }
+        fields
+    } else {
+        let Some(case) = program.data_members(data).iter().find_map(|member| {
+            match member {
+                omega_typed_trees::data::DataMember::Variant(case)
+                    if case.name.as_str() == variant =>
+                {
+                    Some(case)
+                }
+                _ => None,
+            }
+        }) else {
+            // An unknown case name already refuses at the tag-membership
+            // guard; do not double-report here.
+            return;
+        };
+        program
+            .data_payload_fields(case)
+            .iter()
+            .map(|field| field.name.as_str())
+            .collect()
+    };
+
+    let subject_name = if variant.is_empty() {
+        data.name.to_string()
+    } else {
+        format!("{}::{}", data.name, variant)
+    };
+    for field in &declared_fields {
+        if !spelled.contains(field) {
+            diagnostics.push(Diagnostic::error(format!(
+                "destructure arm in machine `{}` state `{}` does not mention field `{}` of `{}` -- record patterns are exhaustive by law: bind it, rename it with `as`, waive it with `as _`, or opt out with `..`",
+                machine.name, state.name, field, subject_name,
+            )));
+        }
+    }
+    for field in &spelled {
+        if !declared_fields.contains(field) {
+            diagnostics.push(Diagnostic::error(format!(
+                "destructure arm in machine `{}` state `{}` names `{}`, which is not a field of `{}`",
+                machine.name, state.name, field, subject_name,
+            )));
         }
     }
 }
