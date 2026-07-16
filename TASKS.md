@@ -454,7 +454,15 @@ and decision-23's ten acceptance tests. Until TPR5 lands, the checked-in
    skeleton (optional facets, never an enum — hybrids first-class);
    unit tests pin the defaults and the witness-blind published half;
    STR3 propagation through
-   symbol-resolved/typed trees and snapshots; STR4 checked semantic
+   symbol-resolved/typed trees and snapshots — FIRST SLICE LANDED
+   2026-07-16: DataProperties (both layers) carries `multiplicity`,
+   POPULATED at the syntax->resolved lowering ([copy] -> Unrestricted,
+   ordinary -> Affine; [linear] unspelled yet) and COPIED — never
+   re-derived — through resolved->typed (all four construction sites);
+   the STR1 LOSS-3 pin re-pinned per its own protocol (`copy` = the
+   compatibility bool until STR7). Remaining STR3: the Machine record's
+   supply-mode/termination-plan/effect-row propagation + snapshots;
+   STR4 checked semantic
    qualification + permission + normalized-machine-contract plans; STR5
    validation/resolution; STR6 lower only from checked selections while
    preserving semantic contract IDs in artifacts; STR7 retire compatibility

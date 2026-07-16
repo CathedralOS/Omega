@@ -17,6 +17,7 @@ pub(crate) fn lower_data_definition(
             copy: data_definition.properties.copy,
             zero_init: data_definition.properties.zero_init,
             send: data_definition.properties.send,
+            multiplicity: data_definition.properties.multiplicity,
         },
         members: omega_core::arena::HandleSpan::empty(),
     };
@@ -53,6 +54,7 @@ pub(crate) fn lower_type_parameter(
             copy: parameter.bounds.copy,
             zero_init: parameter.bounds.zero_init,
             send: parameter.bounds.send,
+            multiplicity: parameter.bounds.multiplicity,
         },
     })
 }

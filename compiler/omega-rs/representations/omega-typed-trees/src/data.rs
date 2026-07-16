@@ -32,6 +32,10 @@ pub struct DataProperties {
     pub copy: bool,
     pub zero_init: bool,
     pub send: bool,
+    /// STR3: the first-class usage model (`[copy]` -> Unrestricted,
+    /// ordinary data -> Affine). `copy` survives as the compatibility bool
+    /// until STR7 retires it.
+    pub multiplicity: omega_core::semantics::Multiplicity,
 }
 
 impl DataDefinition {

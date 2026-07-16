@@ -37,6 +37,13 @@ pub(crate) fn lower_data_definition(
                 copy: data_definition.properties.copy,
                 zero_init: data_definition.properties.zero_init,
                 send: data_definition.properties.send,
+                // STR3: `[copy]` -> Unrestricted, ordinary data -> Affine
+                // (`[linear]` has no spelling yet).
+                multiplicity: if data_definition.properties.copy {
+                    omega_core::semantics::Multiplicity::Unrestricted
+                } else {
+                    omega_core::semantics::Multiplicity::Affine
+                },
             },
             members,
         },
@@ -227,6 +234,11 @@ pub(crate) fn lower_type_parameters(
                 copy: parameter.bounds.copy,
                 zero_init: parameter.bounds.zero_init,
                 send: parameter.bounds.send,
+                multiplicity: if parameter.bounds.copy {
+                    omega_core::semantics::Multiplicity::Unrestricted
+                } else {
+                    omega_core::semantics::Multiplicity::Affine
+                },
             },
         });
     }
