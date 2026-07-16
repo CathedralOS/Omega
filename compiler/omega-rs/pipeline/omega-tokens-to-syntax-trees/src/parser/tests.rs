@@ -599,11 +599,21 @@ fn parses_data_destructure_transition_guard_as_subject_member_guard() {
         .copied()
         .expect("entry state");
     let state = parsed.items.state(entry);
+    // The destructure arm ALSO mints an exhaustiveness-marker let
+    // (`__arm_destructure#...`) ahead of the transition statements; index
+    // among the TRANSITIONS only.
     let statement = parsed
         .items
         .statements(state.statements)
-        .get(1)
+        .iter()
         .copied()
+        .filter(|handle| {
+            matches!(
+                parsed.statements.statement(*handle),
+                StatementNode::Transition(_)
+            )
+        })
+        .nth(1)
         .expect("data-pattern transition");
     let StatementNode::Transition(transition) = parsed.statements.statement(statement) else {
         panic!("second arm should be a transition")

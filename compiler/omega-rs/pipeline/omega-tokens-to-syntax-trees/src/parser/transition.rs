@@ -81,7 +81,6 @@ pub(super) fn parse_transition_block_handles<'tokens, 'source>(
         // enforced where the type is knowable).
         if let Some(bindings) = bindings.as_ref()
             && let Some(spelling) = bindings.spelling.as_ref()
-            && !spelling.has_rest
             && expression_is_place(syntax_trees, bindings.subject)
         {
             let mut marker_name = String::from("__arm_destructure#V=");
@@ -91,6 +90,13 @@ pub(super) fn parse_transition_block_handles<'tokens, 'source>(
             for member in &spelling.members {
                 marker_name.push('#');
                 marker_name.push_str(member.as_str());
+            }
+            // `..` opts out of the MISSING-field law but spelled fields must
+            // still EXIST -- the trailing `#~rest` sentinel tells validation
+            // to skip only the exhaustiveness half (`~` cannot appear in an
+            // identifier).
+            if spelling.has_rest {
+                marker_name.push_str("#~rest");
             }
             if !pattern_markers.iter().any(|(name, _)| *name == marker_name) {
                 pattern_markers.push((marker_name, bindings.subject));
