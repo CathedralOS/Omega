@@ -36,6 +36,8 @@ pub(crate) fn build_check_facts(
     let termination = crate::checks::termination::build_termination_facts(program);
     // STR4 slice 2: kinded effect rows (published ceiling vs inferred).
     let effect_rows = build_effect_row_facts(program, &effects);
+    // STR4 checked plans, slice 2: semantic-domain commitments per machine.
+    let qualifications = build_qualification_facts(program);
 
     CheckFacts::with_roots(
         semantic,
@@ -50,7 +52,147 @@ pub(crate) fn build_check_facts(
         flow,
         termination,
         effect_rows,
+        qualifications,
     )
+}
+
+/// STR4 checked plans, slice 2 (decision 19): collect each machine's
+/// semantic-domain COMMITMENTS -- v1 walks its statements' expressions for
+/// arithmetic-policy casts (`x as u8 in Saturating`; the compiler-blessed
+/// closed semantic-facet subset) and normalizes the policy to its FIXED
+/// SemanticDomainTable identity. Sorted + deduped; cast-free machines carry
+/// no entry.
+fn build_qualification_facts(program: &TypedTrees) -> omega_checked_trees::QualificationFacts {
+    use omega_core::semantics::SemanticDomainTable;
+    use omega_typed_trees::expression::ExpressionNode;
+
+    fn collect_casts(
+        program: &TypedTrees,
+        expression: omega_typed_trees::expression::ExpressionHandle,
+        committed: &mut Vec<omega_core::semantics::SemanticDomainId>,
+    ) {
+        if !expression.is_valid() {
+            return;
+        }
+        match program.expression_table.expression(expression) {
+            ExpressionNode::Cast(cast) => {
+                let policy = match cast.domain {
+                    omega_core::arithmetic::ArithmeticDomain::Exact => None,
+                    omega_core::arithmetic::ArithmeticDomain::Wrapping => {
+                        Some(SemanticDomainTable::WRAPPING)
+                    }
+                    omega_core::arithmetic::ArithmeticDomain::Saturating => {
+                        Some(SemanticDomainTable::SATURATING)
+                    }
+                    omega_core::arithmetic::ArithmeticDomain::Trapping => {
+                        Some(SemanticDomainTable::TRAPPING)
+                    }
+                };
+                if let Some(policy) = policy {
+                    committed.push(policy);
+                }
+                collect_casts(program, cast.value, committed);
+            }
+            ExpressionNode::Binary(binary) => {
+                collect_casts(program, binary.left, committed);
+                collect_casts(program, binary.right, committed);
+            }
+            ExpressionNode::Unary(unary) => collect_casts(program, unary.operand, committed),
+            ExpressionNode::Member(member) => collect_casts(program, member.receiver, committed),
+            ExpressionNode::Mutable(inner) => collect_casts(program, *inner, committed),
+            ExpressionNode::Indexed(indexed) => {
+                collect_casts(program, indexed.collection, committed);
+                collect_casts(program, indexed.index, committed);
+            }
+            ExpressionNode::Range(range) => {
+                collect_casts(program, range.start, committed);
+                collect_casts(program, range.end, committed);
+            }
+            ExpressionNode::Call(call) => {
+                collect_casts(program, call.receiver, committed);
+                for argument in program.expression_table.expression_handles(call.arguments) {
+                    collect_casts(program, *argument, committed);
+                }
+            }
+            ExpressionNode::StructLiteral(literal) => {
+                for field in program.expression_table.struct_fields(literal.fields) {
+                    collect_casts(program, field.value, committed);
+                }
+            }
+            ExpressionNode::ArrayLiteral(items) => {
+                for item in program.expression_table.expression_handles(*items) {
+                    collect_casts(program, *item, committed);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    let mut machines = Vec::new();
+    for machine in program.machines() {
+        let mut committed = Vec::new();
+        for state in program.machine_states(machine) {
+            for statement in program.statement_table.statements(state.statement_nodes) {
+                use omega_typed_trees::statement::StatementNode;
+                match statement {
+                    StatementNode::Assignment(assignment) => {
+                        collect_casts(program, assignment.target, &mut committed);
+                        collect_casts(program, assignment.value, &mut committed);
+                    }
+                    StatementNode::Expression(expression) => {
+                        collect_casts(program, *expression, &mut committed);
+                    }
+                    StatementNode::LocalData(local) => {
+                        collect_casts(program, local.initial_value, &mut committed);
+                    }
+                    StatementNode::Call(call) => {
+                        for argument in
+                            program.statement_table.expression_handles(call.arguments)
+                        {
+                            collect_casts(program, *argument, &mut committed);
+                        }
+                    }
+                    StatementNode::Transition(transition) => {
+                        if let omega_typed_trees::statement::TransitionGuardNode::When(guard) =
+                            &transition.guard
+                        {
+                            collect_casts(program, *guard, &mut committed);
+                        }
+                        for target in [transition.target, transition.continuation] {
+                            if !target.is_valid() {
+                                continue;
+                            }
+                            match program.statement_table.transition_target(target) {
+                                omega_typed_trees::statement::TransitionTargetNode::Value(
+                                    value,
+                                ) => collect_casts(program, *value, &mut committed),
+                                omega_typed_trees::statement::TransitionTargetNode::Named {
+                                    arguments,
+                                    ..
+                                } => {
+                                    for argument in
+                                        program.statement_table.expression_handles(*arguments)
+                                    {
+                                        collect_casts(program, *argument, &mut committed);
+                                    }
+                                }
+                                _ => {}
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        committed.sort_by_key(|id| id.0);
+        committed.dedup();
+        if !committed.is_empty() {
+            machines.push(omega_checked_trees::MachineQualifications {
+                machine: machine.symbol,
+                body_committed: committed,
+            });
+        }
+    }
+    omega_checked_trees::QualificationFacts { machines }
 }
 
 /// STR4 slice 2 (decision 22): build the kinded effect-row facts. The

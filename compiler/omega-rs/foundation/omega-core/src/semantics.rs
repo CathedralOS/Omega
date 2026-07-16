@@ -311,12 +311,35 @@ impl EffectRowTable {
 /// NAME, minted in declaration order (deterministic because lowering order
 /// is; presentation is excluded from identity per the facets brief).
 /// `NULL`/0 stays "not computed"; ids start at 1.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SemanticDomainTable {
     names: Vec<String>,
 }
 
+impl Default for SemanticDomainTable {
+    fn default() -> Self {
+        // The compiler-blessed arithmetic policies (the closed semantic-facet
+        // subset, decision 17/19) PRE-SEED with FIXED identities -- ids 1-3
+        // are deterministic across programs (proof-cache-safe); declared
+        // domains follow in declaration order.
+        Self {
+            names: vec![
+                "Wrapping".to_owned(),
+                "Saturating".to_owned(),
+                "Trapping".to_owned(),
+            ],
+        }
+    }
+}
+
 impl SemanticDomainTable {
+    /// The fixed identity of the `Wrapping` arithmetic policy.
+    pub const WRAPPING: SemanticDomainId = SemanticDomainId(1);
+    /// The fixed identity of the `Saturating` arithmetic policy.
+    pub const SATURATING: SemanticDomainId = SemanticDomainId(2);
+    /// The fixed identity of the `Trapping` arithmetic policy.
+    pub const TRAPPING: SemanticDomainId = SemanticDomainId(3);
+
     /// Intern a declared domain name and return its identity (idempotent).
     pub fn intern(&mut self, name: &str) -> SemanticDomainId {
         if let Some(position) = self.names.iter().position(|candidate| candidate == name) {
@@ -367,13 +390,19 @@ mod tests {
         // Identity = declaration order; re-interning the same name returns
         // the same id; NULL never resolves to a name.
         let mut table = SemanticDomainTable::default();
+        // Policies pre-seed with FIXED ids; declared domains follow.
+        assert_eq!(table.lookup("Wrapping"), Some(SemanticDomainTable::WRAPPING));
+        assert_eq!(
+            table.lookup("Saturating"),
+            Some(SemanticDomainTable::SATURATING)
+        );
+        assert_eq!(table.lookup("Trapping"), Some(SemanticDomainTable::TRAPPING));
         let kilometres = table.intern("Km");
-        let wrapping = table.intern("Wrapping");
-        assert_eq!(kilometres, SemanticDomainId(1));
-        assert_eq!(wrapping, SemanticDomainId(2));
+        assert_eq!(kilometres, SemanticDomainId(4));
         assert_eq!(table.intern("Km"), kilometres);
         assert_eq!(table.name(kilometres), Some("Km"));
-        assert_eq!(table.lookup("Wrapping"), Some(wrapping));
+        // Re-interning a policy returns its fixed id, never a duplicate.
+        assert_eq!(table.intern("Wrapping"), SemanticDomainTable::WRAPPING);
         assert_eq!(table.name(SemanticDomainId::NULL), None);
         assert_eq!(table.lookup("Miles"), None);
     }

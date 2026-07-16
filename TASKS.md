@@ -658,10 +658,20 @@ sealed progress profiles + grants, TPR4's remaining big half).
    pinned-slot refinement (provider-slot machinery -- profile-
    adjacent);
    snapshots gain the new fields as those slices land;
-   STR4 checked semantic
-   qualification + permission + normalized-machine-contract plans
-   (NEXT: qualification-EVENT facts in CheckFacts riding the new
-   ids -- the `as`-mint inventory); STR5
+   CHECKED-PLANS SLICE 2 LANDED same day: the arithmetic policies
+   (Wrapping/Saturating/Trapping -- the compiler-blessed closed
+   semantic-facet subset) PRE-SEED SemanticDomainTable with FIXED
+   ids 1-3 (proof-cache-safe; declared domains follow), and
+   CheckFacts gains QualificationFacts -- per machine, the sorted/
+   deduped SemanticDomainId set its body's `as`-casts COMMIT to
+   (the body-observed half; a full statement+expression walk incl.
+   transition guards/targets; cast-free machines carry no entry;
+   the published AUTHORITY half waits on the permission model).
+   Pinned: qualification_facts_record_policy_commitments (a
+   Saturating cast commits the fixed id; a cast-free machine is
+   absent). Remaining checked plans: general declared-domain
+   qualification when its cast spelling lowers; permission +
+   normalized-machine-contract plans; STR5
    validation/resolution; STR6 lower only from checked selections while
    preserving semantic contract IDs in artifacts; STR7 retire compatibility
    paths. Decision 22 now supplies the effect-row target: kinded

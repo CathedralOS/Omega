@@ -1624,6 +1624,64 @@ fn effect_row_facts_split_ceiling_from_inferred_summaries() {
     assert_ne!(main.published_ceiling, main.inferred_transitive);
 }
 
+#[test]
+fn qualification_facts_record_policy_commitments() {
+    // STR4 checked plans, slice 2: a machine whose body casts under an
+    // arithmetic policy COMMITS to that policy's fixed semantic identity;
+    // a cast-free machine carries no entry.
+    use omega_core::semantics::SemanticDomainTable;
+
+    let source = r#"
+    data Main {}
+
+    machine Main::clamped(&mut self, value: u64) -> u8 {
+        let squeezed: u8 = value as u8 in Saturating;
+        squeezed
+    }
+
+    machine Main::main(&mut self) -> u64 {
+        7
+    }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let symbol_of = |name: &str| {
+        typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == name)
+            .unwrap_or_else(|| panic!("machine {name}"))
+            .symbol
+    };
+    let clamped_symbol = symbol_of("Main::clamped");
+    let main_symbol = symbol_of("Main::main");
+    let checked = lower_typed_trees(typed).expect("checked lowering should succeed");
+
+    let clamped = checked
+        .facts
+        .qualifications
+        .for_machine(clamped_symbol)
+        .expect("clamped's qualification fact");
+    assert_eq!(
+        clamped.body_committed,
+        vec![SemanticDomainTable::SATURATING],
+        "the saturating cast commits to the fixed Saturating identity"
+    );
+    assert!(
+        checked
+            .facts
+            .qualifications
+            .for_machine(main_symbol)
+            .is_none(),
+        "a cast-free machine carries no qualification entry"
+    );
+}
+
 /// R2 rung 2 slice 2: the admitted zero-satisfying default-domain facts
 /// travel to the TYPED data definition -- rung 3's consumer substrate.
 #[test]
