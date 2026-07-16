@@ -1,1 +1,1 @@
-whose mint rung (introduction authority + predicate discharge) has not landed
+mints only LITERAL values in this rung
