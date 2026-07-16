@@ -2,6 +2,16 @@
 
 Omega should model host and compiler boundaries explicitly.
 
+> **Effect rows settled 2026-07-18 (frozen decision 22; authoritative
+> record: [effects_authority_and_observation.md](../design_briefs/effects_authority_and_observation.md)).**
+> Omega has one kinded `effects` row. Boundary-trait identities contribute
+> service reach; a tiny core set contributes operational possibilities such as
+> `Suspend` and `Block`. Authority remains capability values, trust remains
+> provider receipts, failure remains sums, mutation remains ownership, and v1
+> resource bounds remain dependent contracts. The lowercase fixed vocabulary
+> documented later in this chapter is the current compiler compatibility layer,
+> not the end-state language model.
+
 The outside world is not one thing. Linux may expose raw syscall numbers,
 Darwin normally routes process IO through `libSystem`, Windows imports APIs
 from DLLs such as `Kernel32.dll`, Wasm imports host functions, and embedded
@@ -76,15 +86,12 @@ declared guarantees from a configured boundary provider because the implementati
 not available as normal Omega source.
 
 ```omega
-boundary trait WindowsFile {
+boundary trait Readable {
     machine read(
-        handle: HANDLE<[read]>,
-        buffer: &mut [u8, [writable, initialized]],
-        bytes_to_read: u64,
-        bytes_read: &mut u64
-    ) -> bool
-    effects
-        filesystem_io;
+        path: [u8] in Utf8,
+        out: &mut Vec<u8>
+    ) -> ReadResult
+        effects Suspend;
 }
 ```
 
@@ -96,21 +103,66 @@ Working interpretation:
 - `requires` clauses are obligations the caller must prove before crossing the
   boundary.
 - `ensures` clauses are guarantees accepted from the boundary implementation.
-- `effects` clauses are auditable behavior classes such as filesystem,
-  process, stdin, stdout, network, thread, clock, or device access.
+- Boundary-trait identity automatically contributes service reach; the
+  written `effects` clause adds other service or operational ceilings such as
+  `Suspend` and `Block`.
 - Build policy decides which boundary providers are allowed for a target.
 - Safe application packages cannot silently create new host boundaries. A
   provider must come from the toolchain, target configuration, or an explicitly
   whitelisted boundary package.
 
-## Standard Effects
+## Settled Effect Rows
 
-Effects are stable language-level names for externally visible behavior. They
-are not host-specific syscall names. A Darwin provider, Linux provider, Windows
-provider, firmware provider, or test provider can satisfy the same boundary
-trait while exposing the same effect vocabulary to the compiler.
+The source row is one `+`-separated ceiling of name-resolved members:
 
-Initial standard effects:
+```omega
+machine backup(
+    src: [u8] in Utf8,
+    dst: [u8] in Utf8
+) -> BackupResult
+    effects Readable + Queryable + Suspend
+{
+}
+```
+
+V1 members have two mechanically distinct kinds:
+
+- service reach from boundary traits (`Readable`, `Queryable`, `Clock`);
+- operational possibility from the core set (`Suspend`, `Block`).
+
+The names are identifiers, not reserved words. Rows are ceilings: effects
+accumulate transitively and absence is the guarantee. If `Block` is absent, no
+checked callee or admitted provider may block a worker. If `Writable` is absent,
+the machine cannot reach that service even when it possesses a Writable
+capability.
+
+Internal rows may be inferred. Exports, trait requirements, and boundary
+operations write their row; omission there means empty. Implementations and
+providers refine by subset. Imports use pinned requirement rows, so later
+provider selection cannot widen a compiled consumer.
+
+No masking, subtraction, scoped allowance, or algebraic handlers exist. A
+checked in-memory Readable provider can remove a trust receipt and refine
+operational behavior, but the abstract Readable reach remains visible. V1 also
+has no quantitative row members: heap/region bounds use capability contracts;
+task and version capacity use their own declared budgets.
+
+The complete laws, algebra, identity rule, tests, and deferred spaces are in
+the decision-22 brief.
+
+## Legacy Standard Effects (compiler compatibility layer)
+
+The remainder of this section documents the currently implemented lowercase
+`u64 EffectSet`. It is retained to explain existing compiler behavior and old
+samples while the decision-22 migration lands. These names are not new
+language canon and must not be extended as the effects architecture.
+
+The legacy design treated effects as stable language-level names for externally
+visible behavior rather than host-specific syscall names. Decision 22 replaces
+those fixed names with symbol-resolved service traits and kinded operational
+members while preserving the provider-independent intent.
+
+Implemented compatibility names:
 
 - `alloc`: may allocate memory through the language/runtime allocator.
 - `dealloc`: may release memory through the language/runtime allocator.
@@ -147,13 +199,16 @@ Initial standard effects:
 - `dynamic_link`: may load, unload, resolve, or call through dynamically linked
   code.
 
-Purity is the empty effect set, not a named effect. A machine with no inferred
-or declared effects is effect-free. Adding a boundary call, allocation, wait, or
-other effect later changes that inferred set and must satisfy the caller's
-context like any other effect.
+Effect-row purity is the empty row, not a named member. It proves no service
+reach and none of the represented operational possibilities; it does not by
+itself prove termination, absence of failure, or absence of owned-state
+mutation. Adding a boundary call, allocator reach, wait, or other row member
+later changes the inferred row and must satisfy the caller's ceiling.
 
-The compiler-side source of truth for this vocabulary is the standard effect
-name list in `omega-effects`; docs and implementation should move together.
+The compiler-side source of truth for this transitional vocabulary is the
+standard effect name list in `omega-effects`. The representation migration
+replaces it with normalized symbol/kind identities; the old bit positions may
+survive only as a cache/projection.
 
 Declared effects are ceilings. A trait can say "any implementation of this
 machine may require at most these effects." A concrete machine may declare the
@@ -248,9 +303,9 @@ example, `stdout_io` is enough for the language-level effect report; whether
 the implementation uses Darwin `libSystem`, Linux `write`, Windows console
 APIs, or a firmware UART is a provider detail.
 
-Unknown effects should be rejected in normal safe builds once the compiler has
-a complete standard vocabulary. Toolchain or firmware authors can extend the
-vocabulary only through explicitly boundary target configuration.
+The legacy implementation rejects names outside its closed table. End-state
+rows resolve ordinary boundary-trait/core-member identifiers instead; user-
+defined operational-member declarations remain deferred by decision 22.
 
 Console boundaries should use the same shape:
 
@@ -298,11 +353,11 @@ for free, and native lowerings exploit the ZII rule directly (the result
 slot is pre-zeroed; only an arrived byte writes the non-zero tag, so the
 EOF path executes no write at all).
 
-NOTE (implementation state, 2026-07-17): std's shipping console is still
-the transitional `platform Console` block, which cannot carry effect rows
--- the shape above is the prescribed end state (OWNER_QUESTIONS #13 tracks
-the convergence; the missing rows currently make the purity checker call
-`read_byte` pure, which is wrong but refusal-guarded).
+Implementation state: std's shipping console is still the transitional
+`platform Console` block, which cannot carry effect rows. The shape above is
+the prescribed end state; `TASKS.md` tracks the migration. Until then the
+purity checker incorrectly classifies `read_byte` as row-empty, but existing
+refusal checks prevent that classification from eliding the operation.
 
 Domain requirements stay normal proof language. A filesystem boundary should
 not invent special "initialized" words when a domain is what it means:
@@ -354,11 +409,12 @@ downstream reads the carried fact instead of re-scanning the byte sequence.
 
 ## Capabilities And Authority Flow
 
-Effects are not authority by themselves. `filesystem_io` says filesystem-shaped
-behavior may occur, but it does not say whether the code was handed a folder by
-the caller, opened an absolute path through ambient host power, prompted the
-user, stored a handle for later, or merely derived a narrower file handle from a
-folder it already had.
+Effects are not authority by themselves. `Readable` or `Writable` says the
+corresponding service surface may be reached, but it does not say whether the
+code was handed a folder by the caller, prompted the user, stored a handle for
+later, or merely derived a narrower file handle from a folder it already had.
+The row is a ceiling; capability values are possession; provider receipts are
+trust. None can substitute for another.
 
 Omega should model authority as ordinary values plus facts. A filesystem handle
 should usually be one stable type with permission domains, not a family of
@@ -387,23 +443,22 @@ guarantees:
 boundary trait Desktop {
     machine choose_folder(prompt: String) -> Folder
     ensures
-        result in Folder::Writable
-    effects
-        filesystem_io;
+        result in Folder::Writable;
 }
 
-boundary trait Filesystem {
+boundary trait Writable {
     machine write_bytes(folder: Folder, path: String, bytes: &[u8])
     requires
-        folder in Folder::Writable
-    effects
-        filesystem_io;
+        folder in Folder::Writable;
+}
 
+boundary trait Readable {
     machine read_bytes(folder: Folder, path: String, out: &mut Vec<u8>)
     requires
-        folder in Folder::Readable
-    effects
-        filesystem_io;
+        folder in Folder::Readable;
+}
+
+boundary trait Filesystem: Readable + Writable {
 }
 ```
 
@@ -440,7 +495,7 @@ machine Thumbnailer::write_cache(
 requires
     cache in Folder::Writable
 effects
-    filesystem_io
+    Writable
 {
     Filesystem::write_bytes(cache, "thumb.bin", image.thumbnail_bytes());
 }
@@ -459,7 +514,7 @@ authority flow:
   releases: none
 
 effects:
-  filesystem_io
+  Writable
 ```
 
 Example acquisition:
@@ -467,7 +522,7 @@ Example acquisition:
 ```omega
 machine Thumbnailer::choose_and_write_cache(image: Image)
 effects
-    filesystem_io
+    Desktop + Writable
 {
     let cache: Folder = Desktop::choose_folder("Choose cache folder");
     Filesystem::write_bytes(cache, "thumb.bin", image.thumbnail_bytes());
@@ -487,11 +542,11 @@ authority flow:
   releases: none
 
 effects:
-  filesystem_io
+  Desktop, Writable
 ```
 
 Package and build policy should be able to set ceilings over this inferred
-flow. A package may be allowed to use `filesystem_io` only through
+flow. A package may be allowed to reach `Writable` only through
 caller-provided folders, while being forbidden from acquiring a folder through
 `Desktop::choose_folder` or opening an ambient absolute path.
 
@@ -499,28 +554,29 @@ Authority flow and boundary calls are related but separate reports:
 
 - Authority flow answers what power-bearing values a package can accept, use,
   derive, store, return, release, or acquire.
-- Boundary calls answer which host, runtime, compiler, syscall, imported
-  library, broker, or prompt surfaces the package directly or transitively
-  reaches.
+- Service reach answers which abstract boundary traits the package directly or
+  transitively reaches. Provider receipts separately answer which host,
+  runtime, compiler, syscall, imported library, broker, or prompt realizations
+  were selected.
 
 A library can therefore be audited along three axes:
 
-- Effect ceiling: which externally visible behavior classes may occur.
+- Effect ceiling: which service surfaces and operational possibilities may be
+  reached.
 - Authority-flow ceiling: what authority values may move through or be minted
   by the package.
-- Boundary-provider ceiling: which direct and transitive host/provider calls are
-  allowed.
+- Provider/trust ceiling: which direct and transitive realizations are allowed.
 
-This distinction matters because two packages can both have `filesystem_io`
+This distinction matters because two packages can both reach `Writable`
 while having very different blast radii. One only writes into a folder supplied
 by the caller. The other prompts the user, consults the environment, or calls a
 raw host provider to acquire filesystem authority itself.
 
 Target metadata such as library artifact, symbol, syscall number, calling
 convention, and boundary provider belongs in toolchain host packages or explicitly
-whitelisted boundary providers. Pulling in a boundary with `filesystem_io`,
-`stdout_io`, or `process_exit` is visible to the build, and a restricted build
-can reject it.
+whitelisted boundary providers. Pulling in `Filesystem`, `Console`, or
+`ProcessExit` service reach is visible to the build; provider receipts reveal
+which realization supplies it, and a restricted build can reject either axis.
 
 The compiler should understand boundary traits, provider packages, libraries,
 symbols, calling conventions, boundary providers, and target image imports
@@ -587,7 +643,7 @@ hardware-fact declarations in small form.
 
 A freestanding target also needs an entry contract: who calls the entry, in
 what machine state (which firmware handoff, what is mapped, what is zeroed).
-SETTLED (chat 2026-07-03/04): the entry is an ordinary **exported callable** --
+The entry is an ordinary **exported callable** --
 `boundary machine Main::run(&self, handoff: EfiHandoff) -> EfiStatus`. A
 `boundary machine` declares "we export this as a callable surface": its
 parameter list is the shape imposed over the platform's arrival bytes (the
@@ -596,8 +652,8 @@ programs that want unclaimed bytes), `&self` binds the machine's statics, and
 its calling plan is inferred from the image's subsystem -- stated explicitly as
 `boundary(<Plan>)` only when a callable's convention differs from the image
 default (interrupt handlers). "No host" is `b.freestanding = true` in
-`build.omg` (an orthogonal `Build` field; the `target { subsystem }` block is
-retired -- see `design_briefs/build_and_package_model.md`). The machine-state
+`build.omg` (an orthogonal `Build` field; see
+`design_briefs/build_and_package_model.md`). The machine-state
 guarantees remain an audited axiom list surfaced by the build artifact, not
 typed clauses.[^freestanding-open]
 
@@ -756,7 +812,7 @@ Each `BoundaryProvider` record carries:
   `DescriptorConstruction`, `Allocation`, or `HostAbiCall`.
 - the public contract it implements (a reference, so the proof obligation and
   signature stay visible).
-- its effect set.
+- its normalized kinded effect row.
 - its target applicability.
 - the origin package that declared it.
 
@@ -781,6 +837,15 @@ resolves to a registered record or the build is rejected.
 
 Imported entries that can block must say what can unblock them, or they must be
 reported as boundary opaque waits.
+
+Blocking and parking are distinct. An imported/provider contract carries
+`Block` when it may occupy the calling worker and `Suspend` when it may park a
+task. That row is checked against the pinned requirement at admission; the
+eventual provider cannot widen a consumer compiled against a no-block/no-park
+slot. Decision 23 represents v1 positive wake/fairness premises as sealed,
+grant-backed opaque progress profiles on the pinned operation/provider
+contract. They participate in admission and trust reports but do not become
+ordinary proof facts or follow merely from row membership.
 
 Examples:
 
@@ -858,8 +923,12 @@ authority flow:
     none
 
 effects:
-  declared: filesystem_io
-  reached: filesystem_io
+  declared: Writable
+  reached: Writable
+
+trust receipts:
+  omega_windows_kernel32_read_file -> accepted HostAbiCall contract
+  omega_darwin_libsystem_write -> accepted HostAbiCall contract
 
 imported libraries:
   Kernel32 -> Kernel32.dll calling_convention winapi

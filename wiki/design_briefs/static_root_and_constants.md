@@ -1,7 +1,7 @@
 # Design Brief — Constants & the Static Root
 
-> **For:** Omega maintainer · **Status:** SETTLED (chat 2026-07-04, Zach). ·
-> **Driver:** Cathedral's boot/ABI/facts code is constant-heavy and wrote
+> **Status:** Settled design; engineering incomplete. **Driver:** Cathedral's
+> boot/ABI/facts code is constant-heavy and wrote
 > C-style free-floating `NAME: T = value` declarations, which Omega had no home
 > for — exposing three tangled holes: where const lives, where static lives, and
 > why `main`'s `&self` looked like a generated-static-ref hack. · **Depends on:**
@@ -29,7 +29,7 @@ most of the difficulty:
 ## 1. `const` — a pure value, free-floating, namespaced
 
 A `const` is a named value whose initializer is evaluated at build time (an
-effect-free expression in constant position — `build_time_evaluation.md`). So it
+build-time-admissible expression in constant position — `build_time_evaluation.md`). So it
 is a *value*, not storage:
 
 ```omega

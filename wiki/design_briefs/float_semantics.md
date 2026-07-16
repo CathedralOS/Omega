@@ -1,9 +1,7 @@
 # Float Semantics — the design record (settled 2026-07-18)
 
-The owner question this answers is OWNER_QUESTIONS item 8 ("`f32 in
-Saturating` compiles and means nothing... Deferred pending a serious float
-design"). This is that design. Chapter 5's Float Facts section is the UX
-surface; this file is the argument.
+This is the settled float model. Chapter 5's Float Facts section is the
+user-facing surface; this file records the rationale and implementation laws.
 
 ## 1. The architecture: rounded-Rat over target-bound format records
 
@@ -17,8 +15,7 @@ because the pieces already exist: exact arithmetic is the N2 bignum
 engine, finite-floats-embed-exactly-in-Rat is the settled roster fact, and
 per-target binding tables are the landed provides mechanism.
 
-Three layers, with the placement split settled in review (owner: "isn't
-this more fit in omega::core?"):
+The model has three layers:
 
 - **Language** (representation-free): floats are format-parameterized
   rounded-Rat carriers; finite values embed exactly in Rat; comparisons
@@ -46,7 +43,7 @@ software (proven) — the trust polarity flips and the report shows it.
 Rebinding `f32` to posits would silently invalidate every proof written
 against IEEE contracts: the bleed the design exists to prevent, reversed.
 
-## 2. Domains: the value/policy split (Q8's actual answer)
+## 2. Domains: the value/policy split
 
 - **Value domains** are unary wellness facts, conjoinable with the landed
   `&`, enforced by invariant windows: `Finite` (not NaN/±inf — ch5's
@@ -70,10 +67,9 @@ A decimal literal is a rational, exactly. Pipeline: parse -> exact Rat ->
 compile-time arithmetic in Rat -> round ONCE at the landing site to the
 landing type's format; where the exact op is undefined/overflowing, apply
 the format's specials — compile-time equals runtime bit-for-bit by
-construction. Constants are unitless until a site requests a type (the
-owner's AnonymousValue pattern from Squalr: deferred typing resolved at
-the requesting site — with two upgrades: resolution happens once at
-compile time and dies, and arithmetic on the anonymous value is exact).
+construction. Constants are unitless until a site requests a type: deferred
+typing resolves once at the requesting site, and arithmetic on the anonymous
+value is exact.
 Conversion vs reinterpretation stays two mechanisms: the value-invariant
 mint (`1/3` renders differently per format) is this pipeline; the
 bits-invariant read is the recast (`&self.bits as &f32`), footprint-checked,
@@ -131,13 +127,13 @@ Julia muladd vs fma, C23 _Float32, HLSL float16_t. Rules:
   record vocabulary to grow one notch, once.
 - Rung 3: hardware — provides rows selecting compiler-known lowerings
   (accepted-tier trust, the owner's grant, the report); genuinely new
-  instructions wait on the inline-asm arc.
+  instructions wait on the inline-assembly arc.
 
 MLIR's nominal-type-per-format explosion is the warning; APFloat's
 semantics-record is the pattern. The quire (posit exact accumulator) is
 just data (`[u64; 8]`) when wanted.
 
-## 7. Other-languages consultation (owner-requested; the space is RICH)
+## 7. Prior-art constraints
 
 Ada (digits N + model numbers) and Fortran (KIND + inquiry + IEEE as an
 opt-in queryable capability module) are the proven
@@ -157,16 +153,15 @@ both engines) is the junior version already. Accelerator reality (bf16,
 tf32, two incompatible FP8s, MX block formats, ~a new format yearly)
 makes format-as-data descriptive, not speculative.
 
-## 8. Sub-decisions — ALL SETTLED (owner, same review)
+## 8. Operational edge laws
 
-1. ~~min/max NaN contract~~ **SETTLED: keep the hardware contract +
-   document** ("lower to better ISA matching, and don't worry about it" —
-   owner). Return the second operand on unordered/equal (`a < b ? a : b`,
+1. **Min/max NaN contract.** Return the second operand on unordered/equal
+   (`a < b ? a : b`,
    matches minsd/FCSEL); order-dependent under NaN, knowingly differing
    from Rust (whose non-NaN-wins LAUNDERS a poisoned value) and IEEE-2019
    minimum (which costs a blend). Under Finite operands all contracts
    agree — proven code cannot observe the choice. Recorded in ch5.
-2. ~~Saturating NaN sub-rule~~ **SETTLED: overflow-only.** Saturating
+2. **Saturating is overflow-only.** Saturating
    clamps magnitude overflow to ±MAX_FINITE and nothing else; division by
    zero and invalid ops still produce non-finites, which remain Finite
    obligations (cheap, discrete). Division by zero does NOT clamp (0/0
@@ -175,8 +170,8 @@ makes format-as-data descriptive, not speculative.
    ergonomic pairing: magnitude proofs vanish, wellness stays proven.
    Chain rule recorded: any number of value domains, at most one policy
    per `&` chain. The cast's NaN->0 stays cast-specific.
-3. ~~Shift-amount >= width~~ **SETTLED: proof-or-policy, the Q10 stroke**
-   (integer ruling, recorded in ch5's integer section): Exact = count
+3. **Shift counts use proof-or-policy** (recorded in chapter 5's integer
+   section): Exact = count
    provably < width (literal OOR = compile error); Wrapping = masked
    count (the modular reading, hardware-free); Trapping = trap;
    Saturating adds no count meaning (it governs value overflow, not

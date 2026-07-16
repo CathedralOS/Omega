@@ -13,8 +13,8 @@
 > types, abstract-interpretation loop bounds, the string-length decidability
 > gradient, region inference, uniqueness/in-place reuse; Zig, Rust, Jai/Odin,
 > Ada/SPARK, Vale/Austral, value-semantics, safety-critical, PMR) and an
-> adversarial verification pass. **The verification materially corrected the
-> headline — see §6; the body below already incorporates it.**
+> adversarial verification pass. The body incorporates the resulting
+> corrections.
 
 ---
 
@@ -515,26 +515,30 @@ minority case the other languages hide and then crash on.
 **Ergonomics is explicitly a SECONDARY objective.** LLMs write most code, and
 surfacing a real failure mode beats hiding it; we will trade ergonomics for the
 proof. But proof tricks that recover ergonomics *for free* — bound inference (no
-alloc, no effect), region-hoisting (one failure point per scope), `?`-sugar — are
+allocation or allocator reach), region-hoisting (one failure point per scope), `?`-sugar — are
 pure upside and worth pursuing. **Open:** the residual per-`+` fallibility when a
 site can be *neither* bound-proved *nor* region-scoped — whether an `a +? b` form,
 or letting the enclosing region's failure contract absorb it, is the right sugar.
 
 ---
 
-### 4.7 The effect is `allocates`, and it is the same fact as the `Region` capability
+### 4.7 Allocation reach, authority, resources, and failure are separate
 
-Name the effect after the *act*, not the failure: **`allocates`** (`oom` names the
-symptom). Failure is intrinsic to a runtime request, so `effects allocates` already
-means "can come up short." Crucially, **the effect and the `Region` capability are
-one fact viewed two ways:** a dynamic allocation *consumes a region*, so it is
-untypable without a `Region` in scope. Therefore "does this allocate?" is answered
-not by reading the body but by *whether a region-consuming op is reachable and the
-prover can't rule it out*. No `Region` in scope ⇒ the allocation is untypable ⇒ the
-site is **obligated to prove its bound** (or it's a hard error) ⇒ no effect. A
-`Region` in scope ⇒ the act is permitted ⇒ the effect is present and threads the
-region. The capability's *absence* is what forces the proof that makes the effect
-vanish — the same discipline doing double duty.
+The allocator boundary trait contributes allocator **service reach**. A
+`Region` value supplies **authority** and identifies the resource being
+consumed. Its dependent contract accounts for peak/retained capacity.
+Exhaustion is a return/failure outcome. These facts often appear together at an
+allocation call, but they are not interchangeable: holding a Region does not
+mean allocation occurs, an effect ceiling does not mint a Region, and reaching
+a checked allocator still consumes the explicit resource.
+
+Therefore “does this allocate?” is answered by whether an allocator operation
+is reachable after stable control-flow normalization. No `Region` in scope
+makes the allocation untypable, so the site must prove a static bound or fail
+to compile. A `Region` in scope permits the request only when the caller's
+effect ceiling and resource contract also admit it. Static bound inference can
+erase the dynamic request and its allocator reach; it never manufactures
+authority or hides a possible failure.
 
 ### 4.8 A place's storage class is the LUB of its writes — declared at boundaries, inferred locally
 

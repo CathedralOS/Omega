@@ -1,65 +1,113 @@
-# Design Brief: Totality, Bounded Computation, Panic-as-Effect
+# Design Brief: Totality, Productivity, And Bounded Computation
 
-Scouted 2026-06-15. Status: DIRECTION — a language-design stance, not yet formalized. Syntax provisional.
+Current design as of 2026-07-18. Frozen decision 23 settles the termination
+surface, its public/private identity split, and opaque boundary progress
+profiles. The compiler and corpus still implement the superseded spelling.
+General trace logic, WCET, and non-returning control outcomes remain open.
 
-## The goal
+## Governing law
 
-"If it compiles, you're pretty damn sure it works." The sharper, achievable form of that slogan:
+> **No unbounded computation is invisible.** Terminating cycles carry a
+> checked well-founded ranking. Deliberately productive state-graph loops are
+> visibly productive. Computation whose mathematical termination is unknown
+> takes an explicit budget and returns exhaustion as data.
 
-> **No unbounded computation is invisible.** Every loop and recursion declares its bound; every panic is a declared effect. So if it compiles, you know its worst-case *and* its failure modes — by construction.
+Omega does not treat all non-acyclic computation as one effect. It distinguishes
+three cases mechanically.
 
-This is the total-functional-programming dream (Idris, Agda, Dafny, F*), aimed at being shippable rather than academic.
+## Ranked cycles and runtime recursion
 
-## 1. Explicit bounds, not "prove termination"
+A terminating cycle is legal only when every cyclic edge strictly decreases a
+well-founded rank selected with `terminates by ...`. The same rule covers call
+recursion and explicit state/transition loops. A productive loop that makes no
+termination promise may run forever and owes no ranking.
 
-Do **not** mandate "prove this halts." Mandate "**every loop/recursion carries an explicit bound.**" The bound *is* the decreasing measure, so termination falls out by construction — and this beats a termination-proof mandate on three counts:
+Runtime recursion has an additional lowering rule: every recursive call in the
+cycle must be in tail position. The compiler then lowers the cycle to the same
+constant-stack back-edge machinery used by state transitions. Measured
+non-tail recursion is legal only in the proof/compile-time stratum, where no
+runtime activation frames are emitted.
 
-- **Decidable.** "Does this loop have a bound?" is a syntactic check; "does this loop terminate?" is the halting problem. You never get stuck unable to prove a *true* thing.
-- **Un-cheesable.** `loop 0..u64::max` does not sneak past as "total" — the absurd bound is *in the source*, lintable, and (in strict contexts) requirable to be justified / tied to input size.
-- **It is the WCET budget.** The declared bound × per-iteration cost is the worst-case work, made visible.
+The ranking proves termination; tail position determines runtime lowering.
+Neither substitutes for the other. After lowering, the runtime call graph is
+acyclic and the maximum live activation storage is statically reportable.
 
-Genuinely-partial computation is not *forbidden*, only made **explicit** via a fuel/budget parameter:
+## Productive transition loops
+
+A transition back-edge is a jump inside one machine, not recursive calling. It
+may run forever when no completion guarantee is authored. This is the source model for
+event loops, services, schedulers, and other productive machines.
+
+Productivity does not by itself prove fairness, eventual wakeup, deadlines, or
+starvation freedom. Decision 23 represents v1 provider/environment premises as
+sealed opaque progress profiles admitted through boundary grants. They remain
+separate from termination and from the negative guarantees obtained by
+omitting `Suspend` or `Block`.
+
+## Budgeted unknowns
+
+When termination cannot be proved, the honest API accepts fuel or another
+explicit resource bound and returns exhaustion as an ordinary case:
 
 ```omega
-// Collatz termination is an OPEN math problem — you cannot prove it total.
-// The honest, total-by-construction form carries a budget and is honest about
-// not knowing. (Provisional syntax.)
-machine collatz(n: u64, budget: u32) -> Converged(steps: u32) | OutOfBudget { ... }
+machine collatz(n: u64, budget: u32) -> Converged(steps: u32) | OutOfBudget {
+    // bounded work only
+}
 ```
 
-So an interpreter is `interp(prog, fuel) -> Result | OutOfFuel`; a solver is bounded; nothing is banned — *hiding* unboundedness is.
+An interpreter similarly returns `OutOfFuel`; a bounded search returns
+`Exhausted`. The bound makes that invocation total without pretending the
+unbounded mathematical process is known to terminate.
 
-## 2. Panic as a default-deny declared effect
+## Failure and non-return
 
-Most "panics" are *logic* failures — index out of bounds, unwrap-of-none, arithmetic overflow. These are **proved away by default**: the contracts that prove the index in range / the option is `some` / no overflow *are* the discharge, so a default program is **panic-free by construction**.
+Logic failures such as unchecked overflow, invalid indexing, and impossible
+case extraction are proof obligations and reject by default. Recoverable
+failure remains a return sum with case-specific guarantees.
 
-What remains is genuine unrecoverable failure (OOM, explicit `abort`). That becomes a **declared effect** — opt-in, propagating up the call graph exactly like other effects (and like the bound/totality contract). A function that can abort says so in its signature, or it cannot. "Panic is a contract you turn on" = "panic is a default-deny effect."
+Traps, cancellation, and deliberate non-return occupy the failure/control axis
+of the complete machine contract; they are not effect-row members. Reaching a
+process-exit boundary also contributes the `ProcessExit` service identity to
+the effect row. These facts are independent: graceful exit and nuclear abort
+may reach the same service while having different cleanup and control
+contracts.
 
-## 3. WCET / bounded-runtime (exploration)
+## WCET and quantitative resources
 
-Termination ≠ short. A stronger property — *prove a bounded worst-case runtime* (WCET) — would let RT-critical code run **un-preempted to a deadline** (consumed by Cathedral's scheduler gradient, `Cathedral/wiki/design/part_2_components/01_scheduler_and_resources.md`). But WCET bottoms out at the *hardware* timing model (caches, pipelines — the same below-the-model wall as constant-time), and is practical only for small, carefully-written RT code. Flagged as explore, not committed.
+Termination is not a worst-case execution-time theorem. WCET additionally
+needs target timing assumptions and compositional bounds for loops, calls,
+memory behavior, and suspension. Quantitative memory and retention bounds
+likewise belong to the resource algebra rather than a single `budget` clause
+or qualitative effect-row member.
 
-## 4. The general-language implication: every library author's trilemma
+## Acceptance register
 
-Omega is a **general systems language**, not only Cathedral's OS substrate — so the prove-or-bound choice is a *daily* concern for ordinary library authors, not a kernel curiosity. Ship a Collatz walker and you hit it immediately, because Collatz has no known termination proof:
+1. An unranked cycle in a terminating machine rejects.
+2. A ranked runtime recursive cycle rejects if any recursive call is not
+   tail-position.
+3. A ranked tail cycle lowers without stack growth.
+4. A proof-only ranked non-tail recursion is legal and emits no runtime
+   frame.
+5. A transition loop may be deliberately non-terminating and constant-stack.
+6. A budgeted computation exposes exhaustion as a return case.
+7. `terminates` does not imply fairness, no suspension, or a deadline.
+8. Effect-row absence cannot be used to launder an ambient progress or
+   resource requirement.
 
-- **Prove it** — ship a small inductive certificate *if the property is provable*. For Collatz none exists; for most ordinary code the bound below *is* the proof.
-- **Bound it (recommended default)** — `collatz(n, budget) -> Converged | OutOfBudget`. The bound *is* the decreasing measure, so this is **genuinely total, not a lie** — it provably terminates *within budget*. The only cost is an honest API: a budget parameter and an `OutOfBudget` branch the caller handles.
-- **Declare it partial/divergent** — carry a *may-not-terminate* effect (§2) that propagates to callers. Honest, but it **infects every caller's signature**, and it *overstates* the problem: an unbounded Collatz walker is not "non-terminating," it is **termination-unproven** — which the bound expresses more precisely and without the contagion.
+## Still open
 
-The tax, felt equally by OS code and a random utility library: **you cannot ship "unbounded-but-trust-me-it-terminates."** Totality has no free lunch for unproven termination. So the guidance is **bound over mark-partial**: the budget form says "it terminates, I just can't prove the unbounded version" — true *and* ergonomic — whereas the partiality effect says "may diverge" (technically true in the unprovable tail, practically misleading) and taxes every caller. The transmissibility trilemma in `proof_caching.md` (small inductive cert vs. verified-but-large vs. cryptographic argument vs. attestation) is the *distribution* face of this same author-facing choice.
-
-## The cost, and the bet
-
-Total-functional languages have always been *harder to write* — discharging all the obligations is the proof burden that kept them academic. The Cathedral-era bet: **LLMs author the bounds and proofs.** The thing that sank total languages (too hard for humans) is plausibly exactly what LLMs make tractable — and `proof_caching.md` keeps the resulting heavy checking affordable in the edit-compile loop. This stance is only shippable *because* of that bet; name it rather than hide it.
-
-## Open questions
-
-- **How bounds are expressed** — bounded `for` ranges, fuel/budget params, decreasing measures, or all three? The minimal surface.
-- **How strict, and where** — is "every loop bounded" global, or relaxed (behind a declared effect) in some contexts? Must the bound be *justified* (input-tied), or merely *present*?
-- **Totality vs productivity split** — handlers/pure functions are *total* (terminate); reactive loops are *productive* (run forever, always progress). What is the syntactic/contract distinction, and how does it propagate down the call graph?
-- **Panic-effect surface** — exact effect name(s), how `abort`/OOM differ, how it composes with the existing effect ceiling (chapter 19).
-- **Interaction with WCET** — does a bounded-runtime proof subsume the iteration bound, or layer on top?
+- general trace propositions, deadline/starvation contracts, and entailment
+  between opaque progress profiles;
+- the exact complete-contract spelling for deliberate non-return;
+- WCET proof scope and target timing models;
+- the quantitative resource algebra and its loop/branch/parallel composition;
+  and
+- richer productivity theorems for reactive systems.
 
 ## Cross-references
-`proof_caching.md` (makes the proof burden affordable); `verified_gated_ml_optimizer.md` (the LLM-authoring loop); Cathedral `scheduler_and_resources.md` (totality-on-handlers + WCET consume this); Omega effects (chapter 19), contracts / proof obligations (chapters 7, 9).
+
+See chapters 3, 9, 16, 18, and 19; `mathematical_proofs.md` for proof-stratum
+recursion; `effects_authority_and_observation.md` for progress/effect
+separation; `proof_caching.md` for transmissible proof artifacts; and
+[Termination, Ranking, And Progress](termination_ranking_and_progress.md) for
+the frozen source, identity, and progress-profile ruling.

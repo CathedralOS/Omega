@@ -266,8 +266,8 @@ Mixed shapes are live (see the rules above). Still pending:
 [^case-members]: Open details: payload-binding spelling in `transition` arms
 vs `match` arms (expected to reuse the data-destructure guard machinery);
 generic payloads (`Option<T>`-style); and the layout rule for payload storage
-(tag-prefixed overlay with the zero case payload-free). RESOLVED 2026-06-11:
-a domain declared as a pure case union is recognized for exhaustiveness
+(tag-prefixed overlay with the zero case payload-free). A domain declared as a
+pure case union is recognized for exhaustiveness
 SYNTACTICALLY -- the `when` classifier must be literally `self in Type::A |
 Type::B` over the target type's own cases with no other facts; recognition by
 classifier analysis remains a possible later widening.
@@ -292,7 +292,7 @@ do not survive outside the graph paths where their lifetime is valid.
 ## Constants
 
 A `const` is a named compile-time value. Its initializer is evaluated at build
-time (an effect-free expression in constant position — see
+time (a build-time-admissible expression in constant position — see
 [Build-Time Evaluation](../design_briefs/build_time_evaluation.md)), so a `const`
 is a *value*, not runtime storage.
 

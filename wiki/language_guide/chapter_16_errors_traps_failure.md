@@ -2,8 +2,10 @@
 
 Failure semantics must be explicit. Omega has no hidden exceptions, no second
 control-flow system, and no ambient panic. Recoverable failure is **data**;
-deliberate termination is an **opt-in effect**; everything else that other
-languages call a "trap" is, in a proof-oriented language, a **compile error**.
+deliberate termination is an **opt-in control outcome**; everything else that
+other languages call a "trap" is, in a proof-oriented language, a **compile
+error**. Reaching the service that performs process exit is separately visible
+in the effect row; the terminal outcome itself is not an effect.
 
 ## Recoverable Failure Is A Sum, Handled At A Transition Boundary
 
@@ -124,7 +126,7 @@ discharged at compile time:
 
 When the prover *cannot* discharge an obligation, that does not silently become a
 runtime trap. The obligation must be **handled** (an exhaustive transition over
-the failure sum) or **deliberately abandoned** (the `abort` effect below). Prover
+the failure sum) or **deliberately abandoned** (the opt-in abort control outcome below). Prover
 incompleteness produces a required handler or an explicit opt-in — never a hidden
 death.
 
@@ -137,36 +139,36 @@ There is no `expect`/`unwrap`. "I know this cannot fail here" is spelled by
 *proving* the failure case impossible (the provably-dead arm discharges
 exhaustiveness with no handler), not by asserting it at runtime.
 
-## Deliberate Termination Is The `abort` Effect
+## Deliberate Termination Is An Explicit Control Outcome
 
-A program that genuinely must die rather than recover opts into an `abort`
-effect. `abort` is:
+A program that genuinely must die rather than recover opts into an explicit
+abort outcome in its complete machine contract. It is not a service-reach or
+operational effect-row member. The outcome is:
 
 - **contagious** — `main` declares it, and it propagates to every caller; a
   boundary fronting something abortable must itself declare it;
-- **visible** — it appears in signatures and effect sets, so a package policy can
-  refuse any dependency that carries it;
+- **visible** — it appears in signatures and contract manifests, so a package
+  policy can refuse any dependency that carries it;
 - **nuclear** — it runs no cleanup and no unwinding; it lowers directly to an
   `exit`/`abort` boundary call. Giving up does not tidy up.
 
 The contagion is the deterrent: aborting is annoying to opt into by design,
 reserved for services whose owner restarts them. It is not for ordinary error
-handling.
+handling. The exact source spelling remains open in the totality brief; this
+chapter does not introduce an `abort` effect keyword.
 
-The contagion and visibility are **not new machinery** — they are the chapter 19
-effect system. Aborting carries the `process_exit` effect, which is inferred
-bodies-up through the call graph (no per-call-site pollution), forced to be
-declared at boundaries (boundary traits, exported APIs, `main`), and recorded in
-the executable manifest for a build/store/OS policy to audit or deny. So "a
-caller of an abortable machine is itself abortable unless it proves the abort
-unreachable" is just ordinary effect propagation; abort adds the *nuclear,
-no-cleanup operation*, not a new propagation rule. (`exit(code)` below carries
-the same `process_exit` effect — the difference is cleanup, not the effect.)
+The control outcome and service reach are separate contract axes. Calling the
+process-exit boundary contributes the `ProcessExit` boundary-trait identity to
+the chapter 19 effect row. Nuclear abortability propagates separately as a
+non-returning control outcome. Both are normalized into the complete machine
+contract and artifacts; neither is hidden at a call boundary. A graceful
+`exit(code)` and an abort may therefore reach the same service while promising
+different cleanup and control behavior.
 
 **Graceful shutdown is not `abort`.** Releasing resources and exiting cleanly is
 ordinary control flow: transition to a cleanup state, run its effects, then call
 `exit(code)` (a normal host boundary). Only the no-cleanup, give-up case is the
-`abort` effect.
+nuclear abort outcome.
 
 ## No Hidden Unwind
 
@@ -199,7 +201,7 @@ data ReadOutcome {
 ```
 
 The boundary contract decides whether a given failure is data (a case in the
-returned sum), a blocking wait, or — at most — the `abort` effect. Host
+returned sum), a blocking wait, or a declared non-returning outcome. Host
 boundaries must document whether resources remain valid after a failure case.
 
 ## Cancellation

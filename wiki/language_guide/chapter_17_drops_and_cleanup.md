@@ -14,8 +14,11 @@ Working model:
 - The compiler inserts cleanup on graph edges where an owned value dies.
 - Transition arguments can move ownership to the target state.
 - Cleanup is visible in lowered graphs and proof artifacts.
-- Automatic cleanup must be infallible. Fallible release needs an explicit
-  machine such as `close`, `flush`, or `commit`.
+- Automatic cleanup may execute, but it must be infallible and must not
+  suspend. Fallible or suspending release needs an explicit machine such as
+  `close`, `flush`, `commit`, `join`, or `cancel`.
+- Automatic cleanup applies to affine ownership. A live linear obligation
+  requires an explicit terminal consumer and is an error at scope exit.
 
 ## Cleanup Machines
 
@@ -27,7 +30,6 @@ data MutexGuard<T> {
 }
 
 machine MutexGuard::drop(&mut self)
-    effects nonblocking
     ensures self.mutex unlocked
 {
     self.mutex.unlock_raw();
@@ -109,6 +111,9 @@ Working rules:
 - A resource value cannot disappear from the graph without cleanup.
 - A must-cleanup value cannot be copied unless its type explicitly supports
   shared cleanup semantics.
+- Establishing a linear resource creates one obligation; moving it transfers
+  that obligation and an explicit terminal consumer discharges it. Automatic
+  edge cleanup cannot discharge it.
 
 ## Drop Order
 
@@ -128,14 +133,15 @@ to tooling.
 
 Automatic cleanup should be boring.
 
-Suggested restrictions:
+Settled restrictions:
 
 - Automatic `drop` cannot return a recoverable error.
-- Automatic `drop` should be nonblocking by default.
-- Blocking cleanup must be declared and may be rejected in contexts that require
-  progress or interrupt safety.
+- Automatic `drop` cannot suspend or block waiting for another computation.
+- Drop guarantees relinquishment of ownership, not durability, protocol
+  completion, or successful remote acknowledgement.
 - Fallible operations should be explicit machines, such as `file.close()` or
-  `transaction.commit()`.
+  `transaction.commit()`. Waiting operations such as `Join::join` are explicit
+  for the same reason.
 
 This avoids hiding important control flow behind cleanup while still giving the
 language a complete ownership story.

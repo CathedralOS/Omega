@@ -191,9 +191,8 @@ shadow space, stack alignment. One plan feeds both derivers — the outbound
 call encoder and the inbound entry stub — so caller and callee agree by
 construction. In practice no code names a convention: the `Binding` kind at
 the provides-mapping implies it (`Syscall(n)` → the target's syscall plan,
-`DllImport`/`VtableSlot` → its C plan). An earlier sketch here spelled this as
-an `abi "aarch64-darwin"` string attribute — retired: a string names nothing
-checkable; a policy is auditable data.
+`DllImport`/`VtableSlot` → its C plan). A calling plan is auditable policy
+data, never an unchecked ABI string.
 
 The plan must cover argument placement, return placement, clobbers, stack
 alignment, and failure behavior — validated before any deriver trusts it.
@@ -209,7 +208,8 @@ volatile contracts, not through a type qualifier on ordinary fields. A volatile
 contract states that each source-level access happens exactly once, at the
 declared width, in program order relative to other volatile accesses on the
 same region. The boundary provider names the region and carries the
-`device_io` / `memory_map` effects, so hardware access is auditable the same
+the relevant boundary-service reach (for example `DeviceIo` or `MemoryMap`),
+so hardware access is auditable the same
 way host calls are (see
 [Capabilities, Effects, And Boundaries](chapter_19_capabilities_effects_boundaries.md)).[^volatile-open]
 

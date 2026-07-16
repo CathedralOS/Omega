@@ -1,381 +1,46 @@
-# Owner Questions — consolidated digest (2026-07-10l, fs lane)
+# Owner Questions
 
-Every decision currently WAITING ON ZACH, gathered from the task lists
-(consolidated into TASKS.md, 2026-07-17) so they can be batch-answered.
-Each names what it unblocks. Answers can go inline here, in chat, or in
-TASKS.md — the lanes sync from all of them.
+Only unresolved language or architecture decisions belong here. Settled
+decisions live in the language guide and design briefs; implementation work
+lives in `TASKS.md`. When a question is answered, remove it from this file after
+recording the ruling in those authoritative homes.
 
-## build.omg (fs lane; blocks the final compiler-side rung of open-work #3)
+Last pruned: 2026-07-18.
 
-1. **Capability injection spelling.** How does `machine build(b: &mut
-   Build)` receive its `Filesystem`? Options: a field on Build (`b.fs`), a
-   second parameter (`build(b, fs: &mut Filesystem)`), or machine-owned
-   data. Every build.omg will spell this. (Interpreter side is landed and
-   parameter-driven; only the spelling is open.)
-   > Owner: This is specifically about getting a data ref on which we can call methods? It needs some form of dependency injection then (similar concept to SAS-components in Cathedral -- the main function literally is given the filesystem instance, although build.omg still needs to include std::filesystem to use it).
-   > Owner (2026-07-18, CLOSES the spelling): confirmed — the
-   > second-parameter DI shape: `machine build(b: &mut Build,
-   > fs: &mut Filesystem)`. The instance is handed to the entry, not a
-   > Build field, not machine-owned data; build.omg imports
-   > std::filesystem to name the type.
-3. **Grant derivation defaults.** Read root = the package dir (main.omg's
-   directory)? Write root = which output dir? May build.omg request EXTRA
-   roots (assets outside the tree), and does that require CLI
-   acknowledgment (`--allow-read=...`)?
-   > Owner: Not sure what you mean. Presumably build.omg is within the dir being built, and it builds to build/. In some sense, main.omg is NOT a blessed name, build.omg should probably specify it, with the exception that we <may> decide to support a "default build.omg" if trying to build some non-build.omg file. I don't think we give a shit about permissions at this point, if you are over-indexing on Cathedral-like permissions & granting.
-4. **Effect-gate shape.** Relax build_config.rs's empty-effect gate to
-   "transitive effects ⊆ {filesystem}" unconditionally, or behind an
-   explicit opt-in (in build.omg or on the CLI)?
-   > Owner: What the fuck is build_config.rs? build.omg may effect filesystem, if thats related. It should be a declared effect on the main func within build (and forbidden otherwise, naturally, by our effect system & trying to call filesystem funcs). Is this what you are trying to say?
-5. **Console for build logging.** The granted entry currently rejects
-   Console strictly (only Filesystem granted). Print-logging is the
-   obvious want; stdout is interpreter-captured anyway. Grant it?
-   (Strict = the reversible choice, so strict ships until answered.)
-   > Owner: Add this to build.omg effects too, its harmless and everyone wants it. Interpreter should never "just catch it" if build.omg is logging, in my mind this is a declared effect and thus should be treated seriously.
+## Machine and linear surfaces
 
-## Recursion directive scope (main lane's review items + one fs-found gap)
+1. **Accepted proof supply spelling.** Decision 20 distinguishes checked
+   bodies, requirements, external providers, and accepted declarations in the
+   semantic artifact.
 
-5. **Bare `-> own_entry(..)` loop-back** (their review item 1): acceptable
-   as the blessed loop spelling, or must loops be spelled through explicit
-   sub-states only? Your countdown comment ("removing the `self` keyword
-   doesn't change fuck-all") reads as rejecting even the bare spelling —
-   but the enforced error + the corpus sweep + runtime_loop_* canaries
-   currently BLESS bare loop-backs. Confirm or extend.
-   [Main lane, so the cost is on the table: a "banned" answer tears out
-   ~12 pass canaries pinning the spelling (the termination/measure family
-   + recursive-walk + loop_{accumulator,rotation} + the just-landed
-   bind-first serve), the entry-reentry `decreases` proof surface (its
-   only current consumer), the recursive-clone specialization, and the
-   unserved-recursive-result sweep, plus corpus rewrites (proofs, std fs
-   mkall, dungeon parser) into explicit sub-state self-transition loops.
-   Pre-scoped in TASKS.md; teardown starts on the answer. We read your
-   comment as YES-banned and are holding only for this confirmation.]
-> I dont get why you are so retarded on recursion. machine call cycles = banned. its that fucking simple. Everything that hinges on the contrary is invalid Omega. 'decreases' stuff is for states. States are not recursion. They are transitions, jumps, goto, whatever. Thus this is equal to a for loop, or a while loop. I dont understand why you cant grasp this? Am I missing nuance?
-   [No missing nuance -- your distinction IS the implementation: machine
-   CALLS are stack-based; `-> target(args)` arms are TRANSITIONS (jumps
-   with re-bound args, constant stack), including when the target is the
-   machine's own entry. So: bare loop-backs and states-scoped `decreases`
-   stay (they are for-loops under your ruling); the enforced bans become
-   the CALL-graph ones -- Q6 mutual value-call cycles and Q7 statement
-   tail self-calls, both now filed as engineering in TASKS.md. The earlier
-   countdown confusion was ours: we read your note as banning the
-   transition spelling too.]
-6. **Mutual value-call cycles** (their review item 2): `A calls B calls A`
-   (the dungeon's find_item_at/find_item_after pair) still compiles — the
-   cycle check does not see value calls. Kill (needs the value-call cycle
-   walk) or keep (bounded clone specialization absorbs them)?
-> Owner: yes fucking banned.
-7. **Statement-position self-call** (fs-found while retracting): a
-   TRAILING statement `self.drip(n - 1);` still compiles+runs — it lowers
-   as a Nested-transition loop upstream of the call plan (mechanically a
-   loop, spelled as a call). The corpus sweep rewrote these spellings but
-   the route still accepts them. In or out?
-   > Are you asking about "lowering a tail call to a loop"? Banned, if it reads as recursion. We can maybe relax this later, but as of now, go write this as states.
+   Needed ruling: whether an accepted theorem remains a bodyless `boundary
+   machine`, becomes `boundary fact`, or uses another spelling. Whatever the
+   surface, trust expenditure must remain explicit and reportable.
 
-   [⚠️ SUPERSEDED 2026-07-18 — the "maybe relax later" happened: the
-   owner settled MEASURED RECURSION in the proofs review (record:
-   mathematical_proofs.md par-2 + amendment; ch3; TASKS MR rungs, MR1+MR3
-   already landed). Current law: recursive CALL cycles are legal iff
-   `decreases`-measured AND (runtime only) tail-position — tail lowers to
-   the loop machinery; non-tail runtime rejects; unmeasured cycles remain
-   the hard error; transition loop-backs unchanged. The Q6 "yes fucking
-   banned" and Q7 "banned, maybe relax later" answers above are the
-   PRE-AMENDMENT record: mutual value-call cycles now resolve via MR4
-   joint measures, statement tail self-calls via MR1/MR2
-   measured-or-reject. Do not tear out MR work on the strength of the
-   answers above.]
+2. **Linear terminal-consumer spelling.** `[linear]` and
+   create/transfer/consume conservation are settled.
 
-## Underspecified numerics (main lane's found items, both marked "owner call")
+   Needed ruling: whether `move self` plus result contracts are enough for the
+   checker to infer which outcomes discharge an obligation, or terminal
+   consumers/outcomes require an explicit declaration. Also settle how an
+   authorized `detach` visibly transfers a `Join<T>` obligation out of
+   structured scope.
 
-8. **Float domain clauses.** `f: f32 in Saturating` compiles but means
-   nothing (both engines run plain IEEE; overflow → inf). Reject domains
-   on float primitives loudly (matches decision-17's integer framing), or
-   define float saturation (clamp to finite MAX)?
-   > Not defined yet. Deferred pending a serious float design.
-   > **ANSWERED (owner, 2026-07-18 — the serious float design arrived;
-   > record: design_briefs/float_semantics.md; UX: ch5 Float Facts
-   > rewrite; ladder: TASKS F1-F7).** Neither reject-loudly nor
-   > define-saturation alone — domains on floats SPLIT: VALUE domains
-   > (`Finite`, float ranges — conjoinable with the landed `&`,
-   > window-checked; every range implies Finite since NaN fails all
-   > comparisons) and POLICY domains (quiet format default; `Trapping` =
-   > trap on producing non-finite; `Saturating` = clamp overflow to
-   > ±MAX_FINITE; `Wrapping` = COMPILE ERROR — no modular reading of a
-   > float, the Q10 precedent generalized). So `f32 in Saturating`
-   > becomes MEANINGFUL (F5 lowers it) and `in Wrapping` becomes the loud
-   > reject (F1). Floats themselves = rounded-Rat carriers over
-   > target-bound format records; IEEE lives in core format records +
-   > target provides rows (accepted-tier FPU boundary), never in the
-   > grammar; literals/const-eval = exact Rat, round once at the landing
-   > site. No ambient relaxation ever; fma is spelled; TotalOrder is a
-   > named satisfier.
-9. **Range constraint under a non-Exact domain.** `i: usize [0..=4] in
-   Wrapping` accepts `self.i = 100` — the range only enforces under Exact,
-   so the declaration lies. Ill-formed (reject the combination at
-   declaration), or define stores to wrap/clamp INTO the declared range?
-   > Oh I misread this in the other doc. Well, this in my mind is a compile error. You can surface this as a "Exact assignments must be within invariant range, consider adjusting the size or using a modulo operator" or whatever the fuck.
+## Resources and components
 
-10. **Float-to-int cast overflow (migrated from TASKS.md per the
-    consolidation directive).** `1e300 as i32`: aarch64 FCVTZS and the
-    interpreter saturate to i32::MAX; x86_64 CVTTSD2SI produces the
-    0x80000000 "integer indefinite". Pick one: saturate everywhere
-    (x86 grows a clamp sequence), trap as a failed obligation, or rule the
-    out-of-range cast ill-formed without an explicit domain. Unblocks
-    retiring the parked cast divergence from the drift ledger.
-    > **ANSWERED (owner, 2026-07-18): proof-or-policy — the decision-17
-    > rule applied to the one op it missed.** Under Exact (default), a
-    > cast that could exceed the target range is an UNPROVEN OBLIGATION:
-    > discharge it by proving the range (dominating guard or declared
-    > range on the source — NaN excluded by proof, the `x == x` guard)
-    > and bare `as` compiles with no runtime cost; or pick a policy:
-    > `as i32 in Saturating` = clamp to MIN/MAX on every target (x86
-    > grows the clamp; NaN -> 0, the ZII answer, Rust-concordant);
-    > `in Trapping` = out-of-range/NaN traps (the #DE precedent);
-    > `in Wrapping` on a float source = COMPILE ERROR (no modular
-    > reading of a float; the Q9 lying-declaration precedent). This
-    > makes casts uniform with landed arithmetic overflow (decision-17)
-    > and landed integer narrowing (the narrowing-store keystone): the
-    > compiler never invents a number you didn't ask for. Build it,
-    > retire the drift-ledger entry.
+3. **Resource algebra first customer and proof surface.** Owned splitting and
+   merging (`LinBuf<T, n>`), quantitative resources, and attenuation require a
+   conservation algebra beyond core multiplicity.
 
-## Host bindings (fs lane, flagged during provides work)
+   Needed ruling: choose the first customer and proof surface before promising
+   dependent owned-buffer splits or quantitative effect-row members. Whole
+   ownership and borrowed views do not wait on this.
 
-10. **Interpreter story for authored import bindings.** A user-authored
-    import row (`beep -> DllImport("msvcrt.dll","abs")`) is NATIVE-ONLY;
-    the interpreter declines and the differential skips. Should
-    interpreted runs (a) always decline authored imports (differential
-    stays skip), (b) get a virtual-stub mechanism (author declares the
-    virtual semantics next to the row), or (c) something capability-gated
-    like the build.omg fs grants? Affects how testable authored-binding
-    programs are.
-    > Owner: Is this a windows only question? cross-platform? In my mind,
-    > all libraries in the like must go behind a boundary declaration,
-    > this is where trust naturally ends. Then we need some OS-specific
-    > mechanism to link against boundaries. So windows that implements a
-    > boundary trait gets the windows ABI, and trust naturally stops
-    > there -- as with all boundary traits. I dont even understand the
-    > question.
-    > Owner (2026-07-16, CLOSES the question): the interpreter presumably
-    > will get its own implementation of omega-specific boundary traits,
-    > especially if we support WASM-like interpretation of Omega programs
-    > (shipped up to an IR stage, rather than emitting binaries). In these
-    > cases, we would, behind omega APIs, route to an interpreter version
-    > of the impl. Now, as for user-defined boundaries, these would likely
-    > just error out if there is no way to do anything with them. ie
-    > trying to call some windows dll import or similar boundary in an
-    > interpreter build -- theres simply no concept of this. This is
-    > likely sufficient for our tests, as the idea of comparing program
-    > output to interpreter output simply exists for our testing + future
-    > WASM-like builds. There is 0 expectation that we run user programs,
-    > built for specific targets, through the interpreter and have them
-    > function.
-    [CLOSED: today's behavior IS the design -- std boundaries get
-    interpreter implementations (they have them); user-authored bindings
-    error out interpreted and the differential skips them. No virtual-stub
-    mechanism. The "interpreter as a WASM-like target" framing is recorded
-    for the future IR-shipping story.]
+4. **Component versioning.** The leading design uses bounded multi-version
+   coexistence, per-version activation pools and liveness pins, and import slots
+   pinned to normalized machine-contract identities with deterministic
+   refinement admission.
 
-11. **A std console boundary for build.omg logging (fs lane, 2026-07-11k).**
-    Owner answer #5 landed: granted builds SERVE console writes through
-    DECLARED `stdout_io`/`stderr_io` rows, flushed to the compiler's real
-    streams. Today every build.omg spells its own boundary
-    (`boundary trait BuildLog { machine write_line(text: &[u8]) effects
-    stdout_io; }` -- the fail canary teaches this). Should std ship a
-    canonical console/log boundary with declared rows (name? `Console`
-    collides with the bare exit_process convention all samples use;
-    `BuildLog`? method set: write/write_line/write_error/write_error_line?),
-    or is per-program spelling the intended shape?
-    > Owner: I have no fucking clue why we keep doing this, can we not
-    > declare this trait in omega::core or something? omega::std? Isnt
-    > this a suuuper solved problem in programming?
-    [DIRECTION TAKEN: yes -- declare it ONCE in omega::language::std and
-    stop hand-spelling. std/console.omg exists but as a legacy `platform`
-    block outside the boundary/effect system; the arc is promoting it to
-    the canonical `boundary trait` with declared effect rows + per-target
-    bindings, filesystem_host.omg-style. Shipped 2026-07-17; Q13 remains.]
-
-12. **Byte-level stdin spelling for the Omega frontend (fs lane, 2026-07-11w).**
-    The stdin samples (stdin_checksum/rot1/upper — the samples_compile
-    baseline's last three reds) spell `read_byte()`/`write_byte(b)` as FREE
-    functions: that is the BOOTSTRAP lattice's input model (omega2gamma's
-    threaded stdin-list + accumulated stdout), not a settled Omega surface.
-    The real frontend has `Console.read_line` (boundary, line-oriented) only.
-    Should Omega grow (a) byte ops on the Console boundary
-    (`read_byte() -> i32` EOF=-1, `write_byte(b)` — with effect rows), (b) a
-    separate Stdin/Stdout boundary pair, or (c) keep byte I/O
-    lattice-only and rewrite the samples line-oriented? The samples stay
-    red on the Rust compiler until ruled.
-    > Owner: The boot lattice is super fucking experimental and not
-    > something to reference at all. Unless there is a consistency
-    > problem WITHIN omega-rs itself, this is not a concern EVER. This
-    > again feels like a super fucking solved problem, arent Console
-    > operations fucking universal by now?
-    [DIRECTION TAKEN: the lattice's input model carries no weight; there
-    is no omega-rs-internal inconsistency -- the three samples simply
-    call free functions that don't exist in real Omega. Under "Console
-    ops are universal": std Console (the Q11 arc) gets the universal op
-    set (read/write bytes + lines, error stream, exit_process) and the
-    stdin samples are rewritten against it, which zeroes the
-    samples_compile baseline.]
-    > Owner (2026-07-16, EOF spelling): read_byte() returning -1 instead
-    > of 0 on EOF sounds retarded, legacy non-ZII shit. even an
-    > Option<i32> is better than -1 in my mind, magic numbers are fucking
-    > retarded.
-    [RESOLVED: shipped as a std sum, `data ByteRead { case Eof; case
-    Byte(value: i32); }` in std/console.omg -- Eof is ordinal 0, so the
-    ZII zero value IS end-of-input; no sentinel anywhere. (std Option<T>
-    can't carry payloads yet, so the domain sum is the honest spelling
-    today; fold into Option<i32> if/when variant payloads land there.)]
-
-13. **Platform entries vs boundary traits — converge or give `platform`
-    effect rows? (fs lane, 2026-07-17.)** Two declaration forms exist for
-    host surfaces: `boundary trait X { machine f(..) effects row; }` (the
-    general mechanism: effect rows, provides bindings, granted-build
-    gating) and `platform Console { entry f(..); }` (std's console, wired
-    through compiler host-op lowering, NO effect rows). Consequences
-    today: (a) build.omg logging must hand-spell a BuildLog boundary trait
-    because the granted-build gate needs DECLARED effects that platform
-    entries cannot carry (the residue of your Q11 "declare it once"
-    ruling); (b) the purity checker classifies `read_byte` as PURE ("no
-    effects and no mutable out-parameters") -- wrong: it consumes a stdin
-    byte. Probe-swept 2026-07-17: every current path REFUSES rather than
-    elides, so this is not a live miscompile, but purity claims about
-    effectful ops age badly. Options: (i) `platform` entries gain
-    `effects` rows (small grammar addition; both forms live on); (ii)
-    platform blocks CONVERGE onto boundary traits + std provides rows
-    (one form, bigger migration -- the samples' `console: Console` field
-    spelling can stay); (iii) status quo (hand-spelled BuildLog persists).
-    This is the last open rung of the Q11/Q12 console arc.
-    [SHARPENED 2026-07-17: the language guide ALREADY prescribes (ii) --
-    chapter 19 "Console boundaries should use the same shape" spells the
-    console as a boundary trait with effect rows (now including the byte
-    ops + ByteRead). If the guide stands as the spec, the answer is (ii)
-    and the remaining work is the std migration; say the word.]
-    > Owner (2026-07-18, CLOSES it): "Yeah you have it right, opt ii" —
-    > the guide is the spec. Platform blocks CONVERGE onto boundary
-    > traits + std provides rows; the samples' `console: Console` field
-    > spelling stays; the remaining work is the std migration
-    > (ungated engineering, the console arc's last rung).
-
-## Proof engine — lemma-citation soundness discipline (main lane, 2026-07-11)
-
-14. **Lemmas-as-rewrite-rules: the citation-acyclicity discipline (unblocks
-    N3 commutativity + rearrange-mode).** The structural entailment judge
-    now proves the equality kernel, compute-mode unfolding, structural
-    induction, and CITES a callee's proven functional ensures when
-    resolving `f(args)` (sound: the callee's ensures is proven in the same
-    validation batch; a false one raises its own error). Commutativity
-    (`add(a,b) == add(b,a)`) needs the next step: proven `lhs == rhs` LAWS
-    (add_zero_right, add_succ_law — both LANDED in core/nat.omg, proven by
-    induction) registered as GLOBAL PATTERN-MATCHING rewrite rules, whose
-    LHS lemma-parameters are pattern variables matched first-order against
-    ground applications everywhere (`add(b, Zero)` matches
-    add_zero_right's `add(?a, Zero)` -> b). The laws exist; the matching +
-    program-wide collection is mechanical. THE SOUNDNESS QUESTION: a lemma
-    citing ANOTHER lemma's rule is sound only if the citation graph is
-    ACYCLIC — a mutual cycle (A cites B's rule, B cites A's) lets two false
-    laws certify each other. The IH is already sound (descent-guarded, same
-    machine). Proposed discipline (mirrors measured recursion): a lemma may
-    cite any OTHER lemma's rule, self only via the descent-guarded IH, and
-    mutual lemma cycles are REFUSED (or require a joint measure, MR4-style).
-    Is acyclic-citation the right rule, or do you want a stricter
-    stratification (e.g. an explicit `uses lemma_a, lemma_b;` declaration
-    making the DAG author-visible)? This touches the proof KERNEL's trust
-    story, so shipping the matching engine waits on the discipline.
-
-    [Prior art, on the owner's ask "what does Lean and/or Coq do?" —
-    (1) ACYCLICITY: both get it FOR FREE from a monotone, declaration-
-    ordered environment. A Coq/Lean proof may only reference constants
-    already fully checked into the environment; citation cycles are
-    impossible by construction (time is the stratification). Neither
-    requires explicit `uses` lists for soundness; audit needs are met by
-    tooling (`Print Assumptions` / `#print axioms`) instead. (2) MUTUAL
-    cycles: not banned outright — allowed ONLY inside an explicit
-    `mutual`/`Fixpoint..with` block whose members are checked together
-    under a JOINT structural/well-founded measure (the MR4 shape).
-    (3) REWRITE RULES: neither system auto-registers proven equations;
-    registration is explicit and curated (Coq `Hint Rewrite` databases,
-    Lean `@[simp]`), and rewrite-system termination is NOT verified — a
-    looping rule set hangs the tactic but cannot prove false, because
-    every step emits a kernel-checked proof. (4) COMMUTATIVITY: naive
-    rewriting loops, so Lean/Isabelle simp fire permutative rules only
-    under ORDERED REWRITING (strict term-order decrease); Coq practice
-    prefers reflective decision procedures (`ring`, `lia`) normalizing
-    both sides to canonical polynomial form — structurally what the N2
-    polynomial engine already does. Note the answer below supersedes the
-    rewrite-registry framing entirely: with citation-as-machine-call, the
-    citation graph IS the call graph and Omega's landed measured-or-
-    reject discipline is exactly the Lean/Coq guarantee, point (2)
-    included.]
-
-    > **ANSWERED (owner, 2026-07-18 — settled in the proofs review before
-    > the question was asked; record: mathematical_proofs.md par-6 item 1 +
-    > ch10 "Citing Proofs"):** do NOT build the global pattern-matching
-    > rule engine — that is rewrite registration, owner-PARKED ("fact
-    > injection is essentially the default, with rewrite or something as a
-    > potential future extension if ergonomics suffer"). Delivering a
-    > proven law to a site is an EXPLICIT STATEMENT CALL of the lemma:
-    > `add_comm(b, a);` instantiates its ensures at those args into the
-    > flow facts and erases at codegen — the mask_is_mod pattern in ch10.
-    > Nothing is global, nothing pattern-matches, nothing applies silently.
-    > The soundness question then DISSOLVES: a lemma citing a lemma is a
-    > machine CALLING a machine, so the citation graph IS the call graph
-    > and the discipline is the one this lane already landed —
-    > measured-or-reject (MR1); mutual cycles need a joint measure (MR4);
-    > the IH stays descent-guarded as-is. Two false laws cannot certify
-    > each other because their mutual citation is an unmeasured call cycle
-    > and already refuses. No `uses` clause either: the call IS the use
-    > declaration (a second spelling of the same fact is the kind of
-    > redundancy the arc kept killing). BUILD INSTEAD the settled
-    > ergonomics mitigation: when an obligation fails and a known lemma's
-    > ensures shape-matches it, the diagnostic NAMES the missing citation
-    > ("cannot prove add(b,a) == add(a,b); note: core::nat::add_comm
-    > proves this shape — cite it"). Suggestion at failure, never silent
-    > application. And N3's rearrange-mode needs no lemma rules: ring
-    > normalization over declared carriers is ENGINE-INTERNAL
-    > canonicalization (the L4 sum-of-monomials machinery generalized),
-    > not user-registered rewriting.
-
-## Proof engine — rearrange-mode carriers (main lane, 2026-07-12)
-
-15. **How does a carrier EARN ring canonicalization (N3 rung 4)?** The
-    promised one-pager, now that the law set exists. STATUS QUO: core
-    nat.omg carries the commutative-semiring surface PROVEN — add_zero_
-    left/right, add_succ_law, add_comm, add_assoc, mul_zero_left/right,
-    mul_succ_right, mul_comm — each an induction, machine-checked on
-    every compile, delivered to consumer proofs by explicit citation.
-    What citations cost at the margin: mul_succ_right's step case needs
-    THREE choreographed rearrangement citations (comm/assoc/comm); a
-    distributivity proof needs ~6-8 (its four-summand step case is pure
-    AC-shuffling), which is why distrib is DEFERRED — it is exactly the
-    shape rearrange-mode dissolves. WHAT REARRANGE-MODE IS: your settled
-    answer — engine-internal normalization; the N2 polynomial engine
-    already proves integer AC-rearrangements by normalizing both sides
-    to canonical sum-of-monomials; rung 4 lets it treat `add`/`mul`
-    applications over a proof carrier as +/×, so any two AC-equal Nat
-    terms judge equal citation-free. SOUNDNESS PRECONDITION: the engine
-    may canonicalize only where comm/assoc/distrib/identities actually
-    HOLD for the carrier's operations. THE QUESTION — how it learns
-    that:
-    (a) AUTO-ENABLE when the standard law lemmas are proven in scope.
-        Zero syntax; but proving one more lemma silently upgrades every
-        proof in the program (ambient behavior — the flavor you rejected
-        for rewrite imports), and the required lemma set becomes an
-        invisible engine-internal contract.
-    (b) EXPLICIT PER-CARRIER DECLARATION citing the proven lemmas —
-        one line, e.g. a domain/operator row naming (add: comm, assoc,
-        zero_left/right; mul: comm, assoc-or-succ-laws, distrib,
-        one/zero). Compile error if any cited lemma is missing or
-        unproven; the declaration IS the license, visible in text,
-        greppable — your verbosity-is-cheap / no-invisible-context
-        stance. Exact spelling yours to pick.
-    (c) NOTHING (citations only, status quo): workable — the whole
-        semiring surface minus distrib proved this way — but scales
-        poorly for AC-heavy steps, and distrib stays deferred.
-    RECOMMENDATION: (b). Note the declaration wants distributivity in
-    its lemma set, and distrib is deferred BECAUSE it wants rearrange-
-    mode — the clean sequencing is: rule on (b), engine implements
-    canonicalization for add-only first (needs only the PROVEN add
-    laws), distrib then proves with add-side rearrangement dissolved,
-    unlocking the full mul canonicalization. No urgency: nothing else
-    on the roster blocks on this.
+   Still needed: outbound-call semantics for old continuations, version
+   budgets and eviction, linking mechanics, and the boundary between v1
+   coexistence and later continuation migration.

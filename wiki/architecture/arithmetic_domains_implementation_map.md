@@ -25,15 +25,14 @@
 >   (runtime_saturating_*, runtime_wrapping_expression_guard,
 >   runtime_divide_min_edge_guard, arithmetic_domain_cast_exit, ...).
 >
-> OPEN EDGES (design-gated, see TASKS.md): saturating/trapping SHIFT-LEFT
+> OPEN EDGES (see TASKS.md): saturating/trapping SHIFT-LEFT
 > (nobody implemented it deliberately; native wraps, interp seam clamps
 > stores -- pending/arithmetic/shl_saturating_domain_divergence), shift
 > counts at/above width (cross-arch native divergence), range constraints
 > under non-Exact domains, S3 Exact proof obligations vs const-fold's
-> type-carrying-constants hole, and FLOAT types accepting a domain clause
-> (`f32 in Saturating` compiles and means nothing -- both legs run plain
-> IEEE; reject-or-define is an owner call, same family as
-> range-under-non-Exact).
+> type-carrying-constants hole, and implementation of the settled float-domain
+> model in `float_semantics.md` (`Saturating` clamps finite overflow,
+> `Trapping` rejects non-finite results, and `Wrapping` is invalid for floats).
 
 Turnkey entry map for building exact-by-default arithmetic + the
 Wrapping/Saturating/Trapping primitive domains. Written 2026-06-14 after the
@@ -166,7 +165,7 @@ DONE:
   arithmetic_domain_requires_proven_exact_exit.
 
 STILL TODO:
-- **Loop / `decreases` bounds**: a loop counter bounded by `decreases` could stay
+- **Loop / ranking bounds**: a loop counter bounded by `terminates by` could stay
   exact. (The corpus's remaining `Wrapping` operands are mostly call-results /
   cross-state values; those need return-range / inter-state inference, a bigger
   lift -- they read fine as `Wrapping`.)

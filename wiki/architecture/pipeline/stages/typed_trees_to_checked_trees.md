@@ -48,7 +48,7 @@ Must own:
 - Proof obligations and whether current facts discharge them.
 - Borrow facts, accesses, loans, activations, weakenings, and overlap failures.
 - Effect summaries and boundary contract facts that later stages must preserve.
-- Checked value origins for decreases clauses, initializers, statement values,
+- Checked value origins for ranking witnesses, initializers, statement values,
   call arguments, transition guards/targets, and nested expression children.
 - A durable checked-flow representation of calls and transitions.
 
@@ -187,7 +187,7 @@ Current ownership is:
   `values/statement.rs` owns statement-role routing, `values/transition.rs`
   owns transition target value routing, and `values/expression.rs` owns nested
   expression traversal. These modules record source expression handles and why
-  each value matters, including machine decreases, attached-data field
+  each value matters, including machine ranking subjects, attached-data field
   initializers, statement values, transition targets, and nested expressions.
   They do not yet decide ownership kind, drop policy, or storage shape.
 - `checks/ranges.rs` is the range-check entry point. `checks/ranges/arrays.rs`

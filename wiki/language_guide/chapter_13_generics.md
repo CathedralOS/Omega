@@ -238,9 +238,11 @@ The obligation `N > 0` is proven when the machine is instantiated. If a caller
 has `FixedBuffer<Item, 8>`, the obligation is easy. If a caller has an unknown
 `N`, that caller must carry a proof fact for `N > 0`.
 
-Generic effects work the same way: if a generic operation may call a platform
-entry, block, allocate, or drop a resource, those effects become obligations at
-the call site.
+Generic effect ceilings work the same way: a generic requirement publishes the
+service-reach and operational possibilities of calls through it, and a caller
+must admit that row. Allocation capacity and owned-resource cleanup are not
+generic effect members: they travel through explicit capability contracts and
+the multiplicity/ownership rules.
 
 ## Associated Types
 

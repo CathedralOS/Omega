@@ -1,13 +1,16 @@
 # Design Brief: Allocator Story
 
-Scouted 2026-06-12. Status: AWAITING SIGN-OFF (decisions A1-A5 in TASKS.md).
+Current direction; implementation remains staged in `TASKS.md`. Allocation
+uses an explicit region/allocator capability and dependent contracts;
+allocator boundary reach is a service member. Quantitative row entries wait
+for the resource-algebra brief.
 
 ## Current State
 
 - `Vec<T>` is browsable surface (core/vec.omg) with ZERO runtime (no
   lowering/codegen). `String` is statically fixed-capacity (push_str is a
-  proof obligation against capacity; no heap anywhere). `alloc`/`dealloc`
-  are effect NAMES only (chapter 19).
+  proof obligation against capacity; no heap anywhere). Legacy `alloc` /
+  `dealloc` names have no resource semantics (chapter 19).
 - The boundary-provider registry (frozen decision 4) already reserves an
   `Allocation` category — the designed hook for allocator providers.
 - Decision 15 (lifetimes) makes allocator-borrowing containers spellable
@@ -35,9 +38,9 @@ Scouted 2026-06-12. Status: AWAITING SIGN-OFF (decisions A1-A5 in TASKS.md).
 5. **Drops**: elements drop immediately when the Vec dies (chapter 17
    obligations); the REGION frees memory in bulk on its own drop (memory
    release and object cleanup are separate concerns).
-6. **`alloc` effect** is declared at the allocator boundary machine only
-   and propagates transitively (decision 12 machinery) — individual Vec
-   reads/writes carry no effect.
+6. **Allocator service reach** is contributed only by the allocator boundary
+   trait and propagates transitively — individual Vec reads/writes do not reach
+   the allocator service.
 
 ## Touches
 

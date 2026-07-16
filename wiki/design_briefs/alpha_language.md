@@ -94,7 +94,7 @@ placeholders, finalized once the compiler exists.
   cross-machine cycle.
 - **No prover-dependent features:** refinement types, range constraints
   (`a..b`), encoding/arithmetic domains (`Utf8`, `Wrapping`/`Saturating`/
-  `Trapping`), `requires`/`ensures` contracts, `terminates { decreases }`.
+  `Trapping`), `requires`/`ensures` contracts, and `terminates by` rankings.
 - **No generics.** Monomorphic only; the compiler's own containers are
   hand-specialized (as `FixedVec` ships concrete today).
 - **No effect/capability checking.** Exactly one hard-wired boundary —

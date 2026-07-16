@@ -98,7 +98,7 @@ The engine is real and past where systems languages stop
 - a difference-bound matrix with transitive closure (order reasoning, vacuity);
 - a correlated-power interval evaluator (range sums, squares, euclidean mod);
 - directed substitutions from `requires` equations;
-- **induction (L7)** — recursive contracts + `decreases`, with the induction
+- **induction (L7)** — recursive contracts + `terminates by`, with the induction
   hypothesis gated on a per-call-site strict-decrease discharge (the
   well-foundedness that makes assuming the smaller instance sound).
 

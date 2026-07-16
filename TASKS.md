@@ -1,24 +1,43 @@
-> OWNER_QUESTIONS.md (repo root) consolidates all lanes' pending owner decisions — batch-answerable.
+> `OWNER_QUESTIONS.md` contains unresolved owner decisions only. Settled
+> language rulings live in the guide/briefs; this file tracks engineering.
 
 # Tasks
 
-Working backlog only. Finished work lives in the git log; canary headers carry
-each fix's story. (Condensed 2026-07-12; re-condensed + NEXT TASKS queue
-loaded 2026-07-18 per owner directive.)
+Engineering ledger and working backlog. Completion notes remain only where they
+explain dependencies or migration state; detailed history belongs in git and
+canary headers. Condensed 2026-07-12 and 2026-07-18.
 
 ## Current Strategic Focus
 
 Omega's first real consumer is the Cathedral OS (`../Cathedral`). The gap
-analysis lives in [wiki/cathedral_alignment.md](wiki/cathedral_alignment.md) —
-Tier 1 items there (ZII guarantee, wire data semantics, versioned data,
-separate-compilation awareness, concurrency/atomics decisions, freestanding
-target, enum payloads) bias which vertical slices get picked next.
+analysis lives in [wiki/cathedral_alignment.md](wiki/cathedral_alignment.md).
+Current critical gaps are programmable layouts, freestanding entry/hardware
+vocabulary, atomics/scheduling, and separately compiled component replacement.
 
-## NEXT TASKS — design-unblocked, agent-ready (loaded 2026-07-18, owner directive)
+## NEXT TASKS — design-unblocked, agent-ready (loaded 2026-07-18)
 
 Claim an item, work its rungs in order, canaries per rung, push per rung.
 Collision map: the MAIN LANE owns RECAST/M2; the FS LANE owns the
 dispatch-region + receiver-phase family. Everything queued here avoids both.
+
+**FRONT-LOADED GATE — termination surface + semantic migration TPR1→TPR6
+(decision 23):** the ruling deliberately invalidates the current parser,
+typed representation, proof-cache shape, diagnostics, and essentially the
+whole executable/proof sample corpus. At inventory time, 113 `.omg` files
+contain `terminates` and 104 contain standalone `decreases`. Do not preserve
+compatibility syntax at this age; migrate the compiler and corpus as one
+explicit breaking pass. Rungs: TPR1 parser/AST (`terminates;` and
+`terminates by subjects [-> View] [in range];`, retire block-form and
+standalone direction clauses); TPR2 normalized public guarantee versus
+private `RankingWitness`, including canonical-default elaboration; TPR3
+cycle checker migration (state loops, calls, range-on-rank, runtime tail
+lowering, proof-stratum non-tail eligibility, joint SCC semantics); TPR4
+requirement inheritance, published omission/default rules, sealed progress
+profiles, receipts, and pinned premises; TPR5 atomic corpus sweep across
+omega core/std, samples, all canary families, and compiler-lattice fixtures,
+with retired-syntax fail canaries; TPR6 artifact/cache/diagnostic firewall
+and decision-23's ten acceptance tests. Until TPR5 lands, the checked-in
+`.omg` corpus demonstrates the old implementation, not normative syntax.
 
 1. **Math roster ladder N1→N4** (section below) — zero backend/codegen
    contact; N1 LANDED 2026-07-11 (proof-only classification + all faces);
@@ -31,7 +50,8 @@ dispatch-region + receiver-phase family. Everything queued here avoids both.
    twin. Remaining: N2(d) Succ bridge, N3 routing, N4's Seq/Bag/Rat +
    extraction lemmas + view dissolution. Continue into N5–N7 when
    reached (they need the `<machine M>` plumbing and the `%` former).
-2. **Measured recursion MR1 + MR2 + MR3 + MR5** — LANDED 2026-07-11
+2. **Legacy measured-recursion implementation MR1 + MR2 + MR3 + MR5** —
+   LANDED 2026-07-11
    (MR2's complement-route frontier included — the pinned canary is now
    the run twin runtime_terminal_tail_recursion_exit; MR5 pinned via
    const-eval). The family's ONE remaining item: MR4's cross-machine
@@ -39,7 +59,9 @@ dispatch-region + receiver-phase family. Everything queued here avoids both.
    classification along the cycle; the dungeon find_item_at/
    find_item_after pair is the live test, currently absorbed by bounded
    clone specialization). In-machine two-state cycles already landed as
-   MR4's first sub-rung.
+   MR4's first sub-rung. Decision 23's TPR migration above supersedes this
+   family's source spelling and must preserve its landed checker/lowering
+   behavior rather than reimplementing it accidentally.
 3. **Dependent types R2** (section below) — where-clause + gating + windows;
    the big semantic build, explicitly ADDITIVE (the landed eager store-time
    checks stay sound as the conservative tier). One careful agent, multi-day.
@@ -393,6 +415,30 @@ dispatch-region + receiver-phase family. Everything queued here avoids both.
    guards/operands, op-set shrink — the wiki ladder. Legalization
    refuses loudly at every rung.
 
+7. **Semantic taxonomy representation rework (OWNER-LOADED 2026-07-18;
+   serious prerequisite, record:
+   wiki/architecture/semantic_taxonomy_representation.md):** the settled
+   domain facets, machine taxonomy, core multiplicity, kinded effect rows, and
+   termination guarantee/ranking-witness split
+   are currently LOST
+   in the compiler's old shapes (`DomainDefinition { facts, operators }`,
+   `Machine { boundary: bool, terminates: bool, decreases, effects }`,
+   `DataProperties { copy, zero_init, send }`, move/drop-only ownership
+   summaries). Land explicit semantic representations before building the
+   feature arcs on conditionals that later have to be excavated. Rungs:
+   STR1 audit/snapshot invariants; STR2 core facet-pair, multiplicity,
+   supply-mode, termination-plan, progress-profile, and semantic-ID types; STR3 propagation through
+   symbol-resolved/typed trees and snapshots; STR4 checked semantic
+   qualification + permission + normalized-machine-contract plans; STR5
+   validation/resolution; STR6 lower only from checked selections while
+   preserving semantic contract IDs in artifacts; STR7 retire compatibility
+   paths. Decision 22 now supplies the effect-row target: kinded
+   `ServiceReach | OperationalMay` identities, deterministic normalized rows,
+   explicit published ceilings, inferred internal summaries, and pinned-slot
+   refinement. Authority, trust, resources, failure, and mutation remain
+   separate fields; the flat `EffectSet` survives only as a compatibility/cache
+   projection.
+
 The rendering-sample sweep landed 2026-07-11 (see Language ergonomics;
 the match-subject computed-index gap closed with it).
 
@@ -422,7 +468,8 @@ the firmware out-values) is RESOLVED against the vouch — see blocker 2.
    loudly. Pinned pass/targets/efi_two_provides_rows (get_memory_map +
    exit_boot_services cross-compiled for uefi_x64) +
    fail/targets/duplicate_provides_row_rejected. M2's three-row image is
-   expressible. [Original: the design is the field model, extern §12.]
+   expressible. Design record: the `Binding`/provider model in
+   `design_briefs/extern_boundary_and_format_domains.md`.
 2. **Gap-4 remainder, confirmed against the real walk**: the landed
    guard-route is single-predecessor + literal-K only; the walk state is
    the multi-predecessor self-re-entering loop its own comment names, so
@@ -697,17 +744,17 @@ bounded-escape store-containment keystone. Open rungs:
   facts, Houdini inference. Needed when dependent facts cross
   sibling-machine calls.
 
-## Measured recursion — engineering (settled 2026-07-18; AMENDS the NO RECURSION directive)
+## Ranked termination — implementation migration and landed substrate
 
-Owner-settled after the proofs exploration (record:
-design_briefs/mathematical_proofs.md par-2; chapters 3/8/10/18 + appendix
-updated). The rule: recursive CALL cycles are legal iff `decreases`-measured
-(both strata, all positions); unmeasured cycles remain the hard error;
-transition loop-backs unchanged (unmeasured, constant-stack, may diverge).
-`decreases` is the SOLE termination gate; RUNTIME cycles are additionally
-TAIL-ONLY (owner amendment — non-tail runtime CUT, the frame-budget/
-cardinality rule deleted; depth lives in explicit storage the author sizes;
-proof-stratum non-tail unaffected, it never lowers). Rungs:
+Normative record: decision 23,
+`design_briefs/termination_ranking_and_progress.md`; chapters 3/9/10/18.
+The landed MR implementation below uses the retired
+`terminates { decreases ...; }` representation. Preserve its proofs and
+constant-stack lowering while TPR1–TPR6 migrate the source and semantic IR to
+`terminates [by ...]`. Terminating state and call cycles require a joint
+well-founded ranking; productive state loops may diverge without one. Runtime
+recursive calls remain tail-only; proof-stratum non-tail recursion never
+lowers. Historical rungs:
 
 - **MR1 — classifier + legality gate — LANDED 2026-07-11:** the
   transition-arm spelling `-> self.own_entry(..)` on a MEASURED machine
@@ -725,7 +772,7 @@ proof-stratum non-tail unaffected, it never lowers). Rungs:
   terminal_self_call_recursion_rejected re-pinned on the MR2 pointer
   (recast it into a run twin when MR2 lands).
 - **MR2 — tail lowering — COMPLETE 2026-07-11:** the fall-through
-  complement landed in the decreases ranking
+  complement landed in the legacy ranking checker
   (patterns::fall_through_self_loop + refuted_guard_proves_positive:
   an ALWAYS self-loop dominated by guarded EXIT transitions treats each
   refuted base case `n == 0`/`n < 1`/`n <= 0` as the positivity the
@@ -765,7 +812,7 @@ proof-stratum non-tail unaffected, it never lowers). Rungs:
   REAL obligations surface instead of a blanket refusal. FRONTIER
   (pinned fail/calls/terminal_tail_rewrite_obligation_frontier): the
   rewritten edge is the unguarded FALL-THROUGH, and neither the
-  decision-17 argument fold nor the decreases ranking uses the
+  decision-17 argument fold nor the legacy ranking checker uses the
   dominating base-case COMPLEMENT (`transition n == 0 { true -> exit }`
   fall-through implies n >= 1 — probed: equality and ordering spellings
   both unproven; the `_`-arm complement is equally unread). The unlock
@@ -780,11 +827,12 @@ proof-stratum non-tail unaffected, it never lowers). Rungs:
   tail, pointing at the tail arm + explicit-storage iteration
   (fail/calls/nontail_value_self_call_rejected; statement-position keeps
   its Q7 fence wording). Mutual cycles still refuse wholesale at the Q6
-  walk (unchanged until MR4's joint measures). `decreases m -> View in a..=b` stays as spelled; the
-  range is a termination fact only (floor = well-foundedness bound, any
+  walk (unchanged until MR4's joint measures). Under decision 23 the range in
+  `terminates by m -> View in a..=b` constrains the produced rank; it is a
+  termination fact only (floor = well-foundedness bound, any
   start; dependent endpoints legal; nothing sized from a range).
   Whole-program worst-case stack line = longest chain of the
-  acyclic-after-lowering call graph. Record: mathematical_proofs par-2
+  acyclic-after-lowering call graph. Record: mathematical_proofs “Measured recursion”
   amendment.
 - **MR4 — mutual cycles:** joint (lexicographic) measures across the
   cycle, every call along the cycle tail-classified;
@@ -801,8 +849,8 @@ proof-stratum non-tail unaffected, it never lowers). Rungs:
 
 ## Math roster & the Real arc — engineering track
 
-Owner-settled through the proofs review (record: mathematical_proofs par-6
-item 3 + par-7). Proof-only is COMPUTED, never spelled: recursive data is
+Design record: mathematical_proofs “Quantification and proof data” and
+“Real-number direction”. Proof-only is COMPUTED, never spelled: recursive data is
 legal and proof-only (fixpoint: recursive, or contains a proof-only field);
 no `unbounded` property exists. Rungs:
 
@@ -829,7 +877,7 @@ no `unbounded` property exists. Rungs:
   (contract_entailment.rs) widened: BigInt coefficients, exact Interval
   ends, DBM edges — no more overflow-downgrades-to-unknown; literals
   enter exactly via `IntegerLiteral::value_bignum`, and D14 gained FIRE G
-  (contract facts + decreases measures bless ANY-magnitude literals —
+  (contract facts + ranking witnesses bless ANY-magnitude literals —
   contracts never lower to runtime bytes, the exact engine is their one
   consumer). Canaries: pass/proofs/proof_bignum_constant_fold
   (10^22 * 10^22 == 10^44 folds exactly), fail twin
@@ -923,10 +971,8 @@ no `unbounded` property exists. Rungs:
   LAW `add(a, Succ b) == Succ(add(a, b))` — an ensures that is an
   EQUATION BETWEEN APPLICATIONS, proven by induction; the discovery that
   application-equation laws prove with the EXISTING per-arm IH machinery,
-  no new engine). NEXT LEVER, CORRECTED per the OWNER_QUESTIONS #14
-  answer (settled record: mathematical_proofs par-6 item 1 + ch10
-  "Citing Proofs" — NO global rewrite engine; the registry framing this
-  section briefly carried was an over-derivation, torn down unlanded):
+  no new engine). NEXT LEVER (record: mathematical_proofs “Explicit proof
+  citation” + ch10 "Citing Proofs" — NO global rewrite engine):
   a law reaches a consumer proof as an EXPLICIT STATEMENT CALL
   (`add_zero_right(b);` — a fact-only machine invoked for its ensures,
   instantiated at the call's operands into the judge's hypotheses,
@@ -1040,7 +1086,7 @@ no `unbounded` property exists. Rungs:
   conformance-theorem mechanism); lemma machines bind via the existing
   per-machine `satisfies` clause, checked proven-ensures ⊨ declared-law
   (∀-to-∀ first-order match — the N3 shape-match diagnostic promoted to
-  load-bearing); clause order = signature → satisfies → terminates →
+  load-bearing); clause order = signature → satisfies → terminates [by ...] →
   ensures → body; signature collisions name the requirement path
   (`satisfies CommutativeSemiring::mul as Tropical` — completes the
   named-satisfier draft's missing half); zero/one = trivial machines.
@@ -1158,7 +1204,7 @@ no `unbounded` property exists. Rungs:
   carrier-only; respect-ensures gates lift; congruence over the user
   equivalence; refl/symm/trans as ordinary lemma obligations. Buckets span
   the machine-param family (the equivalence is a nested-schema machine —
-  N7 customer). Record: mathematical_proofs par-7.
+  N7 customer). Record: mathematical_proofs “Real-number direction”.
 - **N7 — nested schemas:** machine params on proof data
   (`data CauchySeq<machine S>`) + machine-parameter signatures that
   themselves take machine parameters.
@@ -1262,8 +1308,8 @@ rows. Rungs:
   guard-position float arith stays loudly fenced (unchanged). Window
   enforcement additionally waits on the invariant-window machinery
   (unbuilt).
-- **F4 — float→int cast ruling** (ANSWERED — see Recently answered
-  holds): build it; retire the drift-ledger entry; NaN differential legs
+- **F4 — float→int proof-or-policy cast:** build it; retire the drift-ledger
+  entry; NaN differential legs
   become pinnable (runtime 0.0/0.0 constructs NaN portably).
 - **F5 — policy lowering:** float Trapping (invalid/overflow/div-by-zero
   trap) + Saturating (clamp to ±MAX_FINITE) on both ISAs + interp.
@@ -1290,11 +1336,11 @@ rejects — an INTEGER ruling, engineering rides this ladder as F8).
   retire the shift divergence from the pending family; differential
   canaries per domain.
 
-## Recently answered holds (rulings 2026-07-18; now ungated engineering)
+## Settled rulings with remaining engineering
 
-- **Dead trapping computation — RULED + LANDED: a trap is an EFFECT,
-  never dead** (the first sentence of abort-as-effect #65; the full
-  effect-model design stays its own future item). A Trapping op "actually
+- **Dead trapping computation — RULED + LANDED: a trap is OBSERVABLE,
+  never dead** (the durable content of abort-as-effect #65; failure/control is
+  separate from decision 22's reach/operational row). A Trapping op "actually
   traps on paper — it's not dead code anymore"; the backend may lower to
   any trap-EQUIVALENT effect but never to silence, and NO contract
   auto-narrowing ever (boundary signatures are the truth as written).
@@ -1308,19 +1354,18 @@ rejects — an INTEGER ruling, engineering rides this ladder as F8).
   error, per owner — future unused-var warnings live in the same
   family).
 
-- **Q13 console convergence — ANSWERED: (ii), the guide is the spec.**
-  Platform blocks converge onto `boundary trait Console` + std provides
+- **Console boundary migration:** retire platform blocks in favor of
+  `boundary trait Console` + std provides
   rows (ch19 shape; `console: Console` field spelling stays). Work: the
   std migration — retire the platform block, effect rows land, the
-  purity checker gets truth (read_byte consumes stdin), the granted-build
-  BuildLog hand-spelling dissolves. OWNER_QUESTIONS item 13.
-- **Float-to-int cast overflow — ANSWERED: proof-or-policy.** Exact =
+  purity checker gets truth (read_byte consumes stdin), and the granted-build
+  BuildLog hand-spelling dissolves.
+- **Float-to-int cast overflow — implement proof-or-policy.** Exact =
   unproven obligation (prove via guard/declared range, NaN excluded by
   `x == x`); `in Saturating` = clamp all targets (NaN -> 0; x86 grows the
   clamp); `in Trapping` = trap; `in Wrapping` on float source = compile
   error. Uniform with decision-17 arithmetic + the narrowing-store
   keystone. Build, then retire the drift-ledger entry.
-  OWNER_QUESTIONS item 10.
 
 ## Open bugs / gaps (ungated)
 
@@ -1562,7 +1607,7 @@ rejects — an INTEGER ruling, engineering rides this ladder as F8).
   host-corrected):** (a) `float_to_int_overflow_divergence` now documents
   the x86 host pair (native 70 / interp 71; the header keeps aarch64's
   99 as the cross-target face) — the entry retires entirely when float
-  ladder F4 (proof-or-policy, ANSWERED) is built. (b) RESOLVED
+  ladder F4 (proof-or-policy) is built. (b) RESOLVED
   2026-07-18 (owner: "obviously implement"): the immutable-lend-for-
   `&mut`-param hole is ENFORCED — semantic check in
   validate_call_arguments_handles (bare-name `&mut` forwards resolve at
@@ -1632,7 +1677,7 @@ rejects — an INTEGER ruling, engineering rides this ladder as F8).
 - **L4 full:** derived projections into a plan-laid BYTE VIEW + the no-op
   boundary theorem — needs the L5 carrier/domain rung.
 - **L5 remainder (four of five items RULED 2026-07-18; record:
-  programmable_layouts amendment):** encode-call spelling SETTLED — bare
+  programmable_layouts “Policy selection”):** encode-call spelling SETTLED — bare
   `encode(x)` reads the destination's declared domain, home conformances
   only, loud on plural/undeclared; third-party conformances named-only
   (general rule in ch14). Plan-walking deriver REPLACED: policies
@@ -1698,6 +1743,42 @@ rejects — an INTEGER ruling, engineering rides this ladder as F8).
   pass/collections/runtime_computed_index_match_subject_exit), and
   dungeon_render spells `grid[r*6+c]` directly as the match subject.
 
+## Semantic taxonomy representations (front-loaded correctness architecture)
+
+This is not backend performance work. It prevents semantic information from
+being erased before validation, interface hashing, proof artifacts, or
+lowering can use it. Authoritative audit and target shapes:
+[semantic_taxonomy_representation.md](wiki/architecture/semantic_taxonomy_representation.md).
+
+- **Domains (decision 19):** pair of optional predicate/semantic facets,
+  normalized semantic-domain identity, introduction/denotation/weakening
+  metadata, fact membership separate from semantic qualification. Hybrid
+  domains must not be duplicated or guessed from body contents.
+- **Machines (decision 20):** normalized complete machine contract plus
+  explicit checked/required/external/accepted supply mode. Consumption
+  eligibility is derived. `boundary: bool` is not the semantic model.
+- **Multiplicity (decision 21):** `Unrestricted | Affine | Linear`, with
+  establishment and create/transfer/consume/affine-drop events in a
+  place-keyed permission context carrying access and provenance. `zero_init`
+  and `send` stay orthogonal.
+- **Effects/observation (decision 22):** replace the flat `u64` source of truth
+  with normalized, symbol-resolved members kinded as `ServiceReach` or
+  `OperationalMay`; retain authored interface ceilings separately from checked
+  internal inference and pinned slot rows. Authority/capabilities, trust
+  receipts, resources, failure, and mutation remain separate. Preserve a
+  one-way compatibility/cache projection to the legacy bitset; never recover
+  semantics from it.
+- **Termination/progress (decision 23):** represent authored/inherited eventual
+  terminal guarantees and pinned premises separately from provider-local
+  ranking witnesses. Witness subjects/views/ranges/SCC certificates drive
+  checking and proof-cache identity, never public contract identity. Sealed
+  progress profiles carry grant/receipt identity and stay outside proof facts.
+
+Ordering gates: no general domain mint/operator-family build on the old
+undifferentiated domain record; no linear Join/transaction/buffer build on
+move/drop-only summaries; no component import-slot/hot-swap manifest pins a
+body hash or flat effect row in place of normalized machine contract identity.
+
 ## Backend perf (deferred, post-1.0)
 
 MVP backend (fixed-register, mem-to-mem, no regalloc/SSA/SIMD) is slow for
@@ -1745,7 +1826,10 @@ with a real app-window story.
   machines in value/refinement position).
 - **Generics completion:** stage-1 data monomorphization landed; machines/
   traits remainder.
-- **Allocator story:** `Vec` has no runtime; `alloc` is an effect name only.
+- **Allocator story:** `Vec` has no runtime. Retire ambient legacy `alloc` in
+  favor of explicit allocator/region capabilities and dependent resource
+  contracts. Quantitative `Alloc<Peak, Retained>`-style rows wait for the
+  resource-algebra brief; do not canonize a one-number allocation effect.
 - **Repr control** — FOLDED into the layouts ladder (2026-07-18): L4
   plan-laid types + policies ARE repr control (CLayout pilot landed;
   packed = a no-padding policy); remaining work is surface polish, no
@@ -1767,6 +1851,44 @@ with a real app-window story.
   soundness rule); (6) the units family (see Vertical slices). The unbuilt
   mint arc (encoding/layout recast surface) builds to these rules —
   arithmetic-domain mints (decision 17) already conform.
+- **Machine taxonomy (frozen decision 20; record:
+  wiki/design_briefs/machine_taxonomy.md):** one contracted transition system,
+  explicit supply modes, derived consumption eligibility, full behavioral
+  refinement, and contract-defined observability above the caller's floor.
+  Engineering begins with STR2-STR4's normalized machine contract; effects,
+  suspension, and component linking consume it later.
+- **Core multiplicity (frozen decision 21; record:
+  wiki/design_briefs/core_multiplicity_and_linearity.md):** unrestricted /
+  affine / linear usage, establishment-created obligations, conservative
+  transfer/consume accounting, path-sensitive sums, and proposition facts
+  separate from the permission/resource context. The core checker precedes
+  linear Join and dependent-linear buffers.
+- **Effects/authority/observation (frozen decision 22; record:
+  wiki/design_briefs/effects_authority_and_observation.md):** one kinded
+  `effects` row, with service reach supplied by boundary-trait identities and
+  a small core operational set (`Suspend`, `Block`). Rows are possible-behavior
+  ceilings; absence is the negative guarantee. Public rows are authored and
+  normalizer-owned; private omission infers a finite fixed point; provider rows
+  refine pinned slot rows by subset. Capabilities carry authority, admission
+  receipts carry trust, and resources/failure/mutation retain separate homes.
+  No masking, subtraction, handlers, `may`, `budget`, `fails`, or `uses`
+  surface. Engineering ladder: EFX1 kind/ID/normalizer IR plus legacy
+  projection; EFX2 boundary-trait and core-member resolution; EFX3 transitive
+  inference, recursive fixed points, and explicit-interface checks; EFX4
+  pinned slot/provider subset admission; EFX5 artifact/diagnostic/trust-ledger
+  split; EFX6 migrate standard library/canaries and retire the lowercase global
+  table as semantic canon. Then amend decision 16/ch18: suspension composes
+  through ordinary calls with inferred/declared `Suspend`, no call-site marker,
+  and no `async` machine species or `Future` return transformation. Specify
+  continuation/frame layout and capacity, cancellation timing, and the proof
+  rules for loans that cross suspension.
+- **Termination/ranking/progress (frozen decision 23; record:
+  wiki/design_briefs/termination_ranking_and_progress.md):** one
+  `terminates [by ...]` family; public guarantee and premises separated from
+  private ranking witness; direction-neutral ranking views; runtime tail-only
+  recursion and proof-stratum non-tail use one machine taxonomy; sealed opaque
+  progress profiles ride boundary grants. TPR1–TPR6 at the top of this file is
+  the compatibility-breaking implementation and corpus migration.
 - **Hot-swap semantics:** quiescence proofs, borrows as swap barriers.
 - **Wire encoding families + negotiation** (beyond stage-2 encoders).
 - **Serialized capabilities:** attenuation + revocability across boundaries.
@@ -1785,7 +1907,8 @@ with a real app-window story.
   tooling (site marker + root row from one command, hash-pinned,
   package-release-fatal), grant locality (own-package dev-active w/
   warning; package boundaries inert until root-granted). Record: ch10
-  Evidence And Trust + mathematical_proofs par-4/par-6. No rungs cut yet —
+  Evidence And Trust + mathematical_proofs “Trust and accepted facts” /
+  “Explicit proof citation”. No rungs cut yet —
   ladder it when a lane picks it up.
 
 ## Structural follow-ups (surface landed; semantics pending)
@@ -1822,6 +1945,32 @@ with a real app-window story.
 
 ## Vertical slices
 
+- **Machine-contract representation slice (decision 20):** one ordinary
+  checked machine used by runtime-call and compile-eval consumers shares one
+  normalized contract ID; add requirement/provider/accepted supply fixtures;
+  reject a provider with one hidden extra effect; snapshot that the checked
+  artifact preserves supply mode and contract identity. Start before component
+  manifests or hot-swap admission.
+- **Termination firewall slice (decision 23):** one bodyless requirement
+  authors `terminates;`; an acyclic implementation inherits and derives it
+  without repetition; cyclic implementations prove it once with descending
+  and once with bounded-increasing views. Swapping those witnesses changes the
+  provider proof hash only, not caller/import-slot contract identity. Reject
+  runtime non-tail lowering while accepting the same ranked proof-stratum
+  shape, and reject an ungranted self-asserted progress profile.
+- **Kinded effect-row slice (decision 22):** declare `Readable` and a scheduler
+  service with separate wake and wait operations; derive `Readable + Suspend`
+  for a caller of the read/wait paths and only the scheduler reach member for
+  wake. Reject an undeclared public member, a caller ceiling missing a callee
+  member, and a `Block` provider for a `Suspend`-only slot. Snapshot stable
+  normalized row/contract IDs across a prover-strength change; demonstrate the
+  legacy bitset is derived output, not input to admission.
+- **Core multiplicity slice (decision 21):** add the first `[linear]`
+  acknowledgement token with explicit `consume(move self)`; pin create ->
+  multi-binding transfer -> consume as one obligation; reject scope loss,
+  copy, mixed branch treatment, and implicit zero-created obligation; add
+  `Empty | Live(Token)` path-sensitive acceptance. Then make `Join<T>` a
+  customer after the core checker, not the bootstrap implementation vehicle.
 - **Units slice (decision-19 stress test; run EARLY, before the generics
   arc):** two units, one dimension, no generics — pin the model with the
   brief's seven acceptance tests: (1) `Km + Metre` rejects without explicit

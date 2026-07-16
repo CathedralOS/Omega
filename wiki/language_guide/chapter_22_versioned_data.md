@@ -1,430 +1,208 @@
 # Chapter 22: Versioned Data And Machine Replacement
 
-Omega should treat runtime data evolution as a first-class systems problem.
+Omega treats persisted history and live component replacement as different
+problems. They may share migration code, but they do not share identity or
+deployment semantics.
 
-Versioned data is not primarily about serialization. It is about preserving live
-state across code replacement, driver upgrades, kernel component swaps, and
-long-lived runtime objects whose shape changes over time.
+## Persisted And Wire History
 
-The Theseus-style goal is direct: if a component can be safely replaced without
-rebooting the world, Omega should have language concepts for expressing and
-checking that replacement.
+Chapter 21 owns data that can outlive a running component: files, messages,
+snapshots, and external protocols. Stable field identities, layout policies,
+and explicit era discriminators make that data self-describing across multiple
+historical shapes.
 
-## The Decided Model
+`Versioned<T>` belongs on this side of the split. It is an era-bearing sum used
+after decode to match one of the historical shapes known to the program:
 
-This section is the settled design; the sections below it are the earlier
-exploration that led here and are superseded where they conflict. Syntax is
-provisional; the obligations are the point.
+```omega
+match saved_counter {
+    Counter::v1(old) => import_v1(old),
+    Counter::v2(old) => import_v2(old),
+    Counter::current(value) => use(value),
+}
+```
 
-Two concerns stay separate:
+A historical shape is immutable once published. Its durable identity comes
+from the normalized schema/layout artifact, not from editing an old declaration
+under the same human version label.
 
-- **Wire protocols ([chapter 21](chapter_21_wire_protocols.md))** own persisted
-  and external data — save files, protocols, on-disk snapshots, anything that
-  may be found many versions old. Schemas with identity numbers are
-  self-versioning (stable field numbers, era discriminators, reader
-  tolerance). A five-versions-stale persisted value is chapter 21's problem,
-  not this chapter's.
-- **Versioned data (this chapter)** owns *live in-memory state* across a hot
-  swap. A live component is always at the last-installed version, so a runtime
-  upgrade is **single-step**: `prev -> current`. No migration chain, no
-  multi-version dispatch, no runtime graph-completeness check — skipped releases
-  for a live component are applied as sequential single-steps, or refused. (The
-  chain and coexistence sketches below were solving the wire-protocol
-  multi-version problem and do not apply to live state.)
+## Live Replacement
 
-### Shape identity and freeze
+Live replacement changes the implementation and in-memory state of a running
+component. Its stable anchor is the normalized machine contract, not a wire era
+tag or an implementation body hash.
 
-A historical shape's identity is the **content hash of its canonical layout**,
-not a linear `vN`. The hash is recorded in a build lockfile, never written in
-source; a human label is provenance only. Editing a shape that has shipped drifts
-its recorded hash and is a **compile error** — past shapes are immutable; you
-append a new one. (Avro fingerprints / Unison / Flyway checksums, fired at
-compile time.)
+The settled safety laws are:
 
-### One upgrade trait, context optional
+- old state is owned exclusively by the replacement plan;
+- the upgrade is ordinary checked machine code;
+- every required input/fact is produced by an earlier phase or explicit
+  authority;
+- the new state satisfies its declared invariants before installation;
+- imports pin normalized requirement contracts and admit providers only by
+  deterministic refinement;
+- replacement cannot silently widen effects, authority, failure, progress,
+  resource, reentrancy, or calling-plan behavior; and
+- any trust spent on an external migration/provider is visible in artifacts.
+
+The source grammar below is provisional; those obligations are not.
+
+## Typed Upgrades
+
+One trait expresses the state transformation, with optional captured context:
 
 ```omega
 trait Upgradable<Old, New, Context = Nothing> {
     machine upgrade(old: Old, ctx: Context, out: &mut New)
         requires exclusive(old)
-        ensures  out in New::Valid;     // generic over New: monomorphizes to prove
-                                        // each concrete output type's invariants
+        ensures out in New::Valid;
 }
 ```
 
-`migrate(old, out)` is the context-free special case (`Context = Nothing`).
-Resolution is by the `(Old, New[, Context])` TYPE, never a magic name — the
-`from_v1`-style name and the `migrates` clause below are retired. `New::Valid` is
-the output type's author-declared invariant domain ([chapter 8](chapter_8_domains.md));
-because the trait carries `ensures out in New::Valid`, every impl is forced to
-discharge that specific type's invariants with no per-impl boilerplate.
-Context-free migrations are co-located in the data's TU; contextual upgrades are
-co-located with the context's owner or the replacement plan.
+Resolution is by the `(Old, New, Context)` types, not a magic function name.
+The context-free case uses `Nothing`.
 
-### Context: IO becomes data before the upgrade
+Upgrade code carries the same complete contract as any machine. Resource use
+is expressed through explicit capabilities and dependent contracts; service
+reach and `Suspend`/`Block` possibilities appear in its normalized row;
+failure remains an explicit outcome.
 
-When old state alone is not enough — a driver needs the device's current queue
-heads, an editor import needs runtime/project facts — the missing data is
-captured *first*, as a typed value, by an effectful **capture** machine. The
-upgrade itself stays pure over `(Old, Context)`.
+## Capture Before Mutation
+
+When old state is insufficient—for example, a driver must read device queue
+heads—the plan captures that information as typed data before mutating old
+state:
 
 ```omega
-// IrqCtx is NOT pub, so by ch15 visibility it is private to this replacement
-// module -- nothing outside can construct one. The module declares exactly one
-// minter, capture_irq, so holding an IrqCtx is proof it came from capture.
-// Provenance by a private constructor (like Rust's private fields), NOT a
-// forgeable value-predicate -- which is precisely why a domain cannot express it.
-data IrqCtx { route: IrqRoute; rx_head: u32; pending_dma: Vec<DmaDescriptor> }
+data IrqContext {
+    route: IrqRoute;
+    rx_head: u32;
+    pending_dma: Vec<DmaDescriptor>;
+}
 
-machine capture_irq(old: &NetState.prev, dev: &mut Nic, sched: &Scheduler) -> IrqCtx
+machine capture_irq(
+    old: &NetState.prev,
+    dev: &mut Nic,
+    sched: &Scheduler,
+    heap: &mut HeapBudget
+) -> CaptureResult
     requires old in NetState::Quiescent
-    effects  device_io, sync_wait, alloc;   // IO lives HERE, declared, fallible
+    requires heap.remaining >= irq_capture_space(old)
+    effects DeviceIo + Scheduler + Suspend;
 
-machine upgrade_net(old: NetState.prev, ctx: IrqCtx, out: &mut NetState)
-    satisfies Upgradable<NetState.prev, NetState, IrqCtx>
+machine upgrade_net(
+    old: NetState.prev,
+    ctx: IrqContext,
+    out: &mut NetState,
+    heap: &mut HeapBudget
+)
+    satisfies Upgradable<NetState.prev, NetState, IrqContext>
     requires exclusive(old)
-    effects  alloc                          // pure over (old, ctx): no device_io here
-    ensures  out in NetState::Valid { ... }
+    requires heap.remaining >= upgrade_space(old, ctx)
+    ensures out in NetState::Valid;
 ```
 
-Because `upgrade_net` requires an `IrqCtx`, and `IrqCtx` is private to this
-module (ch15) with `capture_irq` as its only minter, **capture is not skippable**
-— no outside caller can fabricate a context to pass. IO never happens invisibly
-inside the upgrade; it is a declared-effect capture phase whose output is data.
+The owning package controls construction of `IrqContext`; callers cannot skip
+capture by fabricating provenance. A fallible capture fails before old state is
+consumed, giving the plan an honest no-mutation rollback point.
 
-### Replacement is an owned, checked plan
+## Replacement Plans
 
-A swap is not a freeform machine; it is a closed plan the compiler verifies and
-the OS gates on an upgrade capability:
+A replacement is an owned, checked sequence rather than an arbitrary call:
 
 ```omega
 replace NetDriver.prev with NetDriver
-    quiesce                 // ensures old in NetState::Quiescent
-    capture capture_irq     // requires Quiescent [from quiesce]; mints the IrqCtx
-    upgrade upgrade_net      // requires the IrqCtx + exclusive(old); ensures Valid
-    // install requires Valid [from upgrade]
+    quiesce
+    capture capture_irq
+    upgrade upgrade_net
+    install;
 ```
 
-The compiler checks each phase's `requires` is discharged by a prior phase's
-`ensures` (quiesce -> capture -> upgrade -> install); a reordered, incomplete, or
-context-skipping plan does not compile. `capture` is the only fallible point and
-aborts before `old` is mutated, so rollback is "did nothing." The context-free
-case auto-derives its plan (`quiesce -> upgrade -> install`); you hand-write the
-plan only when there is a `capture` to place — that is what "own the pipeline"
-means, and it loses no static check. The runtime swap itself (rebinding the code
-image) is privileged and performed only for a verified plan held under the
-upgrade capability; there is no unguarded swap path. The swap-safety obligations
-listed further below are exactly what the plan discharges.
-
-## Machines As Swap Points
-
-Machines are the natural hot-swap boundary because they are stable behavior
-contracts.
-
-Working model:
-
-- `data` is state.
-- `machine` is behavior over state.
-- A machine's public states and calls are its replacement contract.
-- A migration transforms old state into new state.
-- A swap replaces machine behavior only after safety obligations are proven.
-
-The baseline model should not require old and new machine implementations to
-coexist. Coexistence is powerful, but it introduces multi-version dispatch,
-ambiguous ownership, old callbacks, and overlapping invariants. Omega can add an
-explicit advanced coexistence mode later if long-running operations need it.
-
-## Versioned Data
-
-A `data` declaration may carry historical runtime shapes alongside the current
-shape.
-
-```omega
-data Counter {
-    version v1 {
-        counter: i32;
-    }
-
-    counter: AtomicI32;
-    timestamp: DateTime;
-}
-```
-
-The current shape is the body outside a version block. Version blocks name
-historical shapes the compiler still knows how to type-check.
-
-Working interpretation:
-
-- `Counter` means the current version.
-- `Counter::v1` means the historical `v1` shape.
-- Historical fields are not hidden fields in the current type.
-- Current fields are not automatically available in historical versions.
-- The compiler can type-check code against a specific version.
-
-This lets old runtime state remain visible to the language without pretending it
-already has the current shape.
-
-## Version-Scoped Machines
-
-Machines may target a specific data version.
-
-```omega
-machine Counter::increment_counter::v1(&mut self) {
-    self.counter++;
-}
-
-machine Counter::increment_counter(&mut self) {
-    self.counter.increment();
-}
-```
-
-`::v1` means `self` has the `Counter::v1` shape inside that machine. The
-unqualified machine targets the current `Counter` shape.
-
-This is useful for old behavior that must remain type-checkable:
-
-- Validate old behavior against old state.
-- Replay old logs with old semantics.
-- Debug a migration by comparing old and new implementations.
-- Keep an old component loadable long enough to migrate its state.
-
-The compiler should reject accidental cross-version field access. In the `v1`
-machine, `self.timestamp` is not available. In the current machine,
-`self.counter` is `AtomicI32`, not `i32`.
-
-## Replacement Declarations
-
-A replacement should make its source, target, and safety requirements explicit.
-
-Sketch:
-
-```omega
-machine Counter v2 replaces v1
-    migrates Counter::from_v1
-    requires quiescent
-{
-    self.counter.increment();
-}
-```
-
-The exact syntax is open. The semantic requirements matter more:
-
-- The old machine version is known.
-- The new machine version is known.
-- The state migration path is known.
-- The replacement contract is checked.
-- The required quiescence and ownership facts are available.
-
-For simple programs, replacement may just be a compile-time compatibility fact.
-For an operating system or driver runtime, it becomes a load-time or swap-time
-proof obligation.
-
-## Migration
-
-Versioned runtime data needs explicit migration paths.
-
-```omega
-trait RuntimeMigratable<Old, New> {
-    machine New::from_old(old: Old, out: &mut New);
-}
-
-machine Counter::from_v1(
-    old: Counter::v1,
-    out: &mut Counter
-)
-satisfies RuntimeMigratable<Counter::v1, Counter>
-effects
-    alloc
-requires
-    exclusive(old)
-ensures
-    Counter::invariants(out)
-{
-    out.counter = AtomicI32::new(old.counter);
-    out.timestamp = DateTime::now();
-}
-```
-
-Syntax is provisional. The important part is that migration is ordinary typed
-machine code with a contract.
-
-Migrations should describe:
-
-- Source version.
-- Target version.
-- Effects: alloc, blocking, device-touching, and so on. No effects means the
-  migration is effect-free.
-- Access requirements: shared, exclusive, frozen, pinned, or quiescent.
-- Invariant obligations.
-- Failure and rollback behavior.
-
-Migrations should compose when possible.
+The checker verifies that each phase's requirements follow from prior
+guarantees and explicit inputs:
 
 ```text
-v1 -> v2 -> current
+quiesce -> capture -> upgrade -> install
 ```
 
-If a program asks to upgrade `v1` state to current `Counter`, the compiler or
-runtime can use the known migration chain. If the chain is missing, the operation
-is unavailable unless the program explicitly handles the old version.
+The plan owns old state throughout. Installation consumes the verified new
+state and requires the component-replacement authority. Reordering a phase,
+skipping context capture, losing an obligation, or installing invalid state is
+a compile/admission error.
 
-## Swap Safety Obligations
+## Liveness Pins
 
-A machine replacement is safe only if Omega can establish the required facts.
+Stack occupancy alone does not prove that an old version can retire. A version
+remains live while any pin can lead back to its code or owned state:
 
-Likely obligations:
+- active or suspended frames;
+- dispatch handles and callbacks;
+- borrows into version-owned data;
+- capabilities minted by the version;
+- interrupt registrations; or
+- other component-defined retained authorities.
 
-- Quiescence: no thread or core is currently executing inside the machine being
-  replaced.
-- Borrow safety: no outstanding references point into state that migration will
-  invalidate.
-- State ownership: all state to migrate is reachable and exclusively owned or
-  safely frozen.
-- Invariant preservation: migration establishes the target data invariants.
-- Contract stability: public states, params, effects, and exported calls remain
-  compatible or have adapters.
-- Scheduled work: no queued transition, callback, interrupt continuation, or
-  timer can re-enter old code after replacement.
-- Concurrent work: no spawned graph is executing old code or holding state that
-  migration will invalidate, unless coexistence mode explicitly models it.
-- Effect safety: migration performs only effects allowed in the swap context.
-- Failure story: migration is infallible, or rollback and abort behavior are
-  explicit.
+Retirement requires the pin set to reach zero or an explicit policy to revoke,
+cancel, or fail the remaining work. Pins and the reason each survives belong in
+deployment reports.
 
-These obligations line up with Omega's existing checker direction:
+## Bounded Coexistence Direction
 
-- The borrow checker proves aliasing and exclusive-access requirements.
-- The invariant checker proves old facts are preserved or new facts are
-  established.
-- The effect checker constrains what migration and replacement code may do.
-- The state graph and control-flow pipeline can expose active and scheduled
-  machine entry points.
+The leading component design allows old and new implementations to coexist
+temporarily. Existing continuations stay attached to the version whose frames
+they use; new dispatch selects the newly admitted provider. This avoids
+pretending v1 can transform arbitrary live frames.
 
-The point is not that hot swapping is magically safe. The point is that the
-unsafe parts become explicit, typed, and auditable.
+Coexistence is bounded. A deployment declares `max_live_versions` or an
+equivalent version-memory budget. Per-version frame storage is
+`frame_size(version) × maximum simultaneous activations`, with the activation
+bound separately justified. Content-addressed code may deduplicate unchanged
+objects but cannot be relied on for the bound.
 
-## Coexistence
+Drain/quiescence is the cheap path when pins naturally disappear. Continuation
+migration/OSR is a later feature requiring safe points, compiler-described
+frames, and verified state migration; it is not part of the v1 promise.
 
-The default design should assume no coexistence between old and new machine
-implementations. Replacement is a controlled transition:
+This coexistence policy is the current design direction, not yet a frozen
+language decision. The component-versioning brief must settle the remaining
+admission and outbound-call rules before implementation.
 
-```text
-old machine quiescent -> migrate state -> install new machine -> resume
-```
+## Contract-Pinned Imports
 
-Coexistence may be necessary for advanced systems:
+An old continuation should not pin the entire old world. Its import slot pins a
+normalized requirement contract. A newly published provider can occupy that
+slot only when an admission-time certificate proves deterministic refinement.
 
-- Long-running requests that cannot be quiesced immediately.
-- Network sessions that must drain naturally.
-- Device operations already submitted to hardware.
-- Rolling upgrades where old and new protocol handlers overlap.
+Selection among multiple admitted refiners must be deterministic—for example,
+the newest admitted provider. Prover heuristics never participate in dispatch
+or contract identity.
 
-If Omega supports coexistence, it should be explicit.
-
-```omega
-machine Driver v2 replaces v1
-    coexist until requests_drained
-    migrates DriverState::from_v1
-{
-}
-```
-
-That mode would require stronger obligations: versioned dispatch, old callback
-fencing, shared-state compatibility, and clear ownership of which version may
-touch which state.
-
-## Version Matching: The `Versioned<T>` Container
-
-Code that receives unknown-version runtime state branches by version, but
-normal current-version code never pays for version tags. The resolution
-(frozen decision 14): matching a version on a PLAIN value is an error — an
-ordinary `Counter` has no era bit to test, and giving every struct a hidden
-tag is exactly the per-struct tax decision 10 rejected on the wire. The era
-bit physically exists only at boundaries, so there is a builtin container
-whose declared shape IS that bit plus the payload:
-
-```omega
-// Versioned<T>: { era: u32, payload: union of T's declared era shapes }.
-// Constructed ONLY by boundary machinery (wire decode, storage read,
-// hot-swap edges); user code cannot mint one from a plain value.
-
-machine Store::load(&mut self, raw: Versioned<Counter>, out: &mut Counter) {
-    // raw.era is read-only queryable (logging, telemetry);
-    // the payload is reachable ONLY through version match arms:
-    transition raw {
-        Counter::v1(old) -> migrate_v1(old)   // tag test + reinterpret as Counter::v1
-        Counter(current) -> take(current)     // current era: payload IS the current shape
-    }
-    ...
-}
-```
-
-The paren arm form binds the WHOLE historical value (`old: Counter::v1`);
-braces remain field binding. Payload storage is a union of the declared era
-shapes (static max size, no allocation, no indirection). Migration-chain
-completeness along the declared eras is a REPORT verdict, not an error: an
-arm may handle an old era manually without a migration machine existing.
-
-Inside normal current-version code, `Counter` is just the current type, and
-version arms on it are compile errors.
+The hard open case is an outbound call from an old continuation: whether it
+uses the current provider, a compatible provider selected for its pinned slot,
+or a retained old provider. The final rule must bound retention and make any
+cross-version compatibility obligation explicit.
 
 ## Reports
 
-The compiler should be able to report version and replacement facts.
-
-Example artifact shape:
+Replacement artifacts should expose:
 
 ```text
-data Counter:
-  versions:
-    v1, current
-  migrations:
-    v1 -> current proven, effects: alloc
-  replacements:
-    Counter v2 replaces v1, requires quiescent
-  missing:
-    none
+replacement NetDriver.prev -> NetDriver
+  old contract: <normalized id>
+  new contract: <normalized id>
+  plan: quiesce -> capture_irq -> upgrade_net -> install
+  resource budget: <declared/proved bound>
+  admitted provider refinements: ...
+  live-version pins: ...
+  trust receipts: ...
 ```
 
-For an OS component, the report may also include active swap obligations:
+## Still Open
 
-```text
-machine Driver:
-  replacement blocked:
-    pending interrupt callback targets Driver::v1::complete_request
-    outstanding borrow of DriverState::v1 held by scheduler queue
-```
-
-This fits Omega's broader boundary model: facts, obligations, and boundary boundaries
-should be visible in build artifacts.
-
-## Working Rules
-
-- Versioned runtime data is about state continuity across machine replacement.
-- Machines are the natural replacement boundaries.
-- The baseline model replaces old behavior after quiescence; coexistence is an
-  explicit advanced mode.
-- Historical data versions are named type shapes.
-- Version-scoped machines type-check `self` against the selected version.
-- Migration is typed code with effect, ownership, and invariant obligations.
-- Hot-swap safety depends on borrow checking, invariant checking, effect
-  checking, and state/control-flow facts.
-- Wire protocol compatibility is related, but belongs to
-  [chapter 21](chapter_21_wire_protocols.md) (identity numbers + layout
-  policies).
-
-## Open Design Questions
-
-- Should version names be arbitrary identifiers, numeric versions, semantic
-  versions, or all of the above?
-- Is `machine Counter::foo::v1` the right spelling, or should the version be
-  part of the receiver type?
-- Should replacement be declared on the machine, in a separate `replace` block,
-  or in a component/package manifest?
-- How should migrations describe fallibility and rollback?
-- How does Omega prove quiescence in the presence of interrupts, timers, async
-  work, and external hardware?
-- Should coexistence exist in the core language, or only in privileged runtime
-  domains?
-- How much of Theseus-style swap safety can be statically proven, and what must
-  become load-time/runtime checks?
+- final coexistence/admission mechanics and deterministic linking;
+- outbound calls from old continuations;
+- version budgets, eviction, cancellation, and revocation policy;
+- the exact replacement-plan grammar;
+- quiescence proofs involving interrupts, timers, and external hardware;
+- the boundary between statically proved swap safety and load-time checks; and
+- later live continuation migration.
