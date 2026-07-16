@@ -12,6 +12,9 @@ pub struct TypedTrees {
     pub roots: TypedTreeRoots,
     pub tables: TypedTreeTables,
     pub symbols: SymbolTable,
+    /// STR4 (decision 22): the effect-row interner, copied verbatim from
+    /// the resolved trees (machines' `effect_row` ids index it).
+    pub effect_rows: omega_core::semantics::EffectRowTable,
     /// Validated layout plans for PLAN-LAID VALUE TYPES (`gdt: CLayout<Gdt>`
     /// in type position; programmable-layouts L4). Populated by the compiler
     /// pipeline AFTER build-time plan evaluation + validation; the native
@@ -125,6 +128,7 @@ impl TypedTrees {
             roots,
             tables,
             symbols,
+            effect_rows: omega_core::semantics::EffectRowTable::default(),
             plan_laid_layouts: Vec::new(),
             wire_placements: Arena::new(),
             wire_schema_plans: Vec::new(),

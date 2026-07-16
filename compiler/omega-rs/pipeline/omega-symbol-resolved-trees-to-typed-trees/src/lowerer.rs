@@ -32,6 +32,9 @@ pub fn lower_symbol_resolved_trees(
         source_trees: symbol_resolved_trees,
         equality_scope: None,
     };
+    // STR4: the effect-row interner copies verbatim so the machines'
+    // `effect_row` ids stay valid in the typed trees.
+    lowerer.typed_trees.effect_rows = symbol_resolved_trees.effect_rows.clone();
 
     for invariant_definition in &symbol_resolved_trees.invariant_definitions {
         let invariant_definition = lower_invariant_definition(&mut lowerer, invariant_definition)?;
@@ -116,12 +119,16 @@ impl Lowerer<'_> {
             roots,
             tables,
             symbols,
+            effect_rows,
             plan_laid_layouts: _,
             wire_placements: _,
             wire_schema_plans: _,
         } = self.typed_trees;
 
-        Ok(TypedTrees::with_roots(roots, tables, symbols))
+        let mut trees = TypedTrees::with_roots(roots, tables, symbols);
+        // STR4: the copied interner survives the rebuild.
+        trees.effect_rows = effect_rows;
+        Ok(trees)
     }
 }
 

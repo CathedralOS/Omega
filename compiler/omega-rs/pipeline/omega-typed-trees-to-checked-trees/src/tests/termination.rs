@@ -1495,3 +1495,60 @@ fn cyclic_inheritor_without_witness_fails_and_witness_discharges() {
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     lower_typed_trees(typed).expect("the witness discharges the inherited claim");
 }
+
+/// STR4 slice 1 (decision 22): the normalized kinded effect row propagates
+/// -- populated ONCE at syntax->resolved from the flat effects span
+/// (order/duplicate-blind), copied with its interner into the typed trees.
+/// Same member set -> same row id; no effects -> the fixed EMPTY row.
+#[test]
+fn machine_effect_rows_normalize_and_propagate() {
+    use omega_core::semantics::{EffectRowTable, effect_member_id};
+
+    let source = r#"
+    data Main {}
+
+    machine Main::alpha(&mut self) effects filesystem_io, clock_read { 1 }
+    machine Main::beta(&mut self) effects clock_read, filesystem_io { 2 }
+    machine Main::plain(&mut self) -> u64 { 3 }
+
+    machine Main::main(&mut self) {
+        let a: u64 = self.alpha();
+        let b: u64 = self.beta();
+        let c: u64 = self.plain();
+    }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+
+    let row_of = |name: &str| {
+        typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == name)
+            .unwrap_or_else(|| panic!("machine {name}"))
+            .effect_row
+    };
+
+    // Spelling order is identity-blind: alpha and beta share one row.
+    let alpha = row_of("Main::alpha");
+    assert_eq!(alpha, row_of("Main::beta"));
+    assert!(alpha.is_valid());
+    assert_ne!(alpha, EffectRowTable::EMPTY_ROW);
+
+    // The interner traveled with the trees: the row's members are the
+    // canonical ids, sorted.
+    let filesystem = effect_member_id("filesystem_io").expect("catalog");
+    let clock = effect_member_id("clock_read").expect("catalog");
+    let mut expected = vec![filesystem, clock];
+    expected.sort_by_key(|member| member.0);
+    assert_eq!(typed.effect_rows.members(alpha), expected.as_slice());
+
+    // No effects -> the fixed empty row (never NULL: it was computed).
+    assert_eq!(row_of("Main::plain"), EffectRowTable::EMPTY_ROW);
+    assert_eq!(row_of("Main::main"), EffectRowTable::EMPTY_ROW);
+}

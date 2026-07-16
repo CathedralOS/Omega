@@ -64,6 +64,8 @@ fn machine_record_carries_the_termination_plan_beside_the_compat_bools() {
             supply_mode: _,
             // TPR2 (2026-07-16): the normalized guarantee/witness split.
             termination_plan: _,
+            // STR4 (2026-07-16): the normalized kinded effect-row identity.
+            effect_row: _,
             type_parameters: _,
             contains: _,
             owned_data: _,
@@ -140,13 +142,15 @@ fn data_properties_carries_first_class_multiplicity() {
     assert!(!copy);
 }
 
-/// LOSS 4 (record §Effects): `EffectSet` is one flat bitset -- no member
-/// kinds (`ServiceReach` vs `OperationalMay`), no normalized row identity,
-/// no published-ceiling vs checked-inferred split. The public surface today
-/// is bit-flat: an empty set unions/inserts by name-assigned bit. After the
-/// kinded `EffectRow` lands, the flat set may survive ONLY as a derived
-/// compatibility projection ("no semantic decision depends on projecting
-/// back from it"), and this pin flips to assert exactly that derivation.
+/// LOSS 4 -- PARTIALLY RE-PINNED (STR4 slice 1, 2026-07-16): machines now
+/// carry the NORMALIZED kinded row identity (`effect_row: EffectRowId`
+/// into the tree's `EffectRowTable`; members kinded ServiceReach vs
+/// OperationalMay via the canonical omega-core catalog; row identity
+/// order/duplicate-blind and independent of the legacy bits). STILL LOST:
+/// the flat `EffectSet` below remains an INDEPENDENTLY-BUILT compatibility
+/// carrier (not yet a derived projection of the row -- STR6/7 flip that,
+/// and this pin then asserts the derivation), and the published-ceiling vs
+/// checked-inferred split has no carrier yet.
 #[test]
 fn effect_set_is_still_a_flat_bitset() {
     use omega_effects::EffectSet;

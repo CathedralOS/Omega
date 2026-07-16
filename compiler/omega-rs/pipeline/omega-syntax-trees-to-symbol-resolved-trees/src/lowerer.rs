@@ -103,9 +103,13 @@ impl Lowerer {
             roots,
             tables,
             symbols,
+            effect_rows,
         } = self.symbol_resolved_trees;
 
-        Ok(SymbolResolvedTrees::with_roots(roots, tables, symbols))
+        let mut trees = SymbolResolvedTrees::with_roots(roots, tables, symbols);
+        // STR4: the interned rows built during lowering survive the rebuild.
+        trees.effect_rows = effect_rows;
+        Ok(trees)
     }
 }
 

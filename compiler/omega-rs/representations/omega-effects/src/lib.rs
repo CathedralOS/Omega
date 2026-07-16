@@ -74,6 +74,30 @@ pub fn effect_name(index: u8) -> Option<&'static str> {
     STANDARD_EFFECT_NAMES.get(usize::from(index)).copied()
 }
 
+#[cfg(test)]
+mod catalog_consistency {
+    use super::STANDARD_EFFECT_NAMES;
+
+    /// STR4 (decision 22): the CANONICAL kinded catalog in omega-core and
+    /// this legacy bit table must stay name-for-name consistent -- row
+    /// identity never reads the legacy bits, but the two vocabularies must
+    /// describe the same members.
+    #[test]
+    fn legacy_bit_table_matches_the_canonical_catalog() {
+        let catalog = omega_core::semantics::EFFECT_MEMBER_CATALOG;
+        assert_eq!(catalog.len(), STANDARD_EFFECT_NAMES.len());
+        for (position, name) in STANDARD_EFFECT_NAMES.iter().enumerate() {
+            assert_eq!(catalog[position].0, *name, "catalog order drifted");
+            assert_eq!(
+                omega_core::semantics::effect_member_id(name),
+                Some(omega_core::semantics::EffectMemberId(
+                    u32::try_from(position + 1).expect("fits")
+                ))
+            );
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct EffectSet {
     bits: EffectBits,

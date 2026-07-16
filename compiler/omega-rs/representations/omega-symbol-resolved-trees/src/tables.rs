@@ -427,6 +427,7 @@ mod tests {
             boundary: false,
             supply_mode: Default::default(),
             termination_plan: Default::default(),
+            effect_row: Default::default(),
             storage: MachineStorage {
                 type_parameters: HandleSpan::empty(),
                 contains: HandleSpan::empty(),
