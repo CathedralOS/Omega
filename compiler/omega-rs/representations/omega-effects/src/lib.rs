@@ -314,9 +314,14 @@ pub struct MachineEffects {
     pub transitive: EffectSet,
     /// STR4 slice 3 (decision 22): what THIS body's own statements observe
     /// (state + call direct sets), declaration-free -- the honest inferred
-    /// direct summary. (`transitive` still includes the own declaration via
-    /// its seed until a later slice reworks the fixpoint.)
+    /// direct summary.
     pub body_observed: EffectSet,
+    /// STR4 seed rework: the declaration-free TRANSITIVE reach -- the same
+    /// call-graph fixpoint as `transitive`, seeded from the body
+    /// observations instead of the authored clause (boundary callees still
+    /// contribute through the call's direct set, which carries the CALLEE's
+    /// declaration -- only the machine's OWN clause is excluded).
+    pub body_transitive: EffectSet,
     pub states: HandleSpan<StateEffects>,
 }
 
@@ -327,6 +332,7 @@ impl Default for MachineEffects {
             direct: EffectSet::empty(),
             transitive: EffectSet::empty(),
             body_observed: EffectSet::empty(),
+            body_transitive: EffectSet::empty(),
             states: HandleSpan::empty(),
         }
     }
@@ -379,6 +385,7 @@ struct MachineWork {
     symbol: SymbolHandle,
     direct: EffectSet,
     transitive: EffectSet,
+    body_transitive: EffectSet,
     states: Vec<StateWork>,
 }
 
@@ -426,6 +433,7 @@ fn build_machine_work(program: &TypedTrees) -> Vec<MachineWork> {
             symbol: machine.symbol,
             direct,
             transitive: direct,
+            body_transitive: EffectSet::empty(),
             states,
         });
     }
@@ -721,29 +729,44 @@ fn propagate_machine_effects(machines: &mut [MachineWork]) {
     loop {
         let previous = machines
             .iter()
-            .map(|machine| machine.transitive.bits())
+            .map(|machine| (machine.transitive.bits(), machine.body_transitive.bits()))
             .collect::<Vec<_>>();
 
         for machine_index in 0..machines.len() {
             let mut transitive = machines[machine_index].direct;
+            // Seed rework: the declaration-free twin -- same fixpoint, no
+            // OWN-clause seed. A callee contributes its declared CEILING
+            // when it has one (ceiling enforcement guarantees it covers the
+            // body, and the callee may change within it without recompiling
+            // the caller -- the modular bound), else its own honest reach.
+            let mut body_transitive = EffectSet::empty();
             for state in &machines[machine_index].states {
                 transitive.insert_all(state.direct);
+                body_transitive.insert_all(state.direct);
                 for call in &state.calls {
                     transitive.insert_all(call.direct);
+                    body_transitive.insert_all(call.direct);
                     if let Some(target_index) = machines
                         .iter()
                         .position(|machine| machine.symbol == call.target_machine_symbol)
                     {
                         transitive.insert_all(machines[target_index].transitive);
+                        if machines[target_index].direct.bits() != 0 {
+                            body_transitive.insert_all(machines[target_index].direct);
+                        } else {
+                            body_transitive
+                                .insert_all(machines[target_index].body_transitive);
+                        }
                     }
                 }
             }
             machines[machine_index].transitive = transitive;
+            machines[machine_index].body_transitive = body_transitive;
         }
 
         if machines
             .iter()
-            .map(|machine| machine.transitive.bits())
+            .map(|machine| (machine.transitive.bits(), machine.body_transitive.bits()))
             .eq(previous.into_iter())
         {
             break;
@@ -821,6 +844,7 @@ fn build_effect_plan(machines: Vec<MachineWork>) -> EffectPlan {
                 direct: machine.direct,
                 transitive: machine.transitive,
                 body_observed,
+                body_transitive: machine.body_transitive,
                 states,
             },
         );
