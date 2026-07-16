@@ -625,10 +625,16 @@ sealed progress profiles + grants, TPR4's remaining big half).
    reality test (main has no clause -- EMPTY ceiling -- but its
    transitive row equals its callee's declared row). NOTE: today's
    EffectPlan counts the DECLARATION into its direct set, so
-   declared==inferred on the declaring machine; splitting declaration
-   out of inference is a later STR4 slice. Remaining STR4:
-   declaration-free inference split, pinned-slot refinement,
-   ceiling-vs-inferred enforcement;
+   declared==inferred on the declaring machine -- RESOLVED BY STR4
+   SLICE 3 (LANDED 2026-07-16): MachineEffects gains `body_observed`
+   (state + call direct sets, computed in the plan builder; the
+   declared seed was ALREADY structurally separate -- `direct` is the
+   authored clause, never mutated) and the checked inferred_direct
+   row normalizes the declaration-free observation set; the slice-2
+   test now pins ceiling != inferred_direct on the declaring machine
+   (transitive still includes the own declaration via its seed until
+   a later fixpoint rework). Remaining STR4: pinned-slot refinement,
+   ceiling-vs-inferred enforcement, transitive-seed rework;
    snapshots gain the new fields as those slices land;
    STR4 checked semantic
    qualification + permission + normalized-machine-contract plans; STR5

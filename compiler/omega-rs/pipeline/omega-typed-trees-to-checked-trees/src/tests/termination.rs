@@ -1590,15 +1590,17 @@ fn effect_row_facts_split_ceiling_from_inferred_summaries() {
     let main_symbol = symbol_of("Main::main");
     let checked = lower_typed_trees(typed).expect("checked lowering should succeed");
 
-    // quiet: the authored ceiling names filesystem_io; today's plan counts
-    // the DECLARATION into its direct set too, so ceiling == inferred here
-    // (splitting declaration out of inference is a later STR4 slice).
+    // quiet: the authored ceiling names filesystem_io while the BODY
+    // observes nothing -- the declaration-free inferred direct (STR4 slice
+    // 3) is the fixed EMPTY row, visibly different from the ceiling.
     let quiet = checked
         .facts
         .effect_rows
         .for_machine(quiet_symbol)
         .expect("quiet's effect-row fact");
     assert_ne!(quiet.published_ceiling, EffectRowTable::EMPTY_ROW);
+    assert_eq!(quiet.inferred_direct, EffectRowTable::EMPTY_ROW);
+    assert_ne!(quiet.published_ceiling, quiet.inferred_direct);
     assert_eq!(
         checked.facts.effect_rows.rows.members(quiet.published_ceiling),
         &[omega_core::semantics::effect_member_id("filesystem_io").expect("catalog")]

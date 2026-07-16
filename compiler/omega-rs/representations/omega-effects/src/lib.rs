@@ -308,8 +308,15 @@ pub enum EffectPathSource {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MachineEffects {
     pub symbol: SymbolHandle,
+    /// The DECLARED clause (the machine's authored `effects` seed) -- the
+    /// build seeds it and never mutates it; observations live below.
     pub direct: EffectSet,
     pub transitive: EffectSet,
+    /// STR4 slice 3 (decision 22): what THIS body's own statements observe
+    /// (state + call direct sets), declaration-free -- the honest inferred
+    /// direct summary. (`transitive` still includes the own declaration via
+    /// its seed until a later slice reworks the fixpoint.)
+    pub body_observed: EffectSet,
     pub states: HandleSpan<StateEffects>,
 }
 
@@ -319,6 +326,7 @@ impl Default for MachineEffects {
             symbol: SymbolHandle::invalid(),
             direct: EffectSet::empty(),
             transitive: EffectSet::empty(),
+            body_observed: EffectSet::empty(),
             states: HandleSpan::empty(),
         }
     }
@@ -770,6 +778,14 @@ fn build_effect_plan(machines: Vec<MachineWork>) -> EffectPlan {
     let mut plan = EffectPlan::default();
 
     for machine in machines {
+        // STR4 slice 3: the body's own observations, declaration-free.
+        let mut body_observed = EffectSet::empty();
+        for state in &machine.states {
+            body_observed.insert_all(state.direct);
+            for call in &state.calls {
+                body_observed.insert_all(call.direct);
+            }
+        }
         let mut states = HandleSpan::empty();
         for state in machine.states {
             let mut calls = HandleSpan::empty();
@@ -804,6 +820,7 @@ fn build_effect_plan(machines: Vec<MachineWork>) -> EffectPlan {
                 symbol: machine.symbol,
                 direct: machine.direct,
                 transitive: machine.transitive,
+                body_observed,
                 states,
             },
         );

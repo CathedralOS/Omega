@@ -73,7 +73,8 @@ fn build_effect_row_facts(
     };
     let mut machines = Vec::new();
     for machine_effects in effects.machines() {
-        let inferred_direct = intern_set(machine_effects.direct);
+        // STR4 slice 3: the honest declaration-free direct summary.
+        let inferred_direct = intern_set(machine_effects.body_observed);
         let inferred_transitive = intern_set(machine_effects.transitive);
         let published_ceiling = program
             .machines()
