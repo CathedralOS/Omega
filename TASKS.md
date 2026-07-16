@@ -928,12 +928,24 @@ bounded-escape store-containment keystone. Open rungs:
   example is the acceptance shape (pinned: pass
   data_where_gated_literal_proves RUNS exit 70; fail
   data_where_literal_violates -- omitted health reads 0, not a
-  Player). Remaining R2: rung 3 (the ATOMIC consumer: entailment
-  hypotheses + field-write obligations + the zeroed-storage access
-  gate for gated types -- currently storage-legal per ch12's
-  machine-owned rule but reads are NOT yet gated), windows (ch11
-  consumption-point relaxation), runtime-valued gated construction
-  via the prover. The rest of the big semantic build:** the
+  Player). RUNG 3 SLICE 1 LANDED same day -- the WRITE OBLIGATION
+  (obligations BEFORE hypotheses: over-refusal is safe,
+  over-assumption is not): a NEW default_domains validation pass
+  walks each state linearly tracking `self`-rooted domain-carrying
+  places (machine-owned = born zeroed, so untracked fields read 0);
+  every store to a where-mentioned field re-folds the facts at the
+  post-write valuation (integer-literal stores tracked; a
+  whole-place struct literal reseeds from rung 2b's proven
+  construction; runtime-valued constrained stores refuse directed;
+  any call poisons the tracking -- conservative aliasing fence).
+  Strict store-time semantics; ch11 windows are the sanctioned
+  relaxation (pinned: fail data_where_write_violates -- count=9
+  against zeroed len; the sequential len=8-then-count=3 pass canary
+  discharges). Remaining R2: hypotheses (readers assume the facts --
+  legal only now that the write net is total for self-places; needs
+  the parameter/alias story first), the zeroed-storage ACCESS gate
+  for gated types, windows (ch11), runtime-valued construction via
+  the prover. The rest of the big semantic build:** the
   big semantic build — where-clause parsing on data, the default-domain
   layer, gating (zero-excluding domains legal, construction mandatory
   fields), consumption-point windows (ADDITIVE relaxation of the landed
