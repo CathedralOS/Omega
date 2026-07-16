@@ -1067,18 +1067,31 @@ pub(crate) fn where_fact_interval(
     state: Option<&State>,
     expression: ExpressionHandle,
 ) -> Option<crate::arithmetic_domains::Interval> {
-    use omega_typed_trees::expression::BinaryOperator;
-
     let ExpressionNode::Member(member) = program.expression_table.expression(expression) else {
         return None;
     };
     let receiver_type =
         crate::places::declared_place_type(program, machine, state, member.receiver)?;
     let definition = data_definition_for_type(program, receiver_type)?;
-    if definition.where_facts.is_empty() {
+    field_fact_interval(program, definition, member.member.as_str(), 0)
+}
+
+/// The per-field core of the reader hypotheses: the interval the
+/// definition's standing where facts pin on `field`. `depth` bounds the
+/// TRANSITIVE chain (`count <= mid, mid <= capacity[0..=100]` chains
+/// through the unranged middle field); a cyclic pair exhausts the cap and
+/// resolves to None -- over-refusal only.
+fn field_fact_interval(
+    program: &TypedTrees,
+    definition: &DataDefinition,
+    field: &str,
+    depth: usize,
+) -> Option<crate::arithmetic_domains::Interval> {
+    use omega_typed_trees::expression::BinaryOperator;
+
+    if depth >= 4 || definition.where_facts.is_empty() {
         return None;
     }
-    let field = member.member.as_str();
 
     let mut interval = crate::arithmetic_domains::Interval {
         low: None,
@@ -1122,7 +1135,7 @@ pub(crate) fn where_fact_interval(
                 && field_is_unsigned(program, definition, field)
                 && let Some(factor_low) = factor_lower_bound(program, definition, factor)
                 && factor_low >= 1
-                && let Some(bound) = bound_source_interval(program, definition, binary.right)
+                && let Some(bound) = bound_source_interval(program, definition, binary.right, depth)
                 && let Some(mut bound_high) = bound.high
             {
                 if matches!(
@@ -1146,7 +1159,7 @@ pub(crate) fn where_fact_interval(
         } else {
             continue;
         };
-        let Some(other_interval) = bound_source_interval(program, definition, other) else {
+        let Some(other_interval) = bound_source_interval(program, definition, other, depth) else {
             continue;
         };
         // Normalize to `field OP other`.
@@ -1210,6 +1223,7 @@ fn bound_source_interval(
     program: &TypedTrees,
     definition: &DataDefinition,
     expression: ExpressionHandle,
+    depth: usize,
 ) -> Option<crate::arithmetic_domains::Interval> {
     match program.expression_table.expression(expression) {
         ExpressionNode::Integer(value) => {
@@ -1235,7 +1249,11 @@ fn bound_source_interval(
                     }
                     _ => None,
                 })?;
-            crate::arithmetic_domains::range_constraint_interval(program, handle)
+            // Declared range first; an UNRANGED co-field chains through its
+            // own where-fact interval (depth-capped -- cycles resolve None).
+            crate::arithmetic_domains::range_constraint_interval(program, handle).or_else(|| {
+                field_fact_interval(program, definition, name.as_str(), depth + 1)
+            })
         }
         _ => None,
     }
@@ -1280,7 +1298,7 @@ fn factor_lower_bound(
         .name_path_members(path.members)
         .last()?
         .as_str();
-    if let Some(interval) = bound_source_interval(program, definition, factor)
+    if let Some(interval) = bound_source_interval(program, definition, factor, 4)
         && let Some(low) = interval.low
     {
         return Some(low);
