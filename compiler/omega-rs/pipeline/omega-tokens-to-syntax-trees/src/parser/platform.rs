@@ -39,7 +39,9 @@ pub(super) fn parse_platform<'tokens, 'source>(
             || rest.at_contextual("requires")
             || rest.at_contextual("ensures")
         {
-            let ((effects, contracts), after_clauses) =
+            // Platform entries never author a termination guarantee; the
+            // clause parser's flag is trait-requirement material (TPR4).
+            let ((effects, contracts, _terminates_guarantee), after_clauses) =
                 parse_signature_clauses(syntax_trees, rest)?;
             signature.effects = effects;
             signature.contracts = contracts;

@@ -64,10 +64,12 @@ pub(super) fn parse_trait_definition<'tokens, 'source>(
         };
         input = after_default.take_keyword(KeywordKind::Machine, "machine")?;
         let (mut signature, rest) = parse_trait_machine_signature(syntax_trees, input)?;
-        let ((effects, contracts), rest) = parse_signature_clauses(syntax_trees, rest)?;
+        let ((effects, contracts, terminates_guarantee), rest) =
+            parse_signature_clauses(syntax_trees, rest)?;
         signature.is_default = is_default;
         signature.effects = effects;
         signature.contracts = contracts;
+        signature.terminates_guarantee = terminates_guarantee;
         let handle = syntax_trees.items.insert_state_signature(&signature);
         let handle = syntax_trees.items.append_state_signature_handle(handle);
         if machine_count == 0 {
@@ -123,6 +125,7 @@ fn parse_trait_machine_signature<'tokens, 'source>(
             return_type,
             effects: HandleSpan::empty(),
             contracts: HandleSpan::empty(),
+            terminates_guarantee: false,
         },
         input,
     ))
@@ -181,6 +184,9 @@ pub(super) fn parse_signature_clauses<'tokens, 'source>(
         (
             HandleSpan<omega_syntax_trees::identifier::Identifier>,
             HandleSpan<CapabilityContract>,
+            // TPR4 (decision 23): authored bare `terminates` -- the bodyless
+            // requirement's PUBLIC guarantee.
+            bool,
         ),
         Input<'tokens, 'source>,
     ),
@@ -190,6 +196,7 @@ pub(super) fn parse_signature_clauses<'tokens, 'source>(
     let mut effect_count = 0u32;
     let mut contract_start = Handle::invalid();
     let mut contract_count = 0u32;
+    let mut terminates_guarantee = false;
 
     while !input.at_punctuation(PunctuationKind::Semicolon)
         && !input.at_punctuation(PunctuationKind::LeftBrace)
@@ -258,6 +265,24 @@ pub(super) fn parse_signature_clauses<'tokens, 'source>(
             continue;
         }
 
+        if input.at_contextual("terminates") {
+            input = input.take_contextual("terminates")?;
+            // Decision 23 (TPR4): a bodyless requirement authors the PUBLIC
+            // guarantee with bare `terminates` (the signature's own `;`
+            // terminates it) -- its implementations inherit the claim. The
+            // witness belongs to implementations, never the requirement.
+            if input.at_contextual("by") {
+                return Err(input.error_here(
+                    "a ranking witness (`terminates by ...`) does not belong on a \
+                     bodyless requirement (decision 23): the requirement authors the \
+                     guarantee with bare `terminates`; the implementation supplies \
+                     the witness that discharges it",
+                ));
+            }
+            terminates_guarantee = true;
+            continue;
+        }
+
         let (_, rest) = input.expect_token()?;
         input = rest;
     }
@@ -272,7 +297,7 @@ pub(super) fn parse_signature_clauses<'tokens, 'source>(
     } else {
         HandleSpan::from_parts(contract_start, contract_count)
     };
-    Ok(((effects, contracts), input))
+    Ok(((effects, contracts, terminates_guarantee), input))
 }
 
 fn extend_contiguous_span<T>(target: &mut HandleSpan<T>, source: HandleSpan<T>) {
