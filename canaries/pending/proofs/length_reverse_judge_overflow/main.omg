@@ -14,9 +14,17 @@
 // machine alone (no lemma) compiles fine. FIX SHAPE: cycle detection /
 // a depth budget in the state-values simplify recursion turning
 // divergence into a loud diagnostic -- a compiler must never crash on
-// any input. The lemma itself is true (Lean: List.length_reverse); its
-// intended proof cites length_append + add_succ_law + add_zero_right in
-// the step sub-state.
+// any input. HARDENING LANDED 2026-07-16: the boolean simplification
+// family is depth-budgeted (256) and the distribute-over-Or rewrite is
+// size-gated (96 nodes) -- the DNF-explosion CRASH class is closed. The
+// repro now HANGS instead: profiling shows exponential TIME in the
+// depth-capped re-entrant helper expansion (simplify_expression_with_
+// bindings <-> helper_state_value <-> helper_state_model, depth limit 32,
+// branching per level, no memoization). REMAINING FIX SHAPE: a shared
+// work/fuel budget (or memo table) across one simplify pass that turns
+// exhaustion into a declined fold. The lemma itself is true (Lean:
+// List.length_reverse); its intended proof cites length_append +
+// add_succ_law + add_zero_right in the step sub-state.
 use omega::language::core::nat;
 use omega::language::core::seq;
 
