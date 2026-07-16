@@ -1282,8 +1282,25 @@ rows. Rungs:
   differential; the 2^24 + 1.0 precision-cliff shape — interp was 71 /
   native was only coincidentally 70 via compare-time narrowing before).
   Suite 854/854, differential 14/14 after the stamps.
-  REMAINING (F2c): float DESTINATION landing for call/transition ARGS
-  (mirrors the integer carrier's remaining arg-position work);
+  F2c ARG FACE LANDED (aarch64 lane, 2026-07-16): transition-argument
+  float trees adopt the TARGET STATE PARAMETER's declared type —
+  land_float_literal_destinations walks [transition.target,
+  transition.continuation], resolves Named targets to the same-machine
+  state (path members live in the STATEMENT table's identifier arena,
+  not the expression table's), zips spelled args against non-self
+  params (`is_self` filtered; the receiver never pairs), and
+  stamp_float_tree's the argument at the param's format. NO backend
+  change needed: the stamped literal flows through the existing
+  narrow_f32_literal_operands -> f32_bits() landed branch (text-parse
+  at f32) and the runtime does per-op f32 (fadd s-regs). Pinned:
+  pass/float/f32_arg_const_arith_landed_exit (70 both engines,
+  differential; the 2^-24 + 2^-48 double-rounding tie — per-op f32
+  ties DOWN to 1.0, the f64 window rounds UP to 1+2^-23). Debug
+  lesson: an early "native 71" was a STALE CLI BINARY (validation
+  crate rebuilt for the test harness but not omega-run); rebuild the
+  CLI before diagnosing backend gaps.
+  REMAINING (F2c): value-machine CALL-statement args (cross-machine
+  param resolution, deferred until a shape demands it);
   exact-Rat multi-op const chains only if a shape demands more than
   per-op IEEE (per-op rounding at width == the exact-Rat spec for
   homogeneous ops).

@@ -24974,6 +24974,51 @@ fn f32_guard_const_arith_landed_exit_canary_runs() {
 }
 
 #[test]
+fn f32_arg_const_arith_landed_exit_canary_runs() {
+    // F2c ARG face: a constant float tree in transition-ARGUMENT position lands
+    // at the parameter's declared f32 width and evaluates per-op there
+    // (1.0 + (2^-24 tie) ties DOWN to 1.0 at f32; the f64 window rounds the sum
+    // UP to 1 + 2^-23 and takes the wrong arm) on BOTH engines.
+    let canary = pass_canary("float/f32_arg_const_arith_landed_exit");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("f32 arg const-arith canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter should evaluate the arg tree per-op at f32 (exit 70), got {}",
+        outcome.exit_code
+    );
+
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-f32-arg-landed-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("f32 arg const-arith canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("f32 arg const-arith canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the native arg tree at the f32 landed width (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_stdin_command_branch_exit_canary_runs() {
     let canary = pass_canary("text/runtime_stdin_command_branch_exit");
     let main_path = canary.join("main.omg");
@@ -30753,6 +30798,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "calls/runtime_mut_ref_forward_exit",
     "storage/runtime_local_slice_forward_exit",
     "float/f32_guard_const_arith_landed_exit",
+    "float/f32_arg_const_arith_landed_exit",
     "text/runtime_alias_string_write",
     "text/runtime_alias_text_builder_write",
     "text/runtime_string_concat_membership_exit",
