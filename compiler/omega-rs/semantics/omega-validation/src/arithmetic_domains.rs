@@ -1228,6 +1228,23 @@ fn primitive_range(primitive: PrimitiveType) -> Option<Interval> {
     Some(Interval { low, high })
 }
 
+/// The bit width of an integer primitive (the F8 shift-count bound), or `None`
+/// for non-integer types. `Addr` is excluded deliberately: shifting an address
+/// is already rejected by the address-arithmetic model above.
+fn integer_bit_width(primitive: PrimitiveType) -> Option<i64> {
+    match primitive {
+        PrimitiveType::I8 | PrimitiveType::U8 => Some(8),
+        PrimitiveType::I16 | PrimitiveType::U16 => Some(16),
+        PrimitiveType::I32 | PrimitiveType::U32 => Some(32),
+        PrimitiveType::I64 | PrimitiveType::U64 => Some(64),
+        PrimitiveType::Addr
+        | PrimitiveType::Bool
+        | PrimitiveType::F32
+        | PrimitiveType::F64
+        | PrimitiveType::String => None,
+    }
+}
+
 /// The integer value of a literal operand (through a `Mutable` wrapper), or `None`
 /// when the operand is not a plain integer literal.
 fn integer_literal_value(program: &TypedTrees, value: ExpressionHandle) -> Option<i64> {
@@ -1689,6 +1706,56 @@ fn analyze(
                     call_hint,
                     target_hint,
                 )));
+            }
+
+            // F8 -- the shift-COUNT ruling (ch5, settled 2026-07-18): the count is
+            // proof-or-policy. Under Exact the count must be PROVABLY in
+            // [0, width); Saturating governs value overflow, not operand
+            // validity, so its count obligation is Exact's. Wrapping MASKS the
+            // count (`k & (width - 1)`) and Trapping TRAPS on an out-of-range
+            // count -- both defined, no obligation. The width is the SHIFTED
+            // operand's (decision 17 stays operand-driven: an anonymous lhs
+            // falls back to the destination primitive, but the lhs DOMAIN
+            // governs and a target `in Wrapping` never re-domains the count).
+            // The ISA's silent count-masking under Exact is an invented number
+            // and never adopted.
+            if shift_count_rhs
+                && matches!(
+                    effective_domain,
+                    ArithmeticDomain::Exact | ArithmeticDomain::Saturating
+                )
+                && let Some(shift_primitive) = left.primitive.or(target_primitive)
+                && let Some(width) = integer_bit_width(shift_primitive)
+            {
+                let provably_in_range = matches!(right.interval.low, Some(low) if low >= 0)
+                    && matches!(right.interval.high, Some(high) if high < width);
+                if !provably_in_range {
+                    // A count that can NEVER be legal (a spelled `1 << 40` on
+                    // u32) reads differently from an unproven one.
+                    let always_out = matches!(right.interval.low, Some(low) if low >= width)
+                        || matches!(right.interval.high, Some(high) if high < 0);
+                    let verdict = if always_out {
+                        "is provably out of range and can never execute"
+                    } else {
+                        "is not provably below the operand width"
+                    };
+                    let saturating_hint = if effective_domain == ArithmeticDomain::Saturating {
+                        " (`Saturating` governs value overflow, not count validity -- its count \
+                         obligation is Exact's)"
+                    } else {
+                        ""
+                    };
+                    diagnostics.push(Diagnostic::error(format!(
+                        "shift count in {owner} {verdict} for `{prim}`{saturating_hint}: exact \
+                         shifts prove `count < {width}` (ch5 shift-count ruling -- \
+                         proof-or-policy). Constrain the count's range (a ranged type, a \
+                         `requires` clause, or a dominating guard), or pick a defined-count \
+                         policy on the SHIFTED operand (`{prim} in Wrapping` masks the count \
+                         to `count & {mask}`; `in Trapping` traps at runtime).",
+                        prim = primitive_name(shift_primitive),
+                        mask = width - 1,
+                    )));
+                }
             }
 
             Analysis {

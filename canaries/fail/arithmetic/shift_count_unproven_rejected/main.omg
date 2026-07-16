@@ -1,0 +1,19 @@
+// F8 (ch5 shift-count ruling, 2026-07-18): under Exact a shift's count must
+// be PROVEN below the operand width. A branch-dependent u32 count with no
+// range (could be 3 or 40 here; the tracker cannot fold it and the interval
+// is the full u32) is not provably in range -- proof-or-policy rejects it.
+// The fix is a ranged count type (u32 [0..=31]), a dominating guard, or a
+// defined-count policy on the shifted operand (Wrapping masks / Trapping
+// traps) -- see pass/arithmetic/runtime_shift_count_proven_range_exit for
+// the proven spelling.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; k: u32; sel: u32; n: u32; }
+machine Main::main(&mut self) {
+    transition self.sel == 0 { true -> small() _ -> big() }
+    state small(&mut self) { self.k = 3;  transition { _ -> shift() } }
+    state big(&mut self)   { self.k = 40; transition { _ -> shift() } }
+    state shift(&mut self) {
+        self.n = 1 << self.k;
+        self.console.exit_process(0);
+    }
+}

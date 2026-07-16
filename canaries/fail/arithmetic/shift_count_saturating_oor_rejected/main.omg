@@ -1,0 +1,17 @@
+// F8 (ch5 shift-count ruling, 2026-07-18): `Saturating` governs VALUE
+// overflow, not count validity -- its count obligation is Exact's. A
+// Saturating `<<` by an at/above-width count (u32 << 40) is therefore a
+// compile error, not a clamp. (This is the retired
+// runtime_shl_saturating_atwidth_exit shape, migrated to the ruling; the
+// value-overflow clamp itself stays pinned by
+// pass/arithmetic/runtime_shl_saturating_exit and
+// runtime_shl_saturating_value_overflow_exit.)
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine Main::main(&mut self) {
+    let a: u32 in Saturating = (3 as u32 in Saturating);
+    let c: u32 in Saturating = (40 as u32 in Saturating);
+    let s: u32 in Saturating = a << c;
+    transition s == 0 { true -> done() _ -> done() }
+    state done(&mut self) { self.console.exit_process(70); }
+}

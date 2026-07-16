@@ -1366,6 +1366,45 @@ rejects — an INTEGER ruling, engineering rides this ladder as F8).
   literal OOR = compile error), Wrapping = masked count, Trapping = trap;
   retire the shift divergence from the pending family; differential
   canaries per domain.
+  F8a LANDED (aarch64 lane, 2026-07-16) — THE VALIDATION OBLIGATION:
+  arithmetic_domains.rs's shift arm now requires the count PROVABLY in
+  [0, width) when the lhs-governing domain is Exact OR Saturating
+  (Saturating governs value overflow, not count validity — its count
+  obligation is Exact's, per ch5). Width = the shifted operand's
+  primitive (anonymous lhs falls back to the destination primitive;
+  the lhs DOMAIN stays operand-driven per decision 17 — a target
+  `in Wrapping` never re-domains the count). Two diagnostic verdicts:
+  "provably out of range and can never execute" (literal OOR) vs "not
+  provably below the operand width" (unproven). Corpus blast radius
+  was exactly 3: shift_amount_over_width_compiles respelled
+  (`(1 as i32 in Wrapping) << 100` — the folder no-crash pin
+  survives), rule90's rule shift rides window's Trapping domain
+  (`(90 as i32 in Trapping) >> window`), and
+  runtime_shl_saturating_atwidth_exit RETIRED → split into
+  fail/arithmetic/shift_count_saturating_oor_rejected (the count
+  face) + pass/arithmetic/runtime_shl_saturating_value_overflow_exit
+  (proven count 3<<31, the clamp machinery keeps 32-bit coverage;
+  differential). New pins: fail shift_count_literal_oor_rejected +
+  shift_count_unproven_rejected (branch-dependent count); pass
+  runtime_shift_count_proven_range_exit (u32 [0..=7] count,
+  differential 70). Pending-family note updated (the shift half of
+  the unified design question is retired; float→int = F4 remains).
+  PROOF-SURFACE GAP noted: a domain-cast LOCAL initializer
+  (`let c: u32 in Saturating = (31 as ...)`) does not feed the count
+  interval (fields fold via the tracker; locals with cast
+  initializers do not) — a CR3-family refinement when a shape
+  demands it.
+  REMAINING: F8b — Wrapping masked-count runtime migration (ch5:
+  `k & (width-1)`; the landed at-width legs pin modular-VALUE
+  semantics (`1<<40 u32 = 0`) which predate the ruling — migrate
+  interp + aarch64 (LSLV masks natively at 32/64; sub-word needs an
+  explicit AND) + the pinned canaries: runtime_shift_count_domain_exit
+  at-width legs, runtime_shift_right_atwidth_exit,
+  runtime_shift_atwidth_signed_modular_exit,
+  runtime_shift_atwidth_indexed_targets_exit). F8c — Trapping
+  count-trap (count >= width traps even when the VALUE fits: `0 << 40`
+  Trapping currently exits 0 on both engines; the value-overflow trap
+  already fires).
 
 ## Settled rulings with remaining engineering
 
