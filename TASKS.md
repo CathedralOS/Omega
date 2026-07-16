@@ -1459,24 +1459,24 @@ rows. Rungs:
   interp-vs-native divergence). Remaining: the aarch64 post-op FP
   guard sequences (WriteRuntimeStorageBinary already carries domain +
   is_float), the fence lift, per-policy canaries (arch-gated for
-  x86), then x86 on its host. SEQUENCE SKETCH (banked): the guard
-  needs OPERAND finiteness/NaN-ness captured BEFORE the op overwrites
-  v0 — emit in append_runtime_float_binary_operation's Add/Sub/Mul/
-  Div arms under Sat/Trap: (1) materialize the format's Inf bit
-  pattern once (padded immediate → fmov v2); (2) pre-op: fabs v3,v0 +
-  fcmp v3,v2 → operand-0 finite (LT), same for v1 → AND the flags
-  into a GPR scratch (cset+and) — or branch-chain; (3) run the op;
-  (4) post-op: fabs v3,v0(result) + fcmp v3,v2 — result infinite +
-  operands-finite → Saturating: fmov v0 ← ±MAX_FINITE bits
-  (copysign: keep the result's sign via the sign bit — materialize
-  MAX_FINITE, orr the sign) / Trapping: brk; Trapping additionally
-  traps NaN-from-non-NaN (fcmp v0,v0 unordered + operand NaN
-  pre-flags) and the Saturating divide keeps r==0.0 non-finites
-  (pre-op fcmp v1,#0.0 flag). Divide-by-zero fence for Saturating,
-  trap for Trapping. Widths in lockstep
-  (runtime_float_binary_operation_width grows a domain param). The
-  operand-position float path needs the same treatment or a loud
-  fence.
+  x86), then x86 on its host. SEQUENCE DESIGN v2 (banked,
+  ALL-INTEGER — no new FP primitives): the operands' RAW BITS already
+  sit in GPRs (left/right_register) before the FMOVs, and one integer
+  compare classifies finite/Inf/NaN — clear the sign bit
+  (and #0x7fffffff for f32 via encode_and_w_low_ones(31); f64 needs
+  the X-form twin, low-63-ones bitmask N=1/immr=0/imms=62), then cmp
+  against the format's Inf bits (padded immediate): LO=finite,
+  EQ=infinite, HI=NaN. Guard: (1) pre-op classify both operand GPRs
+  (branch-chain or cset flags into a scratch); (2) run the FP op;
+  (3) fmov result → GPR, classify; Saturating: infinite result +
+  finite operands (and divisor != +-0.0 for Divide — an integer
+  compare of the right GPR's sign-cleared bits against zero) → clamp:
+  MAX_FINITE bits OR the result's sign bit (and #sign-mask + orr) →
+  fmov back; Trapping: NaN-from-non-NaN or Inf-from-finite → brk.
+  Widths in lockstep (runtime_float_binary_operation_width grows a
+  domain param); the operand-position float path gets the same
+  treatment or a loud fence; the FENCE in validation lifts only with
+  this landing.
 - **F6 — TotalOrder named satisfiers** for f32/f64 (sign-magnitude
   integer compare) once satisfier machinery lands.
 - **F7 — format records in omega::core + Float provides rows:** needs the
