@@ -2995,6 +2995,7 @@ fn recognize_structural_case_arms(
                         let term = judge.callee_term(*argument, &environment, 0)?;
                         sub_environment.push((parameter.name.as_str().to_owned(), term));
                     }
+                    let mut sub_environment = sub_environment;
                     let mut citations = Vec::new();
                     let mut terminal: Option<StructuralTerm> = None;
                     for statement in
@@ -3002,6 +3003,19 @@ fn recognize_structural_case_arms(
                     {
                         if terminal.is_some() {
                             return None; // statements after the terminal: out of shape
+                        }
+                        // A `let` in the sub-proof (spelled, or the lowering's
+                        // own __hoist_N of a call-valued terminal) BINDS: its
+                        // initializer termifies under the environment built so
+                        // far and the local joins it, so a later terminal or
+                        // citation referencing the name resolves. This is what
+                        // lets a step arm's value be a CALL wrapping the
+                        // inductive self-application (reverse_append's shape).
+                        if let StatementNode::LocalData(local) = statement {
+                            let term =
+                                judge.callee_term(local.initial_value, &sub_environment, 0)?;
+                            sub_environment.push((local.name.as_str().to_owned(), term));
+                            continue;
                         }
                         if let Some((target, argument_handles)) =
                             citation_call_in_statement(program, statement)
@@ -3045,7 +3059,17 @@ fn recognize_structural_case_arms(
                         else {
                             return None;
                         };
-                        terminal = Some(judge.callee_term(*value, &sub_environment, 0)?);
+                        let term = judge.callee_term(*value, &sub_environment, 0);
+                        if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                            eprintln!(
+                                "STRUCT arm-terminal machine={} sub={} termified={} expr={}",
+                                machine.name,
+                                sub_state.name.as_str(),
+                                term.is_some(),
+                                program.expression_table.display_name(*value),
+                            );
+                        }
+                        terminal = Some(term?);
                     }
                     (terminal?, citations)
                 }

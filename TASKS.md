@@ -1209,26 +1209,20 @@ no `unbounded` property exists. Rungs:
   declines the fold (never unsound, merely unfolded). The pending
   overflow repro RETIRED (the landed lemma is the living regression
   witness — every seq.omg import re-verifies it). reverse_append
-  PROBED TWICE and reverted — the ONE remaining blocker is the
-  judge's IH-THROUGH-CALL rung: an ensures whose step RESULT wraps
-  the self-application inside another CALL (`append(ih, singleton)`)
-  is not judged (the structural tier only takes the IH from a
-  CONSTRUCTOR result spine; append_assoc's `Cons { .., append_assoc }`
-  shape is why IT lands). The nested value-call fence is NOT a
-  blocker: binding the inner call to a local (`let ih =
-  reverse_append(tail, t);`) passes it cleanly, per its own hint.
-  Next zoo growth = the judge rung, RECONNED 2026-07-16: the IH
-  machinery is ALREADY shape-agnostic (contract_entailment.rs ~260:
-  StructuralJudge::self_applications WALKS the arm value term and
-  instantiates the ensures for every self-application — no
-  constructor-spine requirement) — the gap is in ARM RECOGNITION:
-  recognize_structural_case_arms stands down on ra_step's shape (a
-  sub-state whose terminal is a CALL wrapping the self-application,
-  `(append(reverse_append(..), singleton))`), so no tier claims the
-  fact. Debug entry: OMEGA_STRUCT_TRACE on the no-let reverse_append
-  spelling; extend the recognizer to term-ify call terminals (and
-  possibly `let`-bound locals) in sub-states. mc_step/ma_step land
-  because their terminals are constructor-wrapped. REMAINING:
+  LANDED 2026-07-16 (Lean List.reverse_append) via the recognizer's
+  LET-BINDING RUNG: a sub-proof `let` — spelled (`let ih =
+  reverse_append(tail, t);`) or the LOWERING'S OWN __hoist_N of a
+  call-valued terminal — termifies its initializer under the arm
+  environment and JOINS it, so call-wrapping-self-application
+  terminals resolve. The root cause (found by instrumenting the
+  arm-terminal conversion, trace line kept behind
+  OMEGA_STRUCT_TRACE): the compiler hoists a call terminal into
+  `__hoist_0`, and the recognizer saw an unresolvable Name — the IH
+  machinery itself was ALWAYS shape-agnostic
+  (StructuralJudge::self_applications walks the whole value term).
+  The nested value-call fence is met by the let-bound spelling, per
+  its own hint. Next zoo: reverse_reverse (cites reverse_append),
+  map/filter once generics-over-machines land. REMAINING:
   more of the lemma zoo as the judge widens (commutativity needs
   double induction / rearrange-mode), extraction INTO consumer proofs
   (a caller citing a lemma's ensures — the fact-consumption face), the
