@@ -2922,7 +2922,15 @@ with a real app-window story.
   normalized contract ID; add requirement/provider/accepted supply fixtures;
   reject a provider with one hidden extra effect; snapshot that the checked
   artifact preserves supply mode and contract identity. Start before component
-  manifests or hot-swap admission.
+  manifests or hot-swap admission. ADMISSION FIXTURES PINNED 2026-07-16
+  (the reject halves were already live, now witnessed): fail
+  capabilities/provider_widens_requirement_ceiling (a provider declaring
+  beyond the requirement's effects -- acceptance 7's never-widen) + fail
+  provider_hidden_extra_effect (declares exactly the ceiling but REACHES
+  filesystem_io through a callee -- the conformance ceiling bounds the
+  declaration, ceiling enforcement bounds the reach; nothing hides
+  between) + pass provider_within_ceiling (RUNS exit 70). The contract-ID
+  and snapshot halves ride MachineContractPlans (landed same day).
 - **Termination firewall slice (decision 23):** one bodyless requirement
   authors `terminates;`; an acyclic implementation inherits and derives it
   without repetition; cyclic implementations prove it once with descending
