@@ -24,7 +24,7 @@ machine Main::main(&mut self) {
     self.real_value = self.real_value / 2.0; // 4.5
 
     // float -> int truncates toward zero (4.5 -> 4).
-    self.truncated = self.real_value as i32;
+    self.truncated = self.real_value as i32 in Saturating; // F4: proof-or-policy (in-range value; Saturating = same result)
     transition self.truncated == 4 {
         true -> check_int_to_float()
         false -> bad()

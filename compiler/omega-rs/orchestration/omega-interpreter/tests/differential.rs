@@ -64,6 +64,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("arithmetic/runtime_shift_count_proven_range_exit", 70),
     ("arithmetic/runtime_shift_subword_masked_count_exit", 70),
     ("arithmetic/u64_magnitude_transition_arg_exit", 70),
+    ("arithmetic/float_literal_cast_proves_exit", 70),
     // F4 Saturating float->int (NaN -> 0, OOR clamp): aarch64 FCVTZS is
     // natively these semantics; x86's cvttsd2si fixup is the F4 remainder
     // (its host's oracle builds it), so the row is arch-gated like the
@@ -1957,10 +1958,9 @@ const PENDING_RUNTIME_DIVERGENCES: &[(&str, i32, PendingInterpOutcome)] = &[
     // FCVTZS SATURATES (like the interp's i64 saturation) and yields 99 --
     // the canary header documents both faces. F4 (proof-or-policy) retires
     // this row entirely.
-    #[cfg(target_arch = "x86_64")]
-    ("arithmetic/float_to_int_overflow_divergence", 70, PendingInterpOutcome::Exit(71)),
-    #[cfg(target_arch = "aarch64")]
-    ("arithmetic/float_to_int_overflow_divergence", 99, PendingInterpOutcome::Exit(71)),
+    // float_to_int_overflow_divergence RETIRED (F4 Exact cast obligation:
+    // the bare out-of-range cast no longer compiles; policies pinned by the
+    // arch-gated Saturating/Trapping canaries).
     // 72/72: the two legs AGREE on this host (aarch64 LSLV masks the count
     // at 64 like the interp); the parked divergence is vs x86's 32-bit mask.
     // unsigned_min_max_operand_position_divergence PROMOTED 2026-07-18 to

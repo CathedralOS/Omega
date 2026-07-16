@@ -1428,11 +1428,21 @@ rows. Rungs:
   pass/arithmetic/trapping_float_to_int_cast_traps (arch-gated
   abort-style suite test, both engine legs; in-range 7.9→7 first,
   then 1e20 traps; NaN probe-verified).
-  REMAINING (F4b): the Exact VALUE obligation (needs float constant
-  tracking in validation — bare casts keep transitional truncation);
-  the x86 Saturating/Trapping fixup sequences (its host's oracle);
-  then the pending float_to_int_overflow_divergence repro retires
-  fully.
+  F4-EXACT LANDED (2026-07-16) — F4 COMPLETE ON THIS HOST: a BARE
+  float→int cast requires the value provably in the target's range;
+  a float-LITERAL source (through Mutable, read at its landed format)
+  proves via truncation-fits, everything else takes the policy error
+  (the F8a shape: proof where visible, policy otherwise). Corpus
+  migrated: 8 canaries + 3 samples respelled `in Saturating`
+  (in-range values — identical runtime results on both hosts, x86's
+  pass-through included). The pending
+  float_to_int_overflow_divergence repro RETIRED EVERYWHERE (dir +
+  both cfg-arch'd pending-gate rows + the PendingCanary entry): the
+  bare out-of-range cast no longer compiles, so the pinned THREE-WAY
+  native divergence is unreachable. Pinned: fail/arithmetic/
+  float_cast_unproven_rejected + pass/arithmetic/
+  float_literal_cast_proves_exit (differential 70). REMAINING (x86
+  host only): the Saturating/Trapping cvttsd2si fixup sequences.
 - **F5 — policy lowering:** float Trapping (invalid/overflow/div-by-zero
   trap) + Saturating (clamp to ±MAX_FINITE) on both ISAs + interp.
 - **F6 — TotalOrder named satisfiers** for f32/f64 (sign-magnitude

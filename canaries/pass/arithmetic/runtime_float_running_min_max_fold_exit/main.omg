@@ -70,7 +70,7 @@ machine Main::main(&mut self) {
     }
 
     state done(&mut self) {
-        self.total = (self.lo + self.hi) as i32;
+        self.total = (self.lo + self.hi) as i32 in Saturating; // F4: proof-or-policy (in-range value; Saturating = same result)
         transition self.total == 10 {
             true -> good()
             false -> bad()

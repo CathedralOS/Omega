@@ -1245,6 +1245,20 @@ fn integer_bit_width(primitive: PrimitiveType) -> Option<i64> {
     }
 }
 
+/// The float value of a literal operand (through a `Mutable` wrapper), read at
+/// its landed format, or `None` when the operand is not a plain float literal.
+/// The F4 Exact cast obligation's fold-visible proof source.
+fn float_literal_value(program: &TypedTrees, value: ExpressionHandle) -> Option<f64> {
+    let mut node = program.expression_table.expression(value);
+    while let ExpressionNode::Mutable(inner) = node {
+        node = program.expression_table.expression(*inner);
+    }
+    match node {
+        ExpressionNode::Float(literal) => Some(literal.landed_f64()),
+        _ => None,
+    }
+}
+
 /// The integer value of a literal operand (through a `Mutable` wrapper), or `None`
 /// when the operand is not a plain integer literal.
 fn integer_literal_value(program: &TypedTrees, value: ExpressionHandle) -> Option<i64> {
@@ -1801,6 +1815,52 @@ fn analyze(
                      of a float (ch5 cast ruling). Use `in Saturating` (NaN -> 0, clamp to \
                      the target range) or `in Trapping` (trap on NaN/out-of-range) instead.",
                 )));
+            }
+            // F4 Exact obligation (the cast ruling's proof side): a BARE
+            // float->int cast requires the value provably in the target's
+            // range. What validation can prove today: a float LITERAL source
+            // (through Mutable) whose truncation fits -- the two-phase law's
+            // fold-visible face; runtime sources need a policy. (Mirrors the
+            // F8a shift-count obligation's shape: proof where visible,
+            // policy otherwise, never a silent target-defined number -- the
+            // out-of-range bare cast was a pinned THREE-WAY native
+            // divergence, x86 integer-indefinite vs aarch64/interp
+            // saturation.)
+            if cast.domain == ArithmeticDomain::Exact
+                && matches!(
+                    source.primitive,
+                    Some(PrimitiveType::F32 | PrimitiveType::F64)
+                )
+                && let Some(target) = primitive
+                && integer_bit_width(target).is_some()
+            {
+                let provable = float_literal_value(program, cast.value).is_some_and(|value| {
+                    !value.is_nan()
+                        && primitive_range(target).is_some_and(|range| {
+                            let truncated = value.trunc();
+                            // The u64-classed row has no i64 upper bound; its
+                            // range check is the exact [0, 2^64) window.
+                            match (range.low, range.high) {
+                                (Some(low), Some(high)) => {
+                                    truncated >= low as f64 && truncated <= high as f64
+                                }
+                                (Some(low), None) => {
+                                    truncated >= low as f64
+                                        && truncated < 18446744073709551616.0
+                                }
+                                _ => false,
+                            }
+                        })
+                });
+                if !provable {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "float-to-int cast in {owner} is not provably in `{}`'s range \
+                         (ch5 cast ruling -- proof-or-policy; only a float-LITERAL source \
+                         proves today). Use `in Saturating` (NaN -> 0, clamp to the target \
+                         range) or `in Trapping` (trap on NaN/out-of-range).",
+                        primitive_name(target),
+                    )));
+                }
             }
             // The cast bounds the value to the target type's range (and re-tags its
             // domain), so it is a widening/narrowing escape from an overflow.
