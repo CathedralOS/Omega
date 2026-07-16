@@ -1,1 +1,1 @@
-violates data `MemoryMap`
+invariant window opened on `self.map` must close

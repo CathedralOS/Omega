@@ -235,6 +235,10 @@ struct TrackedPlace<'program> {
     /// with UNKNOWN valuations (poison until a whole-place literal
     /// reseeds).
     born_zero: bool,
+    /// R2 rung 3 slice 8 (ch11): an INVARIANT WINDOW -- a checkable write
+    /// left the facts FALSE; every consumption point (a read of the place,
+    /// a call, state exit) refuses until a later write folds them true.
+    window_open: bool,
 }
 
 /// Walk one state (write obligations + the access gate), seeded with the
@@ -282,13 +286,17 @@ fn walk_state(
                     diagnostics,
                 );
             }
-            // Conservative aliasing fence: a call may write any place.
+            // Conservative aliasing fence: a call may write any place --
+            // and OBSERVES state, so it is a consumption point (ch11): any
+            // open window must have closed.
             StatementNode::Call(_) => {
+                refuse_open_windows(&tracked, "a call", diagnostics);
                 tracked.clear();
                 poisoned = true;
             }
             StatementNode::Expression(expression) => {
                 if expression_contains_call(program, *expression) {
+                    refuse_open_windows(&tracked, "a call", diagnostics);
                     tracked.clear();
                     poisoned = true;
                 }
@@ -297,6 +305,7 @@ fn walk_state(
                 if local.initial_value.is_valid()
                     && expression_contains_call(program, local.initial_value)
                 {
+                    refuse_open_windows(&tracked, "a call", diagnostics);
                     tracked.clear();
                     poisoned = true;
                 }
@@ -304,6 +313,10 @@ fn walk_state(
             _ => {}
         }
     }
+
+    // Ch11 (slice 8): STATE EXIT is a consumption point -- an open window
+    // may not escape the state (the place would be observable violated).
+    refuse_open_windows(&tracked, "state exit", diagnostics);
 
     let mut exit_established: Vec<String> = entry_established.to_vec();
     exit_established.extend(
@@ -332,6 +345,24 @@ fn walk_state(
         }
     }
     (exit_established, exit_valuations)
+}
+
+/// Ch11 (slice 8): refuse every open invariant window at a consumption
+/// point, naming the place and the point.
+fn refuse_open_windows(
+    tracked: &[TrackedPlace<'_>],
+    consumption_point: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    for place in tracked.iter().filter(|place| place.window_open) {
+        diagnostics.push(Diagnostic::error(format!(
+            "data `{}`'s default domain is still FALSE at {consumption_point}: the \
+             invariant window opened on `{}` must close first -- restore the \
+             `where` facts before this consumption point (ch11)",
+            place.definition.name.as_str(),
+            place.spelling
+        )));
+    }
 }
 
 fn handle_assignment<'program>(
@@ -372,6 +403,7 @@ fn handle_assignment<'program>(
             // Rung 2b proved this literal against the domain.
             established: true,
             born_zero: place_born_zero,
+            window_open: false,
         });
         return;
     }
@@ -426,6 +458,7 @@ fn handle_assignment<'program>(
             // established for the access gate; its VALUATION stays unknown.
             established: !definition.zero_gated || !self_rooted,
             born_zero: born_zero && self_rooted,
+            window_open: false,
         });
         let last = tracked.len() - 1;
         &mut tracked[last]
@@ -453,16 +486,9 @@ fn handle_assignment<'program>(
         };
         match fold_with_valuation(program, &valuation, place.born_zero, *expression) {
             Some(value) if value != 0 => {}
-            Some(_) => {
-                all_hold = false;
-                diagnostics.push(Diagnostic::error(format!(
-                    "write to `{}.{field_name}` violates data `{}`'s default domain: a \
-                     `where` fact evaluates FALSE at the post-write valuation (strict \
-                     store-time semantics; ch11 windows are the future relaxation)",
-                    place.spelling,
-                    place.definition.name.as_str()
-                )));
-            }
+            // Ch11 (slice 8): a checkable violation OPENS a window instead
+            // of refusing -- the consumption points demand closure.
+            Some(_) => all_hold = false,
             None => {
                 all_hold = false;
                 diagnostics.push(Diagnostic::error(format!(
@@ -478,10 +504,15 @@ fn handle_assignment<'program>(
             }
         }
     }
-    // Every fact re-proven at the post-write valuation: the place now
-    // satisfies its domain (relevant for a GATED place's access gate).
+    // Every fact re-proven at the post-write valuation: the place
+    // satisfies its domain again (any open window CLOSES; a gated place
+    // establishes). A checkable violation leaves the window OPEN for the
+    // consumption points to police (ch11).
     if all_hold {
         place.established = true;
+        place.window_open = false;
+    } else {
+        place.window_open = true;
     }
 }
 
@@ -554,17 +585,18 @@ fn scan_expression_reads(
                 && let Some(receiver_type) =
                     crate::places::declared_place_type(program, machine, Some(state), member.receiver)
                 && let Some(definition) = data_definition_for_type(program, receiver_type)
-                && definition.zero_gated
+                && !definition.where_facts.is_empty()
             {
-                let established = tracked
+                let place = tracked
                     .iter()
-                    .find(|place| place.spelling == receiver_spelling)
-                    .map(|place| place.established)
-                    .unwrap_or_else(|| {
-                        // R2 rung 3 slice 3: established on every path in.
-                        entry_established.contains(&receiver_spelling)
-                    });
-                if !established {
+                    .find(|place| place.spelling == receiver_spelling);
+                let established = place.map(|place| place.established).unwrap_or_else(|| {
+                    // R2 rung 3 slice 3: established on every path in.
+                    entry_established.contains(&receiver_spelling)
+                });
+                // The zero-gate applies only to GATED types (zero-satisfying
+                // places are born established).
+                if definition.zero_gated && !established {
                     diagnostics.push(Diagnostic::error(format!(
                         "reading `{receiver_spelling}.{}` before data `{}`'s default \
                          domain is established: the zeroed value is not a `{}` \
@@ -572,6 +604,17 @@ fn scan_expression_reads(
                          (the cross-state must-analysis carries establishment)",
                         member.member.as_str(),
                         definition.name.as_str(),
+                        definition.name.as_str()
+                    )));
+                }
+                // Ch11 (slice 8): a READ is a consumption point -- an open
+                // invariant window must close before it.
+                if place.is_some_and(|place| place.window_open) {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "reading `{receiver_spelling}.{}` inside an OPEN invariant \
+                         window: a prior write left data `{}`'s default domain FALSE \
+                         -- restore the facts before this consumption point (ch11)",
+                        member.member.as_str(),
                         definition.name.as_str()
                     )));
                 }
