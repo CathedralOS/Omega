@@ -2914,10 +2914,14 @@ with a real app-window story.
   NOTE from the proofs arc: dyn descriptors must carry satisfier identity
   (`as &dyn Card::PowerOrder` decays to `&dyn Trait`; ch14).
 - **Relax surface removal (relax RETIRED 2026-07-17):** superseded by
-  invariant windows (ch11). Remove the parsed `relax` surface
-  (parser/statement.rs, type_reference.rs) + the relax canaries
-  (canaries/pass/relax/*) + any corpus uses, replacing with plain writes —
-  a deliberate compiler pass, coordinate with active lanes.
+  invariant windows (ch11). REMOVED 2026-07-16: both spellings refuse
+  with direction to ch11 windows (the `relax` statement and the
+  `&relaxed` reference marker); the two pass/relax canaries were
+  UNREGISTERED dead files (their own headers said the forms never
+  parsed) and are deleted; no real corpus uses existed (the collections
+  hit was a comment + state name). Pinned: fail parse/relax_retired.
+  Representation `is_relaxed` fields stay inert-false (the sweep is a
+  follow-up if they block something).
 
 ## Vertical slices
 

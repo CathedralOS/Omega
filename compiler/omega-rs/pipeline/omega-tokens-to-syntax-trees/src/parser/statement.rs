@@ -28,8 +28,15 @@ pub(super) fn parse_statement_handle<'tokens, 'source>(
         return parse_if_transition_statement_handle(syntax_trees, input);
     }
 
+    // `relax` RETIRED (owner, 2026-07-17): superseded by invariant windows
+    // (ch11) -- a write that momentarily violates a `where` fact OPENS a
+    // window the consumption points police; no scope spelling needed.
     if input.at_contextual("relax") {
-        return parse_relax_statement_handle(syntax_trees, input);
+        return Err(input.error_here(
+            "`relax` is retired: invariant windows (ch11) supersede it -- write \
+             plainly; a momentary violation opens a window that must close before \
+             any read, call, or terminal exit",
+        ));
     }
 
     if input.at_contextual("asm") {
