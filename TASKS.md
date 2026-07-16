@@ -1193,10 +1193,16 @@ no `unbounded` property exists. Rungs:
   (omega_state_values::simplify::folding::boolean_or recursing
   unboundedly), NOT the judge (whose unfolder is depth-capped and
   traces a normal finite discharge first). Repro:
-  pending/proofs/length_reverse_judge_overflow (self-contained). Fix
-  shape: cycle detection / depth budget in the simplify recursion —
-  divergence must become a loud diagnostic, never a crash (same
-  family as the tamed value-call cyclic-callee overflow). REMAINING:
+  pending/proofs/length_reverse_judge_overflow (self-contained).
+  HARDENING LANDED 2026-07-16: folding.rs's boolean family is
+  depth-budgeted (BOOLEAN_SIMPLIFY_DEPTH_BUDGET=256, raw-node
+  fallback) and distribute-over-Or is size-gated
+  (BOOLEAN_DISTRIBUTION_NODE_BUDGET=96, iterative counter) — the
+  DNF-explosion CRASH class is closed; the repro now HANGS instead
+  (exponential TIME in the depth-capped re-entrant helper expansion,
+  simplify<->helper_state_model, limit 32, no memoization). Remaining
+  fix: a shared fuel budget or memo table across one simplify pass
+  turning exhaustion into a declined fold. REMAINING:
   more of the lemma zoo as the judge widens (commutativity needs
   double induction / rearrange-mode), extraction INTO consumer proofs
   (a caller citing a lemma's ensures — the fact-consumption face), the

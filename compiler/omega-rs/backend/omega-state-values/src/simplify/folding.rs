@@ -490,22 +490,84 @@ fn fold_integer_compare(
     }
 }
 
+/// Depth budget for the mutually recursive boolean simplification family
+/// (`boolean_and` distribute-over-Or <-> `boolean_or` <->
+/// `factor_common_conjuncts` <-> `boolean_not`). The distribution rewrite
+/// DOUBLES the tree per level (DNF expansion is exponential), so a deep
+/// accumulated disjunction -- the pending length_reverse repro built one
+/// through a proof machine's citation sub-state -- ran the family off the
+/// compile-thread stack. Past the budget every rule falls back to RAW
+/// And/Or/Not node construction, which is always semantically correct
+/// (the rewrites are simplifications, never obligations).
+const BOOLEAN_SIMPLIFY_DEPTH_BUDGET: usize = 256;
+
+/// Node budget for the DISTRIBUTE-over-Or rewrite specifically: distribution
+/// is the exponential rule (it clones one side into both arms of the other),
+/// so it only runs on SMALL trees. Bigger trees keep the raw And shape --
+/// semantically identical, and the accumulated guards the length_reverse
+/// repro built stay linear instead of exploding into a DNF (the depth budget
+/// alone converted that crash into a hang; the size gate removes the work).
+const BOOLEAN_DISTRIBUTION_NODE_BUDGET: usize = 96;
+
+/// Iterative (explicit-stack) node count, capped: returns `None` once the
+/// count exceeds `budget` -- never recurses, so it is safe on trees deep
+/// enough to have overflowed the simplifier itself.
+fn expression_nodes_within(expression: &Expression, budget: usize) -> bool {
+    let mut count = 0usize;
+    let mut stack: Vec<&Expression> = vec![expression];
+    while let Some(node) = stack.pop() {
+        count += 1;
+        if count > budget {
+            return false;
+        }
+        match node {
+            Expression::Binary(binary) => {
+                stack.push(&binary.left);
+                stack.push(&binary.right);
+            }
+            Expression::Unary(unary) => stack.push(&unary.operand),
+            Expression::Mutable(inner) => stack.push(inner),
+            _ => {}
+        }
+    }
+    true
+}
+
 pub(super) fn boolean_and(left: Expression, right: Expression) -> Expression {
+    boolean_and_at(left, right, 0)
+}
+
+fn boolean_and_at(left: Expression, right: Expression, depth: usize) -> Expression {
+    if depth >= BOOLEAN_SIMPLIFY_DEPTH_BUDGET {
+        return Expression::Binary(Box::new(BinaryExpression {
+            left,
+            operator: BinaryOperator::And,
+            right,
+        }));
+    }
+    let distribution_fits = |a: &Expression, b: &Expression| {
+        expression_nodes_within(a, BOOLEAN_DISTRIBUTION_NODE_BUDGET)
+            && expression_nodes_within(b, BOOLEAN_DISTRIBUTION_NODE_BUDGET)
+    };
     if let Expression::Binary(binary) = &left
         && binary.operator == BinaryOperator::Or
+        && distribution_fits(&left, &right)
     {
-        return boolean_or(
-            boolean_and(binary.left.clone(), right.clone()),
-            boolean_and(binary.right.clone(), right),
+        return boolean_or_at(
+            boolean_and_at(binary.left.clone(), right.clone(), depth + 1),
+            boolean_and_at(binary.right.clone(), right, depth + 1),
+            depth + 1,
         );
     }
 
     if let Expression::Binary(binary) = &right
         && binary.operator == BinaryOperator::Or
+        && distribution_fits(&left, &right)
     {
-        return boolean_or(
-            boolean_and(left.clone(), binary.left.clone()),
-            boolean_and(left, binary.right.clone()),
+        return boolean_or_at(
+            boolean_and_at(left.clone(), binary.left.clone(), depth + 1),
+            boolean_and_at(left, binary.right.clone(), depth + 1),
+            depth + 1,
         );
     }
 
@@ -529,11 +591,22 @@ pub(super) fn boolean_and(left: Expression, right: Expression) -> Expression {
 }
 
 pub(super) fn boolean_or(left: Expression, right: Expression) -> Expression {
+    boolean_or_at(left, right, 0)
+}
+
+fn boolean_or_at(left: Expression, right: Expression, depth: usize) -> Expression {
+    if depth >= BOOLEAN_SIMPLIFY_DEPTH_BUDGET {
+        return Expression::Binary(Box::new(BinaryExpression {
+            left,
+            operator: BinaryOperator::Or,
+            right,
+        }));
+    }
     if let Some(simplified) = simplify_comparison_disjunction(&left, &right) {
         return simplified;
     }
 
-    if let Some(factored) = factor_common_conjuncts(&left, &right) {
+    if let Some(factored) = factor_common_conjuncts(&left, &right, depth) {
         return factored;
     }
 
@@ -552,7 +625,11 @@ pub(super) fn boolean_or(left: Expression, right: Expression) -> Expression {
     }
 }
 
-fn factor_common_conjuncts(left: &Expression, right: &Expression) -> Option<Expression> {
+fn factor_common_conjuncts(
+    left: &Expression,
+    right: &Expression,
+    depth: usize,
+) -> Option<Expression> {
     let mut left_conjuncts = Vec::new();
     let mut right_conjuncts = Vec::new();
     collect_conjuncts(left, &mut left_conjuncts);
@@ -580,7 +657,7 @@ fn factor_common_conjuncts(left: &Expression, right: &Expression) -> Option<Expr
 
     let left_rest = combine_conjuncts(remaining_left);
     let right_rest = combine_conjuncts(remaining_right.into_iter().cloned().collect::<Vec<_>>());
-    let mut factored = boolean_or(left_rest, right_rest);
+    let mut factored = boolean_or_at(left_rest, right_rest, depth + 1);
     for conjunct in common.into_iter().rev() {
         // NOT `boolean_and`: that distributes the conjunct back over the
         // disjunction it was just factored out of, and `boolean_or` would
