@@ -1691,9 +1691,13 @@ no `unbounded` property exists. Rungs:
   every cycle (the 5 ring_law_* fail canaries all still pin).
   Probes run-verified: eta PERMUTATION (neg_int(a) == a) refuses,
   false identity (one_int for zero_int) refuses.
-  THEN: the N2(d) arithmetic bridge
-  (n > 0 => n == Succ(n - 1)). Int introduction rule: order has no floor,
-  measures stay Nat-valued or range-floored.
+  N2(d) BRIDGE PARKED 2026-07-16 (design gap, OWNER_QUESTIONS.md):
+  the Nat<->integer surface is unruled -- extraction (Nat ensures ->
+  polynomial facts) vs reflection (integer range facts -> constructor
+  readings), which types participate, and where the bridge fact
+  lives. Nothing in the queue is blocked on it. Int introduction
+  rule stands: order has no floor, measures stay Nat-valued or
+  range-floored.
 - **N4 — roster library (Nat ops + Seq LANDED 2026-07-11):** core
   nat.omg carries add/mul as proof machines (mul composes add by an
   ordinary cross-machine call; only self-calls need the measure), and
