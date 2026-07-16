@@ -1371,10 +1371,11 @@ rows. Rungs:
 - **F7 — format records in omega::core + Float provides rows:** needs the
   `Instruction` arm of the Binding sum (new machinery). Today's hardcoded
   IEEE lowering IS the built-in binding — formalization, not a blocker.
-- **Cleanup:** the stale bounded_float canary family (`0.0f` suffix no
-  longer lexes): pass/arithmetic/bounded_float,
-  fail/arithmetic/bounded_float_call_unproven, fail/constraints/
-  invariant_* carriers — rewrite or retire.
+- **Cleanup — DONE 2026-07-16:** the bounded_float pass/fail canaries were
+  already retired (directories gone); the three fail/constraints/
+  invariant_* carriers still spelled the stale `0.0f` suffix — respelled
+  `0.0`; each still rejects with its intended invariant diagnostic
+  (fragment-matched by the fail gate).
 
 Micro-decisions ALL SETTLED (owner, 2026-07-18; record: float brief §8 +
 ch5): min/max = hardware contract, documented (order-dependent under NaN;
