@@ -168,6 +168,7 @@ fn carries_trait_signature_contract_facts_into_checked_proof_facts() {
         return_type: omega_typed_trees::types::TypeReferenceHandle::invalid(),
         effects: Default::default(),
         contracts: Default::default(),
+        terminates_guarantee: false,
     };
     program.push_state_signature_contract(
         &mut signature,
@@ -361,6 +362,7 @@ fn indexes_inherited_trait_contracts_by_concrete_call_target() {
         return_type: omega_typed_trees::types::TypeReferenceHandle::invalid(),
         effects: Default::default(),
         contracts: Default::default(),
+        terminates_guarantee: false,
     };
     program.push_state_signature_contract(
         &mut signature,

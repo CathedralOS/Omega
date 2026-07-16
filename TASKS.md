@@ -139,12 +139,19 @@ TPR4 SLICE 2 LANDED 2026-07-16: the guarantee propagates into the
 RESOLVED trait-signature record (StateSignatureStorage.
 terminates_guarantee, populated at syntax->resolved through
 lower_state_signature_parts, per-signature precision pinned by a
-pipeline test). Remaining TPR4: INHERITANCE at conformance
-(an implementation inherits the published guarantee + premises, its
-`terminates by` supplies only the discharging witness; a cyclic
-inheriting implementation without a witness must fail); published
-omission/default rules; sealed progress profiles + receipts + pinned
-premises (grant machinery); then
+pipeline test). TPR4 SLICE 3 LANDED 2026-07-16 -- INHERITANCE AT
+CONFORMANCE: the typed StateSignature carries the flag (copied
+resolved->typed); the resolved->typed MACHINE lowering inherits the
+requirement's published guarantee into the implementation's plan
+(inherit_requirement_guarantee: explicit `satisfies Trait::req` or
+simple-name matching mirroring the conformance carrier model; an
+authored guarantee is never overwritten) -- and the TPR3 plan gate
+then enforces the inherited claim FOR FREE: an acyclic inheritor
+discharges silently, a CYCLIC inheritor without a witness fails with
+the missing-witness diagnostic, `terminates by n;` discharges it
+(pinned: 3 pipeline tests, first try). Remaining TPR4: published
+omission/default rules for EXPORTS; sealed progress profiles +
+receipts + pinned premises (grant machinery -- the big half); then
 requirement inheritance, published omission/default rules, sealed progress
 profiles, receipts, and pinned premises; TPR5 atomic corpus sweep across
 omega core/std, samples, all canary families, and compiler-lattice fixtures,

@@ -1380,3 +1380,118 @@ fn trait_requirement_guarantee_propagates_to_resolved_signatures() {
     assert!(flag_of("run"), "run authored the guarantee");
     assert!(!flag_of("peek"), "peek promised nothing");
 }
+
+/// TPR4 slice 3 (decision 23): an implementation satisfying a requirement
+/// that authored `terminates;` INHERITS the published guarantee -- it does
+/// not repeat the clause. A cyclic inheritor must then supply the
+/// discharging witness or FAIL (the inherited claim is not optional), and
+/// with a witness it proves like any measured machine.
+#[test]
+fn implementation_inherits_requirement_guarantee() {
+    use omega_core::semantics::TerminationGuarantee;
+
+    let source = r#"
+    trait Worker {
+        machine run(&mut self, n: u64) -> u64 terminates;
+    }
+
+    data Main {}
+
+    machine Main::run(&mut self, n: u64) -> u64 satisfies Worker {
+        n
+    }
+
+    machine Main::main(&mut self) -> u64 {
+        let value: u64 = self.run(7);
+        value
+    }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+
+    let run = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Main::run")
+        .expect("run machine");
+    assert_eq!(
+        run.termination_plan.published,
+        Some(TerminationGuarantee::EventualTerminal {
+            premises: Vec::new()
+        }),
+        "the implementation inherits the requirement's published guarantee"
+    );
+    assert!(run.termination_plan.implementation_witness.is_none());
+
+    lower_typed_trees(typed).expect("an acyclic inheritor discharges the claim for free");
+}
+
+/// TPR4 slice 3: a CYCLIC implementation inheriting the guarantee without a
+/// witness FAILS with the missing-witness diagnostic -- the inherited claim
+/// is enforced by the same plan gate as an authored one. Supplying the
+/// witness (`terminates by n;`) discharges it.
+#[test]
+fn cyclic_inheritor_without_witness_fails_and_witness_discharges() {
+    let template = |witness_clause: &str| {
+        format!(
+            r#"
+    trait Worker {{
+        machine run(&mut self, n: u64) -> u64 terminates;
+    }}
+
+    data Main {{}}
+
+    machine Main::run(&mut self, n: u64) -> u64 satisfies Worker
+    {witness_clause}
+    {{
+        transition n > 0 {{
+            true -> self.run(n - 1)
+            false -> 0
+        }}
+    }}
+
+    machine Main::main(&mut self) -> u64 {{
+        let value: u64 = self.run(7);
+        value
+    }}
+    "#
+        )
+    };
+
+    // Without a witness: the inherited claim cannot be checked on a cycle.
+    let source = template("");
+    let tokens = Lexer::new(source.as_str())
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let diagnostics =
+        lower_typed_trees(typed).expect_err("a cyclic inheritor without a witness must fail");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.message.contains("recursive cycle")
+                && diagnostic.message.contains("ranking witness")
+        }),
+        "expected the missing-witness diagnostic, got: {:?}",
+        diagnostics
+            .iter()
+            .map(|diagnostic| diagnostic.message.clone())
+            .collect::<Vec<_>>()
+    );
+
+    // With the witness: the inherited claim discharges.
+    let source = template("terminates by n;");
+    let tokens = Lexer::new(source.as_str())
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    lower_typed_trees(typed).expect("the witness discharges the inherited claim");
+}

@@ -65,6 +65,8 @@ pub(crate) fn lower_state_signature(
             .unwrap_or_else(typed::types::TypeReferenceHandle::invalid),
         effects: Default::default(),
         contracts: Default::default(),
+        // TPR4: copied, never re-derived.
+        terminates_guarantee: signature.terminates_guarantee,
     };
 
     // #66: collect parameters whose type carries an encoding-DOMAIN constraint

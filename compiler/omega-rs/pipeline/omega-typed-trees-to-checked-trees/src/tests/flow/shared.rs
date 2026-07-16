@@ -238,6 +238,7 @@ fn records_checked_boundary_edges_for_boundary_trait_calls() {
             return_type: Default::default(),
             effects: Default::default(),
             contracts: Default::default(),
+            terminates_guarantee: false,
         },
     );
     program.push_trait_definition(boundary_trait);

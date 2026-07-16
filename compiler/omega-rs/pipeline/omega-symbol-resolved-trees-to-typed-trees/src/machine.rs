@@ -20,7 +20,10 @@ pub(crate) fn lower_machine(
         // STR3: copied, never re-derived.
         supply_mode: machine.supply_mode,
         // TPR2: copied, never re-derived (populated at syntax->resolved).
-        termination_plan: machine.termination_plan.clone(),
+        // TPR4 slice 3: an implementation satisfying a requirement that
+        // authored `terminates;` INHERITS the published guarantee (see
+        // inherit_requirement_guarantee below).
+        termination_plan: inherit_requirement_guarantee(lowerer, machine),
         type_parameters: omega_core::arena::HandleSpan::empty(),
         contains: omega_core::arena::HandleSpan::empty(),
         owned_data: omega_core::arena::HandleSpan::empty(),
@@ -226,6 +229,69 @@ pub(crate) fn lower_machine(
     // at CALL sites, which is robust.
 
     Ok(typed_machine)
+}
+
+/// TPR4 slice 3 (decision 23): "an implementation satisfying a requirement
+/// inherits the requirement's guarantee and premises. It does not repeat
+/// `terminates;`; a textual `terminates by ...` on the implementation
+/// supplies only the witness needed to discharge the inherited claim."
+/// The inheritance happens HERE (the resolved->typed machine lowering),
+/// where the conformance edge and the requirement's signature flag are both
+/// in reach -- so the TPR3-migrated checker's plan gate then enforces the
+/// inherited claim for free (a cyclic inheritor without a witness fails
+/// with the missing-witness diagnostic). Requirement matching mirrors the
+/// conformance validator's carrier model: an explicitly named requirement,
+/// or the machine's own SIMPLE name (free machines conform
+/// machine-by-machine; attached machines' whole-trait conformance matches
+/// requirements by simple name). An authored guarantee is never overwritten.
+fn inherit_requirement_guarantee(
+    lowerer: &Lowerer,
+    machine: &resolved::machine::Machine,
+) -> omega_core::semantics::MachineTerminationPlan {
+    use omega_core::semantics::TerminationGuarantee;
+
+    let mut plan = machine.termination_plan.clone();
+    if plan.published.is_some() {
+        return plan;
+    }
+    let simple_name = machine
+        .name
+        .as_str()
+        .rsplit("::")
+        .next()
+        .unwrap_or(machine.name.as_str());
+    for conformance in lowerer
+        .source_trees
+        .machine_trait_conformances(machine.satisfies)
+    {
+        let Some(trait_definition) = lowerer
+            .source_trees
+            .traits
+            .iter()
+            .find(|definition| definition.symbol == conformance.symbol)
+        else {
+            continue;
+        };
+        let required_name = conformance
+            .requirement
+            .as_ref()
+            .map(|requirement| requirement.as_str())
+            .unwrap_or(simple_name);
+        let inherited = lowerer
+            .source_trees
+            .trait_machine_signatures(trait_definition.machines)
+            .iter()
+            .any(|requirement| {
+                requirement.terminates_guarantee && requirement.name.as_str() == required_name
+            });
+        if inherited {
+            plan.published = Some(TerminationGuarantee::EventualTerminal {
+                premises: Vec::new(),
+            });
+            break;
+        }
+    }
+    plan
 }
 
 fn lower_contract_kind(
