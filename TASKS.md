@@ -916,7 +916,10 @@ bounded-escape store-containment keystone. Open rungs:
   fact refuses as outside the v1 fragment (pinned: pass
   dependent/data_where_zero_satisfying RUNS exit 70; fail
   data_where_gated_unsupported replaced the rung-1 unconsumed pin).
-  Remaining R2 = the big semantic build:** the
+  SLICE 2 LANDED same day: the admitted facts COPY to the TYPED
+  DataDefinition.where_facts (re-lowered like machine-contract facts;
+  inert, propagation-pinned) -- rung 3's consumer substrate is in
+  place. Remaining R2 = the big semantic build:** the
   big semantic build — where-clause parsing on data, the default-domain
   layer, gating (zero-excluding domains legal, construction mandatory
   fields), consumption-point windows (ADDITIVE relaxation of the landed
