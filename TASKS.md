@@ -135,8 +135,11 @@ StateSignature.terminates_guarantee flag, and `terminates by ...` on
 a requirement is rejected loudly (the witness belongs to the
 implementation that discharges the inherited claim -- pinned:
 fail/termination/requirement_witness_rejected + 2 parser units).
-Remaining TPR4: propagate the requirement's guarantee through
-resolved/typed trait-requirement records; INHERITANCE at conformance
+TPR4 SLICE 2 LANDED 2026-07-16: the guarantee propagates into the
+RESOLVED trait-signature record (StateSignatureStorage.
+terminates_guarantee, populated at syntax->resolved through
+lower_state_signature_parts, per-signature precision pinned by a
+pipeline test). Remaining TPR4: INHERITANCE at conformance
 (an implementation inherits the published guarantee + premises, its
 `terminates by` supplies only the discharging witness; a cyclic
 inheriting implementation without a witness must fail); published

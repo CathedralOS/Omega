@@ -18,6 +18,11 @@ pub struct StateSignatureStorage {
     pub return_type: Option<TypeReference>,
     pub effects: HandleSpan<DiagnosticName>,
     pub contracts: HandleSpan<SignatureContract>,
+    /// TPR4 (decision 23): the bodyless requirement's authored PUBLIC
+    /// guarantee (bare `terminates;`); implementations inherit it at
+    /// conformance. Populated at the syntax->resolved lowering, copied --
+    /// never re-derived -- downstream.
+    pub terminates_guarantee: bool,
 }
 
 impl Deref for StateSignature {

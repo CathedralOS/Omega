@@ -90,6 +90,8 @@ pub(crate) fn lower_state_signature_node(
         signature.is_default,
         signature.effects,
         signature.contracts,
+        // TPR4: the bodyless requirement's authored guarantee.
+        signature.terminates_guarantee,
     )
 }
 
@@ -102,6 +104,7 @@ fn lower_state_signature_parts(
     is_default: bool,
     effects: HandleSpan<syntax::identifier::Identifier>,
     contracts: HandleSpan<syntax::item::CapabilityContract>,
+    terminates_guarantee: bool,
 ) -> Result<StateSignature, Diagnostic> {
     let parameters = lower_state_parameters(lowerer, syntax_trees, parameters)?;
     let return_type = return_type_handle
@@ -120,6 +123,7 @@ fn lower_state_signature_parts(
             return_type,
             effects,
             contracts,
+            terminates_guarantee,
         },
     })
 }

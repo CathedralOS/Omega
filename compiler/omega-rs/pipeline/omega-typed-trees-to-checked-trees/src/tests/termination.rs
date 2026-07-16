@@ -1341,3 +1341,42 @@ fn termination_facts_record_checked_summaries_and_resolved_views() {
     // A machine claiming nothing carries NO fact.
     assert!(facts.for_machine(machine_symbol("Main::main")).is_none());
 }
+
+/// TPR4 slice 2: the requirement's authored guarantee PROPAGATES into the
+/// resolved trait-signature record (populated at syntax->resolved, per
+/// signature -- inheritance at conformance consumes it next).
+#[test]
+fn trait_requirement_guarantee_propagates_to_resolved_signatures() {
+    let source = r#"
+    trait Worker {
+        machine run(&mut self, n: u64) -> u64 terminates;
+        machine peek(&self) -> u64;
+    }
+
+    data Main {}
+
+    machine Main::main(&mut self) -> u64 { 7 }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+
+    let worker = resolved
+        .traits
+        .iter()
+        .find(|definition| definition.name.as_str() == "Worker")
+        .expect("Worker trait");
+    let signatures = resolved.trait_machine_signatures(worker.machines);
+    let flag_of = |name: &str| {
+        signatures
+            .iter()
+            .find(|signature| signature.name.as_str() == name)
+            .unwrap_or_else(|| panic!("signature {name}"))
+            .terminates_guarantee
+    };
+    assert!(flag_of("run"), "run authored the guarantee");
+    assert!(!flag_of("peek"), "peek promised nothing");
+}
