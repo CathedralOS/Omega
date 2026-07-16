@@ -229,6 +229,12 @@ struct TrackedPlace<'program> {
     /// accepted write leaves the facts true). Reads before establishment
     /// refuse. Zero-satisfying places are born established.
     established: bool,
+    /// R2 rung 3 slice 6: whether THIS place's untracked fields read the
+    /// born zero -- true only for self-rooted machine-owned places in the
+    /// never-re-entered boot state. Parameter/local-rooted places arrive
+    /// with UNKNOWN valuations (poison until a whole-place literal
+    /// reseeds).
+    born_zero: bool,
 }
 
 /// Walk one state (write obligations + the access gate), seeded with the
@@ -303,7 +309,9 @@ fn walk_state(
     exit_established.extend(
         tracked
             .iter()
-            .filter(|place| place.established)
+            // Slice 6: parameters are per-invocation -- only machine-owned
+            // places transport across states.
+            .filter(|place| place.established && is_self_rooted(&place.spelling))
             .map(|place| place.spelling.clone()),
     );
     exit_established.sort();
@@ -313,6 +321,7 @@ fn walk_state(
     // the state) the untouched entry places passing through.
     let mut exit_valuations: Vec<PlaceValuation> = tracked
         .iter()
+        .filter(|place| is_self_rooted(&place.spelling))
         .map(|place| (place.spelling.clone(), place.fields.clone()))
         .collect();
     if !poisoned {
@@ -355,12 +364,14 @@ fn handle_assignment<'program>(
             })
             .collect();
         tracked.retain(|place| place.spelling != spelling);
+        let place_born_zero = born_zero && is_self_rooted(&spelling);
         tracked.push(TrackedPlace {
             spelling,
             definition,
             fields,
             // Rung 2b proved this literal against the domain.
             established: true,
+            born_zero: place_born_zero,
         });
         return;
     }
@@ -403,14 +414,18 @@ fn handle_assignment<'program>(
                 .map(|(_, fields)| fields.clone())
                 .unwrap_or_default()
         };
+        let self_rooted = is_self_rooted(&receiver_spelling);
         tracked.push(TrackedPlace {
             spelling: receiver_spelling,
             definition,
             fields: seeded_fields,
             // Zero-satisfying data is born established; gated data must
             // earn it (the accepted write below does, since it re-proves
-            // the whole domain).
-            established: !definition.zero_gated,
+            // the whole domain). A parameter place arrives ALREADY VALID
+            // (the caller's net enforced its domain), so it counts as
+            // established for the access gate; its VALUATION stays unknown.
+            established: !definition.zero_gated || !self_rooted,
+            born_zero: born_zero && self_rooted,
         });
         let last = tracked.len() - 1;
         &mut tracked[last]
@@ -436,7 +451,7 @@ fn handle_assignment<'program>(
         let omega_typed_trees::domain::ProofFact::Expression(expression) = fact else {
             continue;
         };
-        match fold_with_valuation(program, &valuation, born_zero, *expression) {
+        match fold_with_valuation(program, &valuation, place.born_zero, *expression) {
             Some(value) if value != 0 => {}
             Some(_) => {
                 all_hold = false;
@@ -619,17 +634,15 @@ fn scan_expression_reads(
     }
 }
 
-/// Render a `self`-rooted place (`self.map`, `self.a.b`); `None` for
-/// anything else (parameters arrive with unknown-but-valid valuations, so
-/// v1 does not track them).
+/// Render a Name-rooted place (`self.map`, `target`, `local.a`); `None`
+/// for computed receivers. Slice 6: parameter/local roots are tracked too
+/// -- their writes carry the same obligation; only their VALUATION model
+/// differs (no born zero).
 fn self_place_spelling(program: &TypedTrees, expression: ExpressionHandle) -> Option<String> {
     match program.expression_table.expression(expression) {
         ExpressionNode::Name(path) => {
             let members = program.expression_table.name_path_members(path.members);
-            let first = members.first()?;
-            if first.as_str() != "self" {
-                return None;
-            }
+            members.first()?;
             Some(
                 members
                     .iter()
@@ -645,6 +658,12 @@ fn self_place_spelling(program: &TypedTrees, expression: ExpressionHandle) -> Op
         ExpressionNode::Mutable(inner) => self_place_spelling(program, *inner),
         _ => None,
     }
+}
+
+/// Slice 6: the born-zero valuation model applies only to machine-owned
+/// (self-rooted) storage.
+fn is_self_rooted(spelling: &str) -> bool {
+    spelling == "self" || spelling.starts_with("self.")
 }
 
 fn domain_definition_by_name<'program>(

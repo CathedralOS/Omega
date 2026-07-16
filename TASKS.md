@@ -986,9 +986,20 @@ bounded-escape store-containment keystone. Open rungs:
   transported -> 3 != 3 folds FALSE; its pin re-aimed from the poison
   message to `violates`). Bodyless machines guarded (the zero-state
   seed panicked -- caught by the canary gate, fixed same commit).
-  Remaining R2: hypotheses (readers assume the facts -- the
-  parameter/alias story), windows (ch11), runtime-valued construction
-  via the prover. The rest of the big semantic build:** the
+  RUNG 3 SLICE 6 LANDED same day -- the write net is TOTAL: writes
+  through `&mut` data PARAMETERS carry the same obligation (probe
+  confirmed the hole: `target.count = 99` through a param sailed
+  through before). Any Name-rooted chain tracks now; born_zero is
+  PER-PLACE (self-rooted x boot only -- param/local places arrive
+  domain-VALID but value-UNKNOWN, so constrained writes poison unless
+  the fact folds from written fields alone or a whole-place literal
+  reseeds); param places count established for the access gate
+  (caller's net enforced arrival validity); cross-state transport
+  stays self-rooted (params are per-invocation). Pinned: fail
+  data_where_param_write_unproven; pass data_where_param_write_proves
+  (single-field fact folds without co-field knowledge, RUNS exit 70).
+  Remaining R2: reader HYPOTHESES (now legal -- the net is total),
+  windows (ch11), runtime-valued construction via the prover. The rest of the big semantic build:** the
   big semantic build — where-clause parsing on data, the default-domain
   layer, gating (zero-excluding domains legal, construction mandatory
   fields), consumption-point windows (ADDITIVE relaxation of the landed

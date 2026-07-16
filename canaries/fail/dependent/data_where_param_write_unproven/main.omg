@@ -1,0 +1,21 @@
+// R2 rung 3 slice 6: the write obligation is TOTAL -- a callee writing a
+// where-mentioned field through a `&mut` data parameter carries the same
+// burden. The parameter arrives domain-VALID but with UNKNOWN field
+// values, so `count = 99` cannot prove `count <= len` and refuses
+// (before this rung the write bypassed the net entirely).
+boundary trait Console { machine exit_process(return_code: i32); }
+data Tally
+where
+    count <= len,
+{
+    len: u32;
+    count: u32;
+}
+data Main { console: Console; tally: Tally; }
+machine Main::corrupt(&mut self, target: &mut Tally) {
+    target.count = 99;
+}
+machine Main::main(&mut self) {
+    self.corrupt(&mut self.tally);
+    self.console.exit_process(70);
+}

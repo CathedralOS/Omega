@@ -1,0 +1,1 @@
+write to `target.count` cannot PROVE
