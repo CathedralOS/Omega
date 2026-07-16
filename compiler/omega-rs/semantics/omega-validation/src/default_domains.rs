@@ -799,3 +799,146 @@ fn expression_contains_call(program: &TypedTrees, expression: ExpressionHandle) 
         _ => false,
     }
 }
+
+/// R2 rung 3 slice 7 -- READER HYPOTHESES: the standing where facts refine
+/// a field READ's interval. Sound because the write net is TOTAL (every
+/// write path re-proves the facts) and gated reads are access-gated, so
+/// the facts hold at every legal observation. Bounds come from literals or
+/// the co-field's DECLARED range (declared ranges always hold), never from
+/// flow values.
+pub(crate) fn where_fact_interval(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: Option<&State>,
+    expression: ExpressionHandle,
+) -> Option<crate::arithmetic_domains::Interval> {
+    use omega_typed_trees::expression::BinaryOperator;
+
+    let ExpressionNode::Member(member) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    let receiver_type =
+        crate::places::declared_place_type(program, machine, state, member.receiver)?;
+    let definition = data_definition_for_type(program, receiver_type)?;
+    if definition.where_facts.is_empty() {
+        return None;
+    }
+    let field = member.member.as_str();
+
+    let mut interval = crate::arithmetic_domains::Interval {
+        low: None,
+        high: None,
+    };
+    let mut refined = false;
+    for fact in program.proof_facts.span_or_empty(definition.where_facts) {
+        let omega_typed_trees::domain::ProofFact::Expression(fact_expression) = fact else {
+            continue;
+        };
+        let ExpressionNode::Binary(binary) =
+            program.expression_table.expression(*fact_expression)
+        else {
+            continue;
+        };
+        // Identify which side names OUR field; the other side supplies the
+        // bound (a literal, or a co-field's declared interval end).
+        let (field_side_left, other) = if side_names_field(program, binary.left, field) {
+            (true, binary.right)
+        } else if side_names_field(program, binary.right, field) {
+            (false, binary.left)
+        } else {
+            continue;
+        };
+        let Some(other_interval) = bound_source_interval(program, definition, other) else {
+            continue;
+        };
+        // Normalize to `field OP other`.
+        let operator = if field_side_left {
+            binary.operator
+        } else {
+            match binary.operator {
+                BinaryOperator::Less => BinaryOperator::Greater,
+                BinaryOperator::LessOrEqual => BinaryOperator::GreaterOrEqual,
+                BinaryOperator::Greater => BinaryOperator::Less,
+                BinaryOperator::GreaterOrEqual => BinaryOperator::LessOrEqual,
+                other_operator => other_operator,
+            }
+        };
+        match operator {
+            BinaryOperator::LessOrEqual => {
+                if let Some(high) = other_interval.high {
+                    interval.high = Some(interval.high.map_or(high, |current| current.min(high)));
+                    refined = true;
+                }
+            }
+            BinaryOperator::Less => {
+                if let Some(high) = other_interval.high.and_then(|high| high.checked_sub(1)) {
+                    interval.high = Some(interval.high.map_or(high, |current| current.min(high)));
+                    refined = true;
+                }
+            }
+            BinaryOperator::GreaterOrEqual => {
+                if let Some(low) = other_interval.low {
+                    interval.low = Some(interval.low.map_or(low, |current| current.max(low)));
+                    refined = true;
+                }
+            }
+            BinaryOperator::Greater => {
+                if let Some(low) = other_interval.low.and_then(|low| low.checked_add(1)) {
+                    interval.low = Some(interval.low.map_or(low, |current| current.max(low)));
+                    refined = true;
+                }
+            }
+            _ => {}
+        }
+    }
+    refined.then_some(interval)
+}
+
+fn side_names_field(program: &TypedTrees, expression: ExpressionHandle, field: &str) -> bool {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Name(path) => program
+            .expression_table
+            .name_path_members(path.members)
+            .last()
+            .is_some_and(|member| member.as_str() == field),
+        _ => false,
+    }
+}
+
+/// The bound-supplying side's SOUND interval: a literal is itself; a
+/// co-field name reads its DECLARED range (or full type width) from the
+/// data definition's own members.
+fn bound_source_interval(
+    program: &TypedTrees,
+    definition: &DataDefinition,
+    expression: ExpressionHandle,
+) -> Option<crate::arithmetic_domains::Interval> {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Integer(value) => {
+            let literal = value.text().parse::<i64>().ok()?;
+            Some(crate::arithmetic_domains::Interval {
+                low: Some(literal),
+                high: Some(literal),
+            })
+        }
+        ExpressionNode::Name(path) => {
+            let name = program
+                .expression_table
+                .name_path_members(path.members)
+                .last()?;
+            let handle = program
+                .data_members(definition)
+                .iter()
+                .find_map(|member| match member {
+                    omega_typed_trees::data::DataMember::Field(data_field)
+                        if data_field.name == *name =>
+                    {
+                        Some(data_field.type_reference)
+                    }
+                    _ => None,
+                })?;
+            crate::arithmetic_domains::range_constraint_interval(program, handle)
+        }
+        _ => None,
+    }
+}
