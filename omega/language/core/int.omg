@@ -129,10 +129,7 @@ ensures
     transition { _ -> (add_int(a, b)) }
 }
 
-// ~ is symmetric: the hypothesis read right-to-left. (Transitivity needs
-// CANCELLATION -- a + c == b + c => a == b, a Nat injectivity lemma the
-// exchange tier cannot derive from comm+assoc -- recorded as the next
-// quotient rung.)
+// ~ is symmetric: the hypothesis read right-to-left.
 machine int_eq_symmetric(a: IntPair, b: IntPair) -> IntPair
 requires
     (add(a.pos, b.neg)) == (add(b.pos, a.neg))
@@ -140,4 +137,20 @@ ensures
     (add(b.pos, a.neg)) == (add(a.pos, b.neg))
 {
     transition { _ -> (add_int(a, b)) }
+}
+
+// ~ is transitive -- THE CANCELLATION STEP: from a ~ b and b ~ c, the
+// padded sums (b.neg + b.pos) + (a.pos + c.neg) and (b.neg + b.pos) +
+// (c.pos + a.neg) equalize by TWO hypothesis exchanges, and citing
+// add_cancel (requires-bearing induction) strips the pad. The citation's
+// own requires discharges at the site through the depth-2 exchange.
+machine int_eq_transitive(a: IntPair, b: IntPair, c: IntPair) -> IntPair
+requires
+    (add(a.pos, b.neg)) == (add(b.pos, a.neg));
+    (add(b.pos, c.neg)) == (add(c.pos, b.neg))
+ensures
+    (add(a.pos, c.neg)) == (add(c.pos, a.neg))
+{
+    _ = add_cancel(add(b.neg, b.pos), add(a.pos, c.neg), add(c.pos, a.neg));
+    transition { _ -> (add_int(a, c)) }
 }

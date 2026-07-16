@@ -1629,12 +1629,38 @@ no `unbounded` property exists. Rungs:
   INDUCTION (the cancellation lemma add(c,a)==add(c,b) => a==b,
   which needs per-arm requires re-intake + IH premise discharge) is
   the recorded follow-up rung.
-  THEN: requires-bearing induction (per-arm requires re-intake under
-  the case hypothesis + IH premise discharge) -> Nat CANCELLATION ->
-  quotient transitivity; mul_int respects ~ (tier-2 hypothesis
-  exchange under monomial multisets); semiring conformance for
-  IntPair (trait slots over a non-builtin carrier); the N2(d)
-  arithmetic bridge
+  REQUIRES-BEARING INDUCTION + CANCELLATION + TRANSITIVITY LANDED
+  2026-07-16 (the whole chain in one rung): (1) per-arm requires
+  RE-INTAKE -- the machine's requires re-intake under each arm's
+  case hypothesis, so `add(c,a) == add(c,b)` under c := Succ(prev)
+  unfolds and INJECTIVITY-decomposes to the prev-level equation;
+  (2) IH PREMISE DISCHARGE -- a requires-bearing machine's IH
+  intakes only after its requires, instantiated at the self-call's
+  operands, judge Proven against the arm's hypotheses (the guard
+  from the site-discharge rung upgraded from deny to discharge);
+  (3) the checked-trees CALL-REQUIRES PROVER now EXEMPTS proof->
+  proof calls -- a proof machine emits no runtime code, a call
+  between them denotes mathematical application whose VALUE does
+  not depend on the callee's requires, and every ensures-
+  consumption face gates in the structural layer (kept for any
+  call touching runtime machines; call targets resolve via
+  entry-STATE symbols, the machine-symbol lookup alone misses).
+  nat.omg gains add_cancel (left cancellation, induction on the
+  pad; sub-state arm shape -- inline call-valued arms break the
+  recognizer via terminal auto-hoist). int.omg gains
+  int_eq_transitive: pad both goal sides with b.neg + b.pos, TWO
+  hypothesis exchanges (the tier is now a depth-2 frontier-capped
+  BFS) equalize the padded sums inside the CITED add_cancel's
+  requires, site discharge strips the pad. The cross-sum quotient
+  is now a PROVEN equivalence (symmetric + transitive; refl is
+  ring-trivial) WITH add-congruence. Probes run-verified: false
+  cancel ensures refuses, right-form requires (premise
+  underivable) refuses, transitivity with a hypothesis DROPPED
+  refuses naming the undischarged cancellation premise, corrupted
+  goal refuses.
+  THEN: mul_int respects ~ (tier-2 hypothesis exchange under
+  monomial multisets); semiring conformance for IntPair (trait
+  slots over a non-builtin carrier); the N2(d) arithmetic bridge
   (n > 0 => n == Succ(n - 1)). Int introduction rule: order has no floor,
   measures stay Nat-valued or range-floored.
 - **N4 — roster library (Nat ops + Seq LANDED 2026-07-11):** core
