@@ -5828,15 +5828,23 @@ impl<'program> Evaluator<'program> {
         if let Some((ty, domain @ (ArithmeticDomain::Saturating | ArithmeticDomain::Trapping))) =
             scalar_type
         {
-            // Domain-governed SHIFTS (shift slice C). `>>` is floor(x / 2^n)
-            // and cannot overflow, so every domain shares the Wrapping floor
-            // semantics (at/above-width counts: 0, or the sign-fill for a
-            // negative signed value). `<<` is x * 2^n: Saturating clamps and
-            // Trapping traps when the TRUE value leaves the type's range --
-            // a count at/above the width forces overflow for any nonzero x.
-            // NATIVE saturating/trapping `<<` sequences are not emitted yet
-            // (the parked shl_saturating canary pins that divergence); `>>`
-            // is aligned on both ISAs.
+            // Domain-governed SHIFTS. F8c (ch5 shift-count ruling): under
+            // TRAPPING an out-of-range count TRAPS -- regardless of the
+            // shifted VALUE (`0 << 40` traps; the count is invalid, not the
+            // result). Saturating cannot reach an out-of-range count (the
+            // F8a validation obligation rejects it), so its floor/clamp arms
+            // below only ever see in-range counts.
+            if domain == ArithmeticDomain::Trapping
+                && (r as u64) >= primitive_bit_width(ty)
+            {
+                return trap(format!(
+                    "shift count out of range in Trapping domain: the count is not below \
+                     the operand width for {ty:?}"
+                ));
+            }
+            // `>>` is floor(x / 2^n) and cannot overflow; the Saturating
+            // floor semantics for an (unreachable) at/above-width count stay
+            // for robustness.
             if operator == ShiftRight {
                 return Ok(Value::Int(wrap_to_width(
                     if (r as u64) >= primitive_bit_width(ty) {
@@ -5849,6 +5857,9 @@ impl<'program> Evaluator<'program> {
                     ty,
                 )));
             }
+            // `<<` is x * 2^n: Saturating clamps and Trapping traps when the
+            // TRUE value leaves the type's range (in-range counts only here
+            // -- the count trap above owns the out-of-range face).
             if operator == ShiftLeft {
                 let (minimum, maximum, value) = if primitive_is_unsigned64(Some(ty)) {
                     (0i128, u64::MAX as i128, l as u64 as i128)
@@ -5857,9 +5868,10 @@ impl<'program> Evaluator<'program> {
                     (minimum as i128, maximum as i128, l as i128)
                 };
                 let wide = if (r as u64) >= primitive_bit_width(ty) {
-                    // Any nonzero x overflows once the count reaches the
-                    // width; drive the clamp/trap below with a synthetic
-                    // out-of-range value on x's side of the range.
+                    // Saturating only (Trapping trapped above): any nonzero x
+                    // overflows once the count reaches the width; drive the
+                    // clamp below with a synthetic out-of-range value on x's
+                    // side of the range.
                     match value.signum() {
                         0 => 0,
                         1 => maximum + 1,

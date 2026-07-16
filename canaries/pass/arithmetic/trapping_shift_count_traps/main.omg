@@ -1,0 +1,39 @@
+// PASS canary (F8c, ch5 shift-count ruling): a TRAPPING shift with an
+// out-of-range count TRAPS -- value-blind (`0 << 40` traps even though the
+// result value 0 fits u32; the COUNT is invalid, not the result). Both
+// engines abort abnormally: aarch64/x86 emit the count guard (cmp + b.lo/jb
+// + brk/ud2) BEFORE the shift, the interp traps in eval. In-range Trapping
+// shifts compute exactly first (the non-trap face): 3 << 3 = 24 and
+// -16 >> 2 = -4. The arithmetic `>>` count face (5 >> 40 traps) was
+// probe-verified with the same guard; one canary can only die once, so the
+// value-blind `<<` face is the pin.
+// exits: 71 = in-range << wrong; 72 = in-range >> wrong; 7 = SAILED PAST
+// the count trap (the failure the suite asserts against).
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; n: u32 in Trapping; }
+machine Main::main(&mut self) {
+    let a: i32 in Trapping = (3 as i32 in Trapping);
+    let c: i32 in Trapping = (3 as i32 in Trapping);
+    let r: i32 in Trapping = a << c;
+    transition r == 24 {
+        true  -> inrange_shr()
+        false -> bad_shl()
+    }
+    state inrange_shr(&mut self) {
+        let m: i32 in Trapping = (0 as i32 in Trapping) - 16;
+        let c2: i32 in Trapping = (2 as i32 in Trapping);
+        let s: i32 in Trapping = m >> c2;
+        transition s == (0 as i32 in Trapping) - 4 {
+            true  -> do_trap()
+            false -> bad_shr()
+        }
+    }
+    state do_trap(&mut self) {
+        let z: u32 in Trapping = (0 as u32 in Trapping);
+        let k: u32 in Trapping = (40 as u32 in Trapping);
+        self.n = z << k; // must TRAP: count 40 >= 32, even though 0 fits
+        self.console.exit_process(7);
+    }
+    state bad_shl(&mut self) { self.console.exit_process(71); }
+    state bad_shr(&mut self) { self.console.exit_process(72); }
+}

@@ -17842,6 +17842,66 @@ fn runtime_shift_subword_masked_count_exit_canary_runs() {
 }
 
 #[test]
+fn trapping_shift_count_traps_aborts() {
+    // F8c (ch5 shift-count ruling): a TRAPPING shift's out-of-range count
+    // traps VALUE-BLIND (`0 << 40` traps even though 0 fits u32). Named
+    // without `_canary_runs` (non-clean-exit; outside the RUN-list drift
+    // guard, like dead_trapping_let_traps_aborts).
+    let canary = pass_canary("arithmetic/trapping_shift_count_traps");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-trap-shcnt-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("trapping shift-count canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("trapping shift-count canary should run");
+
+    assert_ne!(
+        output.status.code(),
+        Some(7),
+        "expected the out-of-range Trapping shift COUNT to trap (0 << 40 -- the value \
+         fits, the count is invalid), but the program sailed past to exit 7\nstderr:\n{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_ne!(
+        output.status.code(),
+        Some(71),
+        "the in-range Trapping << leg computed wrong"
+    );
+    assert_ne!(
+        output.status.code(),
+        Some(72),
+        "the in-range Trapping >> leg computed wrong"
+    );
+    assert!(
+        !output.status.success(),
+        "expected the count trap to terminate abnormally, but it exited successfully"
+    );
+
+    // The interpreter leg: same trap, spelled as an eval error.
+    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+        .expect("trapping shift-count canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let reason = outcome
+        .error
+        .expect("the interpreter must trap the out-of-range Trapping shift count");
+    assert!(
+        reason.contains("shift count out of range"),
+        "expected the count trap reason, got: {reason}"
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_shift_count_proven_range_exit_canary_runs() {
     // F8 proof side: a RANGED runtime count (u32 [0..=7]) proves count <
     // width, so the Exact shift carries no obligation and computes exactly.

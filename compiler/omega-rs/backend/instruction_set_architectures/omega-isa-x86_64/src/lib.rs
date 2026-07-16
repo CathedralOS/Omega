@@ -5967,6 +5967,8 @@ pub fn runtime_storage_binary_write_width(
         );
         let fix = if domain == ArithmeticDomain::Wrapping {
             wrapping_shift_count_mask_width(operation_byte_size)
+        } else if domain == ArithmeticDomain::Trapping {
+            SHIFT_COUNT_TRAP_GUARD_WIDTH
         } else if operator == StateGuardOperator::ShiftRight {
             WRAPPING_SHIFT_RIGHT_COUNT_SATURATE_WIDTH
         } else {
@@ -6270,6 +6272,10 @@ pub fn encode_runtime_storage_binary_write(
         );
         if domain == ArithmeticDomain::Wrapping {
             append_wrapping_shift_count_mask(&mut bytes, operation_byte_size);
+            append_runtime_binary_operation(&mut bytes, operator, operation_byte_size)?;
+        } else if domain == ArithmeticDomain::Trapping {
+            // F8c: an out-of-range count traps before the shift, value-blind.
+            append_shift_count_trap_guard(&mut bytes, operation_byte_size);
             append_runtime_binary_operation(&mut bytes, operator, operation_byte_size)?;
         } else {
             if operator == StateGuardOperator::ShiftRight {
@@ -6631,6 +6637,12 @@ fn append_saturating_trapping_shift_left(
     byte_size: usize,
     target_signed: bool,
 ) -> Result<(), Diagnostic> {
+    // F8c: a TRAPPING out-of-range COUNT traps before the value math (the
+    // count is invalid, not the result -- `0 << 40` traps). Saturating
+    // cannot reach one post-F8a; its count cap below stays for robustness.
+    if domain == ArithmeticDomain::Trapping {
+        append_shift_count_trap_guard(bytes, byte_size);
+    }
     if byte_size == 8 {
         let fixup: u8 = match (domain, target_signed) {
             // mov r15,MIN (10) + test r9 (3) + mov r10,r15 (3) + not r15 (3)
@@ -6702,10 +6714,17 @@ fn saturating_trapping_shift_left_width(
     byte_size: usize,
     target_signed: bool,
 ) -> usize {
+    // F8c: Trapping prepends the count trap guard (cmp + jb + ud2 = 8).
+    let count_guard = if domain == ArithmeticDomain::Trapping {
+        SHIFT_COUNT_TRAP_GUARD_WIDTH
+    } else {
+        0
+    };
     if byte_size == 8 {
         // save (3) + shl op (6) + mov rax (3) + sar/shr (3) + cmp (3)
         // + jne (2) + cmp #64 (4) + jb (2) + test (3) + je (2) = 31 + fixup.
-        return 31
+        return count_guard
+            + 31
             + match (domain, target_signed) {
                 (ArithmeticDomain::Saturating, true) => 23,
                 (ArithmeticDomain::Saturating, false) => 10,
@@ -6722,7 +6741,7 @@ fn saturating_trapping_shift_left_width(
     } else {
         0
     };
-    sign_extend + 13 + 6 + narrow_range_clamp_or_trap_width(domain, target_signed)
+    count_guard + sign_extend + 13 + 6 + narrow_range_clamp_or_trap_width(domain, target_signed)
 }
 
 /// Width-correct integer `add`/`sub` of `r10 (op)= r11` so the carry/overflow
@@ -7753,6 +7772,8 @@ pub fn runtime_value_operand_width(
                 OperandDomainOperation::DomainShift { domain, .. } => {
                     let fix = if domain == ArithmeticDomain::Wrapping {
                         wrapping_shift_count_mask_width(byte_width)
+                    } else if domain == ArithmeticDomain::Trapping {
+                        SHIFT_COUNT_TRAP_GUARD_WIDTH
                     } else if operator == StateGuardOperator::ShiftRight {
                         WRAPPING_SHIFT_RIGHT_COUNT_SATURATE_WIDTH
                     } else {
@@ -8008,6 +8029,10 @@ fn append_runtime_value_operand(
                     // extension the parent contract requires.
                     if domain == ArithmeticDomain::Wrapping {
                         append_wrapping_shift_count_mask(bytes, byte_width);
+                        append_runtime_binary_operation(bytes, operator, byte_width)?;
+                    } else if domain == ArithmeticDomain::Trapping {
+                        // F8c: an out-of-range count traps before the shift.
+                        append_shift_count_trap_guard(bytes, byte_width);
                         append_runtime_binary_operation(bytes, operator, byte_width)?;
                     } else {
                         if operator == StateGuardOperator::ShiftRight {
@@ -8773,6 +8798,20 @@ const fn wrapping_shift_count_mask_width(byte_size: usize) -> usize {
         _ => 0,
     }
 }
+
+/// F8c count guard: `cmp r11, width ; jb +2 ; ud2` -- a TRAPPING shift's
+/// out-of-range count traps BEFORE the shift runs, regardless of the shifted
+/// value (`0 << 40` traps; the count is invalid, not the result). The full
+/// count survives in r11 (the shift arm only copies it to cl), and reads
+/// UNSIGNED so a negative signed count is huge and traps.
+fn append_shift_count_trap_guard(bytes: &mut Vec<u8>, byte_size: usize) {
+    bytes.extend([0x49, 0x83, 0xfb, (byte_size * 8) as u8]); // cmp r11, width_bits
+    bytes.extend([0x72, 0x02]); // jb +2 (an in-range count hops the ud2)
+    bytes.extend([0x0f, 0x0b]); // ud2
+}
+
+/// Bytes of [`append_shift_count_trap_guard`]: cmp (4) + jb (2) + ud2 (2).
+const SHIFT_COUNT_TRAP_GUARD_WIDTH: usize = 8;
 
 /// A nested WRAPPING binary hands its PARENT the width-wrapped VALUE in r10
 /// (the interpreter wraps AT THE NODE, decision 17; the store-truncation

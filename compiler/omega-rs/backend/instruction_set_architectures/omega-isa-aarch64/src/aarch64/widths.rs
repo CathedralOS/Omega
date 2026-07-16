@@ -425,10 +425,12 @@ fn saturating_trapping_arithmetic_width(
         // + fixup (sat-signed cmp+csinv 8; sat-unsigned padded MAX 16;
         // trapping brk 4).
         if operator == StateGuardOperator::ShiftLeft {
+            // F8c: Trapping prepends the count trap guard (cmp + b.lo + brk
+            // = 12) before the recovery witness.
             return match (domain, target_signed) {
                 (ArithmeticDomain::Saturating, true) => 36 + 8 + 8,
                 (ArithmeticDomain::Saturating, false) => 36 + 16,
-                _ => 36 + 4,
+                _ => 12 + 36 + 4,
             };
         }
         // 64-bit multiply: the MULH high-half witness.
@@ -457,13 +459,15 @@ fn saturating_trapping_arithmetic_width(
         // harmless placeholder for the pre-error `Vec::with_capacity`.
         return 4;
     }
-    // Narrow shl: [SXT dest (4, signed)] + count cap (padded w 16 + cmp 4
-    // + csel 4) + lslv (4) + the bound checks (28 each: padded bound 16 +
-    // cmp 4 + b.cond 4 + mov/brk 4) -- both bounds for signed, the single
-    // unsigned upper bound otherwise.
+    // Narrow shl: [F8c Trapping count trap guard (12)] + [SXT dest (4,
+    // signed)] + count cap (padded w 16 + cmp 4 + csel 4) + lslv (4) + the
+    // bound checks (28 each: padded bound 16 + cmp 4 + b.cond 4 + mov/brk 4)
+    // -- both bounds for signed, the single unsigned upper bound otherwise.
     if operator == StateGuardOperator::ShiftLeft {
+        let count_guard = if domain == ArithmeticDomain::Trapping { 12 } else { 0 };
         let value_extend = if target_signed && !left_is_wide_immediate { 4 } else { 0 };
-        return if target_signed { value_extend + 28 + 56 } else { 28 + 28 };
+        return count_guard
+            + if target_signed { value_extend + 28 + 56 } else { 28 + 28 };
     }
     // One SXTB/SXTH/SXTW sign-extend (4 bytes) per SIGNED NON-IMMEDIATE
     // operand -- immediates are already their true wide value and skipping
@@ -521,6 +525,7 @@ pub(in crate::aarch64) fn runtime_binary_operation_width_with_domain(
     domain: omega_core::arithmetic::ArithmeticDomain,
 ) -> usize {
     let wrapping = domain == omega_core::arithmetic::ArithmeticDomain::Wrapping;
+    let trapping = domain == omega_core::arithmetic::ArithmeticDomain::Trapping;
     let non_exact = domain != omega_core::arithmetic::ArithmeticDomain::Exact;
     runtime_binary_operation_width(operator, byte_size)
         + if wrapping
@@ -532,6 +537,14 @@ pub(in crate::aarch64) fn runtime_binary_operation_width_with_domain(
             )
         {
             if matches!(byte_size, 1 | 2) { 4 } else { 0 }
+        } else if trapping
+            && matches!(
+                operator,
+                StateGuardOperator::ShiftRight | StateGuardOperator::ShiftRightLogical
+            )
+        {
+            // F8c: the count trap guard (cmp + b.lo + brk).
+            super::runtime_storage::SHIFT_COUNT_TRAP_GUARD_WIDTH
         } else if non_exact
             && matches!(
                 operator,
