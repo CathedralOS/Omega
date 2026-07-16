@@ -28,29 +28,114 @@ pub(crate) fn validate_default_domain_writes(
     program: &TypedTrees,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    // R2 rung 3 slice 11: per-machine establishment SUMMARIES (v1:
-    // single-state machines) -- the self places a callee DEFINITELY
+    // R2 rung 3 slice 11 (+ multi-state extension): per-machine
+    // establishment SUMMARIES -- the self places a callee DEFINITELY
     // establishes, walked with born_zero=false (a callee runs at arbitrary
     // times) and no nested summaries (conservative). Establishment is
     // globally monotone, so a call can only ADD it at the call site.
+    // Multi-state callees run the same must-fixpoint the main pass uses
+    // (intersection meet over predecessors), and the summary INTERSECTS the
+    // exit sets of the TERMINAL states (no outgoing transition -- the only
+    // places the callee can return from); a dispatch state's own exit is
+    // not a return point. No terminal states (a cyclic graph) summarizes
+    // as nothing -- conservative.
     let mut summaries: Vec<(omega_core::symbols::SymbolHandle, Vec<String>)> = Vec::new();
     let mut throwaway = Vec::new();
     for machine in program.machines() {
         let states = program.machine_states(machine);
-        if states.len() != 1 {
+        if states.is_empty() {
             continue;
         }
-        let (established, _) = walk_state(
-            program,
-            machine,
-            &states[0],
-            &[],
-            &[],
-            &[],
-            false,
-            &mut throwaway,
-        );
-        let self_rooted: Vec<String> = established
+        let (exits, terminal): (Vec<Vec<String>>, Vec<usize>) = if states.len() == 1 {
+            (
+                vec![
+                    walk_state(
+                        program,
+                        machine,
+                        &states[0],
+                        &[],
+                        &[],
+                        &[],
+                        false,
+                        &mut throwaway,
+                    )
+                    .0,
+                ],
+                vec![0],
+            )
+        } else {
+            let edges = state_edges(program, states);
+            let mut entry: Vec<Vec<String>> = vec![Vec::new(); states.len()];
+            let exits = loop {
+                let exits: Vec<Vec<String>> = states
+                    .iter()
+                    .enumerate()
+                    .map(|(index, state)| {
+                        walk_state(
+                            program,
+                            machine,
+                            state,
+                            &entry[index],
+                            &[],
+                            &[],
+                            false,
+                            &mut throwaway,
+                        )
+                        .0
+                    })
+                    .collect();
+                let mut changed = false;
+                for index in 1..states.len() {
+                    let predecessors: Vec<usize> = edges
+                        .iter()
+                        .filter(|(_, to)| *to == index)
+                        .map(|(from, _)| *from)
+                        .collect();
+                    if predecessors.is_empty() {
+                        continue;
+                    }
+                    let mut meet: Option<Vec<String>> = None;
+                    for predecessor in &predecessors {
+                        let exit = &exits[*predecessor];
+                        meet = Some(match meet {
+                            None => exit.clone(),
+                            Some(current) => current
+                                .into_iter()
+                                .filter(|place| exit.contains(place))
+                                .collect(),
+                        });
+                    }
+                    let meet = meet.unwrap_or_default();
+                    if meet != entry[index] {
+                        entry[index] = meet;
+                        changed = true;
+                    }
+                }
+                if !changed {
+                    break exits;
+                }
+            };
+            let terminal: Vec<usize> = (0..states.len())
+                .filter(|index| !edges.iter().any(|(from, _)| from == index))
+                .collect();
+            (exits, terminal)
+        };
+        if terminal.is_empty() {
+            continue;
+        }
+        let mut definite: Option<Vec<String>> = None;
+        for index in &terminal {
+            let exit = &exits[*index];
+            definite = Some(match definite {
+                None => exit.clone(),
+                Some(current) => current
+                    .into_iter()
+                    .filter(|place| exit.contains(place))
+                    .collect(),
+            });
+        }
+        let self_rooted: Vec<String> = definite
+            .unwrap_or_default()
             .into_iter()
             .filter(|spelling| is_self_rooted(spelling))
             .collect();

@@ -1056,9 +1056,18 @@ bounded-escape store-containment keystone. Open rungs:
   Establishment is globally monotone, so a call only ADDS. Pinned:
   pass data_where_callee_establishes (construct in recruit, read in
   main -- the slice-9 flow that had to be reworked, now RUNS exit 70);
-  the no-call fail pin keeps refusing. Remaining R2: field-vs-field
-  read hypotheses, window transport across states, multi-state callee
-  summaries. The rest of the big semantic build:** the
+  the no-call fail pin keeps refusing. MULTI-STATE callee summaries
+  LANDED 2026-07-16: a multi-state callee runs the same must-fixpoint
+  the main pass uses (intersection meet over predecessors,
+  born_zero=false throughout -- a callee runs at arbitrary times) and
+  the summary intersects the exit sets of the TERMINAL states only
+  (no outgoing transition -- the only return points; a dispatch
+  state's own exit is not one; cyclic graphs summarize as nothing).
+  Pinned: pass data_where_multistate_callee (two-arm dispatch, both
+  exits establish, RUNS exit 70) / fail
+  data_where_multistate_partial_refuses (one arm does not establish
+  -- the intersection empties and the read refuses). Remaining R2:
+  field-vs-field read hypotheses, window transport across states. The rest of the big semantic build:** the
   big semantic build — where-clause parsing on data, the default-domain
   layer, gating (zero-excluding domains legal, construction mandatory
   fields), consumption-point windows (ADDITIVE relaxation of the landed
