@@ -951,10 +951,22 @@ bounded-escape store-containment keystone. Open rungs:
   establishment is a later rung -- v1 same-state only, no corpus
   impact). Pinned: fail data_where_read_before_establish (zeroed
   Player.health read); the gated-literal pass canary now reads AFTER
-  construction (the gate opens). Remaining R2: hypotheses (readers
-  assume the facts -- the parameter/alias story), cross-state
-  establishment, windows (ch11), runtime-valued construction via the
-  prover. The rest of the big semantic build:** the
+  construction (the gate opens). RUNG 3 SLICE 3 LANDED same day --
+  CROSS-STATE establishment: a MUST analysis over the state graph
+  (established at entry of S = established at exit of EVERY
+  predecessor; edges resolved by target SYMBOL, the termination
+  graph's proven rule, with name fallback; SelfTarget = self-edge;
+  bottom-start fixpoint = least/under-approximation -- loop-carried
+  establishment stays conservative, over-refusal only). SOUND because
+  establishment is globally monotone in the strict model: every
+  accepted write anywhere re-proves the domain. Pinned: pass
+  data_where_cross_state_establish (construct in entry, read in a
+  successor state -- RUNS exit 70); the same-state fail pin keeps
+  refusing with the updated construct-on-every-path direction.
+  Remaining R2: hypotheses (readers assume the facts -- the
+  parameter/alias story), windows (ch11), runtime-valued construction
+  via the prover, cross-state VALUATION transport (co-field folds
+  currently reset per state -- safe over-refusal). The rest of the big semantic build:** the
   big semantic build — where-clause parsing on data, the default-domain
   layer, gating (zero-excluding domains legal, construction mandatory
   fields), consumption-point windows (ADDITIVE relaxation of the landed

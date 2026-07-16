@@ -31453,6 +31453,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "termination/increasing_cursor_bounded_view",
     "termination/increasing_cursor_rank_range",
     "dependent/data_where_zero_satisfying",
+    "dependent/data_where_cross_state_establish",
     "dependent/data_where_gated_literal_proves",
     "termination/default_order_unsigned_width_countdown_compile",
     "termination/runtime_shrinking_slice_recursion_exit",

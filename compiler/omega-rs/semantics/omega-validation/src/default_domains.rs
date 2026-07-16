@@ -29,10 +29,107 @@ pub(crate) fn validate_default_domain_writes(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for machine in program.machines() {
-        for state in program.machine_states(machine) {
-            validate_state(program, machine, state, diagnostics);
+        let states = program.machine_states(machine);
+        // R2 rung 3 slice 3: CROSS-STATE establishment. Establishment is
+        // globally monotone in the strict model (every accepted write
+        // anywhere re-proves the domain), so a MUST analysis over the
+        // state graph is sound: established at entry of S = established at
+        // exit of EVERY predecessor. Bottom-start iteration converges to
+        // the LEAST fixpoint -- an UNDER-approximation (loop-carried
+        // establishment stays conservative), which only over-refuses.
+        let mut throwaway = Vec::new();
+        let local: Vec<Vec<String>> = states
+            .iter()
+            .map(|state| walk_state(program, machine, state, &[], &mut throwaway))
+            .collect();
+        let edges = state_edges(program, states);
+        let mut entry: Vec<Vec<String>> = vec![Vec::new(); states.len()];
+        loop {
+            let mut changed = false;
+            for index in 1..states.len() {
+                let predecessors: Vec<usize> = edges
+                    .iter()
+                    .filter(|(_, to)| *to == index)
+                    .map(|(from, _)| *from)
+                    .collect();
+                if predecessors.is_empty() {
+                    continue;
+                }
+                let mut meet: Option<Vec<String>> = None;
+                for predecessor in predecessors {
+                    let mut exit = entry[predecessor].clone();
+                    exit.extend(local[predecessor].iter().cloned());
+                    exit.sort();
+                    exit.dedup();
+                    meet = Some(match meet {
+                        None => exit,
+                        Some(current) => current
+                            .into_iter()
+                            .filter(|place| exit.contains(place))
+                            .collect(),
+                    });
+                }
+                let meet = meet.unwrap_or_default();
+                if meet != entry[index] {
+                    entry[index] = meet;
+                    changed = true;
+                }
+            }
+            if !changed {
+                break;
+            }
+        }
+        for (index, state) in states.iter().enumerate() {
+            walk_state(program, machine, state, &entry[index], diagnostics);
         }
     }
+}
+
+/// The machine's state-transition edges by state INDEX (Named targets
+/// matched by simple state name; Value/Terminal/SelfTarget edges carry no
+/// establishment transfer -- SelfTarget re-enters with the same entry set,
+/// modeled as a self-edge).
+fn state_edges(program: &TypedTrees, states: &[State]) -> Vec<(usize, usize)> {
+    use omega_typed_trees::statement::{StatementNode, TransitionTargetNode};
+    let mut edges = Vec::new();
+    for (from, state) in states.iter().enumerate() {
+        for statement in program.statement_table.statements(state.statement_nodes) {
+            let StatementNode::Transition(transition) = statement else {
+                continue;
+            };
+            for handle in [transition.target, transition.continuation] {
+                if !handle.is_valid() {
+                    continue;
+                }
+                match program.statement_table.transition_target(handle) {
+                    // Resolve by SYMBOL first (the termination graph's proven
+                    // rule), name as the fallback.
+                    TransitionTargetNode::Named { path, .. } => {
+                        let to = states
+                            .iter()
+                            .position(|candidate| candidate.symbol == path.symbol)
+                            .or_else(|| {
+                                program
+                                    .expression_table
+                                    .name_path_members(path.members)
+                                    .last()
+                                    .and_then(|target_name| {
+                                        states.iter().position(|candidate| {
+                                            candidate.name == *target_name
+                                        })
+                                    })
+                            });
+                        if let Some(to) = to {
+                            edges.push((from, to));
+                        }
+                    }
+                    TransitionTargetNode::SelfTarget => edges.push((from, from)),
+                    _ => {}
+                }
+            }
+        }
+    }
+    edges
 }
 
 /// One tracked place: its rendered spelling, its data definition, and the
@@ -49,18 +146,31 @@ struct TrackedPlace<'program> {
     established: bool,
 }
 
-fn validate_state(
+/// Walk one state (write obligations + the access gate), seeded with the
+/// places ESTABLISHED AT ENTRY (the cross-state fixpoint). Returns the
+/// EXIT-established spellings (entry-established places stay established:
+/// monotone).
+fn walk_state(
     program: &TypedTrees,
     machine: &Machine,
     state: &State,
+    entry_established: &[String],
     diagnostics: &mut Vec<Diagnostic>,
-) {
+) -> Vec<String> {
     let mut tracked: Vec<TrackedPlace> = Vec::new();
 
     for statement in program.statement_table.statements(state.statement_nodes) {
         // R2 rung 3 slice 2: reads of an unestablished GATED place refuse
         // BEFORE this statement's own write effect is applied.
-        scan_statement_reads(program, machine, state, statement, &tracked, diagnostics);
+        scan_statement_reads(
+            program,
+            machine,
+            state,
+            statement,
+            &tracked,
+            entry_established,
+            diagnostics,
+        );
         match statement {
             StatementNode::Assignment(assignment) => {
                 handle_assignment(
@@ -90,6 +200,17 @@ fn validate_state(
             _ => {}
         }
     }
+
+    let mut exit: Vec<String> = entry_established.to_vec();
+    exit.extend(
+        tracked
+            .iter()
+            .filter(|place| place.established)
+            .map(|place| place.spelling.clone()),
+    );
+    exit.sort();
+    exit.dedup();
+    exit
 }
 
 fn handle_assignment<'program>(
@@ -231,6 +352,7 @@ fn scan_statement_reads(
     state: &State,
     statement: &StatementNode,
     tracked: &[TrackedPlace<'_>],
+    entry_established: &[String],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let mut reads: Vec<ExpressionHandle> = Vec::new();
@@ -259,7 +381,15 @@ fn scan_statement_reads(
         _ => {}
     }
     for read in reads {
-        scan_expression_reads(program, machine, state, read, tracked, diagnostics);
+        scan_expression_reads(
+            program,
+            machine,
+            state,
+            read,
+            tracked,
+            entry_established,
+            diagnostics,
+        );
     }
 }
 
@@ -269,6 +399,7 @@ fn scan_expression_reads(
     state: &State,
     expression: ExpressionHandle,
     tracked: &[TrackedPlace<'_>],
+    entry_established: &[String],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     if !expression.is_valid() {
@@ -286,31 +417,74 @@ fn scan_expression_reads(
                     .iter()
                     .find(|place| place.spelling == receiver_spelling)
                     .map(|place| place.established)
-                    .unwrap_or(false);
+                    .unwrap_or_else(|| {
+                        // R2 rung 3 slice 3: established on every path in.
+                        entry_established.contains(&receiver_spelling)
+                    });
                 if !established {
                     diagnostics.push(Diagnostic::error(format!(
                         "reading `{receiver_spelling}.{}` before data `{}`'s default \
                          domain is established: the zeroed value is not a `{}` \
-                         (ch12's access gate) -- construct it first in this state \
-                         (cross-state establishment tracking is a later rung)",
+                         (ch12's access gate) -- construct it on every path first \
+                         (the cross-state must-analysis carries establishment)",
                         member.member.as_str(),
                         definition.name.as_str(),
                         definition.name.as_str()
                     )));
                 }
             }
-            scan_expression_reads(program, machine, state, member.receiver, tracked, diagnostics);
+            scan_expression_reads(
+                program,
+                machine,
+                state,
+                member.receiver,
+                tracked,
+                entry_established,
+                diagnostics,
+            );
         }
         ExpressionNode::Binary(binary) => {
-            scan_expression_reads(program, machine, state, binary.left, tracked, diagnostics);
-            scan_expression_reads(program, machine, state, binary.right, tracked, diagnostics);
+            scan_expression_reads(
+                program,
+                machine,
+                state,
+                binary.left,
+                tracked,
+                entry_established,
+                diagnostics,
+            );
+            scan_expression_reads(
+                program,
+                machine,
+                state,
+                binary.right,
+                tracked,
+                entry_established,
+                diagnostics,
+            );
         }
         ExpressionNode::Mutable(inner) => {
-            scan_expression_reads(program, machine, state, *inner, tracked, diagnostics);
+            scan_expression_reads(
+                program,
+                machine,
+                state,
+                *inner,
+                tracked,
+                entry_established,
+                diagnostics,
+            );
         }
         ExpressionNode::Call(call) => {
             for argument in program.expression_table.expression_handles(call.arguments) {
-                scan_expression_reads(program, machine, state, *argument, tracked, diagnostics);
+                scan_expression_reads(
+                    program,
+                    machine,
+                    state,
+                    *argument,
+                    tracked,
+                    entry_established,
+                    diagnostics,
+                );
             }
         }
         _ => {}
