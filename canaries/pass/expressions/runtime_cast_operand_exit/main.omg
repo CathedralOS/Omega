@@ -34,7 +34,9 @@ machine Main::main(&mut self) {
     }
     state check_float_to_int(&mut self) {
         // float -> int operand
-        self.ri = self.b + (self.a as i32 in Wrapping); // 4 + 10 = 14
+        // F4: a float cast has no Wrapping reading -- convert Saturating,
+        // then re-tag the INTEGER to Wrapping to meet `b`'s domain.
+        self.ri = self.b + ((self.a as i32 in Saturating) as i32 in Wrapping); // 4 + 10 = 14
         transition self.ri == 14 {
             true -> check_int_widen()
             false -> bad()

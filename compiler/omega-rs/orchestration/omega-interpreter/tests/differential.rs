@@ -63,6 +63,12 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("arithmetic/runtime_shl_saturating_value_overflow_exit", 70),
     ("arithmetic/runtime_shift_count_proven_range_exit", 70),
     ("arithmetic/runtime_shift_subword_masked_count_exit", 70),
+    // F4 Saturating float->int (NaN -> 0, OOR clamp): aarch64 FCVTZS is
+    // natively these semantics; x86's cvttsd2si fixup is the F4 remainder
+    // (its host's oracle builds it), so the row is arch-gated like the
+    // pending float_to_int rows.
+    #[cfg(target_arch = "aarch64")]
+    ("arithmetic/float_to_int_saturating_exit", 70),
     ("proofs/runtime_decreases_u64_measure_exit", 70),
     ("arithmetic/runtime_wrapping_operand_truncation_exit", 70),
     ("text/case_literal_texteq_field_store_exit", 70),

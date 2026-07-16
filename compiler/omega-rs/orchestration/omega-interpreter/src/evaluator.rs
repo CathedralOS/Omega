@@ -4226,7 +4226,7 @@ impl<'program> Evaluator<'program> {
                 if cast.form.is_recast() {
                     return self.eval_recast(value, target);
                 }
-                self.eval_cast(value, target)
+                self.eval_cast(value, target, cast.domain)
             }
             ExpressionNode::Indexed(indexed) => {
                 // A range index `arr[start..end]` produces a SUBSLICE view sharing the
@@ -5269,7 +5269,12 @@ impl<'program> Evaluator<'program> {
     /// Apply an `as` cast with width/signedness semantics: int<->float conversions and
     /// integer narrowing/widening (wrapping to the target width, sign- or zero-extending on
     /// read per the SOURCE signedness, which the value carries as its width tag).
-    fn eval_cast(&self, value: Value, target: Option<PrimitiveType>) -> EvalResult<Value> {
+    fn eval_cast(
+        &self,
+        value: Value,
+        target: Option<PrimitiveType>,
+        domain: ArithmeticDomain,
+    ) -> EvalResult<Value> {
         let Some(target) = target else {
             // A cast to a non-primitive (e.g. a trait object) is a no-op identity here.
             return Ok(value);
@@ -5290,10 +5295,35 @@ impl<'program> Evaluator<'program> {
             PrimitiveType::Bool => Ok(Value::Bool(value.as_bool().unwrap_or(false))),
             PrimitiveType::String => Ok(value),
             integer => {
-                // Float -> int truncates toward zero; int -> int reinterprets at the target
-                // width. The result keeps the target's width tag so later ops/casts wrap.
+                // Int -> int reinterprets at the target width; the result
+                // keeps the target's width tag so later ops/casts wrap.
                 let raw = match value {
-                    Value::Float(f) => f.trunc() as i64,
+                    // FLOAT -> int is domain-governed (F4, the float->int
+                    // proof-or-policy ruling):
+                    // - Saturating: NaN -> 0 (cast-specific, per the brief),
+                    //   otherwise truncate toward zero and CLAMP to the
+                    //   target's range (aarch64 FCVTZS's native semantics).
+                    // - Trapping: NaN or a truncated value outside the
+                    //   target's range traps.
+                    // - Exact: transitional truncation until the value
+                    //   obligation lands with float constant tracking
+                    //   (Wrapping float sources are rejected at validation:
+                    //   no modular reading of a float).
+                    Value::Float(f) => match domain {
+                        ArithmeticDomain::Saturating => {
+                            return Ok(Value::Int(saturate_float_to_integer(f, integer)));
+                        }
+                        ArithmeticDomain::Trapping => {
+                            if f.is_nan() || !float_fits_integer(f, integer) {
+                                return trap(format!(
+                                    "float-to-int cast out of range in Trapping domain: the \
+                                     value does not fit {integer:?}"
+                                ));
+                            }
+                            f.trunc() as i64
+                        }
+                        _ => f.trunc() as i64,
+                    },
                     other => other
                         .as_int()
                         .ok_or_else(|| Halt::Trap("cast to integer of non-numeric".to_owned()))?,
@@ -6374,6 +6404,46 @@ fn integer_bounds(ty: PrimitiveType) -> Option<(i64, i64)> {
         PrimitiveType::U32 => Some((0, u32::MAX as i64)),
         PrimitiveType::I64 => Some((i64::MIN, i64::MAX)),
         _ => None,
+    }
+}
+
+/// F4 Saturating float->int cast: NaN -> 0 (cast-specific, per the float
+/// brief), otherwise truncate toward zero and clamp to the TARGET's range --
+/// exactly aarch64 FCVTZS's native semantics (and Rust's `as`). The u64
+/// target saturates on the u64 range and returns the BIT pattern on the i64
+/// carrier (`u64::MAX` rides as -1), like every other u64-classed value.
+fn saturate_float_to_integer(f: f64, ty: PrimitiveType) -> i64 {
+    if f.is_nan() {
+        return 0;
+    }
+    if matches!(ty, PrimitiveType::U64 | PrimitiveType::Addr) {
+        return (f as u64) as i64; // Rust `as` saturates to [0, u64::MAX]
+    }
+    match integer_bounds(ty) {
+        Some((min, max)) => (f as i64).clamp(min, max),
+        None => f.trunc() as i64,
+    }
+}
+
+/// F4 Trapping float->int cast fit check: NaN callers check separately; here
+/// a finite value fits when its TRUNCATION lies in the target's range. The
+/// exclusive-bound float compares are exact (powers of two are representable).
+fn float_fits_integer(f: f64, ty: PrimitiveType) -> bool {
+    if matches!(ty, PrimitiveType::U64 | PrimitiveType::Addr) {
+        // [0, 2^64): -1 < f < 2^64 covers every truncation that fits.
+        return f > -1.0 && f < 18446744073709551616.0;
+    }
+    if ty == PrimitiveType::I64 {
+        // i64::MIN - 1 is not representable in f64 (the subtraction rounds
+        // back to -2^63), so the lower bound is INCLUSIVE: -2^63 itself is
+        // exact and fits.
+        return f >= -9223372036854775808.0 && f < 9223372036854775808.0;
+    }
+    match integer_bounds(ty) {
+        // trunc(f) in [min, max] iff min - 1 < f < max + 1; the +-1 bounds
+        // are exact in f64 for every width up to 32 bits.
+        Some((min, max)) => f > (min as f64) - 1.0 && f < (max as f64) + 1.0,
+        None => true,
     }
 }
 

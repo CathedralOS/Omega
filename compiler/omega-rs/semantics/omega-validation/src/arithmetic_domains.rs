@@ -1766,7 +1766,7 @@ fn analyze(
         }
         ExpressionNode::Cast(cast) => {
             // A cast re-types its operand, so the outer target does not flow in.
-            let _ = analyze(
+            let source = analyze(
                 program,
                 machine,
                 state,
@@ -1782,6 +1782,26 @@ fn analyze(
                 .name_path_members(cast.target_type)
                 .last()
                 .and_then(|name| PrimitiveType::from_name(name.as_str()));
+            // F4 (the float->int cast ruling): there is NO MODULAR READING
+            // of a float, so `f as iN in Wrapping` is a compile error (ch5;
+            // the ruling's precedent generalized to the float domain list).
+            // Saturating (NaN -> 0, clamp to the target range) and Trapping
+            // (trap on NaN/out-of-range) are the defined policies; a bare
+            // Exact cast keeps the transitional truncation until float
+            // constant tracking can carry the value obligation.
+            if cast.domain == ArithmeticDomain::Wrapping
+                && matches!(
+                    source.primitive,
+                    Some(PrimitiveType::F32 | PrimitiveType::F64)
+                )
+                && primitive.is_some_and(|target| integer_bit_width(target).is_some())
+            {
+                diagnostics.push(Diagnostic::error(format!(
+                    "float-to-int cast `in Wrapping` in {owner}: there is no modular reading \
+                     of a float (ch5 cast ruling). Use `in Saturating` (NaN -> 0, clamp to \
+                     the target range) or `in Trapping` (trap on NaN/out-of-range) instead.",
+                )));
+            }
             // The cast bounds the value to the target type's range (and re-tags its
             // domain), so it is a widening/narrowing escape from an overflow.
             let interval = primitive

@@ -17841,6 +17841,40 @@ fn runtime_shift_subword_masked_count_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+#[cfg(target_arch = "aarch64")]
+#[test]
+fn float_to_int_saturating_exit_canary_runs() {
+    // F4: the Saturating float->int cast clamps (NaN -> 0, OOR -> bounds,
+    // in-range truncates). aarch64 FCVTZS natively IS these semantics; the
+    // x86 fixup sequence is the F4 remainder (its host's oracle builds it),
+    // hence the arch gate.
+    let canary = pass_canary("arithmetic/float_to_int_saturating_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-f2isat-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("saturating float->int canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("saturating float->int canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the Saturating cast semantics (exit 70), got {:?}",
+        output.status.code(),
+    );
+    // The interpreter leg mirrors the same clamp arm.
+    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+        .expect("saturating float->int canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(outcome.exit_code, 70, "interp Saturating cast should clamp");
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 #[test]
 fn trapping_shift_count_traps_aborts() {
     // F8c (ch5 shift-count ruling): a TRAPPING shift's out-of-range count
@@ -31614,6 +31648,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "arithmetic/shift_count_literal_oor_rejected",
     "arithmetic/shift_count_unproven_rejected",
     "arithmetic/shift_count_saturating_oor_rejected",
+    "arithmetic/float_cast_wrapping_rejected",
     "arithmetic/suffix_negative_unsigned_rejected",
     "float/suffix_format_disagrees_rejected",
     "capabilities/host_provides_unknown_binding",

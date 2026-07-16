@@ -18,16 +18,19 @@
 // landed (proof-or-policy, OWNER_QUESTIONS 10 / float ladder F4); building
 // F4 retires this repro entirely.
 //
-// UNIFIED DESIGN QUESTION -- HALF RESOLVED (2026-07-16): the SHIFT half landed
-// as F8 (ch5 shift-count ruling, settled 2026-07-18 by owner): Exact proves
-// `count < width` (literal OOR = compile error --
-// fail/arithmetic/shift_count_literal_oor_rejected + shift_count_unproven_
-// rejected pin it), Wrapping masks the count, Trapping traps; the shift
-// divergence is retired from this family. The FLOAT-TO-INT half (this repro)
-// remains: the ruling is the same proof-or-policy shape (OWNER_QUESTIONS 10 /
-// float ladder F4); building F4 retires this repro entirely. Until then the
-// oracle is unreliable for out-of-range float-to-int casts. In-range casts
-// agree + are correct.
+// UNIFIED DESIGN QUESTION -- MOSTLY RESOLVED (2026-07-16): the SHIFT half
+// landed as F8 (Exact obligation + Wrapping masked count + Trapping count
+// trap -- all three rungs). The FLOAT-TO-INT half is PARTIALLY built (F4a):
+// `in Wrapping` float casts are REJECTED (no modular reading of a float --
+// fail/arithmetic/float_cast_wrapping_rejected), `in Saturating` is the
+// defined clamp policy (NaN -> 0, OOR -> bounds; interp + aarch64 FCVTZS,
+// pinned arch-gated in pass/arithmetic/float_to_int_saturating_exit), and
+// the interp's `in Trapping` cast traps on NaN/OOR. THIS REPRO (the BARE
+// Exact cast) still stands: retiring it needs (a) the Exact value
+// obligation (float constant tracking in validation), and (b) the x86
+// Saturating/Trapping cast fixup sequences (cvttsd2si's integer-indefinite
+// -- built on the x86 host with its runtime oracle) plus the native
+// Trapping cast guard on both ISAs. In-range casts agree + are correct.
 
 boundary trait Console { machine exit_process(return_code: i32); }
 data Main { console: Console; f: f64; }
