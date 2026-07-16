@@ -108,8 +108,16 @@ and decision-23's ten acceptance tests. Until TPR5 lands, the checked-in
    The STATIC-TABLE sub-rung (RuntimeStaticValues → IntegerLiteral)
    stays BANKED, not built: acceptance is green without it; revive when
    a selection-recorded static (a TABLE round-trip, not a binding
-   substitution) is caught stripping a landing. Remaining CR3 faces:
-   the u64>i64::MAX validation gate + classify resolvers reading
+   substitution) is caught stripping a landing. CR3 FACE CLOSED
+   2026-07-16 — D14 Fire H: the literal-width gate now blesses a
+   u64-magnitude literal in TRANSITION-ARGUMENT position when the
+   target state's declared parameter is u64-classed (the same
+   Named-target/non-self-param zip the F2c float stamping rides; the
+   frame-slot arg writer already reads bits). Pinned:
+   pass/arithmetic/u64_magnitude_transition_arg_exit (differential 70;
+   struct-field + guard-equality fires exercised en route) + fail twin
+   u64_magnitude_arg_non_u64_rejected (u32 param keeps the loud
+   rejection). Remaining CR3 face: classify resolvers reading
    landings (consumer migration continues with CR4/CM1).
    CR4 — parse-site stamping. INTEGER HALF (CR4a) LANDED 2026-07-18:
    width suffixes stamp landings at parse (Exact domain — destination

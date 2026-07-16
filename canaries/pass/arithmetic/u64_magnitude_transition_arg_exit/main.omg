@@ -1,0 +1,22 @@
+// RUN CANARY (exit 70) + interpreter differential. D14 literal-width gate,
+// Fire H (the CR3 remaining face): a u64-MAGNITUDE literal (> i64::MAX) in
+// TRANSITION-ARGUMENT position delivers when the target state's declared
+// parameter is u64-classed -- the arg is a delivery into that slot (the
+// same destination law the F2c float stamping rides), and the frame-slot
+// arg writer reads the literal through the bits-capable static resolver.
+// Also exercises the earlier fires en route: the u64 struct-literal FIELD
+// (Fire: construction) and the u64 EQUALITY guard (Fire F).
+// exits: 71 = field compare wrong; 72 = arg delivery wrong.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Box64 { v: u64; }
+data Main { console: Console; b: Box64; }
+machine Main::main(&mut self) {
+    self.b = Box64 { v: 18446744073709551615 };
+    transition self.b.v == 18446744073709551615 { true -> fwd(18446744073709551614) _ -> bad() }
+    state fwd(&mut self, n: u64) {
+        transition n == 18446744073709551614 { true -> good() _ -> bad2() }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self)  { self.console.exit_process(71); }
+    state bad2(&mut self) { self.console.exit_process(72); }
+}
