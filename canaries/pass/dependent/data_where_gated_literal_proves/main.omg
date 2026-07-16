@@ -13,5 +13,8 @@ where
 data Main { console: Console; champion: Player; }
 machine Main::main(&mut self) {
     self.champion = Player { health: 50 };
+    // The access gate opens after the proven construction: this read is
+    // legal (rung 3 slice 2).
+    let strength: i32 = self.champion.health;
     self.console.exit_process(70);
 }
