@@ -51,6 +51,7 @@ fn rejects_view_return_of_body_local() {
         flow,
         termination: Default::default(),
         effect_rows: Default::default(),
+        qualifications: Default::default(),
     };
 
     let diagnostics = check_checked_facts(&typed, &facts)
@@ -144,6 +145,7 @@ fn check_program(source: &str) -> Result<(), Vec<omega_core::diagnostics::Diagno
         flow,
         termination: Default::default(),
         effect_rows: Default::default(),
+        qualifications: Default::default(),
     };
     check_checked_facts(&typed, &facts)
 }
@@ -202,6 +204,7 @@ fn accepts_mutable_local_named_place_arguments() {
         flow,
         termination: Default::default(),
         effect_rows: Default::default(),
+        qualifications: Default::default(),
     };
 
     let pick_machine = typed
@@ -316,6 +319,7 @@ fn accepts_disjoint_member_borrow_arguments() {
         flow,
         termination: Default::default(),
         effect_rows: Default::default(),
+        qualifications: Default::default(),
     };
 
     let main_machine = typed
@@ -414,6 +418,7 @@ fn rejects_direct_mutable_borrow_while_local_alias_is_active() {
         flow,
         termination: Default::default(),
         effect_rows: Default::default(),
+        qualifications: Default::default(),
     };
 
     let diagnostics = check_checked_facts(&typed, &facts)
@@ -483,6 +488,7 @@ fn rejects_direct_mutable_borrow_while_helper_alias_is_active() {
         flow,
         termination: Default::default(),
         effect_rows: Default::default(),
+        qualifications: Default::default(),
     };
 
     let diagnostics = check_checked_facts(&typed, &facts)
@@ -541,6 +547,7 @@ fn rejects_local_borrow_creation_while_prior_alias_is_active() {
         flow,
         termination: Default::default(),
         effect_rows: Default::default(),
+        qualifications: Default::default(),
     };
 
     let diagnostics = check_checked_facts(&typed, &facts)
@@ -604,6 +611,7 @@ fn accepts_direct_mutable_borrow_after_local_alias_last_use() {
         flow,
         termination: Default::default(),
         effect_rows: Default::default(),
+        qualifications: Default::default(),
     };
 
     check_checked_facts(&typed, &facts).expect("loan should end after alias last use");
@@ -651,6 +659,7 @@ fn rejects_direct_assignment_while_local_alias_is_active() {
         flow,
         termination: Default::default(),
         effect_rows: Default::default(),
+        qualifications: Default::default(),
     };
 
     let diagnostics = check_checked_facts(&typed, &facts)
@@ -723,6 +732,7 @@ fn rejects_mutating_call_through_owner_while_view_is_active() {
         flow,
         termination: Default::default(),
         effect_rows: Default::default(),
+        qualifications: Default::default(),
     };
 
     let diagnostics = check_checked_facts(&typed, &facts)
@@ -788,6 +798,7 @@ fn rejects_vec_push_while_slice_view_is_active() {
         flow,
         termination: Default::default(),
         effect_rows: Default::default(),
+        qualifications: Default::default(),
     };
 
     let diagnostics = check_checked_facts(&typed, &facts)
@@ -858,6 +869,7 @@ fn accepts_mutating_call_through_owner_on_disjoint_field() {
         flow,
         termination: Default::default(),
         effect_rows: Default::default(),
+        qualifications: Default::default(),
     };
 
     check_checked_facts(&typed, &facts)
@@ -920,6 +932,7 @@ fn accepts_known_pure_mutable_receiver_call_while_view_is_active() {
         flow,
         termination: Default::default(),
         effect_rows: Default::default(),
+        qualifications: Default::default(),
     };
 
     check_checked_facts(&typed, &facts)
@@ -971,6 +984,7 @@ fn accepts_mutable_slice_alias_index_from_fixed_array_field() {
         flow,
         termination: Default::default(),
         effect_rows: Default::default(),
+        qualifications: Default::default(),
     };
 
     check_checked_facts(&typed, &facts)
@@ -1031,6 +1045,7 @@ fn accepts_recursive_slice_parameter_index_proof_from_guard() {
         flow,
         termination: Default::default(),
         effect_rows: Default::default(),
+        qualifications: Default::default(),
     };
 
     check_checked_facts(&typed, &facts)
@@ -1080,6 +1095,7 @@ fn accepts_direct_mutable_borrow_after_local_alias_reassignment() {
         flow,
         termination: Default::default(),
         effect_rows: Default::default(),
+        qualifications: Default::default(),
     };
 
     check_checked_facts(&typed, &facts)
@@ -1143,6 +1159,7 @@ fn rejects_linked_input_mutation_while_free_machine_view_is_active() {
         flow,
         termination: Default::default(),
         effect_rows: Default::default(),
+        qualifications: Default::default(),
     };
 
     let diagnostics = check_checked_facts(&typed, &facts)
@@ -1221,6 +1238,7 @@ fn accepts_unlinked_ref_input_mutation_while_free_machine_view_is_active() {
         flow,
         termination: Default::default(),
         effect_rows: Default::default(),
+        qualifications: Default::default(),
     };
 
     check_checked_facts(&typed, &facts)
@@ -1285,6 +1303,7 @@ fn rejects_ambiguous_view_return_with_multiple_ref_inputs() {
         flow,
         termination: Default::default(),
         effect_rows: Default::default(),
+        qualifications: Default::default(),
     };
 
     let diagnostics = check_checked_facts(&typed, &facts)
@@ -1358,6 +1377,7 @@ fn accepts_view_return_disambiguated_by_explicit_lifetime() {
         flow,
         termination: Default::default(),
         effect_rows: Default::default(),
+        qualifications: Default::default(),
     };
 
     check_checked_facts(&typed, &facts)

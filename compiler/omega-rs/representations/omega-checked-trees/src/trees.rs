@@ -1,6 +1,6 @@
 use crate::{
     BorrowFacts, CheckedOperatorFacts, CheckedValueFacts, DomainFacts, FlowFacts, InvariantFacts,
-    EffectRowFacts, ProofFacts, TerminationFacts,
+    EffectRowFacts, ProofFacts, QualificationFacts, TerminationFacts,
 };
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -21,6 +21,9 @@ pub struct CheckFacts {
     /// STR4 slice 2 (decision 22): kinded effect rows -- published ceiling
     /// vs inferred direct/transitive summaries.
     pub effect_rows: EffectRowFacts,
+    /// STR4 checked plans, slice 2 (decision 19): the semantic-domain
+    /// commitments each machine's body makes (arithmetic-policy casts v1).
+    pub qualifications: QualificationFacts,
 }
 
 impl CheckFacts {
@@ -37,6 +40,7 @@ impl CheckFacts {
         flow: FlowFacts,
         termination: TerminationFacts,
         effect_rows: EffectRowFacts,
+        qualifications: QualificationFacts,
     ) -> Self {
         Self {
             semantic,
@@ -51,6 +55,7 @@ impl CheckFacts {
             flow,
             termination,
             effect_rows,
+            qualifications,
         }
     }
 }
