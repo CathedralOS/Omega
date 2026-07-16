@@ -16,6 +16,9 @@ pub struct SymbolResolvedTrees {
     /// machines carry `effect_row` ids into THIS table. Populated at the
     /// syntax->resolved lowering, copied verbatim downstream.
     pub effect_rows: omega_core::semantics::EffectRowTable,
+    /// STR4 checked plans, slice 1: the deterministic semantic-domain
+    /// interner (declared-name identity, declaration order).
+    pub semantic_domains: omega_core::semantics::SemanticDomainTable,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -113,6 +116,7 @@ impl SymbolResolvedTrees {
             tables,
             symbols,
             effect_rows: omega_core::semantics::EffectRowTable::default(),
+            semantic_domains: omega_core::semantics::SemanticDomainTable::default(),
         }
     }
 

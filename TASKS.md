@@ -644,12 +644,24 @@ sealed progress profiles + grants, TPR4's remaining big half).
    sees the ceiling through the call edge). CEILING ENFORCEMENT verified
    ALREADY LIVE 2026-07-16 (run-probed: "declares effects `clock_read`
    but reaches undeclared effects `host_boundary`"; pinned:
-   fail/capabilities/effect_ceiling_exceeded). Remaining STR4:
+   fail/capabilities/effect_ceiling_exceeded). CHECKED-PLANS SLICE 1
+   LANDED 2026-07-16: omega-core gains SemanticDomainTable (the
+   EffectRowTable twin) -- deterministic SemanticDomainId minting
+   per DECLARED domain (declared-name identity, declaration order,
+   NULL=0 reserved); both tree layers carry the table (copied
+   verbatim, surviving the finish() rebuild) and DomainDefinition
+   (both layers) carries `semantic_id` populated ONCE at
+   syntax->resolved. Pinned: semantic_domain_ids_mint_and_propagate
+   (two declared domains mint distinct valid ids; the typed table
+   resolves them back; the resolved table agrees) + the omega-core
+   interner determinism unit. Remaining STR4:
    pinned-slot refinement (provider-slot machinery -- profile-
-   adjacent), transitive-seed rework;
+   adjacent);
    snapshots gain the new fields as those slices land;
    STR4 checked semantic
-   qualification + permission + normalized-machine-contract plans; STR5
+   qualification + permission + normalized-machine-contract plans
+   (NEXT: qualification-EVENT facts in CheckFacts riding the new
+   ids -- the `as`-mint inventory); STR5
    validation/resolution; STR6 lower only from checked selections while
    preserving semantic contract IDs in artifacts; STR7 retire compatibility
    paths. Decision 22 now supplies the effect-row target: kinded

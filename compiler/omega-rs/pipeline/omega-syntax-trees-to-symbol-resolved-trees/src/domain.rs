@@ -25,6 +25,13 @@ pub(crate) fn lower_domain_definition(
         omega_symbol_resolved_trees::expression::ExpressionHandle::invalid()
     };
 
+    // STR4 checked plans, slice 1: mint the normalized semantic identity
+    // ONCE here (declaration order); every downstream layer copies it.
+    let semantic_id = lowerer
+        .symbol_resolved_trees
+        .semantic_domains
+        .intern(domain.name.as_str());
+
     Ok(DomainDefinition {
         symbol: SymbolHandle::invalid(),
         name: lower_name(&domain.name),
@@ -33,6 +40,7 @@ pub(crate) fn lower_domain_definition(
         facts,
         operators,
         body_token_count: domain.body_token_count,
+        semantic_id,
     })
 }
 

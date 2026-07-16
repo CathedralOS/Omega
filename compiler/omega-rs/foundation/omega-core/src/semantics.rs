@@ -306,6 +306,47 @@ impl EffectRowTable {
     }
 }
 
+/// Decision 19/22 (STR4 checked plans, slice 1): the deterministic
+/// SEMANTIC-DOMAIN interner -- normalized domain identity is the declared
+/// NAME, minted in declaration order (deterministic because lowering order
+/// is; presentation is excluded from identity per the facets brief).
+/// `NULL`/0 stays "not computed"; ids start at 1.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct SemanticDomainTable {
+    names: Vec<String>,
+}
+
+impl SemanticDomainTable {
+    /// Intern a declared domain name and return its identity (idempotent).
+    pub fn intern(&mut self, name: &str) -> SemanticDomainId {
+        if let Some(position) = self.names.iter().position(|candidate| candidate == name) {
+            return SemanticDomainId(
+                u32::try_from(position + 1).expect("domain table fits u32"),
+            );
+        }
+        self.names.push(name.to_owned());
+        SemanticDomainId(u32::try_from(self.names.len()).expect("domain table fits u32"))
+    }
+
+    /// The declared name of an interned identity (`None` for NULL/unknown).
+    pub fn name(&self, id: SemanticDomainId) -> Option<&str> {
+        id.0
+            .checked_sub(1)
+            .and_then(|index| self.names.get(index as usize))
+            .map(String::as_str)
+    }
+
+    /// Look up an existing identity without minting.
+    pub fn lookup(&self, name: &str) -> Option<SemanticDomainId> {
+        self.names
+            .iter()
+            .position(|candidate| candidate == name)
+            .map(|position| {
+                SemanticDomainId(u32::try_from(position + 1).expect("domain table fits u32"))
+            })
+    }
+}
+
 /// The domain-theory facet PAIR (record §Domain theory): optional facets,
 /// NOT a mutually exclusive enum — hybrids are first-class. The facet
 /// bodies land with STR3+ (they need tree vocabulary); the skeleton lands
@@ -320,6 +361,22 @@ pub struct DomainFacets {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn semantic_domain_table_is_deterministic_and_idempotent() {
+        // Identity = declaration order; re-interning the same name returns
+        // the same id; NULL never resolves to a name.
+        let mut table = SemanticDomainTable::default();
+        let kilometres = table.intern("Km");
+        let wrapping = table.intern("Wrapping");
+        assert_eq!(kilometres, SemanticDomainId(1));
+        assert_eq!(wrapping, SemanticDomainId(2));
+        assert_eq!(table.intern("Km"), kilometres);
+        assert_eq!(table.name(kilometres), Some("Km"));
+        assert_eq!(table.lookup("Wrapping"), Some(wrapping));
+        assert_eq!(table.name(SemanticDomainId::NULL), None);
+        assert_eq!(table.lookup("Miles"), None);
+    }
 
     #[test]
     fn multiplicity_default_is_affine() {
