@@ -896,7 +896,15 @@ bounded-escape store-containment keystone. Open rungs:
 - **R3 residue (store-proof completion):** UNBOUNDED-store seeding stays
   permissive (conservative post-entry env seeding would flip sound corpus
   shapes) — revisit with a plan.
-- **R2 (where-clause + gating + windows) — QUEUED (Next Tasks #3):** the
+- **R2 (where-clause + gating + windows) — RUNG 1 LANDED 2026-07-16
+  (the SPELLING, TPR1 staged-surface pattern):** `data M where
+  count <= len, { ... }` parses into the new syntax
+  DataDefinition.where_facts (proof-fact span, comma-separated,
+  trailing comma tolerated, ends at the body brace; same clause
+  position generics will use) and the syntax->resolved lowering
+  REFUSES it loudly until rung 2 consumes the default-domain model
+  (pinned: fail/dependent/data_where_clause_unconsumed + a parser
+  unit). Remaining R2 = the big semantic build:** the
   big semantic build — where-clause parsing on data, the default-domain
   layer, gating (zero-excluding domains legal, construction mandatory
   fields), consumption-point windows (ADDITIVE relaxation of the landed

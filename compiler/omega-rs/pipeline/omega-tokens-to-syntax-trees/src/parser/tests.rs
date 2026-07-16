@@ -345,6 +345,39 @@ fn rejects_ranking_witness_on_trait_requirement() {
 }
 
 #[test]
+fn parses_data_default_domain_where_clause() {
+    // R2 rung 1 (ch12 "Dependent Data"): the where clause between the data
+    // signature and the body -- bare field names, comma-separated facts,
+    // trailing comma tolerated.
+    let source = r#"
+        data MemoryMap
+        where
+            count <= len,
+            stride >= 40,
+        {
+            len: u32;
+            stride: u32;
+            count: u32;
+        }
+        "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let parsed = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let data = parsed
+        .root_items()
+        .find_map(|item| match item {
+            omega_syntax_trees::item::Item::Data(data) => Some(data),
+            _ => None,
+        })
+        .expect("data root item");
+
+    assert_eq!(parsed.items.proof_facts(data.where_facts).len(), 2);
+    assert_eq!(parsed.items.data_members(data.members).len(), 3);
+}
+
+#[test]
 fn rejects_bare_arrow_transition_in_explicit_state_body() {
     let source = r#"
         machine Main::main(&mut self) {

@@ -232,6 +232,7 @@ impl SyntaxTrees {
             name: data.name.clone(),
             type_parameters: self.copy_type_parameter_span(other, data.type_parameters),
             properties: data.properties,
+            where_facts: self.copy_domain_fact_span(other, data.where_facts),
             members: self.copy_data_member_span(other, data.members),
         }
     }
