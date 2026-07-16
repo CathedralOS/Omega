@@ -139,6 +139,21 @@ ensures
     transition { _ -> (add_int(a, b)) }
 }
 
+// mul_int RESPECTS ~ (the multiplicative congruence): if a ~ a2 then
+// mul_int(a, b) ~ mul_int(a2, b), spelled over the product components.
+// The cross-sum hypothesis SCALED by b.pos and by b.neg equalizes the
+// monomial multisets in two exchanges (tier-2 scaled-hypothesis exchange;
+// distributivity is Nat's conformed license).
+machine mul_int_respects_eq(a: IntPair, a2: IntPair, b: IntPair) -> IntPair
+requires
+    (add(a.pos, a2.neg)) == (add(a2.pos, a.neg))
+ensures
+    (add(add(mul(a.pos, b.pos), mul(a.neg, b.neg)), add(mul(a2.pos, b.neg), mul(a2.neg, b.pos))))
+        == (add(add(mul(a2.pos, b.pos), mul(a2.neg, b.neg)), add(mul(a.pos, b.neg), mul(a.neg, b.pos))))
+{
+    transition { _ -> (mul_int(a, b)) }
+}
+
 // ~ is transitive -- THE CANCELLATION STEP: from a ~ b and b ~ c, the
 // padded sums (b.neg + b.pos) + (a.pos + c.neg) and (b.neg + b.pos) +
 // (c.pos + a.neg) equalize by TWO hypothesis exchanges, and citing
