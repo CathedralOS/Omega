@@ -1,0 +1,23 @@
+// RUN CANARY (exit 70, differential). Float ladder F2c: a constant float-arith
+// guard operand against an f32 PLACE folds/evaluates PER-OP at the LANDED
+// width. `self.f == 16777216.0 + 1.0` with `f: f32` — at f32 per-op rounding
+// 2^24 + 1.0 rounds back to 2^24 (ties-to-even at the precision cliff), so the
+// guard is TRUE; the anonymous f64 window computes 16777217.0 (not equal).
+//
+// The comparison ADOPTS the place side's format (the operand-derived landing
+// law, float flavor): validation's land_float_literal_destinations stamps the
+// guard's literal tree F32 (recursing the multi-arm `(subject) == true`
+// desugar), the interpreter's eval_float_binary rounds each op at the stamped
+// width, and the native guard folder's const_fold_float folds per-op at the
+// tree's landing. Exit 71 = an f64-window fold/eval leaked back in on either
+// engine (the engines diverged here before F2c: interp 71 / native 70 — and
+// native was only coincidentally right via compare-time narrowing, which
+// double-rounds on other shapes).
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; f: f32; }
+machine Main::main(&mut self) {
+    self.f = 16777216.0;
+    transition self.f == 16777216.0 + 1.0 { true -> good() _ -> bad() }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self)  { self.console.exit_process(71); }
+}

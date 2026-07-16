@@ -1267,12 +1267,26 @@ rows. Rungs:
   pinned, per-face failure exits 78/79/80). A second f64->f32 store
   rounding after the stamp is IDEMPOTENT (the landed value is exactly
   f32-representable), so interp store coercion stays untouched.
-  REMAINING (F2c): float folds at the landed width (the guard folder's
-  f64-window float folds); interp per-op f32 rounding; float
-  DESTINATION landing for call/transition ARGS (mirrors the integer
-  carrier's remaining arg-position work); exact-Rat multi-op const
-  chains only if a shape demands more than per-op IEEE (per-op
-  rounding at width == the exact-Rat spec for homogeneous ops).
+  F2c GUARD FACE LANDED (aarch64 lane): the comparison ADOPTS the place
+  side's format (operand-derived landing, float flavor) — validation's
+  land_float_literal_destinations grew a recursive guard walk
+  (collect_guard_float_comparison_pairs; recurses the multi-arm
+  `(subject) == true` desugar + And/Or legs) and STAMPS the literal
+  side's whole tree (stamp_float_tree, Binary/Unary/Mutable deep;
+  stamp-if-none, suffixed literals keep their landing); the interp's
+  eval_float_binary now rounds PER-OP at the stamped width (Float
+  literals witness their landing in expression_scalar_type); the native
+  guard folder's const_fold_float folds per-op at the tree's landing
+  (first-landed-literal witness). Pinned:
+  pass/float/f32_guard_const_arith_landed_exit (70 both engines,
+  differential; the 2^24 + 1.0 precision-cliff shape — interp was 71 /
+  native was only coincidentally 70 via compare-time narrowing before).
+  Suite 854/854, differential 14/14 after the stamps.
+  REMAINING (F2c): float DESTINATION landing for call/transition ARGS
+  (mirrors the integer carrier's remaining arg-position work);
+  exact-Rat multi-op const chains only if a shape demands more than
+  per-op IEEE (per-op rounding at width == the exact-Rat spec for
+  homogeneous ops).
 - **F3 — `Finite` core domain:** promote ch5's `finite`; window
   enforcement; ranges-imply-Finite in the prover. std `is_finite`
   LANDED 2026-07-14 (omega/language/std/math.omg, the hoisted-let
@@ -1622,6 +1636,11 @@ rejects — an INTEGER ruling, engineering rides this ladder as F8).
   The pending float_to_int_overflow_divergence ledger row is now
   ARCH-AWARE (cfg target_arch: x86 native 70 / aarch64 native 99), so the
   drift gate holds on both hosts.
+
+- **array_field_default_silent — DESIGN-BLOCKED (moved to OWNER_QUESTIONS
+  #5):** support-vs-reject aggregate field defaults is an owner ruling
+  (the pin header says so explicitly); parked in the pending family until
+  ruled. Both engineering shapes are scoped in the question.
 
 - **`pending_runtime_divergences_hold` — GREENED 2026-07-18 (ledger
   host-corrected):** (a) `float_to_int_overflow_divergence` now documents

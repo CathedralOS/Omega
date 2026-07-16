@@ -26,6 +26,23 @@ Last pruned: 2026-07-18.
    authorized `detach` visibly transfers a `Join<T>` obligation out of
    structured scope.
 
+## Surface semantics
+
+5. **Aggregate field defaults: support or reject.** Parked repro
+   `canaries/pending/arithmetic/array_field_default_silent` (2026-07-05):
+   an inline aggregate-literal FIELD DEFAULT (`xs: [i32;3] = [1,2,3]`, and
+   presumably `Foo {..}`) is silently DROPPED at emission (reads see ZII),
+   and its length/element class are UNVALIDATED (`[i32;2] = [1,2,3,4]`
+   compiles). Scalar literal defaults and nested-record defaults both work.
+
+   Needed ruling: (a) SUPPORT aggregate field defaults — emit inline
+   aggregate literals + wire `validate_array_literal_elements` into
+   data.rs's field loop; or (b) REJECT non-scalar field defaults with a
+   clear diagnostic ("aggregate field defaults are not emitted; initialize
+   in a machine body"). Per "no silent anything", the current
+   silently-dropped-and-unvalidated state is the one indefensible option;
+   engineering is ready to build either ruling.
+
 ## Resources and components
 
 3. **Resource algebra first customer and proof surface.** Owned splitting and

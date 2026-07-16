@@ -123,6 +123,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("storage/runtime_slice_indexed_binary_rmw_exit", 70),
     ("calls/runtime_mut_ref_forward_exit", 70),
     ("storage/runtime_local_slice_forward_exit", 70),
+    ("float/f32_guard_const_arith_landed_exit", 70),
     ("arithmetic/const_fold_cast_signedness", 70),
     ("arithmetic/wrapping_signed_divide_min_by_neg_one", 70),
     ("arithmetic/saturating_signed_divide_min_by_neg_one", 70),

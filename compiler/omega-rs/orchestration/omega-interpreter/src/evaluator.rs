@@ -5548,6 +5548,20 @@ impl<'program> Evaluator<'program> {
             )),
             ExpressionNode::Mutable(inner) => self.expression_scalar_type(*inner, frame),
             ExpressionNode::Unary(unary) => self.expression_scalar_type(unary.operand, frame),
+            // A LANDED float literal witnesses its format (the F2a suffix /
+            // F2b destination / F2c comparison stamps): an anonymous constant
+            // guard tree (`16777216.0 + 1.0` against an f32 place) has no
+            // declared destination, so the stamped literal is the node-width
+            // witness that drives per-op f32 rounding in eval_float_binary.
+            ExpressionNode::Float(literal) => literal.landing().map(|format| {
+                (
+                    match format {
+                        omega_core::literals::FloatFormat::F32 => PrimitiveType::F32,
+                        omega_core::literals::FloatFormat::F64 => PrimitiveType::F64,
+                    },
+                    ArithmeticDomain::Exact,
+                )
+            }),
             // A binary node computes in the PROMOTED type: mixed widths
             // auto-promote to the wider operand (u8 + i32 runs at i32 --
             // wrapping 200+100 at the node must yield 300, not the u8 44), so
@@ -5707,7 +5721,7 @@ impl<'program> Evaluator<'program> {
             let r = right
                 .as_float()
                 .ok_or_else(|| Halt::Trap("non-numeric float operand".to_owned()))?;
-            return self.eval_float_binary(operator, l, r);
+            return self.eval_float_binary(operator, l, r, scalar_type);
         }
 
         // Integer arithmetic / comparison. A payload-free CASE operand
@@ -5984,13 +5998,34 @@ impl<'program> Evaluator<'program> {
         })
     }
 
-    fn eval_float_binary(&self, operator: BinaryOperator, l: f64, r: f64) -> EvalResult<Value> {
+    fn eval_float_binary(
+        &self,
+        operator: BinaryOperator,
+        l: f64,
+        r: f64,
+        scalar_type: Option<(PrimitiveType, ArithmeticDomain)>,
+    ) -> EvalResult<Value> {
         use BinaryOperator::*;
+        // PER-OP rounding at the LANDED width (ch5 / float ladder F2c): an
+        // F32-typed operation rounds its result to f32 at the NODE, exactly as
+        // native f32 hardware ops do (addss/fadd s). Values ride f64 in the
+        // interpreter, but an f32 node's result must be the f32-rounded value
+        // widened exactly -- computing the whole chain at f64 and rounding only
+        // at the store double-rounds (the 2^24 + 1.0 guard face: f32 per-op
+        // says equal, the f64 window says not). Comparisons take the raw
+        // operands (they produce bool, and both sides are already landed).
+        let land = |value: f64| -> f64 {
+            if matches!(scalar_type, Some((PrimitiveType::F32, _))) {
+                value as f32 as f64
+            } else {
+                value
+            }
+        };
         Ok(match operator {
-            Add => Value::Float(l + r),
-            Subtract => Value::Float(l - r),
-            Multiply => Value::Float(l * r),
-            Divide => Value::Float(l / r),
+            Add => Value::Float(land(l + r)),
+            Subtract => Value::Float(land(l - r)),
+            Multiply => Value::Float(land(l * r)),
+            Divide => Value::Float(land(l / r)),
             Less => Value::Bool(l < r),
             LessOrEqual => Value::Bool(l <= r),
             Greater => Value::Bool(l > r),

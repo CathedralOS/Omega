@@ -56,22 +56,54 @@ pub(super) fn resolved_guard_operand_value(
     enum_variant_tag_value(layouts, table, expression)
 }
 
-/// Folds a guard operand that is a constant f64 expression -- a float literal or a binary
-/// arithmetic tree over float literals -- to its value. Returns `None` the moment any leaf
-/// is not a constant float (e.g. a place), so a runtime operand is never mistaken for a
-/// constant. Strictly constant: no place reads, so the folded value matches the value the
-/// arithmetic would produce at runtime.
+/// Folds a guard operand that is a constant float expression -- a float literal or a
+/// binary arithmetic tree over float literals -- to its value, PER-OP at the tree's
+/// LANDED width (ch5 / float ladder F2c): an F32-stamped tree (the comparison adopted
+/// an f32 place's format at validation) rounds every operation to f32, exactly as the
+/// runtime f32 ops would -- folding at a raw f64 window diverges at the f32 precision
+/// cliff (2^24 + 1.0). Returns `None` the moment any leaf is not a constant float
+/// (e.g. a place), so a runtime operand is never mistaken for a constant. Strictly
+/// constant: no place reads, so the folded value matches the runtime value.
 fn const_fold_float(table: &ExpressionTable, expression: ExpressionHandle) -> Option<f64> {
+    let format = tree_float_landing(table, expression);
+    const_fold_float_at(table, expression, format)
+}
+
+/// The tree's landed format witness: the first landed float literal (left first),
+/// mirroring the operand-derived landing law. `None` = the anonymous f64 window.
+fn tree_float_landing(
+    table: &ExpressionTable,
+    expression: ExpressionHandle,
+) -> Option<omega_core::literals::FloatFormat> {
+    match table.expression(expression) {
+        ExpressionNode::Float(literal) => literal.landing(),
+        ExpressionNode::Binary(binary) => tree_float_landing(table, binary.left)
+            .or_else(|| tree_float_landing(table, binary.right)),
+        _ => None,
+    }
+}
+
+fn const_fold_float_at(
+    table: &ExpressionTable,
+    expression: ExpressionHandle,
+    format: Option<omega_core::literals::FloatFormat>,
+) -> Option<f64> {
+    let land = |value: f64| -> f64 {
+        match format {
+            Some(omega_core::literals::FloatFormat::F32) => value as f32 as f64,
+            _ => value,
+        }
+    };
     match table.expression(expression) {
         ExpressionNode::Float(literal) => Some(literal.landed_f64()),
         ExpressionNode::Binary(binary) => {
-            let left = const_fold_float(table, binary.left)?;
-            let right = const_fold_float(table, binary.right)?;
+            let left = const_fold_float_at(table, binary.left, format)?;
+            let right = const_fold_float_at(table, binary.right, format)?;
             match binary.operator {
-                BinaryOperator::Add => Some(left + right),
-                BinaryOperator::Subtract => Some(left - right),
-                BinaryOperator::Multiply => Some(left * right),
-                BinaryOperator::Divide => Some(left / right),
+                BinaryOperator::Add => Some(land(left + right)),
+                BinaryOperator::Subtract => Some(land(left - right)),
+                BinaryOperator::Multiply => Some(land(left * right)),
+                BinaryOperator::Divide => Some(land(left / right)),
                 _ => None,
             }
         }
