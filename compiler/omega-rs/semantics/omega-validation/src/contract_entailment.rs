@@ -3167,6 +3167,14 @@ struct RingLicense {
     add_machine: String,
 }
 
+/// Tier-2 (full polynomial): the PAIRED license -- an add op and a mul op
+/// each carrying comm+assoc, connected by a conformed DISTRIBUTIVITY law.
+#[derive(Clone)]
+struct SemiringLicense {
+    add_machine: String,
+    mul_machine: String,
+}
+
 struct StructuralJudge<'program> {
     program: &'program TypedTrees,
     substitutions: Vec<(String, StructuralTerm)>,
@@ -3177,6 +3185,8 @@ struct StructuralJudge<'program> {
     rewrites: Vec<(StructuralTerm, StructuralTerm)>,
     hypotheses_contradictory: bool,
     ring_licenses: Vec<RingLicense>,
+    /// Tier-2: paired add/mul licenses with a conformed distributivity law.
+    semiring_licenses: Vec<SemiringLicense>,
 }
 
 impl Clone for StructuralJudge<'_> {
@@ -3187,6 +3197,7 @@ impl Clone for StructuralJudge<'_> {
             rewrites: self.rewrites.clone(),
             hypotheses_contradictory: self.hypotheses_contradictory,
             ring_licenses: self.ring_licenses.clone(),
+            semiring_licenses: self.semiring_licenses.clone(),
         }
     }
 }
@@ -3203,6 +3214,7 @@ impl<'program> StructuralJudge<'program> {
             rewrites: Vec::new(),
             hypotheses_contradictory: false,
             ring_licenses: compute_ring_licenses(program, judged_machine),
+            semiring_licenses: compute_semiring_licenses(program, judged_machine),
         };
         for fact in requires {
             judge.intake(program, *fact);
@@ -3807,8 +3819,67 @@ impl<'program> StructuralJudge<'program> {
                 return true;
             }
         }
+        // Tier-2 FULL POLYNOMIAL: under a paired license, both sides
+        // normalize by distributing the licensed mul through the licensed
+        // add into a multiset of monomials (each a sorted factor multiset).
+        // The distributivity law is CONFORMED (machine-checked), so the
+        // normal form is exactly what the carrier proved.
+        for license in &self.semiring_licenses {
+            if !term_uses_application(left, &license.mul_machine)
+                && !term_uses_application(right, &license.mul_machine)
+            {
+                continue;
+            }
+            let (Some(mut left_poly), Some(mut right_poly)) = (
+                polynomial_normal_form(left, license),
+                polynomial_normal_form(right, license),
+            ) else {
+                continue;
+            };
+            left_poly.sort();
+            right_poly.sort();
+            if left_poly == right_poly {
+                return true;
+            }
+        }
         false
     }
+}
+
+/// Distribute the licensed mul through the licensed add: a term becomes a
+/// list of MONOMIALS (sorted factor lists). `None` past the size cap (the
+/// cross product is quadratic; a runaway form refuses into the ordinary
+/// path rather than stalling).
+fn polynomial_normal_form(
+    term: &StructuralTerm,
+    license: &SemiringLicense,
+) -> Option<Vec<Vec<String>>> {
+    const MONOMIAL_CAP: usize = 64;
+    if let StructuralTerm::Application { machine, arguments } = term
+        && arguments.len() == 2
+    {
+        if *machine == license.add_machine {
+            let mut left = polynomial_normal_form(&arguments[0], license)?;
+            let right = polynomial_normal_form(&arguments[1], license)?;
+            left.extend(right);
+            return (left.len() <= MONOMIAL_CAP).then_some(left);
+        }
+        if *machine == license.mul_machine {
+            let left = polynomial_normal_form(&arguments[0], license)?;
+            let right = polynomial_normal_form(&arguments[1], license)?;
+            let mut product = Vec::new();
+            for left_monomial in &left {
+                for right_monomial in &right {
+                    let mut monomial = left_monomial.clone();
+                    monomial.extend(right_monomial.iter().cloned());
+                    monomial.sort();
+                    product.push(monomial);
+                }
+            }
+            return (product.len() <= MONOMIAL_CAP).then_some(product);
+        }
+    }
+    Some(vec![vec![display_structural_term(term)]])
 }
 
 /// Flatten nested applications of the licensed op into its addend list; any
@@ -4025,6 +4096,259 @@ fn slot_satisfier_exists(
 
 /// `R(x, y) == R(y, x)` with `x`/`y` DISTINCT requirement parameters -> the
 /// op slot `R` is declared commutative by this law.
+/// Tier-2: recognize `mul(a, add(b, c)) == add(mul(a, b), mul(a, c))` up
+/// to parameter naming -- returns (mul_op, add_op).
+fn distributivity_shape(
+    left: &StructuralTerm,
+    right: &StructuralTerm,
+    parameters: &[String],
+) -> Option<(String, String)> {
+    // left = mul(a, add(b, c))
+    let StructuralTerm::Application {
+        machine: mul_op,
+        arguments: mul_args,
+    } = left
+    else {
+        return None;
+    };
+    let [StructuralTerm::Variable(a), StructuralTerm::Application {
+        machine: add_op,
+        arguments: add_args,
+    }] = mul_args.as_slice()
+    else {
+        return None;
+    };
+    let [StructuralTerm::Variable(b), StructuralTerm::Variable(c)] = add_args.as_slice() else {
+        return None;
+    };
+    if mul_op == add_op {
+        return None;
+    }
+    for name in [a, b, c] {
+        if !parameters.contains(name) {
+            return None;
+        }
+    }
+    // right = add(mul(a, b), mul(a, c))
+    let StructuralTerm::Application {
+        machine: outer_add,
+        arguments: outer_args,
+    } = right
+    else {
+        return None;
+    };
+    if outer_add != add_op {
+        return None;
+    }
+    let [StructuralTerm::Application {
+        machine: left_mul,
+        arguments: left_args,
+    }, StructuralTerm::Application {
+        machine: right_mul,
+        arguments: right_args,
+    }] = outer_args.as_slice()
+    else {
+        return None;
+    };
+    if left_mul != mul_op || right_mul != mul_op {
+        return None;
+    }
+    let ([StructuralTerm::Variable(la), StructuralTerm::Variable(lb)], [StructuralTerm::Variable(ra), StructuralTerm::Variable(rc)]) =
+        (left_args.as_slice(), right_args.as_slice())
+    else {
+        return None;
+    };
+    (la == a && lb == b && ra == a && rc == c)
+        .then(|| (mul_op.clone(), add_op.clone()))
+}
+
+/// Tier-2 licensing: a trait carrying comm+assoc for BOTH an add op and a
+/// mul op, plus a DISTRIBUTIVITY law connecting them, licenses each carrier
+/// that conformed ALL FIVE law slots. Same no-circularity rule: the judged
+/// machine binding ANY involved law slot gets nothing from this trait.
+fn compute_semiring_licenses(
+    program: &TypedTrees,
+    judged_machine: &Machine,
+) -> Vec<SemiringLicense> {
+    let mut licenses = Vec::new();
+    for trait_definition in program.traits() {
+        let mut comm_laws: Vec<(String, String)> = Vec::new();
+        let mut assoc_laws: Vec<(String, String)> = Vec::new();
+        let mut dist_laws: Vec<(String, String, String)> = Vec::new(); // (mul, add, law)
+        for requirement in program.trait_machine_signatures(trait_definition) {
+            let parameters: Vec<String> = program
+                .state_signature_parameters(requirement)
+                .iter()
+                .map(|parameter| parameter.name.as_str().to_owned())
+                .collect();
+            for contract in program.state_signature_contracts(requirement) {
+                if contract.kind != SignatureContractKind::Ensures {
+                    continue;
+                }
+                for fact in program.proof_facts.span_or_empty(contract.facts) {
+                    let ProofFact::Expression(expression) = fact else {
+                        continue;
+                    };
+                    let mut conjuncts = Vec::new();
+                    collect_equality_conjuncts(program, *expression, &mut conjuncts);
+                    for conjunct in conjuncts {
+                        let ExpressionNode::Binary(binary) =
+                            program.expression_table.expression(conjunct)
+                        else {
+                            continue;
+                        };
+                        let (Some(left), Some(right)) = (
+                            structural_term(program, binary.left),
+                            structural_term(program, binary.right),
+                        ) else {
+                            continue;
+                        };
+                        if let Some(op) = commutativity_shape(&left, &right, &parameters) {
+                            comm_laws.push((op, requirement.name.as_str().to_owned()));
+                        }
+                        if let Some(op) = associativity_shape(&left, &right, &parameters) {
+                            assoc_laws.push((op, requirement.name.as_str().to_owned()));
+                        }
+                        if let Some((mul_op, add_op)) =
+                            distributivity_shape(&left, &right, &parameters)
+                        {
+                            dist_laws.push((mul_op, add_op, requirement.name.as_str().to_owned()));
+                        }
+                    }
+                }
+            }
+        }
+        for (mul_op, add_op, dist_law) in &dist_laws {
+            let Some((_, add_comm)) = comm_laws.iter().find(|(op, _)| op == add_op) else {
+                continue;
+            };
+            let Some((_, add_assoc)) = assoc_laws.iter().find(|(op, _)| op == add_op) else {
+                continue;
+            };
+            let Some((_, mul_comm)) = comm_laws.iter().find(|(op, _)| op == mul_op) else {
+                continue;
+            };
+            let Some((_, mul_assoc)) = assoc_laws.iter().find(|(op, _)| op == mul_op) else {
+                continue;
+            };
+            let law_slots = [add_comm, add_assoc, mul_comm, mul_assoc, dist_law];
+            // No circular licensing: the judged machine binding any of the
+            // five law slots proves ring-free.
+            let judged_binds = program
+                .machine_trait_conformances(judged_machine)
+                .iter()
+                .any(|conformance| {
+                    if conformance.symbol != trait_definition.symbol {
+                        return false;
+                    }
+                    let bound = conformance
+                        .requirement
+                        .as_ref()
+                        .map(|name| name.as_str().to_owned())
+                        .or_else(|| {
+                            judged_machine
+                                .attached_data
+                                .is_none()
+                                .then(|| judged_machine.name.as_str().to_owned())
+                        });
+                    bound
+                        .as_deref()
+                        .is_some_and(|name| law_slots.iter().any(|law| law.as_str() == name))
+                });
+            if judged_binds {
+                continue;
+            }
+            // Each carrier conforming BOTH op slots with all five law slots
+            // satisfied earns the paired license.
+            for add_candidate in program.machines() {
+                for conformance in program.machine_trait_conformances(add_candidate) {
+                    if conformance.symbol != trait_definition.symbol {
+                        continue;
+                    }
+                    let bound = conformance
+                        .requirement
+                        .as_ref()
+                        .map(|name| name.as_str().to_owned())
+                        .or_else(|| {
+                            add_candidate
+                                .attached_data
+                                .is_none()
+                                .then(|| add_candidate.name.as_str().to_owned())
+                        });
+                    if bound.as_deref() != Some(add_op.as_str()) {
+                        continue;
+                    }
+                    let Some(entry) = program.machine_states(add_candidate).first() else {
+                        continue;
+                    };
+                    let carrier = program
+                        .state_parameters(entry)
+                        .first()
+                        .map(|parameter| parameter.type_reference)
+                        .unwrap_or(entry.return_type);
+                    if !law_slots
+                        .iter()
+                        .all(|law| slot_satisfier_exists(program, trait_definition, law, carrier))
+                    {
+                        continue;
+                    }
+                    if let Some(mul_machine) =
+                        op_slot_satisfier(program, trait_definition, mul_op, carrier)
+                    {
+                        licenses.push(SemiringLicense {
+                            add_machine: add_candidate.name.as_str().to_owned(),
+                            mul_machine,
+                        });
+                    }
+                }
+            }
+        }
+    }
+    licenses
+}
+
+/// The NAME of the machine conforming `op_slot` for the given carrier.
+fn op_slot_satisfier(
+    program: &TypedTrees,
+    trait_definition: &TraitDefinition,
+    op_slot: &str,
+    carrier: omega_typed_trees::types::TypeReferenceHandle,
+) -> Option<String> {
+    for candidate in program.machines() {
+        for conformance in program.machine_trait_conformances(candidate) {
+            if conformance.symbol != trait_definition.symbol {
+                continue;
+            }
+            let bound = conformance
+                .requirement
+                .as_ref()
+                .map(|name| name.as_str().to_owned())
+                .or_else(|| {
+                    candidate
+                        .attached_data
+                        .is_none()
+                        .then(|| candidate.name.as_str().to_owned())
+                });
+            if bound.as_deref() != Some(op_slot) {
+                continue;
+            }
+            let Some(entry) = program.machine_states(candidate).first() else {
+                continue;
+            };
+            let candidate_carrier = program
+                .state_parameters(entry)
+                .first()
+                .map(|parameter| parameter.type_reference)
+                .unwrap_or(entry.return_type);
+            if crate::type_references::type_references_match(program, candidate_carrier, carrier)
+            {
+                return Some(candidate.name.as_str().to_owned());
+            }
+        }
+    }
+    None
+}
+
 fn commutativity_shape(
     left: &StructuralTerm,
     right: &StructuralTerm,
