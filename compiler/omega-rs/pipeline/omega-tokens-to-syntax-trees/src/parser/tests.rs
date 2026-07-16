@@ -237,6 +237,56 @@ fn parses_machine_termination_tuple_subjects() {
 }
 
 #[test]
+fn parses_machine_termination_argumented_view() {
+    // TPR3: an ARGUMENTED view names its bound as an argument
+    // (`Nat::IncreasingTo(limit)`) -- the bound is part of the view; the
+    // subject stays alone on the arrow's left.
+    let source = r#"
+        machine walk(limit: usize, index: usize)
+        terminates by index -> Nat::IncreasingTo(limit);
+        {
+        }
+        "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let parsed = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let machine = parsed
+        .root_items()
+        .find_map(|item| match item {
+            omega_syntax_trees::item::Item::Machine(machine) => Some(machine),
+            _ => None,
+        })
+        .expect("machine root item");
+
+    assert!(machine.terminates);
+    // The by-form supplies only the witness -- never the public guarantee.
+    assert!(!machine.terminates_guarantee);
+    assert_eq!(
+        parsed
+            .expressions
+            .expression_handles(machine.decreases)
+            .len(),
+        1
+    );
+    assert_eq!(
+        parsed
+            .items
+            .identifier_path_members(machine.decrease_order)
+            .len(),
+        2
+    );
+    assert_eq!(
+        parsed
+            .expressions
+            .expression_handles(machine.decrease_view_arguments)
+            .len(),
+        1
+    );
+}
+
+#[test]
 fn rejects_bare_arrow_transition_in_explicit_state_body() {
     let source = r#"
         machine Main::main(&mut self) {

@@ -32,6 +32,8 @@ pub struct Machine {
     pub terminates: bool,
     pub decreases: HandleSpan<ExpressionHandle>,
     pub decrease_order: HandleSpan<Identifier>,
+    /// TPR3: argumented-view arguments (`-> Nat::IncreasingTo(limit)`).
+    pub decrease_view_arguments: HandleSpan<ExpressionHandle>,
     pub effects: HandleSpan<Identifier>,
     pub contracts: HandleSpan<SignatureContract>,
     pub states: HandleSpan<State>,
@@ -53,6 +55,7 @@ impl Default for Machine {
             terminates: false,
             decreases: HandleSpan::empty(),
             decrease_order: HandleSpan::empty(),
+            decrease_view_arguments: HandleSpan::empty(),
             effects: HandleSpan::empty(),
             contracts: HandleSpan::empty(),
             states: HandleSpan::empty(),

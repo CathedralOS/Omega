@@ -42,6 +42,8 @@ pub struct MachineStorage {
     pub terminates: bool,
     pub decreases: HandleSpan<ExpressionHandle>,
     pub decrease_order: HandleSpan<DiagnosticName>,
+    /// TPR3: argumented-view arguments (`-> Nat::IncreasingTo(limit)`).
+    pub decrease_view_arguments: HandleSpan<ExpressionHandle>,
     pub effects: HandleSpan<DiagnosticName>,
     pub contracts: HandleSpan<SignatureContract>,
     pub states: HandleSpan<Handle<State>>,

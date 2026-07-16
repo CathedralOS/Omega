@@ -28,6 +28,7 @@ pub(crate) fn lower_machine(
         terminates: machine.terminates,
         decreases: omega_core::arena::HandleSpan::empty(),
         decrease_order: omega_core::arena::HandleSpan::empty(),
+        decrease_view_arguments: omega_core::arena::HandleSpan::empty(),
         effects: omega_core::arena::HandleSpan::empty(),
         contracts: omega_core::arena::HandleSpan::empty(),
         states: omega_core::arena::HandleSpan::empty(),
@@ -108,6 +109,22 @@ pub(crate) fn lower_machine(
         .typed_trees
         .expression_table
         .insert_expression_handles(decreases);
+    // TPR3: argumented-view arguments lower exactly like the subjects.
+    let mut view_arguments = Vec::new();
+    for argument in lowerer
+        .source_trees
+        .tables
+        .bodies
+        .expressions
+        .expression_handles(machine.decrease_view_arguments)
+    {
+        let argument = lower_expression_handle(lowerer, *argument)?;
+        view_arguments.push(argument);
+    }
+    typed_machine.decrease_view_arguments = lowerer
+        .typed_trees
+        .expression_table
+        .insert_expression_handles(view_arguments);
     for member in lowerer
         .source_trees
         .machine_decrease_order(machine.decrease_order)

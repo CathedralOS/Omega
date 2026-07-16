@@ -639,6 +639,9 @@ pub struct Machine {
     pub terminates_guarantee: bool,
     pub decreases: HandleSpan<crate::expression::ExpressionHandle>,
     pub decrease_order: HandleSpan<Identifier>,
+    /// TPR3: an ARGUMENTED view's arguments (`-> Nat::IncreasingTo(limit)`),
+    /// in order; empty for plain views. The bound is part of the view.
+    pub decrease_view_arguments: HandleSpan<crate::expression::ExpressionHandle>,
     /// TPR1: the witness clause's optional `in <range>` (decision 23's
     /// rank-range constraint). Invalid = absent. Parsed and stored here;
     /// the syntax->resolved lowering refuses it loudly until TPR3's cycle

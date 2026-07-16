@@ -32,6 +32,10 @@ pub(super) enum DecreaseOutcome {
     /// checker's inference exactly, so a divergence means one of them
     /// changed without the other.
     PlanViewDivergence { recorded: String, resolved: String },
+    /// TPR3: a DIRECTED rejection from view resolution (unbounded
+    /// increasing view, argument-arity mismatch, arguments on a plain
+    /// view); the message names the fix and is rendered verbatim.
+    Rejected(String),
 }
 
 /// The subject texts the inverted-distance diagnostic renders: the clause as
@@ -69,15 +73,6 @@ pub(super) fn machine_decrease_outcome(
     let subjects = program
         .expression_table
         .expression_handles(machine.decreases);
-    let measure = match subjects {
-        [single] => DecreaseMeasure::Single(*single),
-        [lower, upper] => DecreaseMeasure::Distance {
-            lower: *lower,
-            upper: *upper,
-        },
-        _ => return DecreaseOutcome::Unproven,
-    };
-
     let states = program.machine_states(machine);
     // The decreases clause is declared on the machine signature, so its names
     // resolve against the machine's root (entry) state.
@@ -85,12 +80,39 @@ pub(super) fn machine_decrease_outcome(
         return DecreaseOutcome::Proven;
     };
     let decrease_order = program.machine_decrease_order(machine.decrease_order);
-    let order = match RankingOrder::resolve(program, root_state, subjects, decrease_order) {
+    let view_arguments = program
+        .expression_table
+        .expression_handles(machine.decrease_view_arguments);
+    let order = match RankingOrder::resolve(
+        program,
+        root_state,
+        subjects,
+        decrease_order,
+        view_arguments,
+    ) {
         OrderResolution::Resolved(order) => order,
         OrderResolution::AmbiguousDefault(ambiguity) => {
             return DecreaseOutcome::AmbiguousOrder(ambiguity);
         }
         OrderResolution::Unsupported => return DecreaseOutcome::Unproven,
+        OrderResolution::Rejected { message } => return DecreaseOutcome::Rejected(message),
+    };
+
+    // The measure follows the resolved view: `Nat::IncreasingTo(limit)`
+    // ranks its single subject by the distance up to the named bound (the
+    // bounded-distance machinery with a view-fixed orientation); everything
+    // else ranks the subjects directly.
+    let measure = match (&order, subjects) {
+        (RankingOrder::IncreasingTo(limit), [single]) => DecreaseMeasure::Distance {
+            lower: *single,
+            upper: *limit,
+        },
+        (_, [single]) => DecreaseMeasure::Single(*single),
+        (_, [lower, upper]) => DecreaseMeasure::Distance {
+            lower: *lower,
+            upper: *upper,
+        },
+        _ => return DecreaseOutcome::Unproven,
     };
 
     // TPR3 slice 1 (decision 23): when the plan RECORDED an elaborated view
@@ -168,6 +190,7 @@ fn canonical_order_path(order: &RankingOrder) -> Option<&'static str> {
         RankingOrder::NatDescending => Some("Nat::Descending"),
         RankingOrder::BoundedDistance => Some("Nat::BoundedDistance"),
         RankingOrder::SliceLength => Some("Slice::Length"),
+        RankingOrder::IncreasingTo(_) => Some("Nat::IncreasingTo"),
         RankingOrder::CustomNatDescending
         | RankingOrder::CustomStructView(_)
         | RankingOrder::Lexicographic(_) => None,
@@ -254,6 +277,7 @@ fn classify_cycle_edge(
         order,
         RankingOrder::NatDescending
             | RankingOrder::BoundedDistance
+            | RankingOrder::IncreasingTo(_)
             | RankingOrder::CustomNatDescending
     ) {
         // Slice-length, struct-view and lexicographic orders stay
@@ -327,6 +351,7 @@ fn edge_has_proven_decrease(
     match order {
         RankingOrder::NatDescending
         | RankingOrder::BoundedDistance
+        | RankingOrder::IncreasingTo(_)
         | RankingOrder::CustomNatDescending => program
             .statement_table
             .statements(source.statement_nodes)
@@ -366,6 +391,7 @@ fn state_has_proven_supported_self_loop(
         (
             RankingOrder::NatDescending
             | RankingOrder::BoundedDistance
+            | RankingOrder::IncreasingTo(_)
             | RankingOrder::CustomNatDescending,
             _,
         ) => nat::state_has_proven_self_loop(program, state, measure, orientation),

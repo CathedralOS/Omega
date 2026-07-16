@@ -60,6 +60,7 @@ fn snapshots_materialize_resolved_roots_and_table_counts() {
             terminates: false,
             decreases: HandleSpan::empty(),
             decrease_order: HandleSpan::empty(),
+            decrease_view_arguments: HandleSpan::empty(),
             effects: HandleSpan::empty(),
             contracts: HandleSpan::empty(),
             states,
