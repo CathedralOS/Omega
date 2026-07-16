@@ -6056,11 +6056,60 @@ impl<'program> Evaluator<'program> {
                 value
             }
         };
+        // F5 policies (float brief §8): SATURATING clamps MAGNITUDE OVERFLOW
+        // only -- finite operands whose landed result is infinite clamp to
+        // +-MAX_FINITE at the width; division by zero and invalid ops keep
+        // their non-finites (0/0 has no defensible clamp; wellness stays a
+        // Finite obligation). TRAPPING traps on invalid (NaN from non-NaN
+        // operands), overflow, and division by zero alike.
+        let domain = scalar_type.map(|(_, domain)| domain);
+        let max_finite = if matches!(scalar_type, Some((PrimitiveType::F32, _))) {
+            f32::MAX as f64
+        } else {
+            f64::MAX
+        };
+        let arith = |raw: f64| -> EvalResult<Value> {
+            let landed = land(raw);
+            match domain {
+                Some(ArithmeticDomain::Saturating)
+                    if landed.is_infinite() && l.is_finite() && r.is_finite() =>
+                {
+                    // Overflow face only: both operands finite, the LANDED
+                    // result left the format (an f32 node can overflow at the
+                    // landing even when the raw f64 stays finite). The
+                    // finite/0.0 divide is fenced by the caller arm below.
+                    let _ = raw;
+                    Ok(Value::Float(max_finite.copysign(landed)))
+                }
+                Some(ArithmeticDomain::Trapping)
+                    if landed.is_nan() && !l.is_nan() && !r.is_nan() =>
+                {
+                    trap("invalid float operation in Trapping domain".to_owned())
+                }
+                Some(ArithmeticDomain::Trapping)
+                    if landed.is_infinite() && l.is_finite() && r.is_finite() =>
+                {
+                    trap(
+                        "float overflow (or division by zero) in Trapping domain".to_owned(),
+                    )
+                }
+                _ => Ok(Value::Float(landed)),
+            }
+        };
         Ok(match operator {
-            Add => Value::Float(land(l + r)),
-            Subtract => Value::Float(land(l - r)),
-            Multiply => Value::Float(land(l * r)),
-            Divide => Value::Float(land(l / r)),
+            Add => return arith(l + r),
+            Subtract => return arith(l - r),
+            Multiply => return arith(l * r),
+            Divide => {
+                if matches!(domain, Some(ArithmeticDomain::Saturating))
+                    && r == 0.0
+                {
+                    // Division by zero does NOT clamp (the brief's ruling);
+                    // the IEEE non-finite passes through.
+                    return Ok(Value::Float(land(l / r)));
+                }
+                return arith(l / r);
+            }
             Less => Value::Bool(l < r),
             LessOrEqual => Value::Bool(l <= r),
             Greater => Value::Bool(l > r),
