@@ -1394,17 +1394,37 @@ rejects — an INTEGER ruling, engineering rides this ladder as F8).
   interval (fields fold via the tracker; locals with cast
   initializers do not) — a CR3-family refinement when a shape
   demands it.
-  REMAINING: F8b — Wrapping masked-count runtime migration (ch5:
-  `k & (width-1)`; the landed at-width legs pin modular-VALUE
-  semantics (`1<<40 u32 = 0`) which predate the ruling — migrate
-  interp + aarch64 (LSLV masks natively at 32/64; sub-word needs an
-  explicit AND) + the pinned canaries: runtime_shift_count_domain_exit
-  at-width legs, runtime_shift_right_atwidth_exit,
-  runtime_shift_atwidth_signed_modular_exit,
-  runtime_shift_atwidth_indexed_targets_exit). F8c — Trapping
-  count-trap (count >= width traps even when the VALUE fits: `0 << 40`
-  Trapping currently exits 0 on both engines; the value-overflow trap
-  already fires).
+  F8b LANDED (aarch64 lane, 2026-07-16) — WRAPPING MASKED COUNT on all
+  three engines: interp Wrapping shifts mask `(r as u64) & (width-1)`
+  (supersedes the 2026-07-13 modular-VALUE semantics); aarch64's
+  with_domain drops the Wrapping zero-clamp/count-saturate and rides
+  the register forms' native masking (NEW encode_lslv_w_register — the
+  X form's mod-64 would recreate modular-value at u32 — plus
+  encode_and_w_low_ones bitmask-immediate for the sub-word `& 7/15`);
+  x86_64 mirrors structurally (the hardware shl/sar/shr masks mod
+  32/64 = the ruling at widths 4/8; append_wrapping_shift_count_mask
+  adds the sub-word `and r11d, 7/15`; the WrappingShift operand op is
+  now DomainShift carrying the domain so Sat/Trap `>>` keep the floor
+  fixes until F8c). Width twins in lockstep on both ISAs. Canaries
+  MIGRATED to masked expectations: runtime_shift_count_domain_exit
+  (1<<40 u32 = 256, 1<<70 u64 = 64), runtime_shift_right_atwidth_exit
+  (the -(2^62)>>70 = -(2^56) leg is the discriminator),
+  runtime_shift_atwidth_signed_modular_exit (the old exit-71 "masked"
+  arm IS now the pass; the retired modular zero is the failure),
+  runtime_shift_atwidth_indexed_targets_exit (u64<<70 legs = 64). NEW
+  pin runtime_shift_subword_masked_count_exit (differential 70; counts
+  chosen to uniquely witness mask width — 3u8<<13 = 96,
+  -32768i16>>25 = -64). The linux_x64 byte pin migrated: width-correct
+  shl/sar PRESENT, retired clamp/saturate ABSENT, sub-word AND pinned;
+  x86 runtime verification pends the x86 host's next fire (byte pins +
+  unit tests cover it structurally). The state-values folder is
+  UNCHANGED (it defers OOR-count folds to the runtime — consistent
+  either way; folding masked is a possible later nicety).
+  REMAINING: F8c — Trapping count-trap (count >= width traps even when
+  the VALUE fits: `0 << 40` Trapping currently exits 0 on both
+  engines; the value-overflow trap already fires; the Sat/Trap `>>`
+  floor fixes on both ISAs + the interp's Trapping arms migrate
+  then).
 
 ## Settled rulings with remaining engineering
 

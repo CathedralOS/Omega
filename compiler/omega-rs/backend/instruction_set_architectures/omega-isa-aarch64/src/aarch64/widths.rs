@@ -510,9 +510,11 @@ fn saturating_signed_divide_modulo_width(byte_size: usize, want_remainder: bool)
 /// (16) with NO trailing FMOV (the 0/1 result is already in the GPR). MUST
 /// stay in lockstep with `append_runtime_float_binary_operation`.
 /// Width twin of `append_runtime_binary_operation_with_domain`: the plain op
-/// width plus the WRAPPING shift fix -- `<<` / logical `>>` take the modular
-/// zero clamp (CMP #width + CSEL = 8), arithmetic `>>` the count saturation
-/// (CMP #width + CSINV = 8). MUST stay in lockstep.
+/// width plus the domain shift fix -- F8b WRAPPING masks the COUNT (the
+/// sub-word AND, 4; widths 4/8 ride the W/X forms' native masking, 0; the
+/// Wrapping `<<` W/X emission is one instruction, the same 4 as the plain
+/// arm), while Saturating/Trapping `>>`/`>>>` keep the floor-semantics count
+/// fixes (CMP #width + CSINV/CSEL = 8) until F8c. MUST stay in lockstep.
 pub(in crate::aarch64) fn runtime_binary_operation_width_with_domain(
     operator: StateGuardOperator,
     byte_size: usize,
@@ -521,12 +523,20 @@ pub(in crate::aarch64) fn runtime_binary_operation_width_with_domain(
     let wrapping = domain == omega_core::arithmetic::ArithmeticDomain::Wrapping;
     let non_exact = domain != omega_core::arithmetic::ArithmeticDomain::Exact;
     runtime_binary_operation_width(operator, byte_size)
-        + if (wrapping && operator == StateGuardOperator::ShiftLeft)
-            || (non_exact
-                && matches!(
-                    operator,
-                    StateGuardOperator::ShiftRight | StateGuardOperator::ShiftRightLogical
-                ))
+        + if wrapping
+            && matches!(
+                operator,
+                StateGuardOperator::ShiftLeft
+                    | StateGuardOperator::ShiftRight
+                    | StateGuardOperator::ShiftRightLogical
+            )
+        {
+            if matches!(byte_size, 1 | 2) { 4 } else { 0 }
+        } else if non_exact
+            && matches!(
+                operator,
+                StateGuardOperator::ShiftRight | StateGuardOperator::ShiftRightLogical
+            )
         {
             8
         } else {

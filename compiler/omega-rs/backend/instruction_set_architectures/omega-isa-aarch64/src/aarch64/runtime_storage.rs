@@ -29,8 +29,9 @@ use super::primitives::{
     encode_conditional_branch_higher_or_same, encode_conditional_branch_lower,
     encode_conditional_branch_lower_or_same, encode_conditional_branch_not_equal,
     encode_conditional_branch_plus,
-    encode_load_w_from_x, encode_load_x_from_x, encode_asrv_w_register, encode_asrv_x_register,
-    encode_lslv_x_register, encode_lsrv_w_register, encode_lsrv_x_register, encode_move_w_register,
+    encode_load_w_from_x, encode_load_x_from_x, encode_and_w_low_ones, encode_asrv_w_register,
+    encode_asrv_x_register, encode_lslv_w_register, encode_lslv_x_register, encode_lsrv_w_register,
+    encode_lsrv_x_register, encode_move_w_register,
     encode_move_x_register, encode_movz,
     encode_movz_w,
     encode_msub_w_register, encode_msub_x_register, encode_mul_x_register, encode_orr_x_register,
@@ -4048,29 +4049,68 @@ fn append_runtime_binary_operation_with_domain(
     domain: omega_core::arithmetic::ArithmeticDomain,
 ) -> Result<(), Diagnostic> {
     let wrapping = domain == omega_core::arithmetic::ArithmeticDomain::Wrapping;
-    // `>>` cannot overflow, so its floor-semantics count fix applies under
-    // EVERY non-Exact domain (Wrapping/Saturating/Trapping alike). `<<`
-    // stays Wrapping-only here: Saturating/Trapping `<<` need clamp/trap
-    // sequences, not the zero-clamp (parked shl_saturating canary).
     let non_exact = domain != omega_core::arithmetic::ArithmeticDomain::Exact;
+    // F8b (ch5 shift-count ruling, settled 2026-07-18): WRAPPING masks the
+    // COUNT to the operand width (`k & (width - 1)`). The register-form
+    // shifts mask natively at the FORM width (W mod 32, X mod 64) -- exactly
+    // the ruling at widths 4/8 -- so only sub-word operands need the explicit
+    // AND. Clobbers the rhs register (dead after the operation). This
+    // supersedes the 2026-07-13 modular-VALUE fixes (zero clamp / count
+    // saturation) for Wrapping; Saturating cannot reach an out-of-range
+    // count anymore (the F8a validation obligation), and Trapping keeps the
+    // old floor fixes until F8c lands the count trap.
+    if wrapping
+        && matches!(
+            operator,
+            StateGuardOperator::ShiftLeft
+                | StateGuardOperator::ShiftRight
+                | StateGuardOperator::ShiftRightLogical
+        )
+    {
+        if matches!(byte_size, 1 | 2) {
+            let ones = if byte_size == 1 { 3 } else { 4 };
+            bytes.extend(encode_and_w_low_ones(rhs_register, rhs_register, ones));
+        }
+        if operator == StateGuardOperator::ShiftLeft {
+            // The plain arm's X-form LSLV masks mod 64; the ruling wants the
+            // OPERAND width's mask, so narrow widths take the W form (the
+            // sub-word AND above already tightened 1/2-byte counts).
+            bytes.extend(if byte_size <= 4 {
+                encode_lslv_w_register(destination_register, destination_register, rhs_register)
+            } else {
+                encode_lslv_x_register(destination_register, destination_register, rhs_register)
+            });
+            return Ok(());
+        }
+        // `>>`/`>>>` ride the plain arm: it already picks W/X by width (with
+        // the sign/zero extension), whose native masking + the sub-word AND
+        // is the masked-count semantics.
+        return append_runtime_binary_operation(
+            bytes,
+            destination_register,
+            operator,
+            rhs_register,
+            byte_size,
+        );
+    }
     if non_exact && operator == StateGuardOperator::ShiftRight {
-        // Arithmetic `>>` is floor(x / 2^n): an at/above-width count must
-        // SIGN-FILL, and a post-fix cannot recover the sign once the masked
-        // shift consumed the value -- so saturate the COUNT first. CSINV
-        // turns at/above-width counts into ~0, which ASRV masks to the form
-        // width - 1 (31/63): exactly the sign-fill shift. Clobbers the rhs
-        // register (dead after the operation, as on x86_64).
+        // SATURATING/TRAPPING arithmetic `>>` keep floor(x / 2^n) semantics:
+        // an at/above-width count must SIGN-FILL, and a post-fix cannot
+        // recover the sign once the masked shift consumed the value -- so
+        // saturate the COUNT first. CSINV turns at/above-width counts into
+        // ~0, which ASRV masks to the form width - 1 (31/63): exactly the
+        // sign-fill shift. Clobbers the rhs register (dead after the
+        // operation, as on x86_64). Post-F8a only Trapping can reach an
+        // out-of-range count; F8c replaces this with the count trap.
         let width_bits = u32::try_from(byte_size * 8).unwrap_or(64);
         bytes.extend(encode_compare_x_immediate(rhs_register, width_bits)?);
         // LO (unsigned <): in-range counts keep rhs; otherwise NOT(XZR).
         bytes.extend(encode_csinv_x(rhs_register, rhs_register, 31, 0b0011));
     }
     append_runtime_binary_operation(bytes, destination_register, operator, rhs_register, byte_size)?;
-    if (wrapping && operator == StateGuardOperator::ShiftLeft)
-        || (non_exact && operator == StateGuardOperator::ShiftRightLogical)
-    {
-        // `<<` and logical `>>` both yield ZERO at/above-width (modular /
-        // floor-division semantics); the hardware masks the count instead.
+    if non_exact && operator == StateGuardOperator::ShiftRightLogical {
+        // Saturating/Trapping logical `>>`: zero at/above-width (floor
+        // semantics), same F8c caveat as the arithmetic arm above.
         let width_bits = u32::try_from(byte_size * 8).unwrap_or(64);
         bytes.extend(encode_compare_x_immediate(rhs_register, width_bits)?);
         // HS (unsigned >=): count at or above the width selects XZR.

@@ -5799,32 +5799,25 @@ impl<'program> Evaluator<'program> {
                     Add => l.wrapping_add(r),
                     Subtract => l.wrapping_sub(r),
                     Multiply => l.wrapping_mul(r),
-                    // MODULAR at every width (shift-domain ruling,
-                    // 2026-07-13: the lhs domain defines the semantics;
-                    // Wrapping = mod 2^w): a count >= the type's width is
-                    // x * 2^n = 0 (mod 2^w). The old count-mask
-                    // (wrapping_shl) matched aarch64 LSLV at 64-bit but
-                    // contradicted the <= 32-bit behavior, where the wide
-                    // compute + wrap_to_width already produced 0.
+                    // MASKED COUNT at the operand width (F8, ch5 shift-count
+                    // ruling, settled 2026-07-18: Wrapping masks the count to
+                    // `k & (width - 1)` -- the genuinely modular reading, and
+                    // what the hardware computes anyway). This SUPERSEDES the
+                    // 2026-07-13 modular-VALUE semantics (at-width counts no
+                    // longer collapse to 0/sign-fill; they shift by the
+                    // masked count). Bit-masking the two's-complement count
+                    // is well-defined for negative counts too, exactly like
+                    // the register-form shifts on both ISAs.
                     ShiftLeft => {
-                        if (r as u64) >= primitive_bit_width(ty) {
-                            0
-                        } else {
-                            l.wrapping_shl(r as u32)
-                        }
+                        let masked = ((r as u64) & (primitive_bit_width(ty) - 1)) as u32;
+                        l.wrapping_shl(masked)
                     }
-                    // The `>>` half of the same ruling: x >> n is
-                    // floor(x / 2^n) at every count, so a count >= the
-                    // type's width is 0 for a logical shift and the
-                    // sign-fill (0 or -1) for an arithmetic one. Hardware
-                    // masks the count instead; both ISAs clamp to match.
                     ShiftRight => {
-                        if (r as u64) >= primitive_bit_width(ty) {
-                            if unsigned_operands || l >= 0 { 0 } else { -1 }
-                        } else if unsigned_operands {
-                            ((l as u64).wrapping_shr(r as u32)) as i64
+                        let masked = ((r as u64) & (primitive_bit_width(ty) - 1)) as u32;
+                        if unsigned_operands {
+                            ((l as u64).wrapping_shr(masked)) as i64
                         } else {
-                            l.wrapping_shr(r as u32)
+                            l.wrapping_shr(masked)
                         }
                     }
                     _ => unreachable!(),

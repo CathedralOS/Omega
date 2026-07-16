@@ -28,16 +28,16 @@ machine Main::build(&mut self) {
             _ -> wrong_shr()
         }
     }
-    // MODULAR at-width legs (slice B, aarch64+interp): a Wrapping << by a
-    // count >= the type width is x * 2^n = 0 (mod 2^w) -- the 64-bit case
-    // needs the explicit count clamp (LSLV masks mod 64) and the interp's
-    // uniform modular semantics. x86's count clamp is still pending; these
-    // legs run natively on aarch64 hosts and in the interpreter.
+    // MASKED-COUNT at-width legs (F8b, ch5 shift-count ruling 2026-07-18):
+    // a Wrapping shift masks its count to `k & (width - 1)` -- the genuinely
+    // modular reading, and what the hardware computes anyway. 1 << 40 at u32
+    // is 1 << 8 = 256; 1 << 70 at u64 is 1 << 6 = 64. (Supersedes the
+    // retired modular-VALUE semantics where at-width counts collapsed to 0.)
     state atwidth32(&mut self) {
         let a: u32 in Wrapping = (1 as u32 in Wrapping);
         let c: u32 in Wrapping = (40 as u32 in Wrapping);
         let r: u32 in Wrapping = a << c;
-        transition r == 0 {
+        transition r == 256 {
             true -> atwidth64()
             _ -> wrong_atwidth32()
         }
@@ -46,7 +46,7 @@ machine Main::build(&mut self) {
         let a: u64 in Wrapping = (1 as u64 in Wrapping);
         let c: u64 in Wrapping = (70 as u64 in Wrapping);
         let r: u64 in Wrapping = a << c;
-        transition r == 0 {
+        transition r == 64 {
             true -> good()
             _ -> wrong_atwidth64()
         }
