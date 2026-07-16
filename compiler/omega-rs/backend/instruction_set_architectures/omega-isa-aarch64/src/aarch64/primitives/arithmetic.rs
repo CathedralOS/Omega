@@ -389,6 +389,25 @@ pub(in crate::aarch64) fn encode_lsrv_x_register(
     )
 }
 
+/// `LSRV Wd, Wn, Wm` — 32-bit LOGICAL shift right (zero-fill from bit 31). The
+/// narrow form of `encode_lsrv_x_register`: an unsigned `>>` at operand width
+/// <= 4 must zero-fill from the OPERAND's width, not bit 63 -- the X form lets
+/// garbage/wrapped high bits (e.g. a 64-bit nested Wrapping op's untruncated
+/// result) shift down into the live word (the const_fold_unsigned_shift_right
+/// arg-delivery face).
+pub(in crate::aarch64) fn encode_lsrv_w_register(
+    destination_register: u8,
+    left_register: u8,
+    right_register: u8,
+) -> [u8; 4] {
+    encode_instruction(
+        0x1AC02400
+            | (u32::from(right_register) << 16)
+            | (u32::from(left_register) << 5)
+            | u32::from(destination_register),
+    )
+}
+
 /// `ASRV Xd, Xn, Xm` — ARITHMETIC shift right (sign-fill), opcode `0b001010`. Used
 /// for a signed `>>` (`ShiftRight`).
 pub(in crate::aarch64) fn encode_asrv_x_register(

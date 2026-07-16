@@ -1915,6 +1915,10 @@ fn runtime_binary_operation_width(operator: StateGuardOperator, byte_size: usize
             8
         }
         StateGuardOperator::ShiftRight if matches!(byte_size, 1 | 2) => 4,
+        // A narrow logical `>>` zero-extends the shifted value the same way
+        // (see the ShiftRightLogical arm's uxtb/uxth); width 4 uses the W form
+        // with no extension.
+        StateGuardOperator::ShiftRightLogical if matches!(byte_size, 1 | 2) => 4,
         _ => 0,
     };
     narrow_signed_extension + runtime_binary_operation_width_base(operator)

@@ -1,0 +1,40 @@
+// RUN CANARY (exit 70, differential). A `&mut [T]` LOCAL slice derived from a
+// LOCAL struct's array field (`room.exits.as_mut_slice()`), forwarded as a
+// transition arg into a state param, then indexed-RMW'd through the param.
+//
+// PROMOTED from pending/storage/local_slice_forward_segfault (native SEGFAULT,
+// found 2026-07-18; fixed same sweep): the struct-literal local `room` was
+// invisible to the state-storage liveness scan (its only reference rode a later
+// `let`'s VALUE, which the scan does not inspect), so its frame slot was ELIDED
+// -- the descriptor had no address to point at, every downstream strategy
+// (initializer write, fixed-array slice materialization, arg copy) silently
+// planned nothing, and the callee crashed dereferencing the ZII null data
+// pointer. Fix: a struct-literal local whose field backs an `as_slice`/
+// `as_mut_slice` VIEW in a later statement keeps its slot
+// (state-storage collection.rs, the slice-view carve-out). Deliberately gated
+// on the VIEW, not any later-`let` reference: plain field reads (`m.body`)
+// stay fold-served and slot-less (borrow_carrying_data_field_exit pins that).
+//
+// The known-good siblings that bracketed the bisection:
+// - same-state use of the local slice (no forward) works
+//   (storage/runtime_slice_alias_indexed_field_write_exit);
+// - forwarding a slice derived from a `&mut` PARAM works (inventory.omg).
+boundary trait Console { machine exit_process(return_code: i32); }
+data Counter { n: i32 in Wrapping; }
+data Room { exits: [Counter; 2]; }
+data Main { console: Console; }
+machine Main::main(&mut self) {
+    let room: Room = Room {
+        exits: [ Counter { n: 10 }, Counter { n: 20 } ]
+    };
+    let exits: &mut [Counter] = room.exits.as_mut_slice();
+    transition { _ -> bump_first(exits) }
+
+    state bump_first(&mut self, exits: &mut [Counter]) {
+        let index: u64 = 0;
+        exits[index].n = exits[index].n + 1;
+        transition exits[index].n == 11 { true -> good() _ -> bad() }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self)  { self.console.exit_process(71); }
+}

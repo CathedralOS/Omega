@@ -651,6 +651,35 @@ fn local_data_requires_storage(
         return true;
     }
 
+    // A STRUCT-LITERAL local whose field backs an `as_slice`/`as_mut_slice`
+    // VIEW in a later statement (`let room = Room {..}; let exits =
+    // room.exits.as_mut_slice()`) must own a real frame slot: the slice
+    // descriptor's data pointer needs an ADDRESS, and an rvalue literal has
+    // none. Elided, the local was invisible to the final liveness scan (the
+    // view rode a later `let` value), every downstream strategy silently
+    // planned nothing, and the forwarded descriptor stayed ZII -- the callee
+    // crashed dereferencing a null data pointer (the pinned
+    // local_slice_forward_segfault). Deliberately gated on the VIEW, not on
+    // any later-`let` reference like the array arm above: a plain field read
+    // (`m.body`) is served by the struct-literal field-extraction fold and
+    // must stay slot-less (the borrow-carrying shapes depend on that fold).
+    if initializer_is_struct_literal(expressions, initial_value)
+        && statements
+            .iter()
+            .skip(local_statement_index + 1)
+            .any(|statement| {
+                statement_takes_slice_view_of_symbol(
+                    expressions,
+                    statement_table,
+                    statement,
+                    local_symbol,
+                    local_name,
+                )
+            })
+    {
+        return true;
+    }
+
     // A RUNTIME-BOUNDED SUBSLICE local (`let sub = arr[self.lo..self.hi]` -- a
     // Range index with a non-literal bound) must keep its descriptor slot when
     // used later. Elided, its uses trace back to the inline subslice, whose
@@ -1298,6 +1327,229 @@ fn initializer_is_array_literal(
         ExpressionNode::ArrayLiteral(_) => true,
         ExpressionNode::Mutable(inner) => initializer_is_array_literal(expressions, *inner),
         _ => false,
+    }
+}
+
+/// Whether an initializer is a STRUCT literal (under `Mutable`). Used by the
+/// slice-view carve-out below: a struct-literal local whose FIELD backs an
+/// `as_slice`/`as_mut_slice` view must own a real frame slot (the descriptor
+/// needs an address to point at). Deliberately NOT folded into
+/// `initializer_is_array_literal`'s any-later-`let` carve-out: a struct-literal
+/// local consumed by a plain FIELD READ (`let m = Msg { body: &self.cell };
+/// m.body`) is served by the struct-literal field-extraction FOLD and must stay
+/// slot-less (slotting it breaks the fold's borrow-carrying shapes -- the
+/// borrow_carrying_data_field_exit canary regression caught exactly that).
+fn initializer_is_struct_literal(
+    expressions: &omega_checked_trees::expression::ExpressionTable,
+    expression: ExpressionHandle,
+) -> bool {
+    match expressions.expression(expression) {
+        ExpressionNode::StructLiteral(_) => true,
+        ExpressionNode::Mutable(inner) => initializer_is_struct_literal(expressions, *inner),
+        _ => false,
+    }
+}
+
+/// Whether the expression contains an `as_slice`/`as_mut_slice` CALL whose
+/// receiver is rooted at `symbol`/`local_name` -- an ADDRESS-TAKING view of the
+/// local (`room.exits.as_mut_slice()`). Such a view requires the local to own a
+/// real frame slot: the slice descriptor's data pointer must target actual
+/// storage, and an rvalue aggregate literal has no address. Recursion mirrors
+/// `expression_references_symbol` so a view nested in any position (a later
+/// `let` value, a transition argument, a call argument) is found.
+fn expression_takes_slice_view_of_symbol(
+    expressions: &omega_checked_trees::expression::ExpressionTable,
+    expression: ExpressionHandle,
+    symbol: SymbolHandle,
+    local_name: &Identifier,
+) -> bool {
+    match expressions.expression(expression) {
+        ExpressionNode::Call(call) => {
+            (call.receiver.is_valid()
+                && (call.target.as_str() == "as_slice" || call.target.as_str() == "as_mut_slice")
+                && expression_references_symbol(expressions, call.receiver, symbol, local_name))
+                || (call.receiver.is_valid()
+                    && expression_takes_slice_view_of_symbol(
+                        expressions,
+                        call.receiver,
+                        symbol,
+                        local_name,
+                    ))
+                || expressions
+                    .expression_handles(call.arguments)
+                    .iter()
+                    .copied()
+                    .any(|argument| {
+                        expression_takes_slice_view_of_symbol(
+                            expressions,
+                            argument,
+                            symbol,
+                            local_name,
+                        )
+                    })
+        }
+        ExpressionNode::Mutable(inner) => {
+            expression_takes_slice_view_of_symbol(expressions, *inner, symbol, local_name)
+        }
+        ExpressionNode::ArrayLiteral(items) => expressions
+            .expression_handles(*items)
+            .iter()
+            .copied()
+            .any(|item| expression_takes_slice_view_of_symbol(expressions, item, symbol, local_name)),
+        ExpressionNode::Binary(binary) => {
+            expression_takes_slice_view_of_symbol(expressions, binary.left, symbol, local_name)
+                || expression_takes_slice_view_of_symbol(
+                    expressions,
+                    binary.right,
+                    symbol,
+                    local_name,
+                )
+        }
+        ExpressionNode::Cast(cast) => {
+            expression_takes_slice_view_of_symbol(expressions, cast.value, symbol, local_name)
+        }
+        ExpressionNode::Indexed(indexed) => {
+            expression_takes_slice_view_of_symbol(
+                expressions,
+                indexed.collection,
+                symbol,
+                local_name,
+            ) || expression_takes_slice_view_of_symbol(
+                expressions,
+                indexed.index,
+                symbol,
+                local_name,
+            )
+        }
+        ExpressionNode::Range(range) => {
+            expression_takes_slice_view_of_symbol(expressions, range.start, symbol, local_name)
+                || expression_takes_slice_view_of_symbol(
+                    expressions,
+                    range.end,
+                    symbol,
+                    local_name,
+                )
+        }
+        ExpressionNode::Member(member) => {
+            expression_takes_slice_view_of_symbol(expressions, member.receiver, symbol, local_name)
+        }
+        ExpressionNode::Unary(unary) => {
+            expression_takes_slice_view_of_symbol(expressions, unary.operand, symbol, local_name)
+        }
+        ExpressionNode::StructLiteral(struct_literal) => expressions
+            .struct_fields(struct_literal.fields)
+            .iter()
+            .any(|field| {
+                expression_takes_slice_view_of_symbol(expressions, field.value, symbol, local_name)
+            }),
+        ExpressionNode::Name(_)
+        | ExpressionNode::Boolean(_)
+        | ExpressionNode::Float(_)
+        | ExpressionNode::Integer(_)
+        | ExpressionNode::String(_) => false,
+    }
+}
+
+/// Whether any expression position of the statement takes a slice view of the
+/// local (see `expression_takes_slice_view_of_symbol`). Covers `let` VALUES,
+/// assignment targets/values, call arguments, expression statements, and
+/// transition guards/target arguments -- the positions an `as_mut_slice` view
+/// can ride into.
+fn statement_takes_slice_view_of_symbol(
+    expressions: &omega_checked_trees::expression::ExpressionTable,
+    statement_table: &StatementTable,
+    statement: &StatementNode,
+    symbol: SymbolHandle,
+    local_name: &Identifier,
+) -> bool {
+    match statement {
+        StatementNode::LocalData(local) => {
+            local.initial_value.is_valid()
+                && expression_takes_slice_view_of_symbol(
+                    expressions,
+                    local.initial_value,
+                    symbol,
+                    local_name,
+                )
+        }
+        StatementNode::Assignment(assignment) => {
+            expression_takes_slice_view_of_symbol(
+                expressions,
+                assignment.target,
+                symbol,
+                local_name,
+            ) || expression_takes_slice_view_of_symbol(
+                expressions,
+                assignment.value,
+                symbol,
+                local_name,
+            )
+        }
+        StatementNode::Call(call) => expressions
+            .expression_handles(call.arguments)
+            .iter()
+            .copied()
+            .any(|argument| {
+                expression_takes_slice_view_of_symbol(expressions, argument, symbol, local_name)
+            }),
+        StatementNode::Expression(expression) => {
+            expression.is_valid()
+                && expression_takes_slice_view_of_symbol(
+                    expressions,
+                    *expression,
+                    symbol,
+                    local_name,
+                )
+        }
+        StatementNode::Transition(transition) => {
+            (match transition.guard {
+                TransitionGuardNode::Always => false,
+                TransitionGuardNode::When(expression) => expression_takes_slice_view_of_symbol(
+                    expressions,
+                    expression,
+                    symbol,
+                    local_name,
+                ),
+            }) || transition_target_takes_slice_view_of_symbol(
+                expressions,
+                statement_table,
+                transition.target,
+                symbol,
+                local_name,
+            ) || transition_target_takes_slice_view_of_symbol(
+                expressions,
+                statement_table,
+                transition.continuation,
+                symbol,
+                local_name,
+            )
+        }
+    }
+}
+
+fn transition_target_takes_slice_view_of_symbol(
+    expressions: &omega_checked_trees::expression::ExpressionTable,
+    statement_table: &StatementTable,
+    target: omega_checked_trees::statement::TransitionTargetHandle,
+    symbol: SymbolHandle,
+    local_name: &Identifier,
+) -> bool {
+    if !target.is_valid() {
+        return false;
+    }
+
+    match statement_table.transition_target(target) {
+        TransitionTargetNode::Named { arguments, .. } => statement_table
+            .expression_handles(*arguments)
+            .iter()
+            .copied()
+            .any(|expression| {
+                expression_takes_slice_view_of_symbol(expressions, expression, symbol, local_name)
+            }),
+        TransitionTargetNode::Value(expression) => {
+            expression_takes_slice_view_of_symbol(expressions, *expression, symbol, local_name)
+        }
+        TransitionTargetNode::SelfTarget | TransitionTargetNode::Terminal => false,
     }
 }
 

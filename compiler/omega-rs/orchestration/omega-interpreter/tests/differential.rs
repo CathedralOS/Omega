@@ -122,6 +122,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("arithmetic/unsigned_min_max_wrapping_local_exit", 77),
     ("storage/runtime_slice_indexed_binary_rmw_exit", 70),
     ("calls/runtime_mut_ref_forward_exit", 70),
+    ("storage/runtime_local_slice_forward_exit", 70),
     ("arithmetic/const_fold_cast_signedness", 70),
     ("arithmetic/wrapping_signed_divide_min_by_neg_one", 70),
     ("arithmetic/saturating_signed_divide_min_by_neg_one", 70),
@@ -1940,23 +1941,27 @@ const PENDING_RUNTIME_DIVERGENCES: &[(&str, i32, PendingInterpOutcome)] = &[
     ("calls/texteq_local_guard_read_divergence", 71, PendingInterpOutcome::Exit(70)),
     ("calls/texteq_local_arg_forward_divergence", 71, PendingInterpOutcome::Exit(70)),
     ("calls/trailing_state_mut_param_phase_divergence", 71, PendingInterpOutcome::Exit(70)),
-    // Host-correct legs (this gate runs native on the HOST): x86 truncation
-    // yields 70; the header records aarch64's 99 as the cross-target face.
+    // Host-correct legs (this gate runs native on the HOST), ARCH-AWARE:
+    // x86 truncation (cvttsd2si integer-indefinite -> 0) yields 70; aarch64
+    // FCVTZS SATURATES (like the interp's i64 saturation) and yields 99 --
+    // the canary header documents both faces. F4 (proof-or-policy) retires
+    // this row entirely.
+    #[cfg(target_arch = "x86_64")]
     ("arithmetic/float_to_int_overflow_divergence", 70, PendingInterpOutcome::Exit(71)),
+    #[cfg(target_arch = "aarch64")]
+    ("arithmetic/float_to_int_overflow_divergence", 99, PendingInterpOutcome::Exit(71)),
     // 72/72: the two legs AGREE on this host (aarch64 LSLV masks the count
     // at 64 like the interp); the parked divergence is vs x86's 32-bit mask.
     // unsigned_min_max_operand_position_divergence PROMOTED 2026-07-18 to
     // pass/arithmetic/unsigned_min_max_operand_position_exit (carrier CR3:
     // binding-capture stamping + operand-derived anonymous-destination folds
     // carry the landing to the signedness probe; both engines exit 77).
-    // A frame-LOCAL-backed slice descriptor forwarded across a state
-    // boundary goes wild natively (the known-good shapes are same-state
-    // use, or forwarding a slice derived from a `&mut` PARAM).
-    (
-        "storage/local_slice_forward_segfault",
-        -1073741819,
-        PendingInterpOutcome::Exit(70),
-    ),
+    // local_slice_forward_segfault PROMOTED 2026-07-18 to
+    // pass/storage/runtime_local_slice_forward_exit: the struct-literal
+    // local backing the slice view was invisible to the state-storage
+    // liveness scan (its only reference rode a later `let` value), so its
+    // frame slot was elided and the forwarded descriptor stayed ZII; the
+    // slice-view carve-out in state-storage collection.rs keeps the slot.
 ];
 
 /// COLLECT-ALL runtime drift-check over the parked divergences above.

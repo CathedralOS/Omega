@@ -1614,12 +1614,21 @@ rejects — an INTEGER ruling, engineering rides this ladder as F8).
   whole-machine scope; everything else errors with the fix spelled).
   Repro PROMOTED to fail/calls/immutable_arg_for_mut_param_rejected;
   legal forward pinned by pass/calls/runtime_mut_ref_forward_exit; two
-  corpus canaries respelled to explicit `&mut self.<field>`. NEW pin
-  found while authoring the forward canary:
-  pending/storage/local_slice_forward_segfault — a frame-LOCAL-backed
-  slice descriptor forwarded across a state boundary goes wild natively
-  (same-state use and `&mut`-PARAM-derived slices both work); backend
-  storage/argument-materialization face, pre-existing.
+  corpus canaries respelled to explicit `&mut self.<field>`. The pin
+  found while authoring the forward canary — a frame-LOCAL-backed
+  slice descriptor forwarded across a state boundary going wild
+  natively — was FIXED 2026-07-18 (aarch64-darwin lane) and PROMOTED to
+  pass/storage/runtime_local_slice_forward_exit (differential): the
+  STATE-STORAGE demand analysis elided the struct-literal local's slot
+  (its only reference rode a later `let` VALUE, invisible to the
+  liveness scan), so the descriptor had no address and every downstream
+  strategy silently planned nothing (ZII null deref). Fix = the
+  slice-view carve-out in state-storage collection.rs: a struct-literal
+  local whose field backs an `as_slice`/`as_mut_slice` view in a later
+  statement keeps its slot. Deliberately view-gated, NOT the array arm's
+  any-later-`let` gate: plain field reads (`m.body`) stay fold-served
+  (borrow_carrying_data_field_exit pins that — a blanket arm regressed
+  it and was narrowed same day).
 
   (The earlier "CONFIRMED ON MAIN / five float failures survived onto
   committed main / bisect from 8d0b33b8e" block that lived here was
