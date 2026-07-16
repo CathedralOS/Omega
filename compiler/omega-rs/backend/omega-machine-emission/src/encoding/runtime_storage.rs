@@ -743,6 +743,7 @@ pub(super) fn encode_runtime_frame_base_indexed_address_to_runtime_frame_write(
 pub(super) fn encode_runtime_machine_indexed_address_to_runtime_frame_write(
     input: MachineEmissionContext<'_>,
     base_byte_offset: usize,
+    index_region: omega_target_operations::RuntimeStorageRegion,
     index_offset: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
@@ -751,6 +752,7 @@ pub(super) fn encode_runtime_machine_indexed_address_to_runtime_frame_write(
     architecture::encode_runtime_machine_indexed_address_to_runtime_frame_write(
         input.target.architecture,
         base_byte_offset,
+        index_region,
         index_offset,
         element_byte_size,
         field_byte_offset,

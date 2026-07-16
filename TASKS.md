@@ -1603,6 +1603,26 @@ rejects — an INTEGER ruling, engineering rides this ladder as F8).
   query, which usually lands same-context), but a future
   cross-context face there should get the same preference shape.
 
+- **AARCH64-DARWIN HOST-DIVERGENT GAPS — ALL CLOSED (aarch64 lane):** the
+  mirror image of the x86-windows sweep above: three canaries red at
+  origin/main on aarch64-darwin (green on the authoring x86 host), all
+  fixed on the aarch64 lane. (1) const_fold_unsigned_shift_right_arg —
+  NOT signedness: the ShiftRightLogical arm ignored `narrow` (always the
+  X form), so a 64-bit nested Wrapping op's untruncated high bits shifted
+  down into bit 31; new encode_lsrv_w_register + sub-word zero-extension
+  (the logical twin of ASR's sign-extension), width fn in lockstep.
+  (2)+(3) runtime_record_view_exit + its pass_canaries_compile echo — the
+  machine-indexed ADDRESS write (§5b wide-referee recast) had no aarch64
+  lowering; implemented by reusing the machine-indexed copy family's
+  address prefix byte-for-byte (the walker's aarch64 branch rides the
+  copy family's offset fns; store via the offset-materializing 8-byte
+  path). ALSO fixed en route: the local-slice-forward segfault (see the
+  promoted-pin entry above). SUITE ON AARCH64-DARWIN NOW FULLY GREEN:
+  canary_suite 853/853, differential 14/14, native fs+gui 88/88.
+  The pending float_to_int_overflow_divergence ledger row is now
+  ARCH-AWARE (cfg target_arch: x86 native 70 / aarch64 native 99), so the
+  drift gate holds on both hosts.
+
 - **`pending_runtime_divergences_hold` — GREENED 2026-07-18 (ledger
   host-corrected):** (a) `float_to_int_overflow_divergence` now documents
   the x86 host pair (native 70 / interp 71; the header keeps aarch64's

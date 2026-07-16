@@ -1815,6 +1815,58 @@ pub fn encode_runtime_frame_base_indexed_integer_write(
     Ok(bytes)
 }
 
+/// The machine-indexed ADDRESS write: `frame[target] = &machine[base + idx*size
+/// + field]` -- the SS5b wide-referee recast (`&self.buf[k] as &Wide`) binds the
+/// frame slot to the ELEMENT ADDRESS (reads deref it; a wider-than-pointer
+/// referee cannot content-spill). The address computation is the SAME prefix as
+/// the machine-indexed copies (`append_runtime_machine_index_target_address`
+/// into x16, machine page pair relocated at instruction start + the frame
+/// index's own page pair for a RuntimeFrame index), so the relocation walker
+/// reuses the copy family's offset fns; then the target frame page pair (x17)
+/// and an 8-byte store of x16 (scratch x9 materializes a large target offset).
+pub fn encode_runtime_machine_indexed_address_to_runtime_frame_write(
+    base_byte_offset: usize,
+    index_region: omega_target_operations::RuntimeStorageRegion,
+    index_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    target_offset: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::with_capacity(
+        super::widths::runtime_machine_indexed_address_to_runtime_frame_write_width(
+            base_byte_offset,
+            index_region,
+            index_offset,
+            element_byte_size,
+            field_byte_offset,
+            target_offset,
+        ),
+    );
+    append_runtime_machine_index_target_address(
+        &mut bytes,
+        base_byte_offset,
+        index_region,
+        index_offset,
+        element_byte_size,
+        field_byte_offset,
+    )?;
+    bytes.extend(encode_adrp_placeholder(17));
+    bytes.extend(encode_add_page_offset_placeholder(17));
+    append_store_data_to_x_offset(&mut bytes, 16, 17, target_offset, 8, 9)?;
+    debug_assert_eq!(
+        bytes.len(),
+        super::widths::runtime_machine_indexed_address_to_runtime_frame_write_width(
+            base_byte_offset,
+            index_region,
+            index_offset,
+            element_byte_size,
+            field_byte_offset,
+            target_offset,
+        )
+    );
+    Ok(bytes)
+}
+
 pub fn encode_runtime_machine_indexed_integer_write(
     base_byte_offset: usize,
     index_region: omega_target_operations::RuntimeStorageRegion,
