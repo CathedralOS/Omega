@@ -1200,7 +1200,14 @@ no `unbounded` property exists. Rungs:
   depth cap bounds each path, fuel bounds the branching; exhaustion
   declines the fold (never unsound, merely unfolded). The pending
   overflow repro RETIRED (the landed lemma is the living regression
-  witness — every seq.omg import re-verifies it). REMAINING:
+  witness — every seq.omg import re-verifies it). reverse_append
+  PROBED and reverted — two loud frontier edges: (a) the judge refuses
+  an ensures whose step RESULT wraps the self-application inside
+  another CALL (`append(reverse_append(..), singleton)` — the IH is
+  only taken from a constructor spine today); (b) the value-call
+  lowering refuses a machine call nested as a call ARGUMENT ("bind
+  the inner call to a local first"). Both named by their diagnostics;
+  next zoo growth rides those two rungs. REMAINING:
   more of the lemma zoo as the judge widens (commutativity needs
   double induction / rearrange-mode), extraction INTO consumer proofs
   (a caller citing a lemma's ensures — the fact-consumption face), the

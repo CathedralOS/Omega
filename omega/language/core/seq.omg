@@ -145,3 +145,4 @@ ensures
         transition { _ -> Nat::Succ { prev: length_reverse(tail) } }
     }
 }
+
