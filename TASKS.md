@@ -2917,11 +2917,26 @@ with a real app-window story.
   rest escape (pre-spec surface; LET has no `..`). Canaries:
   pass/control_flow/{case_pattern_rename_waive,record_pattern_arm_rename_guard}_exit
   (run-verified 70), fail/control_flow/arm_pattern_waived_field_use.
-  REMAINING: the arm exhaustiveness law for `..`-free patterns (needs a
-  typed pattern carrier -- guard lowering erases the spelled set today);
-  [copy]-eligibility restriction if non-copy fields surface unsoundly;
-  field names containing `__` mis-split the LET marker encoding (spurious
-  unknown-field error, never a masked missing-field).
+  ARM EXHAUSTIVENESS LAW SHIPPED (2026-07-19): a `..`-free destructure arm
+  must spell every field; `..` is the arm-only explicit opt-out. Carrier:
+  the transition parser collects arms first, then appends variant-aware
+  marker lets (`__arm_destructure#V=<variant>#<f1>...` -- `#`/`=` cannot
+  appear in identifiers, so the split is unambiguous; initializer = the
+  subject place, same is_place gate as LET) before the arm Transition
+  statements; destructure.rs resolves the marker against the record's
+  fields or the named case's payload and refuses missing (full menu named)
+  and unknown fields. Proof-side statement-shape walks in
+  contract_entailment.rs step over markers (is_arm_pattern_marker, the
+  citation-skip precedent) -- without this, markers inside nat.omg's
+  induction lemmas broke shape recognition and the lemmas fell through to
+  the proof-only fence. Canaries: fail/control_flow/arm_pattern_missing_field,
+  pass/control_flow/arm_pattern_rest_optout_exit (run-verified 70).
+  REMAINING: non-place subjects skip the law (no declared type to
+  resolve); unknown WAIVED fields in `..` patterns go unchecked (bound
+  ones still refuse as member reads); [copy]-eligibility restriction if
+  non-copy fields surface unsoundly; field names containing `__` mis-split
+  the LET marker encoding (spurious unknown-field error, never a masked
+  missing-field).
 - **Const data parameters:** symbolic lengths flow structurally;
   instantiation-time substitution, validation, layout diagnostics, const-fact
   proof integration pending.

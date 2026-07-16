@@ -38,6 +38,19 @@ pub(super) fn parse_transition_block_handles<'tokens, 'source>(
     let mut count = 0u32;
     let mut arm_statements: Vec<StatementHandle> = Vec::new();
     let mut arm_bool_tuples: Vec<Option<Vec<Option<bool>>>> = Vec::new();
+    // Parsed arms are COLLECTED first and their Transition statements
+    // appended after the loop, so exhaustiveness MARKER lets (below) can
+    // precede every arm statement in the item list -- the returned span
+    // must be one contiguous run.
+    let mut parsed_arms: Vec<(
+        omega_syntax_trees::statement::TransitionGuardNode,
+        TransitionTargetHandle,
+    )> = Vec::new();
+    // (marker name, subject) per `..`-free destructure arm on a PLACE
+    // subject: the exhaustiveness law's carrier, deduplicated by name
+    // (identical patterns share one marker; duplicate local names would
+    // collide in symbol resolution).
+    let mut pattern_markers: Vec<(String, ExpressionHandle)> = Vec::new();
 
     while !input.at_punctuation(PunctuationKind::RightBrace) {
         let (guard, bindings, bool_tuple, rest) =
@@ -58,6 +71,55 @@ pub(super) fn parse_transition_block_handles<'tokens, 'source>(
         };
         input = rest;
 
+        // Exhaustiveness law (owner spec 2026-07-18): a `..`-free destructure
+        // arm must spell every field of its record/case. The spelled set is
+        // encoded into a marker let (`__arm_destructure#V=<variant>#<f1>...`;
+        // `#`/`=` cannot appear in identifiers, so the split is unambiguous)
+        // whose initializer is the subject place -- the typed-stage
+        // validation resolves it against the data definition. Non-place
+        // subjects skip the marker (no declared type to resolve; the law is
+        // enforced where the type is knowable).
+        if let Some(bindings) = bindings.as_ref()
+            && let Some(spelling) = bindings.spelling.as_ref()
+            && !spelling.has_rest
+            && expression_is_place(syntax_trees, bindings.subject)
+        {
+            let mut marker_name = String::from("__arm_destructure#V=");
+            if let Some(variant) = spelling.variant.as_ref() {
+                marker_name.push_str(variant.as_str());
+            }
+            for member in &spelling.members {
+                marker_name.push('#');
+                marker_name.push_str(member.as_str());
+            }
+            if !pattern_markers.iter().any(|(name, _)| *name == marker_name) {
+                pattern_markers.push((marker_name, bindings.subject));
+            }
+        }
+
+        parsed_arms.push((guard, target));
+        arm_bool_tuples.push(bool_tuple);
+    }
+
+    for (marker_name, subject_place) in pattern_markers {
+        let marker = syntax_trees.statements.insert(StatementNode::LocalData(
+            omega_syntax_trees::statement::TableLocalData {
+                name: omega_syntax_trees::identifier::Identifier::generated(marker_name),
+                type_reference: omega_syntax_trees::types::TypeReferenceHandle::invalid(),
+                initial_value: subject_place,
+                is_mutable: false,
+            },
+        ));
+        let handle = syntax_trees.items.append_statement_handle(marker);
+        if count == 0 {
+            start = handle;
+        }
+        count = count
+            .checked_add(1)
+            .expect("transition block statement span count overflow");
+    }
+
+    for (guard, target) in parsed_arms {
         let statement =
             syntax_trees
                 .statements
@@ -68,7 +130,6 @@ pub(super) fn parse_transition_block_handles<'tokens, 'source>(
                 }));
         let handle = syntax_trees.items.append_statement_handle(statement);
         arm_statements.push(statement);
-        arm_bool_tuples.push(bool_tuple);
         if count == 0 {
             start = handle;
         }
@@ -123,6 +184,20 @@ pub(super) fn parse_transition_block_handles<'tokens, 'source>(
         HandleSpan::from_parts(start, count)
     };
     Ok((statements, input))
+}
+
+/// A pure re-readable place (Name / self / member chain) -- the same gate as
+/// the LET destructure's value: the marker's initializer re-reads the subject,
+/// which must not double-evaluate a call.
+fn expression_is_place(syntax_trees: &SyntaxTrees, expression: ExpressionHandle) -> bool {
+    match syntax_trees.expressions.expression(expression) {
+        omega_syntax_trees::expression::ExpressionNode::Name(_)
+        | omega_syntax_trees::expression::ExpressionNode::SelfValue => true,
+        omega_syntax_trees::expression::ExpressionNode::Member(member) => {
+            expression_is_place(syntax_trees, member.receiver)
+        }
+        _ => false,
+    }
 }
 
 fn parse_expression_list_until_punctuation<'tokens, 'source>(

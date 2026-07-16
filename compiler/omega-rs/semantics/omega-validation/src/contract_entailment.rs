@@ -75,6 +75,19 @@ use omega_typed_trees::trait_definition::TraitDefinition;
 /// parameter denotes the produced value.
 const RESULT_BINDER: &str = "result";
 
+
+/// Arm-pattern exhaustiveness markers (`__arm_destructure#...` locals) are
+/// VALIDATION carriers minted by the transition parser, not body shape:
+/// every proof-side statement-shape walk steps over them, the same way
+/// citation statements are stepped over.
+fn is_arm_pattern_marker(statement: &StatementNode) -> bool {
+    matches!(
+        statement,
+        StatementNode::LocalData(local)
+            if local.name.as_str().starts_with("__arm_destructure#")
+    )
+}
+
 pub(crate) fn validate_machine_contract_entailment(
     program: &TypedTrees,
     machine: &Machine,
@@ -182,6 +195,9 @@ pub(crate) fn validate_machine_contract_entailment(
         for statement in program.statement_table.statements(root.statement_nodes) {
             if result.is_some() {
                 return None; // statements after the value arm: out of shape
+            }
+            if is_arm_pattern_marker(statement) {
+                continue; // exhaustiveness carrier, not shape
             }
             match statement {
                 // Citation statements carry facts, not shape: their
@@ -523,6 +539,9 @@ fn inductive_transition_entailment(
     }
     let mut arms = Vec::new();
     for statement in statements {
+        if is_arm_pattern_marker(statement) {
+            continue; // exhaustiveness carrier, not shape
+        }
         let StatementNode::Transition(transition) = statement else {
             return; // assignments / locals / calls: out of shape, stand down
         };
@@ -3021,6 +3040,9 @@ fn recognize_structural_case_arms(
     }
     let mut arms = Vec::new();
     for statement in statements {
+        if is_arm_pattern_marker(statement) {
+            continue; // exhaustiveness carrier, not shape
+        }
         // Citation statements carry facts, not shape (their equations are
         // already in the judge's hypotheses); step over them.
         if let StatementNode::Call(call) = statement {
@@ -3157,6 +3179,9 @@ fn recognize_structural_case_arms(
                     {
                         if terminal.is_some() {
                             return None; // statements after the terminal: out of shape
+                        }
+                        if is_arm_pattern_marker(statement) {
+                            continue; // exhaustiveness carrier, not shape
                         }
                         // A `let` in the sub-proof (spelled, or the lowering's
                         // own __hoist_N of a call-valued terminal) BINDS: its
@@ -3590,6 +3615,9 @@ impl<'program> StructuralJudge<'program> {
             // termifies under the environment built so far and the local
             // joins it, so the terminal's name resolves. Mirrors the
             // sole-arm and case-arm recognizers.
+            if is_arm_pattern_marker(statement) {
+                continue; // exhaustiveness carrier, not shape
+            }
             if let StatementNode::LocalData(local) = statement {
                 let term = self.callee_term(local.initial_value, &environment, depth + 1)?;
                 environment.push((local.name.as_str().to_owned(), term));
@@ -4913,7 +4941,13 @@ fn constant_machine_constructor(program: &TypedTrees, name: &str) -> Option<Stru
     let [state] = states else {
         return None;
     };
-    let [statement] = program.statement_table.statements(state.statement_nodes) else {
+    let non_marker: Vec<&StatementNode> = program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .filter(|statement| !is_arm_pattern_marker(statement))
+        .collect();
+    let [statement] = non_marker[..] else {
         return None;
     };
     let StatementNode::Transition(transition) = statement else {
