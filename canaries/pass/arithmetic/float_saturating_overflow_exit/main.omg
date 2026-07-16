@@ -1,0 +1,30 @@
+// RUN CANARY (exit 70), aarch64 + interpreter (arch-gated: x86's float
+// policy lowering is its host session's rung; it passes through today).
+// F5 (float brief §8): `Saturating` clamps MAGNITUDE OVERFLOW to
+// +-MAX_FINITE and nothing else. Legs: 1e160 * 1e160 overflows f64 and
+// clamps to MAX_FINITE (the aarch64 all-integer guard: sign-cleared bits
+// vs the Inf pattern classifies finite/Inf/NaN in one compare); a second
+// square is IDEMPOTENT (MAX*MAX overflows -> MAX again); 5.0 / 0.0 keeps
+// its +Inf (division by zero does NOT clamp -- 0/0 has no defensible
+// clamp; wellness stays a Finite obligation).
+// exits: 71 = overflow not clamped; 72 = re-clamp wrong; 73 = div-by-zero
+// wrongly clamped.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; a: f64 in Saturating; z: f64 in Saturating; r: f64 in Saturating; }
+machine Main::main(&mut self) {
+    self.a = 1.0e160;
+    self.r = self.a * self.a; // 1e320 -> clamp to MAX_FINITE
+    transition self.r == 1.7976931348623157e308 { true -> reclamp() _ -> bad() }
+    state reclamp(&mut self) {
+        self.r = self.r * self.r; // MAX*MAX -> overflow -> MAX again
+        transition self.r == 1.7976931348623157e308 { true -> div0() _ -> bad2() }
+    }
+    state div0(&mut self) {
+        self.r = self.a / self.z; // finite/0.0 = +Inf, NOT clamped
+        transition self.r > 1.7976931348623157e308 { true -> good() _ -> bad3() }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self)  { self.console.exit_process(71); }
+    state bad2(&mut self) { self.console.exit_process(72); }
+    state bad3(&mut self) { self.console.exit_process(73); }
+}

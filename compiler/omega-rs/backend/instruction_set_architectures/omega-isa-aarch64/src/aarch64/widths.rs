@@ -373,7 +373,17 @@ pub fn runtime_storage_binary_write_width(
             StateGuardOperator::Divide | StateGuardOperator::Modulo
         );
     let operation_width = if is_float {
-        runtime_float_binary_operation_width(operator)
+        runtime_float_binary_operation_width_with_domain(
+            operator,
+            super::runtime_storage::runtime_binary_operation_byte_size(
+                runtime_value_operands,
+                operator,
+                left,
+                right,
+                byte_size,
+            ),
+            domain,
+        )
     } else if saturating_or_trapping
         && matches!(
             operator,
@@ -568,6 +578,26 @@ pub(in crate::aarch64) fn runtime_binary_operation_width_with_domain(
 }
 
 fn runtime_float_binary_operation_width(operator: StateGuardOperator) -> usize {
+    runtime_float_binary_operation_width_with_domain(
+        operator,
+        8,
+        omega_core::arithmetic::ArithmeticDomain::Exact,
+    )
+}
+
+/// F5 twin: the plain float op width plus the policy guard's bytes. The
+/// guard length comes from the EMITTER itself (fixed-register call +
+/// `.len()` -- the place-copy rung-2a one-source-of-truth discipline).
+fn runtime_float_binary_operation_width_with_domain(
+    operator: StateGuardOperator,
+    byte_size: usize,
+    domain: omega_core::arithmetic::ArithmeticDomain,
+) -> usize {
+    let guard = super::runtime_storage::float_policy_guard_width(operator, byte_size, domain);
+    guard + runtime_float_binary_operation_width_base(operator)
+}
+
+fn runtime_float_binary_operation_width_base(operator: StateGuardOperator) -> usize {
     8 + match operator {
         StateGuardOperator::Max | StateGuardOperator::Min => 8 + 4,
         StateGuardOperator::Equal
@@ -1887,7 +1917,28 @@ pub fn runtime_value_operand_width(
                     )
             });
         let operation_width = if runtime_value_operands.binary_is_float(operand) {
-            runtime_float_binary_operation_width(operator)
+            runtime_float_binary_operation_width_with_domain(
+                operator,
+                runtime_value_operands
+                    .binary_byte_width(operand)
+                    .or_else(|| {
+                        super::runtime_storage::runtime_value_operand_value_byte_size(
+                            runtime_value_operands,
+                            left,
+                        )
+                    })
+                    .or_else(|| {
+                        super::runtime_storage::runtime_value_operand_value_byte_size(
+                            runtime_value_operands,
+                            right,
+                        )
+                    })
+                    .unwrap_or(8),
+                runtime_value_operands
+                    .binary_arithmetic_domain(operand)
+                    .map(|(domain, _)| domain)
+                    .unwrap_or(omega_core::arithmetic::ArithmeticDomain::Exact),
+            )
         } else if let Some((domain, operands_signed)) = operand_domain {
             // Saturating/Trapping operand-position arithmetic: MUST mirror the
             // operand evaluator's clamp/trap dispatch or offsets drift.

@@ -1,0 +1,19 @@
+// PASS canary (F5, float brief §8), aarch64 + interpreter, abort-style:
+// `Trapping` float arithmetic traps on overflow (and invalid/div-by-zero)
+// -- the aarch64 guard brk's when the result is non-finite from finite,
+// non-NaN operands; the interp traps in eval. An in-range Trapping product
+// computes exactly first.
+// exits: 71 = in-range product wrong; 7 = SAILED PAST the overflow trap.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; a: f64 in Trapping; r: f64 in Trapping; }
+machine Main::main(&mut self) {
+    self.a = 3.0;
+    self.r = self.a * self.a;
+    transition self.r == 9.0 { true -> overflow() _ -> bad() }
+    state overflow(&mut self) {
+        self.a = 1.0e160;
+        self.r = self.a * self.a; // 1e320: must TRAP
+        self.console.exit_process(7);
+    }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

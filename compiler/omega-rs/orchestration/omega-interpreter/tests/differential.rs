@@ -71,6 +71,9 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     // pending float_to_int rows.
     #[cfg(target_arch = "aarch64")]
     ("arithmetic/float_to_int_saturating_exit", 70),
+    // F5 Saturating float arithmetic (aarch64-gated like the cast twin).
+    #[cfg(target_arch = "aarch64")]
+    ("arithmetic/float_saturating_overflow_exit", 70),
     ("proofs/runtime_decreases_u64_measure_exit", 70),
     ("arithmetic/runtime_wrapping_operand_truncation_exit", 70),
     ("text/case_literal_texteq_field_store_exit", 70),
