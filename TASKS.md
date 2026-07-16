@@ -150,8 +150,10 @@ then enforces the inherited claim FOR FREE: an acyclic inheritor
 discharges silently, a CYCLIC inheritor without a witness fails with
 the missing-witness diagnostic, `terminates by n;` discharges it
 (pinned: 3 pipeline tests, first try). Remaining TPR4: published
-omission/default rules for EXPORTS; sealed progress profiles +
-receipts + pinned premises (grant machinery -- the big half); then
+omission/default rules for EXPORTS (needs artifact serialization);
+sealed progress profiles BLOCKED 2026-07-16 on a DESIGN GAP (the
+profile declaration spelling + the grant/receipt carrier scoping --
+see OWNER_QUESTIONS.md); then
 requirement inheritance, published omission/default rules, sealed progress
 profiles, receipts, and pinned premises; TPR5 LANDED 2026-07-16 (the
 atomic corpus sweep is COMPLETE): omega core/std + samples + all
