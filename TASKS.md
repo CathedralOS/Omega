@@ -2907,11 +2907,21 @@ with a real app-window story.
   fields (named, with the bind/rename/waive menu) and unknown fields;
   sum types are redirected to `case`. Canaries:
   pass/data/record_pattern_{let,bind_all}_exit (run-verified 70),
-  fail/data/record_pattern_{missing_field,unknown_field}. REMAINING:
-  arm-position sharing the grammar; [copy]-eligibility restriction if
-  non-copy fields surface unsoundly; field names containing `__` mis-split
-  the marker encoding (spurious unknown-field error, never a masked
-  missing-field).
+  fail/data/record_pattern_{missing_field,unknown_field}.
+  ARM POSITION SHARES THE GRAMMAR (2026-07-19): the arm destructure field
+  parser (transition/guards.rs parse_data_destructure_pattern_fields) now
+  accepts `field as name` (rename -- the binding rewrites to the same
+  subject.member read; DestructureBinding already separated binding from
+  member) and `field as _` (waive -- spelled, no binding; a guard using
+  the waived name refuses at symbol resolution). `..` stays the arm-only
+  rest escape (pre-spec surface; LET has no `..`). Canaries:
+  pass/control_flow/{case_pattern_rename_waive,record_pattern_arm_rename_guard}_exit
+  (run-verified 70), fail/control_flow/arm_pattern_waived_field_use.
+  REMAINING: the arm exhaustiveness law for `..`-free patterns (needs a
+  typed pattern carrier -- guard lowering erases the spelled set today);
+  [copy]-eligibility restriction if non-copy fields surface unsoundly;
+  field names containing `__` mis-split the LET marker encoding (spurious
+  unknown-field error, never a masked missing-field).
 - **Const data parameters:** symbolic lengths flow structurally;
   instantiation-time substitution, validation, layout diagnostics, const-fact
   proof integration pending.
