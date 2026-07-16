@@ -1033,10 +1033,21 @@ bounded-escape store-containment keystone. Open rungs:
   as violation, unknown refuses directed. Ch12's Player constructs
   from a RUNTIME `strength: i32 [1..=100]` parameter with no spelled
   requires (pinned: pass data_where_ranged_param_constructs RUNS exit
-  70; point pins unchanged). Remaining R2: richer hypothesis shapes
-  (field-vs-field at read sites, products), window transport across
-  states, cross-machine establishment (a callee's construction is
-  invisible to the caller's gate -- over-refusal). The rest of the big semantic build:** the
+  70; point pins unchanged). RUNG 3 SLICE 10 LANDED same day --
+  PRODUCT HYPOTHESES, ch12's MemoryMap VERBATIM: `count * stride <=
+  len` with the sibling fact `stride >= 40` and len's [0..=4096]
+  bounds count at floor(4096/40)=102 at every legal observation
+  (sound iff the co-factor's lower bound >= 1 -- declared range or a
+  single-level sibling literal fact -- and the field is UNSIGNED);
+  param/local reads gained the arrival-validity rule mirroring the
+  slice-6 write path (a gated-type param arrived valid). True
+  differential pinned: pass data_where_product_hypothesis (the
+  callee's `target.count * 32` proves u32 ONLY via the product
+  chain, RUNS exit 70; dropping the stride fact refuses with the
+  decision-17 obligation). Remaining R2: field-vs-field read
+  hypotheses, window transport across states, cross-machine
+  establishment (a callee's construction is invisible to the
+  caller's gate -- over-refusal). The rest of the big semantic build:** the
   big semantic build — where-clause parsing on data, the default-domain
   layer, gating (zero-excluding domains legal, construction mandatory
   fields), consumption-point windows (ADDITIVE relaxation of the landed

@@ -592,7 +592,11 @@ fn scan_expression_reads(
                     .find(|place| place.spelling == receiver_spelling);
                 let established = place.map(|place| place.established).unwrap_or_else(|| {
                     // R2 rung 3 slice 3: established on every path in.
+                    // Slice 10: a parameter/local place arrived domain-VALID
+                    // (the caller's total net enforced it) -- arrival
+                    // establishes, mirroring the write path's rule.
                     entry_established.contains(&receiver_spelling)
+                        || !is_self_rooted(&receiver_spelling)
                 });
                 // The zero-gate applies only to GATED types (zero-satisfying
                 // places are born established).
@@ -882,6 +886,49 @@ pub(crate) fn where_fact_interval(
         else {
             continue;
         };
+        // R2 rung 3 slice 10 -- PRODUCT hypotheses (`count * stride <= len`,
+        // ch12's canonical shape): when OUR field is one FACTOR of a
+        // product bounded above, the field's upper bound is
+        // bound.high / co-factor.low (floor) -- SOUND iff the co-factor's
+        // lower bound is >= 1 (from its declared range or a sibling
+        // literal fact) and the field's primitive is UNSIGNED (>= 0).
+        if matches!(
+            binary.operator,
+            omega_typed_trees::expression::BinaryOperator::LessOrEqual
+                | omega_typed_trees::expression::BinaryOperator::Less
+        ) && let ExpressionNode::Binary(product) =
+            program.expression_table.expression(binary.left)
+            && matches!(
+                product.operator,
+                omega_typed_trees::expression::BinaryOperator::Multiply
+            )
+        {
+            let factor = if side_names_field(program, product.left, field) {
+                Some(product.right)
+            } else if side_names_field(program, product.right, field) {
+                Some(product.left)
+            } else {
+                None
+            };
+            if let Some(factor) = factor
+                && field_is_unsigned(program, definition, field)
+                && let Some(factor_low) = factor_lower_bound(program, definition, factor)
+                && factor_low >= 1
+                && let Some(bound) = bound_source_interval(program, definition, binary.right)
+                && let Some(mut bound_high) = bound.high
+            {
+                if matches!(
+                    binary.operator,
+                    omega_typed_trees::expression::BinaryOperator::Less
+                ) {
+                    bound_high = bound_high.saturating_sub(1);
+                }
+                let high = bound_high.div_euclid(factor_low);
+                interval.high = Some(interval.high.map_or(high, |current| current.min(high)));
+                refined = true;
+                continue;
+            }
+        }
         // Identify which side names OUR field; the other side supplies the
         // bound (a literal, or a co-field's declared interval end).
         let (field_side_left, other) = if side_names_field(program, binary.left, field) {
@@ -984,4 +1031,84 @@ fn bound_source_interval(
         }
         _ => None,
     }
+}
+
+/// Slice 10: is the definition's named field an UNSIGNED primitive (its
+/// values are >= 0 -- the product-division soundness guard)?
+fn field_is_unsigned(program: &TypedTrees, definition: &DataDefinition, field: &str) -> bool {
+    use omega_typed_trees::types::PrimitiveType;
+    program
+        .data_members(definition)
+        .iter()
+        .find_map(|member| match member {
+            omega_typed_trees::data::DataMember::Field(data_field)
+                if data_field.name.as_str() == field =>
+            {
+                program.primitive_type_reference(data_field.type_reference)
+            }
+            _ => None,
+        })
+        .is_some_and(|primitive| {
+            matches!(
+                primitive,
+                PrimitiveType::U8 | PrimitiveType::U16 | PrimitiveType::U32 | PrimitiveType::U64
+            )
+        })
+}
+
+/// Slice 10: a co-factor's LOWER bound -- its declared range, or a sibling
+/// literal fact (`stride >= 40` / `40 <= stride`), single level.
+fn factor_lower_bound(
+    program: &TypedTrees,
+    definition: &DataDefinition,
+    factor: ExpressionHandle,
+) -> Option<i64> {
+    use omega_typed_trees::expression::BinaryOperator;
+    let ExpressionNode::Name(path) = program.expression_table.expression(factor) else {
+        return None;
+    };
+    let factor_name = program
+        .expression_table
+        .name_path_members(path.members)
+        .last()?
+        .as_str();
+    if let Some(interval) = bound_source_interval(program, definition, factor)
+        && let Some(low) = interval.low
+    {
+        return Some(low);
+    }
+    for fact in program.proof_facts.span_or_empty(definition.where_facts) {
+        let omega_typed_trees::domain::ProofFact::Expression(expression) = fact else {
+            continue;
+        };
+        let ExpressionNode::Binary(binary) = program.expression_table.expression(*expression)
+        else {
+            continue;
+        };
+        let bound = match binary.operator {
+            BinaryOperator::GreaterOrEqual
+                if side_names_field(program, binary.left, factor_name) =>
+            {
+                integer_literal_value(program, binary.right).map(|value| value as i64)
+            }
+            BinaryOperator::Greater if side_names_field(program, binary.left, factor_name) => {
+                integer_literal_value(program, binary.right)
+                    .map(|value| (value as i64).saturating_add(1))
+            }
+            BinaryOperator::LessOrEqual
+                if side_names_field(program, binary.right, factor_name) =>
+            {
+                integer_literal_value(program, binary.left).map(|value| value as i64)
+            }
+            BinaryOperator::Less if side_names_field(program, binary.right, factor_name) => {
+                integer_literal_value(program, binary.left)
+                    .map(|value| (value as i64).saturating_add(1))
+            }
+            _ => None,
+        };
+        if let Some(bound) = bound {
+            return Some(bound);
+        }
+    }
+    None
 }
