@@ -1441,8 +1441,10 @@ no `unbounded` property exists. Rungs:
   LANDED same day (both first try): the semiring's multiplicative
   IDENTITIES (Lean one_mul/mul_one) -- left is compute + one
   add_zero_right citation, right is structural induction with the
-  head add computing through. Next zoo:
-  map/filter once generics-over-machines land. REMAINING:
+  head add computing through. snoc_reverse LANDED same day (first
+  try, pure compute-mode: both sides normalize to the same append --
+  Lean List.reverse_cons); zoo at 14 Seq + 8 Nat-lemma surface. Next
+  zoo: map/filter once generics-over-machines land. REMAINING:
   more of the lemma zoo as the judge widens (commutativity needs
   double induction / rearrange-mode), extraction INTO consumer proofs
   (a caller citing a lemma's ensures — the fact-consumption face), the

@@ -232,3 +232,15 @@ ensures
     append_assoc(s, t, Seq::Cons { head: x, tail: Seq::Empty });
     transition { _ -> (append(s, t)) }
 }
+
+// Reversing a cons SNOCS: reverse(Cons(x, s)) == snoc(reverse(s), x) --
+// the definitional mirror of reverse_snoc: reverse's Cons arm IS
+// append(reverse(s), [x]), and snoc's body unfolds to the same append.
+// Pure compute-mode (both sides normalize to one term); no citations.
+// Lean analog: `List.reverse_cons`.
+machine snoc_reverse(x: u64, s: Seq<u64>) -> Seq<u64>
+ensures
+    (reverse(Seq::Cons { head: x, tail: s })) == (snoc(reverse(s), x))
+{
+    transition { _ -> (reverse(s)) }
+}
