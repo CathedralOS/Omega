@@ -42,7 +42,11 @@ pub(super) fn collect_runtime_storage_address_relocations(
             true
         }
         SelectedInstructionKind::WriteRuntimeMachineIndexedAddressToRuntimeFrame {
+            base_byte_offset,
             index_region,
+            index_offset,
+            element_byte_size,
+            field_byte_offset,
             ..
         } => {
             // MACHINE base (the element-address computation) at the start,
@@ -50,7 +54,37 @@ pub(super) fn collect_runtime_storage_address_relocations(
             // base at the store's reload.
             context
                 .insert_data_address_at_instruction_start(context.machine_storage_symbol_handle());
-            if let Some((index_base_offset, target_frame_offset)) =
+            if context.input.target.architecture
+                == omega_target::Architecture::Aarch64
+            {
+                // aarch64 shares the machine-indexed COPY family's address
+                // prefix byte-for-byte, so its offset fns describe this
+                // instruction too: a FRAME-resident index loads its own page
+                // pair (a MACHINE index reads through the copied base -- no
+                // second site), and the target frame pair sits right after
+                // the address computation (the copy family's source-adrp
+                // position).
+                if *index_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame {
+                    context.insert_data_address_at_relative_offset(
+                        omega_instruction_selection::runtime_storage_copy_from_runtime_machine_indexed_runtime_frame_address_offset(
+                            context.input.target.architecture,
+                            *base_byte_offset,
+                        ),
+                        context.runtime_frame_symbol_handle(),
+                    );
+                }
+                context.insert_data_address_at_relative_offset(
+                    omega_instruction_selection::runtime_storage_copy_to_runtime_machine_indexed_source_address_offset(
+                        context.input.target.architecture,
+                        *base_byte_offset,
+                        *index_region,
+                        *index_offset,
+                        *element_byte_size,
+                        *field_byte_offset,
+                    ),
+                    context.runtime_frame_symbol_handle(),
+                );
+            } else if let Some((index_base_offset, target_frame_offset)) =
                 omega_instruction_selection::runtime_machine_indexed_address_relocation_offsets(
                     context.input.target.architecture,
                 )

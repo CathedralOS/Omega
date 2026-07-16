@@ -1443,10 +1443,33 @@ pub fn runtime_frame_base_indexed_address_target_frame_offset(
 /// convention (layout trips its loud zero-byte refusal).
 pub fn runtime_machine_indexed_address_to_runtime_frame_write_width(
     architecture: Architecture,
+    base_byte_offset: usize,
+    index_region: omega_target_operations::RuntimeStorageRegion,
+    index_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    target_offset: usize,
 ) -> usize {
     match architecture {
-        Architecture::Aarch64 => 0,
+        Architecture::Aarch64 => {
+            aarch64::runtime_machine_indexed_address_to_runtime_frame_write_width(
+                base_byte_offset,
+                index_region,
+                index_offset,
+                element_byte_size,
+                field_byte_offset,
+                target_offset,
+            )
+        }
         Architecture::X86_64 => {
+            let _ = (
+                base_byte_offset,
+                index_region,
+                index_offset,
+                element_byte_size,
+                field_byte_offset,
+                target_offset,
+            );
             x86_64::runtime_machine_indexed_address_to_runtime_frame_write_width()
         }
     }

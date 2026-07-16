@@ -873,9 +873,22 @@ fn machine_instruction_width(
             *field_byte_offset,
             *target_offset,
         ),
-        SelectedInstructionKind::WriteRuntimeMachineIndexedAddressToRuntimeFrame { .. } => {
+        SelectedInstructionKind::WriteRuntimeMachineIndexedAddressToRuntimeFrame {
+            base_byte_offset,
+            index_region,
+            index_offset,
+            element_byte_size,
+            field_byte_offset,
+            target_offset,
+        } => {
             omega_instruction_selection::runtime_machine_indexed_address_to_runtime_frame_write_width(
                 input.target.architecture,
+                *base_byte_offset,
+                *index_region,
+                *index_offset,
+                *element_byte_size,
+                *field_byte_offset,
+                *target_offset,
             )
         }
         SelectedInstructionKind::ReadRuntimeTextLine { .. } => {

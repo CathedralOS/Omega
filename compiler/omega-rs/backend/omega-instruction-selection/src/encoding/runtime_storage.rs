@@ -845,16 +845,25 @@ pub fn encode_runtime_frame_base_indexed_address_to_runtime_frame_write(
 pub fn encode_runtime_machine_indexed_address_to_runtime_frame_write(
     architecture: Architecture,
     base_byte_offset: usize,
+    index_region: omega_target_operations::RuntimeStorageRegion,
     index_offset: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
     target_offset: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
     match architecture {
-        Architecture::Aarch64 => Err(Diagnostic::error(
-            "AArch64 machine-indexed address write is not implemented (x86_64 only)",
-        )),
+        Architecture::Aarch64 => {
+            aarch64::encode_runtime_machine_indexed_address_to_runtime_frame_write(
+                base_byte_offset,
+                index_region,
+                index_offset,
+                element_byte_size,
+                field_byte_offset,
+                target_offset,
+            )
+        }
         Architecture::X86_64 => {
+            let _ = index_region;
             x86_64::encode_runtime_machine_indexed_address_to_runtime_frame_write(
                 base_byte_offset,
                 index_offset,

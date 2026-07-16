@@ -1464,6 +1464,30 @@ pub fn runtime_storage_copy_to_runtime_machine_indexed_from_runtime_storage_widt
 /// The byte offset of the SOURCE adrp (`adrp x20`) within the store — same
 /// position as the read's target adrp, region-aware. Used by the relocation
 /// planner to relocate the source page-pair to the machine symbol.
+/// Width of the machine-indexed ADDRESS write (`&self.buf[k] as &Wide` -- the
+/// element ADDRESS into a frame slot): the machine-indexed address computation
+/// (identical layout to the copy family's prefix, so its relocation positions
+/// reuse those offset fns) + the target frame page pair (8) + the 8-byte
+/// address store (materializing a large target offset). MUST stay in lockstep
+/// with `encode_runtime_machine_indexed_address_to_runtime_frame_write`.
+pub fn runtime_machine_indexed_address_to_runtime_frame_write_width(
+    base_byte_offset: usize,
+    index_region: omega_target_operations::RuntimeStorageRegion,
+    index_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    target_offset: usize,
+) -> usize {
+    runtime_storage_copy_to_runtime_machine_indexed_source_address_offset(
+        base_byte_offset,
+        index_region,
+        index_offset,
+        element_byte_size,
+        field_byte_offset,
+    ) + 8
+        + store_data_offset_width(target_offset, 8)
+}
+
 pub fn runtime_storage_copy_to_runtime_machine_indexed_source_address_offset(
     base_byte_offset: usize,
     index_region: omega_target_operations::RuntimeStorageRegion,
