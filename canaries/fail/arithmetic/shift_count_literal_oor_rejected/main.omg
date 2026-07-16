@@ -1,0 +1,11 @@
+// F8 (ch5 shift-count ruling, 2026-07-18): under Exact a shift's count must
+// be PROVEN below the operand width, and a spelled out-of-range count
+// (`1 << 40` on u32) can never execute -- an immediate compile error. The
+// ISA's silent count-masking under Exact is an invented number and never
+// adopted.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; n: u32; }
+machine Main::main(&mut self) {
+    self.n = 1 << 40;
+    self.console.exit_process(0);
+}

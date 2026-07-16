@@ -17745,10 +17745,13 @@ fn runtime_shl_saturating_exit_canary_runs() {
 }
 
 #[test]
-fn runtime_shl_saturating_atwidth_exit_canary_runs() {
-    // Saturating << at/above-width clamps nonzero x to the bound.
-    let canary = pass_canary("arithmetic/runtime_shl_saturating_atwidth_exit");
-    let build_dir = std::env::temp_dir().join(format!("omega-shlsataw-{}", std::process::id()));
+fn runtime_shl_saturating_value_overflow_exit_canary_runs() {
+    // F8: an at-width Saturating COUNT is now a compile error (the retired
+    // runtime_shl_saturating_atwidth_exit shape lives on as
+    // fail/arithmetic/shift_count_saturating_oor_rejected); this keeps the
+    // 32-bit VALUE-overflow clamp pinned with a PROVEN count (3 << 31).
+    let canary = pass_canary("arithmetic/runtime_shl_saturating_value_overflow_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-shlsatvo-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
     compile(CompileOptions {
         root_path: canary.join("main.omg"),
@@ -17756,14 +17759,40 @@ fn runtime_shl_saturating_atwidth_exit_canary_runs() {
         target_name: None,
         write_output: true,
     })
-    .expect("at-width saturating shl canary should compile");
+    .expect("value-overflow saturating shl canary should compile");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
-        .expect("at-width saturating shl canary should run");
+        .expect("value-overflow saturating shl canary should run");
     assert_eq!(
         output.status.code(),
         Some(70),
-        "at-width saturating shl canary should clamp (exit 70), got {:?}",
+        "value-overflow saturating shl canary should clamp (exit 70), got {:?}",
+        output.status.code(),
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_shift_count_proven_range_exit_canary_runs() {
+    // F8 proof side: a RANGED runtime count (u32 [0..=7]) proves count <
+    // width, so the Exact shift carries no obligation and computes exactly.
+    let canary = pass_canary("arithmetic/runtime_shift_count_proven_range_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-shcntrng-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("proven-range shift-count canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("proven-range shift-count canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "proven-range shift-count canary should compute exactly (exit 70), got {:?}",
         output.status.code(),
     );
     let _ = fs::remove_dir_all(&build_dir);
@@ -30714,7 +30743,8 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "types/runtime_addr_value_flow_exit",
     "types/runtime_addr_algebra_exit",
     "arithmetic/runtime_shl_saturating_exit",
-    "arithmetic/runtime_shl_saturating_atwidth_exit",
+    "arithmetic/runtime_shl_saturating_value_overflow_exit",
+    "arithmetic/runtime_shift_count_proven_range_exit",
     "proofs/runtime_decreases_u64_measure_exit",
     "arithmetic/runtime_wrapping_operand_truncation_exit",
     "text/case_literal_texteq_field_store_exit",
@@ -31451,6 +31481,9 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "arithmetic/narrowing_signedness_rejected",
     "arithmetic/suffix_type_disagrees_rejected",
     "arithmetic/suffix_magnitude_overflow_rejected",
+    "arithmetic/shift_count_literal_oor_rejected",
+    "arithmetic/shift_count_unproven_rejected",
+    "arithmetic/shift_count_saturating_oor_rejected",
     "arithmetic/suffix_negative_unsigned_rejected",
     "float/suffix_format_disagrees_rejected",
     "capabilities/host_provides_unknown_binding",

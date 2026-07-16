@@ -18,15 +18,15 @@
 // landed (proof-or-policy, OWNER_QUESTIONS 10 / float ladder F4); building
 // F4 retires this repro entirely.
 //
-// UNIFIED DESIGN QUESTION (with shift-amount-out-of-range-divergence): both are
-// UNDERSPECIFIED numeric-range operations -- a shift by >= the operand width, and
-// a float-to-int cast of an out-of-range value. Neither native nor interp is
-// "correct" because the behavior is undefined. The proof-carrying-consistent
-// answer, extending decision-17 (Exact arithmetic = proof obligation), is a PROOF
-// OBLIGATION that the value is provably in range -> an unprovable `f as i32` (or
-// `a << n`) is a COMPILE ERROR. Alternatives: define saturating (Rust-style),
-// or match-hardware. DESIGN CALL for Zach -- do NOT unilaterally pick. Until then
-// the oracle is unreliable for out-of-range float-to-int casts. In-range casts
+// UNIFIED DESIGN QUESTION -- HALF RESOLVED (2026-07-16): the SHIFT half landed
+// as F8 (ch5 shift-count ruling, settled 2026-07-18 by owner): Exact proves
+// `count < width` (literal OOR = compile error --
+// fail/arithmetic/shift_count_literal_oor_rejected + shift_count_unproven_
+// rejected pin it), Wrapping masks the count, Trapping traps; the shift
+// divergence is retired from this family. The FLOAT-TO-INT half (this repro)
+// remains: the ruling is the same proof-or-policy shape (OWNER_QUESTIONS 10 /
+// float ladder F4); building F4 retires this repro entirely. Until then the
+// oracle is unreliable for out-of-range float-to-int casts. In-range casts
 // agree + are correct.
 
 boundary trait Console { machine exit_process(return_code: i32); }

@@ -1,11 +1,14 @@
 // `1 << 100` (a shift amount >= the type width) used to PANIC the compiler while
 // const-folding ("attempt to shift left with overflow", omega-state-values). The
-// folder now leaves an out-of-range shift unfolded (its runtime semantics are a
-// separate target-defined question) instead of crashing. This exercises the folding
-// path but exits a FIXED 0 so it is robust regardless of the shift's runtime value.
+// folder now leaves an out-of-range shift unfolded instead of crashing. F8 (ch5
+// shift-count ruling, 2026-07-18) made an Exact out-of-range count a compile
+// error, so the lhs is now SPELLED Wrapping (decision 17 is operand-driven; the
+// target's `in Wrapping` alone does not re-domain the count) -- the Wrapping
+// count is masked and the folding no-crash pin survives. Exits a FIXED 0 so it
+// is robust regardless of the shift's runtime value.
 boundary trait Console { machine exit_process(return_code: i32); }
 data Main { console: Console; n: i32 in Wrapping; }
 machine Main::main(&mut self) {
-    self.n = 1 << 100; // must not crash the compiler
+    self.n = (1 as i32 in Wrapping) << 100; // must not crash the compiler
     self.console.exit_process(0);
 }
