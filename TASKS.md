@@ -1580,9 +1580,23 @@ no `unbounded` property exists. Rungs:
   like a builtin type (Int/UInt/Real/bool/i32/String/...); pinned
   fail data/builtin_type_name_shadow. Corpus scanned: no other
   colliding definitions.
+  INT RUNG STEP 2 LANDED 2026-07-16 -- mul_int PROVEN: the
+  difference-pair product ((p1p2+n1n2) - (p1n2+n1p2)) with
+  mul_int_comm (four mul_comm citations rewrite the products; the
+  neg field's swapped addend order settles under the add ring
+  license), and mul_int_assoc + mul_int_distributes discharge
+  CITATION-FREE -- each record field is a polynomial identity over
+  the six Nat components and the semiring tier-2 normal form settles
+  the monomial multisets (the deepest citation-free discharges yet:
+  assoc is 8 monomials of degree 3 per field). Canary consumer
+  int_mul_consumer cites mul_int_comm (RUNS exit 70). Negative
+  probes run-verified: false comm / wrong assoc regrouping / wrong
+  distributivity split each refuse.
   THEN: Int/Rat routing (cross-sum equivalence as the IntPair
-  quotient, mul_int, semiring conformance for IntPair; routing facts
-  over builtin Int/Rat), the N2(d) arithmetic bridge
+  quotient -- int_eq(a,b) := a.pos + b.neg == b.pos + a.neg spelled
+  as a Nat fact, then lemmas UP TO that equivalence; semiring
+  conformance for IntPair needs trait slots over a non-builtin
+  carrier), the N2(d) arithmetic bridge
   (n > 0 => n == Succ(n - 1)). Int introduction rule: order has no floor,
   measures stay Nat-valued or range-floored.
 - **N4 — roster library (Nat ops + Seq LANDED 2026-07-11):** core
