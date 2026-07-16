@@ -1,0 +1,73 @@
+// Core IntPair -- the DIFFERENCE-PAIR construction (no kernel change): an
+// integer is a pair of Nats read as `pos - neg`; equality is the
+// cross-sum equivalence (a.pos + b.neg == b.pos + a.neg), and the ring
+// operations are componentwise Nat arithmetic. The N-ladder's Int
+// introduction rule holds: ORDER HAS NO FLOOR here, so measures stay
+// Nat-valued (IntPair never ranks a termination witness).
+//
+// NOT named `Int`: that is a BUILTIN type name (the polynomial engine's
+// unbounded proof integer), and a data definition shadowing a builtin is
+// fenced -- references would bind to the builtin and orphan the definition.
+// IntPair is the CONSTRUCTED integer (Nat -> Z, the ladder exercise);
+// builtin `Int` is the ambient one.
+//
+// Proof shape: every lemma discharges by RECORD-FIELD CONGRUENCE over
+// cited Nat lemmas -- add_int_comm is two add_comm citations, add_int_assoc
+// is two add_assoc citations; the judge unfolds add_int to its record
+// literal, decomposes field-by-field, and the citations (or Nat's earned
+// ring license) settle each Nat component.
+
+use omega::language::core::nat;
+
+data IntPair {
+    neg: Nat;
+    pos: Nat;
+}
+
+// Componentwise addition: (p1 - n1) + (p2 - n2) = (p1 + p2) - (n1 + n2).
+machine add_int(a: IntPair, b: IntPair) -> IntPair {
+    transition { _ -> (IntPair { neg: add(a.neg, b.neg), pos: add(a.pos, b.pos) }) }
+}
+
+// Negation is the pair swap: -(p - n) = n - p. Total, no floor needed.
+machine neg_int(a: IntPair) -> IntPair {
+    transition { _ -> (IntPair { neg: a.pos, pos: a.neg }) }
+}
+
+// Commutativity: componentwise from Nat's add_comm (two citations).
+machine add_int_comm(a: IntPair, b: IntPair) -> IntPair
+ensures
+    (add_int(a, b)) == (add_int(b, a))
+{
+    add_comm(a.neg, b.neg);
+    add_comm(a.pos, b.pos);
+    transition { _ -> (add_int(a, b)) }
+}
+
+// Associativity: componentwise from Nat's add_assoc (two citations).
+machine add_int_assoc(a: IntPair, b: IntPair, c: IntPair) -> IntPair
+ensures
+    (add_int(add_int(a, b), c)) == (add_int(a, add_int(b, c)))
+{
+    add_assoc(a.neg, b.neg, c.neg);
+    add_assoc(a.pos, b.pos, c.pos);
+    transition { _ -> (add_int(a, b)) }
+}
+
+// The symmetric pair (n+p, p+n) -- the difference-pair ZERO CLASS shape a
+// cancelled sum lands in (kept as an application so the ensures below
+// compares application-to-application; a record-LITERAL comparand routes
+// through runtime Equatable synthesis, which recursive Nat cannot join).
+machine cross_sum(a: IntPair) -> IntPair {
+    transition { _ -> (IntPair { neg: add(a.neg, a.pos), pos: add(a.pos, a.neg) }) }
+}
+
+// Negation cancels into the zero class: a + (-a) computes componentwise to
+// exactly cross_sum's body -- pure unfolding, no citations.
+machine add_int_neg(a: IntPair) -> IntPair
+ensures
+    (add_int(a, neg_int(a))) == (cross_sum(a))
+{
+    let negated: IntPair = neg_int(a);
+    transition { _ -> (add_int(a, negated)) }
+}

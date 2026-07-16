@@ -175,6 +175,24 @@ pub fn classify(program: &TypedTrees) -> ProofOnlyClassification {
         }
     }
 
+    if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+        for (index, definition) in definitions.iter().enumerate() {
+            eprintln!(
+                "CLASSIFY def[{index}] {} symbol={} edges={:?}",
+                definition.name,
+                definition.symbol.arena_index(),
+                edges[index]
+                    .iter()
+                    .map(|(target, field, held)| (
+                        definitions[*target].name.as_str(),
+                        field.as_str(),
+                        held.as_str()
+                    ))
+                    .collect::<Vec<_>>()
+            );
+        }
+    }
+
     let mut reasons: HashMap<u32, ProofOnlyReason> = HashMap::new();
 
     // Recursion seeds: definitions that can reach themselves.
@@ -208,6 +226,17 @@ pub fn classify(program: &TypedTrees) -> ProofOnlyClassification {
         }
         if !changed {
             break;
+        }
+    }
+
+    if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+        for definition in definitions {
+            eprintln!(
+                "CLASSIFY reason {} symbol={} -> {:?}",
+                definition.name,
+                definition.symbol.arena_index(),
+                reasons.get(&definition.symbol.arena_index()),
+            );
         }
     }
 

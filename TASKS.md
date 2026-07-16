@@ -1553,7 +1553,36 @@ no `unbounded` property exists. Rungs:
   misconformed add_zero_left refuses with the law rendered in its
   BRIDGED form). Int/Rat routing + the N2(d) arithmetic bridge
   (unchanged).
-  THEN: Int/Rat routing, the N2(d) arithmetic bridge
+  INT RUNG STEP 1 LANDED 2026-07-16 -- IntPair, the difference-pair
+  construction (core/int.omg): `data IntPair { neg; pos: Nat }` with
+  componentwise add_int/neg_int, PROVEN add_int_comm + add_int_assoc
+  (record-field congruence over two add_comm/add_assoc citations; the
+  ring license also settles them citation-free) and add_int_neg
+  (a + (-a) unfolds to cross_sum's zero-class shape, no citations).
+  Two judge extensions made records provable: (1) plain-RECORD
+  literals term as empty-case constructors in BOTH termifiers
+  (congruence decomposes them; ""=="" never refutes-by-case), and
+  (2) callee-body field reads off SYMBOLIC receivers (`a.neg` where
+  a maps to a caller variable/opaque) term as the caller-vocabulary
+  Opaque (`"a.neg"`), so citations over the same place align.
+  Pinned: pass core/int_core_surface (citing consumer, RUNS exit
+  70); fail proofs/record_false_comm_rejected (add_int(a,b) ==
+  add_int(a,a) refuses). Probes run-verified: broken module comm /
+  assoc / neg each refuse; a false INJECTED citation poisons toward
+  refusal (over-refusal safe).
+  BUILTIN-SHADOW FENCE LANDED with it (the rung's real finding): the
+  first `data Int` attempt compiled while every reference silently
+  bound to the BUILTIN `Int` (type lookup searches BuiltinType before
+  Data) -- the definition was orphaned and every lemma stood down at
+  the polynomial engine UNVALIDATED (false ensures certified). What
+  looked like reference-lazy module validation was this shadowing.
+  validate_data_field_types now refuses any data definition named
+  like a builtin type (Int/UInt/Real/bool/i32/String/...); pinned
+  fail data/builtin_type_name_shadow. Corpus scanned: no other
+  colliding definitions.
+  THEN: Int/Rat routing (cross-sum equivalence as the IntPair
+  quotient, mul_int, semiring conformance for IntPair; routing facts
+  over builtin Int/Rat), the N2(d) arithmetic bridge
   (n > 0 => n == Succ(n - 1)). Int introduction rule: order has no floor,
   measures stay Nat-valued or range-floored.
 - **N4 — roster library (Nat ops + Seq LANDED 2026-07-11):** core

@@ -13,6 +13,24 @@ pub(crate) fn validate_data_field_types(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for data_definition in program.data_definitions() {
+        // BUILTIN-NAME SHADOW FENCE (probed 2026-07-16): type lookup searches
+        // BuiltinType before Data, so a definition named like a builtin type
+        // (`data Int`) compiles while every reference binds to the BUILTIN --
+        // the definition is silently orphaned, and contract lemmas typed
+        // against the builtin stand down at the polynomial engine as
+        // out-of-language, certifying UNVALIDATED (possibly false) claims.
+        // Refuse the collision at the declaration.
+        if omega_core::symbols::builtin_type_symbols()
+            .iter()
+            .any(|(_, name)| name.as_str() == data_definition.name.as_str())
+        {
+            diagnostics.push(Diagnostic::error(format!(
+                "data `{}` shadows the builtin type of the same name -- references \
+                 would silently bind to the builtin and this definition would never \
+                 be used (its contracts would go unvalidated). Pick a different name.",
+                data_definition.name
+            )));
+        }
         let data_members = program.data_members(data_definition);
         let type_parameters = program.data_type_parameters(data_definition);
         validate_data_member_names(data_definition, data_members, diagnostics);

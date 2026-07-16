@@ -295,8 +295,16 @@ pub(crate) fn validate_machine_contract_entailment(
     let ensures: Vec<ExpressionHandle> = ensures
         .into_iter()
         .filter(|fact| {
-            let Some(held) = fact_mentions_proof_only_data(program, &proof_only, machine, *fact)
-            else {
+            let mention = fact_mentions_proof_only_data(program, &proof_only, machine, *fact);
+            if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                eprintln!(
+                    "ROUTE machine={} fact=`{}` mention={:?}",
+                    machine.name,
+                    program.expression_table.display_name(*fact),
+                    mention.as_ref().map(|name| name.as_str()),
+                );
+            }
+            let Some(held) = mention else {
                 // Not structural: stays with the polynomial engine below.
                 return true;
             };
@@ -3595,18 +3603,34 @@ impl<'program> StructuralJudge<'program> {
                 let (_, receiver_term) = environment
                     .iter()
                     .find(|(name, _)| name == single.as_str())?;
-                let StructuralTerm::Constructor { fields, .. } =
-                    self.resolve_at(receiver_term.clone(), depth + 1)
-                else {
-                    return None;
-                };
-                fields
-                    .iter()
-                    .find(|(name, _)| name == member.member.as_str())
-                    .map(|(_, term)| term.clone())
+                match self.resolve_at(receiver_term.clone(), depth + 1) {
+                    StructuralTerm::Constructor { fields, .. } => fields
+                        .iter()
+                        .find(|(name, _)| name == member.member.as_str())
+                        .map(|(_, term)| term.clone()),
+                    // A field read off a SYMBOLIC receiver names the caller's
+                    // place in the shared Opaque vocabulary -- exactly how the
+                    // caller-side termifier spells `a.neg` (display name), so
+                    // citations over the same place line up.
+                    StructuralTerm::Variable(name) => Some(StructuralTerm::Opaque(format!(
+                        "{name}.{}",
+                        member.member.as_str()
+                    ))),
+                    StructuralTerm::Opaque(inner) => Some(StructuralTerm::Opaque(format!(
+                        "{inner}.{}",
+                        member.member.as_str()
+                    ))),
+                    StructuralTerm::Application { .. } => None,
+                }
             }
             ExpressionNode::StructLiteral(literal) => {
-                let case = literal.case_name.as_ref()?;
+                // Records (no case name) term as empty-case constructors,
+                // mirroring the caller-side termifier.
+                let case = literal
+                    .case_name
+                    .as_ref()
+                    .map(|case| case.as_str())
+                    .unwrap_or("");
                 let mut fields: Vec<(String, StructuralTerm)> = Vec::new();
                 for field in program.expression_table.struct_fields(literal.fields) {
                     fields.push((
@@ -3617,7 +3641,7 @@ impl<'program> StructuralJudge<'program> {
                 fields.sort_by(|(left, _), (right, _)| left.cmp(right));
                 Some(StructuralTerm::Constructor {
                     data: literal.type_name.as_str().to_owned(),
-                    case: case.as_str().to_owned(),
+                    case: case.to_owned(),
                     fields,
                 })
             }
@@ -4595,7 +4619,15 @@ fn structural_term(program: &TypedTrees, expression: ExpressionHandle) -> Option
             }
         }
         ExpressionNode::StructLiteral(literal) => {
-            let case = literal.case_name.as_ref()?;
+            // A RECORD literal (no case name) is a single-constructor data:
+            // it terms as a Constructor with the EMPTY case (both termifiers
+            // spell it identically, so congruence decomposes it; the
+            // case-disjointness refutation never fires on "" == "").
+            let case = literal
+                .case_name
+                .as_ref()
+                .map(|case| case.as_str())
+                .unwrap_or("");
             let mut fields: Vec<(String, StructuralTerm)> = Vec::new();
             for field in program.expression_table.struct_fields(literal.fields) {
                 fields.push((
@@ -4606,7 +4638,7 @@ fn structural_term(program: &TypedTrees, expression: ExpressionHandle) -> Option
             fields.sort_by(|(left, _), (right, _)| left.cmp(right));
             Some(StructuralTerm::Constructor {
                 data: literal.type_name.as_str().to_owned(),
-                case: case.as_str().to_owned(),
+                case: case.to_owned(),
                 fields,
             })
         }
