@@ -1,19 +1,22 @@
-// PARKED REPRO (2026-07-16, found growing the N4 Seq zoo): asking the
-// structural entailment judge to discharge `length(reverse(s)) == length(s)`
-// over the GENERIC core Seq<u64> OVERFLOWS THE COMPILE-THREAD STACK
-// (fatal runtime error: stack overflow) instead of judging or rejecting.
-// The suspect: normalizing the ensures' `length(reverse(s))` unfolds
-// `reverse`, whose Cons arm terminal is `append(reverse(tail), ...)` --
-// the unfolder chases the nested self-application without a depth bound
-// or unfold-cycle detection. A NON-generic inline copy of the same shape
-// is instead REJECTED cleanly ("no entailment tier judges yet"), so the
-// generic-instantiation path is implicated; the crash needs the FULL
-// compile (with an entry point -- the check-only path bails earlier).
-// The reverse machine alone (no lemma) compiles fine. FIX SHAPE: the judge/normalizer needs a fuel
-// bound or seen-set that turns divergence into a loud rejection -- a
-// compiler must never crash on any input. The lemma itself is true
-// (Lean: List.length_reverse); its intended proof cites length_append +
-// add_succ_law + add_zero_right in the step sub-state.
+// PARKED REPRO (2026-07-16, found growing the N4 Seq zoo): compiling
+// `length_reverse` (`length(reverse(s)) == length(s)` over the generic
+// core Seq<u64>) OVERFLOWS THE COMPILE-THREAD STACK. LLDB LOCATES THE
+// CRASH in the STATE-VALUES SIMPLIFIER, NOT the entailment judge:
+// `omega_state_values::simplify::folding::boolean_or` recursing without
+// bound (the judge's own unfolder is depth-capped at 32 and its
+// OMEGA_STRUCT_TRACE shows a normal, finite 315-unfold discharge before
+// the crash). Same family as the earlier value-call cyclic-callee
+// expansion overflow (tamed separately for that shape): the simplifier
+// expands a tree -- likely through the citation sub-state's machine
+// applications -- that is cyclic or exponentially deep. A NON-generic
+// inline copy is rejected cleanly BEFORE reaching the simplifier; the
+// crash needs the full compile (check-only bails earlier). The reverse
+// machine alone (no lemma) compiles fine. FIX SHAPE: cycle detection /
+// a depth budget in the state-values simplify recursion turning
+// divergence into a loud diagnostic -- a compiler must never crash on
+// any input. The lemma itself is true (Lean: List.length_reverse); its
+// intended proof cites length_append + add_succ_law + add_zero_right in
+// the step sub-state.
 use omega::language::core::nat;
 use omega::language::core::seq;
 
