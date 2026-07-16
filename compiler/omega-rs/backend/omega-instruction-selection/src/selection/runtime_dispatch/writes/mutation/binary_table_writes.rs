@@ -970,6 +970,7 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_convert_mutation_wr
         target_place.byte_offset,
         target_primitive,
         source_expression,
+        cast.domain,
         static_values,
         runtime_value_operands,
     )?;
@@ -1010,6 +1011,7 @@ pub(in crate::selection::runtime_dispatch::writes) fn select_runtime_frame_slot_
         slot.byte_offset,
         target_primitive,
         cast.value,
+        cast.domain,
         static_values,
         runtime_value_operands,
     )
@@ -1030,6 +1032,7 @@ fn build_runtime_convert_write(
     target_offset: usize,
     target_primitive: PrimitiveType,
     source_expression: ExpressionHandle,
+    cast_domain: omega_core::arithmetic::ArithmeticDomain,
     static_values: &RuntimeStaticValues,
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
 ) -> Option<SelectedInstructionKind> {
@@ -1087,5 +1090,9 @@ fn build_runtime_convert_write(
         source_is_float: source_primitive.accepts_float_literal(),
         target_is_float: target_primitive.accepts_float_literal(),
         source_signed: source_primitive.is_signed_integer(),
+        // F4: a Trapping float->int cast carries its trap guard.
+        trapping: cast_domain == omega_core::arithmetic::ArithmeticDomain::Trapping
+            && source_primitive.accepts_float_literal()
+            && !target_primitive.accepts_float_literal(),
     })
 }

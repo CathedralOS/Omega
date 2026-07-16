@@ -277,6 +277,7 @@ pub(super) fn encode_runtime_storage_convert(
     source_is_float: bool,
     target_is_float: bool,
     source_signed: bool,
+    trapping: bool,
 ) -> Result<Vec<u8>, Diagnostic> {
     validate_runtime_value_home(input, source)?;
     architecture::encode_runtime_storage_convert(
@@ -289,6 +290,7 @@ pub(super) fn encode_runtime_storage_convert(
         source_is_float,
         target_is_float,
         source_signed,
+        trapping,
     )
 }
 

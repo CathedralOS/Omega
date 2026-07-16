@@ -230,6 +230,7 @@ impl omega_target_operations::RuntimeValueOperandSource for AssignedTargetOperat
                 source_is_float,
                 target_is_float,
                 source_signed,
+                ..
             } => Some((
                 *source,
                 *source_byte_size,
@@ -240,5 +241,15 @@ impl omega_target_operations::RuntimeValueOperandSource for AssignedTargetOperat
             )),
             _ => None,
         }
+    }
+
+    fn convert_trapping(
+        &self,
+        handle: omega_target_operations::RuntimeValueOperandHandle,
+    ) -> bool {
+        matches!(
+            AssignedTargetOperationPlan::runtime_value_operand(self, handle).map(|op| &op.kind),
+            Some(AssignedValueOperandKind::Convert { trapping: true, .. })
+        )
     }
 }

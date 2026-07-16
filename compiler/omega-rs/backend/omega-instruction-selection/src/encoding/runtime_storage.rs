@@ -179,6 +179,7 @@ pub fn encode_runtime_storage_convert(
     source_is_float: bool,
     target_is_float: bool,
     source_signed: bool,
+    trapping: bool,
 ) -> Result<Vec<u8>, Diagnostic> {
     match architecture {
         Architecture::Aarch64 => aarch64::encode_runtime_storage_convert(
@@ -190,17 +191,25 @@ pub fn encode_runtime_storage_convert(
             source_is_float,
             target_is_float,
             source_signed,
+            trapping,
         ),
-        Architecture::X86_64 => x86_64::encode_runtime_storage_convert(
-            runtime_value_operands,
-            target_offset,
-            target_byte_size,
-            source,
-            source_byte_size,
-            source_is_float,
-            target_is_float,
-            source_signed,
-        ),
+        Architecture::X86_64 => {
+            // F4: the x86 Trapping float->int value guard is the x86 host
+            // session's rung (cvttsd2si's integer-indefinite fixup needs its
+            // runtime oracle); until then the cast lowers as today -- the
+            // documented divergence in the pending float_to_int header.
+            let _ = trapping;
+            x86_64::encode_runtime_storage_convert(
+                runtime_value_operands,
+                target_offset,
+                target_byte_size,
+                source,
+                source_byte_size,
+                source_is_float,
+                target_is_float,
+                source_signed,
+            )
+        }
     }
 }
 

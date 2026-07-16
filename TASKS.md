@@ -1358,12 +1358,30 @@ rows. Rungs:
   differential row cfg aarch64): aarch64 FCVTZS natively IS the
   Saturating semantics, x86's cvttsd2si integer-indefinite fixup is
   the F4 remainder for the x86 host's oracle.
+  F4-TRAPPING-NATIVE LANDED (aarch64 lane, 2026-07-16): the cast
+  carries a `trapping` flag end to end — WriteRuntimeStorageConvert +
+  ValueOperand::Convert grew the field (the tuple accessor stays
+  6-wide; convert_trapping() is the separate probe, the
+  binary_is_float precedent), the four selection constructor sites
+  derive it from cast.domain == Trapping && float source && integer
+  target, and every dispatcher/width threads it. aarch64 emits
+  append_float_to_int_trap_guard before FCVTZS: fcmp v0,v0 + b.vc +
+  brk (NaN) then two padded-immediate float bound checks
+  (FLOAT_TO_INT_TRAP_GUARD_WIDTH = 76; shapes f64→i32/i64 + f32→i32/
+  i64 with exact power-of-two bounds — i64/f32 lower bounds INCLUSIVE
+  since the -1 neighbours aren't representable; other shapes refuse
+  loudly). x86 pass-through (`let _ = trapping` + comment): the
+  cvttsd2si integer-indefinite fixup is its host session's rung — the
+  cast lowers as today there (status-quo divergence, documented in
+  the pending header). Pinned:
+  pass/arithmetic/trapping_float_to_int_cast_traps (arch-gated
+  abort-style suite test, both engine legs; in-range 7.9→7 first,
+  then 1e20 traps; NaN probe-verified).
   REMAINING (F4b): the Exact VALUE obligation (needs float constant
   tracking in validation — bare casts keep transitional truncation);
-  native Trapping cast guards on both ISAs (the interp side traps
-  now); the x86 Saturating/Trapping fixup sequences; then the pending
-  float_to_int_overflow_divergence repro retires fully (its header
-  updated with the F4a state).
+  the x86 Saturating/Trapping fixup sequences (its host's oracle);
+  then the pending float_to_int_overflow_divergence repro retires
+  fully.
 - **F5 — policy lowering:** float Trapping (invalid/overflow/div-by-zero
   trap) + Saturating (clamp to ±MAX_FINITE) on both ISAs + interp.
 - **F6 — TotalOrder named satisfiers** for f32/f64 (sign-magnitude

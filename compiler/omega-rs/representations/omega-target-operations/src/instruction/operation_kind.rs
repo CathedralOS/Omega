@@ -329,6 +329,9 @@ pub enum TargetOperationKind {
         source_is_float: bool,
         target_is_float: bool,
         source_signed: bool,
+        /// F4: a TRAPPING float->int cast traps on NaN/out-of-range before
+        /// converting; false for every other cast.
+        trapping: bool,
     },
     /// Atomic `fetch_add`: `LOCK xadd` of `delta` into the storage place.
     AtomicFetchAdd {

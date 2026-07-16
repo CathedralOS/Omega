@@ -17875,6 +17875,62 @@ fn float_to_int_saturating_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+#[cfg(target_arch = "aarch64")]
+#[test]
+fn trapping_float_to_int_cast_traps_aborts() {
+    // F4: a Trapping float->int cast traps on an out-of-range value (1e20
+    // -> i32) instead of FCVTZS's silent saturate. In-range computes first
+    // (7.9 -> 7). Named without `_canary_runs` (non-clean-exit) and
+    // arch-gated: the x86 value guard is its host session's rung.
+    let canary = pass_canary("arithmetic/trapping_float_to_int_cast_traps");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-trap-f2i-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("trapping float->int cast canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("trapping float->int cast canary should run");
+
+    assert_ne!(
+        output.status.code(),
+        Some(7),
+        "expected the out-of-range Trapping cast to trap (1e20 does not fit i32), but \
+         the program sailed past to exit 7\nstderr:\n{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_ne!(
+        output.status.code(),
+        Some(71),
+        "the in-range Trapping cast computed wrong (7.9 should convert to 7)"
+    );
+    assert!(
+        !output.status.success(),
+        "expected the cast trap to terminate abnormally, but it exited successfully"
+    );
+
+    // The interpreter leg: same trap, spelled as an eval error.
+    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+        .expect("trapping float->int cast canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let reason = outcome
+        .error
+        .expect("the interpreter must trap the out-of-range Trapping cast");
+    assert!(
+        reason.contains("float-to-int cast out of range"),
+        "expected the cast trap reason, got: {reason}"
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 #[test]
 fn trapping_shift_count_traps_aborts() {
     // F8c (ch5 shift-count ruling): a TRAPPING shift's out-of-range count

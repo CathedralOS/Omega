@@ -224,6 +224,7 @@ pub(super) fn encode_machine_instruction_bytes(
             source_is_float,
             target_is_float,
             source_signed,
+            trapping,
             ..
         } => runtime_storage::encode_runtime_storage_convert(
             input,
@@ -234,6 +235,7 @@ pub(super) fn encode_machine_instruction_bytes(
             *source_is_float,
             *target_is_float,
             *source_signed,
+            *trapping,
         ),
         SelectedInstructionKind::AtomicFetchAdd {
             target_offset,

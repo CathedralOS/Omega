@@ -444,6 +444,11 @@ pub enum AbstractOperationKind {
         /// Whether the integer source is signed (drives sign- vs zero-extension
         /// of a narrow source and the signedness of an int->float conversion).
         source_signed: bool,
+        /// F4: a TRAPPING float->int cast traps on NaN or an out-of-range
+        /// value BEFORE converting (the encoders emit the FP bound guard).
+        /// False for every other cast (Saturating float->int rides the
+        /// conversion instruction's native clamp; Exact is proven in range).
+        trapping: bool,
     },
     WriteRuntimePointeeBinary {
         pointer_byte_offset: usize,
