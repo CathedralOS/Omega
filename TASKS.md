@@ -963,10 +963,20 @@ bounded-escape store-containment keystone. Open rungs:
   data_where_cross_state_establish (construct in entry, read in a
   successor state -- RUNS exit 70); the same-state fail pin keeps
   refusing with the updated construct-on-every-path direction.
-  Remaining R2: hypotheses (readers assume the facts -- the
-  parameter/alias story), windows (ch11), runtime-valued construction
-  via the prover, cross-state VALUATION transport (co-field folds
-  currently reset per state -- safe over-refusal). The rest of the big semantic build:** the
+  RUNG 3 SLICE 4 LANDED same day -- SOUNDNESS FIX: slice 1's
+  untracked-reads-zero fold was valid ONLY in the never-re-entered
+  boot state (machine-owned fields persist; in a later state an
+  untracked field may hold any prior value, so a `!=`-shaped fact
+  could wrongly ACCEPT a violating write -- an unsound accept, not
+  over-refusal). walk_state now threads `born_zero` (state 0 with no
+  incoming edges); elsewhere untracked fields POISON the fold and
+  refuse with a directed message naming both causes (pinned: fail
+  data_where_cross_state_unknown_refuses -- the len=3-then-count=3
+  `count != len` shape; entry-state canaries unaffected). Remaining
+  R2: hypotheses (readers assume the facts -- the parameter/alias
+  story), windows (ch11), runtime-valued construction via the prover,
+  cross-state VALUATION transport (restores the precision this fix
+  deliberately gave up). The rest of the big semantic build:** the
   big semantic build — where-clause parsing on data, the default-domain
   layer, gating (zero-excluding domains legal, construction mandatory
   fields), consumption-point windows (ADDITIVE relaxation of the landed

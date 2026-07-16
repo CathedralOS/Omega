@@ -1,0 +1,24 @@
+// R2 rung 3 slice 4 (SOUNDNESS): in a non-boot state an untracked field
+// may hold ANY prior value -- here len was set to 3 in the entry state, so
+// folding it as the born zero would wrongly ACCEPT `count != len` for
+// count = 3 (3 != 0) while the real valuation violates the domain
+// (3 != 3 is FALSE). The fold poisons instead and refuses with direction.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Tally
+where
+    count != len,
+{
+    len: u32;
+    count: u32;
+}
+data Main { console: Console; tally: Tally; }
+machine Main::main(&mut self) {
+    self.tally.len = 3;
+    transition {
+        _ -> fill()
+    }
+    state fill(&mut self) {
+        self.tally.count = 3;
+        self.console.exit_process(70);
+    }
+}

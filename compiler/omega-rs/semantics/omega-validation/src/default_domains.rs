@@ -37,12 +37,22 @@ pub(crate) fn validate_default_domain_writes(
         // exit of EVERY predecessor. Bottom-start iteration converges to
         // the LEAST fixpoint -- an UNDER-approximation (loop-carried
         // establishment stays conservative), which only over-refuses.
+        let edges = state_edges(program, states);
+        // R2 rung 3 slice 4 (SOUNDNESS): untracked fields read the born
+        // zero ONLY in the boot state when nothing can re-enter it --
+        // machine-owned fields persist, so in any other state an untracked
+        // field may hold a prior value and must fold as UNKNOWN (poison ->
+        // directed refusal; cross-state valuation transport is the
+        // precision rung).
+        let born_zero = |index: usize| index == 0 && !edges.iter().any(|(_, to)| *to == 0);
         let mut throwaway = Vec::new();
         let local: Vec<Vec<String>> = states
             .iter()
-            .map(|state| walk_state(program, machine, state, &[], &mut throwaway))
+            .enumerate()
+            .map(|(index, state)| {
+                walk_state(program, machine, state, &[], born_zero(index), &mut throwaway)
+            })
             .collect();
-        let edges = state_edges(program, states);
         let mut entry: Vec<Vec<String>> = vec![Vec::new(); states.len()];
         loop {
             let mut changed = false;
@@ -80,7 +90,14 @@ pub(crate) fn validate_default_domain_writes(
             }
         }
         for (index, state) in states.iter().enumerate() {
-            walk_state(program, machine, state, &entry[index], diagnostics);
+            walk_state(
+                program,
+                machine,
+                state,
+                &entry[index],
+                born_zero(index),
+                diagnostics,
+            );
         }
     }
 }
@@ -155,6 +172,7 @@ fn walk_state(
     machine: &Machine,
     state: &State,
     entry_established: &[String],
+    born_zero: bool,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Vec<String> {
     let mut tracked: Vec<TrackedPlace> = Vec::new();
@@ -180,6 +198,7 @@ fn walk_state(
                     assignment.target,
                     assignment.value,
                     &mut tracked,
+                    born_zero,
                     diagnostics,
                 );
             }
@@ -220,6 +239,7 @@ fn handle_assignment<'program>(
     target: ExpressionHandle,
     value: ExpressionHandle,
     tracked: &mut Vec<TrackedPlace<'program>>,
+    born_zero: bool,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     // A whole-place store of a struct literal reseeds the valuation (the
@@ -310,7 +330,7 @@ fn handle_assignment<'program>(
         let omega_typed_trees::domain::ProofFact::Expression(expression) = fact else {
             continue;
         };
-        match fold_with_valuation(program, &valuation, *expression) {
+        match fold_with_valuation(program, &valuation, born_zero, *expression) {
             Some(value) if value != 0 => {}
             Some(_) => {
                 all_hold = false;
@@ -326,9 +346,11 @@ fn handle_assignment<'program>(
                 all_hold = false;
                 diagnostics.push(Diagnostic::error(format!(
                     "write to `{}.{field_name}` cannot PROVE data `{}`'s default domain: \
-                     a `where`-mentioned field's value is not an integer literal here \
-                     (the entailment integration relaxes this) -- restructure with \
-                     literal stores for now",
+                     a `where`-mentioned field's value is not a literal known here (a \
+                     runtime value, or a co-field last written in another state) -- \
+                     restructure with literal stores in one state for now (the \
+                     entailment integration and cross-state valuation transport relax \
+                     this)",
                     place.spelling,
                     place.definition.name.as_str()
                 )));
@@ -594,6 +616,7 @@ fn integer_literal_value(program: &TypedTrees, expression: ExpressionHandle) -> 
 fn fold_with_valuation(
     program: &TypedTrees,
     valuation: &[(&str, Option<i128>)],
+    born_zero: bool,
     expression: ExpressionHandle,
 ) -> Option<i128> {
     use omega_typed_trees::expression::BinaryOperator;
@@ -606,13 +629,17 @@ fn fold_with_valuation(
                 .as_str();
             match valuation.iter().find(|(name, _)| *name == last) {
                 Some((_, value)) => *value,
-                None => Some(0),
+                // SOUNDNESS (slice 4): the born zero is real only in the
+                // never-re-entered boot state; elsewhere an untracked field
+                // may hold any prior value -- poison the fold.
+                None if born_zero => Some(0),
+                None => None,
             }
         }
         ExpressionNode::Integer(value) => value.text().parse::<i128>().ok(),
         ExpressionNode::Binary(binary) => {
-            let left = fold_with_valuation(program, valuation, binary.left)?;
-            let right = fold_with_valuation(program, valuation, binary.right)?;
+            let left = fold_with_valuation(program, valuation, born_zero, binary.left)?;
+            let right = fold_with_valuation(program, valuation, born_zero, binary.right)?;
             match binary.operator {
                 BinaryOperator::Add => left.checked_add(right),
                 BinaryOperator::Subtract => left.checked_sub(right),
