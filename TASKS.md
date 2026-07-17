@@ -734,10 +734,30 @@ sealed progress profiles + grants, TPR4's remaining big half).
    machine-emission dispatchers + the orphaned shapes *_kind helpers)
    remain as never-used warnings -- sweep at next touch.
    The INTEGER-WRITE COLLAPSE IS COMPLETE: 7 variants -> 1
-   (WritePlaceInteger). NEXT FAMILY: the Binary writes (the
-   leaf-cascade duplication the wiki ladder names) -- same arc:
-   materializer entry (value = operand pair instead of an immediate),
-   delegations, variant, producers, retirement.
+   (WritePlaceInteger). NEXT FAMILY: the Binary writes -- RECON BANKED
+   2026-07-19 (encode_runtime_storage_binary_write at x86 lib.rs:5868
+   read): the binary write is REGISTER-ENTANGLED with the place
+   discipline -- operand evaluation (append_runtime_value_operand)
+   accumulates in r10, stages right in r11, and RELOADS r15 per
+   operand source base, so the retired encoder holds the target in
+   r14 ("mov r14,imm64"; same 10-byte width, reloc at +2). The
+   COMPOSITION for encode_place_binary_write: (1) materialize the
+   target place via the EXISTING walk (r15 + r11/r10 indices --
+   consumed into the address BEFORE operands evaluate), (2) `mov
+   r14, r15` (3 bytes) to protect the address across operand evals,
+   (3) the existing operand/op/store appenders verbatim (floats,
+   Saturating/Trapping, signedness untouched), storing to [r14 +
+   residual displacement]. Direct places are the retired layout +3
+   bytes with the start reloc moving from r14's imm to r15's imm
+   (same +2 position) -- a canonicalization: width fns + the walker's
+   OPERAND OFFSETS move in lockstep (left_offset currently = start +
+   runtime_storage_binary_left_operand_offset(arch); the place form
+   needs place_address_width(target) added -- deterministic from the
+   place, ONE new width helper). Then: delegations per shape,
+   WritePlaceBinary variant + echo + aarch64 WritePlaceShape reuse
+   (the classifier is shape-only, operand-agnostic -- it transfers
+   as-is), producers, retirement. Also sweep the dead integer shells
+   (never-used warnings) with the first Binary commit.
    Rung 2a after: the WritePlaceInteger variant + echo product +
    producer migration. Pre-existing dead helpers noted en route (shapes/copies.rs
    runtime_storage_copy_kind + _to_runtime_frame_indexed_kind +
