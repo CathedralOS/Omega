@@ -3426,9 +3426,11 @@ pub fn runtime_frame_base_indexed_integer_write_width(
     _field_byte_offset: usize,
     _byte_size: usize,
 ) -> usize {
-    // mov r14,imm64 (10) + mov r11,[r14+idx] (7) + imul r11,r11,elem (7)
-    // + mov r15,r14 (3) + add r15,r11 (3) + mov rax,imm64 (10) + store [r15+base+field] (7)
-    47
+    // Canonicalized by the place materializer (Write rung 1c): mov r15,imm64
+    // (10) + mov r11d,[r15+idx] (7) + imul r11,r11,elem (7) + add r15,r11 (3)
+    // + mov rax,imm64 (10) + store [r15+base+field] (7). The retired layout's
+    // redundant `mov r15,r14` is gone.
+    44
 }
 
 pub fn encode_runtime_frame_base_indexed_integer_write(
@@ -3444,22 +3446,28 @@ pub fn encode_runtime_frame_base_indexed_integer_write(
             "X86_64 MVP encoder cannot store {byte_size}-byte frame base-indexed integers yet"
         )));
     }
-    let store_displacement = base_byte_offset + field_byte_offset;
-    let mut bytes = Vec::with_capacity(runtime_frame_base_indexed_integer_write_width(
-        base_byte_offset,
-        element_byte_size,
-        field_byte_offset,
-        byte_size,
-    ));
-    // r14 = frame base (imm64 at +2 relocated to the frame symbol). The array base
-    // lives inline in the frame at base_byte_offset; r15 = frame base + index*element.
-    append_mov_r14_imm64(&mut bytes, 0);
-    append_load_r11_from_r14(&mut bytes, index_offset)?;
-    append_imul_r11_imm32(&mut bytes, element_scale(element_byte_size)?);
-    append_mov_r15_r14(&mut bytes);
-    append_add_r15_r11(&mut bytes);
-    append_mov_rax_imm64(&mut bytes, value as u64);
-    append_store_rax_to_r15(&mut bytes, store_displacement, byte_size)?;
+    // Write rung 1c: DELEGATES to the place materializer -- CANONICALIZED
+    // 47 -> 44 bytes (the retired layout staged the base in r14 and copied
+    // it to r15 with a redundant `mov r15,r14`; the materializer opens in
+    // r15 directly). The one frame-base relocation stays at instruction
+    // start; the width fn shrinks in lockstep.
+    let target =
+        place_copy::transitional_place(omega_target_operations::RuntimeStorageRegion::RuntimeFrame)
+            .with_step(omega_target_operations::PlaceStep::ConstOffset(base_byte_offset))
+            .and_then(|place| {
+                place.with_step(omega_target_operations::PlaceStep::ScaledIndex {
+                    index_region: omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+                    index_offset,
+                    element_byte_size,
+                })
+            })
+            .and_then(|place| {
+                place.with_step(omega_target_operations::PlaceStep::ConstOffset(
+                    field_byte_offset,
+                ))
+            })
+            .expect("a frame-base-indexed place is four steps, within PLACE_MAX_STEPS");
+    let (bytes, _) = place_copy::encode_place_integer_write(&target, value, byte_size)?;
     debug_assert_eq!(
         bytes.len(),
         runtime_frame_base_indexed_integer_write_width(
