@@ -2012,8 +2012,19 @@ lowers. Historical rungs:
   before the interpreter fix -- the canary_suite test fn was the
   honest oracle. NEXT (banked): richer decrease shapes (guards
   `n > k` / `n >= k`, args `n - k`), multi-subject lexicographic
-  joint measures, and the dungeon find_item_at/find_item_after
-  live-pair migration off bounded clone specialization.
+  joint measures -- DEMAND-GATED (no live consumer; the v1 shape
+  covers the canonical spelling). DUNGEON PAIR: NO ACTION -- it was
+  already refactored to the blessed in-machine state loop when Q6
+  landed (inventory.omg documents it); migrating it BACK would be
+  regressive churn. The admitted pass canary is the live test.
+  QUEUE SWEEP 2026-07-20 (post-#135): the pending repro canaries are
+  LANE-CLAIMED (texteq pair + trailing-state-mut = the fs lane's
+  dispatch-region/receiver-phase family, fix shape recorded in the
+  repro headers) or DESIGN-PARKED (array_field_default_silent). The
+  agent-ready numbered queue is fully landed or design-blocked; the
+  next open arcs are the big multi-session ones (N5 boundary-data/
+  Real axioms -- spelling settled; dependent-types R2 refinements
+  complete; N6 quotients -- % former unbuilt).
 - **MR5 — proof-stratum evaluation — LANDED 2026-07-11 (pinned; the
   machinery already composed):** measured recursion evaluates at compile
   time under the const-eval ~100k-step fuel cap — the MR1/MR2 spellings
