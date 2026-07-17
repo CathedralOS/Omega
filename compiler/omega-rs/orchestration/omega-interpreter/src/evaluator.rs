@@ -3188,6 +3188,48 @@ impl<'program> Evaluator<'program> {
                     0
                 }
             }
+            "get_osfhandle" => {
+                // `_get_osfhandle(fd)` -- the fd -> HANDLE bridge (session
+                // slice 4a). The hermetic model's handles ARE its fds
+                // (identity), so consumers key the same descriptor table;
+                // -2 (msvcrt's bad-fd spelling) for an unknown fd.
+                let fd = self.eval_fs_scalar(arguments.first().copied(), frame)? as i32;
+                if self.virtual_fds.contains_key(&fd) {
+                    i64::from(fd)
+                } else {
+                    -2
+                }
+            }
+            "final_path_name_by_handle" => {
+                // `GetFinalPathNameByHandleA(handle, buffer, capacity, flags)`:
+                // resolve an OPEN handle to its final path. The hermetic
+                // model's canonical path IS the descriptor's stored key
+                // (already absolute for its namespace; no drive letters or
+                // \\?\ prefixes to synthesize), NUL-terminated into the
+                // buffer. Win32 return contract: the length WITHOUT the NUL
+                // when it fits, the REQUIRED size INCLUDING the NUL when the
+                // capacity is too small, 0 for a bad handle (GetLastError
+                // semantics -- no errno touched).
+                let handle = self.eval_fs_scalar(arguments.first().copied(), frame)?;
+                let capacity = self.eval_fs_scalar(arguments.get(2).copied(), frame)? as usize;
+                let path = self
+                    .virtual_fds
+                    .get(&(handle as i32))
+                    .map(|descriptor| descriptor.path.clone());
+                match path {
+                    Some(path) => {
+                        if path.len() + 1 <= capacity {
+                            let mut bytes = path.clone();
+                            bytes.push(0);
+                            self.write_fs_buffer(arguments.get(1).copied(), frame, &bytes);
+                            path.len() as i64
+                        } else {
+                            (path.len() + 1) as i64
+                        }
+                    }
+                    None => 0,
+                }
+            }
             "symlink" => {
                 // `symlink(target, linkpath)`: record the link -> target mapping.
                 // EEXIST if the link name already names a file/dir/symlink.
@@ -3848,6 +3890,17 @@ impl<'program> Evaluator<'program> {
     /// `open(path, flags)`: model the O_CREAT/O_TRUNC/O_APPEND/access bits.
     /// Returns a fresh fd, or -1 if the path is absent and O_CREAT is not set.
     fn virtual_open_flags(&mut self, path: Vec<u8>, flags: i32) -> i32 {
+        // Follow one symlink level (the canonicalize/read_link model): native
+        // open on BOTH families resolves symlinks, and the hermetic open never
+        // did -- surfaced when the windows canonicalize composition made open
+        // its entry point. The descriptor stores the RESOLVED path, so
+        // handle-keyed consumers (final_path_name_by_handle) report the final
+        // target exactly like Win32.
+        let path = self
+            .virtual_symlinks
+            .get(&path)
+            .cloned()
+            .unwrap_or(path);
         let exists = self.virtual_files.contains_key(&path);
         let o_creat = host_open_flags::o_creat(flags);
         let o_trunc = host_open_flags::o_trunc(flags);

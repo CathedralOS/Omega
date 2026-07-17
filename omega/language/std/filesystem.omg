@@ -1123,18 +1123,23 @@ machine Filesystem::read_link(&mut self, path: &[u8] in Path, buffer: &mut [u8],
     state err(&mut self) -> IoResult { let kind: ErrorKind = self.last_error(); IoResult::Error { kind: kind } }
 }
 
-// Resolve a path to its canonical absolute form, following every symlink (Rust
+// ---------------------------------------------------------------------------
+// CANONICALIZE CONTRACT (windows session slice 4a; same shape as the dir-walk
+// and positioned-io contracts): resolve a path to its canonical absolute
+// form, following every symlink, existence-checked (Rust
 // `std::fs::canonicalize`). On `Ok` the NUL-terminated absolute path is in
-// `buffer` (provide >= 1024 bytes); Rust returns a fresh `PathBuf`, Omega fills a
-// caller buffer to stay allocation-free. The buffer stays a valid `Path` (a
-// NUL-terminated C string) so it can be fed straight back into another fs op. The
-// raw call returns the resolved pointer as a success flag (non-zero), not a count.
-machine Filesystem::canonicalize(&mut self, path: &[u8] in Path, buffer: &mut [u8]) -> UnitResult {
-    let rc: i64 = self.host.canonicalize(path, buffer);
-    transition rc != 0 { true -> ok() _ -> err() }
-    state ok(&mut self) -> UnitResult { UnitResult::Ok }
-    state err(&mut self) -> UnitResult { let kind: ErrorKind = self.last_error(); UnitResult::Error { kind: kind } }
-}
+// `buffer` (provide >= 1024 bytes -- the posix PATH_MAX floor the raw
+// realpath writes to with no cap arg at all). Implemented PER TARGET: posix
+// binds the `realpath` raw op; windows -- msvcrt has no realpath -- COMPOSES
+// open / get_osfhandle / final_path_name_by_handle / close (the handle
+// bridge), whose resolved spelling is the \\?\-prefixed DOS path (exactly
+// Rust's windows canonicalize). KNOWN LIMIT (recorded, not hidden): the
+// windows composition opens with msvcrt `_open`, which refuses DIRECTORIES,
+// so canonicalizing a directory reports Error on windows until a designed
+// directory-open op exists; posix realpath serves both.
+//
+//   machine Filesystem::canonicalize(&mut self, path: &[u8] in Path, buffer: &mut [u8]) -> UnitResult
+// ---------------------------------------------------------------------------
 
 // Set an OPEN file's permission bits (Rust `File::set_permissions`), the fd-based
 // counterpart to `set_permissions`. Uses `fchmod`, so it needs no path.

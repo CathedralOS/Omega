@@ -3335,15 +3335,35 @@ rejects — an INTEGER ruling, engineering rides this ladder as F8).
   (dual-engine, windows-gated; engine-agnostic legs — the hermetic model
   copies bytes, so the pins are create+readback, link-survives-removal,
   taken-name refuses with kind unpinned).
-  REMAINING — SCOPING CORRECTED 2026-07-16: canonicalize is NOT a
-  GetFullPathNameA row (that API is LEXICAL only — no existence check, no
-  symlink resolution; it is Rust's `path::absolute`, not
-  `fs::canonicalize`). The honest windows canonicalize = the HANDLE
-  BRIDGE: `_get_osfhandle(fd)` (msvcrt) + `GetFinalPathNameByHandleA`
-  (kernel32; \\?\-prefixed DOS path, existence-checked via the open) —
-  composed in the wrapper impl as open/bridge/resolve/close. The SAME
-  bridge unlocks set_file_times (SetFileTime) and lock_file (LockFileEx)
-  natively — one designed slice family. The *at family and fd-based
+  SLICE 4a (the handle bridge + canonicalize) LANDED 2026-07-16: two
+  designed seam ops — `get_osfhandle(fd)` (msvcrt _get_osfhandle; the
+  fd→HANDLE bridge; hermetic + real models use identity handles over
+  their fd tables) and `final_path_name_by_handle(handle, buffer,
+  capacity, flags)` (kernel32 GetFinalPathNameByHandleA; Win32 return
+  contract modeled exactly: length sans NUL / required-with-NUL when too
+  small / 0 bad handle, errno untouched). `Filesystem::canonicalize` went
+  per-target: posix keeps realpath; windows composes
+  open/bridge/resolve/close (entry-body, capacity = the contract's 1024
+  floor; the OPEN leg's errno is CAPTURED before the trailing close(-1)
+  can clobber ENOENT with EBADF — the errno mapping runs in the ENTRY
+  because the value-call fence bans arm-state mutations; resolve-leg
+  failures = Other by design, GetLastError territory). KNOWN LIMIT
+  (recorded in the contract block): `_open` refuses directories, so
+  windows canonicalize of a DIR reports Error until a designed
+  directory-open op exists. Pinned:
+  pass/filesystem/windows_canonicalize_exit (dual-engine, windows-gated;
+  per-model first-byte discrimination `\\` native / `o` hermetic +
+  the NotFound leg; in WINDOWS_HOST_PASS_CANARIES preemptively per the
+  positioned-io precedent). GetFullPathNameA never left the ledger
+  (lexical-only, = Rust path::absolute, not fs::canonicalize).
+  MODEL-FIDELITY FIX en route: the hermetic OPEN never followed symlinks
+  (native open resolves them on BOTH families) — surfaced when the
+  composition made open the canonicalize entry point;
+  virtual_open_flags now resolves one symlink level (the
+  canonicalize/read_link model) and the descriptor stores the RESOLVED
+  path, so handle-keyed consumers report the final target like Win32.
+  NEXT (4b): set_file_times (SetFileTime) and lock_file (LockFileEx)
+  ride the SAME bridge natively. The *at family and fd-based
   read_dir stay
   paradigm-refused on windows BY DESIGN (the dirfd paradigm has no Win32
   twin; wrapper-level windows impls already serve the walk); chown/symlink
