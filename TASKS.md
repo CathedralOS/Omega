@@ -567,10 +567,40 @@ sealed progress profiles + grants, TPR4's remaining big half).
    green). NOTE: machine→machine single-index-EACH-SIDE (the 4th
    exotic) needs NO r10 — the two-base path loads r11 sequentially per
    side; its rung is pure producer migration.
-   SLICE B NEXT: classifier double-index shapes + the 5 producer sites
-   (writes/storage_copy.rs, mutation.rs, mutation/frame_slots.rs) +
-   aarch64 decompose to the retained encoders; then the retirement
-   slice (the 4 variants + echoes).
+   SLICE B NEXT (recon banked 2026-07-19, execute mechanically):
+   (1) encoding/runtime_storage.rs: `direct_double_indexed_path`
+   recognizer (Const*, SI, Const*, SI, Const*, NO deref; fold the
+   mid-const between the indices into field_byte_offset -- pure adds
+   commute) + CopyPlacesShape::{FromMachineDoubleIndexed,
+   ToMachineDoubleIndexed, FromFrameBaseDoubleIndexed,
+   MachineIndexedPair} (the pair = direct_indexed_path Some on BOTH
+   sides, machine regions). Add the double checks BEFORE the single
+   arms (singles return None on doubles and vice versa -- no shadow).
+   (2) aarch64 decompose arms -> the retained encoders (signatures
+   verified): encode_..._from_runtime_machine_double_indexed_to_
+   runtime_storage(base, outer_off, outer_region, outer_stride,
+   inner_off, inner_region, inner_stride, field, target_offset,
+   byte_count); the to_... twin takes (source_region, source_offset,
+   base, outer..., inner..., field, byte_count); the frame twin drops
+   the regions; machine-indexed-pair -> encode_..._from_runtime_
+   machine_indexed_to_runtime_machine_indexed.
+   (3) the CopyPlaces aarch64 WALKER arms mirror the OLD variants'
+   kind arms (their offset fns are alive while the variants live) --
+   the FromMachineIndexed arm at relocations/instruction_records/
+   runtime_storage_copies.rs:149 is the template (machine base at
+   start; frame-resident index reloads frame base; target at the
+   shape's offset fn).
+   (4) helpers copy_places_from_machine_double_indexed /
+   _from_frame_base_double_indexed / _to_machine_double_indexed /
+   _machine_indexed_pair in selection/runtime_dispatch.rs building
+   [Const(base), SI(outer), SI(inner), Const(field)] (template:
+   copy_places_from_machine_indexed at runtime_dispatch.rs:243).
+   (5) producer sites: READS storage_copy.rs:196/220 (plain) +
+   522/550 (in-table twins) + mutation/frame_slots.rs:420/448;
+   WRITES mutation.rs:1691 (to-machine-double) + 1596
+   (machine-indexed-pair). x86 rides the slice-A materializer.
+   (6) battery + the differential legs; then the retirement slice
+   (the 4 variants + echoes, ~15-file product each).
    Then Write/RMW (the leaf-cascade duplication dies), Text,
    guards/operands, op-set shrink — the wiki ladder. Legalization
    refuses loudly at every rung.
