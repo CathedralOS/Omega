@@ -171,20 +171,17 @@ firewall + the ten acceptance tests) remains; of the ten, 2/3/4/5/6/7/
 1's export-omission half (needs artifact serialization), 8/9 (need
 sealed progress profiles + grants, TPR4's remaining big half).
 
-1. **Math roster ladder N1→N4** (section below) — zero backend/codegen
-   contact; N1 LANDED 2026-07-11 (proof-only classification + all faces);
-   N2 rungs a–c LANDED (bignum + exact engines; the u64>i64::MAX debt
-   retired as a soundness fix); N4's FIRST SLICE landed 2026-07-11: the
-   "core-injection" question DISSOLVED — the bundled `omega::` root +
-   depend-mapping already reach omega/language/core, so `data Nat` lives
-   in core/nat.omg as ordinary recursive (proof-only) data, pinned
-   pass/proofs/runtime_core_nat_declared_exit + the consumption-refusal
-   twin. N2(d) is deferred and blocks nothing. The next Rat rung is
-   engineering-ready: Nat strict-ranking evidence for computed `sub`, then
-   mod/gcd. Remaining: N3 routing, N4's Seq/Bag/Rat + extraction lemmas + view
-   dissolution. Continue into N5–N7 when
-   reached (they need the now-ruled `<machine M>` engineering plumbing and the
-   `%` former).
+1. **Math roster ladder N1→N4 — CORE ARC LANDED** (section below) — N1
+   proof-only classification, N2 bignum/exact engines, N3 fact-position
+   routing, and N4's Nat/Seq/Rat roster are present in ordinary core packages.
+   The formerly advertised Rat prerequisite is complete: strict computed-
+   subject ranking, monus/order lemmas, `mod`, Euclidean `gcd`, `div`, and the
+   canonical-representative `Rat` carrier all landed 2026-07-20 and are pinned
+   by the core Rat canary. Do **not** reimplement that rung. Next N4 work is
+   demand-gated divisibility theory; Seq `map`/`filter` waits on MP4b's
+   per-tuple machine-parameter cloning. N2(d)'s Nat/integer bridge remains
+   nonblocking research. N5–N7 retain their own dependencies (`<machine M>`
+   completion and the `%` former) below.
 2. **Legacy measured-recursion implementation MR1–MR5 — LANDED.**
    MR4's first cross-machine tail-cycle admission shape landed 2026-07-20
    (task #135; detail below). Richer guards and multi-subject lexicographic
@@ -2843,7 +2840,8 @@ no `unbounded` property exists. Rungs:
   routes) -> mod with result < divisor -> Euclid's gcd -> div ->
   the Rat carrier. `sub_zero_left` landed as the monus
   surface's completion (5 lemmas, zoo at 13 Nat). Task #134 rung 1 COMPLETE;
-  the rat.omg carrier waits only on this engineering rung.
+  The old "Rat carrier waits on mod/gcd" note is retired: rat.omg and its core
+  canary landed in this same arc.
 - **N5 — `boundary data` + the Real axiom package:** opaque carrier;
   ensures-less boundary machines = claim-free symbols (no grant); axioms =
   accepted-tier rows; schema axioms as `<machine P>` boundary machines (one
