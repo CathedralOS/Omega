@@ -101,6 +101,156 @@ impl StatementTable {
         copied
     }
 
+    /// Deep-copy a statement span and every table-owned payload reachable
+    /// from it. Symbols are deliberately preserved: callers that clone a
+    /// lexical scope mint fresh symbols first, then remap those identities in
+    /// the copied graph. Keeping identity remapping out of this table primitive
+    /// also makes it useful for source-to-source expansion within one scope.
+    pub fn copy_statement_nodes_deep_from(
+        &mut self,
+        source: &StatementTable,
+        source_expressions: &crate::expression::ExpressionTable,
+        target_expressions: &mut crate::expression::ExpressionTable,
+        source_types: &crate::types::TypeReferenceTable,
+        target_types: &mut crate::types::TypeReferenceTable,
+        statements: HandleSpan<StatementNode>,
+    ) -> HandleSpan<StatementNode> {
+        let mut copied = HandleSpan::empty();
+
+        for statement in source.statements(statements) {
+            let statement = match statement {
+                StatementNode::Assignment(assignment) => {
+                    StatementNode::Assignment(TableAssignment {
+                        target: target_expressions.copy_from(source_expressions, assignment.target),
+                        value: target_expressions.copy_from(source_expressions, assignment.value),
+                    })
+                }
+                StatementNode::Call(call) => {
+                    let receiver = self
+                        .name_path_members
+                        .insert_many(source.name_path_members(call.receiver).iter().cloned());
+                    let arguments = call
+                        .arguments
+                        .is_empty()
+                        .then(HandleSpan::empty)
+                        .unwrap_or_else(|| {
+                            self.expression_handles.insert_many(
+                                source
+                                    .expression_handles(call.arguments)
+                                    .iter()
+                                    .map(|argument| {
+                                        target_expressions.copy_from(source_expressions, *argument)
+                                    }),
+                            )
+                        });
+                    StatementNode::Call(TableCall {
+                        receiver_symbol: call.receiver_symbol,
+                        target_symbol: call.target_symbol,
+                        receiver,
+                        target: call.target.clone(),
+                        machine_arguments: call.machine_arguments.clone(),
+                        arguments,
+                        discards_result: call.discards_result,
+                    })
+                }
+                StatementNode::Expression(expression) => StatementNode::Expression(
+                    target_expressions.copy_from(source_expressions, *expression),
+                ),
+                StatementNode::LocalData(local) => {
+                    let type_reference = local.type_reference.is_valid().then(|| {
+                        target_types.copy_from(
+                            source_types,
+                            source_expressions,
+                            target_expressions,
+                            local.type_reference,
+                        )
+                    });
+                    let initial_value = local.initial_value.is_valid().then(|| {
+                        target_expressions.copy_from(source_expressions, local.initial_value)
+                    });
+                    StatementNode::LocalData(TableLocalData {
+                        symbol: local.symbol,
+                        name: local.name.clone(),
+                        type_reference: type_reference
+                            .unwrap_or_else(crate::types::TypeReferenceHandle::invalid),
+                        initial_value: initial_value
+                            .unwrap_or_else(crate::expression::ExpressionHandle::invalid),
+                        is_mutable: local.is_mutable,
+                    })
+                }
+                StatementNode::Transition(transition) => {
+                    let target = self.copy_transition_target_deep_from(
+                        source,
+                        source_expressions,
+                        target_expressions,
+                        transition.target,
+                    );
+                    let continuation = self.copy_transition_target_deep_from(
+                        source,
+                        source_expressions,
+                        target_expressions,
+                        transition.continuation,
+                    );
+                    let guard = match transition.guard {
+                        TransitionGuardNode::Always => TransitionGuardNode::Always,
+                        TransitionGuardNode::When(guard) => TransitionGuardNode::When(
+                            target_expressions.copy_from(source_expressions, guard),
+                        ),
+                    };
+                    StatementNode::Transition(TableTransition {
+                        target,
+                        continuation,
+                        guard,
+                    })
+                }
+            };
+            self.push_statement(&mut copied, statement);
+        }
+
+        copied
+    }
+
+    fn copy_transition_target_deep_from(
+        &mut self,
+        source: &StatementTable,
+        source_expressions: &crate::expression::ExpressionTable,
+        target_expressions: &mut crate::expression::ExpressionTable,
+        target: TransitionTargetHandle,
+    ) -> TransitionTargetHandle {
+        if !target.is_valid() {
+            return TransitionTargetHandle::invalid();
+        }
+        let target = match source.transition_target(target) {
+            TransitionTargetNode::Named { path, arguments } => {
+                let members = self
+                    .name_path_members
+                    .insert_many(source.name_path_members(path.members).iter().cloned());
+                let arguments = self.expression_handles.insert_many(
+                    source
+                        .expression_handles(*arguments)
+                        .iter()
+                        .map(|argument| {
+                            target_expressions.copy_from(source_expressions, *argument)
+                        }),
+                );
+                TransitionTargetNode::Named {
+                    path: TableNamePath {
+                        members,
+                        head_symbol: path.head_symbol,
+                        symbol: path.symbol,
+                    },
+                    arguments,
+                }
+            }
+            TransitionTargetNode::Value(value) => TransitionTargetNode::Value(
+                target_expressions.copy_from(source_expressions, *value),
+            ),
+            TransitionTargetNode::SelfTarget => TransitionTargetNode::SelfTarget,
+            TransitionTargetNode::Terminal => TransitionTargetNode::Terminal,
+        };
+        self.insert_transition_target(target)
+    }
+
     pub fn statement(&self, handle: StatementHandle) -> &StatementNode {
         self.statements.get(handle)
     }
@@ -264,8 +414,9 @@ pub struct TableNamePath {
 #[cfg(test)]
 mod tests {
     use super::{StatementNode, StatementTable, TransitionTargetNode};
-    use crate::expression::ExpressionTable;
+    use crate::expression::{ExpressionNode, ExpressionTable};
     use crate::name::Identifier;
+    use crate::types::{TypeReferenceNode, TypeReferenceTable};
     use omega_core::symbols::SymbolHandle;
 
     #[test]
@@ -318,5 +469,109 @@ mod tests {
         assert_eq!(path.symbol, target_symbol);
         assert_eq!(arguments.count(), 1);
         assert_eq!(statements.expression_handles(*arguments), &[argument]);
+    }
+
+    #[test]
+    fn deep_copy_owns_nested_statement_payloads() {
+        let local_symbol = SymbolHandle::from_arena_index(21);
+        let target_symbol = SymbolHandle::from_arena_index(22);
+        let mut source_statements = StatementTable::new();
+        let mut source_expressions = ExpressionTable::new();
+        let mut source_types = TypeReferenceTable::new();
+
+        let initial = source_expressions.insert(ExpressionNode::Integer(
+            omega_core::literals::IntegerLiteral::from_value(7),
+        ));
+        let guard = source_expressions.insert(ExpressionNode::Boolean(true));
+        let local_type = source_types.insert(TypeReferenceNode::Named {
+            symbol: SymbolHandle::invalid(),
+            name: Identifier::generated("i32"),
+        });
+        let mut source_span = omega_core::arena::HandleSpan::empty();
+        source_statements.push_statement(
+            &mut source_span,
+            StatementNode::LocalData(super::TableLocalData {
+                symbol: local_symbol,
+                name: Identifier::generated("value"),
+                type_reference: local_type,
+                initial_value: initial,
+                is_mutable: true,
+            }),
+        );
+
+        let mut members = omega_core::arena::HandleSpan::empty();
+        source_statements.push_name_path_member(&mut members, Identifier::generated("next"));
+        let mut arguments = omega_core::arena::HandleSpan::empty();
+        source_statements.push_expression_handle(&mut arguments, initial);
+        let target = source_statements.insert_transition_target(TransitionTargetNode::Named {
+            path: super::TableNamePath {
+                members,
+                head_symbol: target_symbol,
+                symbol: target_symbol,
+            },
+            arguments,
+        });
+        source_statements.push_statement(
+            &mut source_span,
+            StatementNode::Transition(super::TableTransition {
+                target,
+                continuation: super::TransitionTargetHandle::invalid(),
+                guard: super::TransitionGuardNode::When(guard),
+            }),
+        );
+
+        let mut copied_statements = StatementTable::new();
+        let mut copied_expressions = ExpressionTable::new();
+        let mut copied_types = TypeReferenceTable::new();
+        let copied_span = copied_statements.copy_statement_nodes_deep_from(
+            &source_statements,
+            &source_expressions,
+            &mut copied_expressions,
+            &source_types,
+            &mut copied_types,
+            source_span,
+        );
+
+        // Mutating the source tables after the copy cannot alter the clone.
+        *source_expressions.expression_mut(initial) =
+            ExpressionNode::Integer(omega_core::literals::IntegerLiteral::from_value(99));
+        source_types.substitute_node(local_type, TypeReferenceNode::Unit);
+
+        let copied = copied_statements.statements(copied_span);
+        let StatementNode::LocalData(local) = &copied[0] else {
+            panic!("first copied statement should be local data");
+        };
+        assert_eq!(local.symbol, local_symbol);
+        assert_eq!(copied_types.display_name(local.type_reference), "i32");
+        assert_eq!(
+            copied_expressions.expression(local.initial_value),
+            &ExpressionNode::Integer(omega_core::literals::IntegerLiteral::from_value(7))
+        );
+
+        let StatementNode::Transition(transition) = &copied[1] else {
+            panic!("second copied statement should be transition");
+        };
+        let TransitionTargetNode::Named { path, arguments } =
+            copied_statements.transition_target(transition.target)
+        else {
+            panic!("copied transition target should be named");
+        };
+        assert_eq!(path.symbol, target_symbol);
+        assert_eq!(
+            copied_statements.name_path_members(path.members)[0].as_str(),
+            "next"
+        );
+        let copied_argument = copied_statements.expression_handles(*arguments)[0];
+        assert_eq!(
+            copied_expressions.expression(copied_argument),
+            &ExpressionNode::Integer(omega_core::literals::IntegerLiteral::from_value(7))
+        );
+        let super::TransitionGuardNode::When(copied_guard) = transition.guard else {
+            panic!("copied transition guard should be conditional");
+        };
+        assert!(matches!(
+            copied_expressions.expression(copied_guard),
+            ExpressionNode::Boolean(true)
+        ));
     }
 }
