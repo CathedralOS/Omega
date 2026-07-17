@@ -85,6 +85,8 @@ impl OperationSemanticQuery for AbstractOperationKind {
 
             Self::CopyPlaces { .. } => AbstractOperationDomain::RuntimeCopy,
 
+            Self::WritePlaceInteger { .. } => AbstractOperationDomain::RuntimeWrite,
+
             Self::ReadRuntimeTextLine { .. }
             | Self::ReadRuntimeByte { .. }
             | Self::WriteRuntimeByte { .. } => AbstractOperationDomain::RuntimeRead,

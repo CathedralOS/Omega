@@ -345,6 +345,55 @@ pub(super) fn collect_runtime_storage_copy_relocations(
             context.insert_data_address_at_instruction_start(symbol);
             true
         }
+        SelectedInstructionKind::WritePlaceInteger {
+            target,
+            value,
+            byte_size,
+        } => {
+            // Write rung 2a: patch BY PLACE REGION from the materializer's
+            // own sites (the CopyPlaces x86 arm's discipline). aarch64 never
+            // reaches here -- its encoding refuses until the decompose rung.
+            match context.input.target.architecture {
+                Architecture::X86_64 => {
+                    let (_, sites) =
+                        omega_instruction_selection::x86_64_encode_write_place_integer_with_sites(
+                            target, *value, *byte_size,
+                        )
+                        .expect(
+                            "WritePlaceInteger reached relocation with a shape the                              materializer refuses; layout/encoding would have failed first",
+                        );
+                    for (byte_offset, side) in sites.iter() {
+                        let region = match side {
+                            omega_instruction_selection::PlaceCopySide::Target => target.region,
+                            omega_instruction_selection::PlaceCopySide::TargetIndex => target
+                                .scaled_index_region()
+                                .expect("a TargetIndex site implies a target ScaledIndex step"),
+                            omega_instruction_selection::PlaceCopySide::TargetIndex2 => target
+                                .scaled_index_regions()
+                                .nth(1)
+                                .expect("a TargetIndex2 site implies two target ScaledIndex steps"),
+                            omega_instruction_selection::PlaceCopySide::Source
+                            | omega_instruction_selection::PlaceCopySide::SourceIndex
+                            | omega_instruction_selection::PlaceCopySide::SourceIndex2 => {
+                                unreachable!(
+                                    "an integer write materializes only the target side"
+                                )
+                            }
+                        };
+                        context.insert_data_address_at_relative_offset(
+                            byte_offset,
+                            context.storage_region_symbol_handle(region),
+                        );
+                    }
+                }
+                Architecture::Aarch64 => {
+                    unreachable!(
+                        "WritePlaceInteger refuses at aarch64 encoding until its decompose rung"
+                    )
+                }
+            }
+            true
+        }
         SelectedInstructionKind::WriteRuntimeMachineDoubleIndexedInteger {
             outer_index_region,
             inner_index_region,

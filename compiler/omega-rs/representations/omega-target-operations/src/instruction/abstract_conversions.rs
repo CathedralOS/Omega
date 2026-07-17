@@ -954,6 +954,15 @@ impl From<&omega_abstract_operations::AbstractOperationKind> for TargetOperation
                 target: *target,
                 byte_count: *byte_count,
             },
+            omega_abstract_operations::AbstractOperationKind::WritePlaceInteger {
+                target,
+                value,
+                byte_size,
+            } => Self::WritePlaceInteger {
+                target: *target,
+                value: *value,
+                byte_size: *byte_size,
+            },
             omega_abstract_operations::AbstractOperationKind::WriteRuntimeMachineDoubleIndexedInteger {
                 base_byte_offset,
                 outer_index_offset,

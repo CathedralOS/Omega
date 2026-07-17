@@ -714,6 +714,15 @@ pub enum AbstractOperationKind {
         target: Place,
         byte_count: usize,
     },
+
+    /// Write rung 2a: store an immediate integer at `byte_size` into a
+    /// place-shaped target -- the integer-write family's collapse (the
+    /// seven Write*Integer variants migrate onto this one).
+    WritePlaceInteger {
+        target: Place,
+        value: i64,
+        byte_size: usize,
+    },
     /// Const-value write into a both-runtime nested element
     /// (`grid[i][j] = 70`) -- the double-indexed sibling of
     /// `WriteRuntimeMachineIndexedInteger`.

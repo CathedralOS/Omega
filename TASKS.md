@@ -680,12 +680,26 @@ sealed progress profiles + grants, TPR4's remaining big half).
    patches per-index via the new
    runtime_machine_double_indexed_integer_write_{outer,inner}_frame_
    offset pass-throughs). Differential green.
-   NEXT: rung 2a -- the WritePlaceInteger variant + echo product +
-   producer migration collapses the seven integer-write variants
-   (the Copy rung-2a pattern: variant in both enums, conversion,
-   classification RuntimeWrite, shapes machine-kind, encoding arm
-   x86->materializer / aarch64->shape decompose, layout width from
-   the encoder, walker via sites, report arm, then producers).
+   RUNG 2a ECHO PRODUCT LANDED 2026-07-19 (zero producers -- the
+   variant is inert until 2b): `WritePlaceInteger { target: Place,
+   value, byte_size }` in BOTH enums + conversion + classifications
+   (RuntimeWrite) + report arm + encoding arm
+   (encode_write_place_integer: x86 -> the materializer; aarch64
+   REFUSES LOUDLY until its decompose rung -- producers stay on the
+   shape-specific kinds there) + layout width = the encoder's output
+   length (write_place_integer_width, one source of truth) + the
+   walker arm patching BY PLACE REGION from the materializer's own
+   sites (x86_64_encode_write_place_integer_with_sites; Source* sides
+   unreachable -- a write materializes only the target) + the shapes
+   machine-kind arm (keeps the plain integer write's machine shape,
+   the CopyPlaces precedent).
+   RUNG 2b NEXT: producer migration -- x86-gated (aarch64 refuses the
+   variant), so producers can only switch once the aarch64 decompose
+   arm lands OR per-target selection splits; the honest order is the
+   aarch64 decompose FIRST (match target place shape -> the six
+   retained aarch64 integer-write encoders + a per-shape walker arm),
+   then the seven producers migrate unconditionally, then the seven
+   variants retire.
    Rung 2a after: the WritePlaceInteger variant + echo product +
    producer migration. Pre-existing dead helpers noted en route (shapes/copies.rs
    runtime_storage_copy_kind + _to_runtime_frame_indexed_kind +

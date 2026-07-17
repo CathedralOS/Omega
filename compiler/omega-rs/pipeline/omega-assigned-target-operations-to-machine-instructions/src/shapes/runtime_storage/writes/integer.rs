@@ -24,6 +24,13 @@ pub(super) fn selected_integer_write_kind(
             *byte_size,
             *value,
         )),
+        // Write rung 2a: the place-shaped write keeps the plain integer
+        // write's machine shape (the CopyPlaces precedent -- branch
+        // distances see the same guarded-effect class; the layout arm's
+        // re-encode is the width source of truth).
+        SelectedInstructionKind::WritePlaceInteger {
+            value, byte_size, ..
+        } => Some(runtime_storage_integer_write_kind(0, *byte_size, *value)),
         SelectedInstructionKind::WriteRuntimePointeeInteger {
             pointer_byte_offset,
             field_byte_offset,

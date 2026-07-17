@@ -805,6 +805,16 @@ pub(super) fn encode_machine_instruction_bytes(
             target,
             *byte_count,
         ),
+        SelectedInstructionKind::WritePlaceInteger {
+            target,
+            value,
+            byte_size,
+        } => omega_instruction_selection::encode_write_place_integer(
+            input.target.architecture,
+            target,
+            *value,
+            *byte_size,
+        ),
         SelectedInstructionKind::WriteRuntimeMachineDoubleIndexedInteger {
             base_byte_offset,
             outer_index_offset,

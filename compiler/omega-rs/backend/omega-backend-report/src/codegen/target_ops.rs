@@ -967,6 +967,18 @@ fn selected_instruction_name(
                 target.steps()
             )
         }
+        SelectedInstructionKind::WritePlaceInteger {
+            target,
+            value,
+            byte_size,
+        } => {
+            let target_symbol =
+                storage_region_symbol_name(target.region, backend_plan.entry_machine_name());
+            format!(
+                "write place integer {value} ({byte_size}b) -> {target_symbol}{:?}",
+                target.steps()
+            )
+        }
         SelectedInstructionKind::WriteRuntimeMachineDoubleIndexedInteger {
             base_byte_offset,
             outer_index_offset,
