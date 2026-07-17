@@ -368,6 +368,15 @@ pub enum HostOperation {
     /// reasons live in GetLastError, not msvcrt errno. Posix targets never
     /// lower it (they bind `Link`).
     CreateHardLink,
+    /// `_get_osfhandle(fd)` -- the msvcrt fd -> Win32 HANDLE bridge (session
+    /// slice 4a): the OS HANDLE behind an open CRT descriptor (i64; -2 for a
+    /// bad fd). Unlocks the HANDLE-keyed kernel32 surface. Windows-only.
+    GetOsfHandle,
+    /// `GetFinalPathNameByHandleA(handle, buffer, capacity, flags)` --
+    /// resolve an open handle to its final DOS path (windows canonicalize).
+    /// Returns the length written (no NUL), the required capacity (with NUL)
+    /// when too small, or 0 on failure. Windows-only.
+    FinalPathNameByHandle,
     /// `stat(path, buf)` -- fill a `struct stat` buffer for a PATH (Rust
     /// `fs::metadata`). A path pointer + a buffer pointer (the kernel writes the
     /// 144-byte darwin stat record through it); the Omega layer reads `st_size`
@@ -640,6 +649,8 @@ impl HostOperation {
             "find_next" => Self::FindNext,
             "find_close" => Self::FindClose,
             "create_hard_link" => Self::CreateHardLink,
+            "get_osfhandle" => Self::GetOsfHandle,
+            "final_path_name_by_handle" => Self::FinalPathNameByHandle,
             "stat" => Self::Stat,
             "fstat" => Self::FStat,
             "lstat" => Self::LStat,
@@ -736,6 +747,8 @@ impl HostOperation {
             Self::FindNext => "find_next",
             Self::FindClose => "find_close",
             Self::CreateHardLink => "create_hard_link",
+            Self::GetOsfHandle => "get_osfhandle",
+            Self::FinalPathNameByHandle => "final_path_name_by_handle",
             Self::Stat => "stat",
             Self::FStat => "fstat",
             Self::LStat => "lstat",

@@ -26563,6 +26563,55 @@ fn windows_read_dir_nth_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// The WRAPPER canonicalize contract on windows (session slice 4a): msvcrt
+// has no realpath, so the windows impl composes the HANDLE BRIDGE -- open,
+// _get_osfhandle, GetFinalPathNameByHandleA (the \\?\-prefixed DOS path),
+// close. The canary discriminates per-model first bytes ('\\' native / 'o'
+// hermetic) and pins the NotFound leg (the open's errno is captured before
+// the trailing close can clobber it). Interp + native.
+#[cfg(windows)]
+#[test]
+fn windows_canonicalize_exit_canary_runs() {
+    let canary = pass_canary("filesystem/windows_canonicalize_exit");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("windows canonicalize canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should exit 70 (resolve + spelling + NotFound leg), got {}",
+        outcome.exit_code
+    );
+
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-win-canon-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("windows canonicalize canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .current_dir(&build_dir)
+        .output()
+        .expect("windows canonicalize canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the canonicalize walk to exit 70 (73 = the resolved buffer starts with neither model's spelling; header lists the rest), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // The WRAPPER hard-link contract on windows (session slice 3): msvcrt has
 // no link(2), so the windows impl rides the designed create_hard_link seam
 // op (kernel32 CreateHardLinkA -- Win32 arg order (NEW link, existing) +
@@ -29673,6 +29722,12 @@ const WINDOWS_HOST_PASS_CANARIES: &[&str] = &[
     // darwin compile red until windows-gated (2026-07-20; found by the macOS
     // battery the same day the slice landed).
     "filesystem/windows_positioned_io_exit",
+    // Session slice 4a's canonicalize contract canary: windows-host compile
+    // sweep PREEMPTIVELY (the positioned-io precedent) -- the posix wrapper
+    // canonicalize path is already covered by native_canonicalize's raw twin
+    // and the macos battery, so the cross-host compile adds little for the
+    // risk of another darwin battery red.
+    "filesystem/windows_canonicalize_exit",
 ];
 
 /// Canaries compiled with an EXPLICIT cross target on EVERY host (the

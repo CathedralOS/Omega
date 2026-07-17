@@ -722,6 +722,62 @@ windows_x64 machine Filesystem::read_at(&mut self, file: File, buffer: &mut [u8]
     state err(&mut self) -> IoResult { let kind: ErrorKind = self.last_error(); IoResult::Error { kind: kind } }
 }
 
+// CANONICALIZE (the portable canonicalize contract, windows session slice
+// 4a): msvcrt has no realpath, so windows composes the HANDLE BRIDGE --
+// open the file, surface its OS HANDLE (_get_osfhandle), resolve the
+// handle to its final DOS path (GetFinalPathNameByHandleA, flags 0 =
+// VOLUME_NAME_DOS, the \\?\-prefixed spelling Rust's windows canonicalize
+// returns), close. All four host calls in the ENTRY (the value-call
+// fence), chained pure verdicts; capacity is the contract's 1024 floor
+// (the posix realpath writes up to PATH_MAX=1024 with no cap arg at all).
+// A too-small buffer returns the REQUIRED size (>= 1024 fails the fit
+// check). The open leg's errno is real (NotFound for a missing path); the
+// resolve legs' failures reach errno only stalely -- kernel32 sets
+// GetLastError (recorded in the contract block). KNOWN LIMIT: `_open`
+// refuses DIRECTORIES, so a directory path reports Error on windows.
+windows_x64 machine Filesystem::canonicalize(&mut self, path: &[u8] in Path, buffer: &mut [u8]) -> UnitResult {
+    let fd: i32 = self.host.open(path, 0);
+    // Capture the OPEN leg's errno IMMEDIATELY: the trailing close(-1) on
+    // the failure path would clobber ENOENT with EBADF before an err-leg
+    // last_error() read it.
+    let open_errno: i32 = self.host.errno();
+    let handle: i64 = self.host.get_osfhandle(fd);
+    let len: i64 = self.host.final_path_name_by_handle(handle, buffer, 1024, 0);
+    let closed: i32 = self.host.close(fd);
+    // Map the captured errno in the ENTRY too (the value-call fence bans
+    // arm-state mutations, and field-store-then-match is last_error's
+    // required desugar idiom) -- harmless on the success path.
+    self.err_code = open_errno;
+    self.err_kind = match self.err_code {
+        2 -> ErrorKind::NotFound,
+        13 -> ErrorKind::PermissionDenied,
+        1 -> ErrorKind::PermissionDenied,
+        17 -> ErrorKind::AlreadyExists,
+        9 -> ErrorKind::BadDescriptor,
+        21 -> ErrorKind::IsADirectory,
+        35 -> ErrorKind::WouldBlock,
+        _ -> ErrorKind::Other
+    };
+    transition fd >= 0 { true -> wc_len(len) _ -> err_open() }
+    state wc_len(&mut self, len: i64) -> UnitResult {
+        transition len > 0 { true -> wc_fit(len) _ -> err_resolve() }
+    }
+    state wc_fit(&mut self, len: i64) -> UnitResult {
+        transition len < 1024 { true -> ok() _ -> err_resolve() }
+    }
+    state ok(&mut self) -> UnitResult { UnitResult::Ok }
+    state err_open(&mut self) -> UnitResult {
+        // The entry-mapped kind from the open leg's captured errno.
+        UnitResult::Error { kind: self.err_kind }
+    }
+    state err_resolve(&mut self) -> UnitResult {
+        // The resolve legs fail through GetLastError, not errno -- Other BY
+        // DESIGN until a win32 last-error surface exists.
+        let kind: ErrorKind = ErrorKind::Other;
+        UnitResult::Error { kind: kind }
+    }
+}
+
 // HARD LINK (the portable hard-link contract, windows session slice 3):
 // kernel32 CreateHardLinkA via the designed create_hard_link seam op --
 // the Win32 arg order is (NEW link, existing), REVERSED from the portable

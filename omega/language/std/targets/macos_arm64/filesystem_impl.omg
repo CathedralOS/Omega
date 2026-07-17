@@ -550,3 +550,15 @@ macos_arm64 machine Filesystem::hard_link(&mut self, original: &[u8] in Path, li
     state ok(&mut self) -> UnitResult { UnitResult::Ok }
     state err(&mut self) -> UnitResult { let kind: ErrorKind = self.last_error(); UnitResult::Error { kind: kind } }
 }
+
+// CANONICALIZE (the portable canonicalize contract, windows session slice
+// 4a): posix binds realpath(3) directly -- symlink-resolving,
+// existence-checked, writes the NUL-terminated absolute path into the
+// caller's >= 1024-byte buffer. (The windows twin composes the handle
+// bridge; see its impl file.)
+macos_arm64 machine Filesystem::canonicalize(&mut self, path: &[u8] in Path, buffer: &mut [u8]) -> UnitResult {
+    let rc: i64 = self.host.canonicalize(path, buffer);
+    transition rc != 0 { true -> ok() _ -> err() }
+    state ok(&mut self) -> UnitResult { UnitResult::Ok }
+    state err(&mut self) -> UnitResult { let kind: ErrorKind = self.last_error(); UnitResult::Error { kind: kind } }
+}

@@ -710,6 +710,49 @@ impl<'program> super::Evaluator<'program> {
                     _ => 0,
                 }
             }
+            "get_osfhandle" => {
+                // The fd -> HANDLE bridge (session slice 4a). The real
+                // provider's files ride std::fs behind SYNTHETIC fds by
+                // design (no raw handles), so its handles are the fds
+                // themselves -- identity, like the hermetic model; -2 for an
+                // unknown fd (msvcrt's bad-fd spelling).
+                let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
+                if self.real_fs_mut().files.contains_key(&fd) {
+                    i64::from(fd)
+                } else {
+                    -2
+                }
+            }
+            "final_path_name_by_handle" => {
+                // Resolve an open handle (= synthetic fd) to its final path:
+                // std::fs::canonicalize of the entry's stored path (on a
+                // windows host that IS the \\?\-prefixed final path, matching
+                // native GetFinalPathNameByHandleA). Win32 return contract:
+                // length without the NUL when it fits, required size with the
+                // NUL when too small, 0 for a bad handle; no errno.
+                let handle = self.eval_fs_scalar(arguments.first().copied(), frame)?;
+                let capacity = self.eval_fs_scalar(arguments.get(2).copied(), frame)? as usize;
+                let resolved = self
+                    .real_fs_mut()
+                    .files
+                    .get(&(handle as i32))
+                    .map(|entry| entry.path.clone())
+                    .and_then(|path| std::fs::canonicalize(path).ok())
+                    .map(|path| path.display().to_string().into_bytes());
+                match resolved {
+                    Some(path) => {
+                        if path.len() + 1 <= capacity {
+                            let mut bytes = path.clone();
+                            bytes.push(0);
+                            self.write_fs_buffer(arguments.get(1).copied(), frame, &bytes);
+                            path.len() as i64
+                        } else {
+                            (path.len() + 1) as i64
+                        }
+                    }
+                    None => 0,
+                }
+            }
             "symlink" => {
                 // `symlink(target, linkpath)`: the TARGET is stored verbatim
                 // (never dereferenced here), so only the link path needs write

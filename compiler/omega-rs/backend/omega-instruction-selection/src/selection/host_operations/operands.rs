@@ -276,8 +276,13 @@ pub(super) fn select_host_operation_operands(
         }
         (
             HostCapability::Filesystem,
-            HostOperation::Close | HostOperation::Dup | HostOperation::FindClose,
+            HostOperation::Close
+            | HostOperation::Dup
+            | HostOperation::FindClose
+            | HostOperation::GetOsfHandle,
         ) => {
+            // `handle = get_osfhandle(fd) -> _get_osfhandle(fd)` (session
+            // slice 4a) rides the same one-scalar shape below.
             // Value-returning `rc = close(fd) -> _close(fd)` and
             // `new_fd = duplicate(fd) -> _dup(fd)` (identical one-fd shape; dup
             // returns the new fd instead of a status). `rc = find_close(handle)
@@ -1096,6 +1101,35 @@ pub(super) fn select_host_operation_operands(
                     operand(InstructionOperandKind::DataAddress { data: from }),
                     operand(InstructionOperandKind::DataAddress { data: to }),
                 ]),
+                _ => HandleSpan::empty(),
+            }
+        }
+        (HostCapability::Filesystem, HostOperation::FinalPathNameByHandle) => {
+            // `len = final_path_name_by_handle(handle, buffer, capacity, flags)
+            // -> GetFinalPathNameByHandleA(handle, &buffer, capacity, flags)`
+            // (session slice 4a): the FStat [result, scalar, buffer] shape plus
+            // the two trailing scalars. operand[0]=result, [1]=the HANDLE,
+            // [2]=buffer POINTER (the system writes the NUL-terminated path
+            // through it), [3]=capacity, [4]=flags.
+            let result = first_scalar_argument_operand(input, host_call, dispatch_index);
+            let handle =
+                scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 1);
+            let buffer =
+                address_argument_operand_at(input, host_call, dispatch_index, alias_context, 2);
+            let capacity =
+                scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 3);
+            let flags =
+                scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 4);
+            match (result, handle, buffer, capacity, flags) {
+                (Some(result), Some(handle), Some(buffer), Some(capacity), Some(flags)) => {
+                    operands.insert_many([
+                        operand(result),
+                        operand(handle),
+                        operand(buffer),
+                        operand(capacity),
+                        operand(flags),
+                    ])
+                }
                 _ => HandleSpan::empty(),
             }
         }

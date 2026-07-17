@@ -82,6 +82,12 @@ pub const WINDOWS_IMPORT_ROWS: &[(&str, &str, &str, &str)] = &[
     // the designed seam op mirrors that exact shape (BOOL return) and the
     // windows Filesystem::hard_link impl swaps the portable arg order.
     ("Filesystem", "create_hard_link", "Kernel32.dll", "CreateHardLinkA"),
+    // The handle bridge (session slice 4a): _get_osfhandle surfaces the OS
+    // HANDLE behind a CRT fd; GetFinalPathNameByHandleA resolves an open
+    // handle to its final DOS path (the honest windows canonicalize --
+    // GetFullPathNameA is lexical-only and never left the ledger).
+    ("Filesystem", "get_osfhandle", "msvcrt.dll", "_get_osfhandle"),
+    ("Filesystem", "final_path_name_by_handle", "Kernel32.dll", "GetFinalPathNameByHandleA"),
     // set_len -> `_chsize_s(fd, __int64 size)` (ftruncate's msvcrt analogue). The
     // 64-bit variant so the i64 length is not truncated to `_chsize`'s 32-bit
     // `long`; returns 0 on success like ftruncate (the wrapper checks rc == 0 and
@@ -459,6 +465,23 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
             "FilesystemHost",
             "create_hard_link",
             [host_operation("Filesystem", "create_hard_link")],
+            PlatformCallData::None,
+        );
+        // The handle bridge (session slice 4a): fd -> HANDLE, then the
+        // HANDLE-keyed final-path resolution (the windows canonicalize
+        // composition open/bridge/resolve/close in the per-target impl).
+        insert_platform_lowering(
+            plan,
+            "FilesystemHost",
+            "get_osfhandle",
+            [host_operation("Filesystem", "get_osfhandle")],
+            PlatformCallData::None,
+        );
+        insert_platform_lowering(
+            plan,
+            "FilesystemHost",
+            "final_path_name_by_handle",
+            [host_operation("Filesystem", "final_path_name_by_handle")],
             PlatformCallData::None,
         );
         insert_platform_lowering(

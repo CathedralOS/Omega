@@ -102,6 +102,20 @@ boundary trait FilesystemHost {
     // surface). Posix targets never call this (their impls bind `hard_link`);
     // the per-target impl split keeps the asymmetry honest.
     machine create_hard_link(link: &[u8] in Path, existing: &[u8] in Path, security_attributes: i64) -> i32 effects filesystem_io;
+    // The msvcrt fd -> Win32 HANDLE bridge (windows session slice 4a),
+    // mirroring `_get_osfhandle(fd)`: the OS HANDLE behind an open CRT
+    // descriptor as i64, or -2 (msvcrt's INVALID_HANDLE_VALUE spelling) for
+    // a bad fd -- consumers treat any negative as failure. Unlocks the
+    // HANDLE-keyed kernel32 surface (GetFinalPathNameByHandleA here;
+    // SetFileTime/LockFileEx ride the same bridge next).
+    machine get_osfhandle(fd: i32) -> i64 effects filesystem_io;
+    // `GetFinalPathNameByHandleA(handle, buffer, capacity, flags)` -- resolve
+    // an OPEN handle to its final path (flags 0 = VOLUME_NAME_DOS, a
+    // `\\?\C:\...` spelling), NUL-terminated into `buffer`. Returns the path
+    // LENGTH (without the NUL) on success, the REQUIRED capacity (including
+    // the NUL) when `capacity` is too small, or 0 on failure (GetLastError
+    // holds the reason -- not msvcrt errno).
+    machine final_path_name_by_handle(handle: i64, buffer: &mut [u8], capacity: u64, flags: u32) -> i64 effects filesystem_io;
     // Remove a FILE / an empty DIRECTORY by a TRUSTED plain `&[u8]` path -- the
     // D-at trust class twins of `remove` / `remove_dir` (same native rows, the
     // `create_dir_name` precedent): a path JOINED inside a dir-walk from
