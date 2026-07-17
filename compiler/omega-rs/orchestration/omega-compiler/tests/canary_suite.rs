@@ -7084,42 +7084,6 @@ fn runtime_float_arithmetic_exit_canary_runs() {
 }
 
 #[test]
-fn runtime_field_default_exit_canary_runs() {
-    // A `data` field with a default initializer (`x: i32 = 5`) must hold that value at
-    // runtime; the default was captured front-end but never emitted (fields read 0).
-    // Entry-machine constant field defaults are now initialized before the dispatch
-    // loop, recursing into nested `data` members. Covers int/f64/bool defaults +
-    // explicit overwrite + nested-data defaults; exits 70 when correct.
-    let canary = pass_canary("expressions/runtime_field_default_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-field-default-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("field-default canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
-        .output()
-        .expect("field-default canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected `data` field defaults (int/f64/bool) to initialize and overwrite (exit 70), got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
-    );
-
-    let _ = fs::remove_dir_all(&build_dir);
-}
-
-#[test]
 fn runtime_version_migration_exit_canary_runs() {
     // Chapter 21 (Versioned Data), first runtime migration: a historical-shape
     // value is CONSTRUCTED (`Counter::v1 { counter: 3 }` -- the brace literal
@@ -31794,7 +31758,6 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "slices/guarded_slice_parameter_symmetric_true_guard_compile",
     "slices/guarded_slice_parameter_successor_index_compile",
     "slices/guarded_slice_parameter_successor_tail_compile",
-    "slices/machine_field_index_initializer_compile",
     "slices/requires_field_count_alias_index_compile",
     "slices/requires_slice_parameter_bounded_subslice_compile",
     "slices/requires_slice_parameter_index_compile",
@@ -32252,8 +32215,6 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "arithmetic/indexed_element_narrowing_rejected",
     "arithmetic/array_literal_too_few_rejected",
     "arithmetic/array_literal_too_many_rejected",
-    "arithmetic/field_default_class_rejected",
-    "arithmetic/field_default_narrowing_rejected",
     "text/bounded_carrier_construction_over_capacity_rejected",
     "collections/triple_runtime_indexed_read_rejected",
     "drops/nonempty_drop_body_rejected",
@@ -32430,11 +32391,11 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "data/bare_payload_case_equality_suggests_in",
     "data/case_payload_equality_interim",
     "data/case_payload_malformed",
+    "data/field_default_retired",
     "data/case_zero_payload",
     "data/enum_keyword_retired",
     "data/match_nonexhaustive_cases",
     "data/match_predicate_domain_needs_default",
-    "data/mixed_common_field_default",
     "data/mixed_common_field_nonscalar",
     "data/mixed_payload_field_shadows_common",
     "data/mixed_record_literal",
@@ -32442,7 +32403,6 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "data/property_copy_violation",
     "data/property_sized_declared",
     "data/property_unknown",
-    "data/property_zero_init_nonzero_default",
     "generics/colon_bound_rejected",
     "generics/machine_bound_satisfied_value_call_fenced",
     "generics/machine_bound_value_call_unchecked",
@@ -32745,10 +32705,6 @@ struct PendingCanary {
 // divergences (those stay documented in the headers and the periodic
 // omega-run --both sweep), but it pins accepts-vs-rejects drift for free.
 const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
-    PendingCanary {
-        path: "arithmetic/array_field_default_silent",
-        expectation: PendingCanaryExpectation::CurrentlyAccepts,
-    },
     PendingCanary {
         path: "calls/texteq_local_guard_read_divergence",
         expectation: PendingCanaryExpectation::CurrentlyAccepts,

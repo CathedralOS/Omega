@@ -1,6 +1,6 @@
 
 data Main {
-    speed: f32 = 0.0;
+    speed: f32;
 }
 
 machine Main::main(&mut self) {

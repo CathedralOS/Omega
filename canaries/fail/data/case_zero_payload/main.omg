@@ -8,7 +8,7 @@ data Token [zero_init] {
 }
 
 data Main {
-    value: i32 = 0;
+    value: i32;
 }
 
 machine Main::main(&mut self) {

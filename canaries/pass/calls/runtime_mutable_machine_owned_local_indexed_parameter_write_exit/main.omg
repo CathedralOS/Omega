@@ -9,7 +9,7 @@ data Item {
 
 data Main {
     console: Console;
-    items: [Item; 2] = [Item { value: 1, tag: 1 }, Item { value: 2, tag: 2 }];
+    items: [Item; 2];
 }
 
 machine Main::touch_tag(&mut self, item: &mut Item) {
@@ -17,6 +17,8 @@ machine Main::touch_tag(&mut self, item: &mut Item) {
 }
 
 machine Main::main(&mut self) {
+    self.items[0].tag = 1;
+    self.items[1].tag = 2;
     let index: u64 = 0;
     self.touch_tag(&mut self.items[index]);
 

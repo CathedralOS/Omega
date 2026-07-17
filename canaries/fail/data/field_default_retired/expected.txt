@@ -1,0 +1,1 @@
+declares a default initializer -- field defaults are retired

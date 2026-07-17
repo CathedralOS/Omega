@@ -11,7 +11,7 @@ data Point {
 data Main {
     a: Point;
     b: Point;
-    hit: bool = false;
+    hit: bool;
 }
 
 machine Main::main(&mut self) {

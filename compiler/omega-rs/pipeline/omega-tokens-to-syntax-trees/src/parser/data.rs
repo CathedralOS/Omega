@@ -226,16 +226,25 @@ fn parse_data_member<'tokens, 'source>(
         let (type_reference, next) =
             parse_type_reference_handle_allowing_borrow(syntax_trees, input)?;
         input = next;
-        let (initial_value, next) = if input.at_punctuation(PunctuationKind::Equal) {
-            let input = input.take_punctuation(PunctuationKind::Equal, "=")?;
-            let (expression, input) = parse_expression_handle(syntax_trees, input)?;
-            (expression, input)
-        } else {
-            (
-                omega_syntax_trees::expression::ExpressionHandle::invalid(),
-                input,
-            )
-        };
+        // Field defaults are RETIRED (owner ruling 2026-07-17): data
+        // declarations carry no initializers -- ZII zero-initializes every
+        // field, and constructed defaults belong in an ordinary constructor
+        // machine. The spelling refuses LOUDLY here so an initializer can
+        // never parse and then silently disappear (the old aggregate-literal
+        // default bug class).
+        if input.at_punctuation(PunctuationKind::Equal) {
+            return Err(input.error_here(format!(
+                "data field `{}` declares a default initializer -- field defaults \
+                 are retired: every field is zero-initialized (ZII), and a \
+                 constructed default belongs in an ordinary constructor machine \
+                 that writes the field",
+                field_name.as_str()
+            )));
+        }
+        let (initial_value, next) = (
+            omega_syntax_trees::expression::ExpressionHandle::invalid(),
+            input,
+        );
         input = if next.at_punctuation(PunctuationKind::Semicolon) {
             next.take_punctuation(PunctuationKind::Semicolon, ";")?
         } else {

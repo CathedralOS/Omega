@@ -3265,13 +3265,29 @@ rejects — an INTEGER ruling, engineering rides this ladder as F8).
   ARCH-AWARE (cfg target_arch: x86 native 70 / aarch64 native 99), so the
   drift gate holds on both hosts.
 
-- **array_field_default_silent — ENGINEERING-READY / RETIRE FIELD DEFAULTS
-  (ruled 2026-07-17):** data declarations do not carry field initializers;
-  constructed defaults belong in ordinary constructor machines. Reject scalar,
-  record, array, and other aggregate `field: T = value` spellings with a
-  directed diagnostic, remove the partial scalar/nested emission paths, migrate
-  the corpus, and turn this pending canary into a rejection/diagnostic pin. An
-  aggregate initializer must never parse successfully and then disappear.
+- **array_field_default_silent — FIELD DEFAULTS RETIRED, RUNG 1 LANDED
+  2026-07-20 (ruled 2026-07-17):** the parser REFUSES `field: T = value` at
+  the spelling site (directed diagnostic: ZII zero-initializes; constructed
+  defaults belong in a constructor machine) -- an initializer can never
+  parse and then disappear. CORPUS MIGRATED in the same pass (47 files, 68
+  initializers): ZII-identical/incidental initializers deleted (`= 0`,
+  `= false`, zero-variant enums -- incl. the dungeon x2 whose six defaults
+  were all ZII-identical); load-bearing seeds moved to entry-top field
+  writes (borrow_unique, the two runtime_mutable indexed canaries,
+  guarded_leaf_branch_expansion); the dynamic-indexed canary's `index: u64
+  = 0` initializer had FED the index-bound proof -- replaced with the
+  declared-range pattern (`[0..=1]`, ZII 0 in range). RETIRED canaries
+  (subjects died with the feature): pass runtime_field_default_exit +
+  machine_field_index_initializer_compile, fail mixed_common_field_default
+  + property_zero_init_nonzero_default + field_default_class_rejected +
+  field_default_narrowing_rejected, pending array_field_default_silent.
+  NEW PIN: fail/data/field_default_retired (array-literal default refuses
+  with the directed diagnostic). RUNG 2 REMAINING: sweep the now-dead
+  emission/validation paths (select_entry_machine_field_default_writes +
+  recursion, the interpreter's field-default arms at evaluator.rs
+  865/901, validation's mixed-common + zero_init-default checks, the
+  default-specific cross-class/narrowing checks in data.rs) and drop the
+  DataField.initial_value carrier across syntax/resolved/typed reps.
 
 - **`pending_runtime_divergences_hold` — GREENED 2026-07-18 (ledger
   host-corrected):** (a) `float_to_int_overflow_divergence` now documents

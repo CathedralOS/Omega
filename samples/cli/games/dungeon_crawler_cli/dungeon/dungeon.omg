@@ -20,17 +20,17 @@ data Dungeon {
     lookup: RoomLookup;
     rng: Random;
 
-    current_cell: CellId = CellId::Empty;
+    current_cell: CellId;
     level: Level;
     navigation: Navigation;
     player: Player;
     random: RandomState;
     combat_round: CombatRound;
-    mode: GameMode = GameMode::Title;
-    treasure_taken: bool = false;
-    gold_taken: bool = false;
-    fountain_used: bool = false;
-    enemy_defeated: bool = false;
+    mode: GameMode;
+    treasure_taken: bool;
+    gold_taken: bool;
+    fountain_used: bool;
+    enemy_defeated: bool;
 }
 
 machine Dungeon::enter_room(
