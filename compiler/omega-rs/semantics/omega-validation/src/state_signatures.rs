@@ -36,25 +36,6 @@ pub(crate) fn validate_callable_state_signatures(
         );
     }
 
-    for platform in program.platforms() {
-        let platform_states = program.platform_state_signatures(platform);
-        validate_platform_state_names(platform, platform_states, diagnostics);
-        validate_state_signature_types(
-            platform_states.iter().map(|state| StateSignatureView {
-                name: state.name.as_str(),
-                parameters: program.state_signature_parameters(state),
-                return_type: state.return_type,
-                effects: program.state_signature_effects(state),
-                contracts: program.state_signature_contracts(state),
-            }),
-            program,
-            symbols,
-            diagnostics,
-            StateSignatureOwner::Platform(platform.name.as_str()),
-            &[],
-        );
-    }
-
     for trait_definition in program.traits() {
         validate_proof_facts(
             program,
@@ -96,7 +77,6 @@ struct StateSignatureView<'program> {
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum StateSignatureOwner<'program> {
     Machine(&'program str),
-    Platform(&'program str),
     Trait(&'program str),
 }
 
@@ -104,7 +84,6 @@ impl fmt::Display for StateSignatureOwner<'_> {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Machine(machine) => write!(formatter, "machine `{machine}`"),
-            Self::Platform(platform) => write!(formatter, "platform `{platform}`"),
             Self::Trait(trait_definition) => write!(formatter, "trait `{trait_definition}`"),
         }
     }
@@ -233,24 +212,6 @@ fn contract_kind_label(kind: omega_typed_trees::signature::SignatureContractKind
         omega_typed_trees::signature::SignatureContractKind::Requires => "requires",
         omega_typed_trees::signature::SignatureContractKind::Ensures => "ensures",
         omega_typed_trees::signature::SignatureContractKind::Boundary => "boundary",
-    }
-}
-
-fn validate_platform_state_names(
-    platform: &omega_typed_trees::platform::Platform,
-    platform_states: &[omega_typed_trees::signature::StateSignature],
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    for (state_index, state) in platform_states.iter().enumerate() {
-        if platform_states[..state_index]
-            .iter()
-            .any(|previous| previous.name == state.name)
-        {
-            diagnostics.push(Diagnostic::error(format!(
-                "platform `{}` has duplicate state `{}`",
-                platform.name, state.name
-            )));
-        }
     }
 }
 

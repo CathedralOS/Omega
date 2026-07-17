@@ -1,6 +1,6 @@
 use crate::{
-    data, domain, expression, invariant, machine, measure, platform, signature, snapshot,
-    trait_definition, types, wire,
+    data, domain, expression, invariant, machine, measure, signature, snapshot, trait_definition,
+    types, wire,
 };
 use omega_core::arena::{Arena, HandleSpan};
 use omega_core::diagnostics::PhaseSnapshot;
@@ -82,8 +82,6 @@ pub struct TypedTreeTables {
     pub machine_trait_conformances: Arena<machine::TraitConformance>,
     pub machine_states: Arena<crate::state::State>,
     pub state_parameters: Arena<signature::StateParameter>,
-    pub platforms: Arena<platform::Platform>,
-    pub platform_state_signatures: Arena<signature::StateSignature>,
     pub traits: Arena<trait_definition::TraitDefinition>,
     pub data_conformances: Arena<trait_definition::DataConformance>,
     pub trait_requirements: Arena<trait_definition::TraitRequirement>,
@@ -105,7 +103,6 @@ pub struct TypedTreeRoots {
     pub machines: HandleSpan<machine::Machine>,
     pub measures: HandleSpan<measure::MeasureDefinition>,
     pub operators: HandleSpan<crate::operator::OperatorDefinition>,
-    pub platforms: HandleSpan<platform::Platform>,
     pub traits: HandleSpan<trait_definition::TraitDefinition>,
     pub data_conformances: HandleSpan<trait_definition::DataConformance>,
     pub wire_schemas: HandleSpan<wire::WireSchema>,
@@ -118,7 +115,6 @@ impl TypedTreeRoots {
         invariant_definitions: HandleSpan<invariant::InvariantDefinition>,
         machines: HandleSpan<machine::Machine>,
         operators: HandleSpan<crate::operator::OperatorDefinition>,
-        platforms: HandleSpan<platform::Platform>,
         traits: HandleSpan<trait_definition::TraitDefinition>,
     ) -> Self {
         Self {
@@ -128,7 +124,6 @@ impl TypedTreeRoots {
             machines,
             measures: HandleSpan::default(),
             operators,
-            platforms,
             traits,
             data_conformances: HandleSpan::default(),
             wire_schemas: HandleSpan::default(),
@@ -290,12 +285,6 @@ impl TypedTrees {
             .span_or_empty(self.roots.invariant_definitions)
     }
 
-    pub fn push_platform(&mut self, platform: platform::Platform) {
-        self.tables
-            .platforms
-            .append_to_span(&mut self.roots.platforms, platform);
-    }
-
     pub fn push_measure(&mut self, measure: measure::MeasureDefinition) {
         self.tables
             .measures
@@ -395,10 +384,6 @@ impl TypedTrees {
         span: HandleSpan<crate::name::Identifier>,
     ) -> &[crate::name::Identifier] {
         self.operator_path_members.span_or_empty(span)
-    }
-
-    pub fn platforms(&self) -> &[platform::Platform] {
-        self.tables.platforms.span_or_empty(self.roots.platforms)
     }
 
     pub fn push_wire_schema(&mut self, wire_schema: wire::WireSchema) {
@@ -709,23 +694,6 @@ impl TypedTrees {
     ) -> &[signature::StateSignature] {
         self.trait_machine_signatures
             .span_or_empty(trait_definition.machines)
-    }
-
-    pub fn push_platform_state_signature(
-        &mut self,
-        platform: &mut platform::Platform,
-        signature: signature::StateSignature,
-    ) {
-        self.platform_state_signatures
-            .append_to_span(&mut platform.states, signature);
-    }
-
-    pub fn platform_state_signatures(
-        &self,
-        platform: &platform::Platform,
-    ) -> &[signature::StateSignature] {
-        self.platform_state_signatures
-            .span_or_empty(platform.states)
     }
 
     pub fn push_machine(&mut self, machine: machine::Machine) {
@@ -1086,7 +1054,7 @@ impl DerefMut for TypedTrees {
 mod tests {
     use crate::{
         TypedTreeRoots, TypedTreeTables, TypedTrees, data, domain, invariant, machine, operator,
-        platform, trait_definition,
+        trait_definition,
     };
     use omega_core::arena::HandleSpan;
     use omega_core::symbols::SymbolTable;
@@ -1098,7 +1066,6 @@ mod tests {
         let invariant_definitions = HandleSpan::<invariant::InvariantDefinition>::default();
         let machines = HandleSpan::<machine::Machine>::default();
         let operators = HandleSpan::<operator::OperatorDefinition>::default();
-        let platforms = HandleSpan::<platform::Platform>::default();
         let traits = HandleSpan::<trait_definition::TraitDefinition>::default();
 
         let roots = TypedTreeRoots::with_roots(
@@ -1107,7 +1074,6 @@ mod tests {
             invariant_definitions,
             machines,
             operators,
-            platforms,
             traits,
         );
 
@@ -1116,7 +1082,6 @@ mod tests {
         assert_eq!(roots.invariant_definitions, invariant_definitions);
         assert_eq!(roots.machines, machines);
         assert_eq!(roots.operators, operators);
-        assert_eq!(roots.platforms, platforms);
         assert_eq!(roots.traits, traits);
     }
 

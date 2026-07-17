@@ -838,13 +838,6 @@ fn semantic_symbol_name(program: &CheckedTrees, symbol: SymbolHandle) -> String 
     {
         return trait_definition.name.as_str().to_owned();
     }
-    if let Some(platform) = program
-        .platforms()
-        .iter()
-        .find(|platform| platform.symbol == symbol)
-    {
-        return platform.name.as_str().to_owned();
-    }
     program.symbols.name(symbol).to_string()
 }
 

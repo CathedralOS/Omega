@@ -7,7 +7,6 @@ pub type StateParameterHandle = Handle<StateParameterNode>;
 pub type StateSignatureHandle = Handle<StateSignatureNode>;
 pub type StateHandle = Handle<StateNode>;
 pub type MachineHandle = Handle<MachineNode>;
-pub type PlatformHandle = Handle<PlatformNode>;
 pub type TraitHandle = Handle<TraitNode>;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -717,7 +716,6 @@ struct StateStorage {
     signature_handles: Arena<StateSignatureHandle>,
     statement_handles: Arena<crate::statement::StatementHandle>,
     machines: Arena<MachineNode>,
-    platforms: Arena<PlatformNode>,
     traits: Arena<TraitNode>,
 }
 
@@ -775,10 +773,6 @@ impl ItemTable {
 
     pub fn machine(&self, handle: MachineHandle) -> &MachineNode {
         self.state_storage.machines.get(handle)
-    }
-
-    pub fn platform(&self, handle: PlatformHandle) -> &PlatformNode {
-        self.state_storage.platforms.get(handle)
     }
 
     pub fn trait_definition(&self, handle: TraitHandle) -> &TraitNode {
@@ -1117,7 +1111,6 @@ impl StateStorage {
             signature_handles: Arena::new(),
             statement_handles: Arena::new(),
             machines: Arena::new(),
-            platforms: Arena::new(),
             traits: Arena::new(),
         }
     }
@@ -1182,12 +1175,6 @@ pub struct MachineNode {
     pub effects: HandleSpan<Identifier>,
     pub contracts: HandleSpan<CapabilityContract>,
     pub states: HandleSpan<StateHandle>,
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct PlatformNode {
-    pub name: Identifier,
-    pub states: HandleSpan<StateSignatureHandle>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

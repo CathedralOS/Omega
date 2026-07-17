@@ -3328,14 +3328,16 @@ rejects — an INTEGER ruling, engineering rides this ladder as F8).
   2026-07-20: parse_platform + the syntax Item::Platform variant +
   Platform struct + insert/copy/identity/snapshot arms + the
   syntax->resolved lowering module + the types/proof/visualization
-  syntax arms are GONE (compiler-driven deletion; suite 868 +
-  differential green). STILL STANDING (empty forever, no producer):
-  the RESOLVED/TYPED Platform representations + their arenas
-  (platform_state_signatures) + downstream consumers
-  (state_signatures ownership walks, the interpreter's platform
-  paths) -- a follow-up sweep wave when convenient; and the
-  `platform` KEYWORD token itself (the retirement diagnostic needs
-  it). The `provides` retirement is now ENGINEERING-UNBLOCKED; it still
+   syntax arms are GONE (compiler-driven deletion; suite 868 +
+   differential green). DEAD-CARRIER SWEEP LANDED 2026-07-17: the empty
+   syntax residue, resolved/typed `Platform` representations and arenas,
+   `platform_state_signatures`, `SymbolKind::Platform`, snapshot/identity
+   echoes, and the unreachable validation/proof/layout/host-call/artifact/
+   report consumers are GONE (compiler check + 11/11/12 representation,
+   85 validation, 204 checked-tree, and backend/orchestration package tests
+   green). The `platform` KEYWORD token survives only so the retirement
+   diagnostic remains directed. The `provides` retirement is now
+   ENGINEERING-UNBLOCKED; it still
   carries the filesystem Value rows until their format/layout replacements
   land. IMPLEMENTATION ORDER (do not reorder):
   (1) add the `via` parser/tree/normalized `ExternalRealization { binding }`

@@ -3,7 +3,6 @@ use crate::domain::lower_domain_definition;
 use crate::invariant::lower_invariant_definition;
 use crate::machine::lower_machine;
 use crate::operator::lower_operator_definition;
-use crate::platform::lower_platform;
 use crate::trait_definition::lower_trait_definition;
 use omega_core::diagnostics::Diagnostic;
 use omega_symbol_resolved_trees::SymbolResolvedTrees;
@@ -69,11 +68,6 @@ pub fn lower_symbol_resolved_trees(
     for operator in &symbol_resolved_trees.operators {
         let operator = lower_operator_definition(&mut lowerer, operator)?;
         lowerer.typed_trees.push_operator(operator);
-    }
-
-    for platform in &symbol_resolved_trees.platforms {
-        let platform = lower_platform(&mut lowerer, platform)?;
-        lowerer.typed_trees.push_platform(platform);
     }
 
     for trait_definition in &symbol_resolved_trees.traits {

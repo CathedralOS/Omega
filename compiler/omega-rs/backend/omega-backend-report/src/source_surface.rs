@@ -16,14 +16,6 @@ pub(super) fn write_source_native_surface(
         ));
     }
 
-    output.push_str(&format!("platforms: {}\n", backend_surface.platforms.len()));
-    for (_, platform) in backend_surface.platforms.iter() {
-        output.push_str(&format!(
-            "- platform {}: {} state(s)\n",
-            platform.name, platform.states
-        ));
-    }
-
     output.push_str(&format!("machines: {}\n", backend_surface.machines.len()));
     for (_, machine) in backend_surface.machines.iter() {
         output.push_str(&format!(

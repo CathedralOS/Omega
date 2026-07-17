@@ -43,19 +43,6 @@ pub(crate) fn estimated_contract_fact_capacity(program: &omega_typed_trees::Type
                 })
                 .sum::<usize>()
         }))
-        .chain(program.platforms().iter().map(|platform| {
-            program
-                .platform_state_signatures(platform)
-                .iter()
-                .map(|signature| {
-                    program
-                        .state_signature_contracts(signature)
-                        .iter()
-                        .map(|contract| contract.facts.len())
-                        .sum::<usize>()
-                })
-                .sum::<usize>()
-        }))
         .chain(
             program
                 .machines()

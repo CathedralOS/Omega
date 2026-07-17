@@ -39,7 +39,6 @@ pub(super) fn resolve_base_symbol(
             SymbolKind::BuiltinType,
             SymbolKind::Data,
             SymbolKind::Machine,
-            SymbolKind::Platform,
             SymbolKind::Trait,
             SymbolKind::Invariant,
         ],

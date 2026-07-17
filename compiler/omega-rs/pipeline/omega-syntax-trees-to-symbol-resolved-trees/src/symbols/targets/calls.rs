@@ -78,10 +78,7 @@ pub(in crate::symbols) fn resolve_call_target_symbol(
                 return target_symbol;
             }
         }
-        if matches!(
-            receiver_kind,
-            SymbolKind::Machine | SymbolKind::Platform | SymbolKind::Trait
-        ) {
+        if matches!(receiver_kind, SymbolKind::Machine | SymbolKind::Trait) {
             if receiver_symbol == machine.symbol
                 && let Some(attached_data) = machine.attached_data
             {
