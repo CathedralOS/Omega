@@ -7,6 +7,10 @@ data Envelope<T [linear]> [linear] {
     value: T;
 }
 
+data StoredReceipt [linear] {
+    value: Envelope<Receipt>;
+}
+
 data Main {}
 
 machine Main::run() -> i32 {

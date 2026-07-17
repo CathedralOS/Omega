@@ -4520,9 +4520,21 @@ with a real app-window story.
   lowering copies it through resolved/typed trees, and the legacy `copy` bool
   is derived only as a compatibility projection. `[copy, linear]` rejects
   loudly; parser + end-to-end typed-lowering tests and pass/fail ownership
-  canaries pin the representation. **CML2 next:** add the place-keyed
-  permission checker and the first `[linear]` acknowledgement token. Terminal
-  consumption needs no annotation: an ordinary
+  canaries pin the representation. **CML2 SLICE 1 LANDED 2026-07-17:** the
+  checker now carries a whole-place linear permission state for parameters and
+  explicitly established locals: construction/assignment creates, moves and
+  calls transfer, by-value `self` calls terminally consume, implicit zero-fill
+  creates nothing, and overwrite/second-transfer/live-scope-exit reject. The
+  existing machine-call ownership lane now records an explicitly supplied
+  static by-value `self` argument (previously filtered out with borrowed self).
+  Affine records may not erase a linear field/payload, and `[linear]` generic
+  bounds participate in instantiation checks. Pinned by a fixed-size Receipt
+  token: create -> two bindings -> consume; zero storage without use; and fail
+  twins for unestablished use, duplicate transfer, scope loss, and affine
+  containment. **CML2 next:** replace the straight-line whole-place state with
+  path-sensitive branch/sum reconciliation and explicit permission facts in
+  checked IR, then cover assignment re-establishment and returned-obligation
+  outcomes. Terminal consumption needs no annotation: an ordinary
   `move self` call consumes when no returned outcome carries the obligation,
   while a `try_*` incomplete outcome must return the live token. Pin create ->
   multi-binding transfer -> consume as one obligation; reject scope loss,

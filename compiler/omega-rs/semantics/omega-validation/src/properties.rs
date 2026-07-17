@@ -39,7 +39,41 @@ pub(crate) fn validate_data_properties(
         if properties.zero_init {
             validate_zero_init(program, symbols, data_definition, diagnostics);
         }
+        if properties.multiplicity != omega_core::semantics::Multiplicity::Linear {
+            validate_no_linear_erasure(program, symbols, data_definition, diagnostics);
+        }
     }
+}
+
+/// A stored linear obligation makes its enclosing value linear. V1 requires
+/// that propagation to be explicit on the enclosing declaration so a field or
+/// payload can never silently degrade into affine/drop-permitted ownership.
+fn validate_no_linear_erasure(
+    program: &TypedTrees,
+    symbols: &TopLevelSymbols<'_>,
+    data_definition: &DataDefinition,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let type_parameters = program.data_type_parameters(data_definition);
+    for_each_stored_field(program, data_definition, &mut |field, case: Option<&str>| {
+        if !type_satisfies_structural_property(
+            program,
+            symbols,
+            type_parameters,
+            field.type_reference,
+            "linear",
+        ) {
+            return;
+        }
+        let place = match case {
+            Some(case) => format!("case `{case}` payload field `{}`", field.name),
+            None => format!("field `{}`", field.name),
+        };
+        diagnostics.push(Diagnostic::error(format!(
+            "data `{}` is affine but {place} carries a linear obligation; add `[linear]` to the enclosing data declaration so the obligation cannot be dropped",
+            data_definition.name
+        )));
+    });
 }
 
 /// `copy` and `send` are compositional: the property holds when every stored
@@ -122,7 +156,8 @@ fn type_satisfies_structural_property(
         // String is lexed as a primitive but owns text storage: a bitwise copy
         // aliases the buffer, and crossing a spawn boundary moves ownership of
         // it. Scalars are the only copy/send-satisfying primitives.
-        return !matches!(primitive, omega_typed_trees::types::PrimitiveType::String);
+        return property != "linear"
+            && !matches!(primitive, omega_typed_trees::types::PrimitiveType::String);
     }
 
     match program.type_reference_table.type_reference(type_reference) {
@@ -167,6 +202,9 @@ pub fn declared_property_names(
     if properties.copy {
         names.push("copy");
     }
+    if properties.multiplicity == omega_core::semantics::Multiplicity::Linear {
+        names.push("linear");
+    }
     if properties.zero_init {
         names.push("zero_init");
     }
@@ -188,6 +226,9 @@ fn type_parameter_named<'program>(
 fn type_parameter_declares_property(parameter: &TypeParameter, property: &str) -> bool {
     match property {
         "copy" => parameter.bounds.copy,
+        "linear" => {
+            parameter.bounds.multiplicity == omega_core::semantics::Multiplicity::Linear
+        }
         "send" => parameter.bounds.send,
         "zero_init" => parameter.bounds.zero_init,
         _ => false,
@@ -238,6 +279,10 @@ fn named_type_declares_property(
         .find(|definition| definition.name.as_str() == name)
         .is_some_and(|definition| match property {
             "copy" => definition.properties.copy,
+            "linear" => {
+                definition.properties.multiplicity
+                    == omega_core::semantics::Multiplicity::Linear
+            }
             "send" => definition.properties.send,
             "zero_init" => definition.properties.zero_init,
             _ => false,

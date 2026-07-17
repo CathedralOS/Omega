@@ -1,0 +1,10 @@
+// FAIL canary (decision 21): an enclosing affine record may not erase the
+// exact-use obligation carried by a linear field.
+data Receipt [linear] {}
+
+data BadEnvelope {
+    receipt: Receipt;
+}
+
+data Main {}
+machine Main::run() -> i32 { 0 }

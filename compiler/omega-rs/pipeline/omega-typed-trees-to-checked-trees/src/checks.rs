@@ -1,6 +1,7 @@
 mod borrows;
 mod capabilities;
 mod contracts;
+mod multiplicity;
 mod operators;
 mod ranges;
 pub(crate) mod termination;
@@ -19,6 +20,12 @@ pub(crate) fn check_checked_facts(
 
     if let Err(mut contract_diagnostics) = contracts::check_flow_call_contracts(program, facts) {
         diagnostics.append(&mut contract_diagnostics);
+    }
+
+    if let Err(mut multiplicity_diagnostics) =
+        multiplicity::check_linear_obligations(program, facts)
+    {
+        diagnostics.append(&mut multiplicity_diagnostics);
     }
 
     if let Err(mut operator_diagnostics) = operators::check_operator_resolution(program, facts) {
