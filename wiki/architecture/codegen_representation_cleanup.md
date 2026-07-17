@@ -315,10 +315,22 @@ MIGRATION (each rung keeps the suite green, own commit):
   18 variants retired, CopyPlaces sole survivor; x86 = the r14/r15/
   r11/r10/rax materializer, aarch64 = shape-classified decomposes to
   the retained encoders until its materializer lands.
-- [ ] Write/RMW family next (the leaf-cascade duplication dies with it).
-- [ ] Text family; then guards/operand positions consume Places.
-- [ ] Op-set shrink + value-category-on-operand; delete the retired
-  variants and their 15-file echoes.
+- [x] Write/RMW family next (the leaf-cascade duplication dies with it).
+  DONE 2026-07-19/20: integer 7->1, binary 6->1, address 6->1.
+- [x] Text family; then guards/operand positions consume Places. DONE
+  2026-07-19/20: string/buffer 7->2; storage compares -> ComparePlaces/
+  ComparePlaceValue; the 9-variant Materialize/Append crossing -> 3
+  place survivors (decompose-by-shape on both arches).
+- [x] Op-set shrink; delete the retired variants and their 15-file
+  echoes. DONE 2026-07-20: 55 variants retired onto 11 place survivors;
+  the enum is ~55 (from ~100) and ZERO per-shape opcode crossings
+  remain -- the Cartesian disease is eliminated. RECORDED CALL
+  (diminishing returns): the residual value-category-on-operand
+  unification (folding WritePlace{Integer,String,BoundedBuffer,...}
+  into one WritePlace with a value-payload enum) would trade enum size
+  for payload indirection with near-zero arm-count savings now that no
+  shape crossing exists -- deferred until a concrete need (e.g. the
+  aarch64 place materializer) makes the shared payload pay.
 
 SEQUENCING (owner call, recorded lean): after first-boot/M2 stabilizes —
 the main lane is mid-RECAST in exactly these selection files; a

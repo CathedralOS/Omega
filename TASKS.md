@@ -1101,8 +1101,20 @@ sealed progress profiles + grants, TPR4's remaining big half).
    STAY LIVE (the decompose arms ride them -- the transitional
    pattern). SCOREBOARD: 55 variants retired onto 11 place survivors
    (the 8 prior + MaterializeTextBufferToPlace, AppendTextStoredToPlace,
-   AppendTextLiteralToPlace); enum now ~53 variants (from ~100 at the
-   pilot's start). Then producers + retire 9 done -> classify
+   AppendTextLiteralToPlace); enum now 55 variants (from ~100 at the
+   pilot's start). CLASSIFICATION PASS 2026-07-20 (the #132 inventory,
+   wiki checklist updated): (a) place-shaped survivors 11; (c)
+   genuinely distinct ~44 -- dispatch control 9, host/platform 5,
+   port I/O 2, wire codec 10, atomics 2 (place-consumable later,
+   deep), entry/return ABI 4 (CopyRuntimeStorageToReturnRegister a
+   mini-collapse candidate), text builder/byte utils 6, bounded RMW
+   appends 2, convert 1 (single-shape today), text compares 2,
+   CompareRuntimeValues 1. ZERO per-shape opcode crossings remain --
+   the Cartesian disease is ELIMINATED. RECORDED CALL: full
+   value-category-on-operand unification deferred as diminishing
+   returns (no shape crossing left to kill; payload-enum indirection
+   would save ~zero arms) -- revisit when the aarch64 materializer
+   lands. TASK #132 CORE COMPLETE. Then producers + retire 9 done -> classify
    the remaining ~53 variants (already-place-shaped / collapsible-via
    -value-category / genuinely-distinct dispatch-host-wire-atomic /
    straggler mini-collapses); walked-place guard subjects stay a
