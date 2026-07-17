@@ -26745,6 +26745,58 @@ fn windows_wrapper_set_times_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+#[test]
+fn filesystem_lock_target_implementations_compile() {
+    let canary = pass_canary("filesystem/windows_wrapper_lock_exit");
+    for target in ["windows_x64", "linux_x64", "linux_arm64", "macos_arm64"] {
+        omega_compiler::compile_to_checked(&canary.join("main.omg"), Some(target))
+            .unwrap_or_else(|d| panic!("lock wrappers should check for {target}:\n{d:#?}"));
+    }
+}
+
+#[cfg(windows)]
+#[test]
+fn windows_wrapper_lock_exit_canary_runs() {
+    let canary = pass_canary("filesystem/windows_wrapper_lock_exit");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("windows lock wrapper canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should exit 70 (exclusive/shared contention), got {}",
+        outcome.exit_code
+    );
+
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-win-wrapper-lock-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("windows lock wrapper canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .current_dir(&build_dir)
+        .output()
+        .expect("windows lock wrapper canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the windows lock wrapper canary to exit 70, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // The WRAPPER canonicalize contract on windows (session slice 4a): msvcrt
 // has no realpath, so the windows impl composes the HANDLE BRIDGE -- open,
 // _get_osfhandle, GetFinalPathNameByHandleA (the \\?\-prefixed DOS path),

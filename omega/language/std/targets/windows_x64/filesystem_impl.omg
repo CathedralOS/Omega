@@ -851,3 +851,66 @@ windows_x64 machine Filesystem::write_at(&mut self, file: File, bytes: &[u8], of
     state ok(&mut self, n: i64) -> IoResult { IoResult::Ok { count: n as u64 } }
     state err(&mut self) -> IoResult { let kind: ErrorKind = self.last_error(); IoResult::Error { kind: kind } }
 }
+
+// Whole-file advisory locks over the CRT-fd -> HANDLE bridge. LockFileEx sees
+// offset 0 in the zeroed OVERLAPPED and length 2^64-1. `_open` creates
+// synchronous handles, so blocking acquisitions complete before the call
+// returns; providers with overlapped handles owe their own wait composition.
+windows_x64 machine Filesystem::lock(&mut self, file: File) -> UnitResult {
+    self.file_fd = file.fd;
+    let handle: i64 = self.host.get_osfhandle(self.file_fd);
+    let rc: i32 = self.host.lock_file_ex(handle, 2, 0, 4294967295, 4294967295, &mut self.lock_overlapped);
+    transition rc != 0 { true -> ok() _ -> err() }
+    state ok(&mut self) -> UnitResult { UnitResult::Ok }
+    state err(&mut self) -> UnitResult { let kind: ErrorKind = ErrorKind::Other; UnitResult::Error { kind: kind } }
+}
+
+windows_x64 machine Filesystem::lock_shared(&mut self, file: File) -> UnitResult {
+    self.file_fd = file.fd;
+    let handle: i64 = self.host.get_osfhandle(self.file_fd);
+    let rc: i32 = self.host.lock_file_ex(handle, 0, 0, 4294967295, 4294967295, &mut self.lock_overlapped);
+    transition rc != 0 { true -> ok() _ -> err() }
+    state ok(&mut self) -> UnitResult { UnitResult::Ok }
+    state err(&mut self) -> UnitResult { let kind: ErrorKind = ErrorKind::Other; UnitResult::Error { kind: kind } }
+}
+
+windows_x64 machine Filesystem::try_lock(&mut self, file: File) -> TryLockResult {
+    self.file_fd = file.fd;
+    let handle: i64 = self.host.get_osfhandle(self.file_fd);
+    let rc: i32 = self.host.lock_file_ex(handle, 3, 0, 4294967295, 4294967295, &mut self.lock_overlapped);
+    self.lock_errno = self.host.get_last_error();
+    transition rc != 0 { true -> acquired() _ -> contended() }
+    state acquired(&mut self) -> TryLockResult { TryLockResult::Acquired }
+    state contended(&mut self) -> TryLockResult { transition self.lock_errno == 33 { true -> would_block() _ -> failed() } }
+    state would_block(&mut self) -> TryLockResult { TryLockResult::WouldBlock }
+    state failed(&mut self) -> TryLockResult { let kind: ErrorKind = ErrorKind::Other; TryLockResult::Error { kind: kind } }
+}
+
+windows_x64 machine Filesystem::try_lock_shared(&mut self, file: File) -> TryLockResult {
+    self.file_fd = file.fd;
+    let handle: i64 = self.host.get_osfhandle(self.file_fd);
+    let rc: i32 = self.host.lock_file_ex(handle, 1, 0, 4294967295, 4294967295, &mut self.lock_overlapped);
+    self.lock_errno = self.host.get_last_error();
+    transition rc != 0 { true -> acquired() _ -> contended() }
+    state acquired(&mut self) -> TryLockResult { TryLockResult::Acquired }
+    state contended(&mut self) -> TryLockResult { transition self.lock_errno == 33 { true -> would_block() _ -> failed() } }
+    state would_block(&mut self) -> TryLockResult { TryLockResult::WouldBlock }
+    state failed(&mut self) -> TryLockResult { let kind: ErrorKind = ErrorKind::Other; TryLockResult::Error { kind: kind } }
+}
+
+windows_x64 machine Filesystem::unlock(&mut self, file: File) -> UnitResult {
+    self.file_fd = file.fd;
+    let handle: i64 = self.host.get_osfhandle(self.file_fd);
+    let first: i32 = self.host.unlock_file(handle, 0, 0, 4294967295, 4294967295);
+    let second: i32 = self.host.unlock_file(handle, 0, 0, 4294967295, 4294967295);
+    self.lock_errno = self.host.get_last_error();
+    transition first != 0 { true -> second_result(second) _ -> err() }
+    state second_result(&mut self, second: i32) -> UnitResult {
+        transition second != 0 { true -> ok() _ -> second_failed() }
+    }
+    state second_failed(&mut self) -> UnitResult {
+        transition self.lock_errno == 158 { true -> ok() _ -> err() }
+    }
+    state ok(&mut self) -> UnitResult { UnitResult::Ok }
+    state err(&mut self) -> UnitResult { let kind: ErrorKind = ErrorKind::Other; UnitResult::Error { kind: kind } }
+}

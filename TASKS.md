@@ -3845,8 +3845,18 @@ rejects — an INTEGER ruling, engineering rides this ladder as F8).
   mismatch in the repro — `Filesystem::open` is read-only, while Win32
   SetFileTime requires a writable-attributes handle. An explicit read+write
   `OpenOptions` makes the identical value-call pass natively; no backend
-  exception or call-form workaround was needed. lock_file (LockFileEx) is
-  therefore unblocked as the next handle-bridge wrapper. The *at family and
+  exception or call-form workaround was needed. SLICE 4c (whole-file locks)
+  LANDED 2026-07-17: the exact Win32 seams `LockFileEx(handle, flags,
+  reserved, length_low, length_high, &overlapped)`, `UnlockFile(...)`, and
+  `GetLastError()` now lower through the handle bridge; Win64 stack arguments
+  past the fourth are exercised natively. The five portable lock wrappers are
+  target-specific (POSIX flock vs Windows HANDLE locks), with immediate
+  ERROR_LOCK_VIOLATION capture preserving `TryLockResult::WouldBlock`.
+  `windows_wrapper_lock_exit` pins exclusive/shared contention in both the
+  interpreter and a native PE, while its build target checks all four wrapper
+  selections. The blocking Windows form is deliberately scoped to the current
+  synchronous CRT-handle provider; an overlapped provider must compose its own
+  completion wait. The *at family and
   fd-based read_dir stay
   paradigm-refused on windows BY DESIGN (the dirfd paradigm has no Win32
   twin; wrapper-level windows impls already serve the walk); chown/symlink

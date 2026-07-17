@@ -91,6 +91,12 @@ pub const WINDOWS_IMPORT_ROWS: &[(&str, &str, &str, &str)] = &[
     // The set_times leg over the bridge (slice 4b): stamp an open handle's
     // access/write times from wrapper-composed FILETIME buffers.
     ("Filesystem", "set_file_time", "Kernel32.dll", "SetFileTime"),
+    // Whole-file advisory locks (session slice 4c). The wrapper supplies a
+    // zero-offset OVERLAPPED and u64::MAX length; GetLastError is captured
+    // immediately after non-blocking contention.
+    ("Filesystem", "lock_file_ex", "Kernel32.dll", "LockFileEx"),
+    ("Filesystem", "unlock_file", "Kernel32.dll", "UnlockFile"),
+    ("Filesystem", "get_last_error", "Kernel32.dll", "GetLastError"),
     // set_len -> `_chsize_s(fd, __int64 size)` (ftruncate's msvcrt analogue). The
     // 64-bit variant so the i64 length is not truncated to `_chsize`'s 32-bit
     // `long`; returns 0 on success like ftruncate (the wrapper checks rc == 0 and
@@ -492,6 +498,27 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
             "FilesystemHost",
             "set_file_time",
             [host_operation("Filesystem", "set_file_time")],
+            PlatformCallData::None,
+        );
+        insert_platform_lowering(
+            plan,
+            "FilesystemHost",
+            "lock_file_ex",
+            [host_operation("Filesystem", "lock_file_ex")],
+            PlatformCallData::None,
+        );
+        insert_platform_lowering(
+            plan,
+            "FilesystemHost",
+            "unlock_file",
+            [host_operation("Filesystem", "unlock_file")],
+            PlatformCallData::None,
+        );
+        insert_platform_lowering(
+            plan,
+            "FilesystemHost",
+            "get_last_error",
+            [host_operation("Filesystem", "get_last_error")],
             PlatformCallData::None,
         );
         insert_platform_lowering(

@@ -341,6 +341,11 @@ data Filesystem {
     // subslices. Kept as explicit 8-byte arrays for simple-address lowering.
     access_filetime: [u8; 8];
     modified_filetime: [u8; 8];
+    // Zeroed OVERLAPPED record for Win32 whole-file LockFileEx. CRT-created
+    // handles are synchronous, so the offset fields remain zero and no event
+    // handle is required. The exact 32-byte Win64 record still crosses the raw
+    // seam explicitly rather than being synthesized by the compiler.
+    lock_overlapped: [u8; 32];
     // Scratch for `create_dir_all`'s per-position best-effort mkdir result
     // (`walk` ignores it -- an already-present ancestor is fine).
     walk_rc: i32;
@@ -1225,73 +1230,10 @@ machine Filesystem::try_clone(&mut self, file: File) -> OpenResult {
     state err(&mut self) -> OpenResult { let kind: ErrorKind = self.last_error(); OpenResult::Error { kind: kind } }
 }
 
-// Advisory whole-file locking (Rust `File::lock`/`lock_shared`/`try_lock`/
-// `try_lock_shared`/`unlock` -> POSIX `flock`). Advisory = only other `flock`
-// users cooperate; the OS does not enforce it against unaware writers. The lock
-// is on the open file description, so an independent `open` of the same path is
-// a distinct holder that can contend. `operation` bit values: LOCK_SH=1,
-// LOCK_EX=2, LOCK_NB=4, LOCK_UN=8.
-
-// Take an EXCLUSIVE lock, blocking until it is available (Rust `File::lock`).
-machine Filesystem::lock(&mut self, file: File) -> UnitResult {
-    self.file_fd = file.fd;
-    let rc: i32 = self.host.lock_file(self.file_fd, 2); // LOCK_EX
-    transition rc == 0 { true -> ok() _ -> err() }
-    state ok(&mut self) -> UnitResult { UnitResult::Ok }
-    state err(&mut self) -> UnitResult { let kind: ErrorKind = self.last_error(); UnitResult::Error { kind: kind } }
-}
-
-// Take a SHARED lock, blocking until available (Rust `File::lock_shared`).
-machine Filesystem::lock_shared(&mut self, file: File) -> UnitResult {
-    self.file_fd = file.fd;
-    let rc: i32 = self.host.lock_file(self.file_fd, 1); // LOCK_SH
-    transition rc == 0 { true -> ok() _ -> err() }
-    state ok(&mut self) -> UnitResult { UnitResult::Ok }
-    state err(&mut self) -> UnitResult { let kind: ErrorKind = self.last_error(); UnitResult::Error { kind: kind } }
-}
-
-// Try to take an EXCLUSIVE lock WITHOUT blocking (Rust `File::try_lock`).
-// `WouldBlock` (errno EWOULDBLOCK) means another holder has it — distinct from a
-// real `Error`, mirroring Rust's `Ok(false)` vs `Err`.
-machine Filesystem::try_lock(&mut self, file: File) -> TryLockResult {
-    self.file_fd = file.fd;
-    let rc: i32 = self.host.lock_file(self.file_fd, 6); // LOCK_EX | LOCK_NB
-    // Errno captured in the ENTRY (the try_exists idiom): valid right after the
-    // failing flock; on success it is stale but UNREAD (the acquired arm never
-    // looks). An errno() call in the contended ARM trips the effectful-arm fence.
-    self.lock_errno = self.host.errno();
-    transition rc == 0 { true -> acquired() _ -> contended() }
-    state acquired(&mut self) -> TryLockResult { TryLockResult::Acquired }
-    state contended(&mut self) -> TryLockResult {
-        transition self.lock_errno == 35 { true -> would_block() _ -> failed() }
-    }
-    state would_block(&mut self) -> TryLockResult { TryLockResult::WouldBlock }
-    state failed(&mut self) -> TryLockResult { let kind: ErrorKind = self.last_error(); TryLockResult::Error { kind: kind } }
-}
-
-// Try to take a SHARED lock WITHOUT blocking (Rust `File::try_lock_shared`).
-machine Filesystem::try_lock_shared(&mut self, file: File) -> TryLockResult {
-    self.file_fd = file.fd;
-    let rc: i32 = self.host.lock_file(self.file_fd, 5); // LOCK_SH | LOCK_NB
-    // Entry-captured errno; see try_lock.
-    self.lock_errno = self.host.errno();
-    transition rc == 0 { true -> acquired() _ -> contended() }
-    state acquired(&mut self) -> TryLockResult { TryLockResult::Acquired }
-    state contended(&mut self) -> TryLockResult {
-        transition self.lock_errno == 35 { true -> would_block() _ -> failed() }
-    }
-    state would_block(&mut self) -> TryLockResult { TryLockResult::WouldBlock }
-    state failed(&mut self) -> TryLockResult { let kind: ErrorKind = self.last_error(); TryLockResult::Error { kind: kind } }
-}
-
-// Release any lock held on this file (Rust `File::unlock`).
-machine Filesystem::unlock(&mut self, file: File) -> UnitResult {
-    self.file_fd = file.fd;
-    let rc: i32 = self.host.lock_file(self.file_fd, 8); // LOCK_UN
-    transition rc == 0 { true -> ok() _ -> err() }
-    state ok(&mut self) -> UnitResult { UnitResult::Ok }
-    state err(&mut self) -> UnitResult { let kind: ErrorKind = self.last_error(); UnitResult::Error { kind: kind } }
-}
+// Advisory whole-file locking is target-specific. POSIX targets use flock;
+// windows_x64 bridges the CRT fd to a HANDLE and uses LockFileEx/UnlockFile.
+// All five machines preserve this portable contract: blocking exclusive/shared
+// acquire, non-blocking acquire with a distinct WouldBlock result, and unlock.
 
 // Ownership (Rust `std::os::unix::fs::{chown, lchown, fchown}`). uid/gid of -1
 // leaves that component unchanged. Changing ownership generally requires

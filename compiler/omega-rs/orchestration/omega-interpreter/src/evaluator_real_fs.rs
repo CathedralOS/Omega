@@ -935,6 +935,39 @@ impl<'program> super::Evaluator<'program> {
                     }
                 }
             }
+            "lock_file_ex" => {
+                // Win32 LockFileEx semantics over the provider's synthetic
+                // handle. The exact byte range is intentionally ignored here:
+                // the std wrapper always supplies offset zero + u64::MAX.
+                let fd = self.eval_fs_scalar(arguments.first().copied(), frame)? as i32;
+                let flags = self.eval_fs_scalar(arguments.get(1).copied(), frame)? as i32;
+                let real = self.real_fs_mut();
+                match real.files.get(&fd) {
+                    Some(entry) => real_lock_win32(&entry.file, flags, &mut real.errno),
+                    None => {
+                        real.errno = 6; // ERROR_INVALID_HANDLE
+                        0
+                    }
+                }
+            }
+            "unlock_file" => {
+                let fd = self.eval_fs_scalar(arguments.first().copied(), frame)? as i32;
+                let real = self.real_fs_mut();
+                match real.files.get(&fd) {
+                    Some(entry) => match entry.file.unlock() {
+                        Ok(()) => 1,
+                        Err(error) => {
+                            real.errno = error.raw_os_error().unwrap_or(158);
+                            0
+                        }
+                    },
+                    None => {
+                        real.errno = 6; // ERROR_INVALID_HANDLE
+                        0
+                    }
+                }
+            }
+            "get_last_error" => i64::from(self.real_fs_mut().errno),
             "change_owner" | "change_owner_no_follow" => {
                 // `chown`/`lchown(path, uid, gid)`: -1 leaves the component
                 // alone (None). Metadata mutation = write authority.
@@ -1266,6 +1299,43 @@ fn real_lock(file: &std::fs::File, operation: i32, errno: &mut i32) -> i64 {
         Err(error) => {
             *errno = io_errno(&error);
             -1
+        }
+    }
+}
+
+/// Win32 LockFileEx flags over std's portable file-lock API. Returns BOOL and
+/// records Win32 ERROR_LOCK_VIOLATION (33) for a non-blocking contention miss.
+fn real_lock_win32(file: &std::fs::File, flags: i32, last_error: &mut i32) -> i64 {
+    let immediate = flags & 1 != 0;
+    let exclusive = flags & 2 != 0;
+    if immediate {
+        let outcome = if exclusive {
+            file.try_lock()
+        } else {
+            file.try_lock_shared()
+        };
+        return match outcome {
+            Ok(()) => 1,
+            Err(std::fs::TryLockError::WouldBlock) => {
+                *last_error = 33;
+                0
+            }
+            Err(std::fs::TryLockError::Error(error)) => {
+                *last_error = error.raw_os_error().unwrap_or(1);
+                0
+            }
+        };
+    }
+    let outcome = if exclusive {
+        file.lock()
+    } else {
+        file.lock_shared()
+    };
+    match outcome {
+        Ok(()) => 1,
+        Err(error) => {
+            *last_error = error.raw_os_error().unwrap_or(1);
+            0
         }
     }
 }

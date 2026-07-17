@@ -2938,6 +2938,59 @@ impl<'program> Evaluator<'program> {
                     }
                 }
             }
+            "lock_file_ex" => {
+                // Win32 LockFileEx over the synthetic fd/HANDLE. flags:
+                // EXCLUSIVE=2, FAIL_IMMEDIATELY=1. The range/OVERLAPPED
+                // arguments are ABI-shape inputs; the std wrapper always asks
+                // for offset zero and the whole file.
+                let fd = self.eval_fs_scalar(arguments.first().copied(), frame)? as i32;
+                let flags = self.eval_fs_scalar(arguments.get(1).copied(), frame)? as i32;
+                let path = self
+                    .virtual_fds
+                    .get(&fd)
+                    .map(|descriptor| descriptor.path.clone());
+                match path {
+                    None => {
+                        self.virtual_errno = 6; // ERROR_INVALID_HANDLE
+                        0
+                    }
+                    Some(path) => {
+                        let held_by_other = matches!(
+                            self.virtual_flocks.get(&path),
+                            Some(owner) if *owner != fd
+                        );
+                        if held_by_other && flags & 1 != 0 {
+                            self.virtual_errno = 33; // ERROR_LOCK_VIOLATION
+                            0
+                        } else {
+                            self.virtual_flocks.insert(path, fd);
+                            1
+                        }
+                    }
+                }
+            }
+            "unlock_file" => {
+                let fd = self.eval_fs_scalar(arguments.first().copied(), frame)? as i32;
+                let path = self
+                    .virtual_fds
+                    .get(&fd)
+                    .map(|descriptor| descriptor.path.clone());
+                match path {
+                    None => {
+                        self.virtual_errno = 6; // ERROR_INVALID_HANDLE
+                        0
+                    }
+                    Some(path) if self.virtual_flocks.get(&path) == Some(&fd) => {
+                        self.virtual_flocks.remove(&path);
+                        1
+                    }
+                    Some(_) => {
+                        self.virtual_errno = 158; // ERROR_NOT_LOCKED
+                        0
+                    }
+                }
+            }
+            "get_last_error" => i64::from(self.virtual_errno),
             // `remove_name` is the TRUSTED plain-path twin (D-at trust class,
             // the create_dir_name precedent): the arg bytes ARE the path, so
             // both spellings share one model.
