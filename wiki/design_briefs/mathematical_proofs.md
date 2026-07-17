@@ -26,6 +26,10 @@ emits no runtime work.
 ## Quantification and proof data
 
 - Universal claims use machine parameters checked symbolically.
+- A generic accepted axiom over `<machine M>` spends one grant on the
+  normalized template statement and its required machine contract. Instances
+  record the selected machine-contract identity but do not spend another
+  grant; narrowly trusted instances use non-generic accepted facts.
 - Element-wise claims use element domains/types.
 - Prefix/window claims use bounded views such as `items[0..loaded]`.
 - Relational sequence claims use predicate machines plus extraction lemmas.

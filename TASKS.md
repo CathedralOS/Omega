@@ -183,7 +183,8 @@ sealed progress profiles + grants, TPR4's remaining big half).
    engineering-ready: Nat strict-ranking evidence for computed `sub`, then
    mod/gcd. Remaining: N3 routing, N4's Seq/Bag/Rat + extraction lemmas + view
    dissolution. Continue into N5–N7 when
-   reached (they need the `<machine M>` plumbing and the `%` former).
+   reached (they need the now-ruled `<machine M>` engineering plumbing and the
+   `%` former).
 2. **Legacy measured-recursion implementation MR1–MR5 — LANDED.**
    MR4's first cross-machine tail-cycle admission shape landed 2026-07-20
    (task #135; detail below). Richer guards and multi-subject lexicographic
@@ -2021,8 +2022,8 @@ lowers. Historical rungs:
   regressive churn. The admitted pass canary is the live test.
   QUEUE SWEEP RECONCILED 2026-07-20 (post-#135): the texteq pair and
   trailing-state-mut repro remain claimed by the fs lane's
-  dispatch-region/receiver-phase family. `<machine M>` generics remain a
-  genuine owner question blocking only N5/N6 schema axioms and Seq
+  dispatch-region/receiver-phase family. `<machine M>` generics are
+  design-ruled; their implementation gates N5/N6 schema axioms and Seq
   map/filter. The wider queue is NOT exhausted: field-default retirement,
   Nat strict-ranking evidence plus mod/gcd, the shared grant/receipt carrier,
   ProviderPlan migration, and the task-runtime ladder are design-ruled,
@@ -2594,7 +2595,7 @@ no `unbounded` property exists. Rungs:
   head add computing through. snoc_reverse LANDED same day (first
   try, pure compute-mode: both sides normalize to the same append --
   Lean List.reverse_cons); zoo at 14 Seq + 8 Nat-lemma surface. Next
-  zoo: map/filter once generics-over-machines land. REMAINING:
+  zoo: map/filter once the machine-parameter implementation lands. REMAINING:
   more of the lemma zoo as the judge widens (commutativity needs
   double induction / rearrange-mode), extraction INTO consumer proofs
   (a caller citing a lemma's ensures — the fact-consumption face), the
@@ -3966,8 +3967,19 @@ with a real app-window story.
 - **Freestanding target + hardware vocabulary.**
 - **Build-time evaluation:** comptime eval + trait generators (effect-free
   machines in value/refinement position).
-- **Generics completion:** stage-1 data monomorphization landed; machines/
-  traits remainder.
+- **Generics completion — machine parameters DESIGN-RULED 2026-07-20:**
+  stage-1 data monomorphization landed. MP1 parse/store `<machine M>` and the
+  MANDATORY `where machine M(args) -> Result` contract in every tree layer;
+  reject a used machine parameter without that authored contract at its
+  declaration (never infer from uses, consumers, or instantiation count); MP2 resolve call-site
+  machine-symbol arguments and check their normalized contracts refine the
+  requirement; MP3 check generic bodies modularly from the required contract;
+  MP4 monomorphize and substitute each `M(...)` use into a direct static call
+  with stable specialization/cache identity; MP5 record accepted-template
+  grants once plus argument contract IDs per instance; MP6 land `Seq`
+  map/filter, N5/N6 schema-axiom, task-runtime, and build-surface canaries. No
+  runtime callable value, dictionary, or capture inference is introduced;
+  dynamic dispatch remains `dyn Trait`.
 - **Allocator story:** `Vec` has no runtime. Retire ambient legacy `alloc` in
   favor of explicit allocator/region capabilities and dependent resource
   contracts. Quantitative `Alloc<Peak, Retained>`-style rows wait for the
@@ -4115,7 +4127,7 @@ with a real app-window story.
   angle brackets -- CHECK whether ch13's call surface parses
   explicit angle-bracket arguments on method calls today; if the
   spelling needs the `<machine M>` surface it may be gated on that
-  owner question -- if so, a v1 STRING-path argument or a dedicated
+  implementation rung -- if so, a v1 STRING-path argument or a dedicated
   statement recognizer inside the build machine avoids the gate,
   judgment call to record), populate TrustGrantTable RootGrant rows,
   and thread the table from compute_build_config into validation
@@ -4149,8 +4161,8 @@ with a real app-window story.
   angle-bracket call arguments anywhere (no turbofish, no
   type_arguments on calls) -- accept_boundary<path>() needs new
   surface; a dedicated postfix carve for the accept_boundary member
-  spelling is the recorded v1 (avoids inventing general machine
-  generics ahead of the <machine M> owner question).
+  spelling is the recorded v1 (it need not wait for general machine-parameter
+  implementation).
   GR6 the remaining consumers -- qualification AUTHORITY half
   (qualifications.rs:26-32), ProgressProfile minting + the three
   premises stubs, MachineContractPlan permission half, boundary
