@@ -130,6 +130,8 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("arithmetic/runtime_signed_division_exit", 70),
     ("arithmetic/runtime_shift_right_signedness", 70),
     ("arithmetic/const_fold_unsigned_landed_ops_exit", 70),
+    ("arithmetic/const_fold_saturating_narrow_exit", 70),
+    ("arithmetic/const_fold_wrapping_narrow_exit", 70),
     ("arithmetic/const_fold_unsigned_shift_right_arg_exit", 70),
     ("arithmetic/const_fold_unsigned_divide_arg_exit", 70),
     ("arithmetic/unsigned_min_max_wrapping_local_exit", 77),
