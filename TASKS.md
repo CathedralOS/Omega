@@ -631,7 +631,17 @@ sealed progress profiles + grants, TPR4's remaining big half).
    then store the immediate in chunks through rax); delegate the
    simplest variant byte-for-byte first (WriteRuntimeStorageInteger),
    then migrate producers shape by shape with aarch64 decomposes to
-   the retained Write encoders, mirroring the Copy rungs exactly. Pre-existing dead helpers noted en route (shapes/copies.rs
+   the retained Write encoders, mirroring the Copy rungs exactly.
+   WRITE RUNG 1a LANDED 2026-07-19 (the materializer entry, zero enum
+   churn): `encode_place_integer_write(target, value, byte_size)` in
+   place_copy.rs -- the target address materializes through the SAME
+   walk as the copy entries (r15 base, r11/r10 index discipline
+   unchanged), the value stages through rax, the residual const folds
+   into the width store's displacement. Unit-pinned: a DIRECT place is
+   byte-for-byte the retired integer-write layout; an INDEXED target
+   rides the index discipline. Re-exported for rung 1b (the
+   WritePlaceInteger variant + its echo product + the first
+   byte-for-byte delegation). Pre-existing dead helpers noted en route (shapes/copies.rs
    runtime_storage_copy_kind + _to_runtime_frame_indexed_kind +
    from/to_machine_indexed_kind -- orphaned by EARLIER retirements,
    swept opportunistically at the next touch).

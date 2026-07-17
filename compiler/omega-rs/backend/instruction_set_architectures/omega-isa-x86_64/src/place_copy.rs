@@ -244,6 +244,26 @@ fn encode_place_copy_with_sites(
     Ok((bytes, sites))
 }
 
+/// The WRITE-family materializer entry (Write rung 1a): store an immediate
+/// integer at `byte_size` into a place-shaped target. The target address
+/// materializes through the SAME walk as the copy entries (r15 base, the
+/// r11/r10 index discipline unchanged); the value stages through rax. For a
+/// DIRECT place this is byte-for-byte the retired integer-write layout
+/// (`mov r15,imm64(0)`; `mov rax,imm64(value)`; width store).
+pub fn encode_place_integer_write(
+    target: &Place,
+    value: i64,
+    byte_size: usize,
+) -> Result<(Vec<u8>, PlaceCopySites), Diagnostic> {
+    let mut bytes = Vec::new();
+    let mut sites = PlaceCopySites::default();
+    let displacement =
+        materialize_place_address(&mut bytes, &mut sites, target, AddressRegister::Target)?;
+    super::append_mov_rax_imm64(&mut bytes, value as u64);
+    super::append_store_rax_to_r15(&mut bytes, displacement, byte_size)?;
+    Ok((bytes, sites))
+}
+
 /// The `CopyPlaces` entry: ONE routine that picks the emission shape from the
 /// place pair itself -- shared-base when both places root in the SAME region
 /// and a side derefs (the shape every retired same-region indexed/pointee
@@ -885,6 +905,48 @@ mod tests {
         let target = Place::at(RuntimeStorageRegion::RuntimeFrame, 64);
         let error = encode_copy_places(&source, &target, 4).expect_err("refuses");
         assert!(error.to_string().contains("at most two runtime scaled indices"));
+    }
+
+    /// Write rung 1a: a DIRECT place target is byte-for-byte the retired
+    /// integer-write layout (mov r15,imm64; mov rax,imm64; width store).
+    #[test]
+    fn place_integer_write_direct_matches_the_retired_layout() {
+        let target = Place::at(RuntimeStorageRegion::Machine, 24);
+        let (bytes, sites) = encode_place_integer_write(&target, 70, 4).expect("encodes");
+
+        let mut expected = Vec::new();
+        super::super::append_mov_r15_imm64(&mut expected, 0);
+        super::super::append_mov_rax_imm64(&mut expected, 70);
+        super::super::append_store_rax_to_r15(&mut expected, 24, 4).expect("store");
+        assert_eq!(bytes, expected);
+        let sides: Vec<PlaceCopySide> = sites.iter().map(|(_, side)| side).collect();
+        assert_eq!(sides, vec![PlaceCopySide::Target]);
+    }
+
+    /// An INDEXED target rides the same index discipline: the index preloads
+    /// into r11 while r15 still equals the region base, the add fires at the
+    /// step position, the residual const folds into the store displacement.
+    #[test]
+    fn place_integer_write_indexed_layout() {
+        let target = Place::at(RuntimeStorageRegion::Machine, 32)
+            .with_step(PlaceStep::ScaledIndex {
+                index_region: RuntimeStorageRegion::Machine,
+                index_offset: 8,
+                element_byte_size: 4,
+            })
+            .unwrap()
+            .with_step(PlaceStep::ConstOffset(2))
+            .unwrap();
+        let (bytes, _) = encode_place_integer_write(&target, 9, 1).expect("encodes");
+
+        let mut expected = Vec::new();
+        super::super::append_mov_r15_imm64(&mut expected, 0);
+        super::super::append_load_index_r11_from_r15(&mut expected, 8).expect("index");
+        super::super::append_imul_r11_imm32(&mut expected, 4);
+        super::super::append_add_r15_r11(&mut expected);
+        super::super::append_mov_rax_imm64(&mut expected, 9);
+        super::super::append_store_rax_to_r15(&mut expected, 34, 1).expect("store");
+        assert_eq!(bytes, expected);
     }
 }
 

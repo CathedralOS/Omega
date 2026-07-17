@@ -1,5 +1,6 @@
 mod place_copy;
 pub use place_copy::{
+    encode_place_integer_write,
     PLACE_COPY_MAX_SITES, PlaceCopySide, PlaceCopySites, encode_copy_places, encode_place_copy,
     encode_place_copy_shared_base,
 };
