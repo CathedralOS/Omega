@@ -199,9 +199,17 @@ pub(super) fn parse_item<'tokens, 'source>(
     }
 
     if input.at_keyword(KeywordKind::Platform) {
-        let input = input.take_keyword(KeywordKind::Platform, "platform")?;
-        let (item, rest) = parse_platform(syntax_trees, input)?;
-        return Ok((Item::Platform(item), rest));
+        // RETIRED (PRV4/P4d, ruling 2026-07-17): platform blocks are the
+        // pre-boundary-culture host surface. A host service is a
+        // `boundary trait` (declared effects rows, ordinary requires/
+        // ensures); Console's promotion proved the migration is a
+        // spelling change.
+        return Err(input.error_here(
+            "`platform` blocks are retired: declare the host surface as a \
+             `boundary trait` with per-method `effects` rows (std's Console \
+             is the model) -- same signatures, same requires/ensures, and \
+             the purity checker sees the truth",
+        ));
     }
 
     if input.at_contextual("trait") {
