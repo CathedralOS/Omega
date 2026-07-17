@@ -703,6 +703,12 @@ impl ExpressionTable {
         self.expressions.get(handle)
     }
 
+    pub fn iter_expressions(
+        &self,
+    ) -> impl Iterator<Item = (ExpressionHandle, &ExpressionNode)> {
+        self.expressions.iter()
+    }
+
     pub fn expression_is_literal(&self, handle: ExpressionHandle) -> bool {
         matches!(
             self.expression(handle),

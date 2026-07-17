@@ -12,6 +12,7 @@ mod invariants;
 mod literals;
 mod locals;
 mod machine_data;
+mod machine_parameters;
 mod operators;
 mod places;
 mod proof_facts;
@@ -104,6 +105,7 @@ pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
     wire::validate_wire_schemas(program, &symbols, &mut diagnostics);
     operators::validate_operator_declarations(program, &mut diagnostics);
     validate_entry_point(program, &mut diagnostics);
+    machine_parameters::validate_static_machine_arguments(program, &mut diagnostics);
 
     for machine in program.machines() {
         let machine_symbols = MachineSymbols::build(program, machine, &mut diagnostics);
