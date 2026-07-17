@@ -31,45 +31,6 @@ fn runtime_storage_binary_write_kind(
     MachineInstructionKind::RuntimeStorageBinaryWrite
 }
 
-fn runtime_pointee_binary_write_kind(
-    _pointer_byte_offset: usize,
-    _field_byte_offset: usize,
-    _byte_size: usize,
-    _operator: StateGuardOperator,
-) -> MachineInstructionKind {
-    MachineInstructionKind::RuntimePointeeBinaryWrite
-}
 
-fn runtime_frame_indexed_binary_write_kind(
-    _descriptor_offset: usize,
-    _index_offset: usize,
-    _element_byte_size: usize,
-    _field_byte_offset: usize,
-    _byte_size: usize,
-    _operator: StateGuardOperator,
-) -> MachineInstructionKind {
-    MachineInstructionKind::RuntimeFrameIndexedBinaryWrite
-}
 
-fn runtime_frame_base_indexed_binary_write_kind(
-    _base_byte_offset: usize,
-    _index_offset: usize,
-    _element_byte_size: usize,
-    _field_byte_offset: usize,
-    _byte_size: usize,
-    _operator: StateGuardOperator,
-) -> MachineInstructionKind {
-    MachineInstructionKind::RuntimeFrameBaseIndexedBinaryWrite
-}
 
-fn runtime_machine_indexed_binary_write_kind(
-    _base_byte_offset: usize,
-    _index_region: RuntimeStorageRegion,
-    _index_offset: usize,
-    _element_byte_size: usize,
-    _field_byte_offset: usize,
-    _byte_size: usize,
-    _operator: StateGuardOperator,
-) -> MachineInstructionKind {
-    MachineInstructionKind::RuntimeMachineIndexedBinaryWrite
-}

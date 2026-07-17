@@ -209,35 +209,7 @@ pub(super) fn encode_runtime_value_compare(
     )
 }
 
-pub(super) fn encode_runtime_machine_integer_write(
-    input: MachineEmissionContext<'_>,
-    byte_offset: usize,
-    byte_size: usize,
-    value: i64,
-) -> Result<Vec<u8>, Diagnostic> {
-    architecture::encode_runtime_machine_integer_write(
-        input.target.architecture,
-        byte_offset,
-        byte_size,
-        value,
-    )
-}
 
-pub(super) fn encode_runtime_pointee_integer_write(
-    input: MachineEmissionContext<'_>,
-    pointer_byte_offset: usize,
-    field_byte_offset: usize,
-    byte_size: usize,
-    value: i64,
-) -> Result<Vec<u8>, Diagnostic> {
-    architecture::encode_runtime_pointee_integer_write(
-        input.target.architecture,
-        pointer_byte_offset,
-        field_byte_offset,
-        byte_size,
-        value,
-    )
-}
 
 #[allow(clippy::too_many_arguments)]
 /// Binary rung 2a: the place-shaped binary write's per-arch dispatcher.
@@ -269,32 +241,6 @@ pub(super) fn encode_write_place_binary(
     )
 }
 
-pub(super) fn encode_runtime_storage_binary_write(
-    input: MachineEmissionContext<'_>,
-    target_offset: usize,
-    byte_size: usize,
-    left: RuntimeValueOperandHandle,
-    operator: StateGuardOperator,
-    right: RuntimeValueOperandHandle,
-    is_float: bool,
-    domain: omega_core::arithmetic::ArithmeticDomain,
-    target_signed: bool,
-) -> Result<Vec<u8>, Diagnostic> {
-    validate_runtime_value_home(input, left)?;
-    validate_runtime_value_home(input, right)?;
-    architecture::encode_runtime_storage_binary_write(
-        input.target.architecture,
-        input.assigned_target_operations,
-        target_offset,
-        byte_size,
-        left,
-        operator,
-        right,
-        is_float,
-        domain,
-        target_signed,
-    )
-}
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn encode_runtime_storage_convert(
@@ -358,209 +304,13 @@ pub(super) fn encode_atomic_compare_exchange(
     )
 }
 
-pub(super) fn encode_runtime_pointee_binary_write(
-    input: MachineEmissionContext<'_>,
-    pointer_byte_offset: usize,
-    field_byte_offset: usize,
-    byte_size: usize,
-    left: RuntimeValueOperandHandle,
-    operator: StateGuardOperator,
-    right: RuntimeValueOperandHandle,
-) -> Result<Vec<u8>, Diagnostic> {
-    validate_runtime_value_home(input, left)?;
-    validate_runtime_value_home(input, right)?;
-    architecture::encode_runtime_pointee_binary_write(
-        input.target.architecture,
-        input.assigned_target_operations,
-        pointer_byte_offset,
-        field_byte_offset,
-        byte_size,
-        left,
-        operator,
-        right,
-    )
-}
 
-pub(super) fn encode_runtime_frame_indexed_integer_write(
-    input: MachineEmissionContext<'_>,
-    descriptor_offset: usize,
-    index_offset: usize,
-    element_byte_size: usize,
-    field_byte_offset: usize,
-    byte_size: usize,
-    value: i64,
-) -> Result<Vec<u8>, Diagnostic> {
-    architecture::encode_runtime_frame_indexed_integer_write(
-        input.target.architecture,
-        descriptor_offset,
-        index_offset,
-        element_byte_size,
-        field_byte_offset,
-        byte_size,
-        value,
-    )
-}
 
-pub(super) fn encode_runtime_frame_base_indexed_integer_write(
-    input: MachineEmissionContext<'_>,
-    base_byte_offset: usize,
-    index_offset: usize,
-    element_byte_size: usize,
-    field_byte_offset: usize,
-    byte_size: usize,
-    value: i64,
-) -> Result<Vec<u8>, Diagnostic> {
-    architecture::encode_runtime_frame_base_indexed_integer_write(
-        input.target.architecture,
-        base_byte_offset,
-        index_offset,
-        element_byte_size,
-        field_byte_offset,
-        byte_size,
-        value,
-    )
-}
 
-pub(super) fn encode_runtime_machine_indexed_integer_write(
-    input: MachineEmissionContext<'_>,
-    base_byte_offset: usize,
-    index_region: omega_target_operations::RuntimeStorageRegion,
-    index_offset: usize,
-    element_byte_size: usize,
-    field_byte_offset: usize,
-    byte_size: usize,
-    value: i64,
-) -> Result<Vec<u8>, Diagnostic> {
-    architecture::encode_runtime_machine_indexed_integer_write(
-        input.target.architecture,
-        base_byte_offset,
-        index_region,
-        index_offset,
-        element_byte_size,
-        field_byte_offset,
-        byte_size,
-        value,
-    )
-}
 
-pub(super) fn encode_runtime_frame_indexed_binary_write(
-    input: MachineEmissionContext<'_>,
-    descriptor_offset: usize,
-    index_offset: usize,
-    element_byte_size: usize,
-    field_byte_offset: usize,
-    byte_size: usize,
-    left: RuntimeValueOperandHandle,
-    operator: StateGuardOperator,
-    right: RuntimeValueOperandHandle,
-) -> Result<Vec<u8>, Diagnostic> {
-    validate_runtime_value_home(input, left)?;
-    validate_runtime_value_home(input, right)?;
-    architecture::encode_runtime_frame_indexed_binary_write(
-        input.target.architecture,
-        input.assigned_target_operations,
-        descriptor_offset,
-        index_offset,
-        element_byte_size,
-        field_byte_offset,
-        byte_size,
-        left,
-        operator,
-        right,
-    )
-}
 
-pub(super) fn encode_runtime_frame_base_indexed_binary_write(
-    input: MachineEmissionContext<'_>,
-    base_byte_offset: usize,
-    index_offset: usize,
-    element_byte_size: usize,
-    field_byte_offset: usize,
-    byte_size: usize,
-    left: RuntimeValueOperandHandle,
-    operator: StateGuardOperator,
-    right: RuntimeValueOperandHandle,
-) -> Result<Vec<u8>, Diagnostic> {
-    validate_runtime_value_home(input, left)?;
-    validate_runtime_value_home(input, right)?;
-    architecture::encode_runtime_frame_base_indexed_binary_write(
-        input.target.architecture,
-        input.assigned_target_operations,
-        base_byte_offset,
-        index_offset,
-        element_byte_size,
-        field_byte_offset,
-        byte_size,
-        left,
-        operator,
-        right,
-    )
-}
 
-#[allow(clippy::too_many_arguments)]
-pub(super) fn encode_runtime_machine_indexed_binary_write(
-    input: MachineEmissionContext<'_>,
-    base_byte_offset: usize,
-    index_region: omega_target_operations::RuntimeStorageRegion,
-    index_offset: usize,
-    element_byte_size: usize,
-    field_byte_offset: usize,
-    byte_size: usize,
-    left: RuntimeValueOperandHandle,
-    operator: StateGuardOperator,
-    right: RuntimeValueOperandHandle,
-) -> Result<Vec<u8>, Diagnostic> {
-    validate_runtime_value_home(input, left)?;
-    validate_runtime_value_home(input, right)?;
-    architecture::encode_runtime_machine_indexed_binary_write(
-        input.target.architecture,
-        input.assigned_target_operations,
-        base_byte_offset,
-        index_region,
-        index_offset,
-        element_byte_size,
-        field_byte_offset,
-        byte_size,
-        left,
-        operator,
-        right,
-    )
-}
 
-pub(super) fn encode_runtime_machine_double_indexed_binary_write(
-    input: MachineEmissionContext<'_>,
-    base_byte_offset: usize,
-    outer_index_offset: usize,
-    outer_index_region: omega_target_operations::RuntimeStorageRegion,
-    outer_stride: usize,
-    inner_index_offset: usize,
-    inner_index_region: omega_target_operations::RuntimeStorageRegion,
-    inner_stride: usize,
-    field_byte_offset: usize,
-    byte_size: usize,
-    left: RuntimeValueOperandHandle,
-    operator: StateGuardOperator,
-    right: RuntimeValueOperandHandle,
-) -> Result<Vec<u8>, Diagnostic> {
-    validate_runtime_value_home(input, left)?;
-    validate_runtime_value_home(input, right)?;
-    architecture::encode_runtime_machine_double_indexed_binary_write(
-        input.target.architecture,
-        input.assigned_target_operations,
-        base_byte_offset,
-        outer_index_offset,
-        outer_index_region,
-        outer_stride,
-        inner_index_offset,
-        inner_index_region,
-        inner_stride,
-        field_byte_offset,
-        byte_size,
-        left,
-        operator,
-        right,
-    )
-}
 
 pub(super) fn encode_runtime_machine_string_write(
     input: MachineEmissionContext<'_>,
@@ -794,32 +544,5 @@ pub(super) fn encode_runtime_machine_indexed_address_to_runtime_frame_write(
 
 
 
-pub(super) fn encode_runtime_machine_double_indexed_integer_write(
-    input: MachineEmissionContext<'_>,
-    base_byte_offset: usize,
-    outer_index_offset: usize,
-    outer_index_region: omega_target_operations::RuntimeStorageRegion,
-    outer_stride: usize,
-    inner_index_offset: usize,
-    inner_index_region: omega_target_operations::RuntimeStorageRegion,
-    inner_stride: usize,
-    field_byte_offset: usize,
-    byte_size: usize,
-    value: i64,
-) -> Result<Vec<u8>, Diagnostic> {
-    architecture::encode_runtime_machine_double_indexed_integer_write(
-        input.target.architecture,
-        base_byte_offset,
-        outer_index_offset,
-        outer_index_region,
-        outer_stride,
-        inner_index_offset,
-        inner_index_region,
-        inner_stride,
-        field_byte_offset,
-        byte_size,
-        value,
-    )
-}
 
 
