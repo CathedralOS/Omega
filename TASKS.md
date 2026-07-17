@@ -693,13 +693,24 @@ sealed progress profiles + grants, TPR4's remaining big half).
    unreachable -- a write materializes only the target) + the shapes
    machine-kind arm (keeps the plain integer write's machine shape,
    the CopyPlaces precedent).
-   RUNG 2b NEXT: producer migration -- x86-gated (aarch64 refuses the
-   variant), so producers can only switch once the aarch64 decompose
-   arm lands OR per-target selection splits; the honest order is the
-   aarch64 decompose FIRST (match target place shape -> the six
-   retained aarch64 integer-write encoders + a per-shape walker arm),
-   then the seven producers migrate unconditionally, then the seven
-   variants retire.
+   AARCH64 DECOMPOSE LANDED 2026-07-19: WritePlaceShape (the
+   CopyPlacesShape twin for ONE place: Direct | Pointee | FrameIndexed
+   | FrameBaseIndexed | MachineIndexed | MachineDoubleIndexed |
+   Unsupported) + classify_write_place_shape -- encoder and walker
+   classify with the SAME fn (consistent by construction); the aarch64
+   encode arm decomposes to the six retained integer-write encoders;
+   the walker's aarch64 branch anchors the target-region base at
+   instruction start (every retained layout does) + the machine-
+   indexed frame-index reloc + the double's shared frame base.
+   WritePlaceInteger is now fully servable on BOTH architectures.
+   RUNG 2b NEXT: the seven integer-write producers migrate
+   unconditionally (find them via `SelectedInstructionKind::WriteRuntime
+   {Machine,Storage,Pointee,FrameIndexed,FrameBaseIndexed,
+   MachineIndexed,MachineDoubleIndexed}Integer {` construction sites in
+   omega-instruction-selection/src/selection/), build the target Place
+   per shape via a write_place_integer helper family; blocker matchers
+   that name the old kinds gain the WritePlaceInteger row where a
+   write counted; then the seven variants retire with their echoes.
    Rung 2a after: the WritePlaceInteger variant + echo product +
    producer migration. Pre-existing dead helpers noted en route (shapes/copies.rs
    runtime_storage_copy_kind + _to_runtime_frame_indexed_kind +
