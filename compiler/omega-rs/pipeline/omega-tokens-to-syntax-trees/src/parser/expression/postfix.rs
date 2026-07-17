@@ -4,8 +4,8 @@ use crate::parser::input::{Input, ParseResult, parse_path_handle_span};
 use omega_core::arena::HandleSpan;
 use omega_syntax_trees::SyntaxTrees;
 use omega_syntax_trees::expression::{
-    ExpressionHandle, ExpressionNode, TableCallExpression, TableCastExpression,
-    TableIndexedExpression, TableMemberExpression, TableRangeExpression,
+    ExpressionHandle, ExpressionNode, StaticMachineArgument, TableCallExpression,
+    TableCastExpression, TableIndexedExpression, TableMemberExpression, TableRangeExpression,
 };
 use omega_tokens::{KeywordKind, PunctuationKind};
 
@@ -52,12 +52,34 @@ pub(super) fn parse_postfix_expression_handle<'tokens, 'source>(
         parse_primary_expression_handle(syntax_trees, input, context)?;
 
     loop {
+        if input.at_punctuation(PunctuationKind::Less)
+            && let Some((machine_arguments, rest)) =
+                try_parse_static_machine_arguments(input)?
+        {
+            let after_open = rest.take_punctuation(PunctuationKind::LeftParen, "(")?;
+            let (arguments, rest) =
+                parse_argument_list_after_open_paren_handle(syntax_trees, after_open)?;
+            input = rest;
+            expression = build_call_expression_handle(
+                syntax_trees,
+                expression,
+                machine_arguments,
+                arguments,
+            )?;
+            continue;
+        }
+
         if input.at_punctuation(PunctuationKind::LeftParen) {
             input = input.take_punctuation(PunctuationKind::LeftParen, "(")?;
             let (arguments, rest) =
                 parse_argument_list_after_open_paren_handle(syntax_trees, input)?;
             input = rest;
-            expression = build_call_expression_handle(syntax_trees, expression, arguments)?;
+            expression = build_call_expression_handle(
+                syntax_trees,
+                expression,
+                Box::default(),
+                arguments,
+            )?;
             continue;
         }
 
@@ -143,6 +165,7 @@ pub(super) fn parse_postfix_expression_handle<'tokens, 'source>(
                             target: omega_syntax_trees::identifier::Identifier::generated(
                                 format!("accept_boundary#{rendered}"),
                             ),
+                            machine_arguments: Box::default(),
                             arguments: HandleSpan::empty(),
                         }));
                 continue;
@@ -362,6 +385,7 @@ fn take_range_separator<'tokens, 'source>(
 fn build_call_expression_handle(
     syntax_trees: &mut SyntaxTrees,
     expression: ExpressionHandle,
+    machine_arguments: Box<[StaticMachineArgument]>,
     arguments: HandleSpan<ExpressionHandle>,
 ) -> Result<ExpressionHandle, ParseError> {
     let expression = syntax_trees.expressions.expression(expression).clone();
@@ -395,6 +419,7 @@ fn build_call_expression_handle(
                 .insert(ExpressionNode::Call(TableCallExpression {
                     receiver,
                     target,
+                    machine_arguments,
                     arguments,
                 })))
         }
@@ -404,11 +429,58 @@ fn build_call_expression_handle(
                 .insert(ExpressionNode::Call(TableCallExpression {
                     receiver: member.receiver,
                     target: member.member,
+                    machine_arguments,
                     arguments,
                 })))
         }
         _ => Err(ParseError::new(
             "call target must be a path or member access",
         )),
+    }
+}
+
+/// Recognize the unambiguous postfix shape `<Machine::symbol, ...>(` without
+/// stealing ordinary comparison expressions (`a < b`). The paths remain
+/// static declaration arguments; value arguments are parsed separately after
+/// the opening parenthesis.
+fn try_parse_static_machine_arguments<'tokens, 'source>(
+    input: Input<'tokens, 'source>,
+) -> Result<Option<(Box<[StaticMachineArgument]>, Input<'tokens, 'source>)>, ParseError> {
+    if !input.at_punctuation(PunctuationKind::Less) {
+        return Ok(None);
+    }
+
+    let mut cursor = input.take_punctuation(PunctuationKind::Less, "<")?;
+    let mut arguments = Vec::new();
+    loop {
+        let Ok((first, rest)) = cursor.take_identifier() else {
+            return Ok(None);
+        };
+        cursor = rest;
+        let mut path = vec![first];
+        while cursor.at_punctuation(PunctuationKind::ColonColon) {
+            let after_separator = cursor.take_punctuation(PunctuationKind::ColonColon, "::")?;
+            let Ok((member, rest)) = after_separator.take_identifier() else {
+                return Ok(None);
+            };
+            path.push(member);
+            cursor = rest;
+        }
+        arguments.push(StaticMachineArgument {
+            path: path.into_boxed_slice(),
+        });
+
+        if cursor.at_punctuation(PunctuationKind::Comma) {
+            cursor = cursor.take_punctuation(PunctuationKind::Comma, ",")?;
+            continue;
+        }
+        if !cursor.at_punctuation(PunctuationKind::Greater) {
+            return Ok(None);
+        }
+        cursor = cursor.take_punctuation(PunctuationKind::Greater, ">")?;
+        if !cursor.at_punctuation(PunctuationKind::LeftParen) {
+            return Ok(None);
+        }
+        return Ok(Some((arguments.into_boxed_slice(), cursor)));
     }
 }

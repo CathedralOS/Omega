@@ -287,6 +287,7 @@ impl ExpressionTable {
                     receiver,
                     target_symbol: call.target_symbol,
                     target: call.target.clone(),
+                    machine_arguments: call.machine_arguments.clone(),
                     arguments,
                 }))
             }
@@ -1074,6 +1075,7 @@ impl ExpressionTable {
                     receiver,
                     target_symbol: call.target_symbol,
                     target: call.target,
+                    machine_arguments: call.machine_arguments,
                     arguments,
                 }))
             }
@@ -1257,6 +1259,7 @@ impl ExpressionTable {
                     receiver,
                     target_symbol: call.target_symbol,
                     target: call.target.clone(),
+                    machine_arguments: Box::default(),
                     arguments,
                 }))
             }
@@ -1670,7 +1673,15 @@ pub struct TableCallExpression {
     pub receiver: ExpressionHandle,
     pub target_symbol: SymbolHandle,
     pub target: Identifier,
+    pub machine_arguments: Box<[StaticMachineArgument]>,
     pub arguments: HandleSpan<ExpressionHandle>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StaticMachineArgument {
+    pub path: Box<[Identifier]>,
+    /// Entry-state symbol of the selected concrete machine.
+    pub symbol: SymbolHandle,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]

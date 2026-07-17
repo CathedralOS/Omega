@@ -1211,3 +1211,44 @@ fn rejects_machine_parameter_on_non_machine_declaration() {
         error.message
     );
 }
+
+#[test]
+fn parses_static_machine_symbol_call_argument() {
+    let source = r#"
+        data Card {}
+
+        machine map<T, machine F>(value: &T)
+        where machine F(value: &T)
+        {
+        }
+
+        machine caller(card: &Card) {
+            map<Card::power>(card);
+        }
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let parsed = parse_syntax_trees(&tokens).expect("static machine argument should parse");
+    let (_, call) = parsed
+        .expressions
+        .iter_expressions()
+        .find_map(|(handle, expression)| match expression {
+            omega_syntax_trees::expression::ExpressionNode::Call(call)
+                if !call.machine_arguments.is_empty() =>
+            {
+                Some((handle, call))
+            }
+            _ => None,
+        })
+        .expect("generic call expression");
+    assert_eq!(call.machine_arguments.len(), 1);
+    assert_eq!(
+        call.machine_arguments[0]
+            .path
+            .iter()
+            .map(|member| member.as_str())
+            .collect::<Vec<_>>(),
+        vec!["Card", "power"]
+    );
+}

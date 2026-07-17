@@ -658,6 +658,7 @@ pub(super) fn rewrite_destructure_guard_expression(
         ExpressionNode::Call(call) => ExpressionNode::Call(TableCallExpression {
             receiver: rewrite_optional_expression(syntax_trees, call.receiver, subject, fields),
             target: call.target,
+            machine_arguments: call.machine_arguments,
             arguments: rewrite_expression_span(syntax_trees, call.arguments, subject, fields),
         }),
         ExpressionNode::Cast(cast) => ExpressionNode::Cast(TableCastExpression {

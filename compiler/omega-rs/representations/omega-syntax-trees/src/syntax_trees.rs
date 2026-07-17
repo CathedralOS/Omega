@@ -810,6 +810,7 @@ impl SyntaxTrees {
                 receiver: self.copy_statement_identifier_span(other, call.receiver),
                 receiver_starts_at_self: call.receiver_starts_at_self,
                 target: call.target.clone(),
+                machine_arguments: call.machine_arguments.clone(),
                 arguments: self.copy_statement_expression_span(other, call.arguments),
                 discards_result: call.discards_result,
             }),
@@ -997,6 +998,7 @@ impl SyntaxTrees {
             ExpressionNode::Call(call) => ExpressionNode::Call(TableCallExpression {
                 receiver: self.copy_expression_handle(other, call.receiver),
                 target: call.target.clone(),
+                machine_arguments: call.machine_arguments.clone(),
                 arguments: self.copy_expression_handle_list(other, call.arguments),
             }),
             ExpressionNode::Float(value) => ExpressionNode::Float(value.clone()),

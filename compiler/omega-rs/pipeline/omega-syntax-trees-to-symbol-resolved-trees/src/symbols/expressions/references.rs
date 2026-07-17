@@ -9,6 +9,7 @@ use super::super::lookup::{
 };
 use super::super::scope::MachineScope;
 use super::super::scoped_paths::resolve_state_scoped_table_path;
+use super::super::targets::resolve_static_machine_argument_symbol;
 
 /// The spelled member names of a `self`-rooted receiver path, root -> leaf
 /// (`["self", "p"]` for the receiver `self.p`). `None` for non-place receivers
@@ -143,6 +144,9 @@ pub(super) fn assign_call_symbol(
         expression_table.expression_mut(expression)
     {
         call.target_symbol = target_symbol;
+        for argument in &mut call.machine_arguments {
+            argument.symbol = resolve_static_machine_argument_symbol(symbols, &argument.path);
+        }
     }
 }
 

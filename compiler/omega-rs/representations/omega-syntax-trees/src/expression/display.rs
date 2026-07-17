@@ -90,6 +90,18 @@ impl TableCastExpression {
 
 impl TableCallExpression {
     pub fn display_name(&self, table: &ExpressionTable) -> String {
+        let machine_arguments = if self.machine_arguments.is_empty() {
+            String::new()
+        } else {
+            format!(
+                "<{}>",
+                self.machine_arguments
+                    .iter()
+                    .map(|argument| display_identifier_path(&argument.path, "::"))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            )
+        };
         let mut arguments = String::new();
 
         for (index, argument) in table.expression_handles(self.arguments).iter().enumerate() {
@@ -102,12 +114,12 @@ impl TableCallExpression {
 
         if self.receiver.is_valid() {
             format!(
-                "{}.{}({arguments})",
+                "{}.{}{machine_arguments}({arguments})",
                 table.display_name(self.receiver),
                 self.target
             )
         } else {
-            format!("{}({arguments})", self.target)
+            format!("{}{machine_arguments}({arguments})", self.target)
         }
     }
 }

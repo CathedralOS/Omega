@@ -315,6 +315,11 @@ fn count_statement_node(
         }
         StatementNode::Call(call) => {
             count_call_name(&call.target, counts);
+            for argument in &call.machine_arguments {
+                for member in &argument.path {
+                    count_call_name(member, counts);
+                }
+            }
             for receiver in statements.name_path_members(call.receiver) {
                 count_call_name(receiver, counts);
             }
@@ -458,6 +463,11 @@ fn count_expression_node(
         }
         ExpressionNode::Call(call) => {
             count_call_name(&call.target, counts);
+            for argument in &call.machine_arguments {
+                for member in &argument.path {
+                    count_call_name(member, counts);
+                }
+            }
             if call.receiver.is_valid() {
                 count_expression_handle(table, call.receiver, counts);
             }

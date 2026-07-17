@@ -130,6 +130,7 @@ fn lower_expression_node_into_table(
                     receiver: ExpressionHandle::invalid(),
                     target_symbol: SymbolHandle::invalid(),
                     target: DiagnosticName::new("max", call.target.source_span()),
+                    machine_arguments: Box::default(),
                     arguments,
                 })));
             }
@@ -158,6 +159,7 @@ fn lower_expression_node_into_table(
                     receiver: ExpressionHandle::invalid(),
                     target_symbol: SymbolHandle::invalid(),
                     target: DiagnosticName::new("max", call.target.source_span()),
+                    machine_arguments: Box::default(),
                     arguments: max_arguments,
                 }));
                 let min_arguments = expressions.reserve_expression_handles(2);
@@ -167,6 +169,7 @@ fn lower_expression_node_into_table(
                     receiver: ExpressionHandle::invalid(),
                     target_symbol: SymbolHandle::invalid(),
                     target: DiagnosticName::new("min", call.target.source_span()),
+                    machine_arguments: Box::default(),
                     arguments: min_arguments,
                 })));
             }
@@ -197,6 +200,15 @@ fn lower_expression_node_into_table(
                     receiver,
                     target_symbol: SymbolHandle::invalid(),
                     target: lower_name(&call.target),
+                    machine_arguments: call
+                        .machine_arguments
+                        .iter()
+                        .map(|argument| omega_symbol_resolved_trees::expression::StaticMachineArgument {
+                            path: argument.path.iter().map(lower_name).collect::<Vec<_>>().into_boxed_slice(),
+                            symbol: SymbolHandle::invalid(),
+                        })
+                        .collect::<Vec<_>>()
+                        .into_boxed_slice(),
                     arguments,
                 })),
             )

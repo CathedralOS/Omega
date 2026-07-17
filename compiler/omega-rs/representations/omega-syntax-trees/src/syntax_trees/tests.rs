@@ -131,6 +131,7 @@ fn syntax_trees_extend_from_preserves_statement_call_arguments() {
         receiver,
         receiver_starts_at_self: true,
         target: Identifier::generated("take_non_negative"),
+        machine_arguments: Box::default(),
         arguments: HandleSpan::from_parts(argument, 1),
         discards_result: false,
     }));
@@ -223,6 +224,7 @@ fn syntax_trees_extend_from_preserves_nested_expression_argument_spans() {
         .insert(ExpressionNode::Call(TableCallExpression {
             receiver: self_value,
             target: Identifier::generated("xp_required"),
+            machine_arguments: Box::default(),
             arguments: nested_arguments,
         }));
 
@@ -235,6 +237,7 @@ fn syntax_trees_extend_from_preserves_nested_expression_argument_spans() {
         .insert(ExpressionNode::Call(TableCallExpression {
             receiver: ExpressionHandle::invalid(),
             target: Identifier::generated("max"),
+            machine_arguments: Box::default(),
             arguments: max_arguments,
         }));
 

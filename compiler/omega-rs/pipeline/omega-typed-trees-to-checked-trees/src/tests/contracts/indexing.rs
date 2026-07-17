@@ -300,6 +300,7 @@ fn indexes_call_contract_facts_by_target_machine() {
             target_symbol: target_state_symbol,
             receiver,
             target: Identifier::generated("run"),
+            machine_arguments: Box::default(),
             arguments: Default::default(),
 
             discards_result: false,
@@ -460,6 +461,7 @@ fn indexes_inherited_trait_contracts_by_concrete_call_target() {
             target_symbol: target_state_symbol,
             receiver,
             target: Identifier::generated("draw"),
+            machine_arguments: Box::default(),
             arguments: Default::default(),
 
             discards_result: false,

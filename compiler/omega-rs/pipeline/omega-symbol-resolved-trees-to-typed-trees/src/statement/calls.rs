@@ -16,6 +16,20 @@ pub(super) fn lower_call_statement(
         target_symbol: call.target_symbol,
         receiver: lower_statement_path_members(lowerer, call.receiver),
         target: crate::name::lower_name(&call.target),
+        machine_arguments: call
+            .machine_arguments
+            .iter()
+            .map(|argument| typed::expression::StaticMachineArgument {
+                path: argument
+                    .path
+                    .iter()
+                    .map(crate::name::lower_name)
+                    .collect::<Vec<_>>()
+                    .into_boxed_slice(),
+                symbol: argument.symbol,
+            })
+            .collect::<Vec<_>>()
+            .into_boxed_slice(),
         arguments,
         discards_result: call.discards_result,
     })

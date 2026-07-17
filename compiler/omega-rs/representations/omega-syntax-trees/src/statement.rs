@@ -119,6 +119,7 @@ pub struct TableCall {
     pub receiver: HandleSpan<Identifier>,
     pub receiver_starts_at_self: bool,
     pub target: Identifier,
+    pub machine_arguments: Box<[crate::expression::StaticMachineArgument]>,
     pub arguments: HandleSpan<crate::expression::ExpressionHandle>,
     /// `_ = call();` -- the caller explicitly discards a non-unit result.
     pub discards_result: bool,
@@ -130,6 +131,7 @@ impl Default for TableCall {
             receiver: HandleSpan::empty(),
             receiver_starts_at_self: false,
             target: Identifier::default(),
+            machine_arguments: Box::default(),
             arguments: HandleSpan::empty(),
             discards_result: false,
         }

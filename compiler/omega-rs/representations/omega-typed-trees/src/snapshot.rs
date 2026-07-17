@@ -355,6 +355,7 @@ pub enum StatementSnapshot {
     Call {
         receiver: Option<Vec<String>>,
         target: String,
+        machine_arguments: Vec<Vec<String>>,
         arguments: Vec<ExpressionSnapshot>,
     },
     Expression {
@@ -421,6 +422,7 @@ pub enum ExpressionSnapshot {
     Call {
         receiver: Option<Box<ExpressionSnapshot>>,
         target: String,
+        machine_arguments: Vec<Vec<String>>,
         arguments: Vec<ExpressionSnapshot>,
     },
     Float {
@@ -822,6 +824,11 @@ fn statement_snapshot(program: &TypedTrees, statement: &StatementNode) -> Statem
             receiver: (!call.receiver.is_empty())
                 .then(|| path_snapshot(program.statement_table.name_path_members(call.receiver))),
             target: call.target.to_string(),
+            machine_arguments: call
+                .machine_arguments
+                .iter()
+                .map(|argument| path_snapshot(&argument.path))
+                .collect(),
             arguments: statement_expression_span_snapshot(program, call.arguments),
         },
         StatementNode::Expression(expression) => StatementSnapshot::Expression {
@@ -916,6 +923,11 @@ fn expression_snapshot(program: &TypedTrees, expression: ExpressionHandle) -> Ex
                 .is_valid()
                 .then(|| Box::new(expression_snapshot(program, call.receiver))),
             target: call.target.to_string(),
+            machine_arguments: call
+                .machine_arguments
+                .iter()
+                .map(|argument| path_snapshot(&argument.path))
+                .collect(),
             arguments: expression_span_snapshot(program, call.arguments),
         },
         ExpressionNode::Float(value) => ExpressionSnapshot::Float {

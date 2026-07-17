@@ -64,6 +64,7 @@ fn builds_shared_flow_facts_for_state_and_call_sites() {
         receiver_symbol: caller_machine_symbol,
         target: Identifier::generated("run"),
         target_symbol: callee_state_symbol,
+        machine_arguments: Box::default(),
         arguments: call_arguments,
 
         discards_result: false,
@@ -294,6 +295,7 @@ fn records_checked_boundary_edges_for_boundary_trait_calls() {
             receiver_symbol: target_machine_symbol,
             target: Identifier::generated("write_line"),
             target_symbol: target_state_symbol,
+            machine_arguments: Box::default(),
             arguments: HandleSpan::empty(),
 
             discards_result: false,

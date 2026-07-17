@@ -110,6 +110,15 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                         receiver,
                         target_symbol: call.target_symbol,
                         target: lower_name(&call.target),
+                        machine_arguments: call
+                            .machine_arguments
+                            .iter()
+                            .map(|argument| typed::expression::StaticMachineArgument {
+                                path: argument.path.iter().map(lower_name).collect::<Vec<_>>().into_boxed_slice(),
+                                symbol: argument.symbol,
+                            })
+                            .collect::<Vec<_>>()
+                            .into_boxed_slice(),
                         arguments,
                     },
                 )))

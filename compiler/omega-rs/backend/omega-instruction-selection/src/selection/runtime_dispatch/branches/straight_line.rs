@@ -1558,6 +1558,7 @@ fn resolve_leaf_call_expression_handle(
                     receiver: receiver.unwrap_or_else(ExpressionHandle::invalid),
                     target_symbol: call.target_symbol,
                     target: call.target,
+                    machine_arguments: call.machine_arguments,
                     arguments: copied_arguments,
                 },
             ))

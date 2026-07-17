@@ -1501,6 +1501,7 @@ fn resolve_prior_local_initializers_in_table(
                         receiver,
                         target_symbol: call.target_symbol,
                         target: call.target,
+                        machine_arguments: call.machine_arguments,
                         arguments,
                     },
                 ))

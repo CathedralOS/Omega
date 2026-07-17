@@ -101,6 +101,15 @@ fn lower_statement_node(
                 storage: CallStorage {
                     receiver,
                     receiver_starts_at_self: call.receiver_starts_at_self,
+                    machine_arguments: call
+                        .machine_arguments
+                        .iter()
+                        .map(|argument| omega_symbol_resolved_trees::expression::StaticMachineArgument {
+                            path: argument.path.iter().map(crate::name::lower_name).collect::<Vec<_>>().into_boxed_slice(),
+                            symbol: SymbolHandle::invalid(),
+                        })
+                        .collect::<Vec<_>>()
+                        .into_boxed_slice(),
                     arguments,
                     discards_result: call.discards_result,
                 },

@@ -6,7 +6,10 @@ use crate::symbols::expressions::{
 };
 use crate::symbols::scope::MachineScope;
 use crate::symbols::scoped_paths::resolve_state_scoped_members;
-use crate::symbols::targets::{assign_transition_target_symbols, resolve_call_target_symbol};
+use crate::symbols::targets::{
+    assign_transition_target_symbols, resolve_call_target_symbol,
+    resolve_static_machine_argument_symbol,
+};
 use crate::symbols::type_references::assign_type_reference_symbol_with_self_type;
 
 pub(super) fn assign_statement_symbols(
@@ -75,6 +78,9 @@ pub(super) fn assign_statement_symbols(
                 child_type_references,
                 symbols,
             );
+            for argument in &mut call.machine_arguments {
+                argument.symbol = resolve_static_machine_argument_symbol(symbols, &argument.path);
+            }
         }
         omega_symbol_resolved_trees::statement::Statement::Expression(expression) => {
             assign_statement_expression_symbols(
