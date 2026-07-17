@@ -1495,11 +1495,12 @@ fn select_runtime_leaf_branch_mutation_writes(
             resolved_value,
         ) {
             selected_instructions.push(SelectedInstruction {
-                kind: SelectedInstructionKind::WriteRuntimeMachineInteger {
+                kind: crate::selection::runtime_dispatch::write_place_integer_direct(
+                    omega_target_operations::RuntimeStorageRegion::Machine,
                     byte_offset,
-                    byte_size,
                     value,
-                },
+                    byte_size,
+                ),
                 source_key: operation.source_key,
                 source_statement: operation.statement_index,
             });
@@ -1560,11 +1561,12 @@ fn select_runtime_leaf_branch_mutation_writes(
             runtime_leaf_machine_integer_write(input, expansion, &resolved_target, &resolved_value)
         {
             selected_instructions.push(SelectedInstruction {
-                kind: SelectedInstructionKind::WriteRuntimeMachineInteger {
+                kind: crate::selection::runtime_dispatch::write_place_integer_direct(
+                    omega_target_operations::RuntimeStorageRegion::Machine,
                     byte_offset,
-                    byte_size,
                     value,
-                },
+                    byte_size,
+                ),
                 source_key: operation.source_key,
                 source_statement: operation.statement_index,
             });

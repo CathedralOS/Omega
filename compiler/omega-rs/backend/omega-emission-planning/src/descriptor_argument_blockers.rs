@@ -296,6 +296,11 @@ fn instruction_frame_write_range(kind: &SelectedInstructionKind) -> Option<(usiz
             byte_size,
             ..
         } => Some((*byte_offset, *byte_size)),
+        SelectedInstructionKind::WritePlaceInteger {
+            target, byte_size, ..
+        } if target.region == RuntimeStorageRegion::RuntimeFrame => {
+            target.const_offset().map(|offset| (offset, *byte_size))
+        }
         SelectedInstructionKind::WriteRuntimeStorageBinary {
             target_region: RuntimeStorageRegion::RuntimeFrame,
             target_offset,
