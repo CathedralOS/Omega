@@ -3943,11 +3943,15 @@ with a real app-window story.
   Admission is OPAQUE by construction (the carrier never interprets
   commitments; consumers validate, the carrier answers "granted
   here?").
-  GR2 the MintAuthority check -- judge_qualification_cast consults
-  the grant table; grant-locality v1: OWN-PACKAGE declared domains
-  are dev-active (mint allowed + standing-warning row), the staged
-  fence keeps refusing everything else; semantic_cast_mint_staged
-  canary re-pins.
+  GR2 LANDED 2026-07-20: judge_qualification_cast consults the
+  carrier FIRST (in_program_trust_table grants every declared
+  domain's SemanticDomainIntroduction as OwnPackageDev -- grant
+  locality v1: in-program mints all pass, ZERO behavior change; the
+  consult is the SEAM where package inertness and GR3 root grants
+  bite, with the refusal diagnostic already speaking accept_boundary).
+  Standing-warning rows deferred to GR5 (a warning per mint would
+  spam; the report is the right surface). The staged predicate fence
+  is untouched (semantic_cast_mint_staged keeps pinning it).
   GR3 root-grant parse -- b.accept_boundary<path>() in build.omg
   (compile-time machine parameter, ch13) populating the table
   through the build-config path (build_config_granted.rs precedent).
