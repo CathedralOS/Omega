@@ -304,6 +304,73 @@ pub(crate) fn copy_places_from_machine_double_indexed(
     }
 }
 
+/// Rung 2c-x: the machine inline 2D-array element WRITE.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn copy_places_to_machine_double_indexed(
+    source_region: RuntimeStorageRegion,
+    source_offset: usize,
+    base_byte_offset: usize,
+    outer_index_region: RuntimeStorageRegion,
+    outer_index_offset: usize,
+    outer_stride: usize,
+    inner_index_region: RuntimeStorageRegion,
+    inner_index_offset: usize,
+    inner_stride: usize,
+    field_byte_offset: usize,
+    byte_count: usize,
+) -> SelectedInstructionKind {
+    SelectedInstructionKind::CopyPlaces {
+        source: omega_abstract_operations::Place::at(source_region, source_offset),
+        target: double_indexed_place(
+            RuntimeStorageRegion::Machine,
+            base_byte_offset,
+            outer_index_region,
+            outer_index_offset,
+            outer_stride,
+            inner_index_region,
+            inner_index_offset,
+            inner_stride,
+            field_byte_offset,
+        ),
+        byte_count,
+    }
+}
+
+/// Rung 2c-x: `arr[i] = arr[j]` on machine inline arrays -- one runtime
+/// index each side.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn copy_places_machine_indexed_pair(
+    source_base_byte_offset: usize,
+    source_index_region: RuntimeStorageRegion,
+    source_index_offset: usize,
+    source_element_byte_size: usize,
+    source_field_byte_offset: usize,
+    target_base_byte_offset: usize,
+    target_index_region: RuntimeStorageRegion,
+    target_index_offset: usize,
+    target_element_byte_size: usize,
+    target_field_byte_offset: usize,
+    byte_count: usize,
+) -> SelectedInstructionKind {
+    SelectedInstructionKind::CopyPlaces {
+        source: machine_indexed_place(
+            source_base_byte_offset,
+            source_index_region,
+            source_index_offset,
+            source_element_byte_size,
+            source_field_byte_offset,
+        ),
+        target: machine_indexed_place(
+            target_base_byte_offset,
+            target_index_region,
+            target_index_offset,
+            target_element_byte_size,
+            target_field_byte_offset,
+        ),
+        byte_count,
+    }
+}
+
 /// Rung 2c-x: the frame inline 2D-array element READ (all-frame).
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn copy_places_from_frame_base_double_indexed(

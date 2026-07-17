@@ -585,40 +585,34 @@ sealed progress profiles + grants, TPR4's remaining big half).
    ..._to_runtime_storage (any const target; the walker patches by
    region); the over-gate broke the frame double-indexed read canary
    on aarch64 first try. x86 rides the slice-A materializer.
-   SLICE B WRITE-HALF NEXT (recon banked 2026-07-19, execute mechanically):
-   (1) encoding/runtime_storage.rs: `direct_double_indexed_path`
-   recognizer (Const*, SI, Const*, SI, Const*, NO deref; fold the
-   mid-const between the indices into field_byte_offset -- pure adds
-   commute) + CopyPlacesShape::{FromMachineDoubleIndexed,
-   ToMachineDoubleIndexed, FromFrameBaseDoubleIndexed,
-   MachineIndexedPair} (the pair = direct_indexed_path Some on BOTH
-   sides, machine regions). Add the double checks BEFORE the single
-   arms (singles return None on doubles and vice versa -- no shadow).
-   (2) aarch64 decompose arms -> the retained encoders (signatures
-   verified): encode_..._from_runtime_machine_double_indexed_to_
-   runtime_storage(base, outer_off, outer_region, outer_stride,
-   inner_off, inner_region, inner_stride, field, target_offset,
-   byte_count); the to_... twin takes (source_region, source_offset,
-   base, outer..., inner..., field, byte_count); the frame twin drops
-   the regions; machine-indexed-pair -> encode_..._from_runtime_
-   machine_indexed_to_runtime_machine_indexed.
-   (3) the CopyPlaces aarch64 WALKER arms mirror the OLD variants'
-   kind arms (their offset fns are alive while the variants live) --
-   the FromMachineIndexed arm at relocations/instruction_records/
-   runtime_storage_copies.rs:149 is the template (machine base at
-   start; frame-resident index reloads frame base; target at the
-   shape's offset fn).
-   (4) helpers copy_places_from_machine_double_indexed /
-   _from_frame_base_double_indexed / _to_machine_double_indexed /
-   _machine_indexed_pair in selection/runtime_dispatch.rs building
-   [Const(base), SI(outer), SI(inner), Const(field)] (template:
-   copy_places_from_machine_indexed at runtime_dispatch.rs:243).
-   (5) producer sites: READS storage_copy.rs:196/220 (plain) +
-   522/550 (in-table twins) + mutation/frame_slots.rs:420/448;
-   WRITES mutation.rs:1691 (to-machine-double) + 1596
-   (machine-indexed-pair). x86 rides the slice-A materializer.
-   (6) battery + the differential legs; then the retirement slice
-   (the 4 variants + echoes, ~15-file product each).
+   SLICE B WRITE-HALF LANDED 2026-07-19: CopyPlacesShape::
+   {ToMachineDoubleIndexed, MachineIndexedPair} (the pair = one index
+   EACH side, both machine, recognized inside the source-single arm);
+   aarch64 decomposes to the retained
+   to_runtime_machine_double_indexed_from_runtime_storage +
+   machine_indexed_to_machine_indexed encoders; walker: the machine-
+   targeted double write opens with the TARGET base (start_region
+   match extended), shared frame base when the source or an index is
+   frame-resident; the pair arm mirrors its old kind arm (frame index
+   per side + the second machine base). Helpers copy_places_to_machine
+   _double_indexed / _machine_indexed_pair; BOTH mutation.rs producers
+   migrated. GOTCHA: the #40 dual-indexed soundness fence's planned-
+   check (storage_blockers.rs dual_indexed_copy_is_planned) matched
+   only the OLD pair kind -- extended to accept a CopyPlaces whose
+   BOTH sides carry a ScaledIndex (the fence itself stays; this crate
+   names places via omega_target_operations, not abstract-operations).
+   ALL FOUR exotic variants are now PRODUCER-FREE (retire-ready).
+   RETIREMENT SLICE NEXT: delete CopyRuntimeMachineDoubleIndexedTo
+   RuntimeStorage + CopyRuntimeStorageToRuntimeMachineDoubleIndexed +
+   CopyRuntimeFrameBaseDoubleIndexedToRuntimeStorage +
+   CopyRuntimeMachineIndexedToRuntimeMachineIndexed from both enums
+   with every echo (conversions, classifications, shapes, encoding/
+   layout arms, walker kind arms, report arms, blocker rows, cross-
+   arch dispatchers, x86 ISA encode/width fns); KEEP the aarch64
+   encoders + offset fns (the CopyPlaces decomposes ride them),
+   mirroring rungs 2c-iii/-vi/-viii. That leaves 17 of 18 Copy
+   variants retired -- CopyPlaces the sole survivor -- then the
+   Write/RMW ladder opens.
    Then Write/RMW (the leaf-cascade duplication dies), Text,
    guards/operands, op-set shrink — the wiki ladder. Legalization
    refuses loudly at every rung.

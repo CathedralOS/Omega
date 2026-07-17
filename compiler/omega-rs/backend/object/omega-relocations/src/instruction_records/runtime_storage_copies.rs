@@ -83,6 +83,9 @@ pub(super) fn collect_runtime_storage_copy_relocations(
                     let start_region = match shape {
                         omega_instruction_selection::CopyPlacesShape::ToMachineIndexed {
                             ..
+                        }
+                        | omega_instruction_selection::CopyPlacesShape::ToMachineDoubleIndexed {
+                            ..
                         } => target.region,
                         _ => source.region,
                     };
@@ -188,6 +191,70 @@ pub(super) fn collect_runtime_storage_copy_relocations(
                                 ),
                                 context.storage_region_symbol_handle(target.region),
                             );
+                        }
+                        omega_instruction_selection::CopyPlacesShape::ToMachineDoubleIndexed {
+                            outer_index_region,
+                            inner_index_region,
+                            ..
+                        } => {
+                            // Mirrors the variant's own arm: machine (target)
+                            // base at start (above); ONE shared frame base
+                            // when the source or an index is frame-resident.
+                            if source.region
+                                == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
+                                || outer_index_region
+                                    == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
+                                || inner_index_region
+                                    == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
+                            {
+                                context.insert_data_address_at_relative_offset(
+                                    runtime_storage_copy_from_runtime_machine_double_indexed_frame_base_offset(
+                                        context.input.target.architecture,
+                                    ),
+                                    context.runtime_frame_symbol_handle(),
+                                );
+                            }
+                        }
+                        omega_instruction_selection::CopyPlacesShape::MachineIndexedPair {
+                            source_index_region,
+                            target_index_region,
+                            ..
+                        } => {
+                            // Mirrors the variant's own arm: machine (read)
+                            // base at start; frame-resident indices add their
+                            // frame base per side; the write part reloads the
+                            // machine base at the second-base offset.
+                            if source_index_region
+                                == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
+                            {
+                                context.insert_data_address_at_relative_offset(
+                                    runtime_storage_copy_machine_indexed_frame_index_offset(
+                                        context.input.target.architecture,
+                                        source_index_region,
+                                        false,
+                                    ),
+                                    context.runtime_frame_symbol_handle(),
+                                );
+                            }
+                            context.insert_data_address_at_relative_offset(
+                                runtime_storage_copy_machine_indexed_to_machine_indexed_second_base_offset(
+                                    context.input.target.architecture,
+                                    source_index_region,
+                                ),
+                                context.machine_storage_symbol_handle(),
+                            );
+                            if target_index_region
+                                == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
+                            {
+                                context.insert_data_address_at_relative_offset(
+                                    runtime_storage_copy_machine_indexed_frame_index_offset(
+                                        context.input.target.architecture,
+                                        source_index_region,
+                                        true,
+                                    ),
+                                    context.runtime_frame_symbol_handle(),
+                                );
+                            }
                         }
                         omega_instruction_selection::CopyPlacesShape::FromMachineIndexed {
                             base_byte_offset,

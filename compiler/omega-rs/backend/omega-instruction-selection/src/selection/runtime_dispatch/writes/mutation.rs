@@ -1593,19 +1593,19 @@ pub(super) fn select_runtime_resolved_target_value_source_mutation_writes(
         ) && indexed_source.byte_count == indexed_target.byte_count
         {
             selected_instructions.push(SelectedInstruction {
-                kind: SelectedInstructionKind::CopyRuntimeMachineIndexedToRuntimeMachineIndexed {
-                    source_base_byte_offset: indexed_source.base_byte_offset,
-                    source_index_offset: indexed_source.index_offset,
-                    source_index_region: indexed_source.index_region,
-                    source_element_byte_size: indexed_source.element_byte_size,
-                    source_field_byte_offset: indexed_source.field_byte_offset,
-                    target_base_byte_offset: indexed_target.base_byte_offset,
-                    target_index_offset: indexed_target.index_offset,
-                    target_index_region: indexed_target.index_region,
-                    target_element_byte_size: indexed_target.element_byte_size,
-                    target_field_byte_offset: indexed_target.field_byte_offset,
-                    byte_count: indexed_target.byte_count,
-                },
+                kind: crate::selection::runtime_dispatch::copy_places_machine_indexed_pair(
+                    indexed_source.base_byte_offset,
+                    indexed_source.index_region,
+                    indexed_source.index_offset,
+                    indexed_source.element_byte_size,
+                    indexed_source.field_byte_offset,
+                    indexed_target.base_byte_offset,
+                    indexed_target.index_region,
+                    indexed_target.index_offset,
+                    indexed_target.element_byte_size,
+                    indexed_target.field_byte_offset,
+                    indexed_target.byte_count,
+                ),
                 source_key: operation_source_key,
                 source_statement: statement_index,
             });
@@ -1688,19 +1688,19 @@ pub(super) fn select_runtime_resolved_target_value_source_mutation_writes(
         ) && source_place.byte_count == double_target.byte_count
         {
             selected_instructions.push(SelectedInstruction {
-                kind: SelectedInstructionKind::CopyRuntimeStorageToRuntimeMachineDoubleIndexed {
-                    source_region: source_place.region,
-                    source_offset: source_place.byte_offset,
-                    base_byte_offset: double_target.base_byte_offset,
-                    outer_index_offset: double_target.outer_index_offset,
-                    outer_index_region: double_target.outer_index_region,
-                    outer_stride: double_target.outer_stride,
-                    inner_index_offset: double_target.inner_index_offset,
-                    inner_index_region: double_target.inner_index_region,
-                    inner_stride: double_target.inner_stride,
-                    field_byte_offset: double_target.field_byte_offset,
-                    byte_count: double_target.byte_count,
-                },
+                kind: crate::selection::runtime_dispatch::copy_places_to_machine_double_indexed(
+                    source_place.region,
+                    source_place.byte_offset,
+                    double_target.base_byte_offset,
+                    double_target.outer_index_region,
+                    double_target.outer_index_offset,
+                    double_target.outer_stride,
+                    double_target.inner_index_region,
+                    double_target.inner_index_offset,
+                    double_target.inner_stride,
+                    double_target.field_byte_offset,
+                    double_target.byte_count,
+                ),
                 source_key: operation_source_key,
                 source_statement: statement_index,
             });
