@@ -15,6 +15,7 @@ pub use capabilities::host_authority::{
     HOST_AUTHORITY_EFFECT_NAMES, HostAuthorityProvider, HostAuthorityRegistry,
     HostCallAuthorization, authority_effects, host_authority_effects, requires_host_authority,
 };
+pub use capabilities::provider_plan;
 pub use capabilities::providers::{
     BoundaryProvider, BoundaryProviderRegistry, build_provider_registry, validate_provider_bindings,
 };
