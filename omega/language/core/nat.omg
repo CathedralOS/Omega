@@ -754,3 +754,43 @@ ensures
         transition { _ -> Nat::Zero }
     }
 }
+
+// One is at most any successor: sub(Succ Zero, Succ pb) == Zero --
+// premise-free, flat (strip the pair, annihilate on the left). The site
+// fact gcd's recursive arm needs to discharge mod's positivity premise.
+machine le_one_succ(pb: Nat) -> Nat
+ensures
+    (sub(Nat::Succ { prev: Nat::Zero }, Nat::Succ { prev: pb })) == Nat::Zero
+{
+    transition {
+        _ -> los_body(pb)
+    }
+
+    state los_body(pb: Nat) -> Nat {
+        succ_sub_succ(Nat::Zero, pb);
+        sub_zero_left(pb);
+        transition { _ -> Nat::Zero }
+    }
+}
+
+// EUCLID (slice a3): gcd(a, Zero) = a; gcd(a, Succ pb) = gcd(b, mod(a, b))
+// at b = Succ pb. The recursive edge's measure argument is the COMPUTED
+// mod(a, Succ pb); its strict decrease judges through the structural edge
+// judge: the incoming payload alias (b == Succ { prev: pb }), le_one_succ's
+// cited fact (discharging mod's positivity premise), and mod's own ensures
+// at the let-citation (result < divisor) close the obligation. Lean analog:
+// Nat.gcd.
+machine gcd(a: Nat, b: Nat) -> Nat
+terminates by b;
+{
+    transition b {
+        Nat::Zero -> (a)
+        Nat::Succ { prev as pb } -> gcd_rec(a, b, pb)
+    }
+
+    state gcd_rec(a: Nat, b: Nat, pb: Nat) -> Nat {
+        le_one_succ(pb);
+        let next: Nat = mod(a, Nat::Succ { prev: pb });
+        transition { _ -> (gcd(Nat::Succ { prev: pb }, next)) }
+    }
+}

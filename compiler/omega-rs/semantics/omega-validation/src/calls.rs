@@ -1651,6 +1651,15 @@ pub(crate) fn validate_proof_machine_recursion(
                     argument,
                     measure_name.as_ref(),
                 )
+                || measure_name.as_ref().is_some_and(|name| {
+                    crate::contract_entailment::proof_edge_strict_decrease_judged(
+                        program,
+                        machine,
+                        state,
+                        argument,
+                        name.as_str(),
+                    )
+                })
         });
         if !descends {
             diagnostics.push(Diagnostic::error(format!(
