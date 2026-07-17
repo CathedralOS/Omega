@@ -4089,8 +4089,13 @@ with a real app-window story.
   `F(...)` use to the authored signature and check generic bodies modularly for
   argument shape, requires discharge, ensures propagation, and effect reach,
   without consulting an eventual concrete selection;
-  MP4 monomorphize and substitute each `M(...)` use into a direct static call
-  with stable specialization/cache identity; MP5 record accepted-template
+  **MP4a LANDED 2026-07-17:** a complete, globally consistent type+machine
+  tuple specializes the template before checking, rewrites each `M(...)` use
+  into the selected direct entry symbol, consumes call-site selection syntax,
+  and records a normalized reproducible cache fingerprint; conflicting tuples
+  fail loudly rather than leaking an unresolved template to the backend.
+  **MP4b:** materialize and cache one concrete clone per distinct tuple (then
+  remove MP4a's single-tuple fence); MP5 record accepted-template
   grants once plus argument contract IDs per instance; MP6 land `Seq`
   map/filter, N5/N6 schema-axiom, task-runtime, and build-surface canaries. No
   runtime callable value, dictionary, or capture inference is introduced;

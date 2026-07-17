@@ -125,6 +125,7 @@ impl Lowerer<'_> {
             plan_laid_layouts: _,
             wire_placements: _,
             wire_schema_plans: _,
+            machine_specializations: _,
         } = self.typed_trees;
 
         let mut trees = TypedTrees::with_roots(roots, tables, symbols);

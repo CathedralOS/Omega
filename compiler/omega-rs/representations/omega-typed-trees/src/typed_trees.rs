@@ -30,6 +30,21 @@ pub struct TypedTrees {
     /// arena-backed storage, HandleSpan ownership.
     pub wire_placements: Arena<wire::WirePlacement>,
     pub wire_schema_plans: Vec<wire::WireSchemaPlan>,
+    /// MP4: deterministic records of generic-machine specializations applied
+    /// before checked lowering. The template keeps its declaration symbol;
+    /// this record is the cache/audit identity of the concrete argument tuple.
+    pub machine_specializations: Vec<MachineSpecialization>,
+}
+
+/// One compile-time machine specialization. Static machine arguments are
+/// symbols, never runtime callable values; `fingerprint` is normalized from
+/// declaration/type/path spellings rather than arena addresses.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct MachineSpecialization {
+    pub template: omega_core::symbols::SymbolHandle,
+    pub type_arguments: Vec<String>,
+    pub machine_arguments: Vec<omega_core::symbols::SymbolHandle>,
+    pub fingerprint: u64,
 }
 
 /// One validated, FULLY-STATIC layout plan applied to a synthesized data
@@ -136,6 +151,7 @@ impl TypedTrees {
             plan_laid_layouts: Vec::new(),
             wire_placements: Arena::new(),
             wire_schema_plans: Vec::new(),
+            machine_specializations: Vec::new(),
         }
     }
 

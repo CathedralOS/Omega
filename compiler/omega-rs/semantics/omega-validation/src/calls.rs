@@ -13,6 +13,7 @@ use crate::symbols::{MachineSymbols, TopLevelSymbols};
 use crate::type_references::type_reference_label;
 use omega_core::arena::HandleSpan;
 use omega_core::diagnostics::Diagnostic;
+use omega_core::symbols::SymbolHandle;
 use omega_typed_trees::TypedTrees;
 use omega_typed_trees::data::DataMember;
 use omega_typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
@@ -125,6 +126,44 @@ pub(crate) fn validate_call_node(
                 signature.name.as_str(),
                 program.state_signature_parameters(signature),
                 writable_roots,
+                diagnostics,
+            );
+            return;
+        }
+
+        // MP4 specializes `F(args)` to the selected concrete ENTRY symbol.
+        // It remains receiverless because the whole callable parameter list
+        // (including any explicit data argument) is already present.
+        if let Some((callee_machine, state)) = machine_state_by_symbol(program, call.target_symbol)
+            && callee_machine.symbol != current_machine.symbol
+        {
+            validate_result_use(
+                program,
+                call,
+                state.name.as_str(),
+                state.return_type,
+                diagnostics,
+            );
+            validate_call_arguments_handles(
+                program,
+                current_machine,
+                machine_symbols.state(state_name),
+                value_env,
+                arguments,
+                state.name.as_str(),
+                program.state_parameters(state),
+                writable_roots,
+                diagnostics,
+            );
+            validate_machine_call_type_parameter_bounds(
+                program,
+                symbols,
+                callee_machine,
+                state,
+                state.name.as_str(),
+                arguments,
+                current_machine,
+                machine_symbols.state(state_name),
                 diagnostics,
             );
             return;
@@ -413,6 +452,19 @@ pub(crate) fn free_machine_entry_state<'program>(
         .or_else(|| states.iter().find(|state| state.name.as_str() == "entry"))
         .or_else(|| states.first())
         .map(|state| (machine, state))
+}
+
+fn machine_state_by_symbol(
+    program: &TypedTrees,
+    symbol: SymbolHandle,
+) -> Option<(&Machine, &State)> {
+    program.machines().iter().find_map(|machine| {
+        program
+            .machine_states(machine)
+            .iter()
+            .find(|state| state.symbol == symbol)
+            .map(|state| (machine, state))
+    })
 }
 
 /// FROZEN DECISION 13 residue -- machine-call monomorphization arguments.
@@ -2793,6 +2845,43 @@ fn validate_expression_call_bounds(
                 signature.name.as_str(),
                 program.state_signature_parameters(signature),
                 writable_roots,
+                diagnostics,
+            );
+            return;
+        }
+
+        if let Some((callee_machine, callee_state)) =
+            machine_state_by_symbol(program, call.target_symbol)
+            && callee_machine.symbol != current_machine.symbol
+        {
+            report_void_value_callee(
+                program,
+                callee_machine,
+                current_machine,
+                current_state,
+                callee_state,
+                call.target.as_str(),
+                diagnostics,
+            );
+            fence_generic_value_callee(program, callee_machine, call.target.as_str(), diagnostics);
+            validate_machine_call_type_parameter_bounds(
+                program,
+                symbols,
+                callee_machine,
+                callee_state,
+                call.target.as_str(),
+                arguments,
+                current_machine,
+                Some(current_state),
+                diagnostics,
+            );
+            validate_value_call_argument_classes(
+                program,
+                current_machine,
+                current_state,
+                value_env,
+                arguments,
+                callee_state,
                 diagnostics,
             );
             return;

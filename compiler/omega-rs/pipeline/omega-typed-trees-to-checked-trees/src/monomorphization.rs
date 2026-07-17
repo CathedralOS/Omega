@@ -1,345 +1,751 @@
-//! STAGE-1 machine monomorphization (generic VALUE calls).
+//! Compile-time specialization of generic machines.
 //!
-//! A generic machine's type parameters have no backend lowering: a value call
-//! like `let v: i32 = self.id(70)` (callee `id<T>(x: T) -> T`) compiled but the
-//! `T`-typed result slot never materialized -- a silent zero (#40). This pass
-//! runs on the TYPED trees BEFORE validation: when every VALUE call of a
-//! generic machine agrees on ONE instantiation, the machine's type-parameter
-//! references are substituted IN PLACE and its parameter list cleared, so the
-//! whole downstream pipeline (validation fence included) treats the machine as
-//! concrete and the call materializes like any concrete value call.
-//!
-//! INFERENCE (stage-1, deliberately narrow): RETURN-position only -- a call
-//! that is the root initializer of an annotated `let` binds `P := <let type>`
-//! when the callee's return type is the bare parameter `P` (the language has
-//! no local inference, so every `let` carries its type). Machines left with
-//! unbound parameters keep them, and the existing validation fence rejects
-//! their value calls cleanly; a CONFLICTING second instantiation likewise
-//! stays fenced. Substitution is a whole-table sweep: a type parameter's
-//! symbol is unique to its declaring machine, so replacing every
-//! `Named{param}` node is exact.
+//! Type parameters and static machine parameters are one specialization
+//! tuple. When every call of a template agrees on one concrete tuple, this
+//! pass substitutes type references, rewrites calls through `F(...)` to the
+//! selected entry symbol, clears the consumed call-site metadata, and records
+//! a deterministic cache identity. Conflicting or incomplete tuples remain
+//! generic and are fenced by validation; no runtime callable value or
+//! dictionary is introduced.
 
+use omega_core::arena::HandleSpan;
+use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::SymbolHandle;
 use omega_typed_trees::TypedTrees;
-use omega_typed_trees::expression::ExpressionNode;
+use omega_typed_trees::data::TypeParameterKind;
+use omega_typed_trees::expression::{ExpressionHandle, ExpressionNode, StaticMachineArgument};
+use omega_typed_trees::signature::StateSignature;
 use omega_typed_trees::statement::StatementNode;
 use omega_typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
-pub(crate) fn monomorphize_generic_machine_value_calls(program: &mut TypedTrees) {
-    // Generic machines under consideration.
-    struct Candidate {
-        machine_index: usize,
-        parameter_symbols: Vec<(SymbolHandle, String)>,
-        parameter_bounds: Vec<Vec<String>>,
-        bindings: Vec<Option<TypeReferenceHandle>>,
-        conflicted: bool,
-    }
+#[derive(Clone)]
+struct Candidate {
+    machine_index: usize,
+    template_symbol: SymbolHandle,
+    template_name: String,
+    state_symbols: Vec<SymbolHandle>,
+    type_parameters: Vec<(SymbolHandle, String)>,
+    parameter_bounds: Vec<Vec<String>>,
+    type_bindings: Vec<Option<TypeReferenceHandle>>,
+    machine_parameters: Vec<(SymbolHandle, String, StateSignature)>,
+    machine_bindings: Vec<Option<StaticMachineArgument>>,
+    conflicted: bool,
+}
 
-    let mut candidates: Vec<Candidate> = Vec::new();
-    // Every state of every generic machine: (state symbol, state name,
-    // bare-return parameter position or usize::MAX, candidate index,
-    // the state's parameter type handles for param-position inference).
-    let mut callee_states: Vec<(SymbolHandle, String, usize, usize, Vec<TypeReferenceHandle>)> =
-        Vec::new();
-    // All generic type-parameter symbols (to refuse a generic caller
-    // forwarding its own parameter as a "concrete" binding).
-    let mut all_parameter_symbols: Vec<(SymbolHandle, String)> = Vec::new();
+struct CalleeState {
+    symbol: SymbolHandle,
+    name: String,
+    candidate_index: usize,
+    return_type: TypeReferenceHandle,
+    parameter_types: Vec<TypeReferenceHandle>,
+}
+
+pub(crate) fn monomorphize_generic_machine_value_calls(
+    program: &mut TypedTrees,
+) -> Result<(), Vec<Diagnostic>> {
+    let mut candidates = Vec::new();
+    let mut callee_states = Vec::new();
+    let mut all_type_parameter_symbols = Vec::new();
 
     for (machine_index, machine) in program.machines().iter().enumerate() {
         let parameters = program.machine_type_parameters(machine);
         if parameters.is_empty() {
             continue;
         }
-        // MP1 stores static machine-symbol parameters, but MP2-MP4 own their
-        // selection and substitution. The stage-1 TYPE-only monomorphizer
-        // must not mistake one for a value type or clear it from the machine.
-        // Mixed type+machine parameter lists therefore remain untouched until
-        // the unified specialization pass lands.
-        if parameters.iter().any(|parameter| {
-            matches!(
-                parameter.kind,
-                omega_typed_trees::data::TypeParameterKind::Machine { .. }
-            )
-        }) {
-            continue;
-        }
-        let parameter_symbols: Vec<(SymbolHandle, String)> = parameters
-            .iter()
-            .map(|parameter| (parameter.symbol, parameter.name.as_str().to_owned()))
-            .collect();
-        let parameter_bounds: Vec<Vec<String>> = parameters
-            .iter()
-            .map(|parameter| {
-                omega_validation::declared_property_names(&parameter.bounds)
-                    .into_iter()
-                    .map(str::to_owned)
-                    .collect()
-            })
-            .collect();
-        all_parameter_symbols.extend(parameter_symbols.iter().cloned());
-        let candidate_index = candidates.len();
-        for state in program.machine_states(machine) {
-            let return_parameter = if state.return_type.is_valid() {
-                match program
-                    .tables
-                    .type_reference_table
-                    .type_reference(state.return_type)
-                {
-                    TypeReferenceNode::Named { symbol, name } => parameter_symbols
-                        .iter()
-                        .position(|(parameter_symbol, parameter_name)| {
-                            parameter_symbol == symbol || parameter_name == name.as_str()
-                        })
-                        .unwrap_or(usize::MAX),
-                    _ => usize::MAX,
+
+        let mut type_parameters = Vec::new();
+        let mut parameter_bounds = Vec::new();
+        let mut machine_parameters = Vec::new();
+        for parameter in parameters {
+            match &parameter.kind {
+                TypeParameterKind::Type => {
+                    type_parameters.push((parameter.symbol, parameter.name.as_str().to_owned()));
+                    parameter_bounds.push(
+                        omega_validation::declared_property_names(&parameter.bounds)
+                            .into_iter()
+                            .map(str::to_owned)
+                            .collect(),
+                    );
                 }
-            } else {
-                usize::MAX
-            };
-            let parameter_types: Vec<TypeReferenceHandle> = program
-                .state_parameters(state)
-                .iter()
-                .map(|parameter| parameter.type_reference)
-                .collect();
-            callee_states.push((
-                state.symbol,
-                state.name.as_str().to_owned(),
-                return_parameter,
+                TypeParameterKind::Machine { contract } => machine_parameters.push((
+                    parameter.symbol,
+                    parameter.name.as_str().to_owned(),
+                    contract.clone(),
+                )),
+                TypeParameterKind::Const { .. } => {
+                    // Const-machine specialization is a separate rung. Keep
+                    // this template incomplete so validation/backend fences it.
+                }
+            }
+        }
+        all_type_parameter_symbols.extend(type_parameters.iter().cloned());
+
+        let candidate_index = candidates.len();
+        let states = program.machine_states(machine);
+        for state in states {
+            callee_states.push(CalleeState {
+                symbol: state.symbol,
+                name: state.name.as_str().to_owned(),
                 candidate_index,
-                parameter_types,
-            ));
+                return_type: state.return_type,
+                parameter_types: program
+                    .state_parameters(state)
+                    .iter()
+                    .map(|parameter| parameter.type_reference)
+                    .collect(),
+            });
         }
         candidates.push(Candidate {
             machine_index,
-            parameter_symbols,
+            template_symbol: machine.symbol,
+            template_name: machine.name.as_str().to_owned(),
+            state_symbols: states.iter().map(|state| state.symbol).collect(),
+            type_bindings: vec![None; type_parameters.len()],
+            machine_bindings: vec![None; machine_parameters.len()],
+            type_parameters,
             parameter_bounds,
-            bindings: vec![None; parameters.len()],
+            machine_parameters,
             conflicted: false,
         });
     }
     if candidates.is_empty() {
+        return Ok(());
+    }
+
+    let mut type_proposals = Vec::new();
+    let mut machine_proposals = Vec::new();
+
+    // Static selections may occur in any expression position. Their symbols
+    // alone are sufficient to bind machine parameters and to infer type
+    // parameters from requirement/implementation shape.
+    for (_, expression) in program.expression_table.iter_expressions() {
+        let ExpressionNode::Call(call) = expression else {
+            continue;
+        };
+        collect_machine_proposals(
+            program,
+            &candidates,
+            &callee_states,
+            call.target_symbol,
+            call.target.as_str(),
+            &call.machine_arguments,
+            &mut machine_proposals,
+            &mut type_proposals,
+        );
+    }
+
+    // Statement calls additionally provide parameter-position type inference.
+    // Annotated locals provide both parameter- and return-position inference.
+    for machine in program.machines() {
+        for state in program.machine_states(machine) {
+            for statement in program.statement_table.statements(state.statement_nodes) {
+                match statement {
+                    StatementNode::Call(call) => collect_call_proposals(
+                        program,
+                        machine,
+                        state,
+                        &candidates,
+                        &callee_states,
+                        call.target_symbol,
+                        call.target.as_str(),
+                        &call.machine_arguments,
+                        program.statement_table.expression_handles(call.arguments),
+                        None,
+                        &mut machine_proposals,
+                        &mut type_proposals,
+                    ),
+                    StatementNode::LocalData(local) if local.initial_value.is_valid() => {
+                        if let ExpressionNode::Call(call) =
+                            program.expression_table.expression(local.initial_value)
+                        {
+                            collect_call_proposals(
+                                program,
+                                machine,
+                                state,
+                                &candidates,
+                                &callee_states,
+                                call.target_symbol,
+                                call.target.as_str(),
+                                &call.machine_arguments,
+                                program.expression_table.expression_handles(call.arguments),
+                                local
+                                    .type_reference
+                                    .is_valid()
+                                    .then_some(local.type_reference),
+                                &mut machine_proposals,
+                                &mut type_proposals,
+                            );
+                        }
+                    }
+                    StatementNode::Expression(expression) => {
+                        if let ExpressionNode::Call(call) =
+                            program.expression_table.expression(*expression)
+                        {
+                            collect_call_proposals(
+                                program,
+                                machine,
+                                state,
+                                &candidates,
+                                &callee_states,
+                                call.target_symbol,
+                                call.target.as_str(),
+                                &call.machine_arguments,
+                                program.expression_table.expression_handles(call.arguments),
+                                None,
+                                &mut machine_proposals,
+                                &mut type_proposals,
+                            );
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+
+    for (candidate_index, parameter_index, binding) in type_proposals {
+        if type_reference_is_still_generic(program, binding, &all_type_parameter_symbols) {
+            continue;
+        }
+        let candidate = &mut candidates[candidate_index];
+        match candidate.type_bindings[parameter_index] {
+            None => candidate.type_bindings[parameter_index] = Some(binding),
+            Some(existing) if !same_type_display(program, existing, binding) => {
+                candidate.conflicted = true;
+            }
+            Some(_) => {}
+        }
+    }
+
+    for (candidate_index, parameter_index, binding) in machine_proposals {
+        let candidate = &mut candidates[candidate_index];
+        match &candidate.machine_bindings[parameter_index] {
+            None => candidate.machine_bindings[parameter_index] = Some(binding),
+            Some(existing) if existing.symbol != binding.symbol => candidate.conflicted = true,
+            Some(_) => {}
+        }
+    }
+
+    let approved = approved_type_bounds(program, &candidates);
+    let mut diagnostics = Vec::new();
+    for (candidate_index, approved) in approved.into_iter().enumerate() {
+        let candidate = candidates[candidate_index].clone();
+        let has_static_selection = candidate.machine_bindings.iter().any(Option::is_some);
+        if has_static_selection && candidate.conflicted {
+            diagnostics.push(Diagnostic::error(format!(
+                "generic machine `{}` is selected with more than one concrete specialization tuple; per-instance cloning has not landed yet, so split the template or use one static selection",
+                candidate.template_name
+            )));
+            continue;
+        }
+        if has_static_selection
+            && (candidate.type_bindings.iter().any(Option::is_none)
+                || candidate.machine_bindings.iter().any(Option::is_none))
+        {
+            diagnostics.push(Diagnostic::error(format!(
+                "generic machine `{}` has a static machine selection, but its complete type/machine specialization tuple cannot be derived",
+                candidate.template_name
+            )));
+            continue;
+        }
+        if !approved
+            || candidate.type_bindings.iter().any(Option::is_none)
+            || candidate.machine_bindings.iter().any(Option::is_none)
+        {
+            continue;
+        }
+        apply_specialization(program, &candidate);
+    }
+    if diagnostics.is_empty() {
+        Ok(())
+    } else {
+        Err(diagnostics)
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn collect_call_proposals(
+    program: &TypedTrees,
+    caller_machine: &omega_typed_trees::machine::Machine,
+    caller_state: &omega_typed_trees::state::State,
+    candidates: &[Candidate],
+    callee_states: &[CalleeState],
+    target_symbol: SymbolHandle,
+    target_name: &str,
+    machine_arguments: &[StaticMachineArgument],
+    arguments: &[ExpressionHandle],
+    expected_return: Option<TypeReferenceHandle>,
+    machine_proposals: &mut Vec<(usize, usize, StaticMachineArgument)>,
+    type_proposals: &mut Vec<(usize, usize, TypeReferenceHandle)>,
+) {
+    let Some(callee) = resolve_callee(callee_states, target_symbol, target_name) else {
+        return;
+    };
+    collect_machine_proposals_for_callee(
+        program,
+        candidates,
+        callee,
+        machine_arguments,
+        machine_proposals,
+        type_proposals,
+    );
+
+    let candidate = &candidates[callee.candidate_index];
+    let skip = callee.parameter_types.len().saturating_sub(arguments.len());
+    for (argument, required) in arguments
+        .iter()
+        .zip(callee.parameter_types.iter().skip(skip))
+    {
+        let Some(actual) = omega_validation::declared_place_type_raw(
+            program,
+            caller_machine,
+            Some(caller_state),
+            *argument,
+        ) else {
+            continue;
+        };
+        infer_type_bindings(
+            program,
+            *required,
+            actual,
+            &candidate.type_parameters,
+            callee.candidate_index,
+            type_proposals,
+        );
+    }
+    if let Some(actual) = expected_return {
+        infer_type_bindings(
+            program,
+            callee.return_type,
+            actual,
+            &candidate.type_parameters,
+            callee.candidate_index,
+            type_proposals,
+        );
+    }
+}
+
+fn collect_machine_proposals(
+    program: &TypedTrees,
+    candidates: &[Candidate],
+    callee_states: &[CalleeState],
+    target_symbol: SymbolHandle,
+    target_name: &str,
+    machine_arguments: &[StaticMachineArgument],
+    machine_proposals: &mut Vec<(usize, usize, StaticMachineArgument)>,
+    type_proposals: &mut Vec<(usize, usize, TypeReferenceHandle)>,
+) {
+    let Some(callee) = resolve_callee(callee_states, target_symbol, target_name) else {
+        return;
+    };
+    collect_machine_proposals_for_callee(
+        program,
+        candidates,
+        callee,
+        machine_arguments,
+        machine_proposals,
+        type_proposals,
+    );
+}
+
+fn collect_machine_proposals_for_callee(
+    program: &TypedTrees,
+    candidates: &[Candidate],
+    callee: &CalleeState,
+    machine_arguments: &[StaticMachineArgument],
+    machine_proposals: &mut Vec<(usize, usize, StaticMachineArgument)>,
+    type_proposals: &mut Vec<(usize, usize, TypeReferenceHandle)>,
+) {
+    let candidate = &candidates[callee.candidate_index];
+    if machine_arguments.len() != candidate.machine_parameters.len() {
+        return;
+    }
+    for (index, selected) in machine_arguments.iter().enumerate() {
+        if !selected.symbol.is_valid() {
+            continue;
+        }
+        machine_proposals.push((callee.candidate_index, index, selected.clone()));
+        let requirement = &candidate.machine_parameters[index].2;
+        let Some(actual_state) = state_by_symbol(program, selected.symbol) else {
+            continue;
+        };
+        for (required, actual) in program
+            .state_signature_parameters(requirement)
+            .iter()
+            .zip(program.state_parameters(actual_state))
+        {
+            infer_type_bindings(
+                program,
+                required.type_reference,
+                actual.type_reference,
+                &candidate.type_parameters,
+                callee.candidate_index,
+                type_proposals,
+            );
+        }
+        infer_type_bindings(
+            program,
+            requirement.return_type,
+            actual_state.return_type,
+            &candidate.type_parameters,
+            callee.candidate_index,
+            type_proposals,
+        );
+    }
+}
+
+fn resolve_callee<'a>(
+    callee_states: &'a [CalleeState],
+    target_symbol: SymbolHandle,
+    target_name: &str,
+) -> Option<&'a CalleeState> {
+    callee_states
+        .iter()
+        .find(|callee| target_symbol.is_valid() && callee.symbol == target_symbol)
+        .or_else(|| {
+            let mut matching = callee_states
+                .iter()
+                .filter(|callee| callee.name == target_name);
+            match (matching.next(), matching.next()) {
+                (Some(only), None) => Some(only),
+                _ => None,
+            }
+        })
+}
+
+fn state_by_symbol(
+    program: &TypedTrees,
+    symbol: SymbolHandle,
+) -> Option<&omega_typed_trees::state::State> {
+    program
+        .machines()
+        .iter()
+        .flat_map(|machine| program.machine_states(machine))
+        .find(|state| state.symbol == symbol)
+}
+
+fn infer_type_bindings(
+    program: &TypedTrees,
+    required: TypeReferenceHandle,
+    actual: TypeReferenceHandle,
+    parameters: &[(SymbolHandle, String)],
+    candidate_index: usize,
+    proposals: &mut Vec<(usize, usize, TypeReferenceHandle)>,
+) {
+    if !required.is_valid() || !actual.is_valid() {
+        return;
+    }
+    if let TypeReferenceNode::Named { symbol, name } =
+        program.type_reference_table.type_reference(required)
+        && let Some(index) = parameters
+            .iter()
+            .position(|(parameter_symbol, parameter_name)| {
+                parameter_symbol == symbol || parameter_name == name.as_str()
+            })
+    {
+        proposals.push((candidate_index, index, actual));
         return;
     }
 
-    let candidate_parameter_symbols: Vec<Vec<(SymbolHandle, String)>> = candidates
+    match (
+        program.type_reference_table.type_reference(required),
+        program.type_reference_table.type_reference(actual),
+    ) {
+        (
+            TypeReferenceNode::Reference {
+                referee: required, ..
+            },
+            TypeReferenceNode::Reference {
+                referee: actual, ..
+            },
+        ) => infer_type_bindings(
+            program,
+            *required,
+            *actual,
+            parameters,
+            candidate_index,
+            proposals,
+        ),
+        (TypeReferenceNode::Constrained { base_type, .. }, _) => infer_type_bindings(
+            program,
+            *base_type,
+            omega_validation::unwrapped_type_reference(program, actual).unwrap_or(actual),
+            parameters,
+            candidate_index,
+            proposals,
+        ),
+        (
+            TypeReferenceNode::Slice {
+                element_type: required,
+            },
+            TypeReferenceNode::Slice {
+                element_type: actual,
+            },
+        )
+        | (
+            TypeReferenceNode::FixedArray {
+                element_type: required,
+                ..
+            },
+            TypeReferenceNode::FixedArray {
+                element_type: actual,
+                ..
+            },
+        ) => infer_type_bindings(
+            program,
+            *required,
+            *actual,
+            parameters,
+            candidate_index,
+            proposals,
+        ),
+        (
+            TypeReferenceNode::Generic {
+                base_name: required_base,
+                arguments: required_arguments,
+                ..
+            },
+            TypeReferenceNode::Generic {
+                base_name: actual_base,
+                arguments: actual_arguments,
+                ..
+            },
+        ) if required_base == actual_base => {
+            for (required, actual) in program
+                .type_reference_table
+                .type_reference_handles(*required_arguments)
+                .iter()
+                .zip(
+                    program
+                        .type_reference_table
+                        .type_reference_handles(*actual_arguments),
+                )
+            {
+                infer_type_bindings(
+                    program,
+                    *required,
+                    *actual,
+                    parameters,
+                    candidate_index,
+                    proposals,
+                );
+            }
+        }
+        _ => {}
+    }
+}
+
+fn type_reference_is_still_generic(
+    program: &TypedTrees,
+    binding: TypeReferenceHandle,
+    all_parameters: &[(SymbolHandle, String)],
+) -> bool {
+    matches!(
+        program.type_reference_table.type_reference(binding),
+        TypeReferenceNode::Named { symbol, name }
+            if all_parameters.iter().any(|(parameter_symbol, parameter_name)| {
+                parameter_symbol == symbol || parameter_name == name.as_str()
+            })
+    )
+}
+
+fn same_type_display(
+    program: &TypedTrees,
+    left: TypeReferenceHandle,
+    right: TypeReferenceHandle,
+) -> bool {
+    program
+        .type_reference_table
+        .display_name_with_constraints(left, &program.expression_table)
+        == program
+            .type_reference_table
+            .display_name_with_constraints(right, &program.expression_table)
+}
+
+fn approved_type_bounds(program: &TypedTrees, candidates: &[Candidate]) -> Vec<bool> {
+    let mut symbol_diagnostics = Vec::new();
+    let symbols = omega_validation::TopLevelSymbols::build(program, &mut symbol_diagnostics);
+    candidates
         .iter()
-        .map(|candidate| candidate.parameter_symbols.clone())
+        .map(|candidate| {
+            candidate
+                .parameter_bounds
+                .iter()
+                .zip(candidate.type_bindings.iter())
+                .all(|(bounds, binding)| {
+                    let Some(binding) = binding else {
+                        return true;
+                    };
+                    let Some(unwrapped) =
+                        omega_validation::unwrapped_type_reference(program, *binding)
+                    else {
+                        return false;
+                    };
+                    bounds.iter().all(|property| {
+                        omega_validation::type_satisfies_declared_property(
+                            program,
+                            &symbols,
+                            &[],
+                            unwrapped,
+                            property,
+                        )
+                    })
+                })
+        })
+        .collect()
+}
+
+fn apply_specialization(program: &mut TypedTrees, candidate: &Candidate) {
+    let type_arguments: Vec<String> = candidate
+        .type_bindings
+        .iter()
+        .map(|binding| {
+            program.display_type_reference(binding.expect("complete type specialization"))
+        })
+        .collect();
+    let machine_arguments: Vec<SymbolHandle> = candidate
+        .machine_bindings
+        .iter()
+        .map(|binding| {
+            binding
+                .as_ref()
+                .expect("complete machine specialization")
+                .symbol
+        })
+        .collect();
+    let machine_paths: Vec<String> = candidate
+        .machine_bindings
+        .iter()
+        .map(|binding| {
+            binding
+                .as_ref()
+                .expect("complete machine specialization")
+                .path
+                .iter()
+                .map(|member| member.as_str())
+                .collect::<Vec<_>>()
+                .join("::")
+        })
+        .collect();
+    program
+        .machine_specializations
+        .push(omega_typed_trees::typed_trees::MachineSpecialization {
+            template: candidate.template_symbol,
+            type_arguments: type_arguments.clone(),
+            machine_arguments,
+            fingerprint: specialization_fingerprint(
+                &candidate.template_name,
+                &type_arguments,
+                &machine_paths,
+            ),
+        });
+
+    for ((parameter_symbol, parameter_name), binding) in candidate
+        .type_parameters
+        .iter()
+        .zip(candidate.type_bindings.iter())
+    {
+        let replacement = program
+            .type_reference_table
+            .type_reference(binding.expect("complete type specialization"))
+            .clone();
+        let occurrences: Vec<TypeReferenceHandle> = program
+            .type_reference_table
+            .named_references()
+            .filter(|(_, symbol, name)| {
+                symbol == parameter_symbol || *name == parameter_name.as_str()
+            })
+            .map(|(handle, _, _)| handle)
+            .collect();
+        for occurrence in occurrences {
+            program
+                .type_reference_table
+                .substitute_node(occurrence, replacement.clone());
+        }
+    }
+
+    let rewrites: Vec<(
+        SymbolHandle,
+        SymbolHandle,
+        omega_typed_trees::name::Identifier,
+    )> = candidate
+        .machine_parameters
+        .iter()
+        .zip(candidate.machine_bindings.iter())
+        .map(|((parameter_symbol, _, _), binding)| {
+            let binding = binding.as_ref().expect("complete machine specialization");
+            let target = state_by_symbol(program, binding.symbol)
+                .map(|state| state.name.clone())
+                .or_else(|| binding.path.last().cloned())
+                .expect("admitted static machine argument has an entry name");
+            (*parameter_symbol, binding.symbol, target)
+        })
         .collect();
 
-    // Scan every annotated `let` whose root initializer is a call to a generic
-    // machine: RETURN-position inference (P := <let type> when the callee
-    // returns bare P) plus PARAM-position inference (P := <declared place
-    // type> when a callee parameter is bare P or a reference to P).
-    let mut proposals: Vec<(usize, usize, TypeReferenceHandle)> = Vec::new();
-    for machine in program.machines() {
-        for state in program.machine_states(machine) {
-            for statement in program
-                .tables
-                .statement_table
-                .statements(state.statement_nodes)
-            {
-                let StatementNode::LocalData(local_data) = statement else {
-                    continue;
-                };
-                if !local_data.initial_value.is_valid() || !local_data.type_reference.is_valid() {
-                    continue;
-                }
-                let ExpressionNode::Call(call) = program
-                    .tables
-                    .expression_table
-                    .expression(local_data.initial_value)
-                else {
-                    continue;
-                };
-                // Resolve the callee among GENERIC machines' states: by symbol
-                // when resolved, otherwise by UNIQUE state name (absent or
-                // ambiguous names are left for the validation fence).
-                let resolved = callee_states
-                    .iter()
-                    .find(|(symbol, _, _, _, _)| {
-                        call.target_symbol.is_valid() && *symbol == call.target_symbol
-                    })
-                    .or_else(|| {
-                        let mut by_name = callee_states
-                            .iter()
-                            .filter(|(_, name, _, _, _)| name == call.target.as_str());
-                        match (by_name.next(), by_name.next()) {
-                            (Some(only), None) => Some(only),
-                            _ => None,
-                        }
-                    });
-                let Some((_, _, return_parameter, candidate_index, parameter_types)) = resolved
-                else {
-                    continue;
-                };
-                // RETURN-position inference: the callee returns the bare
-                // parameter, so the annotated let binds it.
-                if *return_parameter != usize::MAX {
-                    proposals.push((
-                        *candidate_index,
-                        *return_parameter,
-                        local_data.type_reference,
-                    ));
-                }
-                // PARAM-position inference: a callee parameter that IS the bare
-                // type parameter (or a reference to it) binds to the declared
-                // type of the corresponding PLACE argument.
-                let parameter_symbols = &candidate_parameter_symbols[*candidate_index];
-                let arguments = program
-                    .tables
-                    .expression_table
-                    .expression_handles(call.arguments);
-                // The receiver (`&self`) occupies leading parameter slot(s): align the
-                // call arguments with the TRAILING parameters.
-                let skip = parameter_types.len().saturating_sub(arguments.len());
-                for (argument, parameter_type) in
-                    arguments.iter().zip(parameter_types.iter().skip(skip))
-                {
-                    let parameter_position = match program
-                        .tables
-                        .type_reference_table
-                        .type_reference(*parameter_type)
-                    {
-                        TypeReferenceNode::Named { symbol, name } => parameter_symbols
-                            .iter()
-                            .position(|(parameter_symbol, parameter_name)| {
-                                parameter_symbol == symbol || parameter_name == name.as_str()
-                            }),
-                        TypeReferenceNode::Reference { referee, .. } => {
-                            match program.tables.type_reference_table.type_reference(*referee) {
-                                TypeReferenceNode::Named { symbol, name } => parameter_symbols
-                                    .iter()
-                                    .position(|(parameter_symbol, parameter_name)| {
-                                        parameter_symbol == symbol
-                                            || parameter_name == name.as_str()
-                                    }),
-                                _ => None,
-                            }
-                        }
-                        _ => None,
-                    };
-                    let Some(parameter_position) = parameter_position else {
-                        continue;
-                    };
-                    let Some(argument_type) = omega_validation::declared_place_type_raw(
-                        program,
-                        machine,
-                        Some(state),
-                        *argument,
-                    ) else {
-                        continue;
-                    };
-                    proposals.push((*candidate_index, parameter_position, argument_type));
-                }
-            }
-        }
-    }
-
-    for (candidate_index, parameter_index, binding) in proposals {
-        // A binding that itself names any generic type parameter (a generic
-        // caller forwarding its own T) is not a concrete instantiation.
-        if let TypeReferenceNode::Named { symbol, name } =
-            program.tables.type_reference_table.type_reference(binding)
-            && all_parameter_symbols
+    let state_spans: Vec<HandleSpan<StatementNode>> = program
+        .machines()
+        .iter()
+        .flat_map(|machine| program.machine_states(machine))
+        .map(|state| state.statement_nodes)
+        .collect();
+    for span in state_spans {
+        for statement in program.statement_table.statements_mut(span) {
+            let StatementNode::Call(call) = statement else {
+                continue;
+            };
+            if let Some((_, symbol, name)) = rewrites
                 .iter()
-                .any(|(parameter_symbol, parameter_name)| {
-                    parameter_symbol == symbol || parameter_name == name.as_str()
-                })
-        {
-            continue;
-        }
-        let existing = candidates[candidate_index].bindings[parameter_index];
-        match existing {
-            None => candidates[candidate_index].bindings[parameter_index] = Some(binding),
-            Some(existing) => {
-                let existing_display = program
-                    .tables
-                    .type_reference_table
-                    .display_name_with_constraints(existing, &program.tables.expression_table);
-                let new_display = program
-                    .tables
-                    .type_reference_table
-                    .display_name_with_constraints(binding, &program.tables.expression_table);
-                if existing_display != new_display {
-                    candidates[candidate_index].conflicted = true;
-                }
+                .find(|(parameter, _, _)| *parameter == call.target_symbol)
+            {
+                call.target_symbol = *symbol;
+                call.target = name.clone();
+            }
+            if candidate.state_symbols.contains(&call.target_symbol) {
+                call.machine_arguments = Box::default();
             }
         }
     }
 
-    // Bound check (frozen decision 13) with SHARED borrows before any mutation:
-    // substituting a bound-VIOLATING instantiation would erase the type
-    // parameters before validation could reject it, so a violating candidate is
-    // left generic -- validation then emits the proper bound diagnostic (and the
-    // value-call fence). Only bound-SATISFYING candidates are substituted.
-    let approved: Vec<bool> = {
-        let mut symbol_diagnostics = Vec::new();
-        let symbols = omega_validation::TopLevelSymbols::build(program, &mut symbol_diagnostics);
-        candidates
-            .iter()
-            .map(|candidate| {
-                candidate
-                    .parameter_bounds
-                    .iter()
-                    .zip(candidate.bindings.iter())
-                    .all(|(bounds, binding)| {
-                        let Some(binding) = binding else {
-                            return true; // unbound candidates are skipped anyway
-                        };
-                        let Some(unwrapped) =
-                            omega_validation::unwrapped_type_reference(program, *binding)
-                        else {
-                            return false;
-                        };
-                        bounds.iter().all(|property| {
-                            omega_validation::type_satisfies_declared_property(
-                                program,
-                                &symbols,
-                                &[],
-                                unwrapped,
-                                property,
-                            )
-                        })
-                    })
-            })
-            .collect()
-    };
-
-    // Apply: fully-bound, conflict-free, bound-satisfying machines are
-    // substituted and their parameter lists cleared (the validation fence then
-    // treats them as concrete). Everything else stays for the fence.
-    for (candidate, approved) in candidates.into_iter().zip(approved) {
-        if !approved || candidate.conflicted || candidate.bindings.iter().any(Option::is_none) {
+    let expression_handles: Vec<ExpressionHandle> = program
+        .expression_table
+        .iter_expressions()
+        .map(|(handle, _)| handle)
+        .collect();
+    for handle in expression_handles {
+        let ExpressionNode::Call(call) = program.expression_table.expression_mut(handle) else {
             continue;
-        }
-        for ((parameter_symbol, parameter_name), binding) in candidate
-            .parameter_symbols
+        };
+        if let Some((_, symbol, name)) = rewrites
             .iter()
-            .zip(candidate.bindings.iter())
+            .find(|(parameter, _, _)| *parameter == call.target_symbol)
         {
-            let binding = binding.expect("all bindings checked above");
-            let replacement = program
-                .tables
-                .type_reference_table
-                .type_reference(binding)
-                .clone();
-            let occurrences: Vec<TypeReferenceHandle> = program
-                .tables
-                .type_reference_table
-                .named_references()
-                .filter(|(_, symbol, name)| {
-                    symbol == parameter_symbol || *name == parameter_name.as_str()
-                })
-                .map(|(handle, _, _)| handle)
-                .collect();
-            for occurrence in occurrences {
-                program
-                    .tables
-                    .type_reference_table
-                    .substitute_node(occurrence, replacement.clone());
-            }
+            call.target_symbol = *symbol;
+            call.target = name.clone();
         }
-        program.machines_mut()[candidate.machine_index].type_parameters =
-            omega_core::arena::HandleSpan::empty();
+        if candidate.state_symbols.contains(&call.target_symbol) {
+            call.machine_arguments = Box::default();
+        }
     }
+
+    program.machines_mut()[candidate.machine_index].type_parameters = HandleSpan::empty();
+}
+
+fn specialization_fingerprint(
+    template: &str,
+    type_arguments: &[String],
+    machine_arguments: &[String],
+) -> u64 {
+    const OFFSET: u64 = 0xcbf29ce484222325;
+    const PRIME: u64 = 0x100000001b3;
+    let mut hash = OFFSET;
+    for part in std::iter::once(template)
+        .chain(type_arguments.iter().map(String::as_str))
+        .chain(machine_arguments.iter().map(String::as_str))
+    {
+        for byte in part.as_bytes().iter().copied().chain(std::iter::once(0xff)) {
+            hash ^= u64::from(byte);
+            hash = hash.wrapping_mul(PRIME);
+        }
+    }
+    hash
 }
