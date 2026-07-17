@@ -52,12 +52,7 @@ pub(super) fn ensure_runtime_value_homes(
 fn first_runtime_value_handle(kind: &SelectedInstructionKind) -> Option<RuntimeValueOperandHandle> {
     match kind {
         SelectedInstructionKind::CompareRuntimeValues { left, .. }
-        | SelectedInstructionKind::WriteRuntimeStorageBinary { left, .. }
-        | SelectedInstructionKind::WriteRuntimePointeeBinary { left, .. }
-        | SelectedInstructionKind::WriteRuntimeFrameIndexedBinary { left, .. } => Some(*left),
-        SelectedInstructionKind::WriteRuntimeFrameBaseIndexedBinary { left, .. } => Some(*left),
-        SelectedInstructionKind::WriteRuntimeMachineIndexedBinary { left, .. } => Some(*left),
-        SelectedInstructionKind::WriteRuntimeMachineDoubleIndexedBinary { left, .. } => Some(*left),
+        | SelectedInstructionKind::WritePlaceBinary { left, .. } => Some(*left),
         _ => None,
     }
 }
@@ -67,12 +62,7 @@ fn second_runtime_value_handle(
 ) -> Option<RuntimeValueOperandHandle> {
     match kind {
         SelectedInstructionKind::CompareRuntimeValues { right, .. }
-        | SelectedInstructionKind::WriteRuntimeStorageBinary { right, .. }
-        | SelectedInstructionKind::WriteRuntimePointeeBinary { right, .. }
-        | SelectedInstructionKind::WriteRuntimeFrameIndexedBinary { right, .. } => Some(*right),
-        SelectedInstructionKind::WriteRuntimeFrameBaseIndexedBinary { right, .. } => Some(*right),
-        SelectedInstructionKind::WriteRuntimeMachineIndexedBinary { right, .. } => Some(*right),
-        SelectedInstructionKind::WriteRuntimeMachineDoubleIndexedBinary { right, .. } => Some(*right),
+        | SelectedInstructionKind::WritePlaceBinary { right, .. } => Some(*right),
         _ => None,
     }
 }

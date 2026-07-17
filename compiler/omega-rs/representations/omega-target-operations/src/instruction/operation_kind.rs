@@ -288,21 +288,6 @@ pub enum TargetOperationKind {
         spill_offset: usize,
         byte_length: usize,
     },
-    WriteRuntimeStorageBinary {
-        target_region: RuntimeStorageRegion,
-        target_offset: usize,
-        byte_size: usize,
-        left: TargetValueOperandHandle,
-        operator: StateGuardOperator,
-        right: TargetValueOperandHandle,
-        is_float: bool,
-        /// Arithmetic domain of the write's target type (decision 17). See the
-        /// abstract-layer variant for semantics.
-        domain: omega_core::arithmetic::ArithmeticDomain,
-        /// Whether the target integer type is signed (overflow-flag + clamp-bound
-        /// selection for `Saturating`/`Trapping`).
-        target_signed: bool,
-    },
     WriteRuntimeStorageConvert {
         target_region: RuntimeStorageRegion,
         target_offset: usize,
@@ -331,67 +316,6 @@ pub enum TargetOperationKind {
         byte_size: usize,
         expected: TargetValueOperandHandle,
         new_value: TargetValueOperandHandle,
-    },
-    WriteRuntimePointeeBinary {
-        pointer_byte_offset: usize,
-        field_byte_offset: usize,
-        byte_size: usize,
-        left: TargetValueOperandHandle,
-        operator: StateGuardOperator,
-        right: TargetValueOperandHandle,
-    },
-    WriteRuntimeFrameIndexedBinary {
-        descriptor_offset: usize,
-        index_offset: usize,
-        element_byte_size: usize,
-        field_byte_offset: usize,
-        byte_size: usize,
-        left: TargetValueOperandHandle,
-        operator: StateGuardOperator,
-        right: TargetValueOperandHandle,
-    },
-    WriteRuntimeFrameBaseIndexedBinary {
-        base_byte_offset: usize,
-        index_offset: usize,
-        element_byte_size: usize,
-        field_byte_offset: usize,
-        byte_size: usize,
-        left: TargetValueOperandHandle,
-        operator: StateGuardOperator,
-        right: TargetValueOperandHandle,
-    },
-    /// Machine-region sibling of `WriteRuntimeFrameBaseIndexedBinary`: writes a
-    /// computed binary value into a MACHINE-owned runtime-indexed array element
-    /// (`self.arr[self.i] = a OP b`). Base relocates against the machine-storage
-    /// symbol; `index_region` names where the index operand lives (mirrors
-    /// `WriteRuntimeMachineIndexedInteger`).
-    WriteRuntimeMachineIndexedBinary {
-        base_byte_offset: usize,
-        index_region: RuntimeStorageRegion,
-        index_offset: usize,
-        element_byte_size: usize,
-        field_byte_offset: usize,
-        byte_size: usize,
-        left: TargetValueOperandHandle,
-        operator: StateGuardOperator,
-        right: TargetValueOperandHandle,
-    },
-    /// Binary value into a BOTH-RUNTIME nested target (`grid[i][j] = a OP b`,
-    /// the direct-RMW face after the assignment-value hoist slots the read):
-    /// the double-indexed sibling of `WriteRuntimeMachineIndexedBinary`.
-    WriteRuntimeMachineDoubleIndexedBinary {
-        base_byte_offset: usize,
-        outer_index_offset: usize,
-        outer_index_region: RuntimeStorageRegion,
-        outer_stride: usize,
-        inner_index_offset: usize,
-        inner_index_region: RuntimeStorageRegion,
-        inner_stride: usize,
-        field_byte_offset: usize,
-        byte_size: usize,
-        left: TargetValueOperandHandle,
-        operator: StateGuardOperator,
-        right: TargetValueOperandHandle,
     },
     WriteRuntimeMachineString {
         byte_offset: usize,

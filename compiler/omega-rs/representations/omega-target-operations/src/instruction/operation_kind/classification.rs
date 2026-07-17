@@ -42,13 +42,7 @@ impl OperationSemanticQuery for TargetOperationKind {
             | Self::AtomicCompareExchange { .. }
             | Self::WriteEntryArgumentRegister { .. }
             | Self::WriteEntryArgumentsSliceDescriptor { .. }
-            | Self::WriteRuntimeStorageBinary { .. }
             | Self::WriteRuntimeStorageConvert { .. }
-            | Self::WriteRuntimePointeeBinary { .. }
-            | Self::WriteRuntimeFrameIndexedBinary { .. }
-            | Self::WriteRuntimeFrameBaseIndexedBinary { .. }
-            | Self::WriteRuntimeMachineIndexedBinary { .. }
-            | Self::WriteRuntimeMachineDoubleIndexedBinary { .. }
             | Self::WriteRuntimeMachineString { .. }
             | Self::WriteRuntimeMachineBoundedBuffer { .. }
             | Self::AppendRuntimeMachineBoundedBufferSource { .. }

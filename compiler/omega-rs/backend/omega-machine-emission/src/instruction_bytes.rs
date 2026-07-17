@@ -73,9 +73,7 @@ pub(crate) fn emit_function_bytes(
         )?;
         if byte_span.len() != laid_out_instruction.byte_width {
             let operand_note = match &machine_instruction.source_kind {
-                SelectedInstructionKind::WriteRuntimeStorageBinary { left, right, .. }
-                | SelectedInstructionKind::WriteRuntimePointeeBinary { left, right, .. }
-                | SelectedInstructionKind::WriteRuntimeFrameIndexedBinary { left, right, .. } => {
+                SelectedInstructionKind::WritePlaceBinary { left, right, .. } => {
                     format!(
                         "; operands: left={:?}, right={:?}",
                         emission_context

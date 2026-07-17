@@ -849,9 +849,23 @@ sealed progress profiles + grants, TPR4's remaining big half).
    (direct places expose their range, deref/indexed claim none).
    Battery green incl. differential 14/14 -- the six Write*Binary
    variants are PRODUCER-FREE.
-   RETIREMENT NEXT: delete the six variants + echoes (the balance-
-   aware discipline; KEEP the six aarch64 encoders + per-shape offset
-   fns the decompose/walker ride; the x86 delegating shells die).
+   RETIREMENT LANDED 2026-07-19 -- THE BINARY-WRITE FAMILY IS DONE
+   (6 -> 1, WritePlaceBinary): all six variants deleted from both
+   enums with every echo (classifications, conversions with the
+   double-brace walk, shapes arms, the shapes/validation first/second
+   operand-handle rows COLLAPSED onto WritePlaceBinary, walker arms,
+   encoding/layout arms, report arms, blocker OR-rows, the
+   call_result/descriptor old rows, the prelude splice old row, the
+   instruction_bytes diagnostic-note rows). KEPT: the six aarch64
+   binary encoders + per-shape operand-offset fns (the decompose and
+   the WritePlaceBinary aarch64 walker branch ride them). Battery
+   green incl. differential 14/14.
+   PILOT SCOREBOARD: Copy* 18->1, integer writes 7->1, binary writes
+   6->1 -- THIRTY-ONE variants retired onto THREE place-shaped
+   survivors. NEXT per the wiki ladder: dead-shell sweep (the x86
+   delegating encoders for integers+binaries are now zero-reference),
+   then the Text family, then guards/operands consume Places, then
+   the op-set shrink.
    Rung 2a after: the WritePlaceInteger variant + echo product +
    producer migration. Pre-existing dead helpers noted en route (shapes/copies.rs
    runtime_storage_copy_kind + _to_runtime_frame_indexed_kind +

@@ -127,12 +127,6 @@ fn instruction_write_target(kind: &SelectedInstructionKind) -> Option<(bool, usi
             Some(target_offset) => (target.region, target_offset, *byte_count),
             None => return None,
         },
-        SelectedInstructionKind::WriteRuntimeStorageBinary {
-            target_region,
-            target_offset,
-            byte_size,
-            ..
-        } => (*target_region, *target_offset, *byte_size),
         SelectedInstructionKind::WritePlaceBinary {
             target, byte_size, ..
         } => match target.const_offset() {
