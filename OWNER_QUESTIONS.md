@@ -133,3 +133,25 @@ designed once for BOTH consumers (progress-profile grants and mint
 authorities — likely the same carrier). Parking the permission-plan work
 behind that design; the checked-plans arc continues with the
 normalized-machine-contract plans, which have no such dependency.
+
+
+## Proof-machine measured termination through `sub` (the mod/gcd gate; task #134, 2026-07-20)
+
+The Rat ladder's next prerequisites (`mod`, `gcd` -- Euclid) recurse on
+`sub(a, b)`, which is NOT a case-payload subterm: `terminates by a` needs the
+checker to accept a MEASURED descent (`sub(a, b) < a` given `b >= 1 && a >= b`).
+Today validate_proof_machine_recursion accepts structural descent only, and
+the question co-mingles with the PARKED N2(d) Nat<->integer bridge:
+
+1. Where does the decrease obligation live -- a `terminates by a` whose
+   witness cites a proven lemma (`sub_lt`), or the runtime MR family's
+   measured-recursion machinery extended to proof machines?
+2. What is the order surface? `sub(a, b) == Zero` spells `a <= b` today, but
+   a STRICT `<` needs either a Nat-valued Bool-like or the N2(d) extraction
+   into integer facts (parked).
+3. If lemma-cited decreases are the answer, the checker gains a
+   proof-obligation face (cite-at-call-site discharging the ranking) --
+   design wanted before building.
+
+Until ruled: mod/gcd stay unimplemented; the monus lemma zoo (landed) is
+everything Rat's normalization needs EXCEPT the gcd computation itself.

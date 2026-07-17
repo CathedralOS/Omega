@@ -425,6 +425,24 @@ ensures
     }
 }
 
+// Left-zero annihilation: sub(Zero, b) == Zero -- structural induction on
+// `b` (the Zero arm computes; each Succ arm is pred of the inductive
+// hypothesis's Zero). Lean analog: Nat.zero_sub.
+machine sub_zero_left(b: Nat) -> Nat
+terminates by b;
+ensures
+    (sub(Nat::Zero, b)) == Nat::Zero
+{
+    transition b {
+        Nat::Zero -> Nat::Zero
+        Nat::Succ { prev } -> szl_step(prev)
+    }
+
+    state szl_step(prev: Nat) -> Nat {
+        transition { _ -> (sub_zero_left(prev)) }
+    }
+}
+
 // Self-annihilation: sub(a, a) == Zero -- structural induction on `a`; each
 // Succ arm strips one Succ from both sides by citing succ_sub_succ at
 // (prev, prev), then the ensures is the inductive hypothesis. Lean analog:
