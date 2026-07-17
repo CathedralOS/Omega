@@ -86,7 +86,7 @@ Last pruned: 2026-07-18.
 - Define accepted-proof declaration spelling while keeping trust expenditure
   explicit in artifacts.
 - Specify the separately compiled component artifact and ABI, including
-  bounded multi-version coexistence, pinned import slots, version budgets,
+  bounded provider coexistence, pinned import slots, retention budgets,
   outbound calls from old continuations, and eventual continuation migration.
 
 ## Tooling and build-time execution

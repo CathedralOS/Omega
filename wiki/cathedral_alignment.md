@@ -29,7 +29,7 @@ implementation work. Each one gets more expensive to retrofit every month.
    require `[zero_init]` on OS-facing storage without weakening constrained
    internal types.
 
-2. **Programmable wire/layout semantics** (PARTIAL).
+2. **Programmable protocol/layout semantics** (PARTIAL).
    Omega uses one `data` declaration form with optional stable field numbers
    and `retired N;`. Serialization and foreign layout are policies producing
    deterministic, validated plans; durability is a plan grade checked by
@@ -37,13 +37,18 @@ implementation work. Each one gets more expensive to retrofit every month.
    the reflection/plan vocabulary, complete codecs and recasts, and removal of
    the legacy `wire data` compatibility surface.
 
-3. **Persisted history and live replacement** (SEMANTICS SPLIT; PARTIAL).
-   `Versioned<T>` and historical wire shapes belong to persisted data. Live
-   component replacement instead anchors on normalized machine-contract
-   identity and checked state-upgrade machines. Chapter 22 specifies typed
-   upgrades, liveness pins, contract-pinned imports, and bounded coexistence as
-   the leading deployment model. Component artifact/linking mechanics,
-   outbound calls from old continuations, budgets, and eviction remain open.
+3. **Data evolution and live replacement** (MAGIC RETIRED; MIGRATION QUEUED).
+   Persisted histories use separately named ordinary protocol shapes, ordinary
+   sums, codec policies, and migration machines. The only evolution-specific
+   language metadata is stable member identity/tombstones consumed by layout
+   policies; `Versioned<T>`, version blocks, historical paths, and special
+   matching are retired. Live replacement anchors on normalized
+   machine-contract/component-artifact identities and is an ordinary phase
+   protocol over general Omega mechanisms. Cathedral is the first proving
+   consumer and will decide whether its framework remains OS-local or earns a
+   target-neutral library/core extraction. Omega still owes separate
+   compilation, provider admission, atomic dispatch installation, liveness
+   pins, and bounded coexistence substrate.
 
 4. **Separate compilation and a component artifact model** (ABSENT). Omega is
    a whole-program compiler emitting one image; the runtime model is a single
@@ -208,9 +213,10 @@ NEW GAPS these docs surface (design TBDs, no clear implementation action yet):
   raw/unproven values, snapshot-then-validate to close the TOCTOU hole
   (a shared-mutable re-read after a check is unsound). ch19 currently knows
   only proved and boundary-accepted memory.
-- **`protocol <Name> version vN { call ...; stream ...; }`** — a typed RPC
-  surface over `wire data` (the IPC doc's typed-layer example). No language
-  construct yet; rides the wire-stage-2 + capabilities-as-values work.
+- **Typed RPC package surface** — schema `data`, service traits, codec policies,
+  and capabilities compose the IPC document's typed layer. A
+  `protocol ... version ...` language construct is not planned; only repeated
+  unexpressible package needs can justify new syntax.
 
 ## Tier 2 — note now, design later (TBD register)
 
@@ -219,13 +225,13 @@ None block current compiler development; all should stay visible.
 
 - **TBD: serialized capability representation** preserving attenuation +
   revocability across IPC/reboot/network (Cathedral's #1 flagged gap).
-  Depends on `wire data` + the capability runtime story.
+  Depends on protocol codecs + the capability runtime story.
 - **TBD: quiescence proofs** under interrupts, timers, async work, hardware
   (the hot-swap precondition). Depends on the concurrency model.
 - **TBD: borrows as swap back-pressure** — borrow checker refusing to let a
   borrow outlive a machine swap point; cross-IPC borrows.
-- **TBD: multi-version concurrency mode** — old + new machine versions
-  running simultaneously with versioned dispatch (when quiescence is
+- **TBD: bounded provider coexistence** — old + new component artifacts running
+  simultaneously behind contract-pinned dispatch (when quiescence is
   impractical).
 - **TBD: operation-capabilities for secrets** (`Capability<SignWithKey(K)>`)
   and **purpose-tagged authority** (`Capability<Read<X>, Purpose<Y>>`) —

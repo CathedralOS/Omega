@@ -5,7 +5,7 @@ what a machine *is* and how the one construct is supplied and consumed. It did
 not itself settle the effects algebra; decision 22 has since done so.
 Decision 23 has since settled termination guarantees, private ranking
 witnesses, and opaque boundary progress profiles. Suspension lowering and
-component-versioning policy remain downstream contracts over this model.
+component loading/coexistence policy remain downstream contracts over this model.
 
 ## One semantic construct
 

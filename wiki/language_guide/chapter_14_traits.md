@@ -235,18 +235,11 @@ a plain list of required machine signatures.
 
 This avoids making traits magic. They are named requirement sets.
 
-## Versioned Data
+## Data Evolution
 
-Traits fit versioned data because machine signatures are already the stable
-surface.
-
-```omega
-trait CounterUpgrade {
-    machine Counter::from_v1(old: Counter::v1, out: &mut Counter);
-}
-```
-
-Or, if the language later supports direct version-generic spelling:
+Migration is ordinary behavior over explicitly named old and new shapes. A
+project can organize repeated migration contracts with an ordinary generic
+trait:
 
 ```omega
 trait Upgrade<Old, New> {
@@ -254,10 +247,12 @@ trait Upgrade<Old, New> {
 }
 ```
 
-The migration machine remains ordinary Omega behavior. The trait only lets a
-replacement checker say, "this upgrade surface exists."
+The trait is optional library structure, not a compiler-owned version chain.
+There is no `Versioned<T>`, `Type::v1`, or privileged migration trait. Different
+disk, protocol, cache, and live-state histories may all target the same runtime
+type without becoming one lineage.
 
-## Wire Protocols
+## Protocol Codecs
 
 Wire protocols can use the same model.
 
@@ -302,7 +297,7 @@ Dynamic dispatch is still needed for runtime-selected implementations:
 - Hot-swappable OS components.
 - Runtime-loaded plugins.
 - ABI/component boundaries.
-- Versioned replacement slots.
+- Replaceable component-provider slots.
 - User app extension points.
 
 That should be explicit.
@@ -344,10 +339,10 @@ check:
 - Which concrete authority values and domains were granted?
 - What lifecycle hooks exist for drop, migration, and replacement?
 
-For a Theseus-like OS, `dyn`-like runtime indirection is not optional. Versioned
-data can prove that replacement is compatible and that state can migrate, but a
-running caller still needs a stable dispatch slot, table, trampoline, endpoint,
-or loader binding that can be updated to the new implementation.
+For a Theseus-like OS, `dyn`-like runtime indirection is not optional. Checked
+migration code can prove that new state is valid, but a running caller still
+needs a stable dispatch slot, table, trampoline, endpoint, or loader binding
+that can be updated to the new implementation.
 
 Working rule:
 

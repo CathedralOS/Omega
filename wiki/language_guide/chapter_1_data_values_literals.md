@@ -138,8 +138,8 @@ data RoomEvent {
 
 The mixed shape replaces the two-type split other languages force (a struct
 holding a separately-named `Kind` enum). The header and the tag belong to one
-declaration, so the compiler -- and the wire schema, and the version block --
-sees them as one thing. Mixed shapes are LIVE with these rules:
+declaration, so the compiler and any selected layout policy see them as one
+thing. Mixed shapes are LIVE with these rules:
 
 - LAYOUT: tag at offset 0 (the universal case-bearing constant), common
   fields packed after the tag, payload overlay after the common fields.

@@ -82,8 +82,9 @@ trait Codec<Policy, Value> {
 ```
 
 The concrete conformance proves the trait's agreement laws. Asymmetric schema
-evolution—defaults, retired fields, old-era imports—belongs to the evolution
-layer rather than weakening the codec's law silently.
+evolution—defaults, retired fields, and imports from separately named old
+shapes—belongs to the evolution layer rather than weakening the codec's law
+silently.
 
 Validation/minting is exclusive: user code cannot construct a “valid” result
 whose payload claims a domain it has not proven. A validator may establish the
@@ -136,6 +137,11 @@ callable by name; implicit selection consults only the coherent home surface.
 `OmegaLayout` is the default policy family for Omega-native numbered schemas.
 Foreign formats such as Protobuf or a platform ABI are sibling library
 policies, not modes of the core type.
+
+Identity metadata does not create a versioned value. Breaking eras are
+separately named ordinary schemas; an envelope/version field and the codec that
+interprets it are ordinary policy. Layout normalization must not synthesize
+`Versioned<T>`, historical type paths, or an implicit era prefix.
 
 ## Durability
 

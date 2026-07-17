@@ -21,7 +21,7 @@ Scouted 2026-06-12. Status: AWAITING SIGN-OFF (decisions S1-S6 in TASKS.md).
 
 1. **Component boundary = PACKAGE** (chapter 15 unit); machines stay swap
    points within any component (deployment unit ≠ swap unit). Artifact =
-   sealed IR + boundary manifest + versioned/wire layout reports first;
+   sealed IR + boundary manifest + public layout/protocol reports first;
    relocatable `.o` as follow-up.
 2. **Linking**: hermetic static composition phase first (a build step
    consuming component artifacts, ordering by dependency DAG); loader-time
@@ -32,8 +32,9 @@ Scouted 2026-06-12. Status: AWAITING SIGN-OFF (decisions S1-S6 in TASKS.md).
    per-component entries (don't split it).
 4. **Cross-component ABI**: hybrid — compiler-ENFORCED public layout
    reports (content-addressed, layout-violating change = build error) for
-   performance-critical edges; wire data contracts for evolution-safe
-   edges. Host ABI reused as the calling convention (zero new work).
+   performance-critical edges; explicit protocol schema/codec contracts for
+   evolution-safe edges. Host ABI reused as the calling convention (zero new
+   work).
 5. **Monomorphization across packages: REJECT in stage 1** (report it),
    resolve at composition time in stage 2.
 6. **Omega owns the composition (linker) tool** — linkers are language
@@ -48,9 +49,10 @@ Scouted 2026-06-12. Status: AWAITING SIGN-OFF (decisions S1-S6 in TASKS.md).
 2. **Object format + static linking**: per-package relocatable artifacts,
    symbolic exports (module paths), composition tool, per-component frame
    regions (base-register discipline), composition-time monomorphization.
-3. **Loader integration (Cathedral scope)**: load-time relocation
-   patching, hot-swap via chapter 22 (Versioned<T>, migrations,
-   quiescence), rollback.
+3. **Loader integration (Cathedral scope)**: load-time relocation patching,
+   provider admission, quiescence, explicit state-migration machines, atomic
+   installation, and rollback. The orchestration is a Cathedral proving slice,
+   not an Omega `replace` DSL.
 
 ## Cross-references
 

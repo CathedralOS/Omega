@@ -5,7 +5,7 @@ one direct executable image. That is the right shape for the current phase.
 But the language's first large consumer (`wiki/cathedral_alignment.md`) needs
 components that are compiled, signed, shipped, loaded, and hot-swapped
 INDEPENDENTLY, with machines as the swap boundary
-([Versioned Data](../language_guide/chapter_22_versioned_data.md)).
+([Evolution, Migration, And Replacement](../language_guide/chapter_22_versioned_data.md)).
 
 This page exists so the whole-program assumption is a TRACKED decision per
 backend layer instead of an ambient default that silently deepens. The rule:
@@ -50,13 +50,15 @@ real.
 ## Footnotes / unknowns
 
 [^artifact]: The component artifact format is undesigned: what a compiled,
-signed, loadable Omega component contains (code, layout report, boundary
-provider manifest, wire schemas, version/migration tables, authority-flow
-report) and how it is content-addressed.
+signed, loadable Omega component contains (code, public layout reports,
+boundary-provider manifest, protocol schema/codec identities, compatible
+migration declarations, authority-flow report) and how it is
+content-addressed.
 
-[^abi]: The cross-component ABI granularity is undesigned: presumably "machine
-entry + versioned data layouts + wire schemas," but calling convention,
-dispatch handoff, and frame ownership across a component edge are open.
+[^abi]: The cross-component ABI granularity is undesigned: presumably
+"normalized machine contract + public layout plans + protocol codec
+contracts," but calling convention, dispatch handoff, and frame ownership
+across a component edge are open.
 
 [^loader]: Loader/linker responsibilities (who patches what at load time, how
 content-addressed code dedup works in memory) belong to the consumer OS's

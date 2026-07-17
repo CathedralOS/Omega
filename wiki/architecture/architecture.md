@@ -15,6 +15,9 @@ lowers?"
 - [Semantic Taxonomy Representation](semantic_taxonomy_representation.md):
   migration from lossy booleans/bitsets to the settled domain, machine,
   multiplicity, effect-row, and termination-plan semantic forms.
+- [Versioning-Magic Retirement](versioned_data_stage3_reconciliation.md):
+  removal map from version blocks and `Versioned<T>` to ordinary schemas,
+  sums, machines, codec plans, and component-provider substrate.
 
 ## Architecture Rule
 

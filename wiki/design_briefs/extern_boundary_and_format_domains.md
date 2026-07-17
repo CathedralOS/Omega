@@ -127,5 +127,5 @@ handoff. Those details stay in providers. Image/subsystem selection belongs in
 - final `Binding` and `provides` grammar;
 - callback registration/revocation and long-lived foreign borrows;
 - the exact accepted-proof surface for hand-authored providers;
-- dynamic-library loading/unloading under component versioning; and
+- dynamic-library loading/unloading under component artifact/provider policy; and
 - target-specific launch/exit details not covered by existing calling plans.

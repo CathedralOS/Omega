@@ -12,7 +12,8 @@ canary headers. Condensed 2026-07-12 and 2026-07-18.
 Omega's first real consumer is the Cathedral OS (`../Cathedral`). The gap
 analysis lives in [wiki/cathedral_alignment.md](wiki/cathedral_alignment.md).
 Current critical gaps are programmable layouts, freestanding entry/hardware
-vocabulary, atomics/scheduling, and separately compiled component replacement.
+vocabulary, atomics/scheduling, and separately compiled component/provider
+loading. Cathedral owns the first replacement-orchestration proving slice.
 
 ## NEXT TASKS — design-unblocked, agent-ready (loaded 2026-07-18)
 
@@ -2919,7 +2920,7 @@ rejects — an INTEGER ruling, engineering rides this ladder as F8).
 - Dormant residual: typed machines carry no source file (fine until a
   second consumer after is_build_machine needs one).
 
-## Programmable-layouts remainder (ch21/21/22; chapters are the spec)
+## Programmable-layouts remainder (ch20/21; chapters are the spec)
 
 - **L4 full:** derived projections into a plan-laid BYTE VIEW + the no-op
   boundary theorem — needs the L5 carrier/domain rung.
@@ -3077,15 +3078,37 @@ with a real app-window story.
 
 - **Lifetimes (decision 15):** `'name` lifetime implementation arc.
 - **Ranking-view spelling** (decision 2 follow-through).
-- **Wire data stage 2 remainder:** items (1) decode-side domain validation
-  (both ISAs + interp) and (2) wire-schemas-as-program-types CLOSED
+- **Protocol codec bridge remainder:** items (1) decode-side domain validation
+  (both ISAs + interp) and (2) protocol-schemas-as-program-types CLOSED
   2026-07-16..17 (pinned; detail in git log). OPEN, ranked: (3) runtime
-  layout of wire values; (4) encoding families beyond compact_binary v0 +
+  layout of protocol values; (4) encoding families beyond compact_binary v0 +
   version negotiation. Probe-author note: multi-call value machines
   writing self fields trip the pinned trailing-state phase bug — inline
   states are the reliable shape.
-- **Versioned data stage 3:** the era tag itself (+ decision 10's wire-era
-  ride), era-tagged containers, migration chains / `replaces` / quiescence.
+- **BREAKING MIGRATION — retire compiler-owned versioning before further
+  protocol/component work** (chapter 22 and
+  `wiki/architecture/versioned_data_stage3_reconciliation.md` are the ruling).
+  The implemented stage-3 surface is no longer language canon: remove
+  `version vN { ... }`, synthesized `Type::vN` shapes, reserved/synthesized
+  `Versioned<T>`, `.era`, version-match nodes/exhaustiveness, version-scoped
+  machines, migration-chain discovery, and the implicit top-level era prefix.
+  This is a deliberate compiler + corpus migration, not a compatibility shim.
+  Inventory at ruling time: 29 dedicated versioning canary cases and 68
+  compiler/corpus files mention the retired representation. Rungs:
+  (VM1) parser/syntax retirement with directed diagnostics;
+  (VM2) remove symbol/typed/checked version-only categories and `omega-core`
+  naming helpers;
+  (VM3) migrate useful coverage to ordinary named shapes, sums, patterns,
+  machines, traits, and provenance domains; delete tests that only defend the
+  retired magic;
+  (VM4) remove the implicit era prefix from the compact-binary bridge and
+  re-baseline byte-exact fixtures; explicit envelope/version fields remain
+  ordinary codec policy;
+  (VM5) replace version-chain artifacts with typed schema/codec-plan identity,
+  predecessor compatibility, and optional library route-plan validation; and
+  (VM6) keep live replacement downstream of generics + decision-21 linearity +
+  separate compilation/provider admission, with Cathedral—not an Omega
+  `replace` DSL—as the first consumer.
 - **Equatable synthesis:** a CALLABLE conformance surface is still open.
 - **Trailing-state stale reads of threaded `&mut` param fields:** pinned
   (pending/calls/trailing_state_mut_param_phase_divergence, 71/Exit(70));

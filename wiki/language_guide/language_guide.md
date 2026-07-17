@@ -51,7 +51,7 @@ Boundary and low-level topics:
 
 - [Chapter 19: Capabilities, Effects, And Boundaries](chapter_19_capabilities_effects_boundaries.md)
 - [Chapter 20: Memory Layout And ABI](chapter_20_memory_layout_abi.md)
-- [Chapter 21: Wire Protocols](chapter_21_wire_protocols.md)
-- [Chapter 22: Versioned Data And Machine Replacement](chapter_22_versioned_data.md)
+- [Chapter 21: Protocol Schemas And Serialization](chapter_21_wire_protocols.md)
+- [Chapter 22: Evolution, Migration, And Replacement](chapter_22_versioned_data.md)
 - [Chapter 23: Inline Assembly](chapter_23_inline_assembly.md)
 - [Appendix: Open Questions](appendix_open_questions.md)

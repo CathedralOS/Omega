@@ -1,208 +1,257 @@
-# Chapter 22: Versioned Data And Machine Replacement
+# Chapter 22: Evolution, Migration, And Replacement
 
-Omega treats persisted history and live component replacement as different
-problems. They may share migration code, but they do not share identity or
-deployment semantics.
+Omega does not have a first-class “versioned data” type. Evolution is a pattern
+composed from ordinary data, sums, machines, traits, domains, contracts, and
+toolchain artifacts. Live component replacement additionally needs loader and
+runtime services, but it does not require a `replace` statement.
 
-## Persisted And Wire History
+The old chapter title and file path remain temporarily so existing links reach
+the ruling that supersedes them.
 
-Chapter 21 owns data that can outlive a running component: files, messages,
-snapshots, and external protocols. Stable field identities, layout policies,
-and explicit era discriminators make that data self-describing across multiple
-historical shapes.
+## Three Different Problems
 
-`Versioned<T>` belongs on this side of the split. It is an era-bearing sum used
-after decode to match one of the historical shapes known to the program:
+| Problem | Stable anchor | Omega representation |
+|---|---|---|
+| Persisted or wire history | Schema and codec-plan identities | Named protocol shapes, identity metadata, codecs, ordinary sums |
+| Runtime state transformation | Input/output types and machine contract | Ordinary migration machine, optionally satisfying a library trait |
+| Live component replacement | Component artifact and normalized machine-contract identities | Runtime/provider operations coordinated by ordinary machines |
+
+The problems may share transformation code. They do not share one universal
+version number or one compiler-owned container.
+
+## Historical Shapes Are Ordinary Data
+
+Published formats remain nameable as independent declarations:
 
 ```omega
-match saved_counter {
-    Counter::v1(old) => import_v1(old),
-    Counter::v2(old) => import_v2(old),
-    Counter::current(value) => use(value),
+data CounterDiskV1 {
+    1: counter: i32;
+}
+
+data CounterDiskV2 {
+    1: counter: i32;
+    2: timestamp_millis: i64;
+}
+
+data CounterRuntime {
+    counter: AtomicI32;
+    timestamp: DateTime;
 }
 ```
 
-A historical shape is immutable once published. Its durable identity comes
-from the normalized schema/layout artifact, not from editing an old declaration
-under the same human version label.
+These are three ordinary types. `CounterDiskV1` is not a magical historical
+view of `CounterRuntime`, and editing the runtime type cannot mutate either
+published disk schema.
 
-## Live Replacement
+When one decode operation recognizes several formats, its result is an
+ordinary sum:
 
-Live replacement changes the implementation and in-memory state of a running
-component. Its stable anchor is the normalized machine contract, not a wire era
-tag or an implementation body hash.
+```omega
+data DecodedCounter {
+    case Invalid;
+    case DiskV1(value: CounterDiskV1);
+    case DiskV2(value: CounterDiskV2);
+}
+```
 
-The settled safety laws are:
+Ordinary exhaustive dispatch supplies the coverage guarantee:
 
-- old state is owned exclusively by the replacement plan;
-- the upgrade is ordinary checked machine code;
-- every required input/fact is produced by an earlier phase or explicit
-  authority;
-- the new state satisfies its declared invariants before installation;
-- imports pin normalized requirement contracts and admit providers only by
-  deterministic refinement;
-- replacement cannot silently widen effects, authority, failure, progress,
-  resource, reentrancy, or calling-plan behavior; and
-- any trust spent on an external migration/provider is visible in artifacts.
+```omega
+transition decoded {
+    DecodedCounter::DiskV1 { value } -> import_v1(value, out);
+    DecodedCounter::DiskV2 { value } -> import_v2(value, out);
+    DecodedCounter::Invalid -> reject();
+}
+```
 
-The source grammar below is provisional; those obligations are not.
+A wildcard remains an explicit choice to accept future source cases without
+case-specific behavior. A lineage package that requires one explicit route per
+known era can validate that structural rule in its normalized route plan; it
+must not pretend ordinary match exhaustiveness forbids `_` globally.
 
-## Typed Upgrades
+## Migration Is Ordinary Checked Behavior
 
-One trait expresses the state transformation, with optional captured context:
+A project may use direct machines:
+
+```omega
+machine import_v1(old: CounterDiskV1, out: &mut CounterRuntime)
+    ensures out in CounterRuntime::Valid
+{
+    out.counter = AtomicI32::new(old.counter);
+    out.timestamp = DateTime::zero();
+}
+```
+
+or share a library trait:
 
 ```omega
 trait Upgradable<Old, New, Context = Nothing> {
-    machine upgrade(old: Old, ctx: Context, out: &mut New)
-        requires exclusive(old)
+    machine upgrade(old: Old, context: Context, out: &mut New)
         ensures out in New::Valid;
 }
 ```
 
-Resolution is by the `(Old, New, Context)` types, not a magic function name.
-The context-free case uses `Nothing`.
+`Upgradable` is an ordinary trait pattern, not a privileged compiler trait.
+Projects may instead choose fallible migrations, direct-to-current routes,
+stepwise chains, reversible transforms, lossy downgrades, or negotiated
+protocols. Those policies are genuinely different and should not be fused into
+one language-defined history model.
 
-Upgrade code carries the same complete contract as any machine. Resource use
-is expressed through explicit capabilities and dependent contracts; service
-reach and `Suspend`/`Block` possibilities appear in its normalized row;
-failure remains an explicit outcome.
-
-## Capture Before Mutation
-
-When old state is insufficient—for example, a driver must read device queue
-heads—the plan captures that information as typed data before mutating old
-state:
-
-```omega
-data IrqContext {
-    route: IrqRoute;
-    rx_head: u32;
-    pending_dma: Vec<DmaDescriptor>;
-}
-
-machine capture_irq(
-    old: &NetState.prev,
-    dev: &mut Nic,
-    sched: &Scheduler,
-    heap: &mut HeapBudget
-) -> CaptureResult
-    requires old in NetState::Quiescent
-    requires heap.remaining >= irq_capture_space(old)
-    effects DeviceIo + Scheduler + Suspend;
-
-machine upgrade_net(
-    old: NetState.prev,
-    ctx: IrqContext,
-    out: &mut NetState,
-    heap: &mut HeapBudget
-)
-    satisfies Upgradable<NetState.prev, NetState, IrqContext>
-    requires exclusive(old)
-    requires heap.remaining >= upgrade_space(old, ctx)
-    ensures out in NetState::Valid;
-```
-
-The owning package controls construction of `IrqContext`; callers cannot skip
-capture by fabricating provenance. A fallible capture fails before old state is
-consumed, giving the plan an honest no-mutation rollback point.
-
-## Replacement Plans
-
-A replacement is an owned, checked sequence rather than an arbitrary call:
-
-```omega
-replace NetDriver.prev with NetDriver
-    quiesce
-    capture capture_irq
-    upgrade upgrade_net
-    install;
-```
-
-The checker verifies that each phase's requirements follow from prior
-guarantees and explicit inputs:
+Migration work that observes clocks, devices, files, or the network is
+captured before a replayable transformation when replay matters:
 
 ```text
-quiesce -> capture -> upgrade -> install
+effectful capture -> owned context -> checked transformation
 ```
 
-The plan owns old state throughout. Installation consumes the verified new
-state and requires the component-replacement authority. Reordering a phase,
-skipping context capture, losing an obligation, or installing invalid state is
-a compile/admission error.
+An empty effects row alone does not prove determinism. Replayability also
+requires owned inputs, exclusive output, no shared or atomic observation, and
+deterministic callee contracts.
 
-## Liveness Pins
+## Provenance Is Separate From Constructibility
 
-Stack occupancy alone does not prove that an old version can retire. A version
-remains live while any pin can lead back to its code or owned state:
+Historical values can be useful to construct directly in migration tests. A
+trusted load path should nevertheless distinguish decoded/validated input from
+fabricated values.
 
-- active or suspended frames;
-- dispatch handles and callbacks;
-- borrows into version-owned data;
-- capabilities minted by the version;
-- interrupt registrations; or
-- other component-defined retained authorities.
+That distinction uses the ordinary domain model: a package may expose an
+abstract predicate established only by its decoder's postcondition. Consumers
+can match and transform the public shapes while security-sensitive machines
+require the provenance domain. Private payload types are not needed merely to
+protect the boundary.
 
-Retirement requires the pin set to reach zero or an explicit policy to revoke,
-cancel, or fail the remaining work. Pins and the reason each survives belong in
-deployment reports.
+## Histories Belong To Packages
 
-## Bounded Coexistence Direction
+One runtime type may have independent disk, network, cache, save-game, and
+component-state histories. A package can encapsulate each behind `load`,
+`save`, `decode`, `encode`, `upgrade`, and `downgrade` machines.
 
-The leading component design allows old and new implementations to coexist
-temporarily. Existing continuations stay attached to the version whose frames
-they use; new dispatch selects the newly admitted provider. This avoids
-pretending v1 can transform arbitrary live frames.
+The language/toolchain supplies reusable enforcement hooks:
 
-Coexistence is bounded. A deployment declares `max_live_versions` or an
-equivalent version-memory budget. Per-version frame storage is
-`frame_size(version) × maximum simultaneous activations`, with the activation
-bound separately justified. Content-addressed code may deduplicate unchanged
-objects but cannot be relied on for the bound.
+- stable field identities and tombstones;
+- deterministic normalized schema and codec-plan identities;
+- publish-time predecessor comparison;
+- ordinary sum exhaustiveness;
+- contract and law checking for migrations/codecs;
+- domain evidence and introduction authority; and
+- compatibility/refinement reports.
 
-Drain/quiescence is the cheap path when pins naturally disappear. Continuation
-migration/OSR is a later feature requiring safe points, compiler-described
-frames, and verified state migration; it is not part of the v1 promise.
+The package supplies policy: framing, unknown-era behavior, route topology,
+rollback guarantees, and release cadence. A repeated missing mechanism found
+across several serious packages may later earn promotion. Forecasted
+convenience does not.
 
-This coexistence policy is the current design direction, not yet a frozen
-language decision. The component-versioning brief must settle the remaining
-admission and outbound-call rules before implementation.
+## Historical Shape Is Not Historical Behavior
 
-## Contract-Pinned Imports
+A machine written today over `CounterDiskV1` is current code that understands
+an old shape. It is not evidence of what the old binary did. Historical
+behavior exists only in retained component artifacts or an independently
+specified contract.
 
-An old continuation should not pin the entire old world. Its import slot pins a
-normalized requirement contract. A newly published provider can occupy that
-slot only when an admission-time certificate proves deterministic refinement.
+This distinction matters for replay, audits, rollback, and live coexistence:
+source beside an old data declaration does not reconstruct an old executable.
 
-Selection among multiple admitted refiners must be deterministic—for example,
-the newest admitted provider. Prover heuristics never participate in dispatch
-or contract identity.
+## Live Replacement Is An Orchestration Protocol
 
-The hard open case is an outbound call from an old continuation: whether it
-uses the current provider, a compatible provider selected for its pinned slot,
-or a retained old provider. The final rule must bound retention and make any
-cross-version compatibility obligation explicit.
-
-## Reports
-
-Replacement artifacts should expose:
+Replacing a running component requires a phase protocol such as:
 
 ```text
-replacement NetDriver.prev -> NetDriver
-  old contract: <normalized id>
-  new contract: <normalized id>
-  plan: quiesce -> capture_irq -> upgrade_net -> install
-  resource budget: <declared/proved bound>
-  admitted provider refinements: ...
-  live-version pins: ...
-  trust receipts: ...
+admit -> quiesce -> capture/prepare -> commit -> resume or retire
 ```
 
-## Still Open
+The protocol should be implemented by ordinary machines over explicit
+capabilities and linear phase tokens once the generic and multiplicity
+substrates can express it. Omega does not reserve `replace`, `quiesce`,
+`capture`, `upgrade`, or `install` as replacement grammar.
 
-- final coexistence/admission mechanics and deterministic linking;
-- outbound calls from old continuations;
-- version budgets, eviction, cancellation, and revocation policy;
-- the exact replacement-plan grammar;
-- quiescence proofs involving interrupts, timers, and external hardware;
-- the boundary between statically proved swap safety and load-time checks; and
-- later live continuation migration.
+The point of no return is a safety law, not a syntax choice:
+
+- before commit, every failure path must leave old state meaningfully
+  resumable;
+- preparation either borrows old state or retains enough ownership to restore
+  it;
+- commit consumes the old/new phase tokens only when installation can become
+  atomic; and
+- a destructive, non-rollbackable handoff must be a separately declared
+  protocol with all fallible work completed first.
+
+Linear consumption prevents silently abandoning a quiesced component. It does
+not, by itself, prove that a nominal `resume` still has the state required to
+resume; the phase contracts must prove recoverability.
+
+## What The Runtime Still Must Provide
+
+Dissolving replacement syntax does not dissolve irreducible runtime services.
+A loadable-component provider may still need to own:
+
+- artifact loading and typed identity verification;
+- normalized import slots and deterministic provider admission;
+- atomic dispatch installation;
+- liveness pins for frames, callbacks, borrows, capabilities, and interrupts;
+- per-version activation storage and bounded coexistence;
+- retirement, cancellation, revocation, and eviction operations; and
+- reports explaining retained versions and trust receipts.
+
+Those are boundary/runtime operations with contracts, not keywords. Cathedral
+is the only planned first consumer. It will prototype the orchestration and
+force the later decision between Cathedral-local code, a target-neutral Omega
+library, and any truly irreducible language/runtime primitive.
+
+## Component Coexistence
+
+The leading runtime direction permits bounded old/new coexistence when draining
+is impractical. Existing continuations remain pinned to the code and frame
+layout that created them; new dispatch uses an admitted current provider.
+
+Import slots pin normalized requirement contracts rather than entire old
+worlds. A provider can advance only by deterministic refinement admission.
+Still-open component questions include outbound calls from old continuations,
+version-memory budgets and eviction, exact artifact/linking mechanics, and the
+future boundary between coexistence and continuation migration.
+
+These are component-artifact/runtime questions. They do not justify attaching
+era state to every ordinary value.
+
+## Typed Identities, Not One Version Number
+
+The toolchain may reuse deterministic normalization and hashing infrastructure,
+but identities remain typed:
+
+- lineage or schema identity;
+- codec/wire-grammar identity;
+- normalized machine-contract identity;
+- component-artifact identity; and
+- provider identity.
+
+Two structurally equal schemas can mean different things; compatible schemas
+are normally not identical; and a compatible provider is not the same artifact
+as its predecessor. Explicit compatibility/refinement certificates connect
+these identities.
+
+## Retired Language Machinery
+
+The semantic model retires:
+
+- version blocks embedded in `data`;
+- `Type::vN` and `Type.prev` historical paths;
+- compiler-synthesized `Versioned<T>` and `.era`;
+- special version-match arms and exhaustiveness;
+- compiler-owned migration-chain discovery; and
+- the `replace ... quiesce ...` DSL.
+
+The current compiler and canary corpus still contain some of this machinery.
+`TASKS.md` owns its deliberate removal and conversion of useful tests into
+ordinary sums, patterns, machines, codec policies, and component-provider
+tests.
+
+## Working Rules
+
+- Versioning is not first-class in the Omega type system.
+- Protocol identity metadata is the one special evolution surface, owned by
+  chapter 21 and consumed by layout/serialization policies.
+- Breaking formats use explicit named shapes and ordinary sums.
+- Migration is ordinary checked machine code; traits organize it when useful.
+- Live replacement is a package/runtime protocol over general Omega
+  mechanisms, with Cathedral as the first proving customer.
+- The compiler normalizes identities, checks contracts, and reports
+  compatibility; it does not infer durable meaning or deployment policy.

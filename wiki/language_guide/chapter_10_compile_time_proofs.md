@@ -413,7 +413,7 @@ Working rules:
   builds: a test run that witnesses a violation traps naming the machine
   that lied.
 
-Certificates need no construct of their own: a certificate is wire data,
+Certificates need no construct of their own: a certificate is protocol data,
 its checker is a measured machine, its soundness is a theorem
 (`check(c) == true` implies the claim), and establishment is the
 `evaluated` tier — or an `as` mint through a certificate domain

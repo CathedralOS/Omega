@@ -53,8 +53,9 @@ Last pruned: 2026-07-18.
    dependent owned-buffer splits or quantitative effect-row members. Whole
    ownership and borrowed views do not wait on this.
 
-4. **Component versioning.** The leading design uses bounded multi-version
-   coexistence, per-version activation pools and liveness pins, and import slots
+4. **Component artifacts and provider coexistence.** The leading design uses
+   bounded old/new provider coexistence, per-artifact activation pools and
+   liveness pins, and import slots
    pinned to normalized machine-contract identities with deterministic
    refinement admission.
 

@@ -1,32 +1,24 @@
-# Chapter 21: Wire Protocols
+# Chapter 21: Protocol Schemas And Serialization
 
-Omega treats protocol schemas as first-class source-visible contracts.
+Omega has no separate `wire data` species and no first-class notion of a data
+version. Protocol data is ordinary `data`. Serialization policies may consume
+optional stable identity metadata when an external format must evolve without
+silently changing what old bytes mean.
 
-Wire protocols are about stable external representation: bytes on a socket,
-messages on a bus, persisted packets, RPC payloads, logs, and cross-version
-communication with peers outside the current process image. They are not the
-same thing as runtime data layout.
+This chapter separates three things that are often conflated:
 
-The design splits into two independent concerns, each with exactly one home:
+- a **semantic shape** is an ordinary `data` declaration;
+- **identity metadata** says which protocol field or explicit discriminant a
+  declaration member corresponds to; and
+- a **layout/codec policy** says how values become bytes at a particular edge.
 
-- **Field identity** — which field is which, durably, across schema history.
-  This is a property of the schema itself, so it lives **in the declaration**:
-  optional identity numbers on plain `data`.
-- **Byte grammar** — how a value becomes bytes (varints, tags, offsets,
-  framing). This is a property of each *edge*, so it lives **at the use site**:
-  a layout policy named (or implied) at the carrier
-  (see [Memory Layout And ABI](chapter_20_memory_layout_abi.md) and
-  `design_briefs/programmable_layouts.md`).
+Only the second item is evolution-specific language metadata. It does not add
+runtime state, change native layout, or make the value intrinsically
+“versioned.”
 
-There is no separate wire declaration form. One `data` keyword declares every
-shape; schemas that cross evolution-durable edges add identity numbers;
-policies consume the schema facts their grammar needs and ignore the rest.
-Compatibility-parser removal is tracked in `TASKS.md`, not in the language
-model.
+## Stable Field Identity
 
-## Field Identity
-
-Identity numbers are optional per-field syntax on `data`:
+Field identity numbers are optional metadata on plain `data`:
 
 ```omega
 data CounterMessage {
@@ -34,359 +26,252 @@ data CounterMessage {
     2: timestamp_millis: i64;
 }
 
-data Scratch { pos: Vec2; zoom: f32; }     // unnumbered: no identity contract
+data Scratch {
+    position: Vec2;
+    zoom: f32;
+}
 ```
 
-Working interpretation:
+The rules are:
 
-- Numbers may take any values, in any order, sparse or dense. The constraints
-  are unique and not-retired.
-- Field numbers are the wire identity; declaration order is not. Renaming a
-  field does not change its identity.
-- Numbers are **inert schema facts**: in-memory layout (compiler-sovereign),
-  proofs, ZII, equality, and order-consuming policies (the C layout) all
-  ignore them. Only identity-keyed grammars read them.
-- An **unnumbered schema has no identity — never an order-derived one.** No
-  grammar may invent tags from declaration order; that is the silent-
-  corruption trap this design exists to exclude (delete a field, and an old
-  payload decodes *validly* into the wrong fields with no error anywhere).
-  Unnumbered schemas simply cannot cross evolution-durable edges; the error
-  names the fix.
+- numbers may be sparse and appear in any declaration order;
+- live and retired numbers must be unique;
+- a number, not the source field name or declaration position, is the stable
+  identity read by an identity-keyed codec;
+- renaming a numbered field preserves that identity;
+- numbers are inert to native layout, equality, proofs, ZII, and policies that
+  deliberately use declaration order; and
+- an unnumbered declaration has no durable field identity. A codec may not
+  silently invent one from declaration order.
 
-## Retiring A Field
+Identity numbers are therefore layout metadata for fluid external formats,
+not a general-purpose versioning mechanism.
+
+## Explicit Case Discriminants
+
+Payload-less cases may pin the integer discriminant required by a foreign ABI
+or protocol:
+
+```omega
+data MessageKind {
+    case Invalid = 0;
+    case Snapshot = 4;
+    case Delta = 9;
+}
+```
+
+As chapter 1 specifies, these values are likewise metadata consumed by an
+appropriate layout policy. Internal sums leave discriminants implicit. A
+protocol needing stable identities for payload-bearing alternatives must use a
+codec/layout policy that states those tags or an ordinary explicit
+discriminator field; Omega does not pretend the compiler's internal sum tag is
+a durable protocol number.
+
+## Retiring Identity
+
+Deleting a published field burns its number:
 
 ```omega
 data CounterMessage {
     1: counter: i32;
-    retired 2;                 // a field lived here once; the number is burned
+    retired 2;
     3: timestamp_millis: i64;
 }
 ```
 
-- `retired N;` tombstones an identity number. Declaring a field with a retired
-  number is a compile error.
-- Retirement is a declaration, **not a tombstone field**: a dead field kept in
-  the schema would leak into every consumer (the C layout would place it,
-  derived equality/hash/reflection would each need skip-rules, and its type
-  reference would keep dead types alive). `retired` is absent from the field
-  list, so every consumer ignores it by construction.
-- Deleting a field without retiring its number is invisible to a single
-  compile (the compiler cannot see undeclared history). Two mechanisms close
-  the gap: declared `version` eras make retiring a documented number
-  enforceable in-compile, and the **publish-time predecessor diff** (package/
-  artifact level) checks every identity in the previous artifact's plan is
-  either present-with-the-same-field or retired.
+`retired N;` is metadata, not a ghost field. It does not participate in native
+layout, reflection over live fields, equality, hashing, or ownership. Reusing
+the number is a compile or publish error.
 
-## Grammars Are Layout Policies
+A single compilation cannot know undeclared history. Publication therefore
+compares the normalized current schema/plan with its declared predecessor:
+every old identity must still denote a compatible field or be explicitly
+retired. Tombstones and predecessor comparison are complementary; neither is a
+substitute for the other.
 
-Encoding is chosen at the EDGE, not on the declaration — and you hold VALUES,
-not encoded bytes (settled 2026-07-02: a layout domain on owned storage would
-be a trivially-claimed membership; domains on bytes are MINTED facts riding
-borrowed views):
+## Layout Policies Own Bytes
+
+Encoding is selected at an edge. Owning a `CounterMessage` means owning a
+value in compiler-sovereign native layout, not owning encoded bytes:
 
 ```omega
-save: CounterMessage;                        // you own it: a VALUE, sovereign layout,
-                                             //   no bytes, no domain, nothing named
-// outbound: encode at the edge into plain scratch bytes
-CounterMessage::encode(&save, &mut scratch, &mut written);
-// inbound: the validate MINT makes the fact true and hands you a refined VIEW
-//   case Valid(view: &[u8] in OmegaLayout<CounterMessage>)   — then materialize (total)
-// grammar is a defaulted build-time parameter of the instance name:
-//   OmegaLayout<CounterMessage>          — Derived (default): numbered → tagged
-//   OmegaLayout<CounterMessage, Packed>  — explicit: ignore numbers, densest form,
-//                                          same-version bytes only
+let value: CounterMessage;
+let bytes: [u8; 128];
+let written: count;
+
+CounterCodec::encode(&value, &mut bytes, &mut written);
 ```
 
-- `OmegaLayout` is the one Omega-native policy family. The grammar is an
-  ordinary defaulted build-time parameter (named, not bool); *detection is just
-  the default value*, computed from a visible schema fact (the numbers are in
-  the declaration). Omega-native edges imply the policy, so most code names
-  nothing.
-- The asymmetry is one-way by design: identity can always be **dropped** from
-  the wire (`Packed` on a numbered schema — caches, same-version shared-memory
-  rings) and can never be **invented** at a carrier.
-- Foreign grammars (`Protobuf`, C-ABI layouts, …) are sibling policies over
-  the same schemas; a provides-mapping to a foreign symbol implies its format
-  (see the extern brief).
-- **Decoding is not a compiler-derived operation.** Turning inbound `&[u8]`
-  into a domain-refined view is domain MINTING, and minting is ordinary
-  user-written code that ends in an `as` the compiler accepts only once every
-  invariant is proven (Chapter 8, "Establishing A Domain"). There is no
-  compiler-generated `validate` and no built-in verdict type; a program that
-  wants `Valid | Invalid` declares that sum type and writes the machine that
-  proves the bytes. Inbound bytes carry zero guarantees until such a proof — a
-  trust boundary, not a type assertion.
-- OPEN (pending Zach's ruling): whether *encoding* (a value → plain bytes, which
-  mints nothing) is likewise user-written, or may still be a derived conformance.
-  The minting/inbound direction is settled; the outbound direction is not.
+`OmegaLayout`, Protobuf, a file format, and a platform ABI are sibling layout
+or codec policies over ordinary declarations. A policy may read identity
+metadata, ignore it for an explicitly ephemeral encoding, or require
+additional authored mapping. The declaration does not choose one universal
+byte grammar for every use.
 
-## Durability Is A Plan Grade
+Layout plans normalize deterministically. The normalizer owns schema/layout
+identity; proof strength may gate whether a plan or codec conformance is
+accepted but may not change the published identity.
 
-The deriver grades each resolved plan: identity-keyed placements survive
-schema evolution (**durable**); positional or offset-based placements do not.
-The grade is consumed **at compile time by APIs whose contract is
-longevity** — it is never a fact about bytes:
+Encoding, decoding, and validation are ordinary contracted machines. The
+compiler may provide a temporary hard-coded codec while build-time policy
+machinery is incomplete, but arbitrary codec generation is not language
+semantics. A complete codec conformance proves its declared round-trip,
+validation, and compatibility laws.
 
-- A versioned store (`Store<T>`-shaped API) build-time-requires a durable plan;
-  handing it an unnumbered or `Packed` schema is a compile error naming the
-  fix.
-- Raw byte edges (`write(bytes: &[u8])`) are format-agnostic, correctly —
-  ciphertext, images, and foreign frames are all legitimate bytes.
-- Cache-shaped APIs accept non-durable frames; persisted non-durable frames
-  carry the schema's content-hash fingerprint so stale bytes fail as a
-  deterministic decode `Invalid` (regenerate), never a misparse.
-- The C layout is *not* durable and does not need to be: a foreign-ABI struct
-  never crosses a schema-evolution edge — its layout is pinned by an external
-  frozen spec, checked by the boundary contract instead.
+## Compatible Evolution Within One Fluid Schema
 
-## Compatibility Rules
+An identity-keyed, self-delimiting format can support compatible changes to a
+numbered declaration:
 
-Schemas with identity numbers evolve under explicit rules. The safe path is
-easy:
+- add a field under a fresh identity when its absence has an honest declared
+  meaning, normally ZII;
+- rename a field while retaining its identity;
+- retire a removed field identity; and
+- apply an explicit unknown-field policy: reject, skip, or preserve opaque
+  bytes for re-emission.
 
-- Adding a field with a fresh number is compatible: old payloads decode with
-  the new field absent → ZII. This is safe exactly when zero-means-empty is
-  the right reading for the field; when a zero default would be wrong, the
-  change is a version-era migration wearing add-clothing, and the honest tool
-  is a `version` block.
-- Removing a field retires its number (above).
-- Renaming a field is compatible; identity is the number.
-- Changing a field's type, presence semantics, or defaults is a protocol
-  change requiring an explicit rule — within an era it is an error; across
-  declared eras it is legitimate evolution reported as "requires migration."
-- Unknown fields may be rejected, ignored, or preserved by schema policy. The
-  same policy covers unknown case tags on case-bearing fields (a newer era's
-  case arriving at an older reader): reject, preserve raw, or decode as the
-  zero case. In-language match exhaustiveness is never weakened for this —
-  cross-binary openness is a wire decode policy, not a type-system property.
-- Tag identity and version eras divide the labor: **numbers handle compatible
-  evolution in both directions** — including *forward* skew (old code reading
-  a newer peer's bytes by skipping unknown tags), which version chains cannot
-  do — **`version` blocks handle breaking rewrites.**
-- Compatibility checks run along the version chain: each declared era is
-  checked against its successor, matching how migrations compose in
-  [Versioned Data](chapter_22_versioned_data.md).
+Changing a field's type, default interpretation, unit, or semantic meaning is
+not made safe by retaining its number. The predecessor comparison must reject
+structural incompatibility, while semantic compatibility remains an authored
+contract and review responsibility.
 
-Declared versions change the reservation story. Generated tagged encodings
-always carry an ERA DISCRIMINATOR (one varint per top-level message or record
-— never per struct, never in native layout); a schema with no version blocks
-encodes era `0`, and introducing versioning later snapshots the old body as
-that era, so pre-versioning data stays decodable. Because the decoder always
-knows a message's era:
+These rules describe what a particular codec can preserve. Field numbering
+does not itself force a tagged grammar or make every future change compatible.
 
-- `retired` protects against ACCIDENTAL reuse within an era; deliberate
-  cross-era recycling of a retired number is legal — the era tables
-  disambiguate what proto must treat as radioactive forever.
-- A field number changing type ACROSS eras is legitimate evolution (decode via
-  the old era's table, migrate up the chain), not a compile error. Hard errors
-  are for within-era violations and declared-history contradictions.
+## Breaking Eras Are Ordinary Shapes
 
-## Wire Versions
-
-Version blocks exist for genuinely distinct eras, not for every schema change:
+A breaking format change gets a new, ordinary declaration:
 
 ```omega
-data CounterMessage {
-    version v1 {
-        1: counter: i32;
-    }
+data CounterDiskV1 {
+    1: counter: i32;
+}
 
-    retired 1;
-    2: counter: i32;
-    3: timestamp_millis: i64;
+data CounterDiskV2 {
+    1: counter: i32;
+    2: timestamp_millis: i64;
+}
+
+data DecodedCounter {
+    case Invalid;
+    case V1(value: CounterDiskV1);
+    case V2(value: CounterDiskV2);
+    case Unknown(raw: OpaqueFrame);
 }
 ```
 
-Version blocks are useful for breaking protocol eras, compatibility with an
-already-shipped external format, protocol envelopes carrying an explicit
-version, and decode paths where old payloads need different validation. They
-are not a replacement for stable field numbering — if every field change
-creates a new era, the protocol becomes harder to evolve and interoperate
-with.
+Here `OpaqueFrame` is a format-package-owned bounded byte carrier. The outer
+format chooses how bytes identify an era: an ordinary numbered
+field, an explicit protocol discriminant, negotiated framing, a database
+schema table, or some foreign rule. The decoder applies that rule and returns
+an ordinary closed sum over the eras this program understands. `Unknown` is
+included only when the format promises opaque preservation; strict formats
+reject instead.
 
-## Message Shapes And Runtime Shapes
+The sum receives ordinary exhaustive matching and payload narrowing. Adding a
+known era breaks consumers that enumerate cases, exactly as adding any other
+sum case does. There is no separate version-match grammar.
 
-With one declaration form, a schema may be serialized directly, or a protocol
-may keep a distinct message shape optimized for compatibility next to a
-runtime shape optimized for execution:
+Omega deliberately has none of the following language constructs:
+
+- `version vN { ... }` blocks inside a declaration;
+- compiler-generated historical types such as `Counter::v1`;
+- a compiler-owned `Versioned<T>` container or `.era` query; or
+- an implicit era discriminator prepended to every encoded message.
+
+Different histories may target the same runtime type: disk, network, cache,
+and live-component state can each use independent shapes and policies. That is
+the primary benefit of not attaching one privileged lineage to a runtime
+declaration.
+
+## Runtime Shapes Stay Separate
+
+Runtime representation and durable representation usually want different
+types:
 
 ```omega
-data Counter {                    // runtime shape
+data Counter {
     counter: AtomicI32;
     timestamp: DateTime;
 }
 
-data CounterMessage {             // message shape
+data CounterDiskV2 {
     1: counter: i32;
     2: timestamp_millis: i64;
 }
 ```
 
-Conversion between them is ordinary machines with ordinary obligations — no
-special `encode`/`decode` keywords for transform code, no blessed conversion
-trait required. Wire decoding (bytes → validated message value, generated
-from the plan) and runtime conversion (message value → runtime value, written
-by hand) stay distinct operations: the former carries protocol obligations
-(validation, compatibility, unknown fields, canonical encoding), the latter
-carries the usual effect, ownership, and invariant obligations. Runtime
-hot-swap migration is a third thing with its own obligations
-([Versioned Data](chapter_22_versioned_data.md)).
+Conversion between them is ordinary machine code with ordinary effects,
+ownership, failure, and invariant contracts. A generator may transcribe a
+codec for an explicitly authored protocol shape; it may not decide that an
+atomic cell, capability, cache, clock value, or other runtime field has a
+particular durable meaning.
 
-## The Implemented Encoding: `compact_binary` v0
+## Durability Is A Plan/API Property
 
-STATUS: the first implemented grammar — the **tagged grammar of
-`OmegaLayout`**. The domain-instance spelling parses and validates
-(`OmegaLayout<Schema>`: the schema must be identity-numbered — the packed
-grammar of an unnumbered schema is not implemented; an explicit grammar
-argument rejects, `Derived` being the default and only grammar), and it obeys
-**mints-only** (§ "domain entry"): the domain rides BORROWED VIEWS
-(`&[u8] in OmegaLayout<Schema>`, the validate-mint's result payload — the
-mint itself is up-ladder), never owned storage. Declaring it on a stored
-`[u8; N]` is a compile error — a zeroed buffer holds no valid encoding, so a
-declared refinement would be a trivially-claimed membership. You hold the
-VALUE (`save: Save`) and encode at the edge; buffers are plain bytes. A
-refined view is a plain byte view to layout and codegen — never the
-`{len, bytes}` text carrier. The synthesized `Schema::encode(&value, &mut out, &mut
-written)` encoder covers primitive integer fields (i32, i64, u32, u64, bool):
-the message's ERA DISCRIMINATOR varint comes first, then each current-era
-field in field-number order as a field-number varint followed by a value
-varint, where varints are unsigned LEB128, signed values zigzag first
-(`(n << 1) ^ (n >> 63)`, so small negatives stay short), and bool encodes as
-one byte 0/1. The out buffer must be a `&mut [u8; N]` large enough for the
-worst-case encoding (checked at compile time, so the encoder needs no runtime
-bounds checks), and `written` receives the encoded byte count.
+The resolved layout plan can be graded for durability:
 
-A `String` field rides as its tag varint, then a LENGTH varint (byte count),
-then the raw UTF-8 bytes — no NUL terminator, no padding. String fields are
-ENCODE-ONLY today, and the encoder takes at most one per message, carrying
-the schema's highest field number so it encodes LAST. Both restrictions fall
-out of the same fact: a String's byte count is runtime-sized (the value is a
-`{ptr, len}` text descriptor), so it cannot participate in the compile-time
-worst-case capacity check. The worst-case budget covers everything up to and
-including the length varint (ten bytes max); the trailing byte-copy is the
-one append that bounds every store against the buffer's compile-time length
-at runtime, DROPPING content past capacity rather than writing out of bounds
-(callers size buffers for their longest expected text — a runtime overflow
-signal for encode is future work). Decode REJECTS String fields for now.
-The honest storage options were: (a) zero-copy — write a descriptor pointing
-INTO the decode buffer, which makes the decoded message silently alias the
-buffer; today's borrow facts track view loans created by explicit slice/text
-borrow expressions only, so the checker CANNOT see a call output retaining a
-borrow of another argument, and mutating or reusing the buffer would
-invalidate the decoded string with no diagnostic; or (b) reject decode until
-that aliasing relationship is checkable (or an allocator/copy target exists).
-We took (b): encode-only is a smaller honest slice; zero-copy decode awaits
-borrow facts that can model it (tracked in TASKS).
+- a durable storage API requires stable identity and the reader-tolerance
+  properties its contract promises;
+- a same-build cache may choose a compact positional layout and carry a
+  schema fingerprint so stale bytes reject deterministically; and
+- a foreign ABI layout is pinned by its external specification rather than by
+  Omega's schema-evolution rules.
 
-The matching decoder is
-`Schema::decode(&mut value, &buffer, &mut read, &mut verdict)`: it reads the
-era varint, then per field the expected field-number varint and a value
-varint, un-zigzagging signed fields, and writes each value into the matching
-field of `value`. `read` receives the byte count consumed and `verdict` the
-result: a `WireVerdict` enum (`case Invalid; case Sound;` -- Invalid is the
-ZII zero case, so an untouched verdict reads as failure), dispatched with
-ordinary transition arms rather than remembered like a flag. The decoder accepts the schema's CURRENT era only — a payload
-carrying any other era discriminator fails on its first byte; decoding
-historical eras is deferred until the `Versioned<T>` container (chapter 22
-stage 3) is signed off, since ordinary values cannot carry an era tag.
-Failure semantics: the verdict is sticky — the first violation (wrong era, a tag
-that is not the next expected field number, truncated input, or an overlong
-varint past ten groups) makes the decode report failure, and nothing can set
-the flag back. On failure the decoder guarantees only the flag: `read` and
-the message's fields may reflect a partial or garbage decode (no rollback),
-but every byte read is bounds-checked against the buffer's compile-time
-length, so a failed decode never reads out of bounds.
+Durability is not a domain attached to owned values or arbitrary bytes. It is
+a checked relationship among a schema, a codec plan, an API promise, and—when
+published—its predecessor artifact.
 
-A NESTED MESSAGE field — a field whose type is another schema, like
-`1: header: RoomHeader;` — rides as its tag varint, then a byte-LENGTH
-varint, then the sub-message's fields (tag + value pairs) WITHOUT an era
-discriminator. Decision 10's frozen text settles the framing: one era varint
-per top-level message, NEVER per struct. The era rides only the top-level
-envelope; a nested schema's version chain is checked at its own top-level
-uses, and its declaration is validated like any other schema's. Today's
-honest slice is ONE nesting level with a scalar-only child body (i32, i64,
-u32, u64, bool): a String child is runtime-sized and a doubly-nested child
-would need a second staging region, so both reject with clear diagnostics,
-and a schema that reaches itself through nested fields (no finite worst case)
-is a hard error at the declaration.
+## Current Compiler Bridge
 
-The length prefix is the interesting part: the sub-message's field SET is
-compile-time-known, so its WORST-CASE size is static, but its actual size is
-runtime (varints shrink with their values). Of the honest mechanisms —
-two-pass staging, an overlong fixed-width length varint (rejected: our own
-decoder's overlong check refuses non-minimal varints), or back-patching the
-length after the fact (rejected: a runtime byte-distance plus a shifting
-rewrite) — the encoder takes two-pass staging, and it reuses machinery that
-already existed. The compiler reserves a scratch region in the runtime frame
-shaped as a `{ptr, len}` text descriptor followed by a staging buffer sized
-to the largest nested child's worst case; the nested field encodes by
-pointing the descriptor at the staging buffer, zeroing the len slot (which
-doubles as the staging cursor), appending the child's fields into the buffer
-with the ordinary wire appends, and then replaying the descriptor through the
-same text-bytes append a String field uses — which emits exactly a length
-varint followed by that many bytes. The parent's worst-case budget counts the
-nested field as tag + length varint + child worst case, so the capacity rule
-composes; nested fields are statically bounded, so the one-String-LAST rule
-is unaffected by them and applies PER MESSAGE SCOPE (a child body simply has
-no String today).
+The current `compact_binary` implementation is a bootstrap bridge, not the
+final semantic surface. It supports a restricted identity-keyed grammar,
+primitive scalar fields, limited strings and nesting, and byte-exact
+interpreter/native canaries.
 
-The decoder reads the nested tag, reads the length varint into the scratch
-slot, then OPENS the sub-region: the length must fit the remaining buffer
-(checked both as a raw value and as the absolute end bound, so a huge length
-cannot wrap the 64-bit sum back inside the buffer), failure clearing the
-sticky verdict as usual. The child's fields then decode with the ordinary
-expected-tag and value-varint reads — still bounds-checked against the full
-buffer for memory safety — and a CLOSE check fails the verdict unless the cursor
-landed EXACTLY on the declared end: a length that disagrees with the content
-in either direction is a malformed payload, not a silent skew.
+It also still implements legacy versioning machinery: `version` blocks,
+`Versioned<T>`, version-match arms, and an unconditional leading era value.
+Those features are scheduled for removal in `TASKS.md`. Their canaries describe
+the implementation being retired, not source compatibility promised by the
+language. New external formats must not publish that transitional era prefix as
+a stable Omega guarantee.
 
 ## Compatibility Reports
 
-The compiler should be able to report protocol compatibility changes.
-
-Example artifact shape:
+Build artifacts should expose normalized, typed identities and compatibility
+results rather than a single human “version” string:
 
 ```text
-data CounterMessage:
-  compatible:
-    added field 3 timestamp_millis
-  incompatible:
-    field 1 changed i32 -> AtomicI32 without decode rule
-  retired:
-    field 2 retired in v2
+schema CounterMessage
+  schema identity: ...
+  codec-plan identity: ...
+  compatible: added field 3
+  retired: field 2
+  incompatible: field 1 changed i32 -> AtomicI32
 ```
 
-This fits Omega's broader design direction: facts, obligations, and boundary
-should be visible in build artifacts instead of hiding inside implementation
-details.
+Schema identity, codec-plan identity, component contract identity, and provider
+identity are distinct types even when they share hashing infrastructure.
+Compatibility and refinement certificates connect identities; equality does
+not replace those relations.
 
 ## Working Rules
 
-- Field numbers are stable protocol identities; declaration order is not.
-- Identity is optional, stated, and never derived from order.
-- Wire layout is not assumed to match runtime layout; grammars are layout
-  policies chosen at use sites.
-- Encoding and decoding are generated from source-visible contracts
-  (plan-derived); hand-written byte code forfeits the conformance theorem and
-  says so.
-- Durability is a plan grade consumed at build time by longevity-contract APIs,
-  never a fact about bytes.
-- Unknown-field behavior must be explicit.
-- Additions, removals, renames, type changes, and presence changes have
-  explicit compatibility rules.
-- Wire versions are allowed, but ordinary field evolution should be preferred
-  when it is sufficient.
-- Decode compatibility and runtime hot-swap migration are related ideas with
-  different obligations.
+- Protocol schemas are ordinary `data`.
+- Stable field numbers, explicit discriminants, and tombstones are inert
+  layout/serialization metadata.
+- Layout and codec policies own byte grammar at use sites.
+- Compatible fluid evolution is checked against a predecessor plan.
+- Breaking histories use explicit named shapes, ordinary sums, and ordinary
+  migration machines.
+- Open-world input is handled at decode boundaries by an explicit unknown-era
+  policy.
+- Runtime types never acquire one privileged format lineage.
 
-## Open Design Questions
+## Still Open
 
-- Which grammars should ship after `compact_binary` (canonical text? packed
-  repeated fields?), and how much of protobuf's ecosystem behavior
-  (unknown-field preservation) is worth carrying?
-- How should optional, required, repeated, and defaulted fields be spelled?
-- How much compatibility can the compiler infer safely?
-- When does a field type change require a new field number instead of a
-  decode rule?
-- The publish-time predecessor diff: exactly where it runs (package manager,
-  build artifact comparison) and what it blocks.
+- the exact publish-time predecessor selection and certificate format;
+- unknown-field/case opaque-preservation storage in the first general codec;
+- stable tag metadata for payload-bearing protocol alternatives;
+- version negotiation and explicit downgrade protocols; and
+- the final programmable-layout reflection and plan vocabulary.

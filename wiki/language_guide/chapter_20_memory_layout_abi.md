@@ -244,7 +244,8 @@ field encodings that define byte order independently.
 Serialized layout is not native layout.
 
 Native layout optimizes in-memory access; a serialized layout (a *layout
-policy* chosen at the carrier — [Wire Protocols](chapter_21_wire_protocols.md),
+policy* chosen at the carrier —
+[Protocol Schemas And Serialization](chapter_21_wire_protocols.md),
 `design_briefs/programmable_layouts.md`) optimizes compatibility and decoding.
 A value has exactly one in-memory form; a schema may serialize through many
 policies. The two coincide only by explicit contract: a fully static policy in

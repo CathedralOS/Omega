@@ -61,7 +61,7 @@ The full apparatus, with the builder's verdict on each:
 | Mechanism | Buys | Costs | Systems need? |
 |---|---|---|---|
 | Pi (result type computed from argument value) | value-indexed APIs; quantifiers; generics-as-instance | a normalizer *inside* the type checker (conversion checking evaluates open user terms at compile time); undecidable inference; elaboration | **No.** Layouts/facts *parameterized* by values never require types *computed* by code |
-| Sigma (dependent pair) | existential returns; length-prefixed wire data — `{len, payload[len]}` IS one | near-zero in a decidable index fragment | **Yes** — the single most systems-relevant object. UEFI GetMemoryMap returns one |
+| Sigma (dependent pair) | existential returns; length-prefixed protocol data — `{len, payload[len]}` IS one | near-zero in a decidable index fragment | **Yes** — the single most systems-relevant object. UEFI GetMemoryMap returns one |
 | Indexed families (Vec) | compile-time-impossible cases | index unification, K-axiom, forced-argument erasure | No — sum types + fact-conditioned cases + dominating guards reproduce the effect (the landed sum-payload narrowing already is this) |
 | Universes | types-as-values | Girard's paradox management; permanent bookkeeping tax | No — a language whose types are never first-class values has **no universe problem**; keep it that way until the math rung |
 | Definitional equality / normalization | silent computation in types | the checker's termination = the termination checker's soundness; Lean's main pain center (defeq debt, kernel blowups) | No — an entailment *engine* deciding equalities in a decidable theory is the third road: reflected-equality ergonomics without undecidable checking |
@@ -76,7 +76,7 @@ with the engine (polynomials + difference-bound matrix + intervals + gated
 induction) already built for the *symbolic* point. The feature is the step
 from constants to atoms — the DML design point, reached by widening the
 existing engine's inputs, not by new theory. What Omega already implements
-under its own names: guard narrowing = flow-sensitive refinement; wire data
+under its own names: guard narrowing = flow-sensitive refinement; protocol data
 with runtime strides = Sigma types in disguise; store enforcement = the
 ownership-sound strong updates Flux (Liquid Types for Rust, PLDI 2023) showed
 make refinement of mutable memory work; engine-not-terms = perfect erasure.

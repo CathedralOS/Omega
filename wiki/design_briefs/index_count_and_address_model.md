@@ -121,7 +121,7 @@ cross-index even though both are just proven-`< len` integers.
   - **re-prove at use** (pure C): the tag is nominal, the `requires i < len` is
     checked against the current length, so a stale handle simply fails to prove —
     cheap, but you cannot hold an index across a shrink;
-  - **generational index** (`{ value, era }` = `Versioned<T>` / arena handles): a
+  - **generational index** (`{ value, generation }` as an ordinary arena handle): a
     shrink/realloc bumps the era; a stale handle fails the era check — holdable
     across mutation.
 

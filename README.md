@@ -93,7 +93,7 @@ The native path runs real programs on macOS ARM64, Windows x64, and Linux
 - Slices and fat descriptors: element reads/writes through views, subslicing
   (`items[1..]`), descriptor materialization, and runtime text building.
 - Case payload construction, tag dispatch, membership tests (`in`),
-  synthesized structural equality, and `wire data` encoders with byte-exact
+  synthesized structural equality, and protocol-data codecs with byte-exact
   LEB128 output.
 
 Current known limitations:
