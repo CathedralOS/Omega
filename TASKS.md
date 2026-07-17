@@ -2653,9 +2653,29 @@ no `unbounded` property exists. Rungs:
   termination checker's separate job). FALSE TWINS pinned:
   vacuity_satisfiable_premise (satisfiable premise must NOT close
   vacuously) + ih_citation (sub_le's exact shape with a false claim
-  refuses on both faces). REMAINING: slice a2 -- the termination
-  checker's computed-subject strict-edge obligation discharged by a
-  sub_lt_succ citation; slice a3 -- mod + gcd; then rat.omg. `sub_zero_left` landed as the monus
+  refuses on both faces). REMAINING -- SLICE A2 DESIGN
+  (banked 2026-07-20): prove the SYMBOLIC strict lemma first --
+  sub_lt_of_le(pb, a) [requires Succ pb <= a; Zero arm vacuous by
+  clash, Succ arm = sub_lt_succ's citation body, no induction] then
+  sub_lt(a, b) [requires 1 <= b, b <= a; Zero arm vacuous, Succ arm
+  cites sub_lt_of_le under the arm-refined premise] -- its ensures
+  sub(Succ(sub(a, b)), a) == Zero is SYMBOLIC in (a, b), so the
+  checker's obligation matches the instantiated ensures LITERALLY
+  (no destructure equations needed). MOD SHAPE: terminates by a;
+  requires 1 <= b; root transition cases the COMPUTED subject
+  sub(b, a) -- the Zero arm (b <= a) hands to mod_rec which cites
+  sub_lt(a, b) and recurses mod(sub(a, b), b); the Succ arm returns
+  a. CHECKER RULE (nat.rs computed-subject arm): when the measure
+  argument is an application, look for a source-state citation whose
+  callee's instantiated ensures syntactically equals
+  sub(Succ(ARG), MEASURE) == Zero; DISCHARGE the callee's requires
+  at the site against (i) the citing machine's own requires +
+  (ii) incoming-arm case equations (each transition targeting the
+  source state whose guard cases subject S into constructor C
+  contributes S == C -- mod_rec's incoming Zero arm contributes
+  sub(b, a) == Zero, exactly sub_lt's premise). All syntactic,
+  conservative. Then slice a3 -- gcd (recurses gcd(mod(a,b)...,
+  needs mod's ensures or a second obligation shape); then rat.omg. `sub_zero_left` landed as the monus
   surface's completion (5 lemmas, zoo at 13 Nat). Task #134 rung 1 COMPLETE;
   the rat.omg carrier waits only on this engineering rung.
 - **N5 — `boundary data` + the Real axiom package:** opaque carrier;
