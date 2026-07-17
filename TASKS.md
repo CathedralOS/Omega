@@ -4456,7 +4456,10 @@ with a real app-window story.
   Representation `is_relaxed` fields stay inert-false (the sweep is a
   follow-up if they block something). PARSER DEAD PATH REMOVED 2026-07-17:
   the unreachable old `relax { ... }` builder and its `TableRelax` import are
-  gone; the directed retirement diagnostic remains pinned.
+  gone; the syntax-tree `Relax` variant, snapshot/identity/visualization arms,
+  and resolved-lowering flatten path are gone too. The directed retirement
+  diagnostic remains pinned. Only the independent inert `is_relaxed` reference
+  fields remain for a later cross-tree sweep.
 
 ## Vertical slices
 
