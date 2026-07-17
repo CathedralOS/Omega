@@ -549,6 +549,23 @@ impl ArtifactWriter {
         self.write_text("04_wire_protocols.txt", &output)
     }
 
+    /// GR5: the chapter-10 trust report -- the proof-tier surface the
+    /// boundary report does not carry. Written even when empty (an empty
+    /// report is the honest "no semantic commitments admitted" statement).
+    pub fn write_trust_report(&self, trust_report: &TrustReport) -> Result<(), Diagnostic> {
+        let mut output = String::new();
+        output.push_str("# Omega Trust\n\n");
+        output.push_str(&format!("admitted commitments: {}\n\n", trust_report.rows.len()));
+        for row in &trust_report.rows {
+            output.push_str(&format!("- {} -- {}", row.commitment, row.provenance));
+            if row.standing_warning {
+                output.push_str(" [STANDING WARNING: dev-active until the final build grants it (`b.accept_boundary<..>();`)]");
+            }
+            output.push('\n');
+        }
+        self.write_text("trust_report.md", &output)
+    }
+
     pub fn write_boundary_report(
         &self,
         boundary_report: &BoundaryReport,
@@ -1081,6 +1098,26 @@ pub struct WireCompatibilityVerdicts {
     pub requires_migration: Vec<String>,
     pub reserved: Vec<String>,
     pub incompatible: Vec<String>,
+}
+
+/// The chapter-10 TRUST REPORT (GR5): one row per admitted semantic
+/// commitment, carrying its provenance tier. Dev-active rows (own-package
+/// claims, not yet root-granted) carry the STANDING WARNING the grant
+/// locality rule promises; root-granted rows name the grant. "The report
+/// sees every grant, private or public."
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TrustReportRow {
+    /// The commitment, consumer-rendered (`domain introduction: Meters`).
+    pub commitment: String,
+    /// `own-package (dev-active)` or `root grant`.
+    pub provenance: String,
+    /// Dev-active rows warn until the root grants them.
+    pub standing_warning: bool,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct TrustReport {
+    pub rows: Vec<TrustReportRow>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]

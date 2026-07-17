@@ -3976,8 +3976,24 @@ with a real app-window story.
   GR4 receipts + the unified lockfile writer (omega-artifacts;
   statement hash recorded automatically; drift fails until
   re-approved).
-  GR5 accepted-tier trust-report rows (new producer beside
-  boundary_report.rs; the proof tier the report lacks).
+  GR5-LITE LANDED 2026-07-20 (REORDERED before GR3/GR4 -- a root
+  grant is only OBSERVABLE through the report, so the report comes
+  first): omega-artifacts gains TrustReport/TrustReportRow +
+  ArtifactWriter::write_trust_report (trust_report.md; written even
+  when empty -- the honest no-commitments statement);
+  pipeline/trust_report.rs writes one row per declared domain
+  (own-package dev-active + the STANDING WARNING naming
+  accept_boundary), called at the typed stage beside the wire
+  report. Pinned: tests/trust_report.rs (dev-active row + standing
+  warning; empty report). GR5 REMAINDER (with GR3/GR4): RootGrant
+  rows without the warning; receipts as the row source instead of
+  re-derivation; accepted-fact/profile/provider rows (GR6).
+  PARSE-SURFACE FINDING (GR3): the expression grammar has NO
+  angle-bracket call arguments anywhere (no turbofish, no
+  type_arguments on calls) -- accept_boundary<path>() needs new
+  surface; a dedicated postfix carve for the accept_boundary member
+  spelling is the recorded v1 (avoids inventing general machine
+  generics ahead of the <machine M> owner question).
   GR6 the remaining consumers -- qualification AUTHORITY half
   (qualifications.rs:26-32), ProgressProfile minting + the three
   premises stubs, MachineContractPlan permission half, boundary
