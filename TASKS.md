@@ -3985,9 +3985,18 @@ with a real app-window story.
   and thread the table from compute_build_config into validation
   (replacing GR2's per-run in_program_trust_table with
   in-program-grants + build grants).
-  GR4 receipts + the unified lockfile writer (omega-artifacts;
-  statement hash recorded automatically; drift fails until
-  re-approved).
+  GR4 LANDED 2026-07-20: pipeline/trust_lockfile.rs -- omega.lock
+  lives BESIDE build.omg (machine-written; must persist across
+  builds to see drift), one receipt row per grant
+  (`<fnv1a hex>  <commitment>`; inline FNV-1a so the hash never
+  varies across Rust releases); a domain grant hashes the domain's
+  name + rendered facts, an accepted-fact grant hashes its path
+  until boundary statements carry bodies. Drift under a grant FAILS
+  the build (directed error naming the file); re-approval v1 =
+  delete the stale row/file (the defer-tooling item owns one-command
+  UX). No grants -> no lockfile (canary corpus untouched). Pinned:
+  lockfile_written_and_drift_fails_until_reapproved (write -> drift
+  refusal -> re-approve round trip).
   GR5-LITE LANDED 2026-07-20 (REORDERED before GR3/GR4 -- a root
   grant is only OBSERVABLE through the report, so the report comes
   first): omega-artifacts gains TrustReport/TrustReportRow +
