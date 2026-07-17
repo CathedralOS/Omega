@@ -800,9 +800,20 @@ sealed progress profiles + grants, TPR4's remaining big half).
    LESSON (recorded): when a SHARED offset constant moves, every kind
    consuming it must delegate IN THE SAME COMMIT -- grep the
    constant's consumers before moving it.
-   REMAINING: the double-indexed binary delegation (per-index frame
-   bases; walker arm rework like the integer double), then
-   WritePlaceBinary + echo + producers + retirement.
+   DOUBLE-INDEXED BINARY DELEGATED same day -- BINARY RUNG 1b
+   COMPLETE (all six binary x86 encoders ride the materializer):
+   per-index frame bases replace the shared r10 (prefixes 44->47 /
+   54->57 / 54->67 as per-region sums); the walker arm split per-arch
+   IN THE SAME COMMIT as the offset move (the shared-constant lesson
+   applied -- x86 per-index relocs reuse the integer double's
+   outer/inner offset fns at the SAME positions, aarch64 keeps its
+   retired shared-base layout).
+   NEXT: WritePlaceBinary variant + echo product (the integer 2a
+   pattern verbatim: variant in both enums + conversion +
+   classification RuntimeWrite + report + encoding dispatcher x86->
+   materializer / aarch64->WritePlaceShape decompose to the retained
+   binary encoders + layout width from the encoder + walker via
+   sites-and-shape + shapes machine-kind) + producers + retirement.
    Rung 2a after: the WritePlaceInteger variant + echo product +
    producer migration. Pre-existing dead helpers noted en route (shapes/copies.rs
    runtime_storage_copy_kind + _to_runtime_frame_indexed_kind +
