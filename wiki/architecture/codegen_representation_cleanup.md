@@ -307,11 +307,14 @@ scratch-register discipline. The trade: a product space of shallow retail
 bugs (never finishable) for one deep routine (exhaustively testable).
 
 MIGRATION (each rung keeps the suite green, own commit):
-- [ ] Retire the **Copy\* family first** (pure data movement; most
+- [x] Retire the **Copy\* family first** (pure data movement; most
   variants, most parallel-arm duplication): introduce Place + the
   per-target materializer, route Copy through it behind the existing
   differential oracle; the canary corpus is the safety net that makes
-  this survivable.
+  this survivable. DONE 2026-07-19 (rungs 1a-2c-x in TASKS.md): 17 of
+  18 variants retired, CopyPlaces sole survivor; x86 = the r14/r15/
+  r11/r10/rax materializer, aarch64 = shape-classified decomposes to
+  the retained encoders until its materializer lands.
 - [ ] Write/RMW family next (the leaf-cascade duplication dies with it).
 - [ ] Text family; then guards/operand positions consume Places.
 - [ ] Op-set shrink + value-category-on-operand; delete the retired
