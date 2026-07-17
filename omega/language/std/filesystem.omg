@@ -589,26 +589,19 @@ machine Filesystem::write(&mut self, file: File, bytes: &[u8]) -> IoResult {
     state err(&mut self) -> IoResult { let kind: ErrorKind = self.last_error(); IoResult::Error { kind: kind } }
 }
 
-// Read up to `count` bytes at absolute `offset` WITHOUT moving the cursor (Rust
-// `FileExt::read_at`) — a positioned read, so concurrent readers each track their
-// own offset. Returns the number read (0 = EOF at/after `offset`).
-machine Filesystem::read_at(&mut self, file: File, buffer: &mut [u8], count: u64, offset: i64) -> IoResult {
-    self.file_fd = file.fd;
-    let n: i64 = self.host.read_at(self.file_fd, buffer, count, offset);
-    transition n >= 0 { true -> ok(n) _ -> err() }
-    state ok(&mut self, n: i64) -> IoResult { IoResult::Ok { count: n as u64 } }
-    state err(&mut self) -> IoResult { let kind: ErrorKind = self.last_error(); IoResult::Error { kind: kind } }
-}
-
-// Write `bytes` at absolute `offset` WITHOUT moving the cursor (Rust
-// `FileExt::write_at`) — a positioned write; a gap past end-of-file is zero-filled.
-machine Filesystem::write_at(&mut self, file: File, bytes: &[u8], offset: i64) -> IoResult {
-    self.file_fd = file.fd;
-    let n: i64 = self.host.write_at(self.file_fd, bytes, offset);
-    transition n >= 0 { true -> ok(n) _ -> err() }
-    state ok(&mut self, n: i64) -> IoResult { IoResult::Ok { count: n as u64 } }
-    state err(&mut self) -> IoResult { let kind: ErrorKind = self.last_error(); IoResult::Error { kind: kind } }
-}
+// ---------------------------------------------------------------------------
+// POSITIONED-IO CONTRACT (windows session slice 2, 2026-07-16; same shape as
+// the directory-walk contract below): read/write at an absolute offset
+// WITHOUT moving the cursor (Rust `FileExt::read_at`/`write_at`). The
+// paradigm splits per target: posix targets bind the atomic pread/pwrite
+// raw ops; windows (msvcrt fds have no pread) COMPOSES save-cursor / seek /
+// op / restore-cursor over the wired seek+read+write rows -- honest about
+// the one caveat, which the windows impl documents: the composition is not
+// atomic against concurrent access to the same fd.
+//
+//   machine Filesystem::read_at(&mut self, file: File, buffer: &mut [u8], count: u64, offset: i64) -> IoResult
+//   machine Filesystem::write_at(&mut self, file: File, bytes: &[u8], offset: i64) -> IoResult
+// ---------------------------------------------------------------------------
 
 // Close a file handle, returning the raw rc (0 on success).
 // The host call is bound to a `let` (never a bare TERMINAL expression): a

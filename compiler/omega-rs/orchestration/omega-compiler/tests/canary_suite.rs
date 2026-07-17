@@ -26475,6 +26475,54 @@ fn windows_read_dir_nth_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// The WRAPPER positioned-io contract on windows (session slice 2): msvcrt
+// fds have no pread/pwrite, so the windows_x64 impl COMPOSES save-cursor /
+// seek / op / restore over the wired _lseeki64/_read/_write rows. The
+// canary pins the cursor contract directly (a plain read after both
+// positioned ops still starts at byte 0). Interp + native.
+#[cfg(windows)]
+#[test]
+fn windows_positioned_io_exit_canary_runs() {
+    let canary = pass_canary("filesystem/windows_positioned_io_exit");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("windows positioned-io canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should exit 70 (write_at + read_at + cursor unmoved), got {}",
+        outcome.exit_code
+    );
+
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-win-pio-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("windows positioned-io canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .current_dir(&build_dir)
+        .output()
+        .expect("windows positioned-io canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the positioned-io walk to exit 70 (77 = the cursor moved, the restore leg regressed; header lists the rest), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // Native windows metadata via msvcrt `_stat64` (the per-target stat-offset
 // migration payoff). The wrapper's `decode_metadata` reads `stat_buf[ST_*_OFF + k]`
 // -- a pure-const binary index that now const-folds -- at the windows `_stat64`
@@ -31098,6 +31146,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "filesystem/windows_wrapper_create_new_exit",
     "filesystem/windows_wrapper_metadata_exit",
     "filesystem/windows_read_dir_nth_exit",
+    "filesystem/windows_positioned_io_exit",
     "filesystem/windows_wrapper_exists_exit",
     "filesystem/windows_wrapper_set_len_exit",
     "filesystem/windows_wrapper_copy_exit",

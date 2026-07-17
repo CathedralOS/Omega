@@ -3255,9 +3255,29 @@ rejects — an INTEGER ruling, engineering rides this ladder as F8).
   windows metadata/wrapper canaries green on this host); file_journal
   was fixed 2026-07-18 (host-divergent section); the two "stale efi
   byte-pin" tests show NO failure in the battery — that item was stale.
-  REMAINING: Win32 rows for the no-msvcrt fs ops (pread/*at/link/
-  read_dir/flock/chown/futimens/realpath — loud "no native lowering"
-  refusals today); WndProc entry stubs (title-bar close);
+  SLICE 2 (positioned io) LANDED 2026-07-16: `Filesystem::read_at`/
+  `write_at` went PER-TARGET (the positioned-io contract block beside the
+  dir-walk contract) — posix keeps the atomic pread/pwrite raw ops;
+  windows COMPOSES save-cursor/seek/op/restore over the wired
+  _lseeki64/_read/_write rows (msvcrt has no pread; the honest
+  non-atomicity caveat is in the contract). Pinned:
+  pass/filesystem/windows_positioned_io_exit (dual-engine, windows-gated;
+  pins the CURSOR CONTRACT directly — a plain read after both positioned
+  ops still starts at byte 0). ⚠️ COMPILER FACE surfaced en route: a
+  MULTI-CONJUNCT transition guard inside a VALUE-CALLED machine breaks
+  the CALLER's guard lowering with a mispointed "guard needs runtime
+  guard lowering" error naming the caller's enum-match; workaround =
+  chain single-conjunct PURE verdict states (side-effect-free arm states
+  are legal in value-called machines). Untriaged: support the
+  conjunction there or repoint the diagnostic at the callee.
+  REMAINING: Win32 rows for the genuinely single-call ops — hard_link
+  (CreateHardLinkA; needs the arg-order-designed row) and canonicalize
+  (GetFullPathNameA); set_file_times/lock_file need _get_osfhandle +
+  SetFileTime/LockFileEx plumbing (a later slice); the *at family and
+  fd-based read_dir stay paradigm-refused on windows BY DESIGN (the
+  dirfd paradigm has no Win32 twin; wrapper-level windows impls already
+  serve the walk); chown/symlink stay refused (no windows semantics /
+  privilege-gated). WndProc entry stubs (title-bar close).
   WINDOWS_IMPORT_ROWS consumption (build the ProviderPlan form per the
   2026-07-16 provider verdict — design-adjacent, own kickoff).
 - **Linux session:** fs + time binding tables are structural-only until a

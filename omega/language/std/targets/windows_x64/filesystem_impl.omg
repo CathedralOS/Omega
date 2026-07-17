@@ -683,3 +683,61 @@ windows_x64 machine Filesystem::w_scan_step(&mut self, step: u64) {
     }
     state ws_cont(&mut self) { self.w_scan_verdict = 1; }
 }
+
+// POSITIONED IO (the portable positioned-io contract, windows session
+// slice 2): msvcrt fds have NO pread/pwrite, so windows COMPOSES
+// save-cursor / seek(SET) / op / restore-cursor over the wired
+// _lseeki64/_read/_write rows. All four host calls run in the ENTRY body
+// (the value-call fence: side-effecting ARM states re-emit per arm), each
+// let-bound, with ONE verdict conjunction at the end -- the restore runs
+// UNCONDITIONALLY, so a failed op never leaves the cursor moved; on a bad
+// fd every leg fails and errno reads the last EBADF, same class the posix
+// raw op reports. A failed positioning leg routes Error even when the
+// misplaced op "succeeded", so the caller never trusts the buffer.
+// HONEST CAVEAT (recorded in the contract block): unlike posix pread, the
+// composition is not atomic against concurrent access to the same fd --
+// single-threaded programs (all of Omega today) never observe the
+// difference.
+windows_x64 machine Filesystem::read_at(&mut self, file: File, buffer: &mut [u8], count: u64, offset: i64) -> IoResult {
+    self.file_fd = file.fd;
+    // SEEK_CUR (1) at 0 = report the cursor; SEEK_SET (0) = position.
+    let saved: i64 = self.host.seek(self.file_fd, 0, 1);
+    let moved: i64 = self.host.seek(self.file_fd, offset, 0);
+    let n: i64 = self.host.read(self.file_fd, buffer, count);
+    let back: i64 = self.host.seek(self.file_fd, saved, 0);
+    // Verdict legs are PURE chained states (value-call arm bodies re-emit,
+    // so only the entry may effect); each check threads the rest through
+    // state params.
+    transition saved >= 0 { true -> ra_moved(moved, n, back) _ -> err() }
+    state ra_moved(&mut self, moved: i64, n: i64, back: i64) -> IoResult {
+        transition moved >= 0 { true -> ra_n(n, back) _ -> err() }
+    }
+    state ra_n(&mut self, n: i64, back: i64) -> IoResult {
+        transition n >= 0 { true -> ra_back(n, back) _ -> err() }
+    }
+    state ra_back(&mut self, n: i64, back: i64) -> IoResult {
+        transition back >= 0 { true -> ok(n) _ -> err() }
+    }
+    state ok(&mut self, n: i64) -> IoResult { IoResult::Ok { count: n as u64 } }
+    state err(&mut self) -> IoResult { let kind: ErrorKind = self.last_error(); IoResult::Error { kind: kind } }
+}
+
+windows_x64 machine Filesystem::write_at(&mut self, file: File, bytes: &[u8], offset: i64) -> IoResult {
+    self.file_fd = file.fd;
+    let saved: i64 = self.host.seek(self.file_fd, 0, 1);
+    let moved: i64 = self.host.seek(self.file_fd, offset, 0);
+    let n: i64 = self.host.write(self.file_fd, bytes);
+    let back: i64 = self.host.seek(self.file_fd, saved, 0);
+    transition saved >= 0 { true -> wa_moved(moved, n, back) _ -> err() }
+    state wa_moved(&mut self, moved: i64, n: i64, back: i64) -> IoResult {
+        transition moved >= 0 { true -> wa_n(n, back) _ -> err() }
+    }
+    state wa_n(&mut self, n: i64, back: i64) -> IoResult {
+        transition n >= 0 { true -> wa_back(n, back) _ -> err() }
+    }
+    state wa_back(&mut self, n: i64, back: i64) -> IoResult {
+        transition back >= 0 { true -> ok(n) _ -> err() }
+    }
+    state ok(&mut self, n: i64) -> IoResult { IoResult::Ok { count: n as u64 } }
+    state err(&mut self) -> IoResult { let kind: ErrorKind = self.last_error(); IoResult::Error { kind: kind } }
+}

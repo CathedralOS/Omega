@@ -1061,6 +1061,10 @@ const EXCLUDED_RUN_CANARIES: &[(&str, &str)] = &[
         "windows-gated dual test (interp oracle + native run, both 70, asserted in its canary_suite test): pins the WINDOWS read_dir_nth wrapper composition (the kind-latch witness) riding the find seam; the posix wrapper path is covered by the macos-gated native fs battery",
     ),
     (
+        "filesystem/windows_positioned_io_exit",
+        "windows-gated dual test (interp oracle + native run, both 70, asserted in its canary_suite test): pins the WINDOWS positioned-io composition (seek/op/restore over msvcrt rows, cursor contract); the posix atomic pread/pwrite path is covered by the macos-gated native fs battery",
+    ),
+    (
         "time/runtime_time_host_native_exit",
         "NATIVE-ONLY (windows-gated run test): asserts the WINDOWS calibration constants (10^7 / 11_644_473_600) and real-clock inequalities; the interpreter's virtual clock reports 1000/0 and exits 3 by design (its exact values are pinned by time/runtime_time_host_virtual_exit)",
     ),
