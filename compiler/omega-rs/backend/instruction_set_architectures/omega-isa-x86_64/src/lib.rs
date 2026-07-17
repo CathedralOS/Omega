@@ -3399,20 +3399,30 @@ pub fn encode_runtime_frame_indexed_integer_write(
             "X86_64 MVP encoder cannot store {byte_size}-byte frame indexed integers yet"
         )));
     }
-    let mut bytes = Vec::with_capacity(runtime_frame_indexed_integer_write_width(
-        element_byte_size,
-        field_byte_offset,
-        byte_size,
-    ));
-    // r14 = frame base (imm64 at +2 relocated to the frame symbol). The descriptor
-    // holds the slice data pointer; r15 = data ptr + index*element.
-    append_mov_r14_imm64(&mut bytes, 0);
-    append_load_r15_from_r14(&mut bytes, descriptor_offset)?;
-    append_load_r11_from_r14(&mut bytes, index_offset)?;
-    append_imul_r11_imm32(&mut bytes, element_scale(element_byte_size)?);
-    append_add_r15_r11(&mut bytes);
-    append_mov_rax_imm64(&mut bytes, value as u64);
-    append_store_rax_to_r15(&mut bytes, field_byte_offset, byte_size)?;
+    // Write rung 1c: DELEGATES to the place materializer -- the SAME
+    // instruction multiset REORDERED (the index pre-loads into r11 while
+    // r15 still equals the frame base, BEFORE the descriptor deref consumes
+    // it; the retired layout loaded the descriptor first through a separate
+    // r14 base). Same width, one start relocation -- the Copy rung-1c-i
+    // reorder precedent.
+    let target =
+        place_copy::transitional_place(omega_target_operations::RuntimeStorageRegion::RuntimeFrame)
+            .with_step(omega_target_operations::PlaceStep::ConstOffset(descriptor_offset))
+            .and_then(|place| place.with_step(omega_target_operations::PlaceStep::Deref))
+            .and_then(|place| {
+                place.with_step(omega_target_operations::PlaceStep::ScaledIndex {
+                    index_region: omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+                    index_offset,
+                    element_byte_size,
+                })
+            })
+            .and_then(|place| {
+                place.with_step(omega_target_operations::PlaceStep::ConstOffset(
+                    field_byte_offset,
+                ))
+            })
+            .expect("a frame-indexed place is five steps, within PLACE_MAX_STEPS");
+    let (bytes, _) = place_copy::encode_place_integer_write(&target, value, byte_size)?;
     debug_assert_eq!(
         bytes.len(),
         runtime_frame_indexed_integer_write_width(element_byte_size, field_byte_offset, byte_size)
