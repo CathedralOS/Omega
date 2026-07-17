@@ -281,6 +281,23 @@ pub(crate) fn validate_machine_contract_entailment(
         let mut verdict = StructuralJudgment::Proven;
         for arm in arms {
             let mut bound = structural.clone();
+            if let Some((subject_term, constructor)) = &arm.case_equation {
+                // Computed-subject arm: the hypothesis is an equation.
+                bound.intake_equation(subject_term.clone(), constructor.clone(), 0);
+                if machine_has_requires {
+                    if requires.iter().any(|fact| {
+                        matches!(bound.judge(program, *fact), StructuralJudgment::Refuted)
+                    }) {
+                        continue;
+                    }
+                    for fact in &requires {
+                        bound.intake(program, *fact);
+                    }
+                    if bound.hypotheses_contradictory {
+                        continue;
+                    }
+                }
+            }
             if let Some((subject, constructor)) = &arm.case_hypothesis {
                 bound
                     .substitutions
@@ -3032,6 +3049,10 @@ struct StructuralCaseArm {
     /// equals a constructor over FRESH payload variables. `None` for an
     /// Always arm.
     case_hypothesis: Option<(String, StructuralTerm)>,
+    /// COMPUTED-SUBJECT arm (N4 slice a3): the subject is an expression
+    /// (`sub(b, a)`), so the hypothesis is an EQUATION to intake rather
+    /// than a substitution -- `Some((subject_term, constructor))`.
+    case_equation: Option<(StructuralTerm, StructuralTerm)>,
     /// PER-ARM CITATIONS (N3 rung 2): equations injected by citation
     /// statements in the arm's SUB-STATE, instantiated under the arm
     /// environment -- the only route to cite a lemma AT A CASE PAYLOAD
@@ -3095,6 +3116,7 @@ fn recognize_structural_case_arms(
         if transition.continuation.is_valid() {
             return None;
         }
+        let mut case_equation: Option<(StructuralTerm, StructuralTerm)> = None;
         let case_hypothesis = match transition.guard {
             TransitionGuardNode::Always => None,
             TransitionGuardNode::When(guard) => {
@@ -3106,14 +3128,20 @@ fn recognize_structural_case_arms(
                 if comparison.operator != BinaryOperator::Equal {
                     return None;
                 }
-                let Some(StructuralTerm::Variable(subject)) =
-                    structural_term(program, comparison.left)
-                else {
-                    return None;
+                let subject_term = structural_term(program, comparison.left)?;
+                let subject_name = match &subject_term {
+                    StructuralTerm::Variable(subject)
+                        if parameter_names.iter().any(|name| name == subject) =>
+                    {
+                        Some(subject.clone())
+                    }
+                    // COMPUTED SUBJECT (N4 slice a3): `transition
+                    // (sub(b, a)) { .. }` -- the hypothesis becomes an
+                    // EQUATION over the subject term instead of a
+                    // parameter substitution.
+                    StructuralTerm::Application { .. } => None,
+                    _ => return None,
                 };
-                if !parameter_names.iter().any(|name| name == &subject) {
-                    return None;
-                }
                 let Some(StructuralTerm::Constructor { data, case, fields }) =
                     structural_term(program, comparison.right)
                 else {
@@ -3144,22 +3172,29 @@ fn recognize_structural_case_arms(
                         }
                         _ => None,
                     })?;
+                let fresh_prefix = subject_name
+                    .clone()
+                    .unwrap_or_else(|| "computed".to_owned());
                 let mut fresh: Vec<(String, StructuralTerm)> = variant_fields
                     .into_iter()
                     .map(|field| {
-                        let variable = format!("__ih_{subject}_{field}");
+                        let variable = format!("__ih_{fresh_prefix}_{field}");
                         (field, StructuralTerm::Variable(variable))
                     })
                     .collect();
                 fresh.sort_by(|(left, _), (right, _)| left.cmp(right));
-                Some((
-                    subject,
-                    StructuralTerm::Constructor {
-                        data,
-                        case,
-                        fields: fresh,
-                    },
-                ))
+                let constructor = StructuralTerm::Constructor {
+                    data,
+                    case,
+                    fields: fresh,
+                };
+                match subject_name {
+                    Some(subject) => Some((subject, constructor)),
+                    None => {
+                        case_equation = Some((subject_term, constructor));
+                        None
+                    }
+                }
             }
         };
         // The arm environment: the subject maps to its constructor (so
@@ -3221,10 +3256,19 @@ fn recognize_structural_case_arms(
                     // loop skips such arms the same way.
                     let mut arm_judge = judge.clone();
                     let mut arm_vacuous = false;
-                    if let Some((subject, constructor)) = &case_hypothesis {
-                        arm_judge
-                            .substitutions
-                            .insert(0, (subject.clone(), constructor.clone()));
+                    if let Some((subject_term, constructor)) = &case_equation {
+                        arm_judge.intake_equation(
+                            subject_term.clone(),
+                            constructor.clone(),
+                            0,
+                        );
+                    }
+                    if case_equation.is_some() || case_hypothesis.is_some() {
+                        if let Some((subject, constructor)) = &case_hypothesis {
+                            arm_judge
+                                .substitutions
+                                .insert(0, (subject.clone(), constructor.clone()));
+                        }
                         let mut requires_facts: Vec<ExpressionHandle> = Vec::new();
                         for contract in program.machine_contracts(machine) {
                             if !matches!(
@@ -3417,6 +3461,7 @@ fn recognize_structural_case_arms(
             machine_name: machine_name.clone(),
             parameter_names: parameter_names.clone(),
             case_hypothesis,
+            case_equation,
             citations,
             value,
         });

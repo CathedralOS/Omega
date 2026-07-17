@@ -2706,12 +2706,38 @@ no `unbounded` property exists. Rungs:
   needed for mod's ensures at all: the recognizer requires a
   VARIABLE subject -- a computed subject (sub(Succ a, b)) must
   contribute its arm equation as an intaken HYPOTHESIS instead of a
-  substitution (second recognizer extension, small). Order: (1)
-  computed-subject arm hypotheses, (2) nested arms, (3) dichotomy
-  lemma, (4) mod ensures via the flipped dispatch, (5) gcd citing
-  mod's ensures (measure b, edge arg mod(a,b) -- the cited_strict_
-  decrease rule already matches it once mod's ensures exists), (6)
-  rat.omg. `sub_zero_left` landed as the monus
+  substitution (second recognizer extension, small). PROGRESS 2026-07-20 (nested arms
+  PROVED UNNECESSARY): the conversion chain landed FLAT --
+  pred_eq_succ (Zero arm vacuous), sub_eq_add (induction on a;
+  pred_eq_succ + add_succ_law citations + conditional IH at
+  (pa, b, Succ w)), le_add (flat strips), lt_of_sub_pos (cites
+  sub_eq_add + le_add; the WITNESS spells as pred(sub(b, a)) so no
+  payload binding is ever needed). RECOGNIZER EXTENSION (1) LANDED:
+  computed transition subjects (`transition (sub(b, a)) { .. }`)
+  carry their arm hypothesis as an intaken EQUATION
+  (StructuralCaseArm.case_equation) instead of a substitution, in
+  both the per-arm proving loop (requires vacuity/intake applies the
+  same) and the arm-refined citation judge. MOD NOW CARRIES
+  `ensures result < b` (sub(Succ result, b) == Zero): the a<b arm
+  cites lt_of_sub_pos(a, b, pred(sub(b, a))); the recursive arm is
+  the conditional IH. Zoo at 24 Nat machines; suite 866 green.
+  REMAINING -- GCD (analysis 2026-07-20): the edge obligation
+  matches mod's instantiated ensures via a LET-CITATION
+  (`let next = mod(a, Succ pb);` -- extend cited_strict_decrease to
+  treat call-initializers as citations with `result` mapped to the
+  initializer expression). TWO GAPS: (i) mod's requires (1 <= b) at
+  the site needs a premise-free helper (le_one_succ(pb), trivial) +
+  site facts extended with premise-free citations' instantiated
+  ensures; (ii) the MEASURE-SIDE mismatch -- the instantiated
+  ensures speaks Succ{prev: pb} while the obligation speaks the
+  measure name b, and the incoming payload-arm guard is TAG-ONLY
+  (b == Nat::Succ, no fields), so the alias b == Succ{prev: pb}
+  must be MATERIALIZED from guard tag + data declaration + the
+  incoming transition's target-arg payload reads (pb = b.prev), or
+  the whole discharge routed through the structural judge instead
+  of syntactic matching (the judge already unfolds/rewrites; it
+  lives in the same crate). Prefer the judge route -- the syntactic
+  engine should not grow into a parallel judge. Then (6) rat.omg. `sub_zero_left` landed as the monus
   surface's completion (5 lemmas, zoo at 13 Nat). Task #134 rung 1 COMPLETE;
   the rat.omg carrier waits only on this engineering rung.
 - **N5 — `boundary data` + the Real axiom package:** opaque carrier;

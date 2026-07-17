@@ -647,15 +647,110 @@ machine mod(a: Nat, b: Nat) -> Nat
 terminates by a;
 requires
     (sub(Nat::Succ { prev: Nat::Zero }, b)) == Nat::Zero
+ensures
+    (sub(Nat::Succ { prev: result }, b)) == Nat::Zero
 {
     transition (sub(b, a)) {
         Nat::Zero -> mod_rec(a, b)
-        Nat::Succ { prev as w } -> (a)
+        Nat::Succ { prev as w } -> mod_done(a, b)
     }
 
     state mod_rec(a: Nat, b: Nat) -> Nat {
         sub_lt(a, b);
         let next: Nat = sub(a, b);
         transition { _ -> (mod(next, b)) }
+    }
+
+    state mod_done(a: Nat, b: Nat) -> Nat {
+        lt_of_sub_pos(a, b, (pred(sub(b, a))));
+        transition { _ -> (a) }
+    }
+}
+
+// pred is injective off zero: pred(x) == Succ w entails x == Succ (Succ w).
+// Case on x: the Zero arm is vacuous (pred(Zero) computes to Zero, which
+// clashes with Succ w); the Succ arm's premise rewrites the payload.
+machine pred_eq_succ(x: Nat, w: Nat) -> Nat
+requires
+    (pred(x)) == (Nat::Succ { prev: w })
+ensures
+    (x) == (Nat::Succ { prev: Nat::Succ { prev: w } })
+{
+    transition x {
+        Nat::Zero -> Nat::Zero
+        Nat::Succ { prev } -> Nat::Zero
+    }
+}
+
+// A positive monus reconstructs the addition: sub(b, a) == Succ w entails
+// b == add(a, Succ w). Induction on `a`: the Zero arm's premise computes
+// to b == Succ w and the goal's add computes to Succ w; the Succ arm
+// unfolds the premise to pred(sub(b, pa)) == Succ w, cites pred_eq_succ
+// to recover sub(b, pa) == Succ (Succ w), takes the inductive hypothesis
+// at (pa, b, Succ w), and closes through add_succ_law.
+machine sub_eq_add(a: Nat, b: Nat, w: Nat) -> Nat
+terminates by a;
+requires
+    (sub(b, a)) == (Nat::Succ { prev: w })
+ensures
+    (b) == (add(a, Nat::Succ { prev: w }))
+{
+    transition a {
+        Nat::Zero -> Nat::Zero
+        Nat::Succ { prev as pa } -> sea_step(pa, b, w)
+    }
+
+    state sea_step(pa: Nat, b: Nat, w: Nat) -> Nat {
+        pred_eq_succ((sub(b, pa)), w);
+        add_succ_law(pa, Nat::Succ { prev: w });
+        transition { _ -> (sub_eq_add(pa, b, Nat::Succ { prev: w })) }
+    }
+}
+
+// Succ a never exceeds a + (w + 1): sub(Succ a, add(a, Succ w)) == Zero --
+// premise-free, induction on `a`. The Zero arm computes both sides down to
+// sub_zero_left's fact; the Succ arm strips one Succ from each side with
+// succ_sub_succ and is the inductive hypothesis.
+machine le_add(a: Nat, w: Nat) -> Nat
+terminates by a;
+ensures
+    (sub(Nat::Succ { prev: a }, (add(a, Nat::Succ { prev: w })))) == Nat::Zero
+{
+    transition a {
+        Nat::Zero -> la_zero(w)
+        Nat::Succ { prev as pa } -> la_step(pa, w)
+    }
+
+    state la_zero(w: Nat) -> Nat {
+        succ_sub_succ(Nat::Zero, w);
+        sub_zero_left(w);
+        transition { _ -> Nat::Zero }
+    }
+
+    state la_step(pa: Nat, w: Nat) -> Nat {
+        succ_sub_succ(Nat::Succ { prev: pa }, (add(pa, Nat::Succ { prev: w })));
+        transition { _ -> (le_add(pa, w)) }
+    }
+}
+
+// THE MONUS CONVERSION (mod's ensures workhorse): a positive difference
+// the other way entails strict order -- sub(b, a) == Succ w entails
+// sub(Succ a, b) == Zero (`a < b`). Flat: sub_eq_add reconstructs
+// b == add(a, Succ w), le_add bounds Succ a by exactly that sum, and the
+// goal rewrites through the reconstruction.
+machine lt_of_sub_pos(a: Nat, b: Nat, w: Nat) -> Nat
+requires
+    (sub(b, a)) == (Nat::Succ { prev: w })
+ensures
+    (sub(Nat::Succ { prev: a }, b)) == Nat::Zero
+{
+    transition {
+        _ -> lsp_body(a, b, w)
+    }
+
+    state lsp_body(a: Nat, b: Nat, w: Nat) -> Nat {
+        sub_eq_add(a, b, w);
+        le_add(a, w);
+        transition { _ -> Nat::Zero }
     }
 }
