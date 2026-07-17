@@ -8,10 +8,6 @@ pub(crate) fn string_descriptor_machine_address_offset(architecture: Architectur
     }
 }
 
-pub(crate) fn string_descriptor_runtime_frame_address_offset(architecture: Architecture) -> usize {
-    string_descriptor_machine_address_offset(architecture)
-}
-
 /// Offset of the frame-base materialization inside the carrier source-append
 /// encoder when the source is frame-local: it sits immediately after the
 /// leading machine-base materialization (`adrp`+`add` pair on aarch64,

@@ -312,30 +312,6 @@ pub(super) fn encode_atomic_compare_exchange(
 
 
 
-pub(super) fn encode_runtime_machine_string_write(
-    input: MachineEmissionContext<'_>,
-    byte_offset: usize,
-    byte_length: usize,
-) -> Result<Vec<u8>, Diagnostic> {
-    architecture::encode_runtime_machine_string_write(
-        input.target.architecture,
-        byte_offset,
-        byte_length,
-    )
-}
-
-pub(super) fn encode_runtime_machine_bounded_buffer_write(
-    input: MachineEmissionContext<'_>,
-    byte_offset: usize,
-    literal: &str,
-) -> Result<Vec<u8>, Diagnostic> {
-    architecture::encode_runtime_machine_bounded_buffer_write(
-        input.target.architecture,
-        byte_offset,
-        literal,
-    )
-}
-
 pub(super) fn encode_runtime_machine_bounded_buffer_source_append(
     input: MachineEmissionContext<'_>,
     target_byte_offset: usize,
@@ -359,82 +335,6 @@ pub(super) fn encode_runtime_machine_bounded_buffer_literal_append(
         input.target.architecture,
         target_byte_offset,
         literal,
-    )
-}
-
-pub(super) fn encode_runtime_frame_string_write(
-    input: MachineEmissionContext<'_>,
-    byte_offset: usize,
-    byte_length: usize,
-) -> Result<Vec<u8>, Diagnostic> {
-    architecture::encode_runtime_frame_string_write(
-        input.target.architecture,
-        byte_offset,
-        byte_length,
-    )
-}
-
-pub(super) fn encode_runtime_pointee_string_write(
-    input: MachineEmissionContext<'_>,
-    pointer_byte_offset: usize,
-    field_byte_offset: usize,
-    byte_length: usize,
-) -> Result<Vec<u8>, Diagnostic> {
-    architecture::encode_runtime_pointee_string_write(
-        input.target.architecture,
-        pointer_byte_offset,
-        field_byte_offset,
-        byte_length,
-    )
-}
-
-pub(super) fn encode_runtime_pointee_bounded_buffer_write(
-    input: MachineEmissionContext<'_>,
-    pointer_byte_offset: usize,
-    field_byte_offset: usize,
-    literal: &str,
-) -> Result<Vec<u8>, Diagnostic> {
-    architecture::encode_runtime_pointee_bounded_buffer_write(
-        input.target.architecture,
-        pointer_byte_offset,
-        field_byte_offset,
-        literal,
-    )
-}
-
-pub(super) fn encode_runtime_frame_indexed_string_write(
-    input: MachineEmissionContext<'_>,
-    descriptor_offset: usize,
-    index_offset: usize,
-    element_byte_size: usize,
-    field_byte_offset: usize,
-    byte_length: usize,
-) -> Result<Vec<u8>, Diagnostic> {
-    architecture::encode_runtime_frame_indexed_string_write(
-        input.target.architecture,
-        descriptor_offset,
-        index_offset,
-        element_byte_size,
-        field_byte_offset,
-        byte_length,
-    )
-}
-
-pub(super) fn encode_runtime_machine_indexed_string_write(
-    input: MachineEmissionContext<'_>,
-    base_byte_offset: usize,
-    index_offset: usize,
-    element_byte_size: usize,
-    field_byte_offset: usize,
-    byte_length: usize,
-) -> Result<Vec<u8>, Diagnostic> {
-    architecture::encode_runtime_machine_indexed_string_write(
-        input.target.architecture,
-        base_byte_offset,
-        index_offset,
-        element_byte_size,
-        field_byte_offset,
-        byte_length,
     )
 }
 

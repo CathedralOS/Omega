@@ -547,36 +547,6 @@ pub fn encode_runtime_frame_indexed_binary_write(
     }
 }
 
-pub fn encode_runtime_machine_string_write(
-    architecture: Architecture,
-    byte_offset: usize,
-    byte_length: usize,
-) -> Result<Vec<u8>, Diagnostic> {
-    match architecture {
-        Architecture::Aarch64 => {
-            aarch64::encode_runtime_machine_string_write(byte_offset, byte_length)
-        }
-        Architecture::X86_64 => {
-            x86_64::encode_runtime_machine_string_write(byte_offset, byte_length)
-        }
-    }
-}
-
-pub fn encode_runtime_machine_bounded_buffer_write(
-    architecture: Architecture,
-    byte_offset: usize,
-    literal: &str,
-) -> Result<Vec<u8>, Diagnostic> {
-    match architecture {
-        Architecture::Aarch64 => {
-            aarch64::encode_runtime_machine_bounded_buffer_write(byte_offset, literal)
-        }
-        Architecture::X86_64 => {
-            x86_64::encode_runtime_machine_bounded_buffer_write(byte_offset, literal)
-        }
-    }
-}
-
 pub fn encode_runtime_machine_bounded_buffer_source_append(
     architecture: Architecture,
     target_byte_offset: usize,
@@ -610,111 +580,6 @@ pub fn encode_runtime_machine_bounded_buffer_literal_append(
         Architecture::X86_64 => {
             x86_64::encode_runtime_machine_bounded_buffer_literal_append(target_byte_offset, literal)
         }
-    }
-}
-
-pub fn encode_runtime_frame_string_write(
-    architecture: Architecture,
-    byte_offset: usize,
-    byte_length: usize,
-) -> Result<Vec<u8>, Diagnostic> {
-    match architecture {
-        Architecture::Aarch64 => {
-            aarch64::encode_runtime_frame_string_write(byte_offset, byte_length)
-        }
-        Architecture::X86_64 => x86_64::encode_runtime_frame_string_write(byte_offset, byte_length),
-    }
-}
-
-pub fn encode_runtime_pointee_string_write(
-    architecture: Architecture,
-    pointer_byte_offset: usize,
-    field_byte_offset: usize,
-    byte_length: usize,
-) -> Result<Vec<u8>, Diagnostic> {
-    match architecture {
-        Architecture::Aarch64 => aarch64::encode_runtime_pointee_string_write(
-            pointer_byte_offset,
-            field_byte_offset,
-            byte_length,
-        ),
-        Architecture::X86_64 => x86_64::encode_runtime_pointee_string_write(
-            pointer_byte_offset,
-            field_byte_offset,
-            byte_length,
-        ),
-    }
-}
-
-pub fn encode_runtime_pointee_bounded_buffer_write(
-    architecture: Architecture,
-    pointer_byte_offset: usize,
-    field_byte_offset: usize,
-    literal: &str,
-) -> Result<Vec<u8>, Diagnostic> {
-    match architecture {
-        Architecture::Aarch64 => aarch64::encode_runtime_pointee_bounded_buffer_write(
-            pointer_byte_offset,
-            field_byte_offset,
-            literal,
-        ),
-        Architecture::X86_64 => x86_64::encode_runtime_pointee_bounded_buffer_write(
-            pointer_byte_offset,
-            field_byte_offset,
-            literal,
-        ),
-    }
-}
-
-pub fn encode_runtime_frame_indexed_string_write(
-    architecture: Architecture,
-    descriptor_offset: usize,
-    index_offset: usize,
-    element_byte_size: usize,
-    field_byte_offset: usize,
-    byte_length: usize,
-) -> Result<Vec<u8>, Diagnostic> {
-    match architecture {
-        Architecture::Aarch64 => aarch64::encode_runtime_frame_indexed_string_write(
-            descriptor_offset,
-            index_offset,
-            element_byte_size,
-            field_byte_offset,
-            byte_length,
-        ),
-        Architecture::X86_64 => x86_64::encode_runtime_frame_indexed_string_write(
-            descriptor_offset,
-            index_offset,
-            element_byte_size,
-            field_byte_offset,
-            byte_length,
-        ),
-    }
-}
-
-pub fn encode_runtime_machine_indexed_string_write(
-    architecture: Architecture,
-    base_byte_offset: usize,
-    index_offset: usize,
-    element_byte_size: usize,
-    field_byte_offset: usize,
-    byte_length: usize,
-) -> Result<Vec<u8>, Diagnostic> {
-    match architecture {
-        Architecture::Aarch64 => aarch64::encode_runtime_machine_indexed_string_write(
-            base_byte_offset,
-            index_offset,
-            element_byte_size,
-            field_byte_offset,
-            byte_length,
-        ),
-        Architecture::X86_64 => x86_64::encode_runtime_machine_indexed_string_write(
-            base_byte_offset,
-            index_offset,
-            element_byte_size,
-            field_byte_offset,
-            byte_length,
-        ),
     }
 }
 
@@ -2318,9 +2183,3 @@ pub fn encode_runtime_machine_double_indexed_integer_write(
     }
 }
 
-
-fn unsupported_x86_64_encoding() -> Result<Vec<u8>, Diagnostic> {
-    Err(Diagnostic::error(
-        "X86_64 runtime storage encoding is not implemented",
-    ))
-}

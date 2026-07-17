@@ -231,45 +231,6 @@ pub fn encode_entry_arguments_slice_descriptor_write_bytes(
 /// store in `encode_runtime_frame_base_indexed_address_to_runtime_frame_write`.
 pub const FRAME_BASE_INDEXED_ADDRESS_TARGET_FRAME_IMM_OFFSET: usize = 34;
 
-pub fn runtime_pointee_string_write_width(_field_byte_offset: usize, _byte_length: usize) -> usize {
-    // mov r14,imm64(literal) (10) + mov r15,imm64(frame) (10)
-    // + mov r15,[r15+ptr] (7) + mov [r15+field],r14 (7)
-    // + mov r14,len (10) + mov [r15+field+8],r14 (7)
-    51
-}
-
-/// Writes a `{ptr,len}` string descriptor through a pointer stored in the frame:
-/// `*(frame[pointer_byte_offset]) + field_byte_offset = { literal, byte_length }`.
-/// The literal `mov` is emitted first so its relocation lands at the instruction
-/// start (matching the shared relocation contract); the frame base relocation
-/// follows at offset 10.
-pub fn encode_runtime_pointee_string_write(
-    pointer_byte_offset: usize,
-    field_byte_offset: usize,
-    byte_length: usize,
-) -> Result<Vec<u8>, Diagnostic> {
-    // Text rung 1b: DELEGATES through the place materializer -- same widths
-    // position-for-position (the len stages in rax instead of a second r14
-    // imm64, a register rename); the data reloc stays at +2 and the frame
-    // base at +12, so the walker holds as-is.
-    let target =
-        place_copy::transitional_place(omega_target_operations::RuntimeStorageRegion::RuntimeFrame)
-            .with_step(omega_target_operations::PlaceStep::ConstOffset(pointer_byte_offset))
-            .and_then(|place| place.with_step(omega_target_operations::PlaceStep::Deref))
-            .and_then(|place| {
-                place.with_step(omega_target_operations::PlaceStep::ConstOffset(
-                    field_byte_offset,
-                ))
-            })
-            .expect("a pointee place is four steps, within PLACE_MAX_STEPS");
-    let (bytes, _) = place_copy::encode_place_string_write(&target, byte_length)?;
-    debug_assert_eq!(
-        bytes.len(),
-        runtime_pointee_string_write_width(field_byte_offset, byte_length)
-    );
-    Ok(bytes)
-}
-
 pub const RUNTIME_TEXT_STORED_PLACE_APPEND_TARGET_IMM_OFFSET: usize = 10;
 pub const RUNTIME_TEXT_STORED_PLACE_APPEND_SOURCE_IMM_OFFSET: usize = 33;
 /// Like the non-pointee source offset, but the pointee variant inserts one extra
@@ -2752,55 +2713,6 @@ fn append_frame_indexed_element_address_into_rax(
     Ok(())
 }
 
-pub fn runtime_frame_indexed_string_write_width(
-    _element_byte_size: usize,
-    _field_byte_offset: usize,
-    _byte_length: usize,
-) -> usize {
-    // prefix (34) + mov r15,imm64 (10) + store r15 (7) + mov r11,imm64 (10) + store r11 (7)
-    FRAME_INDEXED_STRING_PREFIX_WIDTH + 34
-}
-
-pub fn encode_runtime_frame_indexed_string_write(
-    descriptor_offset: usize,
-    index_offset: usize,
-    element_byte_size: usize,
-    field_byte_offset: usize,
-    byte_length: usize,
-) -> Result<Vec<u8>, Diagnostic> {
-    // Text rung 1c: DELEGATES through the place materializer. Total width
-    // holds (the retired 34-byte rax prefix = the walk's base + same-region
-    // index + deref + add sum), but the reloc ORDER flips to the
-    // materializer convention -- data at the instruction start, frame base
-    // at +10 (the direct string writes' positions) -- so the walker's x86
-    // arm moves in this SAME commit.
-    let target =
-        place_copy::transitional_place(omega_target_operations::RuntimeStorageRegion::RuntimeFrame)
-            .with_step(omega_target_operations::PlaceStep::ConstOffset(
-                descriptor_offset,
-            ))
-            .and_then(|place| place.with_step(omega_target_operations::PlaceStep::Deref))
-            .and_then(|place| {
-                place.with_step(omega_target_operations::PlaceStep::ScaledIndex {
-                    index_region: omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
-                    index_offset,
-                    element_byte_size,
-                })
-            })
-            .and_then(|place| {
-                place.with_step(omega_target_operations::PlaceStep::ConstOffset(
-                    field_byte_offset,
-                ))
-            })
-            .expect("a frame-indexed place is five steps, within PLACE_MAX_STEPS");
-    let (bytes, _) = place_copy::encode_place_string_write(&target, byte_length)?;
-    debug_assert_eq!(
-        bytes.len(),
-        runtime_frame_indexed_string_write_width(element_byte_size, field_byte_offset, byte_length)
-    );
-    Ok(bytes)
-}
-
 pub fn runtime_text_literal_append_to_runtime_frame_indexed_width(
     _element_byte_size: usize,
     _field_byte_offset: usize,
@@ -2865,61 +2777,6 @@ pub fn encode_runtime_text_literal_append_to_runtime_frame_indexed(
 const MACHINE_INDEXED_STRING_PREFIX_WIDTH: usize = 37;
 pub const MACHINE_INDEXED_STRING_FRAME_IMM_OFFSET: usize = 10;
 pub const MACHINE_INDEXED_STRING_DATA_IMM_OFFSET: usize = MACHINE_INDEXED_STRING_PREFIX_WIDTH;
-
-pub fn runtime_machine_indexed_string_write_width(
-    _base_byte_offset: usize,
-    _element_byte_size: usize,
-    _field_byte_offset: usize,
-    _byte_length: usize,
-) -> usize {
-    // prefix (37) + mov r14,imm64 literal (10) + store r14 (7)
-    // + mov r14,imm64 len (10) + store r14 (7)
-    MACHINE_INDEXED_STRING_PREFIX_WIDTH + 34
-}
-
-pub fn encode_runtime_machine_indexed_string_write(
-    base_byte_offset: usize,
-    index_offset: usize,
-    element_byte_size: usize,
-    field_byte_offset: usize,
-    byte_length: usize,
-) -> Result<Vec<u8>, Diagnostic> {
-    // Text rung 1d: DELEGATES through the place materializer. Total width
-    // holds (71: the retired 37-byte prefix = the walk's base +
-    // cross-region index + imul + add sum), but the relocs move to the
-    // materializer convention -- data at the instruction start, machine
-    // base at +10, the index's own frame base at +20 -- so the walker's
-    // x86 arm moves in this SAME commit.
-    let target =
-        place_copy::transitional_place(omega_target_operations::RuntimeStorageRegion::Machine)
-            .with_step(omega_target_operations::PlaceStep::ConstOffset(
-                base_byte_offset,
-            ))
-            .and_then(|place| {
-                place.with_step(omega_target_operations::PlaceStep::ScaledIndex {
-                    index_region: omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
-                    index_offset,
-                    element_byte_size,
-                })
-            })
-            .and_then(|place| {
-                place.with_step(omega_target_operations::PlaceStep::ConstOffset(
-                    field_byte_offset,
-                ))
-            })
-            .expect("a machine-indexed place is four steps, within PLACE_MAX_STEPS");
-    let (bytes, _) = place_copy::encode_place_string_write(&target, byte_length)?;
-    debug_assert_eq!(
-        bytes.len(),
-        runtime_machine_indexed_string_write_width(
-            base_byte_offset,
-            element_byte_size,
-            field_byte_offset,
-            byte_length
-        )
-    );
-    Ok(bytes)
-}
 
 pub fn runtime_value_compare_width(
     runtime_value_operands: &impl RuntimeValueOperandSource,
@@ -5412,100 +5269,6 @@ pub fn wire_decode_repeated_count_page_offset(
         + 7
 }
 
-pub fn runtime_machine_string_write_width(_byte_length: usize) -> usize {
-    44
-}
-
-pub fn runtime_frame_string_write_width(byte_length: usize) -> usize {
-    runtime_machine_string_write_width(byte_length)
-}
-
-pub fn encode_runtime_machine_string_write(
-    byte_offset: usize,
-    byte_length: usize,
-) -> Result<Vec<u8>, Diagnostic> {
-    // Text rung 1a: DELEGATES byte-for-byte to the place materializer (a
-    // direct place; the transitional region is documentation -- the walker
-    // patches from the kind's own region).
-    let target =
-        place_copy::transitional_place(omega_target_operations::RuntimeStorageRegion::Machine)
-            .with_step(omega_target_operations::PlaceStep::ConstOffset(byte_offset))
-            .expect("a direct place is two steps, within PLACE_MAX_STEPS");
-    place_copy::encode_place_string_write(&target, byte_length).map(|(bytes, _)| bytes)
-}
-
-// Write a string literal into an owned `[u8; N]` bounded byte carrier at machine
-// storage (`{len, bytes}` inline). r15 = machine storage base (reloc @ +2); store
-// `len` (the literal length) as the leading 8-byte word at [r15 + byte_offset],
-// then copy each literal byte inline at [r15 + byte_offset + 8 + i] as an
-// immediate. The carrier OWNS its bytes (a value), unlike the String descriptor
-// which stores a {ptr -> rodata, len}. Content is immediate, so the ONLY
-// relocation is the base address (the leading `mov r15, imm64`).
-pub fn runtime_machine_bounded_buffer_write_width(literal: &str) -> usize {
-    // mov r15,imm64 (10) + mov rax,imm64 (10) + store rax->[r15+off] 8B (7) = 27,
-    // then per content byte: mov byte [r15 + disp32], imm8 (8).
-    27 + literal.len() * 8
-}
-
-// Write a string literal into an owned `[u8; N]` carrier reached THROUGH a stored
-// pointer (`rooms[0].label = "Gate"`): load the pointer from `frame[ptr]` into r15,
-// then store `len` + the literal bytes inline at `*ptr + field`. Content is
-// immediate, so the ONLY relocation is the base (the leading `mov r15, imm64`).
-pub fn runtime_pointee_bounded_buffer_write_width(literal: &str) -> usize {
-    // mov r15,imm64 (10) + mov r15,[r15+ptr] (7) + mov rax,imm64 (10)
-    // + store rax->[r15+field] 8B (7), then per content byte:
-    // mov byte [r15 + disp32], imm8 (8) = 34 + 8*len
-    34 + literal.len() * 8
-}
-
-pub fn encode_runtime_pointee_bounded_buffer_write(
-    pointer_byte_offset: usize,
-    field_byte_offset: usize,
-    literal: &str,
-) -> Result<Vec<u8>, Diagnostic> {
-    // Text rung 1e: DELEGATES through the place materializer BYTE-FOR-BYTE
-    // (base mov + deref + len word + immediate content bytes -- the same
-    // positions); the single base reloc stays at the instruction start, so
-    // the walker holds as-is.
-    let target =
-        place_copy::transitional_place(omega_target_operations::RuntimeStorageRegion::RuntimeFrame)
-            .with_step(omega_target_operations::PlaceStep::ConstOffset(
-                pointer_byte_offset,
-            ))
-            .and_then(|place| place.with_step(omega_target_operations::PlaceStep::Deref))
-            .and_then(|place| {
-                place.with_step(omega_target_operations::PlaceStep::ConstOffset(
-                    field_byte_offset,
-                ))
-            })
-            .expect("a pointee place is four steps, within PLACE_MAX_STEPS");
-    let (bytes, _) = place_copy::encode_place_bounded_buffer_write(&target, literal)?;
-    debug_assert_eq!(
-        bytes.len(),
-        runtime_pointee_bounded_buffer_write_width(literal)
-    );
-    Ok(bytes)
-}
-
-pub fn encode_runtime_machine_bounded_buffer_write(
-    byte_offset: usize,
-    literal: &str,
-) -> Result<Vec<u8>, Diagnostic> {
-    // Text rung 1e: DELEGATES through the place materializer BYTE-FOR-BYTE
-    // (the region is documentation on the transitional path -- a
-    // frame-resident carrier patches the same leading base site).
-    let target =
-        place_copy::transitional_place(omega_target_operations::RuntimeStorageRegion::Machine)
-            .with_step(omega_target_operations::PlaceStep::ConstOffset(byte_offset))
-            .expect("a direct place is two steps, within PLACE_MAX_STEPS");
-    let (bytes, _) = place_copy::encode_place_bounded_buffer_write(&target, literal)?;
-    debug_assert_eq!(
-        bytes.len(),
-        runtime_machine_bounded_buffer_write_width(literal)
-    );
-    Ok(bytes)
-}
-
 // Append a source carrier's content onto a target carrier (concat builder source
 // segment, after the first literal initialized the target). r15 = machine
 // storage base (reloc @ +2). rax = target running len; rcx = source len (rep
@@ -5613,18 +5376,6 @@ pub fn encode_runtime_machine_bounded_buffer_literal_append(
         runtime_machine_bounded_buffer_literal_append_width(literal)
     );
     Ok(bytes)
-}
-
-pub fn encode_runtime_frame_string_write(
-    byte_offset: usize,
-    byte_length: usize,
-) -> Result<Vec<u8>, Diagnostic> {
-    // Text rung 1a: DELEGATES byte-for-byte (the frame twin).
-    let target =
-        place_copy::transitional_place(omega_target_operations::RuntimeStorageRegion::RuntimeFrame)
-            .with_step(omega_target_operations::PlaceStep::ConstOffset(byte_offset))
-            .expect("a direct place is two steps, within PLACE_MAX_STEPS");
-    place_copy::encode_place_string_write(&target, byte_length).map(|(bytes, _)| bytes)
 }
 
 pub fn runtime_storage_address_to_runtime_frame_write_width() -> usize {
@@ -9127,10 +8878,6 @@ fn append_load_r11_from_r14(bytes: &mut Vec<u8>, byte_offset: usize) -> Result<(
     Ok(())
 }
 
-fn append_mov_r15_r14(bytes: &mut Vec<u8>) {
-    bytes.extend([0x4d, 0x89, 0xf7]); // mov r15, r14
-}
-
 fn append_mov_r14_r15(bytes: &mut Vec<u8>) {
     bytes.extend([0x4d, 0x89, 0xfe]); // mov r14, r15
 }
@@ -9167,38 +8914,6 @@ fn append_load_rax_from_r15(bytes: &mut Vec<u8>, byte_offset: usize) -> Result<(
     Ok(())
 }
 
-/// 32-bit zero-extending load of an array INDEX. A 64-bit `mov rax` reads 8 bytes,
-/// which for a 4-byte index field (i32/u32) pulls in the ADJACENT field's bytes as
-/// the high dword -> a garbage index and an OOB store (segfault). Every valid array
-/// index fits in 32 bits, so load `eax` (which zero-extends into rax); matches the
-/// machine-indexed COPY encoder.
-fn append_load_index_eax_from_r10(bytes: &mut Vec<u8>, byte_offset: usize) -> Result<(), Diagnostic> {
-    let displacement = disp32(byte_offset)?;
-    bytes.extend([0x41, 0x8b, 0x82]); // mov eax, [r10 + disp32]
-    bytes.extend(displacement.to_le_bytes());
-    Ok(())
-}
-
-/// See [`append_load_index_eax_from_r10`].
-fn append_load_index_eax_from_r15(bytes: &mut Vec<u8>, byte_offset: usize) -> Result<(), Diagnostic> {
-    let displacement = disp32(byte_offset)?;
-    bytes.extend([0x41, 0x8b, 0x87]); // mov eax, [r15 + disp32]
-    bytes.extend(displacement.to_le_bytes());
-    Ok(())
-}
-
-/// Load a 4-byte runtime index into r15, ZERO-EXTENDING into the upper 32 bits (`mov r15d`).
-/// A 64-bit load here would pull the 4 bytes ADJACENT to a 4-byte index field into the high
-/// dword, producing a garbage index and an out-of-bounds store when that neighbour is non-zero
-/// (the same class of bug fixed for the integer indexed write). Byte-count-identical to the
-/// 64-bit `append_load_r15_from_r14`, so instruction widths are unchanged.
-fn append_load_index_r15d_from_r14(bytes: &mut Vec<u8>, byte_offset: usize) -> Result<(), Diagnostic> {
-    let displacement = disp32(byte_offset)?;
-    bytes.extend([0x45, 0x8b, 0xbe]); // mov r15d, [r14 + disp32] (32-bit, zero-extends into r15)
-    bytes.extend(displacement.to_le_bytes());
-    Ok(())
-}
-
 fn append_load_rcx_from_r15(bytes: &mut Vec<u8>, byte_offset: usize) -> Result<(), Diagnostic> {
     let displacement = disp32(byte_offset)?;
     bytes.extend([0x49, 0x8b, 0x8f]); // mov rcx, [r15 + disp32]
@@ -9218,11 +8933,6 @@ fn append_load_r14_from_r14(bytes: &mut Vec<u8>, byte_offset: usize) -> Result<(
     bytes.extend([0x4d, 0x8b, 0xb6]); // mov r14, [r14 + disp32]
     bytes.extend(displacement.to_le_bytes());
     Ok(())
-}
-
-fn append_imul_rax_imm32(bytes: &mut Vec<u8>, value: i32) {
-    bytes.extend([0x48, 0x69, 0xc0]); // imul rax, rax, imm32
-    bytes.extend(value.to_le_bytes());
 }
 
 fn append_imul_r11_imm32(bytes: &mut Vec<u8>, value: i32) {
@@ -9275,21 +8985,6 @@ fn append_add_r14_r10(bytes: &mut Vec<u8>) {
 
 fn append_add_r15_r10(bytes: &mut Vec<u8>) {
     bytes.extend([0x4d, 0x01, 0xd7]); // add r15, r10
-}
-
-fn append_imul_r15_imm32(bytes: &mut Vec<u8>, value: i32) {
-    bytes.extend([0x4d, 0x69, 0xff]); // imul r15, r15, imm32
-    bytes.extend(value.to_le_bytes());
-}
-
-fn append_add_r14_r15(bytes: &mut Vec<u8>) {
-    // add r14, r15 -- REX.W+REX.R(r15)+REX.B(r14)=0x4d, opcode 01, ModRM 11 reg=r15(111) rm=r14(110)=0xfe
-    bytes.extend([0x4d, 0x01, 0xfe]);
-}
-
-fn append_add_r15_rax(bytes: &mut Vec<u8>) {
-    // add r15, rax -- REX.W+REX.B (0x49), opcode 0x01, ModRM 11 reg=rax(000) rm=r15(111) = 0xc7
-    bytes.extend([0x49, 0x01, 0xc7]);
 }
 
 fn append_add_rax_r11(bytes: &mut Vec<u8>) {
