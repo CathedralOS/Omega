@@ -132,9 +132,15 @@ impl ProofConstraint {
         // used to behave unbounded), then the node reader covers the
         // `u32::MAX`-style named-constant spelling.
         let integer_bound = |bound: ExpressionHandle| {
-            program.expression_table.constant_integer_value(bound).or_else(|| {
-                integer_constant_value_from_node(program, program.expression_table.expression(bound))
-            })
+            program
+                .expression_table
+                .constant_integer_value(bound)
+                .or_else(|| {
+                    integer_constant_value_from_node(
+                        program,
+                        program.expression_table.expression(bound),
+                    )
+                })
         };
         if let (Some(minimum), Some(maximum)) = (integer_bound(minimum), integer_bound(maximum)) {
             return Some(Self::IntegerRange {
@@ -470,7 +476,6 @@ struct FloatRange {
     minimum: f64,
     maximum: f64,
 }
-
 
 /// The caller's argument for the SIBLING a sibling-length atom names --
 /// `None`/invalid when the parameter's constraints carry no such atom or the
@@ -869,9 +874,9 @@ fn ensures_witness_bounds_at(
         match statement {
             StatementNode::Call(call) => {
                 witnesses.clear();
-                let Some(signature) = omega_typed_trees::boundary::called_boundary_signature(
-                    program, machine, call,
-                ) else {
+                let Some(signature) =
+                    omega_typed_trees::boundary::called_boundary_signature(program, machine, call)
+                else {
                     continue;
                 };
                 let arguments = program.statement_table.expression_handles(call.arguments);
@@ -1239,9 +1244,7 @@ fn expression_contains_call_node(program: &TypedTrees, expression: ExpressionHan
             expression_contains_call_node(program, indexed.collection)
                 || expression_contains_call_node(program, indexed.index)
         }
-        ExpressionNode::Member(member) => {
-            expression_contains_call_node(program, member.receiver)
-        }
+        ExpressionNode::Member(member) => expression_contains_call_node(program, member.receiver),
         _ => false,
     }
 }
@@ -1352,7 +1355,13 @@ fn call_target_parameters<'program>(
     program: &'program TypedTrees,
     target_symbol: SymbolHandle,
 ) -> Option<&'program [StateParameter]> {
-    state_by_symbol(program, target_symbol).map(|state| program.state_parameters(state))
+    state_by_symbol(program, target_symbol)
+        .map(|state| program.state_parameters(state))
+        .or_else(|| {
+            program
+                .machine_parameter_signature(target_symbol)
+                .map(|(_, signature)| program.state_signature_parameters(signature))
+        })
 }
 
 fn display_name_path(path: &[Identifier]) -> Identifier {
@@ -1787,9 +1796,11 @@ fn self_field_path(program: &TypedTrees, expression: ExpressionHandle) -> Option
         }
         ExpressionNode::Name(name) => {
             match program.expression_table.name_path_members(name.members) {
-                [first, rest @ ..] if first.as_str() == "self" => {
-                    Some(rest.iter().map(|segment| segment.as_str().to_owned()).collect())
-                }
+                [first, rest @ ..] if first.as_str() == "self" => Some(
+                    rest.iter()
+                        .map(|segment| segment.as_str().to_owned())
+                        .collect(),
+                ),
                 _ => None,
             }
         }
@@ -1826,9 +1837,7 @@ fn type_reference_data_name(
 ) -> Option<String> {
     match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Named { name, .. } => Some(name.as_str().to_owned()),
-        TypeReferenceNode::Reference { referee, .. } => {
-            type_reference_data_name(program, *referee)
-        }
+        TypeReferenceNode::Reference { referee, .. } => type_reference_data_name(program, *referee),
         TypeReferenceNode::Constrained { base_type, .. } => {
             type_reference_data_name(program, *base_type)
         }
@@ -1941,7 +1950,6 @@ fn dehoisted_initializer(
     }
     Some(initializer)
 }
-
 
 fn local_data_by_name<'program>(
     program: &'program TypedTrees,
@@ -2101,9 +2109,7 @@ fn data_field_in_definition(
         })
 }
 
-fn integer_literal_constraints(
-    literal: &omega_core::literals::IntegerLiteral,
-) -> ConstraintBuffer {
+fn integer_literal_constraints(literal: &omega_core::literals::IntegerLiteral) -> ConstraintBuffer {
     let mut constraints = ConstraintBuffer::new();
     // N2: literal facts are EXACT at any magnitude (canonical text always
     // parses); the D14 width gate still owns which POSITIONS may spell an
@@ -2378,6 +2384,16 @@ fn callable_return_type_by_symbol(
                 .return_type
                 .is_valid()
                 .then_some(candidate.return_type)
+        })
+        .or_else(|| {
+            program
+                .machine_parameter_signature(target_symbol)
+                .and_then(|(_, candidate)| {
+                    candidate
+                        .return_type
+                        .is_valid()
+                        .then_some(candidate.return_type)
+                })
         })
         .or_else(|| {
             program

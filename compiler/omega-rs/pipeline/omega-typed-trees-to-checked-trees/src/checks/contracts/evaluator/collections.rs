@@ -66,7 +66,7 @@ impl ContractExpressionEvaluator<'_, '_> {
             self.program
                 .machine_states(machine)
                 .iter()
-                .any(|state| state.symbol == self.target_state.symbol)
+                .any(|state| state.symbol == self.target_symbol)
         })?;
         let attached_data = machine.attached_data.as_ref()?;
         self.program

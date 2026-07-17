@@ -107,6 +107,43 @@ fn static_machine_argument_rejects_stronger_precondition() {
 }
 
 #[test]
+fn generic_body_call_is_checked_against_machine_parameter_contract() {
+    let typed = typed_program_from_source(
+        r#"
+        data Card {}
+
+        machine apply<T, machine F>(value: &T)
+        where machine F(item: &T)
+        {
+            F(value);
+        }
+        "#,
+    );
+    validate_program(&typed).expect("generic body should use the authored callable contract");
+}
+
+#[test]
+fn generic_body_call_rejects_argument_outside_machine_parameter_contract() {
+    let typed = typed_program_from_source(
+        r#"
+        data Card {}
+
+        machine apply<T, machine F>(value: &T)
+        where machine F(item: &T)
+        {
+            F(7);
+        }
+        "#,
+    );
+    let diagnostics =
+        validate_program(&typed).expect_err("generic body call shape must be checked");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic.message.contains("argument `item`")
+            && diagnostic.message.contains("expects `&T`")
+    }));
+}
+
+#[test]
 fn validates_main_entry_surface_from_source_pipeline() {
     let source = r#"
     data Main {
@@ -620,9 +657,11 @@ fn refutes_constant_false_ensures_on_empty_proof_machine() {
     )
     .expect_err("constant-false ensures should be refuted");
     assert!(
-        diagnostics.iter().any(|diagnostic| diagnostic
-            .message
-            .contains("ensures contract proof fact `1 + 1 == 3` is disproved by constant arithmetic")),
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains(
+                "ensures contract proof fact `1 + 1 == 3` is disproved by constant arithmetic"
+            )),
         "expected constant refutation diagnostic, got {diagnostics:#?}"
     );
 }
@@ -1667,10 +1706,9 @@ mod structural_entailment {
 
     #[test]
     fn case_disjointness_refutes() {
-        let error = validate(
-            "machine bad(a: Nat) requires a == Nat::Zero; ensures a != Nat::Zero; {}",
-        )
-        .expect_err("a != Zero under a == Zero should refute");
+        let error =
+            validate("machine bad(a: Nat) requires a == Nat::Zero; ensures a != Nat::Zero; {}")
+                .expect_err("a != Zero under a == Zero should refute");
         assert!(
             error.contains("disproved structurally"),
             "expected a structural disproof, got: {error}"
@@ -1780,17 +1818,18 @@ mod structural_entailment {
 
     #[test]
     fn law_conjunct_proves_alongside_functional_ensures() {
-        validate(RIGHT_ID_LAW)
-            .expect("both conjuncts should prove by the same induction");
+        validate(RIGHT_ID_LAW).expect("both conjuncts should prove by the same induction");
     }
 
     #[test]
     fn statement_citation_proves() {
         // ch10 "Citing Proofs" / the OWNER_QUESTIONS #14 answer: the bare
         // statement call injects right_id's law instantiated at `b`.
-        validate(&(RIGHT_ID_LAW.to_owned()
-            + " machine cite_zero(b: Nat) ensures (add(b, Nat::Zero)) == b { \
-               right_id(b); }"))
+        validate(
+            &(RIGHT_ID_LAW.to_owned()
+                + " machine cite_zero(b: Nat) ensures (add(b, Nat::Zero)) == b { \
+               right_id(b); }"),
+        )
         .expect("a statement citation should deliver the law");
     }
 
@@ -1800,8 +1839,10 @@ mod structural_entailment {
         // WITHOUT the citation statement must fence -- and the settled
         // ergonomics mitigation names the lemma whose ensures
         // shape-matches it, with the exact operands.
-        let error = validate(&(RIGHT_ID_LAW.to_owned()
-            + " machine uncited(b: Nat) ensures (add(b, Nat::Zero)) == b {}"))
+        let error = validate(
+            &(RIGHT_ID_LAW.to_owned()
+                + " machine uncited(b: Nat) ensures (add(b, Nat::Zero)) == b {}"),
+        )
         .expect_err("an uncited law fact should fence");
         assert!(
             error.contains("no entailment tier judges yet"),
@@ -1823,7 +1864,9 @@ mod structural_entailment {
              machine conditional_cite(x: Nat, y: Nat) ensures y == x { \
              sym(x, y); }",
         )
-        .expect_err("citing a requires-bearing lemma without establishing its requires should reject");
+        .expect_err(
+            "citing a requires-bearing lemma without establishing its requires should reject",
+        );
         assert!(
             error.contains("is not established at this citation site"),
             "expected the site-discharge refusal, got: {error}"
@@ -2125,10 +2168,12 @@ mod structural_entailment {
         // serve goals one compute step away, like `add(Succ(b), Zero) ==
         // Succ(b)` -- the Succ arm unfolds and exposes exactly the cited
         // instance; that is sound derivation, not leakage.)
-        let error = validate(&(RIGHT_ID_LAW.to_owned()
-            + " machine wrong_operand(b: Nat, c: Nat) \
+        let error = validate(
+            &(RIGHT_ID_LAW.to_owned()
+                + " machine wrong_operand(b: Nat, c: Nat) \
                ensures (add(c, Nat::Zero)) == c { \
-               right_id(b); }"))
+               right_id(b); }"),
+        )
         .expect_err("a citation at the wrong operands should not discharge the goal");
         assert!(
             error.contains("no entailment tier judges yet"),
@@ -2207,8 +2252,14 @@ mod provider_plan {
         };
         let forward = plan(vec![row("a", 1), row("b", 2)]);
         let reversed = plan(vec![row("b", 2), row("a", 1)]);
-        assert_eq!(forward.identity_fingerprint(), reversed.identity_fingerprint());
+        assert_eq!(
+            forward.identity_fingerprint(),
+            reversed.identity_fingerprint()
+        );
         let changed = plan(vec![row("a", 9), row("b", 2)]);
-        assert_ne!(forward.identity_fingerprint(), changed.identity_fingerprint());
+        assert_ne!(
+            forward.identity_fingerprint(),
+            changed.identity_fingerprint()
+        );
     }
 }

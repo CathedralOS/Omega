@@ -479,10 +479,7 @@ impl TypedTrees {
     /// The sibling wire schema a wire field's type references (a NESTED
     /// MESSAGE field, chapter 20), unwrapped through reference and constraint
     /// shells. `None` for primitives and ordinary program types.
-    pub fn wire_field_nested_schema(
-        &self,
-        field: &wire::WireField,
-    ) -> Option<&wire::WireSchema> {
+    pub fn wire_field_nested_schema(&self, field: &wire::WireField) -> Option<&wire::WireSchema> {
         let name = self.named_type_reference_name(field.type_reference)?;
         self.wire_schemas()
             .iter()
@@ -581,10 +578,7 @@ impl TypedTrees {
     /// field is a plain stage 2 scalar: a String body is runtime-unbounded
     /// and a doubly-nested body is a deeper composition, so both make the
     /// caller reject with its own diagnostic.
-    pub fn wire_schema_scalar_body_worst_case(
-        &self,
-        schema: &wire::WireSchema,
-    ) -> Option<usize> {
+    pub fn wire_schema_scalar_body_worst_case(&self, schema: &wire::WireSchema) -> Option<usize> {
         let mut worst_case_bytes = 0usize;
         for member in self.wire_members(schema.members) {
             let wire::WireMember::Field(field) = member else {
@@ -596,8 +590,8 @@ impl TypedTrees {
             let scalar = self
                 .primitive_type_reference(field.type_reference)
                 .and_then(wire::WireScalarEncoding::for_primitive)?;
-            worst_case_bytes += wire::wire_varint_bytes(field.number as u64).len()
-                + scalar.max_varint_length();
+            worst_case_bytes +=
+                wire::wire_varint_bytes(field.number as u64).len() + scalar.max_varint_length();
         }
         Some(worst_case_bytes)
     }
@@ -746,6 +740,39 @@ impl TypedTrees {
             .span_or_empty(machine.type_parameters)
     }
 
+    /// The authored callable contract of a compile-time machine parameter in
+    /// `machine`. The parameter symbol is also the contract's call-target
+    /// identity until specialization replaces it with a concrete state.
+    pub fn machine_parameter_signature_in(
+        &self,
+        machine: &machine::Machine,
+        symbol: omega_core::symbols::SymbolHandle,
+    ) -> Option<&signature::StateSignature> {
+        self.machine_type_parameters(machine)
+            .iter()
+            .find_map(|parameter| match &parameter.kind {
+                data::TypeParameterKind::Machine { contract }
+                    if parameter.symbol == symbol || contract.symbol == symbol =>
+                {
+                    Some(contract)
+                }
+                _ => None,
+            })
+    }
+
+    /// Find a machine-parameter contract and its declaring machine by its
+    /// normalized symbol. Used by effect/proof consumers that see only a call
+    /// target, not the lexical generic scope.
+    pub fn machine_parameter_signature(
+        &self,
+        symbol: omega_core::symbols::SymbolHandle,
+    ) -> Option<(&machine::Machine, &signature::StateSignature)> {
+        self.machines().iter().find_map(|machine| {
+            self.machine_parameter_signature_in(machine, symbol)
+                .map(|signature| (machine, signature))
+        })
+    }
+
     pub fn push_machine_contained_object(
         &mut self,
         machine: &mut machine::Machine,
@@ -822,8 +849,7 @@ impl TypedTrees {
         if !trait_symbol.is_valid() {
             return Vec::new();
         }
-        let Some(trait_definition) = self.traits().iter().find(|t| t.symbol == trait_symbol)
-        else {
+        let Some(trait_definition) = self.traits().iter().find(|t| t.symbol == trait_symbol) else {
             return Vec::new();
         };
         if trait_definition.is_boundary {
@@ -985,7 +1011,8 @@ impl TypedTrees {
     /// opposed to an owned `[u8; N]` repeated field. Replaces the retired
     /// `&string` for borrowed wire text.
     pub fn is_borrowed_byte_slice(&self, type_reference: types::TypeReferenceHandle) -> bool {
-        self.type_reference_table.is_borrowed_byte_slice(type_reference)
+        self.type_reference_table
+            .is_borrowed_byte_slice(type_reference)
     }
 
     /// The arithmetic domain (`T in Wrapping/Saturating/Trapping`, decision 17)

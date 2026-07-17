@@ -42,8 +42,13 @@ pub(super) fn assign_machine_symbols(
         let mut machine_children = symbols.child_handles(machine_symbol).into_iter().flatten();
 
         for type_parameter in data_type_parameters.span_mut_or_empty(machine.type_parameters) {
-            type_parameter.symbol =
-                next_child_of_kind(&mut machine_children, symbols, SymbolKind::TypeParameter);
+            let kind = match type_parameter.kind {
+                omega_symbol_resolved_trees::data::TypeParameterKind::Machine { .. } => {
+                    SymbolKind::MachineParameter
+                }
+                _ => SymbolKind::TypeParameter,
+            };
+            type_parameter.symbol = next_child_of_kind(&mut machine_children, symbols, kind);
         }
         let local_type_parameters = data_type_parameters
             .span_or_empty(machine.type_parameters)
@@ -60,7 +65,14 @@ pub(super) fn assign_machine_symbols(
             else {
                 continue;
             };
+            contract.symbol = type_parameter.symbol;
+            let mut contract_children = symbols
+                .child_handles(type_parameter.symbol)
+                .into_iter()
+                .flatten();
             for parameter in state_parameters.span_mut_or_empty(contract.parameters) {
+                parameter.symbol =
+                    next_child_of_kind(&mut contract_children, symbols, SymbolKind::Parameter);
                 assign_type_reference_symbol_with_locals_and_self_type(
                     symbols,
                     child_type_references,

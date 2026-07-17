@@ -95,6 +95,9 @@ pub(crate) fn resolve_state_call_target(
         if local.is_valid() {
             return local;
         }
+        if machine_parameter_signature_symbol(program, machine, target_symbol).is_valid() {
+            return target_symbol;
+        }
         // A receiverless call to a FREE top-level machine: symbol resolution
         // points target_symbol at the free machine's entry state, which lives
         // outside the caller machine.
@@ -161,6 +164,25 @@ pub(crate) fn resolve_state_call_target(
     // target is the platform's state signature, the third signature-owned
     // contract shape the caller must discharge.
     if platform_state_signature_symbol(program, target_symbol).is_valid() {
+        return target_symbol;
+    }
+
+    SymbolHandle::invalid()
+}
+
+/// `target_symbol` when it denotes a compile-time machine parameter declared
+/// by `machine`, or invalid. Such a target is a callable signature during
+/// modular checking and becomes a concrete state only during specialization.
+pub(crate) fn machine_parameter_signature_symbol(
+    program: &omega_typed_trees::TypedTrees,
+    machine: &omega_typed_trees::machine::Machine,
+    target_symbol: SymbolHandle,
+) -> SymbolHandle {
+    if target_symbol.is_valid()
+        && program
+            .machine_parameter_signature_in(machine, target_symbol)
+            .is_some()
+    {
         return target_symbol;
     }
 

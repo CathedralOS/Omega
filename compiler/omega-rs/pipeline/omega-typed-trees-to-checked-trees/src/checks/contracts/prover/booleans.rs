@@ -1,5 +1,7 @@
 use omega_core::symbols::SymbolHandle;
 
+use super::super::labels::ContractTargetParameters;
+
 use super::super::direct::{
     direct_context_proves_boolean_expression, direct_context_proves_instantiated_boolean_expression,
 };
@@ -58,7 +60,7 @@ pub(super) fn semantic_context_proves_instantiated_boolean_expression(
     caller_state_symbol: SymbolHandle,
     statement_index: usize,
     call_site: &crate::CallSite<'_>,
-    target_state: &omega_typed_trees::state::State,
+    target_state: &(impl ContractTargetParameters + ?Sized),
     expression: omega_typed_trees::expression::ExpressionHandle,
 ) -> bool {
     if direct_context_proves_instantiated_boolean_expression(

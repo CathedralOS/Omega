@@ -52,6 +52,10 @@ pub(crate) fn call_target_parameters<'program>(
         return Some(program.state_parameters(state));
     }
 
+    if let Some((_, signature)) = program.machine_parameter_signature(target_state_symbol) {
+        return Some(program.state_signature_parameters(signature));
+    }
+
     program
         .traits()
         .iter()

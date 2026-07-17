@@ -40,6 +40,18 @@ pub(crate) fn build_proof_facts_with_operators(
     for machine in program.machines() {
         append_machine_contract_facts(program, machine, &mut contract_facts);
         append_inherited_trait_contract_facts(program, machine, &mut contract_facts);
+        for parameter in program.machine_type_parameters(machine) {
+            let omega_typed_trees::data::TypeParameterKind::Machine { contract } = &parameter.kind
+            else {
+                continue;
+            };
+            append_state_signature_contract_facts(
+                program,
+                parameter.symbol,
+                std::slice::from_ref(contract),
+                &mut contract_facts,
+            );
+        }
     }
     for trait_definition in program.traits() {
         append_state_signature_contract_facts(

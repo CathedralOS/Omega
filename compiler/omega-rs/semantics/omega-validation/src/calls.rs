@@ -106,6 +106,30 @@ pub(crate) fn validate_call_node(
     if receiver_members.is_empty()
         || matches!(receiver_members, [receiver] if receiver.as_str() == "self")
     {
+        if let Some(signature) =
+            program.machine_parameter_signature_in(current_machine, call.target_symbol)
+        {
+            validate_result_use(
+                program,
+                call,
+                signature.name.as_str(),
+                signature.return_type,
+                diagnostics,
+            );
+            validate_call_arguments_handles(
+                program,
+                current_machine,
+                machine_symbols.state(state_name),
+                value_env,
+                arguments,
+                signature.name.as_str(),
+                program.state_signature_parameters(signature),
+                writable_roots,
+                diagnostics,
+            );
+            return;
+        }
+
         if let Some(state) = machine_symbols.state(&call.target) {
             validate_result_use(
                 program,
@@ -505,8 +529,7 @@ fn validate_result_use(
             .machines()
             .iter()
             .find(|candidate| {
-                candidate.attached_data.is_none()
-                    && candidate.name.as_str() == call.target.as_str()
+                candidate.attached_data.is_none() && candidate.name.as_str() == call.target.as_str()
             })
             .is_some_and(|callee| classification.is_proof_machine(program, callee));
         if is_citation {
@@ -590,7 +613,9 @@ fn argument_forwards_mutable_reference(
                 crate::locals::local_is_mutable_reference(program, local_data)
                     || (local_data.initial_value.is_valid()
                         && matches!(
-                            program.expression_table.expression(local_data.initial_value),
+                            program
+                                .expression_table
+                                .expression(local_data.initial_value),
                             ExpressionNode::Mutable(_)
                         ))
             })
@@ -1109,8 +1134,7 @@ pub(crate) fn validate_self_recursive_call_positions(
             // A terminal self-call surviving to validation means the machine
             // is UNMEASURED: the parser rewrites measured machines' terminal
             // tail calls onto the loop-back edge (MR2).
-            if let Some(call_display) =
-                whole_expression_self_call(program, entry_name, *expression)
+            if let Some(call_display) = whole_expression_self_call(program, entry_name, *expression)
             {
                 diagnostics.push(Diagnostic::error(format!(
                     "`{call_display}` in terminal position is TAIL self-recursion on an \
@@ -1229,8 +1253,7 @@ fn cited_strict_decrease(
             let StatementNode::Transition(transition) = statement else {
                 continue;
             };
-            let omega_typed_trees::statement::TransitionGuardNode::When(guard) =
-                transition.guard
+            let omega_typed_trees::statement::TransitionGuardNode::When(guard) = transition.guard
             else {
                 continue;
             };
@@ -1314,24 +1337,18 @@ fn cited_strict_decrease(
                             requires_ok = false;
                             continue;
                         };
-                        if binary.operator
-                            != omega_typed_trees::expression::BinaryOperator::Equal
-                        {
+                        if binary.operator != omega_typed_trees::expression::BinaryOperator::Equal {
                             requires_ok = false;
                             continue;
                         }
                         let discharged = site_facts.iter().any(|site| {
-                            substituted_expression_equals(
-                                program,
-                                binary.left,
-                                &map,
-                                site.left,
-                            ) && substituted_expression_equals(
-                                program,
-                                binary.right,
-                                &map,
-                                site.right,
-                            )
+                            substituted_expression_equals(program, binary.left, &map, site.left)
+                                && substituted_expression_equals(
+                                    program,
+                                    binary.right,
+                                    &map,
+                                    site.right,
+                                )
                         });
                         if !discharged {
                             requires_ok = false;
@@ -1420,12 +1437,13 @@ fn ensures_is_strict_decrease(
     if sub_call.target.as_str() != "sub" {
         return false;
     }
-    let sub_arguments = program.expression_table.expression_handles(sub_call.arguments);
+    let sub_arguments = program
+        .expression_table
+        .expression_handles(sub_call.arguments);
     let [succ_side, measure_side] = sub_arguments else {
         return false;
     };
-    let ExpressionNode::StructLiteral(literal) =
-        program.expression_table.expression(*succ_side)
+    let ExpressionNode::StructLiteral(literal) = program.expression_table.expression(*succ_side)
     else {
         return false;
     };
@@ -1586,7 +1604,9 @@ pub(crate) fn validate_proof_machine_recursion(
         return;
     }
 
-    let subjects = program.expression_table.expression_handles(machine.decreases);
+    let subjects = program
+        .expression_table
+        .expression_handles(machine.decreases);
     let [subject] = subjects else {
         diagnostics.push(Diagnostic::error(format!(
             "recursive proof machine `{}` needs a single structural measure: declare \
@@ -1615,12 +1635,15 @@ pub(crate) fn validate_proof_machine_recursion(
     // The measure names an ENTRY parameter; its POSITION is where every
     // self-call's argument must descend.
     let Some(measure_position) = program.machine_states(machine).first().and_then(|entry| {
-        program.state_parameters(entry).iter().position(|parameter| {
-            (parameter.symbol.is_valid() && parameter.symbol == measure_symbol)
-                || measure_name
-                    .as_ref()
-                    .is_some_and(|name| parameter.name.as_str() == name.as_str())
-        })
+        program
+            .state_parameters(entry)
+            .iter()
+            .position(|parameter| {
+                (parameter.symbol.is_valid() && parameter.symbol == measure_symbol)
+                    || measure_name
+                        .as_ref()
+                        .is_some_and(|name| parameter.name.as_str() == name.as_str())
+            })
     }) else {
         diagnostics.push(Diagnostic::error(format!(
             "recursive proof machine `{}`: the measure must name an entry parameter",
@@ -1644,13 +1667,7 @@ pub(crate) fn validate_proof_machine_recursion(
                     measure_symbol,
                     measure_name.as_ref(),
                 )
-                || cited_strict_decrease(
-                    program,
-                    machine,
-                    state,
-                    argument,
-                    measure_name.as_ref(),
-                )
+                || cited_strict_decrease(program, machine, state, argument, measure_name.as_ref())
                 || measure_name.as_ref().is_some_and(|name| {
                     crate::contract_entailment::proof_edge_strict_decrease_judged(
                         program,
@@ -1730,10 +1747,9 @@ fn collect_self_entry_call_arguments(
     if !expression.is_valid() {
         return;
     }
-    let mut recurse =
-        |handle: ExpressionHandle, found: &mut Vec<HandleSpan<ExpressionHandle>>| {
-            collect_self_entry_call_arguments(program, entry_name, handle, found);
-        };
+    let mut recurse = |handle: ExpressionHandle, found: &mut Vec<HandleSpan<ExpressionHandle>>| {
+        collect_self_entry_call_arguments(program, entry_name, handle, found);
+    };
     match program.expression_table.expression(expression) {
         ExpressionNode::Call(call) => {
             if is_self_entry_call(program, entry_name, call) {
@@ -1766,7 +1782,10 @@ fn collect_self_entry_call_arguments(
             }
         }
         ExpressionNode::StructLiteral(struct_literal) => {
-            for field in program.expression_table.struct_fields(struct_literal.fields) {
+            for field in program
+                .expression_table
+                .struct_fields(struct_literal.fields)
+            {
                 recurse(field.value, found);
             }
         }
@@ -1878,8 +1897,7 @@ fn substate_parameter_descends(
                     let Some(bound) = handles.get(*position) else {
                         return false;
                     };
-                    if !strict_subterm_of_measure(program, *bound, measure_symbol, measure_name)
-                    {
+                    if !strict_subterm_of_measure(program, *bound, measure_symbol, measure_name) {
                         return false;
                     }
                 }
@@ -1926,15 +1944,10 @@ fn whole_expression_self_call(
     let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
         return None;
     };
-    is_self_entry_call(program, entry_name, call)
-        .then(|| format!("self.{entry_name}(..)"))
+    is_self_entry_call(program, entry_name, call).then(|| format!("self.{entry_name}(..)"))
 }
 
-fn is_self_entry_call(
-    program: &TypedTrees,
-    entry_name: &str,
-    call: &TableCallExpression,
-) -> bool {
+fn is_self_entry_call(program: &TypedTrees, entry_name: &str, call: &TableCallExpression) -> bool {
     if call.target.as_str() != entry_name {
         return false;
     }
@@ -2004,7 +2017,10 @@ fn reject_embedded_self_calls(
             }
         }
         ExpressionNode::StructLiteral(struct_literal) => {
-            for field in program.expression_table.struct_fields(struct_literal.fields) {
+            for field in program
+                .expression_table
+                .struct_fields(struct_literal.fields)
+            {
                 recurse(field.value, diagnostics);
             }
         }
@@ -2255,9 +2271,7 @@ fn double_indexed_machine_read_is_lowerable(
                 // for the frame case (member links between the indices stay
                 // fenced by the resolver and report loudly downstream).
                 let members = program.expression_table.name_path_members(path.members);
-                return members
-                    .first()
-                    .is_some_and(|name| name.as_str() == "self")
+                return members.first().is_some_and(|name| name.as_str() == "self")
                     || members.len() == 1;
             }
             _ => return false,
@@ -2311,12 +2325,9 @@ fn scan_expression_calls(
     if matches!(
         program.expression_table.expression(expression),
         ExpressionNode::Member(_) | ExpressionNode::Name(_)
-    ) && let Some((container, member)) = crate::places::first_unknown_nested_field(
-        program,
-        machine,
-        Some(state),
-        expression,
-    ) {
+    ) && let Some((container, member)) =
+        crate::places::first_unknown_nested_field(program, machine, Some(state), expression)
+    {
         let message = format!(
             "machine `{}` state `{}` reads a nested member `{member}`, but data `{container}` \
              has no field `{member}` (check the spelling of the field name)",
@@ -2762,6 +2773,31 @@ fn validate_expression_call_bounds(
     // current machine, an attached-data sibling machine, or a free machine.
     // Mirrors the same three-way fallback in `validate_call_node`.
     if call_is_self {
+        if let Some(signature) =
+            program.machine_parameter_signature_in(current_machine, call.target_symbol)
+        {
+            if !signature.return_type.is_valid() {
+                diagnostics.push(Diagnostic::error(format!(
+                    "machine `{}` state `{}`: machine parameter `{}` does not return a value but is used in a VALUE position",
+                    current_machine.name,
+                    current_state.name,
+                    signature.name,
+                )));
+            }
+            validate_call_arguments_handles(
+                program,
+                current_machine,
+                Some(current_state),
+                value_env,
+                arguments,
+                signature.name.as_str(),
+                program.state_signature_parameters(signature),
+                writable_roots,
+                diagnostics,
+            );
+            return;
+        }
+
         if let Some(callee_state) = machine_symbols.state(call.target.as_str()) {
             report_void_value_callee(
                 program,
@@ -3414,7 +3450,8 @@ fn report_unresolved_value_call(
         return;
     }
 
-    let declared_type = receiver_declared_type_name(program, current_machine, current_state, receiver);
+    let declared_type =
+        receiver_declared_type_name(program, current_machine, current_state, receiver);
     let resolves = receiver_type
         .is_some_and(|type_name| type_name_resolves_value_call(program, symbols, type_name, target))
         || declared_type

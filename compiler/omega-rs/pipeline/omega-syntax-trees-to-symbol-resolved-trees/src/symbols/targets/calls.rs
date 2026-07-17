@@ -111,6 +111,20 @@ pub(in crate::symbols) fn resolve_call_target_symbol(
         return machine_state;
     }
 
+    // A receiverless call to a static machine parameter (`F(value)`) denotes
+    // the authored callable requirement stored on that parameter. Its symbol
+    // remains the signature identity until specialization substitutes a
+    // concrete entry state.
+    let machine_parameter = child_symbol_by_kinds(
+        symbols,
+        machine.symbol,
+        &[SymbolKind::MachineParameter],
+        target.as_str(),
+    );
+    if machine_parameter.is_valid() {
+        return machine_parameter;
+    }
+
     let builtin =
         top_level_symbol_by_kinds(symbols, &[SymbolKind::BuiltinFunction], target.as_str());
     if builtin.is_valid() {

@@ -3,6 +3,34 @@ use omega_core::symbols::SymbolHandle;
 /// The reserved binder naming a call's return value inside an `ensures` clause.
 pub(crate) const RESULT_BINDER: &str = "result";
 
+/// Parameter source for an instantiated call contract. Ordinary calls use a
+/// concrete state; static machine-parameter calls use the authored signature
+/// directly while their generic body is checked.
+pub(crate) trait ContractTargetParameters {
+    fn contract_parameters<'program>(
+        &'program self,
+        program: &'program omega_typed_trees::TypedTrees,
+    ) -> &'program [omega_typed_trees::signature::StateParameter];
+}
+
+impl ContractTargetParameters for omega_typed_trees::state::State {
+    fn contract_parameters<'program>(
+        &'program self,
+        program: &'program omega_typed_trees::TypedTrees,
+    ) -> &'program [omega_typed_trees::signature::StateParameter] {
+        program.state_parameters(self)
+    }
+}
+
+impl ContractTargetParameters for [omega_typed_trees::signature::StateParameter] {
+    fn contract_parameters<'program>(
+        &'program self,
+        _program: &'program omega_typed_trees::TypedTrees,
+    ) -> &'program [omega_typed_trees::signature::StateParameter] {
+        self
+    }
+}
+
 /// Render the label of the value a call produces, used to substitute the
 /// `result` binder of the callee's `ensures` clause into caller terms. This is
 /// the call expression itself (`receiver.target(args)` or `target(args)`), so a
@@ -57,7 +85,7 @@ pub(crate) fn instantiate_call_contract_expression_label(
     caller_state_symbol: SymbolHandle,
     statement_index: usize,
     call_site: &crate::CallSite<'_>,
-    target_state: &omega_typed_trees::state::State,
+    target_state: &(impl ContractTargetParameters + ?Sized),
     expression: omega_typed_trees::expression::ExpressionHandle,
 ) -> String {
     match program.expression_table.expression(expression) {
@@ -266,8 +294,8 @@ pub(crate) fn instantiate_call_contract_expression_label(
             // treated as the binder.
             if first_member == Some(RESULT_BINDER)
                 && members.len() == 1
-                && !program
-                    .state_parameters(target_state)
+                && !target_state
+                    .contract_parameters(program)
                     .iter()
                     .any(|parameter| parameter.name.as_str() == RESULT_BINDER)
             {
@@ -277,7 +305,7 @@ pub(crate) fn instantiate_call_contract_expression_label(
             let arguments = crate::call_site_argument_expressions(program, call_site);
             let mut argument_index = 0usize;
 
-            for parameter in program.state_parameters(target_state) {
+            for parameter in target_state.contract_parameters(program) {
                 let parameter_matches = first_member == Some(parameter.name.as_str())
                     || path.head_symbol == parameter.symbol
                     || path.symbol == parameter.symbol;

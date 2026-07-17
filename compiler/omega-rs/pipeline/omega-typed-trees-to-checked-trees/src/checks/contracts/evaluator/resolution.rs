@@ -80,7 +80,7 @@ impl ContractExpressionEvaluator<'_, '_> {
         let arguments = crate::call_site_argument_expressions(self.program, self.call_site);
         let mut argument_index = 0usize;
 
-        for parameter in self.program.state_parameters(self.target_state) {
+        for parameter in self.target_parameters {
             let parameter_matches = (head_symbol.is_valid() && head_symbol == parameter.symbol)
                 || (symbol.is_valid() && symbol == parameter.symbol)
                 || name.is_some_and(|name| name == parameter.name.as_str());
