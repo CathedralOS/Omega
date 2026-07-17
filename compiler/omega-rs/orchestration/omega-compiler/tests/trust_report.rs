@@ -285,3 +285,55 @@ machine Main::main(&mut self) {{
 
     let _ = std::fs::remove_dir_all(&project);
 }
+
+#[test]
+fn derived_provider_plans_surface_as_trust_rows() {
+    // PRV3: an authored `provides` block derives a ProviderPlan; the plan
+    // surfaces as a dev-active trust row (fingerprint shown) until the
+    // final build grants it by name or trait leaf.
+    let project = std::env::temp_dir().join(format!("omega-plan-rows-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&project);
+    std::fs::create_dir_all(&project).expect("create project dir");
+    std::fs::write(
+        project.join("main.omg"),
+        r#"boundary trait Console { machine exit_process(return_code: i32); }
+boundary trait Flags {
+    machine open_read() -> i32;
+}
+demo_target provides Flags {
+    open_read -> 0
+}
+data Main { console: Console; }
+machine Main::main(&mut self) {
+    self.console.exit_process(70);
+}
+"#,
+    )
+    .expect("write main.omg");
+
+    let build_dir = project.join("build");
+    compile(CompileOptions {
+        root_path: project.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("provides project should compile");
+
+    let report = std::fs::read_to_string(build_dir.join("trust_report.md"))
+        .expect("trust report should be written");
+    assert!(
+        report.contains("provider plan: demo_target::Flags ["),
+        "expected the derived plan row with its fingerprint:\n{report}"
+    );
+    let plan_row = report
+        .lines()
+        .find(|line| line.contains("provider plan: demo_target::Flags"))
+        .unwrap_or_default();
+    assert!(
+        plan_row.contains("own-package (dev-active)") && plan_row.contains("STANDING WARNING"),
+        "an ungranted plan is dev-active with the warning:\n{report}"
+    );
+
+    let _ = std::fs::remove_dir_all(&project);
+}
