@@ -1075,6 +1075,10 @@ const EXCLUDED_RUN_CANARIES: &[(&str, &str)] = &[
         "windows-gated dual test (interp oracle + native run, both 70, asserted in its canary_suite test): pins the WINDOWS canonicalize composition (the handle bridge -- _get_osfhandle + GetFinalPathNameByHandleA); the posix realpath path is covered by native_canonicalize and the macos battery",
     ),
     (
+        "filesystem/windows_set_file_time_exit",
+        "windows-gated dual test (interp oracle + native run, both 70, asserted in its canary_suite test): pins the RAW set_file_time seam op (kernel32 SetFileTime over the handle bridge, stat round-trip); raw windows ops have no posix lowering BY DESIGN",
+    ),
+    (
         "time/runtime_time_host_native_exit",
         "NATIVE-ONLY (windows-gated run test): asserts the WINDOWS calibration constants (10^7 / 11_644_473_600) and real-clock inequalities; the interpreter's virtual clock reports 1000/0 and exits 3 by design (its exact values are pinned by time/runtime_time_host_virtual_exit)",
     ),

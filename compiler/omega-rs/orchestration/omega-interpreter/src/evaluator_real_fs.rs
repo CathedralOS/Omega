@@ -753,6 +753,36 @@ impl<'program> super::Evaluator<'program> {
                     None => 0,
                 }
             }
+            "set_file_time" => {
+                // `SetFileTime(handle, creation, access_ft, write_ft)` (session
+                // slice 4b): apply the WRITE time from its FILETIME buffer via
+                // std's set_modified, like `set_file_times` above. BOOL result;
+                // 0 for a bad handle or a failed stamp (GetLastError
+                // semantics -- no errno).
+                let handle = self.eval_fs_scalar(arguments.first().copied(), frame)?;
+                let write_ft = self.eval_fs_bytes(arguments.get(3).copied(), frame)?;
+                let filetime = write_ft
+                    .get(0..8)
+                    .and_then(|s| <[u8; 8]>::try_from(s).ok())
+                    .map(i64::from_le_bytes)
+                    .unwrap_or(0);
+                let secs = filetime / 10_000_000 - 11_644_473_600;
+                let real = self.real_fs_mut();
+                match real.files.get_mut(&(handle as i32)) {
+                    Some(entry) => {
+                        let stamp = if secs >= 0 {
+                            std::time::UNIX_EPOCH + std::time::Duration::from_secs(secs as u64)
+                        } else {
+                            std::time::UNIX_EPOCH
+                        };
+                        match entry.file.set_modified(stamp) {
+                            Ok(()) => 1,
+                            Err(_) => 0,
+                        }
+                    }
+                    None => 0,
+                }
+            }
             "symlink" => {
                 // `symlink(target, linkpath)`: the TARGET is stored verbatim
                 // (never dereferenced here), so only the link path needs write

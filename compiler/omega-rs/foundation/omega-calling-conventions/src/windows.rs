@@ -88,6 +88,9 @@ pub const WINDOWS_IMPORT_ROWS: &[(&str, &str, &str, &str)] = &[
     // GetFullPathNameA is lexical-only and never left the ledger).
     ("Filesystem", "get_osfhandle", "msvcrt.dll", "_get_osfhandle"),
     ("Filesystem", "final_path_name_by_handle", "Kernel32.dll", "GetFinalPathNameByHandleA"),
+    // The set_times leg over the bridge (slice 4b): stamp an open handle's
+    // access/write times from wrapper-composed FILETIME buffers.
+    ("Filesystem", "set_file_time", "Kernel32.dll", "SetFileTime"),
     // set_len -> `_chsize_s(fd, __int64 size)` (ftruncate's msvcrt analogue). The
     // 64-bit variant so the i64 length is not truncated to `_chsize`'s 32-bit
     // `long`; returns 0 on success like ftruncate (the wrapper checks rc == 0 and
@@ -482,6 +485,13 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
             "FilesystemHost",
             "final_path_name_by_handle",
             [host_operation("Filesystem", "final_path_name_by_handle")],
+            PlatformCallData::None,
+        );
+        insert_platform_lowering(
+            plan,
+            "FilesystemHost",
+            "set_file_time",
+            [host_operation("Filesystem", "set_file_time")],
             PlatformCallData::None,
         );
         insert_platform_lowering(

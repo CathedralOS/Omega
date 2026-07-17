@@ -116,6 +116,14 @@ boundary trait FilesystemHost {
     // the NUL) when `capacity` is too small, or 0 on failure (GetLastError
     // holds the reason -- not msvcrt errno).
     machine final_path_name_by_handle(handle: i64, buffer: &mut [u8], capacity: u64, flags: u32) -> i64 effects filesystem_io;
+    // `SetFileTime(handle, lpCreationTime, lpLastAccessTime, lpLastWriteTime)`
+    // (windows session slice 4b): stamp an OPEN handle's times from 8-byte
+    // FILETIME buffers (100ns units since 1601; the wrapper composes them
+    // from unix seconds with the calibration constants). `creation` is the
+    // NULL-able pointer the API allows -- pass 0 to leave creation time
+    // alone. Returns BOOL (non-zero success); failures live in GetLastError,
+    // not msvcrt errno.
+    machine set_file_time(handle: i64, creation: i64, last_access: &[u8], last_write: &[u8]) -> i32 effects filesystem_io;
     // Remove a FILE / an empty DIRECTORY by a TRUSTED plain `&[u8]` path -- the
     // D-at trust class twins of `remove` / `remove_dir` (same native rows, the
     // `create_dir_name` precedent): a path JOINED inside a dir-walk from

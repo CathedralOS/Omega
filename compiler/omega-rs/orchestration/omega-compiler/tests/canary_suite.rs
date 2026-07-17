@@ -26563,6 +26563,55 @@ fn windows_read_dir_nth_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// The RAW set_file_time seam op (session slice 4b): kernel32 SetFileTime
+// over the handle bridge, hand-built FILETIME, stat round-trip @40. The
+// WRAPPER set_times windows migration is BLOCKED on the value-call
+// mutation-heavy-entry face (TASKS record); this raw pin keeps the
+// capability honest meanwhile. WINDOWS-HOST ONLY (raw windows ops have no
+// posix lowering), outside the cross-host sweep lists like the find trio.
+#[cfg(windows)]
+#[test]
+fn windows_set_file_time_exit_canary_runs() {
+    let canary = pass_canary("filesystem/windows_set_file_time_exit");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("set_file_time canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should exit 70 (stamp + stat round-trip), got {}",
+        outcome.exit_code
+    );
+
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-win-sft-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("set_file_time canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .current_dir(&build_dir)
+        .output()
+        .expect("set_file_time canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the set_file_time round-trip to exit 70 (75 = a FILETIME calibration slip; header lists the rest), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // The WRAPPER canonicalize contract on windows (session slice 4a): msvcrt
 // has no realpath, so the windows impl composes the HANDLE BRIDGE -- open,
 // _get_osfhandle, GetFinalPathNameByHandleA (the \\?\-prefixed DOS path),

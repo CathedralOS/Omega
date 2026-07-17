@@ -3362,8 +3362,27 @@ rejects — an INTEGER ruling, engineering rides this ladder as F8).
   virtual_open_flags now resolves one symlink level (the
   canonicalize/read_link model) and the descriptor stores the RESOLVED
   path, so handle-keyed consumers report the final target like Win32.
-  NEXT (4b): set_file_times (SetFileTime) and lock_file (LockFileEx)
-  ride the SAME bridge natively. The *at family and fd-based
+  SLICE 4b (set_file_time) LANDED RAW, WRAPPER BLOCKED 2026-07-16: the
+  designed `set_file_time(handle, creation, &access_ft, &write_ft)` seam
+  op (kernel32 SetFileTime; NULL-able creation scalar; BOOL) landed at
+  every layer + hermetic/real arms (FILETIME → unix secs via the
+  calibration constants) — pinned RAW by
+  pass/filesystem/windows_set_file_time_exit (dual-engine,
+  windows-gated; hand FILETIME + stat round-trip @40; ⚠️ canary lesson:
+  stamp on a CLEAN rw reopen — a pending write's close updates mtime
+  past the stamp on both engines). The WRAPPER `set_times` per-target
+  migration is REVERTED + BLOCKED on a NEW value-call face: the windows
+  impl (FILETIME compose = 18 entry field-stores + bridge + SetFileTime)
+  returns rc==0 natively when the machine is VALUE-called but works
+  STATEMENT-called (`_ = fs.set_times(...)` exits 70 with the mtime
+  verified) — three dodges all fail in value position (params hopped
+  through fields; args from caller fields instead of literals; the
+  compose hoisted into a statement-called helper), interp correct
+  throughout. Same family as the multi-conjunct-guard face above
+  (value-call expansion of effect-heavy entries); whoever picks up the
+  face gets a ready differential repro shape. lock_file (LockFileEx)
+  waits behind the same face (its wrapper impl would be the same
+  compose-heavy value-called shape). The *at family and fd-based
   read_dir stay
   paradigm-refused on windows BY DESIGN (the dirfd paradigm has no Win32
   twin; wrapper-level windows impls already serve the walk); chown/symlink
