@@ -814,6 +814,20 @@ sealed progress profiles + grants, TPR4's remaining big half).
    materializer / aarch64->WritePlaceShape decompose to the retained
    binary encoders + layout width from the encoder + walker via
    sites-and-shape + shapes machine-kind) + producers + retirement.
+   2a WALKER NOTE (banked): binary walker arms need OPERAND reloc
+   offsets after the place prefix -- add
+   `place_binary_operand_start_width(place)` in place_copy.rs
+   (walk-sum: 10 base + per cross-region index 17 | same-region 7,
+   + 7 imul each + 7 per deref + 3 per index add + 3 hop -- the
+   materializer's own widths), used by BOTH the x86 walker arm
+   (left_offset = start + that width; right = left + left_width +
+   gap, the existing pattern) and any width assert. The variant
+   carries every encode_place_binary_write param (left/right operand
+   handles, operator, byte_size, is_float, domain, target_signed).
+   aarch64 decompose needs the six retained binary encoder signatures
+   (all take runtime_value_operands first; the storage one adds
+   is_float/domain/target_signed -- the shaped ones are Exact-only,
+   matching the producers' current split).
    Rung 2a after: the WritePlaceInteger variant + echo product +
    producer migration. Pre-existing dead helpers noted en route (shapes/copies.rs
    runtime_storage_copy_kind + _to_runtime_frame_indexed_kind +
