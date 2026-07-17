@@ -275,7 +275,7 @@ impl<'program> super::Evaluator<'program> {
                 match self.authorized_path(&path, wants_write) {
                     Some(path) => {
                         let options = open_options_for(flags, mode, method == "open_create");
-                        self.real_result_fd(options.open(&path), path)
+                        self.real_result_fd(open_real(&options, &path, wants_write), path)
                     }
                     None => -1,
                 }
@@ -957,7 +957,7 @@ impl<'program> super::Evaluator<'program> {
                 match self.authorized_path(&joined_bytes, wants_write) {
                     Some(path) => {
                         let options = open_options_for(flags, 0, false);
-                        self.real_result_fd(options.open(&path), path)
+                        self.real_result_fd(open_real(&options, &path, wants_write), path)
                     }
                     None => -1,
                 }
@@ -1079,6 +1079,31 @@ impl<'program> super::Evaluator<'program> {
             .unwrap_or(0);
         self.write_fs_stat(argument, frame, mode, size, mtime_secs);
     }
+}
+
+/// Open through `options`, serving DIRECTORIES too: a read-only open of a
+/// directory (the `open_at`/`unlink_at`/`read_dir` dirfd mint) needs
+/// FILE_FLAG_BACKUP_SEMANTICS on windows -- std's plain OpenOptions refuses
+/// directory handles there, while unix serves `open(dir, O_RDONLY)` natively.
+/// Write-intent opens are NOT redirected, so a write-open of a directory
+/// fails on windows exactly like unix's EISDIR.
+fn open_real(
+    options: &std::fs::OpenOptions,
+    path: &Path,
+    wants_write: bool,
+) -> std::io::Result<std::fs::File> {
+    #[cfg(windows)]
+    if !wants_write && path.is_dir() {
+        use std::os::windows::fs::OpenOptionsExt;
+        const FILE_FLAG_BACKUP_SEMANTICS: u32 = 0x0200_0000;
+        return std::fs::OpenOptions::new()
+            .read(true)
+            .custom_flags(FILE_FLAG_BACKUP_SEMANTICS)
+            .open(path);
+    }
+    #[cfg(not(windows))]
+    let _ = wants_write;
+    options.open(path)
 }
 
 /// The shared OpenOptions decode for `open`/`open_create`/`open_at`: access
