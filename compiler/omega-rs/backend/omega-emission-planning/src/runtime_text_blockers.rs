@@ -321,15 +321,6 @@ fn runtime_text_write_has_selected_instruction(
                         | SelectedInstructionKind::MaterializeTextBufferToPlace { .. }
                         | SelectedInstructionKind::AppendTextStoredToPlace { .. }
                         | SelectedInstructionKind::AppendTextLiteralToPlace { .. }
-                        | SelectedInstructionKind::MaterializeRuntimeTextBuffer { .. }
-                        | SelectedInstructionKind::MaterializeRuntimeTextBufferToRuntimePointee { .. }
-                        | SelectedInstructionKind::MaterializeRuntimeTextBufferToRuntimeFrameIndexed { .. }
-                        | SelectedInstructionKind::AppendRuntimeTextStoredPlace { .. }
-                        | SelectedInstructionKind::AppendRuntimeTextStoredPlaceToRuntimePointee { .. }
-                        | SelectedInstructionKind::AppendRuntimeTextStoredPlaceToRuntimeFrameIndexed { .. }
-                        | SelectedInstructionKind::AppendRuntimeTextLiteral { .. }
-                        | SelectedInstructionKind::AppendRuntimeTextLiteralToRuntimePointee { .. }
-                        | SelectedInstructionKind::AppendRuntimeTextLiteralToRuntimeFrameIndexed { .. }
                         | SelectedInstructionKind::CopyPlaces { .. }
                         // `asm { in <local>, <port> }`: the PortRead writes the
                         // byte into the local's place, covering the assignment
