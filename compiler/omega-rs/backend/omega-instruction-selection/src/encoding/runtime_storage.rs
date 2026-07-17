@@ -799,6 +799,138 @@ pub fn encode_write_place_integer(
     }
 }
 
+/// Task #131 (guards consume Places): the place-shaped storage compare.
+/// x86_64 rides the materializer; aarch64 serves DIRECT places via the
+/// retained storage-compare encoder and refuses walked shapes loudly until
+/// its materializer lands.
+#[allow(clippy::too_many_arguments)]
+pub fn encode_place_compare_bytes(
+    architecture: Architecture,
+    left: &omega_target_operations::Place,
+    right: &omega_target_operations::Place,
+    byte_size: usize,
+    failure_branch_distance: isize,
+    operator: StateGuardOperator,
+    is_float: bool,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::X86_64 => x86_64::encode_place_compare(
+            left,
+            right,
+            byte_size,
+            failure_branch_distance,
+            operator,
+            is_float,
+        )
+        .map(|(bytes, _)| bytes),
+        Architecture::Aarch64 => match (
+            classify_write_place_shape(left),
+            classify_write_place_shape(right),
+        ) {
+            (
+                WritePlaceShape::Direct {
+                    byte_offset: left_offset,
+                },
+                WritePlaceShape::Direct {
+                    byte_offset: right_offset,
+                },
+            ) => aarch64::encode_runtime_storage_compare_bytes(
+                left_offset,
+                right_offset,
+                byte_size,
+                failure_branch_distance,
+                operator,
+                is_float,
+            ),
+            _ => Err(Diagnostic::error(
+                "ComparePlaces on aarch64 serves direct place shapes only until the \
+                 aarch64 place materializer lands; this shape refuses loudly",
+            )),
+        },
+    }
+}
+
+/// One source of truth: the encoder's output length (the branch distance
+/// only changes the rel32 payload, never the width).
+pub fn place_compare_width(
+    architecture: Architecture,
+    left: &omega_target_operations::Place,
+    right: &omega_target_operations::Place,
+    byte_size: usize,
+    operator: StateGuardOperator,
+    is_float: bool,
+) -> Result<usize, Diagnostic> {
+    encode_place_compare_bytes(architecture, left, right, byte_size, 0, operator, is_float)
+        .map(|bytes| bytes.len())
+}
+
+pub fn x86_64_encode_place_compare_with_sites(
+    left: &omega_target_operations::Place,
+    right: &omega_target_operations::Place,
+    byte_size: usize,
+    operator: StateGuardOperator,
+    is_float: bool,
+) -> Result<(Vec<u8>, omega_isa_x86_64::PlaceCopySites), Diagnostic> {
+    x86_64::encode_place_compare(left, right, byte_size, 0, operator, is_float)
+}
+
+/// Task #131: the place-vs-immediate compare.
+pub fn encode_place_value_compare_bytes(
+    architecture: Architecture,
+    place: &omega_target_operations::Place,
+    byte_size: usize,
+    expected_value: i64,
+    failure_branch_distance: isize,
+    operator: StateGuardOperator,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::X86_64 => x86_64::encode_place_value_compare(
+            place,
+            byte_size,
+            expected_value,
+            failure_branch_distance,
+            operator,
+        )
+        .map(|(bytes, _)| bytes),
+        Architecture::Aarch64 => match classify_write_place_shape(place) {
+            WritePlaceShape::Direct { byte_offset } => {
+                aarch64::encode_runtime_storage_value_compare_bytes(
+                    byte_offset,
+                    byte_size,
+                    expected_value,
+                    failure_branch_distance,
+                    operator,
+                )
+            }
+            _ => Err(Diagnostic::error(
+                "ComparePlaceValue on aarch64 serves direct place shapes only until \
+                 the aarch64 place materializer lands; this shape refuses loudly",
+            )),
+        },
+    }
+}
+
+/// One source of truth: the encoder's output length.
+pub fn place_value_compare_width(
+    architecture: Architecture,
+    place: &omega_target_operations::Place,
+    byte_size: usize,
+    expected_value: i64,
+    operator: StateGuardOperator,
+) -> Result<usize, Diagnostic> {
+    encode_place_value_compare_bytes(architecture, place, byte_size, expected_value, 0, operator)
+        .map(|bytes| bytes.len())
+}
+
+pub fn x86_64_encode_place_value_compare_with_sites(
+    place: &omega_target_operations::Place,
+    byte_size: usize,
+    expected_value: i64,
+    operator: StateGuardOperator,
+) -> Result<(Vec<u8>, omega_isa_x86_64::PlaceCopySites), Diagnostic> {
+    x86_64::encode_place_value_compare(place, byte_size, expected_value, 0, operator)
+}
+
 /// Task #131: a frame-rooted `descriptor deref + scaled index (+ const)`
 /// path with ANY index region -- the shape the retired frame-indexed-deref
 /// ADDRESS write serves (its index may live in machine storage, which

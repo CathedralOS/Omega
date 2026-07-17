@@ -50,6 +50,110 @@ pub(super) fn collect_runtime_storage_compare_relocations(
             }
             true
         }
+        SelectedInstructionKind::ComparePlaces {
+            left,
+            right,
+            byte_size,
+            operator,
+            is_float,
+        } => {
+            match context.input.target.architecture {
+                omega_target::Architecture::X86_64 => {
+                    // Task #131: the LEFT place walks in the Source register
+                    // (r14) and the RIGHT in the Target (r15) -- the sites
+                    // patch by side + place region, the WritePlaceInteger
+                    // discipline extended to two subjects.
+                    let (_, sites) =
+                        omega_instruction_selection::x86_64_encode_place_compare_with_sites(
+                            left, right, *byte_size, *operator, *is_float,
+                        )
+                        .expect(
+                            "ComparePlaces reached relocation with a shape the \
+                             materializer refuses; layout/encoding would have failed first",
+                        );
+                    for (byte_offset, side) in sites.iter() {
+                        let region = match side {
+                            omega_instruction_selection::PlaceCopySide::Source => left.region,
+                            omega_instruction_selection::PlaceCopySide::SourceIndex => left
+                                .scaled_index_region()
+                                .expect("a SourceIndex site implies a left ScaledIndex step"),
+                            omega_instruction_selection::PlaceCopySide::SourceIndex2 => left
+                                .scaled_index_regions()
+                                .nth(1)
+                                .expect("a SourceIndex2 site implies two left ScaledIndex steps"),
+                            omega_instruction_selection::PlaceCopySide::Target => right.region,
+                            omega_instruction_selection::PlaceCopySide::TargetIndex => right
+                                .scaled_index_region()
+                                .expect("a TargetIndex site implies a right ScaledIndex step"),
+                            omega_instruction_selection::PlaceCopySide::TargetIndex2 => {
+                                unreachable!(
+                                    "a two-index right compare operand refuses at encoding"
+                                )
+                            }
+                        };
+                        context.insert_data_address_at_relative_offset(
+                            byte_offset,
+                            context.storage_region_symbol_handle(region),
+                        );
+                    }
+                }
+                omega_target::Architecture::Aarch64 => {
+                    // The transitional decompose serves DIRECT places only
+                    // (encoding refuses anything else): the retained
+                    // storage-compare positions.
+                    context.insert_data_address_at_instruction_start(
+                        context.storage_region_symbol_handle(left.region),
+                    );
+                    context.insert_data_address_at_relative_offset(
+                        runtime_storage_compare_right_address_offset(
+                            context.input.target.architecture,
+                            *byte_size,
+                        ),
+                        context.storage_region_symbol_handle(right.region),
+                    );
+                }
+            }
+            true
+        }
+        SelectedInstructionKind::ComparePlaceValue { place, byte_size, expected_value, operator } => {
+            match context.input.target.architecture {
+                omega_target::Architecture::X86_64 => {
+                    let (_, sites) =
+                        omega_instruction_selection::x86_64_encode_place_value_compare_with_sites(
+                            place, *byte_size, *expected_value, *operator,
+                        )
+                        .expect(
+                            "ComparePlaceValue reached relocation with a shape the \
+                             materializer refuses; layout/encoding would have failed first",
+                        );
+                    for (byte_offset, side) in sites.iter() {
+                        let region = match side {
+                            omega_instruction_selection::PlaceCopySide::Target => place.region,
+                            omega_instruction_selection::PlaceCopySide::TargetIndex => place
+                                .scaled_index_region()
+                                .expect("a TargetIndex site implies a ScaledIndex step"),
+                            omega_instruction_selection::PlaceCopySide::TargetIndex2 => place
+                                .scaled_index_regions()
+                                .nth(1)
+                                .expect("a TargetIndex2 site implies two ScaledIndex steps"),
+                            _ => unreachable!(
+                                "a value compare materializes only its subject place"
+                            ),
+                        };
+                        context.insert_data_address_at_relative_offset(
+                            byte_offset,
+                            context.storage_region_symbol_handle(region),
+                        );
+                    }
+                }
+                omega_target::Architecture::Aarch64 => {
+                    context.insert_data_address_at_instruction_start(
+                        context.storage_region_symbol_handle(place.region),
+                    );
+                }
+            }
+            true
+        }
         SelectedInstructionKind::CompareRuntimeStorage {
             left_region,
             right_region,
