@@ -144,9 +144,9 @@ Working rules:
 - There are **no runtime machine values and no capture inference**. A
   stateful callback is a machine *instance* — its fields are its declared
   captures, construction is the capture clause, and borrow modes are field
-  types. A type-erased callable is a `dyn` trait (chapter 14). Spawning
-  moves the instance, and the `send` property (chapter 7) gates what may
-  cross a spawn boundary.
+  types. A type-erased callable is a `dyn` trait (chapter 14). Concurrent task
+  start moves the instance, and the `send` property (chapter 7) gates what may
+  cross an activation boundary.
 
 ## Where Clauses
 

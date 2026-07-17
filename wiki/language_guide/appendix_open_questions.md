@@ -2,7 +2,7 @@
 
 This appendix lists unresolved language-design areas only. Settled behavior
 belongs in the relevant chapter or frozen design brief, not here. Immediate
-owner decisions are mirrored in the repository-root `OWNER_QUESTIONS.md`;
+immediate owner decisions belong in the repository-root `OWNER_QUESTIONS.md`;
 engineering work belongs in `TASKS.md`.
 
 Last pruned: 2026-07-18.
@@ -14,7 +14,8 @@ Last pruned: 2026-07-18.
   starvation freedom, or profile entailment. `terminates`, effect-row members,
   and ungranted provider claims do not manufacture those theorems.
 - Settle the quantitative resource algebra before adding entries such as
-  `Alloc<Peak, Retained>` to effect rows.
+  `Alloc<Peak, Retained>` to effect rows, general owned-buffer splitting, or
+  claiming compile-time reconciliation of local task-pool child leases.
 - Defer user-defined operational effect members and effect-row polymorphism
   until a concrete customer forces their declaration, coherence, and
   separate-compilation rules.
@@ -26,6 +27,9 @@ Last pruned: 2026-07-18.
 
 ## Concurrency and hardware
 
+- Decide the first conservative suspension-safe-loan subset and then whether
+  borrow/wait-cycle detection earns a later proof mode. Whole-system deadlock
+  reasoning is not a prerequisite for moved-ownership task v1.
 - Determine how far the proof system should support disjoint mutable sharing
   for lock-free structures before requiring a mediated or accepted boundary.
 - Complete standalone fences, `compare_exchange` failure ordering, and the
@@ -83,8 +87,6 @@ Last pruned: 2026-07-18.
 - Define inline-assembly local-control-flow limits, clobber/memory/feature
   contracts, the first accepted instruction subsets, and whether supplemental
   manual contracts can ever be trusted.
-- Define accepted-proof declaration spelling while keeping trust expenditure
-  explicit in artifacts.
 - Specify the separately compiled component artifact and ABI, including
   bounded multi-version coexistence, pinned import slots, version budgets,
   outbound calls from old continuations, and eventual continuation migration.

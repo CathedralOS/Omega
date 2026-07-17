@@ -368,11 +368,11 @@ domain, and format; it cannot regress a landed value to an untyped integer.
 > "exact
 > rational arithmetic, then round once" under a FORMAT the target binds.
 > `f32`/`f64` name the IEEE binary32/64 formats — a fact recorded in target
-> provides data, never in the grammar. Every finite float is exactly a
+> provider-plan data, never in the grammar. Every finite float is exactly a
 > dyadic rational, so float facts are `Rat` facts (chapter 10). Names mean
 > formats, always: `f32` never rebinds to a different representation on any
 > target; a future format (posits, bf16) arrives as a new name plus a
-> format record plus provides rows — zero grammar.
+> format record plus provider bindings — zero grammar.
 
 Float constraints describe correctness facts, not optimization permissions.
 

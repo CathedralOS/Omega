@@ -46,9 +46,9 @@ not zero-constructible as a value — access waits on the domain being
 established (see [Chapter 7](chapter_7_types_constraints_invariants.md) and
 [Chapter 12](chapter_12_dependent_types.md)).
 
-Field defaults (`gold: u32 = 5`) describe CONSTRUCTED values; a zeroed object
-does not apply them. The two initialization shapes are distinct on purpose:
-construction runs defaults, zeroing produces the zero value.
+Data fields have no declaration-site default initializers. Non-zero or
+computed construction belongs in ordinary constructor machines; zero-filling
+continues to mean exactly the all-zero representation.
 
 That is the WHOLE unconditional guarantee: zero is always a valid value. It
 constrains the compiler, never the programmer.
@@ -66,7 +66,7 @@ data Command [zero_init] {
 ```
 
 A type that does not declare `[zero_init]` may freely put a payload-carrying
-case first or use non-zero defaults; its zeroed value is valid but not
+case first or use non-zero constructor behavior; its zeroed value is valid but not
 meaningfully "empty". Systems that adopt zero-is-initialization as a
 convention (the Cathedral OS does, system-wide -- see
 `wiki/cathedral_alignment.md`) require the property on their surface types;
@@ -189,8 +189,8 @@ psABI document) produces a validated **CallPlan** from a signature: per-param
 placements (`InReg`/`OnStack`/`ByPointer`), return placement, clobber set,
 shadow space, stack alignment. One plan feeds both derivers — the outbound
 call encoder and the inbound entry stub — so caller and callee agree by
-construction. In practice no code names a convention: the `Binding` kind at
-the provides-mapping implies it (`Syscall(n)` → the target's syscall plan,
+construction. In practice no code names a convention: the `Binding` kind in
+the selected `ProviderPlan` implies it (`Syscall(n)` → the target's syscall plan,
 `DllImport`/`VtableSlot` → its C plan). A calling plan is auditable policy
 data, never an unchecked ABI string.
 

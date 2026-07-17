@@ -150,12 +150,13 @@ then enforces the inherited claim FOR FREE: an acyclic inheritor
 discharges silently, a CYCLIC inheritor without a witness fails with
 the missing-witness diagnostic, `terminates by n;` discharges it
 (pinned: 3 pipeline tests, first try). Remaining TPR4: published
-omission/default rules for EXPORTS (needs artifact serialization);
-sealed progress profiles BLOCKED 2026-07-16 on a DESIGN GAP (the
-profile declaration spelling + the grant/receipt carrier scoping --
-see OWNER_QUESTIONS.md); then
-requirement inheritance, published omission/default rules, sealed progress
-profiles, receipts, and pinned premises; TPR5 LANDED 2026-07-16 (the
+omission/default rules for EXPORTS (needs artifact serialization).
+SEALED PROGRESS PROFILES DESIGN-RULED 2026-07-17: a profile is a sealed
+semantic domain over a boundary-provider capability; qualification is an
+opaque commitment admitted through chapter 10's existing root grant,
+lockfile, receipt, and trust-report path. It is never flow-inferred or used
+as an entailment relation. Remaining engineering: profile-domain resolution,
+grant-backed admission, receipts, and pinned premises. TPR5 LANDED 2026-07-16 (the
 atomic corpus sweep is COMPLETE): omega core/std + samples + all
 canary families swept in TPR1 (97 files + 3 manual); embedded
 Rust-string sources in TPR2's side harvest (46 + 1 brace-escaped);
@@ -178,8 +179,10 @@ sealed progress profiles + grants, TPR4's remaining big half).
    depend-mapping already reach omega/language/core, so `data Nat` lives
    in core/nat.omg as ordinary recursive (proof-only) data, pinned
    pass/proofs/runtime_core_nat_declared_exit + the consumption-refusal
-   twin. Remaining: N2(d) Succ bridge, N3 routing, N4's Seq/Bag/Rat +
-   extraction lemmas + view dissolution. Continue into N5–N7 when
+   twin. N2(d) is deferred and blocks nothing. The next Rat rung is
+   engineering-ready: Nat strict-ranking evidence for computed `sub`, then
+   mod/gcd. Remaining: N3 routing, N4's Seq/Bag/Rat + extraction lemmas + view
+   dissolution. Continue into N5–N7 when
    reached (they need the `<machine M>` plumbing and the `%` former).
 2. **Legacy measured-recursion implementation MR1 + MR2 + MR3 + MR5** —
    LANDED 2026-07-11
@@ -1212,8 +1215,9 @@ sealed progress profiles + grants, TPR4's remaining big half).
    the STR1 LOSS-3 pin re-pinned per its own protocol (`copy` = the
    compatibility bool until STR7). SLICE 2 LANDED same day: both Machine
    records carry `supply_mode: MachineSupplyMode` (populated ONCE at
-   syntax->resolved — Boundary | CheckedBody today, Requirement/
-   Accepted when their spellings reach the record — copied through
+   syntax->resolved — Boundary | CheckedBody today; Requirement comes from
+   trait requirements and Accepted is the existing bodyless `boundary machine`
+   proof form — copied through
    resolved->typed; `boundary` = the compatibility bool; LOSS-2 pin
    re-pinned, noting the guarantee/witness conflation and flat effect
    span REMAIN). Remaining STR3: the termination-plan
@@ -1285,7 +1289,8 @@ sealed progress profiles + grants, TPR4's remaining big half).
    deduped SemanticDomainId set its body's `as`-casts COMMIT to
    (the body-observed half; a full statement+expression walk incl.
    transition guards/targets; cast-free machines carry no entry;
-   the published AUTHORITY half waits on the permission model).
+   the published AUTHORITY half is queued on the now-ruled shared
+   grant/receipt carrier).
    Pinned: qualification_facts_record_policy_commitments (a
    Saturating cast commits the fixed id; a cast-free machine is
    absent). SLICE 3 LANDED same day -- the qualification SPELLING
@@ -1361,9 +1366,12 @@ sealed progress profiles + grants, TPR4's remaining big half).
    same day (slice 3): a contract fact naming the machine's Nth
    parameter encodes as P<N>, so renames never change the identity
    (pin: bounded_renamed with alpha/beta matches bounded_ab's x/y
-   fingerprint). Remaining: the boundary-facing calling plan. PERMISSION PLANS PARKED (OWNER_QUESTIONS.md 2026-07-16):
-   introduction authority bites only at package boundaries -- the
-   same grant-carrier gap as #81; design once for both consumers.
+   fingerprint). Remaining: the boundary-facing calling plan. PERMISSION
+   PLANS DESIGN-RULED 2026-07-17: validate structural facts freely, then admit
+   semantic commitments through the same chapter 10 grant/receipt carrier used
+   by sealed domain introduction and progress profiles; selection remains a
+   separately held slot-owner capability. Build the shared carrier once for all
+   three consumers.
    Remaining: STR5
    validation/resolution; STR6 lower only from checked selections while
    preserving semantic contract IDs in artifacts; STR7 retire compatibility
@@ -2464,7 +2472,7 @@ no `unbounded` property exists. Rungs:
   closed by record eta, ZERO citations) and neg_int_respects_eq
   (the third congruence: ~ is respected by add, mul, AND neg; one
   addend exchange). Negative twins probe-verified.
-  N2(d) BRIDGE PARKED 2026-07-16 (design gap, OWNER_QUESTIONS.md):
+  N2(d) BRIDGE DEFERRED 2026-07-16 (nonblocking research item):
   the Nat<->integer surface is unruled -- extraction (Nat ensures ->
   polynomial facts) vs reflection (integer range facts -> constructor
   readings), which types participate, and where the bridge fact
@@ -2573,14 +2581,16 @@ no `unbounded` property exists. Rungs:
   lemma's self-call arm must ride a SUB-STATE (the arm-terminal
   hoist shape sub_self/add_cancel use) -- a bare direct-value
   self-call arm fails recognize_structural_case_arms. NEXT Rat-ladder
-  prerequisites: lt/le spelling (sub(a,b) == Zero), then mod + gcd
-  -- DESIGN-BLOCKED 2026-07-20 (OWNER_QUESTIONS.md "Proof-machine
-  measured termination through sub"): Euclid recurses on sub(a,b),
-  not a case-payload subterm; the decrease-witness design (lemma-
-  cited terminates? MR-family extension to proof machines?)
-  co-mingles with the parked N2(d) bridge. sub_zero_left landed as
-  the monus surface's completion (5 lemmas, zoo at 13 Nat). Task
-  #134 rung 1 COMPLETE; the rat.omg carrier waits on the gcd ruling.
+  prerequisites: lt/le spelling (sub(a,b) == Zero), then mod + gcd.
+  DESIGN-RULED / ENGINEERING-READY 2026-07-17: proof machines use the
+  ordinary measured-termination family. A computed recursive subject such as
+  `sub(a,b)` emits the selected ranking view's strict-edge obligation; ordinary
+  entailment, contracts, or an explicit cited lemma such as `sub_lt` discharges
+  it. No N2(d) integer bridge and no ranking-specific citation syntax are
+  required. Next rung: add the Nat strict-ranking proposition/lemma and edge
+  entailment, then implement mod + gcd. `sub_zero_left` landed as the monus
+  surface's completion (5 lemmas, zoo at 13 Nat). Task #134 rung 1 COMPLETE;
+  the rat.omg carrier waits only on this engineering rung.
 - **N5 — `boundary data` + the Real axiom package:** opaque carrier;
   ensures-less boundary machines = claim-free symbols (no grant); axioms =
   accepted-tier rows; schema axioms as `<machine P>` boundary machines (one
@@ -2607,7 +2617,7 @@ no `unbounded` property exists. Rungs:
 ## Float semantics — engineering track (design settled 2026-07-18)
 
 Record: design_briefs/float_semantics.md; UX: ch5 Float Facts. Zero new
-keywords — value/policy domains + Rat const-eval + satisfiers + provides
+keywords — value/policy domains + Rat const-eval + satisfiers + provider-plan
 rows. Rungs:
 
 - **F1 — policy-domain validation: LANDED 2026-07-18.** `Wrapping` on a
@@ -2819,7 +2829,7 @@ rows. Rungs:
   Remaining: the x86 guard sequences on its host.
 - **F6 — TotalOrder named satisfiers** for f32/f64 (sign-magnitude
   integer compare) once satisfier machinery lands.
-- **F7 — format records in omega::core + Float provides rows:** needs the
+- **F7 — format records in omega::core + Float ProviderPlan bindings:** needs the
   `Instruction` arm of the Binding sum (new machinery). Today's hardcoded
   IEEE lowering IS the built-in binding — formalization, not a blocker.
 - **Cleanup — DONE 2026-07-16:** the bounded_float pass/fail canaries were
@@ -2939,12 +2949,18 @@ rejects — an INTEGER ruling, engineering rides this ladder as F8).
   error, per owner — future unused-var warnings live in the same
   family).
 
-- **Console boundary migration:** retire platform blocks in favor of
-  `boundary trait Console` + std provides
-  rows (ch19 shape; `console: Console` field spelling stays). Work: the
-  std migration — retire the platform block, effect rows land, the
-  purity checker gets truth (read_byte consumes stdin), and the granted-build
-  BuildLog hand-spelling dissolves.
+- **ProviderPlan + Console boundary migration (DESIGN-RULED,
+  ENGINEERING-READY 2026-07-17):** retire the `provides` keyword and platform
+  blocks. PRV1 add the typed `ProviderPlan` policy carrier over boundary-trait
+  service schemas and existing `Binding` cases; PRV2 validate coverage,
+  signatures, calling/layout plans, and normalized identity; PRV3 admit
+  semantic claims through the shared grant/receipt pipeline, then select by a
+  slot-owner capability; PRV4 move target defaults into ordinary omega::core/std
+  target packages, have `build.omg` select the target default set plus explicit
+  per-slot overrides, and migrate Console/filesystem/float providers and
+  canaries. Construction is free, validation proves structure, admission buys
+  commitments, selection binds a slot. Trust classification is admission
+  output, never author-selected plan data.
 - **Float-to-int cast overflow — implement proof-or-policy.** Exact =
   unproven obligation (prove via guard/declared range, NaN excluded by
   `x == x`); `in Saturating` = clamp all targets (NaN -> 0; x86 grows the
@@ -3029,7 +3045,8 @@ rejects — an INTEGER ruling, engineering rides this ladder as F8).
   cfg-mirror principle). SPELLING SETTLED 2026-07-18 (owner:
   "push complexity to edges"): target-filtered sibling IMPL files —
   `std/targets/<target>/filesystem_impl.omg` holds that target's
-  implementation machines beside its provides rows, gated by the same
+  implementation machines beside its legacy provides rows (to migrate to
+  `ProviderPlan` values), gated by the same
   target filter; the portable layer declares the contract signatures;
   a selected target with zero or two implementations = loud compile
   error; enforcement = name+signature match first, `satisfies` later.
@@ -3049,7 +3066,7 @@ rejects — an INTEGER ruling, engineering rides this ladder as F8).
   collide). Loud edges live in the filter: implemented-twice for the
   selected target + no-implementation-for-selected naming who does
   provide one (unknown target names are silently never-selected,
-  matching provides rows — that inertness is also what makes the fail
+  matching the legacy provides rows — that inertness is also what makes the fail
   canaries host-portable via `demo_target`/`local_unchecked`).
   ⚠️ Parser-order landmine: the identifier-led target-machine peek
   sits BELOW the contextual-led items so `boundary machine` never
@@ -3073,7 +3090,7 @@ rejects — an INTEGER ruling, engineering rides this ladder as F8).
   battery, import edge moved same day). Provides ROWS are
   self-contained facts and suit target-def imports; impl MACHINES are
   wrapper parts and ride the wrapper's imports. The files still LIVE
-  beside their provides rows (the settled shape). filesystem.omg keeps
+  beside their legacy provider rows pending PRV4 migration. filesystem.omg keeps
   the CONTRACT block (the seven signatures + the loud-edge note) where
   the bodies were.
   The three posix copies are byte-identical today; the linux headers
@@ -3208,10 +3225,13 @@ rejects — an INTEGER ruling, engineering rides this ladder as F8).
   ARCH-AWARE (cfg target_arch: x86 native 70 / aarch64 native 99), so the
   drift gate holds on both hosts.
 
-- **array_field_default_silent — DESIGN-BLOCKED (moved to OWNER_QUESTIONS
-  #5):** support-vs-reject aggregate field defaults is an owner ruling
-  (the pin header says so explicitly); parked in the pending family until
-  ruled. Both engineering shapes are scoped in the question.
+- **array_field_default_silent — ENGINEERING-READY / RETIRE FIELD DEFAULTS
+  (ruled 2026-07-17):** data declarations do not carry field initializers;
+  constructed defaults belong in ordinary constructor machines. Reject scalar,
+  record, array, and other aggregate `field: T = value` spellings with a
+  directed diagnostic, remove the partial scalar/nested emission paths, migrate
+  the corpus, and turn this pending canary into a rejection/diagnostic pin. An
+  aggregate initializer must never parse successfully and then disappear.
 
 - **`pending_runtime_divergences_hold` — GREENED 2026-07-18 (ledger
   host-corrected):** (a) `float_to_int_overflow_divergence` now documents
@@ -3509,6 +3529,12 @@ lowering can use it. Authoritative audit and target shapes:
 - **Machines (decision 20):** normalized complete machine contract plus
   explicit checked/required/external/accepted supply mode. Consumption
   eligibility is derived. `boundary: bool` is not the semantic model.
+- **Task activation/lifecycle:** deterministically derived
+  `TaskActivationPlan` (machine-contract/entry IDs, argument/outcome layouts,
+  continuation requirement, cancellation/effect contract) plus permission
+  state for provider provenance, activation identity, optional storage lease,
+  and live/settled claim. Never recover this from `spawn` syntax, `Join<T>`
+  erasure, or a backend frame pointer.
 - **Multiplicity (decision 21):** `Unrestricted | Affine | Linear`, with
   establishment and create/transfer/consume/affine-drop events in a
   place-keyed permission context carrying access and provenance. `zero_init`
@@ -3527,7 +3553,7 @@ lowering can use it. Authoritative audit and target shapes:
   progress profiles carry grant/receipt identity and stay outside proof facts.
 
 Ordering gates: no general domain mint/operator-family build on the old
-undifferentiated domain record; no linear Join/transaction/buffer build on
+undifferentiated domain record; no linear Task/transaction/buffer build on
 move/drop-only summaries; no component import-slot/hot-swap manifest pins a
 body hash or flat effect row in place of normalized machine contract identity.
 
@@ -3563,14 +3589,33 @@ with a real app-window story.
   version negotiation. Probe-author note: multi-call value machines
   writing self fields trip the pinned trailing-state phase bug — inline
   states are the reliable shape.
-- **Versioned data stage 3:** the era tag itself (+ decision 10's wire-era
-  ride), era-tagged containers, migration chains / `replaces` / quiescence.
+- **Historical formats and live replacement (magic retired):** no builtin
+  `Versioned<T>`, era-path type syntax, migration chain, or `replace` block.
+  Historical eras are immutable ordinary data plus sum envelopes, layout
+  metadata, codecs, provenance domains, and checked conversion machines.
+  Live replacement is a Cathedral/component package over artifact identities,
+  pinned slots, liveness pins, admitted runtime operations, and ordinary phase
+  machines. Implement those substrate pieces; add no Omega versioning syntax
+  unless the package exposes a semantic impossibility.
 - **Equatable synthesis:** a CALLABLE conformance surface is still open.
 - **Trailing-state stale reads of threaded `&mut` param fields:** pinned
   (pending/calls/trailing_state_mut_param_phase_divergence, 71/Exit(70));
   cross-state phase allocation for the threaded &mut — the fs lane's
   claimed receiver-phase family, theirs to absorb with the aliasing arc.
-- **Concurrency model:** chapter 18 is a sketch; per-target declarations.
+- **Task runtime and lifecycle (settled architecture; record:
+  wiki/design_briefs/task_runtime_and_lifecycle.md):** ordinary named machines
+  are started through an admitted `TaskRuntime` provider using compile-time
+  machine-symbol parameters; the compiler derives a normalized activation
+  plan. Runtime custody, physical storage ownership, and the linear `Task<T>`
+  lifecycle claim are separate. `start` is proof-obligated, `try_start` is an
+  ownership-transactional outcome that returns moved arguments/leases on
+  rejection; `request_cancel` retains the claim; `finish` terminally settles
+  it; `adopt` is ordinary transfer. Pools, mailboxes, supervisors, and task
+  groups are packages. `RegionTaskPool` is the standard bounded reference
+  implementation/Cathedral profile, not universal semantics. RETIRE the
+  synchronous `spawn` parser desugar, erased `Join<T>`, mandatory/vestigial
+  `await`, statement fire-and-forget, detach, and privileged scope/group
+  concepts. Engineering ladder TR1→TR8 below.
 - **Atomics remainder** beyond the landed stage-1 ops + memory model.
 - **Separate compilation / component artifact model.**
 - **Freestanding target + hardware vocabulary.**
@@ -3614,7 +3659,7 @@ with a real app-window story.
   affine / linear usage, establishment-created obligations, conservative
   transfer/consume accounting, path-sensitive sums, and proposition facts
   separate from the permission/resource context. The core checker precedes
-  linear Join and dependent-linear buffers.
+  linear Task lifecycle claims and dependent-linear buffers.
 - **Effects/authority/observation (frozen decision 22; record:
   wiki/design_briefs/effects_authority_and_observation.md):** one kinded
   `effects` row, with service reach supplied by boundary-trait identities and
@@ -3629,11 +3674,13 @@ with a real app-window story.
   inference, recursive fixed points, and explicit-interface checks; EFX4
   pinned slot/provider subset admission; EFX5 artifact/diagnostic/trust-ledger
   split; EFX6 migrate standard library/canaries and retire the lowercase global
-  table as semantic canon. Then amend decision 16/ch18: suspension composes
+  table as semantic canon. Then complete the decision-16/ch18 amendment:
+  suspension composes
   through ordinary calls with inferred/declared `Suspend`, no call-site marker,
   and no `async` machine species or `Future` return transformation. Specify
   continuation/frame layout and capacity, cancellation timing, and the proof
-  rules for loans that cross suspension.
+  rules for loans that cross suspension. Task start is a provider call, not a
+  new suspension marker; `finish` may suspend through its ordinary contract.
 - **Termination/ranking/progress (frozen decision 23; record:
   wiki/design_briefs/termination_ranking_and_progress.md):** one
   `terminates [by ...]` family; public guarantee and premises separated from
@@ -3658,7 +3705,10 @@ with a real app-window story.
   package pins), engine veto, trust report, oracle tripwires, `defer`
   tooling (site marker + root row from one command, hash-pinned,
   package-release-fatal), grant locality (own-package dev-active w/
-  warning; package boundaries inert until root-granted). Record: ch10
+  warning; package boundaries inert until root-granted). FRONT-LOAD one shared
+  grant/receipt carrier for accepted proof rows, sealed semantic-domain
+  introduction (`MintAuthority`), progress-profile qualification, and admitted
+  provider plans; packages may claim but never self-grant. Record: ch10
   Evidence And Trust + mathematical_proofs “Trust and accepted facts” /
   “Explicit proof citation”. No rungs cut yet —
   ladder it when a lane picks it up.
@@ -3781,11 +3831,32 @@ with a real app-window story.
   normalized row/contract IDs across a prover-strength change; demonstrate the
   legacy bitset is derived output, not input to admission.
 - **Core multiplicity slice (decision 21):** add the first `[linear]`
-  acknowledgement token with explicit `consume(move self)`; pin create ->
+  acknowledgement token. Terminal consumption needs no annotation: an ordinary
+  `move self` call consumes when no returned outcome carries the obligation,
+  while a `try_*` incomplete outcome must return the live token. Pin create ->
   multi-binding transfer -> consume as one obligation; reject scope loss,
   copy, mixed branch treatment, and implicit zero-created obligation; add
-  `Empty | Live(Token)` path-sensitive acceptance. Then make `Join<T>` a
+  `Empty | Live(Token)` path-sensitive acceptance. Then make `Task<T>` a
   customer after the core checker, not the bootstrap implementation vehicle.
+- **Task-runtime slice (settled task model):** TR1 retire the synchronous
+  `spawn` desugar, parser-erased `Join<T>`, statement detach, and old canary
+  spellings with directed diagnostics; TR2 add core `[linear] Task<T>`,
+  transactional start and terminal task-outcome sums, and path-sensitive
+  settlement/transfer tests; TR3 elaborate `runtime.start<M>(args)` from the
+  existing compile-time machine-symbol parameter into a normalized activation
+  plan (contract/entry IDs, argument/result layout, continuation requirement,
+  alignment/pinning, cancellation/effect metadata); TR4 add the `TaskRuntime`
+  boundary requirement, provider validation/admission, and return of every
+  moved argument/lease on rejected start; TR5 represent provider provenance
+  and child storage leases so close/reclaim rejects while dependent claims
+  live; TR6 lower continuations and land a first provider, with inline
+  completion admitted only where the pinned contract permits it; TR7 enforce
+  the conservative suspension-safe-loan subset (moved ownership, shared
+  immutable, explicit synchronization first); TR8 build `RegionTaskPool`, a
+  bounded mailbox, and a supervisor reference package, then migrate the sample
+  corpus. Acceptance register lives in
+  wiki/design_briefs/task_runtime_and_lifecycle.md. Pool/supervisor convenience
+  never earns core syntax unless the packages expose a semantic impossibility.
 - **Units slice (decision-19 stress test; run EARLY, before the generics
   arc):** two units, one dimension, no generics — pin the model with the
   brief's seven acceptance tests: (1) `Km + Metre` rejects without explicit

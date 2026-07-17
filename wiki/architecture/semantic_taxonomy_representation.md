@@ -100,9 +100,9 @@ carrier ABI.
 Introduce a normalized `MachineSemanticContract` (name provisional) containing
 the complete substitutable contract plus an explicit `MachineSupplyMode`.
 Syntax trees may retain source spelling, but provider admission, proof
-artifacts, component manifests, compile-time evaluation, spawn checking, and
-lowering must consume this normalized object rather than re-derive it from
-`boundary`, bodies, and effect names.
+artifacts, component manifests, compile-time evaluation, task-activation
+checking, and lowering must consume this normalized object rather than
+re-derive it from `boundary`, bodies, and effect names.
 
 Consumption eligibility should normally be derived views/queries over the
 contract, not stored independent booleans that can drift.
@@ -143,6 +143,34 @@ the checker never selects a noncanonical view heuristically.
 Boundary progress profiles referenced by premises are sealed semantic
 commitments with grant/receipt identity. They participate in provider
 admission but remain outside the ordinary proof-fact catalog in v1.
+
+Task consumption needs a derived artifact rather than syntax booleans or the
+current synchronous-spawn desugar:
+
+```text
+TaskActivationPlan {
+    machine_contract_id,
+    entry_plan_id,
+    argument_layout,
+    terminal_outcome_layout,
+    continuation_requirement,
+    cancellation_and_effect_contract,
+}
+
+TaskClaimState {
+    provider_provenance,
+    activation_identity,
+    optional_storage_lease,
+    lifecycle: Live | TerminallySettled,
+}
+```
+
+The activation plan is deterministically derived from the normalized machine
+contract and selected target/calling plan. Provider admission consumes it;
+proof/debug artifacts retain it. `Task<T>` permission state carries claim and
+lease provenance until settlement or transfer. Provider-specific handles and
+physical frame locations are lowering details and must not be confused with
+machine-contract or result-type identity.
 
 ### Multiplicity and permission context
 

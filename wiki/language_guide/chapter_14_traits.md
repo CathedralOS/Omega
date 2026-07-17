@@ -625,7 +625,7 @@ sprinkle; it is what two existing surfaces MEAN, both evaluated by the
 reference interpreter and both gated by the effect system:
 
 - CONST EVALUATION: a build-time-admissible machine called in a constant position
-  (a field default, a fixed-array length, a lookup table initializer) simply
+  (a fixed-array length or a lookup table initializer) simply
   evaluates at compile time. The position makes it build-time; the effect
   system makes it legal. No new syntax.
 - TRAIT GENERATORS: a trait machine body that uses member reflection is

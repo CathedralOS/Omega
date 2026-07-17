@@ -48,9 +48,9 @@ Scouted 2026-06-12. Status: AWAITING SIGN-OFF (decisions S1-S6 in TASKS.md).
 2. **Object format + static linking**: per-package relocatable artifacts,
    symbolic exports (module paths), composition tool, per-component frame
    regions (base-register discipline), composition-time monomorphization.
-3. **Loader integration (Cathedral scope)**: load-time relocation
-   patching, hot-swap via chapter 22 (Versioned<T>, migrations,
-   quiescence), rollback.
+3. **Loader integration (Cathedral scope)**: load-time relocation patching,
+   admitted component replacement over pinned contracts and liveness evidence,
+   ordinary state-upgrade machines, and rollback.
 
 ## Cross-references
 

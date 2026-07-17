@@ -102,6 +102,14 @@ recursive call is valid in the proof/compile-time stratum and rejected when a
 runtime lowering is requested. This is one machine taxonomy with
 context-derived eligibility, not a separate proof language.
 
+Structural-subterm descent is an automation tier, not the semantic limit of
+proof recursion. For a recursive edge whose next subject is computed (for
+example `sub(a, b)`), the selected ranking view emits its ordinary strict
+decrease obligation. The normal entailment engine may discharge that
+obligation from contracts or explicitly cited lemmas such as `sub_lt`; no new
+ranking-citation syntax is introduced. Proof-stratum machines use this same
+measured-recursion rule without the runtime tail-position lowering fence.
+
 Productive machines may deliberately run forever. A transition loop that does
 not promise termination therefore owes no ranking witness.
 
@@ -130,9 +138,17 @@ An effect row says which events may occur. It does not identify the premise
 under which a suspended operation makes progress. Pinned operation and
 provider contracts supply those premises and guarantees.
 
-V1 progress profiles are named, opaque semantic commitments on boundary
-traits, providers, and slots. They are sealed by default and use the existing
-boundary grant machinery:
+V1 progress profiles are named, opaque semantic domains over boundary-provider
+capability values. They use ordinary domain declaration syntax, for example:
+
+```omega
+domain Scheduler::WeakFair { introduction sealed; }
+```
+
+The qualification is a commitment, not an inferable predicate: it supplies no
+operators, never flow-narrows into existence, and does not entail another
+profile in v1. Profiles are sealed by default and use the existing boundary
+grant machinery:
 
 - only the profile owner or explicit acceptance authority may authorize a
   claim;

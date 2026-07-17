@@ -51,8 +51,9 @@ remaining engineering sequence.
 
 1. **First position: fixed-array lengths** (`[T; N]` where N is an
    build-time-admissible machine call). Lowest coupling, biggest proof leverage
-   (lengths drive index facts). Field defaults stage 2; const type params
-   stage 3. (The LAYOUTS client needs none of these first: the compiler
+   (lengths drive index facts). Const type params follow in stage 3. Data field
+   defaults are forbidden; constructor machines may still be evaluated in
+   legitimate constant positions. (The LAYOUTS client needs none of these first: the compiler
    itself invokes `plan()` — a blessed-trait call site, not a general const
    position — so the layouts ladder can start on the interpreter entry point
    alone.)
@@ -93,8 +94,7 @@ evaluation entry point + error reporting), resolved→typed lowering
    failure diagnostics; the layouts `plan()` call site as the pilot client
    (see programmable_layouts.md) alongside or ahead of array lengths;
    Equatable-via-generator as a hand-wired pilot.
-2. Field defaults; general generator expansion framework; Hashable; retire
-   equatable.rs.
+2. General generator expansion framework; Hashable; retire equatable.rs.
 3. Const type parameters + substitution; `terminates by`-gated recursion;
    const-driven proof witnesses.
 
