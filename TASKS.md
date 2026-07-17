@@ -3806,19 +3806,19 @@ rejects — an INTEGER ruling, engineering rides this ladder as F8).
   their fd tables) and `final_path_name_by_handle(handle, buffer,
   capacity, flags)` (kernel32 GetFinalPathNameByHandleA; Win32 return
   contract modeled exactly: length sans NUL / required-with-NUL when too
-  small / 0 bad handle, errno untouched). `Filesystem::canonicalize` went
-  per-target: posix keeps realpath; windows composes
-  open/bridge/resolve/close (entry-body, capacity = the contract's 1024
-  floor; the OPEN leg's errno is CAPTURED before the trailing close(-1)
-  can clobber ENOENT with EBADF — the errno mapping runs in the ENTRY
-  because the value-call fence bans arm-state mutations; resolve-leg
-  GetLastError is now captured before close and mapped). KNOWN LIMIT
-  (recorded in the contract block): `_open` refuses directories, so
-  windows canonicalize of a DIR reports Error until a designed
-  directory-open op exists. Pinned:
+  small / 0 bad handle, errno untouched). `Filesystem::canonicalize` is
+  per-target: posix keeps realpath; Windows uses the exact
+  `open_path_handle(path, access, share, security, disposition, flags,
+  template)` / CreateFileA seam and `close_handle` / CloseHandle. Access 0,
+  share read/write/delete, OPEN_EXISTING, and FILE_FLAG_BACKUP_SEMANTICS
+  support files and DIRECTORIES without conflating CRT descriptors with
+  kernel handles. Both Win32 failure values are captured and classified
+  before the next call; capacity remains the contract's 1024 floor. This
+  follow-up superseded the original CRT `_open` path, which refused
+  directories. Pinned:
   pass/filesystem/windows_canonicalize_exit (dual-engine, windows-gated;
   per-model first-byte discrimination `\\` native / `o` hermetic +
-  the NotFound leg; in WINDOWS_HOST_PASS_CANARIES preemptively per the
+  directory resolution + the NotFound leg; in WINDOWS_HOST_PASS_CANARIES per the
   positioned-io precedent). GetFullPathNameA never left the ledger
   (lexical-only, = Rust path::absolute, not fs::canonicalize).
   MODEL-FIDELITY FIX en route: the hermetic OPEN never followed symlinks

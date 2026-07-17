@@ -102,6 +102,16 @@ boundary trait FilesystemHost {
     // surface). Posix targets never call this (their impls bind `hard_link`);
     // the per-target impl split keeps the asymmetry honest.
     machine create_hard_link(link: &[u8] in Path, existing: &[u8] in Path, security_attributes: i64) -> i32 effects filesystem_io;
+    // Direct Win32 path-handle seam used where the CRT descriptor surface is
+    // too narrow (notably directory canonicalization). Mirrors
+    // `CreateFileA(path, desired_access, share_mode, security_attributes,
+    // creation_disposition, flags_and_attributes, template_file)` exactly.
+    // Returns a HANDLE as i64, or INVALID_HANDLE_VALUE (-1). Windows-only;
+    // posix target implementations never call it.
+    machine open_path_handle(path: &[u8] in Path, desired_access: u32, share_mode: u32, security_attributes: i64, creation_disposition: u32, flags_and_attributes: u32, template_file: i64) -> i64 effects filesystem_io;
+    // `CloseHandle(handle)` -- BOOL result. Kept distinct from CRT `close(fd)`:
+    // descriptors and kernel handles are different resources on Windows.
+    machine close_handle(handle: i64) -> i32 effects filesystem_io;
     // The msvcrt fd -> Win32 HANDLE bridge (windows session slice 4a),
     // mirroring `_get_osfhandle(fd)`: the OS HANDLE behind an open CRT
     // descriptor as i64, or -2 (msvcrt's INVALID_HANDLE_VALUE spelling) for

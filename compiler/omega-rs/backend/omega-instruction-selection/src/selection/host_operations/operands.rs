@@ -277,6 +277,7 @@ pub(super) fn select_host_operation_operands(
         (
             HostCapability::Filesystem,
             HostOperation::Close
+            | HostOperation::CloseHandle
             | HostOperation::Dup
             | HostOperation::FindClose
             | HostOperation::GetOsfHandle,
@@ -1162,6 +1163,49 @@ pub(super) fn select_host_operation_operands(
                         operand(write),
                     ])
                 }
+                _ => HandleSpan::empty(),
+            }
+        }
+        (HostCapability::Filesystem, HostOperation::CreateFile) => {
+            // `handle = open_path_handle(path, access, share, security,
+            // disposition, flags, template) -> CreateFileA(...)`. The path is
+            // a NUL-terminated pointer; the remaining six arguments are exact
+            // Win32 scalars. Win64 marshals arguments beyond the fourth in the
+            // outgoing stack area through the ordinary import-call encoder.
+            let result = first_scalar_argument_operand(input, host_call, dispatch_index);
+            let path = path_pointer_operand(input, host_call, dispatch_index, alias_context, 1);
+            let access =
+                scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 2);
+            let share =
+                scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 3);
+            let security =
+                scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 4);
+            let disposition =
+                scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 5);
+            let flags =
+                scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 6);
+            let template =
+                scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 7);
+            match (result, path, access, share, security, disposition, flags, template) {
+                (
+                    Some(result),
+                    Some(path),
+                    Some(access),
+                    Some(share),
+                    Some(security),
+                    Some(disposition),
+                    Some(flags),
+                    Some(template),
+                ) => operands.insert_many([
+                    operand(result),
+                    operand(path),
+                    operand(access),
+                    operand(share),
+                    operand(security),
+                    operand(disposition),
+                    operand(flags),
+                    operand(template),
+                ]),
                 _ => HandleSpan::empty(),
             }
         }

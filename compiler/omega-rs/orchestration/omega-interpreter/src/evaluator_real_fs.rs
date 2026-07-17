@@ -280,6 +280,31 @@ impl<'program> super::Evaluator<'program> {
                     None => -1,
                 }
             }
+            "open_path_handle" => {
+                // Real-mode model of CreateFileA's metadata/query use. The
+                // shared helper adds FILE_FLAG_BACKUP_SEMANTICS for a directory
+                // on Windows, so the same synthetic handle table serves files
+                // and directories.
+                let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
+                match self.authorized_path(&path, false) {
+                    Some(path) => {
+                        let mut options = std::fs::OpenOptions::new();
+                        options.read(true);
+                        match open_real(&options, &path, false) {
+                            Ok(file) => self.real_fs_mut().insert(file, path),
+                            Err(error) => {
+                                self.real_fs_mut().errno = win32_error_code(&error);
+                                -1
+                            }
+                        }
+                    }
+                    None => {
+                        let real = self.real_fs_mut();
+                        real.errno = if real.errno == ENOENT { 2 } else { 5 };
+                        -1
+                    }
+                }
+            }
             "read" => {
                 let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
                 let count = self.eval_fs_scalar(arguments.get(2).copied(), frame)? as usize;
@@ -361,6 +386,16 @@ impl<'program> super::Evaluator<'program> {
                 } else {
                     real.errno = EBADF;
                     -1
+                }
+            }
+            "close_handle" => {
+                let handle = self.eval_fs_fd(arguments.first().copied(), frame)?;
+                let real = self.real_fs_mut();
+                if real.files.remove(&handle).is_some() {
+                    1 // Win32 BOOL success; dropping File closes the handle.
+                } else {
+                    real.errno = 6; // ERROR_INVALID_HANDLE
+                    0
                 }
             }
             "duplicate" => {
