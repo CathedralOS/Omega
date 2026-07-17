@@ -314,16 +314,22 @@ sealed progress profiles + grants, TPR4's remaining big half).
    f32 residue. TASK #133 OPENED 2026-07-20 (the place-algebra arc
    #127-#132 is COMPLETE -- 55 variants onto 11 place survivors, zero
    shape crossings remain; this item is the next front-loaded vein).
-   ENTRY PROBE BANKED: the "guard-folder f32 residue" may already be
-   absorbed by the landed F2c guard face (the guard folder's
-   const_fold_float folds per-op at the tree's landing; F2c's leftover
-   faces are demand-gated) -- FIRST verify with a canary probe (an f32
-   guard chain that would diverge under an f64 window) before
-   building; if green, the real remaining rungs are the CARRIER change
-   (retires the consumer-fallback family: grep
-   signedness_adjusted_operator_for_tree_operands + the write-target
-   fallbacks as the retirement checklist) and CM3's
-   fold-at-landed-type-everywhere differential legs.
+   ENTRY PROBE RESOLVED 2026-07-20 (no code needed): the
+   "guard-folder f32 residue" note is STALE -- the landed F2c guard
+   face already absorbed it, pinned by pass/float/
+   f32_guard_const_arith_landed_exit (EXACTLY the divergence probe:
+   2^24 + 1.0 == 2^24 at f32 where an f64 window takes the wrong arm;
+   dual-engine exit 70, in the differential legs at line 139). CM2's
+   REAL remaining rung = the metadata-carrying CARRIER. RETIREMENT
+   CHECKLIST SCOPED: the consumer-fallback family the carrier change
+   retires = signedness_adjusted_operator_for_tree_operands (3
+   consumers: writes/mutation.rs, binary_table_writes.rs,
+   value_operands.rs) + the write-TARGET signedness fallbacks
+   (mutation.rs:2026, binary_table_writes.rs:655/716,
+   frame_slots.rs:524). The rung: the folded-constant carrier grows
+   type/domain/format (rides IntegerLiteral's landing, per the CR1
+   design) so operands are never typeless at selection -- then the
+   four fallback sites retire. CM3 differential legs follow.
    A possible cheaper slot-COPY design for arg delivery
    (skip re-derivation when the local is slot-backed) stays noted in the
    promoted canaries' history but is superseded for correctness
