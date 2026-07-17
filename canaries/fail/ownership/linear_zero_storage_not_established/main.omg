@@ -1,0 +1,15 @@
+// FAIL canary (decision 21): implicit zero-fill initializes bits only. It does
+// not manufacture the value/obligation needed to transfer this place.
+data Receipt [linear] {
+    code: i32;
+}
+
+machine Receipt::ack(self) {}
+
+data Main {}
+
+machine Main::run() -> i32 {
+    let receipt: Receipt;
+    Receipt::ack(receipt);
+    0
+}

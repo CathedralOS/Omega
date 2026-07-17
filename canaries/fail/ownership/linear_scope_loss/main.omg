@@ -1,0 +1,12 @@
+// FAIL canary (decision 21): an explicitly constructed linear value creates
+// one obligation and may not disappear through ordinary scope cleanup.
+data Receipt [linear] {
+    code: i32;
+}
+
+data Main {}
+
+machine Main::run() -> i32 {
+    let receipt: Receipt = Receipt { code: 7 };
+    0
+}
