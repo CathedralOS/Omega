@@ -2497,6 +2497,18 @@ rows. Rungs:
   lesson: an early "native 71" was a STALE CLI BINARY (validation
   crate rebuilt for the test harness but not omega-run); rebuild the
   CLI before diagnosing backend gaps.
+  F2c NESTED-OPERAND WIDTH FACE LANDED (x86 lane, 2026-07-16): the
+  scalar classifier (instruction selection storage_places.rs,
+  classify_scalar_value_type_in_table) typed EVERY float literal F64,
+  so an f32 chain's NESTED binary operand planned the 8-byte op
+  (binary_value_operand_byte_width) — `addsd` over f32 bit patterns —
+  while the outer write took width 4 from the target place: native
+  diverged from the interp's per-op f32. The classifier now reads the
+  literal's LANDING (the F2b/CR3 stamps), F32-landed classifies F32.
+  Pinned: pass/float/f32_chain_per_op_rounding_exit (70 both engines,
+  differential; the 2^24 precision cliff — per-op f32 collapses both
+  +1.0s back to 16777216.0, a double-width intermediate keeps
+  16777218.0, representable in f32, and exits 71).
   REMAINING (F2c): value-machine CALL-statement args (cross-machine
   param resolution, deferred until a shape demands it);
   exact-Rat multi-op const chains only if a shape demands more than
