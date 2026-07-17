@@ -3791,15 +3791,15 @@ rejects — an INTEGER ruling, engineering rides this ladder as F8).
   per-target (the hard-link contract block); posix keeps link(2); windows
   binds the DESIGNED `create_hard_link` seam op — kernel32 CreateHardLinkA
   mirrored exactly ((NEW link, existing, NULL security-attrs), BOOL
-  result; the wrapper impl swaps the portable arg order and reports
-  failure kind Other BY DESIGN: kernel32 sets GetLastError, not msvcrt
-  errno — kind mapping waits on a win32 last-error surface). New layers:
+  result; the wrapper impl swaps the portable arg order). New layers:
   HostOperation::CreateHardLink; the [result, path, path, scalar]
-  operand-shape arm; interp virtual + real-provider create_hard_link arms
-  (BOOL, errno-silent). Pinned: pass/filesystem/windows_hard_link_exit
+  operand-shape arm; interp virtual + real-provider create_hard_link arms.
+  FOLLOW-UP 2026-07-17: slice 4c's GetLastError surface now classifies
+  the common Win32 codes; the taken-name leg is pinned specifically as
+  ErrorKind::AlreadyExists. Pinned: pass/filesystem/windows_hard_link_exit
   (dual-engine, windows-gated; engine-agnostic legs — the hermetic model
   copies bytes, so the pins are create+readback, link-survives-removal,
-  taken-name refuses with kind unpinned).
+  and taken-name AlreadyExists).
   SLICE 4a (the handle bridge + canonicalize) LANDED 2026-07-16: two
   designed seam ops — `get_osfhandle(fd)` (msvcrt _get_osfhandle; the
   fd→HANDLE bridge; hermetic + real models use identity handles over
@@ -3812,7 +3812,7 @@ rejects — an INTEGER ruling, engineering rides this ladder as F8).
   floor; the OPEN leg's errno is CAPTURED before the trailing close(-1)
   can clobber ENOENT with EBADF — the errno mapping runs in the ENTRY
   because the value-call fence bans arm-state mutations; resolve-leg
-  failures = Other by design, GetLastError territory). KNOWN LIMIT
+  GetLastError is now captured before close and mapped). KNOWN LIMIT
   (recorded in the contract block): `_open` refuses directories, so
   windows canonicalize of a DIR reports Error until a designed
   directory-open op exists. Pinned:

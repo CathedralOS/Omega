@@ -1070,7 +1070,7 @@ const EXCLUDED_RUN_CANARIES: &[(&str, &str)] = &[
     ),
     (
         "filesystem/windows_hard_link_exit",
-        "windows-gated dual test (interp oracle + native run, both 70, asserted in its canary_suite test): pins the WINDOWS hard-link impl (the designed create_hard_link seam op, kernel32 CreateHardLinkA); the posix link(2) path is covered by the macos-gated native fs battery",
+        "windows-gated dual test (interp oracle + native run, both 70, asserted in its canary_suite test): pins the WINDOWS hard-link impl (CreateHardLinkA) including GetLastError(ERROR_ALREADY_EXISTS) classification; the posix link(2) path is covered by the macos-gated native fs battery",
     ),
     (
         "filesystem/windows_canonicalize_exit",

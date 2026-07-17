@@ -731,9 +731,8 @@ windows_x64 machine Filesystem::read_at(&mut self, file: File, buffer: &mut [u8]
 // fence), chained pure verdicts; capacity is the contract's 1024 floor
 // (the posix realpath writes up to PATH_MAX=1024 with no cap arg at all).
 // A too-small buffer returns the REQUIRED size (>= 1024 fails the fit
-// check). The open leg's errno is real (NotFound for a missing path); the
-// resolve legs' failures reach errno only stalely -- kernel32 sets
-// GetLastError (recorded in the contract block). KNOWN LIMIT: `_open`
+// check). The open leg uses errno (NotFound for a missing path); the resolve
+// leg captures and classifies GetLastError before close. KNOWN LIMIT: `_open`
 // refuses DIRECTORIES, so a directory path reports Error on windows.
 windows_x64 machine Filesystem::canonicalize(&mut self, path: &[u8] in Path, buffer: &mut [u8]) -> UnitResult {
     let fd: i32 = self.host.open(path, 0);
@@ -743,6 +742,7 @@ windows_x64 machine Filesystem::canonicalize(&mut self, path: &[u8] in Path, buf
     let open_errno: i32 = self.host.errno();
     let handle: i64 = self.host.get_osfhandle(fd);
     let len: i64 = self.host.final_path_name_by_handle(handle, buffer, 1024, 0);
+    let resolve_error: i32 = self.host.get_last_error();
     let closed: i32 = self.host.close(fd);
     // Map the captured errno in the ENTRY too (the value-call fence bans
     // arm-state mutations, and field-store-then-match is last_error's
@@ -758,6 +758,17 @@ windows_x64 machine Filesystem::canonicalize(&mut self, path: &[u8] in Path, buf
         35 -> ErrorKind::WouldBlock,
         _ -> ErrorKind::Other
     };
+    self.win32_error_kind = match resolve_error {
+        2 -> ErrorKind::NotFound,
+        3 -> ErrorKind::NotFound,
+        5 -> ErrorKind::PermissionDenied,
+        6 -> ErrorKind::BadDescriptor,
+        32 -> ErrorKind::WouldBlock,
+        33 -> ErrorKind::WouldBlock,
+        80 -> ErrorKind::AlreadyExists,
+        183 -> ErrorKind::AlreadyExists,
+        _ -> ErrorKind::Other
+    };
     transition fd >= 0 { true -> wc_len(len) _ -> err_open() }
     state wc_len(&mut self, len: i64) -> UnitResult {
         transition len > 0 { true -> wc_fit(len) _ -> err_resolve() }
@@ -771,10 +782,7 @@ windows_x64 machine Filesystem::canonicalize(&mut self, path: &[u8] in Path, buf
         UnitResult::Error { kind: self.err_kind }
     }
     state err_resolve(&mut self) -> UnitResult {
-        // The resolve legs fail through GetLastError, not errno -- Other BY
-        // DESIGN until a win32 last-error surface exists.
-        let kind: ErrorKind = ErrorKind::Other;
-        UnitResult::Error { kind: kind }
+        UnitResult::Error { kind: self.win32_error_kind }
     }
 }
 
@@ -782,15 +790,25 @@ windows_x64 machine Filesystem::canonicalize(&mut self, path: &[u8] in Path, buf
 // kernel32 CreateHardLinkA via the designed create_hard_link seam op --
 // the Win32 arg order is (NEW link, existing), REVERSED from the portable
 // (original, link), with the security-attributes arg the API requires as
-// NULL (0). BOOL result: non-zero success. Failure kind = Other BY DESIGN
-// for now: kernel32 reports via GetLastError, not msvcrt errno, so
-// last_error() would read a stale value; kind mapping waits on a win32
-// last-error surface.
+// NULL (0). BOOL result: non-zero success. GetLastError is captured before
+// branching, so common failure kinds remain portable.
 windows_x64 machine Filesystem::hard_link(&mut self, original: &[u8] in Path, link: &[u8] in Path) -> UnitResult {
     let rc: i32 = self.host.create_hard_link(link, original, 0);
+    let code: i32 = self.host.get_last_error();
+    self.win32_error_kind = match code {
+        2 -> ErrorKind::NotFound,
+        3 -> ErrorKind::NotFound,
+        5 -> ErrorKind::PermissionDenied,
+        6 -> ErrorKind::BadDescriptor,
+        32 -> ErrorKind::WouldBlock,
+        33 -> ErrorKind::WouldBlock,
+        80 -> ErrorKind::AlreadyExists,
+        183 -> ErrorKind::AlreadyExists,
+        _ -> ErrorKind::Other
+    };
     transition rc != 0 { true -> ok() _ -> err() }
     state ok(&mut self) -> UnitResult { UnitResult::Ok }
-    state err(&mut self) -> UnitResult { let kind: ErrorKind = ErrorKind::Other; UnitResult::Error { kind: kind } }
+    state err(&mut self) -> UnitResult { UnitResult::Error { kind: self.win32_error_kind } }
 }
 
 // FILE TIMES (windows session slice 4b wrapper): convert Unix whole seconds
@@ -824,11 +842,22 @@ windows_x64 machine Filesystem::set_times(&mut self, file: File, accessed: i64, 
     self.file_fd = file.fd;
     let handle: i64 = self.host.get_osfhandle(self.file_fd);
     let rc: i32 = self.host.set_file_time(handle, 0, &self.access_filetime, &self.modified_filetime);
+    let code: i32 = self.host.get_last_error();
+    self.win32_error_kind = match code {
+        2 -> ErrorKind::NotFound,
+        3 -> ErrorKind::NotFound,
+        5 -> ErrorKind::PermissionDenied,
+        6 -> ErrorKind::BadDescriptor,
+        32 -> ErrorKind::WouldBlock,
+        33 -> ErrorKind::WouldBlock,
+        80 -> ErrorKind::AlreadyExists,
+        183 -> ErrorKind::AlreadyExists,
+        _ -> ErrorKind::Other
+    };
     transition rc != 0 { true -> ok() _ -> err() }
     state ok(&mut self) -> UnitResult { UnitResult::Ok }
     state err(&mut self) -> UnitResult {
-        let kind: ErrorKind = ErrorKind::Other;
-        UnitResult::Error { kind: kind }
+        UnitResult::Error { kind: self.win32_error_kind }
     }
 }
 
@@ -860,18 +889,42 @@ windows_x64 machine Filesystem::lock(&mut self, file: File) -> UnitResult {
     self.file_fd = file.fd;
     let handle: i64 = self.host.get_osfhandle(self.file_fd);
     let rc: i32 = self.host.lock_file_ex(handle, 2, 0, 4294967295, 4294967295, &mut self.lock_overlapped);
+    let code: i32 = self.host.get_last_error();
+    self.win32_error_kind = match code {
+        2 -> ErrorKind::NotFound,
+        3 -> ErrorKind::NotFound,
+        5 -> ErrorKind::PermissionDenied,
+        6 -> ErrorKind::BadDescriptor,
+        32 -> ErrorKind::WouldBlock,
+        33 -> ErrorKind::WouldBlock,
+        80 -> ErrorKind::AlreadyExists,
+        183 -> ErrorKind::AlreadyExists,
+        _ -> ErrorKind::Other
+    };
     transition rc != 0 { true -> ok() _ -> err() }
     state ok(&mut self) -> UnitResult { UnitResult::Ok }
-    state err(&mut self) -> UnitResult { let kind: ErrorKind = ErrorKind::Other; UnitResult::Error { kind: kind } }
+    state err(&mut self) -> UnitResult { UnitResult::Error { kind: self.win32_error_kind } }
 }
 
 windows_x64 machine Filesystem::lock_shared(&mut self, file: File) -> UnitResult {
     self.file_fd = file.fd;
     let handle: i64 = self.host.get_osfhandle(self.file_fd);
     let rc: i32 = self.host.lock_file_ex(handle, 0, 0, 4294967295, 4294967295, &mut self.lock_overlapped);
+    let code: i32 = self.host.get_last_error();
+    self.win32_error_kind = match code {
+        2 -> ErrorKind::NotFound,
+        3 -> ErrorKind::NotFound,
+        5 -> ErrorKind::PermissionDenied,
+        6 -> ErrorKind::BadDescriptor,
+        32 -> ErrorKind::WouldBlock,
+        33 -> ErrorKind::WouldBlock,
+        80 -> ErrorKind::AlreadyExists,
+        183 -> ErrorKind::AlreadyExists,
+        _ -> ErrorKind::Other
+    };
     transition rc != 0 { true -> ok() _ -> err() }
     state ok(&mut self) -> UnitResult { UnitResult::Ok }
-    state err(&mut self) -> UnitResult { let kind: ErrorKind = ErrorKind::Other; UnitResult::Error { kind: kind } }
+    state err(&mut self) -> UnitResult { UnitResult::Error { kind: self.win32_error_kind } }
 }
 
 windows_x64 machine Filesystem::try_lock(&mut self, file: File) -> TryLockResult {
@@ -879,11 +932,22 @@ windows_x64 machine Filesystem::try_lock(&mut self, file: File) -> TryLockResult
     let handle: i64 = self.host.get_osfhandle(self.file_fd);
     let rc: i32 = self.host.lock_file_ex(handle, 3, 0, 4294967295, 4294967295, &mut self.lock_overlapped);
     self.lock_errno = self.host.get_last_error();
+    self.win32_error_kind = match self.lock_errno {
+        2 -> ErrorKind::NotFound,
+        3 -> ErrorKind::NotFound,
+        5 -> ErrorKind::PermissionDenied,
+        6 -> ErrorKind::BadDescriptor,
+        32 -> ErrorKind::WouldBlock,
+        33 -> ErrorKind::WouldBlock,
+        80 -> ErrorKind::AlreadyExists,
+        183 -> ErrorKind::AlreadyExists,
+        _ -> ErrorKind::Other
+    };
     transition rc != 0 { true -> acquired() _ -> contended() }
     state acquired(&mut self) -> TryLockResult { TryLockResult::Acquired }
     state contended(&mut self) -> TryLockResult { transition self.lock_errno == 33 { true -> would_block() _ -> failed() } }
     state would_block(&mut self) -> TryLockResult { TryLockResult::WouldBlock }
-    state failed(&mut self) -> TryLockResult { let kind: ErrorKind = ErrorKind::Other; TryLockResult::Error { kind: kind } }
+    state failed(&mut self) -> TryLockResult { TryLockResult::Error { kind: self.win32_error_kind } }
 }
 
 windows_x64 machine Filesystem::try_lock_shared(&mut self, file: File) -> TryLockResult {
@@ -891,11 +955,22 @@ windows_x64 machine Filesystem::try_lock_shared(&mut self, file: File) -> TryLoc
     let handle: i64 = self.host.get_osfhandle(self.file_fd);
     let rc: i32 = self.host.lock_file_ex(handle, 1, 0, 4294967295, 4294967295, &mut self.lock_overlapped);
     self.lock_errno = self.host.get_last_error();
+    self.win32_error_kind = match self.lock_errno {
+        2 -> ErrorKind::NotFound,
+        3 -> ErrorKind::NotFound,
+        5 -> ErrorKind::PermissionDenied,
+        6 -> ErrorKind::BadDescriptor,
+        32 -> ErrorKind::WouldBlock,
+        33 -> ErrorKind::WouldBlock,
+        80 -> ErrorKind::AlreadyExists,
+        183 -> ErrorKind::AlreadyExists,
+        _ -> ErrorKind::Other
+    };
     transition rc != 0 { true -> acquired() _ -> contended() }
     state acquired(&mut self) -> TryLockResult { TryLockResult::Acquired }
     state contended(&mut self) -> TryLockResult { transition self.lock_errno == 33 { true -> would_block() _ -> failed() } }
     state would_block(&mut self) -> TryLockResult { TryLockResult::WouldBlock }
-    state failed(&mut self) -> TryLockResult { let kind: ErrorKind = ErrorKind::Other; TryLockResult::Error { kind: kind } }
+    state failed(&mut self) -> TryLockResult { TryLockResult::Error { kind: self.win32_error_kind } }
 }
 
 windows_x64 machine Filesystem::unlock(&mut self, file: File) -> UnitResult {

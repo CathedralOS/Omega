@@ -3232,18 +3232,18 @@ impl<'program> Evaluator<'program> {
                 // hard-link primitive (session slice 3): the ARG ORDER is
                 // (new link, existing), REVERSED from `hard_link`, and the
                 // result is BOOL (1 success / 0 failure). Same hermetic
-                // copy-the-bytes model as `hard_link` above. Kernel32 reports
-                // failures via GetLastError, NOT errno, so this arm touches
-                // no virtual errno -- the wrapper's windows impl reports
-                // ErrorKind::Other by design.
+                // copy-the-bytes model as `hard_link` above. virtual_errno is
+                // also the provider's Win32 last-error slot for GetLastError.
                 let link = self.eval_fs_bytes(arguments.first().copied(), frame)?;
                 let existing = self.eval_fs_bytes(arguments.get(1).copied(), frame)?;
                 if self.virtual_files.contains_key(&link) || self.virtual_dirs.contains(&link) {
+                    self.virtual_errno = 183; // ERROR_ALREADY_EXISTS
                     0
                 } else if let Some(content) = self.virtual_files.get(&existing).cloned() {
                     self.virtual_files.insert(link, content);
                     1
                 } else {
+                    self.virtual_errno = 2; // ERROR_FILE_NOT_FOUND
                     0
                 }
             }
@@ -3286,7 +3286,10 @@ impl<'program> Evaluator<'program> {
                             (path.len() + 1) as i64
                         }
                     }
-                    None => 0,
+                    None => {
+                        self.virtual_errno = 6; // ERROR_INVALID_HANDLE
+                        0
+                    }
                 }
             }
             "set_file_time" => {
@@ -3310,7 +3313,10 @@ impl<'program> Evaluator<'program> {
                         self.virtual_times.insert(path, secs);
                         1
                     }
-                    None => 0,
+                    None => {
+                        self.virtual_errno = 6; // ERROR_INVALID_HANDLE
+                        0
+                    }
                 }
             }
             "symlink" => {
