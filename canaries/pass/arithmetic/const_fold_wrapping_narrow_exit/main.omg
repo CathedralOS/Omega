@@ -1,0 +1,32 @@
+// PASS canary (CM3 differential legs, 2026-07-20): the state-values folder's
+// Wrapping wrap-to-width face at NARROW widths (the u32 landed-ops canary's
+// narrow siblings):
+//   i8:  100 + 100 -> -56 (wraps);  u16: 65535 + 2 -> 1 (wraps)
+// A fold regressed to the bare-i64 window computes 200 != -56 and 65537 != 1.
+// Values are consumed through the locals' own slots in the SAME state.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+}
+
+machine Main::main(&mut self) {
+    let a: i8 in Wrapping = 100;
+    let b: i8 in Wrapping = a + 100;     // wraps to -56
+
+    let c: u16 in Wrapping = 65535;
+    let d: u16 in Wrapping = c + 2;      // wraps to 1
+
+    transition (b == -56, d == 1) {
+        (true, true) -> good()
+        (true, false) -> bad()
+        (false, true) -> bad()
+        (false, false) -> bad()
+    }
+
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self)  { self.console.exit_process(71); }
+}

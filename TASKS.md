@@ -329,7 +329,29 @@ sealed progress profiles + grants, TPR4's remaining big half).
    frame_slots.rs:524). The rung: the folded-constant carrier grows
    type/domain/format (rides IntegerLiteral's landing, per the CR1
    design) so operands are never typeless at selection -- then the
-   four fallback sites retire. CM3 differential legs follow.
+   four fallback sites retire. CM3 DIFFERENTIAL LEGS LANDED
+   2026-07-20: const_fold_saturating_narrow_exit (fold_landed's
+   Saturating CLAMP at i8 127/-128 + u8 255 + unsigned u8 division;
+   composed guards discriminate the bare-i64 window) +
+   const_fold_wrapping_narrow_exit (i8 100+100 -> -56, u16 65535+2 ->
+   1), both dual-engine exit 70 in the differential rows. With the
+   existing u32 landed-ops + wide-saturating + trapping-fold-abort
+   canaries the width/signedness/domain fold matrix is covered.
+   GRAMMAR NOTE: multi-subject transitions spell PARENTHESIZED tuples
+   (`transition (a == x, b == y) {`). TASK #133 SCOPE SETTLED: (a)
+   f32 residue = stale note (resolved); (b) static-table carrier =
+   repro-gated by the recorded CR3 decision (stays banked); (c)
+   differential legs = LANDED; (d) float->Rat = demand-gated in the
+   float ladder (F2c note: per-op rounding at width == the exact-Rat
+   spec for homogeneous ops). All non-gated faces done. EN-ROUTE FIX
+   2026-07-20: the windows session's slice-2 canary
+   (windows_positioned_io_exit) landed in ACTIVE_PASS_CANARIES and
+   broke the darwin sweep (its computed-offset pwrite arg only the
+   msvcrt composition accepts; darwin's host-call fence refuses) --
+   moved to WINDOWS_HOST_PASS_CANARIES per the dc_blit precedent, its
+   cfg(windows) run twin untouched. LESSON (cross-host manifest rule):
+   a canary whose omg only lowers on one host belongs in that host's
+   gated sweep list, even when its run twin is already cfg-gated.
    A possible cheaper slot-COPY design for arg delivery
    (skip re-derivation when the local is slot-backed) stays noted in the
    promoted canaries' history but is superseded for correctness

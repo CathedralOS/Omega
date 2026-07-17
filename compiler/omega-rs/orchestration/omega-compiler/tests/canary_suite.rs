@@ -13429,6 +13429,94 @@ fn runtime_shift_right_signedness_canary_runs() {
 }
 
 #[test]
+fn const_fold_saturating_narrow_canary_runs() {
+    // CM3 differential legs: fold_landed's Saturating CLAMP at NARROW widths
+    // (i8 clamps to 127/-128, u8 to 255; the division folds unsigned at u8).
+    // exit 71 = a fold regressed to the bare-i64 window (no clamp).
+    let canary = pass_canary("arithmetic/const_fold_saturating_narrow_exit");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("saturating narrow const-fold canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should clamp narrow saturating folds (exit 70), got {}",
+        outcome.exit_code
+    );
+
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-const-fold-sat-narrow-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("saturating narrow const-fold canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("saturating narrow const-fold canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected narrow saturating clamps at fold (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn const_fold_wrapping_narrow_canary_runs() {
+    // CM3 differential legs: fold_landed's wrap-to-width face at NARROW
+    // widths (i8: 100+100 -> -56; u16: 65535+2 -> 1). exit 71 = a fold
+    // regressed to the bare-i64 window (no wrap).
+    let canary = pass_canary("arithmetic/const_fold_wrapping_narrow_exit");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("wrapping narrow const-fold canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should wrap narrow folds to width (exit 70), got {}",
+        outcome.exit_code
+    );
+
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-const-fold-wrap-narrow-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("wrapping narrow const-fold canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("wrapping narrow const-fold canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected narrow wrapping folds at width (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn const_fold_unsigned_landed_ops_canary_runs() {
     // CM2 first rung: the state-values folder folds at the LANDED type (the
     // destination landing from the let's declared type). `0u32 - 2` wraps to
@@ -29529,6 +29617,13 @@ const WINDOWS_HOST_PASS_CANARIES: &[&str] = &[
     // permanent macOS resolution red until it was windows-gated
     // (2026-07-11r; was a named suite-baseline member).
     "host/runtime_gui_memory_dc_blit_exit",
+    // Session slice 2's positioned-io contract canary: the windows_x64 impl
+    // COMPOSES save-cursor/seek/op/restore over msvcrt rows, but the canary's
+    // darwin lowering hits the pwrite simple-arg host-call fence (the
+    // computed-offset arg only the msvcrt composition accepts) -- a permanent
+    // darwin compile red until windows-gated (2026-07-20; found by the macOS
+    // battery the same day the slice landed).
+    "filesystem/windows_positioned_io_exit",
 ];
 
 /// Canaries compiled with an EXPLICIT cross target on EVERY host (the
@@ -31146,7 +31241,6 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "filesystem/windows_wrapper_create_new_exit",
     "filesystem/windows_wrapper_metadata_exit",
     "filesystem/windows_read_dir_nth_exit",
-    "filesystem/windows_positioned_io_exit",
     "filesystem/windows_wrapper_exists_exit",
     "filesystem/windows_wrapper_set_len_exit",
     "filesystem/windows_wrapper_copy_exit",
@@ -31690,6 +31784,8 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "arithmetic/runtime_signed_division_exit",
     "arithmetic/runtime_shift_right_signedness",
     "arithmetic/const_fold_unsigned_landed_ops_exit",
+    "arithmetic/const_fold_saturating_narrow_exit",
+    "arithmetic/const_fold_wrapping_narrow_exit",
     "arithmetic/const_fold_unsigned_shift_right_arg_exit",
     "arithmetic/const_fold_unsigned_divide_arg_exit",
     "arithmetic/unsigned_min_max_wrapping_local_exit",
