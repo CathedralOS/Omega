@@ -1046,9 +1046,13 @@ sealed progress profiles + grants, TPR4's remaining big half).
    runtime_write_end), encoding.rs handled-elsewhere rows, shapes
    plain kinds, report arms, walker arms REAL both arches (x86 =
    sites by side+region over TWO subjects; aarch64 = retained direct
-   positions). Zero producers yet. REMAINING compare: migrate the 8
-   producer sites -> retire CompareRuntimeStorage +
-   CompareRuntimeStorageValue + sweep. Then the
+   positions). COMPARE RUNG B LANDED 2026-07-20:
+   compare_places_direct + compare_place_value_direct constructors +
+   all 8 producer sites migrated (edges.rs x2 incl. the
+   guard-conjunct arm, guards.rs x6) -- every storage guard compare
+   rides the place form natively (canary 864 green). REMAINING
+   compare: retire CompareRuntimeStorage + CompareRuntimeStorageValue
+   + sweep dead shells. Then the
    bounded-buffer entry (immediate content bytes, single base reloc),
    then WritePlaceString/+Buffer variant + echo + producers +
    retirement. Then guards/operands consume Places, then the op-set

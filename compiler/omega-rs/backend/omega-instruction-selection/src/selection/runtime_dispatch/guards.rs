@@ -1372,41 +1372,41 @@ fn runtime_storage_guard(
             return None;
         }
 
-        return Some(SelectedInstructionKind::CompareRuntimeStorage {
-            left_region: left.region,
-            left_offset: left.byte_offset,
-            right_region: right.region,
-            right_offset: right.byte_offset,
-            byte_size: left.byte_count,
+        return Some(crate::selection::runtime_dispatch::compare_places_direct(
+            left.region,
+            left.byte_offset,
+            right.region,
+            right.byte_offset,
+            left.byte_count,
             operator,
-            is_float: false,
-        });
+            false,
+        ));
     }
 
     if let Some(place) = left
         && let Some(expected_value) = enum_variant_value(&input.layouts, &binary.right)
             .or_else(|| static_guard_value(&binary.right))
     {
-        return Some(SelectedInstructionKind::CompareRuntimeStorageValue {
-            region: place.region,
-            byte_offset: place.byte_offset,
-            byte_size: place.byte_count,
+        return Some(crate::selection::runtime_dispatch::compare_place_value_direct(
+            place.region,
+            place.byte_offset,
+            place.byte_count,
             expected_value,
             operator,
-        });
+        ));
     }
 
     if let Some(place) = right
         && let Some(expected_value) = enum_variant_value(&input.layouts, &binary.left)
             .or_else(|| static_guard_value(&binary.left))
     {
-        return Some(SelectedInstructionKind::CompareRuntimeStorageValue {
-            region: place.region,
-            byte_offset: place.byte_offset,
-            byte_size: place.byte_count,
+        return Some(crate::selection::runtime_dispatch::compare_place_value_direct(
+            place.region,
+            place.byte_offset,
+            place.byte_count,
             expected_value,
             operator,
-        });
+        ));
     }
 
     None
@@ -1467,15 +1467,15 @@ pub(super) fn runtime_storage_guard_in_table(
             return None;
         }
 
-        return Some(SelectedInstructionKind::CompareRuntimeStorage {
-            left_region: left.region,
-            left_offset: left.byte_offset,
-            right_region: right.region,
-            right_offset: right.byte_offset,
-            byte_size: left.byte_count,
+        return Some(crate::selection::runtime_dispatch::compare_places_direct(
+            left.region,
+            left.byte_offset,
+            right.region,
+            right.byte_offset,
+            left.byte_count,
             operator,
-            is_float: false,
-        });
+            false,
+        ));
     }
 
     // A FLOAT-literal side compares as its IEEE-754 bit pattern under the
@@ -1524,13 +1524,13 @@ pub(super) fn runtime_storage_guard_in_table(
             enum_variant_value_in_table(&input.layouts, expressions, binary.right)
                 .or_else(|| static_guard_value_in_table(expressions, binary.right))
     {
-        return Some(SelectedInstructionKind::CompareRuntimeStorageValue {
-            region: place.region,
-            byte_offset: place.byte_offset,
-            byte_size: place.byte_count,
+        return Some(crate::selection::runtime_dispatch::compare_place_value_direct(
+            place.region,
+            place.byte_offset,
+            place.byte_count,
             expected_value,
             operator,
-        });
+        ));
     }
 
     if let Some(place) = right
@@ -1538,13 +1538,13 @@ pub(super) fn runtime_storage_guard_in_table(
             enum_variant_value_in_table(&input.layouts, expressions, binary.left)
                 .or_else(|| static_guard_value_in_table(expressions, binary.left))
     {
-        return Some(SelectedInstructionKind::CompareRuntimeStorageValue {
-            region: place.region,
-            byte_offset: place.byte_offset,
-            byte_size: place.byte_count,
+        return Some(crate::selection::runtime_dispatch::compare_place_value_direct(
+            place.region,
+            place.byte_offset,
+            place.byte_count,
             expected_value,
             operator,
-        });
+        ));
     }
 
     None

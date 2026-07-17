@@ -1304,18 +1304,18 @@ fn select_dispatch_guard_instructions(
                     && clause.has_storage
                     && clause.has_right_storage
                 {
-                    SelectedInstructionKind::CompareRuntimeStorage {
-                        left_region: guard_storage_region(clause.storage),
-                        left_offset: clause.byte_offset,
-                        right_region: guard_storage_region(clause.right_storage),
-                        right_offset: clause.right_byte_offset,
-                        byte_size: clause.byte_size,
+                    crate::selection::runtime_dispatch::compare_places_direct(
+                        guard_storage_region(clause.storage),
+                        clause.byte_offset,
+                        guard_storage_region(clause.right_storage),
+                        clause.right_byte_offset,
+                        clause.byte_size,
                         operator,
                         // Place-vs-place float conjuncts stay a follow-on; the
                         // clause carries float-kindedness for constant-float
                         // compares.
-                        is_float: clause.is_float,
-                    }
+                        clause.is_float,
+                    )
                 } else {
                     SelectedInstructionKind::EvaluateDispatchGuard {
                         guard_lowering: clause.lowering,
@@ -1415,15 +1415,15 @@ fn select_dispatch_guard_instructions(
         StateGuardLowering::CompareRuntimeValue
             if edge.guard_has_storage && edge.guard_has_right_storage =>
         {
-            SelectedInstructionKind::CompareRuntimeStorage {
-                left_region: guard_storage_region(edge.guard_storage),
-                left_offset: edge.guard_byte_offset,
-                right_region: guard_storage_region(edge.guard_right_storage),
-                right_offset: edge.guard_right_byte_offset,
-                byte_size: edge.guard_byte_size,
+            crate::selection::runtime_dispatch::compare_places_direct(
+                guard_storage_region(edge.guard_storage),
+                edge.guard_byte_offset,
+                guard_storage_region(edge.guard_right_storage),
+                edge.guard_right_byte_offset,
+                edge.guard_byte_size,
                 operator,
                 is_float,
-            }
+            )
         }
         _ => SelectedInstructionKind::EvaluateDispatchGuard {
             guard_lowering: edge.guard_lowering,

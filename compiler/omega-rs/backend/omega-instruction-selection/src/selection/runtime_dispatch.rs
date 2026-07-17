@@ -637,6 +637,41 @@ pub(crate) fn write_place_string_machine_indexed(
     }
 }
 
+/// Task #131 (guards consume Places): the direct-place compare
+/// constructors (the retired storage-compare spellings as places).
+pub(crate) fn compare_places_direct(
+    left_region: RuntimeStorageRegion,
+    left_offset: usize,
+    right_region: RuntimeStorageRegion,
+    right_offset: usize,
+    byte_size: usize,
+    operator: omega_abstract_operations::StateGuardOperator,
+    is_float: bool,
+) -> SelectedInstructionKind {
+    SelectedInstructionKind::ComparePlaces {
+        left: omega_abstract_operations::Place::at(left_region, left_offset),
+        right: omega_abstract_operations::Place::at(right_region, right_offset),
+        byte_size,
+        operator,
+        is_float,
+    }
+}
+
+pub(crate) fn compare_place_value_direct(
+    region: RuntimeStorageRegion,
+    byte_offset: usize,
+    byte_size: usize,
+    expected_value: i64,
+    operator: omega_abstract_operations::StateGuardOperator,
+) -> SelectedInstructionKind {
+    SelectedInstructionKind::ComparePlaceValue {
+        place: omega_abstract_operations::Place::at(region, byte_offset),
+        byte_size,
+        expected_value,
+        operator,
+    }
+}
+
 /// Task #131: the place-address constructor family (the six retired
 /// Write*AddressToRuntimeFrame spellings as places).
 pub(crate) fn write_place_address_direct(
