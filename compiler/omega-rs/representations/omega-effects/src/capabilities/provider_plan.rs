@@ -100,7 +100,77 @@ pub struct ProviderPlan {
     pub origin_package: String,
 }
 
+impl ServiceSchema {
+    /// PRV2: reify a typed boundary trait's callable surface. `None` for a
+    /// non-boundary trait (only boundary traits have service schemas).
+    pub fn from_typed(
+        program: &omega_typed_trees::TypedTrees,
+        trait_definition: &omega_typed_trees::trait_definition::TraitDefinition,
+    ) -> Option<Self> {
+        if !trait_definition.is_boundary {
+            return None;
+        }
+        let methods = program
+            .trait_machine_signatures(trait_definition)
+            .iter()
+            .map(|signature| ServiceMethod {
+                name: signature.name.as_str().to_owned(),
+                parameter_count: program
+                    .state_signature_parameters(signature)
+                    .iter()
+                    .filter(|parameter| !parameter.is_self)
+                    .count(),
+                has_result: signature.return_type.is_valid(),
+                effects: program
+                    .state_signature_effects(signature)
+                    .iter()
+                    .map(|effect| effect.as_str().to_owned())
+                    .collect(),
+            })
+            .collect();
+        Some(Self {
+            trait_name: trait_definition.name.as_str().to_owned(),
+            methods,
+        })
+    }
+}
+
 impl ProviderPlan {
+    /// PRV2: the plan's NORMALIZED IDENTITY -- an FNV-1a fingerprint over
+    /// the canonical rendering (name, target, schema surface, rows in
+    /// method order). Two plans with the same fingerprint are the same
+    /// policy; presentation (row order, whitespace) is excluded.
+    pub fn identity_fingerprint(&self) -> u64 {
+        let mut rendered = format!("{}\n{}\n{}", self.name, self.target, self.schema.trait_name);
+        let mut methods: Vec<&ServiceMethod> = self.schema.methods.iter().collect();
+        methods.sort_by(|left, right| left.name.cmp(&right.name));
+        for method in methods {
+            rendered.push_str(&format!(
+                "\nm:{}/{}/{}/{}",
+                method.name,
+                method.parameter_count,
+                method.has_result,
+                method.effects.join(",")
+            ));
+        }
+        let mut rows: Vec<&ProviderPlanRow> = self.rows.iter().collect();
+        rows.sort_by(|left, right| left.method.cmp(&right.method));
+        for row in rows {
+            rendered.push_str(&format!(
+                "\nr:{}/{:?}/{}",
+                row.method,
+                row.binding,
+                row.call_shape.as_deref().unwrap_or("-")
+            ));
+        }
+        let mut hash: u64 = 0xcbf29ce484222325;
+        for byte in rendered.as_bytes() {
+            hash ^= u64::from(*byte);
+            hash = hash.wrapping_mul(0x100000001b3);
+        }
+        hash
+    }
+
     /// PRV2 preview (the cheapest structural fact, used by tests today):
     /// every schema method has exactly one row and every row names a
     /// schema method.

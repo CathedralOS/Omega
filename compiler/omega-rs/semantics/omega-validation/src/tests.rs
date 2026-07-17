@@ -2034,3 +2034,79 @@ mod structural_entailment {
         );
     }
 }
+
+mod provider_plan {
+    use omega_effects::provider_plan::{
+        ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceSchema,
+    };
+    use omega_source_files_to_tokens::Lexer;
+    use omega_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
+    use omega_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
+    use omega_tokens_to_syntax_trees::parse_syntax_trees;
+
+    fn typed(source: &str) -> omega_typed_trees::TypedTrees {
+        let tokens = Lexer::new(source).tokenize().expect("tokenize");
+        let syntax = parse_syntax_trees(&tokens).expect("parse");
+        let resolved = lower_syntax_trees(&syntax).expect("resolve");
+        lower_symbol_resolved_trees(&resolved).expect("typed lowering")
+    }
+
+    #[test]
+    fn service_schema_reifies_a_boundary_trait() {
+        // PRV2: the schema derives from the typed boundary TraitDefinition
+        // -- names, parameter counts (receiver excluded), result presence,
+        // and declared effects.
+        let program = typed(
+            "boundary trait Console {\n\
+             machine write_line(text: &[u8])\n\
+             effects\n\
+                 stdout_io;\n\
+             machine exit_process(return_code: i32);\n\
+             }\n\
+             data Main { console: Console; }\n\
+             machine Main::main(&mut self) {}\n",
+        );
+        let console = program
+            .traits()
+            .iter()
+            .find(|definition| definition.name.as_str() == "Console")
+            .expect("Console trait");
+        let schema =
+            ServiceSchema::from_typed(&program, console).expect("boundary trait has a schema");
+        assert_eq!(schema.trait_name, "Console");
+        assert_eq!(schema.methods.len(), 2);
+        assert_eq!(schema.methods[0].name, "write_line");
+        assert_eq!(schema.methods[0].parameter_count, 1);
+        assert!(!schema.methods[0].has_result);
+        assert_eq!(schema.methods[0].effects, vec!["stdout_io".to_owned()]);
+        assert_eq!(schema.methods[1].name, "exit_process");
+    }
+
+    #[test]
+    fn fingerprint_is_presentation_invariant() {
+        // PRV2: identity excludes presentation -- reordering rows keeps the
+        // fingerprint; changing a binding changes it.
+        let schema = ServiceSchema {
+            trait_name: "Console".to_owned(),
+            methods: Vec::new(),
+        };
+        let row = |method: &str, value: i64| ProviderPlanRow {
+            method: method.to_owned(),
+            binding: ProviderBinding::Value { value },
+            call_shape: None,
+        };
+        let plan = |rows: Vec<ProviderPlanRow>| ProviderPlan {
+            name: "p".to_owned(),
+            target: "t".to_owned(),
+            schema: schema.clone(),
+            rows,
+            effect_set: omega_effects::EffectSet::empty(),
+            origin_package: "omega::language::std".to_owned(),
+        };
+        let forward = plan(vec![row("a", 1), row("b", 2)]);
+        let reversed = plan(vec![row("b", 2), row("a", 1)]);
+        assert_eq!(forward.identity_fingerprint(), reversed.identity_fingerprint());
+        let changed = plan(vec![row("a", 9), row("b", 2)]);
+        assert_ne!(forward.identity_fingerprint(), changed.identity_fingerprint());
+    }
+}
