@@ -1527,14 +1527,14 @@ pub(super) fn select_runtime_resolved_target_value_source_mutation_writes(
             )
         {
             selected_instructions.push(SelectedInstruction {
-                kind: SelectedInstructionKind::WriteRuntimeFrameIndexedInteger {
-                    descriptor_offset: indexed_target.descriptor_offset,
-                    index_offset: indexed_target.index_offset,
-                    element_byte_size: indexed_target.element_byte_size,
-                    field_byte_offset: indexed_target.field_byte_offset,
-                    byte_size: indexed_target.byte_count,
+                kind: crate::selection::runtime_dispatch::write_place_integer_frame_indexed(
+                    indexed_target.descriptor_offset,
+                    indexed_target.index_offset,
+                    indexed_target.element_byte_size,
+                    indexed_target.field_byte_offset,
                     value,
-                },
+                    indexed_target.byte_count,
+                ),
                 source_key: operation_source_key,
                 source_statement: statement_index,
             });
@@ -1559,14 +1559,16 @@ pub(super) fn select_runtime_resolved_target_value_source_mutation_writes(
             )
         {
             selected_instructions.push(SelectedInstruction {
-                kind: SelectedInstructionKind::WriteRuntimeFrameBaseIndexedInteger {
-                    base_byte_offset: indexed_target.base_byte_offset,
-                    index_offset: indexed_target.index_offset,
-                    element_byte_size: indexed_target.element_byte_size,
-                    field_byte_offset: indexed_target.field_byte_offset,
-                    byte_size: indexed_target.byte_count,
+                kind: crate::selection::runtime_dispatch::write_place_integer_base_indexed(
+                    omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+                    indexed_target.base_byte_offset,
+                    omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+                    indexed_target.index_offset,
+                    indexed_target.element_byte_size,
+                    indexed_target.field_byte_offset,
                     value,
-                },
+                    indexed_target.byte_count,
+                ),
                 source_key: operation_source_key,
                 source_statement: statement_index,
             });
@@ -1648,15 +1650,16 @@ pub(super) fn select_runtime_resolved_target_value_source_mutation_writes(
             )
         {
             selected_instructions.push(SelectedInstruction {
-                kind: SelectedInstructionKind::WriteRuntimeMachineIndexedInteger {
-                    base_byte_offset: indexed_target.base_byte_offset,
-                    index_region: indexed_target.index_region,
-                    index_offset: indexed_target.index_offset,
-                    element_byte_size: indexed_target.element_byte_size,
-                    field_byte_offset: indexed_target.field_byte_offset,
-                    byte_size: indexed_target.byte_count,
+                kind: crate::selection::runtime_dispatch::write_place_integer_base_indexed(
+                    omega_target_operations::RuntimeStorageRegion::Machine,
+                    indexed_target.base_byte_offset,
+                    indexed_target.index_region,
+                    indexed_target.index_offset,
+                    indexed_target.element_byte_size,
+                    indexed_target.field_byte_offset,
                     value,
-                },
+                    indexed_target.byte_count,
+                ),
                 source_key: operation_source_key,
                 source_statement: statement_index,
             });
@@ -1719,18 +1722,18 @@ pub(super) fn select_runtime_resolved_target_value_source_mutation_writes(
             )
         {
             selected_instructions.push(SelectedInstruction {
-                kind: SelectedInstructionKind::WriteRuntimeMachineDoubleIndexedInteger {
-                    base_byte_offset: double_target.base_byte_offset,
-                    outer_index_offset: double_target.outer_index_offset,
-                    outer_index_region: double_target.outer_index_region,
-                    outer_stride: double_target.outer_stride,
-                    inner_index_offset: double_target.inner_index_offset,
-                    inner_index_region: double_target.inner_index_region,
-                    inner_stride: double_target.inner_stride,
-                    field_byte_offset: double_target.field_byte_offset,
-                    byte_size: double_target.byte_count,
+                kind: crate::selection::runtime_dispatch::write_place_integer_double_indexed(
+                    double_target.base_byte_offset,
+                    double_target.outer_index_region,
+                    double_target.outer_index_offset,
+                    double_target.outer_stride,
+                    double_target.inner_index_region,
+                    double_target.inner_index_offset,
+                    double_target.inner_stride,
+                    double_target.field_byte_offset,
                     value,
-                },
+                    double_target.byte_count,
+                ),
                 source_key: operation_source_key,
                 source_statement: statement_index,
             });
@@ -1760,12 +1763,12 @@ pub(super) fn select_runtime_resolved_target_value_source_mutation_writes(
             value,
         );
         selected_instructions.push(SelectedInstruction {
-            kind: SelectedInstructionKind::WriteRuntimePointeeInteger {
-                pointer_byte_offset: indexed_target.descriptor_offset,
+            kind: crate::selection::runtime_dispatch::write_place_integer_pointee(
+                indexed_target.descriptor_offset,
                 field_byte_offset,
-                byte_size: indexed_target.byte_count,
                 value,
-            },
+                indexed_target.byte_count,
+            ),
             source_key: operation_source_key,
             source_statement: statement_index,
         });
@@ -1809,12 +1812,12 @@ pub(super) fn select_runtime_resolved_target_value_source_mutation_writes(
             value,
         );
         selected_instructions.push(SelectedInstruction {
-            kind: SelectedInstructionKind::WriteRuntimePointeeInteger {
-                pointer_byte_offset: pointer_target.pointer_byte_offset,
-                field_byte_offset: pointer_target.field_byte_offset,
-                byte_size: pointer_target.pointee_byte_size,
+            kind: crate::selection::runtime_dispatch::write_place_integer_pointee(
+                pointer_target.pointer_byte_offset,
+                pointer_target.field_byte_offset,
                 value,
-            },
+                pointer_target.pointee_byte_size,
+            ),
             source_key: operation_source_key,
             source_statement: statement_index,
         });
@@ -1883,12 +1886,12 @@ pub(super) fn select_runtime_resolved_target_value_source_mutation_writes(
         value,
     );
     selected_instructions.push(SelectedInstruction {
-        kind: SelectedInstructionKind::WriteRuntimeStorageInteger {
-            target_region: target_place.region,
-            byte_offset: target_place.byte_offset,
-            byte_size: target_place.byte_count,
+        kind: crate::selection::runtime_dispatch::write_place_integer_direct(
+            target_place.region,
+            target_place.byte_offset,
             value,
-        },
+            target_place.byte_count,
+        ),
         source_key: operation_source_key,
         source_statement: statement_index,
     });

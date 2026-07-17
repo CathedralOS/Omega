@@ -207,20 +207,20 @@ pub(super) fn select_wire_decode_call(
 
     // read = 0: the cursor convention starts every decode at the buffer head,
     // and the final cursor value IS the consumed-byte count.
-    push(SelectedInstructionKind::WriteRuntimeStorageInteger {
-        target_region: read_place.region,
-        byte_offset: read_place.byte_offset,
-        byte_size: read_place.byte_count,
-        value: 0,
-    });
+    push(crate::selection::runtime_dispatch::write_place_integer_direct(
+        read_place.region,
+        read_place.byte_offset,
+        0,
+        read_place.byte_count,
+    ));
     // ok = true: the flag is sticky -- every wire read ANDs its own success
     // bit in, so the first failure wins.
-    push(SelectedInstructionKind::WriteRuntimeStorageInteger {
-        target_region: ok_place.region,
-        byte_offset: ok_place.byte_offset,
-        byte_size: ok_place.byte_count,
-        value: 1,
-    });
+    push(crate::selection::runtime_dispatch::write_place_integer_direct(
+        ok_place.region,
+        ok_place.byte_offset,
+        1,
+        ok_place.byte_count,
+    ));
 
     let expected_byte_kind = |byte: u8| SelectedInstructionKind::ReadWireExpectedByte {
         buffer_region: buffer_place.region,
@@ -411,12 +411,12 @@ pub(super) fn select_wire_decode_call(
                     end_region: RuntimeStorageRegion::RuntimeFrame,
                     end_offset,
                 });
-                push(SelectedInstructionKind::WriteRuntimeStorageInteger {
-                    target_region: count.region,
-                    byte_offset: count.byte_offset,
-                    byte_size: count.byte_count,
-                    value: 0,
-                });
+                push(crate::selection::runtime_dispatch::write_place_integer_direct(
+                    count.region,
+                    count.byte_offset,
+                    0,
+                    count.byte_count,
+                ));
                 for index in 0..*max_count {
                     push(SelectedInstructionKind::ReadWireRepeatedScalarVarint {
                         buffer_region: buffer_place.region,
