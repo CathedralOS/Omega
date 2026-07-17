@@ -244,6 +244,13 @@ fn encode_place_copy_with_sites(
     Ok((bytes, sites))
 }
 
+/// A zero-offset place rooted in `region` -- the transitional delegating
+/// encoders' construction seed (their kinds carry offsets, not regions, so
+/// the region here is documentation; direct-place bytes never consult it).
+pub(crate) fn transitional_place(region: omega_target_operations::RuntimeStorageRegion) -> Place {
+    Place::at(region, 0)
+}
+
 /// The WRITE-family materializer entry (Write rung 1a): store an immediate
 /// integer at `byte_size` into a place-shaped target. The target address
 /// materializes through the SAME walk as the copy entries (r15 base, the
