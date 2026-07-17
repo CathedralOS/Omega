@@ -4084,8 +4084,11 @@ with a real app-window story.
   machine's callable shape, generic substitutions, effect ceiling, termination
   guarantee, and authored requires/ensures/boundary facts refine the declared
   machine-parameter contract; missing, unresolved, still-generic, and
-  non-refining selections fail before lowering. MP3 check generic bodies
-  modularly from the required contract;
+  non-refining selections fail before lowering. **MP3 LANDED 2026-07-17:**
+  represent machine parameters as their own callable symbol kind; resolve each
+  `F(...)` use to the authored signature and check generic bodies modularly for
+  argument shape, requires discharge, ensures propagation, and effect reach,
+  without consulting an eventual concrete selection;
   MP4 monomorphize and substitute each `M(...)` use into a direct static call
   with stable specialization/cache identity; MP5 record accepted-template
   grants once plus argument contract IDs per instance; MP6 land `Seq`

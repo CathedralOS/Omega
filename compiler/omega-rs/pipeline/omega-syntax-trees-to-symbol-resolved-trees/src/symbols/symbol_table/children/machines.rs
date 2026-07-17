@@ -16,7 +16,15 @@ pub(in crate::symbols::symbol_table) fn insert_machine_symbol_children(
         program
             .machine_type_parameters(machine)
             .iter()
-            .map(|parameter| symbol_seed(SymbolKind::TypeParameter, &parameter.name, has_sources))
+            .map(|parameter| {
+                let kind = match parameter.kind {
+                    omega_symbol_resolved_trees::data::TypeParameterKind::Machine { .. } => {
+                        SymbolKind::MachineParameter
+                    }
+                    _ => SymbolKind::TypeParameter,
+                };
+                symbol_seed(kind, &parameter.name, has_sources)
+            })
             .chain(inherited_data_field_symbols(program, machine, has_sources))
             .chain(
                 program
@@ -44,8 +52,23 @@ pub(in crate::symbols::symbol_table) fn insert_machine_symbol_children(
     );
     let mut machine_children = SymbolTableBuilder::child_handles(machine_children);
 
-    for _ in program.machine_type_parameters(machine) {
-        let _ = machine_children.next();
+    for parameter in program.machine_type_parameters(machine) {
+        let parameter_symbol = machine_children.next();
+        if let (
+            Some(parameter_symbol),
+            omega_symbol_resolved_trees::data::TypeParameterKind::Machine { contract },
+        ) = (parameter_symbol, &parameter.kind)
+        {
+            builder.insert_children(
+                parameter_symbol,
+                program
+                    .state_parameters(contract.parameters)
+                    .iter()
+                    .map(|parameter| {
+                        symbol_seed(SymbolKind::Parameter, &parameter.name, has_sources)
+                    }),
+            );
+        }
     }
     for _ in 0..inherited_field_count {
         let _ = machine_children.next();

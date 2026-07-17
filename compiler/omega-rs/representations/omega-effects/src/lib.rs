@@ -688,6 +688,13 @@ fn direct_effects_for_signature_symbol(program: &TypedTrees, symbol: SymbolHandl
         return EffectSet::empty();
     }
 
+    if let Some((_, signature)) = program.machine_parameter_signature(symbol) {
+        // A machine-parameter requirement's authored row is its complete
+        // modular ceiling. The concrete callee does not exist in this body;
+        // MP2b separately proves every eventual selection stays within it.
+        return signature_effects(program, signature);
+    }
+
     for platform in program.platforms() {
         for signature in program.platform_state_signatures(platform) {
             if signature.symbol == symbol {
@@ -755,8 +762,7 @@ fn propagate_machine_effects(machines: &mut [MachineWork]) {
                         if machines[target_index].direct.bits() != 0 {
                             body_transitive.insert_all(machines[target_index].direct);
                         } else {
-                            body_transitive
-                                .insert_all(machines[target_index].body_transitive);
+                            body_transitive.insert_all(machines[target_index].body_transitive);
                         }
                     }
                 }
