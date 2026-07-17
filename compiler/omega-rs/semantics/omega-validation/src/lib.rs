@@ -147,6 +147,11 @@ pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
             // (fence_generic_value_callee).
             if state.return_type.is_valid()
                 && program.machine_type_parameters(machine).is_empty()
+                // CH10 ACCEPTED machines (bodyless `boundary machine`
+                // axioms) have no body BY DESIGN: their meaning is their
+                // ensures, admitted through the trust carrier, never
+                // produced by execution.
+                && machine.supply_mode != omega_core::semantics::MachineSupplyMode::Accepted
                 && program
                     .statement_table
                     .statements(state.statement_nodes)

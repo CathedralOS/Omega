@@ -52,7 +52,11 @@ pub(super) fn parse_machine_clauses<'tokens, 'source>(
     let mut contract_count = 0u32;
     let mut return_type = omega_syntax_trees::types::TypeReferenceHandle::invalid();
 
-    while !input.at_punctuation(PunctuationKind::LeftBrace) {
+    while !input.at_punctuation(PunctuationKind::LeftBrace)
+        // CH10 bodyless machines end at `;` in body position -- the clause
+        // loop stands down and leaves the semicolon for parse_machine.
+        && !input.at_punctuation(PunctuationKind::Semicolon)
+    {
         if input.at_contextual("terminates") {
             input = input.take_contextual("terminates")?;
             terminates = true;
@@ -155,8 +159,18 @@ pub(super) fn parse_machine_clauses<'tokens, 'source>(
                 CapabilityContractKind::Ensures
             };
             let ((facts, token_count), rest) =
-                parse_proof_facts_until(syntax_trees, input, |input| {
+                crate::parser::proof_fact::parse_proof_facts_until_with_machine_semicolon(
+                    syntax_trees,
+                    input,
+                    |input| {
                     input.at_punctuation(PunctuationKind::LeftBrace)
+                        // CH10 bodyless machines (`ensures <fact>;` then the
+                        // next item): a HARD item keyword after the facts
+                        // terminates the list -- a fact expression can never
+                        // begin with one.
+                        || input.at_keyword(KeywordKind::Machine)
+                        || input.at_keyword(KeywordKind::Data)
+                        || input.at_keyword(KeywordKind::Use)
                         || input.at_contextual("requires")
                         || input.at_contextual("ensures")
                         || input.at_contextual("terminates")
@@ -166,7 +180,9 @@ pub(super) fn parse_machine_clauses<'tokens, 'source>(
                         || input.at_contextual("where")
                         || input.at_contextual("satisfies")
                         || input.tokens.is_empty()
-                })?;
+                    },
+                    true,
+                )?;
             let handle = syntax_trees
                 .items
                 .append_capability_contract(CapabilityContract {

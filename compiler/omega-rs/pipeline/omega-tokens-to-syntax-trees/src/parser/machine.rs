@@ -75,6 +75,45 @@ pub(super) fn parse_machine<'tokens, 'source>(
         entry_name,
     } = split_machine_path(syntax_trees, path);
 
+    // CH10 ACCEPTED FORM (GR6d): `boundary machine f(..) ensures <fact>;`
+    // -- a contract with NO body ends at `;` in body position. The implicit
+    // ENTRY state still materializes (empty; it carries the signature so
+    // citations bind parameters). The item parser refuses the bodyless form
+    // without `boundary`.
+    if input.at_punctuation(PunctuationKind::Semicolon) {
+        let input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
+        let mut state_start = Handle::invalid();
+        let mut state_count = 0u32;
+        let entry_state = State {
+            name: entry_name.clone().unwrap_or_else(|| Identifier::generated("entry")),
+            parameters: machine_parameters,
+            return_type: machine_return_type,
+            statements: HandleSpan::empty(),
+        };
+        append_machine_state(syntax_trees, &mut state_start, &mut state_count, entry_state);
+        return Ok((
+            Machine {
+                name,
+                attached_data,
+                target: None,
+                boundary: false,
+                bodyless: true,
+                type_parameters,
+                satisfies,
+                terminates,
+                terminates_guarantee,
+                decreases,
+                decrease_order,
+                decrease_view_arguments,
+                decrease_range,
+                effects,
+                contracts,
+                states: HandleSpan::from_parts(state_start, state_count),
+            },
+            input,
+        ));
+    }
+
     input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
     let mut state_start = Handle::invalid();
     let mut state_count = 0u32;
@@ -167,6 +206,7 @@ pub(super) fn parse_machine<'tokens, 'source>(
             attached_data,
             target: None,
             boundary: false,
+            bodyless: false,
             type_parameters,
             satisfies,
             terminates,

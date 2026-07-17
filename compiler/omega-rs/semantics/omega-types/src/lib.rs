@@ -705,6 +705,7 @@ mod tests {
             attached_data: None,
             target: None,
             boundary: false,
+            bodyless: false,
             type_parameters: HandleSpan::empty(),
             satisfies: HandleSpan::empty(),
             terminates: false,

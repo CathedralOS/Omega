@@ -1,0 +1,12 @@
+use omega::language::core::nat;
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+
+// A refutable axiom: the engine veto must refuse, grants notwithstanding.
+boundary machine false_axiom() -> Nat
+ensures
+    (Nat::Zero) == (Nat::Succ { prev: Nat::Zero });
+
+machine Main::main(&mut self) {
+    self.console.exit_process(70);
+}
