@@ -32278,6 +32278,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "control_flow/transition_fall_through_value_match",
     "calls/abs_call_argument_rejected",
     "build/build_machine_wrong_arity",
+    "build/accept_boundary_outside_build",
     "host/terminal_host_call_value",
     "calls/guarded_value_call_terminal_rejected",
     "proofs/core_nat_runtime_consumption_rejected",

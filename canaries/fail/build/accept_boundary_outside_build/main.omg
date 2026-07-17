@@ -1,0 +1,11 @@
+// CH10 root grants flow from the ROOT: `b.accept_boundary<..>();` is the
+// final build's spelling, legal only in build.omg's build machine. In
+// ordinary source the marker call fails resolution loudly -- a package can
+// never self-grant (GR3; a directed diagnostic can replace the generic
+// resolution error when the trust surface grows).
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine Main::main(&mut self) {
+    self.accept_boundary<some::symbol>();
+    self.console.exit_process(70);
+}
