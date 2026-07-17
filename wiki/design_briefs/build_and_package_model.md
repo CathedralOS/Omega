@@ -76,6 +76,19 @@ The platform's launch calling plan is checked against the exported entry
 machine for each built target. `build.omg` selects the entry; it does not repeat
 the target's register/stack arrival contract.
 
+## Provider selection
+
+Selecting a target package also selects that package's ordinary default
+provider types. A build, test harness, or component manager that owns a service
+slot may override that slot with another admitted provider type. This is scoped
+dependency injection, not row construction: conformances and `via` bindings
+declare the provider, the toolchain derives its normalized `ProviderPlan`, and
+configuration selects the already-declared candidate.
+
+The exact `Build` library method names remain ordinary API design. Conceptually
+the operations are target-profile selection plus type-per-slot override; users
+do not repeat every default and cannot append or mutate derived plan rows.
+
 ## Build-time authority and execution split
 
 `build.omg` may perform authorized package-local staging itself. It does not
@@ -144,6 +157,8 @@ filesystem-backed build evaluator. Remaining work:
   checks;
 - converge Console/platform entries onto boundary traits;
 - finish the `Build` dependency/target/entry schema;
+- expose target-profile defaults and type-per-slot provider overrides through
+  ordinary `Build` library machines;
 - make name resolution consult the declared dependency aliases;
 - generate/check the unified lock and trust artifact; and
 - remove target-block and hand-written BuildLog compatibility paths.

@@ -2,10 +2,10 @@
 
 This appendix lists unresolved language-design areas only. Settled behavior
 belongs in the relevant chapter or frozen design brief, not here. Immediate
-immediate owner decisions belong in the repository-root `OWNER_QUESTIONS.md`;
+owner decisions belong in the repository-root `OWNER_QUESTIONS.md`;
 engineering work belongs in `TASKS.md`.
 
-Last pruned: 2026-07-18.
+Last pruned: 2026-07-20.
 
 ## Effects, resources, and progress
 
@@ -82,8 +82,6 @@ Last pruned: 2026-07-18.
 
 ## Boundaries, assembly, and components
 
-- Define native operand-lowering metadata for imported libraries and syscalls
-  so no standard operation depends on compiler string matching.
 - Define inline-assembly local-control-flow limits, clobber/memory/feature
   contracts, the first accepted instruction subsets, and whether supplemental
   manual contracts can ever be trusted.

@@ -14,7 +14,8 @@ special-values policy, rounding rule}. Omega adopts that shape outright,
 because the pieces already exist: exact arithmetic is the N2 bignum
 engine, finite-floats-embed-exactly-in-Rat is the settled roster fact, and
 per-target binding tables are the landed compatibility mechanism being
-migrated to typed `ProviderPlan` values.
+migrated to explicit conformances and `via` instruction leaves from which the
+toolchain derives typed `ProviderPlan` artifacts.
 
 The model has three layers:
 
@@ -25,9 +26,11 @@ The model has three layers:
   IEEE specials, round-to-nearest-even) are target-independent semantic
   data living in omega::core beside Nat/Rat; the engine's round(format)
   and the proof stratum's decode->Rat consume them.
-- **Targets**: provider bindings (f32.add -> the FPU instruction) live in the
-  target packages' `ProviderPlan` values. Hardware bindings are ACCEPTED-tier (the
-  settled "FPU rounds correctly" permanent boundary); software
+- **Targets**: checked software machines and irreducible bindings (`f32.add`
+  -> the FPU instruction) live in target packages as explicit conformances.
+  Instruction leaves use `via Binding::Instruction { ... }`; the toolchain
+  derives the selected `ProviderPlan`. Hardware bindings are ACCEPTED-tier
+  (the settled "FPU rounds correctly" permanent boundary); software
   implementations are PROVEN-tier; the trust report shows which.
 
 Rows SELECT among compiler-known lowerings and declare contracts + trust;

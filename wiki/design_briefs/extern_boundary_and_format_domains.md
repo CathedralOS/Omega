@@ -16,9 +16,17 @@ boundary trait WindowSystem {
 }
 ```
 
-A `ProviderPlan` maps each requirement to a binding description. Provider
-plans are ordinary build-time policy values; there is no `provides` keyword.
-The binding vocabulary is a sum, not a growing family of keywords:
+A `ProviderPlan` maps requirements to their checked realizations, but it is a
+**derived normalized artifact**, not a value assembled row by row by user
+code. Authors provide three inputs:
+
+1. boundary-trait requirements;
+2. ordinary checked machines that explicitly `satisfy` those requirements;
+   and
+3. irreducible external leaves declared with `satisfies ... via <Binding>`.
+
+The binding vocabulary is an ordinary closed sum, not a growing family of
+keywords:
 
 ```omega
 data Binding {
@@ -26,19 +34,61 @@ data Binding {
     case Syscall(number: u64, plan: CallingPlanId);
     case Firmware(table: TableId, slot: u32, plan: CallingPlanId);
     case CompilerIntrinsic(name: IntrinsicId);
+    case Instruction(operation: InstructionOperationId);
 }
 ```
 
-Exact cases may grow only when a genuinely different binding mechanism exists.
-Host-specific flags and `host:` mini-languages are not part of Omega.
+Exact cases may grow only when a genuinely different irreducible binding
+mechanism exists. Host-specific flags and `host:` mini-languages are not part
+of Omega. Foreign struct offsets and bit positions belong to programmable
+layout/format declarations, not a generic `Binding::Value` escape hatch.
 
-Provider handling has four distinct stages: construct a candidate freely;
-validate structural coverage, signatures, calling/layout plans, and normalized
-identity deterministically; admit its semantic claims under boundary grant
+```omega
+machine Kernel32::write_file(handle: WinHandle, bytes: &[u8]) -> WriteResult
+    satisfies Kernel32Requirements::write_file
+    via Binding::DllImport {
+        library: kernel32_lib,
+        symbol: write_file_symbol,
+        plan: MsX64,
+    };
+```
+
+The `via` expression must be compile-time evaluable to a normalized `Binding`
+value. It is the external-realization variant of the machine supply slot, not
+an executable body and not a self-authored trust assertion. Its identity feeds
+the derived plan. Structural validation checks the declaration; admission
+assigns the trust class and receipt.
+
+Composite behavior is checked Omega code rather than plan-shaped call
+sequences. A Console adapter that gets a standard handle, appends a newline,
+and performs one or more writes is an ordinary machine satisfying the Console
+requirement. This permits caching, batching, policy, and stronger contracts
+without extending a call-shape DSL. Constants and foreign formats similarly
+stay in their existing semantic homes.
+
+The toolchain computes the selected provider type's conformance closure and
+derives plan coverage, signatures, effect summaries, dependencies, normalized
+identity, and admission inputs. Only explicit `satisfies` edges participate;
+structural coincidence never makes a provider. Build-time machines may select
+among declared candidates or compute a leaf `Binding` value, but they never
+imperatively append plan rows.
+
+`Binding` values themselves may be constructed freely; construction grants no
+authority and makes no provider selectable. Provider handling then has four
+distinct artifact stages: derive a candidate deterministically from
+declarations; validate structural coverage, signatures, calling/layout
+plans, and normalized identity; admit its semantic claims under boundary grant
 authority and issue receipts; then select it for a slot under that slot owner's
-capability. A target package supplies ordinary defaults, `build.omg` selects a
-default target profile, and explicit build/test/component configuration may
-override individual slots. Defaults are package data, not compiler magic.
+capability. A target package supplies ordinary provider-type defaults,
+`build.omg` selects a default target profile, and explicit
+build/test/component configuration may override individual slots. Defaults
+are package declarations/data, not compiler magic. Slot selection changes the
+selected provider; it does not reconstruct its rows.
+
+The satisfied requirement supplies the public contract and effect ceiling.
+The external realization's behavior is derived from the binding/provider
+contract and must refine that ceiling at validation/admission. A `via` machine
+does not repeat an authored `effects` row.
 
 ## Effects, authority, and trust
 
@@ -133,7 +183,10 @@ handoff. Those details stay in providers. Image/subsystem selection belongs in
 
 ## Still open
 
-- final `ProviderPlan` construction/selection grammar;
 - callback registration/revocation and long-lived foreign borrows;
 - dynamic-library loading/unloading under component versioning; and
 - target-specific launch/exit details not covered by existing calling plans.
+
+Exact `Build` library method names for choosing a target profile or overriding
+a provider slot remain ordinary library/API design and are tracked as
+engineering work, not an open language grammar question.
