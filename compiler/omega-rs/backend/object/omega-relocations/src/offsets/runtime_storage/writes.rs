@@ -47,16 +47,6 @@ pub(crate) fn runtime_frame_base_indexed_binary_left_operand_offset(
     )
 }
 
-pub(crate) fn runtime_machine_indexed_integer_runtime_frame_address_offset(
-    architecture: Architecture,
-    base_byte_offset: usize,
-) -> usize {
-    omega_instruction_selection::runtime_machine_indexed_integer_runtime_frame_address_offset(
-        architecture,
-        base_byte_offset,
-    )
-}
-
 #[cfg(test)]
 mod tests {
     use super::{

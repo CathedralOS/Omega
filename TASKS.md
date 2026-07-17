@@ -928,10 +928,20 @@ sealed progress profiles + grants, TPR4's remaining big half).
    discipline, zero fallbacks swallowed). Canary 864 + differential
    14 green post-retirement. SCOREBOARD: Copy* 18->1, integer 7->1,
    binary 6->1, TEXT 7->2 -- 38 retired onto 5 place survivors.
-   REMAINING Text: dead-shell sweep (x86 delegating string/buffer
-   encoders + selection dispatch wrappers + emission wrappers + width
-   fns + offset constants; plus the pre-noted shapes/copies.rs
-   orphans). Then the
+   TEXT RUNG 2d LANDED 2026-07-19: DEAD-SHELL SWEEP -- 22 x86
+   fns (7 delegating encoders + 7 width fns + 8 orphaned register
+   primitives), 8 selection wrappers (7 arch-dispatch encoders +
+   unsupported_x86_64_encoding), 7 selection width wrappers, 7
+   emission wrappers, 9 pre-noted shapes/copies.rs orphans, 2
+   residual relocation offset fns (string_descriptor_runtime_frame +
+   the integer machine-indexed frame wrapper) = 55 dead fns deleted.
+   KEPT: aarch64 retained encoders (the decompose path),
+   MACHINE_INDEXED_STRING_{FRAME,DATA}_IMM_OFFSET constants (the
+   widths.rs offset fns' x86 arms still reference them; those fns
+   serve the WritePlaceString/Binary aarch64 walker arms), the
+   FRAME_INDEXED rax prefix helper (the literal-append encoder).
+   TASK #130 CORE COMPLETE (7 -> 2 with echo + producers +
+   retirement + sweep). Then the
    bounded-buffer entry (immediate content bytes, single base reloc),
    then WritePlaceString/+Buffer variant + echo + producers +
    retirement. Then guards/operands consume Places, then the op-set

@@ -1047,23 +1047,6 @@ pub fn runtime_frame_indexed_binary_left_operand_offset(
     }
 }
 
-pub fn runtime_machine_string_write_width(architecture: Architecture, byte_length: usize) -> usize {
-    match architecture {
-        Architecture::Aarch64 => aarch64::runtime_machine_string_write_width(byte_length),
-        Architecture::X86_64 => x86_64::runtime_machine_string_write_width(byte_length),
-    }
-}
-
-pub fn runtime_machine_bounded_buffer_write_width(
-    architecture: Architecture,
-    literal: &str,
-) -> usize {
-    match architecture {
-        Architecture::Aarch64 => aarch64::runtime_machine_bounded_buffer_write_width(literal),
-        Architecture::X86_64 => x86_64::runtime_machine_bounded_buffer_write_width(literal),
-    }
-}
-
 pub fn runtime_machine_bounded_buffer_source_append_width(
     architecture: Architecture,
     target_byte_offset: usize,
@@ -1097,94 +1080,6 @@ pub fn runtime_machine_bounded_buffer_literal_append_width(
             let _ = target_byte_offset;
             x86_64::runtime_machine_bounded_buffer_literal_append_width(literal)
         }
-    }
-}
-
-pub fn runtime_frame_string_write_width(architecture: Architecture, byte_length: usize) -> usize {
-    match architecture {
-        Architecture::Aarch64 => aarch64::runtime_frame_string_write_width(byte_length),
-        Architecture::X86_64 => x86_64::runtime_frame_string_write_width(byte_length),
-    }
-}
-
-pub fn runtime_pointee_string_write_width(
-    architecture: Architecture,
-    pointer_byte_offset: usize,
-    field_byte_offset: usize,
-    byte_length: usize,
-) -> usize {
-    match architecture {
-        Architecture::Aarch64 => aarch64::runtime_pointee_string_write_width(
-            pointer_byte_offset,
-            field_byte_offset,
-            byte_length,
-        ),
-        Architecture::X86_64 => {
-            let _ = pointer_byte_offset;
-            x86_64::runtime_pointee_string_write_width(field_byte_offset, byte_length)
-        }
-    }
-}
-
-pub fn runtime_pointee_bounded_buffer_write_width(
-    architecture: Architecture,
-    pointer_byte_offset: usize,
-    field_byte_offset: usize,
-    literal: &str,
-) -> usize {
-    match architecture {
-        Architecture::Aarch64 => aarch64::runtime_pointee_bounded_buffer_write_width(
-            pointer_byte_offset,
-            field_byte_offset,
-            literal,
-        ),
-        Architecture::X86_64 => {
-            let _ = (pointer_byte_offset, field_byte_offset);
-            x86_64::runtime_pointee_bounded_buffer_write_width(literal)
-        }
-    }
-}
-
-pub fn runtime_frame_indexed_string_write_width(
-    architecture: Architecture,
-    element_byte_size: usize,
-    field_byte_offset: usize,
-    byte_length: usize,
-) -> usize {
-    match architecture {
-        Architecture::Aarch64 => aarch64::runtime_frame_indexed_string_write_width(
-            element_byte_size,
-            field_byte_offset,
-            byte_length,
-        ),
-        Architecture::X86_64 => x86_64::runtime_frame_indexed_string_write_width(
-            element_byte_size,
-            field_byte_offset,
-            byte_length,
-        ),
-    }
-}
-
-pub fn runtime_machine_indexed_string_write_width(
-    architecture: Architecture,
-    base_byte_offset: usize,
-    element_byte_size: usize,
-    field_byte_offset: usize,
-    byte_length: usize,
-) -> usize {
-    match architecture {
-        Architecture::Aarch64 => aarch64::runtime_machine_indexed_string_write_width(
-            base_byte_offset,
-            element_byte_size,
-            field_byte_offset,
-            byte_length,
-        ),
-        Architecture::X86_64 => x86_64::runtime_machine_indexed_string_write_width(
-            base_byte_offset,
-            element_byte_size,
-            field_byte_offset,
-            byte_length,
-        ),
     }
 }
 

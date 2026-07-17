@@ -3,7 +3,6 @@ use super::runtime_values::collect_runtime_value_operand_relocations;
 use crate::offsets::{
     runtime_frame_base_indexed_binary_left_operand_offset,
     runtime_frame_indexed_binary_left_operand_offset,
-    runtime_machine_indexed_integer_runtime_frame_address_offset,
     runtime_pointee_binary_left_operand_offset, runtime_storage_binary_left_operand_offset,
 };
 use omega_target::Architecture;

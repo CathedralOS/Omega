@@ -4,7 +4,6 @@ use super::super::offsets::{
     runtime_machine_indexed_string_data_address_offset,
     runtime_machine_indexed_string_runtime_frame_address_offset,
     string_descriptor_machine_address_offset, string_descriptor_pointee_address_offset,
-    string_descriptor_runtime_frame_address_offset,
 };
 use super::context::InstructionRelocationContext;
 use omega_target::Architecture;
