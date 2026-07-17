@@ -4513,8 +4513,16 @@ with a real app-window story.
   member, and a `Block` provider for a `Suspend`-only slot. Snapshot stable
   normalized row/contract IDs across a prover-strength change; demonstrate the
   legacy bitset is derived output, not input to admission.
-- **Core multiplicity slice (decision 21):** add the first `[linear]`
-  acknowledgement token. Terminal consumption needs no annotation: an ordinary
+- **Core multiplicity slice (decision 21):** **CML1 LANDED 2026-07-17:**
+  `[linear]` is now a real closed-set type property on data declarations and
+  type-parameter bounds. The syntax tree carries first-class `Multiplicity`
+  directly (Affine default, `[copy]` -> Unrestricted, `[linear]` -> Linear),
+  lowering copies it through resolved/typed trees, and the legacy `copy` bool
+  is derived only as a compatibility projection. `[copy, linear]` rejects
+  loudly; parser + end-to-end typed-lowering tests and pass/fail ownership
+  canaries pin the representation. **CML2 next:** add the place-keyed
+  permission checker and the first `[linear]` acknowledgement token. Terminal
+  consumption needs no annotation: an ordinary
   `move self` call consumes when no returned outcome carries the obligation,
   while a `try_*` incomplete outcome must return the live token. Pin create ->
   multi-binding transfer -> consume as one obligation; reject scope loss,

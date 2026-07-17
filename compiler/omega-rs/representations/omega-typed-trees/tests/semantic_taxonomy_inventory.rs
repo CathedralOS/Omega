@@ -126,7 +126,7 @@ fn termination_plan_witness_swap_is_contract_invisible() {
 /// LOSS 3 -- RE-PINNED (STR3 first slice, 2026-07-16): `DataProperties`
 /// now carries the first-class `Multiplicity` populated at the
 /// syntax->resolved lowering (`[copy]` -> Unrestricted, ordinary data ->
-/// Affine; `[linear]` has no spelling yet) and COPIED (never re-derived)
+/// Affine; `[linear]` maps to Linear) and COPIED (never re-derived)
 /// through resolved->typed. The named distinction survived: one explicit
 /// multiplicity per type, `zero_init`/`send` orthogonal. `copy` remains
 /// the compatibility bool until STR7 retires it; the retirement updates

@@ -108,6 +108,7 @@ fn parse_property_brackets<'tokens, 'source>(
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, DataProperties> {
     let mut properties = DataProperties::default();
+    let mut declared_multiplicity: Option<&'static str> = None;
     if !input.at_punctuation(PunctuationKind::LeftBracket) {
         return Ok((properties, input));
     }
@@ -116,7 +117,37 @@ fn parse_property_brackets<'tokens, 'source>(
     loop {
         let (name, next) = input.take_identifier()?;
         let flag = match name.as_str() {
-            "copy" => &mut properties.copy,
+            "copy" | "linear" => {
+                let spelling = if name.as_str() == "copy" {
+                    "copy"
+                } else {
+                    "linear"
+                };
+                if let Some(previous) = declared_multiplicity {
+                    let message = if previous == spelling {
+                        format!("duplicate type property `{spelling}`")
+                    } else {
+                        format!(
+                            "type properties `[copy]` and `[linear]` are mutually exclusive; \
+                             `{previous}` was already declared"
+                        )
+                    };
+                    return Err(next.error_here(message));
+                }
+                declared_multiplicity = Some(spelling);
+                properties.multiplicity = if spelling == "copy" {
+                    omega_core::semantics::Multiplicity::Unrestricted
+                } else {
+                    omega_core::semantics::Multiplicity::Linear
+                };
+                input = next;
+
+                if input.at_punctuation(PunctuationKind::Comma) {
+                    input = input.take_punctuation(PunctuationKind::Comma, ",")?;
+                    continue;
+                }
+                break;
+            }
             "zero_init" => &mut properties.zero_init,
             "send" => &mut properties.send,
             "sized" => {
@@ -126,7 +157,7 @@ fn parse_property_brackets<'tokens, 'source>(
             }
             other => {
                 return Err(next.error_here(format!(
-                    "unknown type property `{other}`; declared properties are `copy`, `zero_init`, `send`"
+                    "unknown type property `{other}`; declared properties are `copy`, `linear`, `zero_init`, `send`"
                 )));
             }
         };

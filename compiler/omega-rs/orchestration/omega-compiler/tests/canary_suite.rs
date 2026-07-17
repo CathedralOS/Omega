@@ -31536,6 +31536,7 @@ fn executable_name() -> &'static str {
 }
 
 const ACTIVE_PASS_CANARIES: &[&str] = &[
+    "ownership/linear_property_surface",
     "arithmetic/bare_name_scopes",
     "arithmetic/shift_amount_over_width_compiles",
     "arithmetic/const_fold_overflow_compiles",
@@ -32322,6 +32323,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
 ];
 
 const ACTIVE_FAIL_CANARIES: &[&str] = &[
+    "ownership/copy_linear_conflict",
     "time/duration_subsecond_range_rejected",
     "constants/const_non_literal_initializer",
     "constants/const_free_floating_rejected",

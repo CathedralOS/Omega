@@ -1,0 +1,14 @@
+// PASS canary (decision 21, multiplicity rung 1): `[linear]` is a real
+// declaration/type-parameter property and survives into the typed program.
+// Obligation enforcement lands in the following checker rung.
+data Receipt [linear] {}
+
+data Envelope<T [linear]> [linear] {
+    value: T;
+}
+
+data Main {}
+
+machine Main::run() -> i32 {
+    0
+}
