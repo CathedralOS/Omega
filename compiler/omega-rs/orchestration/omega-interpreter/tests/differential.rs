@@ -614,7 +614,6 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("expressions/runtime_f32_arithmetic_exit", 70),
     ("expressions/runtime_f32_local_arithmetic_exit", 70),
     ("expressions/runtime_f64_state_arg_exit", 70),
-    ("expressions/runtime_field_default_exit", 70),
     ("expressions/runtime_fixed_array_field_guard_exit", 70),
     ("expressions/runtime_fixed_array_field_value_exit", 70),
     ("expressions/runtime_float_arithmetic_exit", 70),
@@ -1994,7 +1993,6 @@ enum PendingInterpOutcome {
 /// omega-run sweep. Entries mirror canaries/pending/*/ headers -- update BOTH
 /// when a divergence's documented behavior changes.
 const PENDING_RUNTIME_DIVERGENCES: &[(&str, i32, PendingInterpOutcome)] = &[
-    ("arithmetic/array_field_default_silent", 0, PendingInterpOutcome::Exit(1)),
     ("calls/texteq_local_guard_read_divergence", 71, PendingInterpOutcome::Exit(70)),
     ("calls/texteq_local_arg_forward_divergence", 71, PendingInterpOutcome::Exit(70)),
     ("calls/trailing_state_mut_param_phase_divergence", 71, PendingInterpOutcome::Exit(70)),

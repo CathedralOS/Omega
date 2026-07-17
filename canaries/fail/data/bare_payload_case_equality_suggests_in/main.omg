@@ -10,7 +10,7 @@ data Command {
 
 data Main {
     cmd: Command;
-    hit: bool = false;
+    hit: bool;
 }
 
 machine Main::main(&mut self) {

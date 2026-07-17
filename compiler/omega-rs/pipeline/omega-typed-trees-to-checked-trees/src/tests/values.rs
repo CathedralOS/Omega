@@ -120,60 +120,6 @@ fn materializes_checked_value_facts_for_machine_decreases() {
     );
 }
 
-#[test]
-fn materializes_checked_value_facts_for_machine_owned_initializers() {
-    let source = r#"
-        data Main {
-            left: i32 = 1;
-            right: String = "omega";
-        }
-
-        machine Main::main(&mut self) {
-        }
-    "#;
-
-    let typed = typed_trees(source);
-    let values = build_value_facts(&typed);
-    let main = typed
-        .machines()
-        .iter()
-        .find(|machine| machine.name.as_str() == "Main::main")
-        .expect("main machine");
-    let attached_data = main.attached_data.as_ref().expect("attached data");
-    let data = typed
-        .data_definitions()
-        .iter()
-        .find(|definition| definition.name == *attached_data)
-        .expect("attached data definition");
-    let initialized_fields = typed
-        .data_members(data)
-        .iter()
-        .filter(|member| {
-            let omega_typed_trees::data::DataMember::Field(field) = member else {
-                return false;
-            };
-            field.initial_value.is_valid()
-        })
-        .count();
-
-    let initializer_values = values
-        .values
-        .iter()
-        .filter(|(_, value)| {
-            matches!(
-                value.origin,
-                omega_checked_trees::CheckedValueOrigin::MachineOwnedDataInitializer {
-                    machine_symbol,
-                    ..
-                } if machine_symbol == main.symbol
-            )
-        })
-        .count();
-
-    assert_eq!(initializer_values, initialized_fields);
-    assert_eq!(initializer_values, 2);
-}
-
 fn typed_trees(source: &str) -> omega_typed_trees::TypedTrees {
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");

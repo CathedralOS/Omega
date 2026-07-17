@@ -49,7 +49,7 @@ data Main {
     line: String;
     parser: Parser;
     navigation: Navigation;
-    health: i32 = 10;
+    health: i32;
 }
 
 machine Main::main(&mut self) {
