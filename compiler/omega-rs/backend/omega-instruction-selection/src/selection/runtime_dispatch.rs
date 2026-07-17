@@ -637,6 +637,58 @@ pub(crate) fn write_place_string_machine_indexed(
     }
 }
 
+/// Task #132: the text-crossing constructors (the nine retired
+/// Materialize/AppendStored/AppendLiteral spellings as places).
+pub(crate) fn text_place_direct(
+    region: RuntimeStorageRegion,
+    byte_offset: usize,
+) -> omega_abstract_operations::Place {
+    omega_abstract_operations::Place::at(region, byte_offset)
+}
+
+pub(crate) fn text_place_pointee(
+    pointer_byte_offset: usize,
+    field_byte_offset: usize,
+) -> omega_abstract_operations::Place {
+    omega_abstract_operations::Place::at(
+        RuntimeStorageRegion::RuntimeFrame,
+        pointer_byte_offset,
+    )
+    .with_step(omega_abstract_operations::PlaceStep::Deref)
+    .and_then(|place| {
+        place.with_step(omega_abstract_operations::PlaceStep::ConstOffset(
+            field_byte_offset,
+        ))
+    })
+    .expect("a pointee place is three steps, within PLACE_MAX_STEPS")
+}
+
+pub(crate) fn text_place_frame_indexed(
+    descriptor_offset: usize,
+    index_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+) -> omega_abstract_operations::Place {
+    omega_abstract_operations::Place::at(
+        RuntimeStorageRegion::RuntimeFrame,
+        descriptor_offset,
+    )
+    .with_step(omega_abstract_operations::PlaceStep::Deref)
+    .and_then(|place| {
+        place.with_step(omega_abstract_operations::PlaceStep::ScaledIndex {
+            index_region: RuntimeStorageRegion::RuntimeFrame,
+            index_offset,
+            element_byte_size,
+        })
+    })
+    .and_then(|place| {
+        place.with_step(omega_abstract_operations::PlaceStep::ConstOffset(
+            field_byte_offset,
+        ))
+    })
+    .expect("a frame-indexed place is four steps, within PLACE_MAX_STEPS")
+}
+
 /// Task #131 (guards consume Places): the direct-place compare
 /// constructors (the retired storage-compare spellings as places).
 pub(crate) fn compare_places_direct(
