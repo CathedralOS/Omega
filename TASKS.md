@@ -4108,8 +4108,14 @@ with a real app-window story.
   frozen SymbolTable can append a compiler-generated root plus one contiguous
   child batch without moving authored handles; generated machine/state/local
   identities no longer need fake or reused symbols. The API deliberately
-  refuses late children on authored parents. Next: deep-clone one template's
-  owned spans with fresh generated symbols, then group/rewrite calls per tuple.
+  refuses late children on authored parents. **MP4b rung 2 LANDED
+  2026-07-17:** typed statement spans now have a real deep-copy primitive that
+  independently owns nested expressions, type references/constraints,
+  call/name payloads, and transition targets while deliberately preserving
+  symbols for the caller's lexical remap; the previous copier cloned only the
+  outer records and left cross-graph handles behind. Next: compose this with
+  fresh generated machine/state/parameter/local symbols to clone one complete
+  template, then group/rewrite calls per tuple.
   MP5 records accepted-template
   grants once plus argument contract IDs per instance; MP6 land `Seq`
   map/filter, N5/N6 schema-axiom, task-runtime, and build-surface canaries. No
