@@ -20127,6 +20127,33 @@ fn runtime_core_nat_declared_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_core_rat_declared_exit_canary_runs() {
+    // N4 Rat rung: the canonical-representative Rat carrier loads through
+    // the bundled core; proof-only data over Nat never touches runtime.
+    let canary = pass_canary("proofs/runtime_core_rat_declared_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-core-rat-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("core Rat canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("core Rat canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the core-Rat-using program to run untouched (exit 70), got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_free_const_exit_canary_runs() {
     // M2 blocker 4: free-floating consts substitute behind the shadowing
     // walk.
@@ -31851,6 +31878,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "calls/guarded_value_call_arm_exit",
     "constants/runtime_free_const_exit",
     "proofs/runtime_core_nat_declared_exit",
+    "proofs/runtime_core_rat_declared_exit",
     "proofs/runtime_nat_structural_recursion_exit",
     "proofs/runtime_core_roster_ops_exit",
     "build/runtime_depend_mapping_exit",

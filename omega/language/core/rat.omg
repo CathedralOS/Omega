@@ -1,0 +1,62 @@
+// Core Rat -- the CANONICAL-REPRESENTATIVE construction (N4 Rat rung,
+// spelling settled in the roster): a rational is a reduced fraction of
+// Nats. The carrier itself does not enforce reducedness by type (that is
+// the quotient former's job when N6 lands); the DISCIPLINE lives in the
+// constructor: mk_rat divides both components by their gcd, so every value
+// built through it carries gcd(num, den) == 1 by construction. `den` is
+// kept positive by the same constructor contract (a zero denominator has
+// no canonical representative; callers prove positivity exactly as mod's
+// and div's divisor premises demand).
+//
+// Equality between fractions is CROSS-MULTIPLICATION (rat_eq), the same
+// difference-pair move IntPair uses for its sums: p.num * q.den ==
+// q.num * p.den needs no division and no quotient former.
+//
+// Proof-only: Rat rides Nat, so the runtime-consumption fence and the
+// layout skip apply exactly as they do for Nat and IntPair.
+
+use omega::language::core::nat;
+
+data Rat {
+    num: Nat;
+    den: Nat;
+}
+
+// The canonical constructor: reduce by the gcd. Positivity of `d` is the
+// caller's obligation (the same 1 <= d premise mod and div carry); the
+// gcd of a positive denominator is positive, which callers of div get
+// for free here because gcd(n, d) divides d... the DIVISIBILITY theory
+// (gcd_pos, gcd_dvd_left/right, div_mul_cancel) is the remaining ladder
+// above this carrier -- mk_rat's own positivity premise on the gcd keeps
+// the constructor honest until that theory lands.
+machine mk_rat(n: Nat, d: Nat, g: Nat) -> Rat
+requires
+    (gcd(n, d)) == (g);
+    (sub(Nat::Succ { prev: Nat::Zero }, g)) == Nat::Zero
+{
+    transition {
+        _ -> build(n, d, g)
+    }
+
+    state build(n: Nat, d: Nat, g: Nat) -> Rat {
+        let rn: Nat = div(n, g);
+        let rd: Nat = div(d, g);
+        transition { _ -> Rat { num: rn, den: rd } }
+    }
+}
+
+// Cross-multiplication equality: no division, no quotient former.
+machine rat_eq(p: Rat, q: Rat) -> Nat
+{
+    transition (sub((mul(p.num, q.den)), (mul(q.num, p.den)))) {
+        Nat::Zero -> check_other(p, q)
+        Nat::Succ { prev as w } -> Nat::Succ { prev: Nat::Zero }
+    }
+
+    state check_other(p: Rat, q: Rat) -> Nat {
+        transition (sub((mul(q.num, p.den)), (mul(p.num, q.den)))) {
+            Nat::Zero -> Nat::Zero
+            Nat::Succ { prev as w } -> Nat::Succ { prev: Nat::Zero }
+        }
+    }
+}

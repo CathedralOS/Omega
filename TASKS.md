@@ -2756,10 +2756,23 @@ no `unbounded` property exists. Rungs:
   the obligation. le_one_succ + gcd (Euclid) landed in core nat.omg
   -- zoo at 26 Nat machines. FALSE TWIN:
   computed_edge_positivity_missing (gcd without le_one_succ
-  refuses). Traces behind OMEGA_EDGE_TRACE. REMAINING (6): rat.omg
-  -- the canonical-representative carrier (reduced fractions,
-  gcd == 1), consuming gcd; needs the Rat data + normalization
-  machine + the where-fact spelling; task #134's rung-2 design. `sub_zero_left` landed as the monus
+  refuses). Traces behind OMEGA_EDGE_TRACE. RAT CARRIER LANDED
+  2026-07-20 -- THE LADDER RUNG IS COMPLETE: div (mod's twin, same
+  computed-subject strict edge) + omega/language/core/rat.omg -- the
+  canonical-representative Rat (num/den Nats; mk_rat reduces by the
+  cited gcd with the positivity premise; rat_eq is
+  cross-multiplication, no division and no quotient former).
+  Reducedness-by-type waits on the N6 quotient former; the
+  DIVISIBILITY THEORY (gcd_pos, gcd_dvd_left/right, div_mul_cancel
+  -- what would discharge mk_rat's gcd-positivity internally and
+  prove mk_rat idempotent) is the next N4 extension above the
+  carrier, demand-gated. Pinned:
+  pass/proofs/runtime_core_rat_declared_exit (dual-engine). Zoo: 27
+  Nat machines + the Rat carrier. TASK COMPLETE -- the full arc:
+  monus development -> order-as-monus + strict evidence (3 judge
+  extensions) -> computed-subject termination (syntactic + judged
+  routes) -> mod with result < divisor -> Euclid's gcd -> div ->
+  the Rat carrier. `sub_zero_left` landed as the monus
   surface's completion (5 lemmas, zoo at 13 Nat). Task #134 rung 1 COMPLETE;
   the rat.omg carrier waits only on this engineering rung.
 - **N5 — `boundary data` + the Real axiom package:** opaque carrier;
