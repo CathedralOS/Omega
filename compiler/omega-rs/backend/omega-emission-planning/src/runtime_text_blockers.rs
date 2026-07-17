@@ -124,13 +124,7 @@ fn state_value_has_planned_storage_write(
                         | SelectedInstructionKind::AtomicCompareExchange { .. }
                         | SelectedInstructionKind::WritePlaceInteger { .. }
                         | SelectedInstructionKind::WritePlaceBinary { .. }
-                        | SelectedInstructionKind::WriteRuntimeStorageBinary { .. }
                         | SelectedInstructionKind::WriteRuntimeStorageConvert { .. }
-                        | SelectedInstructionKind::WriteRuntimePointeeBinary { .. }
-                        | SelectedInstructionKind::WriteRuntimeFrameIndexedBinary { .. }
-                        | SelectedInstructionKind::WriteRuntimeFrameBaseIndexedBinary { .. }
-                        | SelectedInstructionKind::WriteRuntimeMachineIndexedBinary { .. }
-                        | SelectedInstructionKind::WriteRuntimeMachineDoubleIndexedBinary { .. }
                         | SelectedInstructionKind::WriteRuntimeMachineString { .. }
                         | SelectedInstructionKind::WriteRuntimeMachineBoundedBuffer { .. }
                         | SelectedInstructionKind::WriteRuntimeFrameString { .. }

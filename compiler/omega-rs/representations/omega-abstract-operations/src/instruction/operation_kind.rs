@@ -391,28 +391,6 @@ pub enum AbstractOperationKind {
         expected: AbstractValueOperandHandle,
         new_value: AbstractValueOperandHandle,
     },
-    WriteRuntimeStorageBinary {
-        target_region: RuntimeStorageRegion,
-        target_offset: usize,
-        byte_size: usize,
-        left: AbstractValueOperandHandle,
-        operator: StateGuardOperator,
-        right: AbstractValueOperandHandle,
-        /// When set, the operands carry IEEE-754 bit patterns and the operation
-        /// is performed on the SSE/XMM unit (`movq`+`addsd`/...) instead of the
-        /// integer ALU.
-        is_float: bool,
-        /// Arithmetic domain of the WRITE's target type (`T in <Domain>`), frozen
-        /// decision 17. `Exact`/`Wrapping` use the plain width-correct op (x86
-        /// add/sub/mul already wrap modulo 2^width); `Saturating` clamps to the
-        /// target min/max on overflow; `Trapping` aborts on overflow. Set from
-        /// the target's declared type at selection.
-        domain: omega_core::arithmetic::ArithmeticDomain,
-        /// Whether the target integer type is signed. Selects OF (signed) vs CF
-        /// (unsigned) overflow detection and the saturating clamp bounds.
-        /// Irrelevant for `Exact`/`Wrapping`.
-        target_signed: bool,
-    },
     /// A numeric `as` cast: load `source` into a register, convert it between
     /// integer and floating-point representations (`cvttsd2si`/`cvtsi2sd`/
     /// `cvtsd2ss`/`cvtss2sd`, or a sized integer move), then store the result.
@@ -432,67 +410,6 @@ pub enum AbstractOperationKind {
         /// False for every other cast (Saturating float->int rides the
         /// conversion instruction's native clamp; Exact is proven in range).
         trapping: bool,
-    },
-    WriteRuntimePointeeBinary {
-        pointer_byte_offset: usize,
-        field_byte_offset: usize,
-        byte_size: usize,
-        left: AbstractValueOperandHandle,
-        operator: StateGuardOperator,
-        right: AbstractValueOperandHandle,
-    },
-    WriteRuntimeFrameIndexedBinary {
-        descriptor_offset: usize,
-        index_offset: usize,
-        element_byte_size: usize,
-        field_byte_offset: usize,
-        byte_size: usize,
-        left: AbstractValueOperandHandle,
-        operator: StateGuardOperator,
-        right: AbstractValueOperandHandle,
-    },
-    WriteRuntimeFrameBaseIndexedBinary {
-        base_byte_offset: usize,
-        index_offset: usize,
-        element_byte_size: usize,
-        field_byte_offset: usize,
-        byte_size: usize,
-        left: AbstractValueOperandHandle,
-        operator: StateGuardOperator,
-        right: AbstractValueOperandHandle,
-    },
-    /// Write a computed binary value into a MACHINE-owned runtime-indexed array
-    /// element (`self.arr[self.i] = a OP b`). The machine-region sibling of
-    /// `WriteRuntimeFrameBaseIndexedBinary`: the base relocates against the
-    /// machine-storage symbol (not the frame), and `index_region` names where the
-    /// index operand lives (mirrors `WriteRuntimeMachineIndexedInteger`).
-    WriteRuntimeMachineIndexedBinary {
-        base_byte_offset: usize,
-        index_region: RuntimeStorageRegion,
-        index_offset: usize,
-        element_byte_size: usize,
-        field_byte_offset: usize,
-        byte_size: usize,
-        left: AbstractValueOperandHandle,
-        operator: StateGuardOperator,
-        right: AbstractValueOperandHandle,
-    },
-    /// Binary value into a BOTH-RUNTIME nested target (`grid[i][j] = a OP b`,
-    /// the direct-RMW face after the assignment-value hoist slots the read):
-    /// the double-indexed sibling of `WriteRuntimeMachineIndexedBinary`.
-    WriteRuntimeMachineDoubleIndexedBinary {
-        base_byte_offset: usize,
-        outer_index_offset: usize,
-        outer_index_region: RuntimeStorageRegion,
-        outer_stride: usize,
-        inner_index_offset: usize,
-        inner_index_region: RuntimeStorageRegion,
-        inner_stride: usize,
-        field_byte_offset: usize,
-        byte_size: usize,
-        left: AbstractValueOperandHandle,
-        operator: StateGuardOperator,
-        right: AbstractValueOperandHandle,
     },
     WriteRuntimeMachineString {
         byte_offset: usize,

@@ -352,8 +352,7 @@ fn select_runtime_branch_prelude_local_initializer_write(
         // `cells[index]` through the prelude-bound descriptor) and plain
         // copies have no splice equivalent here, and none of them trap.
         let splice_covered_plain_write = match kind {
-            SelectedInstructionKind::WriteRuntimeStorageBinary { .. }
-            | SelectedInstructionKind::WriteRuntimeStorageConvert { .. } => true,
+            SelectedInstructionKind::WriteRuntimeStorageConvert { .. } => true,
             // Write rung 2b: the plain integer write rides WritePlaceInteger
             // now; only the DIRECT place shape is the splice-covered plain
             // write (deref/indexed shapes have no splice equivalent here).
