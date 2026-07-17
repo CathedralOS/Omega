@@ -357,15 +357,8 @@ fn state_mutation_is_planned(
                     | SelectedInstructionKind::WritePlaceString { .. }
                     | SelectedInstructionKind::WritePlaceBoundedBuffer { .. }
                     | SelectedInstructionKind::WriteRuntimeStorageConvert { .. }
-                    | SelectedInstructionKind::WriteRuntimeMachineString { .. }
-                    | SelectedInstructionKind::WriteRuntimeMachineBoundedBuffer { .. }
                     | SelectedInstructionKind::AppendRuntimeMachineBoundedBufferSource { .. }
                     | SelectedInstructionKind::AppendRuntimeMachineBoundedBufferLiteral { .. }
-                    | SelectedInstructionKind::WriteRuntimeFrameString { .. }
-                    | SelectedInstructionKind::WriteRuntimePointeeString { .. }
-                    | SelectedInstructionKind::WriteRuntimePointeeBoundedBuffer { .. }
-                    | SelectedInstructionKind::WriteRuntimeFrameIndexedString { .. }
-                    | SelectedInstructionKind::WriteRuntimeMachineIndexedString { .. }
                     | SelectedInstructionKind::WriteRuntimeStorageAddressToRuntimeFrame { .. }
                     | SelectedInstructionKind::WriteRuntimePointeeAddressToRuntimeFrame { .. }
                     | SelectedInstructionKind::WriteRuntimeFrameIndexedAddressToRuntimeFrame { .. }

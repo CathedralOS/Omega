@@ -317,20 +317,6 @@ pub enum TargetOperationKind {
         expected: TargetValueOperandHandle,
         new_value: TargetValueOperandHandle,
     },
-    WriteRuntimeMachineString {
-        byte_offset: usize,
-        data: TargetDataObjectHandle,
-        byte_length: usize,
-    },
-    /// Owned `[u8; N]` bounded byte carrier write (`{len, bytes}` inline): store
-    /// `len` then copy the literal's bytes inline. See the abstract-operations
-    /// twin for the rationale (the carrier OWNS its bytes vs the String descriptor
-    /// that aliases rodata).
-    WriteRuntimeMachineBoundedBuffer {
-        byte_offset: usize,
-        literal: std::sync::Arc<str>,
-        target_in_frame: bool,
-    },
     /// Append a source carrier's content onto a target carrier (concat builder
     /// source segment). See the abstract-operations twin.
     AppendRuntimeMachineBoundedBufferSource {
@@ -344,40 +330,6 @@ pub enum TargetOperationKind {
     AppendRuntimeMachineBoundedBufferLiteral {
         target_byte_offset: usize,
         literal: std::sync::Arc<str>,
-    },
-    WriteRuntimeFrameString {
-        byte_offset: usize,
-        data: TargetDataObjectHandle,
-        byte_length: usize,
-    },
-    WriteRuntimePointeeString {
-        pointer_byte_offset: usize,
-        field_byte_offset: usize,
-        data: TargetDataObjectHandle,
-        byte_length: usize,
-    },
-    /// Write a string LITERAL into an owned `[u8; N]` carrier reached THROUGH a
-    /// stored pointer (a slice element's carrier field). See the abstract twin.
-    WriteRuntimePointeeBoundedBuffer {
-        pointer_byte_offset: usize,
-        field_byte_offset: usize,
-        literal: std::sync::Arc<str>,
-    },
-    WriteRuntimeFrameIndexedString {
-        descriptor_offset: usize,
-        index_offset: usize,
-        element_byte_size: usize,
-        field_byte_offset: usize,
-        data: TargetDataObjectHandle,
-        byte_length: usize,
-    },
-    WriteRuntimeMachineIndexedString {
-        base_byte_offset: usize,
-        index_offset: usize,
-        element_byte_size: usize,
-        field_byte_offset: usize,
-        data: TargetDataObjectHandle,
-        byte_length: usize,
     },
     WriteRuntimeStorageAddressToRuntimeFrame {
         source_region: RuntimeStorageRegion,

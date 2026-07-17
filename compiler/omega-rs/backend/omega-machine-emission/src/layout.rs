@@ -545,12 +545,6 @@ fn machine_instruction_width(
             *byte_size,
             *zigzag,
         ),
-        SelectedInstructionKind::WriteRuntimeMachineString { byte_length, .. } => {
-            runtime_machine_string_write_width(input.target.architecture, *byte_length)
-        }
-        SelectedInstructionKind::WriteRuntimeMachineBoundedBuffer { literal, .. } => {
-            runtime_machine_bounded_buffer_write_width(input.target.architecture, literal)
-        }
         SelectedInstructionKind::AppendRuntimeMachineBoundedBufferSource {
             target_byte_offset,
             source_byte_offset,
@@ -568,54 +562,6 @@ fn machine_instruction_width(
             input.target.architecture,
             *target_byte_offset,
             literal,
-        ),
-        SelectedInstructionKind::WriteRuntimeFrameString { byte_length, .. } => {
-            runtime_frame_string_write_width(input.target.architecture, *byte_length)
-        }
-        SelectedInstructionKind::WriteRuntimePointeeString {
-            pointer_byte_offset,
-            field_byte_offset,
-            byte_length,
-            ..
-        } => runtime_pointee_string_write_width(
-            input.target.architecture,
-            *pointer_byte_offset,
-            *field_byte_offset,
-            *byte_length,
-        ),
-        SelectedInstructionKind::WriteRuntimePointeeBoundedBuffer {
-            pointer_byte_offset,
-            field_byte_offset,
-            literal,
-        } => runtime_pointee_bounded_buffer_write_width(
-            input.target.architecture,
-            *pointer_byte_offset,
-            *field_byte_offset,
-            literal,
-        ),
-        SelectedInstructionKind::WriteRuntimeFrameIndexedString {
-            element_byte_size,
-            field_byte_offset,
-            byte_length,
-            ..
-        } => runtime_frame_indexed_string_write_width(
-            input.target.architecture,
-            *element_byte_size,
-            *field_byte_offset,
-            *byte_length,
-        ),
-        SelectedInstructionKind::WriteRuntimeMachineIndexedString {
-            base_byte_offset,
-            element_byte_size,
-            field_byte_offset,
-            byte_length,
-            ..
-        } => omega_instruction_selection::runtime_machine_indexed_string_write_width(
-            input.target.architecture,
-            *base_byte_offset,
-            *element_byte_size,
-            *field_byte_offset,
-            *byte_length,
         ),
         SelectedInstructionKind::WriteRuntimeStorageAddressToRuntimeFrame {
             source_offset,

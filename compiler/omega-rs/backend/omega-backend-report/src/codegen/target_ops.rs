@@ -583,27 +583,6 @@ fn selected_instruction_name(
                 runtime_value_operand_name(backend_plan, *source),
             )
         }
-        SelectedInstructionKind::WriteRuntimeMachineString {
-            byte_offset,
-            data,
-            byte_length,
-        } => {
-            let data_symbol = backend_plan.data.objects.get(*data).symbol.as_ref();
-            format!(
-                "write runtime machine string offset {byte_offset} data `{data_symbol}` len {byte_length}"
-            )
-        }
-        SelectedInstructionKind::WriteRuntimeMachineBoundedBuffer {
-            byte_offset,
-            literal,
-            target_in_frame,
-        } => {
-            let region = if *target_in_frame { "frame" } else { "machine" };
-            format!(
-                "write runtime {region} bounded buffer offset {byte_offset} literal {literal:?} len {}",
-                literal.len()
-            )
-        }
         SelectedInstructionKind::AppendRuntimeMachineBoundedBufferSource {
             target_byte_offset,
             source_byte_offset,
@@ -620,60 +599,6 @@ fn selected_instruction_name(
         } => format!(
             "append runtime machine bounded buffer literal target@{target_byte_offset} {literal:?}"
         ),
-        SelectedInstructionKind::WriteRuntimeFrameString {
-            byte_offset,
-            data,
-            byte_length,
-        } => {
-            let data_symbol = backend_plan.data.objects.get(*data).symbol.as_ref();
-            format!(
-                "write runtime-frame string offset {byte_offset} data `{data_symbol}` len {byte_length}"
-            )
-        }
-        SelectedInstructionKind::WriteRuntimePointeeString {
-            pointer_byte_offset,
-            field_byte_offset,
-            data,
-            byte_length,
-        } => {
-            let data_symbol = backend_plan.data.objects.get(*data).symbol.as_ref();
-            format!(
-                "write runtime pointee string runtime_frame@{pointer_byte_offset} +{field_byte_offset} data `{data_symbol}` len {byte_length}"
-            )
-        }
-        SelectedInstructionKind::WriteRuntimePointeeBoundedBuffer {
-            pointer_byte_offset,
-            field_byte_offset,
-            literal,
-        } => format!(
-            "write runtime pointee bounded buffer runtime_frame@{pointer_byte_offset} +{field_byte_offset} {literal:?}"
-        ),
-        SelectedInstructionKind::WriteRuntimeFrameIndexedString {
-            descriptor_offset,
-            index_offset,
-            element_byte_size,
-            field_byte_offset,
-            data,
-            byte_length,
-        } => {
-            let data_symbol = backend_plan.data.objects.get(*data).symbol.as_ref();
-            format!(
-                "write runtime-frame indexed string descriptor@{descriptor_offset} index@{index_offset} elem {element_byte_size} field +{field_byte_offset} data `{data_symbol}` len {byte_length}"
-            )
-        }
-        SelectedInstructionKind::WriteRuntimeMachineIndexedString {
-            base_byte_offset,
-            index_offset,
-            element_byte_size,
-            field_byte_offset,
-            data,
-            byte_length,
-        } => {
-            let data_symbol = backend_plan.data.objects.get(*data).symbol.as_ref();
-            format!(
-                "write runtime-machine indexed string machine@{base_byte_offset} index@{index_offset} elem {element_byte_size} field +{field_byte_offset} data `{data_symbol}` len {byte_length}"
-            )
-        }
         SelectedInstructionKind::WriteRuntimeStorageAddressToRuntimeFrame {
             source_region,
             source_offset,

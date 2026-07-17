@@ -920,8 +920,18 @@ sealed progress profiles + grants, TPR4's remaining big half).
    branches/mutation); the retired target_in_frame flag became the
    place region at the two buffer sites. Zero retired-kind producers
    remain -- canary 864 exercises the new variants + walker arms live
-   on this host. REMAINING Text: retirement of the seven variants +
-   echo shells + dead x86 delegating encoders/offset fns. Then the
+   on this host. TEXT RUNG 2c LANDED 2026-07-19: RETIREMENT -- the seven
+   variants (5 Write*String + 2 *BoundedBuffer writes; the 2 Append*
+   RMW variants STAY) deleted from both enums + conversions +
+   classifications + report + walker + emission encode/layout arms +
+   blocker rows + shapes arms (brace-balanced/next-arm-anchor
+   discipline, zero fallbacks swallowed). Canary 864 + differential
+   14 green post-retirement. SCOREBOARD: Copy* 18->1, integer 7->1,
+   binary 6->1, TEXT 7->2 -- 38 retired onto 5 place survivors.
+   REMAINING Text: dead-shell sweep (x86 delegating string/buffer
+   encoders + selection dispatch wrappers + emission wrappers + width
+   fns + offset constants; plus the pre-noted shapes/copies.rs
+   orphans). Then the
    bounded-buffer entry (immediate content bytes, single base reloc),
    then WritePlaceString/+Buffer variant + echo + producers +
    retirement. Then guards/operands consume Places, then the op-set

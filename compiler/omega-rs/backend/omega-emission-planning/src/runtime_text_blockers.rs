@@ -127,13 +127,6 @@ fn state_value_has_planned_storage_write(
                         | SelectedInstructionKind::WritePlaceString { .. }
                         | SelectedInstructionKind::WritePlaceBoundedBuffer { .. }
                         | SelectedInstructionKind::WriteRuntimeStorageConvert { .. }
-                        | SelectedInstructionKind::WriteRuntimeMachineString { .. }
-                        | SelectedInstructionKind::WriteRuntimeMachineBoundedBuffer { .. }
-                        | SelectedInstructionKind::WriteRuntimeFrameString { .. }
-                        | SelectedInstructionKind::WriteRuntimePointeeString { .. }
-                        | SelectedInstructionKind::WriteRuntimePointeeBoundedBuffer { .. }
-                        | SelectedInstructionKind::WriteRuntimeFrameIndexedString { .. }
-                        | SelectedInstructionKind::WriteRuntimeMachineIndexedString { .. }
                         | SelectedInstructionKind::WriteRuntimeStorageAddressToRuntimeFrame { .. }
                         | SelectedInstructionKind::WriteRuntimePointeeAddressToRuntimeFrame { .. }
                         | SelectedInstructionKind::WriteRuntimeFrameIndexedAddressToRuntimeFrame { .. }
@@ -326,12 +319,6 @@ fn runtime_text_write_has_selected_instruction(
                     instruction.kind,
                     SelectedInstructionKind::WritePlaceString { .. }
                         | SelectedInstructionKind::WritePlaceBoundedBuffer { .. }
-                        | SelectedInstructionKind::WriteRuntimeMachineString { .. }
-                        | SelectedInstructionKind::WriteRuntimeMachineBoundedBuffer { .. }
-                        | SelectedInstructionKind::WriteRuntimeFrameString { .. }
-                        | SelectedInstructionKind::WriteRuntimePointeeString { .. }
-                        | SelectedInstructionKind::WriteRuntimePointeeBoundedBuffer { .. }
-                        | SelectedInstructionKind::WriteRuntimeFrameIndexedString { .. }
                         | SelectedInstructionKind::WriteRuntimeStorageAddressToRuntimeFrame { .. }
                         | SelectedInstructionKind::WriteRuntimePointeeAddressToRuntimeFrame { .. }
                         | SelectedInstructionKind::WriteRuntimeFrameIndexedAddressToRuntimeFrame { .. }
