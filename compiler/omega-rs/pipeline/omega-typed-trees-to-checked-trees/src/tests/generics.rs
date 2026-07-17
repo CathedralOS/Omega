@@ -311,3 +311,146 @@ fn generic_body_can_consume_machine_parameter_ensures() {
     lower_typed_trees(typed)
         .expect("Establish's authored ensures should discharge Consume's requires");
 }
+
+#[test]
+fn static_machine_argument_specializes_body_calls_to_direct_symbols() {
+    let source = r#"
+        data Card {}
+        data Main {}
+
+        machine Card::power(value: &Card) -> u64 {
+            7
+        }
+
+        machine apply<T, machine F>(value: &T) -> u64
+        where machine F(item: &T) -> u64
+        {
+            F(value)
+        }
+
+        machine caller(card: &Card) {
+            let score: u64 = apply<Card::power>(card);
+        }
+
+        machine Main::run(&mut self) {}
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let power_symbol = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Card::power")
+        .and_then(|machine| typed.machine_states(machine).first())
+        .map(|state| state.symbol)
+        .expect("power entry symbol");
+
+    let checked = lower_typed_trees(typed).expect("static specialization should check");
+    let apply = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "apply")
+        .expect("specialized apply machine");
+    assert!(checked.machine_type_parameters(apply).is_empty());
+    assert_eq!(checked.machine_specializations.len(), 1);
+    assert_eq!(
+        checked.machine_specializations[0].machine_arguments,
+        vec![power_symbol]
+    );
+    assert_eq!(
+        checked.machine_specializations[0].type_arguments,
+        vec!["Card"]
+    );
+    assert_ne!(checked.machine_specializations[0].fingerprint, 0);
+
+    let direct_call = checked
+        .expression_table
+        .iter_expressions()
+        .find_map(|(_, expression)| match expression {
+            omega_typed_trees::expression::ExpressionNode::Call(call)
+                if call.target_symbol == power_symbol =>
+            {
+                Some(call)
+            }
+            _ => None,
+        })
+        .expect("F(value) should become a direct Card::power call");
+    assert_eq!(direct_call.target.as_str(), "power");
+    assert!(direct_call.machine_arguments.is_empty());
+
+    assert!(
+        checked
+            .expression_table
+            .iter_expressions()
+            .filter_map(|(_, expression)| match expression {
+                omega_typed_trees::expression::ExpressionNode::Call(call) => Some(call),
+                _ => None,
+            })
+            .all(|call| call.machine_arguments.is_empty())
+    );
+}
+
+#[test]
+fn static_machine_specialization_identity_is_reproducible() {
+    fn fingerprint(source: &str) -> u64 {
+        let tokens = Lexer::new(source)
+            .tokenize()
+            .expect("tokenize should succeed");
+        let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+        let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+        let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+        lower_typed_trees(typed)
+            .expect("specialization should check")
+            .machine_specializations[0]
+            .fingerprint
+    }
+
+    let source = r#"
+        data Card {}
+        data Main {}
+        machine Card::power(value: &Card) {}
+        machine apply<T, machine F>(value: &T)
+        where machine F(item: &T)
+        { F(value); }
+        machine caller(card: &Card) {
+            apply<Card::power>(card);
+        }
+        machine Main::run(&mut self) {}
+    "#;
+    assert_eq!(fingerprint(source), fingerprint(source));
+}
+
+#[test]
+fn conflicting_static_machine_specializations_fail_loudly() {
+    let source = r#"
+        data Card {}
+        data Main {}
+        machine Card::power(value: &Card) {}
+        machine Card::rank(value: &Card) {}
+        machine apply<T, machine F>(value: &T)
+        where machine F(item: &T)
+        { F(value); }
+        machine caller(card: &Card) {
+            apply<Card::power>(card);
+            apply<Card::rank>(card);
+        }
+        machine Main::run(&mut self) {}
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let diagnostics = lower_typed_trees(typed)
+        .expect_err("unmaterialized multiple specialization tuples must not reach lowering");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("more than one concrete specialization tuple")
+    }));
+}
