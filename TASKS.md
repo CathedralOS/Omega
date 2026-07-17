@@ -940,8 +940,24 @@ sealed progress profiles + grants, TPR4's remaining big half).
    widths.rs offset fns' x86 arms still reference them; those fns
    serve the WritePlaceString/Binary aarch64 walker arms), the
    FRAME_INDEXED rax prefix helper (the literal-append encoder).
-   TASK #130 CORE COMPLETE (7 -> 2 with echo + producers +
-   retirement + sweep). Then the
+   TASK #130 COMPLETE (7 -> 2 with echo + producers +
+   retirement + sweep). TASK #131 OPENED (guards/operands ladder) --
+   INVENTORY 2026-07-19: 68 variants remain in the abstract enum.
+   NEXT COLLAPSE BANKED: the SIX address-to-frame writes
+   (WriteRuntime{Storage,Pointee,FrameIndexed,FrameFixedIndexed,
+   FrameBaseIndexed,MachineIndexed}AddressToRuntimeFrame -- all spell
+   `frame[target_offset] = &place`) onto WritePlaceAddress{source:
+   Place, target_offset} -- the proven arc, 5th run: (a) read the six
+   x86 encoders + walker arms + width fns for prefix analysis, (b)
+   materializer entry encode_place_address_write (materialize source
+   address in r15, then mov r14,imm64(frame) + store r15->[r14+target]
+   -- note the SOURCE address is the payload, a new wrinkle: the walk
+   must NOT fold the trailing const offset into a store displacement
+   but ADD it to r15), (c) delegations with lockstep walker updates,
+   (d) variant + echo + producers + retirement + sweep. THE COMPARE
+   family (CompareRuntimeStorage/StorageValue/Values/TextLiteral/
+   TextStorage + EvaluateDispatchGuard) follows -- operand pairs +
+   branch distances, the harder half. Then the
    bounded-buffer entry (immediate content bytes, single base reloc),
    then WritePlaceString/+Buffer variant + echo + producers +
    retirement. Then guards/operands consume Places, then the op-set
