@@ -10,18 +10,6 @@ pub(super) fn selected_runtime_storage_copy_kind(
         SelectedInstructionKind::CopyPlaces { .. } => {
             Some(MachineInstructionKind::RuntimeStorageCopy)
         }
-        SelectedInstructionKind::CopyRuntimeMachineIndexedToRuntimeMachineIndexed { .. } => {
-            Some(MachineInstructionKind::RuntimeStorageCopyMachineIndexedToMachineIndexed)
-        }
-        SelectedInstructionKind::CopyRuntimeMachineDoubleIndexedToRuntimeStorage { .. } => {
-            Some(MachineInstructionKind::RuntimeStorageCopyFromRuntimeMachineDoubleIndexed)
-        }
-        SelectedInstructionKind::CopyRuntimeFrameBaseDoubleIndexedToRuntimeStorage { .. } => {
-            Some(MachineInstructionKind::RuntimeStorageCopyFromRuntimeFrameBaseDoubleIndexed)
-        }
-        SelectedInstructionKind::CopyRuntimeStorageToRuntimeMachineDoubleIndexed { .. } => {
-            Some(MachineInstructionKind::RuntimeStorageCopyToRuntimeMachineDoubleIndexed)
-        }
         SelectedInstructionKind::WriteRuntimeMachineDoubleIndexedInteger { .. } => {
             Some(MachineInstructionKind::RuntimeMachineDoubleIndexedIntegerWrite)
         }

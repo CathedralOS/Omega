@@ -714,48 +714,6 @@ pub enum AbstractOperationKind {
         target: Place,
         byte_count: usize,
     },
-    /// Copy a runtime-frame slice element field (`*(frame[descriptor]) +
-    /// index*elem + source_field`, index read from `frame[index_offset]`) through
-    /// a `&mut` reference into its pointee field (`*(frame[pointer]) +
-    /// target_field`). The runtime-index sibling of
-    /// `CopyRuntimeFrameFixedIndexedToRuntimePointee` -- the `out.f = items[i].f`
-    /// shape where `out` is a reference parameter.
-    /// The BOTH-RUNTIME nested read `grid[i][j]` (both indices runtime): the
-    /// element address is base + outer*outer_stride + inner*inner_stride +
-    /// field, with each index loaded from its own region. The single-index op
-    /// carries one (index, stride) pair; this carries two -- the outer stride
-    /// is the ROW byte size, the inner the element byte size. Read-only (the
-    /// write face keeps its loud blocker until a write twin exists).
-    CopyRuntimeMachineDoubleIndexedToRuntimeStorage {
-        base_byte_offset: usize,
-        outer_index_offset: usize,
-        outer_index_region: RuntimeStorageRegion,
-        outer_stride: usize,
-        inner_index_offset: usize,
-        inner_index_region: RuntimeStorageRegion,
-        inner_stride: usize,
-        field_byte_offset: usize,
-        target_region: RuntimeStorageRegion,
-        target_offset: usize,
-        byte_count: usize,
-    },
-    /// Write twin of `CopyRuntimeMachineDoubleIndexedToRuntimeStorage`:
-    /// `grid[i][j] = self.v` -- a both-runtime nested write sourced from a
-    /// runtime storage place. The target is machine-owned by definition (the
-    /// resolver guarantees it), so there is no target_region.
-    CopyRuntimeStorageToRuntimeMachineDoubleIndexed {
-        source_region: RuntimeStorageRegion,
-        source_offset: usize,
-        base_byte_offset: usize,
-        outer_index_offset: usize,
-        outer_index_region: RuntimeStorageRegion,
-        outer_stride: usize,
-        inner_index_offset: usize,
-        inner_index_region: RuntimeStorageRegion,
-        inner_stride: usize,
-        field_byte_offset: usize,
-        byte_count: usize,
-    },
     /// Const-value write into a both-runtime nested element
     /// (`grid[i][j] = 70`) -- the double-indexed sibling of
     /// `WriteRuntimeMachineIndexedInteger`.
@@ -770,58 +728,6 @@ pub enum AbstractOperationKind {
         field_byte_offset: usize,
         byte_size: usize,
         value: i64,
-    },
-    /// Read `collection[index]` from a FRAME-resident inline array (a by-value
-    /// param or local `[T; N]` living at `frame[base_byte_offset]`, no
-    /// descriptor) at a runtime index (`frame[index_offset]`) and copy the
-    /// element (or its `field_byte_offset` member) into another frame slot.
-    /// The frame-base sibling of `CopyRuntimeMachineIndexedToRuntimeStorage`
-    /// and the LOAD counterpart of the address computation in
-    /// `WriteRuntimeFrameBaseIndexedAddressToRuntimeFrame` -- `let v = arr[k]`
-    /// where `arr` is frame-resident.
-    /// The BOTH-RUNTIME nested read of a FRAME-resident inline 2D array
-    /// (`g[i][j]` where `g` is a by-value param or local `[[T; C]; R]`, no
-    /// descriptor): frame_base + base + outer*outer_stride +
-    /// inner*inner_stride + field. Everything -- array and both indices --
-    /// lives off the ONE frame base, so a single relocation serves the whole
-    /// address computation; the frame sibling of
-    /// `CopyRuntimeMachineDoubleIndexedToRuntimeStorage`.
-    CopyRuntimeFrameBaseDoubleIndexedToRuntimeStorage {
-        base_byte_offset: usize,
-        outer_index_offset: usize,
-        outer_stride: usize,
-        inner_index_offset: usize,
-        inner_stride: usize,
-        field_byte_offset: usize,
-        target_region: RuntimeStorageRegion,
-        target_offset: usize,
-        byte_count: usize,
-    },
-    /// Write-side mirror of `CopyRuntimeMachineIndexedToRuntimeStorage`:
-    /// `self.nums[self.j] = self.b` -- a runtime-indexed write into a
-    /// machine-owned inline array, sourced from a runtime storage place.
-    /// The target is machine-owned by definition, so there is no
-    /// `target_region`.
-    /// The DUAL-indexed copy `arr[i] = arr[j]` (task #38): both the source and
-    /// the target are runtime-indexed elements of machine-owned inline arrays.
-    /// Composes the two halves above -- read the source element exactly as
-    /// `CopyRuntimeMachineIndexedToRuntimeStorage` does, then store it exactly
-    /// as `CopyRuntimeStorageToRuntimeMachineIndexed` does. Source and target
-    /// may be DIFFERENT arrays (`a[i] = b[j]`); both live off the one machine
-    /// base symbol. Only machine-resident indices are encodable today (the
-    /// same gate as the halves).
-    CopyRuntimeMachineIndexedToRuntimeMachineIndexed {
-        source_base_byte_offset: usize,
-        source_index_offset: usize,
-        source_index_region: RuntimeStorageRegion,
-        source_element_byte_size: usize,
-        source_field_byte_offset: usize,
-        target_base_byte_offset: usize,
-        target_index_offset: usize,
-        target_index_region: RuntimeStorageRegion,
-        target_element_byte_size: usize,
-        target_field_byte_offset: usize,
-        byte_count: usize,
     },
     SetDispatchState {
         dispatch_index: u32,

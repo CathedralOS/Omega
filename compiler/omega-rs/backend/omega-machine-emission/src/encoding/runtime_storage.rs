@@ -762,87 +762,8 @@ pub(super) fn encode_runtime_machine_indexed_address_to_runtime_frame_write(
     )
 }
 
-pub(super) fn encode_runtime_storage_copy_from_runtime_machine_double_indexed_to_runtime_storage(
-    input: MachineEmissionContext<'_>,
-    base_byte_offset: usize,
-    outer_index_offset: usize,
-    outer_index_region: omega_target_operations::RuntimeStorageRegion,
-    outer_stride: usize,
-    inner_index_offset: usize,
-    inner_index_region: omega_target_operations::RuntimeStorageRegion,
-    inner_stride: usize,
-    field_byte_offset: usize,
-    target_offset: usize,
-    byte_count: usize,
-) -> Result<Vec<u8>, Diagnostic> {
-    architecture::encode_runtime_storage_copy_from_runtime_machine_double_indexed_to_runtime_storage(
-        input.target.architecture,
-        base_byte_offset,
-        outer_index_offset,
-        outer_index_region,
-        outer_stride,
-        inner_index_offset,
-        inner_index_region,
-        inner_stride,
-        field_byte_offset,
-        target_offset,
-        byte_count,
-    )
-}
 
-pub(super) fn encode_runtime_storage_copy_to_runtime_machine_double_indexed_from_runtime_storage(
-    input: MachineEmissionContext<'_>,
-    source_region: omega_target_operations::RuntimeStorageRegion,
-    source_offset: usize,
-    base_byte_offset: usize,
-    outer_index_offset: usize,
-    outer_index_region: omega_target_operations::RuntimeStorageRegion,
-    outer_stride: usize,
-    inner_index_offset: usize,
-    inner_index_region: omega_target_operations::RuntimeStorageRegion,
-    inner_stride: usize,
-    field_byte_offset: usize,
-    byte_count: usize,
-) -> Result<Vec<u8>, Diagnostic> {
-    architecture::encode_runtime_storage_copy_to_runtime_machine_double_indexed_from_runtime_storage(
-        input.target.architecture,
-        source_region,
-        source_offset,
-        base_byte_offset,
-        outer_index_offset,
-        outer_index_region,
-        outer_stride,
-        inner_index_offset,
-        inner_index_region,
-        inner_stride,
-        field_byte_offset,
-        byte_count,
-    )
-}
 
-pub(super) fn encode_runtime_storage_copy_from_runtime_frame_base_double_indexed_to_runtime_storage(
-    input: MachineEmissionContext<'_>,
-    base_byte_offset: usize,
-    outer_index_offset: usize,
-    outer_stride: usize,
-    inner_index_offset: usize,
-    inner_stride: usize,
-    field_byte_offset: usize,
-    target_offset: usize,
-    byte_count: usize,
-) -> Result<Vec<u8>, Diagnostic> {
-    architecture::encode_runtime_storage_copy_from_runtime_frame_base_double_indexed_to_runtime_storage(
-        input.target.architecture,
-        base_byte_offset,
-        outer_index_offset,
-        outer_stride,
-        inner_index_offset,
-        inner_stride,
-        field_byte_offset,
-        target_offset,
-        byte_count,
-    )
-}
 
 pub(super) fn encode_runtime_machine_double_indexed_integer_write(
     input: MachineEmissionContext<'_>,
@@ -872,33 +793,4 @@ pub(super) fn encode_runtime_machine_double_indexed_integer_write(
     )
 }
 
-pub(super) fn encode_runtime_storage_copy_machine_indexed_to_machine_indexed(
-    input: MachineEmissionContext<'_>,
-    source_base_byte_offset: usize,
-    source_index_offset: usize,
-    source_index_region: omega_target_operations::RuntimeStorageRegion,
-    source_element_byte_size: usize,
-    source_field_byte_offset: usize,
-    target_base_byte_offset: usize,
-    target_index_offset: usize,
-    target_index_region: omega_target_operations::RuntimeStorageRegion,
-    target_element_byte_size: usize,
-    target_field_byte_offset: usize,
-    byte_count: usize,
-) -> Result<Vec<u8>, Diagnostic> {
-    architecture::encode_runtime_storage_copy_machine_indexed_to_machine_indexed(
-        input.target.architecture,
-        source_base_byte_offset,
-        source_index_offset,
-        source_index_region,
-        source_element_byte_size,
-        source_field_byte_offset,
-        target_base_byte_offset,
-        target_index_offset,
-        target_index_region,
-        target_element_byte_size,
-        target_field_byte_offset,
-        byte_count,
-    )
-}
 

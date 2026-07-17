@@ -345,99 +345,6 @@ pub(super) fn collect_runtime_storage_copy_relocations(
             context.insert_data_address_at_instruction_start(symbol);
             true
         }
-        SelectedInstructionKind::CopyRuntimeMachineIndexedToRuntimeMachineIndexed {
-            source_index_region,
-            target_index_region,
-            ..
-        } => {
-            // TWO machine-base relocations: the read part's `mov r15,imm64` at
-            // instruction start and the write part's after the read part (both
-            // the machine symbol -- source and target elements share the machine
-            // region). A FRAME-resident index on either side adds its own
-            // frame-base `mov r10,imm64` relocation.
-            context
-                .insert_data_address_at_instruction_start(context.machine_storage_symbol_handle());
-            if *source_index_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame {
-                context.insert_data_address_at_relative_offset(
-                    runtime_storage_copy_machine_indexed_frame_index_offset(
-                        context.input.target.architecture,
-                        *source_index_region,
-                        false,
-                    ),
-                    context.runtime_frame_symbol_handle(),
-                );
-            }
-            context.insert_data_address_at_relative_offset(
-                runtime_storage_copy_machine_indexed_to_machine_indexed_second_base_offset(
-                    context.input.target.architecture,
-                    *source_index_region,
-                ),
-                context.machine_storage_symbol_handle(),
-            );
-            if *target_index_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame {
-                context.insert_data_address_at_relative_offset(
-                    runtime_storage_copy_machine_indexed_frame_index_offset(
-                        context.input.target.architecture,
-                        *source_index_region,
-                        true,
-                    ),
-                    context.runtime_frame_symbol_handle(),
-                );
-            }
-            true
-        }
-        SelectedInstructionKind::CopyRuntimeMachineDoubleIndexedToRuntimeStorage {
-            outer_index_region,
-            inner_index_region,
-            target_region,
-            ..
-        } => {
-            // Machine source base at instruction start; ONE shared frame base
-            // (only when an index is frame-resident); the target-region base at
-            // the write-half mov. The planner adds the +2 immediate offset.
-            context
-                .insert_data_address_at_instruction_start(context.machine_storage_symbol_handle());
-            if *outer_index_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
-                || *inner_index_region
-                    == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
-            {
-                context.insert_data_address_at_relative_offset(
-                    runtime_storage_copy_from_runtime_machine_double_indexed_frame_base_offset(
-                        context.input.target.architecture,
-                    ),
-                    context.runtime_frame_symbol_handle(),
-                );
-            }
-            context.insert_data_address_at_relative_offset(
-                runtime_storage_copy_from_runtime_machine_double_indexed_target_base_offset(
-                    context.input.target.architecture,
-                    *outer_index_region,
-                    *inner_index_region,
-                ),
-                context.storage_region_symbol_handle(*target_region),
-            );
-            true
-        }
-        SelectedInstructionKind::CopyRuntimeStorageToRuntimeMachineDoubleIndexed {
-            source_region,
-            outer_index_region,
-            inner_index_region,
-            ..
-        } => {
-            context
-                .insert_data_address_at_instruction_start(context.machine_storage_symbol_handle());
-            if [source_region, outer_index_region, inner_index_region].iter().any(|region| {
-                **region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
-            }) {
-                context.insert_data_address_at_relative_offset(
-                    runtime_storage_copy_from_runtime_machine_double_indexed_frame_base_offset(
-                        context.input.target.architecture,
-                    ),
-                    context.runtime_frame_symbol_handle(),
-                );
-            }
-            true
-        }
         SelectedInstructionKind::WriteRuntimeMachineDoubleIndexedInteger {
             outer_index_region,
             inner_index_region,
@@ -455,21 +362,6 @@ pub(super) fn collect_runtime_storage_copy_relocations(
                     context.runtime_frame_symbol_handle(),
                 );
             }
-            true
-        }
-        SelectedInstructionKind::CopyRuntimeFrameBaseDoubleIndexedToRuntimeStorage {
-            target_region,
-            ..
-        } => {
-            // ONE frame-base relocation serves the array and both indices;
-            // the target-region base relocates at the pre-store mov.
-            context.insert_data_address_at_instruction_start(context.runtime_frame_symbol_handle());
-            context.insert_data_address_at_relative_offset(
-                runtime_storage_copy_from_runtime_frame_base_double_indexed_target_base_offset(
-                    context.input.target.architecture,
-                ),
-                context.storage_region_symbol_handle(*target_region),
-            );
             true
         }
         _ => false,
