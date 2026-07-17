@@ -965,6 +965,145 @@ pub fn encode_write_place_integer(
     }
 }
 
+/// Task #131: a frame-rooted `descriptor deref + scaled index (+ const)`
+/// path with ANY index region -- the shape the retired frame-indexed-deref
+/// ADDRESS write serves (its index may live in machine storage, which
+/// `classify_write_place_shape` deliberately refuses for the VALUE-write
+/// families). Both the address encode path and its relocation walker call
+/// THIS helper, so the discrimination cannot drift.
+pub fn place_frame_deref_indexed_path(
+    place: &omega_target_operations::Place,
+) -> Option<(
+    usize,
+    omega_target_operations::RuntimeStorageRegion,
+    usize,
+    usize,
+    usize,
+)> {
+    if place.region != omega_target_operations::RuntimeStorageRegion::RuntimeFrame {
+        return None;
+    }
+    single_indexed_path(place).map(|indexed| {
+        (
+            indexed.pointer_offset,
+            indexed.index_region,
+            indexed.index_offset,
+            indexed.element_byte_size,
+            indexed.field_offset,
+        )
+    })
+}
+
+/// Task #131: the place-shaped ADDRESS write (`frame[target] = &place`).
+/// x86_64 rides the materializer; aarch64 decomposes to the retained
+/// address encoders (direct, pointee -- which also serves the retired
+/// FIXED-indexed shape after const folding -- frame-indexed deref with
+/// either index region, frame-base-indexed, machine-indexed). Anything
+/// else refuses loudly.
+pub fn encode_write_place_address(
+    architecture: Architecture,
+    source: &omega_target_operations::Place,
+    target_offset: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::X86_64 => {
+            x86_64::encode_place_address_write(source, target_offset).map(|(bytes, _)| bytes)
+        }
+        Architecture::Aarch64 => match classify_write_place_shape(source) {
+            WritePlaceShape::Direct { byte_offset } => {
+                aarch64::encode_runtime_storage_address_to_runtime_frame_write(
+                    byte_offset,
+                    target_offset,
+                )
+            }
+            WritePlaceShape::Pointee {
+                pointer_byte_offset,
+                field_byte_offset,
+            } => aarch64::encode_runtime_pointee_address_to_runtime_frame_write(
+                pointer_byte_offset,
+                field_byte_offset,
+                target_offset,
+            ),
+            WritePlaceShape::FrameIndexed {
+                descriptor_offset,
+                index_offset,
+                element_byte_size,
+                field_byte_offset,
+            } => aarch64::encode_runtime_frame_indexed_address_to_runtime_frame_write(
+                omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+                descriptor_offset,
+                index_offset,
+                element_byte_size,
+                field_byte_offset,
+                target_offset,
+            ),
+            WritePlaceShape::FrameBaseIndexed {
+                base_byte_offset,
+                index_offset,
+                element_byte_size,
+                field_byte_offset,
+            } => aarch64::encode_runtime_frame_base_indexed_address_to_runtime_frame_write(
+                base_byte_offset,
+                index_offset,
+                element_byte_size,
+                field_byte_offset,
+                target_offset,
+            ),
+            WritePlaceShape::MachineIndexed {
+                base_byte_offset,
+                index_region,
+                index_offset,
+                element_byte_size,
+                field_byte_offset,
+            } => aarch64::encode_runtime_machine_indexed_address_to_runtime_frame_write(
+                base_byte_offset,
+                index_region,
+                index_offset,
+                element_byte_size,
+                field_byte_offset,
+                target_offset,
+            ),
+            _ => {
+                // The machine-index deref shape (classify refuses it for the
+                // value writes) has its own retained encoder.
+                if let Some((descriptor_offset, index_region, index_offset, element_byte_size, field_byte_offset)) =
+                    place_frame_deref_indexed_path(source)
+                {
+                    return aarch64::encode_runtime_frame_indexed_address_to_runtime_frame_write(
+                        index_region,
+                        descriptor_offset,
+                        index_offset,
+                        element_byte_size,
+                        field_byte_offset,
+                        target_offset,
+                    );
+                }
+                Err(Diagnostic::error(
+                    "WritePlaceAddress on aarch64 serves direct, pointee, indexed-deref, \
+                     frame-base-indexed, and machine-indexed place shapes only until the \
+                     aarch64 place materializer lands; this shape refuses loudly",
+                ))
+            }
+        },
+    }
+}
+
+/// One source of truth: the encoder's output length.
+pub fn write_place_address_width(
+    architecture: Architecture,
+    source: &omega_target_operations::Place,
+    target_offset: usize,
+) -> Result<usize, Diagnostic> {
+    encode_write_place_address(architecture, source, target_offset).map(|bytes| bytes.len())
+}
+
+pub fn x86_64_encode_write_place_address_with_sites(
+    source: &omega_target_operations::Place,
+    target_offset: usize,
+) -> Result<(Vec<u8>, omega_isa_x86_64::PlaceCopySites), Diagnostic> {
+    x86_64::encode_place_address_write(source, target_offset)
+}
+
 /// Text rung 2a: the place-shaped string-descriptor write. x86_64 rides the
 /// materializer; aarch64 decomposes by WritePlaceShape to the retained
 /// string encoders (which serve direct/pointee/frame-indexed and the

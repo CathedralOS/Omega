@@ -753,6 +753,17 @@ fn selected_instruction_name(
                 target.steps()
             )
         }
+        SelectedInstructionKind::WritePlaceAddress {
+            source,
+            target_offset,
+        } => {
+            let source_symbol =
+                storage_region_symbol_name(source.region, backend_plan.entry_machine_name());
+            format!(
+                "write place address &{source_symbol}{:?} -> frame[{target_offset}]",
+                source.steps()
+            )
+        }
         SelectedInstructionKind::WritePlaceBoundedBuffer { target, literal } => {
             let target_symbol =
                 storage_region_symbol_name(target.region, backend_plan.entry_machine_name());

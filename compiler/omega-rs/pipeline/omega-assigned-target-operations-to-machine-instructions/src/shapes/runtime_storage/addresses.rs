@@ -5,6 +5,12 @@ pub(super) fn selected_runtime_storage_address_kind(
     kind: &SelectedInstructionKind,
 ) -> Option<MachineInstructionKind> {
     match kind {
+        // Task #131: the place-shaped address write keeps the plain
+        // storage-address machine shape (the WritePlaceInteger precedent --
+        // the layout arm's re-encode is the width source of truth).
+        SelectedInstructionKind::WritePlaceAddress { .. } => {
+            Some(MachineInstructionKind::RuntimeStorageAddressToRuntimeFrameWrite)
+        }
         SelectedInstructionKind::WriteRuntimeStorageAddressToRuntimeFrame {
             source_offset,
             target_offset,

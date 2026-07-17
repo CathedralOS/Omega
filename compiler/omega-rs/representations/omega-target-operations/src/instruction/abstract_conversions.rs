@@ -721,6 +721,13 @@ impl From<&omega_abstract_operations::AbstractOperationKind> for TargetOperation
                 target: *target,
                 literal: literal.clone(),
             },
+            omega_abstract_operations::AbstractOperationKind::WritePlaceAddress {
+                source,
+                target_offset,
+            } => Self::WritePlaceAddress {
+                source: *source,
+                target_offset: *target_offset,
+            },
             omega_abstract_operations::AbstractOperationKind::SetDispatchState {
                 dispatch_index,
             } => Self::SetDispatchState {

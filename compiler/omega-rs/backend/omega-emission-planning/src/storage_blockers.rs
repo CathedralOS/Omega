@@ -356,6 +356,7 @@ fn state_mutation_is_planned(
                     | SelectedInstructionKind::WritePlaceBinary { .. }
                     | SelectedInstructionKind::WritePlaceString { .. }
                     | SelectedInstructionKind::WritePlaceBoundedBuffer { .. }
+                    | SelectedInstructionKind::WritePlaceAddress { .. }
                     | SelectedInstructionKind::WriteRuntimeStorageConvert { .. }
                     | SelectedInstructionKind::AppendRuntimeMachineBoundedBufferSource { .. }
                     | SelectedInstructionKind::AppendRuntimeMachineBoundedBufferLiteral { .. }

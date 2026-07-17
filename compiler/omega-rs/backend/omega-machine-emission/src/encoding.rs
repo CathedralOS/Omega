@@ -549,6 +549,14 @@ pub(super) fn encode_machine_instruction_bytes(
                 literal,
             )
         }
+        SelectedInstructionKind::WritePlaceAddress {
+            source,
+            target_offset,
+        } => omega_instruction_selection::encode_write_place_address(
+            input.target.architecture,
+            source,
+            *target_offset,
+        ),
         SelectedInstructionKind::WritePlaceBinary {
             target,
             byte_size,
