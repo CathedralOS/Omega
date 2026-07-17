@@ -49,6 +49,42 @@ fn commitment_statement(typed: &TypedTrees, grant: &str) -> (String, String) {
             );
         }
     }
+    // An ACCEPTED machine (bodyless boundary axiom, GR6d): the receipt
+    // hashes the axiom's rendered ensures -- the statement the grant
+    // covers; editing the claim under a grant is drift.
+    for machine in typed.machines() {
+        if machine.supply_mode != omega_core::semantics::MachineSupplyMode::Accepted {
+            continue;
+        }
+        let leaf = machine
+            .name
+            .as_str()
+            .rsplit("::")
+            .next()
+            .unwrap_or(machine.name.as_str());
+        if grant != machine.name.as_str() && grant != leaf {
+            continue;
+        }
+        let mut statement = format!("boundary machine {}", machine.name.as_str());
+        for contract in typed.machine_contracts(machine) {
+            if !matches!(
+                contract.kind,
+                omega_typed_trees::signature::SignatureContractKind::Ensures
+            ) {
+                continue;
+            }
+            for fact in typed.proof_facts.span_or_empty(contract.facts) {
+                if let omega_typed_trees::domain::ProofFact::Expression(expression) = fact {
+                    statement.push_str("; ensures ");
+                    statement.push_str(&typed.expression_table.display_name(*expression));
+                }
+            }
+        }
+        return (
+            format!("accepted fact: {}", machine.name.as_str()),
+            statement,
+        );
+    }
     (format!("accepted fact: {grant}"), grant.to_owned())
 }
 
