@@ -47,6 +47,40 @@ mod tests {
     }
 
     #[test]
+    fn generated_hierarchy_appends_without_moving_authored_symbols() {
+        let mut symbols = main_entry_symbols();
+        let authored_root = symbols.root();
+        let authored_machine = symbols
+            .find_child_by_name(authored_root, "main")
+            .expect("authored machine");
+        let authored_entry = symbols
+            .find_child_by_name(authored_machine, "entry")
+            .expect("authored entry");
+
+        let generated = symbols.insert_generated_root(SymbolKind::Machine, "map$specialized");
+        let children = symbols.insert_generated_children(
+            generated,
+            [
+                (SymbolKind::State, "entry"),
+                (SymbolKind::State, "next"),
+            ],
+        );
+        let generated_children = symbols
+            .child_handles(generated)
+            .expect("generated children")
+            .collect::<Vec<_>>();
+
+        assert_eq!(generated_children.len(), 2);
+        assert_eq!(children.count(), 2);
+        assert_eq!(symbols.name(generated), "map$specialized");
+        assert_eq!(symbols.name(generated_children[0]), "entry");
+        assert_eq!(symbols.get(generated_children[0]).parent, generated);
+        assert_eq!(symbols.name(authored_machine), "main");
+        assert_eq!(symbols.name(authored_entry), "entry");
+        assert_eq!(symbols.get(authored_entry).parent, authored_machine);
+    }
+
+    #[test]
     fn finds_child_by_name_and_kind_when_siblings_share_names() {
         let mut builder = SymbolTableBuilder::new();
         let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
