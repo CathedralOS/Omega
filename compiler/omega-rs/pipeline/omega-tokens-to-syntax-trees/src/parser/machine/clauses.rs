@@ -3,7 +3,6 @@ use crate::parser::expression::{
     parse_expression_handle_without_struct_literals_or_membership,
 };
 use crate::parser::input::{Input, ParseResult, parse_path_handle_span};
-use crate::parser::proof_fact::parse_proof_facts_until;
 use crate::parser::type_reference::parse_type_reference_handle;
 use omega_core::arena::{Handle, HandleSpan};
 use omega_syntax_trees::SyntaxTrees;
