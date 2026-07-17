@@ -355,6 +355,7 @@ fn state_mutation_is_planned(
                     | SelectedInstructionKind::WriteRuntimeMachineInteger { .. }
                     | SelectedInstructionKind::WriteRuntimeStorageInteger { .. }
                     | SelectedInstructionKind::WriteRuntimePointeeInteger { .. }
+                    | SelectedInstructionKind::WritePlaceInteger { .. }
                     | SelectedInstructionKind::WriteRuntimeStorageBinary { .. }
                     | SelectedInstructionKind::WriteRuntimeStorageConvert { .. }
                     | SelectedInstructionKind::WriteRuntimePointeeBinary { .. }

@@ -703,14 +703,21 @@ sealed progress profiles + grants, TPR4's remaining big half).
    instruction start (every retained layout does) + the machine-
    indexed frame-index reloc + the double's shared frame base.
    WritePlaceInteger is now fully servable on BOTH architectures.
-   RUNG 2b NEXT: the seven integer-write producers migrate
-   unconditionally (find them via `SelectedInstructionKind::WriteRuntime
-   {Machine,Storage,Pointee,FrameIndexed,FrameBaseIndexed,
-   MachineIndexed,MachineDoubleIndexed}Integer {` construction sites in
-   omega-instruction-selection/src/selection/), build the target Place
-   per shape via a write_place_integer helper family; blocker matchers
-   that name the old kinds gain the WritePlaceInteger row where a
-   write counted; then the seven variants retire with their echoes.
+   RUNG 2b PRODUCERS PART 1 LANDED 2026-07-19: the constructor family
+   (write_place_integer_{direct,pointee,frame_indexed,base_indexed,
+   double_indexed} in selection/runtime_dispatch.rs), the blocker
+   rows (runtime_text + storage OR-groups) and BOTH field-extracting
+   matcher arms (call_result_blockers instruction_write_target +
+   descriptor_argument_blockers instruction_frame_write_range --
+   direct places expose their flat range, deref/indexed claim none),
+   and the FIRST migration: both WriteRuntimeMachineInteger sites
+   (branches/leaf.rs) build direct places. Battery green.
+   REMAINING 2b sites (mechanical, helpers ready): Pointee x6
+   (writes/mutation.rs, mutation/static_writes.rs,
+   branches/mutation.rs), FrameIndexed x3, FrameBaseIndexed x3,
+   MachineIndexed x3, MachineDoubleIndexed x1, then the LONG TAIL
+   WriteRuntimeStorageInteger x40 (all direct -- regex-sweepable);
+   then the seven variants retire with their echoes.
    Rung 2a after: the WritePlaceInteger variant + echo product +
    producer migration. Pre-existing dead helpers noted en route (shapes/copies.rs
    runtime_storage_copy_kind + _to_runtime_frame_indexed_kind +
