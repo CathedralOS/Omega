@@ -247,16 +247,21 @@ pub fn encode_runtime_pointee_string_write(
     field_byte_offset: usize,
     byte_length: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = Vec::with_capacity(runtime_pointee_string_write_width(
-        field_byte_offset,
-        byte_length,
-    ));
-    append_mov_r14_imm64(&mut bytes, 0); // string literal pointer (reloc @ +2)
-    append_mov_r15_imm64(&mut bytes, 0); // frame base (reloc @ +12)
-    append_load_r15_from_r15(&mut bytes, pointer_byte_offset)?; // r15 = stored pointer
-    append_store_r14_to_r15(&mut bytes, field_byte_offset)?; // descriptor.ptr = literal
-    append_mov_r14_imm64(&mut bytes, byte_length as u64);
-    append_store_r14_to_r15(&mut bytes, field_byte_offset + 8)?; // descriptor.len
+    // Text rung 1b: DELEGATES through the place materializer -- same widths
+    // position-for-position (the len stages in rax instead of a second r14
+    // imm64, a register rename); the data reloc stays at +2 and the frame
+    // base at +12, so the walker holds as-is.
+    let target =
+        place_copy::transitional_place(omega_target_operations::RuntimeStorageRegion::RuntimeFrame)
+            .with_step(omega_target_operations::PlaceStep::ConstOffset(pointer_byte_offset))
+            .and_then(|place| place.with_step(omega_target_operations::PlaceStep::Deref))
+            .and_then(|place| {
+                place.with_step(omega_target_operations::PlaceStep::ConstOffset(
+                    field_byte_offset,
+                ))
+            })
+            .expect("a pointee place is four steps, within PLACE_MAX_STEPS");
+    let (bytes, _) = place_copy::encode_place_string_write(&target, byte_length)?;
     debug_assert_eq!(
         bytes.len(),
         runtime_pointee_string_write_width(field_byte_offset, byte_length)

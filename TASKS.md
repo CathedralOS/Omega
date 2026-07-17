@@ -875,8 +875,14 @@ sealed progress profiles + grants, TPR4's remaining big half).
    convention); the target address rides the standard walk (base site
    at +10 via PlaceCopySites). The machine + frame string encoders
    DELEGATE BYTE-FOR-BYTE (identical retired layouts, walker
-   untouched). REMAINING Text: the pointee/frame-indexed/machine-
-   indexed string delegations (per-encoder prefix analysis), the
+   untouched). TEXT RUNG 1b LANDED 2026-07-19: the POINTEE string
+   encoder delegates through the materializer -- width-identical
+   position-for-position (the len stages in rax instead of a second
+   r14 imm64, a pure register rename; data reloc stays at +2, frame
+   base at +12, walker untouched). REMAINING Text: the
+   frame-indexed/machine-indexed string delegations (per-encoder
+   prefix analysis; the machine-indexed offset fn is ALSO consumed by
+   the WritePlaceBinary aarch64 walker branch -- same-commit rule), the
    bounded-buffer entry (immediate content bytes, single base reloc),
    then WritePlaceString/+Buffer variant + echo + producers +
    retirement. Then guards/operands consume Places, then the op-set
