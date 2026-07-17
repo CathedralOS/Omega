@@ -1,6 +1,7 @@
 mod artifacts;
 mod boundary_report;
 mod trust_report;
+mod trust_lockfile;
 mod build_config;
 mod generic_instances;
 mod checked_entry;

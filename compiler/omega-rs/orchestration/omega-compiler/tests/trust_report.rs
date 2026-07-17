@@ -150,3 +150,69 @@ machine Main::main(&mut self) {
 
     let _ = std::fs::remove_dir_all(&project);
 }
+
+#[test]
+fn lockfile_written_and_drift_fails_until_reapproved() {
+    // GR4: a granted project writes omega.lock beside build.omg (one
+    // receipt row per grant, statement hash recorded automatically); a
+    // granted statement that drifts fails the build until re-approved.
+    let project = std::env::temp_dir().join(format!("omega-trust-lock-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&project);
+    std::fs::create_dir_all(&project).expect("create project dir");
+    std::fs::write(
+        project.join("build.omg"),
+        r#"data Subsystem { case Console; case Gui; case EfiApplication; case Unspecified(value: u16); }
+data Build { subsystem: Subsystem; freestanding: bool; }
+
+machine build(b: &mut Build) {
+    b.accept_boundary<Meters>();
+}
+"#,
+    )
+    .expect("write build.omg");
+    let main_with = |facts: &str| {
+        format!(
+            r#"domain u32::Meters {{{facts}}}
+boundary trait Console {{ machine exit_process(return_code: i32); }}
+data Main {{ console: Console; }}
+machine Main::main(&mut self) {{
+    let d: u32 in Meters = (7 as u32 in Meters);
+    self.console.exit_process(70);
+}}
+"#
+        )
+    };
+    std::fs::write(project.join("main.omg"), main_with("")).expect("write main.omg");
+
+    let build_dir = project.join("build");
+    let options = || CompileOptions {
+        root_path: project.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    };
+    compile(options()).expect("granted project should compile");
+
+    let lock = std::fs::read_to_string(project.join("omega.lock"))
+        .expect("omega.lock should be written beside build.omg");
+    assert!(
+        lock.contains("domain introduction: u32::Meters"),
+        "expected the domain receipt row:\n{lock}"
+    );
+
+    // Drift the granted statement (add a fact) -- the build must refuse.
+    std::fs::write(project.join("main.omg"), main_with(" self >= 1; "))
+        .expect("rewrite main.omg");
+    let drifted = compile(options());
+    let message = format!("{:?}", drifted.expect_err("drift should refuse"));
+    assert!(
+        message.contains("granted statement drifted"),
+        "expected the drift refusal, got: {message}"
+    );
+
+    // Re-approve by deleting the lock; the build succeeds and re-pins.
+    std::fs::remove_file(project.join("omega.lock")).expect("delete lock");
+    compile(options()).expect("re-approved project should compile");
+
+    let _ = std::fs::remove_dir_all(&project);
+}
