@@ -156,11 +156,11 @@ pub(super) fn select_runtime_string_mutation_write_in_table(
             expressions,
             target,
         ) {
-            return Some(SelectedInstructionKind::WriteRuntimePointeeBoundedBuffer {
-                pointer_byte_offset: pointer_target.pointer_byte_offset,
-                field_byte_offset: pointer_target.field_byte_offset,
-                literal: std::sync::Arc::from(value.to_string()),
-            });
+            return Some(crate::selection::runtime_dispatch::write_place_bounded_buffer_pointee(
+                pointer_target.pointer_byte_offset,
+                pointer_target.field_byte_offset,
+                std::sync::Arc::from(value.to_string()),
+            ));
         }
         if let Some(pointer_target) = resolve_runtime_pointee_slot_offset_in_table(
             input,
@@ -169,11 +169,11 @@ pub(super) fn select_runtime_string_mutation_write_in_table(
             expressions,
             target,
         ) {
-            return Some(SelectedInstructionKind::WriteRuntimePointeeBoundedBuffer {
-                pointer_byte_offset: pointer_target.pointer_byte_offset,
-                field_byte_offset: pointer_target.field_byte_offset,
-                literal: std::sync::Arc::from(value.to_string()),
-            });
+            return Some(crate::selection::runtime_dispatch::write_place_bounded_buffer_pointee(
+                pointer_target.pointer_byte_offset,
+                pointer_target.field_byte_offset,
+                std::sync::Arc::from(value.to_string()),
+            ));
         }
         return None;
     }
@@ -187,12 +187,12 @@ pub(super) fn select_runtime_string_mutation_write_in_table(
             target,
         )
     {
-        return Some(SelectedInstructionKind::WriteRuntimePointeeString {
-            pointer_byte_offset: pointer_target.pointer_byte_offset,
-            field_byte_offset: pointer_target.field_byte_offset,
+        return Some(crate::selection::runtime_dispatch::write_place_string_pointee(
+            pointer_target.pointer_byte_offset,
+            pointer_target.field_byte_offset,
             data,
-            byte_length: value.len(),
-        });
+            value.len(),
+        ));
     }
 
     if data.is_valid()
@@ -204,12 +204,12 @@ pub(super) fn select_runtime_string_mutation_write_in_table(
             target,
         )
     {
-        return Some(SelectedInstructionKind::WriteRuntimePointeeString {
-            pointer_byte_offset: pointer_target.pointer_byte_offset,
-            field_byte_offset: pointer_target.field_byte_offset,
+        return Some(crate::selection::runtime_dispatch::write_place_string_pointee(
+            pointer_target.pointer_byte_offset,
+            pointer_target.field_byte_offset,
             data,
-            byte_length: value.len(),
-        });
+            value.len(),
+        ));
     }
 
     if data.is_valid()
@@ -222,14 +222,14 @@ pub(super) fn select_runtime_string_mutation_write_in_table(
         )
         && indexed_target.byte_count == input.runtime_abi.string_descriptor_size()
     {
-        return Some(SelectedInstructionKind::WriteRuntimeFrameIndexedString {
-            descriptor_offset: indexed_target.descriptor_offset,
-            index_offset: indexed_target.index_offset,
-            element_byte_size: indexed_target.element_byte_size,
-            field_byte_offset: indexed_target.field_byte_offset,
+        return Some(crate::selection::runtime_dispatch::write_place_string_frame_indexed(
+            indexed_target.descriptor_offset,
+            indexed_target.index_offset,
+            indexed_target.element_byte_size,
+            indexed_target.field_byte_offset,
             data,
-            byte_length: value.len(),
-        });
+            value.len(),
+        ));
     }
 
     if data.is_valid()
@@ -243,12 +243,12 @@ pub(super) fn select_runtime_string_mutation_write_in_table(
         && indexed_target.byte_count == input.runtime_abi.string_descriptor_size()
         && let Some(field_byte_offset) = indexed_target.pointee_field_byte_offset()
     {
-        return Some(SelectedInstructionKind::WriteRuntimePointeeString {
-            pointer_byte_offset: indexed_target.descriptor_offset,
+        return Some(crate::selection::runtime_dispatch::write_place_string_pointee(
+            indexed_target.descriptor_offset,
             field_byte_offset,
             data,
-            byte_length: value.len(),
-        });
+            value.len(),
+        ));
     }
 
     let target_place = resolve_runtime_storage_place_in_table(
@@ -268,15 +268,13 @@ pub(super) fn select_runtime_string_mutation_write_in_table(
     // `target_place.byte_offset`, which for a frame slot at offset 0 collided with
     // the machine-storage region base -- corrupting unrelated state.
     match target_place.region {
-        RuntimeStorageRegion::RuntimeFrame => Some(SelectedInstructionKind::WriteRuntimeFrameString {
-            byte_offset: target_place.byte_offset,
-            data,
-            byte_length: value.len(),
-        }),
-        RuntimeStorageRegion::Machine => Some(SelectedInstructionKind::WriteRuntimeMachineString {
-            byte_offset: target_place.byte_offset,
-            data,
-            byte_length: value.len(),
-        }),
+        region @ (RuntimeStorageRegion::RuntimeFrame | RuntimeStorageRegion::Machine) => {
+            Some(crate::selection::runtime_dispatch::write_place_string_direct(
+                region,
+                target_place.byte_offset,
+                data,
+                value.len(),
+            ))
+        }
     }
 }

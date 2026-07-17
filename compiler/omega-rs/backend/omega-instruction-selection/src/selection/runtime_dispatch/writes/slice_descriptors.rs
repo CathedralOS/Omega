@@ -618,11 +618,12 @@ pub(in crate::selection) fn emit_runtime_frame_slot_slice_descriptor_write_in_ta
         let data = string_literal_data_handle(input, value_source_key, statement_index, &literal);
         if data.is_valid() {
             selected_instructions.push(SelectedInstruction {
-                kind: SelectedInstructionKind::WriteRuntimeFrameString {
-                    byte_offset: slot.byte_offset,
+                kind: crate::selection::runtime_dispatch::write_place_string_direct(
+                    omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame,
+                    slot.byte_offset,
                     data,
-                    byte_length: literal.len(),
-                },
+                    literal.len(),
+                ),
                 source_key: value_source_key,
                 source_statement: statement_index,
             });

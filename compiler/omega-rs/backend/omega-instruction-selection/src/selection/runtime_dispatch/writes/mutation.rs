@@ -905,12 +905,12 @@ pub(super) fn select_runtime_resolved_target_value_source_mutation_writes(
             let pointer_byte_offset = target.pointer_byte_offset;
             let field_byte_offset = target.field_byte_offset;
             selected_instructions.push(SelectedInstruction {
-                kind: SelectedInstructionKind::WriteRuntimePointeeString {
+                kind: crate::selection::runtime_dispatch::write_place_string_pointee(
                     pointer_byte_offset,
                     field_byte_offset,
                     data,
-                    byte_length: value.len(),
-                },
+                    value.len(),
+                ),
                 source_key: operation_source_key,
                 source_statement: statement_index,
             });
@@ -1019,12 +1019,12 @@ pub(super) fn select_runtime_resolved_target_value_source_mutation_writes(
         let segments = flatten_string_concat_segments(value);
         if let [Expression::String(prefix), rest @ ..] = segments.as_slice() {
             let mut kinds: Vec<SelectedInstructionKind> = Vec::with_capacity(segments.len());
-            kinds.push(SelectedInstructionKind::WriteRuntimeMachineBoundedBuffer {
-                byte_offset: target_place.byte_offset,
-                literal: std::sync::Arc::from(prefix.to_string()),
-                // The concat target is gated to the Machine region above.
-                target_in_frame: false,
-            });
+            // The concat target is gated to the Machine region above.
+            kinds.push(crate::selection::runtime_dispatch::write_place_bounded_buffer_direct(
+                omega_abstract_operations::RuntimeStorageRegion::Machine,
+                target_place.byte_offset,
+                std::sync::Arc::from(prefix.to_string()),
+            ));
             let mut all_segments_resolved = true;
             for segment in rest {
                 if let Expression::String(literal) = segment {

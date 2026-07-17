@@ -546,6 +546,131 @@ pub(crate) fn write_place_integer_frame_indexed(
     }
 }
 
+/// Text rung 2b: the place-string constructor family (the five retired
+/// Write*String spellings as places).
+pub(crate) fn write_place_string_direct(
+    region: RuntimeStorageRegion,
+    byte_offset: usize,
+    data: omega_abstract_operations::AbstractDataObjectHandle,
+    byte_length: usize,
+) -> SelectedInstructionKind {
+    SelectedInstructionKind::WritePlaceString {
+        target: omega_abstract_operations::Place::at(region, byte_offset),
+        data,
+        byte_length,
+    }
+}
+
+pub(crate) fn write_place_string_pointee(
+    pointer_byte_offset: usize,
+    field_byte_offset: usize,
+    data: omega_abstract_operations::AbstractDataObjectHandle,
+    byte_length: usize,
+) -> SelectedInstructionKind {
+    SelectedInstructionKind::WritePlaceString {
+        target: omega_abstract_operations::Place::at(
+            RuntimeStorageRegion::RuntimeFrame,
+            pointer_byte_offset,
+        )
+        .with_step(omega_abstract_operations::PlaceStep::Deref)
+        .and_then(|place| {
+            place.with_step(omega_abstract_operations::PlaceStep::ConstOffset(
+                field_byte_offset,
+            ))
+        })
+        .expect("a pointee place is three steps, within PLACE_MAX_STEPS"),
+        data,
+        byte_length,
+    }
+}
+
+pub(crate) fn write_place_string_frame_indexed(
+    descriptor_offset: usize,
+    index_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    data: omega_abstract_operations::AbstractDataObjectHandle,
+    byte_length: usize,
+) -> SelectedInstructionKind {
+    SelectedInstructionKind::WritePlaceString {
+        target: omega_abstract_operations::Place::at(
+            RuntimeStorageRegion::RuntimeFrame,
+            descriptor_offset,
+        )
+        .with_step(omega_abstract_operations::PlaceStep::Deref)
+        .and_then(|place| {
+            place.with_step(omega_abstract_operations::PlaceStep::ScaledIndex {
+                index_region: RuntimeStorageRegion::RuntimeFrame,
+                index_offset,
+                element_byte_size,
+            })
+        })
+        .and_then(|place| {
+            place.with_step(omega_abstract_operations::PlaceStep::ConstOffset(
+                field_byte_offset,
+            ))
+        })
+        .expect("a frame-indexed place is four steps, within PLACE_MAX_STEPS"),
+        data,
+        byte_length,
+    }
+}
+
+pub(crate) fn write_place_string_machine_indexed(
+    base_byte_offset: usize,
+    index_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    data: omega_abstract_operations::AbstractDataObjectHandle,
+    byte_length: usize,
+) -> SelectedInstructionKind {
+    SelectedInstructionKind::WritePlaceString {
+        target: machine_indexed_place(
+            base_byte_offset,
+            RuntimeStorageRegion::RuntimeFrame,
+            index_offset,
+            element_byte_size,
+            field_byte_offset,
+        ),
+        data,
+        byte_length,
+    }
+}
+
+/// Text rung 2b: the bounded-buffer constructor pair (the two retired
+/// carrier-write spellings as places).
+pub(crate) fn write_place_bounded_buffer_direct(
+    region: RuntimeStorageRegion,
+    byte_offset: usize,
+    literal: std::sync::Arc<str>,
+) -> SelectedInstructionKind {
+    SelectedInstructionKind::WritePlaceBoundedBuffer {
+        target: omega_abstract_operations::Place::at(region, byte_offset),
+        literal,
+    }
+}
+
+pub(crate) fn write_place_bounded_buffer_pointee(
+    pointer_byte_offset: usize,
+    field_byte_offset: usize,
+    literal: std::sync::Arc<str>,
+) -> SelectedInstructionKind {
+    SelectedInstructionKind::WritePlaceBoundedBuffer {
+        target: omega_abstract_operations::Place::at(
+            RuntimeStorageRegion::RuntimeFrame,
+            pointer_byte_offset,
+        )
+        .with_step(omega_abstract_operations::PlaceStep::Deref)
+        .and_then(|place| {
+            place.with_step(omega_abstract_operations::PlaceStep::ConstOffset(
+                field_byte_offset,
+            ))
+        })
+        .expect("a pointee place is three steps, within PLACE_MAX_STEPS"),
+        literal,
+    }
+}
+
 /// No-deref inline array element (`arr[i] = v`; frame or machine root).
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn write_place_integer_base_indexed(
