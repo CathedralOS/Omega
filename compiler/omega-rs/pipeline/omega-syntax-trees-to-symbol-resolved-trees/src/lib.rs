@@ -9,7 +9,6 @@ mod machine;
 mod measure;
 mod name;
 mod operator;
-mod platform;
 mod state;
 mod statement;
 mod symbols;

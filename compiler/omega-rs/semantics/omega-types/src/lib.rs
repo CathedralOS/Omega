@@ -206,27 +206,6 @@ pub fn build_type_surface_report(syntax_trees: &SyntaxTrees) -> TypeSurfaceRepor
                     "operator declaration",
                 );
             }
-            Item::Platform(platform) => {
-                insert_declaration(&mut report, &platform.name, TypeDeclarationKind::Platform);
-
-                for state in syntax_trees.items.state_signatures(platform.states) {
-                    let signature = syntax_trees.items.state_signature(*state);
-                    collect_state_signature(
-                        &mut report,
-                        syntax_trees,
-                        &omega_syntax_trees::item::StateSignature {
-                            name: signature.name.clone(),
-                            is_default: signature.is_default,
-                            parameters: signature.parameters,
-                            return_type: signature.return_type,
-                            effects: signature.effects,
-                            contracts: signature.contracts,
-                            terminates_guarantee: signature.terminates_guarantee,
-                        },
-                        &format!("platform `{}` state `{}`", platform.name, signature.name),
-                    );
-                }
-            }
             Item::Trait(trait_definition) => {
                 insert_declaration(
                     &mut report,

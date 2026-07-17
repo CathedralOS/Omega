@@ -364,7 +364,7 @@ fn item_kind(item: &Item) -> &'static str {
         Item::Data(_) => "data",
         Item::Domain(_) => "domain",
         Item::Export(_) => "export",
-        Item::Machine(_) | Item::Platform(_) => "machine",
+        Item::Machine(_) => "machine",
         Item::Measure(_) => "measure",
         Item::Module(_) => "module",
         Item::Operator(_) => "operator",
@@ -501,13 +501,6 @@ fn item_label(syntax: &SyntaxTrees, item: &Item) -> String {
                 .collect::<Vec<_>>()
                 .join(".");
             format!("package {path}\nsegments: {}", value.path.len())
-        }
-        Item::Platform(value) => {
-            format!(
-                "platform {}\nsignatures: {}",
-                value.name.as_str(),
-                value.states.len()
-            )
         }
         Item::Trait(value) => {
             let prefix = if value.is_boundary {

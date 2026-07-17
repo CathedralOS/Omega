@@ -720,20 +720,6 @@ fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnapshot {
                 .map(|handle| snapshot_state_node(syntax_trees, syntax_trees.items.state(*handle)))
                 .collect(),
         },
-        Item::Platform(value) => ItemSnapshot::Platform {
-            name: snapshot_identifier(&value.name),
-            states: syntax_trees
-                .items
-                .state_signatures(value.states)
-                .iter()
-                .map(|handle| {
-                    snapshot_state_signature_node(
-                        syntax_trees,
-                        syntax_trees.items.state_signature(*handle),
-                    )
-                })
-                .collect(),
-        },
         Item::Trait(value) => ItemSnapshot::Trait {
             name: snapshot_identifier(&value.name),
             is_boundary: value.is_boundary,

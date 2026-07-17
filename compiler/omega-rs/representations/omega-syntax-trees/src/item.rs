@@ -28,7 +28,6 @@ pub enum Item {
     Export(ExportItem),
     Use(UseItem),
     Machine(Machine),
-    Platform(Platform),
     Trait(TraitDefinition),
     Target(TargetDefinition),
     WireData(WireDataDefinition),
@@ -670,11 +669,6 @@ pub struct State {
     pub statements: HandleSpan<crate::statement::StatementHandle>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Platform {
-    pub name: Identifier,
-    pub states: HandleSpan<StateSignatureHandle>,
-}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TraitDefinition {
@@ -1081,13 +1075,6 @@ impl ItemTable {
             effects: machine.effects,
             contracts: machine.contracts,
             states: machine.states,
-        })
-    }
-
-    pub fn insert_platform(&mut self, platform: &Platform) -> PlatformHandle {
-        self.state_storage.platforms.append(PlatformNode {
-            name: platform.name.clone(),
-            states: platform.states,
         })
     }
 

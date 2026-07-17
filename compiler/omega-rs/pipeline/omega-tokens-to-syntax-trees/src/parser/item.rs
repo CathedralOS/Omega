@@ -9,7 +9,6 @@ use crate::parser::library::parse_library_definition;
 use crate::parser::machine::parse_machine;
 use crate::parser::measure::parse_measure_definition;
 use crate::parser::operator::parse_operator_definition;
-use crate::parser::platform::parse_platform;
 use crate::parser::target::parse_target_definition;
 use crate::parser::trait_definition::parse_trait_definition;
 use crate::parser::type_reference::parse_type_reference_handle_allowing_borrow;

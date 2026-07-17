@@ -3,7 +3,7 @@
 use omega_core::arena::Arena;
 use omega_syntax_trees::SyntaxTrees;
 use omega_syntax_trees::item::{
-    CapabilityContract, CapabilityContractKind, DataMember, Item, Machine, Platform, ProofFact,
+    CapabilityContract, CapabilityContractKind, DataMember, Item, Machine, ProofFact,
     StateSignature,
 };
 use omega_syntax_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
@@ -155,7 +155,6 @@ pub fn build_proof_surface_report(syntax_trees: &SyntaxTrees) -> ProofSurfaceRep
                 );
             }
             Item::Machine(machine) => collect_machine(&mut report, syntax_trees, machine),
-            Item::Platform(platform) => collect_platform(&mut report, syntax_trees, platform),
             Item::Trait(trait_definition) => {
                 collect_trait_definition(&mut report, syntax_trees, trait_definition)
             }
@@ -225,22 +224,6 @@ fn collect_state_node(
                 "machine `{}` state `{}` local `{}`",
                 machine.name, state.name, local_data.name
             ),
-        );
-    }
-}
-
-fn collect_platform(
-    report: &mut ProofSurfaceReport,
-    syntax_trees: &SyntaxTrees,
-    platform: &Platform,
-) {
-    for state in syntax_trees.items.state_signatures(platform.states) {
-        let state = syntax_trees.items.state_signature(*state);
-        collect_state_signature_node(
-            report,
-            syntax_trees,
-            state,
-            &format!("platform `{}` state `{}`", platform.name, state.name),
         );
     }
 }
