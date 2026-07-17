@@ -4458,8 +4458,11 @@ with a real app-window story.
   the unreachable old `relax { ... }` builder and its `TableRelax` import are
   gone; the syntax-tree `Relax` variant, snapshot/identity/visualization arms,
   and resolved-lowering flatten path are gone too. The directed retirement
-  diagnostic remains pinned. Only the independent inert `is_relaxed` reference
-  fields remain for a later cross-tree sweep.
+  diagnostic remains pinned. REFERENCE-BIT SWEEP LANDED 2026-07-17: the inert
+  `is_relaxed` field is gone from syntax/resolved/typed reference carriers,
+  snapshots, displays, identity/canonicalization, lowerers, and operator/trait/
+  machine-parameter compatibility. Reference mutability is once again the only
+  qualifier bit; no permanently-false compatibility state remains.
 
 ## Vertical slices
 

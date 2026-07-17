@@ -480,7 +480,6 @@ pub enum TypeReferenceSnapshot {
     Reference {
         referee: Box<TypeReferenceSnapshot>,
         is_mutable: bool,
-        is_relaxed: bool,
     },
     Constrained {
         base_type: Box<TypeReferenceSnapshot>,
@@ -1060,7 +1059,6 @@ fn type_reference_snapshot_from_program(
                 program.child_type_reference(reference.referee),
             )),
             is_mutable: reference.is_mutable,
-            is_relaxed: reference.is_relaxed,
         },
         TypeReference::Constrained(constrained) => TypeReferenceSnapshot::Constrained {
             base_type: Box::new(type_reference_snapshot_from_program(

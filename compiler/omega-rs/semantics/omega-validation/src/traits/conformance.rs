@@ -427,19 +427,16 @@ fn type_references_match_with_trait_bindings(
             TypeReferenceNode::Reference {
                 referee: actual_referee,
                 is_mutable: actual_mutable,
-                is_relaxed: actual_relaxed,
                 // Lifetimes do not participate in trait-conformance matching.
                 lifetime: _,
             },
             TypeReferenceNode::Reference {
                 referee: required_referee,
                 is_mutable: required_mutable,
-                is_relaxed: required_relaxed,
                 lifetime: _,
             },
         ) => {
             actual_mutable == required_mutable
-                && actual_relaxed == required_relaxed
                 && type_references_match_with_trait_bindings(
                     program,
                     *actual_referee,

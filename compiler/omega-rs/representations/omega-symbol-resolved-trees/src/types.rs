@@ -47,7 +47,6 @@ pub struct ReferenceTypeReference {
 pub struct ReferenceTypeReferenceStorage {
     pub referee: Handle<TypeReference>,
     pub is_mutable: bool,
-    pub is_relaxed: bool,
     /// Explicit lifetime name (`&'buf T`), frozen decision 15 stage 2. A
     /// borrow-region tag only — no symbol, ignored by layout/codegen and by
     /// structural type equality; consulted solely by the borrow checker.
@@ -59,7 +58,6 @@ impl Default for ReferenceTypeReferenceStorage {
         Self {
             referee: Handle::invalid(),
             is_mutable: false,
-            is_relaxed: false,
             lifetime: None,
         }
     }
@@ -447,7 +445,6 @@ impl TypeReferenceTable {
                 self.insert(TypeReferenceNode::Reference {
                     referee,
                     is_mutable: reference.is_mutable,
-                    is_relaxed: reference.is_relaxed,
                     lifetime: reference.lifetime.clone(),
                 })
             }
@@ -536,7 +533,6 @@ pub enum TypeReferenceNode {
     Reference {
         referee: TypeReferenceHandle,
         is_mutable: bool,
-        is_relaxed: bool,
         /// Explicit lifetime name (`&'buf T`), frozen decision 15 stage 2.
         lifetime: Option<DiagnosticName>,
     },

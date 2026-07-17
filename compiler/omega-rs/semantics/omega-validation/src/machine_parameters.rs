@@ -296,18 +296,15 @@ fn required_type_matches(
             TypeReferenceNode::Reference {
                 referee: actual_inner,
                 is_mutable: actual_mutable,
-                is_relaxed: actual_relaxed,
                 ..
             },
             TypeReferenceNode::Reference {
                 referee: required_inner,
                 is_mutable: required_mutable,
-                is_relaxed: required_relaxed,
                 ..
             },
         ) => {
             actual_mutable == required_mutable
-                && actual_relaxed == required_relaxed
                 && required_type_matches(
                     program,
                     *actual_inner,

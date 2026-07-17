@@ -254,7 +254,6 @@ impl TypeReferenceTable {
             TypeReferenceNode::Reference {
                 referee,
                 is_mutable,
-                is_relaxed,
                 lifetime,
             } => {
                 let referee =
@@ -262,7 +261,6 @@ impl TypeReferenceTable {
                 self.insert(TypeReferenceNode::Reference {
                     referee,
                     is_mutable: *is_mutable,
-                    is_relaxed: *is_relaxed,
                     lifetime: lifetime.clone(),
                 })
             }
@@ -496,7 +494,6 @@ pub enum TypeReferenceNode {
     Reference {
         referee: TypeReferenceHandle,
         is_mutable: bool,
-        is_relaxed: bool,
         /// Explicit lifetime name (`&'buf T`), frozen decision 15 stage 2. A
         /// borrow-region tag only — no symbol, ignored by layout/codegen and by
         /// structural type equality; consulted solely by the borrow checker

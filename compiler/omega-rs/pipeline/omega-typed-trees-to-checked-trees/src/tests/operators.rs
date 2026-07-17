@@ -285,7 +285,6 @@ fn narrows_index_operator_candidates_by_receiver_type() {
             .insert(TypeReferenceNode::Reference {
                 referee: slice_of_type_parameter,
                 is_mutable: false,
-                is_relaxed: false,
                 lifetime: None,
             });
     let slice_of_i32 = program
@@ -299,7 +298,6 @@ fn narrows_index_operator_candidates_by_receiver_type() {
             .insert(TypeReferenceNode::Reference {
                 referee: slice_of_i32,
                 is_mutable: false,
-                is_relaxed: false,
                 lifetime: None,
             });
 
@@ -457,7 +455,6 @@ fn narrows_index_operator_candidates_by_local_receiver_type() {
             .insert(TypeReferenceNode::Reference {
                 referee: slice_of_i32,
                 is_mutable: false,
-                is_relaxed: false,
                 lifetime: None,
             });
 
