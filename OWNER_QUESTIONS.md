@@ -155,3 +155,29 @@ the question co-mingles with the PARKED N2(d) Nat<->integer bridge:
 
 Until ruled: mod/gcd stay unimplemented; the monus lemma zoo (landed) is
 everything Rat's normalization needs EXCEPT the gcd computation itself.
+
+
+## `<machine M>` generics-over-machines (the N5/N6/map-filter gate; 2026-07-20)
+
+Three queue arcs now terminate at the same unbuilt, undesigned prerequisite:
+the N-ladder's own note ("Continue into N5-N7 when reached -- they need the
+`<machine M>` plumbing and the `%` former"), N5's schema axioms ("schema
+axioms as `<machine P>` boundary machines"), and the N4 Seq zoo's map/filter
+("once generics-over-machines land"). There is no design record for the
+feature itself. Questions before building:
+
+1. SPELLING: `machine map<machine F>(s: Seq<T>) -> Seq<U>` -- is the machine
+   parameter a generic parameter alongside type params, and what constrains
+   it (a trait? an arity/signature shape)?
+2. INSTANTIATION: monomorphize per machine argument (the clone-specialization
+   precedent) or dictionary-pass? Proof machines are compile-time-only, so
+   monomorphization seems natural -- confirm.
+3. THE JUDGE: how does the structural entailment judge treat a machine
+   parameter's application (F(x) unfoldable only per instantiation; lemmas
+   over map need F's ensures as hypotheses -- higher-order fact plumbing).
+4. SCHEMA AXIOMS (N5): "one grant covers the schema statement" -- is the
+   grant on the template or per instantiation in the trust report?
+
+Until ruled: N5 boundary-data/Real axioms, N6 quotients' schema half, and
+Seq map/filter stay blocked; everything provable first-order in the zoo is
+landed or demand-gated.
