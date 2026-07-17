@@ -2737,7 +2737,29 @@ no `unbounded` property exists. Rungs:
   the whole discharge routed through the structural judge instead
   of syntactic matching (the judge already unfolds/rewrites; it
   lives in the same crate). Prefer the judge route -- the syntactic
-  engine should not grow into a parallel judge. Then (6) rat.omg. `sub_zero_left` landed as the monus
+  engine should not grow into a parallel judge. GCD LANDED 2026-07-20
+  (the judge route, part 2): proof_edge_strict_decrease_judged in
+  contract_entailment (pub(crate), called from calls.rs as the
+  fallback after the syntactic match) builds a StructuralJudge from
+  the machine requires, intakes the source state's INCOMING-ARM
+  hypotheses -- guarded by EXACTLY-ONE-INCOMING-EDGE (a second path
+  could reach the state without the arm's case; conservative skip)
+  -- with the MATERIALIZED payload alias (subject == Case { field:
+  param } recovered from the tag-only guard + data declaration +
+  payload-read target args; intaken BEFORE any raw guard so the
+  fieldless substitution cannot win first and mask the payload),
+  then intakes citations in statement order (statement calls AND
+  let-bound call initializers; requires judged Proven first, ensures
+  instantiated with result -> the call term; the LET BINDER inserts
+  a SUBSTITUTION, not an intake -- intake_equation orients
+  application sides reducing, backwards for a binder), and judges
+  the obligation. le_one_succ + gcd (Euclid) landed in core nat.omg
+  -- zoo at 26 Nat machines. FALSE TWIN:
+  computed_edge_positivity_missing (gcd without le_one_succ
+  refuses). Traces behind OMEGA_EDGE_TRACE. REMAINING (6): rat.omg
+  -- the canonical-representative carrier (reduced fractions,
+  gcd == 1), consuming gcd; needs the Rat data + normalization
+  machine + the where-fact spelling; task #134's rung-2 design. `sub_zero_left` landed as the monus
   surface's completion (5 lemmas, zoo at 13 Nat). Task #134 rung 1 COMPLETE;
   the rat.omg carrier waits only on this engineering rung.
 - **N5 — `boundary data` + the Real axiom package:** opaque carrier;

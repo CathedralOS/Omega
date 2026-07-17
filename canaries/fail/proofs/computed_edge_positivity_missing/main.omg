@@ -1,0 +1,27 @@
+// FALSE TWIN for the judged computed-subject edge (N4 slice a3): the gcd
+// shape WITHOUT the le_one_succ citation. mod's positivity premise
+// (1 <= divisor) has nothing to discharge against, so its ensures never
+// joins the hypothesis base and the recursive edge's strict decrease stays
+// unproven -- the self-call refuses.
+use omega::language::core::nat;
+
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+
+machine bogus_gcd(a: Nat, b: Nat) -> Nat
+terminates by b;
+{
+    transition b {
+        Nat::Zero -> (a)
+        Nat::Succ { prev as pb } -> bg_rec(a, b, pb)
+    }
+
+    state bg_rec(a: Nat, b: Nat, pb: Nat) -> Nat {
+        let next: Nat = mod(a, Nat::Succ { prev: pb });
+        transition { _ -> (bogus_gcd(Nat::Succ { prev: pb }, next)) }
+    }
+}
+
+machine Main::main(&mut self) {
+    self.console.exit_process(70);
+}
