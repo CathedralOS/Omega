@@ -769,8 +769,17 @@ sealed progress profiles + grants, TPR4's remaining big half).
    place walk (r15 + indices, consumed into the address before
    operands evaluate) + `mov r14,r15` (new primitive 4d 89 fe) + the
    SAME helper. Battery green. Dead integer shells still pending
-   sweep. NEXT: binary delegations per shape (width fns + walker
-   operand offsets move by place_address_width in lockstep), then
+   sweep. POINTEE BINARY DELEGATED same day (the first shaped
+   delegation): the place walk + r14 hop grows the operand-start
+   prefix 17 -> 20; runtime_pointee_binary_operand_start_width moved
+   in lockstep (it feeds BOTH the width fn and the walker's
+   left-operand offset -- one constant, no drift); the Exact-domain
+   tail is IDENTICAL through the shared helper (Exact never enters
+   the domain arms -- semantic check recorded). Differential green.
+   REMAINING binary delegations: frame-indexed (34 -> 37),
+   frame-base-indexed (27 -> 30), machine-indexed + double (per-index
+   frame bases replace the shared scratch, the integer-1c pattern --
+   verify each prefix + walker reloc positions first); then
    WritePlaceBinary + echo + producers + retirement.
    Rung 2a after: the WritePlaceInteger variant + echo product +
    producer migration. Pre-existing dead helpers noted en route (shapes/copies.rs
