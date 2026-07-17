@@ -951,6 +951,16 @@ fn machine_instruction_width(
             target,
             *byte_count,
         )?,
+        SelectedInstructionKind::WritePlaceInteger {
+            target,
+            value,
+            byte_size,
+        } => omega_instruction_selection::write_place_integer_width(
+            input.target.architecture,
+            target,
+            *value,
+            *byte_size,
+        )?,
         SelectedInstructionKind::WriteRuntimeMachineDoubleIndexedInteger {
             outer_index_region,
             inner_index_region,

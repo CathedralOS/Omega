@@ -890,6 +890,36 @@ pub fn encode_runtime_machine_indexed_address_to_runtime_frame_write(
 /// encoders (byte-identical to what the retired kinds emitted) and refuses
 /// anything else until the aarch64 materializer rung lands (no runtime
 /// oracle to verify new byte layouts there).
+/// Write rung 2a: the place-shaped integer write. x86_64 rides the
+/// materializer; aarch64 REFUSES LOUDLY until its decompose rung (zero
+/// producers exist yet -- the old Write*Integer variants still carry the
+/// corpus there).
+pub fn encode_write_place_integer(
+    architecture: Architecture,
+    target: &omega_target_operations::Place,
+    value: i64,
+    byte_size: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::X86_64 => {
+            x86_64::encode_place_integer_write(target, value, byte_size).map(|(bytes, _)| bytes)
+        }
+        Architecture::Aarch64 => Err(Diagnostic::error(
+            "WritePlaceInteger on aarch64 refuses until its decompose rung lands;              producers stay on the shape-specific write kinds there",
+        )),
+    }
+}
+
+/// One source of truth: the encoder's output length.
+pub fn write_place_integer_width(
+    architecture: Architecture,
+    target: &omega_target_operations::Place,
+    value: i64,
+    byte_size: usize,
+) -> Result<usize, Diagnostic> {
+    encode_write_place_integer(architecture, target, value, byte_size).map(|bytes| bytes.len())
+}
+
 pub fn encode_copy_places(
     architecture: Architecture,
     source: &omega_target_operations::Place,
@@ -1701,6 +1731,14 @@ pub fn x86_64_encode_copy_places_with_sites(
     byte_count: usize,
 ) -> Result<(Vec<u8>, omega_isa_x86_64::PlaceCopySites), Diagnostic> {
     x86_64::encode_copy_places(source, target, byte_count)
+}
+
+pub fn x86_64_encode_write_place_integer_with_sites(
+    target: &omega_target_operations::Place,
+    value: i64,
+    byte_size: usize,
+) -> Result<(Vec<u8>, omega_isa_x86_64::PlaceCopySites), Diagnostic> {
+    x86_64::encode_place_integer_write(target, value, byte_size)
 }
 
 
