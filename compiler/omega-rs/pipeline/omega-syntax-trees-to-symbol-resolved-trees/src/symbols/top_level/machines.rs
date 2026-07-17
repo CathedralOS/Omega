@@ -49,6 +49,37 @@ pub(super) fn assign_machine_symbols(
             .span_or_empty(machine.type_parameters)
             .to_vec();
 
+        // MP1: machine-parameter contracts are real signature data, not
+        // parser-only text. Resolve their parameter/result type references in
+        // the declaring machine's generic/self context. Contract-parameter
+        // symbols themselves join the modular-body checker in MP3; assigning
+        // types here prevents representation loss meanwhile.
+        for type_parameter in data_type_parameters.span_mut_or_empty(machine.type_parameters) {
+            let omega_symbol_resolved_trees::data::TypeParameterKind::Machine { contract } =
+                &mut type_parameter.kind
+            else {
+                continue;
+            };
+            for parameter in state_parameters.span_mut_or_empty(contract.parameters) {
+                assign_type_reference_symbol_with_locals_and_self_type(
+                    symbols,
+                    child_type_references,
+                    &local_type_parameters,
+                    machine_symbol,
+                    &mut parameter.type_reference,
+                );
+            }
+            if let Some(return_type) = &mut contract.return_type {
+                assign_type_reference_symbol_with_locals_and_self_type(
+                    symbols,
+                    child_type_references,
+                    &local_type_parameters,
+                    machine_symbol,
+                    return_type,
+                );
+            }
+        }
+
         for _ in 0..inherited_field_count {
             let _ = machine_children.next();
         }

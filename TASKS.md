@@ -4002,10 +4002,12 @@ with a real app-window story.
 - **Build-time evaluation:** comptime eval + trait generators (effect-free
   machines in value/refinement position).
 - **Generics completion — machine parameters DESIGN-RULED 2026-07-20:**
-  stage-1 data monomorphization landed. MP1 parse/store `<machine M>` and the
-  MANDATORY `where machine M(args) -> Result` contract in every tree layer;
-  reject a used machine parameter without that authored contract at its
-  declaration (never infer from uses, consumers, or instantiation count); MP2 resolve call-site
+  stage-1 data monomorphization landed. **MP1 LANDED 2026-07-17:** parse/store
+  `<machine M>` plus its MANDATORY authored
+  `where machine M(args) -> Result` contract through syntax, resolved, and
+  typed trees; reject an absent contract at declaration (never infer it from
+  uses, consumers, or instantiation count); parser rejection/acceptance and
+  cross-tree preservation tests pin the rule. MP2 resolve call-site
   machine-symbol arguments and check their normalized contracts refine the
   requirement; MP3 check generic bodies modularly from the required contract;
   MP4 monomorphize and substitute each `M(...)` use into a direct static call

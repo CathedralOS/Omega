@@ -1,5 +1,5 @@
 use crate::parser::context::StateKind;
-use crate::parser::data::parse_type_parameters;
+use crate::parser::data::parse_machine_type_parameters;
 use crate::parser::input::{Input, ParseResult, parse_path_handle_span};
 use crate::parser::state::{
     parse_optional_return_type, parse_optional_state_parameters, parse_state,
@@ -43,9 +43,10 @@ pub(super) fn parse_machine<'tokens, 'source>(
             "machine name `join` is reserved: `handle.join()` joins a spawned task (chapter 17)",
         ));
     }
-    let (type_parameters, input) = parse_type_parameters(syntax_trees, input)?;
+    let (type_parameters, input) = parse_machine_type_parameters(syntax_trees, input)?;
     let (machine_parameters, input) = parse_optional_state_parameters(syntax_trees, input)?;
-    let (machine_return_type, mut input) = parse_optional_return_type(syntax_trees, input)?;
+    let (machine_return_type, input) = parse_optional_return_type(syntax_trees, input)?;
+    let ((), mut input) = parse_machine_parameter_contracts(syntax_trees, type_parameters, input)?;
     let (satisfies, next) = parse_satisfies_traits(syntax_trees, input)?;
     let (
         (
@@ -85,12 +86,19 @@ pub(super) fn parse_machine<'tokens, 'source>(
         let mut state_start = Handle::invalid();
         let mut state_count = 0u32;
         let entry_state = State {
-            name: entry_name.clone().unwrap_or_else(|| Identifier::generated("entry")),
+            name: entry_name
+                .clone()
+                .unwrap_or_else(|| Identifier::generated("entry")),
             parameters: machine_parameters,
             return_type: machine_return_type,
             statements: HandleSpan::empty(),
         };
-        append_machine_state(syntax_trees, &mut state_start, &mut state_count, entry_state);
+        append_machine_state(
+            syntax_trees,
+            &mut state_start,
+            &mut state_count,
+            entry_state,
+        );
         return Ok((
             Machine {
                 name,
@@ -223,6 +231,106 @@ pub(super) fn parse_machine<'tokens, 'source>(
     ))
 }
 
+/// Parse the declaration-site contracts for static machine-symbol parameters.
+/// The parameter list only names symbols (`<machine F>`); every such symbol
+/// must receive exactly one authored `where machine F(...)` requirement before
+/// the executable body's clauses begin. Nothing is inferred from uses.
+fn parse_machine_parameter_contracts<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    type_parameters: HandleSpan<omega_syntax_trees::item::TypeParameter>,
+    mut input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, ()> {
+    loop {
+        if !input.at_contextual("where") {
+            break;
+        }
+        let after_where = input.take_contextual("where")?;
+        if !after_where.at_keyword(KeywordKind::Machine) {
+            break;
+        }
+        let after_machine = after_where.take_keyword(KeywordKind::Machine, "machine")?;
+        let (name, after_name) = after_machine.take_identifier()?;
+
+        let parameter_index = syntax_trees
+            .items
+            .type_parameters(type_parameters)
+            .iter()
+            .position(|parameter| parameter.name == name)
+            .ok_or_else(|| {
+                after_name.error_here(format!(
+                    "`where machine {}` has no matching `<machine {}>` parameter",
+                    name.as_str(),
+                    name.as_str()
+                ))
+            })?;
+
+        match &syntax_trees.items.type_parameters(type_parameters)[parameter_index].kind {
+            omega_syntax_trees::item::TypeParameterKind::Machine { contract: None } => {}
+            omega_syntax_trees::item::TypeParameterKind::Machine { contract: Some(_) } => {
+                return Err(after_name.error_here(format!(
+                    "machine parameter `{}` already has a `where machine` contract",
+                    name.as_str()
+                )));
+            }
+            _ => {
+                return Err(after_name.error_here(format!(
+                    "`{}` is not a machine parameter; declare it as `<machine {}>` before writing a machine contract",
+                    name.as_str(),
+                    name.as_str()
+                )));
+            }
+        }
+
+        let (parameters, after_parameters) =
+            parse_optional_state_parameters(syntax_trees, after_name)?;
+        let (return_type, after_return) =
+            parse_optional_return_type(syntax_trees, after_parameters)?;
+        let ((effects, contracts, terminates_guarantee), mut rest) =
+            crate::parser::trait_definition::parse_signature_clauses(syntax_trees, after_return)?;
+        // Permit a separator after the requirement. The semicolon belongs to
+        // this `where machine` signature, never to the generic machine body.
+        if rest.at_punctuation(PunctuationKind::Semicolon) {
+            rest = rest.take_punctuation(PunctuationKind::Semicolon, ";")?;
+        }
+
+        let contract = omega_syntax_trees::item::StateSignature {
+            name: name.clone(),
+            is_default: false,
+            parameters,
+            return_type,
+            effects,
+            contracts,
+            terminates_guarantee,
+        };
+        let parameter =
+            &mut syntax_trees.items.type_parameters_mut(type_parameters)[parameter_index];
+        parameter.kind = omega_syntax_trees::item::TypeParameterKind::Machine {
+            contract: Some(contract),
+        };
+        input = rest;
+    }
+
+    if let Some(missing) = syntax_trees
+        .items
+        .type_parameters(type_parameters)
+        .iter()
+        .find(|parameter| {
+            matches!(
+                parameter.kind,
+                omega_syntax_trees::item::TypeParameterKind::Machine { contract: None }
+            )
+        })
+    {
+        return Err(input.error_here(format!(
+            "machine parameter `{}` requires an authored declaration-site contract: write `where machine {}(...) -> Result`",
+            missing.name.as_str(),
+            missing.name.as_str()
+        )));
+    }
+
+    Ok(((), input))
+}
+
 fn starts_implicit_entry_body(input: Input<'_, '_>) -> bool {
     !input.at_punctuation(PunctuationKind::RightBrace)
         && !input.at_keyword(KeywordKind::Pub)
@@ -303,8 +411,7 @@ fn parse_implicit_entry_statements<'tokens, 'source>(
         // RECORD PATTERNS IN LET POSITION (owner spec 2026-07-18):
         // `let { x, y as h, z as _ } = place;` expands to the marker +
         // per-field lets.
-        } else if let Some((new_statements, rest)) =
-            try_parse_destructure_let(syntax_trees, input)
+        } else if let Some((new_statements, rest)) = try_parse_destructure_let(syntax_trees, input)
         {
             if statement_count == 0 {
                 statement_start = new_statements.start();
@@ -386,8 +493,10 @@ fn rewrite_terminal_tail_self_calls(
     };
 
     // Phase 1 (reads): collect the rewrite sites.
-    let mut sites: Vec<(StatementHandle, Vec<omega_syntax_trees::expression::ExpressionHandle>)> =
-        Vec::new();
+    let mut sites: Vec<(
+        StatementHandle,
+        Vec<omega_syntax_trees::expression::ExpressionHandle>,
+    )> = Vec::new();
     for state_handle in syntax_trees.items.state_handles(states).to_vec() {
         let state = syntax_trees.items.state(state_handle);
         let Some(&last) = syntax_trees.items.statements(state.statements).last() else {
@@ -435,13 +544,14 @@ fn rewrite_terminal_tail_self_calls(
                 argument_span = HandleSpan::from_parts(handle, arguments.len() as u32);
             }
         }
-        let target = syntax_trees
-            .statements
-            .insert_transition_target(TransitionTargetNode::Named {
-                path,
-                path_starts_at_self: false,
-                arguments: argument_span,
-            });
+        let target =
+            syntax_trees
+                .statements
+                .insert_transition_target(TransitionTargetNode::Named {
+                    path,
+                    path_starts_at_self: false,
+                    arguments: argument_span,
+                });
         syntax_trees.statements.replace_statement(
             statement_handle,
             StatementNode::Transition(TableTransition {

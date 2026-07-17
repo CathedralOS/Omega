@@ -28,6 +28,7 @@ mod admissibility;
 mod borrow;
 mod contracts;
 mod flow;
+mod generics;
 mod operators;
 mod termination;
 mod values;

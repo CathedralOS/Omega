@@ -117,6 +117,11 @@ pub enum TypeParameterKind {
     Const {
         type_reference: TypeReferenceHandle,
     },
+    /// Static machine-symbol parameter and the declaration-site contract
+    /// against which generic bodies and later instantiations are checked.
+    Machine {
+        contract: crate::signature::StateSignature,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

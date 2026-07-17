@@ -1,4 +1,3 @@
-use crate::expression::lower_expression_into_table;
 use crate::lowerer::Lowerer;
 use crate::type_reference::lower_type_reference_handle;
 use omega_core::arena::HandleSpan;
@@ -241,7 +240,7 @@ pub(crate) fn lower_versioned_container_definition(
                     "{data_name}::{version_name}"
                 ))),
             },
-            }));
+        }));
     }
 
     members.push(DataMember::Field(DataField {
@@ -273,7 +272,7 @@ pub(crate) fn lower_versioned_container_definition(
         storage: DataDefinitionStorage {
             type_parameters: HandleSpan::empty(),
             where_facts: omega_core::arena::HandleSpan::empty(),
-                zero_gated: false,
+            zero_gated: false,
             // The container itself is plain runtime state: zero-initialized
             // like any other field-bearing data (a zeroed container reads as
             // the oldest declared era with a zeroed payload).
@@ -299,6 +298,27 @@ pub(crate) fn lower_type_parameters(
                     *type_reference,
                 )?,
             },
+            syntax::item::TypeParameterKind::Machine { contract } => {
+                let contract = contract.as_ref().ok_or_else(|| {
+                    Diagnostic::error(format!(
+                        "machine parameter `{}` reached symbol resolution without its mandatory `where machine` contract",
+                        parameter.name.as_str()
+                    ))
+                })?;
+                TypeParameterKind::Machine {
+                    contract: crate::state::lower_state_signature_parts(
+                        lowerer,
+                        syntax_trees,
+                        &contract.name,
+                        contract.parameters,
+                        contract.return_type,
+                        contract.is_default,
+                        contract.effects,
+                        contract.contracts,
+                        contract.terminates_guarantee,
+                    )?,
+                }
+            }
         };
         lowered.push(TypeParameter {
             symbol: SymbolHandle::invalid(),

@@ -317,7 +317,10 @@ fn parses_trait_requirement_termination_guarantee() {
         .map(|handle| parsed.items.state_signature(*handle))
         .collect();
     assert_eq!(signatures.len(), 2);
-    assert!(signatures[0].terminates_guarantee, "run authored `terminates`");
+    assert!(
+        signatures[0].terminates_guarantee,
+        "run authored `terminates`"
+    );
     assert!(!signatures[1].terminates_guarantee, "peek promised nothing");
 }
 
@@ -728,8 +731,7 @@ fn parses_asm_mnemonics_as_intrinsic_calls() {
     assert_eq!(out.target.as_str(), "asm#port_out");
     assert_eq!(out.arguments.count(), 2);
 
-    let StatementNode::Assignment(read) = parsed.statements.statement(statements[3]).clone()
-    else {
+    let StatementNode::Assignment(read) = parsed.statements.statement(statements[3]).clone() else {
         panic!("asm {{ in .. }} should desugar to an assignment");
     };
     let ExpressionNode::Call(port_in) = parsed.expressions.expression(read.value).clone() else {
@@ -1124,4 +1126,88 @@ fn rejects_self_as_ordinary_declaration_name() {
         .tokenize()
         .expect("tokenize should succeed");
     assert!(parse_syntax_trees(&tokens).is_err());
+}
+
+#[test]
+fn parses_machine_parameter_with_mandatory_contract() {
+    let source = r#"
+        data Card {}
+        data Deck {}
+
+        machine Deck::best<machine Key>(&self, card: &Card) -> u64
+        where machine Key(value: &Card) -> u64
+        effects Console
+        requires value in Card::Scorable
+        {
+            0
+        }
+        "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let parsed = parse_syntax_trees(&tokens).expect("machine parameter should parse");
+    let machine = parsed
+        .root_items()
+        .find_map(|item| match item {
+            omega_syntax_trees::item::Item::Machine(machine) => Some(machine),
+            _ => None,
+        })
+        .expect("generic machine");
+    let parameters = parsed.items.type_parameters(machine.type_parameters);
+    assert_eq!(parameters.len(), 1);
+    assert_eq!(parameters[0].name.as_str(), "Key");
+    let omega_syntax_trees::item::TypeParameterKind::Machine {
+        contract: Some(contract),
+    } = &parameters[0].kind
+    else {
+        panic!("Key should carry its authored machine contract");
+    };
+    assert_eq!(contract.name.as_str(), "Key");
+    assert_eq!(parsed.items.state_parameters(contract.parameters).len(), 1);
+    assert!(contract.return_type.is_valid());
+    assert_eq!(
+        parsed.items.identifier_path_members(contract.effects).len(),
+        1
+    );
+    assert_eq!(
+        parsed.items.capability_contracts(contract.contracts).len(),
+        1
+    );
+}
+
+#[test]
+fn rejects_machine_parameter_without_authored_contract() {
+    let source = r#"
+        machine map<machine F>() -> u64 {
+            0
+        }
+        "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let error = parse_syntax_trees(&tokens).expect_err("missing contract must fail");
+    assert!(
+        error
+            .message
+            .contains("requires an authored declaration-site contract"),
+        "got: {}",
+        error.message
+    );
+}
+
+#[test]
+fn rejects_machine_parameter_on_non_machine_declaration() {
+    let source = "data Invalid<machine F> {}";
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let error = parse_syntax_trees(&tokens).expect_err("data machine parameter must fail");
+    assert!(
+        error
+            .message
+            .contains("only legal on a machine declaration"),
+        "got: {}",
+        error.message
+    );
 }

@@ -5,10 +5,10 @@ use crate::type_reference::lower_type_reference_handle;
 use omega_core::arena::HandleSpan;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::SymbolHandle;
+use omega_symbol_resolved_trees::name::DiagnosticName;
 use omega_symbol_resolved_trees::signature::{
     SignatureContract, SignatureContractKind, StateParameter, StateSignature, StateSignatureStorage,
 };
-use omega_symbol_resolved_trees::name::DiagnosticName;
 use omega_symbol_resolved_trees::state::{State, StateStorage};
 use omega_symbol_resolved_trees::statement::Statement;
 use omega_symbol_resolved_trees::types::TypeReference;
@@ -114,7 +114,7 @@ pub(crate) fn lower_state_signature_node(
     )
 }
 
-fn lower_state_signature_parts(
+pub(crate) fn lower_state_signature_parts(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
     name: &syntax::identifier::Identifier,
@@ -362,7 +362,6 @@ fn reference_struct_parameter_names(
         })
         .collect()
 }
-
 
 /// Build one continuation state the guarded-arm value-call rewrite
 /// synthesized: parameters copied (by name and type) from the enclosing

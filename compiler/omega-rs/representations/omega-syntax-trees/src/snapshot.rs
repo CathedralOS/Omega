@@ -154,6 +154,8 @@ pub struct TypeParameterSnapshot {
     pub name: IdentifierSnapshot,
     pub kind: &'static str,
     pub const_type: Option<TypeReferenceSnapshot>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub machine_contract: Option<StateSignatureSnapshot>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -862,6 +864,7 @@ fn snapshot_type_parameter(
             name: snapshot_identifier(&parameter.name),
             kind: "type",
             const_type: None,
+            machine_contract: None,
         },
         crate::item::TypeParameterKind::Const { type_reference } => TypeParameterSnapshot {
             name: snapshot_identifier(&parameter.name),
@@ -870,6 +873,15 @@ fn snapshot_type_parameter(
                 syntax_trees,
                 *type_reference,
             )),
+            machine_contract: None,
+        },
+        crate::item::TypeParameterKind::Machine { contract } => TypeParameterSnapshot {
+            name: snapshot_identifier(&parameter.name),
+            kind: "machine",
+            const_type: None,
+            machine_contract: contract
+                .as_ref()
+                .map(|contract| snapshot_state_signature(syntax_trees, contract)),
         },
     }
 }

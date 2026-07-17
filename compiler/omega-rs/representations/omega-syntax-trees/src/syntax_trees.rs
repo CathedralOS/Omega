@@ -9,8 +9,8 @@ use crate::item::{
     CapabilityDefinition, CapabilityField, CapabilityMember, CapabilityState, DataDefinition,
     DataField, DataMember, DataVariant, DataVersion, DomainDefinition, HostProviderDefinition,
     HostProviderMapping, Item, ItemHandle, ItemTable, LibraryDefinition, LibraryFunction, Machine,
-    MeasureDefinition, OperatorDefinition, ProofFact, ProofMembershipFact, State,
-    StateHandle, StateParameterHandle, StateParameterNode, StateSignature, StateSignatureHandle,
+    MeasureDefinition, OperatorDefinition, ProofFact, ProofMembershipFact, State, StateHandle,
+    StateParameterHandle, StateParameterNode, StateSignature, StateSignatureHandle,
     TargetDefinition, TargetHost, TargetHostSetting, TargetHostSettingValue, TraitDefinition,
     TypeParameter, UseItem, WireDataDefinition, WireDataField, WireDataMember, WireDataReserved,
     WireDataVersion,
@@ -396,8 +396,30 @@ impl SyntaxTrees {
         other: &SyntaxTrees,
         span: HandleSpan<TypeParameter>,
     ) -> HandleSpan<TypeParameter> {
-        self.copy_span(
-            other.items.type_parameters(span).iter().cloned(),
+        self.copy_mapped_span(
+            other.items.type_parameters(span).to_vec(),
+            |this, parameter| {
+                let kind = match &parameter.kind {
+                    crate::item::TypeParameterKind::Type => crate::item::TypeParameterKind::Type,
+                    crate::item::TypeParameterKind::Const { type_reference } => {
+                        crate::item::TypeParameterKind::Const {
+                            type_reference: this.copy_type_reference_handle(other, *type_reference),
+                        }
+                    }
+                    crate::item::TypeParameterKind::Machine { contract } => {
+                        crate::item::TypeParameterKind::Machine {
+                            contract: contract
+                                .as_ref()
+                                .map(|contract| this.copy_state_signature_value(other, contract)),
+                        }
+                    }
+                };
+                TypeParameter {
+                    name: parameter.name.clone(),
+                    kind,
+                    bounds: parameter.bounds,
+                }
+            },
             |this, parameter| this.items.append_type_parameter(parameter),
         )
     }
@@ -969,8 +991,7 @@ impl SyntaxTrees {
                 value: self.copy_expression_handle(other, cast.value),
                 target_type: self.copy_expression_identifier_span(other, cast.target_type),
                 domain: cast.domain,
-                semantic_domain: self
-                    .copy_expression_identifier_span(other, cast.semantic_domain),
+                semantic_domain: self.copy_expression_identifier_span(other, cast.semantic_domain),
                 form: cast.form,
             }),
             ExpressionNode::Call(call) => ExpressionNode::Call(TableCallExpression {
