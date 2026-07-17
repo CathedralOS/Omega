@@ -577,6 +577,15 @@ pub enum AbstractOperationKind {
         target: Place,
         literal: Arc<str>,
     },
+
+    /// Task #131: store the ADDRESS of a place-shaped source into the
+    /// runtime-frame slot at `target_offset` -- the six
+    /// Write*AddressToRuntimeFrame variants collapse onto this one. The
+    /// slot receives a REAL POINTER; reads deref it.
+    WritePlaceAddress {
+        source: Place,
+        target_offset: usize,
+    },
     SetDispatchState {
         dispatch_index: u32,
     },

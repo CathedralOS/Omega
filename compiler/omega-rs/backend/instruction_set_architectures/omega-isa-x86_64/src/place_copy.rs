@@ -417,6 +417,27 @@ pub fn encode_place_bounded_buffer_write(
     Ok((bytes, sites))
 }
 
+/// The ADDRESS-family materializer entry (task #131): compute the address
+/// OF a place-shaped source and store that POINTER into the runtime-frame
+/// slot at `target_offset`. The source address rides the standard walk into
+/// r15; the residual const offset is then ADDED to r15 (always emitted, so
+/// the width is walk-deterministic -- the address IS the payload, nothing
+/// folds into a store displacement); the frame slot's own base stages in
+/// r14 (`mov r14,imm64`, its relocation at width-17) for the final store.
+pub fn encode_place_address_write(
+    source: &Place,
+    target_offset: usize,
+) -> Result<(Vec<u8>, PlaceCopySites), Diagnostic> {
+    let mut bytes = Vec::new();
+    let mut sites = PlaceCopySites::default();
+    let displacement =
+        materialize_place_address(&mut bytes, &mut sites, source, AddressRegister::Target)?;
+    super::append_add_r15_imm32(&mut bytes, displacement)?; // r15 = full source address
+    super::append_mov_r14_imm64(&mut bytes, 0); // target frame base (reloc at width-17)
+    super::append_store_r15_to_r14(&mut bytes, target_offset)?; // frame[target] = address
+    Ok((bytes, sites))
+}
+
 /// The `CopyPlaces` entry: ONE routine that picks the emission shape from the
 /// place pair itself -- shared-base when both places root in the SAME region
 /// and a side derefs (the shape every retired same-region indexed/pointee

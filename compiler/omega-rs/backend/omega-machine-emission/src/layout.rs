@@ -729,6 +729,14 @@ fn machine_instruction_width(
                 literal,
             )?
         }
+        SelectedInstructionKind::WritePlaceAddress {
+            source,
+            target_offset,
+        } => omega_instruction_selection::write_place_address_width(
+            input.target.architecture,
+            source,
+            *target_offset,
+        )?,
         SelectedInstructionKind::WritePlaceBinary {
             target,
             byte_size,

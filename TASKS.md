@@ -968,7 +968,26 @@ sealed progress profiles + grants, TPR4's remaining big half).
    408 (fixed-indexed, 31), 534 (base-indexed), 566
    (machine-indexed), 5385 (storage direct), + the frame-indexed
    deref fn near 455), (c) delegations with lockstep walker updates,
-   (d) variant + echo + producers + retirement + sweep. THE COMPARE
+   (d) variant + echo + producers + retirement + sweep. PLAN REVISED
+   2026-07-20: 4/6 delegations would change widths anyway (the
+   retired encoders SHARE one frame base; the materializer form uses
+   two) so the family SKIPS the delegation phase -- variant + echo
+   first (retired encoders stay byte-stable until unproduced), then
+   producers, then retirement. ADDRESS RUNG A LANDED 2026-07-20:
+   WritePlaceAddress{source: Place, target_offset} + full echo --
+   encode_place_address_write (walk in r15 + ALWAYS-emitted residual
+   add + mov r14,imm64(frame)@width-17 + store), aarch64 decompose to
+   the six retained encoders incl. the machine-index deref shape via
+   the NEW pub place_frame_deref_indexed_path helper (encoder+walker
+   share it -- classify refuses that shape for value writes), walker
+   arm REAL both arches (x86 sites-by-region + frame@len-17; aarch64
+   per retained shape: direct source@0+frame@offset-fn, pointee/
+   frame-indexed frame@0, base-indexed frame@0+optional-fn,
+   machine-indexed copy-family offset fns, deref machine-idx
+   frame@0+machine@32), emission encode/layout arms, shapes plain
+   kind, storage+text+descriptor blocker rows, report arm. Zero
+   producers yet. REMAINING address: constructor family + migrate 22
+   producer sites, retire the six variants, sweep. THE COMPARE
    family (CompareRuntimeStorage/StorageValue/Values/TextLiteral/
    TextStorage + EvaluateDispatchGuard) follows -- operand pairs +
    branch distances, the harder half. Then the

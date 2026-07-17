@@ -71,6 +71,7 @@ impl OperationSemanticQuery for TargetOperationKind {
             Self::WritePlaceBinary { .. } => TargetOperationDomain::RuntimeWrite,
             Self::WritePlaceString { .. } => TargetOperationDomain::RuntimeWrite,
             Self::WritePlaceBoundedBuffer { .. } => TargetOperationDomain::RuntimeWrite,
+            Self::WritePlaceAddress { .. } => TargetOperationDomain::RuntimeWrite,
 
             Self::ReadRuntimeTextLine { .. }
             | Self::ReadRuntimeByte { .. }

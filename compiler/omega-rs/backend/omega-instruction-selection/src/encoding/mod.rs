@@ -50,6 +50,8 @@ pub use runtime_storage::{
     WritePlaceShape, classify_write_place_shape, encode_write_place_binary,
     encode_write_place_integer, write_place_binary_width, write_place_integer_width,
     encode_write_place_string, write_place_string_width,
+    encode_write_place_address, write_place_address_width, place_frame_deref_indexed_path,
+    x86_64_encode_write_place_address_with_sites,
     encode_write_place_bounded_buffer, write_place_bounded_buffer_width,
     x86_64_encode_write_place_string_with_sites, x86_64_encode_write_place_bounded_buffer_with_sites,
     encode_runtime_storage_compare_bytes, encode_runtime_storage_convert,

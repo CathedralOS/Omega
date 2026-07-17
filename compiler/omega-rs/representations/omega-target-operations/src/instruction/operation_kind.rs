@@ -455,6 +455,13 @@ pub enum TargetOperationKind {
         target: Place,
         literal: std::sync::Arc<str>,
     },
+
+    /// Task #131: the place-shaped address write (the six
+    /// Write*AddressToRuntimeFrame variants' survivor).
+    WritePlaceAddress {
+        source: Place,
+        target_offset: usize,
+    },
     SetDispatchState {
         dispatch_index: u32,
     },
