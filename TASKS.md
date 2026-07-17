@@ -1050,9 +1050,25 @@ sealed progress profiles + grants, TPR4's remaining big half).
    compare_places_direct + compare_place_value_direct constructors +
    all 8 producer sites migrated (edges.rs x2 incl. the
    guard-conjunct arm, guards.rs x6) -- every storage guard compare
-   rides the place form natively (canary 864 green). REMAINING
-   compare: retire CompareRuntimeStorage + CompareRuntimeStorageValue
-   + sweep dead shells. Then the
+   rides the place form natively (canary 864 green). COMPARE RUNG C LANDED
+   2026-07-20: RETIREMENT + SWEEP -- CompareRuntimeStorage +
+   CompareRuntimeStorageValue deleted from both enums + conversions +
+   classifications + shapes + report + walker + instruction_bytes +
+   layout + encoding rows; 11 dead shells swept (2 selection encode
+   wrappers, 2 selection width wrappers, 4 x86 encoder/width fns,
+   append_add_r14_imm32, 2 shapes kind helpers). KEPT: aarch64
+   retained compare encoders (decompose) +
+   runtime_storage_compare_right_address_offset (the ComparePlaces
+   aarch64 walker arm). GUARDS NOW CONSUME PLACES (the wiki step) --
+   direct today, indexed/deref subjects unlock when producers pass
+   walked places. SCOREBOARD: 46 variants retired onto 8 place
+   survivors (CopyPlaces, WritePlace{Integer,Binary,String,
+   BoundedBuffer,Address}, ComparePlaces, ComparePlaceValue).
+   REMAINING on #131 (the wiki ladder's tail): op-set shrink +
+   value-category-on-operand -- a design-scoped pass over the ~62
+   remaining variants; and producers passing WALKED places into
+   guards (needs guard-subject resolution to yield indexed places --
+   a selection-side feature, separate vein). Then the
    bounded-buffer entry (immediate content bytes, single base reloc),
    then WritePlaceString/+Buffer variant + echo + producers +
    retirement. Then guards/operands consume Places, then the op-set

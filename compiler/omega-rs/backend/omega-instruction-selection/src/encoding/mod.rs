@@ -53,13 +53,12 @@ pub use runtime_storage::{
     x86_64_encode_place_value_compare_with_sites,
     encode_write_place_bounded_buffer, write_place_bounded_buffer_width,
     x86_64_encode_write_place_string_with_sites, x86_64_encode_write_place_bounded_buffer_with_sites,
-    encode_runtime_storage_compare_bytes, encode_runtime_storage_convert,
+    encode_runtime_storage_convert,
     place_binary_index_base_positions, place_binary_operand_start_width,
     x86_64_encode_copy_places_with_sites,
     x86_64_encode_write_place_binary_with_sites, x86_64_encode_write_place_integer_with_sites,
     encode_runtime_machine_double_indexed_integer_write,
     encode_runtime_machine_double_indexed_binary_write,
-    encode_runtime_storage_value_compare_bytes,
     encode_runtime_value_compare,
 };
 pub use runtime_text::{

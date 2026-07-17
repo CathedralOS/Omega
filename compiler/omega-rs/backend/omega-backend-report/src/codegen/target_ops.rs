@@ -154,35 +154,6 @@ fn selected_instruction_name(
                 "compare runtime text storage {source_symbol}@{source_offset} {operator:?} `{buffer_symbol}`"
             )
         }
-        SelectedInstructionKind::CompareRuntimeStorage {
-            left_region,
-            left_offset,
-            right_region,
-            right_offset,
-            byte_size,
-            operator,
-            ..
-        } => {
-            let left_symbol =
-                storage_region_symbol_name(*left_region, backend_plan.entry_machine_name());
-            let right_symbol =
-                storage_region_symbol_name(*right_region, backend_plan.entry_machine_name());
-            format!(
-                "compare runtime storage {left_symbol}@{left_offset} {operator:?} {right_symbol}@{right_offset} bytes {byte_size}"
-            )
-        }
-        SelectedInstructionKind::CompareRuntimeStorageValue {
-            region,
-            byte_offset,
-            byte_size,
-            expected_value,
-            operator,
-        } => {
-            let symbol = storage_region_symbol_name(*region, backend_plan.entry_machine_name());
-            format!(
-                "compare runtime storage {symbol}@{byte_offset} {operator:?} {expected_value} bytes {byte_size}"
-            )
-        }
         SelectedInstructionKind::ComparePlaces {
             left,
             right,

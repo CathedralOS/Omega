@@ -18,8 +18,6 @@ impl OperationSemanticQuery for AbstractOperationKind {
             Self::EvaluateDispatchGuard { .. }
             | Self::CompareRuntimeTextLiteral { .. }
             | Self::CompareRuntimeTextStorage { .. }
-            | Self::CompareRuntimeStorage { .. }
-            | Self::CompareRuntimeStorageValue { .. }
             | Self::CompareRuntimeValues { .. }
             | Self::ComparePlaces { .. }
             | Self::ComparePlaceValue { .. } => AbstractOperationDomain::GuardEvaluation,
