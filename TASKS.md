@@ -1064,11 +1064,24 @@ sealed progress profiles + grants, TPR4's remaining big half).
    walked places. SCOREBOARD: 46 variants retired onto 8 place
    survivors (CopyPlaces, WritePlace{Integer,Binary,String,
    BoundedBuffer,Address}, ComparePlaces, ComparePlaceValue).
-   REMAINING on #131 (the wiki ladder's tail): op-set shrink +
-   value-category-on-operand -- a design-scoped pass over the ~62
-   remaining variants; and producers passing WALKED places into
-   guards (needs guard-subject resolution to yield indexed places --
-   a selection-side feature, separate vein). Then the
+   TASK #131 COMPLETE
+   (guards consume Places). TASK #132 OPENED (op-set shrink, wiki
+   Phase 6 tail): FIRST UNIT BANKED 2026-07-20 -- the 9-variant TEXT
+   CROSSING (Materialize/AppendStored/AppendLiteral x direct/pointee/
+   frame-indexed; the wiki names this product explicitly) collapses
+   9 -> 3: MaterializeTextBufferToPlace{buffer, target: Place},
+   AppendTextStoredToPlace{buffer, source_region, source_offset,
+   target: Place}, AppendTextLiteralToPlace{buffer, target: Place,
+   literal}. LIGHTER ARC than the write families: NO new materializer
+   entries -- encode/layout/walker DECOMPOSE by
+   classify_write_place_shape to the retained per-shape encoders on
+   BOTH arches (the aarch64 transitional pattern applied to x86 too);
+   the payoff is killing the 15-file echo duplication at the
+   representation level. Then producers + retire 9. AFTER: classify
+   the remaining ~53 variants (already-place-shaped / collapsible-via
+   -value-category / genuinely-distinct dispatch-host-wire-atomic /
+   straggler mini-collapses); walked-place guard subjects stay a
+   banked selection-side feature. Then the
    bounded-buffer entry (immediate content bytes, single base reloc),
    then WritePlaceString/+Buffer variant + echo + producers +
    retirement. Then guards/operands consume Places, then the op-set
