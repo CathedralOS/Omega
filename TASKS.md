@@ -985,9 +985,16 @@ sealed progress profiles + grants, TPR4's remaining big half).
    frame-indexed frame@0, base-indexed frame@0+optional-fn,
    machine-indexed copy-family offset fns, deref machine-idx
    frame@0+machine@32), emission encode/layout arms, shapes plain
-   kind, storage+text+descriptor blocker rows, report arm. Zero
-   producers yet. REMAINING address: constructor family + migrate 22
-   producer sites, retire the six variants, sweep. THE COMPARE
+   kind, storage+text+descriptor blocker rows, report arm. ADDRESS
+   RUNG B LANDED 2026-07-20: constructor family (write_place_address_
+   {direct,pointee,fixed_indexed->pointee-shape,frame_indexed_deref,
+   base_indexed,machine_indexed}) + ALL 22 producer sites migrated
+   (wire_encode x2, runtime_dispatch machine-indexed,
+   argument_materialization x2, subslice_copy, slice_descriptors x7,
+   frame_slots x9) -- every address write now rides the materializer
+   natively on this host (canary 864 green). REMAINING address:
+   retire the six variants + sweep dead shells (x86 retired encoders
+   + width/offset fns + walker arms + blocker rows). THE COMPARE
    family (CompareRuntimeStorage/StorageValue/Values/TextLiteral/
    TextStorage + EvaluateDispatchGuard) follows -- operand pairs +
    branch distances, the harder half. Then the

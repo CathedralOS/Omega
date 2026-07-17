@@ -1107,11 +1107,11 @@ fn emit_runtime_fixed_array_slice_argument_materialization(
     };
 
     selected_instructions.push(SelectedInstruction {
-        kind: SelectedInstructionKind::WriteRuntimeStorageAddressToRuntimeFrame {
-            source_region: source_place.region,
-            source_offset: source_place.byte_offset,
-            target_offset: slot.byte_offset,
-        },
+        kind: crate::selection::runtime_dispatch::write_place_address_direct(
+            source_place.region,
+            source_place.byte_offset,
+            slot.byte_offset,
+        ),
         source_key,
         source_statement: statement_index,
     });
@@ -1199,11 +1199,11 @@ fn emit_runtime_detached_frame_slice_argument_materialization(
         source_statement: statement_index,
     });
     selected_instructions.push(SelectedInstruction {
-        kind: SelectedInstructionKind::WriteRuntimeStorageAddressToRuntimeFrame {
-            source_region: RuntimeStorageRegion::RuntimeFrame,
-            source_offset: scratch_offset,
-            target_offset: slot.byte_offset,
-        },
+        kind: crate::selection::runtime_dispatch::write_place_address_direct(
+            RuntimeStorageRegion::RuntimeFrame,
+            scratch_offset,
+            slot.byte_offset,
+        ),
         source_key,
         source_statement: statement_index,
     });

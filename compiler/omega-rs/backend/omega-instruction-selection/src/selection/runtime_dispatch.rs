@@ -637,6 +637,136 @@ pub(crate) fn write_place_string_machine_indexed(
     }
 }
 
+/// Task #131: the place-address constructor family (the six retired
+/// Write*AddressToRuntimeFrame spellings as places).
+pub(crate) fn write_place_address_direct(
+    source_region: RuntimeStorageRegion,
+    source_offset: usize,
+    target_offset: usize,
+) -> SelectedInstructionKind {
+    SelectedInstructionKind::WritePlaceAddress {
+        source: omega_abstract_operations::Place::at(source_region, source_offset),
+        target_offset,
+    }
+}
+
+pub(crate) fn write_place_address_pointee(
+    pointer_byte_offset: usize,
+    field_byte_offset: usize,
+    target_offset: usize,
+) -> SelectedInstructionKind {
+    SelectedInstructionKind::WritePlaceAddress {
+        source: omega_abstract_operations::Place::at(
+            RuntimeStorageRegion::RuntimeFrame,
+            pointer_byte_offset,
+        )
+        .with_step(omega_abstract_operations::PlaceStep::Deref)
+        .and_then(|place| {
+            place.with_step(omega_abstract_operations::PlaceStep::ConstOffset(
+                field_byte_offset,
+            ))
+        })
+        .expect("a pointee place is three steps, within PLACE_MAX_STEPS"),
+        target_offset,
+    }
+}
+
+/// The retired FIXED-index shape: the constant element index folds into the
+/// post-deref const offset, so the place is pointee-shaped.
+pub(crate) fn write_place_address_fixed_indexed(
+    descriptor_offset: usize,
+    element_index: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    target_offset: usize,
+) -> SelectedInstructionKind {
+    // Layout-derived constants cannot overflow usize in a real program; the
+    // encoder's disp32 fence still refuses any displacement past i32.
+    let displacement = element_index
+        .checked_mul(element_byte_size)
+        .and_then(|scaled| scaled.checked_add(field_byte_offset))
+        .expect("fixed indexed address offset overflows usize");
+    write_place_address_pointee(descriptor_offset, displacement, target_offset)
+}
+
+pub(crate) fn write_place_address_frame_indexed_deref(
+    descriptor_offset: usize,
+    index_region: RuntimeStorageRegion,
+    index_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    target_offset: usize,
+) -> SelectedInstructionKind {
+    SelectedInstructionKind::WritePlaceAddress {
+        source: omega_abstract_operations::Place::at(
+            RuntimeStorageRegion::RuntimeFrame,
+            descriptor_offset,
+        )
+        .with_step(omega_abstract_operations::PlaceStep::Deref)
+        .and_then(|place| {
+            place.with_step(omega_abstract_operations::PlaceStep::ScaledIndex {
+                index_region,
+                index_offset,
+                element_byte_size,
+            })
+        })
+        .and_then(|place| {
+            place.with_step(omega_abstract_operations::PlaceStep::ConstOffset(
+                field_byte_offset,
+            ))
+        })
+        .expect("an indexed-deref place is four steps, within PLACE_MAX_STEPS"),
+        target_offset,
+    }
+}
+
+pub(crate) fn write_place_address_base_indexed(
+    base_byte_offset: usize,
+    index_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    target_offset: usize,
+) -> SelectedInstructionKind {
+    SelectedInstructionKind::WritePlaceAddress {
+        source: omega_abstract_operations::Place::at(
+            RuntimeStorageRegion::RuntimeFrame,
+            base_byte_offset,
+        )
+        .with_step(omega_abstract_operations::PlaceStep::ScaledIndex {
+            index_region: RuntimeStorageRegion::RuntimeFrame,
+            index_offset,
+            element_byte_size,
+        })
+        .and_then(|place| {
+            place.with_step(omega_abstract_operations::PlaceStep::ConstOffset(
+                field_byte_offset,
+            ))
+        })
+        .expect("a base-indexed place is three steps, within PLACE_MAX_STEPS"),
+        target_offset,
+    }
+}
+
+pub(crate) fn write_place_address_machine_indexed(
+    base_byte_offset: usize,
+    index_region: RuntimeStorageRegion,
+    index_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    target_offset: usize,
+) -> SelectedInstructionKind {
+    SelectedInstructionKind::WritePlaceAddress {
+        source: machine_indexed_place(
+            base_byte_offset,
+            index_region,
+            index_offset,
+            element_byte_size,
+            field_byte_offset,
+        ),
+        target_offset,
+    }
+}
+
 /// Text rung 2b: the bounded-buffer constructor pair (the two retired
 /// carrier-write spellings as places).
 pub(crate) fn write_place_bounded_buffer_direct(
@@ -1912,14 +2042,14 @@ fn select_runtime_dispatch_local_initializer_write(
             )
         {
             let kind = if size > input.runtime_abi.pointer_size {
-                SelectedInstructionKind::WriteRuntimeMachineIndexedAddressToRuntimeFrame {
-                    base_byte_offset: indexed.base_byte_offset,
-                    index_offset: indexed.index_offset,
-                    index_region: indexed.index_region,
-                    element_byte_size: indexed.element_byte_size,
-                    field_byte_offset: indexed.field_byte_offset,
-                    target_offset: slot.byte_offset,
-                }
+                write_place_address_machine_indexed(
+                    indexed.base_byte_offset,
+                    indexed.index_region,
+                    indexed.index_offset,
+                    indexed.element_byte_size,
+                    indexed.field_byte_offset,
+                    slot.byte_offset,
+                )
             } else {
                 crate::selection::runtime_dispatch::copy_places_from_machine_indexed(indexed.base_byte_offset, indexed.index_region, indexed.index_offset, indexed.element_byte_size, indexed.field_byte_offset, omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame, slot.byte_offset, size)
             };
