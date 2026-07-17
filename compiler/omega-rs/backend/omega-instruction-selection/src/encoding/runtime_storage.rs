@@ -890,6 +890,117 @@ pub fn encode_runtime_machine_indexed_address_to_runtime_frame_write(
 /// encoders (byte-identical to what the retired kinds emitted) and refuses
 /// anything else until the aarch64 materializer rung lands (no runtime
 /// oracle to verify new byte layouts there).
+/// The single-place shapes the TRANSITIONAL aarch64 write path recognizes
+/// (the CopyPlacesShape twin for one place). The walker and the encoder
+/// classify with the SAME function, so a place either decomposes
+/// consistently in both or refuses at layout time.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WritePlaceShape {
+    Direct { byte_offset: usize },
+    Pointee {
+        pointer_byte_offset: usize,
+        field_byte_offset: usize,
+    },
+    FrameIndexed {
+        descriptor_offset: usize,
+        index_offset: usize,
+        element_byte_size: usize,
+        field_byte_offset: usize,
+    },
+    FrameBaseIndexed {
+        base_byte_offset: usize,
+        index_offset: usize,
+        element_byte_size: usize,
+        field_byte_offset: usize,
+    },
+    MachineIndexed {
+        base_byte_offset: usize,
+        index_region: omega_target_operations::RuntimeStorageRegion,
+        index_offset: usize,
+        element_byte_size: usize,
+        field_byte_offset: usize,
+    },
+    MachineDoubleIndexed {
+        base_byte_offset: usize,
+        outer_index_region: omega_target_operations::RuntimeStorageRegion,
+        outer_index_offset: usize,
+        outer_stride: usize,
+        inner_index_region: omega_target_operations::RuntimeStorageRegion,
+        inner_index_offset: usize,
+        inner_stride: usize,
+        field_byte_offset: usize,
+    },
+    /// x86_64-materializer only.
+    Unsupported,
+}
+
+pub fn classify_write_place_shape(
+    target: &omega_target_operations::Place,
+) -> WritePlaceShape {
+    if let Some(byte_offset) = target.const_offset() {
+        return WritePlaceShape::Direct { byte_offset };
+    }
+    if let Some(double) = direct_double_indexed_path(target) {
+        if target.region == omega_target_operations::RuntimeStorageRegion::Machine {
+            return WritePlaceShape::MachineDoubleIndexed {
+                base_byte_offset: double.base_offset,
+                outer_index_region: double.outer_region,
+                outer_index_offset: double.outer_offset,
+                outer_stride: double.outer_stride,
+                inner_index_region: double.inner_region,
+                inner_index_offset: double.inner_offset,
+                inner_stride: double.inner_stride,
+                field_byte_offset: double.field_offset,
+            };
+        }
+        return WritePlaceShape::Unsupported;
+    }
+    if let Some(indexed) = direct_indexed_path(target) {
+        if target.region == omega_target_operations::RuntimeStorageRegion::Machine {
+            return WritePlaceShape::MachineIndexed {
+                base_byte_offset: indexed.pointer_offset,
+                index_region: indexed.index_region,
+                index_offset: indexed.index_offset,
+                element_byte_size: indexed.element_byte_size,
+                field_byte_offset: indexed.field_offset,
+            };
+        }
+        if target.region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
+            && indexed.index_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
+        {
+            return WritePlaceShape::FrameBaseIndexed {
+                base_byte_offset: indexed.pointer_offset,
+                index_offset: indexed.index_offset,
+                element_byte_size: indexed.element_byte_size,
+                field_byte_offset: indexed.field_offset,
+            };
+        }
+        return WritePlaceShape::Unsupported;
+    }
+    if let Some(indexed) = single_indexed_path(target) {
+        if target.region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
+            && indexed.index_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
+        {
+            return WritePlaceShape::FrameIndexed {
+                descriptor_offset: indexed.pointer_offset,
+                index_offset: indexed.index_offset,
+                element_byte_size: indexed.element_byte_size,
+                field_byte_offset: indexed.field_offset,
+            };
+        }
+        return WritePlaceShape::Unsupported;
+    }
+    if target.region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
+        && let Some((pointer_byte_offset, field_byte_offset)) = single_deref_path(target)
+    {
+        return WritePlaceShape::Pointee {
+            pointer_byte_offset,
+            field_byte_offset,
+        };
+    }
+    WritePlaceShape::Unsupported
+}
+
 /// Write rung 2a: the place-shaped integer write. x86_64 rides the
 /// materializer; aarch64 REFUSES LOUDLY until its decompose rung (zero
 /// producers exist yet -- the old Write*Integer variants still carry the
@@ -904,9 +1015,88 @@ pub fn encode_write_place_integer(
         Architecture::X86_64 => {
             x86_64::encode_place_integer_write(target, value, byte_size).map(|(bytes, _)| bytes)
         }
-        Architecture::Aarch64 => Err(Diagnostic::error(
-            "WritePlaceInteger on aarch64 refuses until its decompose rung lands;              producers stay on the shape-specific write kinds there",
-        )),
+        Architecture::Aarch64 => match classify_write_place_shape(target) {
+            WritePlaceShape::Direct { byte_offset } => {
+                aarch64::encode_runtime_machine_integer_write(byte_offset, byte_size, value)
+            }
+            WritePlaceShape::Pointee {
+                pointer_byte_offset,
+                field_byte_offset,
+            } => aarch64::encode_runtime_pointee_integer_write(
+                pointer_byte_offset,
+                field_byte_offset,
+                byte_size,
+                value,
+            ),
+            WritePlaceShape::FrameIndexed {
+                descriptor_offset,
+                index_offset,
+                element_byte_size,
+                field_byte_offset,
+            } => aarch64::encode_runtime_frame_indexed_integer_write(
+                descriptor_offset,
+                index_offset,
+                element_byte_size,
+                field_byte_offset,
+                byte_size,
+                value,
+            ),
+            WritePlaceShape::FrameBaseIndexed {
+                base_byte_offset,
+                index_offset,
+                element_byte_size,
+                field_byte_offset,
+            } => aarch64::encode_runtime_frame_base_indexed_integer_write(
+                base_byte_offset,
+                index_offset,
+                element_byte_size,
+                field_byte_offset,
+                byte_size,
+                value,
+            ),
+            WritePlaceShape::MachineIndexed {
+                base_byte_offset,
+                index_region,
+                index_offset,
+                element_byte_size,
+                field_byte_offset,
+            } => aarch64::encode_runtime_machine_indexed_integer_write(
+                base_byte_offset,
+                index_region,
+                index_offset,
+                element_byte_size,
+                field_byte_offset,
+                byte_size,
+                value,
+            ),
+            WritePlaceShape::MachineDoubleIndexed {
+                base_byte_offset,
+                outer_index_region,
+                outer_index_offset,
+                outer_stride,
+                inner_index_region,
+                inner_index_offset,
+                inner_stride,
+                field_byte_offset,
+            } => aarch64::encode_runtime_machine_double_indexed_integer_write(
+                base_byte_offset,
+                outer_index_offset,
+                outer_index_region,
+                outer_stride,
+                inner_index_offset,
+                inner_index_region,
+                inner_stride,
+                field_byte_offset,
+                byte_size,
+                value,
+            ),
+            WritePlaceShape::Unsupported => Err(Diagnostic::error(
+                "WritePlaceInteger on aarch64 serves direct, pointee, frame-indexed, \
+                 frame-base-indexed, machine-indexed, and machine-double-indexed \
+                 place shapes only until the aarch64 place materializer lands; \
+                 this shape refuses loudly",
+            )),
+        },
     }
 }
 
