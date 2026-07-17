@@ -886,11 +886,15 @@ sealed progress profiles + grants, TPR4's remaining big half).
    WriteRuntimeFrameIndexedString arm arch-SPLIT in the same commit
    (x86 = new positions, aarch64 = retained layout untouched); the
    34-byte rax prefix helper stays live for the literal-APPEND
-   encoder (its own walker arm + offset fn, unshared). REMAINING
-   Text: the machine-indexed string delegation (same-width, relocs
-   move to data@0/machine@10/frame@20; its frame offset fn is ALSO
-   consumed by the WritePlaceBinary aarch64 walker branch --
-   arch-dispatched, x86 arm free to move), the
+   encoder (its own walker arm + offset fn, unshared). TEXT RUNG 1d
+   LANDED 2026-07-19: the MACHINE-INDEXED string encoder delegates --
+   width holds (71), relocs move to data@0/machine@10/frame@20 (the
+   cross-region index's own base), walker arm arch-split same commit
+   (aarch64 retained; its frame offset fn stays live for the aarch64
+   arm AND the WritePlaceBinary aarch64 walker branch -- the x86 arms
+   of the two machine-indexed offset fns are now dead-but-pub, swept
+   at retirement). ALL FIVE string encoders now ride the
+   materializer. REMAINING Text: the
    bounded-buffer entry (immediate content bytes, single base reloc),
    then WritePlaceString/+Buffer variant + echo + producers +
    retirement. Then guards/operands consume Places, then the op-set

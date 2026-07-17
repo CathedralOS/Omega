@@ -134,25 +134,49 @@ pub(super) fn collect_runtime_storage_string_relocations(
             field_byte_offset,
             ..
         } => {
-            context
-                .insert_data_address_at_instruction_start(context.machine_storage_symbol_handle());
-            context.insert_data_address_at_relative_offset(
-                runtime_machine_indexed_string_runtime_frame_address_offset(
-                    context.input.target.architecture,
-                    *base_byte_offset,
-                ),
-                context.runtime_frame_symbol_handle(),
-            );
             let data_symbol = context.data_object_symbol_handle(*data);
-            context.insert_data_address_at_relative_offset(
-                runtime_machine_indexed_string_data_address_offset(
-                    context.input.target.architecture,
-                    *base_byte_offset,
-                    *element_byte_size,
-                    *field_byte_offset,
-                ),
-                data_symbol,
-            );
+            match context.input.target.architecture {
+                Architecture::X86_64 => {
+                    // Text rung 1d: the encoder delegates through the place
+                    // materializer -- data at the instruction start, machine
+                    // base at +10, then the cross-region index's own frame
+                    // base materialization (`mov r11, imm64`) at +20.
+                    context.insert_data_address_at_instruction_start(data_symbol);
+                    context.insert_data_address_at_relative_offset(
+                        string_descriptor_machine_address_offset(
+                            context.input.target.architecture,
+                        ),
+                        context.machine_storage_symbol_handle(),
+                    );
+                    context.insert_data_address_at_relative_offset(
+                        string_descriptor_machine_address_offset(
+                            context.input.target.architecture,
+                        ) + 10,
+                        context.runtime_frame_symbol_handle(),
+                    );
+                }
+                Architecture::Aarch64 => {
+                    context.insert_data_address_at_instruction_start(
+                        context.machine_storage_symbol_handle(),
+                    );
+                    context.insert_data_address_at_relative_offset(
+                        runtime_machine_indexed_string_runtime_frame_address_offset(
+                            context.input.target.architecture,
+                            *base_byte_offset,
+                        ),
+                        context.runtime_frame_symbol_handle(),
+                    );
+                    context.insert_data_address_at_relative_offset(
+                        runtime_machine_indexed_string_data_address_offset(
+                            context.input.target.architecture,
+                            *base_byte_offset,
+                            *element_byte_size,
+                            *field_byte_offset,
+                        ),
+                        data_symbol,
+                    );
+                }
+            }
             true
         }
         _ => false,

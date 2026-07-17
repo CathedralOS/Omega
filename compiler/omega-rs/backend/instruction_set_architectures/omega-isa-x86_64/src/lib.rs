@@ -2883,26 +2883,31 @@ pub fn encode_runtime_machine_indexed_string_write(
     field_byte_offset: usize,
     byte_length: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = Vec::with_capacity(runtime_machine_indexed_string_write_width(
-        base_byte_offset,
-        element_byte_size,
-        field_byte_offset,
-        byte_length,
-    ));
-    // r15 = machine base (reloc @ +2); r14 = frame base (reloc @ +12).
-    append_mov_r15_imm64(&mut bytes, 0);
-    append_mov_r14_imm64(&mut bytes, 0);
-    append_load_r11_from_r14(&mut bytes, index_offset)?; // r11 = index
-    append_imul_r11_imm32(&mut bytes, element_scale(element_byte_size)?);
-    append_add_r15_r11(&mut bytes); // r15 = machine_base + index*elem
-    debug_assert_eq!(bytes.len(), MACHINE_INDEXED_STRING_PREFIX_WIDTH);
-    let store_offset = base_byte_offset + field_byte_offset;
-    // descriptor.ptr = string literal (r14, reloc @ prefix+2).
-    append_mov_r14_imm64(&mut bytes, 0);
-    append_store_r14_to_r15(&mut bytes, store_offset)?;
-    // descriptor.len = byte_length.
-    append_mov_r14_imm64(&mut bytes, byte_length as u64);
-    append_store_r14_to_r15(&mut bytes, store_offset + 8)?;
+    // Text rung 1d: DELEGATES through the place materializer. Total width
+    // holds (71: the retired 37-byte prefix = the walk's base +
+    // cross-region index + imul + add sum), but the relocs move to the
+    // materializer convention -- data at the instruction start, machine
+    // base at +10, the index's own frame base at +20 -- so the walker's
+    // x86 arm moves in this SAME commit.
+    let target =
+        place_copy::transitional_place(omega_target_operations::RuntimeStorageRegion::Machine)
+            .with_step(omega_target_operations::PlaceStep::ConstOffset(
+                base_byte_offset,
+            ))
+            .and_then(|place| {
+                place.with_step(omega_target_operations::PlaceStep::ScaledIndex {
+                    index_region: omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+                    index_offset,
+                    element_byte_size,
+                })
+            })
+            .and_then(|place| {
+                place.with_step(omega_target_operations::PlaceStep::ConstOffset(
+                    field_byte_offset,
+                ))
+            })
+            .expect("a machine-indexed place is four steps, within PLACE_MAX_STEPS");
+    let (bytes, _) = place_copy::encode_place_string_write(&target, byte_length)?;
     debug_assert_eq!(
         bytes.len(),
         runtime_machine_indexed_string_write_width(
