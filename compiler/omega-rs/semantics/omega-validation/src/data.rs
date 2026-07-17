@@ -58,42 +58,6 @@ pub(crate) fn validate_data_field_types(
                     },
                     type_parameters,
                 );
-
-                // A field DEFAULT (`x: i32 = true`, `b: i8 = 300`) is EMITTED as the
-                // field's initial value (verified: a scalar default reads back), so a
-                // cross-class or narrowing default is a silent store miscompile -- the
-                // same obligations as any value-binding slot, checked here because a
-                // default has no machine/state context. Defaults are always literals/
-                // consts, so the machine-free literal paths suffice.
-                if field.initial_value.is_valid()
-                    && let Some(primitive) =
-                        program.primitive_type_reference(field.type_reference)
-                {
-                    let owner = format!(
-                        "data `{}` field `{}` default",
-                        data_definition.name.as_str(),
-                        field.name.as_str()
-                    );
-                    // Class first; a cross-class default is not also narrowing-checked.
-                    if !crate::expression_types::report_cross_class_store(
-                        program,
-                        None,
-                        None,
-                        field.initial_value,
-                        primitive,
-                        &owner,
-                        "field",
-                        diagnostics,
-                    ) {
-                        crate::arithmetic_domains::check_literal_default_narrowing(
-                            program,
-                            field.initial_value,
-                            primitive,
-                            &owner,
-                            diagnostics,
-                        );
-                    }
-                }
             }
         }
     }
@@ -304,12 +268,6 @@ fn validate_data_shape(
                 if !scalar {
                     diagnostics.push(Diagnostic::error(format!(
                         "data `{}` common field `{}` is not a scalar primitive; mixed data shape common fields support only bool, integer, and float types for now (case construction zero-initializes unnamed common fields)",
-                        data_definition.name, field.name
-                    )));
-                }
-                if field.initial_value.is_valid() {
-                    diagnostics.push(Diagnostic::error(format!(
-                        "data `{}` common field `{}` declares a default value; mixed data shape common fields are zero-initialized unless named in the case literal, so a default would never apply",
                         data_definition.name, field.name
                     )));
                 }

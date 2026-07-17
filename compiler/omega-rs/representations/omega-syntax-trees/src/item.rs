@@ -542,7 +542,6 @@ pub fn is_version_selector(name: &str) -> bool {
 pub struct DataField {
     pub name: Identifier,
     pub type_reference: crate::types::TypeReferenceHandle,
-    pub initial_value: crate::expression::ExpressionHandle,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

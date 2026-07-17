@@ -241,20 +241,15 @@ fn parse_data_member<'tokens, 'source>(
                 field_name.as_str()
             )));
         }
-        let (initial_value, next) = (
-            omega_syntax_trees::expression::ExpressionHandle::invalid(),
-            input,
-        );
-        input = if next.at_punctuation(PunctuationKind::Semicolon) {
-            next.take_punctuation(PunctuationKind::Semicolon, ";")?
+        input = if input.at_punctuation(PunctuationKind::Semicolon) {
+            input.take_punctuation(PunctuationKind::Semicolon, ";")?
         } else {
-            next
+            input
         };
         return Ok((
             DataMember::Field(DataField {
                 name: field_name,
                 type_reference,
-                initial_value,
             }),
             input,
         ));
@@ -320,7 +315,6 @@ fn parse_case_payload_fields<'tokens, 'source>(
         let handle = syntax_trees.items.append_data_payload_field(DataField {
             name: field_name,
             type_reference,
-            initial_value: omega_syntax_trees::expression::ExpressionHandle::invalid(),
         });
         if payload_count == 0 {
             payload_start = handle;
