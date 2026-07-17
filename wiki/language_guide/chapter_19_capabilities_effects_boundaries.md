@@ -11,6 +11,11 @@ Omega should model host and compiler boundaries explicitly.
 > resource bounds remain dependent contracts. The lowercase fixed vocabulary
 > documented later in this chapter is the current compiler compatibility layer,
 > not the end-state language model.
+>
+> **Provider realization:** boundary implementations are authored as ordinary
+> [`ProviderPlan` policies](../design_briefs/provider_plans.md), validated,
+> admitted with receipts, and selected by service-slot owners. Platform
+> profiles supply defaults; the implemented `provides` keyword is retired.
 
 The outside world is not one thing. Linux may expose raw syscall numbers,
 Darwin normally routes process IO through `libSystem`, Windows imports APIs
@@ -590,25 +595,49 @@ Linux can expose a target syscall surface directly. That mapping is provider
 metadata for a boundary trait, not a different user-facing callable concept.
 
 ```omega
-host linux_aarch64 provides Console {
-    write_line -> syscall 64;
-    write -> syscall 64;
-    read_line -> syscall 63;
-    exit_process -> syscall 94;
+data LinuxConsole;
+
+machine LinuxConsole::plan(
+    service: ServiceSchema<Console>
+) -> ProviderPlan<Console>
+    satisfies BoundaryProvider<Console>::plan
+{
+    ...
 }
 ```
 
-This is the same proof shape as a library import:
+The provider policy returns ordinary checked plan data whose entries bind
+operations to closed compiler-known mechanisms such as `Syscall`, `DllImport`,
+table dispatch, or an intrinsic. The implemented `<target> provides <Trait>`
+syntax is retired; it fused provider authorship to target selection and also
+became a miscellaneous table for non-binding constants.
+
+A provider plan has four stages:
+
+1. anyone may construct an inert candidate;
+2. deterministic validation checks operation coverage, signatures, calling
+   plans, dispatch context, and normalized identity;
+3. authorized admission accepts the external semantic claim and grants trust
+   receipts; and
+4. the owner of a service slot selects one admitted provider.
+
+This retains the same proof shape as a library import:
 
 - Omega proves caller-side type and state invariants.
 - The imported boundary is accepted to satisfy its declared guarantees.
-- The mapping is recorded as a `HostAbiCall` provider in the boundary registry,
-  authored as target-package metadata.
+- The checked provider + calling plan is recorded in the boundary registry,
+  authored as platform-package policy rather than compiler tables.
 - The build artifact records which registered boundary providers were used.
 
-The exact provider syntax is provisional. The important design point is that
-raw syscall tables, imported DLL functions, firmware jumps, and loader hooks
-are provider details for boundary traits, not normal Omega machines.
+`build.omg` normally selects a platform profile supplying a complete standard
+bundle, then names only exceptional overrides such as a deterministic clock or
+sandboxed filesystem. The normalized artifact expands those defaults into an
+explicit, auditable slot mapping. Component managers and test harnesses use the
+same model for slots they own. See
+[Boundary Provider Plans](../design_briefs/provider_plans.md).
+
+Raw syscall tables, imported DLL functions, firmware jumps, and loader hooks
+remain provider details for boundary traits, not ordinary application calls.
 
 ## Freestanding Targets And Hardware Facts
 

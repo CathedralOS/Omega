@@ -14,7 +14,8 @@ lowers?"
 - [Whole-Program Assumptions](whole_program_assumptions.md): tracked inventory of where the backend assumes whole-program compilation, against the eventual separately-compiled-component story.
 - [Semantic Taxonomy Representation](semantic_taxonomy_representation.md):
   migration from lossy booleans/bitsets to the settled domain, machine,
-  multiplicity, effect-row, and termination-plan semantic forms.
+  multiplicity, effect-row, termination-plan, and provider admission/selection
+  semantic forms.
 
 ## Architecture Rule
 

@@ -118,7 +118,10 @@ architecture = a compiler release);
 the PLANS are policy-authored data over that vocabulary. The acceptance test
 is the UEFI counterfactual: a platform the compiler never heard of, on a known
 architecture, must be reachable with zero compiler changes — a stated
-`CallPlan` policy + a `provides` table + layout policies + `build.omg` config.
+`CallPlan` policy + a `ProviderPlan` policy + layout/format policies +
+`build.omg` profile selection. See
+[`provider_plans.md`](provider_plans.md). The retired `provides` declaration is
+the currently implemented compatibility surface, not the target architecture.
 Only new KINDS of thing (ISA, placement species, call mechanism, object
 format) may require the compiler.
 

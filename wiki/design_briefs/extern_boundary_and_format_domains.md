@@ -16,8 +16,11 @@ boundary trait WindowSystem {
 }
 ```
 
-A target's `provides` data maps each requirement to a binding description. The
-mechanism is a sum, not a growing family of keywords:
+A boundary-provider policy maps each requirement to a binding description and
+returns a candidate `ProviderPlan<Service>`. Provider definition is independent
+of target/profile selection; see
+[`provider_plans.md`](provider_plans.md). The binding mechanism is a closed sum,
+not a growing family of keywords:
 
 ```omega
 data Binding {
@@ -29,7 +32,10 @@ data Binding {
 ```
 
 Exact cases may grow only when a genuinely different binding mechanism exists.
-Host-specific flags and `host:` mini-languages are not part of Omega.
+Host-specific flags and `host:` mini-languages are not part of Omega. The
+implemented `<target> provides <Trait> { ... }` declaration is retired: it
+fused provider authorship to selection and accumulated non-binding constants.
+Ordinary provider policies plus build/profile selection replace it.
 
 ## Effects, authority, and trust
 
@@ -53,6 +59,11 @@ applicability. It is not inferred from library or symbol strings.
 Bindings cite a plan identity. Provider admission verifies that the binding and
 entry stub implement the pinned boundary-machine contract. See
 [`calling_plans.md`](calling_plans.md).
+
+Provider plans follow construct -> validate -> admit -> select. Structural
+validation proves coverage and compatibility; authorized admission accepts the
+foreign semantic claim and grants receipts; the owner of a service slot selects
+only among admitted candidates. Authoring a plan can never self-grant trust.
 
 ## Foreign data and formats
 
@@ -115,16 +126,21 @@ handoff. Those details stay in providers. Image/subsystem selection belongs in
 ## Engineering order
 
 1. Normalize boundary-machine contracts and calling-plan identities.
-2. Represent `Binding` as resolved target/provider data.
-3. Validate provider admission and emit trust/boundary reports.
-4. Lower imported calls and inbound stubs from checked plans only.
-5. Integrate programmable layout validation/materialization.
-6. Add callback and foreign-pointer lifetime canaries.
-7. Delete host-string special cases and legacy target blocks.
+2. Land source-expressible `BoundaryProvider<Service>` and `ProviderPlan`
+   policy data with a closed `Binding` vocabulary.
+3. Move target defaults into platform-profile packages and make `build.omg`
+   selection/overrides normalize to explicit service-slot assignments.
+4. Validate provider admission and emit trust/boundary reports.
+5. Lower imported calls and inbound stubs from checked provider + calling plans
+   only.
+6. Integrate programmable layout/format validation and remove hand-numbered
+   foreign representation constants from provider tables.
+7. Add callback and foreign-pointer lifetime canaries.
+8. Delete `provides`, host-string special cases, and legacy target blocks.
 
 ## Still open
 
-- final `Binding` and `provides` grammar;
+- final `ProviderPlan`/`Binding` source data and profile-library ergonomics;
 - callback registration/revocation and long-lived foreign borrows;
 - the exact accepted-proof surface for hand-authored providers;
 - dynamic-library loading/unloading under component versioning; and

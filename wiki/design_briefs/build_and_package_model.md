@@ -76,6 +76,38 @@ The platform's launch calling plan is checked against the exported entry
 machine for each built target. `build.omg` selects the entry; it does not repeat
 the target's register/stack arrival contract.
 
+## Provider profiles and overrides
+
+Provider policies are ordinary package declarations; `build.omg` owns the
+static root's service slots and selects admitted realizations. Most applications
+choose one platform profile rather than naming every standard service:
+
+```omega
+machine build(b: &mut Build) {
+    b.platform = LinuxHosted;
+}
+```
+
+The platform profile contributes a package-authored default provider bundle.
+Exceptional slots may be overridden explicitly:
+
+```omega
+b.override_provider(Clock, DeterministicClock);
+b.override_provider(Writable, SandboxedFilesystem);
+```
+
+Exact library spelling remains provisional. Resolution always prefers an
+explicit override, then one applicable profile default, and otherwise fails;
+two applicable defaults are ambiguous. The normalized `Build` artifact expands
+the profile into complete provider-plan identities, admission receipts, and
+slot assignments. This preserves zero-ceremony hosted defaults without making
+target selection hidden semantic magic.
+
+Static build selection is one instance of slot-owner authority. Component
+managers and test harnesses may own narrower dynamic slots through the same
+admission/selection model. See
+[`provider_plans.md`](provider_plans.md).
+
 ## Build-time authority and execution split
 
 `build.omg` may perform authorized package-local staging itself. It does not
@@ -140,13 +172,16 @@ The interpreter already has real/virtual filesystem modes and a scoped
 filesystem-backed build evaluator. Remaining work:
 
 - adopt the `build(b, fs)` entry and standard provider injection;
+- add platform-profile default bundles, explicit scoped overrides, and
+  normalized provider-slot reporting;
 - replace the retired empty-effect gate with decision-22 normalized ceiling
   checks;
 - converge Console/platform entries onto boundary traits;
 - finish the `Build` dependency/target/entry schema;
 - make name resolution consult the declared dependency aliases;
 - generate/check the unified lock and trust artifact; and
-- remove target-block and hand-written BuildLog compatibility paths.
+- remove target-block, `provides`, and hand-written BuildLog compatibility
+  paths after provider-plan migration.
 
 ## Still open
 
@@ -154,4 +189,5 @@ filesystem-backed build evaluator. Remaining work:
 - mutable dependency references and update policy;
 - workspace inheritance/ceiling details;
 - which additional services a build may request beyond Filesystem/Console; and
-- exact build-entry discovery and default-entry behavior.
+- exact build-entry discovery and default-entry behavior; and
+- final profile/override library spelling and dynamic slot-capability scoping.

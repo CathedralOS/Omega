@@ -137,6 +137,13 @@ callable by name; implicit selection consults only the coherent home surface.
 Foreign formats such as Protobuf or a platform ABI are sibling library
 policies, not modes of the core type.
 
+Platform provider tables do not duplicate representation facts. Foreign
+structure offsets derive from declared schemas and their normalized plans;
+foreign flag words use checked format/encoding policies mapping semantic
+options to the platform representation. Provider-plan entries cite the
+resulting format identities where a boundary needs them. See
+[`provider_plans.md`](provider_plans.md).
+
 ## Durability
 
 Durability/self-description is a property of the normalized plan and the API

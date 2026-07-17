@@ -106,8 +106,10 @@ CounterMessage::encode(&save, &mut scratch, &mut written);
   the wire (`Packed` on a numbered schema — caches, same-version shared-memory
   rings) and can never be **invented** at a carrier.
 - Foreign grammars (`Protobuf`, C-ABI layouts, …) are sibling policies over
-  the same schemas; a provides-mapping to a foreign symbol implies its format
-  (see the extern brief).
+  the same schemas; a selected provider-plan entry cites the applicable
+  calling and format identities for a foreign boundary (see the
+  [extern](../design_briefs/extern_boundary_and_format_domains.md) and
+  [provider-plan](../design_briefs/provider_plans.md) briefs).
 - **Decoding is not a compiler-derived operation.** Turning inbound `&[u8]`
   into a domain-refined view is domain MINTING, and minting is ordinary
   user-written code that ends in an `as` the compiler accepts only once every

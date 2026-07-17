@@ -12,7 +12,8 @@ canary headers. Condensed 2026-07-12 and 2026-07-18.
 Omega's first real consumer is the Cathedral OS (`../Cathedral`). The gap
 analysis lives in [wiki/cathedral_alignment.md](wiki/cathedral_alignment.md).
 Current critical gaps are programmable layouts, freestanding entry/hardware
-vocabulary, atomics/scheduling, and separately compiled component replacement.
+vocabulary, source-expressible provider/calling plans, atomics/scheduling, and
+separately compiled component replacement.
 
 ## NEXT TASKS — design-unblocked, agent-ready (loaded 2026-07-18)
 
@@ -1041,9 +1042,62 @@ sealed progress profiles + grants, TPR4's remaining big half).
    paths. Decision 22 now supplies the effect-row target: kinded
    `ServiceReach | OperationalMay` identities, deterministic normalized rows,
    explicit published ceilings, inferred internal summaries, and pinned-slot
-   refinement. Authority, trust, resources, failure, and mutation remain
+   refinement (PP3 owns the provider-slot representation). Authority, trust,
+   resources, failure, and mutation remain
    separate fields; the flat `EffectSet` survives only as a compatibility/cache
    projection.
+
+8. **Provider plans + `provides` retirement (OWNER-LOADED 2026-07-16;
+   breaking migration, record: `wiki/design_briefs/provider_plans.md`):** the
+   implemented `<target> provides <Trait> { ... }` declaration fuses provider
+   definition to target selection, cannot represent scoped/dynamic slot owners,
+   and has accumulated unrelated target constants. Retire it in favor of the
+   ordinary policy family
+   `BoundaryProvider<Service>::plan(ServiceSchema) -> ProviderPlan<Service>`.
+   Lifecycle is construct candidate -> validate structure -> admit semantic
+   commitments with receipts -> select under slot-owner authority. Platform
+   profiles supply complete defaults; `build.omg` normally names one profile
+   and only exceptional overrides. At inventory time, 32 `.omg` files and 37
+   compiler Rust files mention the implemented surface. Do not preserve it as
+   foundational syntax. Rungs:
+   **PP1 representation:** add normalized provider-plan, entry, validation,
+   admission, receipt, and service-slot-selection IDs/records in the semantic
+   spine; keep `ProviderPlan`, `CallPlan`, and `DataPlan` typed and separately
+   validated while sharing normalizer/certificate infrastructure.
+   **PP2 policy source:** land core `BoundaryProvider`, `ServiceSchema`,
+   `ProviderPlan`, and the closed `Binding` vocabulary as ordinary build-time
+   data/machines/traits; candidate construction is inert and can never
+   self-grant trust.
+   **PP3 validation/admission:** enforce operation coverage/uniqueness,
+   signature + calling-plan compatibility, typed dispatch context,
+   applicability/availability, deterministic identity, grant-backed admission,
+   and provider-refines-pinned-slot checks. Reuse the component admission
+   protocol without pretending every syscall/intrinsic/table provider is a
+   loadable component.
+   **PP4 selection/defaults:** add package-authored platform profiles and
+   scoped override APIs to `Build`; resolution is explicit override -> one
+   applicable profile default -> missing, with equal defaults ambiguous.
+   Normalize to complete slot assignments and record plan IDs, receipts, and
+   overrides. Static root, component manager, harness, and attenuated subtree
+   capabilities are all slot owners under one rule.
+   **PP5 lowering:** replace Rust `HostAbiPlan`/host-catalog semantic ownership
+   with checked `ProviderPlan + CallPlan` consumption for outbound calls and
+   inbound stubs. Keep only irreducible binding/placement derivers in Rust. An
+   existing ISA must accept a new composition of existing primitives with zero
+   compiler changes.
+   **PP6 representation constants:** migrate `ST_*_OFF`-style numbers to
+   declared foreign schemas + layout policies and `O_*` flag words to checked
+   foreign encoding policies; no new target-facts category and no hand-numbered
+   duplicate layout data in provider plans.
+   **PP7 corpus/parser retirement:** migrate std target tables, UEFI samples,
+   capability/target canaries, float hardware rows, and build/profile fixtures;
+   add directed diagnostics for `provides`; remove `HostProviderDefinition`,
+   `ProvidesRow`/`ProvidesBindingKind`, parser paths, target substitution, and
+   compatibility reports only after differential provider-plan coverage lands.
+   Acceptance: default hosted build needs no per-service ceremony; one-slot
+   test override leaves other defaults unchanged; missing/ambiguous/unadmitted
+   plans fail before lowering; a fake but structurally valid syscall plan stays
+   inert; reports distinguish reach, authority, selected provider, and trust.
 
 The rendering-sample sweep landed 2026-07-11 (see Language ergonomics;
 the match-subject computed-index gap closed with it).
@@ -1052,8 +1106,9 @@ the match-subject computed-index gap closed with it).
 
 **2026-07-11 full-tree measurement (owner side): Cathedral's TYPED M1 BOOTS.**
 The whole Cathedral boot package (typed EfiStatus/EfiHandle wrappers,
-`&TextOutputProtocol` reference field, `effects device_io`, field-model
-provides, `use` modules, `Type::`-scoped const) was compiled via a staged
+`&TextOutputProtocol` reference field, `effects device_io`, the transitional
+field-model `provides` surface, `use` modules, `Type::`-scoped const) was
+compiled via a staged
 tree standing in for depend-mapping, and the image PRINTS THE GREETING under
 QEMU/OVMF. Cathedral-side spelling drift is synced (Cathedral 5d8c6fe). The
 measured remaining M2 blockers, NOW IN ORDER:
@@ -1063,7 +1118,8 @@ design — nothing here is owner-gated; claim and build.** Design cites per
 item; the one design question found en route (ensures-as-vouch vs guard for
 the firmware out-values) is RESOLVED against the vouch — see blocker 2.
 
-1. **Provides-row catalog — LANDED 2026-07-11 (main lane):** names
+1. **Provides-row compatibility catalog — LANDED 2026-07-11 (main lane;
+   PP7 retires it after provider plans subsume the coverage):** names
    outside the built-in host catalog intern to stable `Custom(u32)` keys
    (process-wide interner in omega-calling-conventions; the key stays
    Copy, binding/call sites agree by construction), and the four
@@ -2254,8 +2310,8 @@ no `unbounded` property exists. Rungs:
 ## Float semantics — engineering track (design settled 2026-07-18)
 
 Record: design_briefs/float_semantics.md; UX: ch5 Float Facts. Zero new
-keywords — value/policy domains + Rat const-eval + satisfiers + provides
-rows. Rungs:
+keywords — value/policy domains + Rat const-eval + satisfiers + provider-plan
+entries. Rungs:
 
 - **F1 — policy-domain validation: LANDED 2026-07-18.** `Wrapping` on a
   float = hard compile error ("no modular reading of a float");
@@ -2454,7 +2510,7 @@ rows. Rungs:
   Remaining: the x86 guard sequences on its host.
 - **F6 — TotalOrder named satisfiers** for f32/f64 (sign-magnitude
   integer compare) once satisfier machinery lands.
-- **F7 — format records in omega::core + Float provides rows:** needs the
+- **F7 — format records in omega::core + Float provider-plan entries:** needs the
   `Instruction` arm of the Binding sum (new machinery). Today's hardcoded
   IEEE lowering IS the built-in binding — formalization, not a blocker.
 - **Cleanup — DONE 2026-07-16:** the bounded_float pass/fail canaries were
@@ -2575,8 +2631,8 @@ rejects — an INTEGER ruling, engineering rides this ladder as F8).
   family).
 
 - **Console boundary migration:** retire platform blocks in favor of
-  `boundary trait Console` + std provides
-  rows (ch19 shape; `console: Console` field spelling stays). Work: the
+  `boundary trait Console` + std provider policies/default profiles
+  (ch19 + provider-plans shape; `console: Console` field spelling stays). Work: the
   std migration — retire the platform block, effect rows land, the
   purity checker gets truth (read_byte consumes stdin), and the granted-build
   BuildLog hand-spelling dissolves.
@@ -2664,7 +2720,8 @@ rejects — an INTEGER ruling, engineering rides this ladder as F8).
   cfg-mirror principle). SPELLING SETTLED 2026-07-18 (owner:
   "push complexity to edges"): target-filtered sibling IMPL files —
   `std/targets/<target>/filesystem_impl.omg` holds that target's
-  implementation machines beside its provides rows, gated by the same
+  implementation machines beside its transitional `provides` rows (PP2/PP7
+  replace those rows with ordinary provider policies), gated by the same
   target filter; the portable layer declares the contract signatures;
   a selected target with zero or two implementations = loud compile
   error; enforcement = name+signature match first, `satisfies` later.
@@ -2708,7 +2765,8 @@ rejects — an INTEGER ruling, engineering rides this ladder as F8).
   battery, import edge moved same day). Provides ROWS are
   self-contained facts and suit target-def imports; impl MACHINES are
   wrapper parts and ride the wrapper's imports. The files still LIVE
-  beside their provides rows (the settled shape). filesystem.omg keeps
+  beside their transitional provider rows (the package-local shape survives
+  PP7 even though the keyword does not). filesystem.omg keeps
   the CONTRACT block (the seven signatures + the loud-edge note) where
   the bodies were.
   The three posix copies are byte-identical today; the linux headers
@@ -2911,8 +2969,8 @@ rejects — an INTEGER ruling, engineering rides this ladder as F8).
 
 - **Windows session — QUEUED (Next Tasks #4); one session closes all of
   it:** natively verify the fs stat-row migration; migrate
-  WINDOWS_IMPORT_ROWS into provides files; Win32 rows for the no-msvcrt fs
-  ops (pread/*at/link/read_dir/flock/chown/futimens/realpath — loud "no
+  WINDOWS_IMPORT_ROWS into platform provider policies; Win32 entries for the
+  no-msvcrt fs ops (pread/*at/link/read_dir/flock/chown/futimens/realpath — loud "no
   native lowering" refusals today); file_journal sample recheck; WndProc
   entry stubs (title-bar close); the fs<->time mtime interop leg (time-side
   surface ready + canaried; rides the stat rows). Also re-baseline the two

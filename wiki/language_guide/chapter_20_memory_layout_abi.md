@@ -190,9 +190,12 @@ placements (`InReg`/`OnStack`/`ByPointer`), return placement, clobber set,
 shadow space, stack alignment. One plan feeds both derivers — the outbound
 call encoder and the inbound entry stub — so caller and callee agree by
 construction. In practice no code names a convention: the `Binding` kind at
-the provides-mapping implies it (`Syscall(n)` → the target's syscall plan,
-`DllImport`/`VtableSlot` → its C plan). A calling plan is auditable policy
-data, never an unchecked ABI string.
+the selected `ProviderPlan` entry implies it (`Syscall(n)` → the platform's
+syscall plan, `DllImport`/table dispatch → its cited foreign plan). A calling
+plan is auditable policy data, never an unchecked ABI string. Provider plans
+are authored independently, structurally validated, admitted under authority,
+and selected through platform-profile defaults or explicit slot overrides; see
+[Boundary Provider Plans](../design_briefs/provider_plans.md).
 
 The plan must cover argument placement, return placement, clobbers, stack
 alignment, and failure behavior — validated before any deriver trusts it.

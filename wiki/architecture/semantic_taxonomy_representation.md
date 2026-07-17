@@ -186,14 +186,35 @@ clause. Provide a compatibility projection to today's `EffectSet` during
 migration. The flat set may remain a fast cache for legacy members after it
 ceases to be the semantic source of truth.
 
+### Provider plans and admission
+
+Do not preserve `<target> provides <Trait>` as the semantic representation of
+external realization. Carry distinct normalized objects:
+
+```text
+ProviderPlanId       = normalized candidate-plan identity
+ProviderEntry        = operation identity + Binding + CallPlanId + applicability
+ProviderValidation   = structural facts/certificate
+ProviderAdmission    = ProviderPlanId + granted receipt identities
+ServiceSlotSelection = slot identity + admitted provider identity
+```
+
+Construction, validation, admission, and selection are separate stages.
+Validation proves coverage/signature/plan compatibility; admission accepts the
+foreign semantic commitment; selection consumes slot-owner authority. Provider
+plans share normalization/certificate infrastructure with data and calling
+plans but retain their own vocabulary and validator. The retired `provides`
+syntax and Rust `HostAbiPlan` tables are compatibility inputs during migration,
+never the normalized source of truth.
+
 ## Staged migration
 
 1. **Inventory and invariants.** Add compile-time tests/snapshots showing where
    domain facet, supply mode, multiplicity, and contract identity must survive.
 2. **Core semantic enums/IDs.** Land facet pair, introduction policy,
    multiplicity, supply mode, termination guarantee/witness, progress-profile
-   ID, effect-member kind/ID, normalized effect-row ID, and other identity
-   handles in the lowest dependency-safe crates. No
+   ID, effect-member kind/ID, normalized effect-row ID, provider-plan/admission/
+   slot IDs, and other identity handles in the lowest dependency-safe crates. No
    behavior change.
 3. **Tree propagation.** Carry the representations through symbol-resolved and
    typed trees, snapshots, cloning/substitution, and diagnostics. Eliminate
@@ -203,7 +224,7 @@ ceases to be the semantic source of truth.
    normalized machine contracts.
 5. **Validation and resolution.** Enforce facet activation, introduction,
    operator selection, multiplicity conservation, row inclusion/propagation,
-   and supply/admission rules.
+   provider-plan validation/slot selection, and supply/admission rules.
 6. **Lowering boundary.** Lower only from checked selections/plans. Preserve
    semantic contract IDs in proof/component/debug artifacts while erasing
    proof-only material from executable operations.
@@ -225,6 +246,8 @@ ceases to be the semantic source of truth.
   or the legacy numeric bit assigned to a name.
 - Import slots pin authored normalized ceilings; provider admission compares
   normalized rows by subset and never consults a global import scan.
+- No lowering or trust report may infer provider selection from a target name;
+  it consumes a normalized admitted slot assignment.
 
 ## Acceptance criteria
 
@@ -254,5 +277,9 @@ ceases to be the semantic source of truth.
   omitted row reaches the deterministic least fixed point of its checked call
   component.
 - A provider carrying `Block` cannot satisfy a slot pinned to `Suspend` alone.
+- A candidate provider plan can be validated without gaining a receipt or
+  becoming selectable; only admitted plans may fill service slots.
+- Platform-profile defaults normalize to the same explicit slot-selection
+  representation as authored overrides.
 - The legacy `EffectSet` can be derived from the normalized row during
   migration, but no semantic decision depends on projecting back from it.

@@ -367,12 +367,13 @@ domain, and format; it cannot regress a landed value to an untyped integer.
 > A float is a format-parameterized approximation carrier: every operation is
 > "exact
 > rational arithmetic, then round once" under a FORMAT the target binds.
-> `f32`/`f64` name the IEEE binary32/64 formats — a fact recorded in target
-> provides data, never in the grammar. Every finite float is exactly a
+> `f32`/`f64` name the IEEE binary32/64 formats — a fact recorded in declared
+> format data and selected provider plans, never in the grammar. Every finite
+> float is exactly a
 > dyadic rational, so float facts are `Rat` facts (chapter 10). Names mean
 > formats, always: `f32` never rebinds to a different representation on any
 > target; a future format (posits, bf16) arrives as a new name plus a
-> format record plus provides rows — zero grammar.
+> format record plus provider-plan entries — zero grammar.
 
 Float constraints describe correctness facts, not optimization permissions.
 

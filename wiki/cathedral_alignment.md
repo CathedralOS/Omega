@@ -114,8 +114,11 @@ implementation work. Each one gets more expensive to retrofit every month.
    (`programmable_layouts.md`); foreign *pointers* use the extern brief's
    “Foreign pointer cases”
    taxonomy (borrows for call-scoped args, gated tokens / owned mints for
-   returned pointers, `Binding`-sum provides mappings — `Syscall(n)` /
-   `DllImport(m, s)` / `VtableSlot(i)` — for call targets). Remaining asks:
+   returned pointers, admitted `ProviderPlan` entries over the closed `Binding`
+   sum — `Syscall(n)` / `DllImport(m, s)` / table dispatch — for call targets).
+   Provider definition is independent of selection; Cathedral's component
+   manager may own dynamic service slots while `build.omg` supplies static
+   platform-profile defaults. Remaining asks:
    no-host target + entry spelling, lowering-contract vocabulary (volatile
    `exactly_once`, `clobbers tlb`), and the **entry-stub lowering** — one
    design for interrupt entry, the firmware seam's UEFI export table, and
@@ -252,8 +255,11 @@ None block current compiler development; all should stay visible.
   identities plus core operational possibilities (`Suspend`, `Block`). Define
   Cathedral's `DeviceIo`, `MemoryMap`, DMA, and interrupt-control boundaries
   with explicit capability parameters; do not grow the compatibility bitset.
-- **TBD: deterministic scheduler / virtual-provider injection hooks** for
-  simulation (Cathedral's testing story; the recursive-provider pattern).
+- **Provider injection direction settled; implementation queued:** deterministic
+  scheduler / virtual-service injection uses admitted provider plans plus an
+  attenuated selection capability scoped to the harness/component subtree.
+  No Cathedral-only injection mechanism is needed; exact slot-capability and
+  runtime-admission APIs land with Omega's provider-plan slice.
 - **TBD: tail calls into machines** (already in the language appendix).
 - **TBD: partition-tolerant lease semantics, remote attestation facts,
   CRDT/merge obligations** — distributed tier, farthest out.
