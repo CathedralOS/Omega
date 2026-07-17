@@ -260,11 +260,13 @@ pub enum TargetOperationKind {
         source_is_float: bool,
         target_is_float: bool,
         source_signed: bool,
+        /// Whether the integer target is signed (float->int policy/conversion).
+        target_signed: bool,
         /// F4: a TRAPPING float->int cast traps on NaN/out-of-range before
         /// converting; false for every other cast.
         trapping: bool,
         /// F4: a SATURATING float->int cast maps NaN to zero and clamps an
-        /// out-of-range value to the signed target bounds. Exact casts leave
+        /// out-of-range value to the target bounds. Exact casts leave
         /// this false because their range obligation was already discharged.
         saturating: bool,
     },

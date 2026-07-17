@@ -186,6 +186,7 @@ pub(super) fn encode_machine_instruction_bytes(
             source_is_float,
             target_is_float,
             source_signed,
+            target_signed,
             trapping,
             saturating,
             ..
@@ -198,6 +199,7 @@ pub(super) fn encode_machine_instruction_bytes(
             *source_is_float,
             *target_is_float,
             *source_signed,
+            *target_signed,
             *trapping,
             *saturating,
         ),

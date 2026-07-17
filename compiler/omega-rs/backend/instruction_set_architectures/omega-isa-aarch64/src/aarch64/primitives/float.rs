@@ -287,6 +287,21 @@ pub(in crate::aarch64) fn encode_float_to_signed_int(
     ))
 }
 
+/// `FCVTZU Rd, Vn` — convert a float to an unsigned integer, rounding toward
+/// zero. Width selection mirrors [`encode_float_to_signed_int`].
+pub(in crate::aarch64) fn encode_float_to_unsigned_int(
+    float_byte_size: usize,
+    int_byte_size: usize,
+    destination_gpr: u8,
+    source_fp_register: u8,
+) -> Result<[u8; 4], Diagnostic> {
+    let sf = int_width_sf_bit(int_byte_size)?;
+    let base = 0x1E39_0000 | sf | float_type_field(float_byte_size)?;
+    Ok(encode_instruction(
+        base | (u32::from(source_fp_register) << 5) | u32::from(destination_gpr),
+    ))
+}
+
 /// The `sf` bit (instruction bit 31), already shifted, that selects the GPR
 /// width for int<->float conversions: 4-byte `W` → 0, 8-byte `X` → bit 31.
 #[allow(dead_code)]
@@ -372,6 +387,8 @@ mod tests {
         assert_eq!(word(encode_float_to_signed_int(4, 4, 0, 0).unwrap()), 0x1e38_0000);
         // FCVTZS x0, d0  (double -> 64-bit int)
         assert_eq!(word(encode_float_to_signed_int(8, 8, 0, 0).unwrap()), 0x9e78_0000);
+        assert_eq!(word(encode_float_to_unsigned_int(4, 4, 0, 0).unwrap()), 0x1e39_0000);
+        assert_eq!(word(encode_float_to_unsigned_int(8, 8, 0, 0).unwrap()), 0x9e79_0000);
     }
 
     #[test]

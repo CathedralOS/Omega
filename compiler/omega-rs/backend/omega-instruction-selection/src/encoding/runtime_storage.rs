@@ -124,6 +124,7 @@ pub fn encode_runtime_storage_convert(
     source_is_float: bool,
     target_is_float: bool,
     source_signed: bool,
+    target_signed: bool,
     trapping: bool,
     saturating: bool,
 ) -> Result<Vec<u8>, Diagnostic> {
@@ -137,7 +138,9 @@ pub fn encode_runtime_storage_convert(
             source_is_float,
             target_is_float,
             source_signed,
+            target_signed,
             trapping,
+            saturating,
         ),
         Architecture::X86_64 => {
             x86_64::encode_runtime_storage_convert(
@@ -149,6 +152,7 @@ pub fn encode_runtime_storage_convert(
                 source_is_float,
                 target_is_float,
                 source_signed,
+                target_signed,
                 trapping,
                 saturating,
             )

@@ -6092,6 +6092,7 @@ fn runtime_convert_operation_width(
     source_is_float: bool,
     target_is_float: bool,
     source_signed: bool,
+    target_signed: bool,
     trapping: bool,
     saturating: bool,
 ) -> usize {
@@ -6102,11 +6103,11 @@ fn runtime_convert_operation_width(
         // overflow, so Saturating and Trapping must classify the FP value.
         (true, false) => {
             5 + if trapping {
-                float_to_signed_int_trap_width(source_byte_size)
+                float_to_int_trap_width(source_byte_size, target_byte_size, target_signed)
             } else if saturating {
-                float_to_signed_int_saturating_width(source_byte_size)
+                float_to_int_saturating_width(source_byte_size, target_byte_size, target_signed)
             } else {
-                5
+                float_to_int_convert_width(source_byte_size, target_byte_size, target_signed)
             }
         }
         // cvtsi2sd/ss xmm0,r10 (5) + movq/movd r10,xmm0 (5)
@@ -6146,6 +6147,7 @@ fn append_runtime_convert_operation(
     source_is_float: bool,
     target_is_float: bool,
     source_signed: bool,
+    target_signed: bool,
     trapping: bool,
     saturating: bool,
 ) {
@@ -6158,11 +6160,26 @@ fn append_runtime_convert_operation(
                 bytes.extend([0x66, 0x41, 0x0f, 0x6e, 0xc2]); // movd xmm0, r10d
             }
             if trapping {
-                append_float_to_signed_int_trap(bytes, source_byte_size, target_byte_size);
+                append_float_to_int_trap(
+                    bytes,
+                    source_byte_size,
+                    target_byte_size,
+                    target_signed,
+                );
             } else if saturating {
-                append_float_to_signed_int_saturating(bytes, source_byte_size, target_byte_size);
+                append_float_to_int_saturating(
+                    bytes,
+                    source_byte_size,
+                    target_byte_size,
+                    target_signed,
+                );
             } else {
-                append_float_to_signed_int_convert(bytes, source_byte_size);
+                append_float_to_int_convert(
+                    bytes,
+                    source_byte_size,
+                    target_byte_size,
+                    target_signed,
+                );
             }
         }
         (false, true) => {
@@ -6237,7 +6254,7 @@ fn append_float_bound_xmm1(bytes: &mut Vec<u8>, source_byte_size: usize, bits: u
     }
 }
 
-fn append_float_to_signed_int_convert(bytes: &mut Vec<u8>, source_byte_size: usize) {
+fn append_signed_float_to_int_convert(bytes: &mut Vec<u8>, source_byte_size: usize) {
     if source_byte_size > 4 {
         bytes.extend([0xf2, 0x4c, 0x0f, 0x2c, 0xd0]); // cvttsd2si r10, xmm0
     } else {
@@ -6248,12 +6265,24 @@ fn append_float_to_signed_int_convert(bytes: &mut Vec<u8>, source_byte_size: usi
 /// Bounds for truncating a source float into a signed target. `upper` is
 /// exclusive. `lower` is either the exclusive `MIN - 1` threshold (when the
 /// source format can represent it) or the inclusive `MIN` threshold.
-fn float_to_signed_int_bounds(
+fn float_to_int_bounds(
     source_byte_size: usize,
     target_byte_size: usize,
+    target_signed: bool,
 ) -> (u64, u64, bool) {
     let target_bits = (target_byte_size * 8) as i32;
-    let upper = 2.0_f64.powi(target_bits - 1);
+    let upper = 2.0_f64.powi(target_bits - i32::from(target_signed));
+    if !target_signed {
+        return if source_byte_size > 4 {
+            (upper.to_bits(), (-1.0_f64).to_bits(), false)
+        } else {
+            (
+                u64::from((upper as f32).to_bits()),
+                u64::from((-1.0_f32).to_bits()),
+                false,
+            )
+        };
+    }
     let minimum = -upper;
     if source_byte_size > 4 {
         let lower_candidate = minimum - 1.0;
@@ -6277,63 +6306,140 @@ fn float_to_signed_int_bounds(
     }
 }
 
-fn signed_integer_clamps(target_byte_size: usize) -> (u64, u64) {
-    let sign_bit = 1_u64 << (target_byte_size * 8 - 1);
-    (sign_bit - 1, sign_bit)
+fn integer_clamps(target_byte_size: usize, target_signed: bool) -> (u64, u64) {
+    let bits = target_byte_size * 8;
+    if target_signed {
+        let sign_bit = 1_u64 << (bits - 1);
+        (sign_bit - 1, sign_bit)
+    } else {
+        (
+            if bits == 64 { u64::MAX } else { (1_u64 << bits) - 1 },
+            0,
+        )
+    }
 }
 
-fn float_to_signed_int_trap_width(source_byte_size: usize) -> usize {
-    // Three compares + two bound materializations + four short branches +
-    // cvtt + ud2. The final jump hops over the shared trap site.
-    3 * float_compare_xmm0_width(source_byte_size) + 45
+fn float_to_int_convert_width(
+    source_byte_size: usize,
+    target_byte_size: usize,
+    target_signed: bool,
+) -> usize {
+    if target_signed || target_byte_size < 8 {
+        5
+    } else {
+        // 2^63 materialization + compare + branch + subtract + two cvtt arms
+        // + bts sign-bit reconstruction + two jumps.
+        38 + float_compare_xmm0_width(source_byte_size)
+    }
 }
 
-fn append_float_to_signed_int_trap(
+fn append_float_to_int_convert(
     bytes: &mut Vec<u8>,
     source_byte_size: usize,
     target_byte_size: usize,
+    target_signed: bool,
+) {
+    if target_signed || target_byte_size < 8 {
+        append_signed_float_to_int_convert(bytes, source_byte_size);
+        return;
+    }
+
+    let split = if source_byte_size > 4 {
+        (9223372036854775808.0_f64).to_bits()
+    } else {
+        u64::from((9223372036854775808.0_f32).to_bits())
+    };
+    append_float_bound_xmm1(bytes, source_byte_size, split);
+    append_float_compare_xmm0(bytes, source_byte_size, 1);
+    bytes.extend([0x72, 0x10]); // jb low-half
+    bytes.extend([
+        if source_byte_size > 4 { 0xf2 } else { 0xf3 },
+        0x0f,
+        0x5c,
+        0xc1,
+    ]); // subsd/subss xmm0, xmm1
+    append_signed_float_to_int_convert(bytes, source_byte_size);
+    bytes.extend([0x49, 0x0f, 0xba, 0xea, 0x3f]); // bts r10, 63
+    bytes.extend([0xeb, 0x05]); // jmp done
+    append_signed_float_to_int_convert(bytes, source_byte_size); // low-half
+}
+
+fn float_to_int_trap_width(
+    source_byte_size: usize,
+    target_byte_size: usize,
+    target_signed: bool,
+) -> usize {
+    // Three compares + two bound materializations + four short branches +
+    // cvtt + ud2. The final jump hops over the shared trap site.
+    3 * float_compare_xmm0_width(source_byte_size)
+        + 40
+        + float_to_int_convert_width(source_byte_size, target_byte_size, target_signed)
+}
+
+fn append_float_to_int_trap(
+    bytes: &mut Vec<u8>,
+    source_byte_size: usize,
+    target_byte_size: usize,
+    target_signed: bool,
 ) {
     let compare_width = float_compare_xmm0_width(source_byte_size);
     let (upper, lower, lower_inclusive) =
-        float_to_signed_int_bounds(source_byte_size, target_byte_size);
+        float_to_int_bounds(source_byte_size, target_byte_size, target_signed);
+    let convert_width =
+        float_to_int_convert_width(source_byte_size, target_byte_size, target_signed);
 
     append_float_compare_xmm0(bytes, source_byte_size, 0);
-    bytes.extend([0x7a, (41 + 2 * compare_width) as u8]); // jp trap (NaN)
+    bytes.extend([0x7a, (36 + 2 * compare_width + convert_width) as u8]); // jp trap
     append_float_bound_xmm1(bytes, source_byte_size, upper);
     append_float_compare_xmm0(bytes, source_byte_size, 1);
-    bytes.extend([0x73, (24 + compare_width) as u8]); // jae trap (>= upper)
+    bytes.extend([0x73, (19 + compare_width + convert_width) as u8]); // jae trap
     append_float_bound_xmm1(bytes, source_byte_size, lower);
     append_float_compare_xmm0(bytes, source_byte_size, 1);
-    bytes.extend([if lower_inclusive { 0x72 } else { 0x76 }, 0x07]); // jb/jbe trap
-    append_float_to_signed_int_convert(bytes, source_byte_size);
+    bytes.extend([
+        if lower_inclusive { 0x72 } else { 0x76 },
+        (convert_width + 2) as u8,
+    ]); // jb/jbe trap
+    append_float_to_int_convert(bytes, source_byte_size, target_byte_size, target_signed);
     bytes.extend([0xeb, 0x02]); // jmp done
     bytes.extend([0x0f, 0x0b]); // trap: ud2
 }
 
-fn float_to_signed_int_saturating_width(source_byte_size: usize) -> usize {
+fn float_to_int_saturating_width(
+    source_byte_size: usize,
+    target_byte_size: usize,
+    target_signed: bool,
+) -> usize {
     // Three compares + two bound materializations + policy result arms.
-    3 * float_compare_xmm0_width(source_byte_size) + 70
+    3 * float_compare_xmm0_width(source_byte_size)
+        + 65
+        + float_to_int_convert_width(source_byte_size, target_byte_size, target_signed)
 }
 
-fn append_float_to_signed_int_saturating(
+fn append_float_to_int_saturating(
     bytes: &mut Vec<u8>,
     source_byte_size: usize,
     target_byte_size: usize,
+    target_signed: bool,
 ) {
     let compare_width = float_compare_xmm0_width(source_byte_size);
     let (upper, lower, lower_inclusive) =
-        float_to_signed_int_bounds(source_byte_size, target_byte_size);
-    let (maximum, minimum) = signed_integer_clamps(target_byte_size);
+        float_to_int_bounds(source_byte_size, target_byte_size, target_signed);
+    let (maximum, minimum) = integer_clamps(target_byte_size, target_signed);
+    let convert_width =
+        float_to_int_convert_width(source_byte_size, target_byte_size, target_signed);
 
     append_float_compare_xmm0(bytes, source_byte_size, 0);
-    bytes.extend([0x7a, (41 + 2 * compare_width) as u8]); // jp nan
+    bytes.extend([0x7a, (36 + 2 * compare_width + convert_width) as u8]); // jp nan
     append_float_bound_xmm1(bytes, source_byte_size, upper);
     append_float_compare_xmm0(bytes, source_byte_size, 1);
-    bytes.extend([0x73, (29 + compare_width) as u8]); // jae high
+    bytes.extend([0x73, (24 + compare_width + convert_width) as u8]); // jae high
     append_float_bound_xmm1(bytes, source_byte_size, lower);
     append_float_compare_xmm0(bytes, source_byte_size, 1);
-    bytes.extend([if lower_inclusive { 0x72 } else { 0x76 }, 0x18]); // jb/jbe low
-    append_float_to_signed_int_convert(bytes, source_byte_size);
+    bytes.extend([
+        if lower_inclusive { 0x72 } else { 0x76 },
+        (19 + convert_width) as u8,
+    ]); // jb/jbe low
+    append_float_to_int_convert(bytes, source_byte_size, target_byte_size, target_signed);
     bytes.extend([0xeb, 0x1b]); // jmp done
     bytes.extend([0x45, 0x31, 0xd2]); // nan: xor r10d, r10d
     bytes.extend([0xeb, 0x16]); // jmp done
@@ -6445,6 +6551,7 @@ pub fn runtime_storage_convert_width(
     source_is_float: bool,
     target_is_float: bool,
     source_signed: bool,
+    target_signed: bool,
     trapping: bool,
     saturating: bool,
 ) -> usize {
@@ -6456,6 +6563,7 @@ pub fn runtime_storage_convert_width(
             source_is_float,
             target_is_float,
             source_signed,
+            target_signed,
             trapping,
             saturating,
         )
@@ -6475,6 +6583,7 @@ pub fn encode_runtime_storage_convert(
     source_is_float: bool,
     target_is_float: bool,
     source_signed: bool,
+    target_signed: bool,
     trapping: bool,
     saturating: bool,
 ) -> Result<Vec<u8>, Diagnostic> {
@@ -6486,6 +6595,7 @@ pub fn encode_runtime_storage_convert(
         source_is_float,
         target_is_float,
         source_signed,
+        target_signed,
         trapping,
         saturating,
     ));
@@ -6498,6 +6608,7 @@ pub fn encode_runtime_storage_convert(
         source_is_float,
         target_is_float,
         source_signed,
+        target_signed,
         trapping,
         saturating,
     );
@@ -7176,6 +7287,7 @@ pub fn runtime_value_operand_width(
                 src_float,
                 tgt_float,
                 src_signed,
+                runtime_value_operands.convert_target_signed(operand),
                 runtime_value_operands.convert_trapping(operand),
                 runtime_value_operands.convert_saturating(operand),
             )
@@ -7458,6 +7570,7 @@ fn append_runtime_value_operand(
             src_float,
             tgt_float,
             src_signed,
+            runtime_value_operands.convert_target_signed(operand),
             runtime_value_operands.convert_trapping(operand),
             runtime_value_operands.convert_saturating(operand),
         );
@@ -9214,29 +9327,41 @@ mod float_to_integer_policy_tests {
     fn policy_sequences_stay_in_width_lockstep() {
         for source_byte_size in [4usize, 8] {
             for target_byte_size in [1usize, 2, 4, 8] {
-                let mut trapping = Vec::new();
-                append_float_to_signed_int_trap(
-                    &mut trapping,
-                    source_byte_size,
-                    target_byte_size,
-                );
-                assert_eq!(
-                    trapping.len(),
-                    float_to_signed_int_trap_width(source_byte_size),
-                    "Trapping f{source_byte_size}->i{target_byte_size} width"
-                );
+                for target_signed in [false, true] {
+                    let mut trapping = Vec::new();
+                    append_float_to_int_trap(
+                        &mut trapping,
+                        source_byte_size,
+                        target_byte_size,
+                        target_signed,
+                    );
+                    assert_eq!(
+                        trapping.len(),
+                        float_to_int_trap_width(
+                            source_byte_size,
+                            target_byte_size,
+                            target_signed,
+                        ),
+                        "Trapping f{source_byte_size}->int{target_byte_size} signed={target_signed} width"
+                    );
 
-                let mut saturating = Vec::new();
-                append_float_to_signed_int_saturating(
-                    &mut saturating,
-                    source_byte_size,
-                    target_byte_size,
-                );
-                assert_eq!(
-                    saturating.len(),
-                    float_to_signed_int_saturating_width(source_byte_size),
-                    "Saturating f{source_byte_size}->i{target_byte_size} width"
-                );
+                    let mut saturating = Vec::new();
+                    append_float_to_int_saturating(
+                        &mut saturating,
+                        source_byte_size,
+                        target_byte_size,
+                        target_signed,
+                    );
+                    assert_eq!(
+                        saturating.len(),
+                        float_to_int_saturating_width(
+                            source_byte_size,
+                            target_byte_size,
+                            target_signed,
+                        ),
+                        "Saturating f{source_byte_size}->int{target_byte_size} signed={target_signed} width"
+                    );
+                }
             }
         }
     }
@@ -9244,30 +9369,35 @@ mod float_to_integer_policy_tests {
     #[test]
     fn exact_conversion_keeps_the_zero_guard_cost() {
         assert_eq!(
-            runtime_convert_operation_width(8, 4, true, false, false, false, false),
+            runtime_convert_operation_width(8, 4, true, false, false, true, false, false),
             10,
         );
         assert_eq!(
-            runtime_convert_operation_width(8, 4, true, false, false, true, false),
-            5 + float_to_signed_int_trap_width(8),
+            runtime_convert_operation_width(8, 4, true, false, false, true, true, false),
+            5 + float_to_int_trap_width(8, 4, true),
         );
         assert_eq!(
-            runtime_convert_operation_width(8, 4, true, false, false, false, true),
-            5 + float_to_signed_int_saturating_width(8),
+            runtime_convert_operation_width(8, 4, true, false, false, true, false, true),
+            5 + float_to_int_saturating_width(8, 4, true),
         );
     }
 
     #[test]
     fn bounds_describe_truncation_not_only_integer_membership() {
-        let (upper, lower, lower_inclusive) = float_to_signed_int_bounds(8, 4);
+        let (upper, lower, lower_inclusive) = float_to_int_bounds(8, 4, true);
         assert_eq!(f64::from_bits(upper), 2147483648.0);
         assert_eq!(f64::from_bits(lower), -2147483649.0);
         assert!(!lower_inclusive, "-2147483648.5 truncates into i32");
 
-        let (upper, lower, lower_inclusive) = float_to_signed_int_bounds(4, 4);
+        let (upper, lower, lower_inclusive) = float_to_int_bounds(4, 4, true);
         assert_eq!(f32::from_bits(upper as u32), 2147483648.0);
         assert_eq!(f32::from_bits(lower as u32), -2147483648.0);
         assert!(lower_inclusive, "f32 cannot represent i32::MIN - 1");
+
+        let (upper, lower, lower_inclusive) = float_to_int_bounds(8, 4, false);
+        assert_eq!(f64::from_bits(upper), 4294967296.0);
+        assert_eq!(f64::from_bits(lower), -1.0);
+        assert!(!lower_inclusive, "-0.5 truncates into u32");
     }
 }
 
@@ -9548,6 +9678,9 @@ mod machine_control_tests {
             false
         }
         fn convert_saturating(&self, _: RuntimeValueOperandHandle) -> bool {
+            false
+        }
+        fn convert_target_signed(&self, _: RuntimeValueOperandHandle) -> bool {
             false
         }
         fn text_equals(

@@ -1090,6 +1090,7 @@ fn build_runtime_convert_write(
         source_is_float: source_primitive.accepts_float_literal(),
         target_is_float: target_primitive.accepts_float_literal(),
         source_signed: source_primitive.is_signed_integer(),
+        target_signed: target_primitive.is_signed_integer(),
         // F4: a Trapping float->int cast carries its trap guard.
         trapping: cast_domain == omega_core::arithmetic::ArithmeticDomain::Trapping
             && source_primitive.accepts_float_literal()

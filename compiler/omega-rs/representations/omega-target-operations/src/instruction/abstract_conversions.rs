@@ -401,6 +401,7 @@ impl From<&omega_abstract_operations::AbstractOperationKind> for TargetOperation
                 source_is_float,
                 target_is_float,
                 source_signed,
+                target_signed,
                 trapping,
                 saturating,
             } => Self::WriteRuntimeStorageConvert {
@@ -412,6 +413,7 @@ impl From<&omega_abstract_operations::AbstractOperationKind> for TargetOperation
                 source_is_float: *source_is_float,
                 target_is_float: *target_is_float,
                 source_signed: *source_signed,
+                target_signed: *target_signed,
                 trapping: *trapping,
                 saturating: *saturating,
             },

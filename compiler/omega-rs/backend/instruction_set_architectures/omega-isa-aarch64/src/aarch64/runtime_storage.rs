@@ -16,7 +16,8 @@ use super::primitives::{
     encode_unconditional_branch,
     encode_float_convert_double_to_single, encode_float_convert_single_to_double,
     encode_float_divide, encode_float_move_from_gpr, encode_float_move_to_gpr,
-    encode_float_multiply, encode_float_to_signed_int, encode_signed_int_to_float,
+    encode_float_multiply, encode_float_to_signed_int, encode_float_to_unsigned_int,
+    encode_signed_int_to_float,
     encode_brk, encode_sign_extend_byte_to_w, encode_sign_extend_byte_to_x,
     encode_zero_extend_byte_to_w, encode_zero_extend_halfword_to_w,
     encode_sign_extend_halfword_to_w, encode_sign_extend_halfword_to_x, encode_sign_extend_word_to_x,
@@ -223,7 +224,9 @@ pub fn encode_runtime_storage_convert(
     source_is_float: bool,
     target_is_float: bool,
     source_signed: bool,
+    target_signed: bool,
     trapping: bool,
+    saturating: bool,
 ) -> Result<Vec<u8>, Diagnostic> {
     let mut bytes = Vec::with_capacity(runtime_storage_convert_width(
         runtime_value_operands,
@@ -234,7 +237,9 @@ pub fn encode_runtime_storage_convert(
         source_is_float,
         target_is_float,
         source_signed,
+        target_signed,
         trapping,
+        saturating,
     ));
     // x16 = target base (held across operand evaluation, which uses x17/x26/x19).
     bytes.extend(encode_adrp_placeholder(16));
@@ -254,7 +259,9 @@ pub fn encode_runtime_storage_convert(
         source_is_float,
         target_is_float,
         source_signed,
+        target_signed,
         trapping,
+        saturating,
     )?;
     append_runtime_storage_result_write(&mut bytes, target_offset, target_byte_size)?;
     debug_assert_eq!(
@@ -268,7 +275,9 @@ pub fn encode_runtime_storage_convert(
             source_is_float,
             target_is_float,
             source_signed,
+            target_signed,
             trapping,
+            saturating,
         ),
         "convert encoder length must match its width"
     );
@@ -288,7 +297,9 @@ fn append_runtime_convert_operation(
     source_is_float: bool,
     target_is_float: bool,
     source_signed: bool,
+    target_signed: bool,
     trapping: bool,
+    saturating: bool,
 ) -> Result<(), Diagnostic> {
     match (source_is_float, target_is_float) {
         (false, true) => {
@@ -316,15 +327,33 @@ fn append_runtime_convert_operation(
                     bytes,
                     source_byte_size,
                     target_byte_size,
+                    target_signed,
                     register,
                 )?;
             }
-            bytes.extend(encode_float_to_signed_int(
-                source_byte_size,
-                int_gpr_byte_size,
-                register,
-                0,
-            )?);
+            bytes.extend(if target_signed {
+                encode_float_to_signed_int(
+                    source_byte_size,
+                    int_gpr_byte_size,
+                    register,
+                    0,
+                )?
+            } else {
+                encode_float_to_unsigned_int(
+                    source_byte_size,
+                    int_gpr_byte_size,
+                    register,
+                    0,
+                )?
+            });
+            if saturating && target_byte_size < 4 {
+                append_float_to_narrow_int_saturating(
+                    bytes,
+                    register,
+                    target_byte_size,
+                    target_signed,
+                );
+            }
         }
         (true, true) => {
             if source_byte_size == target_byte_size {
@@ -3755,7 +3784,9 @@ fn append_runtime_value_operand(
             source_is_float,
             target_is_float,
             source_signed,
+            runtime_value_operands.convert_target_signed(operand),
             runtime_value_operands.convert_trapping(operand),
+            runtime_value_operands.convert_saturating(operand),
         )?;
         Ok(())
     } else {
@@ -4375,8 +4406,8 @@ fn float_policy_guard_bytes(
 }
 
 /// F4 float->int trap guard: the value in FP register 0 must be NaN-free and
-/// within the SIGNED target range or the cast traps (ch5 cast ruling;
-/// Trapping = trap on NaN/out-of-range, where FCVTZS would saturate).
+/// within the signed or unsigned target range or the cast traps (ch5 cast
+/// ruling; Trapping = trap on NaN/out-of-range, where FCVTZS/FCVTZU saturate).
 /// Sequence: `fcmp v0,v0 ; b.vc +8 ; brk` (NaN is unordered) then two bound
 /// checks, each `padded-immediate bound bits -> scratch ; fmov v1,scratch ;
 /// fcmp v0,v1 ; b.cond +8 ; brk`. The bounds are EXCLUSIVE float constants
@@ -4388,30 +4419,43 @@ fn append_float_to_int_trap_guard(
     bytes: &mut Vec<u8>,
     source_byte_size: usize,
     target_byte_size: usize,
+    target_signed: bool,
     scratch_gpr: u8,
 ) -> Result<(), Diagnostic> {
     // (upper exclusive, lower bound, lower is inclusive)
-    let (upper_bits, lower_bits, lower_inclusive): (u64, u64, bool) =
-        match (source_byte_size, target_byte_size) {
-            // f64 -> i32/i16/i8: trunc fits iff -(2^31+1) < f < 2^31 at the
-            // WIDEST sub-8 gpr width; narrower targets truncate through the
-            // result write, whose range the i32 window already covers for
-            // the shapes the selection produces (the store wraps -- the
-            // interp is the semantic oracle and checks the TARGET's own
-            // range, so narrower-than-i32 trapping casts stay a noted gap).
-            (8, 1 | 2 | 4) => (0x41E0000000000000, 0xC1E0000000200000, false),
-            // f64 -> i64: -2^63 <= f < 2^63 (both bounds exact).
-            (8, 8) => (0x43E0000000000000, 0xC3E0000000000000, true),
-            // f32 -> i32: -2^31 <= f < 2^31 (both exact in f32).
-            (4, 1 | 2 | 4) => (0x4F000000, 0xCF000000, true),
-            // f32 -> i64: every finite f32 below 2^63 fits; bounds exact.
-            (4, 8) => (0x5F000000, 0xDF000000, true),
-            _ => {
-                return Err(Diagnostic::error(format!(
-                    "aarch64 trapping float->int cast guard cannot handle a                      {source_byte_size}-byte float source to a {target_byte_size}-byte                      integer target yet"
-                )));
-            }
-        };
+    let target_bits = (target_byte_size * 8) as i32;
+    let upper = 2.0_f64.powi(target_bits - i32::from(target_signed));
+    let (upper_bits, lower_bits, lower_inclusive) = if !target_signed {
+        if source_byte_size > 4 {
+            (upper.to_bits(), (-1.0_f64).to_bits(), false)
+        } else {
+            (
+                u64::from((upper as f32).to_bits()),
+                u64::from((-1.0_f32).to_bits()),
+                false,
+            )
+        }
+    } else if source_byte_size > 4 {
+        let minimum = -upper;
+        let lower_candidate = minimum - 1.0;
+        let lower_inclusive = lower_candidate == minimum;
+        (
+            upper.to_bits(),
+            (if lower_inclusive { minimum } else { lower_candidate }).to_bits(),
+            lower_inclusive,
+        )
+    } else {
+        let minimum = (-upper) as f32;
+        let lower_candidate = minimum - 1.0;
+        let lower_inclusive = lower_candidate == minimum;
+        (
+            u64::from((upper as f32).to_bits()),
+            u64::from(
+                (if lower_inclusive { minimum } else { lower_candidate }).to_bits(),
+            ),
+            lower_inclusive,
+        )
+    };
     // NaN: fcmp with itself is unordered -> V set.
     bytes.extend(encode_float_compare(source_byte_size, 0, 0)?);
     bytes.extend(encode_conditional_branch_no_overflow(8)?);
@@ -4433,6 +4477,49 @@ fn append_float_to_int_trap_guard(
     });
     bytes.extend(encode_brk(0));
     Ok(())
+}
+
+pub(in crate::aarch64) fn float_to_narrow_int_saturating_width(
+    target_byte_size: usize,
+    target_signed: bool,
+) -> usize {
+    if target_byte_size >= 4 {
+        0
+    } else if target_signed {
+        52
+    } else {
+        24
+    }
+}
+
+fn append_float_to_narrow_int_saturating(
+    bytes: &mut Vec<u8>,
+    register: u8,
+    target_byte_size: usize,
+    target_signed: bool,
+) {
+    let bits = target_byte_size * 8;
+    let scratch = 15;
+    if target_signed {
+        bytes.extend(encode_sign_extend_word_to_x(register, register));
+        let sign_bit = 1_u64 << (bits - 1);
+        append_unsigned_immediate_padded(bytes, scratch, sign_bit - 1);
+        bytes.extend(encode_compare_x_register(register, scratch));
+        bytes.extend(encode_csel_x(register, register, scratch, 0b1101)); // LE
+        append_unsigned_immediate_padded(bytes, scratch, 0_u64.wrapping_sub(sign_bit));
+        bytes.extend(encode_compare_x_register(register, scratch));
+        bytes.extend(encode_csel_x(register, register, scratch, 0b1010)); // GE
+    } else {
+        let maximum = (1_u64 << bits) - 1;
+        append_unsigned_immediate_padded(bytes, scratch, maximum);
+        bytes.extend(encode_compare_x_register(register, scratch));
+        bytes.extend(encode_csel_x(register, register, scratch, 0b1001)); // LS
+    }
+    debug_assert_eq!(
+        bytes.len() % 4,
+        0,
+        "aarch64 conversion fixup stays instruction-aligned"
+    );
 }
 
 /// Bytes of [`append_float_to_int_trap_guard`]: NaN check (fcmp + b.vc + brk
@@ -5683,6 +5770,8 @@ mod tests {
                 src_float,
                 tgt_float,
                 src_signed,
+                true,
+                false,
                 false,
             )
             .unwrap();
@@ -5695,6 +5784,8 @@ mod tests {
                 src_float,
                 tgt_float,
                 src_signed,
+                true,
+                false,
                 false,
             );
             assert_eq!(
@@ -5702,6 +5793,49 @@ mod tests {
                 width,
                 "len != width for target_offset={target_offset:#x}, src_size={src_size}, tgt_size={tgt_size}, src_float={src_float}, tgt_float={tgt_float}, src_signed={src_signed}"
             );
+        }
+    }
+
+    #[test]
+    fn float_to_int_policy_shapes_match_width_for_signedness_and_narrowing() {
+        for target_byte_size in [1usize, 2, 4, 8] {
+            for target_signed in [false, true] {
+                for (trapping, saturating) in [(true, false), (false, true)] {
+                    let (arena, source) = storage_source(8);
+                    let bytes = encode_runtime_storage_convert(
+                        &arena,
+                        0x10,
+                        target_byte_size,
+                        source,
+                        8,
+                        true,
+                        false,
+                        false,
+                        target_signed,
+                        trapping,
+                        saturating,
+                    )
+                    .expect("policy conversion encodes");
+                    let width = widths::runtime_storage_convert_width(
+                        &arena,
+                        0x10,
+                        source,
+                        8,
+                        target_byte_size,
+                        true,
+                        false,
+                        false,
+                        target_signed,
+                        trapping,
+                        saturating,
+                    );
+                    assert_eq!(
+                        bytes.len(),
+                        width,
+                        "target={target_byte_size} signed={target_signed} trapping={trapping}"
+                    );
+                }
+            }
         }
     }
 
@@ -5714,7 +5848,9 @@ mod tests {
         // (0x9e66_0000 family).
         let (arena, source) = storage_source(4);
         let bytes =
-            encode_runtime_storage_convert(&arena, 0x10, 8, source, 4, false, true, true, false)
+            encode_runtime_storage_convert(
+                &arena, 0x10, 8, source, 4, false, true, true, true, false, false,
+            )
                 .unwrap();
         // The store is a single 4-byte STR at offset 0x10 (encodable), so the two
         // convert words are at len-12..len-4.
@@ -5733,7 +5869,9 @@ mod tests {
         // (0x1e38_0000 family).
         let (arena, source) = storage_source(8);
         let bytes =
-            encode_runtime_storage_convert(&arena, 0x10, 4, source, 8, true, false, true, false)
+            encode_runtime_storage_convert(
+                &arena, 0x10, 4, source, 8, true, false, true, true, false, false,
+            )
                 .unwrap();
         let fmov_in = word_at(&bytes, 12);
         let fcvtzs = word_at(&bytes, 8);
@@ -5750,10 +5888,10 @@ mod tests {
         let (arena, source) = storage_source(4);
         // signed widen: convert step = SXTW (one 4-byte word). Width must include it.
         let signed_width = widths::runtime_storage_convert_width(
-            &arena, 0x10, source, 4, 8, false, false, true, false,
+            &arena, 0x10, source, 4, 8, false, false, true, true, false, false,
         );
         let unsigned_width = widths::runtime_storage_convert_width(
-            &arena, 0x10, source, 4, 8, false, false, false, false,
+            &arena, 0x10, source, 4, 8, false, false, false, false, false, false,
         );
         assert_eq!(
             signed_width,
@@ -5761,7 +5899,9 @@ mod tests {
             "signed widen must be exactly one SXTW longer than unsigned"
         );
         let signed_bytes =
-            encode_runtime_storage_convert(&arena, 0x10, 8, source, 4, false, false, true, false)
+            encode_runtime_storage_convert(
+                &arena, 0x10, 8, source, 4, false, false, true, true, false, false,
+            )
                 .unwrap();
         // SXTW x17, w17: 0x93407c00 | (17<<5) | 17 — it sits right before the store.
         let store_width = if signed_bytes.len() >= 8 { 4 } else { 0 };

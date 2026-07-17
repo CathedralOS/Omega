@@ -378,12 +378,16 @@ pub enum AbstractOperationKind {
         /// Whether the integer source is signed (drives sign- vs zero-extension
         /// of a narrow source and the signedness of an int->float conversion).
         source_signed: bool,
+        /// Whether the integer target is signed. Float->int policy bounds and
+        /// the selected conversion instruction depend on this independently
+        /// of the source's signedness.
+        target_signed: bool,
         /// F4: a TRAPPING float->int cast traps on NaN or an out-of-range
         /// value BEFORE converting (the encoders emit the FP bound guard).
         /// False for every other cast.
         trapping: bool,
         /// F4: a SATURATING float->int cast maps NaN to zero and clamps an
-        /// out-of-range value to the signed target bounds. Exact casts leave
+        /// out-of-range value to the target bounds. Exact casts leave
         /// this false because their range obligation was already discharged.
         saturating: bool,
     },

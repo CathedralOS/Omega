@@ -265,4 +265,17 @@ impl omega_target_operations::RuntimeValueOperandSource for AssignedTargetOperat
             })
         )
     }
+
+    fn convert_target_signed(
+        &self,
+        handle: omega_target_operations::RuntimeValueOperandHandle,
+    ) -> bool {
+        matches!(
+            AssignedTargetOperationPlan::runtime_value_operand(self, handle).map(|op| &op.kind),
+            Some(AssignedValueOperandKind::Convert {
+                target_signed: true,
+                ..
+            })
+        )
+    }
 }
