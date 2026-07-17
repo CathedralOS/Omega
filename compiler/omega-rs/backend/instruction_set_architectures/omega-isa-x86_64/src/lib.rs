@@ -3198,6 +3198,27 @@ fn double_indexed_any_frame(
 
 /// Start of the `mov r10,imm64` frame-base load inside the double-indexed
 /// read (pre-`+2`; present only when an index is frame-resident).
+/// Write rung 1c (the canonicalized double-indexed WRITE): the OUTER
+/// frame-resident index base (`mov r11,imm64`) begins right after the opening
+/// machine mov.
+pub fn runtime_machine_double_indexed_integer_write_outer_frame_offset() -> usize {
+    10
+}
+
+/// The INNER frame-resident index base (`mov r10,imm64`): after the opening
+/// mov + the outer index sequence (17 cross-region / 7 same-region) + its imul.
+pub fn runtime_machine_double_indexed_integer_write_inner_frame_offset(
+    outer_index_region: omega_target_operations::RuntimeStorageRegion,
+) -> usize {
+    let outer = if outer_index_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
+    {
+        17
+    } else {
+        7
+    };
+    10 + outer + 7
+}
+
 pub fn runtime_storage_copy_from_runtime_machine_double_indexed_frame_base_offset() -> usize {
     10
 }
@@ -3247,15 +3268,14 @@ pub fn runtime_machine_double_indexed_integer_write_width(
     outer_index_region: omega_target_operations::RuntimeStorageRegion,
     inner_index_region: omega_target_operations::RuntimeStorageRegion,
 ) -> usize {
-    // mov r15,imm64 (10) [+ mov r10,imm64 (10) if any frame index]
-    // + mov eax,[..+outer] (7) + mov r11d,[..+inner] (7) + imul rax (7)
-    // + imul r11 (7) + add r15,rax (3) + add r15,r11 (3)
-    // + mov rax,imm64 (10) + store [r15+disp] (7)
-    if double_indexed_any_frame(outer_index_region, inner_index_region) {
-        71
-    } else {
-        61
-    }
+    // Canonicalized by the place materializer (Write rung 1c): mov r15,imm64
+    // (10) + per-index [cross-region: mov reg,imm64 (10) + load (7) | same-
+    // region: load (7)] + imul (7) each + add r15,r11 (3) + add r15,r10 (3)
+    // + mov rax,imm64 (10) + store (7). Each FRAME index adds its OWN base
+    // (r11 for the outer, r10 for the inner) -- no shared r10 anymore.
+    let frame = omega_target_operations::RuntimeStorageRegion::RuntimeFrame;
+    61 + if outer_index_region == frame { 10 } else { 0 }
+        + if inner_index_region == frame { 10 } else { 0 }
 }
 
 
@@ -3290,46 +3310,36 @@ pub fn encode_runtime_machine_double_indexed_integer_write(
             ));
         }
     }
-    let outer_scale = i32::try_from(outer_stride).map_err(|_| {
-        Diagnostic::error(format!(
-            "X86_64 MVP encoder cannot scale a double index by stride `{outer_stride}`"
-        ))
-    })?;
-    let inner_scale = i32::try_from(inner_stride).map_err(|_| {
-        Diagnostic::error(format!(
-            "X86_64 MVP encoder cannot scale a double index by stride `{inner_stride}`"
-        ))
-    })?;
-    let outer_displacement = disp32(outer_index_offset)?;
-    let inner_displacement = disp32(inner_index_offset)?;
-    let frame = omega_target_operations::RuntimeStorageRegion::RuntimeFrame;
-    let mut bytes = Vec::with_capacity(runtime_machine_double_indexed_integer_write_width(
-        outer_index_region,
-        inner_index_region,
-    ));
-    append_mov_r15_imm64(&mut bytes, 0);
-    if double_indexed_any_frame(outer_index_region, inner_index_region) {
-        append_mov_r10_imm64(&mut bytes, 0);
-    }
-    if outer_index_region == frame {
-        bytes.extend([0x41, 0x8b, 0x82]); // mov eax, [r10+disp32]
-    } else {
-        bytes.extend([0x41, 0x8b, 0x87]); // mov eax, [r15+disp32]
-    }
-    bytes.extend(outer_displacement.to_le_bytes());
-    if inner_index_region == frame {
-        bytes.extend([0x45, 0x8b, 0x9a]); // mov r11d, [r10+disp32]
-    } else {
-        bytes.extend([0x45, 0x8b, 0x9f]); // mov r11d, [r15+disp32]
-    }
-    bytes.extend(inner_displacement.to_le_bytes());
-    append_imul_rax_imm32(&mut bytes, outer_scale);
-    bytes.extend([0x4d, 0x69, 0xdb]); // imul r11, r11, imm32
-    bytes.extend(inner_scale.to_le_bytes());
-    append_add_r15_rax(&mut bytes);
-    bytes.extend([0x4d, 0x01, 0xdf]); // add r15, r11
-    append_mov_rax_imm64(&mut bytes, value as u64);
-    append_store_rax_to_r15(&mut bytes, base_byte_offset + field_byte_offset, byte_size)?;
+    // Write rung 1c: DELEGATES to the place materializer -- CANONICALIZED:
+    // the retired layout materialized ONE shared r10 frame base for BOTH
+    // frame-resident indices and staged the outer index in RAX; the
+    // materializer materializes each cross-region index base separately
+    // (r11 then r10). Widths and frame-base reloc positions move -- the
+    // width fn and the walker's per-index arm move in lockstep.
+    let target =
+        place_copy::transitional_place(omega_target_operations::RuntimeStorageRegion::Machine)
+            .with_step(omega_target_operations::PlaceStep::ConstOffset(base_byte_offset))
+            .and_then(|place| {
+                place.with_step(omega_target_operations::PlaceStep::ScaledIndex {
+                    index_region: outer_index_region,
+                    index_offset: outer_index_offset,
+                    element_byte_size: outer_stride,
+                })
+            })
+            .and_then(|place| {
+                place.with_step(omega_target_operations::PlaceStep::ScaledIndex {
+                    index_region: inner_index_region,
+                    index_offset: inner_index_offset,
+                    element_byte_size: inner_stride,
+                })
+            })
+            .and_then(|place| {
+                place.with_step(omega_target_operations::PlaceStep::ConstOffset(
+                    field_byte_offset,
+                ))
+            })
+            .expect("a double-indexed place is five steps, within PLACE_MAX_STEPS");
+    let (bytes, _) = place_copy::encode_place_integer_write(&target, value, byte_size)?;
     debug_assert_eq!(
         bytes.len(),
         runtime_machine_double_indexed_integer_write_width(

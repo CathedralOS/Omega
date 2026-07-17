@@ -352,15 +352,38 @@ pub(super) fn collect_runtime_storage_copy_relocations(
         } => {
             context
                 .insert_data_address_at_instruction_start(context.machine_storage_symbol_handle());
-            if [outer_index_region, inner_index_region].iter().any(|region| {
-                **region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
-            }) {
-                context.insert_data_address_at_relative_offset(
-                    runtime_storage_copy_from_runtime_machine_double_indexed_frame_base_offset(
-                        context.input.target.architecture,
-                    ),
-                    context.runtime_frame_symbol_handle(),
-                );
+            let frame = omega_target_operations::RuntimeStorageRegion::RuntimeFrame;
+            match context.input.target.architecture {
+                // aarch64 keeps its retired layout: ONE shared frame base
+                // serves both frame-resident indices.
+                Architecture::Aarch64 => {
+                    if *outer_index_region == frame || *inner_index_region == frame {
+                        context.insert_data_address_at_relative_offset(
+                            runtime_storage_copy_from_runtime_machine_double_indexed_frame_base_offset(
+                                context.input.target.architecture,
+                            ),
+                            context.runtime_frame_symbol_handle(),
+                        );
+                    }
+                }
+                // x86_64 canonicalized (Write rung 1c): each frame-resident
+                // index materializes its OWN base (r11 outer, r10 inner).
+                Architecture::X86_64 => {
+                    if *outer_index_region == frame {
+                        context.insert_data_address_at_relative_offset(
+                            omega_instruction_selection::runtime_machine_double_indexed_integer_write_outer_frame_offset(),
+                            context.runtime_frame_symbol_handle(),
+                        );
+                    }
+                    if *inner_index_region == frame {
+                        context.insert_data_address_at_relative_offset(
+                            omega_instruction_selection::runtime_machine_double_indexed_integer_write_inner_frame_offset(
+                                *outer_index_region,
+                            ),
+                            context.runtime_frame_symbol_handle(),
+                        );
+                    }
+                }
             }
             true
         }
