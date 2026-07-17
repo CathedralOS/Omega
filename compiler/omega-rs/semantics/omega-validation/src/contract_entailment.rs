@@ -292,8 +292,24 @@ pub(crate) fn validate_machine_contract_entailment(
                 // the inductive hypothesis's premise needs. The machine-level
                 // intake saw the un-refined spelling; this sees the arm's.
                 if machine_has_requires {
+                    // VACUOUS ARM (constructor-clash vacuity, N4 order
+                    // rung): a requires premise that judges REFUTED under
+                    // the bare case hypothesis -- e.g. `sub(Succ r, a) ==
+                    // Zero` with a := Zero unfolding to `Succ r == Zero`
+                    // -- can never hold on this arm, so the implication is
+                    // trivially true and the arm closes. Judged BEFORE the
+                    // intake: intaking first installs the premise's own
+                    // rewrite, which would mask the clash.
+                    if requires.iter().any(|fact| {
+                        matches!(bound.judge(program, *fact), StructuralJudgment::Refuted)
+                    }) {
+                        continue;
+                    }
                     for fact in &requires {
                         bound.intake(program, *fact);
+                    }
+                    if bound.hypotheses_contradictory {
+                        continue;
                     }
                 }
             }
@@ -2803,6 +2819,28 @@ fn citation_call_in_statement<'program>(
 /// to terms in the consumer's frame: machine-level intake reads them raw,
 /// per-arm intake converts under the arm environment first). `result` maps
 /// to the application at these operands.
+/// The machine's requires facts as expressions (empty when none).
+fn machine_requires_facts(
+    program: &TypedTrees,
+    machine: &Machine,
+) -> Vec<ExpressionHandle> {
+    program
+        .machine_contracts(machine)
+        .iter()
+        .filter(|contract| {
+            matches!(
+                contract.kind,
+                omega_typed_trees::signature::SignatureContractKind::Requires
+            )
+        })
+        .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts).iter())
+        .filter_map(|fact| match fact {
+            ProofFact::Expression(expression) => Some(*expression),
+            ProofFact::Membership(_) => None,
+        })
+        .collect()
+}
+
 fn instantiate_citation(
     program: &TypedTrees,
     classification: &omega_typed_trees::proof_only::ProofOnlyClassification,
@@ -3172,7 +3210,58 @@ fn recognize_structural_case_arms(
                         sub_environment.push((parameter.name.as_str().to_owned(), term));
                     }
                     let mut sub_environment = sub_environment;
+                    // ARM-REFINED CITATION JUDGE (N4 order rung): a
+                    // citation's requires must discharge under THIS arm's
+                    // case hypothesis (the machine-wide base saw the
+                    // requires unrefined -- `sub(x, a) == Zero` -- while
+                    // the arm knows x := Succ(prev), which is exactly what
+                    // the callee's instantiated premise needs). Vacuous
+                    // arms (premise refuted under the hypothesis) skip
+                    // citation instantiation entirely; the per-arm proving
+                    // loop skips such arms the same way.
+                    let mut arm_judge = judge.clone();
+                    let mut arm_vacuous = false;
+                    if let Some((subject, constructor)) = &case_hypothesis {
+                        arm_judge
+                            .substitutions
+                            .insert(0, (subject.clone(), constructor.clone()));
+                        let mut requires_facts: Vec<ExpressionHandle> = Vec::new();
+                        for contract in program.machine_contracts(machine) {
+                            if !matches!(
+                                contract.kind,
+                                omega_typed_trees::signature::SignatureContractKind::Requires
+                            ) {
+                                continue;
+                            }
+                            for fact in program.proof_facts.span_or_empty(contract.facts) {
+                                if let ProofFact::Expression(expression) = fact {
+                                    requires_facts.push(*expression);
+                                }
+                            }
+                        }
+                        arm_vacuous = requires_facts.iter().any(|fact| {
+                            matches!(
+                                arm_judge.judge(program, *fact),
+                                StructuralJudgment::Refuted
+                            )
+                        });
+                        for fact in &requires_facts {
+                            arm_judge.intake(program, *fact);
+                        }
+                        arm_vacuous = arm_vacuous || arm_judge.hypotheses_contradictory;
+                    }
                     let mut citations = Vec::new();
+                    // Citations collect as (target, argument terms) in PASS
+                    // ONE and instantiate in PASS TWO, after the terminal is
+                    // known: a citation's requires may need the INDUCTIVE
+                    // HYPOTHESIS (the machine's own ensures at the terminal's
+                    // self-application, e.g. sub_le citing pred_le_left at
+                    // exactly the IH fact), which only exists once the
+                    // terminal term is in hand.
+                    let mut pending_citations: Vec<(
+                        omega_typed_trees::name::Identifier,
+                        Vec<StructuralTerm>,
+                    )> = Vec::new();
                     let mut terminal: Option<StructuralTerm> = None;
                     for statement in
                         program.statement_table.statements(sub_state.statement_nodes)
@@ -3211,22 +3300,8 @@ fn recognize_structural_case_arms(
                                 };
                                 argument_terms.push(term);
                             }
-                            if arguments_termify {
-                                // The machine-level judge (requires already
-                                // intaken) discharges the callee's requires
-                                // here too -- arm citations instantiate at
-                                // arm-environment terms, but the hypothesis
-                                // base is machine-wide.
-                                instantiate_citation(
-                                    program,
-                                    classification,
-                                    machine,
-                                    target,
-                                    &argument_terms,
-                                    diagnostics,
-                                    &mut citations,
-                                    Some(judge),
-                                );
+                            if arguments_termify && !arm_vacuous {
+                                pending_citations.push((target.clone(), argument_terms));
                             }
                             continue;
                         }
@@ -3256,7 +3331,85 @@ fn recognize_structural_case_arms(
                         }
                         terminal = Some(term?);
                     }
-                    (terminal?, citations)
+                    let terminal = terminal?;
+                    // PASS TWO: enrich the arm judge with the inductive
+                    // hypothesis -- the machine's own ensures instantiated at
+                    // each self-application in the terminal (unconditional
+                    // only when the machine has no requires; a
+                    // requires-bearing IH is the arm loop's conditional
+                    // business and is NOT injected here) -- then instantiate
+                    // the collected citations so their requires can discharge
+                    // against it.
+                    if machine_requires_facts(program, machine).is_empty() {
+                        let mut applications = Vec::new();
+                        StructuralJudge::self_applications(
+                            &terminal,
+                            &machine_name,
+                            &mut applications,
+                        );
+                        let own_ensures: Vec<ExpressionHandle> = program
+                            .machine_contracts(machine)
+                            .iter()
+                            .filter(|contract| {
+                                matches!(
+                                    contract.kind,
+                                    omega_typed_trees::signature::SignatureContractKind::Ensures
+                                )
+                            })
+                            .flat_map(|contract| {
+                                program.proof_facts.span_or_empty(contract.facts).iter()
+                            })
+                            .filter_map(|fact| match fact {
+                                ProofFact::Expression(expression) => Some(*expression),
+                                ProofFact::Membership(_) => None,
+                            })
+                            .collect();
+                        for application in applications {
+                            let StructuralTerm::Application { arguments, .. } = &application
+                            else {
+                                continue;
+                            };
+                            let map: Vec<(String, StructuralTerm)> = parameter_names
+                                .iter()
+                                .cloned()
+                                .zip(arguments.iter().cloned())
+                                .collect();
+                            for fact in &own_ensures {
+                                let ExpressionNode::Binary(binary) =
+                                    program.expression_table.expression(*fact)
+                                else {
+                                    continue;
+                                };
+                                if binary.operator != BinaryOperator::Equal {
+                                    continue;
+                                }
+                                let (Some(left), Some(right)) = (
+                                    structural_term(program, binary.left),
+                                    structural_term(program, binary.right),
+                                ) else {
+                                    continue;
+                                };
+                                arm_judge.intake_equation(
+                                    StructuralJudge::substitute_term(&left, &map),
+                                    StructuralJudge::substitute_term(&right, &map),
+                                    0,
+                                );
+                            }
+                        }
+                    }
+                    for (target, argument_terms) in pending_citations {
+                        instantiate_citation(
+                            program,
+                            classification,
+                            machine,
+                            &target,
+                            &argument_terms,
+                            diagnostics,
+                            &mut citations,
+                            Some(&arm_judge),
+                        );
+                    }
+                    (terminal, citations)
                 }
                 _ => return None,
             };

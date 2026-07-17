@@ -32581,6 +32581,8 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "proofs/order_transitivity_false_twin",
     "proofs/linear_range_sum_false_twin",
     "proofs/congruence_false_twin",
+    "proofs/vacuity_satisfiable_premise_false_twin",
+    "proofs/ih_citation_false_twin",
     "proofs/addition_commutativity_false_twin",
     "proofs/nonlinear_square_range_false_twin",
     "proofs/order_antisymmetry_false_twin",

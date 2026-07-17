@@ -1,0 +1,29 @@
+// FALSE TWIN for constructor-clash vacuity (N4 order rung): the vacuity
+// rule closes an arm ONLY when a requires premise judges REFUTED under the
+// case hypothesis. Here the Succ arm's premise sub(Succ r, a) == Zero is
+// SATISFIABLE (any a >= Succ r), so the arm must NOT close vacuously and
+// the false ensures (x == Zero on the Succ arm) must refuse.
+use omega::language::core::nat;
+
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+
+machine bogus_zero_of_le(x: Nat, a: Nat) -> Nat
+requires
+    (sub(x, a)) == Nat::Zero
+ensures
+    (x) == Nat::Zero
+{
+    transition x {
+        Nat::Zero -> Nat::Zero
+        Nat::Succ { prev } -> bz_step(prev, a)
+    }
+
+    state bz_step(prev: Nat, a: Nat) -> Nat {
+        transition { _ -> Nat::Zero }
+    }
+}
+
+machine Main::main(&mut self) {
+    self.console.exit_process(70);
+}

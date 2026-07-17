@@ -485,3 +485,102 @@ ensures
     }
 }
 
+
+// ORDER AS MONUS (N4 Rat-ladder strict-ranking evidence, design-ruled
+// 2026-07-17): the roster spelling is `a <= b` := sub(a, b) == Zero and
+// `a < b` := sub(Succ a, b) == Zero -- no new predicate, the monus IS the
+// order carrier until an order surface lands.
+
+// Stripping a Succ from the LEFT preserves <=: sub(Succ r, a) == Zero
+// entails sub(r, a) == Zero. Case on `a`: the Zero arm's premise unfolds
+// to Succ r == Zero, a constructor clash (vacuous); the Succ arm strips
+// the pair with succ_sub_succ, so the premise becomes sub(r, s) == Zero
+// and the goal sub(r, Succ s) unfolds to pred of exactly that. Lean
+// analog: Nat.le_of_succ_le.
+machine le_of_succ_le(r: Nat, a: Nat) -> Nat
+requires
+    (sub(Nat::Succ { prev: r }, a)) == Nat::Zero
+ensures
+    (sub(r, a)) == Nat::Zero
+{
+    transition a {
+        Nat::Zero -> Nat::Zero
+        Nat::Succ { prev } -> losl_step(r, prev)
+    }
+
+    state losl_step(r: Nat, prev: Nat) -> Nat {
+        succ_sub_succ(r, prev);
+        transition { _ -> Nat::Zero }
+    }
+}
+
+// pred preserves <= on the left: sub(x, a) == Zero entails
+// sub(pred(x), a) == Zero. Case on `x`: the Zero arm computes (pred(Zero)
+// = Zero, the goal is the premise); the Succ arm is le_of_succ_le.
+machine pred_le_left(x: Nat, a: Nat) -> Nat
+requires
+    (sub(x, a)) == Nat::Zero
+ensures
+    (sub((pred(x)), a)) == Nat::Zero
+{
+    transition x {
+        Nat::Zero -> Nat::Zero
+        Nat::Succ { prev } -> pll_step(prev, a)
+    }
+
+    state pll_step(prev: Nat, a: Nat) -> Nat {
+        le_of_succ_le(prev, a);
+        transition { _ -> Nat::Zero }
+    }
+}
+
+// Monus never exceeds its left argument: sub(a, b) <= a, premise-free --
+// induction on `b` (following sub's own recursion). The Zero arm computes
+// through sub's Zero arm to sub_self's fact; each Succ arm unfolds
+// sub(a, Succ q) to pred(sub(a, q)), takes the inductive hypothesis
+// sub(sub(a, q), a) == Zero, and closes with pred_le_left. Lean analog:
+// Nat.sub_le.
+machine sub_le(a: Nat, b: Nat) -> Nat
+terminates by b;
+ensures
+    (sub((sub(a, b)), a)) == Nat::Zero
+{
+    transition b {
+        Nat::Zero -> sle_zero(a)
+        Nat::Succ { prev as q } -> sle_step(a, q)
+    }
+
+    state sle_zero(a: Nat) -> Nat {
+        sub_self(a);
+        transition { _ -> Nat::Zero }
+    }
+
+    state sle_step(a: Nat, q: Nat) -> Nat {
+        pred_le_left((sub(a, q)), a);
+        transition { _ -> (sub_le(a, q)) }
+    }
+}
+
+// THE STRICT-RANKING EVIDENCE: sub(Succ a, Succ b) < Succ a, premise-free
+// (positivity encoded by the Succ constructors -- both operands are
+// nonzero by shape). In the monus order spelling the claim is
+// sub(Succ(sub(Succ a, Succ b)), Succ a) == Zero. succ_sub_succ strips the
+// outer pair to sub(a, b), then a second strip reduces the goal to
+// sub_le's fact sub(sub(a, b), a) == Zero. This is the lemma a computed
+// recursive subject (mod/gcd recursing on sub) cites to discharge the
+// ranking view's strict-edge obligation. Lean analog: Nat.sub_lt.
+machine sub_lt_succ(a: Nat, b: Nat) -> Nat
+ensures
+    (sub(Nat::Succ { prev: (sub(Nat::Succ { prev: a }, Nat::Succ { prev: b })) }, Nat::Succ { prev: a })) == Nat::Zero
+{
+    transition {
+        _ -> slt_body(a, b)
+    }
+
+    state slt_body(a: Nat, b: Nat) -> Nat {
+        succ_sub_succ(a, b);
+        succ_sub_succ((sub(a, b)), a);
+        sub_le(a, b);
+        transition { _ -> Nat::Zero }
+    }
+}
