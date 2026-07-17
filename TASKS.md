@@ -2628,7 +2628,34 @@ no `unbounded` property exists. Rungs:
   entailment, contracts, or an explicit cited lemma such as `sub_lt` discharges
   it. No N2(d) integer bridge and no ranking-specific citation syntax are
   required. Next rung: add the Nat strict-ranking proposition/lemma and edge
-  entailment, then implement mod + gcd. `sub_zero_left` landed as the monus
+  entailment, then implement mod + gcd. SLICE A1 LANDED 2026-07-20 --
+  THE ORDER-AS-MONUS SURFACE + STRICT-RANKING EVIDENCE, machine-
+  checked in core nat.omg: le_of_succ_le (case on the right arg; the
+  Zero arm is VACUOUS by constructor clash), pred_le_left (Succ arm
+  cites le_of_succ_le under the arm-refined premise), sub_le
+  (induction on b following sub's own recursion; the Succ arm's
+  pred_le_left citation discharges against the INDUCTIVE HYPOTHESIS),
+  and sub_lt_succ -- the premise-free strict fact sub(Succ a, Succ b)
+  < Succ a in the monus spelling (positivity by constructor shape),
+  the exact lemma mod/gcd's computed-subject edges will cite. Zoo at
+  17 Nat lemmas. THREE JUDGE EXTENSIONS carried it (all conservative):
+  (1) CONSTRUCTOR-CLASH VACUITY -- an arm whose requires premise
+  judges REFUTED under the bare case hypothesis closes vacuously
+  (judged BEFORE intake; intaking first installs the premise's own
+  rewrite and masks the clash); (2) ARM-REFINED CITATION DISCHARGE --
+  sub-state citations discharge their requires under the arm's case
+  hypothesis + re-intaken machine requires (the machine-wide base saw
+  the unrefined spelling); vacuous arms skip instantiation; (3)
+  IH-ENRICHED TWO-PASS CITATIONS -- citations collect in pass one and
+  instantiate after the terminal is known, against a base enriched
+  with the machine's own ensures at the terminal's self-applications
+  (requires-free machines only; the well-foundedness stays the
+  termination checker's separate job). FALSE TWINS pinned:
+  vacuity_satisfiable_premise (satisfiable premise must NOT close
+  vacuously) + ih_citation (sub_le's exact shape with a false claim
+  refuses on both faces). REMAINING: slice a2 -- the termination
+  checker's computed-subject strict-edge obligation discharged by a
+  sub_lt_succ citation; slice a3 -- mod + gcd; then rat.omg. `sub_zero_left` landed as the monus
   surface's completion (5 lemmas, zoo at 13 Nat). Task #134 rung 1 COMPLETE;
   the rat.omg carrier waits only on this engineering rung.
 - **N5 — `boundary data` + the Real axiom package:** opaque carrier;
