@@ -19,6 +19,37 @@ impl<T: HierarchyNode> HierarchyArena<T> {
         self.nodes.get(node)
     }
 
+    /// Insert a generated root after the authored hierarchy has been frozen.
+    /// Later compiler stages use this for materialized declarations (for
+    /// example generic-machine specializations). Authored handles remain
+    /// stable because the paged arena only appends.
+    pub fn insert_generated_root(&mut self, mut node: T) -> Handle<T> {
+        node.set_parent(Handle::invalid());
+        node.set_children(HandleSpan::empty());
+        self.nodes.insert(node)
+    }
+
+    /// Populate one freshly generated parent's child range. The parent must
+    /// not already own children; this deliberately does not mutate authored
+    /// ranges or attempt non-contiguous append.
+    pub fn insert_generated_children(
+        &mut self,
+        parent: Handle<T>,
+        children: impl IntoIterator<Item = T>,
+    ) -> HandleSpan<T> {
+        assert!(
+            self.get(parent).children().is_empty(),
+            "generated hierarchy parent already has children"
+        );
+        let children = self.nodes.insert_many(children.into_iter().map(|mut child| {
+            child.set_parent(parent);
+            child.set_children(HandleSpan::empty());
+            child
+        }));
+        self.nodes.get_mut(parent).set_children(children);
+        children
+    }
+
     pub fn children(&self, parent: Handle<T>) -> Option<PagedSlice<'_, T>> {
         let parent_node = self.get(parent);
 

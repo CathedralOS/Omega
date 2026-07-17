@@ -121,6 +121,40 @@ impl SymbolTable {
         self.symbols.get(symbol)
     }
 
+    /// Mint a compiler-generated root declaration after symbol resolution.
+    /// The generated name is owned by the table and authored symbol handles
+    /// remain unchanged. Children must be installed once, as one batch, via
+    /// [`Self::insert_generated_children`].
+    pub fn insert_generated_root(&mut self, kind: SymbolKind, name: &str) -> SymbolHandle {
+        let name = self.names.insert(SymbolName::from_ref(SymbolNameRef::Borrowed(name)));
+        self.symbols.insert_generated_root(Symbol {
+            parent: SymbolHandle::invalid(),
+            children: HandleSpan::empty(),
+            kind,
+            name,
+        })
+    }
+
+    /// Mint the complete child range of a freshly generated symbol. Keeping
+    /// the batch contiguous preserves the hierarchy arena's compact child-span
+    /// representation without allowing late mutation of authored parents.
+    pub fn insert_generated_children<'name>(
+        &mut self,
+        parent: SymbolHandle,
+        children: impl IntoIterator<Item = (SymbolKind, &'name str)>,
+    ) -> HandleSpan<Symbol> {
+        let names = &mut self.names;
+        self.symbols.insert_generated_children(
+            parent,
+            children.into_iter().map(|(kind, name)| Symbol {
+                parent,
+                children: HandleSpan::empty(),
+                kind,
+                name: names.insert(SymbolName::from_ref(SymbolNameRef::Borrowed(name))),
+            }),
+        )
+    }
+
     pub fn name(&self, symbol: SymbolHandle) -> &str {
         let symbol = self.get(symbol);
 
