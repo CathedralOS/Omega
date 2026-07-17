@@ -781,11 +781,16 @@ sealed progress profiles + grants, TPR4's remaining big half).
    32-bit ZX discipline (the retired 64-bit index load could splice a
    neighboring slot's bytes into the high half; the materializer's ZX
    read is the correct one -- a latent-bug retirement).
-   REMAINING binary delegations: frame-indexed (34 -> 37),
-   machine-indexed + double (per-index frame bases replace the shared
-   scratch, the integer-1c pattern -- verify each prefix + walker
-   reloc positions first); then WritePlaceBinary + echo + producers +
-   retirement.
+   FRAME-INDEXED BINARY DELEGATED same day (34 -> 37; the descriptor
+   deref hops r15 in place, index stays 32-bit ZX in r11, plus the
+   r14 hop; the offsets test's own re-pin protocol followed -- the
+   FRAME-BASE delegation commit had missed its pin, caught by the
+   workspace battery POST-push and fixed forward 743ed1efe; batteries
+   now GATE the commit inside one script).
+   REMAINING binary delegations: machine-indexed + double (per-index
+   frame bases replace the shared scratch, the integer-1c pattern --
+   verify each prefix + walker reloc positions first); then
+   WritePlaceBinary + echo + producers + retirement.
    Rung 2a after: the WritePlaceInteger variant + echo product +
    producer migration. Pre-existing dead helpers noted en route (shapes/copies.rs
    runtime_storage_copy_kind + _to_runtime_frame_indexed_kind +
