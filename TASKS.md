@@ -4018,7 +4018,25 @@ with a real app-window story.
   GR6 the remaining consumers -- qualification AUTHORITY half
   (qualifications.rs:26-32), ProgressProfile minting + the three
   premises stubs, MachineContractPlan permission half, boundary
-  machines populating Accepted.
+  machines populating Accepted. GR6(d) PROBED 2026-07-20 (the most
+  bounded consumer; its rule is owner text -- "Accepted is the
+  existing bodyless `boundary machine` proof form"): the BODYLESS
+  form DOES NOT PARSE today (`boundary machine f(a: Nat) -> Nat
+  ensures ...;` fails at the contract terminator -- the machine
+  parser demands a body block). The arc: (1) parser accepts the
+  bodyless form (`;` after contracts; body-less = zero states), (2)
+  supply_mode populator (machine.rs:67-73) emits Accepted for
+  boundary+bodyless, (3) JUDGE GATING -- instantiate_citation
+  currently believes any callee's ensures because they were VERIFIED
+  in-batch; an Accepted machine's ensures is UNVERIFIED and must be
+  believed only under dev-activity/grant (the TrustCommitment::
+  AcceptedFact consult -- the soundness half), (4) accepted rows in
+  the trust report (dev-active standing warning / root-granted) +
+  lockfile receipts hashing the axiom's rendered ensures, (5) the
+  engine-veto rule (a refutable accepted statement is a compile
+  error, grants notwithstanding) can ride the existing judge
+  Refuted verdict. Canaries: pass (axiom cited under grant), fail
+  (axiom cited, engine-refutable), the outside-grant warning row.
 
 ## Structural follow-ups (surface landed; semantics pending)
 
