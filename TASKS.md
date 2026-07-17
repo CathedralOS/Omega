@@ -311,7 +311,20 @@ sealed progress profiles + grants, TPR4's remaining big half).
    (u64-at-width-64 representatives stay bit-faithful-but-signless on the
    i64 carrier — fine now that consumers fall back to targets, but the
    carrier change retires the whole fallback family), the guard-folder
-   f32 residue. A possible cheaper slot-COPY design for arg delivery
+   f32 residue. TASK #133 OPENED 2026-07-20 (the place-algebra arc
+   #127-#132 is COMPLETE -- 55 variants onto 11 place survivors, zero
+   shape crossings remain; this item is the next front-loaded vein).
+   ENTRY PROBE BANKED: the "guard-folder f32 residue" may already be
+   absorbed by the landed F2c guard face (the guard folder's
+   const_fold_float folds per-op at the tree's landing; F2c's leftover
+   faces are demand-gated) -- FIRST verify with a canary probe (an f32
+   guard chain that would diverge under an f64 window) before
+   building; if green, the real remaining rungs are the CARRIER change
+   (retires the consumer-fallback family: grep
+   signedness_adjusted_operator_for_tree_operands + the write-target
+   fallbacks as the retirement checklist) and CM3's
+   fold-at-landed-type-everywhere differential legs.
+   A possible cheaper slot-COPY design for arg delivery
    (skip re-derivation when the local is slot-backed) stays noted in the
    promoted canaries' history but is superseded for correctness
    purposes.
