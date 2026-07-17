@@ -240,6 +240,35 @@ pub(super) fn encode_runtime_pointee_integer_write(
 }
 
 #[allow(clippy::too_many_arguments)]
+/// Binary rung 2a: the place-shaped binary write's per-arch dispatcher.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn encode_write_place_binary(
+    input: MachineEmissionContext<'_>,
+    target: &omega_target_operations::Place,
+    byte_size: usize,
+    left: RuntimeValueOperandHandle,
+    operator: StateGuardOperator,
+    right: RuntimeValueOperandHandle,
+    is_float: bool,
+    domain: omega_core::arithmetic::ArithmeticDomain,
+    target_signed: bool,
+) -> Result<Vec<u8>, Diagnostic> {
+    validate_runtime_value_home(input, left)?;
+    validate_runtime_value_home(input, right)?;
+    architecture::encode_write_place_binary(
+        input.target.architecture,
+        input.assigned_target_operations,
+        target,
+        byte_size,
+        left,
+        operator,
+        right,
+        is_float,
+        domain,
+        target_signed,
+    )
+}
+
 pub(super) fn encode_runtime_storage_binary_write(
     input: MachineEmissionContext<'_>,
     target_offset: usize,

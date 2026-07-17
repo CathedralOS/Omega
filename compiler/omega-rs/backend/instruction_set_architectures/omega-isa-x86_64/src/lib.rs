@@ -1,6 +1,7 @@
 mod place_copy;
 pub use place_copy::{
-    encode_place_binary_write, encode_place_integer_write,
+    encode_place_binary_write, encode_place_integer_write, place_binary_index_base_positions,
+    place_binary_operand_start_width,
     PLACE_COPY_MAX_SITES, PlaceCopySide, PlaceCopySites, encode_copy_places, encode_place_copy,
     encode_place_copy_shared_base,
 };

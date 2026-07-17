@@ -1110,6 +1110,186 @@ pub fn write_place_integer_width(
     encode_write_place_integer(architecture, target, value, byte_size).map(|bytes| bytes.len())
 }
 
+/// Binary rung 2a: the place-shaped binary write. x86_64 rides the
+/// materializer; aarch64 decomposes by WritePlaceShape to the retained
+/// binary encoders. The SHAPED aarch64 encoders are Exact-only (matching
+/// today's producer split); a non-Exact/float shaped place refuses loudly.
+#[allow(clippy::too_many_arguments)]
+pub fn encode_write_place_binary(
+    architecture: Architecture,
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    target: &omega_target_operations::Place,
+    byte_size: usize,
+    left: RuntimeValueOperandHandle,
+    operator: StateGuardOperator,
+    right: RuntimeValueOperandHandle,
+    is_float: bool,
+    domain: omega_core::arithmetic::ArithmeticDomain,
+    target_signed: bool,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::X86_64 => x86_64::encode_place_binary_write(
+            runtime_value_operands,
+            target,
+            byte_size,
+            left,
+            operator,
+            right,
+            is_float,
+            domain,
+            target_signed,
+        )
+        .map(|(bytes, _)| bytes),
+        Architecture::Aarch64 => {
+            let shape = classify_write_place_shape(target);
+            if !matches!(shape, WritePlaceShape::Direct { .. })
+                && (is_float || domain != omega_core::arithmetic::ArithmeticDomain::Exact)
+            {
+                return Err(Diagnostic::error(
+                    "WritePlaceBinary on aarch64: shaped (deref/indexed) targets \
+                     serve Exact integer domains only until the aarch64 place \
+                     materializer lands",
+                ));
+            }
+            match shape {
+                WritePlaceShape::Direct { byte_offset } => {
+                    aarch64::encode_runtime_storage_binary_write(
+                        runtime_value_operands,
+                        byte_offset,
+                        byte_size,
+                        left,
+                        operator,
+                        right,
+                        is_float,
+                        domain,
+                        target_signed,
+                    )
+                }
+                WritePlaceShape::Pointee {
+                    pointer_byte_offset,
+                    field_byte_offset,
+                } => aarch64::encode_runtime_pointee_binary_write(
+                    runtime_value_operands,
+                    pointer_byte_offset,
+                    field_byte_offset,
+                    byte_size,
+                    left,
+                    operator,
+                    right,
+                ),
+                WritePlaceShape::FrameIndexed {
+                    descriptor_offset,
+                    index_offset,
+                    element_byte_size,
+                    field_byte_offset,
+                } => aarch64::encode_runtime_frame_indexed_binary_write(
+                    runtime_value_operands,
+                    descriptor_offset,
+                    index_offset,
+                    element_byte_size,
+                    field_byte_offset,
+                    byte_size,
+                    left,
+                    operator,
+                    right,
+                ),
+                WritePlaceShape::FrameBaseIndexed {
+                    base_byte_offset,
+                    index_offset,
+                    element_byte_size,
+                    field_byte_offset,
+                } => aarch64::encode_runtime_frame_base_indexed_binary_write(
+                    runtime_value_operands,
+                    base_byte_offset,
+                    index_offset,
+                    element_byte_size,
+                    field_byte_offset,
+                    byte_size,
+                    left,
+                    operator,
+                    right,
+                ),
+                WritePlaceShape::MachineIndexed {
+                    base_byte_offset,
+                    index_region,
+                    index_offset,
+                    element_byte_size,
+                    field_byte_offset,
+                } => aarch64::encode_runtime_machine_indexed_binary_write(
+                    runtime_value_operands,
+                    base_byte_offset,
+                    index_region,
+                    index_offset,
+                    element_byte_size,
+                    field_byte_offset,
+                    byte_size,
+                    left,
+                    operator,
+                    right,
+                ),
+                WritePlaceShape::MachineDoubleIndexed {
+                    base_byte_offset,
+                    outer_index_region,
+                    outer_index_offset,
+                    outer_stride,
+                    inner_index_region,
+                    inner_index_offset,
+                    inner_stride,
+                    field_byte_offset,
+                } => aarch64::encode_runtime_machine_double_indexed_binary_write(
+                    runtime_value_operands,
+                    base_byte_offset,
+                    outer_index_offset,
+                    outer_index_region,
+                    outer_stride,
+                    inner_index_offset,
+                    inner_index_region,
+                    inner_stride,
+                    field_byte_offset,
+                    byte_size,
+                    left,
+                    operator,
+                    right,
+                ),
+                WritePlaceShape::Unsupported => Err(Diagnostic::error(
+                    "WritePlaceBinary on aarch64 serves direct, pointee, frame-indexed, \
+                     frame-base-indexed, machine-indexed, and machine-double-indexed \
+                     place shapes only until the aarch64 place materializer lands",
+                )),
+            }
+        }
+    }
+}
+
+/// One source of truth: the encoder's output length.
+#[allow(clippy::too_many_arguments)]
+pub fn write_place_binary_width(
+    architecture: Architecture,
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    target: &omega_target_operations::Place,
+    byte_size: usize,
+    left: RuntimeValueOperandHandle,
+    operator: StateGuardOperator,
+    right: RuntimeValueOperandHandle,
+    is_float: bool,
+    domain: omega_core::arithmetic::ArithmeticDomain,
+    target_signed: bool,
+) -> Result<usize, Diagnostic> {
+    encode_write_place_binary(
+        architecture,
+        runtime_value_operands,
+        target,
+        byte_size,
+        left,
+        operator,
+        right,
+        is_float,
+        domain,
+        target_signed,
+    )
+    .map(|bytes| bytes.len())
+}
+
 pub fn encode_copy_places(
     architecture: Architecture,
     source: &omega_target_operations::Place,
@@ -1929,6 +2109,43 @@ pub fn x86_64_encode_write_place_integer_with_sites(
     byte_size: usize,
 ) -> Result<(Vec<u8>, omega_isa_x86_64::PlaceCopySites), Diagnostic> {
     x86_64::encode_place_integer_write(target, value, byte_size)
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn x86_64_encode_write_place_binary_with_sites(
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    target: &omega_target_operations::Place,
+    byte_size: usize,
+    left: RuntimeValueOperandHandle,
+    operator: StateGuardOperator,
+    right: RuntimeValueOperandHandle,
+    is_float: bool,
+    domain: omega_core::arithmetic::ArithmeticDomain,
+    target_signed: bool,
+) -> Result<(Vec<u8>, omega_isa_x86_64::PlaceCopySites), Diagnostic> {
+    x86_64::encode_place_binary_write(
+        runtime_value_operands,
+        target,
+        byte_size,
+        left,
+        operator,
+        right,
+        is_float,
+        domain,
+        target_signed,
+    )
+}
+
+/// The walker's operand-relocation anchor for a place binary write.
+pub fn place_binary_operand_start_width(target: &omega_target_operations::Place) -> usize {
+    x86_64::place_binary_operand_start_width(target)
+}
+
+/// The x86 prefix's deterministic cross-region index base positions.
+pub fn place_binary_index_base_positions(
+    target: &omega_target_operations::Place,
+) -> Vec<(usize, omega_target_operations::RuntimeStorageRegion)> {
+    x86_64::place_binary_index_base_positions(target).collect()
 }
 
 

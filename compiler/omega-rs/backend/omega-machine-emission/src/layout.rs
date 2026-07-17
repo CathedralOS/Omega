@@ -891,6 +891,27 @@ fn machine_instruction_width(
             *value,
             *byte_size,
         )?,
+        SelectedInstructionKind::WritePlaceBinary {
+            target,
+            byte_size,
+            left,
+            operator,
+            right,
+            is_float,
+            domain,
+            target_signed,
+        } => omega_instruction_selection::write_place_binary_width(
+            input.target.architecture,
+            input.assigned_target_operations,
+            target,
+            *byte_size,
+            *left,
+            *operator,
+            *right,
+            *is_float,
+            *domain,
+            *target_signed,
+        )?,
         SelectedInstructionKind::SetDispatchState { .. }
         | SelectedInstructionKind::TerminateDispatch => {
             dispatch_state_write_width(input.target.architecture)

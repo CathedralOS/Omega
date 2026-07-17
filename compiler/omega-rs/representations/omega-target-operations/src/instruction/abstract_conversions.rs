@@ -885,6 +885,25 @@ impl From<&omega_abstract_operations::AbstractOperationKind> for TargetOperation
                 value: *value,
                 byte_size: *byte_size,
             },
+            omega_abstract_operations::AbstractOperationKind::WritePlaceBinary {
+                target,
+                byte_size,
+                left,
+                operator,
+                right,
+                is_float,
+                domain,
+                target_signed,
+            } => Self::WritePlaceBinary {
+                target: *target,
+                byte_size: *byte_size,
+                left: remap_runtime_value_handle(*left),
+                operator: *operator,
+                right: remap_runtime_value_handle(*right),
+                is_float: *is_float,
+                domain: *domain,
+                target_signed: *target_signed,
+            },
             omega_abstract_operations::AbstractOperationKind::SetDispatchState {
                 dispatch_index,
             } => Self::SetDispatchState {
