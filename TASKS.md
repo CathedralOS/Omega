@@ -619,7 +619,19 @@ sealed progress profiles + grants, TPR4's remaining big half).
    -- CopyPlaces is the sole surviving copy operation. The Write/RMW
    ladder (the leaf-cascade duplication dies) is the pilot's next
    family; then Text, guards/operands, op-set shrink per the wiki
-   ladder. Pre-existing dead helpers noted en route (shapes/copies.rs
+   ladder. WIKI CHECKBOX MARKED (codegen_representation_cleanup.md).
+   WRITE RUNG 1a PLAN (banked 2026-07-19): the INTEGER-write
+   sub-family pilots (7 variants, all "store an immediate at width to
+   a place-shaped target": WriteRuntime{Machine,Storage,Pointee,
+   FrameIndexed,FrameBaseIndexed,MachineIndexed,MachineDoubleIndexed}
+   Integer). Introduce `WritePlaceInteger { target: Place, value,
+   byte_count }` beside CopyPlaces + the x86 materializer entry
+   `encode_place_integer_write` (materialize the target address via
+   the EXISTING place walk -- r15/r11/r10 discipline unchanged --
+   then store the immediate in chunks through rax); delegate the
+   simplest variant byte-for-byte first (WriteRuntimeStorageInteger),
+   then migrate producers shape by shape with aarch64 decomposes to
+   the retained Write encoders, mirroring the Copy rungs exactly. Pre-existing dead helpers noted en route (shapes/copies.rs
    runtime_storage_copy_kind + _to_runtime_frame_indexed_kind +
    from/to_machine_indexed_kind -- orphaned by EARLIER retirements,
    swept opportunistically at the next touch).
