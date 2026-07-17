@@ -662,9 +662,23 @@ sealed progress profiles + grants, TPR4's remaining big half).
    bytes (the retired layout's redundant `mov r15,r14` dies; the
    materializer opens the base in r15 directly); the width fn shrank
    in lockstep, the one frame-base start reloc unmoved, differential
-   green. REMAINING 1c: the frame-indexed (descriptor-deref) +
-   machine-double-indexed integer-write encoders (same per-encoder
-   width/offset analysis first).
+   green. FRAME-INDEXED (descriptor-deref)
+   LANDED same day: same multiset REORDERED (index pre-loads into r11
+   while r15 still equals the frame base, before the deref consumes
+   it; the retired layout used a separate r14 base) -- same width,
+   one start reloc, differential green. FIVE of six integer-write
+   x86 encoders now ride the materializer.
+   REMAINING 1c -- machine-double-indexed (analysis banked): the
+   retired layout materializes ONE shared r10 frame base for BOTH
+   frame-resident indices (single mov r10,imm64; the walker's
+   from_runtime_machine_double_indexed_frame_base_offset arm patches
+   it once); the materializer materializes each cross-region index
+   base SEPARATELY (r11 then r10, two imm64 movs, two sites) --
+   widths AND reloc positions change, so the delegation must rewrite
+   the WriteRuntimeMachineDoubleIndexedInteger walker arm (per-index
+   positions or sites-based) + the width fn in lockstep. After 1c:
+   rung 2a (the WritePlaceInteger variant + echo product + producer
+   migration collapses the seven variants).
    Rung 2a after: the WritePlaceInteger variant + echo product +
    producer migration. Pre-existing dead helpers noted en route (shapes/copies.rs
    runtime_storage_copy_kind + _to_runtime_frame_indexed_kind +
