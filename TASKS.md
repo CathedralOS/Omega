@@ -4420,9 +4420,10 @@ with a real app-window story.
   to filter Transitions (markers precede them).
   REMAINING: non-place subjects skip the law (no declared type to
   resolve); [copy]-eligibility restriction if
-  non-copy fields surface unsoundly; field names containing `__` mis-split
-  the LET marker encoding (spurious unknown-field error, never a masked
-  missing-field).
+  non-copy fields surface unsoundly. DOUBLE-UNDERSCORE FIELD FIX LANDED
+  2026-07-17: LET markers use the arm family's identifier-impossible `#`
+  delimiter, so a field such as `left__value` remains one component instead
+  of spuriously becoming two unknown fields; parser + compile canaries pin it.
 - **Const data parameters:** symbolic lengths flow structurally;
   instantiation-time substitution, validation, layout diagnostics, const-fact
   proof integration pending.

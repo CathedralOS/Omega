@@ -1252,3 +1252,51 @@ fn parses_static_machine_symbol_call_argument() {
         vec!["Card", "power"]
     );
 }
+
+#[test]
+fn destructure_marker_preserves_double_underscore_field_as_one_component() {
+    let source = r#"
+        data Pair { left__value: i32; right: i32; }
+        machine inspect(pair: Pair) {
+            let { left__value, right as _ } = pair;
+        }
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let parsed = parse_syntax_trees(&tokens).expect("destructure should parse");
+    let machine = parsed
+        .root_items()
+        .find_map(|item| match item {
+            omega_syntax_trees::item::Item::Machine(machine) => Some(machine),
+            _ => None,
+        })
+        .expect("machine root item");
+    let state = parsed.items.state(
+        parsed
+            .items
+            .state_handles(machine.states)
+            .first()
+            .copied()
+            .expect("entry state"),
+    );
+    let marker = parsed
+        .items
+        .statements(state.statements)
+        .iter()
+        .find_map(|handle| match parsed.statements.statement(*handle) {
+            StatementNode::LocalData(local)
+                if local.name.as_str().starts_with("__destructure#") =>
+            {
+                Some(local)
+            }
+            _ => None,
+        })
+        .expect("destructure marker local");
+
+    assert_eq!(
+        marker.name.as_str(),
+        "__destructure#left__value#right",
+        "the internal delimiter must not split repeated underscores"
+    );
+}

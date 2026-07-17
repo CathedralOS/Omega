@@ -673,7 +673,7 @@ pub(super) fn try_parse_atomic_compare_exchange_let<'tokens, 'source>(
 /// (validation compares the spelled set against the definition), `as`
 /// renames, `as _` waives, colon and arrow rejected. Desugars to one
 /// MARKER let carrying the spelled field set in its generated name
-/// (`__destructure__x__y__z`, the exhaustiveness carrier) plus one
+/// (`__destructure#x#y#z`, the exhaustiveness carrier) plus one
 /// Unit-sentinel let per BOUND field reading the place's member. V1 gates
 /// the value to a PLACE (Name/member chain) so the shared receiver
 /// evaluates as pure reads. Returns None when the shape is not
@@ -760,9 +760,12 @@ pub(super) fn try_parse_destructure_let<'tokens, 'source>(
     // The MARKER let: name encodes the spelled field set (bound AND
     // waived) -- validation's exhaustiveness carrier; its initializer is
     // the place itself (types the marker; names the receiver).
+    // `#` cannot occur in an authored identifier, so even fields containing
+    // repeated underscores retain one unambiguous marker component. This is
+    // the same delimiter as the arm-pattern marker family.
     let mut marker_name = String::from("__destructure");
     for (field, _) in &fields {
-        marker_name.push_str("__");
+        marker_name.push('#');
         marker_name.push_str(field.as_str());
     }
     let marker = syntax_trees

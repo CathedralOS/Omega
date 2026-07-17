@@ -125,7 +125,7 @@ pub(super) fn parse_postfix_expression_handle<'tokens, 'source>(
             // a compile-time parameter (ch13); no general angle-bracket call
             // surface exists, so this carve recognizes the exact form and
             // desugars to a MARKER-NAMED zero-argument member call
-            // (`accept_boundary#<path>` -- the asm#hlt / __destructure__
+            // (`accept_boundary#<path>` -- the asm#hlt / __destructure#
             // marker convention; `#` cannot appear in identifiers, so the
             // encoding is unambiguous). The build-config evaluation serves
             // the marker and records the grant; outside a build machine the

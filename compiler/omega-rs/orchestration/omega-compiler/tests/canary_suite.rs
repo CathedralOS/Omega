@@ -32051,6 +32051,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "domains/semantic_cast_guard_chain_mint",
     "proofs/citation_requires_discharged",
     "data/record_pattern_let_exit",
+    "data/record_pattern_double_underscore_field",
     "data/record_pattern_bind_all_exit",
     "control_flow/case_pattern_rename_waive_exit",
     "control_flow/record_pattern_arm_rename_guard_exit",
