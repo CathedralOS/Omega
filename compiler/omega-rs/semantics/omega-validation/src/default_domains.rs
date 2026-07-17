@@ -606,7 +606,6 @@ fn collect_call_summaries(
         ExpressionNode::Mutable(inner) => {
             collect_call_summaries(program, *inner, summaries, call_established);
         }
-        _ => {}
     }
 }
 

@@ -1785,7 +1785,6 @@ fn statement_expression_roots(
             }
             roots
         }
-        _ => Vec::new(),
     }
 }
 
