@@ -913,6 +913,23 @@ fn selected_instruction_name(
                 target.steps()
             )
         }
+        SelectedInstructionKind::WritePlaceBinary {
+            target,
+            byte_size,
+            left,
+            operator,
+            right,
+            is_float,
+            domain,
+            target_signed,
+        } => {
+            let target_symbol =
+                storage_region_symbol_name(target.region, backend_plan.entry_machine_name());
+            format!(
+                "write place binary {left:?} {operator:?} {right:?} ({byte_size}b, float {is_float}, {domain:?}, signed {target_signed}) -> {target_symbol}{:?}",
+                target.steps()
+            )
+        }
         SelectedInstructionKind::SetDispatchState { dispatch_index } => {
             format!("set dispatch state #{dispatch_index}")
         }

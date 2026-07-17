@@ -311,6 +311,62 @@ pub fn encode_place_binary_write(
     Ok((bytes, sites))
 }
 
+/// The DETERMINISTIC base-relocation positions of a place binary write's
+/// prefix: the target base mov at 0, then each CROSS-REGION index's own
+/// base mov at its prep position (index preps run in place order BEFORE the
+/// walk; same-region indices load off the target base and add no site).
+/// Mirrors `prepare_place_index` + the walk exactly -- the same sums as
+/// `place_binary_operand_start_width`.
+pub fn place_binary_index_base_positions(
+    target: &Place,
+) -> impl Iterator<Item = (usize, omega_target_operations::RuntimeStorageRegion)> + '_ {
+    let mut width = 10usize; // after the target base mov
+    target.steps().iter().filter_map(move |step| match step {
+        PlaceStep::ScaledIndex {
+            index_region,
+            ..
+        } => {
+            let site = if *index_region != target.region {
+                let position = width;
+                width += 17 + 7; // mov imm64 + load + imul
+                Some((position, *index_region))
+            } else {
+                width += 7 + 7; // load off the base + imul
+                None
+            };
+            site
+        }
+        _ => None,
+    })
+}
+
+/// The byte length of `encode_place_binary_write`'s ADDRESS PREFIX (base
+/// mov + index preps + walk adds/derefs + the r14 hop) -- the walker's
+/// operand relocations start here. Walk-summed from the materializer's own
+/// emission widths, so it can never drift from the bytes.
+pub fn place_binary_operand_start_width(target: &Place) -> usize {
+    let mut width = 10; // mov r15, imm64
+    let mut index_ordinal = 0usize;
+    for step in target.steps() {
+        match step {
+            PlaceStep::ConstOffset(_) => {}
+            PlaceStep::Deref => width += 7,
+            PlaceStep::ScaledIndex { index_region, .. } => {
+                width += if *index_region == target.region {
+                    7 // same-region 32-bit ZX load off the base register
+                } else {
+                    17 // own-base mov imm64 + load through it
+                };
+                width += 7; // imul
+                width += 3; // add at the walk position
+                index_ordinal += 1;
+            }
+        }
+    }
+    let _ = index_ordinal;
+    width + 3 // mov r14, r15
+}
+
 /// The `CopyPlaces` entry: ONE routine that picks the emission shape from the
 /// place pair itself -- shared-base when both places root in the SAME region
 /// and a side derefs (the shape every retired same-region indexed/pointee

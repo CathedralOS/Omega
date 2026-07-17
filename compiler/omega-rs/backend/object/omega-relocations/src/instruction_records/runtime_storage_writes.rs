@@ -24,6 +24,56 @@ pub(super) fn collect_runtime_storage_write_relocations(
             context.insert_data_address_at_instruction_start(symbol);
             true
         }
+        SelectedInstructionKind::WritePlaceBinary {
+            target,
+            left,
+            right,
+            ..
+        } => {
+            // Binary rung 2a. x86_64: the target base at instruction start +
+            // each CROSS-REGION index's own base at its deterministic prefix
+            // position, operands at place_binary_operand_start_width -- all
+            // walk-summed from the materializer's own widths (no drift).
+            // aarch64 is served by shape decompose at ENCODING; its reloc
+            // arm lands with the producers (zero exist yet) -- refuse loudly
+            // rather than silently under-patch.
+            match context.input.target.architecture {
+                Architecture::X86_64 => {
+                    context.insert_data_address_at_instruction_start(
+                        context.storage_region_symbol_handle(target.region),
+                    );
+                    for (position, region) in
+                        omega_instruction_selection::place_binary_index_base_positions(target)
+                    {
+                        context.insert_data_address_at_relative_offset(
+                            position,
+                            context.storage_region_symbol_handle(region),
+                        );
+                    }
+                    let left_offset = context.selected_text_offset
+                        + omega_instruction_selection::place_binary_operand_start_width(target);
+                    collect_runtime_value_operand_relocations(context, left_offset, *left);
+                    let left_width = omega_instruction_selection::runtime_value_operand_width(
+                        context.input.target.architecture,
+                        context.input.assigned_target_operations,
+                        *left,
+                    );
+                    let right_offset = left_offset
+                        + left_width
+                        + omega_instruction_selection::runtime_binary_right_operand_gap(
+                            context.input.target.architecture,
+                        );
+                    collect_runtime_value_operand_relocations(context, right_offset, *right);
+                }
+                Architecture::Aarch64 => {
+                    unreachable!(
+                        "WritePlaceBinary has no aarch64 producers yet; its reloc arm \
+                         lands with the producer migration"
+                    )
+                }
+            }
+            true
+        }
         SelectedInstructionKind::WriteRuntimeStorageBinary {
             target_region,
             left,

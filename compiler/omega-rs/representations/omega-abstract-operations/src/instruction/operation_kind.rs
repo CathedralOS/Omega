@@ -681,6 +681,22 @@ pub enum AbstractOperationKind {
         value: i64,
         byte_size: usize,
     },
+
+    /// Binary rung 2a: `place = left OP right` -- the six Write*Binary
+    /// variants collapse onto this one. Field semantics mirror the retired
+    /// storage-binary write (is_float = SSE unit; domain = the target
+    /// type's arithmetic domain, decision 17; target_signed = OF-vs-CF
+    /// overflow detection + saturating clamp bounds).
+    WritePlaceBinary {
+        target: Place,
+        byte_size: usize,
+        left: AbstractValueOperandHandle,
+        operator: StateGuardOperator,
+        right: AbstractValueOperandHandle,
+        is_float: bool,
+        domain: omega_core::arithmetic::ArithmeticDomain,
+        target_signed: bool,
+    },
     SetDispatchState {
         dispatch_index: u32,
     },

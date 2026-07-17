@@ -814,20 +814,27 @@ sealed progress profiles + grants, TPR4's remaining big half).
    materializer / aarch64->WritePlaceShape decompose to the retained
    binary encoders + layout width from the encoder + walker via
    sites-and-shape + shapes machine-kind) + producers + retirement.
-   2a WALKER NOTE (banked): binary walker arms need OPERAND reloc
-   offsets after the place prefix -- add
-   `place_binary_operand_start_width(place)` in place_copy.rs
-   (walk-sum: 10 base + per cross-region index 17 | same-region 7,
-   + 7 imul each + 7 per deref + 3 per index add + 3 hop -- the
-   materializer's own widths), used by BOTH the x86 walker arm
-   (left_offset = start + that width; right = left + left_width +
-   gap, the existing pattern) and any width assert. The variant
-   carries every encode_place_binary_write param (left/right operand
-   handles, operator, byte_size, is_float, domain, target_signed).
-   aarch64 decompose needs the six retained binary encoder signatures
-   (all take runtime_value_operands first; the storage one adds
-   is_float/domain/target_signed -- the shaped ones are Exact-only,
-   matching the producers' current split).
+   BINARY RUNG 2a ECHO PRODUCT LANDED 2026-07-19 (zero producers):
+   WritePlaceBinary { target: Place, byte_size, left, operator,
+   right, is_float, domain, target_signed } in BOTH enums +
+   conversion (remap_runtime_value_handle) + classifications
+   (RuntimeWrite) + report arm + the machine-emission wrapper
+   (validate_runtime_value_home x2, the retained idiom) + selection
+   dispatcher (x86 -> encode_place_binary_write; aarch64 ->
+   WritePlaceShape decompose to the six retained binary encoders,
+   with shaped-non-Exact/float REFUSED -- matching today's producer
+   split) + layout width = encoder length + the shapes machine-kind
+   arm (plain binary shape, CopyPlaces precedent) + the x86 walker
+   arm: base at start, each CROSS-REGION index base at its
+   DETERMINISTIC prefix position (place_binary_index_base_positions,
+   walk-summed twin of place_binary_operand_start_width -- no
+   re-encode, no drift), operands at start+prefix (the existing
+   left/right pattern); the aarch64 reloc arm is an explicit
+   unreachable until producers land (refuse loudly, never
+   under-patch).
+   NEXT: producer migration (the six Write*Binary construction-site
+   sweep, the integer-2b transformer pattern with the pattern-skip
+   fix) + blocker matcher rows + retirement.
    Rung 2a after: the WritePlaceInteger variant + echo product +
    producer migration. Pre-existing dead helpers noted en route (shapes/copies.rs
    runtime_storage_copy_kind + _to_runtime_frame_indexed_kind +

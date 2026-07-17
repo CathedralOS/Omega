@@ -17,6 +17,12 @@ pub(super) fn selected_binary_write_kind(
             *byte_size,
             *operator,
         )),
+        // Binary rung 2a: the place-shaped write keeps the plain binary
+        // write's machine shape (the CopyPlaces precedent; the layout arm's
+        // re-encode is the width source of truth).
+        SelectedInstructionKind::WritePlaceBinary {
+            byte_size, operator, ..
+        } => Some(runtime_storage_binary_write_kind(0, *byte_size, *operator)),
         SelectedInstructionKind::WriteRuntimeStorageConvert { .. } => {
             Some(MachineInstructionKind::RuntimeStorageConvert)
         }
