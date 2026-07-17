@@ -7,6 +7,7 @@ use super::super::offsets::{
     string_descriptor_runtime_frame_address_offset,
 };
 use super::context::InstructionRelocationContext;
+use omega_target::Architecture;
 use omega_target_operations::SelectedInstructionKind;
 
 pub(super) fn collect_runtime_storage_string_relocations(
@@ -95,16 +96,35 @@ pub(super) fn collect_runtime_storage_string_relocations(
             field_byte_offset,
             ..
         } => {
-            context.insert_data_address_at_instruction_start(context.runtime_frame_symbol_handle());
             let data_symbol = context.data_object_symbol_handle(*data);
-            context.insert_data_address_at_relative_offset(
-                runtime_frame_indexed_string_data_address_offset(
-                    context.input.target.architecture,
-                    *element_byte_size,
-                    *field_byte_offset,
-                ),
-                data_symbol,
-            );
+            match context.input.target.architecture {
+                Architecture::X86_64 => {
+                    // Text rung 1c: the encoder delegates through the place
+                    // materializer -- data at the instruction start, the
+                    // frame base at +10 (the direct string writes' shared
+                    // positions).
+                    context.insert_data_address_at_instruction_start(data_symbol);
+                    context.insert_data_address_at_relative_offset(
+                        string_descriptor_runtime_frame_address_offset(
+                            context.input.target.architecture,
+                        ),
+                        context.runtime_frame_symbol_handle(),
+                    );
+                }
+                Architecture::Aarch64 => {
+                    context.insert_data_address_at_instruction_start(
+                        context.runtime_frame_symbol_handle(),
+                    );
+                    context.insert_data_address_at_relative_offset(
+                        runtime_frame_indexed_string_data_address_offset(
+                            context.input.target.architecture,
+                            *element_byte_size,
+                            *field_byte_offset,
+                        ),
+                        data_symbol,
+                    );
+                }
+            }
             true
         }
         SelectedInstructionKind::WriteRuntimeMachineIndexedString {

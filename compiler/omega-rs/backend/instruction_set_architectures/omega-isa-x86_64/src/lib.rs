@@ -2767,22 +2767,32 @@ pub fn encode_runtime_frame_indexed_string_write(
     field_byte_offset: usize,
     byte_length: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = Vec::with_capacity(runtime_frame_indexed_string_write_width(
-        element_byte_size,
-        field_byte_offset,
-        byte_length,
-    ));
-    append_frame_indexed_element_address_into_rax(
-        &mut bytes,
-        descriptor_offset,
-        index_offset,
-        element_byte_size,
-    )?;
-    // r15 = string literal data ptr (reloc @ prefix+2); store {ptr, len}.
-    append_mov_r15_imm64(&mut bytes, 0);
-    append_store_r15_to_rax(&mut bytes, field_byte_offset)?;
-    append_mov_reg_imm64(&mut bytes, Reg64::R11, byte_length as u64);
-    append_store_r11_to_rax(&mut bytes, field_byte_offset + 8)?;
+    // Text rung 1c: DELEGATES through the place materializer. Total width
+    // holds (the retired 34-byte rax prefix = the walk's base + same-region
+    // index + deref + add sum), but the reloc ORDER flips to the
+    // materializer convention -- data at the instruction start, frame base
+    // at +10 (the direct string writes' positions) -- so the walker's x86
+    // arm moves in this SAME commit.
+    let target =
+        place_copy::transitional_place(omega_target_operations::RuntimeStorageRegion::RuntimeFrame)
+            .with_step(omega_target_operations::PlaceStep::ConstOffset(
+                descriptor_offset,
+            ))
+            .and_then(|place| place.with_step(omega_target_operations::PlaceStep::Deref))
+            .and_then(|place| {
+                place.with_step(omega_target_operations::PlaceStep::ScaledIndex {
+                    index_region: omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+                    index_offset,
+                    element_byte_size,
+                })
+            })
+            .and_then(|place| {
+                place.with_step(omega_target_operations::PlaceStep::ConstOffset(
+                    field_byte_offset,
+                ))
+            })
+            .expect("a frame-indexed place is five steps, within PLACE_MAX_STEPS");
+    let (bytes, _) = place_copy::encode_place_string_write(&target, byte_length)?;
     debug_assert_eq!(
         bytes.len(),
         runtime_frame_indexed_string_write_width(element_byte_size, field_byte_offset, byte_length)
