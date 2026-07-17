@@ -756,8 +756,22 @@ sealed progress profiles + grants, TPR4's remaining big half).
    place, ONE new width helper). Then: delegations per shape,
    WritePlaceBinary variant + echo + aarch64 WritePlaceShape reuse
    (the classifier is shape-only, operand-agnostic -- it transfers
-   as-is), producers, retirement. Also sweep the dead integer shells
-   (never-used warnings) with the first Binary commit.
+   as-is), producers, retirement.
+   BINARY RUNG 1a LANDED 2026-07-19: the ONE-SOURCE-OF-TRUTH
+   extraction -- the target-address-agnostic half of every binary
+   write (operand pair eval with the r10/push/r11 discipline, the
+   full operator/domain dispatch: floats, Saturating/Trapping
+   mul/shift/add-sub, Wrapping/Saturating signed div-mod, F8
+   shift-count policies, the plain op) now lives in
+   append_binary_operands_op_and_store; the retired
+   encode_runtime_storage_binary_write delegates BYTE-IDENTICALLY
+   (mov r14,imm64 + the helper); encode_place_binary_write = the
+   place walk (r15 + indices, consumed into the address before
+   operands evaluate) + `mov r14,r15` (new primitive 4d 89 fe) + the
+   SAME helper. Battery green. Dead integer shells still pending
+   sweep. NEXT: binary delegations per shape (width fns + walker
+   operand offsets move by place_address_width in lockstep), then
+   WritePlaceBinary + echo + producers + retirement.
    Rung 2a after: the WritePlaceInteger variant + echo product +
    producer migration. Pre-existing dead helpers noted en route (shapes/copies.rs
    runtime_storage_copy_kind + _to_runtime_frame_indexed_kind +
