@@ -45,12 +45,6 @@ impl OperationSemanticQuery for TargetOperationKind {
             | Self::WriteRuntimeStorageConvert { .. }
             | Self::AppendRuntimeMachineBoundedBufferSource { .. }
             | Self::AppendRuntimeMachineBoundedBufferLiteral { .. }
-            | Self::WriteRuntimeStorageAddressToRuntimeFrame { .. }
-            | Self::WriteRuntimePointeeAddressToRuntimeFrame { .. }
-            | Self::WriteRuntimeFrameIndexedAddressToRuntimeFrame { .. }
-            | Self::WriteRuntimeFrameFixedIndexedAddressToRuntimeFrame { .. }
-            | Self::WriteRuntimeFrameBaseIndexedAddressToRuntimeFrame { .. }
-            | Self::WriteRuntimeMachineIndexedAddressToRuntimeFrame { .. }
             | Self::AppendWireLiteralByte { .. }
             | Self::AppendWireScalarVarint { .. }
             | Self::AppendWireTextBytes { .. }

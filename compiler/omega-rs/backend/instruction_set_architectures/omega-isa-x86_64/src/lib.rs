@@ -137,29 +137,10 @@ pub fn runtime_storage_copy_to_return_register_width(byte_offset: usize, byte_si
     10 + load_width
 }
 
-pub fn runtime_frame_base_indexed_address_to_runtime_frame_write_width() -> usize {
-    // mov r14,imm64(frame) (10) + mov r11,[r14+idx] (7) + imul r11,r11,elem (7)
-    // + add r14,r11 (3) + add r14,base+field (7) + mov r15,imm64(frame) (10)
-    // + mov [r15+target],r14 (7)
-    51
-}
-
 /// Byte offset where the INDEX-region base's `mov r15, imm64` begins inside
 /// `encode_runtime_machine_indexed_address_to_runtime_frame_write` (the
 /// relocation machinery adds the +2 to reach its immediate).
 pub const MACHINE_INDEXED_ADDRESS_INDEX_BASE_IMM_OFFSET: usize = 10;
-/// Byte offset where the TARGET frame slot's `mov r15, imm64` begins in the
-/// same sequence.
-pub const MACHINE_INDEXED_ADDRESS_TARGET_FRAME_IMM_OFFSET: usize = 44;
-
-pub fn runtime_machine_indexed_address_to_runtime_frame_write_width() -> usize {
-    // mov r14,imm64(machine) (10) + mov r15,imm64(index region) (10)
-    // + mov r11d,[r15+idx] (7) + imul r11,r11,elem (7) + add r14,r11 (3)
-    // + add r14,base+field (7) + mov r15,imm64(frame) (10)
-    // + mov [r15+target],r14 (7)
-    61
-}
-
 pub fn entry_argument_register_write_width() -> usize {
     // mov r15,imm64(frame base, relocated at +2) (10) + mov [r15+disp32],reg (7).
     17
@@ -366,69 +347,6 @@ pub fn encode_runtime_text_stored_suffix_append(
     Ok(bytes)
 }
 
-pub fn runtime_frame_fixed_indexed_address_to_runtime_frame_write_width() -> usize {
-    // mov r14,imm64(frame) (10) + mov r15,[r14+desc] (7) + add r15,const (7)
-    // + mov [r14+target],r15 (7)
-    31
-}
-
-/// Computes the address of a descriptor-based element at a constant index
-/// (`*(frame[descriptor]) + element_index*elem + field`) and stores that pointer
-/// into the runtime-frame slot at `target_offset`. The frame base is loaded once
-/// (r14) and reused for the store, so a single `mov r14,imm64` relocation suffices.
-/// Computes the address of a field reached through a RUNTIME pointer stored in the
-/// frame (`*(frame[pointer_byte_offset]) + field_byte_offset`) and stores that
-/// pointer into the runtime-frame slot at `target_offset` -- the lowering of
-/// `ptr.field.as_[mut_]slice()`'s descriptor pointer where `ptr` is a `&mut`
-/// reference parameter. Same shape as the fixed-indexed-address write but the
-/// displacement is just the field offset (no element index*size).
-pub fn runtime_pointee_address_to_runtime_frame_write_width() -> usize {
-    // mov r14,imm64(frame) (10) + mov r15,[r14+ptr] (7) + add r15,const (7)
-    // + mov [r14+target],r15 (7)
-    31
-}
-
-pub fn encode_runtime_pointee_address_to_runtime_frame_write(
-    pointer_byte_offset: usize,
-    field_byte_offset: usize,
-    target_offset: usize,
-) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = Vec::with_capacity(runtime_pointee_address_to_runtime_frame_write_width());
-    append_mov_r14_imm64(&mut bytes, 0); // frame base (reloc @ +2)
-    append_load_r15_from_r14(&mut bytes, pointer_byte_offset)?; // r15 = runtime pointer value
-    append_add_r15_imm32(&mut bytes, field_byte_offset)?; // r15 = pointer + field
-    append_store_r15_to_r14(&mut bytes, target_offset)?; // frame[target] = address
-    debug_assert_eq!(
-        bytes.len(),
-        runtime_pointee_address_to_runtime_frame_write_width()
-    );
-    Ok(bytes)
-}
-
-pub fn encode_runtime_frame_fixed_indexed_address_to_runtime_frame_write(
-    descriptor_offset: usize,
-    element_index: usize,
-    element_byte_size: usize,
-    field_byte_offset: usize,
-    target_offset: usize,
-) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes =
-        Vec::with_capacity(runtime_frame_fixed_indexed_address_to_runtime_frame_write_width());
-    append_mov_r14_imm64(&mut bytes, 0); // frame base (reloc @ +2)
-    append_load_r15_from_r14(&mut bytes, descriptor_offset)?; // r15 = data pointer
-    let displacement = element_index
-        .checked_mul(element_byte_size)
-        .and_then(|scaled| scaled.checked_add(field_byte_offset))
-        .ok_or_else(|| Diagnostic::error("X86_64 fixed indexed address offset overflow"))?;
-    append_add_r15_imm32(&mut bytes, displacement)?; // r15 = element address
-    append_store_r15_to_r14(&mut bytes, target_offset)?; // frame[target] = address
-    debug_assert_eq!(
-        bytes.len(),
-        runtime_frame_fixed_indexed_address_to_runtime_frame_write_width()
-    );
-    Ok(bytes)
-}
-
 /// Relocation imm offset (pre-`+2`) of the TARGET region base `mov` in the
 /// fixed-indexed slice-element copy (the materializer's canonical shape:
 /// source base mov (10) + descriptor deref (7)).
@@ -439,156 +357,6 @@ pub const FRAME_FIXED_INDEXED_COPY_TARGET_IMM_OFFSET: usize = 17;
 /// frame base (10) + index load (7) + imul (7) + descriptor deref (7) +
 /// add (3)).
 pub const FRAME_INDEXED_COPY_TARGET_IMM_OFFSET: usize = 34;
-
-/// Width of [`encode_runtime_frame_indexed_deref_address_to_runtime_frame_write`].
-/// MUST equal the emitter exactly. Frame index: two frame relocations (@+2 and
-/// the target mov at +41+2). Machine index: a machine relocation at +10+2 is
-/// inserted between them (target mov at +51+2).
-pub fn runtime_frame_indexed_deref_address_to_runtime_frame_write_width(
-    index_region: omega_target_operations::RuntimeStorageRegion,
-) -> usize {
-    match index_region {
-        // mov r14,imm64(frame) (10) + mov r10,imm64(machine) (10)
-        // + mov r11d,[r10+idx] (7) + imul r11,elem (7) + mov r14,[r14+desc] (7)
-        // + add r14,r11 (3) + add r14,field (7) + mov r15,imm64(frame) (10)
-        // + mov [r15+target],r14 (7).
-        omega_target_operations::RuntimeStorageRegion::Machine => 68,
-        // mov r14,imm64(frame) (10) + mov r11d,[r14+idx] (7) + imul r11,elem (7)
-        // + mov r14,[r14+desc] (7) + add r14,r11 (3) + add r14,field (7)
-        // + mov r15,imm64(frame) (10) + mov [r15+target],r14 (7).
-        _ => 58,
-    }
-}
-
-/// Relocation imm offset (pre-`+2`) of the TARGET frame-base `mov` in the
-/// descriptor-deref indexed address write, by index region.
-pub fn runtime_frame_indexed_deref_address_target_frame_offset(
-    index_region: omega_target_operations::RuntimeStorageRegion,
-) -> usize {
-    match index_region {
-        omega_target_operations::RuntimeStorageRegion::Machine => 51,
-        _ => 41,
-    }
-}
-
-/// Computes `*(frame[descriptor]) + index*elem + field` -- the address of a
-/// runtime-START subslice element through the SEEDED descriptor pointer -- and
-/// stores it into the frame slot at `target_offset`. The index reads from the
-/// frame (a param/local bound) or from the machine region (`self.lo`, its own
-/// relocation). This op used to be width-0 on x86_64: the ptr write silently
-/// dropped and a runtime-START subslice descriptor kept the whole-array base.
-pub fn encode_runtime_frame_indexed_deref_address_to_runtime_frame_write(
-    descriptor_offset: usize,
-    index_offset: usize,
-    index_region: omega_target_operations::RuntimeStorageRegion,
-    element_byte_size: usize,
-    field_byte_offset: usize,
-    target_offset: usize,
-) -> Result<Vec<u8>, Diagnostic> {
-    if !matches!(
-        index_region,
-        omega_target_operations::RuntimeStorageRegion::RuntimeFrame
-            | omega_target_operations::RuntimeStorageRegion::Machine
-    ) {
-        return Err(Diagnostic::error(
-            "X86_64 MVP encoder cannot read a subslice START index from this region yet",
-        ));
-    }
-    let mut bytes = Vec::with_capacity(
-        runtime_frame_indexed_deref_address_to_runtime_frame_write_width(index_region),
-    );
-    append_mov_r14_imm64(&mut bytes, 0); // frame base (reloc @ +2)
-    if index_region == omega_target_operations::RuntimeStorageRegion::Machine {
-        append_mov_r10_imm64(&mut bytes, 0); // machine base (reloc @ +10+2)
-        // r11d = index, 32-bit zero-extended off the machine base.
-        bytes.extend([0x45, 0x8b, 0x9a]); // mov r11d, [r10+disp32]
-        bytes.extend(disp32(index_offset)?.to_le_bytes());
-    } else {
-        append_load_r11_from_r14(&mut bytes, index_offset)?; // r11 = index (32-bit ZX)
-    }
-    append_imul_r11_imm32(&mut bytes, element_scale(element_byte_size)?);
-    // r14 = *(frame + descriptor) -- the seeded window pointer.
-    bytes.extend([0x4d, 0x8b, 0xb6]); // mov r14, [r14+disp32]
-    bytes.extend(disp32(descriptor_offset)?.to_le_bytes());
-    append_add_r14_r11(&mut bytes); // r14 = ptr + index*elem
-    append_add_r14_imm32(&mut bytes, field_byte_offset)?; // + literal bias
-    debug_assert_eq!(
-        bytes.len(),
-        runtime_frame_indexed_deref_address_target_frame_offset(index_region)
-    );
-    append_mov_r15_imm64(&mut bytes, 0); // frame base for the target slot (reloc @ +2)
-    append_store_r14_to_r15(&mut bytes, target_offset)?; // frame[target] = element address
-    debug_assert_eq!(
-        bytes.len(),
-        runtime_frame_indexed_deref_address_to_runtime_frame_write_width(index_region)
-    );
-    Ok(bytes)
-}
-
-/// Computes the address of an inline frame-base-indexed element
-/// (`frame + base + index*elem + field`) and stores that pointer into the
-/// runtime-frame slot at `target_offset` -- the lowering of `arr.as_slice()` /
-/// `as_mut_slice()` into a `{ptr,len}` descriptor's pointer field. The frame
-/// base is loaded twice (source address in r14, target base in r15); both
-/// `mov r*,imm64` immediates are relocated to the runtime-frame symbol.
-pub fn encode_runtime_frame_base_indexed_address_to_runtime_frame_write(
-    base_byte_offset: usize,
-    index_offset: usize,
-    element_byte_size: usize,
-    field_byte_offset: usize,
-    target_offset: usize,
-) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes =
-        Vec::with_capacity(runtime_frame_base_indexed_address_to_runtime_frame_write_width());
-    append_mov_r14_imm64(&mut bytes, 0); // frame base (reloc @ +2)
-    append_load_r11_from_r14(&mut bytes, index_offset)?; // r11 = index
-    append_imul_r11_imm32(&mut bytes, element_scale(element_byte_size)?);
-    append_add_r14_r11(&mut bytes); // r14 = frame + index*elem
-    append_add_r14_imm32(&mut bytes, base_byte_offset + field_byte_offset)?; // + base + field
-    debug_assert_eq!(
-        bytes.len(),
-        FRAME_BASE_INDEXED_ADDRESS_TARGET_FRAME_IMM_OFFSET
-    );
-    append_mov_r15_imm64(&mut bytes, 0); // frame base for the target slot (reloc @ +2)
-    append_store_r14_to_r15(&mut bytes, target_offset)?; // frame[target] = element address
-    debug_assert_eq!(
-        bytes.len(),
-        runtime_frame_base_indexed_address_to_runtime_frame_write_width()
-    );
-    Ok(bytes)
-}
-
-/// The MACHINE-base element-address write (the wide-referee borrow-recast let
-/// `let d = &self.buf[k] as &Descriptor`): frame[target] = machine_base +
-/// base_byte_offset + index*element + field. The machine base and the index
-/// region each relocate independently (the index may live in the frame or in
-/// machine storage); the slot receives a REAL POINTER — reads deref it.
-pub fn encode_runtime_machine_indexed_address_to_runtime_frame_write(
-    base_byte_offset: usize,
-    index_offset: usize,
-    element_byte_size: usize,
-    field_byte_offset: usize,
-    target_offset: usize,
-) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes =
-        Vec::with_capacity(runtime_machine_indexed_address_to_runtime_frame_write_width());
-    append_mov_r14_imm64(&mut bytes, 0); // machine base (reloc @ +2)
-    append_mov_r15_imm64(&mut bytes, 0); // index region base (reloc @ +12)
-    // 32-bit index load, zero-extended (see append_load_r11_from_r14's note).
-    bytes.extend([0x45, 0x8b, 0x9f]); // mov r11d, [r15 + disp32]
-    bytes.extend(disp32(index_offset)?.to_le_bytes());
-    append_imul_r11_imm32(&mut bytes, element_scale(element_byte_size)?);
-    append_add_r14_r11(&mut bytes); // r14 = machine + index*elem
-    append_add_r14_imm32(&mut bytes, base_byte_offset + field_byte_offset)?;
-    debug_assert_eq!(bytes.len(), MACHINE_INDEXED_ADDRESS_TARGET_FRAME_IMM_OFFSET);
-    append_mov_r15_imm64(&mut bytes, 0); // frame base for the target slot (reloc @ +2)
-    append_store_r14_to_r15(&mut bytes, target_offset)?; // frame[target] = element address
-    debug_assert_eq!(
-        bytes.len(),
-        runtime_machine_indexed_address_to_runtime_frame_write_width()
-    );
-    Ok(bytes)
-}
 
 pub fn encode_return_register_integer_write_bytes(
     byte_size: usize,
@@ -5375,22 +5143,6 @@ pub fn encode_runtime_machine_bounded_buffer_literal_append(
         bytes.len(),
         runtime_machine_bounded_buffer_literal_append_width(literal)
     );
-    Ok(bytes)
-}
-
-pub fn runtime_storage_address_to_runtime_frame_write_width() -> usize {
-    34
-}
-
-pub fn encode_runtime_storage_address_to_runtime_frame_write(
-    source_offset: usize,
-    target_offset: usize,
-) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = Vec::with_capacity(runtime_storage_address_to_runtime_frame_write_width());
-    append_mov_r14_imm64(&mut bytes, 0);
-    append_add_r14_imm32(&mut bytes, source_offset)?;
-    append_mov_r15_imm64(&mut bytes, 0);
-    append_store_r14_to_r15(&mut bytes, target_offset)?;
     Ok(bytes)
 }
 
