@@ -98,6 +98,56 @@ pub(super) fn parse_postfix_expression_handle<'tokens, 'source>(
                 ));
             }
 
+            // CH10 ROOT GRANT (GR3): `b.accept_boundary<pkg::symbol>();` --
+            // the final build's grant spelling. The angle-bracket symbol is
+            // a compile-time parameter (ch13); no general angle-bracket call
+            // surface exists, so this carve recognizes the exact form and
+            // desugars to a MARKER-NAMED zero-argument member call
+            // (`accept_boundary#<path>` -- the asm#hlt / __destructure__
+            // marker convention; `#` cannot appear in identifiers, so the
+            // encoding is unambiguous). The build-config evaluation serves
+            // the marker and records the grant; outside a build machine the
+            // marker name fails resolution loudly rather than silently.
+            if member.as_str() == "accept_boundary"
+                && rest.at_punctuation(PunctuationKind::Less)
+            {
+                let mut path_input = rest.take_punctuation(PunctuationKind::Less, "<")?;
+                let mut rendered = String::new();
+                loop {
+                    let (segment, next) = path_input.take_identifier()?;
+                    if !rendered.is_empty() {
+                        rendered.push_str("::");
+                    }
+                    rendered.push_str(segment.as_str());
+                    if next.at_punctuation(PunctuationKind::ColonColon) {
+                        path_input = next.take_punctuation(PunctuationKind::ColonColon, "::")?;
+                        continue;
+                    }
+                    path_input = next.take_punctuation(PunctuationKind::Greater, ">")?;
+                    break;
+                }
+                let after_open =
+                    path_input.take_punctuation(PunctuationKind::LeftParen, "(")?;
+                if !after_open.at_punctuation(PunctuationKind::RightParen) {
+                    return Err(after_open.error_here(
+                        "`accept_boundary` takes its symbol in angle brackets and no \
+                         value arguments: `b.accept_boundary<pkg::symbol>();`",
+                    ));
+                }
+                input = after_open.take_punctuation(PunctuationKind::RightParen, ")")?;
+                expression =
+                    syntax_trees
+                        .expressions
+                        .insert(ExpressionNode::Call(TableCallExpression {
+                            receiver: expression,
+                            target: omega_syntax_trees::identifier::Identifier::generated(
+                                format!("accept_boundary#{rendered}"),
+                            ),
+                            arguments: HandleSpan::empty(),
+                        }));
+                continue;
+            }
+
             // ATOMICS STAGE 1 (ch17, M2): `atomic_place.load(ordering)` is the
             // IDENTITY on the place (reads the value). On x86_64, Relaxed/
             // Acquire/Release/AcqRel loads are plain aligned `mov` -- the

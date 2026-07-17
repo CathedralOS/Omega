@@ -33,12 +33,17 @@ const BUILD_MACHINE: &str = "build";
 
 /// The image facts the pipeline consumes, extracted from the augmented
 /// `Build`. ZII: the default IS the zero value's meaning.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BuildConfig {
     /// PE optional-header Subsystem word (console 3 when unstated).
     pub subsystem: u16,
     /// Freestanding image: empty host-ABI plan, no import thunks.
     pub freestanding: bool,
+    /// CH10 ROOT GRANTS (GR3): the symbol paths the final build accepted
+    /// via `b.accept_boundary<pkg::symbol>();` -- harvested STATICALLY
+    /// from the build machine's marker calls (grants are declarations,
+    /// not runtime effects; the evaluator serves the marker as a no-op).
+    pub grants: Vec<String>,
 }
 
 impl Default for BuildConfig {
@@ -46,6 +51,7 @@ impl Default for BuildConfig {
         Self {
             subsystem: 3, // IMAGE_SUBSYSTEM_WINDOWS_CUI -- the Console case's meaning
             freestanding: false,
+            grants: Vec::new(),
         }
     }
 }
@@ -195,11 +201,52 @@ pub(crate) fn compute_build_config(
         ))]
     })?;
 
-    extract_build_config(&augmented).map_err(|reason| {
+    let mut config = extract_build_config(&augmented).map_err(|reason| {
         vec![Diagnostic::error(format!(
             "`{machine_name}` produced an invalid Build: {reason}"
         ))]
-    })
+    })?;
+    config.grants = harvest_root_grants(typed, machine);
+    Ok(config)
+}
+
+/// The static grant harvest: every `accept_boundary#<path>` marker call in
+/// the build machine's states (the postfix carve's desugar of
+/// `b.accept_boundary<path>();`). Order-preserving, deduplicated.
+fn harvest_root_grants(
+    typed: &TypedTrees,
+    machine: &omega_typed_trees::machine::Machine,
+) -> Vec<String> {
+    let mut grants: Vec<String> = Vec::new();
+    for state in typed.machine_states(machine) {
+        for statement in typed.statement_table.statements(state.statement_nodes) {
+            let handles: Vec<omega_typed_trees::expression::ExpressionHandle> = match statement {
+                omega_typed_trees::statement::StatementNode::Expression(expression) => {
+                    vec![*expression]
+                }
+                omega_typed_trees::statement::StatementNode::Call(call) => {
+                    // A statement-level call keeps the marker in its target.
+                    if let Some(path) = call.target.as_str().strip_prefix("accept_boundary#")
+                        && !grants.iter().any(|existing| existing == path)
+                    {
+                        grants.push(path.to_owned());
+                    }
+                    Vec::new()
+                }
+                _ => Vec::new(),
+            };
+            for handle in handles {
+                if let omega_typed_trees::expression::ExpressionNode::Call(call) =
+                    typed.expression_table.expression(handle)
+                    && let Some(path) = call.target.as_str().strip_prefix("accept_boundary#")
+                    && !grants.iter().any(|existing| existing == path)
+                {
+                    grants.push(path.to_owned());
+                }
+            }
+        }
+    }
+    grants
 }
 
 fn extract_build_config(build: &BuildTimeValue) -> Result<BuildConfig, String> {
@@ -246,5 +293,6 @@ fn extract_build_config(build: &BuildTimeValue) -> Result<BuildConfig, String> {
     Ok(BuildConfig {
         subsystem,
         freestanding,
+        grants: Vec::new(),
     })
 }

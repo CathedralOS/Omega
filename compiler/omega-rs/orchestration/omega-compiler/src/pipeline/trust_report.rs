@@ -15,17 +15,50 @@ use omega_typed_trees::TypedTrees;
 pub(super) fn write_trust_report(
     options: &CompileOptions,
     typed: &TypedTrees,
+    root_grants: &[String],
 ) -> Result<(), Vec<Diagnostic>> {
     let mut report = TrustReport::default();
     for domain in typed.domain_definitions() {
         if !domain.semantic_id.is_valid() {
             continue;
         }
+        // A root grant naming this domain (by full rendered name or leaf)
+        // flips its provenance and retires the standing warning (GR3).
+        let leaf = domain
+            .name
+            .as_str()
+            .rsplit("::")
+            .next()
+            .unwrap_or(domain.name.as_str());
+        let granted = root_grants
+            .iter()
+            .any(|grant| grant == domain.name.as_str() || grant == leaf);
         report.rows.push(TrustReportRow {
             commitment: format!("domain introduction: {}", domain.name.as_str()),
-            provenance: "own-package (dev-active)".to_owned(),
-            standing_warning: true,
+            provenance: if granted {
+                "root grant (build.omg)".to_owned()
+            } else {
+                "own-package (dev-active)".to_owned()
+            },
+            standing_warning: !granted,
         });
+    }
+    // Grants naming anything other than a declared domain surface as
+    // ACCEPTED-FACT rows (boundary-machine acceptance -- GR6 wires the
+    // supply-mode side; the report shows every grant, private or public).
+    for grant in root_grants {
+        let names_domain = typed.domain_definitions().iter().any(|domain| {
+            grant == domain.name.as_str()
+                || Some(grant.as_str())
+                    == domain.name.as_str().rsplit("::").next()
+        });
+        if !names_domain {
+            report.rows.push(TrustReportRow {
+                commitment: format!("accepted fact: {grant}"),
+                provenance: "root grant (build.omg)".to_owned(),
+                standing_warning: false,
+            });
+        }
     }
 
     let writer =

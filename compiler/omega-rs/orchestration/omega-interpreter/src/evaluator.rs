@@ -1564,6 +1564,13 @@ impl<'program> Evaluator<'program> {
         if call.target.as_str() == "asm#hlt" {
             return Ok(Value::Unit);
         }
+        // CH10 root grant (GR3): `b.accept_boundary<path>();` desugars to
+        // the `accept_boundary#<path>` marker call. Grants are DECLARATIONS
+        // harvested statically by the build-config pass; evaluation serves
+        // the marker as a no-op so the build machine runs through it.
+        if call.target.as_str().starts_with("accept_boundary#") {
+            return Ok(Value::Unit);
+        }
 
         // Host boundary call? (e.g. self.console.exit_process(70))
         if let Some(value) = self.try_host_call(call, frame)? {
@@ -4385,6 +4392,10 @@ impl<'program> Evaluator<'program> {
     ) -> EvalResult<Value> {
         // Builtins: max / min over two integer/float operands.
         let target = call.target.as_str();
+        // CH10 root grant marker (see the statement-call twin): a no-op.
+        if target.starts_with("accept_boundary#") {
+            return Ok(Value::Unit);
+        }
         if matches!(target, "max" | "min") {
             let args = self
                 .program

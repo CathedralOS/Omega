@@ -3952,9 +3952,21 @@ with a real app-window story.
   Standing-warning rows deferred to GR5 (a warning per mint would
   spam; the report is the right surface). The staged predicate fence
   is untouched (semantic_cast_mint_staged keeps pinning it).
-  GR3 root-grant parse -- b.accept_boundary<path>() in build.omg
-  (compile-time machine parameter, ch13) populating the table
-  through the build-config path (build_config_granted.rs precedent).
+  GR3 LANDED 2026-07-20: the postfix carve parses the RULED spelling
+  b.accept_boundary<pkg::symbol>() (join/load/store carve precedent)
+  and desugars to the MARKER-NAMED zero-arg call
+  accept_boundary#<path> (the asm#hlt / __destructure__ convention
+  -- ZERO representation changes); the evaluator serves the marker
+  as a no-op (grants are declarations, not runtime effects); the
+  build-config pass harvests grants STATICALLY from the build
+  machine's statements (BuildConfig.grants, dedup, order-preserving)
+  and the pipeline threads them into the trust report -- a granted
+  domain's row flips to `root grant (build.omg)` and drops the
+  standing warning; a grant naming no domain surfaces as an
+  accepted-fact row. Pinned: root_grant_flips_domain_row test +
+  fail/build/accept_boundary_outside_build (ordinary source refuses
+  via marker resolution -- a package can never self-grant; directed
+  diagnostic is a polish item).
   OPENER NOTES (2026-07-20): the build machine is identified by
   is_build_machine (named build/<C>::build AND declared at a
   build.omg root -- the FILE is the identity) and evaluates through
