@@ -1,0 +1,79 @@
+// fs <-> time INTEROP, the WINDOWS leg (TASKS Windows session; the darwin
+// twin is runtime_fs_mtime_system_time_interop_exit): a real file's
+// metadata mtime, decoded at the windows `_stat64` offset (st_mtime,
+// i64 @40 -- the ST_MTIME_OFF provides row), bridges through
+// SystemTime::from_unix_seconds and compares against
+// Time::system_time_now(): now.duration_since(modified) must be Ok (a
+// just-created file is never in the future), the gap must be sane, and
+// the bridged mtime must be a real timestamp (>= the virtual model's
+// 10^9 constant; a zeroed decode fails).
+//
+// ENGINE-AGNOSTIC assertions so BOTH engines exit 70 on a windows host:
+// the interpreter's virtual fs stamps mtime = 10^9 (2001) at the HOST
+// layout's offset (windows = 40, mirroring the provides row) and its
+// virtual wall clock reads 2026-01-01, so the gap is ~790M seconds;
+// native's gap is ~0. Both are Ok, < 10^9 seconds, with mtime >= 10^9.
+// The decode offset is WINDOWS' `_stat64`, so the canary is
+// windows-gated in the suite and differential-excluded with a reason (a
+// darwin-host differential run would decode garbage at 40).
+// Expected exit: 70.
+use omega::language::std::filesystem_host;
+use omega::language::std::time;
+
+boundary trait Console { machine exit_process(return_code: i32); }
+
+data Main {
+    console: Console;
+    fs: FilesystemHost;
+    time: Time;
+    mode: i32;
+    fd: i32;
+    n: i64;
+    rc: i64;
+    buffer: [u8; 144];
+    mtime: i64;
+    modified: SystemTime;
+    now_keep: SystemTime;
+    diff: SystemTimeDifference;
+}
+
+machine Main::main(&mut self) {
+    self.mode = 438;
+    self.fd = self.fs.create("omega_wintime_interop.txt", self.mode);
+    self.n = self.fs.write(self.fd, "interop");
+    self.n = self.fs.close(self.fd);
+    self.rc = self.fs.read_metadata("omega_wintime_interop.txt", &mut self.buffer);
+    self.n = self.fs.remove("omega_wintime_interop.txt");
+    transition self.rc == 0 { true -> decode() _ -> bad(71) }
+    state decode(&mut self) {
+        self.mtime = (self.buffer[40] as i64)
+            | ((self.buffer[41] as i64) << 8)
+            | ((self.buffer[42] as i64) << 16)
+            | ((self.buffer[43] as i64) << 24)
+            | ((self.buffer[44] as i64) << 32)
+            | ((self.buffer[45] as i64) << 40)
+            | ((self.buffer[46] as i64) << 48)
+            | ((self.buffer[47] as i64) << 56);
+        self.modified = SystemTime::from_unix_seconds(self.mtime);
+        self.now_keep = self.time.system_time_now();
+        self.diff = self.now_keep.duration_since(self.modified);
+        transition self.diff {
+            SystemTimeDifference::Ok { duration } -> check_gap(duration)
+            SystemTimeDifference::Backwards { amount } -> bad_backwards(amount)
+            SystemTimeDifference::Unmeasured -> bad(73)
+        }
+    }
+    state check_gap(&mut self, duration: Duration) {
+        // Native: ~0s (just created). Interp: ~790M s (2001 -> 2026 virtual
+        // constants). Both < 10^9; a garbage decode blows the bound.
+        transition duration.seconds < 1000000000 { true -> check_mtime() _ -> bad(74) }
+    }
+    state check_mtime(&mut self) {
+        // A real timestamp: >= the virtual model's 10^9 (2001) constant;
+        // native windows is ~1.78e9. A zeroed decode fails here.
+        transition self.mtime >= 1000000000 { true -> good() _ -> bad(75) }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self, code: i32) { self.console.exit_process(code); }
+    state bad_backwards(&mut self, amount: Duration) { self.console.exit_process(72); }
+}

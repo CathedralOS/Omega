@@ -3172,15 +3172,44 @@ rejects — an INTEGER ruling, engineering rides this ladder as F8).
 
 ## Platform verification sessions (host-gated)
 
-- **Windows session — QUEUED (Next Tasks #4); one session closes all of
-  it:** natively verify the fs stat-row migration; migrate
-  WINDOWS_IMPORT_ROWS into provides files; Win32 rows for the no-msvcrt fs
-  ops (pread/*at/link/read_dir/flock/chown/futimens/realpath — loud "no
-  native lowering" refusals today); file_journal sample recheck; WndProc
-  entry stubs (title-bar close); the fs<->time mtime interop leg (time-side
-  surface ready + canaried; rides the stat rows). Also re-baseline the two
-  cfg(windows) efi byte-pin tests (proved stale via cross-target PE
-  evidence, 2026-07-17).
+- **Windows session — RUNNING 2026-07-16 (Next Tasks #4); slice 1 landed:**
+  the full `cargo test --workspace` battery now runs GREEN on a windows
+  host — it had never run here (cfg(windows)-gated tests compile out on
+  the aarch64-darwin authoring lane). What it surfaced + fixed:
+  (1) TEST-HARNESS PATH ESCAPES — generated probe programs embedded
+  `temp_dir().display()` verbatim, so `C:\Users\...` read as string
+  escapes (`\U`) to the lexer; build_config_granted + real_fs (4 tests)
+  now embed forward-slash paths (omg_path helper).
+  (2) REAL-PROVIDER OP PARITY, WINDOWS WALK — the parity probe was the
+  darwin walk (mtime @48, symlink/chmod asserted SERVED); windows now has
+  its own 11-step served-set walk (mtime @40) + a separate pin that the
+  unix-gated trio (symlink/set_permissions/change_owner) refuses with
+  ENOTSUP(45) in real mode BY DESIGN (2026-07-10m ruling) while the
+  host-independent virtual fs serves them — a documented divergence, not
+  hidden. The provider also gained read-only DIRECTORY opens on windows
+  (FILE_FLAG_BACKUP_SEMANTICS; the open_at/unlink_at dirfd mint) — write
+  opens still fail like unix EISDIR.
+  (3) read_dir_nth KIND-LATCH BUG (std windows impl, both engines
+  faithfully wrong): the scan drain keeps classifying records after
+  capturing the target, so reading the RUNNING w_scan_kind after the
+  drain reported the LAST record's kind — every file child claimed
+  is_dir whenever the dir's last record was a directory. Fixed by
+  latching w_hit_kind at the hit; pinned by
+  pass/filesystem/windows_read_dir_nth_exit (dual-engine, windows-gated)
+  + the interp coverage test that caught it.
+  (4) fs<->time mtime INTEROP, WINDOWS LEG — LANDED:
+  pass/time/runtime_fs_mtime_interop_windows_exit (decode @40, bridged
+  through SystemTime, both engines 70; the darwin twin's TASKS_TIME #9
+  blocker note is retired).
+  VERIFIED-BY-EVIDENCE: the fs stat-row migration serves natively (the
+  windows metadata/wrapper canaries green on this host); file_journal
+  was fixed 2026-07-18 (host-divergent section); the two "stale efi
+  byte-pin" tests show NO failure in the battery — that item was stale.
+  REMAINING: Win32 rows for the no-msvcrt fs ops (pread/*at/link/
+  read_dir/flock/chown/futimens/realpath — loud "no native lowering"
+  refusals today); WndProc entry stubs (title-bar close);
+  WINDOWS_IMPORT_ROWS consumption (build the ProviderPlan form per the
+  2026-07-16 provider verdict — design-adjacent, own kickoff).
 - **Linux session:** fs + time binding tables are structural-only until a
   host exists. Time's monotonic/wall rows additionally need a timespec
   composite lowering (clock_gettime writes {tv_sec, tv_nsec}; result =

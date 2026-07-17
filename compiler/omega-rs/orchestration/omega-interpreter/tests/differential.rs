@@ -1057,12 +1057,20 @@ const EXCLUDED_RUN_CANARIES: &[(&str, &str)] = &[
         "windows-gated dual test (interp oracle + native run, both 70, asserted in its canary_suite test): the find-enumeration trio (fs rung 3a) has NO posix lowering BY DESIGN (posix impls walk dirent records), so a darwin-host differential compile would fail at host lowering",
     ),
     (
+        "filesystem/windows_read_dir_nth_exit",
+        "windows-gated dual test (interp oracle + native run, both 70, asserted in its canary_suite test): pins the WINDOWS read_dir_nth wrapper composition (the kind-latch witness) riding the find seam; the posix wrapper path is covered by the macos-gated native fs battery",
+    ),
+    (
         "time/runtime_time_host_native_exit",
         "NATIVE-ONLY (windows-gated run test): asserts the WINDOWS calibration constants (10^7 / 11_644_473_600) and real-clock inequalities; the interpreter's virtual clock reports 1000/0 and exits 3 by design (its exact values are pinned by time/runtime_time_host_virtual_exit)",
     ),
     (
         "time/runtime_fs_mtime_system_time_interop_exit",
-        "macos-gated dual test (interp oracle + native run, both 70, asserted in its canary_suite test): the mtime decode reads DARWIN stat offsets, so a windows-host differential run would decode garbage; the windows leg waits on fs open-work #2's stat rows",
+        "macos-gated dual test (interp oracle + native run, both 70, asserted in its canary_suite test): the mtime decode reads DARWIN stat offsets, so a windows-host differential run would decode garbage; the windows leg is runtime_fs_mtime_interop_windows_exit",
+    ),
+    (
+        "time/runtime_fs_mtime_interop_windows_exit",
+        "windows-gated dual test (interp oracle + native run, both 70, asserted in its canary_suite test): the mtime decode reads the WINDOWS `_stat64` offset (st_mtime @40), so a darwin-host differential run would decode garbage; the darwin leg is runtime_fs_mtime_system_time_interop_exit",
     ),
     (
         "time/runtime_time_host_native_darwin_exit",

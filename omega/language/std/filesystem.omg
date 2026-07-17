@@ -447,6 +447,12 @@ data Filesystem {
     w_scan_done: u64 in Wrapping;
     w_scan_pending: u64 in Wrapping;
     w_scan_kind: u64 in Wrapping;
+    // The kind LATCHED at the target hit (1 dir / 2 file): w_scan_kind keeps
+    // running as the drain classifies the REMAINING records, so a consumer
+    // reading it after the drain would see the LAST record's kind, not the
+    // captured entry's (read_dir_nth reported file children as directories
+    // whenever the directory's last record was a dir).
+    w_hit_kind: u64 in Wrapping;
     w_entry_len: u64 in Wrapping;
     w_path_len: u64 in Wrapping;
     w_child_len: u64 in Wrapping;

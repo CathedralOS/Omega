@@ -1957,6 +1957,49 @@ fn runtime_fs_mtime_system_time_interop_exit_canary_runs() {
 }
 
 #[test]
+#[cfg(windows)]
+fn runtime_fs_mtime_interop_windows_exit_canary_runs() {
+    // fs <-> time interop, the WINDOWS leg (the darwin twin is above): a
+    // real file's mtime decoded at the `_stat64` offset (st_mtime @40, the
+    // windows ST_MTIME_OFF provides row) bridges via
+    // SystemTime::from_unix_seconds against system_time_now().
+    // Engine-agnostic assertions: BOTH the interpreter (virtual mtime 10^9
+    // at the host layout's offset vs virtual 2026 clock) and the native
+    // windows run (fresh file vs real clock) exit 70. windows-gated: the
+    // decode reads the `_stat64` offset.
+    let canary = pass_canary("time/runtime_fs_mtime_interop_windows_exit");
+    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+        .expect("windows fs-time interop canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(outcome.error, None, "interop should interpret cleanly");
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should exit 70 for the windows interop chain, got {}",
+        outcome.exit_code
+    );
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-fs-time-interop-win-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("windows fs-time interop canary should compile natively");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("windows fs-time interop canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the native windows fs-time interop chain to exit 70, got {:?}",
+        output.status.code(),
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_duration_totals_exit_canary_runs() {
     // checked_as_nanoseconds/microseconds/milliseconds exact values + the
     // Overflow arm at Duration::MAX, interpreter oracle + native. Exit 70.
@@ -26383,6 +26426,55 @@ fn windows_find_enumeration_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// The read_dir_nth WRAPPER composition over the find seam (the seam trio is
+// pinned above). The trailing-dir shape is the KIND-LATCH witness: the scan
+// drain keeps classifying records after capturing the target, so reading
+// the RUNNING w_scan_kind after the drain reported the LAST record's kind
+// -- every file child claimed is_dir whenever the directory's last record
+// was a dir. The impl latches w_hit_kind at the hit now. Interp + native.
+#[cfg(windows)]
+#[test]
+fn windows_read_dir_nth_exit_canary_runs() {
+    let canary = pass_canary("filesystem/windows_read_dir_nth_exit");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("read_dir_nth canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should exit 70 (file aaa, dir ccc, then End), got {}",
+        outcome.exit_code
+    );
+
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-read-dir-nth-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("read_dir_nth canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .current_dir(&build_dir)
+        .output()
+        .expect("read_dir_nth canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the read_dir_nth walk to exit 70 (75 = child 0 reported as a dir, the kind-latch regression; header lists the rest), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // Native windows metadata via msvcrt `_stat64` (the per-target stat-offset
 // migration payoff). The wrapper's `decode_metadata` reads `stat_buf[ST_*_OFF + k]`
 // -- a pure-const binary index that now const-folds -- at the windows `_stat64`
@@ -30977,6 +31069,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "time/runtime_duration_core_exit",
     "time/runtime_duration_totals_exit",
     "time/runtime_time_host_native_exit",
+    "time/runtime_fs_mtime_interop_windows_exit",
     "time/runtime_instant_elapsed_exit",
     "time/runtime_system_time_after_2026_exit",
     "time/runtime_time_elapsed_since_exit",
@@ -31004,6 +31097,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "calls/runtime_value_call_statement_recursive_walk_exit",
     "filesystem/windows_wrapper_create_new_exit",
     "filesystem/windows_wrapper_metadata_exit",
+    "filesystem/windows_read_dir_nth_exit",
     "filesystem/windows_wrapper_exists_exit",
     "filesystem/windows_wrapper_set_len_exit",
     "filesystem/windows_wrapper_copy_exit",

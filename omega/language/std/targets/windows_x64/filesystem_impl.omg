@@ -127,6 +127,7 @@ windows_x64 machine Filesystem::read_dir_nth(&mut self, path: &[u8] in Path, n: 
     self.w_scan_files = 0;
     self.w_scan_target = n as u64 in Wrapping;
     self.w_scan_hit = 0;
+    self.w_hit_kind = 0;
     self.w_scan_done = 0;
     self.w_scan_pending = 0;
     self.w_path_copy(path, 0);
@@ -150,7 +151,11 @@ windows_x64 machine Filesystem::read_dir_nth(&mut self, path: &[u8] in Path, n: 
         transition self.w_scan_hit == 1 { true -> rdn_kind(path) _ -> rdn_end(path) }
     }
     state rdn_kind(&mut self, path: &[u8] in Path) -> DirEntryResult {
-        transition self.w_scan_kind == 1 { true -> rdn_ok_dir(path) _ -> rdn_ok_file(path) }
+        // The LATCHED kind, not the running w_scan_kind: the drain kept
+        // classifying records after the hit, so the running field holds the
+        // LAST record's kind (a trailing dir made every file child report
+        // is_dir here).
+        transition self.w_hit_kind == 1 { true -> rdn_ok_dir(path) _ -> rdn_ok_file(path) }
     }
     state rdn_ok_dir(&mut self, path: &[u8] in Path) -> DirEntryResult {
         DirEntryResult::Ok { entry: DirEntry {
@@ -671,6 +676,9 @@ windows_x64 machine Filesystem::w_scan_step(&mut self, step: u64) {
     state ws_hit(&mut self) {
         self.w_capture_name(0);
         self.w_scan_hit = 1;
+        // Latch the kind with the name: the drain keeps classifying the
+        // remaining records, so w_scan_kind moves on after this hit.
+        self.w_hit_kind = self.w_scan_kind;
         transition { _ -> ws_cont() }
     }
     state ws_cont(&mut self) { self.w_scan_verdict = 1; }

@@ -1,0 +1,75 @@
+// RUN CANARY (exit 70, WINDOWS-HOST ONLY) -- the read_dir_nth WRAPPER
+// composition over the find-enumeration seam (the seam trio itself is
+// pinned by windows_find_enumeration_exit). Creates a directory with two
+// FILES and a trailing DIRECTORY (sorted last: aaa, bbb, ccc), then asserts
+// child 0 = file "aaa", child 2 = dir "ccc", child 3 = End. The trailing
+// dir is the KIND-LATCH witness: the scan drain keeps classifying records
+// after capturing the target, so a consumer reading the RUNNING
+// w_scan_kind after the drain saw the LAST record's kind -- every file
+// child reported is_dir whenever the directory's last record was a dir
+// (caught by the interp coverage test on a windows host, 2026-07-16; the
+// impl now latches w_hit_kind at the hit). Not in the cross-host sweep
+// lists: the wrapper's windows impl rides the find seam, which posix
+// targets do not lower BY DESIGN; the #[cfg(windows)] suite test runs both
+// engines.
+// exits: 70 good; 71 setup failed; 72 nth(0) not Ok; 73 child 0 name_len
+// != 3; 74 child 0 not "a.."; 75 child 0 not a FILE (the kind-latch
+// regression); 76 nth(2) not Ok; 77 child 2 not a dir; 78 child 2 not
+// "c.."; 79 nth(3) not End.
+
+use omega::language::std::filesystem;
+
+boundary trait Console { machine exit_process(return_code: i32); }
+
+data Main {
+    console: Console;
+    fs: Filesystem;
+    unit_result: UnitResult;
+    entry_result: DirEntryResult;
+    open_result: OpenResult;
+    close_rc: i32;
+}
+
+machine Main::main(&mut self) {
+    self.unit_result = self.fs.create_dir("rdnthdir");
+    self.open_result = self.fs.create("rdnthdir/aaa");
+    transition self.open_result { OpenResult::Ok { file } -> m1(file) _ -> bad(71) }
+    state m1(&mut self, file: File) {
+        self.close_rc = self.fs.close(file);
+        self.open_result = self.fs.create("rdnthdir/bbb");
+        transition self.open_result { OpenResult::Ok { file } -> m2(file) _ -> bad(71) }
+    }
+    state m2(&mut self, file: File) {
+        self.close_rc = self.fs.close(file);
+        self.unit_result = self.fs.create_dir("rdnthdir/ccc");
+        self.entry_result = self.fs.read_dir_nth("rdnthdir", 0);
+        transition self.entry_result { DirEntryResult::Ok { entry } -> c0(entry) _ -> bad(72) }
+    }
+    state c0(&mut self, entry: DirEntry) {
+        // child 0 = file "aaa"
+        transition entry.name_len == 3 { true -> c0a(entry) _ -> bad(73) }
+    }
+    state c0a(&mut self, entry: DirEntry) {
+        transition entry.name[0] == 97 { true -> c0b(entry) _ -> bad(74) }
+    }
+    state c0b(&mut self, entry: DirEntry) {
+        transition entry.is_file { true -> checkdir() _ -> bad(75) }
+    }
+    state checkdir(&mut self) {
+        self.entry_result = self.fs.read_dir_nth("rdnthdir", 2);
+        transition self.entry_result { DirEntryResult::Ok { entry } -> c2(entry) _ -> bad(76) }
+    }
+    state c2(&mut self, entry: DirEntry) {
+        // child 2 = dir "ccc"
+        transition entry.is_dir { true -> c2a(entry) _ -> bad(77) }
+    }
+    state c2a(&mut self, entry: DirEntry) {
+        transition entry.name[0] == 99 { true -> checkend() _ -> bad(78) }
+    }
+    state checkend(&mut self) {
+        self.entry_result = self.fs.read_dir_nth("rdnthdir", 3);
+        transition self.entry_result { DirEntryResult::End -> ok() _ -> bad(79) }
+    }
+    state ok(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self, code: i32) { self.console.exit_process(code); }
+}

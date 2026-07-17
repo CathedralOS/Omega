@@ -69,7 +69,10 @@ effects
     }}
 }}
 "#,
-            stage = stage.display(),
+            // Forward slashes so the embedded path lexes on windows too
+            // (`C:\Users\...` would read `\U` as an escape sequence); every
+            // host fs API accepts them.
+            stage = stage.display().to_string().replace('\\', "/"),
         ),
     )
     .expect("write build.omg");
