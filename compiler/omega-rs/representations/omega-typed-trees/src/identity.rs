@@ -134,6 +134,24 @@ pub fn count_identity_storage(typed_trees: &TypedTrees) -> IdentityStorageCounts
         count_declaration_name(&machine.name, &mut counts);
         for parameter in typed_trees.machine_type_parameters(machine) {
             count_declaration_name(&parameter.name, &mut counts);
+            if let crate::data::TypeParameterKind::Machine { contract } = &parameter.kind {
+                count_declaration_name(&contract.name, &mut counts);
+                if contract.return_type.is_valid() {
+                    count_type_reference_handle(
+                        &typed_trees.type_reference_table,
+                        contract.return_type,
+                        &mut counts,
+                    );
+                }
+                for contract_parameter in typed_trees.state_signature_parameters(contract) {
+                    count_declaration_name(&contract_parameter.name, &mut counts);
+                    count_type_reference_handle(
+                        &typed_trees.type_reference_table,
+                        contract_parameter.type_reference,
+                        &mut counts,
+                    );
+                }
+            }
         }
         for contained in typed_trees.machine_contained_objects(machine) {
             count_declaration_name(&contained.name, &mut counts);

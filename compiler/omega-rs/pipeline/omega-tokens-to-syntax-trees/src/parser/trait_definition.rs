@@ -207,6 +207,12 @@ pub(super) fn parse_signature_clauses<'tokens, 'source>(
     while !input.at_punctuation(PunctuationKind::Semicolon)
         && !input.at_punctuation(PunctuationKind::LeftBrace)
     {
+        // Repeated machine-parameter requirements use one `where machine`
+        // clause per symbol. Leave the next `where` to the owning machine
+        // parser rather than swallowing it as signature trivia.
+        if input.at_contextual("where") {
+            break;
+        }
         if input.at_punctuation(PunctuationKind::RightBrace) {
             return Err(input.expected_one_of_here(&["`;`", "`{`"]));
         }

@@ -114,6 +114,12 @@ pub enum TypeParameterKind {
     Const {
         type_reference: TypeReference,
     },
+    /// Static machine-symbol parameter with its mandatory authored
+    /// requirement. The signature is carried inline so no use-site or
+    /// instantiation-dependent inference can redefine the abstraction.
+    Machine {
+        contract: crate::signature::StateSignature,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

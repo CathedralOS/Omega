@@ -50,6 +50,19 @@ pub(crate) fn monomorphize_generic_machine_value_calls(program: &mut TypedTrees)
         if parameters.is_empty() {
             continue;
         }
+        // MP1 stores static machine-symbol parameters, but MP2-MP4 own their
+        // selection and substitution. The stage-1 TYPE-only monomorphizer
+        // must not mistake one for a value type or clear it from the machine.
+        // Mixed type+machine parameter lists therefore remain untouched until
+        // the unified specialization pass lands.
+        if parameters.iter().any(|parameter| {
+            matches!(
+                parameter.kind,
+                omega_typed_trees::data::TypeParameterKind::Machine { .. }
+            )
+        }) {
+            continue;
+        }
         let parameter_symbols: Vec<(SymbolHandle, String)> = parameters
             .iter()
             .map(|parameter| (parameter.symbol, parameter.name.as_str().to_owned()))
@@ -225,10 +238,8 @@ pub(crate) fn monomorphize_generic_machine_value_calls(program: &mut TypedTrees)
     for (candidate_index, parameter_index, binding) in proposals {
         // A binding that itself names any generic type parameter (a generic
         // caller forwarding its own T) is not a concrete instantiation.
-        if let TypeReferenceNode::Named { symbol, name } = program
-            .tables
-            .type_reference_table
-            .type_reference(binding)
+        if let TypeReferenceNode::Named { symbol, name } =
+            program.tables.type_reference_table.type_reference(binding)
             && all_parameter_symbols
                 .iter()
                 .any(|(parameter_symbol, parameter_name)| {
@@ -282,7 +293,11 @@ pub(crate) fn monomorphize_generic_machine_value_calls(program: &mut TypedTrees)
                         };
                         bounds.iter().all(|property| {
                             omega_validation::type_satisfies_declared_property(
-                                program, &symbols, &[], unwrapped, property,
+                                program,
+                                &symbols,
+                                &[],
+                                unwrapped,
+                                property,
                             )
                         })
                     })

@@ -499,6 +499,11 @@ pub enum TypeParameterKind {
     Const {
         type_reference: crate::types::TypeReferenceHandle,
     },
+    /// A compile-time machine-symbol parameter. The authored `where machine`
+    /// requirement is mandatory and stored with the parameter rather than
+    /// inferred from uses or instantiations. `None` exists only while the
+    /// parser is between `<machine M>` and its declaration-site validation.
+    Machine { contract: Option<StateSignature> },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -669,7 +674,6 @@ pub struct State {
     pub statements: HandleSpan<crate::statement::StatementHandle>,
 }
 
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TraitDefinition {
     pub is_boundary: bool,
@@ -785,6 +789,12 @@ impl ItemTable {
         self.declaration_storage.type_parameters.span_or_empty(span)
     }
 
+    pub fn type_parameters_mut(&mut self, span: HandleSpan<TypeParameter>) -> &mut [TypeParameter] {
+        self.declaration_storage
+            .type_parameters
+            .span_mut_or_empty(span)
+    }
+
     pub fn identifier_path_members(&self, span: HandleSpan<Identifier>) -> &[Identifier] {
         self.declaration_storage
             .identifier_path_members
@@ -792,7 +802,9 @@ impl ItemTable {
     }
 
     pub fn satisfies_clauses(&self, span: HandleSpan<SatisfiesClause>) -> &[SatisfiesClause] {
-        self.declaration_storage.satisfies_clauses.span_or_empty(span)
+        self.declaration_storage
+            .satisfies_clauses
+            .span_or_empty(span)
     }
 
     pub fn library_functions(&self, span: HandleSpan<LibraryFunction>) -> &[LibraryFunction] {

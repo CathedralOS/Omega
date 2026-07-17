@@ -138,6 +138,24 @@ pub fn count_identity_storage(program: &SymbolResolvedTrees) -> IdentityStorageC
         count_declaration_name(&machine.name, &mut counts);
         for parameter in program.machine_type_parameters(machine) {
             count_declaration_name(&parameter.name, &mut counts);
+            if let crate::data::TypeParameterKind::Machine { contract } = &parameter.kind {
+                count_declaration_name(&contract.name, &mut counts);
+                count_optional_type_reference(
+                    contract.return_type.as_ref(),
+                    child_type_references,
+                    expression_table,
+                    &mut counts,
+                );
+                for contract_parameter in program.state_parameters(contract.parameters) {
+                    count_declaration_name(&contract_parameter.name, &mut counts);
+                    count_type_reference(
+                        &contract_parameter.type_reference,
+                        child_type_references,
+                        expression_table,
+                        &mut counts,
+                    );
+                }
+            }
         }
         for contained in program.machine_contained_objects(machine.contains) {
             count_declaration_name(&contained.name, &mut counts);
@@ -558,9 +576,7 @@ fn count_type_constraint(
     counts: &mut IdentityStorageCounts,
 ) {
     match constraint {
-        TypeConstraint::Named(name) | TypeConstraint::Domain(name) => {
-            count_type_name(name, counts)
-        }
+        TypeConstraint::Named(name) | TypeConstraint::Domain(name) => count_type_name(name, counts),
         TypeConstraint::Range { minimum, maximum } => {
             count_expression_handle(expression_table, *minimum, counts);
             count_expression_handle(expression_table, *maximum, counts);

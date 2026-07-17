@@ -1,4 +1,3 @@
-use crate::expression::lower_expression_handle;
 use crate::lowerer::Lowerer;
 use crate::type_reference::lower_type_reference_into_table;
 use omega_core::diagnostics::Diagnostic;
@@ -72,6 +71,11 @@ pub(crate) fn lower_type_parameter_kind(
         resolved::data::TypeParameterKind::Const { type_reference } => {
             Ok(typed::data::TypeParameterKind::Const {
                 type_reference: lower_type_reference_into_table(lowerer, type_reference)?,
+            })
+        }
+        resolved::data::TypeParameterKind::Machine { contract } => {
+            Ok(typed::data::TypeParameterKind::Machine {
+                contract: crate::state::lower_state_signature(lowerer, contract)?,
             })
         }
     }

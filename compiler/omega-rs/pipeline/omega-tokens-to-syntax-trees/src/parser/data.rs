@@ -1,4 +1,3 @@
-use crate::parser::expression::parse_expression_handle;
 use crate::parser::input::{Input, ParseResult};
 use crate::parser::type_reference::{
     parse_type_reference_handle, parse_type_reference_handle_allowing_borrow,
@@ -73,11 +72,7 @@ pub(super) fn parse_data_definition<'tokens, 'source>(
             .take_contextual("version")
             .ok()
             .and_then(|after| after.take_identifier().ok())
-            .and_then(|(_, after)| {
-                after
-                    .take_punctuation(PunctuationKind::LeftBrace, "{")
-                    .ok()
-            })
+            .and_then(|(_, after)| after.take_punctuation(PunctuationKind::LeftBrace, "{").ok())
             .is_some_and(|inner| inner.at_integer() || inner.at_contextual("retired"));
     if input.at_integer() || input.at_contextual("retired") || leading_version_is_numbered {
         if !type_parameters.is_empty() {
@@ -87,9 +82,9 @@ pub(super) fn parse_data_definition<'tokens, 'source>(
             ));
         }
         if properties != DataProperties::default() {
-            return Err(input.error_here(
-                "identity-numbered data does not take declared properties yet",
-            ));
+            return Err(
+                input.error_here("identity-numbered data does not take declared properties yet")
+            );
         }
         let (definition, input) =
             crate::parser::item::parse_identity_data_body(syntax_trees, name, input)?;
@@ -144,10 +139,7 @@ fn parse_property_brackets<'tokens, 'source>(
             }
         };
         if *flag {
-            return Err(next.error_here(format!(
-                "duplicate type property `{}`",
-                name.as_str()
-            )));
+            return Err(next.error_here(format!("duplicate type property `{}`", name.as_str())));
         }
         *flag = true;
         input = next;
@@ -341,7 +333,22 @@ fn parse_case_payload_fields<'tokens, 'source>(
 
 pub(super) fn parse_type_parameters<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, HandleSpan<TypeParameter>> {
+    parse_type_parameters_in(syntax_trees, input, false)
+}
+
+pub(super) fn parse_machine_type_parameters<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, HandleSpan<TypeParameter>> {
+    parse_type_parameters_in(syntax_trees, input, true)
+}
+
+fn parse_type_parameters_in<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
     mut input: Input<'tokens, 'source>,
+    allow_machine_parameters: bool,
 ) -> ParseResult<'tokens, 'source, HandleSpan<TypeParameter>> {
     if !input.at_punctuation(PunctuationKind::Less) {
         return Ok((HandleSpan::empty(), input));
@@ -390,6 +397,15 @@ pub(super) fn parse_type_parameters<'tokens, 'source>(
             let input = input.take_punctuation(PunctuationKind::Colon, ":")?;
             let (type_reference, input) = parse_type_reference_handle(syntax_trees, input)?;
             (name, TypeParameterKind::Const { type_reference }, input)
+        } else if input.at_keyword(omega_tokens::KeywordKind::Machine) {
+            if !allow_machine_parameters {
+                return Err(input.error_here(
+                    "`<machine M>` is a static machine parameter and is only legal on a machine declaration",
+                ));
+            }
+            let input = input.take_keyword(omega_tokens::KeywordKind::Machine, "machine")?;
+            let (name, input) = input.take_identifier()?;
+            (name, TypeParameterKind::Machine { contract: None }, input)
         } else {
             let (name, input) = input.take_identifier()?;
             (name, TypeParameterKind::Type, input)
@@ -398,9 +414,7 @@ pub(super) fn parse_type_parameters<'tokens, 'source>(
 
         // Rust-style `<T: copy>` is rejected with the bracket spelling
         // suggested: a colon bound would split the property spelling system.
-        if matches!(kind, TypeParameterKind::Type)
-            && input.at_punctuation(PunctuationKind::Colon)
-        {
+        if matches!(kind, TypeParameterKind::Type) && input.at_punctuation(PunctuationKind::Colon) {
             let after_colon = input.take_punctuation(PunctuationKind::Colon, ":")?;
             let parameter = name.as_str();
             let bound = after_colon
@@ -414,6 +428,13 @@ pub(super) fn parse_type_parameters<'tokens, 'source>(
 
         // Brackets after a const parameter never reach here: they attach to
         // the const's TYPE as a constraint list (`const N: usize [range ...]`).
+        if matches!(kind, TypeParameterKind::Machine { .. })
+            && input.at_punctuation(PunctuationKind::LeftBracket)
+        {
+            return Err(input.error_here(
+                "a machine parameter takes its callable contract in a mandatory `where machine M(...) -> Result` clause, not property brackets",
+            ));
+        }
         let bounds = if input.at_punctuation(PunctuationKind::LeftBracket) {
             let (bounds, next) = parse_property_brackets(input)?;
             input = next;

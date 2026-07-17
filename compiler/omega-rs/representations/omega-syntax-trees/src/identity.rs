@@ -645,8 +645,16 @@ fn count_type_parameter_kind(
     kind: &crate::item::TypeParameterKind,
     counts: &mut AstIdentityStorageCounts,
 ) {
-    if let crate::item::TypeParameterKind::Const { type_reference } = kind {
-        count_type_reference_handle(syntax_trees, *type_reference, counts);
+    match kind {
+        crate::item::TypeParameterKind::Type => {}
+        crate::item::TypeParameterKind::Const { type_reference } => {
+            count_type_reference_handle(syntax_trees, *type_reference, counts);
+        }
+        crate::item::TypeParameterKind::Machine { contract } => {
+            if let Some(contract) = contract {
+                count_state_signature(syntax_trees, contract, counts);
+            }
+        }
     }
 }
 
