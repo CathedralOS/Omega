@@ -298,44 +298,6 @@ pub fn runtime_text_storage_compare_delimiter_branch_offset(
     }
 }
 
-pub fn runtime_storage_compare_width(
-    architecture: Architecture,
-    left_offset: usize,
-    right_offset: usize,
-    byte_size: usize,
-    is_float: bool,
-) -> usize {
-    match architecture {
-        Architecture::Aarch64 => aarch64::runtime_storage_compare_width(
-            left_offset,
-            right_offset,
-            byte_size,
-            is_float,
-        ),
-        Architecture::X86_64 => omega_isa_x86_64::runtime_storage_compare_width(
-            left_offset,
-            right_offset,
-            byte_size,
-            is_float,
-        ),
-    }
-}
-
-pub fn runtime_storage_value_compare_width(
-    architecture: Architecture,
-    byte_offset: usize,
-    byte_size: usize,
-) -> usize {
-    match architecture {
-        Architecture::Aarch64 => {
-            aarch64::runtime_storage_value_compare_width(byte_offset, byte_size)
-        }
-        Architecture::X86_64 => {
-            omega_isa_x86_64::runtime_storage_value_compare_width(byte_offset, byte_size)
-        }
-    }
-}
-
 pub fn runtime_text_literal_write_width(architecture: Architecture, literal: &str) -> usize {
     match architecture {
         Architecture::Aarch64 => aarch64::runtime_text_literal_write_width(literal),

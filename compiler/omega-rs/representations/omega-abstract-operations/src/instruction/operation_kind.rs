@@ -45,24 +45,6 @@ pub enum AbstractOperationKind {
         source_offset: usize,
         operator: StateGuardOperator,
     },
-    CompareRuntimeStorage {
-        left_region: RuntimeStorageRegion,
-        left_offset: usize,
-        right_region: RuntimeStorageRegion,
-        right_offset: usize,
-        byte_size: usize,
-        operator: StateGuardOperator,
-        /// Both operands are f64 and the compare uses `ucomisd` (whose CF/ZF
-        /// mirror an unsigned `cmp`, so the unsigned failure conditions apply).
-        is_float: bool,
-    },
-    CompareRuntimeStorageValue {
-        region: RuntimeStorageRegion,
-        byte_offset: usize,
-        byte_size: usize,
-        expected_value: i64,
-        operator: StateGuardOperator,
-    },
     CompareRuntimeValues {
         left: AbstractValueOperandHandle,
         right: AbstractValueOperandHandle,

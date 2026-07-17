@@ -2586,89 +2586,6 @@ pub fn encode_runtime_value_compare(
     Ok(bytes)
 }
 
-pub fn runtime_storage_compare_width(
-    _left_offset: usize,
-    _right_offset: usize,
-    byte_size: usize,
-    is_float: bool,
-) -> usize {
-    // mov r15,imm64(left base) + load r10,[r15+left] + mov r15,imm64(right base)
-    // + load r11,[r15+right] + compare + jcc rel32. Integer compare = cmp (3;
-    // 4 with the 0x66 prefix for 2-byte operands, whose loads are also 8 not 7);
-    // float = movq/movd+movq/movd+ucomisd/ucomiss.
-    let load_width = if !is_float && byte_size == 2 { 8 } else { 7 };
-    // Floats prepend a 6-byte `jp` parity branch before the failure jcc (NaN routing).
-    let float_parity_branch = if is_float { 6 } else { 0 };
-    10 + load_width
-        + 10
-        + load_width
-        + runtime_float_or_integer_compare_width(is_float, byte_size)
-        + 6
-        + float_parity_branch
-}
-
-pub fn encode_runtime_storage_compare_bytes(
-    left_offset: usize,
-    right_offset: usize,
-    byte_size: usize,
-    failure_branch_distance: isize,
-    operator: StateGuardOperator,
-    is_float: bool,
-) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = Vec::with_capacity(runtime_storage_compare_width(
-        left_offset,
-        right_offset,
-        byte_size,
-        is_float,
-    ));
-    append_mov_r15_imm64(&mut bytes, 0);
-    append_load_reg_from_r15(&mut bytes, Reg64::R10, left_offset, byte_size)?;
-    append_mov_r15_imm64(&mut bytes, 0);
-    append_load_reg_from_r15(&mut bytes, Reg64::R11, right_offset, byte_size)?;
-    if is_float {
-        append_float_compare_r10_r11(&mut bytes, byte_size);
-    } else {
-        append_cmp_r10_r11(&mut bytes, byte_size)?;
-    }
-    append_failure_branch(&mut bytes, operator, failure_branch_distance - 4, is_float)?;
-    debug_assert_eq!(
-        bytes.len(),
-        runtime_storage_compare_width(left_offset, right_offset, byte_size, is_float)
-    );
-    Ok(bytes)
-}
-
-pub fn runtime_storage_value_compare_width(_byte_offset: usize, byte_size: usize) -> usize {
-    // mov r15,imm64(storage base) + load r10,[r15+offset] + mov r11,imm64
-    // + cmp r10,r11 + jcc rel32. 2-byte operands add the 0x66 prefix to the
-    // load (8) and the compare (4).
-    if byte_size == 2 {
-        10 + 8 + 10 + 4 + 6
-    } else {
-        10 + 7 + 10 + 3 + 6
-    }
-}
-
-pub fn encode_runtime_storage_value_compare_bytes(
-    byte_offset: usize,
-    byte_size: usize,
-    expected_value: i64,
-    failure_branch_distance: isize,
-    operator: StateGuardOperator,
-) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = Vec::with_capacity(runtime_storage_value_compare_width(byte_offset, byte_size));
-    append_mov_r15_imm64(&mut bytes, 0);
-    append_load_reg_from_r15(&mut bytes, Reg64::R10, byte_offset, byte_size)?;
-    append_mov_reg_imm64(&mut bytes, Reg64::R11, expected_value as u64);
-    append_cmp_r10_r11(&mut bytes, byte_size)?;
-    append_failure_branch(&mut bytes, operator, failure_branch_distance - 4, false)?;
-    debug_assert_eq!(
-        bytes.len(),
-        runtime_storage_value_compare_width(byte_offset, byte_size)
-    );
-    Ok(bytes)
-}
-
 pub fn runtime_machine_integer_write_width(_byte_offset: usize, byte_size: usize) -> usize {
     // mov r15,imm64 (10) + mov rax,imm64 (10) + store [r15+disp32] (7; 8 with
     // the 0x66 prefix for a 2-byte store).
@@ -8552,17 +8469,6 @@ fn append_mov_r12d_imm32(bytes: &mut Vec<u8>, value: u32) -> Result<(), Diagnost
 
 fn append_cmp_r12d_imm32(bytes: &mut Vec<u8>, value: u32) -> Result<(), Diagnostic> {
     bytes.extend([0x41, 0x81, 0xfc]);
-    bytes.extend(value.to_le_bytes());
-    Ok(())
-}
-
-fn append_add_r14_imm32(bytes: &mut Vec<u8>, value: usize) -> Result<(), Diagnostic> {
-    let value = i32::try_from(value).map_err(|_| {
-        Diagnostic::error(format!(
-            "X86_64 MVP encoder cannot add offset `{value}` to r14"
-        ))
-    })?;
-    bytes.extend([0x49, 0x81, 0xc6]);
     bytes.extend(value.to_le_bytes());
     Ok(())
 }

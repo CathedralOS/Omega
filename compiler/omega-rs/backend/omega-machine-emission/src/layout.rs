@@ -21,7 +21,7 @@ use omega_instruction_selection::{
     runtime_machine_indexed_binary_write_width, runtime_machine_integer_write_width,
     runtime_pointee_binary_write_width, runtime_pointee_integer_write_width,
     runtime_storage_binary_write_width,
-    runtime_storage_compare_width, runtime_storage_convert_width,
+    runtime_storage_convert_width,
     runtime_storage_copy_from_runtime_machine_double_indexed_to_runtime_storage_width,
     runtime_storage_copy_to_runtime_machine_double_indexed_from_runtime_storage_width,
     runtime_machine_double_indexed_integer_write_width,
@@ -30,7 +30,7 @@ use omega_instruction_selection::{
     runtime_storage_copy_machine_indexed_to_machine_indexed_width,
     entry_argument_register_write_width, entry_arguments_slice_descriptor_write_width,
     runtime_storage_copy_to_return_register_width,
-    runtime_storage_value_compare_width, runtime_text_buffer_materialize_width,
+    runtime_text_buffer_materialize_width,
     runtime_text_line_read_width, runtime_text_literal_append_width,
     runtime_text_literal_compare_width, runtime_text_literal_segment_write_width,
     runtime_text_literal_write_width, runtime_text_storage_compare_width,
@@ -232,28 +232,6 @@ fn machine_instruction_width(
             *expected_value,
             *operator,
         )?,
-        SelectedInstructionKind::CompareRuntimeStorage {
-            left_offset,
-            right_offset,
-            byte_size,
-            is_float,
-            ..
-        } => runtime_storage_compare_width(
-            input.target.architecture,
-            *left_offset,
-            *right_offset,
-            *byte_size,
-            *is_float,
-        ),
-        SelectedInstructionKind::CompareRuntimeStorageValue {
-            byte_offset,
-            byte_size,
-            ..
-        } => runtime_storage_value_compare_width(
-            input.target.architecture,
-            *byte_offset,
-            *byte_size,
-        ),
         SelectedInstructionKind::CompareRuntimeValues {
             left,
             right,

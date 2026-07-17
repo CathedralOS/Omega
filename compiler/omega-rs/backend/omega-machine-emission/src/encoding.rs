@@ -525,8 +525,6 @@ pub(super) fn encode_machine_instruction_bytes(
         | SelectedInstructionKind::EnterDispatchCase { .. }
         | SelectedInstructionKind::EvaluateDispatchGuard { .. }
         | SelectedInstructionKind::CompareRuntimeTextStorage { .. }
-        | SelectedInstructionKind::CompareRuntimeStorage { .. }
-        | SelectedInstructionKind::CompareRuntimeStorageValue { .. }
         | SelectedInstructionKind::ComparePlaces { .. }
         | SelectedInstructionKind::ComparePlaceValue { .. }
         | SelectedInstructionKind::SetDispatchState { .. }

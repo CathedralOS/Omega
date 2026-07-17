@@ -6,61 +6,6 @@ use omega_target_operations::{
     RuntimeValueOperandHandle, RuntimeValueOperandSource, StateGuardOperator,
 };
 
-pub fn encode_runtime_storage_compare_bytes(
-    architecture: Architecture,
-    left_offset: usize,
-    right_offset: usize,
-    byte_size: usize,
-    failure_branch_distance: isize,
-    operator: StateGuardOperator,
-    is_float: bool,
-) -> Result<Vec<u8>, Diagnostic> {
-    match architecture {
-        Architecture::Aarch64 => aarch64::encode_runtime_storage_compare_bytes(
-            left_offset,
-            right_offset,
-            byte_size,
-            failure_branch_distance,
-            operator,
-            is_float,
-        ),
-        Architecture::X86_64 => x86_64::encode_runtime_storage_compare_bytes(
-            left_offset,
-            right_offset,
-            byte_size,
-            failure_branch_distance,
-            operator,
-            is_float,
-        ),
-    }
-}
-
-pub fn encode_runtime_storage_value_compare_bytes(
-    architecture: Architecture,
-    byte_offset: usize,
-    byte_size: usize,
-    expected_value: i64,
-    failure_branch_distance: isize,
-    operator: StateGuardOperator,
-) -> Result<Vec<u8>, Diagnostic> {
-    match architecture {
-        Architecture::Aarch64 => aarch64::encode_runtime_storage_value_compare_bytes(
-            byte_offset,
-            byte_size,
-            expected_value,
-            failure_branch_distance,
-            operator,
-        ),
-        Architecture::X86_64 => x86_64::encode_runtime_storage_value_compare_bytes(
-            byte_offset,
-            byte_size,
-            expected_value,
-            failure_branch_distance,
-            operator,
-        ),
-    }
-}
-
 pub fn encode_runtime_value_compare(
     architecture: Architecture,
     runtime_value_operands: &impl RuntimeValueOperandSource,

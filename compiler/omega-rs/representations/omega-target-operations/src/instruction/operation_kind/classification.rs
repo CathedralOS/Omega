@@ -19,8 +19,6 @@ impl OperationSemanticQuery for TargetOperationKind {
             Self::EvaluateDispatchGuard { .. }
             | Self::CompareRuntimeTextLiteral { .. }
             | Self::CompareRuntimeTextStorage { .. }
-            | Self::CompareRuntimeStorage { .. }
-            | Self::CompareRuntimeStorageValue { .. }
             | Self::CompareRuntimeValues { .. }
             | Self::ComparePlaces { .. }
             | Self::ComparePlaceValue { .. } => TargetOperationDomain::GuardEvaluation,
