@@ -3955,6 +3955,24 @@ with a real app-window story.
   GR3 root-grant parse -- b.accept_boundary<path>() in build.omg
   (compile-time machine parameter, ch13) populating the table
   through the build-config path (build_config_granted.rs precedent).
+  OPENER NOTES (2026-07-20): the build machine is identified by
+  is_build_machine (named build/<C>::build AND declared at a
+  build.omg root -- the FILE is the identity) and evaluates through
+  the granted interpreter entry with ALLOWED_BUILD_EFFECTS
+  {filesystem_io, stdout/stderr_io}; BuildConfig extraction reads
+  the returned Build value (compute_build_config,
+  pipeline/build_config.rs:75). accept_boundary would ride the SAME
+  evaluation: v1 shape = recognize the accept_boundary CALL
+  statements in the build machine's body (a symbol argument in
+  angle brackets -- CHECK whether ch13's call surface parses
+  explicit angle-bracket arguments on method calls today; if the
+  spelling needs the `<machine M>` surface it may be gated on that
+  owner question -- if so, a v1 STRING-path argument or a dedicated
+  statement recognizer inside the build machine avoids the gate,
+  judgment call to record), populate TrustGrantTable RootGrant rows,
+  and thread the table from compute_build_config into validation
+  (replacing GR2's per-run in_program_trust_table with
+  in-program-grants + build grants).
   GR4 receipts + the unified lockfile writer (omega-artifacts;
   statement hash recorded automatically; drift fails until
   re-approved).
