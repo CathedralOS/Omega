@@ -246,6 +246,33 @@ impl From<&omega_abstract_operations::AbstractOperationKind> for TargetOperation
                 field_byte_offset: *field_byte_offset,
                 literal: literal.clone(),
             },
+            omega_abstract_operations::AbstractOperationKind::MaterializeTextBufferToPlace {
+                buffer,
+                target,
+            } => Self::MaterializeTextBufferToPlace {
+                buffer: remap_data_handle(*buffer),
+                target: *target,
+            },
+            omega_abstract_operations::AbstractOperationKind::AppendTextStoredToPlace {
+                buffer,
+                source_region,
+                source_offset,
+                target,
+            } => Self::AppendTextStoredToPlace {
+                buffer: remap_data_handle(*buffer),
+                source_region: *source_region,
+                source_offset: *source_offset,
+                target: *target,
+            },
+            omega_abstract_operations::AbstractOperationKind::AppendTextLiteralToPlace {
+                buffer,
+                target,
+                literal,
+            } => Self::AppendTextLiteralToPlace {
+                buffer: remap_data_handle(*buffer),
+                target: *target,
+                literal: literal.clone(),
+            },
             omega_abstract_operations::AbstractOperationKind::AppendWireLiteralByte {
                 out_region,
                 out_offset,

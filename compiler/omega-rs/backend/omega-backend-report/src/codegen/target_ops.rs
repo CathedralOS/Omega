@@ -226,6 +226,44 @@ fn selected_instruction_name(
                 "append runtime text suffix {source_symbol}@{source_offset} -> `{buffer_symbol}`@{buffer_offset}, descriptor {target_symbol}@{target_offset}, len +{length_delta}"
             )
         }
+        SelectedInstructionKind::MaterializeTextBufferToPlace { buffer, target } => {
+            let buffer_symbol = backend_plan.data.objects.get(*buffer).symbol.as_ref();
+            let target_symbol =
+                storage_region_symbol_name(target.region, backend_plan.entry_machine_name());
+            format!(
+                "materialize text buffer `{buffer_symbol}` -> {target_symbol}{:?}",
+                target.steps()
+            )
+        }
+        SelectedInstructionKind::AppendTextStoredToPlace {
+            buffer,
+            source_region,
+            source_offset,
+            target,
+        } => {
+            let buffer_symbol = backend_plan.data.objects.get(*buffer).symbol.as_ref();
+            let source_symbol =
+                storage_region_symbol_name(*source_region, backend_plan.entry_machine_name());
+            let target_symbol =
+                storage_region_symbol_name(target.region, backend_plan.entry_machine_name());
+            format!(
+                "append text stored {source_symbol}@{source_offset} via `{buffer_symbol}` -> {target_symbol}{:?}",
+                target.steps()
+            )
+        }
+        SelectedInstructionKind::AppendTextLiteralToPlace {
+            buffer,
+            target,
+            literal,
+        } => {
+            let buffer_symbol = backend_plan.data.objects.get(*buffer).symbol.as_ref();
+            let target_symbol =
+                storage_region_symbol_name(target.region, backend_plan.entry_machine_name());
+            format!(
+                "append text literal {literal:?} via `{buffer_symbol}` -> {target_symbol}{:?}",
+                target.steps()
+            )
+        }
         SelectedInstructionKind::MaterializeRuntimeTextBuffer {
             buffer,
             target_region,

@@ -5,6 +5,14 @@ pub(super) fn selected_append_kind(
     kind: &SelectedInstructionKind,
 ) -> Option<MachineInstructionKind> {
     match kind {
+        // Task #132: the place-shaped survivors keep the plain append
+        // machine shapes.
+        SelectedInstructionKind::AppendTextStoredToPlace { .. } => {
+            Some(MachineInstructionKind::RuntimeTextStoredPlaceAppend)
+        }
+        SelectedInstructionKind::AppendTextLiteralToPlace { .. } => {
+            Some(MachineInstructionKind::RuntimeTextLiteralAppend)
+        }
         SelectedInstructionKind::AppendRuntimeTextStoredSuffix {
             buffer_offset,
             source_offset,

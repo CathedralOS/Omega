@@ -26,6 +26,9 @@ impl OperationSemanticQuery for TargetOperationKind {
             Self::WriteRuntimeTextLiteral { .. }
             | Self::WriteRuntimeTextLiteralSegment { .. }
             | Self::AppendRuntimeTextStoredSuffix { .. }
+            | Self::MaterializeTextBufferToPlace { .. }
+            | Self::AppendTextStoredToPlace { .. }
+            | Self::AppendTextLiteralToPlace { .. }
             | Self::MaterializeRuntimeTextBuffer { .. }
             | Self::MaterializeRuntimeTextBufferToRuntimePointee { .. }
             | Self::MaterializeRuntimeTextBufferToRuntimeFrameIndexed { .. }
