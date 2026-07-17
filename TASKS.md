@@ -657,10 +657,14 @@ sealed progress profiles + grants, TPR4's remaining big half).
    index base in r11 not r10): every instruction width matches
    position-for-position, so the walker's +10 frame-base offset and
    the width fn hold AS-IS (the width debug_assert is the sentinel);
-   the differential legs oracle the byte change. REMAINING 1c: the
-   frame-indexed (descriptor-deref) + frame-base-indexed +
-   machine-double-indexed integer-write encoders (same rename
-   analysis per encoder -- verify widths/offsets before each).
+   the differential legs oracle the byte change. FRAME-BASE-INDEXED
+   LANDED same day -- the pilot's first CANONICALIZATION: 47 -> 44
+   bytes (the retired layout's redundant `mov r15,r14` dies; the
+   materializer opens the base in r15 directly); the width fn shrank
+   in lockstep, the one frame-base start reloc unmoved, differential
+   green. REMAINING 1c: the frame-indexed (descriptor-deref) +
+   machine-double-indexed integer-write encoders (same per-encoder
+   width/offset analysis first).
    Rung 2a after: the WritePlaceInteger variant + echo product +
    producer migration. Pre-existing dead helpers noted en route (shapes/copies.rs
    runtime_storage_copy_kind + _to_runtime_frame_indexed_kind +
