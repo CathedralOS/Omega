@@ -2887,13 +2887,25 @@ machine Main::main(&mut self) {
 /// `AlreadyExists`.
 #[test]
 fn filesystem_std_module_hard_link() {
+    // The duplicate-link refusal KIND is per-target by design: posix reads
+    // errno (AlreadyExists); the windows impl reports Other -- kernel32
+    // CreateHardLinkA sets GetLastError, not msvcrt errno, and no win32
+    // last-error surface exists yet (the hard-link contract block records
+    // this). The interpreter runs the HOST target's wrapper, so the pinned
+    // kind follows the host.
+    let dup_kind = if cfg!(windows) {
+        "ErrorKind::Other"
+    } else {
+        "ErrorKind::AlreadyExists"
+    };
     let main_path = write_program(
         "fs-hardlink",
-        r#"
+        &format!(
+            r#"
 use omega::language::std::filesystem;
 use omega::language::std::console;
 
-data Main {
+data Main {{
     fs: Filesystem;
     console: Console;
     unit_result: UnitResult;
@@ -2901,41 +2913,42 @@ data Main {
     cap: u64;
     first: u8;
     buffer: [u8; 32];
-}
-machine Main::main(&mut self) {
+}}
+machine Main::main(&mut self) {{
     self.cap = 32;
     self.unit_result = self.fs.write_all("/orig.txt", "linked bytes");
-    transition self.unit_result { UnitResult::Ok -> linkit() _ -> fail() }
-    state linkit(&mut self) {
+    transition self.unit_result {{ UnitResult::Ok -> linkit() _ -> fail() }}
+    state linkit(&mut self) {{
         self.unit_result = self.fs.hard_link("/orig.txt", "/alias.txt");
-        transition self.unit_result { UnitResult::Ok -> dupfails() _ -> fail() }
-    }
-    state dupfails(&mut self) {
-        // linking onto an existing name is AlreadyExists
+        transition self.unit_result {{ UnitResult::Ok -> dupfails() _ -> fail() }}
+    }}
+    state dupfails(&mut self) {{
+        // linking onto an existing name refuses (kind per the host target)
         self.unit_result = self.fs.hard_link("/orig.txt", "/alias.txt");
-        transition self.unit_result { UnitResult::Error { kind } -> checkdup(kind) _ -> fail() }
-    }
-    state checkdup(&mut self, kind: ErrorKind) {
-        transition kind { ErrorKind::AlreadyExists -> dropsrc() _ -> fail() }
-    }
-    state dropsrc(&mut self) {
+        transition self.unit_result {{ UnitResult::Error {{ kind }} -> checkdup(kind) _ -> fail() }}
+    }}
+    state checkdup(&mut self, kind: ErrorKind) {{
+        transition kind {{ {dup_kind} -> dropsrc() _ -> fail() }}
+    }}
+    state dropsrc(&mut self) {{
         // remove the original; the link must still read back the content
         self.unit_result = self.fs.remove("/orig.txt");
         self.io_result = self.fs.read_all("/alias.txt", &mut self.buffer, self.cap);
-        transition self.io_result { IoResult::Ok { count } -> checklen(count) _ -> fail() }
-    }
-    state checklen(&mut self, count: u64) {
-        transition count == 12 { true -> checkbyte() _ -> fail() }
-    }
-    state checkbyte(&mut self) {
+        transition self.io_result {{ IoResult::Ok {{ count }} -> checklen(count) _ -> fail() }}
+    }}
+    state checklen(&mut self, count: u64) {{
+        transition count == 12 {{ true -> checkbyte() _ -> fail() }}
+    }}
+    state checkbyte(&mut self) {{
         self.first = self.buffer[0];
         self.unit_result = self.fs.remove("/alias.txt");
-        transition self.first == 108 { true -> ok() _ -> fail() }
-    }
-    state ok(&mut self) { self.console.exit_process(70); }
-    state fail(&mut self) { self.console.exit_process(71); }
-}
-"#,
+        transition self.first == 108 {{ true -> ok() _ -> fail() }}
+    }}
+    state ok(&mut self) {{ self.console.exit_process(70); }}
+    state fail(&mut self) {{ self.console.exit_process(71); }}
+}}
+"#
+        ),
     );
     let checked = compile_to_checked(&main_path, None)
         .unwrap_or_else(|d| panic!("hard-link program should reach checked trees: {d:?}"));
@@ -2943,7 +2956,7 @@ machine Main::main(&mut self) {
     assert!(!outcome.is_error(), "hard_link: {:?}", outcome.error);
     assert_eq!(
         outcome.exit_code, 70,
-        "hard_link: alias reads 12 bytes after original removed; relink is AlreadyExists"
+        "hard_link: alias reads 12 bytes after original removed; the relink refusal kind follows the host target (posix AlreadyExists / windows Other)"
     );
 }
 

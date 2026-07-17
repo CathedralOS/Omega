@@ -360,6 +360,14 @@ pub enum HostOperation {
     FindNext,
     /// `FindClose(handle)` -- release a find handle (BOOL).
     FindClose,
+    /// `CreateHardLinkA(link, existing, security_attributes)` -- the windows
+    /// hard-link primitive (session slice 3). Arg order is (NEW link,
+    /// existing) -- reversed from posix `link(existing, new)` -- with a
+    /// trailing security-attributes pointer the API requires as NULL (the
+    /// designed op passes 0). Returns BOOL (non-zero success); failure
+    /// reasons live in GetLastError, not msvcrt errno. Posix targets never
+    /// lower it (they bind `Link`).
+    CreateHardLink,
     /// `stat(path, buf)` -- fill a `struct stat` buffer for a PATH (Rust
     /// `fs::metadata`). A path pointer + a buffer pointer (the kernel writes the
     /// 144-byte darwin stat record through it); the Omega layer reads `st_size`
@@ -631,6 +639,7 @@ impl HostOperation {
             "find_first" => Self::FindFirst,
             "find_next" => Self::FindNext,
             "find_close" => Self::FindClose,
+            "create_hard_link" => Self::CreateHardLink,
             "stat" => Self::Stat,
             "fstat" => Self::FStat,
             "lstat" => Self::LStat,
@@ -726,6 +735,7 @@ impl HostOperation {
             Self::FindFirst => "find_first",
             Self::FindNext => "find_next",
             Self::FindClose => "find_close",
+            Self::CreateHardLink => "create_hard_link",
             Self::Stat => "stat",
             Self::FStat => "fstat",
             Self::LStat => "lstat",

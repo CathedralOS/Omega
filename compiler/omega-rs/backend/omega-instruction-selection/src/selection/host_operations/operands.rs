@@ -1099,6 +1099,34 @@ pub(super) fn select_host_operation_operands(
                 _ => HandleSpan::empty(),
             }
         }
+        (HostCapability::Filesystem, HostOperation::CreateHardLink) => {
+            // `rc = create_hard_link(link, existing, 0) -> CreateHardLinkA(link,
+            // existing, NULL)` (windows session slice 3): the two-path shape of
+            // Rename/Link above PLUS the trailing security-attributes scalar the
+            // API requires as NULL. operand[0]=result, [1]=link path POINTER,
+            // [2]=existing path POINTER, [3]=the 0 scalar. Paths resolve per
+            // argument through the alias chain like the Rename arm.
+            let result = first_scalar_argument_operand(input, host_call, dispatch_index);
+            let link = aliased_literal_data_object(input, host_call, alias_context, 1)
+                .map(|(handle, _)| handle)
+                .unwrap_or_else(|| find_nth_data_object(input, host_call, 0));
+            let existing = aliased_literal_data_object(input, host_call, alias_context, 2)
+                .map(|(handle, _)| handle)
+                .unwrap_or_else(|| find_nth_data_object(input, host_call, 1));
+            let security =
+                scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 3);
+            match (result, security) {
+                (Some(result), Some(security)) if link.is_valid() && existing.is_valid() => {
+                    operands.insert_many([
+                        operand(result),
+                        operand(InstructionOperandKind::DataAddress { data: link }),
+                        operand(InstructionOperandKind::DataAddress { data: existing }),
+                        operand(security),
+                    ])
+                }
+                _ => HandleSpan::empty(),
+            }
+        }
         _ => HandleSpan::empty(),
     }
 }

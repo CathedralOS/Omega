@@ -539,3 +539,14 @@ macos_arm64 machine Filesystem::write_at(&mut self, file: File, bytes: &[u8], of
     state ok(&mut self, n: i64) -> IoResult { IoResult::Ok { count: n as u64 } }
     state err(&mut self) -> IoResult { let kind: ErrorKind = self.last_error(); IoResult::Error { kind: kind } }
 }
+
+// HARD LINK (the portable hard-link contract, windows session slice 3):
+// posix binds link(2) directly -- errno carries the failure kind
+// (AlreadyExists / NotFound). (The windows twin rides the designed
+// create_hard_link seam op; see its impl file.)
+macos_arm64 machine Filesystem::hard_link(&mut self, original: &[u8] in Path, link: &[u8] in Path) -> UnitResult {
+    let rc: i32 = self.host.hard_link(original, link);
+    transition rc == 0 { true -> ok() _ -> err() }
+    state ok(&mut self) -> UnitResult { UnitResult::Ok }
+    state err(&mut self) -> UnitResult { let kind: ErrorKind = self.last_error(); UnitResult::Error { kind: kind } }
+}

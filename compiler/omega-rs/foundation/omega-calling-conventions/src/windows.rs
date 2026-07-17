@@ -77,6 +77,11 @@ pub const WINDOWS_IMPORT_ROWS: &[(&str, &str, &str, &str)] = &[
     ("Filesystem", "find_first", "Kernel32.dll", "FindFirstFileA"),
     ("Filesystem", "find_next", "Kernel32.dll", "FindNextFileA"),
     ("Filesystem", "find_close", "Kernel32.dll", "FindClose"),
+    // The hard-link primitive (session slice 3): msvcrt has no `link`;
+    // CreateHardLinkA takes (NEW link, existing, NULL security attrs) --
+    // the designed seam op mirrors that exact shape (BOOL return) and the
+    // windows Filesystem::hard_link impl swaps the portable arg order.
+    ("Filesystem", "create_hard_link", "Kernel32.dll", "CreateHardLinkA"),
     // set_len -> `_chsize_s(fd, __int64 size)` (ftruncate's msvcrt analogue). The
     // 64-bit variant so the i64 length is not truncated to `_chsize`'s 32-bit
     // `long`; returns 0 on success like ftruncate (the wrapper checks rc == 0 and
@@ -444,6 +449,16 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
             "FilesystemHost",
             "find_close",
             [host_operation("Filesystem", "find_close")],
+            PlatformCallData::None,
+        );
+        // The windows hard-link primitive -- kernel32 CreateHardLinkA; the
+        // per-target Filesystem::hard_link impl calls it with the Win32 arg
+        // order (link, existing, 0). Posix targets bind `hard_link` instead.
+        insert_platform_lowering(
+            plan,
+            "FilesystemHost",
+            "create_hard_link",
+            [host_operation("Filesystem", "create_hard_link")],
             PlatformCallData::None,
         );
         insert_platform_lowering(

@@ -1,0 +1,61 @@
+// RUN CANARY (exit 70, WINDOWS-HOST ONLY) -- the WRAPPER hard-link
+// contract on windows (windows session slice 3): msvcrt has no link(2),
+// so the windows_x64 impl rides the designed create_hard_link seam op
+// (kernel32 CreateHardLinkA -- Win32 arg order (NEW link, existing) plus
+// the NULL security-attributes arg, BOOL result). Engine-agnostic
+// assertions only: the hermetic model COPIES bytes (no inode table), so
+// the pinned behaviors are create+readback and link-survives-removal --
+// both hold for real inodes AND the copy model. The failure leg pins the
+// Error ARM, not the kind (windows reports Other by design until a win32
+// last-error surface exists; posix errno kinds differ).
+// exits: 70 good; 71 seed write failed; 72 hard_link refused; 73 link
+// readback wrong; 74 original removal failed; 75 the link did not survive
+// the original's removal; 76 linking onto a TAKEN name did not error.
+
+use omega::language::std::filesystem;
+
+boundary trait Console { machine exit_process(return_code: i32); }
+
+data Main {
+    console: Console;
+    fs: Filesystem;
+    unit_result: UnitResult;
+    io_result: IoResult;
+    buffer: [u8; 16];
+}
+
+machine Main::main(&mut self) {
+    self.unit_result = self.fs.write_all("omega_wlink_a.txt", "linked");
+    transition self.unit_result { UnitResult::Ok -> mklink() _ -> bad(71) }
+    state mklink(&mut self) {
+        self.unit_result = self.fs.hard_link("omega_wlink_a.txt", "omega_wlink_b.txt");
+        transition self.unit_result { UnitResult::Ok -> readback() _ -> bad(72) }
+    }
+    state readback(&mut self) {
+        self.io_result = self.fs.read_all("omega_wlink_b.txt", &mut self.buffer, 16);
+        transition self.buffer[0] == 108 { true -> unlink_a() _ -> bad(73) }
+    }
+    state unlink_a(&mut self) {
+        self.unit_result = self.fs.remove("omega_wlink_a.txt");
+        transition self.unit_result { UnitResult::Ok -> survives() _ -> bad(74) }
+    }
+    state survives(&mut self) {
+        // The second name outlives the first (real inodes and the hermetic
+        // copy model agree).
+        self.buffer[0] = 0;
+        self.io_result = self.fs.read_all("omega_wlink_b.txt", &mut self.buffer, 16);
+        transition self.buffer[0] == 108 { true -> taken() _ -> bad(75) }
+    }
+    state taken(&mut self) {
+        // Linking onto a TAKEN name must refuse (kind unpinned: Other on
+        // windows by design, AlreadyExists on posix/interp-errno models).
+        self.unit_result = self.fs.hard_link("omega_wlink_b.txt", "omega_wlink_b.txt");
+        transition self.unit_result { UnitResult::Error { kind } -> cleanup() _ -> bad(76) }
+    }
+    state cleanup(&mut self) {
+        self.unit_result = self.fs.remove("omega_wlink_b.txt");
+        transition { _ -> good() }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self, code: i32) { self.console.exit_process(code); }
+}
