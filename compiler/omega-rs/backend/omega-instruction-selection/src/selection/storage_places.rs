@@ -1210,7 +1210,15 @@ pub(super) fn classify_scalar_value_type_in_table(
         return Some(primitive);
     }
     match expressions.expression(expression) {
-        ExpressionNode::Float(_) => Some(PrimitiveType::F64),
+        // A float literal's LANDED format is its type (F2b destination
+        // stamping): an f32-stamped literal in operand position must
+        // classify F32 so a nested binary plans the 4-byte op (`addss`) --
+        // classifying F64 here made the inner op of an f32 chain compute
+        // `addsd` over f32 bit patterns (the width-witness divergence).
+        ExpressionNode::Float(literal) => Some(match literal.landing() {
+            Some(omega_core::literals::FloatFormat::F32) => PrimitiveType::F32,
+            _ => PrimitiveType::F64,
+        }),
         ExpressionNode::Integer(_) => Some(PrimitiveType::I64),
         ExpressionNode::Boolean(_) => Some(PrimitiveType::Bool),
         // An arithmetic sub-expression (a folded `let c = a + b` inlined into a
