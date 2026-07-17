@@ -527,24 +527,6 @@ impl From<&omega_abstract_operations::AbstractOperationKind> for TargetOperation
                 expected: remap_runtime_value_handle(*expected),
                 new_value: remap_runtime_value_handle(*new_value),
             },
-            omega_abstract_operations::AbstractOperationKind::WriteRuntimeMachineString {
-                byte_offset,
-                data,
-                byte_length,
-            } => Self::WriteRuntimeMachineString {
-                byte_offset: *byte_offset,
-                data: remap_data_handle(*data),
-                byte_length: *byte_length,
-            },
-            omega_abstract_operations::AbstractOperationKind::WriteRuntimeMachineBoundedBuffer {
-                byte_offset,
-                literal,
-                target_in_frame,
-            } => Self::WriteRuntimeMachineBoundedBuffer {
-                byte_offset: *byte_offset,
-                literal: literal.clone(),
-                target_in_frame: *target_in_frame,
-            },
             omega_abstract_operations::AbstractOperationKind::AppendRuntimeMachineBoundedBufferSource {
                 target_byte_offset,
                 source_byte_offset,
@@ -560,65 +542,6 @@ impl From<&omega_abstract_operations::AbstractOperationKind> for TargetOperation
             } => Self::AppendRuntimeMachineBoundedBufferLiteral {
                 target_byte_offset: *target_byte_offset,
                 literal: literal.clone(),
-            },
-            omega_abstract_operations::AbstractOperationKind::WriteRuntimeFrameString {
-                byte_offset,
-                data,
-                byte_length,
-            } => Self::WriteRuntimeFrameString {
-                byte_offset: *byte_offset,
-                data: remap_data_handle(*data),
-                byte_length: *byte_length,
-            },
-            omega_abstract_operations::AbstractOperationKind::WriteRuntimePointeeString {
-                pointer_byte_offset,
-                field_byte_offset,
-                data,
-                byte_length,
-            } => Self::WriteRuntimePointeeString {
-                pointer_byte_offset: *pointer_byte_offset,
-                field_byte_offset: *field_byte_offset,
-                data: remap_data_handle(*data),
-                byte_length: *byte_length,
-            },
-            omega_abstract_operations::AbstractOperationKind::WriteRuntimePointeeBoundedBuffer {
-                pointer_byte_offset,
-                field_byte_offset,
-                literal,
-            } => Self::WriteRuntimePointeeBoundedBuffer {
-                pointer_byte_offset: *pointer_byte_offset,
-                field_byte_offset: *field_byte_offset,
-                literal: literal.clone(),
-            },
-            omega_abstract_operations::AbstractOperationKind::WriteRuntimeFrameIndexedString {
-                descriptor_offset,
-                index_offset,
-                element_byte_size,
-                field_byte_offset,
-                data,
-                byte_length,
-            } => Self::WriteRuntimeFrameIndexedString {
-                descriptor_offset: *descriptor_offset,
-                index_offset: *index_offset,
-                element_byte_size: *element_byte_size,
-                field_byte_offset: *field_byte_offset,
-                data: remap_data_handle(*data),
-                byte_length: *byte_length,
-            },
-            omega_abstract_operations::AbstractOperationKind::WriteRuntimeMachineIndexedString {
-                base_byte_offset,
-                index_offset,
-                element_byte_size,
-                field_byte_offset,
-                data,
-                byte_length,
-            } => Self::WriteRuntimeMachineIndexedString {
-                base_byte_offset: *base_byte_offset,
-                index_offset: *index_offset,
-                element_byte_size: *element_byte_size,
-                field_byte_offset: *field_byte_offset,
-                data: remap_data_handle(*data),
-                byte_length: *byte_length,
             },
             omega_abstract_operations::AbstractOperationKind::WriteRuntimeStorageAddressToRuntimeFrame {
                 source_region,

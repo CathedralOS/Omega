@@ -383,22 +383,6 @@ pub(super) fn encode_machine_instruction_bytes(
             *byte_size,
             *zigzag,
         ),
-        SelectedInstructionKind::WriteRuntimeMachineString {
-            byte_offset,
-            byte_length,
-            ..
-        } => {
-            runtime_storage::encode_runtime_machine_string_write(input, *byte_offset, *byte_length)
-        }
-        SelectedInstructionKind::WriteRuntimeMachineBoundedBuffer {
-            byte_offset,
-            literal,
-            ..
-        } => runtime_storage::encode_runtime_machine_bounded_buffer_write(
-            input,
-            *byte_offset,
-            literal,
-        ),
         SelectedInstructionKind::AppendRuntimeMachineBoundedBufferSource {
             target_byte_offset,
             source_byte_offset,
@@ -416,62 +400,6 @@ pub(super) fn encode_machine_instruction_bytes(
             input,
             *target_byte_offset,
             literal,
-        ),
-        SelectedInstructionKind::WriteRuntimeFrameString {
-            byte_offset,
-            byte_length,
-            ..
-        } => runtime_storage::encode_runtime_frame_string_write(input, *byte_offset, *byte_length),
-        SelectedInstructionKind::WriteRuntimePointeeString {
-            pointer_byte_offset,
-            field_byte_offset,
-            byte_length,
-            ..
-        } => runtime_storage::encode_runtime_pointee_string_write(
-            input,
-            *pointer_byte_offset,
-            *field_byte_offset,
-            *byte_length,
-        ),
-        SelectedInstructionKind::WriteRuntimePointeeBoundedBuffer {
-            pointer_byte_offset,
-            field_byte_offset,
-            literal,
-        } => runtime_storage::encode_runtime_pointee_bounded_buffer_write(
-            input,
-            *pointer_byte_offset,
-            *field_byte_offset,
-            literal,
-        ),
-        SelectedInstructionKind::WriteRuntimeFrameIndexedString {
-            descriptor_offset,
-            index_offset,
-            element_byte_size,
-            field_byte_offset,
-            byte_length,
-            ..
-        } => runtime_storage::encode_runtime_frame_indexed_string_write(
-            input,
-            *descriptor_offset,
-            *index_offset,
-            *element_byte_size,
-            *field_byte_offset,
-            *byte_length,
-        ),
-        SelectedInstructionKind::WriteRuntimeMachineIndexedString {
-            base_byte_offset,
-            index_offset,
-            element_byte_size,
-            field_byte_offset,
-            byte_length,
-            ..
-        } => runtime_storage::encode_runtime_machine_indexed_string_write(
-            input,
-            *base_byte_offset,
-            *index_offset,
-            *element_byte_size,
-            *field_byte_offset,
-            *byte_length,
         ),
         SelectedInstructionKind::WriteRuntimeStorageAddressToRuntimeFrame {
             source_offset,

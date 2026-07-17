@@ -42,15 +42,8 @@ impl OperationSemanticQuery for AbstractOperationKind {
             | Self::WriteEntryArgumentRegister { .. }
             | Self::WriteEntryArgumentsSliceDescriptor { .. }
             | Self::WriteRuntimeStorageConvert { .. }
-            | Self::WriteRuntimeMachineString { .. }
-            | Self::WriteRuntimeMachineBoundedBuffer { .. }
             | Self::AppendRuntimeMachineBoundedBufferSource { .. }
             | Self::AppendRuntimeMachineBoundedBufferLiteral { .. }
-            | Self::WriteRuntimeFrameString { .. }
-            | Self::WriteRuntimePointeeString { .. }
-            | Self::WriteRuntimePointeeBoundedBuffer { .. }
-            | Self::WriteRuntimeFrameIndexedString { .. }
-            | Self::WriteRuntimeMachineIndexedString { .. }
             | Self::WriteRuntimeStorageAddressToRuntimeFrame { .. }
             | Self::WriteRuntimePointeeAddressToRuntimeFrame { .. }
             | Self::WriteRuntimeFrameIndexedAddressToRuntimeFrame { .. }

@@ -411,25 +411,6 @@ pub enum AbstractOperationKind {
         /// conversion instruction's native clamp; Exact is proven in range).
         trapping: bool,
     },
-    WriteRuntimeMachineString {
-        byte_offset: usize,
-        data: AbstractDataObjectHandle,
-        byte_length: usize,
-    },
-    /// Write a string literal into an owned `[u8; N]` bounded byte carrier
-    /// (`BoundedByteBuffer`, `{len, bytes}` inline) at machine storage. Unlike
-    /// `WriteRuntimeMachineString` -- which stores a `{ptr -> rodata, len}`
-    /// descriptor that ALIASES the literal -- the carrier OWNS its bytes: store
-    /// `len` (the literal length) at the leading word, then copy the literal's
-    /// bytes inline after it. The content is emitted as immediates, so no data
-    /// relocation is needed (only the storage base). The target is machine-resident
-    /// UNLESS `target_in_frame` (a `let`-local struct's carrier field such as a
-    /// local `room.label`), in which case it is written off the runtime frame base.
-    WriteRuntimeMachineBoundedBuffer {
-        byte_offset: usize,
-        literal: Arc<str>,
-        target_in_frame: bool,
-    },
     /// Append another owned `[u8; N]` carrier's content onto a target carrier at
     /// machine storage (the concat-builder's source segment after the first
     /// literal initialized the target via `WriteRuntimeMachineBoundedBuffer`).
@@ -454,43 +435,6 @@ pub enum AbstractOperationKind {
     AppendRuntimeMachineBoundedBufferLiteral {
         target_byte_offset: usize,
         literal: Arc<str>,
-    },
-    WriteRuntimeFrameString {
-        byte_offset: usize,
-        data: AbstractDataObjectHandle,
-        byte_length: usize,
-    },
-    WriteRuntimePointeeString {
-        pointer_byte_offset: usize,
-        field_byte_offset: usize,
-        data: AbstractDataObjectHandle,
-        byte_length: usize,
-    },
-    /// Write a string LITERAL into an owned `[u8; N]` carrier reached THROUGH a
-    /// stored pointer (`rooms[0].label = "Gate"`, a slice element's carrier field):
-    /// load the pointer from `frame[pointer_byte_offset]`, then store `len` + the
-    /// literal bytes inline at `*ptr + field_byte_offset`. No `{ptr, len}`
-    /// descriptor; the bytes are immediates.
-    WriteRuntimePointeeBoundedBuffer {
-        pointer_byte_offset: usize,
-        field_byte_offset: usize,
-        literal: Arc<str>,
-    },
-    WriteRuntimeFrameIndexedString {
-        descriptor_offset: usize,
-        index_offset: usize,
-        element_byte_size: usize,
-        field_byte_offset: usize,
-        data: AbstractDataObjectHandle,
-        byte_length: usize,
-    },
-    WriteRuntimeMachineIndexedString {
-        base_byte_offset: usize,
-        index_offset: usize,
-        element_byte_size: usize,
-        field_byte_offset: usize,
-        data: AbstractDataObjectHandle,
-        byte_length: usize,
     },
     WriteRuntimeStorageAddressToRuntimeFrame {
         source_region: RuntimeStorageRegion,
