@@ -1008,10 +1008,33 @@ sealed progress profiles + grants, TPR4's remaining big half).
    FRAME_BASE_INDEXED_ADDRESS_TARGET_FRAME_IMM_OFFSET (widths.rs x86
    arm). SCOREBOARD: Copy* 18->1, integer 7->1, binary 6->1, text
    7->2, ADDRESS 6->1 -- 44 variants retired onto 6 place survivors.
-   THE COMPARE
-   family (CompareRuntimeStorage/StorageValue/Values/TextLiteral/
-   TextStorage + EvaluateDispatchGuard) follows -- operand pairs +
-   branch distances, the harder half. Then the
+   THE COMPARE family
+   ANALYSIS 2026-07-20 (banked): the wiki step is guards CONSUME
+   Places (representation upgrade -- indexed guard subjects without
+   hoisting), NOT a variant shrink. Scope: CompareRuntimeStorage ->
+   ComparePlaces{left: Place, right: Place, byte_size, operator,
+   is_float}; CompareRuntimeStorageValue -> ComparePlaceValue{place,
+   byte_size, expected_value, operator}. OUT of scope:
+   CompareRuntimeValues (operand-based), text compares,
+   EvaluateDispatchGuard (guard-lowering carrier). KEY MECHANICS:
+   compares encode through instruction_bytes.rs (NOT encoding.rs)
+   with failure_branch_distance from branch_distances::byte_distance_
+   to_next_runtime_write_end; retired layout = mov r15,imm64(left
+   base)+load r10 (7|8 for 2-byte)+mov r15,imm64(right)+load r11+cmp
+   (3|4)/float ucomisd+jcc rel32 (+6 jp parity pre-branch for
+   floats); value form = load + mov r11,imm64(expected)+cmp+jcc.
+   MATERIALIZER ENTRY encode_place_compare: walk LEFT with
+   AddressRegister::Source (r14, mirrors CopyPlaces -- sites
+   unambiguous) + load r10<-[r14+residual]; walk RIGHT with Target
+   (r15) + load r11; cmp; jcc. Direct places = position-identical to
+   retired (r14 rename on the left leg). REGISTER FENCE: a
+   TWO-INDEX right place would clobber r10 (the left operand) --
+   refuse loudly (legalization principle). Walker arm mirrors
+   WritePlaceInteger (sites-by-region; compares' retired walker =
+   runtime_storage_compares.rs; left base @0, right base @17|18).
+   Producers: 8 sites. Arc: entry + variants + echo (layout width fn
+   + instruction_bytes arm + walker + conversions/classifications) ->
+   producers -> retire the two variants. Then the
    bounded-buffer entry (immediate content bytes, single base reloc),
    then WritePlaceString/+Buffer variant + echo + producers +
    retirement. Then guards/operands consume Places, then the op-set
