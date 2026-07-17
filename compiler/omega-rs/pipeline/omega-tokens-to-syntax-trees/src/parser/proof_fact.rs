@@ -199,6 +199,7 @@ pub(super) fn parse_proof_facts_until_with_machine_semicolon<'tokens, 'source>(
                     .insert(ExpressionNode::Call(TableCallExpression {
                         receiver: value,
                         target: predicate,
+                        machine_arguments: Box::default(),
                         arguments: HandleSpan::empty(),
                     }))
             } else {

@@ -150,6 +150,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                     receiver,
                     target_symbol: equals_state,
                     target: typed::name::Identifier::generated_static("equals"),
+                    machine_arguments: Box::default(),
                     arguments,
                 },
             ));

@@ -141,3 +141,25 @@ fn free_machine_entry_state_symbol(symbols: &SymbolTable, target: &str) -> Symbo
 
     child_symbol_by_kinds(symbols, machine_symbol, &[SymbolKind::State], "entry")
 }
+
+/// Resolve a compile-time machine-symbol argument to its concrete entry state.
+/// A free machine is spelled `work`; an attached machine is spelled
+/// `Card::power`. The argument denotes no runtime value.
+pub(in crate::symbols) fn resolve_static_machine_argument_symbol(
+    symbols: &SymbolTable,
+    path: &[omega_symbol_resolved_trees::name::DiagnosticName],
+) -> SymbolHandle {
+    let Some((target, owner)) = path.split_last() else {
+        return SymbolHandle::invalid();
+    };
+    if owner.is_empty() {
+        return free_machine_entry_state_symbol(symbols, target.as_str());
+    }
+
+    let owner = owner
+        .iter()
+        .map(|member| member.as_str())
+        .collect::<Vec<_>>()
+        .join("::");
+    call_target_for_attached_data(symbols, &owner, target.as_str())
+}

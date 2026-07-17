@@ -361,6 +361,7 @@ pub enum StatementSnapshot {
     Call {
         receiver: Option<Vec<String>>,
         target: String,
+        machine_arguments: Vec<Vec<String>>,
         arguments: Vec<ExpressionSnapshot>,
     },
     Expression {
@@ -420,6 +421,7 @@ pub enum ExpressionSnapshot {
     Call {
         receiver: Option<Box<ExpressionSnapshot>>,
         target: String,
+        machine_arguments: Vec<Vec<String>>,
         arguments: Vec<ExpressionSnapshot>,
     },
     Float {
@@ -810,6 +812,11 @@ fn statement_snapshot(program: &SymbolResolvedTrees, statement: &Statement) -> S
                 )
             }),
             target: call.target.to_string(),
+            machine_arguments: call
+                .machine_arguments
+                .iter()
+                .map(|argument| diagnostic_name_span_snapshot(&argument.path))
+                .collect(),
             arguments: program
                 .tables
                 .bodies
@@ -924,6 +931,11 @@ fn table_expression_snapshot(
                 .is_valid()
                 .then(|| Box::new(table_expression_snapshot(program, call.receiver))),
             target: call.target.to_string(),
+            machine_arguments: call
+                .machine_arguments
+                .iter()
+                .map(|argument| diagnostic_name_span_snapshot(&argument.path))
+                .collect(),
             arguments: table
                 .expression_handles(call.arguments)
                 .iter()

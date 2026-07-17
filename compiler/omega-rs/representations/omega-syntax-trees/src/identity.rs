@@ -353,6 +353,11 @@ fn count_statement_node(
                 count_identifier(member, counts);
             }
             count_identifier(&call.target, counts);
+            for argument in &call.machine_arguments {
+                for member in &argument.path {
+                    count_identifier(member, counts);
+                }
+            }
             for argument in syntax_trees.statements.expression_handles(call.arguments) {
                 count_expression_handle(syntax_trees, *argument, counts);
             }
@@ -506,6 +511,11 @@ fn count_expression_handle(
                 count_expression_handle(syntax_trees, call.receiver, counts);
             }
             count_identifier(&call.target, counts);
+            for argument in &call.machine_arguments {
+                for member in &argument.path {
+                    count_identifier(member, counts);
+                }
+            }
             for argument in syntax_trees.expressions.expression_handles(call.arguments) {
                 count_expression_handle(syntax_trees, *argument, counts);
             }

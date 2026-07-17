@@ -287,6 +287,7 @@ fn parse_asm_statement_handle<'tokens, 'source>(
                         receiver: HandleSpan::empty(),
                         receiver_starts_at_self: false,
                         target: Identifier::new("asm#hlt", mnemonic.source_span()),
+                        machine_arguments: Box::default(),
                         arguments: HandleSpan::empty(),
                         discards_result: false,
                     })),
@@ -311,6 +312,7 @@ fn parse_asm_statement_handle<'tokens, 'source>(
                         receiver: HandleSpan::empty(),
                         receiver_starts_at_self: false,
                         target: Identifier::new("asm#port_out", mnemonic.source_span()),
+                        machine_arguments: Box::default(),
                         arguments,
                         discards_result: false,
                     })),
@@ -328,6 +330,7 @@ fn parse_asm_statement_handle<'tokens, 'source>(
                 .insert(ExpressionNode::Call(TableCallExpression {
                     receiver: ExpressionHandle::invalid(),
                     target: Identifier::new("asm#port_in", mnemonic.source_span()),
+                    machine_arguments: Box::default(),
                     arguments,
                 }));
             Ok((
@@ -975,6 +978,7 @@ fn expression_handle_to_statement_call(
         receiver: receiver.members,
         receiver_starts_at_self: receiver.starts_at_self,
         target,
+        machine_arguments: call.machine_arguments,
         arguments: copy_expression_handles_to_statement_table(syntax_trees, call.arguments),
         discards_result: false,
     })

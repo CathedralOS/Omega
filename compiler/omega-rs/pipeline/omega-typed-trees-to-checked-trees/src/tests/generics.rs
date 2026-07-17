@@ -40,3 +40,55 @@ fn machine_parameter_contract_survives_resolved_and_typed_trees() {
     assert_eq!(typed.state_signature_parameters(contract).len(), 1);
     assert!(contract.return_type.is_valid());
 }
+
+#[test]
+fn call_site_machine_argument_resolves_to_static_entry_symbol() {
+    let source = r#"
+        data Card {}
+
+        machine Card::power(value: &Card) {
+        }
+
+        machine map<T, machine F>(value: &T)
+        where machine F(value: &T)
+        {
+        }
+
+        machine caller(card: &Card) {
+            map<Card::power>(card);
+        }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+
+    let call = typed
+        .machines()
+        .iter()
+        .flat_map(|machine| typed.machine_states(machine))
+        .flat_map(|state| typed.statement_table.statements(state.statement_nodes))
+        .find_map(|statement| match statement {
+            omega_typed_trees::statement::StatementNode::Call(call)
+                if !call.machine_arguments.is_empty() =>
+            {
+                Some(call)
+            }
+            _ => None,
+        })
+        .expect("call carrying a static machine argument");
+
+    assert_eq!(call.machine_arguments.len(), 1);
+    assert!(call.machine_arguments[0].symbol.is_valid());
+    assert_eq!(
+        call.machine_arguments[0]
+            .path
+            .iter()
+            .map(|member| member.as_str())
+            .collect::<Vec<_>>(),
+        vec!["Card", "power"]
+    );
+}

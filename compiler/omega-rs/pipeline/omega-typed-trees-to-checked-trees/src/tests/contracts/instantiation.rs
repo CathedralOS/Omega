@@ -49,6 +49,7 @@ fn instantiates_call_contract_places_onto_caller_arguments() {
             target_symbol: callee_state_symbol,
             receiver: HandleSpan::empty(),
             target: Identifier::generated("run"),
+            machine_arguments: Box::default(),
             arguments: caller_arguments,
 
             discards_result: false,
@@ -253,6 +254,7 @@ fn instantiates_call_contract_places_for_attached_data_arguments() {
             target_symbol: callee_state_symbol,
             receiver: Default::default(),
             target: Identifier::generated("heal"),
+            machine_arguments: Box::default(),
             arguments: caller_arguments,
 
             discards_result: false,

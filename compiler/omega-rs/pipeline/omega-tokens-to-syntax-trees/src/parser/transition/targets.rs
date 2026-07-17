@@ -167,6 +167,7 @@ fn parse_transition_target_expression_handle<'tokens, 'source>(
                     .insert(ExpressionNode::Call(TableCallExpression {
                         receiver,
                         target,
+                        machine_arguments: Box::default(),
                         arguments,
                     }))
             }
@@ -176,6 +177,7 @@ fn parse_transition_target_expression_handle<'tokens, 'source>(
                     .insert(ExpressionNode::Call(TableCallExpression {
                         receiver: member.receiver,
                         target: member.member,
+                        machine_arguments: Box::default(),
                         arguments,
                     }))
             }

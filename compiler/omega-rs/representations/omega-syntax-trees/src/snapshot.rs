@@ -338,6 +338,7 @@ pub enum StatementSnapshot {
     Call {
         receiver: Vec<IdentifierSnapshot>,
         target: IdentifierSnapshot,
+        machine_arguments: Vec<Vec<IdentifierSnapshot>>,
         arguments: Vec<ExpressionSnapshot>,
     },
     Expression {
@@ -458,6 +459,7 @@ pub enum ExpressionSnapshot {
     Call {
         receiver: Option<Box<ExpressionSnapshot>>,
         target: IdentifierSnapshot,
+        machine_arguments: Vec<Vec<IdentifierSnapshot>>,
         arguments: Vec<ExpressionSnapshot>,
     },
     Float {
@@ -1111,6 +1113,11 @@ fn snapshot_statement(syntax_trees: &SyntaxTrees, statement: &StatementNode) -> 
                     .identifier_path_members(call.receiver),
             ),
             target: snapshot_identifier(&call.target),
+            machine_arguments: call
+                .machine_arguments
+                .iter()
+                .map(|argument| snapshot_identifier_slice(&argument.path))
+                .collect(),
             arguments: syntax_trees
                 .statements
                 .expression_handles(call.arguments)
@@ -1384,6 +1391,11 @@ fn snapshot_call_expression(
             .is_valid()
             .then(|| Box::new(snapshot_expression_handle(syntax_trees, call.receiver))),
         target: snapshot_identifier(&call.target),
+        machine_arguments: call
+            .machine_arguments
+            .iter()
+            .map(|argument| snapshot_identifier_slice(&argument.path))
+            .collect(),
         arguments: syntax_trees
             .expressions
             .expression_handles(call.arguments)

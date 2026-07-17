@@ -64,6 +64,7 @@ fn collects_mutable_attached_data_argument_access_roots() {
             target_symbol,
             receiver: Default::default(),
             target: Identifier::generated("heal"),
+            machine_arguments: Box::default(),
             arguments,
 
             discards_result: false,
@@ -185,6 +186,7 @@ fn collects_disjoint_member_access_segments() {
             target_symbol,
             receiver: Default::default(),
             target: Identifier::generated("heal"),
+            machine_arguments: Box::default(),
             arguments,
 
             discards_result: false,
@@ -357,6 +359,7 @@ fn collects_unresolved_local_argument_access_roots() {
             target_symbol,
             receiver: Default::default(),
             target: Identifier::generated("heal"),
+            machine_arguments: Box::default(),
             arguments,
 
             discards_result: false,

@@ -4075,9 +4075,13 @@ with a real app-window story.
   `where machine M(args) -> Result` contract through syntax, resolved, and
   typed trees; reject an absent contract at declaration (never infer it from
   uses, consumers, or instantiation count); parser rejection/acceptance and
-  cross-tree preservation tests pin the rule. MP2 resolve call-site
-  machine-symbol arguments and check their normalized contracts refine the
-  requirement; MP3 check generic bodies modularly from the required contract;
+  cross-tree preservation tests pin the rule. **MP2a LANDED 2026-07-17:**
+  parse explicit call-site selections such as `map<Card::power>(items)` into
+  dedicated static-symbol metadata (never a value argument), preserve it in
+  statements/expressions, snapshots, and artifact identity, and resolve each
+  path to the selected machine's entry symbol. MP2b check arity and prove the
+  selected machines' normalized contracts refine their authored requirements;
+  MP3 check generic bodies modularly from the required contract;
   MP4 monomorphize and substitute each `M(...)` use into a direct static call
   with stable specialization/cache identity; MP5 record accepted-template
   grants once plus argument contract IDs per instance; MP6 land `Seq`

@@ -226,7 +226,15 @@ pub struct TableMemberExpression {
 pub struct TableCallExpression {
     pub receiver: ExpressionHandle,
     pub target: Identifier,
+    /// Compile-time machine-symbol selections (`map<Card::power>(items)`).
+    /// These are declaration identities, never runtime expression values.
+    pub machine_arguments: Box<[StaticMachineArgument]>,
     pub arguments: HandleSpan<ExpressionHandle>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StaticMachineArgument {
+    pub path: Box<[Identifier]>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
