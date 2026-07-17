@@ -128,12 +128,6 @@ fn state_value_has_planned_storage_write(
                         | SelectedInstructionKind::WritePlaceBoundedBuffer { .. }
                         | SelectedInstructionKind::WritePlaceAddress { .. }
                         | SelectedInstructionKind::WriteRuntimeStorageConvert { .. }
-                        | SelectedInstructionKind::WriteRuntimeStorageAddressToRuntimeFrame { .. }
-                        | SelectedInstructionKind::WriteRuntimePointeeAddressToRuntimeFrame { .. }
-                        | SelectedInstructionKind::WriteRuntimeFrameIndexedAddressToRuntimeFrame { .. }
-                        | SelectedInstructionKind::WriteRuntimeFrameFixedIndexedAddressToRuntimeFrame { .. }
-                        | SelectedInstructionKind::WriteRuntimeFrameBaseIndexedAddressToRuntimeFrame { .. }
-                        | SelectedInstructionKind::WriteRuntimeMachineIndexedAddressToRuntimeFrame { .. }
                         | SelectedInstructionKind::CopyPlaces { .. }
                         // `asm { in <local>, <port> }`: the PortRead writes the
                         // byte into the local's place, covering the assignment
@@ -321,12 +315,6 @@ fn runtime_text_write_has_selected_instruction(
                     SelectedInstructionKind::WritePlaceString { .. }
                         | SelectedInstructionKind::WritePlaceBoundedBuffer { .. }
                         | SelectedInstructionKind::WritePlaceAddress { .. }
-                        | SelectedInstructionKind::WriteRuntimeStorageAddressToRuntimeFrame { .. }
-                        | SelectedInstructionKind::WriteRuntimePointeeAddressToRuntimeFrame { .. }
-                        | SelectedInstructionKind::WriteRuntimeFrameIndexedAddressToRuntimeFrame { .. }
-                        | SelectedInstructionKind::WriteRuntimeFrameFixedIndexedAddressToRuntimeFrame { .. }
-                        | SelectedInstructionKind::WriteRuntimeFrameBaseIndexedAddressToRuntimeFrame { .. }
-                        | SelectedInstructionKind::WriteRuntimeMachineIndexedAddressToRuntimeFrame { .. }
                         | SelectedInstructionKind::WriteRuntimeTextLiteral { .. }
                         | SelectedInstructionKind::WriteRuntimeTextLiteralSegment { .. }
                         | SelectedInstructionKind::AppendRuntimeTextStoredSuffix { .. }

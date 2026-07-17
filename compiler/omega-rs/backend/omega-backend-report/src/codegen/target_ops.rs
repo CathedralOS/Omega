@@ -599,62 +599,6 @@ fn selected_instruction_name(
         } => format!(
             "append runtime machine bounded buffer literal target@{target_byte_offset} {literal:?}"
         ),
-        SelectedInstructionKind::WriteRuntimeStorageAddressToRuntimeFrame {
-            source_region,
-            source_offset,
-            target_offset,
-        } => {
-            let source_symbol =
-                storage_region_symbol_name(*source_region, backend_plan.entry_machine_name());
-            format!(
-                "write runtime-frame pointer @{target_offset} = &{source_symbol}@{source_offset}"
-            )
-        }
-        SelectedInstructionKind::WriteRuntimePointeeAddressToRuntimeFrame {
-            pointer_byte_offset,
-            field_byte_offset,
-            target_offset,
-        } => format!(
-            "write runtime-frame pointer @{target_offset} = *(runtime_frame@{pointer_byte_offset}) +{field_byte_offset}"
-        ),
-        SelectedInstructionKind::WriteRuntimeFrameIndexedAddressToRuntimeFrame {
-            descriptor_offset,
-            index_offset,
-            index_region,
-            element_byte_size,
-            field_byte_offset,
-            target_offset,
-        } => format!(
-            "write runtime-frame pointer @{target_offset} = &(*runtime_frame@{descriptor_offset})[{index_region:?}@{index_offset} * {element_byte_size}] +{field_byte_offset}"
-        ),
-        SelectedInstructionKind::WriteRuntimeFrameFixedIndexedAddressToRuntimeFrame {
-            descriptor_offset,
-            element_index,
-            element_byte_size,
-            field_byte_offset,
-            target_offset,
-        } => format!(
-            "write runtime-frame pointer @{target_offset} = &(runtime_frame@{descriptor_offset}[{element_index} * {element_byte_size}]) +{field_byte_offset}"
-        ),
-        SelectedInstructionKind::WriteRuntimeFrameBaseIndexedAddressToRuntimeFrame {
-            base_byte_offset,
-            index_offset,
-            element_byte_size,
-            field_byte_offset,
-            target_offset,
-        } => format!(
-            "write runtime-frame pointer @{target_offset} = &(runtime_frame@{base_byte_offset}[runtime_frame@{index_offset} * {element_byte_size}]) +{field_byte_offset}"
-        ),
-        SelectedInstructionKind::WriteRuntimeMachineIndexedAddressToRuntimeFrame {
-            base_byte_offset,
-            index_offset,
-            index_region,
-            element_byte_size,
-            field_byte_offset,
-            target_offset,
-        } => format!(
-            "write runtime-frame pointer @{target_offset} = &(machine@{base_byte_offset}[{index_region:?}@{index_offset} * {element_byte_size}]) +{field_byte_offset}"
-        ),
         SelectedInstructionKind::ReadRuntimeTextLine {
             buffer,
             target_region,

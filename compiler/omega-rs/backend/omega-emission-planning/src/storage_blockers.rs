@@ -360,12 +360,6 @@ fn state_mutation_is_planned(
                     | SelectedInstructionKind::WriteRuntimeStorageConvert { .. }
                     | SelectedInstructionKind::AppendRuntimeMachineBoundedBufferSource { .. }
                     | SelectedInstructionKind::AppendRuntimeMachineBoundedBufferLiteral { .. }
-                    | SelectedInstructionKind::WriteRuntimeStorageAddressToRuntimeFrame { .. }
-                    | SelectedInstructionKind::WriteRuntimePointeeAddressToRuntimeFrame { .. }
-                    | SelectedInstructionKind::WriteRuntimeFrameIndexedAddressToRuntimeFrame { .. }
-                    | SelectedInstructionKind::WriteRuntimeFrameFixedIndexedAddressToRuntimeFrame { .. }
-                    | SelectedInstructionKind::WriteRuntimeFrameBaseIndexedAddressToRuntimeFrame { .. }
-                        | SelectedInstructionKind::WriteRuntimeMachineIndexedAddressToRuntimeFrame { .. }
                     | SelectedInstructionKind::MaterializeRuntimeTextBuffer { .. }
                     | SelectedInstructionKind::MaterializeRuntimeTextBufferToRuntimePointee { .. }
                     | SelectedInstructionKind::MaterializeRuntimeTextBufferToRuntimeFrameIndexed { .. }

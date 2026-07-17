@@ -305,25 +305,9 @@ fn instruction_frame_write_range(kind: &SelectedInstructionKind) -> Option<(usiz
         } if target.region == RuntimeStorageRegion::RuntimeFrame => target
             .const_offset()
             .map(|target_offset| (target_offset, *byte_count)),
-        SelectedInstructionKind::WritePlaceAddress { target_offset, .. }
-        | SelectedInstructionKind::WriteRuntimeStorageAddressToRuntimeFrame {
-            target_offset, ..
+        SelectedInstructionKind::WritePlaceAddress { target_offset, .. } => {
+            Some((*target_offset, 8))
         }
-        | SelectedInstructionKind::WriteRuntimePointeeAddressToRuntimeFrame {
-            target_offset, ..
-        }
-        | SelectedInstructionKind::WriteRuntimeFrameIndexedAddressToRuntimeFrame {
-            target_offset,
-            ..
-        }
-        | SelectedInstructionKind::WriteRuntimeFrameFixedIndexedAddressToRuntimeFrame {
-            target_offset,
-            ..
-        }
-        | SelectedInstructionKind::WriteRuntimeFrameBaseIndexedAddressToRuntimeFrame {
-            target_offset,
-            ..
-        } => Some((*target_offset, 8)),
         _ => None,
     }
 }

@@ -992,9 +992,23 @@ sealed progress profiles + grants, TPR4's remaining big half).
    (wire_encode x2, runtime_dispatch machine-indexed,
    argument_materialization x2, subslice_copy, slice_descriptors x7,
    frame_slots x9) -- every address write now rides the materializer
-   natively on this host (canary 864 green). REMAINING address:
-   retire the six variants + sweep dead shells (x86 retired encoders
-   + width/offset fns + walker arms + blocker rows). THE COMPARE
+   natively on this host (canary 864 green). ADDRESS RUNG C
+   LANDED 2026-07-20: RETIREMENT + SWEEP -- the six variants deleted
+   from both enums + conversions + classifications + report + walker
+   + emission encode/layout arms + blocker rows + shapes arms; then
+   34 dead fns swept (6 emission wrappers, 6 selection encode
+   wrappers, 8 selection width/offset fns incl.
+   runtime_machine_indexed_address_relocation_offsets +
+   runtime_frame_indexed_deref_address_target_frame_offset, 14 x86
+   encoders/width fns/consts). KEPT: aarch64 retained encoders
+   (decompose), runtime_storage_address_to_runtime_frame_target_
+   frame_offset + runtime_frame_base_indexed_address_target_frame_
+   offset + the copy-family machine-indexed offset fns (the
+   WritePlaceAddress aarch64 walker arms ride them),
+   FRAME_BASE_INDEXED_ADDRESS_TARGET_FRAME_IMM_OFFSET (widths.rs x86
+   arm). SCOREBOARD: Copy* 18->1, integer 7->1, binary 6->1, text
+   7->2, ADDRESS 6->1 -- 44 variants retired onto 6 place survivors.
+   THE COMPARE
    family (CompareRuntimeStorage/StorageValue/Values/TextLiteral/
    TextStorage + EvaluateDispatchGuard) follows -- operand pairs +
    branch distances, the harder half. Then the

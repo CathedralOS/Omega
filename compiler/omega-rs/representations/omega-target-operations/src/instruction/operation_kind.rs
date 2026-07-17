@@ -331,49 +331,6 @@ pub enum TargetOperationKind {
         target_byte_offset: usize,
         literal: std::sync::Arc<str>,
     },
-    WriteRuntimeStorageAddressToRuntimeFrame {
-        source_region: RuntimeStorageRegion,
-        source_offset: usize,
-        target_offset: usize,
-    },
-    WriteRuntimePointeeAddressToRuntimeFrame {
-        pointer_byte_offset: usize,
-        field_byte_offset: usize,
-        target_offset: usize,
-    },
-    WriteRuntimeFrameIndexedAddressToRuntimeFrame {
-        descriptor_offset: usize,
-        index_offset: usize,
-        index_region: RuntimeStorageRegion,
-        element_byte_size: usize,
-        field_byte_offset: usize,
-        target_offset: usize,
-    },
-    WriteRuntimeFrameFixedIndexedAddressToRuntimeFrame {
-        descriptor_offset: usize,
-        element_index: usize,
-        element_byte_size: usize,
-        field_byte_offset: usize,
-        target_offset: usize,
-    },
-    WriteRuntimeFrameBaseIndexedAddressToRuntimeFrame {
-        base_byte_offset: usize,
-        index_offset: usize,
-        element_byte_size: usize,
-        field_byte_offset: usize,
-        target_offset: usize,
-    },
-    /// The MACHINE-base sibling: store the ADDRESS of a machine-owned
-    /// inline-array element into a frame slot (the wide-referee borrow-recast
-    /// let -- the slot holds a real pointer; reads deref it).
-    WriteRuntimeMachineIndexedAddressToRuntimeFrame {
-        base_byte_offset: usize,
-        index_offset: usize,
-        index_region: RuntimeStorageRegion,
-        element_byte_size: usize,
-        field_byte_offset: usize,
-        target_offset: usize,
-    },
     ReadRuntimeTextLine {
         buffer: TargetDataObjectHandle,
         target_region: RuntimeStorageRegion,
