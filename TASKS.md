@@ -3076,7 +3076,7 @@ rows. Rungs:
   float_to_int_unsigned_narrow_saturating_exit (f32/f64, nested u8, u16, i8,
   u32, exact/saturating u64) and trapping_float_to_narrow_int_cast_traps;
   both ISA suites cover signedness/width lockstep.
-- **F5 — policy lowering: LANDED 2026-07-16 (aarch64 lane).** Float
+- **F5 — policy lowering: COMPLETE 2026-07-17 (both native lanes).** Float
   `Saturating` clamps MAGNITUDE OVERFLOW to ±MAX_FINITE at the landed
   width and nothing else (div-by-zero/invalid keep their non-finites,
   per the brief — 0/0 has no defensible clamp); `Trapping` traps on
@@ -3091,13 +3091,15 @@ rows. Rungs:
   emitter's own length (fixed-register call + .len(), the rung-2a
   one-source-of-truth discipline — no lockstep constant). The
   validation fence LIFTED (the old float_saturating_domain_rejected
-  fail canary retired with it); x86_64 passes through until its host
-  session (documented status-quo divergence, the F4-cast precedent).
-  Pinned (arch-gated + differential):
-  pass/arithmetic/float_saturating_overflow_exit (1e160² clamps,
-  re-clamp idempotent, 5/0 keeps +Inf) +
-  float_trapping_overflow_traps (abort-style, both engine legs).
-  Remaining: the x86 guard sequences on its host.
+  fail canary retired with it). X86 F5 LANDED 2026-07-17: the same
+  integer-bit classification rides r8/r9/rax around the SSE result in
+  r10, emitted branch targets define their own width, and nested Binary
+  operands now retain their arithmetic domain instead of silently taking
+  Exact's unguarded path. Pinned on both hosts + interpreter:
+  pass/arithmetic/float_saturating_overflow_exit (positive/negative f64,
+  nested f64/f32, re-clamp idempotence, 5/0 keeps +Inf) plus abort-style
+  float_trapping_{overflow,divzero,invalid}_traps; both ISA suites pin
+  encoder/width lockstep.
 - **F6 — TotalOrder named satisfiers** for f32/f64 (sign-magnitude
   integer compare) once satisfier machinery lands.
 - **F7 — format records in omega::core + Float ProviderPlan bindings:** needs the

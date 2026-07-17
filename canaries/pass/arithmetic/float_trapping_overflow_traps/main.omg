@@ -1,6 +1,6 @@
-// PASS canary (F5, float brief §8), aarch64 + interpreter, abort-style:
+// PASS canary (F5, float brief §8), both native backends + interpreter, abort-style:
 // `Trapping` float arithmetic traps on overflow (and invalid/div-by-zero)
-// -- the aarch64 guard brk's when the result is non-finite from finite,
+// -- the backend guard traps when the result is non-finite from finite,
 // non-NaN operands; the interp traps in eval. An in-range Trapping product
 // computes exactly first.
 // exits: 71 = in-range product wrong; 7 = SAILED PAST the overflow trap.
