@@ -349,17 +349,6 @@ pub enum AbstractOperationKind {
         /// Signed targets un-zigzag after the read.
         zigzag: bool,
     },
-    WriteRuntimeMachineInteger {
-        byte_offset: usize,
-        byte_size: usize,
-        value: i64,
-    },
-    WriteRuntimeStorageInteger {
-        target_region: RuntimeStorageRegion,
-        byte_offset: usize,
-        byte_size: usize,
-        value: i64,
-    },
     /// The ENTRY PROLOGUE's inbound calling plan: store the platform's incoming
     /// argument register (MS-x64: 0=RCX 1=RDX 2=R8 3=R9) into the entry state's
     /// parameter frame slot at `byte_offset`. Emitted once per declared entry
@@ -378,12 +367,6 @@ pub enum AbstractOperationKind {
         descriptor_offset: usize,
         spill_offset: usize,
         byte_length: usize,
-    },
-    WriteRuntimePointeeInteger {
-        pointer_byte_offset: usize,
-        field_byte_offset: usize,
-        byte_size: usize,
-        value: i64,
     },
     /// An atomic `fetch_add`: atomically add `delta` to the storage place via a
     /// single `LOCK xadd`. The prior value is read separately (by the desugar's
@@ -457,31 +440,6 @@ pub enum AbstractOperationKind {
         left: AbstractValueOperandHandle,
         operator: StateGuardOperator,
         right: AbstractValueOperandHandle,
-    },
-    WriteRuntimeFrameIndexedInteger {
-        descriptor_offset: usize,
-        index_offset: usize,
-        element_byte_size: usize,
-        field_byte_offset: usize,
-        byte_size: usize,
-        value: i64,
-    },
-    WriteRuntimeFrameBaseIndexedInteger {
-        base_byte_offset: usize,
-        index_offset: usize,
-        element_byte_size: usize,
-        field_byte_offset: usize,
-        byte_size: usize,
-        value: i64,
-    },
-    WriteRuntimeMachineIndexedInteger {
-        base_byte_offset: usize,
-        index_region: RuntimeStorageRegion,
-        index_offset: usize,
-        element_byte_size: usize,
-        field_byte_offset: usize,
-        byte_size: usize,
-        value: i64,
     },
     WriteRuntimeFrameIndexedBinary {
         descriptor_offset: usize,
@@ -722,21 +680,6 @@ pub enum AbstractOperationKind {
         target: Place,
         value: i64,
         byte_size: usize,
-    },
-    /// Const-value write into a both-runtime nested element
-    /// (`grid[i][j] = 70`) -- the double-indexed sibling of
-    /// `WriteRuntimeMachineIndexedInteger`.
-    WriteRuntimeMachineDoubleIndexedInteger {
-        base_byte_offset: usize,
-        outer_index_offset: usize,
-        outer_index_region: RuntimeStorageRegion,
-        outer_stride: usize,
-        inner_index_offset: usize,
-        inner_index_region: RuntimeStorageRegion,
-        inner_stride: usize,
-        field_byte_offset: usize,
-        byte_size: usize,
-        value: i64,
     },
     SetDispatchState {
         dispatch_index: u32,

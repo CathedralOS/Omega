@@ -39,18 +39,11 @@ impl OperationSemanticQuery for AbstractOperationKind {
 
             Self::AtomicFetchAdd { .. }
             | Self::AtomicCompareExchange { .. }
-            | Self::WriteRuntimeMachineInteger { .. }
-            | Self::WriteRuntimeStorageInteger { .. }
             | Self::WriteEntryArgumentRegister { .. }
             | Self::WriteEntryArgumentsSliceDescriptor { .. }
-            | Self::WriteRuntimePointeeInteger { .. }
             | Self::WriteRuntimeStorageBinary { .. }
             | Self::WriteRuntimeStorageConvert { .. }
             | Self::WriteRuntimePointeeBinary { .. }
-            | Self::WriteRuntimeFrameIndexedInteger { .. }
-            | Self::WriteRuntimeFrameBaseIndexedInteger { .. }
-            | Self::WriteRuntimeMachineIndexedInteger { .. }
-            | Self::WriteRuntimeMachineDoubleIndexedInteger { .. }
             | Self::WriteRuntimeFrameIndexedBinary { .. }
             | Self::WriteRuntimeFrameBaseIndexedBinary { .. }
             | Self::WriteRuntimeMachineIndexedBinary { .. }

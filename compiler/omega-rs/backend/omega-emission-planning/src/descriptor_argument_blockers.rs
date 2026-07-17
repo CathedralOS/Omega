@@ -290,12 +290,6 @@ fn parameter_slot_write_is_planned(
 /// argument materialization emits. Returns `None` for non-frame writes.
 fn instruction_frame_write_range(kind: &SelectedInstructionKind) -> Option<(usize, usize)> {
     match kind {
-        SelectedInstructionKind::WriteRuntimeStorageInteger {
-            target_region: RuntimeStorageRegion::RuntimeFrame,
-            byte_offset,
-            byte_size,
-            ..
-        } => Some((*byte_offset, *byte_size)),
         SelectedInstructionKind::WritePlaceInteger {
             target, byte_size, ..
         } if target.region == RuntimeStorageRegion::RuntimeFrame => {

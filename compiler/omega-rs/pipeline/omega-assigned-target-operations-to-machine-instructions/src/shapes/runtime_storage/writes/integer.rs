@@ -5,25 +5,6 @@ pub(super) fn selected_integer_write_kind(
     kind: &SelectedInstructionKind,
 ) -> Option<MachineInstructionKind> {
     match kind {
-        SelectedInstructionKind::WriteRuntimeMachineInteger {
-            byte_offset,
-            byte_size,
-            value,
-        } => Some(runtime_machine_integer_write_kind(
-            *byte_offset,
-            *byte_size,
-            *value,
-        )),
-        SelectedInstructionKind::WriteRuntimeStorageInteger {
-            byte_offset,
-            byte_size,
-            value,
-            ..
-        } => Some(runtime_storage_integer_write_kind(
-            *byte_offset,
-            *byte_size,
-            *value,
-        )),
         // Write rung 2a: the place-shaped write keeps the plain integer
         // write's machine shape (the CopyPlaces precedent -- branch
         // distances see the same guarded-effect class; the layout arm's
@@ -31,64 +12,6 @@ pub(super) fn selected_integer_write_kind(
         SelectedInstructionKind::WritePlaceInteger {
             value, byte_size, ..
         } => Some(runtime_storage_integer_write_kind(0, *byte_size, *value)),
-        SelectedInstructionKind::WriteRuntimePointeeInteger {
-            pointer_byte_offset,
-            field_byte_offset,
-            byte_size,
-            value,
-        } => Some(runtime_pointee_integer_write_kind(
-            *pointer_byte_offset,
-            *field_byte_offset,
-            *byte_size,
-            *value,
-        )),
-        SelectedInstructionKind::WriteRuntimeFrameIndexedInteger {
-            descriptor_offset,
-            index_offset,
-            element_byte_size,
-            field_byte_offset,
-            byte_size,
-            value,
-        } => Some(runtime_frame_indexed_integer_write_kind(
-            *descriptor_offset,
-            *index_offset,
-            *element_byte_size,
-            *field_byte_offset,
-            *byte_size,
-            *value,
-        )),
-        SelectedInstructionKind::WriteRuntimeFrameBaseIndexedInteger {
-            base_byte_offset,
-            index_offset,
-            element_byte_size,
-            field_byte_offset,
-            byte_size,
-            value,
-        } => Some(runtime_frame_base_indexed_integer_write_kind(
-            *base_byte_offset,
-            *index_offset,
-            *element_byte_size,
-            *field_byte_offset,
-            *byte_size,
-            *value,
-        )),
-        SelectedInstructionKind::WriteRuntimeMachineIndexedInteger {
-            base_byte_offset,
-            index_region,
-            index_offset,
-            element_byte_size,
-            field_byte_offset,
-            byte_size,
-            value,
-        } => Some(runtime_machine_indexed_integer_write_kind(
-            *base_byte_offset,
-            *index_region,
-            *index_offset,
-            *element_byte_size,
-            *field_byte_offset,
-            *byte_size,
-            *value,
-        )),
         _ => None,
     }
 }

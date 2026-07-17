@@ -352,16 +352,10 @@ fn state_mutation_is_planned(
                 SelectedInstructionKind::AtomicFetchAdd { .. }
                     | SelectedInstructionKind::HostOperation { .. }
                     | SelectedInstructionKind::AtomicCompareExchange { .. }
-                    | SelectedInstructionKind::WriteRuntimeMachineInteger { .. }
-                    | SelectedInstructionKind::WriteRuntimeStorageInteger { .. }
-                    | SelectedInstructionKind::WriteRuntimePointeeInteger { .. }
                     | SelectedInstructionKind::WritePlaceInteger { .. }
                     | SelectedInstructionKind::WriteRuntimeStorageBinary { .. }
                     | SelectedInstructionKind::WriteRuntimeStorageConvert { .. }
                     | SelectedInstructionKind::WriteRuntimePointeeBinary { .. }
-                    | SelectedInstructionKind::WriteRuntimeFrameIndexedInteger { .. }
-                    | SelectedInstructionKind::WriteRuntimeFrameBaseIndexedInteger { .. }
-                    | SelectedInstructionKind::WriteRuntimeMachineIndexedInteger { .. }
                     | SelectedInstructionKind::WriteRuntimeFrameIndexedBinary { .. }
                     | SelectedInstructionKind::WriteRuntimeFrameBaseIndexedBinary { .. }
                     | SelectedInstructionKind::WriteRuntimeMachineIndexedBinary { .. }
@@ -392,7 +386,6 @@ fn state_mutation_is_planned(
                     | SelectedInstructionKind::AppendRuntimeTextLiteralToRuntimeFrameIndexed { .. }
                     | SelectedInstructionKind::AppendRuntimeTextStoredSuffix { .. }
                     | SelectedInstructionKind::CopyPlaces { .. }
-                    | SelectedInstructionKind::WriteRuntimeMachineDoubleIndexedInteger { .. }
             )
         })
 }
