@@ -1085,6 +1085,10 @@ const EXCLUDED_RUN_CANARIES: &[(&str, &str)] = &[
         "windows-gated dual test (interp oracle + native run, both 70, asserted in its canary_suite test): pins the Windows Filesystem::set_times FILETIME composition and the required read/write-handle authority; non-Windows target bodies are frontend-checked separately because Linux host lowering is intentionally absent",
     ),
     (
+        "filesystem/windows_wrapper_lock_exit",
+        "windows-gated dual test (interp oracle + native run, both 70, asserted in its canary_suite test): pins LockFileEx/UnlockFile/GetLastError over the CRT handle bridge and exclusive/shared contention; non-Windows flock bodies are frontend-checked separately",
+    ),
+    (
         "time/runtime_time_host_native_exit",
         "NATIVE-ONLY (windows-gated run test): asserts the WINDOWS calibration constants (10^7 / 11_644_473_600) and real-clock inequalities; the interpreter's virtual clock reports 1000/0 and exits 3 by design (its exact values are pinned by time/runtime_time_host_virtual_exit)",
     ),

@@ -588,3 +588,49 @@ macos_arm64 machine Filesystem::canonicalize(&mut self, path: &[u8] in Path, buf
     state ok(&mut self) -> UnitResult { UnitResult::Ok }
     state err(&mut self) -> UnitResult { let kind: ErrorKind = self.last_error(); UnitResult::Error { kind: kind } }
 }
+
+macos_arm64 machine Filesystem::lock(&mut self, file: File) -> UnitResult {
+    self.file_fd = file.fd;
+    let rc: i32 = self.host.lock_file(self.file_fd, 2);
+    transition rc == 0 { true -> ok() _ -> err() }
+    state ok(&mut self) -> UnitResult { UnitResult::Ok }
+    state err(&mut self) -> UnitResult { let kind: ErrorKind = self.last_error(); UnitResult::Error { kind: kind } }
+}
+
+macos_arm64 machine Filesystem::lock_shared(&mut self, file: File) -> UnitResult {
+    self.file_fd = file.fd;
+    let rc: i32 = self.host.lock_file(self.file_fd, 1);
+    transition rc == 0 { true -> ok() _ -> err() }
+    state ok(&mut self) -> UnitResult { UnitResult::Ok }
+    state err(&mut self) -> UnitResult { let kind: ErrorKind = self.last_error(); UnitResult::Error { kind: kind } }
+}
+
+macos_arm64 machine Filesystem::try_lock(&mut self, file: File) -> TryLockResult {
+    self.file_fd = file.fd;
+    let rc: i32 = self.host.lock_file(self.file_fd, 6);
+    self.lock_errno = self.host.errno();
+    transition rc == 0 { true -> acquired() _ -> contended() }
+    state acquired(&mut self) -> TryLockResult { TryLockResult::Acquired }
+    state contended(&mut self) -> TryLockResult { transition self.lock_errno == 35 { true -> would_block() _ -> failed() } }
+    state would_block(&mut self) -> TryLockResult { TryLockResult::WouldBlock }
+    state failed(&mut self) -> TryLockResult { let kind: ErrorKind = self.last_error(); TryLockResult::Error { kind: kind } }
+}
+
+macos_arm64 machine Filesystem::try_lock_shared(&mut self, file: File) -> TryLockResult {
+    self.file_fd = file.fd;
+    let rc: i32 = self.host.lock_file(self.file_fd, 5);
+    self.lock_errno = self.host.errno();
+    transition rc == 0 { true -> acquired() _ -> contended() }
+    state acquired(&mut self) -> TryLockResult { TryLockResult::Acquired }
+    state contended(&mut self) -> TryLockResult { transition self.lock_errno == 35 { true -> would_block() _ -> failed() } }
+    state would_block(&mut self) -> TryLockResult { TryLockResult::WouldBlock }
+    state failed(&mut self) -> TryLockResult { let kind: ErrorKind = self.last_error(); TryLockResult::Error { kind: kind } }
+}
+
+macos_arm64 machine Filesystem::unlock(&mut self, file: File) -> UnitResult {
+    self.file_fd = file.fd;
+    let rc: i32 = self.host.lock_file(self.file_fd, 8);
+    transition rc == 0 { true -> ok() _ -> err() }
+    state ok(&mut self) -> UnitResult { UnitResult::Ok }
+    state err(&mut self) -> UnitResult { let kind: ErrorKind = self.last_error(); UnitResult::Error { kind: kind } }
+}

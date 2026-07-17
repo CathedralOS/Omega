@@ -382,6 +382,16 @@ pub enum HostOperation {
     /// session slice 4b). `creation` rides as a NULL-able scalar (0 = leave
     /// alone); BOOL result. Windows-only.
     SetFileTime,
+    /// `LockFileEx(handle, flags, reserved, length_low, length_high,
+    /// overlapped)` -- acquire a Win32 byte-range lock. The std wrapper uses
+    /// offset zero and the full u64 length to provide whole-file locking.
+    LockFileEx,
+    /// `UnlockFile(handle, offset_low, offset_high, length_low, length_high)` --
+    /// release a Win32 byte-range lock. Windows-only.
+    UnlockFile,
+    /// `GetLastError()` -- read the calling thread's Win32 last-error value.
+    /// Unlike `ReadErrno`, this returns the value directly (no dereference).
+    GetLastError,
     /// `stat(path, buf)` -- fill a `struct stat` buffer for a PATH (Rust
     /// `fs::metadata`). A path pointer + a buffer pointer (the kernel writes the
     /// 144-byte darwin stat record through it); the Omega layer reads `st_size`
@@ -657,6 +667,9 @@ impl HostOperation {
             "get_osfhandle" => Self::GetOsfHandle,
             "final_path_name_by_handle" => Self::FinalPathNameByHandle,
             "set_file_time" => Self::SetFileTime,
+            "lock_file_ex" => Self::LockFileEx,
+            "unlock_file" => Self::UnlockFile,
+            "get_last_error" => Self::GetLastError,
             "stat" => Self::Stat,
             "fstat" => Self::FStat,
             "lstat" => Self::LStat,
@@ -756,6 +769,9 @@ impl HostOperation {
             Self::GetOsfHandle => "get_osfhandle",
             Self::FinalPathNameByHandle => "final_path_name_by_handle",
             Self::SetFileTime => "set_file_time",
+            Self::LockFileEx => "lock_file_ex",
+            Self::UnlockFile => "unlock_file",
+            Self::GetLastError => "get_last_error",
             Self::Stat => "stat",
             Self::FStat => "fstat",
             Self::LStat => "lstat",

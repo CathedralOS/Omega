@@ -299,8 +299,12 @@ pub(super) fn select_host_operation_operands(
                 _ => HandleSpan::empty(),
             }
         }
-        (HostCapability::Filesystem, HostOperation::ReadErrno) => {
-            // `errno = read_errno() -> ___error()` then deref. NO call args:
+        (
+            HostCapability::Filesystem,
+            HostOperation::ReadErrno | HostOperation::GetLastError,
+        ) => {
+            // `errno = read_errno() -> ___error()` then deref, or
+            // `error = get_last_error() -> GetLastError()` directly. NO call args:
             // operand[0] is the result place, and that is the whole operand
             // list. Unresolvable result => no operands so the encoder errors.
             match first_scalar_argument_operand(input, host_call, dispatch_index) {
@@ -1158,6 +1162,84 @@ pub(super) fn select_host_operation_operands(
                         operand(write),
                     ])
                 }
+                _ => HandleSpan::empty(),
+            }
+        }
+        (HostCapability::Filesystem, HostOperation::LockFileEx) => {
+            // `rc = lock_file_ex(handle, flags, reserved, low, high, overlapped)`
+            // mirrors LockFileEx exactly. The last two scalar arguments ride
+            // Win64's outgoing stack area; the pointer is the sixth argument.
+            let result = first_scalar_argument_operand(input, host_call, dispatch_index);
+            let handle =
+                scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 1);
+            let flags =
+                scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 2);
+            let reserved =
+                scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 3);
+            let low =
+                scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 4);
+            let high =
+                scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 5);
+            let overlapped =
+                address_argument_operand_at(input, host_call, dispatch_index, alias_context, 6);
+            match (result, handle, flags, reserved, low, high, overlapped) {
+                (
+                    Some(result),
+                    Some(handle),
+                    Some(flags),
+                    Some(reserved),
+                    Some(low),
+                    Some(high),
+                    Some(overlapped),
+                ) => operands.insert_many([
+                    operand(result),
+                    operand(handle),
+                    operand(flags),
+                    operand(reserved),
+                    operand(low),
+                    operand(high),
+                    operand(overlapped),
+                ]),
+                _ => HandleSpan::empty(),
+            }
+        }
+        (HostCapability::Filesystem, HostOperation::UnlockFile) => {
+            // `rc = unlock_file(handle, offset_low, offset_high, length_low,
+            // length_high) -> UnlockFile(...)` -- five scalar call arguments.
+            let result = first_scalar_argument_operand(input, host_call, dispatch_index);
+            let handle =
+                scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 1);
+            let offset_low =
+                scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 2);
+            let offset_high =
+                scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 3);
+            let length_low =
+                scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 4);
+            let length_high =
+                scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 5);
+            match (
+                result,
+                handle,
+                offset_low,
+                offset_high,
+                length_low,
+                length_high,
+            ) {
+                (
+                    Some(result),
+                    Some(handle),
+                    Some(offset_low),
+                    Some(offset_high),
+                    Some(length_low),
+                    Some(length_high),
+                ) => operands.insert_many([
+                    operand(result),
+                    operand(handle),
+                    operand(offset_low),
+                    operand(offset_high),
+                    operand(length_low),
+                    operand(length_high),
+                ]),
                 _ => HandleSpan::empty(),
             }
         }

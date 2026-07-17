@@ -107,7 +107,7 @@ boundary trait FilesystemHost {
     // descriptor as i64, or -2 (msvcrt's INVALID_HANDLE_VALUE spelling) for
     // a bad fd -- consumers treat any negative as failure. Unlocks the
     // HANDLE-keyed kernel32 surface (GetFinalPathNameByHandleA here;
-    // SetFileTime/LockFileEx ride the same bridge next).
+    // SetFileTime/LockFileEx ride the same bridge).
     machine get_osfhandle(fd: i32) -> i64 effects filesystem_io;
     // `GetFinalPathNameByHandleA(handle, buffer, capacity, flags)` -- resolve
     // an OPEN handle to its final path (flags 0 = VOLUME_NAME_DOS, a
@@ -124,6 +124,14 @@ boundary trait FilesystemHost {
     // alone. Returns BOOL (non-zero success); failures live in GetLastError,
     // not msvcrt errno.
     machine set_file_time(handle: i64, creation: i64, last_access: &[u8], last_write: &[u8]) -> i32 effects filesystem_io;
+    // Win32 whole-file locking. These mirror the kernel32 signatures exactly:
+    // LockFileEx(handle, flags, reserved, length_low, length_high, overlapped)
+    // and UnlockFile(handle, offset_low, offset_high, length_low, length_high).
+    // The wrapper uses offset 0 and length 2^64-1. BOOL results; failure detail
+    // is captured immediately through get_last_error.
+    machine lock_file_ex(handle: i64, flags: u32, reserved: u32, length_low: u32, length_high: u32, overlapped: &mut [u8]) -> i32 effects filesystem_io;
+    machine unlock_file(handle: i64, offset_low: u32, offset_high: u32, length_low: u32, length_high: u32) -> i32 effects filesystem_io;
+    machine get_last_error() -> i32 effects filesystem_io;
     // Remove a FILE / an empty DIRECTORY by a TRUSTED plain `&[u8]` path -- the
     // D-at trust class twins of `remove` / `remove_dir` (same native rows, the
     // `create_dir_name` precedent): a path JOINED inside a dir-walk from
