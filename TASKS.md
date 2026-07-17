@@ -2689,13 +2689,29 @@ no `unbounded` property exists. Rungs:
   computed subject sub(b, a); zoo at 20 Nat machines). FALSE TWIN:
   computed_subject_requires_undischarged (the mod shape without
   1 <= b refuses -- with b == Zero the recursion truly diverges).
-  REMAINING slice a3 -- GCD: needs mod to CARRY `ensures result < b`
-  (the gcd edge's obligation is mod(a,b) < b at measure b); the
-  Succ-arm face needs lt_of_sub_pos (from sub(b, a) == Succ w derive
-  sub(Succ a, b) == Zero -- monus conversion, another small lemma
-  chain); the recursive arm's face is the IH directly. Then gcd
-  recurses gcd(b, mod(a, b)) citing mod's ensures; then rat.omg
-  (reduced fractions, gcd == 1). `sub_zero_left` landed as the monus
+  REMAINING slice a3 -- GCD, analysis sharpened 2026-07-20: gcd
+  needs mod to CARRY `ensures result < b`. KEY SIMPLIFICATION: flip
+  mod's dispatch to case sub(Succ a, b) instead of sub(b, a) -- then
+  the a<b arm's case hypothesis IS the ensures goal verbatim (free),
+  and only the recursive arm needs a conversion (from
+  sub(Succ a, b) == Succ w derive sub(b, a) == Zero -- order
+  TOTALITY/dichotomy). BOTTLENECK IDENTIFIED: every remaining
+  conversion lemma (dichotomy, lt_of_sub_pos, pred_eq_succ chains)
+  needs DOUBLE DESTRUCTURE -- casing two subjects -- and
+  recognize_structural_case_arms only walks ONE hop (root arms ->
+  one flat sub-state ending in a Value terminal). THE NEXT JUDGE
+  EXTENSION is nested-arm recognition: allow a sub-state to hold its
+  own case dispatch (arms become a tree; each leaf carries the
+  CONJUNCTION of case hypotheses + per-level IH environments). Also
+  needed for mod's ensures at all: the recognizer requires a
+  VARIABLE subject -- a computed subject (sub(Succ a, b)) must
+  contribute its arm equation as an intaken HYPOTHESIS instead of a
+  substitution (second recognizer extension, small). Order: (1)
+  computed-subject arm hypotheses, (2) nested arms, (3) dichotomy
+  lemma, (4) mod ensures via the flipped dispatch, (5) gcd citing
+  mod's ensures (measure b, edge arg mod(a,b) -- the cited_strict_
+  decrease rule already matches it once mod's ensures exists), (6)
+  rat.omg. `sub_zero_left` landed as the monus
   surface's completion (5 lemmas, zoo at 13 Nat). Task #134 rung 1 COMPLETE;
   the rat.omg carrier waits only on this engineering rung.
 - **N5 — `boundary data` + the Real axiom package:** opaque carrier;
