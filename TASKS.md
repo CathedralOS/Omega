@@ -650,10 +650,19 @@ sealed progress profiles + grants, TPR4's remaining big half).
    it, the walker patches from the kind's own region). The INDEXED
    integer-write encoders do NOT delegate yet: their retired layout
    stages the index through RAX (mov rax,[base+idx]; imul rax), not
-   r11 -- delegation there is a CANONICALIZATION (bytes change, walker
-   offsets move in lockstep), the Copy rung-1b/1c pattern, queued as
-   rung 1c. Rung 2a after: the WritePlaceInteger variant + echo
-   product + producer migration. Pre-existing dead helpers noted en route (shapes/copies.rs
+   r11 -- delegation there is a CANONICALIZATION, queued as rung 1c.
+   WRITE RUNG 1c FIRST HALF LANDED 2026-07-19:
+   encode_runtime_machine_indexed_integer_write delegates -- a pure
+   REGISTER RENAME (index staged in r11 not RAX; a frame-resident
+   index base in r11 not r10): every instruction width matches
+   position-for-position, so the walker's +10 frame-base offset and
+   the width fn hold AS-IS (the width debug_assert is the sentinel);
+   the differential legs oracle the byte change. REMAINING 1c: the
+   frame-indexed (descriptor-deref) + frame-base-indexed +
+   machine-double-indexed integer-write encoders (same rename
+   analysis per encoder -- verify widths/offsets before each).
+   Rung 2a after: the WritePlaceInteger variant + echo product +
+   producer migration. Pre-existing dead helpers noted en route (shapes/copies.rs
    runtime_storage_copy_kind + _to_runtime_frame_indexed_kind +
    from/to_machine_indexed_kind -- orphaned by EARLIER retirements,
    swept opportunistically at the next touch).
