@@ -832,9 +832,26 @@ sealed progress profiles + grants, TPR4's remaining big half).
    left/right pattern); the aarch64 reloc arm is an explicit
    unreachable until producers land (refuse loudly, never
    under-patch).
-   NEXT: producer migration (the six Write*Binary construction-site
-   sweep, the integer-2b transformer pattern with the pattern-skip
-   fix) + blocker matcher rows + retirement.
+   BINARY 2b LANDED 2026-07-19 -- ALL 24 PRODUCER SITES MIGRATED
+   (storage x12, pointee x6, frame-indexed x4, frame-base x1,
+   machine-indexed x1, double x1; the shaped constructors are
+   Exact-only matching the retired field sets; the direct one carries
+   the float/domain/signedness triple). The migration went LIVE
+   mid-commit and immediately exercised the aarch64 walker branch --
+   the placeholder unreachable was replaced with the per-shape mirror
+   of the retained arms (start = target region; machine-indexed
+   frame reloc + operand shift 8; double shared frame base; operand
+   offsets via the retained per-shape fns; classified by the SAME
+   classify_write_place_shape the encoder decomposes with).
+   Matchers realigned in the same commit: blocker OR-rows (text +
+   storage), the prelude splice direct row, call_result
+   instruction_write_target + descriptor instruction_frame_write_range
+   (direct places expose their range, deref/indexed claim none).
+   Battery green incl. differential 14/14 -- the six Write*Binary
+   variants are PRODUCER-FREE.
+   RETIREMENT NEXT: delete the six variants + echoes (the balance-
+   aware discipline; KEEP the six aarch64 encoders + per-shape offset
+   fns the decompose/walker ride; the x86 delegating shells die).
    Rung 2a after: the WritePlaceInteger variant + echo product +
    producer migration. Pre-existing dead helpers noted en route (shapes/copies.rs
    runtime_storage_copy_kind + _to_runtime_frame_indexed_kind +

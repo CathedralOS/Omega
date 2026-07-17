@@ -304,6 +304,177 @@ pub(crate) fn copy_places_from_machine_double_indexed(
     }
 }
 
+/// Binary rung 2b: the place-shaped binary write constructors. The shaped
+/// forms are Exact-only (matching the retired kinds' field sets); the
+/// direct form carries the full float/domain/signedness triple.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn write_place_binary_direct(
+    region: RuntimeStorageRegion,
+    byte_offset: usize,
+    byte_size: usize,
+    left: omega_abstract_operations::AbstractValueOperandHandle,
+    operator: omega_abstract_operations::StateGuardOperator,
+    right: omega_abstract_operations::AbstractValueOperandHandle,
+    is_float: bool,
+    domain: omega_core::arithmetic::ArithmeticDomain,
+    target_signed: bool,
+) -> SelectedInstructionKind {
+    SelectedInstructionKind::WritePlaceBinary {
+        target: omega_abstract_operations::Place::at(region, byte_offset),
+        byte_size,
+        left,
+        operator,
+        right,
+        is_float,
+        domain,
+        target_signed,
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn write_place_binary_pointee(
+    pointer_byte_offset: usize,
+    field_byte_offset: usize,
+    byte_size: usize,
+    left: omega_abstract_operations::AbstractValueOperandHandle,
+    operator: omega_abstract_operations::StateGuardOperator,
+    right: omega_abstract_operations::AbstractValueOperandHandle,
+) -> SelectedInstructionKind {
+    SelectedInstructionKind::WritePlaceBinary {
+        target: omega_abstract_operations::Place::at(
+            RuntimeStorageRegion::RuntimeFrame,
+            pointer_byte_offset,
+        )
+        .with_step(omega_abstract_operations::PlaceStep::Deref)
+        .and_then(|place| {
+            place.with_step(omega_abstract_operations::PlaceStep::ConstOffset(
+                field_byte_offset,
+            ))
+        })
+        .expect("a pointee place is three steps, within PLACE_MAX_STEPS"),
+        byte_size,
+        left,
+        operator,
+        right,
+        is_float: false,
+        domain: omega_core::arithmetic::ArithmeticDomain::Exact,
+        target_signed: false,
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn write_place_binary_frame_indexed(
+    descriptor_offset: usize,
+    index_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    byte_size: usize,
+    left: omega_abstract_operations::AbstractValueOperandHandle,
+    operator: omega_abstract_operations::StateGuardOperator,
+    right: omega_abstract_operations::AbstractValueOperandHandle,
+) -> SelectedInstructionKind {
+    SelectedInstructionKind::WritePlaceBinary {
+        target: omega_abstract_operations::Place::at(
+            RuntimeStorageRegion::RuntimeFrame,
+            descriptor_offset,
+        )
+        .with_step(omega_abstract_operations::PlaceStep::Deref)
+        .and_then(|place| {
+            place.with_step(omega_abstract_operations::PlaceStep::ScaledIndex {
+                index_region: RuntimeStorageRegion::RuntimeFrame,
+                index_offset,
+                element_byte_size,
+            })
+        })
+        .and_then(|place| {
+            place.with_step(omega_abstract_operations::PlaceStep::ConstOffset(
+                field_byte_offset,
+            ))
+        })
+        .expect("a frame-indexed place is four steps, within PLACE_MAX_STEPS"),
+        byte_size,
+        left,
+        operator,
+        right,
+        is_float: false,
+        domain: omega_core::arithmetic::ArithmeticDomain::Exact,
+        target_signed: false,
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn write_place_binary_base_indexed(
+    region: RuntimeStorageRegion,
+    base_byte_offset: usize,
+    index_region: RuntimeStorageRegion,
+    index_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    byte_size: usize,
+    left: omega_abstract_operations::AbstractValueOperandHandle,
+    operator: omega_abstract_operations::StateGuardOperator,
+    right: omega_abstract_operations::AbstractValueOperandHandle,
+) -> SelectedInstructionKind {
+    SelectedInstructionKind::WritePlaceBinary {
+        target: omega_abstract_operations::Place::at(region, base_byte_offset)
+            .with_step(omega_abstract_operations::PlaceStep::ScaledIndex {
+                index_region,
+                index_offset,
+                element_byte_size,
+            })
+            .and_then(|place| {
+                place.with_step(omega_abstract_operations::PlaceStep::ConstOffset(
+                    field_byte_offset,
+                ))
+            })
+            .expect("a base-indexed place is three steps, within PLACE_MAX_STEPS"),
+        byte_size,
+        left,
+        operator,
+        right,
+        is_float: false,
+        domain: omega_core::arithmetic::ArithmeticDomain::Exact,
+        target_signed: false,
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn write_place_binary_double_indexed(
+    base_byte_offset: usize,
+    outer_index_region: RuntimeStorageRegion,
+    outer_index_offset: usize,
+    outer_stride: usize,
+    inner_index_region: RuntimeStorageRegion,
+    inner_index_offset: usize,
+    inner_stride: usize,
+    field_byte_offset: usize,
+    byte_size: usize,
+    left: omega_abstract_operations::AbstractValueOperandHandle,
+    operator: omega_abstract_operations::StateGuardOperator,
+    right: omega_abstract_operations::AbstractValueOperandHandle,
+) -> SelectedInstructionKind {
+    SelectedInstructionKind::WritePlaceBinary {
+        target: double_indexed_place(
+            RuntimeStorageRegion::Machine,
+            base_byte_offset,
+            outer_index_region,
+            outer_index_offset,
+            outer_stride,
+            inner_index_region,
+            inner_index_offset,
+            inner_stride,
+            field_byte_offset,
+        ),
+        byte_size,
+        left,
+        operator,
+        right,
+        is_float: false,
+        domain: omega_core::arithmetic::ArithmeticDomain::Exact,
+        target_signed: false,
+    }
+}
+
 /// Write rung 2b: the place-shaped integer write constructors -- the seven
 /// Write*Integer kinds collapse onto WritePlaceInteger through these.
 pub(crate) fn write_place_integer_direct(

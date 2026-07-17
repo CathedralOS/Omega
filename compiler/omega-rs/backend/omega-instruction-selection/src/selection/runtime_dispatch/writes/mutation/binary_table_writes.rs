@@ -322,17 +322,17 @@ fn select_runtime_targeted_binary_mutation_write_in_table(
         invalidate_runtime_static_value_in_table(static_values, expressions, target);
         let zero = runtime_value_operands.insert(RuntimeValueOperand::Immediate(0));
         let target_place = target_place?;
-        return Some(SelectedInstructionKind::WriteRuntimeStorageBinary {
-            target_region: target_place.region,
-            target_offset: target_place.byte_offset,
-            byte_size: target_place.byte_count,
-            left: text_equals,
-            operator: StateGuardOperator::Or,
-            right: zero,
-            is_float: false,
-            domain: omega_core::arithmetic::ArithmeticDomain::Exact,
-            target_signed: false,
-        });
+        return Some(crate::selection::runtime_dispatch::write_place_binary_direct(
+            target_place.region,
+            target_place.byte_offset,
+            target_place.byte_count,
+            text_equals,
+            StateGuardOperator::Or,
+            zero,
+            false,
+            omega_core::arithmetic::ArithmeticDomain::Exact,
+            false,
+        ));
     }
 
     // Division, modulo, right shift, min/max, and comparisons differ by
@@ -448,16 +448,16 @@ fn select_runtime_targeted_binary_mutation_write_in_table(
             expressions,
             target,
         ) {
-            return Some(SelectedInstructionKind::WriteRuntimeFrameIndexedBinary {
-                descriptor_offset: indexed_target.descriptor_offset,
-                index_offset: indexed_target.index_offset,
-                element_byte_size: indexed_target.element_byte_size,
-                field_byte_offset: indexed_target.field_byte_offset,
-                byte_size: indexed_target.byte_count,
+            return Some(crate::selection::runtime_dispatch::write_place_binary_frame_indexed(
+                indexed_target.descriptor_offset,
+                indexed_target.index_offset,
+                indexed_target.element_byte_size,
+                indexed_target.field_byte_offset,
+                indexed_target.byte_count,
                 left,
                 operator,
                 right,
-            });
+            ));
         }
 
         if let Some(pointer_target) = resolve_runtime_pointee_fixed_indexed_target_in_table(
@@ -467,14 +467,14 @@ fn select_runtime_targeted_binary_mutation_write_in_table(
             expressions,
             target,
         ) {
-            return Some(SelectedInstructionKind::WriteRuntimePointeeBinary {
-                pointer_byte_offset: pointer_target.pointer_byte_offset,
-                field_byte_offset: pointer_target.field_byte_offset,
-                byte_size: pointer_target.pointee_byte_size,
+            return Some(crate::selection::runtime_dispatch::write_place_binary_pointee(
+                pointer_target.pointer_byte_offset,
+                pointer_target.field_byte_offset,
+                pointer_target.pointee_byte_size,
                 left,
                 operator,
                 right,
-            });
+            ));
         }
 
         if let Some(pointer_target) = resolve_runtime_pointee_slot_offset_in_table(
@@ -484,14 +484,14 @@ fn select_runtime_targeted_binary_mutation_write_in_table(
             expressions,
             target,
         ) {
-            return Some(SelectedInstructionKind::WriteRuntimePointeeBinary {
-                pointer_byte_offset: pointer_target.pointer_byte_offset,
-                field_byte_offset: pointer_target.field_byte_offset,
-                byte_size: pointer_target.pointee_byte_size,
+            return Some(crate::selection::runtime_dispatch::write_place_binary_pointee(
+                pointer_target.pointer_byte_offset,
+                pointer_target.field_byte_offset,
+                pointer_target.pointee_byte_size,
                 left,
                 operator,
                 right,
-            });
+            ));
         }
     }
 
@@ -518,17 +518,17 @@ fn select_runtime_targeted_binary_mutation_write_in_table(
     .unwrap_or(false);
 
     let target_place = target_place?;
-    Some(SelectedInstructionKind::WriteRuntimeStorageBinary {
-        target_region: target_place.region,
-        target_offset: target_place.byte_offset,
-        byte_size: target_place.byte_count,
+    Some(crate::selection::runtime_dispatch::write_place_binary_direct(
+        target_place.region,
+        target_place.byte_offset,
+        target_place.byte_count,
         left,
         operator,
         right,
         is_float,
         domain,
         target_signed,
-    })
+    ))
 }
 
 /// Replace a signed division/modulo/right-shift/min/max/comparison operator with
@@ -864,7 +864,7 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_storage_binary_writ
         right_expression,
     );
     let target_signed = resolved_signed.unwrap_or(false);
-    Some(SelectedInstructionKind::WriteRuntimeStorageBinary {
+    Some(crate::selection::runtime_dispatch::write_place_binary_direct(
         target_region,
         target_offset,
         byte_size,
@@ -874,7 +874,7 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_storage_binary_writ
         is_float,
         domain,
         target_signed,
-    })
+    ))
 }
 
 /// When a binary's target is f32, a float-LITERAL operand was resolved to its f64

@@ -94,17 +94,17 @@ fn trapping_frame_slot_constant_overflow_write(
     };
     let left = runtime_value_operands.insert(RuntimeValueOperand::Immediate(bound));
     let right = runtime_value_operands.insert(RuntimeValueOperand::Immediate(1));
-    Some(SelectedInstructionKind::WriteRuntimeStorageBinary {
-        target_region: RuntimeStorageRegion::RuntimeFrame,
-        target_offset: slot.byte_offset,
-        byte_size: slot.byte_size,
+    Some(crate::selection::runtime_dispatch::write_place_binary_direct(
+        RuntimeStorageRegion::RuntimeFrame,
+        slot.byte_offset,
+        slot.byte_size,
         left,
         operator,
         right,
-        is_float: false,
-        domain: omega_core::arithmetic::ArithmeticDomain::Trapping,
-        target_signed: primitive.is_signed_integer(),
-    })
+        false,
+        omega_core::arithmetic::ArithmeticDomain::Trapping,
+        primitive.is_signed_integer(),
+    ))
 }
 
 #[allow(clippy::too_many_arguments)]

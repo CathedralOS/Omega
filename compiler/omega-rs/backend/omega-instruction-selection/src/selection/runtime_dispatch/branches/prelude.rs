@@ -360,6 +360,9 @@ fn select_runtime_branch_prelude_local_initializer_write(
             SelectedInstructionKind::WritePlaceInteger { target, .. } => {
                 target.const_offset().is_some()
             }
+            SelectedInstructionKind::WritePlaceBinary { target, .. } => {
+                target.const_offset().is_some()
+            }
             _ => false,
         };
         if expansion.role == omega_state_calls::StateCallRole::TransitionGuard

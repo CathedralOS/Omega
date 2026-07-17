@@ -1153,16 +1153,16 @@ fn select_runtime_binary_mutation_write_in_table(
         expressions,
         target,
     ) {
-        return Some(SelectedInstructionKind::WriteRuntimeFrameIndexedBinary {
-            descriptor_offset: indexed_target.descriptor_offset,
-            index_offset: indexed_target.index_offset,
-            element_byte_size: indexed_target.element_byte_size,
-            field_byte_offset: indexed_target.field_byte_offset,
-            byte_size: indexed_target.byte_count,
+        return Some(crate::selection::runtime_dispatch::write_place_binary_frame_indexed(
+            indexed_target.descriptor_offset,
+            indexed_target.index_offset,
+            indexed_target.element_byte_size,
+            indexed_target.field_byte_offset,
+            indexed_target.byte_count,
             left,
             operator,
             right,
-        });
+        ));
     }
 
     if let Some(pointer_target) = resolve_runtime_pointee_slot_offset_in_table(
@@ -1172,14 +1172,14 @@ fn select_runtime_binary_mutation_write_in_table(
         expressions,
         target,
     ) {
-        return Some(SelectedInstructionKind::WriteRuntimePointeeBinary {
-            pointer_byte_offset: pointer_target.pointer_byte_offset,
-            field_byte_offset: pointer_target.field_byte_offset,
-            byte_size: pointer_target.pointee_byte_size,
+        return Some(crate::selection::runtime_dispatch::write_place_binary_pointee(
+            pointer_target.pointer_byte_offset,
+            pointer_target.field_byte_offset,
+            pointer_target.pointee_byte_size,
             left,
             operator,
             right,
-        });
+        ));
     }
 
     let target_place = resolve_runtime_storage_place_in_table(
@@ -1220,17 +1220,17 @@ fn select_runtime_binary_mutation_write_in_table(
         target,
     )
     .unwrap_or(false);
-    Some(SelectedInstructionKind::WriteRuntimeStorageBinary {
-        target_region: target_place.region,
-        target_offset: target_place.byte_offset,
-        byte_size: target_place.byte_count,
+    Some(crate::selection::runtime_dispatch::write_place_binary_direct(
+        target_place.region,
+        target_place.byte_offset,
+        target_place.byte_count,
         left,
         operator,
         right,
         is_float,
         domain,
         target_signed,
-    })
+    ))
 }
 
 /// The binary write's TARGET arms (frame-indexed staging / pointee / plain
@@ -1258,16 +1258,16 @@ fn select_runtime_binary_mutation_write_target_arms(
         expressions,
         target,
     ) {
-        return Some(SelectedInstructionKind::WriteRuntimeFrameIndexedBinary {
-            descriptor_offset: indexed_target.descriptor_offset,
-            index_offset: indexed_target.index_offset,
-            element_byte_size: indexed_target.element_byte_size,
-            field_byte_offset: indexed_target.field_byte_offset,
-            byte_size: indexed_target.byte_count,
+        return Some(crate::selection::runtime_dispatch::write_place_binary_frame_indexed(
+            indexed_target.descriptor_offset,
+            indexed_target.index_offset,
+            indexed_target.element_byte_size,
+            indexed_target.field_byte_offset,
+            indexed_target.byte_count,
             left,
             operator,
             right,
-        });
+        ));
     }
     if let Some(pointer_target) = resolve_runtime_pointee_slot_offset_in_table(
         input,
@@ -1276,14 +1276,14 @@ fn select_runtime_binary_mutation_write_target_arms(
         expressions,
         target,
     ) {
-        return Some(SelectedInstructionKind::WriteRuntimePointeeBinary {
-            pointer_byte_offset: pointer_target.pointer_byte_offset,
-            field_byte_offset: pointer_target.field_byte_offset,
-            byte_size: pointer_target.pointee_byte_size,
+        return Some(crate::selection::runtime_dispatch::write_place_binary_pointee(
+            pointer_target.pointer_byte_offset,
+            pointer_target.field_byte_offset,
+            pointer_target.pointee_byte_size,
             left,
             operator,
             right,
-        });
+        ));
     }
     let target_place = resolve_runtime_storage_place_in_table(
         input,
@@ -1292,17 +1292,17 @@ fn select_runtime_binary_mutation_write_target_arms(
         expressions,
         target,
     )?;
-    Some(SelectedInstructionKind::WriteRuntimeStorageBinary {
-        target_region: target_place.region,
-        target_offset: target_place.byte_offset,
-        byte_size: target_place.byte_count,
+    Some(crate::selection::runtime_dispatch::write_place_binary_direct(
+        target_place.region,
+        target_place.byte_offset,
+        target_place.byte_count,
         left,
         operator,
         right,
-        is_float: false,
-        domain: omega_core::arithmetic::ArithmeticDomain::Exact,
-        target_signed: false,
-    })
+        false,
+        omega_core::arithmetic::ArithmeticDomain::Exact,
+        false,
+    ))
 }
 
 fn resolve_runtime_value_operand_in_table(

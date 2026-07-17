@@ -434,17 +434,17 @@ fn emit_runtime_descriptor_subslice(
             let ptr_right =
                 runtime_value_operands.insert(RuntimeValueOperand::Immediate(ptr_delta as i64));
             selected_instructions.push(SelectedInstruction {
-                kind: SelectedInstructionKind::WriteRuntimeStorageBinary {
-                    target_region: RuntimeStorageRegion::RuntimeFrame,
-                    target_offset: slot.byte_offset + ptr_offset,
-                    byte_size: ptr_size,
-                    left: ptr_left,
-                    operator: StateGuardOperator::Add,
-                    right: ptr_right,
-                    is_float: false,
-                    domain: omega_core::arithmetic::ArithmeticDomain::Exact,
-                    target_signed: false,
-                },
+                kind: crate::selection::runtime_dispatch::write_place_binary_direct(
+                    RuntimeStorageRegion::RuntimeFrame,
+                    slot.byte_offset + ptr_offset,
+                    ptr_size,
+                    ptr_left,
+                    StateGuardOperator::Add,
+                    ptr_right,
+                    false,
+                    omega_core::arithmetic::ArithmeticDomain::Exact,
+                    false,
+                ),
                 source_key: value_source_key,
                 source_statement: statement_index,
             });
@@ -477,17 +477,17 @@ fn emit_runtime_descriptor_subslice(
         let left = runtime_value_operands.insert(left);
         let right = runtime_value_operands.insert(right);
         selected_instructions.push(SelectedInstruction {
-            kind: SelectedInstructionKind::WriteRuntimeStorageBinary {
-                target_region: RuntimeStorageRegion::RuntimeFrame,
-                target_offset: target_len_offset,
-                byte_size: len_size,
+            kind: crate::selection::runtime_dispatch::write_place_binary_direct(
+                RuntimeStorageRegion::RuntimeFrame,
+                target_len_offset,
+                len_size,
                 left,
-                operator: StateGuardOperator::Subtract,
+                StateGuardOperator::Subtract,
                 right,
-                is_float: false,
-                domain: omega_core::arithmetic::ArithmeticDomain::Exact,
-                target_signed: false,
-            },
+                false,
+                omega_core::arithmetic::ArithmeticDomain::Exact,
+                false,
+            ),
             source_key: value_source_key,
             source_statement: statement_index,
         });
