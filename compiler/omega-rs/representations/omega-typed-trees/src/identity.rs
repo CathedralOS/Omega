@@ -80,28 +80,6 @@ pub fn count_identity_storage(typed_trees: &TypedTrees) -> IdentityStorageCounts
         }
     }
 
-    for platform in typed_trees.platforms() {
-        count_declaration_name(&platform.name, &mut counts);
-        for signature in typed_trees.platform_state_signatures(platform) {
-            count_declaration_name(&signature.name, &mut counts);
-            if signature.return_type.is_valid() {
-                count_type_reference_handle(
-                    &typed_trees.type_reference_table,
-                    signature.return_type,
-                    &mut counts,
-                );
-            }
-            for parameter in typed_trees.state_signature_parameters(signature) {
-                count_declaration_name(&parameter.name, &mut counts);
-                count_type_reference_handle(
-                    &typed_trees.type_reference_table,
-                    parameter.type_reference,
-                    &mut counts,
-                );
-            }
-        }
-    }
-
     for trait_definition in typed_trees.traits() {
         count_declaration_name(&trait_definition.name, &mut counts);
         for parameter in typed_trees.trait_type_parameters(trait_definition) {

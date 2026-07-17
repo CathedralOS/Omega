@@ -206,13 +206,5 @@ pub(crate) fn contract_target_from_state_symbol(
         return Some((target_trait.symbol, target_state_symbol));
     }
 
-    // Same shape for a platform-typed receiver: the owning platform stands in
-    // for the machine so its state signature's contracts attach to the call.
-    let target_platform = program.platforms().iter().find(|platform| {
-        program
-            .platform_state_signatures(platform)
-            .iter()
-            .any(|signature| signature.symbol == target_state_symbol)
-    })?;
-    Some((target_platform.symbol, target_state_symbol))
+    None
 }

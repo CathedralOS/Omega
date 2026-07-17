@@ -7,7 +7,6 @@ use crate::{
 use omega_checked_trees::CheckedTrees;
 use omega_checked_trees::data::{DataDefinition, DataMember, DataShapeKind};
 use omega_checked_trees::machine::Machine;
-use omega_checked_trees::platform::Platform;
 use omega_checked_trees::trait_definition::TraitDefinition;
 use omega_checked_trees::types::{
     FixedArrayLength, PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
@@ -83,7 +82,6 @@ struct LayoutBuilder<'program> {
     machine_definitions: &'program [Machine],
     machine_layouts: Arena<MachineLayout>,
     machine_visiting: LayoutVisitStack,
-    platform_definitions: &'program [Platform],
     trait_definitions: &'program [TraitDefinition],
     program: &'program CheckedTrees,
     target: NativeTarget,
@@ -191,7 +189,6 @@ impl<'program> LayoutBuilder<'program> {
             machine_definitions,
             machine_layouts: Arena::with_capacity(machine_definitions.len()),
             machine_visiting: LayoutVisitStack::with_capacity(machine_definitions.len()),
-            platform_definitions: program.platforms(),
             trait_definitions: program.traits(),
             program,
             target,
@@ -904,17 +901,6 @@ impl<'program> LayoutBuilder<'program> {
             .any(|machine| machine.symbol == symbol)
         {
             return self.layout_machine(symbol);
-        }
-
-        if self
-            .platform_definitions
-            .iter()
-            .any(|platform| platform.symbol == symbol)
-        {
-            return Ok(TypeLayout {
-                size: self.target.pointer_size,
-                alignment: self.target.pointer_alignment,
-            });
         }
 
         if self.trait_definitions.iter().any(|trait_definition| {

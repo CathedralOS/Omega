@@ -120,8 +120,7 @@ fn validate_asm_intrinsic_declarations(
         // Rule 1: direct emission sites.
         for state in program.machine_states(machine) {
             for statement in program.statement_table.statements(state.statement_nodes) {
-                let Some((instruction, effects)) =
-                    statement_asm_intrinsic(program, statement)
+                let Some((instruction, effects)) = statement_asm_intrinsic(program, statement)
                 else {
                     continue;
                 };
@@ -324,16 +323,6 @@ fn resolve_discard_callee(
         });
     }
 
-    for platform in program.platforms() {
-        if let Some(signature) = program
-            .platform_state_signatures(platform)
-            .iter()
-            .find(|signature| signature.symbol == target_symbol)
-        {
-            return Some(signature_discard_callee(program, signature));
-        }
-    }
-
     for trait_definition in program.traits() {
         if let Some(signature) = program
             .trait_machine_signatures(trait_definition)
@@ -347,8 +336,8 @@ fn resolve_discard_callee(
     None
 }
 
-/// Platform and boundary-trait signatures have no body to traverse; their
-/// declared effect list IS their full effect surface.
+/// Boundary-trait signatures have no body to traverse; their declared effect
+/// list IS their full effect surface.
 fn signature_discard_callee(
     program: &TypedTrees,
     signature: &omega_typed_trees::signature::StateSignature,
@@ -569,16 +558,6 @@ fn find_machine_state(
 }
 
 fn find_signature_name(program: &TypedTrees, symbol: SymbolHandle) -> Option<String> {
-    for platform in program.platforms() {
-        if let Some(signature) = program
-            .platform_state_signatures(platform)
-            .iter()
-            .find(|signature| signature.symbol == symbol)
-        {
-            return Some(signature.name.to_string());
-        }
-    }
-
     for trait_definition in program.traits() {
         if let Some(signature) = program
             .trait_machine_signatures(trait_definition)

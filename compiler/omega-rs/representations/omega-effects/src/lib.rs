@@ -695,14 +695,6 @@ fn direct_effects_for_signature_symbol(program: &TypedTrees, symbol: SymbolHandl
         return signature_effects(program, signature);
     }
 
-    for platform in program.platforms() {
-        for signature in program.platform_state_signatures(platform) {
-            if signature.symbol == symbol {
-                return signature_effects(program, signature);
-            }
-        }
-    }
-
     for trait_definition in program.traits() {
         for signature in program.trait_machine_signatures(trait_definition) {
             if signature.symbol == symbol {

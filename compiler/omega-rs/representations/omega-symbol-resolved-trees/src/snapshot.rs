@@ -5,7 +5,6 @@ use crate::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use crate::invariant::InvariantDefinition;
 use crate::machine::{Machine, OwnedData};
 use crate::operator::OperatorDefinition;
-use crate::platform::Platform;
 use crate::signature::{StateParameter, StateSignature};
 use crate::state::State;
 use crate::statement::{Statement, Transition, TransitionGuard, TransitionTarget};
@@ -60,11 +59,6 @@ impl SymbolResolvedTreesSnapshot {
                     .iter()
                     .map(|operator| operator_snapshot(symbol_resolved_trees, operator))
                     .collect(),
-                platforms: symbol_resolved_trees
-                    .platforms
-                    .iter()
-                    .map(|platform| platform_snapshot(symbol_resolved_trees, platform))
-                    .collect(),
                 traits: symbol_resolved_trees
                     .traits
                     .iter()
@@ -116,7 +110,6 @@ pub struct SymbolResolvedRootsSnapshot {
     pub machines: Vec<MachineSnapshot>,
     pub measures: Vec<MeasureDefinitionSnapshot>,
     pub operators: Vec<OperatorDefinitionSnapshot>,
-    pub platforms: Vec<PlatformSnapshot>,
     pub traits: Vec<TraitSnapshot>,
     pub wire_schemas: Vec<WireSchemaSnapshot>,
 }
@@ -299,12 +292,6 @@ pub struct OwnedDataSnapshot {
     pub name: String,
     pub type_reference: TypeReferenceSnapshot,
     pub initial_value: Option<ExpressionSnapshot>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-pub struct PlatformSnapshot {
-    pub name: String,
-    pub states: Vec<StateSignatureSnapshot>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -680,17 +667,6 @@ fn owned_data_snapshot(program: &SymbolResolvedTrees, owned: &OwnedData) -> Owne
     }
 }
 
-fn platform_snapshot(program: &SymbolResolvedTrees, platform: &Platform) -> PlatformSnapshot {
-    PlatformSnapshot {
-        name: platform.name.to_string(),
-        states: program
-            .platform_state_signatures(platform.states)
-            .iter()
-            .map(|signature| state_signature_snapshot(program, signature))
-            .collect(),
-    }
-}
-
 fn trait_definition_snapshot(
     program: &SymbolResolvedTrees,
     trait_definition: &TraitDefinition,
@@ -1012,7 +988,10 @@ fn type_reference_snapshot(
     type_reference_snapshot_from_program(program, type_reference)
 }
 
-fn wire_schema_snapshot(program: &SymbolResolvedTrees, wire_schema: &WireSchema) -> WireSchemaSnapshot {
+fn wire_schema_snapshot(
+    program: &SymbolResolvedTrees,
+    wire_schema: &WireSchema,
+) -> WireSchemaSnapshot {
     WireSchemaSnapshot {
         has_symbol: wire_schema.symbol.is_valid(),
         name: wire_schema.name.to_string(),

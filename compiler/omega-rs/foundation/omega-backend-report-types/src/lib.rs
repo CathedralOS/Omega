@@ -46,7 +46,6 @@ pub fn emission_blocker(stage: &str, reason: &str) -> EmissionBlocker {
 pub struct BackendSurfaceReport {
     pub entry_points: Arena<BackendEntryPoint>,
     pub machines: Arena<BackendMachineSurface>,
-    pub platforms: Arena<BackendPlatformSurface>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -60,11 +59,5 @@ pub struct BackendMachineSurface {
     pub name: String,
     pub contained_objects: usize,
     pub owned_data: usize,
-    pub states: usize,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct BackendPlatformSurface {
-    pub name: String,
     pub states: usize,
 }

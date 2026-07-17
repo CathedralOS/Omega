@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use omega_checked_trees::{CheckedTrees, machine::Machine, platform::Platform};
+use omega_checked_trees::{CheckedTrees, machine::Machine};
 use omega_core::allocations::AllocationDelta;
 use omega_core::arena::Arena;
 use omega_core::diagnostics::Diagnostic;
@@ -12,8 +12,8 @@ use omega_target::NativeTarget;
 // backend report passes can depend on them downward. Re-exported here so existing
 // `omega_artifacts::{EmissionPlan, BackendSurfaceReport, ...}` paths keep working.
 pub use omega_backend_report_types::{
-    BackendEntryPoint, BackendMachineSurface, BackendPlatformSurface, BackendSurfaceReport,
-    EmissionBlocker, EmissionPlan, emission_blocker,
+    BackendEntryPoint, BackendMachineSurface, BackendSurfaceReport, EmissionBlocker, EmissionPlan,
+    emission_blocker,
 };
 
 pub struct ArtifactWriter {
@@ -481,7 +481,10 @@ impl ArtifactWriter {
         let mut output = String::new();
 
         output.push_str("# Omega Wire Protocols\n\n");
-        output.push_str(&format!("wire data schemas: {}\n", wire_report.schemas.len()));
+        output.push_str(&format!(
+            "wire data schemas: {}\n",
+            wire_report.schemas.len()
+        ));
 
         for schema in &wire_report.schemas {
             output.push_str(&format!("\n## wire data {}\n", schema.name));
@@ -555,7 +558,10 @@ impl ArtifactWriter {
     pub fn write_trust_report(&self, trust_report: &TrustReport) -> Result<(), Diagnostic> {
         let mut output = String::new();
         output.push_str("# Omega Trust\n\n");
-        output.push_str(&format!("admitted commitments: {}\n\n", trust_report.rows.len()));
+        output.push_str(&format!(
+            "admitted commitments: {}\n\n",
+            trust_report.rows.len()
+        ));
         for row in &trust_report.rows {
             output.push_str(&format!("- {} -- {}", row.commitment, row.provenance));
             if row.standing_warning {
@@ -1195,10 +1201,6 @@ pub fn build_backend_surface_report(program: &CheckedTrees) -> BackendSurfaceRep
         collect_machine(&mut report, program, machine);
     }
 
-    for platform in program.platforms() {
-        collect_platform(&mut report, program, platform);
-    }
-
     report
 }
 
@@ -1231,17 +1233,6 @@ fn collect_machine(report: &mut BackendSurfaceReport, program: &CheckedTrees, ma
             state: "entry".to_owned(),
         });
     }
-}
-
-fn collect_platform(
-    report: &mut BackendSurfaceReport,
-    program: &CheckedTrees,
-    platform: &Platform,
-) {
-    report.platforms.insert(BackendPlatformSurface {
-        name: platform.name.to_string(),
-        states: program.platform_state_signatures(platform).len(),
-    });
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1311,33 +1302,14 @@ mod tests {
     use omega_checked_trees::CheckedTrees;
     use omega_checked_trees::machine::Machine;
     use omega_checked_trees::name::Identifier;
-    use omega_checked_trees::platform::Platform;
-    use omega_checked_trees::signature::StateSignature;
     use omega_checked_trees::state::State;
     use omega_core::symbols::SymbolHandle;
 
     use super::build_backend_surface_report;
 
     #[test]
-    fn collects_entry_machine_and_platforms() {
+    fn collects_entry_machine() {
         let mut program = CheckedTrees::default();
-        let mut platform = Platform {
-            symbol: SymbolHandle::default(),
-            name: Identifier::generated("Console"),
-            states: Default::default(),
-        };
-        program.typed.push_platform_state_signature(
-            &mut platform,
-            StateSignature {
-                symbol: SymbolHandle::default(),
-                name: Identifier::generated("write_line"),
-                is_default: false,
-                parameters: Default::default(),
-                return_type: Default::default(),
-                ..Default::default()
-            },
-        );
-        program.typed.push_platform(platform);
         let mut machine = Machine {
             symbol: SymbolHandle::default(),
             name: Identifier::generated("main"),
@@ -1363,7 +1335,6 @@ mod tests {
         let report = build_backend_surface_report(&program);
 
         assert_eq!(report.entry_points.len(), 1);
-        assert_eq!(report.platforms.len(), 1);
         assert_eq!(report.machines.len(), 1);
     }
 }

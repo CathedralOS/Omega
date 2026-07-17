@@ -6,7 +6,6 @@ use crate::invariant::InvariantDefinition;
 use crate::machine::{Machine, OwnedData};
 use crate::name::Identifier;
 use crate::operator::OperatorDefinition;
-use crate::platform::Platform;
 use crate::signature::{StateParameter, StateSignature};
 use crate::state::State;
 use crate::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
@@ -52,11 +51,6 @@ impl TypedTreesSnapshot {
                     .iter()
                     .map(|operator| operator_snapshot(program, operator))
                     .collect(),
-                platforms: program
-                    .platforms()
-                    .iter()
-                    .map(|platform| platform_snapshot(program, platform))
-                    .collect(),
                 traits: program
                     .traits()
                     .iter()
@@ -80,8 +74,6 @@ impl TypedTreesSnapshot {
                 machine_owned_data_count: program.machine_owned_data.len(),
                 machine_state_count: program.machine_states.len(),
                 state_parameter_count: program.state_parameters.len(),
-                platform_count: program.platforms.len(),
-                platform_state_signature_count: program.platform_state_signatures.len(),
                 trait_count: program.traits.len(),
                 trait_requirement_count: program.trait_requirements.len(),
                 trait_machine_signature_count: program.trait_machine_signatures.len(),
@@ -111,7 +103,6 @@ pub struct TypedRootsSnapshot {
     pub invariant_definitions: Vec<InvariantDefinitionSnapshot>,
     pub machines: Vec<MachineSnapshot>,
     pub operators: Vec<OperatorDefinitionSnapshot>,
-    pub platforms: Vec<PlatformSnapshot>,
     pub traits: Vec<TraitSnapshot>,
     pub wire_schemas: Vec<WireSchemaSnapshot>,
 }
@@ -154,8 +145,6 @@ pub struct TypedTableSnapshot {
     pub machine_owned_data_count: usize,
     pub machine_state_count: usize,
     pub state_parameter_count: usize,
-    pub platform_count: usize,
-    pub platform_state_signature_count: usize,
     pub trait_count: usize,
     pub trait_requirement_count: usize,
     pub trait_machine_signature_count: usize,
@@ -293,12 +282,6 @@ pub struct OwnedDataSnapshot {
     pub name: String,
     pub type_reference: TypeReferenceSnapshot,
     pub initial_value: Option<ExpressionSnapshot>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-pub struct PlatformSnapshot {
-    pub name: String,
-    pub states: Vec<StateSignatureSnapshot>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -679,17 +662,6 @@ fn owned_data_snapshot(program: &TypedTrees, owned: &OwnedData) -> OwnedDataSnap
     }
 }
 
-fn platform_snapshot(program: &TypedTrees, platform: &Platform) -> PlatformSnapshot {
-    PlatformSnapshot {
-        name: platform.name.to_string(),
-        states: program
-            .platform_state_signatures(platform)
-            .iter()
-            .map(|signature| state_signature_snapshot(program, signature))
-            .collect(),
-    }
-}
-
 fn trait_definition_snapshot(
     program: &TypedTrees,
     trait_definition: &TraitDefinition,
@@ -1006,7 +978,10 @@ fn statement_expression_span_snapshot(
         .collect()
 }
 
-fn wire_schema_snapshot(program: &TypedTrees, wire_schema: &crate::wire::WireSchema) -> WireSchemaSnapshot {
+fn wire_schema_snapshot(
+    program: &TypedTrees,
+    wire_schema: &crate::wire::WireSchema,
+) -> WireSchemaSnapshot {
     WireSchemaSnapshot {
         has_symbol: wire_schema.symbol.is_valid(),
         name: wire_schema.name.to_string(),

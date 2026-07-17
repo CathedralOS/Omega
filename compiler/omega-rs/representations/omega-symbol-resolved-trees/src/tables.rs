@@ -44,7 +44,6 @@ impl SymbolResolvedTreeTables {
             machine_owned_data,
             machine_state_handles,
             machine_states,
-            platform_state_signatures,
             trait_machine_signatures,
             operator_definitions,
             state_parameters,
@@ -80,16 +79,6 @@ impl SymbolResolvedTreeTables {
                     source_expressions,
                 );
             }
-        }
-
-        for platform in &roots.platforms {
-            tables.insert_platform(
-                platform_state_signatures.span_or_empty(platform.states),
-                state_parameters,
-                child_type_references,
-                type_constraints,
-                source_expressions,
-            );
         }
 
         for trait_definition in &roots.traits {
@@ -391,7 +380,9 @@ mod tests {
             .tables
             .bodies
             .expressions
-            .insert(ExpressionNode::Integer(omega_core::literals::IntegerLiteral::from_value(1)));
+            .insert(ExpressionNode::Integer(
+                omega_core::literals::IntegerLiteral::from_value(1),
+            ));
         let statements =
             program
                 .tables

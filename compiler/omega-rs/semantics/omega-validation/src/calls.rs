@@ -265,40 +265,6 @@ pub(crate) fn validate_call_node(
         .unwrap_or_default();
     let receiver_type = machine_symbols.contained_type(receiver);
 
-    if let Some(platform) = receiver_type.and_then(|type_name| symbols.platform(type_name)) {
-        let Some(state_signature) = program
-            .platform_state_signatures(platform)
-            .iter()
-            .find(|state| state.name == call.target)
-        else {
-            diagnostics.push(Diagnostic::error(format!(
-                "platform `{}` has no state `{}`",
-                platform.name, call.target
-            )));
-            return;
-        };
-
-        validate_result_use(
-            program,
-            call,
-            &state_signature.name,
-            state_signature.return_type,
-            diagnostics,
-        );
-        validate_call_arguments_handles(
-            program,
-            current_machine,
-            machine_symbols.state(state_name),
-            value_env,
-            arguments,
-            &state_signature.name,
-            program.state_signature_parameters(state_signature),
-            writable_roots,
-            diagnostics,
-        );
-        return;
-    }
-
     if let Some(machine) = receiver_type
         .and_then(|type_name| symbols.machine(type_name))
         .or_else(|| symbols.machine(receiver))
@@ -2111,10 +2077,9 @@ fn is_known_bare_name(
     {
         return true;
     }
-    // Top-level symbol: a type, machine, platform, or trait spelled bare.
+    // Top-level symbol: a type, machine, or trait spelled bare.
     if symbols.has_type(name)
         || symbols.machine(name).is_some()
-        || symbols.platform(name).is_some()
         || symbols.trait_definition(name).is_some()
     {
         return true;
@@ -3447,23 +3412,14 @@ fn named_type_reference_name<'program>(
 }
 
 /// True when `type_name` resolves the value-call target through any of the
-/// channels the LOWERING understands: a platform state, a boundary-trait
-/// machine signature, a machine's local state, or a machine attached to that
-/// data type.
+/// channels the LOWERING understands: a boundary-trait machine signature, a
+/// machine's local state, or a machine attached to that data type.
 fn type_name_resolves_value_call(
     program: &TypedTrees,
     symbols: &TopLevelSymbols<'_>,
     type_name: &str,
     target: &str,
 ) -> bool {
-    if let Some(platform) = symbols.platform(type_name)
-        && program
-            .platform_state_signatures(platform)
-            .iter()
-            .any(|state| state.name.as_str() == target)
-    {
-        return true;
-    }
     if let Some(trait_definition) = symbols.trait_definition(type_name)
         && program
             .trait_machine_signatures(trait_definition)

@@ -23,7 +23,6 @@ pub enum SymbolKind {
     /// signature contract.
     MachineParameter,
     Local,
-    Platform,
     HostCapability,
     Object,
     Function,

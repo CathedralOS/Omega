@@ -61,14 +61,6 @@ pub(crate) fn build_proof_facts_with_operators(
             &mut contract_facts,
         );
     }
-    for platform in program.platforms() {
-        append_state_signature_contract_facts(
-            program,
-            platform.symbol,
-            program.platform_state_signatures(platform),
-            &mut contract_facts,
-        );
-    }
     let (mut contract_fact_refs, contract_calls) =
         build_contract_call_facts(program, borrow, &contract_facts);
     let contract_operator_uses = build_contract_operator_use_facts(

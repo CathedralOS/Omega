@@ -2395,19 +2395,6 @@ fn callable_return_type_by_symbol(
                         .then_some(candidate.return_type)
                 })
         })
-        .or_else(|| {
-            program
-                .platforms()
-                .iter()
-                .flat_map(|platform| program.platform_state_signatures(platform).iter())
-                .find(|candidate| candidate.symbol == target_symbol)
-                .and_then(|candidate| {
-                    candidate
-                        .return_type
-                        .is_valid()
-                        .then_some(candidate.return_type)
-                })
-        })
 }
 
 fn is_real_from_call(
