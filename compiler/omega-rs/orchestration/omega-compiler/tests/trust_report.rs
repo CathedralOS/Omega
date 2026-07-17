@@ -287,6 +287,67 @@ machine Main::main(&mut self) {{
 }
 
 #[test]
+fn granted_plan_receipt_pins_the_fingerprint() {
+    // PRV3: granting a derived plan pins its normalized identity in the
+    // lockfile; changing the plan's policy under the grant drifts.
+    let project = std::env::temp_dir().join(format!("omega-plan-lock-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&project);
+    std::fs::create_dir_all(&project).expect("create project dir");
+    std::fs::write(
+        project.join("build.omg"),
+        r#"data Subsystem { case Console; case Gui; case EfiApplication; case Unspecified(value: u16); }
+data Build { subsystem: Subsystem; freestanding: bool; }
+
+machine build(b: &mut Build) {
+    b.accept_boundary<Flags>();
+}
+"#,
+    )
+    .expect("write build.omg");
+    let main_with = |value: i64| {
+        format!(
+            r#"boundary trait Console {{ machine exit_process(return_code: i32); }}
+boundary trait Flags {{
+    machine open_read() -> i32;
+}}
+demo_target provides Flags {{
+    open_read -> {value}
+}}
+data Main {{ console: Console; }}
+machine Main::main(&mut self) {{
+    self.console.exit_process(70);
+}}
+"#
+        )
+    };
+    std::fs::write(project.join("main.omg"), main_with(0)).expect("write main.omg");
+
+    let build_dir = project.join("build");
+    let options = || CompileOptions {
+        root_path: project.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    };
+    compile(options()).expect("granted plan project should compile");
+    let lock = std::fs::read_to_string(project.join("omega.lock")).expect("lock written");
+    assert!(
+        lock.contains("provider plan: demo_target::Flags"),
+        "expected the plan receipt:\n{lock}"
+    );
+
+    // Change the plan's POLICY under the grant -- drift refuses.
+    std::fs::write(project.join("main.omg"), main_with(7)).expect("rewrite main.omg");
+    let message = format!("{:?}", compile(options()).expect_err("drift should refuse"));
+    assert!(
+        message.contains("granted statement drifted"),
+        "expected the drift refusal, got: {message}"
+    );
+
+    let _ = std::fs::remove_dir_all(&project);
+}
+
+#[test]
 fn derived_provider_plans_surface_as_trust_rows() {
     // PRV3: an authored `provides` block derives a ProviderPlan; the plan
     // surfaces as a dev-active trust row (fingerprint shown) until the

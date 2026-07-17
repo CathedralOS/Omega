@@ -92,6 +92,7 @@ pub(super) fn enforce_trust_lockfile(
     options: &CompileOptions,
     typed: &TypedTrees,
     root_grants: &[String],
+    provider_plans: &[omega_effects::provider_plan::ProviderPlan],
 ) -> Result<(), Vec<Diagnostic>> {
     if root_grants.is_empty() {
         return Ok(());
@@ -104,6 +105,18 @@ pub(super) fn enforce_trust_lockfile(
     // Current receipts.
     let mut rows: Vec<(String, u64)> = Vec::new();
     for grant in root_grants {
+        // A grant naming a DERIVED PROVIDER PLAN (by plan name or trait
+        // leaf) pins the plan's NORMALIZED IDENTITY -- the fingerprint IS
+        // the receipt hash, so any change to the plan's policy drifts.
+        if let Some(plan) = provider_plans.iter().find(|plan| {
+            grant == &plan.name || grant == plan.schema.trait_name.as_str()
+        }) {
+            let commitment = format!("provider plan: {}", plan.name);
+            if !rows.iter().any(|(existing, _)| *existing == commitment) {
+                rows.push((commitment, plan.identity_fingerprint()));
+            }
+            continue;
+        }
         let (commitment, statement) = commitment_statement(typed, grant);
         if !rows.iter().any(|(existing, _)| *existing == commitment) {
             rows.push((commitment, fnv1a(&statement)));
