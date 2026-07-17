@@ -1087,8 +1087,12 @@ sealed progress profiles + grants, TPR4's remaining big half).
    first), walker arms per shape (direct/pointee share buffer@0 +
    target-at-offset; frame-indexed flips to frame@0 + buffer/source
    at indexed offset fns), text/storage/host_argument blocker rows,
-   shapes plain kinds, report arms. Zero producers yet. REMAINING:
-   migrate 11 producer sites -> retire the 9 crossing variants +
+   shapes plain kinds, report arms. TEXT-CROSSING RUNG B LANDED 2026-07-20: text_place_
+   {direct,pointee,frame_indexed} place builders + ALL 11 producer
+   sites migrated (text_writes/builder.rs: 2 materialize-direct + 6
+   stored-append + 3 literal-append; the pointee/frame-indexed
+   MATERIALIZE retired variants had ZERO producers -- already dead).
+   Canary 864 green. REMAINING: retire the 9 crossing variants +
    sweep. Then producers + retire 9 done -> classify
    the remaining ~53 variants (already-place-shaped / collapsible-via
    -value-category / genuinely-distinct dispatch-host-wire-atomic /
