@@ -953,7 +953,21 @@ sealed progress profiles + grants, TPR4's remaining big half).
    address in r15, then mov r14,imm64(frame) + store r15->[r14+target]
    -- note the SOURCE address is the payload, a new wrinkle: the walk
    must NOT fold the trailing const offset into a store displacement
-   but ADD it to r15), (c) delegations with lockstep walker updates,
+   but ADD it to r15 -- ALWAYS emit the add (retired encoders do,
+   e.g. pointee width 31 fixed) for deterministic width. PREFIX
+   ANALYSIS 2026-07-19 (partial): the retired encoders SHARE one
+   frame base in r14 for source walk AND target store (one reloc for
+   frame-rooted sources) -- the materializer form uses TWO bases
+   (source walk in r15 + mov r14,imm64(frame) + store r15->[r14+
+   target]), so delegations are NOT byte-for-byte; widths and reloc
+   positions move -- every delegation needs its walker arm moved in
+   the SAME commit. Note runtime_frame_indexed_deref_address_
+   to_runtime_frame_write already uses a materializer-like prefix
+   (FRAME_INDEXED_COPY_TARGET_IMM_OFFSET=34 comments) -- read it
+   first; the six encoders live at x86 lib.rs 391 (pointee, 31),
+   408 (fixed-indexed, 31), 534 (base-indexed), 566
+   (machine-indexed), 5385 (storage direct), + the frame-indexed
+   deref fn near 455), (c) delegations with lockstep walker updates,
    (d) variant + echo + producers + retirement + sweep. THE COMPARE
    family (CompareRuntimeStorage/StorageValue/Values/TextLiteral/
    TextStorage + EvaluateDispatchGuard) follows -- operand pairs +
