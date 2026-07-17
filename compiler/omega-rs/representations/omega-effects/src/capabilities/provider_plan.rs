@@ -171,6 +171,60 @@ impl ProviderPlan {
         hash
     }
 
+    /// PRV2: full structural validation against the schema -- every method
+    /// bound exactly once, no stray rows, and per-method shape checks
+    /// (a Value binding cannot serve a result-less method's call; a
+    /// byte-read shape needs a result). Returns NAMED errors; empty =
+    /// structurally valid. Call-shape SPELLING validation lives with the
+    /// PlatformCallData sum in omega-calling-conventions
+    /// (parse_call_shape) -- the ABI-plan consumer runs it at merge time,
+    /// keeping this crate free of that dependency.
+    pub fn validate_against_schema(&self) -> Vec<String> {
+        let mut errors = Vec::new();
+        for method in &self.schema.methods {
+            let count = self
+                .rows
+                .iter()
+                .filter(|row| row.method == method.name)
+                .count();
+            if count == 0 {
+                errors.push(format!(
+                    "plan `{}` does not bind `{}::{}`",
+                    self.name, self.schema.trait_name, method.name
+                ));
+            } else if count > 1 {
+                errors.push(format!(
+                    "plan `{}` binds `{}::{}` {count} times; one row per method",
+                    self.name, self.schema.trait_name, method.name
+                ));
+            }
+        }
+        for row in &self.rows {
+            let Some(method) = self
+                .schema
+                .methods
+                .iter()
+                .find(|method| method.name == row.method)
+            else {
+                errors.push(format!(
+                    "plan `{}` binds `{}`, which is not a `{}` method",
+                    self.name, row.method, self.schema.trait_name
+                ));
+                continue;
+            };
+            if matches!(row.binding, ProviderBinding::Value { .. }) && method.parameter_count > 0
+            {
+                errors.push(format!(
+                    "plan `{}` binds `{}::{}` to a portable Value, but the method \
+                     takes {} argument(s) -- Value rows serve zero-argument \
+                     constants",
+                    self.name, self.schema.trait_name, method.name, method.parameter_count
+                ));
+            }
+        }
+        errors
+    }
+
     /// PRV2 preview (the cheapest structural fact, used by tests today):
     /// every schema method has exactly one row and every row names a
     /// schema method.
@@ -263,6 +317,45 @@ mod tests {
     fn console_plan_constructs_and_covers_its_schema() {
         let plan = windows_console_plan();
         assert!(plan.covers_schema());
+    }
+
+    #[test]
+    fn validation_names_every_structural_defect() {
+        // PRV2: missing binding, stray row, and the Value-with-arguments
+        // shape check each produce a NAMED error.
+        let mut plan = windows_console_plan();
+        plan.rows.remove(0);
+        plan.rows.push(ProviderPlanRow {
+            method: "not_a_method".to_owned(),
+            binding: ProviderBinding::Value { value: 1 },
+            call_shape: None,
+        });
+        plan.rows.push(ProviderPlanRow {
+            method: "exit_process".to_owned(),
+            binding: ProviderBinding::Value { value: 0 },
+            call_shape: None,
+        });
+        let errors = plan.validate_against_schema();
+        assert!(
+            errors.iter().any(|error| error.contains("does not bind `Console::write_line`")),
+            "missing binding named: {errors:?}"
+        );
+        assert!(
+            errors.iter().any(|error| error.contains("not a `Console` method")),
+            "stray row named: {errors:?}"
+        );
+        assert!(
+            errors.iter().any(|error| error.contains("binds `Console::exit_process` 2 times")),
+            "duplicate named: {errors:?}"
+        );
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.contains("portable Value") && error.contains("exit_process")),
+            "Value-with-arguments named: {errors:?}"
+        );
+
+        assert!(windows_console_plan().validate_against_schema().is_empty());
     }
 
     #[test]

@@ -957,6 +957,72 @@ pub enum PlatformCallData {
     },
 }
 
+impl PlatformCallData {
+    /// PRV2: the RENDERED call-shape spelling a ProviderPlan row carries
+    /// (`first_text_argument+newline`, `constant_result:1000000000`);
+    /// `None` for the plain-call shape. The parse below is its exact
+    /// inverse -- the pair is the plan/table seam, so the two sums never
+    /// drift silently.
+    pub fn render_call_shape(&self) -> Option<String> {
+        match self {
+            Self::None => None,
+            Self::FirstTextArgument { append_newline } => Some(if *append_newline {
+                "first_text_argument+newline".to_owned()
+            } else {
+                "first_text_argument".to_owned()
+            }),
+            Self::MutableOutputBuffer { byte_capacity } => {
+                Some(format!("mutable_output_buffer:{byte_capacity}"))
+            }
+            Self::SingleByteRead => Some("single_byte_read".to_owned()),
+            Self::SingleByteWrite => Some("single_byte_write".to_owned()),
+            Self::ConstantResult { value } => Some(format!("constant_result:{value}")),
+            Self::ConstantArgument { value } => Some(format!("constant_argument:{value}")),
+        }
+    }
+
+    /// PRV2: parse a plan row's rendered call shape. `None` input is the
+    /// plain call; an unrecognized spelling returns `Err` with the
+    /// spelling named (validation surfaces it).
+    pub fn parse_call_shape(rendered: Option<&str>) -> Result<Self, String> {
+        let Some(rendered) = rendered else {
+            return Ok(Self::None);
+        };
+        if rendered == "first_text_argument" {
+            return Ok(Self::FirstTextArgument {
+                append_newline: false,
+            });
+        }
+        if rendered == "first_text_argument+newline" {
+            return Ok(Self::FirstTextArgument {
+                append_newline: true,
+            });
+        }
+        if rendered == "single_byte_read" {
+            return Ok(Self::SingleByteRead);
+        }
+        if rendered == "single_byte_write" {
+            return Ok(Self::SingleByteWrite);
+        }
+        if let Some(capacity) = rendered.strip_prefix("mutable_output_buffer:") {
+            if let Ok(byte_capacity) = capacity.parse() {
+                return Ok(Self::MutableOutputBuffer { byte_capacity });
+            }
+        }
+        if let Some(value) = rendered.strip_prefix("constant_result:") {
+            if let Ok(value) = value.parse() {
+                return Ok(Self::ConstantResult { value });
+            }
+        }
+        if let Some(value) = rendered.strip_prefix("constant_argument:") {
+            if let Ok(value) = value.parse() {
+                return Ok(Self::ConstantArgument { value });
+            }
+        }
+        Err(format!("unrecognized call shape `{rendered}`"))
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HostOperationReference {
     pub key: HostOperationKey,
@@ -1216,5 +1282,40 @@ pub fn host_operation_fixed_leading_immediate(
         (ObjectFormat::Coff, HostCapability::Stdin, HostOperation::GetStdHandle) => Some(-10),
         (ObjectFormat::Coff, HostCapability::Stderr, HostOperation::GetStdHandle) => Some(-12),
         _ => None,
+    }
+}
+
+#[cfg(test)]
+mod call_shape_tests {
+    use super::PlatformCallData;
+
+    #[test]
+    fn call_shape_round_trips() {
+        // PRV2: the render/parse pair is exact -- the plan/table seam
+        // never drifts silently.
+        let shapes = [
+            PlatformCallData::None,
+            PlatformCallData::FirstTextArgument {
+                append_newline: true,
+            },
+            PlatformCallData::FirstTextArgument {
+                append_newline: false,
+            },
+            PlatformCallData::MutableOutputBuffer { byte_capacity: 256 },
+            PlatformCallData::SingleByteRead,
+            PlatformCallData::SingleByteWrite,
+            PlatformCallData::ConstantResult { value: 1_000_000_000 },
+            PlatformCallData::ConstantArgument { value: 4 },
+        ];
+        for shape in shapes {
+            let rendered = shape.render_call_shape();
+            let parsed = PlatformCallData::parse_call_shape(rendered.as_deref())
+                .expect("rendered shapes parse");
+            assert_eq!(parsed, shape, "round trip for {rendered:?}");
+        }
+        assert!(
+            PlatformCallData::parse_call_shape(Some("mystery")).is_err(),
+            "unknown spellings surface as errors"
+        );
     }
 }

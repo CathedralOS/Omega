@@ -3186,11 +3186,19 @@ rejects — an INTEGER ruling, engineering rides this ladder as F8).
   ProviderPlan::identity_fingerprint gives the NORMALIZED identity
   (FNV-1a over the canonical rendering; rows/methods sorted --
   presentation-invariance pinned). provider_plan re-exported at the
-  omega-effects root. PRV2 REMAINDER: plan-vs-schema signature
-  validation + call-shape normalization against the real
-  PlatformCallData sum (needs the calling-conventions types -- decide
-  the dependency direction there), then PRV3 admission through the
-  ch10 carrier + slot-owner selection, then PRV4 the std target
+  omega-effects root. PRV2 COMPLETE 2026-07-20:
+  DEPENDENCY DIRECTION DECIDED -- neither crate deps the other; the
+  call-shape RENDER/PARSE pair lives WITH the PlatformCallData sum in
+  omega-calling-conventions (render_call_shape/parse_call_shape,
+  exact-inverse round trip pinned; unknown spellings surface as
+  errors) so the plan/table seam never drifts silently, while
+  ProviderPlan::validate_against_schema stays schema-only in
+  omega-effects (NAMED errors: unbound method, duplicate rows, stray
+  rows, Value-with-arguments; all pinned). The ABI-plan consumer runs
+  parse_call_shape at merge time (PRV4). NEXT: PRV3 admission through
+  the ch10 carrier (TrustCommitment::ProviderPlan is already in the
+  carrier's identity enum; admit fingerprinted plans, receipts +
+  report rows) + slot-owner selection, then PRV4 the std target
   packages + Console/filesystem/float migration. retire the `provides` keyword and platform
   blocks. PRV1 add the typed `ProviderPlan` policy carrier over boundary-trait
   service schemas and existing `Binding` cases; PRV2 validate coverage,
