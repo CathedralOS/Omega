@@ -862,10 +862,13 @@ sealed progress profiles + grants, TPR4's remaining big half).
    green incl. differential 14/14.
    PILOT SCOREBOARD: Copy* 18->1, integer writes 7->1, binary writes
    6->1 -- THIRTY-ONE variants retired onto THREE place-shaped
-   survivors. NEXT per the wiki ladder: dead-shell sweep (the x86
-   delegating encoders for integers+binaries are now zero-reference),
-   then the Text family, then guards/operands consume Places, then
-   the op-set shrink.
+   survivors. DEAD-SHELL SWEEP (partial) same
+   day: 21 zero-reference fns deleted (machine-emission dispatchers,
+   shapes *_write_kind helpers); the x86 delegating shells remain
+   PUB-CHAINED through uncalled selection dispatchers (dead-but-pub,
+   invisible to intra-crate dead-code analysis) -- sweep the chain at
+   next touch. NEXT per the wiki ladder: the Text family, then
+   guards/operands consume Places, then the op-set shrink.
    Rung 2a after: the WritePlaceInteger variant + echo product +
    producer migration. Pre-existing dead helpers noted en route (shapes/copies.rs
    runtime_storage_copy_kind + _to_runtime_frame_indexed_kind +
