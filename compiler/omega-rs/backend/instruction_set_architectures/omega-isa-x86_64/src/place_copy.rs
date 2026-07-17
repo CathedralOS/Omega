@@ -367,6 +367,29 @@ pub fn place_binary_operand_start_width(target: &Place) -> usize {
     width + 3 // mov r14, r15
 }
 
+/// The TEXT-family materializer entry (Text rung 1a): store a string
+/// DESCRIPTOR ({ptr -> rodata, len}) into a place-shaped target. The data
+/// pointer stages in r14 via the leading `mov r14,imm64(0)` (the retired
+/// convention -- its data-object relocation is ALWAYS at instruction
+/// start); the target address materializes through the standard walk
+/// (r15 base + the r11/r10 index discipline, base site at +10); the
+/// descriptor stores land at [r15 + residual] / +8. A DIRECT place is
+/// byte-for-byte the retired machine/frame string layout.
+pub fn encode_place_string_write(
+    target: &Place,
+    byte_length: usize,
+) -> Result<(Vec<u8>, PlaceCopySites), Diagnostic> {
+    let mut bytes = Vec::new();
+    let mut sites = PlaceCopySites::default();
+    super::append_mov_r14_imm64(&mut bytes, 0); // data ptr (rodata reloc at +2)
+    let displacement =
+        materialize_place_address(&mut bytes, &mut sites, target, AddressRegister::Target)?;
+    super::append_store_r14_to_r15(&mut bytes, displacement)?;
+    super::append_mov_rax_imm64(&mut bytes, byte_length as u64);
+    super::append_store_rax_to_r15(&mut bytes, displacement + 8, 8)?;
+    Ok((bytes, sites))
+}
+
 /// The `CopyPlaces` entry: ONE routine that picks the emission shape from the
 /// place pair itself -- shared-base when both places root in the SAME region
 /// and a side derefs (the shape every retired same-region indexed/pointee

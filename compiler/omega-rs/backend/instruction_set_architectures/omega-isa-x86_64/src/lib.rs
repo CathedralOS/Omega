@@ -1,6 +1,7 @@
 mod place_copy;
 pub use place_copy::{
-    encode_place_binary_write, encode_place_integer_write, place_binary_index_base_positions,
+    encode_place_binary_write, encode_place_integer_write, encode_place_string_write,
+    place_binary_index_base_positions,
     place_binary_operand_start_width,
     PLACE_COPY_MAX_SITES, PlaceCopySide, PlaceCopySites, encode_copy_places, encode_place_copy,
     encode_place_copy_shared_base,
@@ -5402,13 +5403,14 @@ pub fn encode_runtime_machine_string_write(
     byte_offset: usize,
     byte_length: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = Vec::with_capacity(runtime_machine_string_write_width(byte_length));
-    append_mov_r14_imm64(&mut bytes, 0);
-    append_mov_r15_imm64(&mut bytes, 0);
-    append_store_r14_to_r15(&mut bytes, byte_offset)?;
-    append_mov_rax_imm64(&mut bytes, byte_length as u64);
-    append_store_rax_to_r15(&mut bytes, byte_offset + 8, 8)?;
-    Ok(bytes)
+    // Text rung 1a: DELEGATES byte-for-byte to the place materializer (a
+    // direct place; the transitional region is documentation -- the walker
+    // patches from the kind's own region).
+    let target =
+        place_copy::transitional_place(omega_target_operations::RuntimeStorageRegion::Machine)
+            .with_step(omega_target_operations::PlaceStep::ConstOffset(byte_offset))
+            .expect("a direct place is two steps, within PLACE_MAX_STEPS");
+    place_copy::encode_place_string_write(&target, byte_length).map(|(bytes, _)| bytes)
 }
 
 // Write a string literal into an owned `[u8; N]` bounded byte carrier at machine
@@ -5592,13 +5594,12 @@ pub fn encode_runtime_frame_string_write(
     byte_offset: usize,
     byte_length: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = Vec::with_capacity(runtime_frame_string_write_width(byte_length));
-    append_mov_r14_imm64(&mut bytes, 0);
-    append_mov_r15_imm64(&mut bytes, 0);
-    append_store_r14_to_r15(&mut bytes, byte_offset)?;
-    append_mov_rax_imm64(&mut bytes, byte_length as u64);
-    append_store_rax_to_r15(&mut bytes, byte_offset + 8, 8)?;
-    Ok(bytes)
+    // Text rung 1a: DELEGATES byte-for-byte (the frame twin).
+    let target =
+        place_copy::transitional_place(omega_target_operations::RuntimeStorageRegion::RuntimeFrame)
+            .with_step(omega_target_operations::PlaceStep::ConstOffset(byte_offset))
+            .expect("a direct place is two steps, within PLACE_MAX_STEPS");
+    place_copy::encode_place_string_write(&target, byte_length).map(|(bytes, _)| bytes)
 }
 
 pub fn runtime_storage_address_to_runtime_frame_write_width() -> usize {
