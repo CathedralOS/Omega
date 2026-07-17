@@ -238,6 +238,102 @@ fn machine_indexed_place(
         .expect("a machine-indexed place is three steps, within PLACE_MAX_STEPS")
 }
 
+/// Rung 2c-x: an inline 2D-array element path (`arr[i][j].field`, no
+/// deref): `[Const(base), SI(outer), SI(inner), Const(field)]`.
+fn double_indexed_place(
+    region: RuntimeStorageRegion,
+    base_byte_offset: usize,
+    outer_index_region: RuntimeStorageRegion,
+    outer_index_offset: usize,
+    outer_stride: usize,
+    inner_index_region: RuntimeStorageRegion,
+    inner_index_offset: usize,
+    inner_stride: usize,
+    field_byte_offset: usize,
+) -> omega_abstract_operations::Place {
+    omega_abstract_operations::Place::at(region, base_byte_offset)
+        .with_step(omega_abstract_operations::PlaceStep::ScaledIndex {
+            index_region: outer_index_region,
+            index_offset: outer_index_offset,
+            element_byte_size: outer_stride,
+        })
+        .and_then(|place| {
+            place.with_step(omega_abstract_operations::PlaceStep::ScaledIndex {
+                index_region: inner_index_region,
+                index_offset: inner_index_offset,
+                element_byte_size: inner_stride,
+            })
+        })
+        .and_then(|place| {
+            place.with_step(omega_abstract_operations::PlaceStep::ConstOffset(
+                field_byte_offset,
+            ))
+        })
+        .expect("a double-indexed place is four steps, within PLACE_MAX_STEPS")
+}
+
+/// Rung 2c-x: the machine inline 2D-array element READ.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn copy_places_from_machine_double_indexed(
+    base_byte_offset: usize,
+    outer_index_region: RuntimeStorageRegion,
+    outer_index_offset: usize,
+    outer_stride: usize,
+    inner_index_region: RuntimeStorageRegion,
+    inner_index_offset: usize,
+    inner_stride: usize,
+    field_byte_offset: usize,
+    target_region: RuntimeStorageRegion,
+    target_offset: usize,
+    byte_count: usize,
+) -> SelectedInstructionKind {
+    SelectedInstructionKind::CopyPlaces {
+        source: double_indexed_place(
+            RuntimeStorageRegion::Machine,
+            base_byte_offset,
+            outer_index_region,
+            outer_index_offset,
+            outer_stride,
+            inner_index_region,
+            inner_index_offset,
+            inner_stride,
+            field_byte_offset,
+        ),
+        target: omega_abstract_operations::Place::at(target_region, target_offset),
+        byte_count,
+    }
+}
+
+/// Rung 2c-x: the frame inline 2D-array element READ (all-frame).
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn copy_places_from_frame_base_double_indexed(
+    base_byte_offset: usize,
+    outer_index_offset: usize,
+    outer_stride: usize,
+    inner_index_offset: usize,
+    inner_stride: usize,
+    field_byte_offset: usize,
+    target_region: RuntimeStorageRegion,
+    target_offset: usize,
+    byte_count: usize,
+) -> SelectedInstructionKind {
+    SelectedInstructionKind::CopyPlaces {
+        source: double_indexed_place(
+            RuntimeStorageRegion::RuntimeFrame,
+            base_byte_offset,
+            RuntimeStorageRegion::RuntimeFrame,
+            outer_index_offset,
+            outer_stride,
+            RuntimeStorageRegion::RuntimeFrame,
+            inner_index_offset,
+            inner_stride,
+            field_byte_offset,
+        ),
+        target: omega_abstract_operations::Place::at(target_region, target_offset),
+        byte_count,
+    }
+}
+
 /// Rung 2c-vii: the retired machine inline-array element READ.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn copy_places_from_machine_indexed(

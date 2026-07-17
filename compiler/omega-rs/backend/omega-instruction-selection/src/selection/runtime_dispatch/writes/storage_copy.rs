@@ -193,17 +193,17 @@ pub(in crate::selection::runtime_dispatch) fn runtime_storage_indexed_source_cop
             return None;
         }
         return Some(
-            SelectedInstructionKind::CopyRuntimeFrameBaseDoubleIndexedToRuntimeStorage {
-                base_byte_offset: double_source.base_byte_offset,
-                outer_index_offset: double_source.outer_index_offset,
-                outer_stride: double_source.outer_stride,
-                inner_index_offset: double_source.inner_index_offset,
-                inner_stride: double_source.inner_stride,
-                field_byte_offset: double_source.field_byte_offset,
-                target_region: target_place.region,
-                target_offset: target_place.byte_offset,
-                byte_count: target_place.byte_count,
-            },
+            crate::selection::runtime_dispatch::copy_places_from_frame_base_double_indexed(
+                double_source.base_byte_offset,
+                double_source.outer_index_offset,
+                double_source.outer_stride,
+                double_source.inner_index_offset,
+                double_source.inner_stride,
+                double_source.field_byte_offset,
+                target_place.region,
+                target_place.byte_offset,
+                target_place.byte_count,
+            ),
         );
     }
 
@@ -217,19 +217,19 @@ pub(in crate::selection::runtime_dispatch) fn runtime_storage_indexed_source_cop
         return None;
     }
     Some(
-        SelectedInstructionKind::CopyRuntimeMachineDoubleIndexedToRuntimeStorage {
-            base_byte_offset: double_source.base_byte_offset,
-            outer_index_offset: double_source.outer_index_offset,
-            outer_index_region: double_source.outer_index_region,
-            outer_stride: double_source.outer_stride,
-            inner_index_offset: double_source.inner_index_offset,
-            inner_index_region: double_source.inner_index_region,
-            inner_stride: double_source.inner_stride,
-            field_byte_offset: double_source.field_byte_offset,
-            target_region: target_place.region,
-            target_offset: target_place.byte_offset,
-            byte_count: target_place.byte_count,
-        },
+        crate::selection::runtime_dispatch::copy_places_from_machine_double_indexed(
+            double_source.base_byte_offset,
+            double_source.outer_index_region,
+            double_source.outer_index_offset,
+            double_source.outer_stride,
+            double_source.inner_index_region,
+            double_source.inner_index_offset,
+            double_source.inner_stride,
+            double_source.field_byte_offset,
+            target_place.region,
+            target_place.byte_offset,
+            target_place.byte_count,
+        ),
     )
 }
 
@@ -519,17 +519,17 @@ pub(in crate::selection::runtime_dispatch) fn runtime_storage_indexed_source_cop
             return None;
         }
         return Some(
-            SelectedInstructionKind::CopyRuntimeFrameBaseDoubleIndexedToRuntimeStorage {
-                base_byte_offset: double_source.base_byte_offset,
-                outer_index_offset: double_source.outer_index_offset,
-                outer_stride: double_source.outer_stride,
-                inner_index_offset: double_source.inner_index_offset,
-                inner_stride: double_source.inner_stride,
-                field_byte_offset: double_source.field_byte_offset,
-                target_region: target_place.region,
-                target_offset: target_place.byte_offset,
-                byte_count: target_place.byte_count,
-            },
+            crate::selection::runtime_dispatch::copy_places_from_frame_base_double_indexed(
+                double_source.base_byte_offset,
+                double_source.outer_index_offset,
+                double_source.outer_stride,
+                double_source.inner_index_offset,
+                double_source.inner_stride,
+                double_source.field_byte_offset,
+                target_place.region,
+                target_place.byte_offset,
+                target_place.byte_count,
+            ),
         );
     }
 
@@ -547,19 +547,19 @@ pub(in crate::selection::runtime_dispatch) fn runtime_storage_indexed_source_cop
     }
 
     Some(
-        SelectedInstructionKind::CopyRuntimeMachineDoubleIndexedToRuntimeStorage {
-            base_byte_offset: double_source.base_byte_offset,
-            outer_index_offset: double_source.outer_index_offset,
-            outer_index_region: double_source.outer_index_region,
-            outer_stride: double_source.outer_stride,
-            inner_index_offset: double_source.inner_index_offset,
-            inner_index_region: double_source.inner_index_region,
-            inner_stride: double_source.inner_stride,
-            field_byte_offset: double_source.field_byte_offset,
-            target_region: target_place.region,
-            target_offset: target_place.byte_offset,
-            byte_count: target_place.byte_count,
-        },
+        crate::selection::runtime_dispatch::copy_places_from_machine_double_indexed(
+            double_source.base_byte_offset,
+            double_source.outer_index_region,
+            double_source.outer_index_offset,
+            double_source.outer_stride,
+            double_source.inner_index_region,
+            double_source.inner_index_offset,
+            double_source.inner_stride,
+            double_source.field_byte_offset,
+            target_place.region,
+            target_place.byte_offset,
+            target_place.byte_count,
+        ),
     )
 }
 
