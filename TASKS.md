@@ -4450,7 +4450,9 @@ with a real app-window story.
   parsed) and are deleted; no real corpus uses existed (the collections
   hit was a comment + state name). Pinned: fail parse/relax_retired.
   Representation `is_relaxed` fields stay inert-false (the sweep is a
-  follow-up if they block something).
+  follow-up if they block something). PARSER DEAD PATH REMOVED 2026-07-17:
+  the unreachable old `relax { ... }` builder and its `TableRelax` import are
+  gone; the directed retirement diagnostic remains pinned.
 
 ## Vertical slices
 
