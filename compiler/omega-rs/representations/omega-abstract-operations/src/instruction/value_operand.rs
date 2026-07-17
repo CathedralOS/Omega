@@ -147,6 +147,9 @@ pub enum ValueOperand {
         /// F4: a TRAPPING float->int cast traps on NaN/out-of-range before
         /// converting; false for every other cast.
         trapping: bool,
+        /// F4: a SATURATING float->int cast maps NaN to zero and clamps an
+        /// out-of-range value before converting; false for every other cast.
+        saturating: bool,
     },
 }
 
@@ -205,6 +208,7 @@ impl ValueOperand {
                 target_is_float,
                 source_signed,
                 trapping,
+                saturating,
             } => Self::Convert {
                 source: remap(*source),
                 source_byte_size: *source_byte_size,
@@ -213,6 +217,7 @@ impl ValueOperand {
                 target_is_float: *target_is_float,
                 source_signed: *source_signed,
                 trapping: *trapping,
+                saturating: *saturating,
             },
             other => other.clone(),
         }

@@ -66,10 +66,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("arithmetic/u64_magnitude_transition_arg_exit", 70),
     ("arithmetic/float_literal_cast_proves_exit", 70),
     // F4 Saturating float->int (NaN -> 0, OOR clamp): aarch64 FCVTZS is
-    // natively these semantics; x86's cvttsd2si fixup is the F4 remainder
-    // (its host's oracle builds it), so the row is arch-gated like the
-    // pending float_to_int rows.
-    #[cfg(target_arch = "aarch64")]
+    // natively these semantics; x86 supplies the cvttsd2si policy fixup.
     ("arithmetic/float_to_int_saturating_exit", 70),
     // F5 Saturating float arithmetic (aarch64-gated like the cast twin).
     #[cfg(target_arch = "aarch64")]
@@ -1144,15 +1141,8 @@ const EXCLUDED_RUN_CANARIES: &[(&str, &str)] = &[
         "dungeon/runtime_threaded_mut_arg_interrupt_soak_exit",
         "interrupt-timing soak: fifty million dispatched iterations target NATIVE kernel-preemption windows (the Darwin x18 scratch-register regression); interpreting that loop adds minutes of pure overhead with no oracle value",
     ),
-    // The F4/F5 saturating-float rows above are aarch64-gated in
-    // RUN_CANARIES (FCVTZS is natively these semantics; x86's cvttsd2si
-    // fixup is the F4/F5 remainder), so non-aarch64 hosts exclude them
-    // here -- the OVERLAP check keeps the two lists arch-exclusive.
-    #[cfg(not(target_arch = "aarch64"))]
-    (
-        "arithmetic/float_to_int_saturating_exit",
-        "aarch64-gated RUN row (F4): x86_64 native lowering of the Saturating float->int cast (cvttsd2si fixup) is not built yet; the interp oracle leg is asserted by its canary_suite test",
-    ),
+    // F5 float arithmetic remains aarch64-gated. F4 float-to-int is now
+    // differential-global: x86 supplies the cvttsd2si policy fixup.
     #[cfg(not(target_arch = "aarch64"))]
     (
         "arithmetic/float_saturating_overflow_exit",

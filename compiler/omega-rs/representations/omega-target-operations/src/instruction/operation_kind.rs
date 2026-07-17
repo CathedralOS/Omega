@@ -263,6 +263,10 @@ pub enum TargetOperationKind {
         /// F4: a TRAPPING float->int cast traps on NaN/out-of-range before
         /// converting; false for every other cast.
         trapping: bool,
+        /// F4: a SATURATING float->int cast maps NaN to zero and clamps an
+        /// out-of-range value to the signed target bounds. Exact casts leave
+        /// this false because their range obligation was already discharged.
+        saturating: bool,
     },
     /// Atomic `fetch_add`: `LOCK xadd` of `delta` into the storage place.
     AtomicFetchAdd {
