@@ -622,6 +622,10 @@ pub struct SatisfiesClause {
 pub struct Machine {
     pub name: Identifier,
     pub attached_data: Option<Identifier>,
+    /// CH10 ACCEPTED FORM (GR6d): a contract with NO body (`boundary
+    /// machine f(..) ensures ..;`) -- the accepted-axiom tier. Only legal
+    /// with `boundary`; the item parser enforces the pairing.
+    pub bodyless: bool,
     /// TARGET-SCOPED implementation machine (`<target> machine ...`, the fs
     /// portable-contract settle 2026-07-18): the machine participates in the
     /// program only when this target is SELECTED. The pre-resolution filter

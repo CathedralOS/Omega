@@ -318,6 +318,7 @@ impl SyntaxTrees {
             attached_data: machine.attached_data.clone(),
             target: machine.target.clone(),
             boundary: machine.boundary,
+            bodyless: machine.bodyless,
             type_parameters: self.copy_type_parameter_span(other, machine.type_parameters),
             satisfies: self.copy_mapped_span(
                 other.items.satisfies_clauses(machine.satisfies).to_vec(),

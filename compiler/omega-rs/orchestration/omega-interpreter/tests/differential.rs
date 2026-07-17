@@ -387,6 +387,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("constants/runtime_free_const_exit", 70),
     ("proofs/runtime_core_nat_declared_exit", 70),
     ("proofs/runtime_core_rat_declared_exit", 70),
+    ("proofs/accepted_axiom_cited_exit", 70),
     ("proofs/runtime_nat_structural_recursion_exit", 70),
     ("proofs/runtime_core_roster_ops_exit", 70),
     ("build/runtime_depend_mapping_exit", 70),

@@ -131,6 +131,13 @@ pub(super) fn parse_item<'tokens, 'source>(
     if input.at_keyword(KeywordKind::Machine) {
         let input = input.take_keyword(KeywordKind::Machine, "machine")?;
         let (item, rest) = parse_machine(syntax_trees, input)?;
+        if item.bodyless {
+            return Err(rest.error_here(
+                "a machine without a body is the ACCEPTED boundary form -- spell it \
+                 `boundary machine ...;` (chapter 10: bodyless contracts are trust \
+                 rows, not ordinary machines)",
+            ));
+        }
         return Ok((Item::Machine(item), rest));
     }
 

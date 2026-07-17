@@ -20127,6 +20127,45 @@ fn runtime_core_nat_declared_exit_canary_runs() {
 }
 
 #[test]
+fn accepted_axiom_cited_exit_canary_runs() {
+    // CH10 GR6d: a bodyless boundary machine (accepted axiom) parses, its
+    // ensures is believed under dev-active grant locality, and a lemma
+    // citing it proves through the accepted fact. Runs untouched.
+    let canary = pass_canary("proofs/accepted_axiom_cited_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-accepted-axiom-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("accepted-axiom canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("accepted-axiom canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the axiom-citing program to run untouched (exit 70), got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let report = fs::read_to_string(build_dir.join("trust_report.md"))
+        .expect("trust report should be written");
+    assert!(
+        report.contains("accepted fact: mul_comm_axiom"),
+        "the axiom must surface as a trust row:\n{report}"
+    );
+    assert!(
+        report.contains("STANDING WARNING"),
+        "an ungranted axiom is dev-active with the standing warning:\n{report}"
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_core_rat_declared_exit_canary_runs() {
     // N4 Rat rung: the canonical-representative Rat carrier loads through
     // the bundled core; proof-only data over Nat never touches runtime.
@@ -31879,6 +31918,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "constants/runtime_free_const_exit",
     "proofs/runtime_core_nat_declared_exit",
     "proofs/runtime_core_rat_declared_exit",
+    "proofs/accepted_axiom_cited_exit",
     "proofs/runtime_nat_structural_recursion_exit",
     "proofs/runtime_core_roster_ops_exit",
     "build/runtime_depend_mapping_exit",
@@ -32614,6 +32654,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "proofs/ih_citation_false_twin",
     "proofs/computed_subject_requires_undischarged",
     "proofs/computed_edge_positivity_missing",
+    "proofs/accepted_axiom_engine_veto",
     "proofs/addition_commutativity_false_twin",
     "proofs/nonlinear_square_range_false_twin",
     "proofs/order_antisymmetry_false_twin",

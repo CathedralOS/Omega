@@ -411,6 +411,25 @@ pub(crate) fn validate_machine_contract_entailment(
             if structural.hypotheses_contradictory {
                 return false;
             }
+            // CH10 ACCEPTED tier (GR6d): a bodyless boundary machine's
+            // ensures is an AXIOM -- believed under the grant-locality rule
+            // (own-package dev-active; the trust report carries the row),
+            // never proven. The ENGINE VETO still applies: a statement the
+            // judge can REFUTE is a compile error, grants notwithstanding.
+            if machine.supply_mode == omega_core::semantics::MachineSupplyMode::Accepted {
+                if matches!(judge_structural(*fact), StructuralJudgment::Refuted) {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "accepted boundary machine `{}` claims `{}`, which the \
+                         engine REFUTES structurally -- a refutable statement is a \
+                         compile error, grants notwithstanding (chapter 10 engine \
+                         veto)",
+                        machine.name,
+                        program.expression_table.display_name(*fact),
+                    )));
+                    fenced_structural = true;
+                }
+                return false;
+            }
             match judge_structural(*fact) {
                 StructuralJudgment::Proven => {}
                 StructuralJudgment::Refuted => {

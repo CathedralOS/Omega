@@ -64,9 +64,12 @@ pub(crate) fn lower_machine_into(
         name: machine_name,
         attached_data,
         boundary: machine.boundary,
-        // STR3: the supply mode's ONE population site. Requirement/Accepted
-        // gain their own sources when their spellings reach this record.
-        supply_mode: if machine.boundary {
+        // STR3: the supply mode's ONE population site. Requirement gains
+        // its source when trait requirements reach this record; Accepted is
+        // the bodyless `boundary machine` proof form (CH10 GR6d).
+        supply_mode: if machine.bodyless {
+            omega_core::semantics::MachineSupplyMode::Accepted
+        } else if machine.boundary {
             omega_core::semantics::MachineSupplyMode::Boundary
         } else {
             omega_core::semantics::MachineSupplyMode::CheckedBody

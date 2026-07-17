@@ -4035,8 +4035,30 @@ with a real app-window story.
   lockfile receipts hashing the axiom's rendered ensures, (5) the
   engine-veto rule (a refutable accepted statement is a compile
   error, grants notwithstanding) can ride the existing judge
-  Refuted verdict. Canaries: pass (axiom cited under grant), fail
-  (axiom cited, engine-refutable), the outside-grant warning row.
+  Refuted verdict. GR6(d) LANDED 2026-07-20 -- THE ACCEPTED TIER IS REAL:
+  (1) the bodyless form PARSES (`boundary machine f(..) ensures
+  <fact>;` -- the machine-final `;` peeks past fact separators and
+  stays for parse_machine when a non-brace terminator follows, so
+  `ensures F; {` keeps its body; hard item keywords terminate the
+  fact list; the clause loop stands down at `;`; the implicit entry
+  state still materializes EMPTY so citations bind parameters;
+  syntax Machine gains `bodyless`, refused without `boundary` at the
+  item parser); (2) the populator emits MachineSupplyMode::Accepted
+  (its first population); (3) the JUDGE believes an Accepted
+  machine's ensures (dev-active grant locality) instead of proving
+  it, with the ENGINE VETO live -- a structurally REFUTED claim is a
+  compile error, grants notwithstanding; the empty-body return-type
+  check exempts Accepted; (4) instantiate_citation delivers axiom
+  ensures to citing lemmas (probed: mul_comm_axiom closes a lemma
+  the judge cannot prove); (5) trust-report rows per Accepted
+  machine (dev-active standing warning / root-granted via
+  accept_boundary name match). Pinned:
+  pass/proofs/accepted_axiom_cited_exit (dual-engine + report-row
+  asserts), fail/proofs/accepted_axiom_engine_veto. REMAINING GR6:
+  qualification AUTHORITY half, ProgressProfile minting + premises
+  stubs, MachineContractPlan permission half; plus lockfile receipts
+  for accepted axioms (hash the rendered ensures -- currently only
+  domains and bare grants hash).
 
 ## Structural follow-ups (surface landed; semantics pending)
 

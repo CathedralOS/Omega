@@ -43,16 +43,47 @@ pub(super) fn write_trust_report(
             standing_warning: !granted,
         });
     }
-    // Grants naming anything other than a declared domain surface as
-    // ACCEPTED-FACT rows (boundary-machine acceptance -- GR6 wires the
-    // supply-mode side; the report shows every grant, private or public).
+    // ACCEPTED machines (bodyless boundary axioms, GR6d): one row each --
+    // own-package dev-active with the standing warning, or root-granted
+    // when build.omg names the machine.
+    for machine in typed.machines() {
+        if machine.supply_mode != omega_core::semantics::MachineSupplyMode::Accepted {
+            continue;
+        }
+        let leaf = machine
+            .name
+            .as_str()
+            .rsplit("::")
+            .next()
+            .unwrap_or(machine.name.as_str());
+        let granted = root_grants
+            .iter()
+            .any(|grant| grant == machine.name.as_str() || grant == leaf);
+        report.rows.push(TrustReportRow {
+            commitment: format!("accepted fact: {}", machine.name.as_str()),
+            provenance: if granted {
+                "root grant (build.omg)".to_owned()
+            } else {
+                "own-package (dev-active)".to_owned()
+            },
+            standing_warning: !granted,
+        });
+    }
+    // Grants naming anything other than a declared domain OR an accepted
+    // machine surface as bare accepted-fact rows (the report shows every
+    // grant, private or public).
     for grant in root_grants {
         let names_domain = typed.domain_definitions().iter().any(|domain| {
             grant == domain.name.as_str()
                 || Some(grant.as_str())
                     == domain.name.as_str().rsplit("::").next()
         });
-        if !names_domain {
+        let names_accepted = typed.machines().iter().any(|machine| {
+            machine.supply_mode == omega_core::semantics::MachineSupplyMode::Accepted
+                && (grant == machine.name.as_str()
+                    || Some(grant.as_str()) == machine.name.as_str().rsplit("::").next())
+        });
+        if !names_domain && !names_accepted {
             report.rows.push(TrustReportRow {
                 commitment: format!("accepted fact: {grant}"),
                 provenance: "root grant (build.omg)".to_owned(),
