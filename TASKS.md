@@ -602,17 +602,27 @@ sealed progress profiles + grants, TPR4's remaining big half).
    BOTH sides carry a ScaledIndex (the fence itself stays; this crate
    names places via omega_target_operations, not abstract-operations).
    ALL FOUR exotic variants are now PRODUCER-FREE (retire-ready).
-   RETIREMENT SLICE NEXT: delete CopyRuntimeMachineDoubleIndexedTo
-   RuntimeStorage + CopyRuntimeStorageToRuntimeMachineDoubleIndexed +
-   CopyRuntimeFrameBaseDoubleIndexedToRuntimeStorage +
-   CopyRuntimeMachineIndexedToRuntimeMachineIndexed from both enums
-   with every echo (conversions, classifications, shapes, encoding/
-   layout arms, walker kind arms, report arms, blocker rows, cross-
-   arch dispatchers, x86 ISA encode/width fns); KEEP the aarch64
-   encoders + offset fns (the CopyPlaces decomposes ride them),
-   mirroring rungs 2c-iii/-vi/-viii. That leaves 17 of 18 Copy
-   variants retired -- CopyPlaces the sole survivor -- then the
-   Write/RMW ladder opens.
+   RUNG 2c-x RETIREMENT LANDED 2026-07-19 -- THE COPY FAMILY IS DONE:
+   all four two-runtime-index exotics deleted from both enums with
+   every echo (conversions, classifications, shapes arms, encoding/
+   layout arms deleted BALANCE-AWARE -- the naive `\n        }`-anchored
+   arm regex swallowed neighboring arms whose bodies end `),`, caught
+   by exhaustiveness errors and redone with a brace/paren-depth
+   walker; walker kind arms, report arms, blocker OR-rows, the
+   planned-check's old-kind arm, the 4 machine-emission cross-arch
+   dispatchers, the 4 instruction-selection cross-arch dispatchers +
+   re-exports, the 4 zero-reference x86 ISA encode fns). KEPT: the
+   aarch64 encoders + the whole offset-fn chain (the CopyPlaces
+   decomposes/walker arms ride them) + x86 width fns the offset
+   dispatchers reference; the Write* double-indexed family is a
+   DIFFERENT family and stays. SEVENTEEN of 18 Copy variants retired
+   -- CopyPlaces is the sole surviving copy operation. The Write/RMW
+   ladder (the leaf-cascade duplication dies) is the pilot's next
+   family; then Text, guards/operands, op-set shrink per the wiki
+   ladder. Pre-existing dead helpers noted en route (shapes/copies.rs
+   runtime_storage_copy_kind + _to_runtime_frame_indexed_kind +
+   from/to_machine_indexed_kind -- orphaned by EARLIER retirements,
+   swept opportunistically at the next touch).
    Then Write/RMW (the leaf-cascade duplication dies), Text,
    guards/operands, op-set shrink — the wiki ladder. Legalization
    refuses loudly at every rung.

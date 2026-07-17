@@ -951,31 +951,6 @@ fn machine_instruction_width(
             target,
             *byte_count,
         )?,
-        SelectedInstructionKind::CopyRuntimeMachineDoubleIndexedToRuntimeStorage {
-            outer_index_region,
-            inner_index_region,
-            ..
-        } => runtime_storage_copy_from_runtime_machine_double_indexed_to_runtime_storage_width(
-            input.target.architecture,
-            *outer_index_region,
-            *inner_index_region,
-        ),
-        SelectedInstructionKind::CopyRuntimeFrameBaseDoubleIndexedToRuntimeStorage { .. } => {
-            runtime_storage_copy_from_runtime_frame_base_double_indexed_to_runtime_storage_width(
-                input.target.architecture,
-            )
-        }
-        SelectedInstructionKind::CopyRuntimeStorageToRuntimeMachineDoubleIndexed {
-            source_region,
-            outer_index_region,
-            inner_index_region,
-            ..
-        } => runtime_storage_copy_to_runtime_machine_double_indexed_from_runtime_storage_width(
-            input.target.architecture,
-            *source_region,
-            *outer_index_region,
-            *inner_index_region,
-        ),
         SelectedInstructionKind::WriteRuntimeMachineDoubleIndexedInteger {
             outer_index_region,
             inner_index_region,
@@ -986,17 +961,6 @@ fn machine_instruction_width(
             *outer_index_region,
             *inner_index_region,
             *value,
-        ),
-        SelectedInstructionKind::CopyRuntimeMachineIndexedToRuntimeMachineIndexed {
-            source_index_region,
-            target_index_region,
-            byte_count,
-            ..
-        } => runtime_storage_copy_machine_indexed_to_machine_indexed_width(
-            input.target.architecture,
-            *source_index_region,
-            *target_index_region,
-            *byte_count,
         ),
         SelectedInstructionKind::SetDispatchState { .. }
         | SelectedInstructionKind::TerminateDispatch => {

@@ -391,11 +391,7 @@ fn state_mutation_is_planned(
                     | SelectedInstructionKind::AppendRuntimeTextLiteralToRuntimeFrameIndexed { .. }
                     | SelectedInstructionKind::AppendRuntimeTextStoredSuffix { .. }
                     | SelectedInstructionKind::CopyPlaces { .. }
-                    | SelectedInstructionKind::CopyRuntimeMachineDoubleIndexedToRuntimeStorage { .. }
-                    | SelectedInstructionKind::CopyRuntimeFrameBaseDoubleIndexedToRuntimeStorage { .. }
-                    | SelectedInstructionKind::CopyRuntimeStorageToRuntimeMachineDoubleIndexed { .. }
                     | SelectedInstructionKind::WriteRuntimeMachineDoubleIndexedInteger { .. }
-                    | SelectedInstructionKind::CopyRuntimeMachineIndexedToRuntimeMachineIndexed { .. }
             )
         })
 }
@@ -431,9 +427,6 @@ fn dual_indexed_copy_is_planned(
             state_key_matches_statement_source(instruction.source_key, source_key)
                 && instruction.source_statement == statement_index
                 && match &instruction.kind {
-                    SelectedInstructionKind::CopyRuntimeMachineIndexedToRuntimeMachineIndexed {
-                        ..
-                    } => true,
                     // Rung 2c-x: the pair rides CopyPlaces -- BOTH sides
                     // carry a runtime index, which is exactly the dual
                     // shape this fence guards.

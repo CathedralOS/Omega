@@ -52,12 +52,8 @@ pub use runtime_storage::{
     CopyPlacesShape, classify_copy_places_shape, encode_copy_places,
     encode_runtime_storage_compare_bytes, encode_runtime_storage_convert,
     x86_64_encode_copy_places_with_sites,
-    encode_runtime_storage_copy_from_runtime_machine_double_indexed_to_runtime_storage,
-    encode_runtime_storage_copy_to_runtime_machine_double_indexed_from_runtime_storage,
     encode_runtime_machine_double_indexed_integer_write,
     encode_runtime_machine_double_indexed_binary_write,
-    encode_runtime_storage_copy_from_runtime_frame_base_double_indexed_to_runtime_storage,
-    encode_runtime_storage_copy_machine_indexed_to_machine_indexed,
     encode_runtime_storage_value_compare_bytes,
     encode_runtime_value_compare,
 };
