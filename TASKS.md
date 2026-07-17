@@ -867,8 +867,20 @@ sealed progress profiles + grants, TPR4's remaining big half).
    shapes *_write_kind helpers); the x86 delegating shells remain
    PUB-CHAINED through uncalled selection dispatchers (dead-but-pub,
    invisible to intra-crate dead-code analysis) -- sweep the chain at
-   next touch. NEXT per the wiki ladder: the Text family, then
-   guards/operands consume Places, then the op-set shrink.
+   next touch. TEXT RUNG 1a LANDED
+   2026-07-19: encode_place_string_write -- the string DESCRIPTOR
+   ({ptr -> rodata, len}) stores into a place-shaped target; the data
+   pointer stages in r14 via the leading mov r14,imm64 (its
+   data-object reloc ALWAYS at instruction start, the retired
+   convention); the target address rides the standard walk (base site
+   at +10 via PlaceCopySites). The machine + frame string encoders
+   DELEGATE BYTE-FOR-BYTE (identical retired layouts, walker
+   untouched). REMAINING Text: the pointee/frame-indexed/machine-
+   indexed string delegations (per-encoder prefix analysis), the
+   bounded-buffer entry (immediate content bytes, single base reloc),
+   then WritePlaceString/+Buffer variant + echo + producers +
+   retirement. Then guards/operands consume Places, then the op-set
+   shrink.
    Rung 2a after: the WritePlaceInteger variant + echo product +
    producer migration. Pre-existing dead helpers noted en route (shapes/copies.rs
    runtime_storage_copy_kind + _to_runtime_frame_indexed_kind +
