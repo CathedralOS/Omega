@@ -1,0 +1,30 @@
+// FALSE TWIN for the computed-subject cited decrease (N4 slice a2): the
+// mod shape WITHOUT the machine requires (no 1 <= b). The sub_lt citation's
+// first premise has no site fact to discharge against, so the citation must
+// NOT serve the strict edge and the self-call refuses with the structural-
+// decrease message. (With b == Zero the recursion would NOT terminate --
+// sub(a, Zero) == a -- so admitting this shape would be unsound, not just
+// lax.)
+use omega::language::core::nat;
+
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+
+machine bogus_mod(a: Nat, b: Nat) -> Nat
+terminates by a;
+{
+    transition (sub(b, a)) {
+        Nat::Zero -> bm_rec(a, b)
+        Nat::Succ { prev as w } -> (a)
+    }
+
+    state bm_rec(a: Nat, b: Nat) -> Nat {
+        sub_lt(a, b);
+        let next: Nat = sub(a, b);
+        transition { _ -> (bogus_mod(next, b)) }
+    }
+}
+
+machine Main::main(&mut self) {
+    self.console.exit_process(70);
+}
