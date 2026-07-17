@@ -894,7 +894,13 @@ sealed progress profiles + grants, TPR4's remaining big half).
    arm AND the WritePlaceBinary aarch64 walker branch -- the x86 arms
    of the two machine-indexed offset fns are now dead-but-pub, swept
    at retirement). ALL FIVE string encoders now ride the
-   materializer. REMAINING Text: the
+   materializer. TEXT RUNG 1e LANDED 2026-07-19:
+   encode_place_bounded_buffer_write -- the len word + IMMEDIATE
+   content bytes (mov byte [r15+disp32],imm8) at a place-shaped
+   target; base reloc(s) from the walk are the only sites. The
+   machine + pointee bounded-buffer encoders delegate BYTE-FOR-BYTE
+   (27+8n / 34+8n, walker untouched; target_in_frame stays a
+   walker-side region choice). REMAINING Text: the
    bounded-buffer entry (immediate content bytes, single base reloc),
    then WritePlaceString/+Buffer variant + echo + producers +
    retirement. Then guards/operands consume Places, then the op-set

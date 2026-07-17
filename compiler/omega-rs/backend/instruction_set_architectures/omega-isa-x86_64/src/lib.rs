@@ -1,6 +1,7 @@
 mod place_copy;
 pub use place_copy::{
-    encode_place_binary_write, encode_place_integer_write, encode_place_string_write,
+    encode_place_binary_write, encode_place_bounded_buffer_write, encode_place_integer_write,
+    encode_place_string_write,
     place_binary_index_base_positions,
     place_binary_operand_start_width,
     PLACE_COPY_MAX_SITES, PlaceCopySide, PlaceCopySites, encode_copy_places, encode_place_copy,
@@ -5462,17 +5463,23 @@ pub fn encode_runtime_pointee_bounded_buffer_write(
     field_byte_offset: usize,
     literal: &str,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = Vec::with_capacity(runtime_pointee_bounded_buffer_write_width(literal));
-    append_mov_r15_imm64(&mut bytes, 0); // frame/machine base (reloc @ +2)
-    append_load_r15_from_r15(&mut bytes, pointer_byte_offset)?; // r15 = stored pointer
-    append_mov_rax_imm64(&mut bytes, literal.len() as u64);
-    append_store_rax_to_r15(&mut bytes, field_byte_offset, 8)?; // [*ptr + field] = len word
-    for (index, byte) in literal.as_bytes().iter().enumerate() {
-        let displacement = disp32(field_byte_offset + 8 + index)?;
-        bytes.extend([0x41, 0xc6, 0x87]); // mov byte [r15 + disp32], imm8
-        bytes.extend(displacement.to_le_bytes());
-        bytes.push(*byte);
-    }
+    // Text rung 1e: DELEGATES through the place materializer BYTE-FOR-BYTE
+    // (base mov + deref + len word + immediate content bytes -- the same
+    // positions); the single base reloc stays at the instruction start, so
+    // the walker holds as-is.
+    let target =
+        place_copy::transitional_place(omega_target_operations::RuntimeStorageRegion::RuntimeFrame)
+            .with_step(omega_target_operations::PlaceStep::ConstOffset(
+                pointer_byte_offset,
+            ))
+            .and_then(|place| place.with_step(omega_target_operations::PlaceStep::Deref))
+            .and_then(|place| {
+                place.with_step(omega_target_operations::PlaceStep::ConstOffset(
+                    field_byte_offset,
+                ))
+            })
+            .expect("a pointee place is four steps, within PLACE_MAX_STEPS");
+    let (bytes, _) = place_copy::encode_place_bounded_buffer_write(&target, literal)?;
     debug_assert_eq!(
         bytes.len(),
         runtime_pointee_bounded_buffer_write_width(literal)
@@ -5484,16 +5491,14 @@ pub fn encode_runtime_machine_bounded_buffer_write(
     byte_offset: usize,
     literal: &str,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = Vec::with_capacity(runtime_machine_bounded_buffer_write_width(literal));
-    append_mov_r15_imm64(&mut bytes, 0); // machine storage base (reloc @ +2)
-    append_mov_rax_imm64(&mut bytes, literal.len() as u64);
-    append_store_rax_to_r15(&mut bytes, byte_offset, 8)?; // [base + off] = len word
-    for (index, byte) in literal.as_bytes().iter().enumerate() {
-        let displacement = disp32(byte_offset + 8 + index)?;
-        bytes.extend([0x41, 0xc6, 0x87]); // mov byte [r15 + disp32], imm8
-        bytes.extend(displacement.to_le_bytes());
-        bytes.push(*byte);
-    }
+    // Text rung 1e: DELEGATES through the place materializer BYTE-FOR-BYTE
+    // (the region is documentation on the transitional path -- a
+    // frame-resident carrier patches the same leading base site).
+    let target =
+        place_copy::transitional_place(omega_target_operations::RuntimeStorageRegion::Machine)
+            .with_step(omega_target_operations::PlaceStep::ConstOffset(byte_offset))
+            .expect("a direct place is two steps, within PLACE_MAX_STEPS");
+    let (bytes, _) = place_copy::encode_place_bounded_buffer_write(&target, literal)?;
     debug_assert_eq!(
         bytes.len(),
         runtime_machine_bounded_buffer_write_width(literal)
