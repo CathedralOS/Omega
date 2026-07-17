@@ -263,6 +263,93 @@ fn machine_instruction_width(
             *target_offset,
             *length_delta,
         ),
+        // Task #132: the place-shaped survivors decompose by shape; the
+        // width fns mirror the encoders exactly.
+        SelectedInstructionKind::MaterializeTextBufferToPlace { target, .. } => {
+            match omega_instruction_selection::classify_write_place_shape(target) {
+                omega_instruction_selection::WritePlaceShape::Direct { byte_offset } => {
+                    runtime_text_buffer_materialize_width(input.target.architecture, byte_offset)
+                }
+                omega_instruction_selection::WritePlaceShape::Pointee {
+                    pointer_byte_offset,
+                    field_byte_offset,
+                } => omega_instruction_selection::runtime_text_buffer_materialize_to_runtime_pointee_width(
+                    input.target.architecture,
+                    pointer_byte_offset,
+                    field_byte_offset,
+                ),
+                omega_instruction_selection::WritePlaceShape::FrameIndexed {
+                    element_byte_size,
+                    field_byte_offset,
+                    ..
+                } => omega_instruction_selection::runtime_text_buffer_materialize_to_runtime_frame_indexed_width(
+                    input.target.architecture,
+                    element_byte_size,
+                    field_byte_offset,
+                ),
+                _ => 0,
+            }
+        }
+        SelectedInstructionKind::AppendTextStoredToPlace {
+            source_offset,
+            target,
+            ..
+        } => match omega_instruction_selection::classify_write_place_shape(target) {
+            omega_instruction_selection::WritePlaceShape::Direct { byte_offset } => {
+                runtime_text_stored_place_append_width(
+                    input.target.architecture,
+                    *source_offset,
+                    byte_offset,
+                )
+            }
+            omega_instruction_selection::WritePlaceShape::Pointee {
+                pointer_byte_offset,
+                field_byte_offset,
+            } => omega_instruction_selection::runtime_text_stored_place_append_to_runtime_pointee_width(
+                input.target.architecture,
+                *source_offset,
+                pointer_byte_offset,
+                field_byte_offset,
+            ),
+            omega_instruction_selection::WritePlaceShape::FrameIndexed {
+                element_byte_size,
+                field_byte_offset,
+                ..
+            } => omega_instruction_selection::runtime_text_stored_place_append_to_runtime_frame_indexed_width(
+                input.target.architecture,
+                *source_offset,
+                element_byte_size,
+                field_byte_offset,
+            ),
+            _ => 0,
+        },
+        SelectedInstructionKind::AppendTextLiteralToPlace {
+            target, literal, ..
+        } => match omega_instruction_selection::classify_write_place_shape(target) {
+            omega_instruction_selection::WritePlaceShape::Direct { byte_offset } => {
+                runtime_text_literal_append_width(input.target.architecture, byte_offset, literal)
+            }
+            omega_instruction_selection::WritePlaceShape::Pointee {
+                pointer_byte_offset,
+                field_byte_offset,
+            } => omega_instruction_selection::runtime_text_literal_append_to_runtime_pointee_width(
+                input.target.architecture,
+                pointer_byte_offset,
+                field_byte_offset,
+                literal,
+            ),
+            omega_instruction_selection::WritePlaceShape::FrameIndexed {
+                element_byte_size,
+                field_byte_offset,
+                ..
+            } => omega_instruction_selection::runtime_text_literal_append_to_runtime_frame_indexed_width(
+                input.target.architecture,
+                element_byte_size,
+                field_byte_offset,
+                literal,
+            ),
+            _ => 0,
+        },
         SelectedInstructionKind::MaterializeRuntimeTextBuffer { target_offset, .. } => {
             runtime_text_buffer_materialize_width(input.target.architecture, *target_offset)
         }

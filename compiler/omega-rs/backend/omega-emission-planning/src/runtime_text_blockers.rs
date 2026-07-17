@@ -318,6 +318,9 @@ fn runtime_text_write_has_selected_instruction(
                         | SelectedInstructionKind::WriteRuntimeTextLiteral { .. }
                         | SelectedInstructionKind::WriteRuntimeTextLiteralSegment { .. }
                         | SelectedInstructionKind::AppendRuntimeTextStoredSuffix { .. }
+                        | SelectedInstructionKind::MaterializeTextBufferToPlace { .. }
+                        | SelectedInstructionKind::AppendTextStoredToPlace { .. }
+                        | SelectedInstructionKind::AppendTextLiteralToPlace { .. }
                         | SelectedInstructionKind::MaterializeRuntimeTextBuffer { .. }
                         | SelectedInstructionKind::MaterializeRuntimeTextBufferToRuntimePointee { .. }
                         | SelectedInstructionKind::MaterializeRuntimeTextBufferToRuntimeFrameIndexed { .. }

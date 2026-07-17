@@ -152,6 +152,34 @@ pub enum AbstractOperationKind {
         field_byte_offset: usize,
         literal: Arc<str>,
     },
+
+    /// Task #132 (op-set shrink): materialize a text-buffer descriptor into
+    /// a place-shaped target -- the Materialize x {direct, pointee,
+    /// frame-indexed} crossing collapses onto this one. Encoding decomposes
+    /// by place shape to the retained encoders on BOTH architectures.
+    MaterializeTextBufferToPlace {
+        buffer: AbstractDataObjectHandle,
+        target: Place,
+    },
+
+    /// Task #132: append a stored text value onto the builder buffer and
+    /// store the descriptor into a place-shaped target (the AppendStored
+    /// crossing's survivor).
+    AppendTextStoredToPlace {
+        buffer: AbstractDataObjectHandle,
+        source_region: RuntimeStorageRegion,
+        source_offset: usize,
+        target: Place,
+    },
+
+    /// Task #132: append a literal onto the builder buffer and store the
+    /// descriptor into a place-shaped target (the AppendLiteral crossing's
+    /// survivor).
+    AppendTextLiteralToPlace {
+        buffer: AbstractDataObjectHandle,
+        target: Place,
+        literal: Arc<str>,
+    },
     /// compact_binary v0 wire framing (chapter 20): store one COMPILE-TIME
     /// byte (era and field-tag varint bytes are known when the schema is) into
     /// the encode buffer at the stored cursor, then advance the cursor by one.

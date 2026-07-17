@@ -141,6 +141,28 @@ pub enum TargetOperationKind {
         field_byte_offset: usize,
         literal: std::sync::Arc<str>,
     },
+
+    /// Task #132: the place-shaped text-buffer materialize (the 3-shape
+    /// Materialize crossing's survivor).
+    MaterializeTextBufferToPlace {
+        buffer: TargetDataObjectHandle,
+        target: Place,
+    },
+
+    /// Task #132: the place-shaped stored-text append.
+    AppendTextStoredToPlace {
+        buffer: TargetDataObjectHandle,
+        source_region: RuntimeStorageRegion,
+        source_offset: usize,
+        target: Place,
+    },
+
+    /// Task #132: the place-shaped literal append.
+    AppendTextLiteralToPlace {
+        buffer: TargetDataObjectHandle,
+        target: Place,
+        literal: std::sync::Arc<str>,
+    },
     /// compact_binary v0 wire framing: store one compile-time byte into the
     /// encode buffer at the stored cursor (the caller's `written` slot), then
     /// advance the cursor by one.

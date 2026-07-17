@@ -364,6 +364,9 @@ fn selected_instruction_writes_runtime_text_buffer(
         SelectedInstructionKind::WriteRuntimeTextLiteral { buffer, .. }
         | SelectedInstructionKind::WriteRuntimeTextLiteralSegment { buffer, .. }
         | SelectedInstructionKind::AppendRuntimeTextStoredSuffix { buffer, .. }
+        | SelectedInstructionKind::MaterializeTextBufferToPlace { buffer, .. }
+        | SelectedInstructionKind::AppendTextStoredToPlace { buffer, .. }
+        | SelectedInstructionKind::AppendTextLiteralToPlace { buffer, .. }
         | SelectedInstructionKind::MaterializeRuntimeTextBuffer { buffer, .. }
         | SelectedInstructionKind::MaterializeRuntimeTextBufferToRuntimePointee {
             buffer, ..

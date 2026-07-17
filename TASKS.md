@@ -1077,7 +1077,19 @@ sealed progress profiles + grants, TPR4's remaining big half).
    classify_write_place_shape to the retained per-shape encoders on
    BOTH arches (the aarch64 transitional pattern applied to x86 too);
    the payoff is killing the 15-file echo duplication at the
-   representation level. Then producers + retire 9. AFTER: classify
+   representation level. TEXT-CROSSING RUNG A LANDED 2026-07-20:
+   MaterializeTextBufferToPlace + AppendTextStoredToPlace +
+   AppendTextLiteralToPlace variants + FULL echo -- conversions,
+   classifications (the retired group's domain), encoding + layout
+   DECOMPOSE arms (classify_write_place_shape -> retained per-shape
+   encoders/width fns on both arches, else refuse loudly at encode;
+   layout _ => 0 is unreachable-in-practice since encode refuses
+   first), walker arms per shape (direct/pointee share buffer@0 +
+   target-at-offset; frame-indexed flips to frame@0 + buffer/source
+   at indexed offset fns), text/storage/host_argument blocker rows,
+   shapes plain kinds, report arms. Zero producers yet. REMAINING:
+   migrate 11 producer sites -> retire the 9 crossing variants +
+   sweep. Then producers + retire 9 done -> classify
    the remaining ~53 variants (already-place-shaped / collapsible-via
    -value-category / genuinely-distinct dispatch-host-wire-atomic /
    straggler mini-collapses); walked-place guard subjects stay a
