@@ -3212,12 +3212,28 @@ rejects — an INTEGER ruling, engineering rides this ladder as F8).
   granted_plan_receipt_pins_the_fingerprint -- grant, edit the
   binding value, refusal). PRV3 IS COMPLETE except SLOT-OWNER
   SELECTION, which IS PRV4's surface (the target-default set +
-  per-slot overrides in build.omg). PRV4 REMAINING: std target
-  packages + Console/filesystem/float migration + retiring
-  provides/platform -- the corpus-scale breaking pass (215 provides
-  tokens, the platform-block consumers across 4 crates, both
-  engines' Console special-cases, the hardcoded populate tables in
-  {windows,linux,darwin}.rs); its machinery map is banked above. retire the `provides` keyword and platform
+  per-slot overrides in build.omg). PRV4 REMAINING -- SUB-RUNGS CUT 2026-07-20 (the corpus-scale
+  breaking pass; machinery map banked above): P4a CONSOLE VERTICAL
+  -- promote platform Console to boundary trait Console in
+  console.omg; represent the three populate tables' Console rows as
+  ProviderPlan VALUES (per-target constructors beside the tables;
+  render_call_shape carries the PlatformCallData policies); have
+  merge-time consumption build the SAME HostBindingMechanism rows
+  from the plans (parse_call_shape at the seam) behind a parallel
+  path gated to Console, with byte-identical HostAbiPlan as the
+  oracle before the hardcoded insert_platform_lowering rows retire;
+  both engines' Console special-cases keyed off the boundary trait
+  instead of the platform block (evaluator.rs:4174-4196, 6408;
+  platform consumers in symbol-resolution/state_signatures/types/
+  proof). P4b FILESYSTEM: the per-target Value provides rows
+  (targets/<t>/filesystem.provides.omg) re-authored as plan values
+  in std target packages; slot-owner selection = build.omg target
+  blocks choosing the default plan set + per-slot overrides. P4c
+  FLOAT/F7: the Instruction binding arm formalizes the hardcoded
+  IEEE lowering (needs the instruction-plan machinery -- may gate).
+  P4d RETIREMENT: the provides keyword + platform blocks + the
+  populate tables die; corpus sweep (215 tokens, 31 canary-suite
+  sites); loud decision diagnostics per the TPR1 precedent. retire the `provides` keyword and platform
   blocks. PRV1 add the typed `ProviderPlan` policy carrier over boundary-trait
   service schemas and existing `Binding` cases; PRV2 validate coverage,
   signatures, calling/layout plans, and normalized identity; PRV3 admit
