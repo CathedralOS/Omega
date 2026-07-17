@@ -3250,13 +3250,19 @@ rejects — an INTEGER ruling, engineering rides this ladder as F8).
   feature pins migrated to boundary-trait spelling (same pass/fail
   behavior, renamed call_requires_boundary_*), the parse arm refuses
   with the directed message (pinned:
-  fail/platform/platform_block_retired), suite 868 green. REMAINING
-  P4d: sweep the dead platform machinery compiler-driven
-  (parse_platform, Item::Platform arms, the typed Platform
-  representation, consumers in symbol-resolution/state_signatures/
-  types/proof, platform_state_signatures arena); the provides
-  retirement itself waits on the plan-spelling ruling (provides
-  still carries the fs Value rows). P4b FILESYSTEM: the per-target Value provides rows
+  fail/platform/platform_block_retired), suite 868 green. P4d SYNTAX SWEEP LANDED
+  2026-07-20: parse_platform + the syntax Item::Platform variant +
+  Platform struct + insert/copy/identity/snapshot arms + the
+  syntax->resolved lowering module + the types/proof/visualization
+  syntax arms are GONE (compiler-driven deletion; suite 868 +
+  differential green). STILL STANDING (empty forever, no producer):
+  the RESOLVED/TYPED Platform representations + their arenas
+  (platform_state_signatures) + downstream consumers
+  (state_signatures ownership walks, the interpreter's platform
+  paths) -- a follow-up sweep wave when convenient; and the
+  `platform` KEYWORD token itself (the retirement diagnostic needs
+  it). The provides retirement waits on the plan-spelling ruling
+  (provides still carries the fs Value rows). P4b FILESYSTEM: the per-target Value provides rows
   (targets/<t>/filesystem.provides.omg) re-authored as plan values
   in std target packages; slot-owner selection = build.omg target
   blocks choosing the default plan set + per-slot overrides. P4c

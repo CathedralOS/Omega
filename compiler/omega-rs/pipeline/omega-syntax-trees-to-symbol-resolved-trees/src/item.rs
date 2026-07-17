@@ -5,7 +5,6 @@ use crate::lowerer::Lowerer;
 use crate::machine::lower_machine_into;
 use crate::measure::lower_measure_definition;
 use crate::operator::lower_operator_definition;
-use crate::platform::lower_platform;
 use crate::trait_definition::lower_trait_definition;
 use crate::wire::lower_wire_schema;
 use omega_core::diagnostics::Diagnostic;
@@ -77,10 +76,6 @@ pub(crate) fn lower_item(
             if machine.target.is_none() {
                 lower_machine_into(lowerer, syntax_trees, machine)?;
             }
-        }
-        syntax::item::Item::Platform(platform) => {
-            let platform = lower_platform(lowerer, syntax_trees, platform)?;
-            lowerer.symbol_resolved_trees.platforms.push(platform);
         }
         syntax::item::Item::Trait(trait_definition) => {
             let trait_definition = lower_trait_definition(lowerer, syntax_trees, trait_definition)?;

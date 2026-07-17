@@ -9,7 +9,7 @@ use crate::item::{
     CapabilityDefinition, CapabilityField, CapabilityMember, CapabilityState, DataDefinition,
     DataField, DataMember, DataVariant, DataVersion, DomainDefinition, HostProviderDefinition,
     HostProviderMapping, Item, ItemHandle, ItemTable, LibraryDefinition, LibraryFunction, Machine,
-    MeasureDefinition, OperatorDefinition, Platform, ProofFact, ProofMembershipFact, State,
+    MeasureDefinition, OperatorDefinition, ProofFact, ProofMembershipFact, State,
     StateHandle, StateParameterHandle, StateParameterNode, StateSignature, StateSignatureHandle,
     TargetDefinition, TargetHost, TargetHostSetting, TargetHostSettingValue, TraitDefinition,
     TypeParameter, UseItem, WireDataDefinition, WireDataField, WireDataMember, WireDataReserved,
@@ -101,7 +101,6 @@ impl SyntaxTrees {
     fn insert_item(&mut self, item: Item) -> ItemHandle {
         match &item {
             Item::Machine(machine) => self.insert_machine(machine),
-            Item::Platform(platform) => self.insert_platform(platform),
             Item::Trait(trait_definition) => self.insert_trait_definition(trait_definition),
             Item::Capability(_)
             | Item::Conformance(_)
@@ -127,10 +126,6 @@ impl SyntaxTrees {
 
     fn insert_machine(&mut self, machine: &Machine) {
         self.items.insert_machine(machine);
-    }
-
-    fn insert_platform(&mut self, platform: &Platform) {
-        self.items.insert_platform(platform);
     }
 
     fn insert_trait_definition(&mut self, trait_definition: &TraitDefinition) {
@@ -201,7 +196,6 @@ impl SyntaxTrees {
                 path: self.copy_item_identifier_span(other, use_item.path),
             }),
             Item::Machine(machine) => Item::Machine(self.copy_machine(other, machine)),
-            Item::Platform(platform) => Item::Platform(self.copy_platform(other, platform)),
             Item::Trait(trait_definition) => {
                 Item::Trait(self.copy_trait_definition(other, trait_definition))
             }
@@ -339,13 +333,6 @@ impl SyntaxTrees {
             effects: self.copy_item_identifier_span(other, machine.effects),
             contracts: self.copy_capability_contract_span(other, machine.contracts),
             states: self.copy_state_handle_span(other, machine.states),
-        }
-    }
-
-    fn copy_platform(&mut self, other: &SyntaxTrees, platform: &Platform) -> Platform {
-        Platform {
-            name: platform.name.clone(),
-            states: self.copy_state_signature_handle_span(other, platform.states),
         }
     }
 

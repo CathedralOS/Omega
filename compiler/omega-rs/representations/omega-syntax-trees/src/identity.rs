@@ -212,13 +212,7 @@ fn count_item(syntax_trees: &SyntaxTrees, item: &Item, counts: &mut AstIdentityS
                 }
             }
         }
-        Item::Platform(platform) => {
-            count_identifier(&platform.name, counts);
-            for signature in syntax_trees.items.state_signatures(platform.states) {
-                let signature = syntax_trees.items.state_signature(*signature);
-                count_state_signature_node(syntax_trees, signature, counts);
-            }
-        }
+
         Item::Trait(trait_definition) => {
             count_identifier(&trait_definition.name, counts);
             for parameter in syntax_trees
