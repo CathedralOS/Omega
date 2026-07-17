@@ -191,8 +191,11 @@ sealed progress profiles + grants, TPR4's remaining big half).
 3. **Dependent types R2** (section below) — where-clause + gating + windows;
    the big semantic build, explicitly ADDITIVE (the landed eager store-time
    checks stay sound as the conservative tier). One careful agent, multi-day.
-4. **Windows platform-verification session** (section below) — checklist-
-   shaped; one session on a Windows host closes the whole list.
+4. **Windows platform-verification session — HOST CHECKLIST COMPLETE**
+   (section below) — the workspace battery and Windows-only filesystem/time
+   seams are verified on this host. The remaining WndProc callback surface and
+   `WINDOWS_IMPORT_ROWS`→ProviderPlan migration are separate feature arcs, not
+   reasons to rerun or "finish" the verification session.
 5. **Constant model — the two-phase law (FRONT-LOADED by owner
    2026-07-18; law: ch5 "Constants: Two Phases"; memory:
    anonymous-values-two-phase-constants):** file-disjoint from the RECAST
@@ -3737,7 +3740,7 @@ rejects — an INTEGER ruling, engineering rides this ladder as F8).
 
 ## Platform verification sessions (host-gated)
 
-- **Windows session — RUNNING 2026-07-16 (Next Tasks #4); slice 1 landed:**
+- **Windows session — COMPLETE 2026-07-17 (former Next Tasks #4):**
   the full `cargo test --workspace` battery now runs GREEN on a windows
   host — it had never run here (cfg(windows)-gated tests compile out on
   the aarch64-darwin authoring lane). What it surfaced + fixed:
@@ -3858,10 +3861,11 @@ rejects — an INTEGER ruling, engineering rides this ladder as F8).
   fd-based read_dir stay
   paradigm-refused on windows BY DESIGN (the dirfd paradigm has no Win32
   twin; wrapper-level windows impls already serve the walk); chown/symlink
-  stay refused (no windows semantics / privilege-gated). WndProc entry
-  stubs (title-bar close). WINDOWS_IMPORT_ROWS consumption (build the
-  ProviderPlan form per the 2026-07-16 provider verdict — design-adjacent,
-  own kickoff).
+  stay refused (no windows semantics / privilege-gated).
+  **Residual feature arcs (not verification blockers):** WndProc callback
+  entry stubs for ordinary title-bar close; and `WINDOWS_IMPORT_ROWS`
+  consumption into the settled ProviderPlan form. Each needs its own kickoff
+  and acceptance tests; neither invalidates the completed host evidence above.
 - **Linux session:** fs + time binding tables are structural-only until a
   host exists. Time's monotonic/wall rows additionally need a timespec
   composite lowering (clock_gettime writes {tv_sec, tv_nsec}; result =
