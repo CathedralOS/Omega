@@ -291,7 +291,7 @@ pub(super) fn parse_type_reference_handle_allowing_borrow<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, TypeReferenceHandle> {
-    let (is_reference, lifetime, is_mutable, is_relaxed, input) =
+    let (is_reference, lifetime, is_mutable, input) =
         if input.at_punctuation(PunctuationKind::Ampersand) {
             let input = input.take_punctuation(PunctuationKind::Ampersand, "&")?;
             // Explicit lifetime (`&'buf T`, `&'buf mut T`); frozen decision 15
@@ -312,10 +312,9 @@ pub(super) fn parse_type_reference_handle_allowing_borrow<'tokens, 'source>(
                      relax surface -- take the ordinary reference",
                 ));
             }
-            let is_relaxed = false;
-            (true, lifetime, is_mutable, is_relaxed, input)
+            (true, lifetime, is_mutable, input)
         } else {
-            (false, None, false, false, input)
+            (false, None, false, input)
         };
 
     let (type_reference, input) = parse_type_reference_handle(syntax_trees, input)?;
@@ -325,7 +324,6 @@ pub(super) fn parse_type_reference_handle_allowing_borrow<'tokens, 'source>(
             .insert(TypeReferenceNode::Reference {
                 referee: type_reference,
                 is_mutable,
-                is_relaxed,
                 lifetime,
             })
     } else {

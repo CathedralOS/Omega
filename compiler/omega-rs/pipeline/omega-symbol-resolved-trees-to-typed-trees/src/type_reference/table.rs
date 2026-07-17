@@ -21,7 +21,6 @@ pub(super) fn lower_type_reference_handle_from_table_with_context(
         resolved::types::TypeReferenceNode::Reference {
             referee,
             is_mutable,
-            is_relaxed,
             lifetime,
         } => {
             let referee = lower_type_reference_handle_from_table_with_context(
@@ -33,7 +32,6 @@ pub(super) fn lower_type_reference_handle_from_table_with_context(
                 typed::types::TypeReferenceNode::Reference {
                     referee,
                     is_mutable: *is_mutable,
-                    is_relaxed: *is_relaxed,
                     lifetime: lifetime.as_ref().map(crate::name::lower_name),
                 },
             ))

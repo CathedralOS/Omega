@@ -480,7 +480,6 @@ pub enum TypeReferenceSnapshot {
     Reference {
         referee: Box<TypeReferenceSnapshot>,
         is_mutable: bool,
-        is_relaxed: bool,
     },
     Constrained {
         base_type: Box<TypeReferenceSnapshot>,
@@ -1066,14 +1065,12 @@ fn type_reference_snapshot(
         TypeReferenceNode::Reference {
             referee,
             is_mutable,
-            is_relaxed,
             // Lifetime omitted from the structural snapshot (a borrow-region tag,
             // not part of the type's shape).
             lifetime: _,
         } => TypeReferenceSnapshot::Reference {
             referee: Box::new(type_reference_snapshot(program, *referee)),
             is_mutable: *is_mutable,
-            is_relaxed: *is_relaxed,
         },
         TypeReferenceNode::Constrained {
             base_type,

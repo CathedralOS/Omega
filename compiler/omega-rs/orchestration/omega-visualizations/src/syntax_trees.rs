@@ -595,15 +595,9 @@ fn type_reference_label(syntax: &SyntaxTrees, handle: TypeReferenceHandle) -> St
         TypeReferenceNode::Reference {
             referee,
             is_mutable,
-            is_relaxed,
             lifetime,
         } => {
-            let qualifier = match (*is_mutable, *is_relaxed) {
-                (true, true) => "mut relaxed ",
-                (true, false) => "mut ",
-                (false, true) => "relaxed ",
-                (false, false) => "",
-            };
+            let qualifier = if *is_mutable { "mut " } else { "" };
             let lifetime = lifetime
                 .as_ref()
                 .map(|name| format!("'{} ", name.as_str()))
