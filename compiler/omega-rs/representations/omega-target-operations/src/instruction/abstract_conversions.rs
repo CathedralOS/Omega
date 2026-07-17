@@ -782,6 +782,22 @@ impl From<&omega_abstract_operations::AbstractOperationKind> for TargetOperation
                 domain: *domain,
                 target_signed: *target_signed,
             },
+            omega_abstract_operations::AbstractOperationKind::WritePlaceString {
+                target,
+                data,
+                byte_length,
+            } => Self::WritePlaceString {
+                target: *target,
+                data: remap_data_handle(*data),
+                byte_length: *byte_length,
+            },
+            omega_abstract_operations::AbstractOperationKind::WritePlaceBoundedBuffer {
+                target,
+                literal,
+            } => Self::WritePlaceBoundedBuffer {
+                target: *target,
+                literal: literal.clone(),
+            },
             omega_abstract_operations::AbstractOperationKind::SetDispatchState {
                 dispatch_index,
             } => Self::SetDispatchState {

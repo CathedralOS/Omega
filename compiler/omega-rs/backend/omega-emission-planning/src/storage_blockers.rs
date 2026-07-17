@@ -354,6 +354,8 @@ fn state_mutation_is_planned(
                     | SelectedInstructionKind::AtomicCompareExchange { .. }
                     | SelectedInstructionKind::WritePlaceInteger { .. }
                     | SelectedInstructionKind::WritePlaceBinary { .. }
+                    | SelectedInstructionKind::WritePlaceString { .. }
+                    | SelectedInstructionKind::WritePlaceBoundedBuffer { .. }
                     | SelectedInstructionKind::WriteRuntimeStorageConvert { .. }
                     | SelectedInstructionKind::WriteRuntimeMachineString { .. }
                     | SelectedInstructionKind::WriteRuntimeMachineBoundedBuffer { .. }

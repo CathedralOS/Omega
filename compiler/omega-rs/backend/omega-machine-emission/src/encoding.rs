@@ -605,6 +605,22 @@ pub(super) fn encode_machine_instruction_bytes(
             *value,
             *byte_size,
         ),
+        SelectedInstructionKind::WritePlaceString {
+            target,
+            byte_length,
+            ..
+        } => omega_instruction_selection::encode_write_place_string(
+            input.target.architecture,
+            target,
+            *byte_length,
+        ),
+        SelectedInstructionKind::WritePlaceBoundedBuffer { target, literal } => {
+            omega_instruction_selection::encode_write_place_bounded_buffer(
+                input.target.architecture,
+                target,
+                literal,
+            )
+        }
         SelectedInstructionKind::WritePlaceBinary {
             target,
             byte_size,
