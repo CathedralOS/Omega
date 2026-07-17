@@ -1,4 +1,4 @@
-// Chapter 18 makes a platform state signature's `requires` the CALLER's proof
+// Chapter 18 makes a boundary trait signature's `requires` the CALLER's proof
 // obligation, the same way a boundary trait machine's `requires` is. Calls
 // through platform-typed contained objects never produced a call obligation
 // (the platform signature target was invisible to borrow/contract collection),
@@ -12,8 +12,8 @@ domain Item::Ready {
     self.value > 0;
 }
 
-platform Console {
-    entry show(item: &Item)
+boundary trait Console {
+    machine show(item: &Item)
     requires
         item in Item::Ready;
 }

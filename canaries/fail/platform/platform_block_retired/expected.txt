@@ -1,0 +1,1 @@
+platform` blocks are retired

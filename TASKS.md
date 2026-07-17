@@ -3238,9 +3238,25 @@ rejects — an INTEGER ruling, engineering rides this ladder as F8).
   -- the platform-requires feature pins) and the parser/consumer
   machinery; retiring the keyword = migrate those two pins' subject
   to boundary-trait requires + delete the platform parse/consumers
-  (P4d's sweep). P4a REMAINING: consume the derived Console plans at
-  merge time behind the byte-identical oracle, then retire the
-  tables' Console rows (the plans-as-source flip). P4b FILESYSTEM: the per-target Value provides rows
+  (P4d's sweep). P4a FLIP + P4b
+  DESIGN-BLOCKED 2026-07-20 (OWNER_QUESTIONS "Authored ProviderPlan
+  spelling"): the populate tables' Console rows are lowering
+  SEQUENCES + call shapes that neither the retiring provides grammar
+  nor any authored surface can spell -- the flip's source needs the
+  authored plan spelling (3 questions recorded: row spelling,
+  build.omg selection, interim-Rust-values-or-wait). The oracle
+  guarantees equivalence whenever the flip lands. P4d PROGRESS
+  2026-07-20: platform blocks RETIRED -- the two platform-requires
+  feature pins migrated to boundary-trait spelling (same pass/fail
+  behavior, renamed call_requires_boundary_*), the parse arm refuses
+  with the directed message (pinned:
+  fail/platform/platform_block_retired), suite 868 green. REMAINING
+  P4d: sweep the dead platform machinery compiler-driven
+  (parse_platform, Item::Platform arms, the typed Platform
+  representation, consumers in symbol-resolution/state_signatures/
+  types/proof, platform_state_signatures arena); the provides
+  retirement itself waits on the plan-spelling ruling (provides
+  still carries the fs Value rows). P4b FILESYSTEM: the per-target Value provides rows
   (targets/<t>/filesystem.provides.omg) re-authored as plan values
   in std target packages; slot-owner selection = build.omg target
   blocks choosing the default plan set + per-slot overrides. P4c
