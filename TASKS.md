@@ -3166,7 +3166,23 @@ rejects — an INTEGER ruling, engineering rides this ladder as F8).
   boundary TraitDefinition; construct the built-in Console lowering
   as ProviderPlan VALUES in tests. Console's platform->boundary-trait
   PROMOTION waits for PRV2/PRV4 (validation/selection must exist
-  before the special-cases move). retire the `provides` keyword and platform
+  before the special-cases move). PRV1 LANDED 2026-07-20:
+  omega-effects/capabilities/provider_plan.rs -- ServiceSchema
+  {trait_name, methods: [name, parameter_count, has_result,
+  effects]}, ProviderBinding (the Binding sum's union with the
+  platform mechanisms: Import|Syscall|VtableSlot|VtableField|
+  TableFunction|Value + the F7 Instruction arm reserved),
+  ProviderPlanRow {method, binding, call_shape: rendered
+  PlatformCallData policy -- keeps PRV1 free of a
+  calling-conventions dep; PRV2 normalizes}, ProviderPlan {name,
+  target, schema, rows, effect_set, origin_package -- NO trust
+  field: classification is admission output}. covers_schema() as
+  the PRV2 preview; the built-in windows Console lowering constructed
+  as a plan VALUE in tests (the PRV4 relocation shape). NEXT: PRV2
+  validation (coverage/signatures against the typed TraitDefinition,
+  call-shape normalization, normalized identity), then PRV3
+  admission through the ch10 carrier + slot-owner selection, then
+  PRV4 the std target packages + Console/filesystem/float migration. retire the `provides` keyword and platform
   blocks. PRV1 add the typed `ProviderPlan` policy carrier over boundary-trait
   service schemas and existing `Binding` cases; PRV2 validate coverage,
   signatures, calling/layout plans, and normalized identity; PRV3 admit
