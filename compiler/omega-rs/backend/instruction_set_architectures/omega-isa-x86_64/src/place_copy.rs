@@ -271,6 +271,46 @@ pub fn encode_place_integer_write(
     Ok((bytes, sites))
 }
 
+/// The BINARY-write materializer entry (Binary rung 1a): evaluate
+/// `left OP right` under the arithmetic domain and store the result into a
+/// place-shaped target. The target address materializes through the SAME
+/// walk as every place entry (r15 base, r11/r10 indices -- fully consumed
+/// into the address BEFORE operands evaluate), then hops to r14 (operand
+/// evaluation reloads r15 per source base and clobbers r10/r11); the shared
+/// `append_binary_operands_op_and_store` half is the SAME code the retired
+/// direct encoder runs.
+#[allow(clippy::too_many_arguments)]
+pub fn encode_place_binary_write(
+    runtime_value_operands: &impl super::RuntimeValueOperandSource,
+    target: &Place,
+    byte_size: usize,
+    left: super::RuntimeValueOperandHandle,
+    operator: super::StateGuardOperator,
+    right: super::RuntimeValueOperandHandle,
+    is_float: bool,
+    domain: super::ArithmeticDomain,
+    target_signed: bool,
+) -> Result<(Vec<u8>, PlaceCopySites), Diagnostic> {
+    let mut bytes = Vec::new();
+    let mut sites = PlaceCopySites::default();
+    let displacement =
+        materialize_place_address(&mut bytes, &mut sites, target, AddressRegister::Target)?;
+    super::append_mov_r14_r15(&mut bytes);
+    super::append_binary_operands_op_and_store(
+        runtime_value_operands,
+        &mut bytes,
+        displacement,
+        byte_size,
+        left,
+        operator,
+        right,
+        is_float,
+        domain,
+        target_signed,
+    )?;
+    Ok((bytes, sites))
+}
+
 /// The `CopyPlaces` entry: ONE routine that picks the emission shape from the
 /// place pair itself -- shared-base when both places root in the SAME region
 /// and a side derefs (the shape every retired same-region indexed/pointee

@@ -1,6 +1,6 @@
 mod place_copy;
 pub use place_copy::{
-    encode_place_integer_write,
+    encode_place_binary_write, encode_place_integer_write,
     PLACE_COPY_MAX_SITES, PlaceCopySide, PlaceCopySites, encode_copy_places, encode_place_copy,
     encode_place_copy_shared_base,
 };
@@ -5892,13 +5892,52 @@ pub fn encode_runtime_storage_binary_write(
     // `mov r14, imm64` and `mov r15, imm64` are both 10 bytes with the relocated
     // immediate at +2, so the target relocation offset is unchanged.
     append_mov_r14_imm64(&mut bytes, 0);
+    append_binary_operands_op_and_store(
+        runtime_value_operands,
+        &mut bytes,
+        target_offset,
+        byte_size,
+        left,
+        operator,
+        right,
+        is_float,
+        domain,
+        target_signed,
+    )?;
+    Ok(bytes)
+}
+
+/// The target-address-AGNOSTIC half of every binary write: evaluate the
+/// operand pair (r10 accumulator, left stashed across the right eval),
+/// apply the operator under the arithmetic domain (floats, Saturating/
+/// Trapping, shift-count policies), and store r10 to [r14 + target_offset].
+/// The caller owns getting the target address into r14 (the retired
+/// encoders' `mov r14,imm64`; the place materializer's walk + `mov r14,r15`).
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn append_binary_operands_op_and_store(
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    bytes: &mut Vec<u8>,
+    target_offset: usize,
+    byte_size: usize,
+    left: RuntimeValueOperandHandle,
+    operator: StateGuardOperator,
+    right: RuntimeValueOperandHandle,
+    is_float: bool,
+    domain: ArithmeticDomain,
+    target_signed: bool,
+) -> Result<(), Diagnostic> {
+    let saturating_or_trapping = !is_float
+        && matches!(
+            domain,
+            ArithmeticDomain::Saturating | ArithmeticDomain::Trapping
+        );
     // Each operand's evaluation accumulates in r10, so the right operand would
     // clobber the left result. Stash left on the stack across the right eval.
-    append_runtime_value_operand(runtime_value_operands, &mut bytes, Reg64::R10, left)?;
-    append_push_r10(&mut bytes);
-    append_runtime_value_operand(runtime_value_operands, &mut bytes, Reg64::R10, right)?;
-    append_mov_reg_reg(&mut bytes, Reg64::R11, Reg64::R10); // right -> r11
-    append_pop_r10(&mut bytes); // restore left -> r10
+    append_runtime_value_operand(runtime_value_operands, bytes, Reg64::R10, left)?;
+    append_push_r10(bytes);
+    append_runtime_value_operand(runtime_value_operands, bytes, Reg64::R10, right)?;
+    append_mov_reg_reg(bytes, Reg64::R11, Reg64::R10); // right -> r11
+    append_pop_r10(bytes); // restore left -> r10
     let saturating_or_trapping = !is_float
         && matches!(
             domain,
@@ -5909,7 +5948,7 @@ pub fn encode_runtime_storage_binary_write(
         // the xmm moves + ucomis need the f32/f64 width); arithmetic keeps the
         // target width, which equals the operand width for float targets.
         append_runtime_float_binary_operation(
-            &mut bytes,
+            bytes,
             operator,
             runtime_binary_operation_byte_size(
                 runtime_value_operands,
@@ -5924,7 +5963,7 @@ pub fn encode_runtime_storage_binary_write(
         // for <=32-bit operands (it cannot exceed 64 bits), so compare the full
         // product against the target type's range and clamp / trap.
         append_saturating_trapping_multiply(
-            &mut bytes,
+            bytes,
             domain,
             byte_size,
             target_signed,
@@ -5934,7 +5973,7 @@ pub fn encode_runtime_storage_binary_write(
     } else if saturating_or_trapping && operator == StateGuardOperator::ShiftLeft {
         // Saturating/Trapping `<<`: clamp/trap when the TRUE value x * 2^n
         // leaves the target range (shift slice C; mirrors aarch64).
-        append_saturating_trapping_shift_left(&mut bytes, domain, byte_size, target_signed)?;
+        append_saturating_trapping_shift_left(bytes, domain, byte_size, target_signed)?;
     } else if saturating_or_trapping
         && matches!(
             operator,
@@ -5945,7 +5984,7 @@ pub fn encode_runtime_storage_binary_write(
         // wide literal operands -- the MIN-idiom fix); 64-bit keeps the
         // flag-driven clamp inside the helper.
         append_saturating_trapping_add_sub(
-            &mut bytes,
+            bytes,
             domain,
             operator,
             byte_size,
@@ -5965,7 +6004,7 @@ pub fn encode_runtime_storage_binary_write(
         // normal path below. (Trapping div/mod also falls through, where `idiv`
         // traps on overflow and divide-by-zero -- exactly Trapping semantics.)
         append_saturating_signed_divide_modulo(
-            &mut bytes,
+            bytes,
             byte_size,
             operator == StateGuardOperator::Modulo,
         )?;
@@ -5980,7 +6019,7 @@ pub fn encode_runtime_storage_binary_write(
         // Unsigned div/mod uses the *Unsigned operators (cannot overflow) and
         // falls through to the normal path below.
         append_wrapping_signed_divide_modulo(
-            &mut bytes,
+            bytes,
             byte_size,
             operator == StateGuardOperator::Modulo,
         )?;
@@ -6007,24 +6046,24 @@ pub fn encode_runtime_storage_binary_write(
             byte_size,
         );
         if domain == ArithmeticDomain::Wrapping {
-            append_wrapping_shift_count_mask(&mut bytes, operation_byte_size);
-            append_runtime_binary_operation(&mut bytes, operator, operation_byte_size)?;
+            append_wrapping_shift_count_mask(bytes, operation_byte_size);
+            append_runtime_binary_operation(bytes, operator, operation_byte_size)?;
         } else if domain == ArithmeticDomain::Trapping {
             // F8c: an out-of-range count traps before the shift, value-blind.
-            append_shift_count_trap_guard(&mut bytes, operation_byte_size);
-            append_runtime_binary_operation(&mut bytes, operator, operation_byte_size)?;
+            append_shift_count_trap_guard(bytes, operation_byte_size);
+            append_runtime_binary_operation(bytes, operator, operation_byte_size)?;
         } else {
             if operator == StateGuardOperator::ShiftRight {
-                append_wrapping_shift_right_count_saturate(&mut bytes, operation_byte_size);
+                append_wrapping_shift_right_count_saturate(bytes, operation_byte_size);
             }
-            append_runtime_binary_operation(&mut bytes, operator, operation_byte_size)?;
+            append_runtime_binary_operation(bytes, operator, operation_byte_size)?;
             if operator != StateGuardOperator::ShiftRight {
-                append_wrapping_shift_zero_clamp(&mut bytes, operation_byte_size);
+                append_wrapping_shift_zero_clamp(bytes, operation_byte_size);
             }
         }
     } else {
         append_runtime_binary_operation(
-            &mut bytes,
+            bytes,
             operator,
             runtime_binary_operation_byte_size(
                 runtime_value_operands,
@@ -6035,8 +6074,8 @@ pub fn encode_runtime_storage_binary_write(
             ),
         )?;
     }
-    append_store_r10_to_r14(&mut bytes, target_offset, byte_size)?;
-    Ok(bytes)
+    append_store_r10_to_r14(bytes, target_offset, byte_size)?;
+    Ok(())
 }
 
 /// Bytes of [`append_saturating_trapping_multiply`], for the relocation layout.
@@ -9044,6 +9083,10 @@ fn append_load_r11_from_r14(bytes: &mut Vec<u8>, byte_offset: usize) -> Result<(
 
 fn append_mov_r15_r14(bytes: &mut Vec<u8>) {
     bytes.extend([0x4d, 0x89, 0xf7]); // mov r15, r14
+}
+
+fn append_mov_r14_r15(bytes: &mut Vec<u8>) {
+    bytes.extend([0x4d, 0x89, 0xfe]); // mov r14, r15
 }
 
 fn append_add_r15_r11(bytes: &mut Vec<u8>) {
