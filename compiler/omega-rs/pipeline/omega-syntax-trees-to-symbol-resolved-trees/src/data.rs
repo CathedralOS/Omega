@@ -71,16 +71,11 @@ pub(crate) fn lower_data_definition(
         storage: DataDefinitionStorage {
             type_parameters,
             properties: DataProperties {
-                copy: data_definition.properties.copy,
+                copy: data_definition.properties.multiplicity
+                    == omega_core::semantics::Multiplicity::Unrestricted,
                 zero_init: data_definition.properties.zero_init,
                 send: data_definition.properties.send,
-                // STR3: `[copy]` -> Unrestricted, ordinary data -> Affine
-                // (`[linear]` has no spelling yet).
-                multiplicity: if data_definition.properties.copy {
-                    omega_core::semantics::Multiplicity::Unrestricted
-                } else {
-                    omega_core::semantics::Multiplicity::Affine
-                },
+                multiplicity: data_definition.properties.multiplicity,
             },
             where_facts,
             zero_gated,
@@ -325,14 +320,11 @@ pub(crate) fn lower_type_parameters(
             name: crate::name::lower_name(&parameter.name),
             kind,
             bounds: DataProperties {
-                copy: parameter.bounds.copy,
+                copy: parameter.bounds.multiplicity
+                    == omega_core::semantics::Multiplicity::Unrestricted,
                 zero_init: parameter.bounds.zero_init,
                 send: parameter.bounds.send,
-                multiplicity: if parameter.bounds.copy {
-                    omega_core::semantics::Multiplicity::Unrestricted
-                } else {
-                    omega_core::semantics::Multiplicity::Affine
-                },
+                multiplicity: parameter.bounds.multiplicity,
             },
         });
     }

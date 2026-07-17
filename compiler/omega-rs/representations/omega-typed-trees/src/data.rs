@@ -42,8 +42,8 @@ pub struct DataProperties {
     pub zero_init: bool,
     pub send: bool,
     /// STR3: the first-class usage model (`[copy]` -> Unrestricted,
-    /// ordinary data -> Affine). `copy` survives as the compatibility bool
-    /// until STR7 retires it.
+    /// ordinary data -> Affine, `[linear]` -> Linear). `copy` survives as the
+    /// compatibility bool until STR7 retires it.
     pub multiplicity: omega_core::semantics::Multiplicity,
 }
 

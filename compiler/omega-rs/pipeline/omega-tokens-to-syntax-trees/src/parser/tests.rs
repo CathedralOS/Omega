@@ -116,6 +116,55 @@ fn erased_join_type_is_rejected_but_join_names_are_ordinary() {
 }
 
 #[test]
+fn linear_property_is_first_class_on_data_and_type_parameters() {
+    let source = r#"
+        data Receipt [linear] {}
+        data Envelope<T [linear]> [linear] { value: T; }
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let parsed = parse_syntax_trees(&tokens).expect("linear properties should parse");
+    let data: Vec<_> = parsed
+        .root_items()
+        .filter_map(|item| match item {
+            omega_syntax_trees::item::Item::Data(data) => Some(data),
+            _ => None,
+        })
+        .collect();
+
+    assert_eq!(data.len(), 2);
+    assert_eq!(
+        data[0].properties.multiplicity,
+        omega_core::semantics::Multiplicity::Linear
+    );
+    assert_eq!(
+        data[1].properties.multiplicity,
+        omega_core::semantics::Multiplicity::Linear
+    );
+    let parameter = &parsed.items.type_parameters(data[1].type_parameters)[0];
+    assert_eq!(
+        parameter.bounds.multiplicity,
+        omega_core::semantics::Multiplicity::Linear
+    );
+}
+
+#[test]
+fn copy_and_linear_properties_are_mutually_exclusive() {
+    for source in [
+        "data Bad [copy, linear] {}",
+        "data Bad [linear, copy] {}",
+    ] {
+        let tokens = Lexer::new(source)
+            .tokenize()
+            .expect("tokenize should succeed");
+        let error = parse_syntax_trees(&tokens)
+            .expect_err("copy and linear must not coexist on one declaration");
+        assert!(error.message.contains("mutually exclusive"));
+    }
+}
+
+#[test]
 fn parses_plain_and_boundary_traits() {
     let source = r#"
         trait Drawable {

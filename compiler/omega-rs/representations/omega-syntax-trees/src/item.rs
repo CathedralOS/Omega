@@ -467,12 +467,15 @@ pub struct ConformanceItem {
 /// Declared type properties: lowercase facts in brackets on the data
 /// declaration (`data Point [copy, zero_init]`). The known set is closed;
 /// unknown names are parse errors, so downstream representations carry the
-/// resolved flags rather than spellings. `sized` is computed from the shape
-/// and may not be declared.
+/// resolved properties rather than spellings. `sized` is computed from the
+/// shape and may not be declared.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct DataProperties {
-    /// Values copy bit-for-bit; verified: every field is itself copyable.
-    pub copy: bool,
+    /// Usage multiplicity. Ordinary data defaults to affine; `[copy]` selects
+    /// unrestricted and `[linear]` selects exact consumption. Keeping the enum
+    /// here prevents syntax lowering from reconstructing semantic identity
+    /// from compatibility booleans.
+    pub multiplicity: omega_core::semantics::Multiplicity,
     /// Zero means empty: the zeroed value is the type's empty value; owns the
     /// zero-case-payload-free rule and rejects non-zero field defaults.
     pub zero_init: bool,
