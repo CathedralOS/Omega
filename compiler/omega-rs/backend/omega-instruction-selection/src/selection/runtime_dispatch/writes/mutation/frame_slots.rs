@@ -259,11 +259,12 @@ pub(in crate::selection) fn select_runtime_frame_slot_value_write_in_table_with_
     {
         let data = string_literal_data_handle(input, value_source_key, statement_index, &value);
         if data.is_valid() {
-            return Some(SelectedInstructionKind::WriteRuntimeFrameString {
-                byte_offset: slot.byte_offset,
+            return Some(crate::selection::runtime_dispatch::write_place_string_direct(
+                omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame,
+                slot.byte_offset,
                 data,
-                byte_length: value.len(),
-            });
+                value.len(),
+            ));
         }
     }
 

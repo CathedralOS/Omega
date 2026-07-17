@@ -912,10 +912,16 @@ sealed progress profiles + grants, TPR4's remaining big half).
    RuntimeMachineBoundedBufferWrite), walker arms REAL on BOTH arches
    from day one (x86 = data@start + sites-by-region; aarch64 =
    per-shape retained positions), storage+runtime_text blocker rows.
-   Zero producers yet. REMAINING Text: producers (constructor family
-   write_place_string_*/bounded_buffer_* + migrate the five string +
-   two buffer producer sites), then retirement of the seven variants
-   + dead shells. Then the
+   TEXT RUNG 2b LANDED 2026-07-19: constructor family
+   (write_place_string_{direct,pointee,frame_indexed,machine_indexed}
+   + write_place_bounded_buffer_{direct,pointee}) + ALL 27 producer
+   sites migrated (string_values, writes/mutation+frame_slots,
+   slice_descriptors, text_writes/builder+descriptor,
+   branches/mutation); the retired target_in_frame flag became the
+   place region at the two buffer sites. Zero retired-kind producers
+   remain -- canary 864 exercises the new variants + walker arms live
+   on this host. REMAINING Text: retirement of the seven variants +
+   echo shells + dead x86 delegating encoders/offset fns. Then the
    bounded-buffer entry (immediate content bytes, single base reloc),
    then WritePlaceString/+Buffer variant + echo + producers +
    retirement. Then guards/operands consume Places, then the op-set

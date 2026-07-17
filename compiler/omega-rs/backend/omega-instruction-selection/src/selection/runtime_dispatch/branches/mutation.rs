@@ -979,12 +979,12 @@ fn select_runtime_string_mutation_write_in_table(
             target,
         )
     {
-        return Some(SelectedInstructionKind::WriteRuntimePointeeString {
-            pointer_byte_offset: pointer_target.pointer_byte_offset,
-            field_byte_offset: pointer_target.field_byte_offset,
+        return Some(crate::selection::runtime_dispatch::write_place_string_pointee(
+            pointer_target.pointer_byte_offset,
+            pointer_target.field_byte_offset,
             data,
-            byte_length: value.len(),
-        });
+            value.len(),
+        ));
     }
 
     if data.is_valid()
@@ -996,12 +996,12 @@ fn select_runtime_string_mutation_write_in_table(
             target,
         )
     {
-        return Some(SelectedInstructionKind::WriteRuntimePointeeString {
-            pointer_byte_offset: pointer_target.pointer_byte_offset,
-            field_byte_offset: pointer_target.field_byte_offset,
+        return Some(crate::selection::runtime_dispatch::write_place_string_pointee(
+            pointer_target.pointer_byte_offset,
+            pointer_target.field_byte_offset,
             data,
-            byte_length: value.len(),
-        });
+            value.len(),
+        ));
     }
 
     if data.is_valid()
@@ -1014,14 +1014,14 @@ fn select_runtime_string_mutation_write_in_table(
         )
         && indexed_target.byte_count == input.runtime_abi.string_descriptor_size()
     {
-        return Some(SelectedInstructionKind::WriteRuntimeFrameIndexedString {
-            descriptor_offset: indexed_target.descriptor_offset,
-            index_offset: indexed_target.index_offset,
-            element_byte_size: indexed_target.element_byte_size,
-            field_byte_offset: indexed_target.field_byte_offset,
+        return Some(crate::selection::runtime_dispatch::write_place_string_frame_indexed(
+            indexed_target.descriptor_offset,
+            indexed_target.index_offset,
+            indexed_target.element_byte_size,
+            indexed_target.field_byte_offset,
             data,
-            byte_length: value.len(),
-        });
+            value.len(),
+        ));
     }
 
     let target_place = resolve_runtime_storage_place_in_table(
@@ -1039,16 +1039,22 @@ fn select_runtime_string_mutation_write_in_table(
     // String field, common in inlined helpers) must be a frame write, not a
     // machine-storage write at the same numeric offset.
     match target_place.region {
-        omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame => Some(SelectedInstructionKind::WriteRuntimeFrameString {
-            byte_offset: target_place.byte_offset,
-            data,
-            byte_length: value.len(),
-        }),
-        omega_abstract_operations::RuntimeStorageRegion::Machine => Some(SelectedInstructionKind::WriteRuntimeMachineString {
-            byte_offset: target_place.byte_offset,
-            data,
-            byte_length: value.len(),
-        }),
+        omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame => {
+            Some(crate::selection::runtime_dispatch::write_place_string_direct(
+                omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame,
+                target_place.byte_offset,
+                data,
+                value.len(),
+            ))
+        }
+        omega_abstract_operations::RuntimeStorageRegion::Machine => {
+            Some(crate::selection::runtime_dispatch::write_place_string_direct(
+                omega_abstract_operations::RuntimeStorageRegion::Machine,
+                target_place.byte_offset,
+                data,
+                value.len(),
+            ))
+        }
     }
 }
 

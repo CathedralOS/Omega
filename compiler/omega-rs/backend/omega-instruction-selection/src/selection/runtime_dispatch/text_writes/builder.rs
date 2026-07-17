@@ -752,14 +752,14 @@ fn append_runtime_text_literal_to_target(
         if !data.is_valid() {
             return false;
         }
-        emit(SelectedInstructionKind::WriteRuntimeMachineIndexedString {
-            base_byte_offset: target.base_byte_offset,
-            index_offset: target.index_offset,
-            element_byte_size: target.element_byte_size,
-            field_byte_offset: target.field_byte_offset,
+        emit(crate::selection::runtime_dispatch::write_place_string_machine_indexed(
+            target.base_byte_offset,
+            target.index_offset,
+            target.element_byte_size,
+            target.field_byte_offset,
             data,
-            byte_length: literal.len(),
-        });
+            literal.len(),
+        ));
     } else {
         return false;
     }
@@ -804,36 +804,37 @@ fn initialize_runtime_text_target_with_first_literal_segment(
         if target_place.region != RuntimeStorageRegion::Machine {
             return false;
         }
-        emit(SelectedInstructionKind::WriteRuntimeMachineString {
-            byte_offset: target_place.byte_offset,
+        emit(crate::selection::runtime_dispatch::write_place_string_direct(
+            omega_abstract_operations::RuntimeStorageRegion::Machine,
+            target_place.byte_offset,
             data,
-            byte_length: literal.len(),
-        });
+            literal.len(),
+        ));
     } else if let Some(target) = target.pointee.as_ref() {
-        emit(SelectedInstructionKind::WriteRuntimePointeeString {
-            pointer_byte_offset: target.pointer_byte_offset,
-            field_byte_offset: target.field_byte_offset,
+        emit(crate::selection::runtime_dispatch::write_place_string_pointee(
+            target.pointer_byte_offset,
+            target.field_byte_offset,
             data,
-            byte_length: literal.len(),
-        });
+            literal.len(),
+        ));
     } else if let Some(target) = target.indexed.as_ref() {
-        emit(SelectedInstructionKind::WriteRuntimeFrameIndexedString {
-            descriptor_offset: target.descriptor_offset,
-            index_offset: target.index_offset,
-            element_byte_size: target.element_byte_size,
-            field_byte_offset: target.field_byte_offset,
+        emit(crate::selection::runtime_dispatch::write_place_string_frame_indexed(
+            target.descriptor_offset,
+            target.index_offset,
+            target.element_byte_size,
+            target.field_byte_offset,
             data,
-            byte_length: literal.len(),
-        });
+            literal.len(),
+        ));
     } else if let Some(target) = target.machine_indexed.as_ref() {
-        emit(SelectedInstructionKind::WriteRuntimeMachineIndexedString {
-            base_byte_offset: target.base_byte_offset,
-            index_offset: target.index_offset,
-            element_byte_size: target.element_byte_size,
-            field_byte_offset: target.field_byte_offset,
+        emit(crate::selection::runtime_dispatch::write_place_string_machine_indexed(
+            target.base_byte_offset,
+            target.index_offset,
+            target.element_byte_size,
+            target.field_byte_offset,
             data,
-            byte_length: literal.len(),
-        });
+            literal.len(),
+        ));
     } else {
         return false;
     }
