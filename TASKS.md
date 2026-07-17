@@ -4113,8 +4113,12 @@ with a real app-window story.
   independently owns nested expressions, type references/constraints,
   call/name payloads, and transition targets while deliberately preserving
   symbols for the caller's lexical remap; the previous copier cloned only the
-  outer records and left cross-graph handles behind. Next: compose this with
-  fresh generated machine/state/parameter/local symbols to clone one complete
+  outer records and left cross-graph handles behind. **MP4b rung 3 LANDED
+  2026-07-17:** typed expression, type-reference/constraint, statement, and
+  transition graphs now expose one tested lexical-symbol remap across names,
+  member/call targets, static selections, locals, fixed-array const subjects,
+  and transition destinations. Next: compose the deep copy + remap with fresh
+  generated machine/state/parameter/local symbols to clone one complete
   template, then group/rewrite calls per tuple.
   MP5 records accepted-template
   grants once plus argument contract IDs per instance; MP6 land `Seq`

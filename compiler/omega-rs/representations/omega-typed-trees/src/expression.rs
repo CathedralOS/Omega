@@ -266,8 +266,7 @@ impl ExpressionTable {
             ExpressionNode::Cast(cast) => {
                 let value = self.copy_from(source, cast.value);
                 let target_type = self.copy_name_path_members(source, cast.target_type);
-                let semantic_domain =
-                    self.copy_name_path_members(source, cast.semantic_domain);
+                let semantic_domain = self.copy_name_path_members(source, cast.semantic_domain);
                 self.insert(ExpressionNode::Cast(TableCastExpression {
                     value,
                     target_type,
@@ -358,6 +357,106 @@ impl ExpressionTable {
                     operand,
                 }))
             }
+        }
+    }
+
+    /// Remap lexical identities throughout one expression graph. The graph's
+    /// arena handles and authored names stay stable; only normalized symbols
+    /// change. This is the second half of cloning a lexical scope after
+    /// [`Self::copy_from`] has made its payload handles independent.
+    pub fn remap_symbols_in(
+        &mut self,
+        root: ExpressionHandle,
+        symbols: &[(SymbolHandle, SymbolHandle)],
+    ) {
+        let mut visited = Vec::new();
+        self.remap_symbols_in_inner(root, symbols, &mut visited);
+    }
+
+    fn remap_symbols_in_inner(
+        &mut self,
+        root: ExpressionHandle,
+        symbols: &[(SymbolHandle, SymbolHandle)],
+        visited: &mut Vec<ExpressionHandle>,
+    ) {
+        if !root.is_valid() || visited.contains(&root) {
+            return;
+        }
+        visited.push(root);
+
+        let node = self.expression(root).clone();
+        match node {
+            ExpressionNode::ArrayLiteral(values) => {
+                let children = self.expression_handles(values).to_vec();
+                for child in children {
+                    self.remap_symbols_in_inner(child, symbols, visited);
+                }
+            }
+            ExpressionNode::Binary(binary) => {
+                self.remap_symbols_in_inner(binary.left, symbols, visited);
+                self.remap_symbols_in_inner(binary.right, symbols, visited);
+            }
+            ExpressionNode::Cast(cast) => self.remap_symbols_in_inner(cast.value, symbols, visited),
+            ExpressionNode::Call(call) => {
+                self.remap_symbols_in_inner(call.receiver, symbols, visited);
+                let arguments = self.expression_handles(call.arguments).to_vec();
+                for argument in arguments {
+                    self.remap_symbols_in_inner(argument, symbols, visited);
+                }
+                let ExpressionNode::Call(call) = self.expression_mut(root) else {
+                    unreachable!();
+                };
+                call.target_symbol = remapped(call.target_symbol, symbols);
+                for argument in &mut call.machine_arguments {
+                    argument.symbol = remapped(argument.symbol, symbols);
+                }
+            }
+            ExpressionNode::Indexed(indexed) => {
+                self.remap_symbols_in_inner(indexed.collection, symbols, visited);
+                self.remap_symbols_in_inner(indexed.index, symbols, visited);
+            }
+            ExpressionNode::Member(member) => {
+                self.remap_symbols_in_inner(member.receiver, symbols, visited);
+                let ExpressionNode::Member(member) = self.expression_mut(root) else {
+                    unreachable!();
+                };
+                member.member_symbol = remapped(member.member_symbol, symbols);
+            }
+            ExpressionNode::Mutable(inner) => self.remap_symbols_in_inner(inner, symbols, visited),
+            ExpressionNode::Name(path) => {
+                let ExpressionNode::Name(current) = self.expression_mut(root) else {
+                    unreachable!();
+                };
+                current.head_symbol = remapped(path.head_symbol, symbols);
+                current.symbol = remapped(path.symbol, symbols);
+                for member_symbol in self
+                    .name_path_member_symbols
+                    .span_mut_or_empty(path.member_symbols)
+                {
+                    *member_symbol = remapped(*member_symbol, symbols);
+                }
+            }
+            ExpressionNode::Range(range) => {
+                self.remap_symbols_in_inner(range.start, symbols, visited);
+                self.remap_symbols_in_inner(range.end, symbols, visited);
+            }
+            ExpressionNode::StructLiteral(literal) => {
+                let children: Vec<_> = self
+                    .struct_fields(literal.fields)
+                    .iter()
+                    .map(|field| field.value)
+                    .collect();
+                for child in children {
+                    self.remap_symbols_in_inner(child, symbols, visited);
+                }
+            }
+            ExpressionNode::Unary(unary) => {
+                self.remap_symbols_in_inner(unary.operand, symbols, visited)
+            }
+            ExpressionNode::Boolean(_)
+            | ExpressionNode::Float(_)
+            | ExpressionNode::Integer(_)
+            | ExpressionNode::String(_) => {}
         }
     }
 
@@ -703,9 +802,7 @@ impl ExpressionTable {
         self.expressions.get(handle)
     }
 
-    pub fn iter_expressions(
-        &self,
-    ) -> impl Iterator<Item = (ExpressionHandle, &ExpressionNode)> {
+    pub fn iter_expressions(&self) -> impl Iterator<Item = (ExpressionHandle, &ExpressionNode)> {
         self.expressions.iter()
     }
 
@@ -791,7 +888,8 @@ impl ExpressionTable {
                 self.expressions_structurally_equal(*x, *y)
             }
             (ExpressionNode::Unary(x), ExpressionNode::Unary(y)) => {
-                x.operator == y.operator && self.expressions_structurally_equal(x.operand, y.operand)
+                x.operator == y.operator
+                    && self.expressions_structurally_equal(x.operand, y.operand)
             }
             (ExpressionNode::Binary(x), ExpressionNode::Binary(y)) => {
                 x.operator == y.operator
@@ -1566,6 +1664,13 @@ impl Default for ExpressionTable {
     }
 }
 
+fn remapped(symbol: SymbolHandle, symbols: &[(SymbolHandle, SymbolHandle)]) -> SymbolHandle {
+    symbols
+        .iter()
+        .find_map(|(source, target)| (*source == symbol).then_some(*target))
+        .unwrap_or(symbol)
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ExpressionNode {
     ArrayLiteral(HandleSpan<ExpressionHandle>),
@@ -1940,7 +2045,6 @@ fn identifier_texts_equal(a: &[Identifier], b: &[Identifier]) -> bool {
             .zip(b.iter())
             .all(|(left, right)| left.as_str() == right.as_str())
 }
-
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BinaryExpression {

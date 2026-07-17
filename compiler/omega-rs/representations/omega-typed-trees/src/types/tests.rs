@@ -115,3 +115,74 @@ fn type_reference_table_copies_table_payloads_without_tree_roundtrip() {
         source_expressions.expression_count()
     );
 }
+
+#[test]
+fn type_reference_symbol_remap_reaches_nested_types_and_constraints() {
+    let old = SymbolHandle::from_arena_index(41);
+    let new = SymbolHandle::from_arena_index(42);
+    let mut expressions = ExpressionTable::new();
+    let mut members = omega_core::arena::HandleSpan::empty();
+    expressions.push_name_path_member(&mut members, Identifier::generated("n"));
+    let mut member_symbols = omega_core::arena::HandleSpan::empty();
+    expressions.push_name_path_member_symbol(&mut member_symbols, old);
+    let subject = expressions.insert(ExpressionNode::Name(crate::expression::TableNamePath {
+        members,
+        member_symbols,
+        head_symbol: old,
+        symbol: old,
+    }));
+
+    let mut types = TypeReferenceTable::new();
+    let element = types.insert(TypeReferenceNode::Named {
+        symbol: old,
+        name: Identifier::generated("Element"),
+    });
+    let array = types.insert(TypeReferenceNode::FixedArray {
+        element_type: element,
+        length: FixedArrayLength::ConstParameter {
+            symbol: old,
+            name: Identifier::generated("n"),
+        },
+    });
+    let arguments = types.insert_type_reference_handles([array]);
+    let generic = types.insert(TypeReferenceNode::Generic {
+        base_symbol: old,
+        base_name: Identifier::generated("Box"),
+        arguments,
+    });
+    let constraints = types.insert_constraints([TypeConstraintNode::Range {
+        minimum: subject,
+        maximum: subject,
+    }]);
+    let root = types.insert(TypeReferenceNode::Constrained {
+        base_type: generic,
+        constraints,
+    });
+
+    types.remap_symbols_in(root, &mut expressions, &[(old, new)]);
+
+    let TypeReferenceNode::Generic { base_symbol, .. } = types.type_reference(generic) else {
+        panic!("expected generic type");
+    };
+    assert_eq!(*base_symbol, new);
+    let TypeReferenceNode::FixedArray { length, .. } = types.type_reference(array) else {
+        panic!("expected fixed array");
+    };
+    assert!(matches!(
+        length,
+        FixedArrayLength::ConstParameter { symbol, .. } if *symbol == new
+    ));
+    let TypeReferenceNode::Named { symbol, .. } = types.type_reference(element) else {
+        panic!("expected named element type");
+    };
+    assert_eq!(*symbol, new);
+    let ExpressionNode::Name(path) = expressions.expression(subject) else {
+        panic!("expected constraint subject name");
+    };
+    assert_eq!(path.head_symbol, new);
+    assert_eq!(path.symbol, new);
+    assert_eq!(
+        expressions.name_path_member_symbols(path.member_symbols),
+        &[new]
+    );
+}
