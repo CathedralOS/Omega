@@ -787,9 +787,21 @@ sealed progress profiles + grants, TPR4's remaining big half).
    FRAME-BASE delegation commit had missed its pin, caught by the
    workspace battery POST-push and fixed forward 743ed1efe; batteries
    now GATE the commit inside one script).
-   REMAINING binary delegations: machine-indexed + double (per-index
-   frame bases replace the shared scratch, the integer-1c pattern --
-   verify each prefix + walker reloc positions first); then
+   MACHINE-INDEXED BINARY DELEGATED same day -- AND THIS CLOSED A
+   LIVE x86 MISPATCH WINDOW: its walker arm shares
+   runtime_frame_base_indexed_binary_left_operand_offset (moved 27->30
+   by the frame-base delegation) while its encoder still emitted the
+   retired 27-byte prefix -- x86 operand relocations landed 3 bytes
+   late for two commits (743ed1efe..c2a678145), INVISIBLE to the host
+   battery (this Mac is the aarch64 oracle; x86 has no runtime leg).
+   The delegation realigns encoder and walker (machine-index 27->30,
+   frame-index 37->40; the frame-index base is a mov r11,imm64 at the
+   SAME +10, so the walker's frame reloc and +10 operand shift hold).
+   LESSON (recorded): when a SHARED offset constant moves, every kind
+   consuming it must delegate IN THE SAME COMMIT -- grep the
+   constant's consumers before moving it.
+   REMAINING: the double-indexed binary delegation (per-index frame
+   bases; walker arm rework like the integer double), then
    WritePlaceBinary + echo + producers + retirement.
    Rung 2a after: the WritePlaceInteger variant + echo product +
    producer migration. Pre-existing dead helpers noted en route (shapes/copies.rs
