@@ -1,7 +1,7 @@
 //! Record-pattern exhaustiveness (owner spec 2026-07-18, ch6 growth).
 //!
 //! `let { x, y as horizontal, z as _ } = place;` desugars at parse time to a
-//! MARKER let named `__destructure__x__y__z` (spelled set: bound AND waived
+//! MARKER let named `__destructure#x#y#z` (spelled set: bound AND waived
 //! fields) whose initializer is the place, plus one Unit-sentinel let per
 //! bound field. This pass enforces the LAW half: the spelled set must equal
 //! the data definition's declared field set exactly -- a missing field
@@ -12,7 +12,7 @@
 use omega_core::diagnostics::Diagnostic;
 use omega_typed_trees::TypedTrees;
 
-const MARKER_PREFIX: &str = "__destructure__";
+const MARKER_PREFIX: &str = "__destructure#";
 /// Arm-position twin (`..`-free destructure arms): `#`/`=` cannot appear in
 /// identifiers, so the encoding splits unambiguously -- the first segment
 /// after `V=` is the case variant (empty for a record arm), the rest are the
@@ -44,12 +44,10 @@ pub(crate) fn validate_destructure_exhaustiveness(
                 let Some(encoded) = local.name.as_str().strip_prefix(MARKER_PREFIX) else {
                     continue;
                 };
-                // The marker name encodes the spelled fields joined by `__`.
-                // (A field whose own name contains `__` would mis-split;
-                // acceptable v1 -- the split parts still cover the same
-                // characters, so a missing-field refusal cannot be masked,
-                // only a spurious unknown-field error produced.)
-                let spelled: Vec<&str> = encoded.split("__").collect();
+                // `#` is not legal inside authored identifiers, so each
+                // marker component is exactly one spelled field even when a
+                // field name contains repeated underscores.
+                let spelled: Vec<&str> = encoded.split('#').collect();
 
                 // The marker's own type resolves through hoist inference
                 // (its declared type is the Unit sentinel); the DECLARED

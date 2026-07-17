@@ -1,6 +1,6 @@
 // Record patterns in LET position (owner spec 2026-07-18): exhaustive by
 // law, `as` renames, `as _` waives. Desugars at parse time to the
-// __destructure__* marker (exhaustiveness carrier) + per-bound-field
+// __destructure#* marker (exhaustiveness carrier) + per-bound-field
 // Unit-sentinel lets whose types flow through hoist inference. Ranged
 // fields keep the decision-17 exact-arithmetic obligation dischargeable.
 // Run-verified natively: 30 + 40 = 70.
