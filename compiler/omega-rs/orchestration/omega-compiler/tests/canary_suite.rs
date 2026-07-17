@@ -18089,12 +18089,10 @@ fn float_to_int_unsigned_narrow_saturating_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
-#[cfg(target_arch = "aarch64")]
 #[test]
 fn float_saturating_overflow_exit_canary_runs() {
     // F5: Saturating float arithmetic clamps magnitude overflow to
-    // +-MAX_FINITE (div-by-zero keeps its Inf). Arch-gated: x86's float
-    // policy lowering is its host session's rung.
+    // +-MAX_FINITE (div-by-zero keeps its Inf) on both native backends.
     let canary = pass_canary("arithmetic/float_saturating_overflow_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-f5sat-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
@@ -18121,11 +18119,10 @@ fn float_saturating_overflow_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
-#[cfg(target_arch = "aarch64")]
 #[test]
 fn float_trapping_overflow_traps_aborts() {
     // F5: Trapping float arithmetic traps on overflow. Abort-style +
-    // arch-gated (x86 passes through until its host session).
+    // interpreter-checked because native termination is abnormal.
     let canary = pass_canary("arithmetic/float_trapping_overflow_traps");
     let build_dir = std::env::temp_dir().join(format!("omega-f5trap-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
@@ -18164,6 +18161,62 @@ fn float_trapping_overflow_traps_aborts() {
         "expected the overflow trap reason, got: {reason}"
     );
     let _ = fs::remove_dir_all(&build_dir);
+}
+
+fn assert_float_trapping_policy_canary_aborts(name: &str, reason_fragment: &str) {
+    let canary = pass_canary(name);
+    let suffix = name.replace(['/', '\\'], "-");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-f5-{suffix}-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("Trapping float policy canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("Trapping float policy canary should run");
+    assert_ne!(
+        output.status.code(),
+        Some(7),
+        "expected `{name}` to trap before its sailed-past exit"
+    );
+    assert!(
+        !output.status.success(),
+        "expected `{name}` to terminate abnormally"
+    );
+    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+        .expect("Trapping float policy canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let reason = outcome
+        .error
+        .expect("the interpreter must trap the float policy violation");
+    assert!(
+        reason.contains(reason_fragment),
+        "expected `{name}` trap reason to contain `{reason_fragment}`, got: {reason}"
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn float_trapping_divzero_traps_aborts() {
+    assert_float_trapping_policy_canary_aborts(
+        "arithmetic/float_trapping_divzero_traps",
+        "division by zero",
+    );
+}
+
+#[test]
+fn float_trapping_invalid_traps_aborts() {
+    assert_float_trapping_policy_canary_aborts(
+        "arithmetic/float_trapping_invalid_traps",
+        "invalid float operation",
+    );
 }
 
 #[test]
@@ -33463,6 +33516,6 @@ fn float_wrapping_domain_rejected_canary_is_rejected() {
 }
 
 // float_saturating_domain_rejected RETIRED 2026-07-16: the F5 fence lifted
-// -- Saturating/Trapping float policies now LOWER (interp + aarch64; the
+// -- Saturating/Trapping float policies now LOWER (interp + both native backends; the
 // pinned semantics live in pass/arithmetic/float_saturating_overflow_exit
-// + float_trapping_overflow_traps, arch-gated for x86's pass-through).
+// + the float_trapping_{overflow,divzero,invalid}_traps canaries).

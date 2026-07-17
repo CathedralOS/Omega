@@ -5160,7 +5160,7 @@ pub fn runtime_storage_binary_write_width(
         };
         runtime_binary_operation_width(operator, operation_byte_size) + fix
     } else if is_float {
-        runtime_float_binary_operation_width(operator)
+        runtime_float_binary_operation_width_with_domain(operator, byte_size, domain)
     } else {
         // Trapping div/mod (idiv traps == Trapping semantics), Exact (proven
         // non-overflowing), and unsigned div/mod (cannot overflow) use the normal
@@ -5405,6 +5405,7 @@ pub(crate) fn append_binary_operands_op_and_store(
                 right,
                 byte_size,
             ),
+            domain,
         )?;
     } else if saturating_or_trapping && operator == StateGuardOperator::Multiply {
         // Saturating/Trapping multiply: a 64-bit `imul` yields the EXACT product
@@ -7195,7 +7196,12 @@ pub fn runtime_value_operand_width(
             // materialize 0/1) but f32/f64-identical at each operator. MUST match
             // the emission below or the recorded relocation offsets drift (silent
             // runtime segfault).
-            runtime_float_binary_operation_width(operator)
+            let byte_width = runtime_value_operands.binary_byte_width(operand).unwrap_or(8);
+            let domain = runtime_value_operands
+                .binary_arithmetic_domain(operand)
+                .map(|(domain, _)| domain)
+                .unwrap_or(ArithmeticDomain::Exact);
+            runtime_float_binary_operation_width_with_domain(operator, byte_width, domain)
         } else if let Some(domain_operation) =
             operand_position_domain_operation(runtime_value_operands, operand, operator)
         {
@@ -7442,10 +7448,14 @@ fn append_runtime_value_operand(
             // is threaded from build time (set once from the operands' scalar type),
             // so f32 picks `addss`/`movss` (4) and f64 picks `addsd`/`movsd` (8) —
             // no longer hardcoded. The encoded length is identical for both widths
-            // (runtime_float_binary_operation_width() == 19), so relocation offsets
-            // are unaffected.
+            // at a given policy; the width twin emits the same policy guard to keep
+            // relocation offsets in lockstep.
             let byte_width = runtime_value_operands.binary_byte_width(operand).unwrap_or(8);
-            append_runtime_float_binary_operation(bytes, operator, byte_width)?;
+            let domain = runtime_value_operands
+                .binary_arithmetic_domain(operand)
+                .map(|(domain, _)| domain)
+                .unwrap_or(ArithmeticDomain::Exact);
+            append_runtime_float_binary_operation(bytes, operator, byte_width, domain)?;
         } else if let Some(domain_operation) =
             operand_position_domain_operation(runtime_value_operands, operand, operator)
         {
@@ -8314,18 +8324,183 @@ fn wrapping_node_width_extension_width(byte_width: usize) -> usize {
     }
 }
 
+fn float_policy_applies(operator: StateGuardOperator, domain: ArithmeticDomain) -> bool {
+    matches!(domain, ArithmeticDomain::Saturating | ArithmeticDomain::Trapping)
+        && matches!(
+            operator,
+            StateGuardOperator::Add
+                | StateGuardOperator::Subtract
+                | StateGuardOperator::Multiply
+                | StateGuardOperator::Divide
+        )
+}
+
+#[derive(Clone, Copy)]
+enum FloatPolicySource {
+    Result,
+    Left,
+    Right,
+}
+
+/// Copy one raw f32/f64 bit pattern to rax and clear its sign bit. The F5
+/// policy guard classifies floats entirely as unsigned integers: below/equal/
+/// above the positive-infinity pattern means finite/infinite/NaN.
+fn append_float_abs_to_rax(
+    bytes: &mut Vec<u8>,
+    source: FloatPolicySource,
+    byte_size: usize,
+) {
+    match source {
+        FloatPolicySource::Result => bytes.extend([0x4c, 0x89, 0xd0]), // mov rax,r10
+        FloatPolicySource::Left => bytes.extend([0x4c, 0x89, 0xc0]),   // mov rax,r8
+        FloatPolicySource::Right => bytes.extend([0x4c, 0x89, 0xd8]),  // mov rax,r11
+    }
+    if byte_size > 4 {
+        bytes.extend([0x48, 0x0f, 0xba, 0xf0, 0x3f]); // btr rax,63
+    } else {
+        bytes.push(0x25); // and eax,0x7fff_ffff
+        bytes.extend(0x7fff_ffff_u32.to_le_bytes());
+    }
+}
+
+fn append_cmp_rax_r9(bytes: &mut Vec<u8>) {
+    bytes.extend([0x4c, 0x39, 0xc8]); // cmp rax,r9
+}
+
+fn append_policy_branch_placeholder(bytes: &mut Vec<u8>, opcode: u8) -> usize {
+    let start = bytes.len();
+    bytes.extend([0x0f, opcode, 0, 0, 0, 0]);
+    start
+}
+
+fn patch_policy_branch(
+    bytes: &mut [u8],
+    branch_start: usize,
+    target: usize,
+) -> Result<(), Diagnostic> {
+    let displacement = target as isize - (branch_start + 6) as isize;
+    let displacement = rel32(displacement)?;
+    bytes[branch_start + 2..branch_start + 6].copy_from_slice(&displacement.to_le_bytes());
+    Ok(())
+}
+
+/// F5 float-arithmetic policy guard. Entry: r10=result bits, r8=preserved
+/// left bits, r11=right bits. Exit: r10 is unchanged or clamped; r8/r9/r11
+/// and rax are scratch. The branch targets are patched from the emitted byte
+/// stream, so the width twin can use this function's actual length.
+fn float_policy_guard_bytes(
+    domain: ArithmeticDomain,
+    operator: StateGuardOperator,
+    byte_size: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    if !float_policy_applies(operator, domain) {
+        return Ok(Vec::new());
+    }
+
+    let (inf_bits, max_bits, sign_bits) = if byte_size > 4 {
+        (
+            0x7ff0_0000_0000_0000_u64,
+            0x7fef_ffff_ffff_ffff_u64,
+            0x8000_0000_0000_0000_u64,
+        )
+    } else {
+        (0x7f80_0000_u64, 0x7f7f_ffff_u64, 0x8000_0000_u64)
+    };
+    let mut bytes = Vec::new();
+    bytes.extend([0x49, 0xb9]); // mov r9,imm64 (positive infinity bits)
+    bytes.extend(inf_bits.to_le_bytes());
+    append_float_abs_to_rax(&mut bytes, FloatPolicySource::Result, byte_size);
+    append_cmp_rax_r9(&mut bytes);
+
+    match domain {
+        ArithmeticDomain::Saturating => {
+            let mut end_branches = Vec::new();
+            // Only an exactly infinite result is magnitude overflow. Finite
+            // results and NaNs pass through (invalid remains a Finite duty).
+            end_branches.push(append_policy_branch_placeholder(&mut bytes, 0x85)); // jne end
+
+            append_float_abs_to_rax(&mut bytes, FloatPolicySource::Right, byte_size);
+            if operator == StateGuardOperator::Divide {
+                bytes.extend([0x48, 0x83, 0xf8, 0x00]); // cmp rax,0
+                // Division by +/-0 keeps IEEE infinity; it is not overflow.
+                end_branches.push(append_policy_branch_placeholder(&mut bytes, 0x84)); // je end
+            }
+            append_cmp_rax_r9(&mut bytes);
+            end_branches.push(append_policy_branch_placeholder(&mut bytes, 0x83)); // jae end
+
+            append_float_abs_to_rax(&mut bytes, FloatPolicySource::Left, byte_size);
+            append_cmp_rax_r9(&mut bytes);
+            end_branches.push(append_policy_branch_placeholder(&mut bytes, 0x83)); // jae end
+
+            // Clamp to MAX_FINITE with the result's sign.
+            bytes.extend([0x49, 0xb9]);
+            bytes.extend(sign_bits.to_le_bytes());
+            bytes.extend([0x4d, 0x21, 0xca]); // and r10,r9
+            bytes.extend([0x49, 0xb9]);
+            bytes.extend(max_bits.to_le_bytes());
+            bytes.extend([0x4d, 0x09, 0xca]); // or r10,r9
+
+            let end = bytes.len();
+            for branch in end_branches {
+                patch_policy_branch(&mut bytes, branch, end)?;
+            }
+        }
+        ArithmeticDomain::Trapping => {
+            let mut end_branches = Vec::new();
+            // Finite result: done. NaN jumps over the infinity case.
+            end_branches.push(append_policy_branch_placeholder(&mut bytes, 0x82)); // jb end
+            let nan_branch = append_policy_branch_placeholder(&mut bytes, 0x87); // ja nan
+
+            // Infinite result is legal only when an input was already Inf/NaN.
+            append_float_abs_to_rax(&mut bytes, FloatPolicySource::Left, byte_size);
+            append_cmp_rax_r9(&mut bytes);
+            end_branches.push(append_policy_branch_placeholder(&mut bytes, 0x83)); // jae end
+            append_float_abs_to_rax(&mut bytes, FloatPolicySource::Right, byte_size);
+            append_cmp_rax_r9(&mut bytes);
+            end_branches.push(append_policy_branch_placeholder(&mut bytes, 0x83)); // jae end
+            bytes.extend([0x0f, 0x0b]); // ud2: overflow or divide-by-zero
+
+            let nan = bytes.len();
+            patch_policy_branch(&mut bytes, nan_branch, nan)?;
+            // NaN propagation is legal only when an input was already NaN.
+            append_float_abs_to_rax(&mut bytes, FloatPolicySource::Left, byte_size);
+            append_cmp_rax_r9(&mut bytes);
+            end_branches.push(append_policy_branch_placeholder(&mut bytes, 0x87)); // ja end
+            append_float_abs_to_rax(&mut bytes, FloatPolicySource::Right, byte_size);
+            append_cmp_rax_r9(&mut bytes);
+            end_branches.push(append_policy_branch_placeholder(&mut bytes, 0x87)); // ja end
+            bytes.extend([0x0f, 0x0b]); // ud2: invalid operation
+
+            let end = bytes.len();
+            for branch in end_branches {
+                patch_policy_branch(&mut bytes, branch, end)?;
+            }
+        }
+        _ => unreachable!("policy applicability gated above"),
+    }
+    Ok(bytes)
+}
+
 /// Floating-point binary op (f64/f32) that reuses the integer operand pipeline:
 /// the operand bit patterns are already loaded in r10 (left) and r11 (right).
 /// Move them into xmm0/xmm1, run the SSE arithmetic op, then move the result
 /// bits back to r10 so the shared store path writes them out. `byte_size > 4`
 /// selects f64 (`movq` + `*sd`); otherwise f32 (`movd` + `*ss`). Always the
-/// per-operator `runtime_float_binary_operation_width(operator)` bytes.
+/// base per-operator width plus any emitted policy guard; the domain-aware
+/// width twin calls the same guard emitter.
 fn append_runtime_float_binary_operation(
     bytes: &mut Vec<u8>,
     operator: StateGuardOperator,
     byte_size: usize,
+    domain: ArithmeticDomain,
 ) -> Result<(), Diagnostic> {
     let wide = byte_size > 4;
+    let guarded = float_policy_applies(operator, domain);
+    if guarded {
+        // The result overwrites r10. Keep the raw left operand for the policy
+        // guard; r11 already keeps the raw right operand.
+        bytes.extend([0x4d, 0x89, 0xd0]); // mov r8,r10
+    }
     if wide {
         bytes.extend([0x66, 0x49, 0x0f, 0x6e, 0xc2]); // movq xmm0, r10
         bytes.extend([0x66, 0x49, 0x0f, 0x6e, 0xcb]); // movq xmm1, r11
@@ -8427,6 +8602,9 @@ fn append_runtime_float_binary_operation(
     } else {
         bytes.extend([0x66, 0x41, 0x0f, 0x7e, 0xc2]); // movd r10d, xmm0
     }
+    if guarded {
+        bytes.extend(float_policy_guard_bytes(domain, operator, byte_size)?);
+    }
     Ok(())
 }
 
@@ -8437,6 +8615,30 @@ fn append_runtime_float_binary_operation(
 /// f32 and f64 at every operator (the relocation-offset invariant). MUST
 /// stay in lockstep with the emission.
 fn runtime_float_binary_operation_width(operator: StateGuardOperator) -> usize {
+    runtime_float_binary_operation_width_with_domain(
+        operator,
+        8,
+        ArithmeticDomain::Exact,
+    )
+}
+
+fn runtime_float_binary_operation_width_with_domain(
+    operator: StateGuardOperator,
+    byte_size: usize,
+    domain: ArithmeticDomain,
+) -> usize {
+    let policy_width = if float_policy_applies(operator, domain) {
+        3 + float_policy_guard_bytes(domain, operator, byte_size)
+            .map(|bytes| bytes.len())
+            .unwrap_or(0)
+    } else {
+        0
+    };
+    policy_width
+        + runtime_float_binary_operation_width_base(operator)
+}
+
+fn runtime_float_binary_operation_width_base(operator: StateGuardOperator) -> usize {
     match operator {
         StateGuardOperator::Equal | StateGuardOperator::NotEqual => 10 + 4 + 8 + 4,
         StateGuardOperator::Greater
@@ -9398,6 +9600,104 @@ mod float_to_integer_policy_tests {
         assert_eq!(f64::from_bits(upper), 4294967296.0);
         assert_eq!(f64::from_bits(lower), -1.0);
         assert!(!lower_inclusive, "-0.5 truncates into u32");
+    }
+}
+
+#[cfg(test)]
+mod float_arithmetic_policy_tests {
+    use super::*;
+
+    #[test]
+    fn policy_sequences_stay_in_width_lockstep() {
+        for byte_size in [4usize, 8] {
+            for operator in [
+                StateGuardOperator::Add,
+                StateGuardOperator::Subtract,
+                StateGuardOperator::Multiply,
+                StateGuardOperator::Divide,
+            ] {
+                for domain in [
+                    ArithmeticDomain::Exact,
+                    ArithmeticDomain::Saturating,
+                    ArithmeticDomain::Trapping,
+                ] {
+                    let mut bytes = Vec::new();
+                    append_runtime_float_binary_operation(
+                        &mut bytes,
+                        operator,
+                        byte_size,
+                        domain,
+                    )
+                    .expect("encode float operation");
+                    assert_eq!(
+                        bytes.len(),
+                        runtime_float_binary_operation_width_with_domain(
+                            operator, byte_size, domain,
+                        ),
+                        "f{} {operator:?} {domain:?} width",
+                        byte_size * 8,
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn policy_branches_target_emitted_labels() {
+        for byte_size in [4usize, 8] {
+            for operator in [
+                StateGuardOperator::Add,
+                StateGuardOperator::Subtract,
+                StateGuardOperator::Multiply,
+                StateGuardOperator::Divide,
+            ] {
+                for domain in [ArithmeticDomain::Saturating, ArithmeticDomain::Trapping] {
+                    let bytes = float_policy_guard_bytes(domain, operator, byte_size)
+                        .expect("encode policy guard");
+                    let mut branches = 0;
+                    for start in 0..bytes.len().saturating_sub(5) {
+                        if bytes[start] == 0x0f
+                            && matches!(bytes[start + 1], 0x82 | 0x83 | 0x84 | 0x85 | 0x87)
+                        {
+                            let displacement = i32::from_le_bytes(
+                                bytes[start + 2..start + 6]
+                                    .try_into()
+                                    .expect("rel32 bytes"),
+                            );
+                            let target = (start + 6) as isize + displacement as isize;
+                            assert!(
+                                target >= 0 && target as usize <= bytes.len(),
+                                "branch at {start} targets {target}, outside {} bytes",
+                                bytes.len(),
+                            );
+                            branches += 1;
+                        }
+                    }
+                    assert!(branches >= 3, "policy guard must contain its decision branches");
+                    assert_eq!(
+                        bytes.windows(2).any(|window| window == [0x0f, 0x0b]),
+                        domain == ArithmeticDomain::Trapping,
+                        "only Trapping emits ud2",
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn non_arithmetic_float_operations_never_gain_policy_bytes() {
+        for operator in [
+            StateGuardOperator::Equal,
+            StateGuardOperator::Min,
+            StateGuardOperator::Max,
+            StateGuardOperator::Sqrt,
+        ] {
+            assert!(
+                float_policy_guard_bytes(ArithmeticDomain::Trapping, operator, 8)
+                    .expect("gated guard")
+                    .is_empty()
+            );
+        }
     }
 }
 
