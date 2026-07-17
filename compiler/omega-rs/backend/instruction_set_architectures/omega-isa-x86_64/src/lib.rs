@@ -3031,11 +3031,15 @@ pub fn encode_runtime_machine_integer_write(
     byte_size: usize,
     value: i64,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = Vec::with_capacity(runtime_machine_integer_write_width(byte_offset, byte_size));
-    append_mov_r15_imm64(&mut bytes, 0);
-    append_mov_rax_imm64(&mut bytes, value as u64);
-    append_store_rax_to_r15(&mut bytes, byte_offset, byte_size)?;
-    Ok(bytes)
+    // Write rung 1b: DELEGATES byte-for-byte to the place materializer
+    // (unit-pinned identity). The region on the transitional place is
+    // documentation only -- a direct place's bytes never consult it; the
+    // walker patches the base from the instruction's own region.
+    let target =
+        place_copy::transitional_place(omega_target_operations::RuntimeStorageRegion::Machine)
+            .with_step(omega_target_operations::PlaceStep::ConstOffset(byte_offset))
+            .expect("a direct place is two steps, within PLACE_MAX_STEPS");
+    place_copy::encode_place_integer_write(&target, value, byte_size).map(|(bytes, _)| bytes)
 }
 
 pub fn runtime_machine_indexed_integer_write_width(
@@ -3353,16 +3357,19 @@ pub fn encode_runtime_pointee_integer_write(
             "X86_64 MVP encoder cannot store {byte_size}-byte pointee integers yet"
         )));
     }
-    let mut bytes = Vec::with_capacity(runtime_pointee_integer_write_width(
-        field_byte_offset,
-        byte_size,
-    ));
-    // r15 = frame base (imm64 at +2 relocated to the frame symbol); then load the
-    // stored pointer in place and store the value through it.
-    append_mov_r15_imm64(&mut bytes, 0);
-    append_load_r15_from_r15(&mut bytes, pointer_byte_offset)?;
-    append_mov_rax_imm64(&mut bytes, value as u64);
-    append_store_rax_to_r15(&mut bytes, field_byte_offset, byte_size)?;
+    // Write rung 1b: DELEGATES byte-for-byte to the place materializer
+    // ([Const(ptr), Deref, Const(field)]; unit-pinned identity).
+    let target =
+        place_copy::transitional_place(omega_target_operations::RuntimeStorageRegion::RuntimeFrame)
+            .with_step(omega_target_operations::PlaceStep::ConstOffset(pointer_byte_offset))
+            .and_then(|place| place.with_step(omega_target_operations::PlaceStep::Deref))
+            .and_then(|place| {
+                place.with_step(omega_target_operations::PlaceStep::ConstOffset(
+                    field_byte_offset,
+                ))
+            })
+            .expect("a pointee place is four steps, within PLACE_MAX_STEPS");
+    let (bytes, _) = place_copy::encode_place_integer_write(&target, value, byte_size)?;
     debug_assert_eq!(
         bytes.len(),
         runtime_pointee_integer_write_width(field_byte_offset, byte_size)

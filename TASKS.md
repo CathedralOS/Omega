@@ -639,9 +639,21 @@ sealed progress profiles + grants, TPR4's remaining big half).
    unchanged), the value stages through rax, the residual const folds
    into the width store's displacement. Unit-pinned: a DIRECT place is
    byte-for-byte the retired integer-write layout; an INDEXED target
-   rides the index discipline. Re-exported for rung 1b (the
-   WritePlaceInteger variant + its echo product + the first
-   byte-for-byte delegation). Pre-existing dead helpers noted en route (shapes/copies.rs
+   rides the index discipline. Re-exported for rung 1b.
+   WRITE RUNG 1b LANDED 2026-07-19 (the first delegations, in-ISA):
+   encode_runtime_machine_integer_write (serves BOTH the machine and
+   storage integer-write kinds) and encode_runtime_pointee_integer_write
+   now DELEGATE byte-for-byte through encode_place_integer_write
+   (direct place / [Const(ptr), Deref, Const(field)]; the pointee
+   width debug_assert stays as the identity sentinel; the transitional
+   place's region is documentation -- direct-place bytes never consult
+   it, the walker patches from the kind's own region). The INDEXED
+   integer-write encoders do NOT delegate yet: their retired layout
+   stages the index through RAX (mov rax,[base+idx]; imul rax), not
+   r11 -- delegation there is a CANONICALIZATION (bytes change, walker
+   offsets move in lockstep), the Copy rung-1b/1c pattern, queued as
+   rung 1c. Rung 2a after: the WritePlaceInteger variant + echo
+   product + producer migration. Pre-existing dead helpers noted en route (shapes/copies.rs
    runtime_storage_copy_kind + _to_runtime_frame_indexed_kind +
    from/to_machine_indexed_kind -- orphaned by EARLIER retirements,
    swept opportunistically at the next touch).
