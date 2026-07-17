@@ -139,9 +139,7 @@ impl TypeReferenceTable {
         self.type_references
             .iter()
             .filter_map(|(handle, node)| match node {
-                TypeReferenceNode::Named { symbol, name } => {
-                    Some((handle, *symbol, name.as_str()))
-                }
+                TypeReferenceNode::Named { symbol, name } => Some((handle, *symbol, name.as_str())),
                 _ => None,
             })
     }
@@ -340,6 +338,83 @@ impl TypeReferenceTable {
         }
     }
 
+    /// Remap lexical symbols reachable from a type reference copied into a
+    /// fresh scope. Constraint expressions remain owned by the expression
+    /// table and are remapped there.
+    pub fn remap_symbols_in(
+        &mut self,
+        type_reference: TypeReferenceHandle,
+        expressions: &mut crate::expression::ExpressionTable,
+        symbols: &[(SymbolHandle, SymbolHandle)],
+    ) {
+        if !type_reference.is_valid() {
+            return;
+        }
+        let node = self.type_reference(type_reference).clone();
+        match node {
+            TypeReferenceNode::Reference { referee, .. } => {
+                self.remap_symbols_in(referee, expressions, symbols);
+            }
+            TypeReferenceNode::Constrained {
+                base_type,
+                constraints,
+            } => {
+                self.remap_symbols_in(base_type, expressions, symbols);
+                for constraint in self.constraints(constraints).to_vec() {
+                    if let TypeConstraintNode::Range { minimum, maximum } = constraint {
+                        expressions.remap_symbols_in(minimum, symbols);
+                        expressions.remap_symbols_in(maximum, symbols);
+                    }
+                }
+            }
+            TypeReferenceNode::FixedArray {
+                element_type,
+                length,
+            } => {
+                self.remap_symbols_in(element_type, expressions, symbols);
+                if let FixedArrayLength::ConstParameter { symbol, .. } = length
+                    && let TypeReferenceNode::FixedArray { length, .. } =
+                        self.type_references.get_mut(type_reference)
+                    && let FixedArrayLength::ConstParameter {
+                        symbol: current, ..
+                    } = length
+                {
+                    *current = remapped(symbol, symbols);
+                }
+            }
+            TypeReferenceNode::Slice { element_type } => {
+                self.remap_symbols_in(element_type, expressions, symbols);
+            }
+            TypeReferenceNode::Generic {
+                base_symbol,
+                arguments,
+                ..
+            } => {
+                for argument in self.type_reference_handles(arguments).to_vec() {
+                    self.remap_symbols_in(argument, expressions, symbols);
+                }
+                let TypeReferenceNode::Generic {
+                    base_symbol: current,
+                    ..
+                } = self.type_references.get_mut(type_reference)
+                else {
+                    unreachable!();
+                };
+                *current = remapped(base_symbol, symbols);
+            }
+            TypeReferenceNode::DynamicTrait { symbol, .. }
+            | TypeReferenceNode::Named { symbol, .. } => {
+                let current = match self.type_references.get_mut(type_reference) {
+                    TypeReferenceNode::DynamicTrait { symbol, .. }
+                    | TypeReferenceNode::Named { symbol, .. } => symbol,
+                    _ => unreachable!(),
+                };
+                *current = remapped(symbol, symbols);
+            }
+            TypeReferenceNode::Unit => {}
+        }
+    }
+
     fn copy_type_reference_handles_from(
         &mut self,
         source: &TypeReferenceTable,
@@ -407,6 +482,13 @@ impl Default for TypeReferenceTable {
     fn default() -> Self {
         Self::new()
     }
+}
+
+fn remapped(symbol: SymbolHandle, symbols: &[(SymbolHandle, SymbolHandle)]) -> SymbolHandle {
+    symbols
+        .iter()
+        .find_map(|(source, target)| (*source == symbol).then_some(*target))
+        .unwrap_or(symbol)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

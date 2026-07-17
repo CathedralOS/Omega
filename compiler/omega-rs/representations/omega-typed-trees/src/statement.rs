@@ -251,6 +251,100 @@ impl StatementTable {
         self.insert_transition_target(target)
     }
 
+    /// Remap lexical symbols in a copied statement graph. Expression and type
+    /// payloads are delegated to their owning tables so no arena internals
+    /// escape this representation layer.
+    pub fn remap_symbols_in(
+        &mut self,
+        statements: HandleSpan<StatementNode>,
+        expressions: &mut crate::expression::ExpressionTable,
+        types: &mut crate::types::TypeReferenceTable,
+        symbols: &[(SymbolHandle, SymbolHandle)],
+    ) {
+        let statement_handles: Vec<_> = (0..statements.count())
+            .map(|offset| {
+                Handle::from_parts(
+                    statements.start().arena_index() + offset,
+                    statements.start().generation(),
+                )
+            })
+            .collect();
+        for handle in statement_handles {
+            let statement = self.statement(handle).clone();
+            match statement {
+                StatementNode::Assignment(assignment) => {
+                    expressions.remap_symbols_in(assignment.target, symbols);
+                    expressions.remap_symbols_in(assignment.value, symbols);
+                }
+                StatementNode::Call(call) => {
+                    for argument in self.expression_handles(call.arguments).to_vec() {
+                        expressions.remap_symbols_in(argument, symbols);
+                    }
+                    let StatementNode::Call(current) = self.statements.get_mut(handle) else {
+                        unreachable!();
+                    };
+                    current.receiver_symbol = remapped(current.receiver_symbol, symbols);
+                    current.target_symbol = remapped(current.target_symbol, symbols);
+                    for argument in &mut current.machine_arguments {
+                        argument.symbol = remapped(argument.symbol, symbols);
+                    }
+                }
+                StatementNode::Expression(expression) => {
+                    expressions.remap_symbols_in(expression, symbols);
+                }
+                StatementNode::LocalData(local) => {
+                    types.remap_symbols_in(local.type_reference, expressions, symbols);
+                    expressions.remap_symbols_in(local.initial_value, symbols);
+                    let StatementNode::LocalData(current) = self.statements.get_mut(handle) else {
+                        unreachable!();
+                    };
+                    current.symbol = remapped(current.symbol, symbols);
+                }
+                StatementNode::Transition(transition) => {
+                    self.remap_transition_target_symbols(transition.target, expressions, symbols);
+                    self.remap_transition_target_symbols(
+                        transition.continuation,
+                        expressions,
+                        symbols,
+                    );
+                    if let TransitionGuardNode::When(guard) = transition.guard {
+                        expressions.remap_symbols_in(guard, symbols);
+                    }
+                }
+            }
+        }
+    }
+
+    fn remap_transition_target_symbols(
+        &mut self,
+        target: TransitionTargetHandle,
+        expressions: &mut crate::expression::ExpressionTable,
+        symbols: &[(SymbolHandle, SymbolHandle)],
+    ) {
+        if !target.is_valid() {
+            return;
+        }
+        let snapshot = self.transition_target(target).clone();
+        match snapshot {
+            TransitionTargetNode::Named { path, arguments } => {
+                for argument in self.expression_handles(arguments).to_vec() {
+                    expressions.remap_symbols_in(argument, symbols);
+                }
+                let TransitionTargetNode::Named { path: current, .. } =
+                    self.transition_targets.get_mut(target)
+                else {
+                    unreachable!();
+                };
+                current.head_symbol = remapped(path.head_symbol, symbols);
+                current.symbol = remapped(path.symbol, symbols);
+            }
+            TransitionTargetNode::Value(value) => {
+                expressions.remap_symbols_in(value, symbols);
+            }
+            TransitionTargetNode::SelfTarget | TransitionTargetNode::Terminal => {}
+        }
+    }
+
     pub fn statement(&self, handle: StatementHandle) -> &StatementNode {
         self.statements.get(handle)
     }
@@ -293,6 +387,13 @@ impl Default for StatementTable {
     fn default() -> Self {
         Self::new()
     }
+}
+
+fn remapped(symbol: SymbolHandle, symbols: &[(SymbolHandle, SymbolHandle)]) -> SymbolHandle {
+    symbols
+        .iter()
+        .find_map(|(source, target)| (*source == symbol).then_some(*target))
+        .unwrap_or(symbol)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -519,6 +620,21 @@ mod tests {
                 guard: super::TransitionGuardNode::When(guard),
             }),
         );
+        let mut expression_members = omega_core::arena::HandleSpan::empty();
+        source_expressions
+            .push_name_path_member(&mut expression_members, Identifier::generated("value"));
+        let mut expression_member_symbols = omega_core::arena::HandleSpan::empty();
+        source_expressions
+            .push_name_path_member_symbol(&mut expression_member_symbols, local_symbol);
+        let local_reference =
+            source_expressions.insert(ExpressionNode::Name(crate::expression::TableNamePath {
+                members: expression_members,
+                member_symbols: expression_member_symbols,
+                head_symbol: local_symbol,
+                symbol: local_symbol,
+            }));
+        source_statements
+            .push_statement(&mut source_span, StatementNode::Expression(local_reference));
 
         let mut copied_statements = StatementTable::new();
         let mut copied_expressions = ExpressionTable::new();
@@ -536,12 +652,23 @@ mod tests {
         *source_expressions.expression_mut(initial) =
             ExpressionNode::Integer(omega_core::literals::IntegerLiteral::from_value(99));
         source_types.substitute_node(local_type, TypeReferenceNode::Unit);
+        let remapped_local = SymbolHandle::from_arena_index(31);
+        let remapped_target = SymbolHandle::from_arena_index(32);
+        copied_statements.remap_symbols_in(
+            copied_span,
+            &mut copied_expressions,
+            &mut copied_types,
+            &[
+                (local_symbol, remapped_local),
+                (target_symbol, remapped_target),
+            ],
+        );
 
         let copied = copied_statements.statements(copied_span);
         let StatementNode::LocalData(local) = &copied[0] else {
             panic!("first copied statement should be local data");
         };
-        assert_eq!(local.symbol, local_symbol);
+        assert_eq!(local.symbol, remapped_local);
         assert_eq!(copied_types.display_name(local.type_reference), "i32");
         assert_eq!(
             copied_expressions.expression(local.initial_value),
@@ -556,7 +683,8 @@ mod tests {
         else {
             panic!("copied transition target should be named");
         };
-        assert_eq!(path.symbol, target_symbol);
+        assert_eq!(path.head_symbol, remapped_target);
+        assert_eq!(path.symbol, remapped_target);
         assert_eq!(
             copied_statements.name_path_members(path.members)[0].as_str(),
             "next"
@@ -573,5 +701,18 @@ mod tests {
             copied_expressions.expression(copied_guard),
             ExpressionNode::Boolean(true)
         ));
+
+        let StatementNode::Expression(reference) = copied[2] else {
+            panic!("third copied statement should be an expression");
+        };
+        let ExpressionNode::Name(path) = copied_expressions.expression(reference) else {
+            panic!("copied expression should be a name path");
+        };
+        assert_eq!(path.head_symbol, remapped_local);
+        assert_eq!(path.symbol, remapped_local);
+        assert_eq!(
+            copied_expressions.name_path_member_symbols(path.member_symbols),
+            &[remapped_local]
+        );
     }
 }
