@@ -3213,19 +3213,25 @@ rejects — an INTEGER ruling, engineering rides this ladder as F8).
   binding value, refusal). PRV3 IS COMPLETE except SLOT-OWNER
   SELECTION, which IS PRV4's surface (the target-default set +
   per-slot overrides in build.omg). PRV4 REMAINING -- SUB-RUNGS CUT 2026-07-20 (the corpus-scale
-  breaking pass; machinery map banked above): P4a CONSOLE VERTICAL
-  -- promote platform Console to boundary trait Console in
-  console.omg; represent the three populate tables' Console rows as
-  ProviderPlan VALUES (per-target constructors beside the tables;
-  render_call_shape carries the PlatformCallData policies); have
-  merge-time consumption build the SAME HostBindingMechanism rows
-  from the plans (parse_call_shape at the seam) behind a parallel
-  path gated to Console, with byte-identical HostAbiPlan as the
-  oracle before the hardcoded insert_platform_lowering rows retire;
-  both engines' Console special-cases keyed off the boundary trait
-  instead of the platform block (evaluator.rs:4174-4196, 6408;
-  platform consumers in symbol-resolution/state_signatures/types/
-  proof). P4b FILESYSTEM: the per-target Value provides rows
+  breaking pass; machinery map banked above): P4a CONSOLE VERTICAL -- P4a-1 THE
+  LOSSLESS ORACLE LANDED 2026-07-20: ProviderBinding gained the
+  HostOperations arm (rendered Capability::operation refs -- the
+  populate tables' lowering-sequence shape);
+  pipeline/provider_plans.rs derives the built-in Console plan FROM
+  a populated HostAbiPlan (builtin_console_plan; scoped by the
+  lowering's PLATFORM field -- "*"/"Console" vs the fs raw seam's
+  "FilesystemHost", which shares state names like `write`) and
+  converts rows BACK (plan_row_to_lowering: from_names +
+  parse_call_shape); the round trip is EXACT for Coff/Elf/MachO
+  (console_plan_round_trips_the_populate_tables) -- the
+  precondition for retiring insert_platform_lowering into authored
+  plans. P4a-2 REMAINING: promote platform Console to boundary
+  trait Console in console.omg; key both engines' Console
+  special-cases off the boundary trait (evaluator.rs:4174-4196,
+  6408; platform consumers in symbol-resolution/state_signatures/
+  types/proof); consume the derived plans at merge time behind a
+  Console-gated parallel path with the byte-identical-plan oracle,
+  then retire the tables' Console rows. P4b FILESYSTEM: the per-target Value provides rows
   (targets/<t>/filesystem.provides.omg) re-authored as plan values
   in std target packages; slot-owner selection = build.omg target
   blocks choosing the default plan set + per-slot overrides. P4c

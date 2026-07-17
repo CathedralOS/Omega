@@ -61,6 +61,14 @@ pub enum ProviderBinding {
     /// backend emits directly -- the float-operation shape. Carried as the
     /// operation's name until the instruction-plan machinery lands.
     Instruction { operation: String },
+    /// A PLATFORM-LOWERING sequence (the populate tables' shape, P4a): the
+    /// method lowers as an ordered chain of HOST OPERATIONS
+    /// (`Stdout::get_std_handle`, `Stdout::write_file`), each resolving to
+    /// an import/syscall binding in the host-ABI plan; the row's call_shape
+    /// carries the PlatformCallData policy. Rendered `Capability::operation`
+    /// strings keep this crate free of the calling-conventions dependency;
+    /// the merge seam parses them exactly like call shapes.
+    HostOperations { operations: Vec<String> },
 }
 
 /// One method's plan row: the mechanism plus the call-shaping policy the
