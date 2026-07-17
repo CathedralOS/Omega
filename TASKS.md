@@ -1382,7 +1382,75 @@ the match-subject computed-index gap closed with it).
 
 ## Cathedral M2 (owner priority 2026-07-15; RECAST = main lane, claimed)
 
-**2026-07-11 full-tree measurement (owner side): Cathedral's TYPED M1 BOOTS.**
+**SUPERSEDED 2026-07-13 (compiler lane): the 2026-07-11 "M2 BOOTS" below was
+a FALSE POSITIVE — and M2 + M3's serial rung are now REALLY done (Omega
+`7640a6f7a`, Cathedral `69051cc`).** The 07-11 boot idled without owning
+anything: binding boot services as This-call vtable fields shifted every
+argument one register right (EFI TABLE SERVICES take no This — protocols
+do), so GetMemoryMap read the table pointer as *MemoryMapSize (the header
+signature) and sprayed the map over whatever RDX aliased; the post-call
+sanity guard then silently failed into idle — booting + halting was
+indistinguishable from success. Four stacked fixes landed: (1) the
+`TableFunction(field)` Binding case (extern brief SS12.1 addendum) — table
+dispatch with the table OFF the wire, mechanism carries the declared arity;
+(2) result-carrying field-model calls — the prepended result place had been
+marshalled as the receiver (RCX=0 → fn ptr from phys 0x38 → the recurring
+#UD at RIP 0xB0000); (3) wide-referee borrow-recast lets store the ELEMENT
+ADDRESS (new WriteRuntimeMachineIndexedAddressToRuntimeFrame; the
+referee-size rule now governs the WRITE side too; Named referees only —
+slice {ptr,len} descriptors stay flat, caught by the utf8 canaries); (4)
+reads THROUGH the recast pointer: guard clauses that cannot express the
+deref re-select through the expression path's Pointee operands, and
+transition arguments stop inline-folding recast locals (they were silently
+dropped). Verified live under QEMU/OVMF with POSITIVE evidence: firmware
+out-values echoed over debugcon (status 0, stride 48, version 1),
+98-descriptor walk, ExitBootServices gated on its captured status, first
+Region mint, "Owned 35 MiB" over Cathedral's own 16550 driver (LSR-polled
+FIFO bursts, decimal by place subtraction), hlt idle; 842 canaries green,
+the 7 known reds, zero regressions. Trust only positive-evidence
+verification on boot claims. The gap list below stands as history.
+
+## Cathedral M3 completion + M4 runway (queued 2026-07-20, compiler lane)
+
+M3's serial rung is done (above). The remaining M3 rung is the TIMER TICK;
+then M4 (scheduler/IPC) opens. Atomics already serve — `fetch_add`/
+`compare_exchange` lower to real `lock xadd`/`lock cmpxchg` (width-
+dispatched, canary-pinned); the cathedral_alignment RMW-blocker note was
+stale and is corrected (`174ddbaf4`).
+
+1. **InterruptFrame inbound plan** — the second stated convention
+   (calling_plans.md: `boundary(InterruptFrame) machine on_timer(...)`;
+   freestanding brief "Interrupt entry"). Entry stub: CPU-pushed frame
+   (SS:RSP, RFLAGS, CS, RIP, ± error code), full register save/restore,
+   `iretq` return. The declaration surface is settled; the concrete plan
+   spec + acknowledgement-token types are the freestanding brief's named
+   Still-open residue — the register-file layout half is architectural
+   fact, agent-ready; the ack-token TYPE wants an owner glance when the
+   LAPIC shape lands.
+2. **Handler-address registration** — the IDT is a stated-layout data
+   struct whose entries need a `boundary(InterruptFrame)` machine's
+   ENTRY-STUB ADDRESS as a runtime value ("interrupt entry registrations"
+   in the freestanding brief's required build report). The registration
+   grammar rides the brief's "exact build/entry declaration grammar"
+   Still-open item — flagged here so the timer tick does not discover it
+   late.
+3. **`cli`/`sti`/`lidt` known-contract asm** — the hlt pattern
+   (machine_control; encoders 0xFA / 0xFB / 0F 01 /3 with a memory
+   operand for the descriptor pointer).
+4. **Cathedral timer-tick acceptance** — IDT + PIT (or LAPIC timer)
+   programming via the landed port I/O; the handler posts a bounded tick
+   event; done-check: tick count reported over the owned serial line under
+   QEMU, hlt between ticks.
+5. **Compiler gaps filed en route (none M4-blocking):** (a) a
+   binary-initialized local consumed as a STATE-CALL argument inside a
+   proof-obligation-carrying guarded state refuses ("CallArgument binary
+   expression needs runtime value lowering"; ANY operator, division was a
+   misdiagnosis — same fold-vs-place family as the recast-arg fix; make
+   the state-values fold copy the local's slot); (b) assignment-RHS
+   `self.x = ref.field` and `&self.field` address-of call arguments
+   resolve INLINE for large referees; (c) the red value_call_terminal
+   canary will block the first machine-call on a boot path — triage
+   before M4's scheduler shapes lean on machine calls.
 The whole Cathedral boot package (typed EfiStatus/EfiHandle wrappers,
 `&TextOutputProtocol` reference field, `effects device_io`, field-model
 provides, `use` modules, `Type::`-scoped const) was compiled via a staged
