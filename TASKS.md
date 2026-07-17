@@ -3311,9 +3311,16 @@ rejects — an INTEGER ruling, engineering rides this ladder as F8).
   (dual-engine, windows-gated; engine-agnostic legs — the hermetic model
   copies bytes, so the pins are create+readback, link-survives-removal,
   taken-name refuses with kind unpinned).
-  REMAINING: canonicalize (GetFullPathNameA — the last single-call row);
-  set_file_times/lock_file need _get_osfhandle + SetFileTime/LockFileEx
-  plumbing (a later slice); the *at family and fd-based read_dir stay
+  REMAINING — SCOPING CORRECTED 2026-07-16: canonicalize is NOT a
+  GetFullPathNameA row (that API is LEXICAL only — no existence check, no
+  symlink resolution; it is Rust's `path::absolute`, not
+  `fs::canonicalize`). The honest windows canonicalize = the HANDLE
+  BRIDGE: `_get_osfhandle(fd)` (msvcrt) + `GetFinalPathNameByHandleA`
+  (kernel32; \\?\-prefixed DOS path, existence-checked via the open) —
+  composed in the wrapper impl as open/bridge/resolve/close. The SAME
+  bridge unlocks set_file_times (SetFileTime) and lock_file (LockFileEx)
+  natively — one designed slice family. The *at family and fd-based
+  read_dir stay
   paradigm-refused on windows BY DESIGN (the dirfd paradigm has no Win32
   twin; wrapper-level windows impls already serve the walk); chown/symlink
   stay refused (no windows semantics / privilege-gated). WndProc entry
