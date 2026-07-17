@@ -4,6 +4,108 @@ use omega_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use omega_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
 use omega_tokens_to_syntax_trees::parse_syntax_trees;
 
+fn typed_program_from_source(source: &str) -> omega_typed_trees::TypedTrees {
+    let source = format!("data Main {{}} machine Main::run(&mut self) {{}} {source}");
+    let tokens = Lexer::new(&source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve should succeed");
+    lower_symbol_resolved_trees(&resolved).expect("typed lowering should succeed")
+}
+
+#[test]
+fn static_machine_argument_refines_authored_generic_contract() {
+    let typed = typed_program_from_source(
+        r#"
+        data Card {}
+        machine Card::power(value: &Card) {}
+
+        machine map<T, machine F>(value: &T)
+        where machine F(value: &T)
+        {}
+
+        machine caller(card: &Card) {
+            map<Card::power>(card);
+        }
+        "#,
+    );
+    validate_program(&typed).expect("matching static machine contract should validate");
+}
+
+#[test]
+fn static_machine_argument_rejects_callable_shape_mismatch() {
+    let typed = typed_program_from_source(
+        r#"
+        data Card {}
+        machine Card::power(value: u64) {}
+
+        machine map<T, machine F>(value: &T)
+        where machine F(value: &T)
+        {}
+
+        machine caller(card: &Card) {
+            map<Card::power>(card);
+        }
+        "#,
+    );
+    let diagnostics = validate_program(&typed).expect_err("shape mismatch must fail");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("parameter 0 expects `&T`, got `u64`")
+    }));
+}
+
+#[test]
+fn generic_call_rejects_missing_static_machine_argument() {
+    let typed = typed_program_from_source(
+        r#"
+        data Card {}
+
+        machine map<T, machine F>(value: &T)
+        where machine F(value: &T)
+        {}
+
+        machine caller(card: &Card) {
+            map(card);
+        }
+        "#,
+    );
+    let diagnostics = validate_program(&typed).expect_err("missing selection must fail");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("requires 1 static machine argument(s), got 0")
+    }));
+}
+
+#[test]
+fn static_machine_argument_rejects_stronger_precondition() {
+    let typed = typed_program_from_source(
+        r#"
+        data Card {}
+        machine Card::power(value: &Card)
+        requires value == value
+        {}
+
+        machine map<T, machine F>(value: &T)
+        where machine F(value: &T)
+        {}
+
+        machine caller(card: &Card) {
+            map<Card::power>(card);
+        }
+        "#,
+    );
+    let diagnostics = validate_program(&typed).expect_err("stronger precondition must fail");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("requires facts are not a conservative refinement")
+    }));
+}
+
 #[test]
 fn validates_main_entry_surface_from_source_pipeline() {
     let source = r#"
