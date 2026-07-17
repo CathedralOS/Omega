@@ -358,6 +358,7 @@ fn machine_instruction_width(
             source_is_float,
             target_is_float,
             source_signed,
+            target_signed,
             trapping,
             saturating,
             ..
@@ -371,6 +372,7 @@ fn machine_instruction_width(
             *source_is_float,
             *target_is_float,
             *source_signed,
+            *target_signed,
             *trapping,
             *saturating,
         ),

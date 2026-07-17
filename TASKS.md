@@ -3066,11 +3066,16 @@ rows. Rungs:
   x86 f32/f64 into signed 8/16/32/64-bit targets; the i32 Saturating
   native/interpreter row is differential-global and both i32 F4 policy canaries
   run on Windows.
-  REMAINING, now explicit rather than hidden: native unsigned-target policy
-  conversion needs target signedness in the conversion IR (and narrow targets
-  need target-range clamps rather than a wider conversion followed by a
-  truncating store). The interpreter already models these semantics; no native
-  canary claims them yet.
+  F4-ALL-TARGETS LANDED (2026-07-17) — F4 COMPLETE: `target_signed` now
+  travels through conversion operations and nested operands. x86 uses actual
+  signed/unsigned target bounds and reconstructs the u64 high half around
+  `cvtt*2si`; aarch64 selects FCVTZS/FCVTZU and adds post-conversion clamps for
+  signed/unsigned u8/u16. Trapping guards use the actual target range before
+  any truncating store. The interpreter's Exact/Trapping u64 conversion now
+  preserves values above i64::MAX. Pinned by
+  float_to_int_unsigned_narrow_saturating_exit (f32/f64, nested u8, u16, i8,
+  u32, exact/saturating u64) and trapping_float_to_narrow_int_cast_traps;
+  both ISA suites cover signedness/width lockstep.
 - **F5 — policy lowering: LANDED 2026-07-16 (aarch64 lane).** Float
   `Saturating` clamps MAGNITUDE OVERFLOW to ±MAX_FINITE at the landed
   width and nothing else (div-by-zero/invalid keep their non-finites,
@@ -3395,14 +3400,10 @@ rejects — an INTEGER ruling, engineering rides this ladder as F8).
   dependent bindings, `via` plus body, missing `satisfies`, repeated `effects`,
   signature mismatch, and admission/refinement failure. The current corpus has
   no implemented `= expr` dependency; Chapter 8's stale example was prose only.
-- **Float-to-int cast overflow — signed i32/i64 native rung CLOSED 2026-07-17
-  (F4 above); unsigned/narrow native rung OPEN.** Exact is proof-or-reject;
-  Saturating clamps with NaN -> 0; Trapping traps; Wrapping rejects. Interpreter
-  semantics and signed i32/i64 aarch64/x86_64 policy lowering are pinned.
-  Thread target signedness through conversion operands/operations, use unsigned
-  conversion instructions where available, and clamp/trap against the actual
-  narrow target before its store. Add f32/f64 -> u8/u16/u32/u64 and signed
-  narrow differential canaries before calling F4 completely closed.
+- **Float-to-int cast overflow — CLOSED 2026-07-17 (F4 above).** Exact is
+  proof-or-reject; Saturating clamps with NaN -> 0; Trapping traps; Wrapping
+  rejects. Interpreter, aarch64, and x86_64 cover signed/unsigned 8/16/32/64-bit
+  targets, including nested operands and the u64 high half.
 
 ## Open bugs / gaps (ungated)
 

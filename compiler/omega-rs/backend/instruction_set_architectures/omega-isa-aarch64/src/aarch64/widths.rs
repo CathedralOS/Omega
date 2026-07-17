@@ -276,7 +276,9 @@ pub fn runtime_storage_convert_width(
     source_is_float: bool,
     target_is_float: bool,
     source_signed: bool,
+    target_signed: bool,
     trapping: bool,
+    saturating: bool,
 ) -> usize {
     // `adrp x16 + add x16` (8) — target base, held across source evaluation —
     // then load the source into x17, convert it in place, and store the result.
@@ -287,7 +289,9 @@ pub fn runtime_storage_convert_width(
             source_is_float,
             target_is_float,
             source_signed,
+            target_signed,
             trapping,
+            saturating,
         )
         + runtime_result_write_width(target_offset, target_byte_size)
 }
@@ -301,7 +305,9 @@ fn runtime_convert_operation_width(
     source_is_float: bool,
     target_is_float: bool,
     source_signed: bool,
+    target_signed: bool,
     trapping: bool,
+    saturating: bool,
 ) -> usize {
     match (source_is_float, target_is_float) {
         // int -> float: SCVTF (4) + FMOV result back to GPR (4).
@@ -311,6 +317,13 @@ fn runtime_convert_operation_width(
         (true, false) => {
             8 + if trapping {
                 super::runtime_storage::FLOAT_TO_INT_TRAP_GUARD_WIDTH
+            } else {
+                0
+            } + if saturating {
+                super::runtime_storage::float_to_narrow_int_saturating_width(
+                    target_byte_size,
+                    target_signed,
+                )
             } else {
                 0
             }
@@ -2006,7 +2019,9 @@ pub fn runtime_value_operand_width(
                 source_is_float,
                 target_is_float,
                 source_signed,
+                runtime_value_operands.convert_target_signed(operand),
                 runtime_value_operands.convert_trapping(operand),
+                runtime_value_operands.convert_saturating(operand),
             )
     } else {
         0

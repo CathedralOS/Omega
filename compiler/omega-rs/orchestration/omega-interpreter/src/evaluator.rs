@@ -5513,9 +5513,9 @@ impl<'program> Evaluator<'program> {
                                      value does not fit {integer:?}"
                                 ));
                             }
-                            f.trunc() as i64
+                            truncate_float_to_integer(f, integer)
                         }
-                        _ => f.trunc() as i64,
+                        _ => truncate_float_to_integer(f, integer),
                     },
                     other => other
                         .as_int()
@@ -6664,6 +6664,14 @@ fn saturate_float_to_integer(f: f64, ty: PrimitiveType) -> i64 {
     match integer_bounds(ty) {
         Some((min, max)) => (f as i64).clamp(min, max),
         None => f.trunc() as i64,
+    }
+}
+
+fn truncate_float_to_integer(f: f64, ty: PrimitiveType) -> i64 {
+    if matches!(ty, PrimitiveType::U64 | PrimitiveType::Addr) {
+        (f.trunc() as u64) as i64
+    } else {
+        f.trunc() as i64
     }
 }
 

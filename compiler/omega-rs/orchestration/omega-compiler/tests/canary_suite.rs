@@ -18060,6 +18060,35 @@ fn float_to_int_saturating_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+#[test]
+fn float_to_int_unsigned_narrow_saturating_exit_canary_runs() {
+    let canary = pass_canary("arithmetic/float_to_int_unsigned_narrow_saturating_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-f2i-shapes-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("unsigned/narrow Saturating float->int canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("unsigned/narrow Saturating float->int canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected all unsigned/narrow cast shapes to clamp (exit 70), got {:?}",
+        output.status.code(),
+    );
+    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+        .expect("unsigned/narrow Saturating canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(outcome.exit_code, 70, "interpreter cast shapes should agree");
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 #[cfg(target_arch = "aarch64")]
 #[test]
 fn float_saturating_overflow_exit_canary_runs() {
@@ -18188,6 +18217,38 @@ fn trapping_float_to_int_cast_traps_aborts() {
         "expected the cast trap reason, got: {reason}"
     );
 
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn trapping_float_to_narrow_int_cast_traps_aborts() {
+    let canary = pass_canary("arithmetic/trapping_float_to_narrow_int_cast_traps");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-trap-f2i-u8-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("narrow Trapping float->int canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("narrow Trapping float->int canary should run");
+    assert_ne!(output.status.code(), Some(7), "u8 out-of-range cast sailed past");
+    assert_ne!(output.status.code(), Some(71), "in-range u8 conversion was wrong");
+    assert!(!output.status.success(), "u8 out-of-range cast must trap");
+    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+        .expect("narrow Trapping canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert!(
+        outcome
+            .error
+            .as_deref()
+            .is_some_and(|reason| reason.contains("float-to-int cast out of range")),
+        "interpreter must report the same narrow cast trap"
+    );
     let _ = fs::remove_dir_all(&build_dir);
 }
 

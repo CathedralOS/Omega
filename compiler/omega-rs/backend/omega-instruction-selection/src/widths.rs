@@ -586,6 +586,7 @@ pub fn runtime_storage_convert_width(
     source_is_float: bool,
     target_is_float: bool,
     source_signed: bool,
+    target_signed: bool,
     trapping: bool,
     saturating: bool,
 ) -> usize {
@@ -599,7 +600,9 @@ pub fn runtime_storage_convert_width(
             source_is_float,
             target_is_float,
             source_signed,
+            target_signed,
             trapping,
+            saturating,
         ),
         Architecture::X86_64 => {
             // The x86_64 converting store reaches the target through `r14`-relative
@@ -614,6 +617,7 @@ pub fn runtime_storage_convert_width(
                 source_is_float,
                 target_is_float,
                 source_signed,
+                target_signed,
                 trapping,
                 saturating,
             )
