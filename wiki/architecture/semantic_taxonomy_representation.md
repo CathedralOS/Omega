@@ -168,8 +168,8 @@ Boundary progress profiles referenced by premises are sealed semantic
 commitments with grant/receipt identity. They participate in provider
 admission but remain outside the ordinary proof-fact catalog in v1.
 
-Task consumption needs a derived artifact rather than syntax booleans or the
-current synchronous-spawn desugar:
+Task consumption needs a derived artifact rather than syntax booleans. TR1
+retired the former synchronous-spawn desugar and parser-erased `Join<T>`:
 
 ```text
 TaskActivationPlan {
@@ -267,7 +267,7 @@ ceases to be the semantic source of truth.
 
 - Domain mint/operator-family work must not grow on the undifferentiated
   `DomainDefinition` shape.
-- Linear `Join`, transactions, or dependent-linear buffers must not grow on
+- Linear `Task<T>`, transactions, or dependent-linear buffers must not grow on
   move/drop-only ownership summaries.
 - Component import slots and hot-swap manifests must not pin a body hash or
   flat effect row in place of normalized machine contract identity.

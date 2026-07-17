@@ -175,16 +175,15 @@ fn parse_type_reference_handle_inner<'tokens, 'source>(
         } else {
             HandleSpan::from_parts(argument_start, argument_count)
         };
-        // CONCURRENCY STAGE 1: `Join<T>` ERASES TO `T` here in the parser,
-        // mirroring the synchronous-spawn desugar (`expression/spawn.rs`):
-        // the spawned call completes at the spawn site, so the handle is
-        // structurally the completed result. `Join` is a reserved data-type
-        // name (rejected at `data` definitions), so the fold is never
-        // ambiguous with user generics. When a real scheduler lands, this
-        // fold is replaced by a synthesized container definition (the
-        // `Versioned<T>` precedent in omega-core/src/versioning.rs).
+        // TASK RUNTIME TR1: reject the erased stage-1 handle explicitly.
+        // `Task<T>` becomes a real linear core type in TR2; silently folding a
+        // lifecycle claim into its result would recreate the bug this pass
+        // removes.
         if base_name.as_str() == "Join" && argument_count == 1 {
-            first_argument
+            return Err(input.error_here(
+                "`Join<T>` is retired: task activation returns a linear `Task<T>`; \
+                 settle it with `finish()` or transfer it to another owner",
+            ));
         } else if base_name.as_str() == "Slice" && argument_count == 1 {
             // `Slice<T>` is the canonical slice type; `[T]` is its alias. Both fold
             // to the same `Slice` node, so the spellings are interchangeable

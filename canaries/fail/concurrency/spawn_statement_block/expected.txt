@@ -1,1 +1,0 @@
-a spawn block must contain exactly one machine call in concurrency stage 1

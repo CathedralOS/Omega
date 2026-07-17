@@ -79,6 +79,43 @@ fn parses_attached_main_state_name_as_main() {
 }
 
 #[test]
+fn retired_spawn_forms_name_the_task_runtime_migration() {
+    for source in [
+        "machine run() { spawn { Worker::run(); } }",
+        "machine run() { let task: i32 = spawn { Worker::run() }; }",
+    ] {
+        let tokens = Lexer::new(source)
+            .tokenize()
+            .expect("tokenize should succeed");
+        let error = parse_syntax_trees(&tokens).expect_err("spawn must be retired");
+        let rendered = error.message;
+        assert!(rendered.contains("spawn { ... }") && rendered.contains("Task<T>"));
+    }
+}
+
+#[test]
+fn erased_join_type_is_rejected_but_join_names_are_ordinary() {
+    let retired = "machine run(task: Join<i32>) {}";
+    let tokens = Lexer::new(retired)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let error = parse_syntax_trees(&tokens).expect_err("Join<T> must be retired");
+    let rendered = error.message;
+    assert!(rendered.contains("Join<T>") && rendered.contains("finish()"));
+
+    let ordinary = r#"
+        data Join { value: i32; }
+        machine Join::join(&self) -> i32 {
+            transition { _ -> self.value }
+        }
+    "#;
+    let tokens = Lexer::new(ordinary)
+        .tokenize()
+        .expect("tokenize should succeed");
+    parse_syntax_trees(&tokens).expect("Join/join are ordinary names after TR1");
+}
+
+#[test]
 fn parses_plain_and_boundary_traits() {
     let source = r#"
         trait Drawable {
