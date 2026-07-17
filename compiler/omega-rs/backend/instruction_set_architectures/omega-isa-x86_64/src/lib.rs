@@ -7234,11 +7234,13 @@ pub fn runtime_machine_double_indexed_binary_left_operand_offset(
     outer_index_region: omega_target_operations::RuntimeStorageRegion,
     inner_index_region: omega_target_operations::RuntimeStorageRegion,
 ) -> usize {
-    if double_indexed_any_frame(outer_index_region, inner_index_region) {
-        54
-    } else {
-        44
-    }
+    // Canonicalized by the place materializer (Binary rung 1b): mov r15,
+    // imm64 (10) + per-index [cross-region mov+load (17) | same-region
+    // load (7)] + imul (7) each + add r15,r11 (3) + add r15,r10 (3) +
+    // mov r14,r15 (3). Each frame index adds its OWN base.
+    let frame = omega_target_operations::RuntimeStorageRegion::RuntimeFrame;
+    47 + if outer_index_region == frame { 10 } else { 0 }
+        + if inner_index_region == frame { 10 } else { 0 }
 }
 
 pub fn runtime_machine_double_indexed_binary_write_width(
@@ -7294,63 +7296,58 @@ pub fn encode_runtime_machine_double_indexed_binary_write(
             ));
         }
     }
-    let outer_displacement = disp32(outer_index_offset)?;
-    let inner_displacement = disp32(inner_index_offset)?;
-    let frame = omega_target_operations::RuntimeStorageRegion::RuntimeFrame;
-    let mut bytes = Vec::with_capacity(runtime_machine_double_indexed_binary_write_width(
+    // Binary rung 1b: DELEGATES through the place materializer -- each
+    // frame-resident index materializes its OWN base (r11 outer, r10 inner;
+    // the retired layout shared one r10 mov); prefixes move 44 -> 47
+    // (both machine), 54 -> 57 (one frame), 54 -> 67 (both frame); the
+    // offset fn becomes per-region sums and the walker arm splits per-index
+    // relocs, all in the SAME commit (the shared-constant lesson).
+    let target =
+        place_copy::transitional_place(omega_target_operations::RuntimeStorageRegion::Machine)
+            .with_step(omega_target_operations::PlaceStep::ConstOffset(base_byte_offset))
+            .and_then(|place| {
+                place.with_step(omega_target_operations::PlaceStep::ScaledIndex {
+                    index_region: outer_index_region,
+                    index_offset: outer_index_offset,
+                    element_byte_size: outer_stride,
+                })
+            })
+            .and_then(|place| {
+                place.with_step(omega_target_operations::PlaceStep::ScaledIndex {
+                    index_region: inner_index_region,
+                    index_offset: inner_index_offset,
+                    element_byte_size: inner_stride,
+                })
+            })
+            .and_then(|place| {
+                place.with_step(omega_target_operations::PlaceStep::ConstOffset(
+                    field_byte_offset,
+                ))
+            })
+            .expect("a double-indexed place is five steps, within PLACE_MAX_STEPS");
+    let (bytes, _) = place_copy::encode_place_binary_write(
         runtime_value_operands,
-        outer_index_region,
-        inner_index_region,
+        &target,
         byte_size,
         left,
         operator,
         right,
-    ));
-    // r14 = machine base (imm64 at +2, relocated to the machine symbol).
-    append_mov_r14_imm64(&mut bytes, 0);
-    if double_indexed_any_frame(outer_index_region, inner_index_region) {
-        // r10 = frame base (imm64 at +12), shared by both frame index loads;
-        // r10 is operand-evaluation scratch, free until then.
-        append_mov_r10_imm64(&mut bytes, 0);
-    }
-    // r15d = outer index; r11d = inner index -- BOTH loaded while r14 is
-    // still the unbiased machine base.
-    if outer_index_region == frame {
-        bytes.extend([0x45, 0x8b, 0xba]); // mov r15d, [r10+disp32]
-    } else {
-        bytes.extend([0x45, 0x8b, 0xbe]); // mov r15d, [r14+disp32]
-    }
-    bytes.extend(outer_displacement.to_le_bytes());
-    if inner_index_region == frame {
-        bytes.extend([0x45, 0x8b, 0x9a]); // mov r11d, [r10+disp32]
-    } else {
-        bytes.extend([0x45, 0x8b, 0x9e]); // mov r11d, [r14+disp32]
-    }
-    bytes.extend(inner_displacement.to_le_bytes());
-    append_imul_r15_imm32(&mut bytes, element_scale(outer_stride)?);
-    bytes.extend([0x4d, 0x69, 0xdb]); // imul r11, r11, imm32
-    bytes.extend(element_scale(inner_stride)?.to_le_bytes());
-    append_add_r14_r15(&mut bytes);
-    append_add_r14_r11(&mut bytes);
+        false,
+        ArithmeticDomain::Exact,
+        false,
+    )?;
     debug_assert_eq!(
         bytes.len(),
-        runtime_machine_double_indexed_binary_left_operand_offset(
+        runtime_machine_double_indexed_binary_write_width(
+            runtime_value_operands,
             outer_index_region,
             inner_index_region,
+            byte_size,
+            left,
+            operator,
+            right,
         )
     );
-    // Operand evaluation + op + store: identical to the single-index tail.
-    append_runtime_value_operand(runtime_value_operands, &mut bytes, Reg64::R10, left)?;
-    append_push_r10(&mut bytes);
-    append_runtime_value_operand(runtime_value_operands, &mut bytes, Reg64::R10, right)?;
-    append_mov_reg_reg(&mut bytes, Reg64::R11, Reg64::R10); // right -> r11
-    append_pop_r10(&mut bytes); // restore left -> r10
-    append_runtime_binary_operation(
-        &mut bytes,
-        operator,
-        runtime_binary_operation_byte_size(runtime_value_operands, operator, left, right, byte_size),
-    )?;
-    append_store_r10_to_r14(&mut bytes, base_byte_offset + field_byte_offset, byte_size)?;
     Ok(bytes)
 }
 
