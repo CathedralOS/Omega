@@ -567,7 +567,25 @@ sealed progress profiles + grants, TPR4's remaining big half).
    green). NOTE: machine→machine single-index-EACH-SIDE (the 4th
    exotic) needs NO r10 — the two-base path loads r11 sequentially per
    side; its rung is pure producer migration.
-   SLICE B NEXT (recon banked 2026-07-19, execute mechanically):
+   SLICE B READ-HALF LANDED 2026-07-19: classifier
+   `direct_double_indexed_path` (Const*, SI, Const*, SI, Const* no
+   deref; mid-const folds into field -- pure adds commute) +
+   CopyPlacesShape::{FromMachineDoubleIndexed, FromFrameBaseDoubleIndexed}
+   (checked BEFORE the single arms; recognizers refuse each other's
+   shapes); aarch64 decomposes to the retained
+   from_runtime_{machine,frame_base}_double_indexed_to_runtime_storage
+   encoders; the CopyPlaces walker arms mirror the old kind arms
+   (machine: shared frame base when an index is frame-resident +
+   target at the retained offset fn; frame: one start base + target
+   at its offset fn); helpers copy_places_from_{machine,frame_base}
+   _double_indexed build [Const, SI, SI, Const] places; ALL SIX read
+   producers migrated (storage_copy.rs plain+in-table pairs,
+   frame_slots.rs pair). GOTCHA: the frame-double classifier arm
+   must NOT gate on target.region -- the retained encoder is
+   ..._to_runtime_storage (any const target; the walker patches by
+   region); the over-gate broke the frame double-indexed read canary
+   on aarch64 first try. x86 rides the slice-A materializer.
+   SLICE B WRITE-HALF NEXT (recon banked 2026-07-19, execute mechanically):
    (1) encoding/runtime_storage.rs: `direct_double_indexed_path`
    recognizer (Const*, SI, Const*, SI, Const*, NO deref; fold the
    mid-const between the indices into field_byte_offset -- pure adds

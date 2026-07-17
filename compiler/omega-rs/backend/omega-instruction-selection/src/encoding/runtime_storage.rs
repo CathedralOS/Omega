@@ -1071,6 +1071,46 @@ pub fn encode_copy_places(
                 target_offset,
                 byte_count,
             ),
+            CopyPlacesShape::FromMachineDoubleIndexed {
+                base_byte_offset,
+                outer_index_region,
+                outer_index_offset,
+                outer_stride,
+                inner_index_region,
+                inner_index_offset,
+                inner_stride,
+                field_byte_offset,
+                target_offset,
+            } => aarch64::encode_runtime_storage_copy_from_runtime_machine_double_indexed_to_runtime_storage(
+                base_byte_offset,
+                outer_index_offset,
+                outer_index_region,
+                outer_stride,
+                inner_index_offset,
+                inner_index_region,
+                inner_stride,
+                field_byte_offset,
+                target_offset,
+                byte_count,
+            ),
+            CopyPlacesShape::FromFrameBaseDoubleIndexed {
+                base_byte_offset,
+                outer_index_offset,
+                outer_stride,
+                inner_index_offset,
+                inner_stride,
+                field_byte_offset,
+                target_offset,
+            } => aarch64::encode_runtime_storage_copy_from_runtime_frame_base_double_indexed_to_runtime_storage(
+                base_byte_offset,
+                outer_index_offset,
+                outer_stride,
+                inner_index_offset,
+                inner_stride,
+                field_byte_offset,
+                target_offset,
+                byte_count,
+            ),
             CopyPlacesShape::PointeePair { .. }
             | CopyPlacesShape::FromIndexed { .. }
             | CopyPlacesShape::ToIndexed { .. }
@@ -1174,6 +1214,30 @@ pub enum CopyPlacesShape {
         field_byte_offset: usize,
         target_offset: usize,
     },
+    /// A MACHINE inline 2D-array element read (`m[i][j]` -- no deref):
+    /// the double-indexed copy. Index-slot regions vary per index.
+    FromMachineDoubleIndexed {
+        base_byte_offset: usize,
+        outer_index_region: omega_target_operations::RuntimeStorageRegion,
+        outer_index_offset: usize,
+        outer_stride: usize,
+        inner_index_region: omega_target_operations::RuntimeStorageRegion,
+        inner_index_offset: usize,
+        inner_stride: usize,
+        field_byte_offset: usize,
+        target_offset: usize,
+    },
+    /// A FRAME inline 2D-array element read into a frame slot: all-frame,
+    /// two indices, no deref.
+    FromFrameBaseDoubleIndexed {
+        base_byte_offset: usize,
+        outer_index_offset: usize,
+        outer_stride: usize,
+        inner_index_offset: usize,
+        inner_stride: usize,
+        field_byte_offset: usize,
+        target_offset: usize,
+    },
     /// Anything else (multi-index, multi-deref): x86_64-materializer only.
     General,
 }
@@ -1186,6 +1250,45 @@ pub fn classify_copy_places_shape(
     // machine statics): the index slot's region rides the ScaledIndex step.
     // A FRAME-rooted no-deref indexed place (the FrameBaseIndexed family)
     // stays General until its rung.
+    // The DOUBLE-indexed inline 2D-array reads first (a double path is
+    // never a single path -- the recognizers refuse each other's shapes).
+    if let Some(double) = direct_double_indexed_path(source) {
+        if let Some(target_offset) = target.const_offset() {
+            if source.region == omega_target_operations::RuntimeStorageRegion::Machine {
+                return CopyPlacesShape::FromMachineDoubleIndexed {
+                    base_byte_offset: double.base_offset,
+                    outer_index_region: double.outer_region,
+                    outer_index_offset: double.outer_offset,
+                    outer_stride: double.outer_stride,
+                    inner_index_region: double.inner_region,
+                    inner_index_offset: double.inner_offset,
+                    inner_stride: double.inner_stride,
+                    field_byte_offset: double.field_offset,
+                    target_offset,
+                };
+            }
+            // Any const-offset target serves: the retained encoder is
+            // ..._to_runtime_storage and the walker patches the target
+            // base by its own region.
+            if source.region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
+                && double.outer_region
+                    == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
+                && double.inner_region
+                    == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
+            {
+                return CopyPlacesShape::FromFrameBaseDoubleIndexed {
+                    base_byte_offset: double.base_offset,
+                    outer_index_offset: double.outer_offset,
+                    outer_stride: double.outer_stride,
+                    inner_index_offset: double.inner_offset,
+                    inner_stride: double.inner_stride,
+                    field_byte_offset: double.field_offset,
+                    target_offset,
+                };
+            }
+        }
+        return CopyPlacesShape::General;
+    }
     if let Some(indexed) = direct_indexed_path(source) {
         if source.region == omega_target_operations::RuntimeStorageRegion::Machine
             && let Some(target_offset) = target.const_offset()
@@ -1352,6 +1455,69 @@ fn direct_indexed_path(place: &omega_target_operations::Place) -> Option<SingleI
         index_offset,
         element_byte_size,
         field_offset,
+    })
+}
+
+struct DoubleIndexedPath {
+    base_offset: usize,
+    outer_region: omega_target_operations::RuntimeStorageRegion,
+    outer_offset: usize,
+    outer_stride: usize,
+    inner_region: omega_target_operations::RuntimeStorageRegion,
+    inner_offset: usize,
+    inner_stride: usize,
+    field_offset: usize,
+}
+
+/// `Const*, SI, Const*, SI, Const*` with NO deref -- the inline 2D-array
+/// element path. The mid-const between the indices folds into
+/// `field_offset` (the address is a pure sum, so the adds commute).
+fn direct_double_indexed_path(
+    place: &omega_target_operations::Place,
+) -> Option<DoubleIndexedPath> {
+    let mut base_offset = 0usize;
+    let mut indices: Vec<(
+        omega_target_operations::RuntimeStorageRegion,
+        usize,
+        usize,
+    )> = Vec::new();
+    let mut trailing = 0usize;
+    for step in place.steps() {
+        match step {
+            omega_target_operations::PlaceStep::ConstOffset(offset) => {
+                if indices.is_empty() {
+                    base_offset += offset;
+                } else {
+                    trailing += offset;
+                }
+            }
+            omega_target_operations::PlaceStep::ScaledIndex {
+                index_region,
+                index_offset,
+                element_byte_size,
+            } => {
+                if indices.len() == 2 {
+                    return None;
+                }
+                indices.push((*index_region, *index_offset, *element_byte_size));
+            }
+            omega_target_operations::PlaceStep::Deref => return None,
+        }
+    }
+    let [(outer_region, outer_offset, outer_stride), (inner_region, inner_offset, inner_stride)] =
+        indices[..]
+    else {
+        return None;
+    };
+    Some(DoubleIndexedPath {
+        base_offset,
+        outer_region,
+        outer_offset,
+        outer_stride,
+        inner_region,
+        inner_offset,
+        inner_stride,
+        field_offset: trailing,
     })
 }
 

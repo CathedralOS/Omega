@@ -146,6 +146,49 @@ pub(super) fn collect_runtime_storage_copy_relocations(
                             // precondition): one frame base serves the
                             // array/descriptor, index, and the other side.
                         }
+                        omega_instruction_selection::CopyPlacesShape::FromMachineDoubleIndexed {
+                            outer_index_region,
+                            inner_index_region,
+                            ..
+                        } => {
+                            // Mirrors the variant's own arm: machine source
+                            // base at start (above); ONE shared frame base
+                            // when an index is frame-resident; the
+                            // target-region base at the write-half mov.
+                            if outer_index_region
+                                == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
+                                || inner_index_region
+                                    == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
+                            {
+                                context.insert_data_address_at_relative_offset(
+                                    runtime_storage_copy_from_runtime_machine_double_indexed_frame_base_offset(
+                                        context.input.target.architecture,
+                                    ),
+                                    context.runtime_frame_symbol_handle(),
+                                );
+                            }
+                            context.insert_data_address_at_relative_offset(
+                                runtime_storage_copy_from_runtime_machine_double_indexed_target_base_offset(
+                                    context.input.target.architecture,
+                                    outer_index_region,
+                                    inner_index_region,
+                                ),
+                                context.storage_region_symbol_handle(target.region),
+                            );
+                        }
+                        omega_instruction_selection::CopyPlacesShape::FromFrameBaseDoubleIndexed {
+                            ..
+                        } => {
+                            // ONE frame base (the start relocation) serves the
+                            // array and both indices; the target-region base
+                            // relocates at the pre-store mov.
+                            context.insert_data_address_at_relative_offset(
+                                runtime_storage_copy_from_runtime_frame_base_double_indexed_target_base_offset(
+                                    context.input.target.architecture,
+                                ),
+                                context.storage_region_symbol_handle(target.region),
+                            );
+                        }
                         omega_instruction_selection::CopyPlacesShape::FromMachineIndexed {
                             base_byte_offset,
                             index_region,
