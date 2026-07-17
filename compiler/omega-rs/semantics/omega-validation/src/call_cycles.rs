@@ -17,7 +17,7 @@ use omega_typed_trees::machine::Machine;
 use omega_typed_trees::statement::{
     StatementNode, TransitionGuardNode, TransitionTargetNode,
 };
-use std::collections::{BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 pub(crate) fn validate_machine_call_cycles(
     program: &TypedTrees,
@@ -31,14 +31,20 @@ pub(crate) fn validate_machine_call_cycles(
     }
 
     let mut edges: Vec<Vec<usize>> = Vec::with_capacity(machines.len());
-    for machine in machines {
-        let mut out: BTreeSet<usize> = BTreeSet::new();
+    let mut edge_is_tail: HashMap<(usize, usize), bool> = HashMap::new();
+    for (from, machine) in machines.iter().enumerate() {
+        let mut out: BTreeMap<usize, bool> = BTreeMap::new();
         for state in program.machine_states(machine) {
             for statement in program.statement_table.statements(state.statement_nodes) {
                 collect_statement_edges(program, machine, symbols, &index_of, statement, &mut out);
             }
         }
-        edges.push(out.into_iter().collect());
+        let mut targets = Vec::with_capacity(out.len());
+        for (to, is_tail) in out {
+            edge_is_tail.insert((from, to), is_tail);
+            targets.push(to);
+        }
+        edges.push(targets);
     }
 
     // DFS with an explicit path; each distinct cycle (as a machine SET) is
@@ -50,6 +56,7 @@ pub(crate) fn validate_machine_call_cycles(
             dfs_report_cycles(
                 program,
                 &edges,
+                &edge_is_tail,
                 start,
                 &mut color,
                 &mut Vec::new(),
@@ -63,6 +70,7 @@ pub(crate) fn validate_machine_call_cycles(
 fn dfs_report_cycles(
     program: &TypedTrees,
     edges: &[Vec<usize>],
+    edge_is_tail: &HashMap<(usize, usize), bool>,
     node: usize,
     color: &mut [u8],
     path: &mut Vec<usize>,
@@ -87,16 +95,79 @@ fn dfs_report_cycles(
                     .map(|&member| machines[member].name.as_str())
                     .collect();
                 names.push(machines[next].name.as_str());
+                // MR4 qualification report: name what a future joint-measure
+                // admission would require of THIS cycle. Every cycle still
+                // refuses (admission is gated on cross-machine tail-call
+                // lowering -- today an unbounded measured cycle would grow
+                // the stack), but the diagnostic tells the author whether
+                // the shape is right.
+                let mut non_tail: Vec<String> = Vec::new();
+                for window in 0..cycle.len() {
+                    let from = cycle[window];
+                    let to = if window + 1 < cycle.len() {
+                        cycle[window + 1]
+                    } else {
+                        next
+                    };
+                    if !edge_is_tail.get(&(from, to)).copied().unwrap_or(false) {
+                        non_tail.push(format!(
+                            "`{}` -> `{}`",
+                            machines[from].name, machines[to].name,
+                        ));
+                    }
+                }
+                let unmeasured: Vec<String> = cycle
+                    .iter()
+                    .filter(|&&member| {
+                        let machine = &machines[member];
+                        machine.termination_plan.implementation_witness.is_none()
+                            && program
+                                .expression_table
+                                .expression_handles(machine.decreases)
+                                .is_empty()
+                    })
+                    .map(|&member| format!("`{}`", machines[member].name))
+                    .collect();
+                let qualification = if non_tail.is_empty() && unmeasured.is_empty() {
+                    " MR4 shape check: every edge is a tail transition and every \
+                     member is measured -- the joint-measure admission is pending \
+                     cross-machine tail-call lowering."
+                        .to_owned()
+                } else {
+                    let mut parts = Vec::new();
+                    if !non_tail.is_empty() {
+                        parts.push(format!(
+                            "non-tail call edge(s): {}",
+                            non_tail.join(", "),
+                        ));
+                    }
+                    if !unmeasured.is_empty() {
+                        parts.push(format!(
+                            "unmeasured machine(s): {}",
+                            unmeasured.join(", "),
+                        ));
+                    }
+                    format!(
+                        " MR4 shape check: NOT met -- {}. A joint-measure \
+                         admission would need every cycle edge spelled as a tail \
+                         transition arm target and every member measured \
+                         (`terminates by ...`).",
+                        parts.join("; "),
+                    )
+                };
                 diagnostics.push(Diagnostic::error(format!(
                     "machine call cycle: `{}` -- machine call cycles are banned \
                      (stack size must be predictable), even when specialization \
                      could unroll this one. Fold the cycle into ONE machine whose \
-                     sub-states loop by transition: states are jumps, not calls",
+                     sub-states loop by transition: states are jumps, not calls.{}",
                     names.join("` -> `"),
+                    qualification,
                 )));
             }
         } else if color[next] == 0 {
-            dfs_report_cycles(program, edges, next, color, path, reported, diagnostics);
+            dfs_report_cycles(
+                program, edges, edge_is_tail, next, color, path, reported, diagnostics,
+            );
         }
     }
     path.pop();
@@ -112,7 +183,7 @@ fn collect_statement_edges(
     symbols: &TopLevelSymbols<'_>,
     index_of: &HashMap<u32, usize>,
     statement: &StatementNode,
-    out: &mut BTreeSet<usize>,
+    out: &mut BTreeMap<usize, bool>,
 ) {
     match statement {
         StatementNode::Call(call) => {
@@ -120,7 +191,9 @@ fn collect_statement_edges(
             if receiver_members.is_empty()
                 || matches!(receiver_members, [receiver] if receiver.as_str() == "self")
             {
-                add_edge_for_name(program, machine, symbols, index_of, &call.target, out);
+                add_edge_for_name(
+                    program, machine, symbols, index_of, &call.target, false, out,
+                );
             }
             for argument in program.statement_table.expression_handles(call.arguments) {
                 collect_expression_edges(program, machine, symbols, index_of, *argument, out);
@@ -157,7 +230,11 @@ fn collect_statement_edges(
                         if let [receiver, target] = members
                             && receiver.as_str() == "self"
                         {
-                            add_edge_for_name(program, machine, symbols, index_of, target, out);
+                            // The arm target is the arm's LAST action: a
+                            // TAIL call edge (MR4 qualification input).
+                            add_edge_for_name(
+                                program, machine, symbols, index_of, target, true, out,
+                            );
                         }
                         for argument in program.statement_table.expression_handles(*arguments) {
                             collect_expression_edges(
@@ -183,12 +260,12 @@ fn collect_expression_edges(
     symbols: &TopLevelSymbols<'_>,
     index_of: &HashMap<u32, usize>,
     expression: ExpressionHandle,
-    out: &mut BTreeSet<usize>,
+    out: &mut BTreeMap<usize, bool>,
 ) {
     if !expression.is_valid() {
         return;
     }
-    let recurse = |handle: ExpressionHandle, out: &mut BTreeSet<usize>| {
+    let recurse = |handle: ExpressionHandle, out: &mut BTreeMap<usize, bool>| {
         collect_expression_edges(program, machine, symbols, index_of, handle, out);
     };
     match program.expression_table.expression(expression) {
@@ -204,7 +281,9 @@ fn collect_expression_edges(
                         )
                 );
             if receiver_is_selfish {
-                add_edge_for_name(program, machine, symbols, index_of, &call.target, out);
+                add_edge_for_name(
+                    program, machine, symbols, index_of, &call.target, false, out,
+                );
             } else {
                 recurse(call.receiver, out);
             }
@@ -255,7 +334,8 @@ fn add_edge_for_name(
     symbols: &TopLevelSymbols<'_>,
     index_of: &HashMap<u32, usize>,
     name: &omega_typed_trees::name::Identifier,
-    out: &mut BTreeSet<usize>,
+    is_tail: bool,
+    out: &mut BTreeMap<usize, bool>,
 ) {
     let callee = machine
         .attached_data
@@ -272,6 +352,9 @@ fn add_edge_for_name(
         && callee_machine.symbol != machine.symbol
         && let Some(&index) = index_of.get(&callee_machine.symbol.arena_index())
     {
-        out.insert(index);
+        // Every call site between the pair must be a tail transition arm
+        // target for the EDGE to classify tail (MR4 qualification).
+        let entry = out.entry(index).or_insert(is_tail);
+        *entry = *entry && is_tail;
     }
 }

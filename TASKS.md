@@ -1344,6 +1344,24 @@ lowers. Historical rungs:
   cycle, every call along the cycle tail-classified;
   the dungeon's find_item_at/find_item_after pair is the live test case
   (currently absorbed by bounded clone specialization).
+  SLICE 1 LANDED 2026-07-19 (qualification machinery; every cycle STILL
+  refuses): call_cycles.rs now tags each cross-machine edge tail/non-tail
+  (tail = the `self.X(..)` transition ARM TARGET spelling; statement and
+  value-position calls are non-tail; multiple sites between one pair AND
+  together) and the Q6 refusal appends an MR4 SHAPE CHECK verdict --
+  either "every edge is a tail transition and every member is measured --
+  the joint-measure admission is pending cross-machine tail-call
+  lowering" or "NOT met" naming each non-tail edge and unmeasured
+  machine (witness presence = termination_plan.implementation_witness or
+  the compat decreases span). Canaries:
+  fail/calls/mutual_cycle_{qualified,disqualified}_shape.
+  ⚠️ ADMISSION GATE DISCOVERED (recorded, not a design question): the
+  backend has NO cross-machine tail-call lowering -- arm-target calls
+  grow the stack; the old dungeon pair only ran because BOUNDED clone
+  specialization unrolled it. Admitting a measured-but-unbounded cycle
+  would trade the Q6 static refusal for a runtime stack overflow.
+  Slice 2 (the joint-measure decrease check across edges) is meaningful
+  only WITH the TCO lowering; both ride together as the admission rung.
 - **MR5 — proof-stratum evaluation — LANDED 2026-07-11 (pinned; the
   machinery already composed):** measured recursion evaluates at compile
   time under the const-eval ~100k-step fuel cap — the MR1/MR2 spellings

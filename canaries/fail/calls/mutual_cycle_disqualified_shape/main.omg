@@ -1,0 +1,21 @@
+// The NOT-met verdict names each disqualifier: ping calls pong in VALUE
+// position (a frame-growing call, not a tail transition arm target) and
+// neither machine carries a termination witness.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine Main::main(&mut self) {
+    let r: u64 = self.ping(6);
+    transition r == 0 { true -> good() _ -> bad() }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(1); }
+}
+machine Main::ping(&mut self, n: u64) -> u64 {
+    let inner: u64 = self.pong(n);
+    transition { _ -> (inner) }
+}
+machine Main::pong(&mut self, n: u64) -> u64 {
+    transition n == 0 {
+        true -> (0)
+        _ -> self.ping(n - 1)
+    }
+}

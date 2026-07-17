@@ -1,0 +1,31 @@
+// MR4 slice 1: a MEASURED all-tail mutual pair still refuses (Q6 -- the
+// joint-measure admission is gated on cross-machine tail-call lowering;
+// today an unbounded measured cycle would grow the stack), but the
+// diagnostic reports the shape QUALIFIES so the author knows the spelling
+// is the future-blessed one.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine Main::main(&mut self) {
+    let r: u64 = self.ping(6);
+    transition r == 0 { true -> good() _ -> bad() }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(1); }
+}
+machine Main::ping(&mut self, n: u64)
+terminates by n;
+-> u64
+{
+    transition n == 0 {
+        true -> (0)
+        _ -> self.pong(n - 1)
+    }
+}
+machine Main::pong(&mut self, n: u64)
+terminates by n;
+-> u64
+{
+    transition n == 0 {
+        true -> (0)
+        _ -> self.ping(n - 1)
+    }
+}
