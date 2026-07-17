@@ -693,8 +693,8 @@ impl<'program> super::Evaluator<'program> {
                 // `CreateHardLinkA(link, existing, security)` -- the windows
                 // primitive's arg order (NEW link first) and BOOL result
                 // (1 success / 0 failure). Served portably via std like
-                // `hard_link` above; no errno on failure (the native call
-                // reports via GetLastError, so the model stays silent too).
+                // `hard_link` above; errno doubles as this provider's modeled
+                // GetLastError slot and therefore stores Win32 codes here.
                 let link = self.eval_fs_bytes(arguments.first().copied(), frame)?;
                 let existing = self.eval_fs_bytes(arguments.get(1).copied(), frame)?;
                 match (
@@ -704,7 +704,10 @@ impl<'program> super::Evaluator<'program> {
                     (Some(existing), Some(link)) => {
                         match std::fs::hard_link(existing, link) {
                             Ok(()) => 1,
-                            Err(_) => 0,
+                            Err(error) => {
+                                self.real_fs_mut().errno = win32_error_code(&error);
+                                0
+                            }
                         }
                     }
                     _ => 0,
@@ -729,36 +732,45 @@ impl<'program> super::Evaluator<'program> {
                 // windows host that IS the \\?\-prefixed final path, matching
                 // native GetFinalPathNameByHandleA). Win32 return contract:
                 // length without the NUL when it fits, required size with the
-                // NUL when too small, 0 for a bad handle; no errno.
+                // NUL when too small, 0 on failure; errno is this provider's
+                // modeled GetLastError slot.
                 let handle = self.eval_fs_scalar(arguments.first().copied(), frame)?;
                 let capacity = self.eval_fs_scalar(arguments.get(2).copied(), frame)? as usize;
-                let resolved = self
+                let path = self
                     .real_fs_mut()
                     .files
                     .get(&(handle as i32))
-                    .map(|entry| entry.path.clone())
-                    .and_then(|path| std::fs::canonicalize(path).ok())
-                    .map(|path| path.display().to_string().into_bytes());
-                match resolved {
-                    Some(path) => {
-                        if path.len() + 1 <= capacity {
-                            let mut bytes = path.clone();
-                            bytes.push(0);
-                            self.write_fs_buffer(arguments.get(1).copied(), frame, &bytes);
-                            path.len() as i64
-                        } else {
-                            (path.len() + 1) as i64
+                    .map(|entry| entry.path.clone());
+                match path {
+                    Some(path) => match std::fs::canonicalize(path) {
+                        Ok(path) => {
+                            let path = path.display().to_string().into_bytes();
+                            if path.len() + 1 <= capacity {
+                                let mut bytes = path.clone();
+                                bytes.push(0);
+                                self.write_fs_buffer(arguments.get(1).copied(), frame, &bytes);
+                                path.len() as i64
+                            } else {
+                                (path.len() + 1) as i64
+                            }
                         }
+                        Err(error) => {
+                            self.real_fs_mut().errno = win32_error_code(&error);
+                            0
+                        }
+                    },
+                    None => {
+                        self.real_fs_mut().errno = 6; // ERROR_INVALID_HANDLE
+                        0
                     }
-                    None => 0,
                 }
             }
             "set_file_time" => {
                 // `SetFileTime(handle, creation, access_ft, write_ft)` (session
                 // slice 4b): apply the WRITE time from its FILETIME buffer via
                 // std's set_modified, like `set_file_times` above. BOOL result;
-                // 0 for a bad handle or a failed stamp (GetLastError
-                // semantics -- no errno).
+                // 0 for a bad handle or a failed stamp; errno models
+                // GetLastError for the wrapper's immediate capture.
                 let handle = self.eval_fs_scalar(arguments.first().copied(), frame)?;
                 let write_ft = self.eval_fs_bytes(arguments.get(3).copied(), frame)?;
                 let filetime = write_ft
@@ -777,10 +789,16 @@ impl<'program> super::Evaluator<'program> {
                         };
                         match entry.file.set_modified(stamp) {
                             Ok(()) => 1,
-                            Err(_) => 0,
+                            Err(error) => {
+                                real.errno = win32_error_code(&error);
+                                0
+                            }
                         }
                     }
-                    None => 0,
+                    None => {
+                        real.errno = 6; // ERROR_INVALID_HANDLE
+                        0
+                    }
                 }
             }
             "symlink" => {
@@ -1337,5 +1355,16 @@ fn real_lock_win32(file: &std::fs::File, flags: i32, last_error: &mut i32) -> i6
             *last_error = error.raw_os_error().unwrap_or(1);
             0
         }
+    }
+}
+
+fn win32_error_code(error: &std::io::Error) -> i32 {
+    use std::io::ErrorKind;
+    match error.kind() {
+        ErrorKind::NotFound => 2,
+        ErrorKind::PermissionDenied => 5,
+        ErrorKind::AlreadyExists => 183,
+        ErrorKind::WouldBlock => 33,
+        _ => error.raw_os_error().unwrap_or(1),
     }
 }

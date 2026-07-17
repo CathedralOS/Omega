@@ -5,9 +5,8 @@
 // the NULL security-attributes arg, BOOL result). Engine-agnostic
 // assertions only: the hermetic model COPIES bytes (no inode table), so
 // the pinned behaviors are create+readback and link-survives-removal --
-// both hold for real inodes AND the copy model. The failure leg pins the
-// Error ARM, not the kind (windows reports Other by design until a win32
-// last-error surface exists; posix errno kinds differ).
+// both hold for real inodes AND the copy model. The failure leg pins
+// GetLastError(ERROR_ALREADY_EXISTS) -> ErrorKind::AlreadyExists.
 // exits: 70 good; 71 seed write failed; 72 hard_link refused; 73 link
 // readback wrong; 74 original removal failed; 75 the link did not survive
 // the original's removal; 76 linking onto a TAKEN name did not error.
@@ -47,13 +46,22 @@ machine Main::main(&mut self) {
         transition self.buffer[0] == 108 { true -> taken() _ -> bad(75) }
     }
     state taken(&mut self) {
-        // Linking onto a TAKEN name must refuse (kind unpinned: Other on
-        // windows by design, AlreadyExists on posix/interp-errno models).
-        self.unit_result = self.fs.hard_link("omega_wlink_b.txt", "omega_wlink_b.txt");
-        transition self.unit_result { UnitResult::Error { kind } -> cleanup() _ -> bad(76) }
+        // Build a distinct TAKEN destination: asking Windows to alias a path
+        // to itself is ERROR_ACCESS_DENIED, while an occupied destination is
+        // the portable AlreadyExists case this leg is meant to pin.
+        self.unit_result = self.fs.write_all("omega_wlink_taken.txt", "occupied");
+        transition self.unit_result { UnitResult::Ok -> taken_ready() _ -> bad(76) }
+    }
+    state taken_ready(&mut self) {
+        self.unit_result = self.fs.hard_link("omega_wlink_b.txt", "omega_wlink_taken.txt");
+        transition self.unit_result { UnitResult::Error { kind } -> taken_kind(kind) _ -> bad(76) }
+    }
+    state taken_kind(&mut self, kind: ErrorKind) {
+        transition kind { ErrorKind::AlreadyExists -> cleanup() _ -> bad(76) }
     }
     state cleanup(&mut self) {
         self.unit_result = self.fs.remove("omega_wlink_b.txt");
+        self.unit_result = self.fs.remove("omega_wlink_taken.txt");
         transition { _ -> good() }
     }
     state good(&mut self) { self.console.exit_process(70); }

@@ -26851,7 +26851,7 @@ fn windows_canonicalize_exit_canary_runs() {
 // op (kernel32 CreateHardLinkA -- Win32 arg order (NEW link, existing) +
 // the NULL security-attributes arg, BOOL result). Engine-agnostic legs:
 // create+readback, link-survives-removal, taken-name refuses (kind
-// unpinned -- Other on windows by design). Interp + native.
+// pinned as AlreadyExists through immediate GetLastError capture). Interp + native.
 #[cfg(windows)]
 #[test]
 fn windows_hard_link_exit_canary_runs() {

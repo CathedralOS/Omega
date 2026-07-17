@@ -386,6 +386,10 @@ data Filesystem {
     // need `Add` on the data type, which is undeclared. Those await the deep fix.)
     err_code: i32;
     err_kind: ErrorKind;
+    // Windows twin of err_kind. Kernel32 reports through GetLastError rather
+    // than msvcrt errno, so target-specific wrappers capture and classify it
+    // immediately before any later boundary call can overwrite the thread slot.
+    win32_error_kind: ErrorKind;
     // Scratch for `read_dir_count`: one buffer of packed darwin `dirent` records
     // plus the runtime-indexed cursor that walks them by `d_reclen`.
     dir_buf: [u8; 512];
@@ -1178,9 +1182,8 @@ machine Filesystem::rename(&mut self, from: &[u8] in Path, to: &[u8] in Path) ->
 // AlreadyExists if `link` is taken, NotFound if `original` is absent);
 // windows binds the designed `create_hard_link` seam op (kernel32
 // CreateHardLinkA -- Win32 arg order is (NEW link, existing) plus the NULL
-// security-attributes arg, BOOL result), and its failure kind is `Other` for
-// now: kernel32 reports via GetLastError, not msvcrt errno, and no win32
-// last-error surface exists yet.
+// security-attributes arg, BOOL result). Its immediate GetLastError capture
+// maps common Win32 codes into the same portable ErrorKind sum.
 //
 //   machine Filesystem::hard_link(&mut self, original: &[u8] in Path, link: &[u8] in Path) -> UnitResult
 // ---------------------------------------------------------------------------
