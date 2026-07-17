@@ -823,10 +823,6 @@ impl SyntaxTrees {
                 initial_value: self.copy_expression_handle(other, local_data.initial_value),
                 is_mutable: local_data.is_mutable,
             }),
-            StatementNode::Relax(relax) => StatementNode::Relax(crate::statement::TableRelax {
-                target: self.copy_expression_handle(other, relax.target),
-                statements: self.copy_statement_handle_span(other, relax.statements),
-            }),
             StatementNode::Transition(transition) => StatementNode::Transition(TableTransition {
                 target: self.copy_transition_target(other, transition.target),
                 continuation: self.copy_transition_target(other, transition.continuation),

@@ -279,16 +279,6 @@ fn lower_statement_into_pending(
         *run_start = None;
     }
 
-    let syntax::statement::StatementNode::Relax(relax) =
-        syntax_trees.statements.statement(statement)
-    else {
-        return Ok(());
-    };
-
-    for nested in syntax_trees.items.statements(relax.statements) {
-        lower_statement_into_pending(lowerer, syntax_trees, *nested, pending, run_start)?;
-    }
-
     Ok(())
 }
 

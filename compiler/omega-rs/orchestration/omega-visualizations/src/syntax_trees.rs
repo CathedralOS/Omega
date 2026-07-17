@@ -676,11 +676,6 @@ fn statement_label(syntax: &SyntaxTrees, statement: &StatementNode) -> String {
         StatementNode::Call(call) => call_label(syntax, call),
         StatementNode::Expression(_) => "expression".to_owned(),
         StatementNode::LocalData(value) => format!("local {}", value.name.as_str()),
-        StatementNode::Relax(relax) => format!(
-            "relax {}\nstatements: {}",
-            syntax.expressions.display_name(relax.target),
-            relax.statements.len()
-        ),
         StatementNode::Transition(transition) => transition_label(syntax, transition),
     }
 }

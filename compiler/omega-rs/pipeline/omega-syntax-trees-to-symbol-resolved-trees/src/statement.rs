@@ -168,9 +168,6 @@ fn lower_statement_node(
             }));
             Ok(hoisted)
         }
-        syntax::statement::StatementNode::Relax(relax) => Ok(vec![Statement::Expression(
-            lower_statement_expression(lowerer, syntax_trees, relax.target)?,
-        )]),
         syntax::statement::StatementNode::Transition(transition) => {
             let mut hoisted = Vec::new();
             let mut target = lower_transition_target_node(
