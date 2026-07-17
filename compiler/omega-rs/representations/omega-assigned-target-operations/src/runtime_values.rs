@@ -252,4 +252,17 @@ impl omega_target_operations::RuntimeValueOperandSource for AssignedTargetOperat
             Some(AssignedValueOperandKind::Convert { trapping: true, .. })
         )
     }
+
+    fn convert_saturating(
+        &self,
+        handle: omega_target_operations::RuntimeValueOperandHandle,
+    ) -> bool {
+        matches!(
+            AssignedTargetOperationPlan::runtime_value_operand(self, handle).map(|op| &op.kind),
+            Some(AssignedValueOperandKind::Convert {
+                saturating: true,
+                ..
+            })
+        )
+    }
 }

@@ -1094,5 +1094,8 @@ fn build_runtime_convert_write(
         trapping: cast_domain == omega_core::arithmetic::ArithmeticDomain::Trapping
             && source_primitive.accepts_float_literal()
             && !target_primitive.accepts_float_literal(),
+        saturating: cast_domain == omega_core::arithmetic::ArithmeticDomain::Saturating
+            && source_primitive.accepts_float_literal()
+            && !target_primitive.accepts_float_literal(),
     })
 }

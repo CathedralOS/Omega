@@ -75,6 +75,8 @@ pub trait RuntimeValueOperandSource {
     /// operands. Kept separate from `convert()` so the existing tuple
     /// accessor (and its many callers) stays unchanged.
     fn convert_trapping(&self, handle: RuntimeValueOperandHandle) -> bool;
+    /// F4: whether a `Convert` operand is a SATURATING float->int cast.
+    fn convert_saturating(&self, handle: RuntimeValueOperandHandle) -> bool;
     /// A `TextEquals` (value-position text content compare) operand:
     /// `(left_region, left_offset, right_region, right_offset)` of the two
     /// `{ptr, len}` text descriptor places. Evaluates to bool 0/1.
@@ -321,6 +323,16 @@ impl RuntimeValueOperandSource for Arena<RuntimeValueOperand> {
         matches!(
             self.get(handle),
             RuntimeValueOperand::Convert { trapping: true, .. }
+        )
+    }
+
+    fn convert_saturating(&self, handle: RuntimeValueOperandHandle) -> bool {
+        matches!(
+            self.get(handle),
+            RuntimeValueOperand::Convert {
+                saturating: true,
+                ..
+            }
         )
     }
 }

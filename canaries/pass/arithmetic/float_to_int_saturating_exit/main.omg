@@ -1,12 +1,9 @@
-// RUN CANARY (exit 70), aarch64 + interpreter (the suite test and the
-// differential row are aarch64-gated). F4 (the float->int cast ruling):
+// RUN CANARY (exit 70), native + interpreter. F4 (the float->int cast ruling):
 // `in Saturating` is the defined clamp policy -- NaN -> 0 (cast-specific,
 // per the float brief), out-of-range clamps to the target bounds, in-range
 // truncates toward zero. aarch64 FCVTZS natively IS these semantics; the
-// interp's Saturating cast arm mirrors them. x86's cvttsd2si yields the
-// integer-indefinite instead -- its Saturating fixup sequence is the F4
-// remainder (built on the x86 host with its runtime oracle), which is why
-// this pin is arch-gated rather than differential-global.
+// interp's Saturating cast arm mirrors them. x86 classifies NaN/range before
+// cvttsd2si and selects the corresponding clamp result.
 // Legs: 1e20 -> i32::MAX (71); -1e20 -> i32::MIN (72); runtime 0.0/0.0
 // (NaN) -> 0 (73); -3.7 -> -3 (74).
 boundary trait Console { machine exit_process(return_code: i32); }

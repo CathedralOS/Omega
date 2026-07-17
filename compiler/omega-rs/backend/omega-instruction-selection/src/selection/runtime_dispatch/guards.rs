@@ -1887,6 +1887,9 @@ fn resolve_runtime_value_operand_in_table(
             trapping: cast.domain == omega_core::arithmetic::ArithmeticDomain::Trapping
                 && source_primitive.accepts_float_literal()
                 && !target_primitive.accepts_float_literal(),
+            saturating: cast.domain == omega_core::arithmetic::ArithmeticDomain::Saturating
+                && source_primitive.accepts_float_literal()
+                && !target_primitive.accepts_float_literal(),
         }));
     }
 

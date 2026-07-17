@@ -3021,10 +3021,9 @@ rows. Rungs:
   compares; i64's lower bound inclusive since MIN-1 isn't
   representable); (3) the Saturating pin
   pass/arithmetic/float_to_int_saturating_exit (1e20→MAX, -1e20→MIN,
-  runtime 0.0/0.0 NaN→0, -3.7→-3) — ARCH-GATED (suite test +
-  differential row cfg aarch64): aarch64 FCVTZS natively IS the
-  Saturating semantics, x86's cvttsd2si integer-indefinite fixup is
-  the F4 remainder for the x86 host's oracle.
+  runtime 0.0/0.0 NaN→0, -3.7→-3) — initially aarch64-gated because
+  FCVTZS natively supplies the Saturating semantics; promoted to both
+  hosts by F4-X86-POLICY below.
   F4-TRAPPING-NATIVE LANDED (aarch64 lane, 2026-07-16): the cast
   carries a `trapping` flag end to end — WriteRuntimeStorageConvert +
   ValueOperand::Convert grew the field (the tuple accessor stays
@@ -3037,14 +3036,12 @@ rows. Rungs:
   (FLOAT_TO_INT_TRAP_GUARD_WIDTH = 76; shapes f64→i32/i64 + f32→i32/
   i64 with exact power-of-two bounds — i64/f32 lower bounds INCLUSIVE
   since the -1 neighbours aren't representable; other shapes refuse
-  loudly). x86 pass-through (`let _ = trapping` + comment): the
-  cvttsd2si integer-indefinite fixup is its host session's rung — the
-  cast lowers as today there (status-quo divergence, documented in
-  the pending header). Pinned:
-  pass/arithmetic/trapping_float_to_int_cast_traps (arch-gated
+  loudly). The former x86 pass-through was superseded by
+  F4-X86-POLICY below. Pinned:
+  pass/arithmetic/trapping_float_to_int_cast_traps (both-host
   abort-style suite test, both engine legs; in-range 7.9→7 first,
   then 1e20 traps; NaN probe-verified).
-  F4-EXACT LANDED (2026-07-16) — F4 COMPLETE ON THIS HOST: a BARE
+  F4-EXACT LANDED (2026-07-16): a BARE
   float→int cast requires the value provably in the target's range;
   a float-LITERAL source (through Mutable, read at its landed format)
   proves via truncation-fits, everything else takes the policy error
@@ -3057,8 +3054,23 @@ rows. Rungs:
   bare out-of-range cast no longer compiles, so the pinned THREE-WAY
   native divergence is unreachable. Pinned: fail/arithmetic/
   float_cast_unproven_rejected + pass/arithmetic/
-  float_literal_cast_proves_exit (differential 70). REMAINING (x86
-  host only): the Saturating/Trapping cvttsd2si fixup sequences.
+  float_literal_cast_proves_exit (differential 70).
+  F4-X86-POLICY LANDED (2026-07-17) — SIGNED I32/I64 NATIVE RUNG COMPLETE
+  ON BOTH HOSTS:
+  x86 classifies NaN and the target-width truncation interval before
+  `cvttss2si`/`cvttsd2si`. Saturating selects zero/MAX/MIN or the converted
+  value; Trapping branches to `ud2`; Exact retains its unguarded conversion
+  after proof discharge. `saturating` travels separately from `trapping`
+  through WriteRuntimeStorageConvert and nested ValueOperand::Convert, so
+  operand-position casts cannot lose policy. Width-lockstep/bound tests cover
+  x86 f32/f64 into signed 8/16/32/64-bit targets; the i32 Saturating
+  native/interpreter row is differential-global and both i32 F4 policy canaries
+  run on Windows.
+  REMAINING, now explicit rather than hidden: native unsigned-target policy
+  conversion needs target signedness in the conversion IR (and narrow targets
+  need target-range clamps rather than a wider conversion followed by a
+  truncating store). The interpreter already models these semantics; no native
+  canary claims them yet.
 - **F5 — policy lowering: LANDED 2026-07-16 (aarch64 lane).** Float
   `Saturating` clamps MAGNITUDE OVERFLOW to ±MAX_FINITE at the landed
   width and nothing else (div-by-zero/invalid keep their non-finites,
@@ -3383,12 +3395,14 @@ rejects — an INTEGER ruling, engineering rides this ladder as F8).
   dependent bindings, `via` plus body, missing `satisfies`, repeated `effects`,
   signature mismatch, and admission/refinement failure. The current corpus has
   no implemented `= expr` dependency; Chapter 8's stale example was prose only.
-- **Float-to-int cast overflow — implement proof-or-policy.** Exact =
-  unproven obligation (prove via guard/declared range, NaN excluded by
-  `x == x`); `in Saturating` = clamp all targets (NaN -> 0; x86 grows the
-  clamp); `in Trapping` = trap; `in Wrapping` on float source = compile
-  error. Uniform with decision-17 arithmetic + the narrowing-store
-  keystone. Build, then retire the drift-ledger entry.
+- **Float-to-int cast overflow — signed i32/i64 native rung CLOSED 2026-07-17
+  (F4 above); unsigned/narrow native rung OPEN.** Exact is proof-or-reject;
+  Saturating clamps with NaN -> 0; Trapping traps; Wrapping rejects. Interpreter
+  semantics and signed i32/i64 aarch64/x86_64 policy lowering are pinned.
+  Thread target signedness through conversion operands/operations, use unsigned
+  conversion instructions where available, and clamp/trap against the actual
+  narrow target before its store. Add f32/f64 -> u8/u16/u32/u64 and signed
+  narrow differential canaries before calling F4 completely closed.
 
 ## Open bugs / gaps (ungated)
 

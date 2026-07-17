@@ -380,9 +380,12 @@ pub enum AbstractOperationKind {
         source_signed: bool,
         /// F4: a TRAPPING float->int cast traps on NaN or an out-of-range
         /// value BEFORE converting (the encoders emit the FP bound guard).
-        /// False for every other cast (Saturating float->int rides the
-        /// conversion instruction's native clamp; Exact is proven in range).
+        /// False for every other cast.
         trapping: bool,
+        /// F4: a SATURATING float->int cast maps NaN to zero and clamps an
+        /// out-of-range value to the signed target bounds. Exact casts leave
+        /// this false because their range obligation was already discharged.
+        saturating: bool,
     },
     /// Append another owned `[u8; N]` carrier's content onto a target carrier at
     /// machine storage (the concat-builder's source segment after the first

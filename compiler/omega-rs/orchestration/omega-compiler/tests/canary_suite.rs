@@ -18028,13 +18028,11 @@ fn runtime_shift_subword_masked_count_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
-#[cfg(target_arch = "aarch64")]
 #[test]
 fn float_to_int_saturating_exit_canary_runs() {
     // F4: the Saturating float->int cast clamps (NaN -> 0, OOR -> bounds,
-    // in-range truncates). aarch64 FCVTZS natively IS these semantics; the
-    // x86 fixup sequence is the F4 remainder (its host's oracle builds it),
-    // hence the arch gate.
+    // in-range truncates). aarch64 FCVTZS natively IS these semantics; x86
+    // classifies NaN/range before cvttsd2si and selects the policy result.
     let canary = pass_canary("arithmetic/float_to_int_saturating_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-f2isat-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
@@ -18139,13 +18137,11 @@ fn float_trapping_overflow_traps_aborts() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
-#[cfg(target_arch = "aarch64")]
 #[test]
 fn trapping_float_to_int_cast_traps_aborts() {
     // F4: a Trapping float->int cast traps on an out-of-range value (1e20
     // -> i32) instead of FCVTZS's silent saturate. In-range computes first
-    // (7.9 -> 7). Named without `_canary_runs` (non-clean-exit) and
-    // arch-gated: the x86 value guard is its host session's rung.
+    // (7.9 -> 7). Named without `_canary_runs` (non-clean-exit).
     let canary = pass_canary("arithmetic/trapping_float_to_int_cast_traps");
     let build_dir =
         std::env::temp_dir().join(format!("omega-trap-f2i-{}", std::process::id()));
