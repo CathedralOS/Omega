@@ -13517,6 +13517,52 @@ fn const_fold_wrapping_narrow_canary_runs() {
 }
 
 #[test]
+fn mutual_cycle_tail_admitted_canary_runs() {
+    // MR4 admission: a measured all-tail mutual pair with proven per-edge
+    // decrease compiles and runs on CONSTANT stack -- every cross-machine
+    // tail arm target lowers as a SetDispatchState jump in the one dispatch
+    // loop. n = 100000 keeps the interpreter oracle inside its 10M-step
+    // budget; the native probe ran 40M alternations on constant stack.
+    let canary = pass_canary("calls/mutual_cycle_tail_admitted_exit");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("admitted mutual tail cycle should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should run the admitted cycle to 0 (exit 70), got {}",
+        outcome.exit_code
+    );
+
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-mutual-tail-admitted-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("admitted mutual tail cycle should compile natively");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("admitted mutual tail cycle should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the admitted cycle to run on constant stack (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn const_fold_unsigned_landed_ops_canary_runs() {
     // CM2 first rung: the state-values folder folds at the LANDED type (the
     // destination landing from the let's declared type). `0u32 - 2` wraps to
@@ -31940,6 +31986,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "arithmetic/const_fold_unsigned_landed_ops_exit",
     "arithmetic/const_fold_saturating_narrow_exit",
     "arithmetic/const_fold_wrapping_narrow_exit",
+    "calls/mutual_cycle_tail_admitted_exit",
     "arithmetic/const_fold_unsigned_shift_right_arg_exit",
     "arithmetic/const_fold_unsigned_divide_arg_exit",
     "arithmetic/unsigned_min_max_wrapping_local_exit",
@@ -32608,7 +32655,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "control_flow/arm_pattern_waived_field_use",
     "control_flow/arm_pattern_missing_field",
     "control_flow/arm_pattern_rest_unknown_field",
-    "calls/mutual_cycle_qualified_shape",
+    "calls/mutual_cycle_decrease_unproven",
     "calls/mutual_cycle_disqualified_shape",
     "comptime/const_array_length_index_out_of_bounds",
     "comptime/fuel_exhausted_const_array_length",

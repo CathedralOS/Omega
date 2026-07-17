@@ -1,1 +1,0 @@
-MR4 shape check: every edge is a tail transition and every member is measured -- the joint-measure admission is pending cross-machine tail-call lowering
