@@ -3298,16 +3298,28 @@ rejects — an INTEGER ruling, engineering rides this ladder as F8).
   chain single-conjunct PURE verdict states (side-effect-free arm states
   are legal in value-called machines). Untriaged: support the
   conjunction there or repoint the diagnostic at the callee.
-  REMAINING: Win32 rows for the genuinely single-call ops — hard_link
-  (CreateHardLinkA; needs the arg-order-designed row) and canonicalize
-  (GetFullPathNameA); set_file_times/lock_file need _get_osfhandle +
-  SetFileTime/LockFileEx plumbing (a later slice); the *at family and
-  fd-based read_dir stay paradigm-refused on windows BY DESIGN (the
-  dirfd paradigm has no Win32 twin; wrapper-level windows impls already
-  serve the walk); chown/symlink stay refused (no windows semantics /
-  privilege-gated). WndProc entry stubs (title-bar close).
-  WINDOWS_IMPORT_ROWS consumption (build the ProviderPlan form per the
-  2026-07-16 provider verdict — design-adjacent, own kickoff).
+  SLICE 3 (hard link) LANDED 2026-07-16: `Filesystem::hard_link` went
+  per-target (the hard-link contract block); posix keeps link(2); windows
+  binds the DESIGNED `create_hard_link` seam op — kernel32 CreateHardLinkA
+  mirrored exactly ((NEW link, existing, NULL security-attrs), BOOL
+  result; the wrapper impl swaps the portable arg order and reports
+  failure kind Other BY DESIGN: kernel32 sets GetLastError, not msvcrt
+  errno — kind mapping waits on a win32 last-error surface). New layers:
+  HostOperation::CreateHardLink; the [result, path, path, scalar]
+  operand-shape arm; interp virtual + real-provider create_hard_link arms
+  (BOOL, errno-silent). Pinned: pass/filesystem/windows_hard_link_exit
+  (dual-engine, windows-gated; engine-agnostic legs — the hermetic model
+  copies bytes, so the pins are create+readback, link-survives-removal,
+  taken-name refuses with kind unpinned).
+  REMAINING: canonicalize (GetFullPathNameA — the last single-call row);
+  set_file_times/lock_file need _get_osfhandle + SetFileTime/LockFileEx
+  plumbing (a later slice); the *at family and fd-based read_dir stay
+  paradigm-refused on windows BY DESIGN (the dirfd paradigm has no Win32
+  twin; wrapper-level windows impls already serve the walk); chown/symlink
+  stay refused (no windows semantics / privilege-gated). WndProc entry
+  stubs (title-bar close). WINDOWS_IMPORT_ROWS consumption (build the
+  ProviderPlan form per the 2026-07-16 provider verdict — design-adjacent,
+  own kickoff).
 - **Linux session:** fs + time binding tables are structural-only until a
   host exists. Time's monotonic/wall rows additionally need a timespec
   composite lowering (clock_gettime writes {tv_sec, tv_nsec}; result =

@@ -722,6 +722,21 @@ windows_x64 machine Filesystem::read_at(&mut self, file: File, buffer: &mut [u8]
     state err(&mut self) -> IoResult { let kind: ErrorKind = self.last_error(); IoResult::Error { kind: kind } }
 }
 
+// HARD LINK (the portable hard-link contract, windows session slice 3):
+// kernel32 CreateHardLinkA via the designed create_hard_link seam op --
+// the Win32 arg order is (NEW link, existing), REVERSED from the portable
+// (original, link), with the security-attributes arg the API requires as
+// NULL (0). BOOL result: non-zero success. Failure kind = Other BY DESIGN
+// for now: kernel32 reports via GetLastError, not msvcrt errno, so
+// last_error() would read a stale value; kind mapping waits on a win32
+// last-error surface.
+windows_x64 machine Filesystem::hard_link(&mut self, original: &[u8] in Path, link: &[u8] in Path) -> UnitResult {
+    let rc: i32 = self.host.create_hard_link(link, original, 0);
+    transition rc != 0 { true -> ok() _ -> err() }
+    state ok(&mut self) -> UnitResult { UnitResult::Ok }
+    state err(&mut self) -> UnitResult { let kind: ErrorKind = ErrorKind::Other; UnitResult::Error { kind: kind } }
+}
+
 windows_x64 machine Filesystem::write_at(&mut self, file: File, bytes: &[u8], offset: i64) -> IoResult {
     self.file_fd = file.fd;
     let saved: i64 = self.host.seek(self.file_fd, 0, 1);

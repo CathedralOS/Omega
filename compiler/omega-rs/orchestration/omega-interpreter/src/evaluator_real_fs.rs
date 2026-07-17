@@ -689,6 +689,27 @@ impl<'program> super::Evaluator<'program> {
                     _ => -1,
                 }
             }
+            "create_hard_link" => {
+                // `CreateHardLinkA(link, existing, security)` -- the windows
+                // primitive's arg order (NEW link first) and BOOL result
+                // (1 success / 0 failure). Served portably via std like
+                // `hard_link` above; no errno on failure (the native call
+                // reports via GetLastError, so the model stays silent too).
+                let link = self.eval_fs_bytes(arguments.first().copied(), frame)?;
+                let existing = self.eval_fs_bytes(arguments.get(1).copied(), frame)?;
+                match (
+                    self.authorized_path(&existing, false),
+                    self.authorized_path(&link, true),
+                ) {
+                    (Some(existing), Some(link)) => {
+                        match std::fs::hard_link(existing, link) {
+                            Ok(()) => 1,
+                            Err(_) => 0,
+                        }
+                    }
+                    _ => 0,
+                }
+            }
             "symlink" => {
                 // `symlink(target, linkpath)`: the TARGET is stored verbatim
                 // (never dereferenced here), so only the link path needs write

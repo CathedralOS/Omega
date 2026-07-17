@@ -1155,16 +1155,20 @@ machine Filesystem::rename(&mut self, from: &[u8] in Path, to: &[u8] in Path) ->
     state err(&mut self) -> UnitResult { let kind: ErrorKind = self.last_error(); UnitResult::Error { kind: kind } }
 }
 
-// Create a hard link `link` referring to the same file as `original` (Rust
-// `std::fs::hard_link`). Both names then refer to one inode; removing one leaves
-// the other. Fails with `AlreadyExists` if `link` is taken, `NotFound` if
-// `original` is absent.
-machine Filesystem::hard_link(&mut self, original: &[u8] in Path, link: &[u8] in Path) -> UnitResult {
-    let rc: i32 = self.host.hard_link(original, link);
-    transition rc == 0 { true -> ok() _ -> err() }
-    state ok(&mut self) -> UnitResult { UnitResult::Ok }
-    state err(&mut self) -> UnitResult { let kind: ErrorKind = self.last_error(); UnitResult::Error { kind: kind } }
-}
+// ---------------------------------------------------------------------------
+// HARD-LINK CONTRACT (windows session slice 3; same shape as the dir-walk and
+// positioned-io contracts): create a second name `link` for the same file as
+// `original` (Rust `std::fs::hard_link`); removing one name leaves the other.
+// Implemented PER TARGET: posix binds the `link(2)` raw op (errno kinds:
+// AlreadyExists if `link` is taken, NotFound if `original` is absent);
+// windows binds the designed `create_hard_link` seam op (kernel32
+// CreateHardLinkA -- Win32 arg order is (NEW link, existing) plus the NULL
+// security-attributes arg, BOOL result), and its failure kind is `Other` for
+// now: kernel32 reports via GetLastError, not msvcrt errno, and no win32
+// last-error surface exists yet.
+//
+//   machine Filesystem::hard_link(&mut self, original: &[u8] in Path, link: &[u8] in Path) -> UnitResult
+// ---------------------------------------------------------------------------
 
 // Truncate or extend an open file to `length` bytes (Rust `File::set_len`).
 machine Filesystem::set_len(&mut self, file: File, length: i64) -> UnitResult {

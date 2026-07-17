@@ -3168,6 +3168,26 @@ impl<'program> Evaluator<'program> {
                     -1
                 }
             }
+            "create_hard_link" => {
+                // `CreateHardLinkA(link, existing, security)` -- the WINDOWS
+                // hard-link primitive (session slice 3): the ARG ORDER is
+                // (new link, existing), REVERSED from `hard_link`, and the
+                // result is BOOL (1 success / 0 failure). Same hermetic
+                // copy-the-bytes model as `hard_link` above. Kernel32 reports
+                // failures via GetLastError, NOT errno, so this arm touches
+                // no virtual errno -- the wrapper's windows impl reports
+                // ErrorKind::Other by design.
+                let link = self.eval_fs_bytes(arguments.first().copied(), frame)?;
+                let existing = self.eval_fs_bytes(arguments.get(1).copied(), frame)?;
+                if self.virtual_files.contains_key(&link) || self.virtual_dirs.contains(&link) {
+                    0
+                } else if let Some(content) = self.virtual_files.get(&existing).cloned() {
+                    self.virtual_files.insert(link, content);
+                    1
+                } else {
+                    0
+                }
+            }
             "symlink" => {
                 // `symlink(target, linkpath)`: record the link -> target mapping.
                 // EEXIST if the link name already names a file/dir/symlink.

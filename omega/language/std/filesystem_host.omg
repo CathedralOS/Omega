@@ -91,6 +91,17 @@ boundary trait FilesystemHost {
     machine find_first(pattern: &[u8], data: &mut [u8]) -> i64 effects filesystem_io;
     machine find_next(handle: i64, data: &mut [u8]) -> i32 effects filesystem_io;
     machine find_close(handle: i64) -> i32 effects filesystem_io;
+    // The windows hard-link primitive (windows session slice 3), mirroring
+    // `CreateHardLinkA(lpFileName, lpExistingFileName, lpSecurityAttributes)`
+    // EXACTLY (the seam law: designed signatures) -- note the Win32 arg order
+    // is (new link, existing) -- REVERSED from posix `link(existing, new)` --
+    // and the trailing security-attributes pointer MUST be passed as 0 (the
+    // API requires NULL; win64 would otherwise read a garbage register).
+    // Returns BOOL: non-zero success, 0 failure (GetLastError holds the
+    // reason -- NOT msvcrt errno; kind mapping waits on a win32 last-error
+    // surface). Posix targets never call this (their impls bind `hard_link`);
+    // the per-target impl split keeps the asymmetry honest.
+    machine create_hard_link(link: &[u8] in Path, existing: &[u8] in Path, security_attributes: i64) -> i32 effects filesystem_io;
     // Remove a FILE / an empty DIRECTORY by a TRUSTED plain `&[u8]` path -- the
     // D-at trust class twins of `remove` / `remove_dir` (same native rows, the
     // `create_dir_name` precedent): a path JOINED inside a dir-walk from
