@@ -1,8 +1,6 @@
-// MR4 slice 1: a MEASURED all-tail mutual pair still refuses (Q6 -- the
-// joint-measure admission is gated on cross-machine tail-call lowering;
-// today an unbounded measured cycle would grow the stack), but the
-// diagnostic reports the shape QUALIFIES so the author knows the spelling
-// is the future-blessed one.
+// MR4 admission negative twin (2026-07-20): the all-tail measured shape
+// QUALIFIES but ping's edge passes `n` unchanged -- the strict decrease is
+// unprovable and the cycle keeps its refusal, verdict naming the edge.
 boundary trait Console { machine exit_process(return_code: i32); }
 data Main { console: Console; }
 machine Main::main(&mut self) {
@@ -17,7 +15,7 @@ terminates by n;
 {
     transition n == 0 {
         true -> (0)
-        _ -> self.pong(n - 1)
+        _ -> self.pong(n)
     }
 }
 machine Main::pong(&mut self, n: u64)

@@ -1981,6 +1981,39 @@ lowers. Historical rungs:
   would trade the Q6 static refusal for a runtime stack overflow.
   Slice 2 (the joint-measure decrease check across edges) is meaningful
   only WITH the TCO lowering; both ride together as the admission rung.
+  ADMISSION LANDED 2026-07-20 (task #135): the exploration map
+  DISSOLVED the TCO gate -- the whole program is ONE dispatch loop
+  (every machine state a case; every transition arm target a
+  SetDispatchState jump over ONE overlaid frame region), so
+  cross-machine tail arm targets NEVER grew the stack; the old
+  refusal was the only gate. Landed: (a) call_cycles.rs ADMITS a
+  cycle whose every edge is a tail arm target, every member measured,
+  and every edge PROVEN to strictly decrease the callee's measure --
+  the v1 prover recognizes the `m == 0`-guarded base arm (incl. the
+  bool-subject `(m == 0) == true` lowering, unwrapped) + `m - 1`
+  tail-argument shape, single-subject witnesses, position-matched
+  against the callee's entry params; anything else keeps the refusal
+  with the verdict naming the unproven edges; (b) INTERPRETER PARITY:
+  run_state_collect_inner's cross-machine Named branch was RECURSIVE
+  (CALL_DEPTH_BUDGET 512 halted admitted cycles at depth ~512, exit
+  0) -- it now REBINDS the loop (machine/instance/state/args, carried
+  locals cleared) and continues: a tail jump at constant depth,
+  matching the native lowering. Canaries:
+  pass/calls/mutual_cycle_tail_admitted_exit (dual-engine, n=100000
+  -- inside the interpreter's 10M-step budget; the native probe ran
+  40M alternations on constant stack),
+  fail/calls/mutual_cycle_decrease_unproven (qualified shape, arg `n`
+  unchanged -- refused naming the edge),
+  fail/calls/mutual_cycle_disqualified_shape (retained). The old
+  fail/mutual_cycle_qualified_shape canary RETIRED (its shape now
+  compiles -- it became the pass canary). MASKING NOTE: the
+  differential row list masks members after a tick-stop in list
+  order; the admitted canary's row passed spuriously at n=300000
+  before the interpreter fix -- the canary_suite test fn was the
+  honest oracle. NEXT (banked): richer decrease shapes (guards
+  `n > k` / `n >= k`, args `n - k`), multi-subject lexicographic
+  joint measures, and the dungeon find_item_at/find_item_after
+  live-pair migration off bounded clone specialization.
 - **MR5 — proof-stratum evaluation — LANDED 2026-07-11 (pinned; the
   machinery already composed):** measured recursion evaluates at compile
   time under the const-eval ~100k-step fuel cap — the MR1/MR2 spellings

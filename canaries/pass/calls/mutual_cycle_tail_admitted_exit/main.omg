@@ -1,0 +1,34 @@
+// MR4 ADMISSION (2026-07-20): a MEASURED all-tail mutual pair whose every
+// edge PROVES the strict measure decrease (the `m == 0`-guarded base arm +
+// `m - 1` tail-argument v1 shape) is ADMITTED -- the dispatch loop lowers
+// every transition arm target as a SetDispatchState jump over ONE overlaid
+// frame region, so the cycle runs on CONSTANT stack. n = 100000 keeps the
+// interpreter oracle inside its 10M-step budget; the native TCO witness is
+// the 40M-alternation probe (recorded in the ledger) -- the lowering has NO
+// call instruction at all, only SetDispatchState jumps.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine Main::main(&mut self) {
+    let r: u64 = self.ping(100000);
+    transition r == 0 { true -> good() _ -> bad() }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(1); }
+}
+machine Main::ping(&mut self, n: u64)
+terminates by n;
+-> u64
+{
+    transition n == 0 {
+        true -> (0)
+        _ -> self.pong(n - 1)
+    }
+}
+machine Main::pong(&mut self, n: u64)
+terminates by n;
+-> u64
+{
+    transition n == 0 {
+        true -> (0)
+        _ -> self.ping(n - 1)
+    }
+}

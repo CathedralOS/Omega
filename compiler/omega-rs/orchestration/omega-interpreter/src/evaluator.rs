@@ -1125,6 +1125,12 @@ impl<'program> Evaluator<'program> {
         instance: Cell,
         args: Vec<Cell>,
     ) -> EvalResult<Option<Value>> {
+        // MR4 admission: the cross-machine tail transition REBINDS these and
+        // continues the loop (a jump, mirroring the native dispatch-loop
+        // lowering) instead of recursing -- an admitted measured mutual
+        // cycle must not consume interpreter call depth.
+        let mut machine = machine.clone();
+        let mut instance = instance;
         let mut current_state = state_name.to_owned();
         let mut current_args = args;
         // Locals accumulated across SAME-machine sibling transitions: the backend models a
@@ -1136,7 +1142,7 @@ impl<'program> Evaluator<'program> {
         loop {
             self.tick()?;
             let state = self
-                .find_state(machine, &current_state)
+                .find_state(&machine, &current_state)
                 .ok_or_else(|| Halt::Unsupported(format!("unknown state `{current_state}`")))?
                 .clone();
 
@@ -1200,14 +1206,18 @@ impl<'program> Evaluator<'program> {
                         current_args = args;
                         continue;
                     }
-                    // Cross-machine named transition: run it to completion, then we are
-                    // done (the entry sub-state machine model is single-threaded).
-                    return self.run_state_collect(
-                        &target_machine,
-                        &state_name,
-                        target_instance,
-                        args,
-                    );
+                    // Cross-machine named transition: a TAIL JUMP into the
+                    // target machine (the arm target is the arm's last
+                    // action; whichever machine terminates delivers the
+                    // value). Rebind the loop -- constant depth, matching
+                    // the native SetDispatchState lowering. The carried
+                    // locals clear: the callee binds a fresh frame.
+                    machine = target_machine;
+                    instance = target_instance;
+                    current_state = state_name;
+                    current_args = args;
+                    carried = BTreeMap::new();
+                    continue;
                 }
             }
         }
