@@ -16,8 +16,31 @@ pub(super) fn write_trust_report(
     options: &CompileOptions,
     typed: &TypedTrees,
     root_grants: &[String],
+    provider_plans: &[omega_effects::provider_plan::ProviderPlan],
 ) -> Result<(), Vec<Diagnostic>> {
     let mut report = TrustReport::default();
+    // PRV3: derived provider plans -- one row each, dev-active with the
+    // standing warning until the final build grants the plan by name (or
+    // its trait leaf), fingerprint shown so drift is visible at a glance.
+    for plan in provider_plans {
+        let leaf = plan.schema.trait_name.as_str();
+        let granted = root_grants
+            .iter()
+            .any(|grant| grant == &plan.name || grant == leaf);
+        report.rows.push(TrustReportRow {
+            commitment: format!(
+                "provider plan: {} [{:016x}]",
+                plan.name,
+                plan.identity_fingerprint()
+            ),
+            provenance: if granted {
+                "root grant (build.omg)".to_owned()
+            } else {
+                "own-package (dev-active)".to_owned()
+            },
+            standing_warning: !granted,
+        });
+    }
     for domain in typed.domain_definitions() {
         if !domain.semantic_id.is_valid() {
             continue;

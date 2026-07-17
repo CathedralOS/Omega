@@ -3195,11 +3195,21 @@ rejects — an INTEGER ruling, engineering rides this ladder as F8).
   ProviderPlan::validate_against_schema stays schema-only in
   omega-effects (NAMED errors: unbound method, duplicate rows, stray
   rows, Value-with-arguments; all pinned). The ABI-plan consumer runs
-  parse_call_shape at merge time (PRV4). NEXT: PRV3 admission through
-  the ch10 carrier (TrustCommitment::ProviderPlan is already in the
-  carrier's identity enum; admit fingerprinted plans, receipts +
-  report rows) + slot-owner selection, then PRV4 the std target
-  packages + Console/filesystem/float migration. retire the `provides` keyword and platform
+  parse_call_shape at merge time (PRV4). PRV3 ADMISSION VERTICAL
+  LANDED 2026-07-20: pipeline/provider_plans.rs DERIVES a
+  ProviderPlan per authored `provides` block (the bridge from
+  today's rows to the typed carrier -- schema from the typed
+  boundary trait via from_typed, bindings mapped from the closed
+  sum, unknown traits derive empty schemas whose validation names
+  every row stray); each plan surfaces as a trust-report row
+  (`provider plan: <target>::<Trait> [<fingerprint>]`, dev-active
+  standing warning until build.omg grants the plan by name or trait
+  leaf). Pinned: derived_provider_plans_surface_as_trust_rows.
+  PRV3 REMAINDER: lockfile receipts hashing granted plans'
+  fingerprints (the drift face); SLOT-OWNER SELECTION rides PRV4
+  (the target-default set + per-slot overrides in build.omg is the
+  selection surface). Then PRV4: std target packages +
+  Console/filesystem/float migration + retiring provides/platform. retire the `provides` keyword and platform
   blocks. PRV1 add the typed `ProviderPlan` policy carrier over boundary-trait
   service schemas and existing `Binding` cases; PRV2 validate coverage,
   signatures, calling/layout plans, and normalized identity; PRV3 admit
