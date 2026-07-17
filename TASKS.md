@@ -3225,13 +3225,22 @@ rejects — an INTEGER ruling, engineering rides this ladder as F8).
   parse_call_shape); the round trip is EXACT for Coff/Elf/MachO
   (console_plan_round_trips_the_populate_tables) -- the
   precondition for retiring insert_platform_lowering into authored
-  plans. P4a-2 REMAINING: promote platform Console to boundary
-  trait Console in console.omg; key both engines' Console
-  special-cases off the boundary trait (evaluator.rs:4174-4196,
-  6408; platform consumers in symbol-resolution/state_signatures/
-  types/proof); consume the derived plans at merge time behind a
-  Console-gated parallel path with the byte-identical-plan oracle,
-  then retire the tables' Console rows. P4b FILESYSTEM: the per-target Value provides rows
+  plans. P4a-2 THE PROMOTION LANDED
+  2026-07-20 -- FAR CHEAPER THAN MAPPED: std's platform Console
+  became boundary trait Console (with declared effects rows --
+  stdout_io/stdin_io per method, giving the purity checker truth,
+  one of the migration's stated goals) and the FULL BATTERY IS
+  GREEN UNCHANGED: both engines' dispatch keys on the field/type
+  name and the native lowering matches by STATE NAME, so neither
+  cared how Console was declared. The platform KEYWORD survives in
+  exactly TWO canaries (fail/domains/call_requires_platform_unproven
+  + pass/domains/call_requires_platform_satisfied_by_caller_requires
+  -- the platform-requires feature pins) and the parser/consumer
+  machinery; retiring the keyword = migrate those two pins' subject
+  to boundary-trait requires + delete the platform parse/consumers
+  (P4d's sweep). P4a REMAINING: consume the derived Console plans at
+  merge time behind the byte-identical oracle, then retire the
+  tables' Console rows (the plans-as-source flip). P4b FILESYSTEM: the per-target Value provides rows
   (targets/<t>/filesystem.provides.omg) re-authored as plan values
   in std target packages; slot-owner selection = build.omg target
   blocks choosing the default plan set + per-slot overrides. P4c
