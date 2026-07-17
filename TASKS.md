@@ -776,11 +776,16 @@ sealed progress profiles + grants, TPR4's remaining big half).
    left-operand offset -- one constant, no drift); the Exact-domain
    tail is IDENTICAL through the shared helper (Exact never enters
    the domain arms -- semantic check recorded). Differential green.
+   FRAME-BASE-INDEXED BINARY DELEGATED same day (27 -> 30, one
+   lockstep constant) -- AND the index load canonicalized to the
+   32-bit ZX discipline (the retired 64-bit index load could splice a
+   neighboring slot's bytes into the high half; the materializer's ZX
+   read is the correct one -- a latent-bug retirement).
    REMAINING binary delegations: frame-indexed (34 -> 37),
-   frame-base-indexed (27 -> 30), machine-indexed + double (per-index
-   frame bases replace the shared scratch, the integer-1c pattern --
-   verify each prefix + walker reloc positions first); then
-   WritePlaceBinary + echo + producers + retirement.
+   machine-indexed + double (per-index frame bases replace the shared
+   scratch, the integer-1c pattern -- verify each prefix + walker
+   reloc positions first); then WritePlaceBinary + echo + producers +
+   retirement.
    Rung 2a after: the WritePlaceInteger variant + echo product +
    producer migration. Pre-existing dead helpers noted en route (shapes/copies.rs
    runtime_storage_copy_kind + _to_runtime_frame_indexed_kind +

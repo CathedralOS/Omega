@@ -6968,11 +6968,13 @@ pub fn encode_runtime_pointee_binary_write(
     Ok(bytes)
 }
 
-/// Length of the address-computation prefix that precedes the value operands in
-/// a frame-base-indexed binary write: `mov r14,imm64(frame)` (10) +
-/// `mov r15,[r14+idx]` (7) + `imul r15,r15,elem` (7) + `add r14,r15` (3).
+/// Length of the address-computation prefix that precedes the value operands
+/// in a frame-base-indexed binary write -- CANONICALIZED by the place
+/// materializer (Binary rung 1b): `mov r15,imm64(frame)` (10) +
+/// `mov r11d,[r15+idx]` (7, 32-bit ZX) + `imul r11,r11,elem` (7) +
+/// `add r15,r11` (3) + `mov r14,r15` (3).
 pub fn runtime_frame_base_indexed_binary_left_operand_offset() -> usize {
-    27
+    30
 }
 
 /// Length of the address-computation prefix that precedes the value operands
@@ -7079,37 +7081,48 @@ pub fn encode_runtime_frame_base_indexed_binary_write(
     operator: StateGuardOperator,
     right: RuntimeValueOperandHandle,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let store_displacement = base_byte_offset + field_byte_offset;
-    let mut bytes = Vec::with_capacity(runtime_frame_base_indexed_binary_write_width(
+    // Binary rung 1b: DELEGATES through the place materializer -- prefix
+    // 27 -> 30 (the r14 hop), and the index load CANONICALIZES to the
+    // 32-bit zero-extended discipline (the retired 64-bit index load could
+    // splice a neighboring slot's bytes into the high half; the
+    // materializer's ZX read is the correct one).
+    let target =
+        place_copy::transitional_place(omega_target_operations::RuntimeStorageRegion::RuntimeFrame)
+            .with_step(omega_target_operations::PlaceStep::ConstOffset(base_byte_offset))
+            .and_then(|place| {
+                place.with_step(omega_target_operations::PlaceStep::ScaledIndex {
+                    index_region: omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+                    index_offset,
+                    element_byte_size,
+                })
+            })
+            .and_then(|place| {
+                place.with_step(omega_target_operations::PlaceStep::ConstOffset(
+                    field_byte_offset,
+                ))
+            })
+            .expect("a frame-base-indexed place is four steps, within PLACE_MAX_STEPS");
+    let (bytes, _) = place_copy::encode_place_binary_write(
         runtime_value_operands,
+        &target,
         byte_size,
         left,
         operator,
         right,
-    ));
-    // r14 = frame base + index*element (target address held across operand
-    // evaluation, which freely clobbers r15/r10/r11 but never r14).
-    append_mov_r14_imm64(&mut bytes, 0); // imm64 at +2 relocated to the frame symbol
-    append_load_r15_from_r14(&mut bytes, index_offset)?;
-    append_imul_r15_imm32(&mut bytes, element_scale(element_byte_size)?);
-    append_add_r14_r15(&mut bytes);
+        false,
+        ArithmeticDomain::Exact,
+        false,
+    )?;
     debug_assert_eq!(
         bytes.len(),
-        runtime_frame_base_indexed_binary_left_operand_offset()
+        runtime_frame_base_indexed_binary_write_width(
+            runtime_value_operands,
+            byte_size,
+            left,
+            operator,
+            right,
+        )
     );
-    // Stash the left result across the right operand's evaluation (both accumulate
-    // in r10). r14 (target address) survives push/pop and operand evaluation.
-    append_runtime_value_operand(runtime_value_operands, &mut bytes, Reg64::R10, left)?;
-    append_push_r10(&mut bytes);
-    append_runtime_value_operand(runtime_value_operands, &mut bytes, Reg64::R10, right)?;
-    append_mov_reg_reg(&mut bytes, Reg64::R11, Reg64::R10); // right -> r11
-    append_pop_r10(&mut bytes); // restore left -> r10
-    append_runtime_binary_operation(
-        &mut bytes,
-        operator,
-        runtime_binary_operation_byte_size(runtime_value_operands, operator, left, right, byte_size),
-    )?;
-    append_store_r10_to_r14(&mut bytes, store_displacement, byte_size)?;
     Ok(bytes)
 }
 
