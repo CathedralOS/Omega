@@ -770,6 +770,22 @@ fn machine_instruction_width(
             *value,
             *byte_size,
         )?,
+        SelectedInstructionKind::WritePlaceString {
+            target,
+            byte_length,
+            ..
+        } => omega_instruction_selection::write_place_string_width(
+            input.target.architecture,
+            target,
+            *byte_length,
+        )?,
+        SelectedInstructionKind::WritePlaceBoundedBuffer { target, literal } => {
+            omega_instruction_selection::write_place_bounded_buffer_width(
+                input.target.architecture,
+                target,
+                literal,
+            )?
+        }
         SelectedInstructionKind::WritePlaceBinary {
             target,
             byte_size,

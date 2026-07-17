@@ -1100,6 +1100,131 @@ pub fn encode_write_place_integer(
     }
 }
 
+/// Text rung 2a: the place-shaped string-descriptor write. x86_64 rides the
+/// materializer; aarch64 decomposes by WritePlaceShape to the retained
+/// string encoders (which serve direct/pointee/frame-indexed and the
+/// frame-resident machine-indexed shapes only -- everything else refuses
+/// loudly until the aarch64 place materializer lands).
+pub fn encode_write_place_string(
+    architecture: Architecture,
+    target: &omega_target_operations::Place,
+    byte_length: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::X86_64 => {
+            x86_64::encode_place_string_write(target, byte_length).map(|(bytes, _)| bytes)
+        }
+        Architecture::Aarch64 => match classify_write_place_shape(target) {
+            WritePlaceShape::Direct { byte_offset } => {
+                aarch64::encode_runtime_machine_string_write(byte_offset, byte_length)
+            }
+            WritePlaceShape::Pointee {
+                pointer_byte_offset,
+                field_byte_offset,
+            } => aarch64::encode_runtime_pointee_string_write(
+                pointer_byte_offset,
+                field_byte_offset,
+                byte_length,
+            ),
+            WritePlaceShape::FrameIndexed {
+                descriptor_offset,
+                index_offset,
+                element_byte_size,
+                field_byte_offset,
+            } => aarch64::encode_runtime_frame_indexed_string_write(
+                descriptor_offset,
+                index_offset,
+                element_byte_size,
+                field_byte_offset,
+                byte_length,
+            ),
+            WritePlaceShape::MachineIndexed {
+                base_byte_offset,
+                index_region: omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+                index_offset,
+                element_byte_size,
+                field_byte_offset,
+            } => aarch64::encode_runtime_machine_indexed_string_write(
+                base_byte_offset,
+                index_offset,
+                element_byte_size,
+                field_byte_offset,
+                byte_length,
+            ),
+            _ => Err(Diagnostic::error(
+                "WritePlaceString on aarch64 serves direct, pointee, frame-indexed, \
+                 and frame-resident machine-indexed place shapes only until the \
+                 aarch64 place materializer lands; this shape refuses loudly",
+            )),
+        },
+    }
+}
+
+/// One source of truth: the encoder's output length.
+pub fn write_place_string_width(
+    architecture: Architecture,
+    target: &omega_target_operations::Place,
+    byte_length: usize,
+) -> Result<usize, Diagnostic> {
+    encode_write_place_string(architecture, target, byte_length).map(|bytes| bytes.len())
+}
+
+pub fn x86_64_encode_write_place_string_with_sites(
+    target: &omega_target_operations::Place,
+    byte_length: usize,
+) -> Result<(Vec<u8>, omega_isa_x86_64::PlaceCopySites), Diagnostic> {
+    x86_64::encode_place_string_write(target, byte_length)
+}
+
+/// Text rung 2a: the place-shaped bounded-buffer literal write. x86_64 rides
+/// the materializer; aarch64 decomposes to the retained carrier encoders
+/// (direct + pointee, the only shapes the retired kinds spelled).
+pub fn encode_write_place_bounded_buffer(
+    architecture: Architecture,
+    target: &omega_target_operations::Place,
+    literal: &str,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::X86_64 => {
+            x86_64::encode_place_bounded_buffer_write(target, literal).map(|(bytes, _)| bytes)
+        }
+        Architecture::Aarch64 => match classify_write_place_shape(target) {
+            WritePlaceShape::Direct { byte_offset } => {
+                aarch64::encode_runtime_machine_bounded_buffer_write(byte_offset, literal)
+            }
+            WritePlaceShape::Pointee {
+                pointer_byte_offset,
+                field_byte_offset,
+            } => aarch64::encode_runtime_pointee_bounded_buffer_write(
+                pointer_byte_offset,
+                field_byte_offset,
+                literal,
+            ),
+            _ => Err(Diagnostic::error(
+                "WritePlaceBoundedBuffer on aarch64 serves direct and pointee place \
+                 shapes only until the aarch64 place materializer lands; this shape \
+                 refuses loudly",
+            )),
+        },
+    }
+}
+
+/// One source of truth: the encoder's output length.
+pub fn write_place_bounded_buffer_width(
+    architecture: Architecture,
+    target: &omega_target_operations::Place,
+    literal: &str,
+) -> Result<usize, Diagnostic> {
+    encode_write_place_bounded_buffer(architecture, target, literal).map(|bytes| bytes.len())
+}
+
+pub fn x86_64_encode_write_place_bounded_buffer_with_sites(
+    target: &omega_target_operations::Place,
+    literal: &str,
+) -> Result<(Vec<u8>, omega_isa_x86_64::PlaceCopySites), Diagnostic> {
+    x86_64::encode_place_bounded_buffer_write(target, literal)
+}
+
 /// One source of truth: the encoder's output length.
 pub fn write_place_integer_width(
     architecture: Architecture,

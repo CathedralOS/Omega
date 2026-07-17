@@ -815,6 +815,27 @@ fn selected_instruction_name(
                 target.steps()
             )
         }
+        SelectedInstructionKind::WritePlaceString {
+            target,
+            data,
+            byte_length,
+        } => {
+            let target_symbol =
+                storage_region_symbol_name(target.region, backend_plan.entry_machine_name());
+            let data_symbol = backend_plan.data.objects.get(*data).symbol.as_ref();
+            format!(
+                "write place string data `{data_symbol}` len {byte_length} -> {target_symbol}{:?}",
+                target.steps()
+            )
+        }
+        SelectedInstructionKind::WritePlaceBoundedBuffer { target, literal } => {
+            let target_symbol =
+                storage_region_symbol_name(target.region, backend_plan.entry_machine_name());
+            format!(
+                "write place bounded buffer {literal:?} -> {target_symbol}{:?}",
+                target.steps()
+            )
+        }
         SelectedInstructionKind::WritePlaceBinary {
             target,
             byte_size,

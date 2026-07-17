@@ -614,6 +614,25 @@ pub enum AbstractOperationKind {
         domain: omega_core::arithmetic::ArithmeticDomain,
         target_signed: bool,
     },
+
+    /// Text rung 2a: store a string DESCRIPTOR ({ptr -> rodata, len}) into a
+    /// place-shaped target -- the five Write*String variants collapse onto
+    /// this one. The data pointer's relocation rides the leading
+    /// materialization (instruction start on x86_64).
+    WritePlaceString {
+        target: Place,
+        data: AbstractDataObjectHandle,
+        byte_length: usize,
+    },
+
+    /// Text rung 2a: write a string literal into an owned `[u8; N]` bounded
+    /// byte carrier ({len, bytes} inline) at a place-shaped target -- the
+    /// two *BoundedBuffer write variants collapse onto this one. The content
+    /// is immediate, so the walk's base relocation(s) are the only sites.
+    WritePlaceBoundedBuffer {
+        target: Place,
+        literal: Arc<str>,
+    },
     SetDispatchState {
         dispatch_index: u32,
     },

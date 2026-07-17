@@ -900,7 +900,22 @@ sealed progress profiles + grants, TPR4's remaining big half).
    target; base reloc(s) from the walk are the only sites. The
    machine + pointee bounded-buffer encoders delegate BYTE-FOR-BYTE
    (27+8n / 34+8n, walker untouched; target_in_frame stays a
-   walker-side region choice). REMAINING Text: the
+   walker-side region choice). TEXT RUNG 2a LANDED 2026-07-19:
+   WritePlaceString{target,data,byte_length} +
+   WritePlaceBoundedBuffer{target,literal} variants + FULL echo --
+   both enums + conversion (remap_data_handle / literal.clone),
+   classifications, encode/width dispatchers (x86=materializer,
+   aarch64=shape decompose to retained encoders; string serves
+   direct/pointee/frame-indexed/frame-machine-indexed, buffer
+   direct/pointee, else refuse), with_sites wrappers, layout arms,
+   shapes plain kinds (RuntimeMachineStringWrite /
+   RuntimeMachineBoundedBufferWrite), walker arms REAL on BOTH arches
+   from day one (x86 = data@start + sites-by-region; aarch64 =
+   per-shape retained positions), storage+runtime_text blocker rows.
+   Zero producers yet. REMAINING Text: producers (constructor family
+   write_place_string_*/bounded_buffer_* + migrate the five string +
+   two buffer producer sites), then retirement of the seven variants
+   + dead shells. Then the
    bounded-buffer entry (immediate content bytes, single base reloc),
    then WritePlaceString/+Buffer variant + echo + producers +
    retirement. Then guards/operands consume Places, then the op-set

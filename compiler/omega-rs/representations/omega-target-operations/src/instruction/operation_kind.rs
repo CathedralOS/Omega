@@ -488,6 +488,21 @@ pub enum TargetOperationKind {
         domain: omega_core::arithmetic::ArithmeticDomain,
         target_signed: bool,
     },
+
+    /// Text rung 2a: the place-shaped string-descriptor write (the five
+    /// Write*String variants' survivor).
+    WritePlaceString {
+        target: Place,
+        data: TargetDataObjectHandle,
+        byte_length: usize,
+    },
+
+    /// Text rung 2a: the place-shaped bounded-buffer literal write (the two
+    /// *BoundedBuffer write variants' survivor); content is immediate.
+    WritePlaceBoundedBuffer {
+        target: Place,
+        literal: std::sync::Arc<str>,
+    },
     SetDispatchState {
         dispatch_index: u32,
     },

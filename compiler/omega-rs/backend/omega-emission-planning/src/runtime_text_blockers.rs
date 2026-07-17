@@ -124,6 +124,8 @@ fn state_value_has_planned_storage_write(
                         | SelectedInstructionKind::AtomicCompareExchange { .. }
                         | SelectedInstructionKind::WritePlaceInteger { .. }
                         | SelectedInstructionKind::WritePlaceBinary { .. }
+                        | SelectedInstructionKind::WritePlaceString { .. }
+                        | SelectedInstructionKind::WritePlaceBoundedBuffer { .. }
                         | SelectedInstructionKind::WriteRuntimeStorageConvert { .. }
                         | SelectedInstructionKind::WriteRuntimeMachineString { .. }
                         | SelectedInstructionKind::WriteRuntimeMachineBoundedBuffer { .. }
@@ -322,7 +324,9 @@ fn runtime_text_write_has_selected_instruction(
                 && instruction.source_statement == text_write.statement_index
                 && matches!(
                     instruction.kind,
-                    SelectedInstructionKind::WriteRuntimeMachineString { .. }
+                    SelectedInstructionKind::WritePlaceString { .. }
+                        | SelectedInstructionKind::WritePlaceBoundedBuffer { .. }
+                        | SelectedInstructionKind::WriteRuntimeMachineString { .. }
                         | SelectedInstructionKind::WriteRuntimeMachineBoundedBuffer { .. }
                         | SelectedInstructionKind::WriteRuntimeFrameString { .. }
                         | SelectedInstructionKind::WriteRuntimePointeeString { .. }
