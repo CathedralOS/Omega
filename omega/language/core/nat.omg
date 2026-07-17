@@ -369,3 +369,101 @@ ensures
         transition { _ -> (add_cancel(prev, a, b)) }
     }
 }
+
+
+// PREDECESSOR (N4 Rat-ladder prerequisite 2026-07-20): pred(Zero) = Zero,
+// pred(Succ a') = a' -- the single-transition shape the structural judge
+// unfolds. Lean analog: Nat.pred.
+machine pred(a: Nat) -> Nat
+{
+    transition a {
+        Nat::Zero -> Nat::Zero
+        Nat::Succ { prev } -> (prev)
+    }
+}
+
+// TRUNCATED SUBTRACTION (monus): sub(a, Zero) = a; sub(a, Succ b') =
+// pred(sub(a, b')) -- Lean's Nat.sub spelling, recursion on `b` composing
+// `pred` cross-machine (the mul-over-add pattern; every machine here stays
+// single-transition so lemma facts unfold). `sub(a, b) == Zero` is the
+// roster's `a <= b` spelling until an order surface lands.
+machine sub(a: Nat, b: Nat) -> Nat
+terminates by b;
+{
+    transition b {
+        Nat::Zero -> (a)
+        Nat::Succ { prev } -> (pred(sub(a, prev)))
+    }
+}
+
+// sub's right identity: sub(a, Zero) == a (compute-mode -- the Zero arm
+// returns `a` outright). Lean analog: Nat.sub_zero.
+machine sub_zero_right(a: Nat) -> Nat
+ensures
+    result == a;
+    (sub(a, Nat::Zero)) == a
+{
+    transition { _ -> (sub(a, Nat::Zero)) }
+}
+
+// The Succ-stripping law: sub(Succ(a), Succ(b)) == sub(a, b) -- structural
+// induction on `b`. The Zero arm computes (pred(Succ(a)) = a = sub(a, Zero));
+// each Succ arm rewrites under pred with the inductive hypothesis. Lean
+// analog: Nat.succ_sub_succ.
+machine succ_sub_succ(a: Nat, b: Nat) -> Nat
+terminates by b;
+ensures
+    (sub(Nat::Succ { prev: a }, Nat::Succ { prev: b })) == (sub(a, b))
+{
+    transition b {
+        Nat::Zero -> Nat::Zero
+        Nat::Succ { prev } -> sss_step(a, prev)
+    }
+
+    state sss_step(a: Nat, prev: Nat) -> Nat {
+        transition { _ -> (succ_sub_succ(a, prev)) }
+    }
+}
+
+// Self-annihilation: sub(a, a) == Zero -- structural induction on `a`; each
+// Succ arm strips one Succ from both sides by citing succ_sub_succ at
+// (prev, prev), then the ensures is the inductive hypothesis. Lean analog:
+// Nat.sub_self.
+machine sub_self(a: Nat) -> Nat
+terminates by a;
+ensures
+    (sub(a, a)) == Nat::Zero
+{
+    transition a {
+        Nat::Zero -> Nat::Zero
+        Nat::Succ { prev } -> ss_step(prev)
+    }
+
+    state ss_step(prev: Nat) -> Nat {
+        succ_sub_succ(prev, prev);
+        transition { _ -> (sub_self(prev)) }
+    }
+}
+
+// Left-addition cancels under monus: sub(add(b, a), b) == a -- structural
+// induction on `b`. The Zero arm computes through add's and sub's Zero
+// arms; each Succ arm strips the added Succ against the subtracted one by
+// citing succ_sub_succ at (add(prev, a), prev), then the ensures is the
+// inductive hypothesis. This is the Rat ladder's normalization workhorse.
+// Lean analog: Nat.add_sub_cancel_left.
+machine add_sub_cancel(b: Nat, a: Nat) -> Nat
+terminates by b;
+ensures
+    (sub((add(b, a)), b)) == a
+{
+    transition b {
+        Nat::Zero -> (a)
+        Nat::Succ { prev } -> asc_step(prev, a)
+    }
+
+    state asc_step(prev: Nat, a: Nat) -> Nat {
+        succ_sub_succ((add(prev, a)), prev);
+        transition { _ -> (add_sub_cancel(prev, a)) }
+    }
+}
+

@@ -2557,6 +2557,27 @@ no `unbounded` property exists. Rungs:
   dependency: N4 is decoupled from N6, but those two ride R2's
   where-clauses. The `%` former is reserved for carriers with no
   computable canonical form (Real: stream equality undecidable).
+  RAT-LADDER RUNG 1 LANDED 2026-07-20 (task #134): the MONUS
+  development in core nat.omg -- pred + sub (Lean's Nat.sub spelling:
+  recursion on b composing pred cross-machine; every machine
+  single-transition so facts unfold) + FOUR proven lemmas:
+  sub_zero_right (compute), succ_sub_succ (induction on b; Lean
+  Nat.succ_sub_succ), sub_self (cites succ_sub_succ at (prev,prev)),
+  add_sub_cancel (cites succ_sub_succ at (add(prev,a),prev) + IH; the
+  Rat normalization workhorse, Lean Nat.add_sub_cancel_left). Zoo at
+  12 Nat lemmas. Negative probe verified (broken add_sub_cancel
+  claim refuses). TWO RECOGNIZER SHAPE RULES learned (recorded for
+  the next zoo growth): (1) lemma facts only unfold SINGLE-TRANSITION
+  machines -- a two-subject match spelled with a sub-state refuses
+  (respell compositionally, the pred/sub route); (2) a recursive
+  lemma's self-call arm must ride a SUB-STATE (the arm-terminal
+  hoist shape sub_self/add_cancel use) -- a bare direct-value
+  self-call arm fails recognize_structural_case_arms. NEXT Rat-ladder
+  prerequisites: lt/le spelling (sub(a,b) == Zero), then mod + gcd
+  (need requires-bearing termination through sub -- sub(a,b) < a
+  wants b >= 1 and a >= b; the requires-bearing induction machinery
+  exists, the TERMINATION face through a non-structural measure is
+  the open question), then rat.omg mk_rat normalizing by gcd.
 - **N5 — `boundary data` + the Real axiom package:** opaque carrier;
   ensures-less boundary machines = claim-free symbols (no grant); axioms =
   accepted-tier rows; schema axioms as `<machine P>` boundary machines (one
