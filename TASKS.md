@@ -2674,8 +2674,28 @@ no `unbounded` property exists. Rungs:
   source state whose guard cases subject S into constructor C
   contributes S == C -- mod_rec's incoming Zero arm contributes
   sub(b, a) == Zero, exactly sub_lt's premise). All syntactic,
-  conservative. Then slice a3 -- gcd (recurses gcd(mod(a,b)...,
-  needs mod's ensures or a second obligation shape); then rat.omg. `sub_zero_left` landed as the monus
+  conservative. SLICE A2 LANDED 2026-07-20: the SYMBOLIC
+  lemmas sub_lt_of_le + sub_lt prove first try on the a1 judge
+  extensions (Zero arms vacuous by clash; sub_lt's ensures is
+  symbolic in (a, b) so instantiation matches obligations literally).
+  THE CHECKER RULE landed in calls.rs validate_proof_machine_recursion
+  as cited_strict_decrease: a computed measure argument proves the
+  strict edge when a SAME-STATE citation's instantiated ensures equals
+  sub(Succ(ARG), MEASURE) == Zero, with the callee's requires
+  discharged syntactically against machine requires + incoming-arm
+  case equations; let-bound edge arguments resolve through their
+  same-state initializer (the value-call face forces the hoist). MOD
+  LANDED in core nat.omg (mod(a, b) for b >= 1; root cases the
+  computed subject sub(b, a); zoo at 20 Nat machines). FALSE TWIN:
+  computed_subject_requires_undischarged (the mod shape without
+  1 <= b refuses -- with b == Zero the recursion truly diverges).
+  REMAINING slice a3 -- GCD: needs mod to CARRY `ensures result < b`
+  (the gcd edge's obligation is mod(a,b) < b at measure b); the
+  Succ-arm face needs lt_of_sub_pos (from sub(b, a) == Succ w derive
+  sub(Succ a, b) == Zero -- monus conversion, another small lemma
+  chain); the recursive arm's face is the IH directly. Then gcd
+  recurses gcd(b, mod(a, b)) citing mod's ensures; then rat.omg
+  (reduced fractions, gcd == 1). `sub_zero_left` landed as the monus
   surface's completion (5 lemmas, zoo at 13 Nat). Task #134 rung 1 COMPLETE;
   the rat.omg carrier waits only on this engineering rung.
 - **N5 — `boundary data` + the Real axiom package:** opaque carrier;

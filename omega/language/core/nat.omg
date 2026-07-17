@@ -584,3 +584,78 @@ ensures
         transition { _ -> Nat::Zero }
     }
 }
+
+// The SYMBOLIC strict fact, positivity via a premise instead of Succ
+// shape: Succ pb <= a entails sub(a, Succ pb) < a. The Zero arm is
+// vacuous (Succ pb <= Zero clashes); the Succ arm strips the pair twice
+// with succ_sub_succ and closes on sub_le -- no induction, the premise
+// only serves the vacuity.
+machine sub_lt_of_le(pb: Nat, a: Nat) -> Nat
+requires
+    (sub(Nat::Succ { prev: pb }, a)) == Nat::Zero
+ensures
+    (sub(Nat::Succ { prev: (sub(a, Nat::Succ { prev: pb })) }, a)) == Nat::Zero
+{
+    transition a {
+        Nat::Zero -> Nat::Zero
+        Nat::Succ { prev as pa } -> slol_step(pa, pb)
+    }
+
+    state slol_step(pa: Nat, pb: Nat) -> Nat {
+        succ_sub_succ(pa, pb);
+        succ_sub_succ((sub(pa, pb)), pa);
+        sub_le(pa, pb);
+        transition { _ -> Nat::Zero }
+    }
+}
+
+// THE RANKING CITATION (slice a2): fully symbolic in (a, b) --
+// 1 <= b and b <= a entail sub(a, b) < a, in the monus order spelling
+// sub(Succ(sub(a, b)), a) == Zero. A machine recursing on the computed
+// subject sub(a, b) (mod, gcd) cites THIS lemma at (a, b); the
+// termination checker matches the instantiated ensures against its
+// strict-edge obligation literally. The Zero arm is vacuous (1 <= Zero
+// clashes); the Succ arm hands to sub_lt_of_le under the arm-refined
+// premise b == Succ pb. Lean analog: Nat.sub_lt.
+machine sub_lt(a: Nat, b: Nat) -> Nat
+requires
+    (sub(Nat::Succ { prev: Nat::Zero }, b)) == Nat::Zero;
+    (sub(b, a)) == Nat::Zero
+ensures
+    (sub(Nat::Succ { prev: (sub(a, b)) }, a)) == Nat::Zero
+{
+    transition b {
+        Nat::Zero -> Nat::Zero
+        Nat::Succ { prev as pb } -> slt_of(pb, a)
+    }
+
+    state slt_of(pb: Nat, a: Nat) -> Nat {
+        sub_lt_of_le(pb, a);
+        transition { _ -> Nat::Zero }
+    }
+}
+
+// MODULO by repeated subtraction (slice a3 opener): mod(a, b) for b >= 1.
+// The root cases the COMPUTED subject sub(b, a): the Zero arm (b <= a)
+// subtracts and recurses; the Succ arm (a < b) returns a. The recursive
+// edge's strict decrease is NOT structural -- sub(a, b) is a computed
+// subject -- so mod_rec CITES sub_lt(a, b), whose requires discharge at
+// the site from the machine requires (1 <= b) and the incoming Zero-arm
+// equation (sub(b, a) == Zero), and whose instantiated ensures IS the
+// strict-edge fact sub(Succ(sub(a, b)), a) == Zero. Lean analog: Nat.mod.
+machine mod(a: Nat, b: Nat) -> Nat
+terminates by a;
+requires
+    (sub(Nat::Succ { prev: Nat::Zero }, b)) == Nat::Zero
+{
+    transition (sub(b, a)) {
+        Nat::Zero -> mod_rec(a, b)
+        Nat::Succ { prev as w } -> (a)
+    }
+
+    state mod_rec(a: Nat, b: Nat) -> Nat {
+        sub_lt(a, b);
+        let next: Nat = sub(a, b);
+        transition { _ -> (mod(next, b)) }
+    }
+}

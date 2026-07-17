@@ -222,6 +222,7 @@ pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
                     validate_proof_machine_recursion(
                         program,
                         machine,
+                        state,
                         statement,
                         &mut diagnostics,
                     );
