@@ -550,6 +550,27 @@ sealed progress profiles + grants, TPR4's remaining big half).
    FrameBaseDoubleIndexed): each needs a SECOND index register in
    the materializer or stays hand-spelled — decide at their rung
    (r11 is deliberately the single index scratch).
+   DECIDED + RUNG 2c-x SLICE A LANDED 2026-07-19 (the second index
+   register): r10 joins as the SECOND index scratch — new x86
+   primitives (load_index_r10_from_r14/r15/r10, imul_r10_imm32,
+   add_r14/r15_r10; mov_r10_imm64 already existed); prepare_place_index
+   loads up to TWO indices (r11 first — byte-identical to the
+   single-index rung — r10 second) while the base register still
+   equals the region base, walks consume by ordinal (first ScaledIndex
+   adds r11, second r10, all three walkers); cross-region second
+   indices record SourceIndex2/TargetIndex2 sites (PLACE_COPY_MAX_SITES
+   4→6; the walker patches nth(1) of Place::scaled_index_regions —
+   new ordered accessor). Refusal moves to THREE indices. Unit pins:
+   double_index_same_region_layout, double_index_cross_region_records
+   _both_sites, triple_index_refuses; the old two-index refusal
+   flipped to is_ok. NO producers yet — zero behavior change (battery
+   green). NOTE: machine→machine single-index-EACH-SIDE (the 4th
+   exotic) needs NO r10 — the two-base path loads r11 sequentially per
+   side; its rung is pure producer migration.
+   SLICE B NEXT: classifier double-index shapes + the 5 producer sites
+   (writes/storage_copy.rs, mutation.rs, mutation/frame_slots.rs) +
+   aarch64 decompose to the retained encoders; then the retirement
+   slice (the 4 variants + echoes).
    Then Write/RMW (the leaf-cascade duplication dies), Text,
    guards/operands, op-set shrink — the wiki ladder. Legalization
    refuses loudly at every rung.

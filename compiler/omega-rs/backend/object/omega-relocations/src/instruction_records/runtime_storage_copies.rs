@@ -52,6 +52,16 @@ pub(super) fn collect_runtime_storage_copy_relocations(
                             omega_instruction_selection::PlaceCopySide::TargetIndex => target
                                 .scaled_index_region()
                                 .expect("a TargetIndex site implies a target ScaledIndex step"),
+                            // The double-index rung: the SECOND ScaledIndex
+                            // step's own region, in walk order.
+                            omega_instruction_selection::PlaceCopySide::SourceIndex2 => source
+                                .scaled_index_regions()
+                                .nth(1)
+                                .expect("a SourceIndex2 site implies two source ScaledIndex steps"),
+                            omega_instruction_selection::PlaceCopySide::TargetIndex2 => target
+                                .scaled_index_regions()
+                                .nth(1)
+                                .expect("a TargetIndex2 site implies two target ScaledIndex steps"),
                         };
                         context.insert_data_address_at_relative_offset(
                             byte_offset,

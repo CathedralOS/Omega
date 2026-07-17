@@ -13,7 +13,8 @@
 //! the place's own region when the kinds themselves collapse -- until then
 //! `Place::region` is documentation, not behavior, on this path.
 //!
-//! Index discipline (the ScaledIndex rung): a place may carry AT MOST ONE
+//! Index discipline (the ScaledIndex rung, extended by the double-index
+//! rung to TWO): a place may carry AT MOST TWO
 //! runtime scaled index, its slot readable from the place's own base region
 //! -- the index loads into r11 (32-bit, zero-extended) and scales IMMEDIATELY
 //! AFTER the base materializes and BEFORE any deref consumes the base, then
@@ -40,11 +41,16 @@ pub enum PlaceCopySide {
     SourceIndex,
     /// The target place's ScaledIndex slot base.
     TargetIndex,
+    /// The source place's SECOND ScaledIndex slot base (the double-index
+    /// rung; r10 is the second index scratch).
+    SourceIndex2,
+    /// The target place's SECOND ScaledIndex slot base.
+    TargetIndex2,
 }
 
-/// Four covers every emitted shape: two bases today, plus room for the
-/// machine-indexed rung's separate index-base materializations.
-pub const PLACE_COPY_MAX_SITES: usize = 4;
+/// Six covers every emitted shape: two bases, plus up to two cross-region
+/// index-base materializations per side (the double-index rung).
+pub const PLACE_COPY_MAX_SITES: usize = 6;
 
 /// The base-materialization relocation sites of one place copy: the byte
 /// position of each `mov r??, imm64(0)` placeholder WITHIN the encoded
@@ -107,12 +113,13 @@ fn materialize_place_address(
     }
     // The index (at most one) loads and scales BEFORE any deref consumes the
     // base register its slot is addressed from.
-    let index_side = match register {
-        AddressRegister::Source => PlaceCopySide::SourceIndex,
-        AddressRegister::Target => PlaceCopySide::TargetIndex,
+    let index_sides = match register {
+        AddressRegister::Source => (PlaceCopySide::SourceIndex, PlaceCopySide::SourceIndex2),
+        AddressRegister::Target => (PlaceCopySide::TargetIndex, PlaceCopySide::TargetIndex2),
     };
-    prepare_place_index(bytes, sites, place, register, index_side)?;
+    prepare_place_index(bytes, sites, place, register, index_sides)?;
     let mut displacement = 0usize;
+    let mut index_ordinal = 0usize;
     for step in place.steps() {
         match step {
             PlaceStep::ConstOffset(offset) => displacement += offset,
@@ -127,24 +134,29 @@ fn materialize_place_address(
                 }
                 displacement = 0;
             }
-            PlaceStep::ScaledIndex { .. } => append_scaled_index_add(bytes, register),
+            PlaceStep::ScaledIndex { .. } => {
+                append_scaled_index_add(bytes, register, index_ordinal);
+                index_ordinal += 1;
+            }
         }
     }
     Ok(displacement)
 }
 
-/// Pre-load the place's runtime index (if any) into r11 and scale it by the
-/// element size. Refuses more than one index per place: r11 is the single
-/// index scratch. A SAME-region index reads through the place's own base
-/// register; a CROSS-region index first materializes the index region's
-/// base into r11 itself (a recorded relocation site), then loads through it
-/// -- no extra scratch register enters the discipline.
+/// Pre-load the place's runtime indices (up to TWO) and scale each by its
+/// element size: the FIRST loads into r11 (byte-identical to the
+/// single-index rung), the SECOND into r10 (the double-index rung). Both
+/// load while the base register still equals the region base -- the walk's
+/// adds then consume them in step order. A SAME-region index reads through
+/// the place's own base register; a CROSS-region index first materializes
+/// the index region's base into its own scratch (a recorded relocation
+/// site), then loads through it.
 fn prepare_place_index(
     bytes: &mut Vec<u8>,
     sites: &mut PlaceCopySites,
     place: &Place,
     base_register: AddressRegister,
-    index_side: PlaceCopySide,
+    index_sides: (PlaceCopySide, PlaceCopySide),
 ) -> Result<(), Diagnostic> {
     let mut indices = place.steps().iter().filter_map(|step| match step {
         PlaceStep::ScaledIndex {
@@ -157,10 +169,11 @@ fn prepare_place_index(
     let Some((index_region, index_offset, element_byte_size)) = indices.next() else {
         return Ok(());
     };
+    let second = indices.next();
     if indices.next().is_some() {
         return Err(Diagnostic::error(
-            "place materializer: at most one runtime scaled index per place \
-             (r11 is the single index scratch)",
+            "place materializer: at most two runtime scaled indices per place \
+             (r11 and r10 are the index scratches)",
         ));
     }
     if index_region == place.region {
@@ -169,18 +182,40 @@ fn prepare_place_index(
             AddressRegister::Target => super::append_load_index_r11_from_r15(bytes, index_offset)?,
         }
     } else {
-        sites.record(bytes.len(), index_side);
+        sites.record(bytes.len(), index_sides.0);
         super::append_mov_r11_imm64(bytes, 0);
         super::append_load_r11_from_r11(bytes, index_offset)?;
     }
     super::append_imul_r11_imm32(bytes, super::element_scale(element_byte_size)?);
+    if let Some((second_region, second_offset, second_element)) = second {
+        if second_region == place.region {
+            match base_register {
+                AddressRegister::Source => {
+                    super::append_load_index_r10_from_r14(bytes, second_offset)?
+                }
+                AddressRegister::Target => {
+                    super::append_load_index_r10_from_r15(bytes, second_offset)?
+                }
+            }
+        } else {
+            sites.record(bytes.len(), index_sides.1);
+            super::append_mov_r10_imm64(bytes, 0);
+            super::append_load_index_r10_from_r10(bytes, second_offset)?;
+        }
+        super::append_imul_r10_imm32(bytes, super::element_scale(second_element)?);
+    }
     Ok(())
 }
 
-fn append_scaled_index_add(bytes: &mut Vec<u8>, register: AddressRegister) {
-    match register {
-        AddressRegister::Source => super::append_add_r14_r11(bytes),
-        AddressRegister::Target => super::append_add_r15_r11(bytes),
+/// The walk's index consumption: the FIRST ScaledIndex step adds r11, the
+/// SECOND adds r10 (loaded/scaled by `prepare_place_index` while the base
+/// register still equaled the region base).
+fn append_scaled_index_add(bytes: &mut Vec<u8>, register: AddressRegister, ordinal: usize) {
+    match (register, ordinal) {
+        (AddressRegister::Source, 0) => super::append_add_r14_r11(bytes),
+        (AddressRegister::Target, 0) => super::append_add_r15_r11(bytes),
+        (AddressRegister::Source, _) => super::append_add_r14_r10(bytes),
+        (AddressRegister::Target, _) => super::append_add_r15_r10(bytes),
     }
 }
 
@@ -285,9 +320,9 @@ fn encode_place_copy_shared_base_with_sites(
             if source_indexed { source } else { target },
             AddressRegister::Target,
             if source_indexed {
-                PlaceCopySide::SourceIndex
+                (PlaceCopySide::SourceIndex, PlaceCopySide::SourceIndex2)
             } else {
-                PlaceCopySide::TargetIndex
+                (PlaceCopySide::TargetIndex, PlaceCopySide::TargetIndex2)
             },
         )?;
         let source_displacement =
@@ -305,7 +340,7 @@ fn encode_place_copy_shared_base_with_sites(
             &mut sites,
             target,
             AddressRegister::Source,
-            PlaceCopySide::TargetIndex,
+            (PlaceCopySide::TargetIndex, PlaceCopySide::TargetIndex2),
         )?;
         let target_displacement =
             walk_hopping_side(&mut bytes, target, HopDirection::BaseR14TargetHops)?;
@@ -375,6 +410,7 @@ fn walk_hopping_side(
         HopDirection::BaseR14TargetHops => AddressRegister::Target,
     };
     let mut displacement = 0usize;
+    let mut index_ordinal = 0usize;
     for step in steps {
         match step {
             PlaceStep::ConstOffset(offset) => displacement += offset,
@@ -389,7 +425,10 @@ fn walk_hopping_side(
                 }
                 displacement = 0;
             }
-            PlaceStep::ScaledIndex { .. } => append_scaled_index_add(bytes, own_register),
+            PlaceStep::ScaledIndex { .. } => {
+                append_scaled_index_add(bytes, own_register, index_ordinal);
+                index_ordinal += 1;
+            }
         }
     }
     Ok(displacement)
@@ -403,6 +442,7 @@ fn walk_base_side(
     register: AddressRegister,
 ) -> Result<usize, Diagnostic> {
     let mut displacement = 0usize;
+    let mut index_ordinal = 0usize;
     for step in place.steps() {
         match step {
             PlaceStep::ConstOffset(offset) => displacement += offset,
@@ -417,7 +457,10 @@ fn walk_base_side(
                 }
                 displacement = 0;
             }
-            PlaceStep::ScaledIndex { .. } => append_scaled_index_add(bytes, register),
+            PlaceStep::ScaledIndex { .. } => {
+                append_scaled_index_add(bytes, register, index_ordinal);
+                index_ordinal += 1;
+            }
         }
     }
     Ok(displacement)
@@ -704,7 +747,8 @@ mod tests {
                 })
                 .unwrap()
         };
-        // Two indices on one place (two-base path).
+        // Two indices on one place: LEGAL since the double-index rung (r10
+        // is the second scratch); three refuse (triple_index_refuses).
         let double = indexed(0)
             .with_step(PlaceStep::ScaledIndex {
                 index_region: RuntimeStorageRegion::RuntimeFrame,
@@ -713,7 +757,7 @@ mod tests {
             })
             .unwrap();
         let plain = Place::at(RuntimeStorageRegion::Machine, 64);
-        assert!(encode_place_copy(&double, &plain, 4).is_err());
+        assert!(encode_place_copy(&double, &plain, 4).is_ok());
         // Both sides indexed (shared base).
         assert!(encode_place_copy_shared_base(&indexed(0), &indexed(32), 4).is_err());
         // Index on a DIRECT side (shared base): would mutate the shared base.
@@ -726,4 +770,121 @@ mod tests {
             .unwrap();
         assert!(encode_place_copy_shared_base(&direct_indexed, &indexed(32), 4).is_err());
     }
+
+    /// The double-index rung: a machine-style no-deref place with TWO
+    /// same-region ScaledIndex steps -- both indices pre-load (r11 first,
+    /// r10 second) while the base register still equals the region base;
+    /// the walk consumes them in step order.
+    #[test]
+    fn double_index_same_region_layout() {
+        let source = Place::at(RuntimeStorageRegion::Machine, 32)
+            .with_step(PlaceStep::ScaledIndex {
+                index_region: RuntimeStorageRegion::Machine,
+                index_offset: 8,
+                element_byte_size: 16,
+            })
+            .unwrap()
+            .with_step(PlaceStep::ConstOffset(4))
+            .unwrap()
+            .with_step(PlaceStep::ScaledIndex {
+                index_region: RuntimeStorageRegion::Machine,
+                index_offset: 12,
+                element_byte_size: 4,
+            })
+            .unwrap();
+        let target = Place::at(RuntimeStorageRegion::RuntimeFrame, 64);
+        let (bytes, sites) = encode_copy_places(&source, &target, 4).expect("encodes");
+
+        let mut expected = Vec::new();
+        super::super::append_mov_r14_imm64(&mut expected, 0);
+        super::super::append_load_r11_from_r14(&mut expected, 8).expect("first index");
+        super::super::append_imul_r11_imm32(&mut expected, 16);
+        super::super::append_load_index_r10_from_r14(&mut expected, 12).expect("second index");
+        super::super::append_imul_r10_imm32(&mut expected, 4);
+        super::super::append_add_r14_r11(&mut expected);
+        super::super::append_add_r14_r10(&mut expected);
+        super::super::append_mov_r15_imm64(&mut expected, 0);
+        super::super::for_each_runtime_copy_chunk(36, 64, 4, |offset, chunk_size| {
+            super::super::append_load_rax_from_r14(&mut expected, 36 + offset, chunk_size)?;
+            super::super::append_store_rax_to_r15(&mut expected, 64 + offset, chunk_size)?;
+            Ok(())
+        })
+        .expect("chunks");
+        assert_eq!(bytes, expected);
+        // Two base sites only: same-region indices record no index site.
+        let sides: Vec<PlaceCopySide> = sites.iter().map(|(_, side)| side).collect();
+        assert_eq!(sides, vec![PlaceCopySide::Source, PlaceCopySide::Target]);
+    }
+
+    /// Cross-region DOUBLE index: both index slots live in the FRAME while
+    /// the place bases in the machine region -- each index materializes its
+    /// own region base (r11 then r10) as a recorded site (SourceIndex then
+    /// SourceIndex2) and loads through itself.
+    #[test]
+    fn double_index_cross_region_records_both_sites() {
+        let source = Place::at(RuntimeStorageRegion::Machine, 32)
+            .with_step(PlaceStep::ScaledIndex {
+                index_region: RuntimeStorageRegion::RuntimeFrame,
+                index_offset: 8,
+                element_byte_size: 16,
+            })
+            .unwrap()
+            .with_step(PlaceStep::ScaledIndex {
+                index_region: RuntimeStorageRegion::RuntimeFrame,
+                index_offset: 12,
+                element_byte_size: 4,
+            })
+            .unwrap();
+        let target = Place::at(RuntimeStorageRegion::RuntimeFrame, 64);
+        let (bytes, sites) = encode_copy_places(&source, &target, 4).expect("encodes");
+
+        let mut expected = Vec::new();
+        super::super::append_mov_r14_imm64(&mut expected, 0);
+        super::super::append_mov_r11_imm64(&mut expected, 0);
+        super::super::append_load_r11_from_r11(&mut expected, 8).expect("first index");
+        super::super::append_imul_r11_imm32(&mut expected, 16);
+        super::super::append_mov_r10_imm64(&mut expected, 0);
+        super::super::append_load_index_r10_from_r10(&mut expected, 12).expect("second index");
+        super::super::append_imul_r10_imm32(&mut expected, 4);
+        super::super::append_add_r14_r11(&mut expected);
+        super::super::append_add_r14_r10(&mut expected);
+        super::super::append_mov_r15_imm64(&mut expected, 0);
+        super::super::for_each_runtime_copy_chunk(32, 64, 4, |offset, chunk_size| {
+            super::super::append_load_rax_from_r14(&mut expected, 32 + offset, chunk_size)?;
+            super::super::append_store_rax_to_r15(&mut expected, 64 + offset, chunk_size)?;
+            Ok(())
+        })
+        .expect("chunks");
+        assert_eq!(bytes, expected);
+        let sides: Vec<PlaceCopySide> = sites.iter().map(|(_, side)| side).collect();
+        assert_eq!(
+            sides,
+            vec![
+                PlaceCopySide::Source,
+                PlaceCopySide::SourceIndex,
+                PlaceCopySide::SourceIndex2,
+                PlaceCopySide::Target,
+            ]
+        );
+    }
+
+    /// Three runtime indices refuse loudly: r11 and r10 are the only index
+    /// scratches.
+    #[test]
+    fn triple_index_refuses() {
+        let mut source = Place::at(RuntimeStorageRegion::Machine, 32);
+        for offset in [8usize, 12, 16] {
+            source = source
+                .with_step(PlaceStep::ScaledIndex {
+                    index_region: RuntimeStorageRegion::Machine,
+                    index_offset: offset,
+                    element_byte_size: 4,
+                })
+                .unwrap();
+        }
+        let target = Place::at(RuntimeStorageRegion::RuntimeFrame, 64);
+        let error = encode_copy_places(&source, &target, 4).expect_err("refuses");
+        assert!(error.to_string().contains("at most two runtime scaled indices"));
+    }
 }
+

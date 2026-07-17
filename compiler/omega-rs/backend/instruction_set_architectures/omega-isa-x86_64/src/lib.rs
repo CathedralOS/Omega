@@ -9456,6 +9456,53 @@ fn append_imul_r11_imm32(bytes: &mut Vec<u8>, value: i32) {
     bytes.extend(value.to_le_bytes());
 }
 
+// r10 = the SECOND index scratch (the double-index rung): same 32-bit
+// zero-extended load + scale discipline as r11's family.
+// (append_mov_r10_imm64 already exists above.)
+
+fn append_load_index_r10_from_r14(
+    bytes: &mut Vec<u8>,
+    byte_offset: usize,
+) -> Result<(), Diagnostic> {
+    let displacement = disp32(byte_offset)?;
+    bytes.extend([0x45, 0x8b, 0x96]); // mov r10d, [r14 + disp32]
+    bytes.extend(displacement.to_le_bytes());
+    Ok(())
+}
+
+fn append_load_index_r10_from_r15(
+    bytes: &mut Vec<u8>,
+    byte_offset: usize,
+) -> Result<(), Diagnostic> {
+    let displacement = disp32(byte_offset)?;
+    bytes.extend([0x45, 0x8b, 0x97]); // mov r10d, [r15 + disp32]
+    bytes.extend(displacement.to_le_bytes());
+    Ok(())
+}
+
+fn append_load_index_r10_from_r10(
+    bytes: &mut Vec<u8>,
+    byte_offset: usize,
+) -> Result<(), Diagnostic> {
+    let displacement = disp32(byte_offset)?;
+    bytes.extend([0x45, 0x8b, 0x92]); // mov r10d, [r10 + disp32]
+    bytes.extend(displacement.to_le_bytes());
+    Ok(())
+}
+
+fn append_imul_r10_imm32(bytes: &mut Vec<u8>, value: i32) {
+    bytes.extend([0x4d, 0x69, 0xd2]); // imul r10, r10, imm32
+    bytes.extend(value.to_le_bytes());
+}
+
+fn append_add_r14_r10(bytes: &mut Vec<u8>) {
+    bytes.extend([0x4d, 0x01, 0xd6]); // add r14, r10
+}
+
+fn append_add_r15_r10(bytes: &mut Vec<u8>) {
+    bytes.extend([0x4d, 0x01, 0xd7]); // add r15, r10
+}
+
 fn append_imul_r15_imm32(bytes: &mut Vec<u8>, value: i32) {
     bytes.extend([0x4d, 0x69, 0xff]); // imul r15, r15, imm32
     bytes.extend(value.to_le_bytes());
