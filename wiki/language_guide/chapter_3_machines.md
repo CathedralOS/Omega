@@ -6,8 +6,8 @@ a terminal outcome. A productive machine may run forever, so an ordinary
 function-like call is one important use of a machine, not its definition.
 
 > **Machine taxonomy settled 2026-07-18.** Runtime calls, compile-time
-> evaluation, proof citation, spawning, trait satisfaction, and boundary
-> provision consume the same semantic construct. Checked bodies, requirements,
+> evaluation, proof citation, concurrent activation, trait satisfaction, and
+> boundary provision consume the same semantic construct. Checked bodies, requirements,
 > external providers, and accepted trust declarations are supply modes, not
 > separate machine species. See
 > [machine_taxonomy.md](../design_briefs/machine_taxonomy.md).
@@ -19,7 +19,8 @@ owning data type.
 
 The same machine can be called at runtime and evaluated by the compiler when
 its contract, effects, and totality make that evaluation legal. It can also be
-cited as proof, spawned, or used to satisfy a trait/boundary requirement.
+cited as proof, started through a task runtime, or used to satisfy a
+trait/boundary requirement.
 Those contexts change eligibility and lowering; they do not create parallel
 `async`, `proof`, or `const` machine identities.
 

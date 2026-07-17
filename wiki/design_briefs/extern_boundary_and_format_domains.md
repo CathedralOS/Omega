@@ -16,8 +16,9 @@ boundary trait WindowSystem {
 }
 ```
 
-A target's `provides` data maps each requirement to a binding description. The
-mechanism is a sum, not a growing family of keywords:
+A `ProviderPlan` maps each requirement to a binding description. Provider
+plans are ordinary build-time policy values; there is no `provides` keyword.
+The binding vocabulary is a sum, not a growing family of keywords:
 
 ```omega
 data Binding {
@@ -30,6 +31,14 @@ data Binding {
 
 Exact cases may grow only when a genuinely different binding mechanism exists.
 Host-specific flags and `host:` mini-languages are not part of Omega.
+
+Provider handling has four distinct stages: construct a candidate freely;
+validate structural coverage, signatures, calling/layout plans, and normalized
+identity deterministically; admit its semantic claims under boundary grant
+authority and issue receipts; then select it for a slot under that slot owner's
+capability. A target package supplies ordinary defaults, `build.omg` selects a
+default target profile, and explicit build/test/component configuration may
+override individual slots. Defaults are package data, not compiler magic.
 
 ## Effects, authority, and trust
 
@@ -124,8 +133,7 @@ handoff. Those details stay in providers. Image/subsystem selection belongs in
 
 ## Still open
 
-- final `Binding` and `provides` grammar;
+- final `ProviderPlan` construction/selection grammar;
 - callback registration/revocation and long-lived foreign borrows;
-- the exact accepted-proof surface for hand-authored providers;
 - dynamic-library loading/unloading under component versioning; and
 - target-specific launch/exit details not covered by existing calling plans.

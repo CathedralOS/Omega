@@ -1,55 +1,88 @@
 # Chapter 18: Concurrency
 
-Concurrency starts with one primitive idea:
+Concurrency uses ordinary machines plus an admitted task-runtime capability:
 
 ```omega
-spawn {
-    Worker::run(move job);
+let task: Task<WorkResult> =
+    runtime.start<Worker::run>(move job);
+
+do_other_work();
+
+let outcome: TaskOutcome<WorkResult> = task.finish();
+```
+
+`Worker::run` is not a special async function. Calling `Worker::run(job)` runs
+it in the current activation; supplying the machine symbol to
+`runtime.start<Worker::run>(job)` asks a runtime provider to establish a
+distinct concurrent activation.
+
+The model has no bare `spawn` block, `async machine`, `Future<T>`, mandatory
+`await` marker, implicit detach, or privileged task group. Starting,
+cancellation, completion, storage provisioning, and supervision are ordinary
+contracted operations over explicit capabilities and linear data.
+
+`TaskRuntime` is a working core boundary requirement/capability, not a new
+language construct. Starting and controlling a task reach that service through
+the ordinary effects/provider model from chapter 19.
+
+The full custody/storage/claim model and implementation sequence are recorded
+in [Task Runtime And Lifecycle](../design_briefs/task_runtime_and_lifecycle.md).
+
+## Starting Is A Provider Operation
+
+Task start has a prove-or-handle pair. `start<M>` requires its admission and
+capacity obligations to be discharged. `try_start<M>` exposes a genuinely
+dynamic refusal as an ordinary sum:
+
+```omega
+transition runtime.try_start<Worker::run>(move job) {
+    Started(task) -> keep(move task)
+    Rejected(job, reason) -> recover(move job, reason)
 }
 ```
 
-`spawn` runs a block concurrently. It does not inject channels, callbacks, or
-hidden runtime parameters. Values used by the spawned block follow the same
-copy/move rules as ordinary calls, with stricter lifetime requirements.
+A rejected start returns every moved argument and caller-supplied reservation.
+Start is an ownership transaction: no value or linear obligation disappears
+into a provider that failed to establish the activation.
 
-Working rules:
+The `<Worker::run>` spelling uses the compile-time machine-parameter mechanism
+from chapter 13. It is not a runtime function pointer or inferred capture. The
+compiler monomorphizes the target and emits a static activation plan containing
+the normalized contract, entry identity, argument/result layouts, and
+continuation/storage requirements. The provider receives that plan plus the
+invocation's moved arguments.
 
-- Captured values must be copied or moved -- UNLESS the spawn is scoped (below).
-- Moved values are unavailable to the parent after the spawn.
-- Shared mutation must go through data types whose contracts permit concurrent
-  access.
-- A spawn used as a statement is fire-and-forget when the proof checker proves
-  the spawned graph is self-contained; statement-form spawn is the explicit,
-  authorized detach operation.
-- `Join<T>` is linear. `join`, `cancel`, or an authorized `detach` consumes it.
-  A live handle at scope exit is a compile error. Automatic cleanup never
-  blocks, and strict result use alone would not catch a bound handle that
-  reaches scope end.
+## Task Is A Linear Lifecycle Claim
 
-## Scoped Spawns (no keyword)
-
-There is no `scope` construct: the lexical block IS the scope. A spawn may
-borrow parent locals; the borrows are ordinary loans and every borrowing spawn
-must be explicitly joined or cancelled before those loans can end:
+`Task<T>` is ordinary `[linear]` data. Its owner has the right and obligation
+to settle or transfer one provider-held activation. The task may be stored in
+a record or sum for later work:
 
 ```omega
-machine Main::main(&mut self) {
-    let mut totals: [u32; 2] = [0, 0];
-
-    {
-        let first: Join<()> = spawn { Worker::run(&self.ring, &mut totals[0]) };
-        let second: Join<()> = spawn { Worker::run(&self.ring, &mut totals[1]) };
-        first.join();
-        second.join();
-    }   // handles were consumed; the loans end; tasks are dead
-
-    let sum: u32 = totals[0] + totals[1];   // legal: provably no live task
+data WorkerState {
+    case Idle;
+    case Running(task: Task<WorkResult>);
 }
 ```
 
-Disjoint `&mut` windows (distinct array elements above) follow the ordinary
-borrow rules. A spawn that escapes any enclosing borrow scope stays
-move/copy-only.
+Moving the task into `Running` transfers the obligation into that data value.
+A later machine may consume it with `finish()` or transfer it again. A live
+task may not be copied, overwritten, dropped at ordinary scope exit, or lost
+on one branch.
+
+`request_cancel()` retains the claim: requesting cancellation does not prove
+that execution stopped. `finish()` may suspend, consumes the claim, and returns
+an ordinary terminal-outcome sum such as returned, cancelled, or provider
+failure. Application-level recoverable failure remains part of `T`.
+
+Long-lived background work transfers its claim to an owner:
+
+```omega
+supervisor.adopt(move task);
+```
+
+That is ordinary ownership transfer, not detach. The supervisor becomes
+responsible for eventual settlement.
 
 ## Suspension (elaboration pending)
 
@@ -74,7 +107,7 @@ The constraints that *are* settled are:
   visibility comes from inferred effects, public contract ceilings,
   diagnostics, and artifacts;
 - automatic cleanup may execute but may never suspend or fail;
-- `Join<T>` is linear and must be consumed explicitly; and
+- `Task<T>` is linear and must be settled or transferred explicitly; and
 - a loan may cross suspension only when the eventual suspension model can
   prove its storage, pinning, aliasing, and cancellation safety. Blanket
   acceptance and blanket rejection are both premature.
@@ -86,30 +119,53 @@ continuation lowering and suspension-safe-loan rules remain the queued
 suspension amendment. See
 [effects_authority_and_observation.md](../design_briefs/effects_authority_and_observation.md).
 
-## Task Storage: Bounded, Compiler-Planned
+## Task Storage: Accountable, Provider-Planned
 
-Measured, tail-only runtime recursion leaves an acyclic lowered call graph, so
-the compiler can compute a finite worst-case activation bound. If ordinary
-calls may suspend, a parked continuation can contain a bounded chain of
-planned frames; bounded does not mean single-frame or free. Task capacity is
-frame requirement times maximum simultaneous activations, with the activation
-bound declared or proved.
+Task execution has three deliberately separate owners:
 
-Task pools are capacity-bearing resources. Their budget is the planned frame
-requirement times the maximum simultaneous activations, with the activation
-bound declared or justified from a finite resource such as permits, endpoints,
-or a region budget. Spawning past the admitted capacity is a proof obligation
-or explicit boundary failure. Actor-shaped machines often collapse retained
-storage to their owned `self`; that remains a useful pattern rather than a
-restriction imposed on all suspending helpers. Region-backed dynamic capacity
-arrives with the allocator arc.
+- the runtime provider has operational custody of the activation;
+- a Region, provider, remote runtime, or platform owns its physical storage;
+  and
+- the holder of `Task<T>` owns the linear lifecycle claim.
+
+`Task<T>` therefore does not universally contain or borrow a task stack. It is
+normally a small provider/activation identity plus lifecycle authority. Moving
+the handle does not move a parked continuation.
+
+Measured, tail-only runtime recursion leaves a bounded lowered call graph. If
+ordinary calls may suspend, a parked continuation can retain a bounded chain
+of compiler-planned frames; bounded does not mean single-frame or free. The
+activation plan records frame/continuation size, alignment, address-stability,
+and related requirements. The runtime provider must admit that plan against
+its storage contract before returning a pending task.
+
+Storage strategy is not fixed by the language:
+
+- a hosted provider may allocate an OS thread stack internally;
+- a Region-backed provider may lease a pre-provisioned frame slot;
+- a remote provider may keep no local activation frame; and
+- an inline provider may return an already-complete, still-unsettled task when
+  the pinned contract permits inline completion.
+
+`RegionTaskPool` is the standard bounded-storage reference package and likely
+Cathedral default, not a task primitive. It imposes slot/arena layout and
+dynamic availability accounting on a Region. Provisioning fixes a maximum;
+each start still consumes capacity and settlement releases it. Under shared
+interference, an available-capacity proposition does not replace ownership of
+a real reservation; dynamic sites use fallible start/reserve operations.
+
+Provider provenance remains attached to the claim. A task backed by local
+storage cannot escape that storage's lifetime, and a pool/runtime cannot close
+while dependent claims or leases remain. The exact child-lease representation
+is part of the permission/resource-algebra implementation.
 
 ## Cancellation Is A Value At The Wait
 
-There is no unwinding, so a task is never interrupted mid-state. Cancelling
-a scope makes each child's current or next WAIT return the zero case
-instead of a ready value; the machine transitions to its own cleanup path
-and drops run as frames retire normally:
+There is no unwinding, so a task is never interrupted mid-state. A provider
+whose contract supports cancellation delivers the request at a stated safe
+point, commonly by making the current or next wait return the zero case instead
+of a ready value. The machine transitions to its own cleanup path and drops run
+as frames retire normally:
 
 ```omega
 data Take {
@@ -121,13 +177,13 @@ machine Worker::run(&mut self, ring: &mut Ring) {
     let taken: Take = ring.take();  // may suspend under the eventual effect contract
     transition taken {
         Take::Got(frame) -> work(frame)
-        Take::Cancelled  -> finish()    // ordinary transition; nothing interrupted
+        Take::Cancelled  -> cleanup()   // ordinary transition; nothing interrupted
     }
     ...
 }
 ```
 
-A task that never suspends is joinable but not necessarily cancellable -- its
+A task that never suspends is finishable but not necessarily cancellable -- its
 complete machine contract says which cancellation behavior it supports.
 Cancellation rides the same propagation
 channel as recoverable errors ([chapter 16](chapter_16_errors_traps_failure.md));
@@ -165,68 +221,55 @@ completions POST TO WORDS. The core library owes a multi-producer
 single-consumer event queue over the wait primitive; the language owes
 nothing.
 
-## Joined Work
+## Completion And Supervision
 
-If the result of `spawn` is kept, it is a join handle.
-
-```omega
-data Job {
-    id: u32;
-}
-
-data WorkResult {
-    job_id: u32;
-    ok: bool;
-}
-
-data Worker {
-}
-
-machine Worker::run(job: Job) -> WorkResult {
-    WorkResult {
-        job_id: job.id,
-        ok: true
-    }
-}
-
-machine Scheduler::run(job: Job) -> WorkResult {
-    let handle: Join<WorkResult> = spawn {
-        Worker::run(move job)
-    };
-
-    handle.join()
-}
-```
-
-`Worker::run` returns `WorkResult`. The `spawn` expression returns
-`Join<WorkResult>` because the machine is running concurrently.
-
-Programs that want recoverable failure return an explicit result sum from the
-spawned machine. Trap propagation and thread-group termination belong to the
-spawn/scheduler contract and must be settled there rather than inferred from
-`Join<T>`.
-
-## Fire And Forget
-
-A spawn does not need to produce a value.
+Finishing a task is an ordinary possibly-suspending machine call; it needs no
+`await` marker:
 
 ```omega
-data Logger {
-}
+machine Scheduler::run(runtime: &TaskRuntime, job: Job) -> WorkResult {
+    let task: Task<WorkResult> =
+        runtime.start<Worker::run>(move job);
 
-machine Logger::write(line: String) {
-    platform_log(line);
-}
+    do_other_work();
 
-machine App::run(message: String) {
-    spawn {
-        Logger::write(move message);
+    transition task.finish() {
+        Returned(result) -> result
+        Cancelled -> cancelled_result()
+        Failed(receipt) -> provider_failure(receipt)
     }
 }
 ```
 
-If the spawn result is not bound, the proof checker treats it as intentionally
-unjoined and proves the spawned graph does not depend on the parent stack.
+The exact core outcome names remain library spelling, but the separation is
+semantic: task completion, cancellation, and provider failure belong to the
+outer lifecycle outcome; recoverable failure produced by `Worker::run` belongs
+inside `WorkResult` (or its application sum).
+
+There is no ownerless fire-and-forget operation. A caller that does not retain
+the result transfers the task to ordinary owner data, commonly a supervisor:
+
+```omega
+machine App::start_logging(
+    &mut self,
+    runtime: &TaskRuntime,
+    line: LogLine
+) {
+    let task: Task<LogResult> =
+        runtime.start<Logger::write>(move line);
+
+    self.logs.adopt(move task);
+}
+```
+
+A supervisor is policy over owned task claims: it may retain handles, request
+cancellation, finish children, classify outcomes, and restart work. It is not
+the task runtime and need not own child frame storage. A failure mailbox is an
+optional event-loop/library choice rather than a condition of task execution.
+
+Region-backed pools, bounded mailboxes, and supervisors are reference packages
+over ordinary ownership, linearity, and boundary providers. The language adds
+no pool, mailbox, nursery, scope, or manager construct.
 
 ## Waitable Contracts: Retained Substrate Direction
 
@@ -235,7 +278,7 @@ uses one futex-shaped scheduler boundary (wait on a word/value condition and
 wake N waiters), with higher-level operations implemented as libraries where
 the target permits it:
 
-- `Join<T>::join` waits on the child's completion word.
+- `Task<T>::finish` waits on the activation's completion state.
 - `Mutex<T>::lock` waits on the lock word (happy path never waits).
 - `Barrier<N>::wait` waits on the arrival-count word.
 - `Pipe::read` / `Socket::recv` / event queues wait on their buffer words;
@@ -285,8 +328,8 @@ Working rules:
   ([Memory Layout And ABI](chapter_20_memory_layout_abi.md)).
 
 Atomics underpin the waitable types above (`Mutex`, `Barrier`) and shared-ring
-IPC, so they sit below `spawn` in the implementation order even though they
-appear later in this chapter.[^atomics-open]
+IPC, so they sit below a concurrent task-runtime provider in the implementation
+order even though they appear later in this chapter.[^atomics-open]
 
 [^atomics-open]: Open details: whether atomics lower as compiler intrinsics or
 boundary operators with instruction contracts (intrinsics are the working
@@ -301,15 +344,15 @@ The proof checker can extract a small transition model from concurrent machine
 graphs.
 
 ```text
-processes = spawned machine graphs
-resources = joins, locks, queues, barriers, pipes, fd waits, external events
+processes = concurrently activated machine graphs
+resources = task completions, locks, queues, barriers, pipes, fd waits, external events
 actions = machine transitions and waitable operations
 edges = waits-for, owns, releases, unblocks
 ```
 
 Then it can check properties such as:
 
-- A `join` does not wait on a spawned graph that waits back on the joiner.
+- A `finish` does not wait on an activation that waits back on its claimant.
 - Lock acquisition order has no cycle.
 - A blocking receive has a reachable sender, close, timeout, or external-event
   assumption.
@@ -322,7 +365,7 @@ visible that the compiler can build a finite proof model.
 
 ## Minimal Deadlock Shapes
 
-Join cycle:
+Task-completion cycle:
 
 ```text
 A waits for B
@@ -344,7 +387,7 @@ no reachable send, close, timeout, or external event can unblock it
 ```
 
 These are proof obligations over waitable contracts, not special cases baked
-into `spawn`.
+into task-start syntax.
 
 ## Proof Modes
 

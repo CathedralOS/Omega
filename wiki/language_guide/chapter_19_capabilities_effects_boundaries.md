@@ -586,17 +586,15 @@ API.
 ## Host Providers
 
 Some targets do not need a named user-mode library for the lowest boundary.
-Linux can expose a target syscall surface directly. That mapping is provider
-metadata for a boundary trait, not a different user-facing callable concept.
+Linux can expose a target syscall surface directly. That mapping is a
+`ProviderPlan` value for a boundary trait, not a different user-facing callable
+concept. There is no `provides` declaration keyword.
 
-```omega
-host linux_aarch64 provides Console {
-    write_line -> syscall 64;
-    write -> syscall 64;
-    read_line -> syscall 63;
-    exit_process -> syscall 94;
-}
-```
+The target's core/std package constructs a candidate plan binding the Console
+requirements to syscalls 64, 63, and 94. The plan is structurally validated,
+admitted with trust receipts, and selected for the Console slot. `build.omg`
+normally selects the target package's default set; a test harness or component
+manager holding selection authority may substitute a different admitted plan.
 
 This is the same proof shape as a library import:
 
@@ -606,7 +604,7 @@ This is the same proof shape as a library import:
   authored as target-package metadata.
 - The build artifact records which registered boundary providers were used.
 
-The exact provider syntax is provisional. The important design point is that
+The exact plan-construction syntax is provisional. The important design point is that
 raw syscall tables, imported DLL functions, firmware jumps, and loader hooks
 are provider details for boundary traits, not normal Omega machines.
 

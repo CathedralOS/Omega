@@ -1,19 +1,25 @@
 # Design Brief: Concurrency And Atomics
 
 Current as of 2026-07-18. This brief records the surviving concurrency model
-after decisions 20–22. Chapter 18 is the user-facing authority. The suspension
-amendment remains open; obsolete mandatory-`await`, spawn-only suspension,
-single-level carry-set, blanket loan-death, and Join-on-drop designs are not
-part of this document.
+after decisions 20–22 and the task-runtime settlement. Chapter 18 is the
+user-facing authority; the detailed lifecycle record is
+[task_runtime_and_lifecycle.md](task_runtime_and_lifecycle.md). The suspension
+amendment remains open. Mandatory `await`, spawn-only suspension, bare `spawn`,
+single-level carry sets, blanket loan death, erased `Join<T>`, implicit detach,
+and Join-on-drop designs are not canon.
 
 ## Settled language model
 
 - Concurrency runs ordinary machines. There is no `async machine` species and
   no `Future<T>` transformation.
-- `spawn` creates concurrent work using ordinary move/copy/borrow rules.
-  Borrowing spawns are lexically scoped.
-- `Join<T>` is linear. `join`, `cancel`, or authorized `detach` consumes the
-  obligation; scope exit cannot do so implicitly.
+- An admitted `TaskRuntime` provider starts a named machine supplied as a
+  compile-time machine-symbol parameter. The compiler derives the activation
+  plan; no runtime function value or capture inference is implied.
+- `Task<T>` is a linear lifecycle claim. `finish` terminally consumes it;
+  `request_cancel` retains it; moving it into another owner transfers the
+  obligation. Scope exit and implicit detach cannot discharge it.
+- Start is transactional. Dynamic rejection returns every moved argument and
+  caller-supplied storage lease.
 - Automatic cleanup may relinquish affine resources but may not suspend or
   fail.
 - Suspension and worker blocking are distinct operational possibilities:
@@ -25,8 +31,12 @@ part of this document.
   does not unwind or interrupt arbitrary states.
 - Multiplexing is a library/data problem: producers post case-bearing events to
   a bounded queue. The language does not need a `select` construct.
-- Task and continuation storage are compiler-planned and bounded by explicit
-  activation capacity. Bounded does not mean one retained frame.
+- Runtime custody, physical storage ownership, and lifecycle-claim ownership
+  are separate. The compiler plans local activation requirements; admitted
+  providers may use Region-backed, OS, remote, or inline storage strategies.
+- Pools, supervisors, mailboxes, and task groups are library data/policy, not
+  language constructs. `RegionTaskPool` is the bounded reference package, not
+  the universal task model.
 
 ## Suspension amendment still required
 
@@ -47,9 +57,9 @@ or kill every loan at suspension merely because those rules simplify lowering.
 ## Wait substrate
 
 The retained direction uses one small futex-shaped scheduler boundary: wait on
-a word/value condition and wake one or more waiters. Higher-level joins,
-mutexes, barriers, channels, sockets, and event queues are libraries over that
-contract where the target permits it.
+a word/value condition and wake one or more waiters. Higher-level task
+completion, mutexes, barriers, channels, sockets, and event queues are
+libraries over that contract where the target permits it.
 
 Reach and temporal behavior remain separate. `wake_one` reaches the scheduler
 service without parking; a wait operation may carry `Suspend`, `Block`, or both
@@ -93,14 +103,14 @@ Still required:
 The checker can extract a finite model from checked machine graphs:
 
 ```text
-processes = spawned machine graphs
-resources = joins, locks, queues, barriers, waits, external events
+processes = concurrently activated machine graphs
+resources = task completions, locks, queues, barriers, waits, external events
 edges     = waits-for, owns, releases, unblocks
 ```
 
 The first useful obligations are structural:
 
-- no join cycle;
+- no task-completion cycle;
 - no lock-order cycle;
 - every internal receive has a reachable producer, close, cancellation, or
   timeout path;
@@ -131,19 +141,25 @@ hard-real-time requirements force it.
 
 1. A wake-only scheduler call does not acquire `Suspend`.
 2. A blocking provider cannot satisfy a suspend-only slot.
-3. A live `Join<T>` at scope exit is rejected.
-4. Automatic cleanup never joins, parks, or reports failure.
-5. Two borrowing spawns must consume their joins before the borrowed scope
-   ends.
+3. A live `Task<T>` at scope exit is rejected.
+4. Automatic cleanup never settles a task, parks, or reports failure.
+5. A rejected task start returns all moved arguments and storage leases.
 6. Ordinary shared mutable data is rejected unless its type supplies a valid
    concurrent-access contract.
 7. Atomic ordering is explicit and invalid success/failure pairs reject.
 8. A deadlock proof depending on fairness requires a provider contract that
    actually promises fairness.
+9. Region-, OS-, remote-, and inline-backed runtimes refine the same task
+   requirement without sharing one storage representation.
+10. A pool/runtime cannot close while dependent task claims or leases remain.
 
-## Open design work
+## Implementation and deferred design work
 
 - Suspension amendment: continuation representation and suspension-safe loans.
+- `TaskRuntime` requirement, activation-plan artifact, transactional start
+  outcome, task/provider provenance, and child-lease accounting.
+- Core `Task<T>` lifecycle outcome and terminal-consumer implementation.
+- `RegionTaskPool`, bounded mailbox, and supervisor reference packages.
 - Scheduler contracts using decision 23's sealed progress profiles; general
   trace propositions and profile entailment remain deferred.
 - Scheduler operation details and provider admission tests.
