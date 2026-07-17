@@ -1014,6 +1014,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("calls/float_value_call_return_exit", 70),
     ("calls/float_value_call_runtime_arg_exit", 70),
     ("float/runtime_std_is_finite_exit", 70),
+    ("float/f32_chain_per_op_rounding_exit", 70),
     ("calls/struct_literal_transition_arg_exit", 70),
     ("slices/runtime_indexed_element_copy_write_exit", 70),
     ("filesystem/windows_wrapper_breadth_exit", 70),
@@ -1106,6 +1107,20 @@ const EXCLUDED_RUN_CANARIES: &[(&str, &str)] = &[
     (
         "dungeon/runtime_threaded_mut_arg_interrupt_soak_exit",
         "interrupt-timing soak: fifty million dispatched iterations target NATIVE kernel-preemption windows (the Darwin x18 scratch-register regression); interpreting that loop adds minutes of pure overhead with no oracle value",
+    ),
+    // The F4/F5 saturating-float rows above are aarch64-gated in
+    // RUN_CANARIES (FCVTZS is natively these semantics; x86's cvttsd2si
+    // fixup is the F4/F5 remainder), so non-aarch64 hosts exclude them
+    // here -- the OVERLAP check keeps the two lists arch-exclusive.
+    #[cfg(not(target_arch = "aarch64"))]
+    (
+        "arithmetic/float_to_int_saturating_exit",
+        "aarch64-gated RUN row (F4): x86_64 native lowering of the Saturating float->int cast (cvttsd2si fixup) is not built yet; the interp oracle leg is asserted by its canary_suite test",
+    ),
+    #[cfg(not(target_arch = "aarch64"))]
+    (
+        "arithmetic/float_saturating_overflow_exit",
+        "aarch64-gated RUN row (F5): x86_64 native Saturating float arithmetic is not built yet (rides the F4 cvttsd2si remainder); the interp oracle leg is asserted by its canary_suite test",
     ),
 ];
 

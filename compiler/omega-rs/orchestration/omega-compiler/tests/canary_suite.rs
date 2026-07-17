@@ -13804,6 +13804,52 @@ stderr:
 }
 
 #[test]
+fn f32_chain_per_op_rounding_canary_runs() {
+    // F2c: an f32 arithmetic chain rounds per OP at f32 -- the nested
+    // binary operand plans the 4-byte op from the literal's LANDED format
+    // instead of defaulting float literals to F64 (which computed `addsd`
+    // over f32 bit patterns and diverged from the interpreter).
+    let canary = pass_canary("float/f32_chain_per_op_rounding_exit");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("f32 chain canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should exit 70 (per-op f32 rounding), got {}",
+        outcome.exit_code
+    );
+
+    let build_dir = std::env::temp_dir().join(format!("omega-f32-chain-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("f32 chain canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("f32 chain canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected per-op f32 rounding natively (exit 70), got {:?} (71 = a double-width intermediate crept into the f32 chain)
+stderr:
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_std_is_finite_canary_runs() {
     // std is_finite three-leg: finite -> true, runtime inf -> false,
     // runtime NaN -> false; the false legs ride the inlined arm-guard
@@ -31023,6 +31069,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "calls/float_value_call_return_exit",
     "calls/float_value_call_runtime_arg_exit",
     "float/runtime_std_is_finite_exit",
+    "float/f32_chain_per_op_rounding_exit",
     "collections/runtime_palindrome_two_pointer_exit",
     "collections/runtime_bracket_matcher_stack_exit",
     "collections/runtime_argmax_index_exit",
