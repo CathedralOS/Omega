@@ -107,6 +107,30 @@ re-derive it from `boundary`, bodies, and effect names.
 Consumption eligibility should normally be derived views/queries over the
 contract, not stored independent booleans that can drift.
 
+The supply representation must preserve the four settled variants directly:
+
+```text
+MachineSupplyMode =
+    CheckedBody
+  | RequiredBody
+  | ExternalRealization { binding: NormalizedBindingId }
+  | AcceptedDeclaration
+```
+
+`ExternalRealization` is sourced by `satisfies ... via <Binding>`. The binding
+expression is compile-time evaluated and normalized before checked-plan
+construction. It is not an executable body, and it does not author a trust
+class or a second effects row. The satisfied requirement supplies the public
+contract/ceiling; validation and admission check the binding/provider behavior
+as a refinement and produce any trust receipt. `ProviderPlan` is then derived
+from explicit conformance closure rather than authored rows.
+
+Source `boundary` remains insufficient to reconstruct this enum: a checked
+exported callable and an accepted bodyless declaration both mention the word
+but have different supply modes. Likewise, body absence distinguishes a trait
+requirement only in its declaration context. Populate the enum once during
+semantic lowering and carry it thereafter.
+
 Termination needs an explicit interface/implementation split:
 
 ```text

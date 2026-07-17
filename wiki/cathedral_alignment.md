@@ -118,8 +118,9 @@ implementation work. Each one gets more expensive to retrofit every month.
    (`programmable_layouts.md`); foreign *pointers* use the extern brief's
    “Foreign pointer cases”
    taxonomy (borrows for call-scoped args, gated tokens / owned mints for
-   returned pointers, `ProviderPlan` mappings over the `Binding` sum — `Syscall(n)` /
-   `DllImport(m, s)` / `VtableSlot(i)` — for call targets). Remaining asks:
+   returned pointers, and explicit `satisfies ... via <Binding>` leaves —
+   `Syscall(n)` / `DllImport(m, s)` / `VtableSlot(i)` — from which the
+   toolchain derives `ProviderPlan` call-target mappings). Remaining asks:
    no-host target + entry spelling, lowering-contract vocabulary (volatile
    `exactly_once`, `clobbers tlb`), and the **entry-stub lowering** — one
    design for interrupt entry, the firmware seam's UEFI export table, and

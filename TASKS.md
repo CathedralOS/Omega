@@ -3239,14 +3239,18 @@ rejects — an INTEGER ruling, engineering rides this ladder as F8).
   -- the platform-requires feature pins) and the parser/consumer
   machinery; retiring the keyword = migrate those two pins' subject
   to boundary-trait requires + delete the platform parse/consumers
-  (P4d's sweep). P4a FLIP + P4b
-  DESIGN-BLOCKED 2026-07-20 (OWNER_QUESTIONS "Authored ProviderPlan
-  spelling"): the populate tables' Console rows are lowering
-  SEQUENCES + call shapes that neither the retiring provides grammar
-  nor any authored surface can spell -- the flip's source needs the
-  authored plan spelling (3 questions recorded: row spelling,
-  build.omg selection, interim-Rust-values-or-wait). The oracle
-  guarantees equivalence whenever the flip lands. P4d PROGRESS
+  (P4d's sweep). P4a FLIP + P4b DESIGN-RULED / UNBLOCKED 2026-07-20:
+  ProviderPlans are DERIVED artifacts, never authored row collections.
+  Composite lowering sequences and argument adaptation become ordinary
+  checked machines with explicit `satisfies`; irreducible leaves use
+  `satisfies Requirement via <Binding>;`, where the Binding expression is
+  compile-time evaluable and normalized. The satisfied requirement supplies
+  the public contract/effect ceiling; validation/admission checks the leaf as
+  a refinement and assigns trust. Target packages declare default provider
+  types; build/test/component slot owners select those defaults or override a
+  whole slot by type. No plan-builder API, call-shape DSL, authored effect_set,
+  or structurally inferred conformance. The oracle guarantees equivalence
+  while the source migrates. P4d PROGRESS
   2026-07-20: platform blocks RETIRED -- the two platform-requires
   feature pins migrated to boundary-trait spelling (same pass/fail
   behavior, renamed call_requires_boundary_*), the parse arm refuses
@@ -3262,11 +3266,22 @@ rejects — an INTEGER ruling, engineering rides this ladder as F8).
   (state_signatures ownership walks, the interpreter's platform
   paths) -- a follow-up sweep wave when convenient; and the
   `platform` KEYWORD token itself (the retirement diagnostic needs
-  it). The provides retirement waits on the plan-spelling ruling
-  (provides still carries the fs Value rows). P4b FILESYSTEM: the per-target Value provides rows
-  (targets/<t>/filesystem.provides.omg) re-authored as plan values
-  in std target packages; slot-owner selection = build.omg target
-  blocks choosing the default plan set + per-slot overrides. P4c
+  it). The `provides` retirement is now ENGINEERING-UNBLOCKED; it still
+  carries the filesystem Value rows until their format/layout replacements
+  land. IMPLEMENTATION ORDER (do not reorder):
+  (1) add the `via` parser/tree/normalized `ExternalRealization { binding }`
+  supply variant and make leaf conformances feed the EXISTING lowering;
+  (2) derive ProviderPlan coverage/signatures/effects/dependency closure from
+  explicit `satisfies` edges and add target-default + type-per-slot selection;
+  (3) replace Console `HostOperations`/call-shape rows with checked Omega
+  adapter machines while the lossless oracle compares old/new;
+  (4) move foreign offsets and bit constants out of `Binding::Value` into
+  programmable layout/format declarations, then migrate filesystem leaves;
+  (5) delete `call_shape`, `HostOperations`, `Value`, populate tables, and the
+  `provides` syntax/consumers only after their last users disappear.
+  P4b FILESYSTEM: use checked adapters + `via` leaves in std target packages;
+  provider selection is target defaults plus whole-slot type overrides through
+  ordinary Build library machines. P4c
   FLOAT/F7: the Instruction binding arm formalizes the hardcoded
   IEEE lowering (needs the instruction-plan machinery -- may gate).
   P4d RETIREMENT: the provides keyword + platform blocks + the
@@ -3279,9 +3294,24 @@ rejects — an INTEGER ruling, engineering rides this ladder as F8).
   slot-owner capability; PRV4 move target defaults into ordinary omega::core/std
   target packages, have `build.omg` select the target default set plus explicit
   per-slot overrides, and migrate Console/filesystem/float providers and
-  canaries. Construction is free, validation proves structure, admission buys
-  commitments, selection binds a slot. Trust classification is admission
-  output, never author-selected plan data.
+  canaries. Binding construction is free and compile-time evaluation may
+  compute a leaf; deterministic derivation/validation proves structure,
+  admission buys commitments, and selection binds a slot. Trust
+  classification is admission output, never author-selected plan data.
+
+- **Machine body/supply spelling (decision-20 follow-through, RULED
+  2026-07-20):** delete the unimplemented expression-bodied
+  `machine f(...) = expr;` sketch. `{ ... }` is the only executable machine
+  body, including one-expression predicates. Preserve four distinct semantic
+  supply variants and spellings: checked `{ ... }`; bodyless trait
+  requirement; external `satisfies ... via <Binding>;`; accepted bodyless
+  `boundary machine ... ensures ...;`. Parser work: add `via` as mutually
+  exclusive with a body, require an explicit `satisfies` target, const-evaluate
+  and normalize the Binding, and carry its ID through resolved/typed/checked
+  trees. Add pass/fail canaries for qualified `Binding::DllImport`, runtime-
+  dependent bindings, `via` plus body, missing `satisfies`, repeated `effects`,
+  signature mismatch, and admission/refinement failure. The current corpus has
+  no implemented `= expr` dependency; Chapter 8's stale example was prose only.
 - **Float-to-int cast overflow — implement proof-or-policy.** Exact =
   unproven obligation (prove via guard/declared range, NaN excluded by
   `x == x`); `in Saturating` = clamp all targets (NaN -> 0; x86 grows the
@@ -3367,7 +3397,8 @@ rejects — an INTEGER ruling, engineering rides this ladder as F8).
   "push complexity to edges"): target-filtered sibling IMPL files —
   `std/targets/<target>/filesystem_impl.omg` holds that target's
   implementation machines beside its legacy provides rows (to migrate to
-  `ProviderPlan` values), gated by the same
+  checked `satisfies` adapters + `via` leaves; ProviderPlans are derived),
+  gated by the same
   target filter; the portable layer declares the contract signatures;
   a selected target with zero or two implementations = loud compile
   error; enforcement = name+signature match first, `satisfies` later.
@@ -3873,8 +3904,11 @@ lowering can use it. Authoritative audit and target shapes:
   metadata, fact membership separate from semantic qualification. Hybrid
   domains must not be duplicated or guessed from body contents.
 - **Machines (decision 20):** normalized complete machine contract plus
-  explicit checked/required/external/accepted supply mode. Consumption
-  eligibility is derived. `boundary: bool` is not the semantic model.
+  explicit checked/required/external/accepted supply mode; external supply
+  carries the normalized `Binding` ID produced by `via`. Consumption
+  eligibility is derived. `boundary: bool` is not the semantic model, and
+  ProviderPlan rows are derived from explicit conformance closure rather than
+  stored as authored machine metadata.
 - **Task activation/lifecycle:** deterministically derived
   `TaskActivationPlan` (machine-contract/entry IDs, argument/outcome layouts,
   continuation requirement, cancellation/effect contract) plus permission

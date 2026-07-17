@@ -108,6 +108,51 @@ machine Parser::resolve(
 Every reachable terminal path in a typed machine must produce a compatible
 return value.
 
+Machine code always uses a brace body. There is no `machine f(...) = expr;`
+form; a one-expression machine simply returns its final expression:
+
+```omega
+machine in_span(g: Game) -> bool {
+    g.turn in 1..=9
+}
+```
+
+## Supply Forms
+
+The one machine construct has four explicit supply forms:
+
+| Supply | Spelling |
+|---|---|
+| Checked Omega implementation | `{ ... }` body |
+| Trait requirement | Bodyless declaration inside the trait |
+| External realization | `satisfies Requirement via <Binding>;` |
+| Accepted claim | Bodyless `boundary machine ... ensures ...;` |
+
+An external realization binds an irreducible imported operation to a
+requirement without pretending the binding is executable Omega code:
+
+```omega
+machine Kernel32::write_file(handle: WinHandle, bytes: &[u8]) -> WriteResult
+    satisfies Kernel32Requirements::write_file
+    via Binding::DllImport {
+        library: kernel32_lib,
+        symbol: write_file_symbol,
+        plan: MsX64,
+    };
+```
+
+The value after `via` must be compile-time evaluable to the closed `Binding`
+vocabulary. The compiler normalizes and validates it, derives the provider
+plan from explicit conformances, and assigns any trust expenditure only when
+the provider is admitted. `satisfies` supplies the requirement contract and
+public effect ceiling; the binding/provider behavior must refine it. A `via`
+machine does not repeat an `effects` clause.
+
+Composite adaptation is ordinary checked code. For example, an implementation
+of `Console::write_line` may call separately bound `get_stdout` and
+`write_file` machines, cache a handle, or merge writes. Those decisions belong
+in its brace body rather than a call-shape DSL or authored plan row.
+
 ## Calls
 
 Ordinary call syntax enters a machine and creates a call frame.

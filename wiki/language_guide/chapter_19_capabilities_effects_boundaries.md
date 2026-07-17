@@ -587,26 +587,37 @@ API.
 
 Some targets do not need a named user-mode library for the lowest boundary.
 Linux can expose a target syscall surface directly. That mapping is a
-`ProviderPlan` value for a boundary trait, not a different user-facing callable
-concept. There is no `provides` declaration keyword.
+derived `ProviderPlan` for a boundary trait, not a different user-facing
+callable concept. There is no `provides` declaration keyword and no authored
+row-builder API.
 
-The target's core/std package constructs a candidate plan binding the Console
-requirements to syscalls 64, 63, and 94. The plan is structurally validated,
-admitted with trust receipts, and selected for the Console slot. `build.omg`
-normally selects the target package's default set; a test harness or component
-manager holding selection authority may substitute a different admitted plan.
+The target's core/std package declares leaf machines satisfying the raw syscall
+requirements `via Binding::Syscall { ... }` and ordinary checked adapter
+machines satisfying Console. The compiler derives their normalized plan from
+the explicit conformance closure, validates it, admits it with trust receipts,
+and selects its provider type for the Console slot. `build.omg` normally
+selects the target package's default provider set; a test harness or component
+manager holding selection authority may substitute a different admitted
+provider for an individual slot. Defaults are target-package declarations,
+not compiler tables.
 
 This is the same proof shape as a library import:
 
 - Omega proves caller-side type and state invariants.
 - The imported boundary is accepted to satisfy its declared guarantees.
-- The mapping is recorded as a `HostAbiCall` provider in the boundary registry,
-  authored as target-package metadata.
+- The irreducible mapping is authored as a compile-time `Binding` value on a
+  `via` declaration and recorded as a `HostAbiCall` provider in the boundary
+  registry.
 - The build artifact records which registered boundary providers were used.
 
-The exact plan-construction syntax is provisional. The important design point is that
-raw syscall tables, imported DLL functions, firmware jumps, and loader hooks
-are provider details for boundary traits, not normal Omega machines.
+`via` bindings are the external-provider supply form of otherwise ordinary
+machines. Raw syscall numbers, imported DLL functions, firmware jumps,
+compiler intrinsics, and instruction leaves are binding details; sequences,
+argument reshaping, newline policy, caching, and other composition are normal
+checked Omega machines. The satisfied requirement contributes the public
+effect ceiling, while the binding/provider contract supplies behavior that
+must refine it. Trust is assigned at admission rather than selected by source
+spelling.
 
 ## Freestanding Targets And Hardware Facts
 

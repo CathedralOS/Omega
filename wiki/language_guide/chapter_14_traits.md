@@ -87,7 +87,9 @@ fulfills the matching requirement from `Incrementable`.
 > (`satisfies CommutativeSemiring::mul as Tropical`) — the missing
 > disambiguation half of name-divergent binding, same
 > elide-when-unique/loud-when-plural pattern; (4) clause order is
-> signature → `satisfies` → `terminates [by ...]` → `ensures` → body.
+> signature → `satisfies` → `terminates [by ...]` → ordinary contracts →
+> checked body, or signature → `satisfies` → `via <Binding>;` for an
+> irreducible external realization.
 
 A satisfying implementation inherits the requirement's authored contracts,
 including `requires`, `ensures`, effect ceiling, and bare `terminates`
@@ -136,7 +138,9 @@ effects
 
 Clause ordering is signature, `satisfies`, `terminates [by ...]`, ordinary
 contracts/effect ceiling, then body. Trait binding belongs with the machine
-contract, not inside the machine name.
+contract, not inside the machine name. An irreducible external implementation
+instead ends with `via <Binding>;`; it inherits the requirement contract and
+cannot also carry a body or repeat an `effects` ceiling.
 
 ## Individual Machine Requirements
 

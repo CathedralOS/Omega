@@ -427,10 +427,12 @@ For domain matches the compiler checks:
 Sub-domains reuse facts *vertically* (a refinement chain). To reuse a fact
 *horizontally* — a shared condition across unrelated domains — name a pure
 bool-returning machine and call it. There is no separate `predicate` binder; a
-predicate is just a terse machine:
+predicate is an ordinary machine with an ordinary brace body:
 
 ```omega
-machine in_span(g: Game) -> bool = g.turn in 1..=9;   // reusable condition, no identity
+machine in_span(g: Game) -> bool {
+    g.turn in 1..=9
+}
 
 domain Game::Playing { self.phase == GamePhase.Playing; in_span(self); }
 domain Game::Sudden  { self.phase == GamePhase.Playing; in_span(self); self.turn == 9; }
