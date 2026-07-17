@@ -132,10 +132,35 @@ pub(crate) fn validate_recasts(program: &TypedTrees, diagnostics: &mut Vec<Diagn
     }
 }
 
+/// GR2 (the MintAuthority half, chapter-10 carrier): the grant table an
+/// in-program validation run consults. Every domain DECLARED in this
+/// compilation unit is own-package and therefore DEV-ACTIVE (grant
+/// locality: own-package claims carry standing authority until packages
+/// exist; a package's domains will arrive INERT and only the root grant --
+/// GR3's `accept_boundary` -- activates them). Built once per run; the
+/// consult point below is where package-inert refusal and root grants
+/// land without touching the predicate machinery.
+fn in_program_trust_table(program: &TypedTrees) -> omega_core::trust::TrustGrantTable {
+    let mut table = omega_core::trust::TrustGrantTable::default();
+    for domain in program.domain_definitions() {
+        if domain.semantic_id.is_valid() {
+            table.grant(omega_core::trust::TrustGrant {
+                commitment: omega_core::trust::TrustCommitment::SemanticDomainIntroduction(
+                    domain.semantic_id,
+                ),
+                provenance: omega_core::trust::TrustProvenance::OwnPackageDev,
+            });
+        }
+    }
+    table
+}
+
 /// Judge one qualification cast (`x as T in <DeclaredDomain>`, decision 19).
-/// In-program authority is the owning package's (sealed-vs-open bites at
-/// package boundaries, which do not exist in-program). The PREDICATE
-/// obligation discharges by (a) folding every domain fact at a LITERAL
+/// INTRODUCTION AUTHORITY consults the chapter-10 carrier first (GR2): the
+/// domain's commitment must be granted here -- own-package declarations are
+/// dev-active, so every in-program mint passes today; the consult is the
+/// seam where package inertness and root grants bite. The PREDICATE
+/// obligation then discharges by (a) folding every domain fact at a LITERAL
 /// value, or (b) with machine/state context, entailing every fact from the
 /// value's DECLARED RANGE (flow-integration v1); anything else keeps the
 /// staged refusal.
@@ -160,6 +185,23 @@ fn judge_qualification_cast(
     });
     match declared {
         Some(domain) => {
+            let trust = in_program_trust_table(program);
+            if trust
+                .authority(
+                    &omega_core::trust::TrustCommitment::SemanticDomainIntroduction(
+                        domain.semantic_id,
+                    ),
+                )
+                .is_none()
+            {
+                diagnostics.push(Diagnostic::error(format!(
+                    "sealed domain `{name}` has no introduction authority here: \
+                     own-package declarations are dev-active; a package's domain \
+                     is inert until the final build grants it \
+                     (`b.accept_boundary<..>();`)",
+                )));
+                return;
+            }
             let mut judgment = literal_mint_discharges(program, domain, cast.value);
             if matches!(judgment, MintJudgment::NotLiteral)
                 && let Some((machine, state)) = context
