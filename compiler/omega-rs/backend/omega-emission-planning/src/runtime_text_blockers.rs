@@ -123,6 +123,7 @@ fn state_value_has_planned_storage_write(
                         | SelectedInstructionKind::WriteRuntimeByte { .. }
                         | SelectedInstructionKind::AtomicCompareExchange { .. }
                         | SelectedInstructionKind::WritePlaceInteger { .. }
+                        | SelectedInstructionKind::WritePlaceBinary { .. }
                         | SelectedInstructionKind::WriteRuntimeStorageBinary { .. }
                         | SelectedInstructionKind::WriteRuntimeStorageConvert { .. }
                         | SelectedInstructionKind::WriteRuntimePointeeBinary { .. }

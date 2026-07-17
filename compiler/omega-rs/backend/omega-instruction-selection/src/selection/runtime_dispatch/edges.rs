@@ -1113,7 +1113,7 @@ fn select_dispatch_binary_terminal_return(
     let left = runtime_value_operands.insert(left_operand);
     let right = runtime_value_operands.insert(right_operand);
     selected_instructions.push(SelectedInstruction {
-        kind: SelectedInstructionKind::WriteRuntimeStorageBinary {
+        kind: crate::selection::runtime_dispatch::write_place_binary_direct(
             target_region,
             target_offset,
             byte_size,
@@ -1122,8 +1122,8 @@ fn select_dispatch_binary_terminal_return(
             right,
             is_float,
             domain,
-            target_signed: !is_float && is_signed,
-        },
+            !is_float && is_signed,
+        ),
         source_key,
         source_statement: edge.statement_index,
     });

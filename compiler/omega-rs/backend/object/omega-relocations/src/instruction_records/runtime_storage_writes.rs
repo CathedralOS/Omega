@@ -66,10 +66,115 @@ pub(super) fn collect_runtime_storage_write_relocations(
                     collect_runtime_value_operand_relocations(context, right_offset, *right);
                 }
                 Architecture::Aarch64 => {
-                    unreachable!(
-                        "WritePlaceBinary has no aarch64 producers yet; its reloc arm \
-                         lands with the producer migration"
-                    )
+                    // Mirror the retained kinds' aarch64 arms by shape (the
+                    // SAME classifier the encoder decomposes with).
+                    context.insert_data_address_at_instruction_start(
+                        context.storage_region_symbol_handle(target.region),
+                    );
+                    let frame = omega_target_operations::RuntimeStorageRegion::RuntimeFrame;
+                    let shape =
+                        omega_instruction_selection::classify_write_place_shape(target);
+                    let mut operand_start = match shape {
+                        omega_instruction_selection::WritePlaceShape::Direct { .. } => {
+                            runtime_storage_binary_left_operand_offset(
+                                context.input.target.architecture,
+                            )
+                        }
+                        omega_instruction_selection::WritePlaceShape::Pointee {
+                            pointer_byte_offset,
+                            field_byte_offset,
+                        } => runtime_pointee_binary_left_operand_offset(
+                            context.input.target.architecture,
+                            pointer_byte_offset,
+                            field_byte_offset,
+                        ),
+                        omega_instruction_selection::WritePlaceShape::FrameIndexed {
+                            element_byte_size,
+                            field_byte_offset,
+                            ..
+                        } => runtime_frame_indexed_binary_left_operand_offset(
+                            context.input.target.architecture,
+                            element_byte_size,
+                            field_byte_offset,
+                        ),
+                        omega_instruction_selection::WritePlaceShape::FrameBaseIndexed {
+                            base_byte_offset,
+                            index_offset,
+                            element_byte_size,
+                            field_byte_offset,
+                        } => runtime_frame_base_indexed_binary_left_operand_offset(
+                            context.input.target.architecture,
+                            base_byte_offset,
+                            index_offset,
+                            element_byte_size,
+                            field_byte_offset,
+                        ),
+                        omega_instruction_selection::WritePlaceShape::MachineIndexed {
+                            base_byte_offset,
+                            index_region,
+                            index_offset,
+                            element_byte_size,
+                            field_byte_offset,
+                        } => {
+                            let mut start = runtime_frame_base_indexed_binary_left_operand_offset(
+                                context.input.target.architecture,
+                                base_byte_offset,
+                                index_offset,
+                                element_byte_size,
+                                field_byte_offset,
+                            );
+                            if index_region == frame {
+                                context.insert_data_address_at_relative_offset(
+                                    omega_instruction_selection::runtime_machine_indexed_string_runtime_frame_address_offset(
+                                        context.input.target.architecture,
+                                        base_byte_offset,
+                                    ),
+                                    context.runtime_frame_symbol_handle(),
+                                );
+                                start += 8;
+                            }
+                            start
+                        }
+                        omega_instruction_selection::WritePlaceShape::MachineDoubleIndexed {
+                            outer_index_region,
+                            inner_index_region,
+                            ..
+                        } => {
+                            if outer_index_region == frame || inner_index_region == frame {
+                                context.insert_data_address_at_relative_offset(
+                                    omega_instruction_selection::runtime_storage_copy_from_runtime_machine_double_indexed_frame_base_offset(
+                                        context.input.target.architecture,
+                                    ),
+                                    context.runtime_frame_symbol_handle(),
+                                );
+                            }
+                            omega_instruction_selection::runtime_machine_double_indexed_binary_left_operand_offset(
+                                context.input.target.architecture,
+                                outer_index_region,
+                                inner_index_region,
+                            )
+                        }
+                        omega_instruction_selection::WritePlaceShape::Unsupported => {
+                            unreachable!(
+                                "an unsupported WritePlaceBinary shape refuses at \
+                                 aarch64 encoding; layout would have failed first"
+                            )
+                        }
+                    };
+                    let left_offset = context.selected_text_offset + operand_start;
+                    collect_runtime_value_operand_relocations(context, left_offset, *left);
+                    let left_width = omega_instruction_selection::runtime_value_operand_width(
+                        context.input.target.architecture,
+                        context.input.assigned_target_operations,
+                        *left,
+                    );
+                    let right_offset = left_offset
+                        + left_width
+                        + omega_instruction_selection::runtime_binary_right_operand_gap(
+                            context.input.target.architecture,
+                        );
+                    collect_runtime_value_operand_relocations(context, right_offset, *right);
+                    let _ = &mut operand_start;
                 }
             }
             true
