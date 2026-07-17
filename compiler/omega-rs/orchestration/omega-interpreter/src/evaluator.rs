@@ -897,19 +897,8 @@ impl<'program> Evaluator<'program> {
                 continue;
             };
             let name = field.name.as_str().to_owned();
-
-            let value = if field.initial_value.is_valid() {
-                let frame = Frame {
-                    locals: RefCell::new(BTreeMap::new()),
-                    self_cell: Value::Unit.cell(),
-                    machine_symbol: SymbolHandle::invalid(),
-                    scalar_locals: RefCell::new(BTreeMap::new()),
-                    guard_call_results: RefCell::new(Vec::new()),
-                };
-                self.eval_expression(field.initial_value, &frame)?
-            } else {
-                self.default_value_for_type(field.type_reference)?
-            };
+            // Field defaults are retired: every field ZII zero-initializes.
+            let value = self.default_value_for_type(field.type_reference)?;
             fields.insert(name, value.cell());
         }
         Ok(())

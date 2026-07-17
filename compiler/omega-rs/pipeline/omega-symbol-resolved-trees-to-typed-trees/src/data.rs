@@ -87,12 +87,6 @@ fn lower_data_member(
                 symbol: field.symbol,
                 name: crate::name::lower_name(&field.name),
                 type_reference: lower_type_reference_into_table(lowerer, &field.type_reference)?,
-                initial_value: field
-                    .initial_value
-                    .is_valid()
-                    .then(|| lower_expression_handle(lowerer, field.initial_value))
-                    .transpose()?
-                    .unwrap_or_else(typed::expression::ExpressionHandle::invalid),
             }))
         }
         resolved::data::DataMember::Variant(variant) => {
@@ -113,7 +107,6 @@ fn lower_data_member(
                         lowerer,
                         &field.type_reference,
                     )?,
-                    initial_value: typed::expression::ExpressionHandle::invalid(),
                 };
                 lowerer
                     .typed_trees

@@ -1168,126 +1168,6 @@ pub(crate) fn select_runtime_unaliased_storage_mutation_write_with_scratch(
     )
 }
 
-/// Emit writes that initialize the entry machine's data fields to their declared
-/// default values (`data Main { x: i32 = 5 }`). Without this a field with a default
-/// reads zero at runtime — the default is captured front-end (`DataField.initial_
-/// value`) but otherwise never emitted. Covers the ENTRY machine's own fields and,
-/// recursively, the fields of any nested `data` member (`data Main { c: Counter }`
-/// where `Counter` carries its own defaults), each at the accumulated byte offset
-/// inside the Machine region. Handles CONSTANT defaults (integer / boolean / float
-/// literal). Non-constant defaults are a follow-up (would need startup code that
-/// evaluates the initializer expression).
-fn select_entry_machine_field_default_writes(
-    input: &InstructionSelectionInput<'_>,
-    selected_instructions: &mut SelectedInstructionSink,
-) {
-    let Some((_, machine_layout)) = input
-        .layouts
-        .machine_layouts
-        .iter()
-        .find(|(_, layout)| layout.symbol == input.entry_key.machine)
-    else {
-        return;
-    };
-    let Some(fields) = input.layouts.fields.span(machine_layout.fields) else {
-        return;
-    };
-    for field in fields {
-        select_field_default_writes(input, field, 0, selected_instructions);
-    }
-}
-
-/// Emit the default write for a single field at `base_offset + field.offset`, then
-/// recurse into the field's type if it is itself a `data` record so nested defaults
-/// (`data Main { c: Counter }`, `Counter { base: i32 = 5 }`) are emitted too.
-fn select_field_default_writes(
-    input: &InstructionSelectionInput<'_>,
-    field: &omega_layout::FieldLayout,
-    base_offset: usize,
-    selected_instructions: &mut SelectedInstructionSink,
-) {
-    let field_offset = base_offset + field.offset;
-
-    if let Some(initial_value) = entry_machine_field_initial_value(input, field.symbol)
-        && matches!(field.layout.size, 1 | 2 | 4 | 8)
-        && let Some(value) =
-            constant_default_value(input, initial_value, field.layout.size)
-    {
-        selected_instructions.push(SelectedInstruction {
-            kind: crate::selection::runtime_dispatch::write_place_integer_direct(
-                RuntimeStorageRegion::Machine,
-                field_offset,
-                value,
-                field.layout.size,
-            ),
-            source_key: input.entry_key,
-            source_statement: 0,
-        });
-    }
-
-    // Recurse into a nested `data` record so its own field defaults are emitted at the
-    // accumulated offset. References/slices/arrays of data are skipped: their storage
-    // is not the inlined record bytes, so a default would not land on real fields.
-    if !matches!(field.type_descriptor, omega_layout::TypeLayoutDescriptor::Named { .. }) {
-        return;
-    }
-    let Some((_, nested_layout)) = input
-        .layouts
-        .data_layouts
-        .iter()
-        .find(|(_, data_layout)| data_layout.symbol == field.type_symbol)
-    else {
-        return;
-    };
-    let omega_layout::DataShape::Record { fields } = nested_layout.shape else {
-        return;
-    };
-    let Some(nested_fields) = input.layouts.fields.span(fields) else {
-        return;
-    };
-    for nested_field in nested_fields {
-        select_field_default_writes(input, nested_field, field_offset, selected_instructions);
-    }
-}
-
-/// Fold a constant default initializer into the raw bytes to store, sized to the
-/// field. Returns `None` for non-constant initializers.
-fn constant_default_value(
-    input: &InstructionSelectionInput<'_>,
-    initial_value: ExpressionHandle,
-    field_size: usize,
-) -> Option<i64> {
-    match input.program.expression_table.expression(initial_value) {
-        ExpressionNode::Integer(value) => value.value_i64(),
-        ExpressionNode::Boolean(value) => Some(i64::from(*value)),
-        ExpressionNode::Float(literal) => Some(if field_size <= 4 {
-            i64::from(literal.f32_bits())
-        } else {
-            literal.value().to_bits() as i64
-        }),
-        _ => None,
-    }
-}
-
-/// The declared default initializer for a data field, looked up by field symbol
-/// across the program's data definitions.
-fn entry_machine_field_initial_value(
-    input: &InstructionSelectionInput<'_>,
-    field_symbol: omega_core::symbols::SymbolHandle,
-) -> Option<ExpressionHandle> {
-    for data_definition in input.program.data_definitions() {
-        for member in input.program.data_members(data_definition) {
-            if let DataMember::Field(field) = member
-                && field.symbol == field_symbol
-                && field.initial_value.is_valid()
-            {
-                return Some(field.initial_value);
-            }
-        }
-    }
-    None
-}
-
 /// Emit the ENTRY PROLOGUE's argument unmarshal: one register store per declared
 /// entry parameter, mapping the parameter's frame slot (in declaration = offset
 /// order) to the platform's incoming argument register (MS-x64: RCX, RDX, R8,
@@ -1420,11 +1300,6 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
     // The entry prologue's argument unmarshal runs FIRST (the incoming argument
     // registers are volatile; anything else emitted here may clobber them).
     select_entry_argument_register_writes(input, selected_instructions);
-
-    // Initialize the entry machine's data-field defaults (`data Main { x: i32 = 5 }`)
-    // before the dispatch loop, so a field starts at its declared value rather than
-    // zero. Runs once at program entry.
-    select_entry_machine_field_default_writes(input, selected_instructions);
 
     selected_instructions.push(SelectedInstruction {
         kind: SelectedInstructionKind::EnterDispatchLoop {

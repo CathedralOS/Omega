@@ -175,7 +175,6 @@ pub enum DataMemberSnapshot {
     Field {
         name: IdentifierSnapshot,
         type_reference: TypeReferenceSnapshot,
-        initial_value: ExpressionSnapshot,
     },
     Variant {
         name: IdentifierSnapshot,
@@ -967,7 +966,6 @@ fn snapshot_data_member(syntax_trees: &SyntaxTrees, member: &DataMember) -> Data
         DataMember::Field(field) => DataMemberSnapshot::Field {
             name: snapshot_identifier(&field.name),
             type_reference: snapshot_type_reference_handle(syntax_trees, field.type_reference),
-            initial_value: snapshot_expression_handle(syntax_trees, field.initial_value),
         },
         DataMember::Variant(variant) => DataMemberSnapshot::Variant {
             name: snapshot_identifier(&variant.name),

@@ -655,11 +655,8 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
         {
             return Ok(literal_field.value);
         }
-        if field.initial_value.is_valid() {
-            return Ok(field.initial_value);
-        }
         Err(Diagnostic::error(format!(
-            "cannot synthesize structural `==`: the literal omits field `{}` and the field declares no default",
+            "cannot synthesize structural `==`: the literal omits field `{}`",
             field.name
         )))
     }

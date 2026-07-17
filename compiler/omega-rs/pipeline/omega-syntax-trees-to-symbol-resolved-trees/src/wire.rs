@@ -49,7 +49,6 @@ pub(crate) fn data_definition_from_wire_schema(
                 symbol: SymbolHandle::invalid(),
                 name: field.name.clone(),
                 type_reference: field.type_reference.clone(),
-                initial_value: omega_symbol_resolved_trees::expression::ExpressionHandle::invalid(),
             }),
             _ => None,
         })

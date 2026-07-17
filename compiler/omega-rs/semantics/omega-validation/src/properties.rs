@@ -275,14 +275,6 @@ fn validate_zero_init(
             None => format!("field `{}`", field.name),
         };
 
-        if field.initial_value.is_valid()
-            && !expression_is_zero_literal(program, field.initial_value)
-        {
-            diagnostics.push(Diagnostic::error(format!(
-                "data `{}` declares `[zero_init]` but {place} has a non-zero default: zero-means-empty requires the zeroed value to be the empty value",
-                data_definition.name
-            )));
-        }
 
         if !type_is_zero_init(program, symbols, type_parameters, field.type_reference) {
             if let Some(parameter) =

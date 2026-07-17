@@ -3282,12 +3282,21 @@ rejects — an INTEGER ruling, engineering rides this ladder as F8).
   + property_zero_init_nonzero_default + field_default_class_rejected +
   field_default_narrowing_rejected, pending array_field_default_silent.
   NEW PIN: fail/data/field_default_retired (array-literal default refuses
-  with the directed diagnostic). RUNG 2 REMAINING: sweep the now-dead
-  emission/validation paths (select_entry_machine_field_default_writes +
-  recursion, the interpreter's field-default arms at evaluator.rs
-  865/901, validation's mixed-common + zero_init-default checks, the
-  default-specific cross-class/narrowing checks in data.rs) and drop the
-  DataField.initial_value carrier across syntax/resolved/typed reps.
+  with the directed diagnostic). RUNG 2 LANDED 2026-07-20: the
+  DataField.initial_value carrier is GONE from all three
+  representations (syntax/resolved/typed) and every consumer swept
+  compiler-driven -- parser construction, resolver/typed lowerings +
+  wire, identity counters, snapshot variants, validation's
+  default-specific checks (cross-class/narrowing, mixed-common,
+  zero_init-nonzero), the checker's field-integer range seeding +
+  initializer value facts (the machine-OWNED data carrier is a
+  different feature and stays), the interpreter's construction arm
+  (ZII always), the four backend emission fns
+  (select_entry_machine_field_default_writes + recursion + constant
+  fold + lookup), and structural `==`'s omitted-field default
+  fallback (an omitted literal field now always refuses -- the
+  consistent tightening). TASK COMPLETE: the feature has no carrier,
+  no emission, no checks, and one parse-site refusal + pin.
 
 - **`pending_runtime_divergences_hold` — GREENED 2026-07-18 (ledger
   host-corrected):** (a) `float_to_int_overflow_divergence` now documents

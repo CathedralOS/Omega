@@ -69,9 +69,6 @@ fn count_item(syntax_trees: &SyntaxTrees, item: &Item, counts: &mut AstIdentityS
                     crate::item::DataMember::Field(field) => {
                         count_identifier(&field.name, counts);
                         count_type_reference_handle(syntax_trees, field.type_reference, counts);
-                        if field.initial_value.is_valid() {
-                            count_expression_handle(syntax_trees, field.initial_value, counts);
-                        }
                     }
                     crate::item::DataMember::Variant(variant) => {
                         count_identifier(&variant.name, counts);
@@ -287,9 +284,6 @@ fn count_data_member_identity_storage(
             crate::item::DataMember::Field(field) => {
                 count_identifier(&field.name, counts);
                 count_type_reference_handle(syntax_trees, field.type_reference, counts);
-                if field.initial_value.is_valid() {
-                    count_expression_handle(syntax_trees, field.initial_value, counts);
-                }
             }
             crate::item::DataMember::Variant(variant) => count_identifier(&variant.name, counts),
             crate::item::DataMember::Version(version) => {

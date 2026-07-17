@@ -309,7 +309,6 @@ fn expression_places_resolve_attached_data_members() {
             symbol: player_field_symbol,
             name: Identifier::generated("player"),
             type_reference: TypeReferenceHandle::invalid(),
-            initial_value: omega_typed_trees::expression::ExpressionHandle::invalid(),
         }),
     );
     program.push_data_definition(main_data);

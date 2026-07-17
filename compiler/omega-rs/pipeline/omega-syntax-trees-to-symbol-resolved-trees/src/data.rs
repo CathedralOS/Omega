@@ -227,7 +227,6 @@ pub(crate) fn lower_versioned_container_definition(
             symbol: SymbolHandle::invalid(),
             name: crate::name::lower_name(&Identifier::generated("u32".to_owned())),
         },
-        initial_value: omega_symbol_resolved_trees::expression::ExpressionHandle::invalid(),
     }));
 
     for version_name in version_names {
@@ -242,8 +241,7 @@ pub(crate) fn lower_versioned_container_definition(
                     "{data_name}::{version_name}"
                 ))),
             },
-            initial_value: omega_symbol_resolved_trees::expression::ExpressionHandle::invalid(),
-        }));
+            }));
     }
 
     members.push(DataMember::Field(DataField {
@@ -255,7 +253,6 @@ pub(crate) fn lower_versioned_container_definition(
             symbol: SymbolHandle::invalid(),
             name: crate::name::lower_name(&Identifier::generated(data_name.to_owned())),
         },
-        initial_value: omega_symbol_resolved_trees::expression::ExpressionHandle::invalid(),
     }));
 
     let mut span = HandleSpan::empty();
@@ -365,18 +362,6 @@ fn lower_data_member(
                 syntax_trees,
                 field.type_reference,
             )?,
-            initial_value: field
-                .initial_value
-                .is_valid()
-                .then(|| {
-                    lower_expression_into_table(
-                        syntax_trees,
-                        &mut lowerer.symbol_resolved_trees.tables.bodies.expressions,
-                        field.initial_value,
-                    )
-                })
-                .transpose()?
-                .unwrap_or_else(omega_symbol_resolved_trees::expression::ExpressionHandle::invalid),
         })),
         syntax::item::DataMember::Variant(variant) => {
             let mut payload = HandleSpan::empty();
@@ -389,8 +374,6 @@ fn lower_data_member(
                         syntax_trees,
                         field.type_reference,
                     )?,
-                    initial_value:
-                        omega_symbol_resolved_trees::expression::ExpressionHandle::invalid(),
                 };
                 lowerer
                     .symbol_resolved_trees
