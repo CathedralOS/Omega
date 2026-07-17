@@ -4054,11 +4054,24 @@ with a real app-window story.
   machine (dev-active standing warning / root-granted via
   accept_boundary name match). Pinned:
   pass/proofs/accepted_axiom_cited_exit (dual-engine + report-row
-  asserts), fail/proofs/accepted_axiom_engine_veto. REMAINING GR6:
-  qualification AUTHORITY half, ProgressProfile minting + premises
-  stubs, MachineContractPlan permission half; plus lockfile receipts
-  for accepted axioms (hash the rendered ensures -- currently only
-  domains and bare grants hash).
+  asserts), fail/proofs/accepted_axiom_engine_veto. AXIOM RECEIPTS LANDED
+  2026-07-20: a granted axiom's lockfile receipt hashes its rendered
+  ensures (editing the CLAIM under a grant is drift -- pinned by
+  granted_axiom_receipt_drifts_on_claim_edit). REMAINING GR6 (each
+  opens a subsystem arc; entry points): (a) qualification AUTHORITY
+  half -- qualifications.rs:26-32 body_committed gains the published
+  half when the STR4 publication model lands (rides GR6c); (b)
+  ProgressProfile minting + the three premises: Vec::new() stubs
+  (machine.rs:121-125 resolved, machine.rs:292 typed,
+  termination.rs:138 checked) -- needs the TPR4 profile-declaration
+  spelling (a profile is a sealed semantic domain over a
+  boundary-provider capability, ruled 2026-07-17); (c)
+  MachineContractPlan permission half + PRV3 provider admission --
+  the PRV1/PRV2 ProviderPlan carrier is the prerequisite (its own
+  NEXT-TASKS entry). The CARRIER ITSELF (task #3's subject) is
+  COMPLETE: types, consult, root grants, lockfile receipts + drift,
+  trust report, and the Accepted tier end-to-end; the remaining
+  consumers plug into it as their own subsystems land.
 
 ## Structural follow-ups (surface landed; semantics pending)
 

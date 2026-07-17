@@ -216,3 +216,72 @@ machine Main::main(&mut self) {{
 
     let _ = std::fs::remove_dir_all(&project);
 }
+
+#[test]
+fn granted_axiom_receipt_drifts_on_claim_edit() {
+    // GR6d lockfile polish: a granted axiom's receipt hashes its rendered
+    // ensures -- editing the CLAIM under the grant is drift.
+    let project = std::env::temp_dir().join(format!("omega-axiom-lock-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&project);
+    std::fs::create_dir_all(&project).expect("create project dir");
+    std::fs::write(
+        project.join("build.omg"),
+        r#"data Subsystem { case Console; case Gui; case EfiApplication; case Unspecified(value: u16); }
+data Build { subsystem: Subsystem; freestanding: bool; }
+
+machine build(b: &mut Build) {
+    b.accept_boundary<mul_comm_axiom>();
+}
+"#,
+    )
+    .expect("write build.omg");
+    let main_with = |claim: &str| {
+        format!(
+            r#"use omega::language::core::nat;
+boundary trait Console {{ machine exit_process(return_code: i32); }}
+data Main {{ console: Console; }}
+
+boundary machine mul_comm_axiom(a: Nat, b: Nat) -> Nat
+ensures
+    {claim};
+
+machine Main::main(&mut self) {{
+    self.console.exit_process(70);
+}}
+"#
+        )
+    };
+    std::fs::write(
+        project.join("main.omg"),
+        main_with("(mul(a, b)) == (mul(b, a))"),
+    )
+    .expect("write main.omg");
+
+    let build_dir = project.join("build");
+    let options = || CompileOptions {
+        root_path: project.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    };
+    compile(options()).expect("granted axiom project should compile");
+    let lock = std::fs::read_to_string(project.join("omega.lock")).expect("lock written");
+    assert!(
+        lock.contains("accepted fact: mul_comm_axiom"),
+        "expected the axiom receipt:\n{lock}"
+    );
+
+    // Edit the CLAIM under the grant -- drift refuses.
+    std::fs::write(
+        project.join("main.omg"),
+        main_with("(mul(a, b)) == (mul(a, b))"),
+    )
+    .expect("rewrite main.omg");
+    let message = format!("{:?}", compile(options()).expect_err("drift should refuse"));
+    assert!(
+        message.contains("granted statement drifted"),
+        "expected the drift refusal, got: {message}"
+    );
+
+    let _ = std::fs::remove_dir_all(&project);
+}
