@@ -3934,11 +3934,15 @@ with a real app-window story.
   omega-artifacts/src/lib.rs). THE LADDER (sealed-domain
   introduction first -- identity, interner, judge, and a failing
   canary already exist):
-  GR1 carrier types in omega-core -- TrustCommitment (identity enum:
-  SemanticDomainId today; ProgressProfileId, accepted machine
-  symbols, provider plans later), TrustGrant {commitment,
-  provenance}, TrustReceipt {commitment, statement hash},
-  TrustGrantTable. Types only.
+  GR1 LANDED 2026-07-20: omega-core/src/trust.rs -- TrustCommitment
+  (SemanticDomainIntroduction | ProgressProfile | AcceptedFact |
+  ProviderPlan), TrustProvenance (OwnPackageDev dev-active-with-
+  warning | RootGrant), TrustGrant, TrustReceipt {commitment,
+  statement_hash, provenance}, TrustGrantTable (grant/authority --
+  RootGrant outranks dev -- /admit-dedup/receipts); 2 unit tests.
+  Admission is OPAQUE by construction (the carrier never interprets
+  commitments; consumers validate, the carrier answers "granted
+  here?").
   GR2 the MintAuthority check -- judge_qualification_cast consults
   the grant table; grant-locality v1: OWN-PACKAGE declared domains
   are dev-active (mint allowed + standing-warning row), the staged
