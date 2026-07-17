@@ -1844,6 +1844,18 @@ pub fn runtime_storage_copy_from_runtime_machine_double_indexed_to_runtime_stora
 
 /// Frame-base relocation start inside the double-indexed read (pre-`+2`;
 /// present only when an index is frame-resident). x86_64 only.
+/// Write rung 1c (x86-only; aarch64 keeps the shared-base layout): the
+/// canonicalized double-indexed integer WRITE's per-index frame bases.
+pub fn runtime_machine_double_indexed_integer_write_outer_frame_offset() -> usize {
+    x86_64::runtime_machine_double_indexed_integer_write_outer_frame_offset()
+}
+
+pub fn runtime_machine_double_indexed_integer_write_inner_frame_offset(
+    outer_index_region: omega_target_operations::RuntimeStorageRegion,
+) -> usize {
+    x86_64::runtime_machine_double_indexed_integer_write_inner_frame_offset(outer_index_region)
+}
+
 pub fn runtime_storage_copy_from_runtime_machine_double_indexed_frame_base_offset(
     architecture: Architecture,
 ) -> usize {

@@ -668,17 +668,24 @@ sealed progress profiles + grants, TPR4's remaining big half).
    it; the retired layout used a separate r14 base) -- same width,
    one start reloc, differential green. FIVE of six integer-write
    x86 encoders now ride the materializer.
-   REMAINING 1c -- machine-double-indexed (analysis banked): the
-   retired layout materializes ONE shared r10 frame base for BOTH
-   frame-resident indices (single mov r10,imm64; the walker's
-   from_runtime_machine_double_indexed_frame_base_offset arm patches
-   it once); the materializer materializes each cross-region index
-   base SEPARATELY (r11 then r10, two imm64 movs, two sites) --
-   widths AND reloc positions change, so the delegation must rewrite
-   the WriteRuntimeMachineDoubleIndexedInteger walker arm (per-index
-   positions or sites-based) + the width fn in lockstep. After 1c:
-   rung 2a (the WritePlaceInteger variant + echo product + producer
-   migration collapses the seven variants).
+   MACHINE-DOUBLE-INDEXED LANDED
+   same day -- WRITE RUNG 1c COMPLETE (all six integer-write x86
+   encoders ride the materializer): the deepest canonicalization --
+   each frame-resident index now materializes its OWN base (r11
+   outer at offset 10, r10 inner at 10 + (17|7) + 7) where the
+   retired layout shared one r10; the width fn became per-region sums
+   (61 + 10 per frame index; both-frame grew 71->81); the
+   WriteRuntimeMachineDoubleIndexedInteger walker arm split PER-ARCH
+   (aarch64 keeps its retired shared-base layout + offset fn; x86
+   patches per-index via the new
+   runtime_machine_double_indexed_integer_write_{outer,inner}_frame_
+   offset pass-throughs). Differential green.
+   NEXT: rung 2a -- the WritePlaceInteger variant + echo product +
+   producer migration collapses the seven integer-write variants
+   (the Copy rung-2a pattern: variant in both enums, conversion,
+   classification RuntimeWrite, shapes machine-kind, encoding arm
+   x86->materializer / aarch64->shape decompose, layout width from
+   the encoder, walker via sites, report arm, then producers).
    Rung 2a after: the WritePlaceInteger variant + echo product +
    producer migration. Pre-existing dead helpers noted en route (shapes/copies.rs
    runtime_storage_copy_kind + _to_runtime_frame_indexed_kind +
