@@ -184,17 +184,11 @@ sealed progress profiles + grants, TPR4's remaining big half).
    mod/gcd. Remaining: N3 routing, N4's Seq/Bag/Rat + extraction lemmas + view
    dissolution. Continue into N5–N7 when
    reached (they need the `<machine M>` plumbing and the `%` former).
-2. **Legacy measured-recursion implementation MR1 + MR2 + MR3 + MR5** —
-   LANDED 2026-07-11
-   (MR2's complement-route frontier included — the pinned canary is now
-   the run twin runtime_terminal_tail_recursion_exit; MR5 pinned via
-   const-eval). The family's ONE remaining item: MR4's cross-machine
-   mutual cycles (joint lexicographic measures + per-edge tail
-   classification along the cycle; the dungeon find_item_at/
-   find_item_after pair is the live test, currently absorbed by bounded
-   clone specialization). In-machine two-state cycles already landed as
-   MR4's first sub-rung. Decision 23's TPR migration above supersedes this
-   family's source spelling and must preserve its landed checker/lowering
+2. **Legacy measured-recursion implementation MR1–MR5 — LANDED.**
+   MR4's first cross-machine tail-cycle admission shape landed 2026-07-20
+   (task #135; detail below). Richer guards and multi-subject lexicographic
+   cycles are demand-gated rather than blockers. Decision 23's TPR migration
+   supersedes this family's source spelling and must preserve its checker/lowering
    behavior rather than reimplementing it accidentally.
 3. **Dependent types R2** (section below) — where-clause + gating + windows;
    the big semantic build, explicitly ADDITIVE (the landed eager store-time
@@ -1989,6 +1983,52 @@ lowers. Historical rungs:
   would trade the Q6 static refusal for a runtime stack overflow.
   Slice 2 (the joint-measure decrease check across edges) is meaningful
   only WITH the TCO lowering; both ride together as the admission rung.
+  ADMISSION LANDED 2026-07-20 (task #135): the exploration map
+  DISSOLVED the TCO gate -- the whole program is ONE dispatch loop
+  (every machine state a case; every transition arm target a
+  SetDispatchState jump over ONE overlaid frame region), so
+  cross-machine tail arm targets NEVER grew the stack; the old
+  refusal was the only gate. Landed: (a) call_cycles.rs ADMITS a
+  cycle whose every edge is a tail arm target, every member measured,
+  and every edge PROVEN to strictly decrease the callee's measure --
+  the v1 prover recognizes the `m == 0`-guarded base arm (incl. the
+  bool-subject `(m == 0) == true` lowering, unwrapped) + `m - 1`
+  tail-argument shape, single-subject witnesses, position-matched
+  against the callee's entry params; anything else keeps the refusal
+  with the verdict naming the unproven edges; (b) INTERPRETER PARITY:
+  run_state_collect_inner's cross-machine Named branch was RECURSIVE
+  (CALL_DEPTH_BUDGET 512 halted admitted cycles at depth ~512, exit
+  0) -- it now REBINDS the loop (machine/instance/state/args, carried
+  locals cleared) and continues: a tail jump at constant depth,
+  matching the native lowering. Canaries:
+  pass/calls/mutual_cycle_tail_admitted_exit (dual-engine, n=100000
+  -- inside the interpreter's 10M-step budget; the native probe ran
+  40M alternations on constant stack),
+  fail/calls/mutual_cycle_decrease_unproven (qualified shape, arg `n`
+  unchanged -- refused naming the edge),
+  fail/calls/mutual_cycle_disqualified_shape (retained). The old
+  fail/mutual_cycle_qualified_shape canary RETIRED (its shape now
+  compiles -- it became the pass canary). MASKING NOTE: the
+  differential row list masks members after a tick-stop in list
+  order; the admitted canary's row passed spuriously at n=300000
+  before the interpreter fix -- the canary_suite test fn was the
+  honest oracle. NEXT (banked): richer decrease shapes (guards
+  `n > k` / `n >= k`, args `n - k`), multi-subject lexicographic
+  joint measures -- DEMAND-GATED (no live consumer; the v1 shape
+  covers the canonical spelling). DUNGEON PAIR: NO ACTION -- it was
+  already refactored to the blessed in-machine state loop when Q6
+  landed (inventory.omg documents it); migrating it BACK would be
+  regressive churn. The admitted pass canary is the live test.
+  QUEUE SWEEP RECONCILED 2026-07-20 (post-#135): the texteq pair and
+  trailing-state-mut repro remain claimed by the fs lane's
+  dispatch-region/receiver-phase family. `<machine M>` generics remain a
+  genuine owner question blocking only N5/N6 schema axioms and Seq
+  map/filter. The wider queue is NOT exhausted: field-default retirement,
+  Nat strict-ranking evidence plus mod/gcd, the shared grant/receipt carrier,
+  ProviderPlan migration, and the task-runtime ladder are design-ruled,
+  engineering-ready work recorded in their own entries below. MR4 richer
+  shapes, the CM carrier, and value-category unification remain demand- or
+  repro-gated.
 - **MR5 — proof-stratum evaluation — LANDED 2026-07-11 (pinned; the
   machinery already composed):** measured recursion evaluates at compile
   time under the const-eval ~100k-step fuel cap — the MR1/MR2 spellings
