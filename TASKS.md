@@ -2022,9 +2022,18 @@ lowers. Historical rungs:
   dispatch-region/receiver-phase family, fix shape recorded in the
   repro headers) or DESIGN-PARKED (array_field_default_silent). The
   agent-ready numbered queue is fully landed or design-blocked; the
-  next open arcs are the big multi-session ones (N5 boundary-data/
-  Real axioms -- spelling settled; dependent-types R2 refinements
-  complete; N6 quotients -- % former unbuilt).
+  next open arcs (N5 boundary-data/Real axioms, N6 quotients' schema
+  half, Seq map/filter) all terminate at the SAME unbuilt
+  prerequisite: `<machine M>` generics-over-machines, which has NO
+  design record -- DESIGN-BLOCKED 2026-07-20, recorded in
+  OWNER_QUESTIONS.md ("<machine M> generics-over-machines") with the
+  four questions (spelling, instantiation model, judge treatment of
+  machine-parameter applications, schema-grant granularity). LANE
+  STATE: this worktree's actionable queue is EXHAUSTED -- everything
+  remaining is design-blocked (OWNER_QUESTIONS.md), lane-claimed
+  (fs dispatch-region family; RECAST/M2 main lane), host-gated
+  (Windows), or demand/repro-gated (MR4 richer shapes, CM carrier,
+  value-category unification).
 - **MR5 — proof-stratum evaluation — LANDED 2026-07-11 (pinned; the
   machinery already composed):** measured recursion evaluates at compile
   time under the const-eval ~100k-step fuel cap — the MR1/MR2 spellings
