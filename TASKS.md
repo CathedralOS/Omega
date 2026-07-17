@@ -2574,10 +2574,13 @@ no `unbounded` property exists. Rungs:
   hoist shape sub_self/add_cancel use) -- a bare direct-value
   self-call arm fails recognize_structural_case_arms. NEXT Rat-ladder
   prerequisites: lt/le spelling (sub(a,b) == Zero), then mod + gcd
-  (need requires-bearing termination through sub -- sub(a,b) < a
-  wants b >= 1 and a >= b; the requires-bearing induction machinery
-  exists, the TERMINATION face through a non-structural measure is
-  the open question), then rat.omg mk_rat normalizing by gcd.
+  -- DESIGN-BLOCKED 2026-07-20 (OWNER_QUESTIONS.md "Proof-machine
+  measured termination through sub"): Euclid recurses on sub(a,b),
+  not a case-payload subterm; the decrease-witness design (lemma-
+  cited terminates? MR-family extension to proof machines?)
+  co-mingles with the parked N2(d) bridge. sub_zero_left landed as
+  the monus surface's completion (5 lemmas, zoo at 13 Nat). Task
+  #134 rung 1 COMPLETE; the rat.omg carrier waits on the gcd ruling.
 - **N5 — `boundary data` + the Real axiom package:** opaque carrier;
   ensures-less boundary machines = claim-free symbols (no grant); axioms =
   accepted-tier rows; schema axioms as `<machine P>` boundary machines (one
