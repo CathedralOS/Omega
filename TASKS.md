@@ -3134,7 +3134,39 @@ rejects — an INTEGER ruling, engineering rides this ladder as F8).
   family).
 
 - **ProviderPlan + Console boundary migration (DESIGN-RULED,
-  ENGINEERING-READY 2026-07-17):** retire the `provides` keyword and platform
+  ENGINEERING-READY 2026-07-17):** LANE PICKED UP 2026-07-20; MACHINERY
+  MAP banked (explorer): TWO distinct provider systems exist --
+  (i) `provides` rows (`<target> provides <Trait> { method -> Binding }`
+  -> HostProviderDefinition item.rs:76-133 with the CLOSED Binding sum
+  {Syscall, DllImport, VtableSlot, VtableField, TableFunction, Value};
+  mirrored as calling-conventions ProvidesRow/ProvidesBindingKind
+  lib.rs:1001-1041; consumed by provides_values.rs (Value substitution),
+  extract_provides_rows compiler.rs:65-136, merge_provides_rows
+  lib.rs:1071-1174 into HostAbiPlan's HostBindingMechanism lib.rs:855-903
+  -- THE home for F7's future Instruction arm), and (ii) the Wave-0
+  operator-provider registry (BoundaryProvider providers.rs:30-43,
+  effect_set/contract_ref/target_applicability -- the FIELD-SHAPE
+  precedent, different axis). CONSOLE TODAY = platform block
+  (console.omg:14-27, parser platform.rs) + HARDCODED
+  insert_platform_lowering in calling-conventions {windows,linux,
+  darwin}.rs (PlatformCallData variants lib.rs:926-958) -- the exact
+  pair ProviderPlan unifies. Target defaults: NativeTarget::
+  from_omega_target_name target/lib.rs:34-46; rows filter inert by
+  target (builder.rs:79-88; provides_values.rs:44-52);
+  <subsystem>.provides.omg recognized frontend.rs:503-524. SERVICE
+  SCHEMA source = typed TraitDefinition trait_definition.rs:7-15
+  (is_boundary + machines signatures) -- today read AD-HOC
+  (parameter_count walk compiler.rs:142-168, interpreter Console
+  detection evaluator.rs:4174-4196). PRV1 SLICE CUT (construction
+  only, per the ruling): the ProviderPlan + ServiceSchema types in
+  omega-effects/capabilities (beside providers.rs) -- mechanism sum
+  aligned with HostBindingMechanism + room for the Instruction arm;
+  call-shaping policy (the PlatformCallData variants) representable
+  so the populate tables can migrate; ServiceSchema::from the typed
+  boundary TraitDefinition; construct the built-in Console lowering
+  as ProviderPlan VALUES in tests. Console's platform->boundary-trait
+  PROMOTION waits for PRV2/PRV4 (validation/selection must exist
+  before the special-cases move). retire the `provides` keyword and platform
   blocks. PRV1 add the typed `ProviderPlan` policy carrier over boundary-trait
   service schemas and existing `Binding` cases; PRV2 validate coverage,
   signatures, calling/layout plans, and normalized identity; PRV3 admit
