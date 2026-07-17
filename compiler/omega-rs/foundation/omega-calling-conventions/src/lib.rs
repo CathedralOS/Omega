@@ -377,6 +377,11 @@ pub enum HostOperation {
     /// Returns the length written (no NUL), the required capacity (with NUL)
     /// when too small, or 0 on failure. Windows-only.
     FinalPathNameByHandle,
+    /// `SetFileTime(handle, creation, last_access, last_write)` -- stamp an
+    /// open handle's times from FILETIME buffers (the windows set_times leg;
+    /// session slice 4b). `creation` rides as a NULL-able scalar (0 = leave
+    /// alone); BOOL result. Windows-only.
+    SetFileTime,
     /// `stat(path, buf)` -- fill a `struct stat` buffer for a PATH (Rust
     /// `fs::metadata`). A path pointer + a buffer pointer (the kernel writes the
     /// 144-byte darwin stat record through it); the Omega layer reads `st_size`
@@ -651,6 +656,7 @@ impl HostOperation {
             "create_hard_link" => Self::CreateHardLink,
             "get_osfhandle" => Self::GetOsfHandle,
             "final_path_name_by_handle" => Self::FinalPathNameByHandle,
+            "set_file_time" => Self::SetFileTime,
             "stat" => Self::Stat,
             "fstat" => Self::FStat,
             "lstat" => Self::LStat,
@@ -749,6 +755,7 @@ impl HostOperation {
             Self::CreateHardLink => "create_hard_link",
             Self::GetOsfHandle => "get_osfhandle",
             Self::FinalPathNameByHandle => "final_path_name_by_handle",
+            Self::SetFileTime => "set_file_time",
             Self::Stat => "stat",
             Self::FStat => "fstat",
             Self::LStat => "lstat",

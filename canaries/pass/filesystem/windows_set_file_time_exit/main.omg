@@ -1,0 +1,79 @@
+// RUN CANARY (exit 70, WINDOWS-HOST ONLY) -- the RAW set_file_time seam op
+// (windows session slice 4b): kernel32 SetFileTime over the handle bridge
+// (_get_osfhandle), the designed signature (handle, NULL-able creation,
+// &access FILETIME, &write FILETIME) -> BOOL. The FILETIME is hand-built
+// (131444736000000000 = unix 1_500_000_000 at 100ns units since 1601) and
+// the STAT ROUND-TRIP pins it end to end: the raw stat reports exactly
+// 1_500_000_000 at the windows `_stat64` st_mtime offset (@40) -- the
+// hermetic model converts FILETIME -> unix seconds through the same
+// calibration constants, so a slip on either side breaks its engine.
+// The WRAPPER `set_times` windows migration is BLOCKED on the value-call
+// mutation-heavy-entry face (TASKS windows session record); this raw pin
+// keeps the capability honest meanwhile (the find-trio precedent).
+// exits: 70 good; 71 setup failed; 72 the bridge returned no handle; 73
+// SetFileTime refused; 74 stat failed; 75 the round-tripped mtime is
+// wrong (a FILETIME calibration slip).
+
+use omega::language::std::filesystem_host;
+
+boundary trait Console { machine exit_process(return_code: i32); }
+
+data Main {
+    console: Console;
+    fs: FilesystemHost;
+    fd: i32;
+    n: i64;
+    rc64: i64;
+    ft: [u8; 8];
+    stat_buf: [u8; 144];
+    mtime: i64;
+}
+
+machine Main::main(&mut self) {
+    // Seed and CLOSE first: a pending write flushed by a later close would
+    // update mtime past the stamp (both engines model this). The stamp
+    // rides a clean read-write reopen.
+    self.fd = self.fs.create("omega_wsft_probe.txt", 438);
+    self.n = self.fs.write(self.fd, "stamp");
+    self.n = self.fs.close(self.fd);
+    self.fd = self.fs.open("omega_wsft_probe.txt", 2);
+    transition self.fd >= 0 { true -> bridge() _ -> bad(71) }
+    state bridge(&mut self) {
+        let handle: i64 = self.fs.get_osfhandle(self.fd);
+        transition handle > 0 { true -> stamp(handle) _ -> bad(72) }
+    }
+    state stamp(&mut self, handle: i64) {
+        // FILETIME for unix 1_500_000_000: 131_444_736_000_000_000
+        // = 0x01D2FC4A7CE00000, little-endian bytes 00 00 E0 7C 4A FC D2 01.
+        self.ft[0] = 0;
+        self.ft[1] = 0;
+        self.ft[2] = 224;
+        self.ft[3] = 124;
+        self.ft[4] = 74;
+        self.ft[5] = 252;
+        self.ft[6] = 210;
+        self.ft[7] = 1;
+        let rc: i32 = self.fs.set_file_time(handle, 0, &self.ft, &self.ft);
+        self.n = self.fs.close(self.fd);
+        transition rc != 0 { true -> restat() _ -> bad(73) }
+    }
+    state restat(&mut self) {
+        self.rc64 = self.fs.read_metadata("omega_wsft_probe.txt", &mut self.stat_buf);
+        self.n = self.fs.remove("omega_wsft_probe.txt");
+        transition self.rc64 == 0 { true -> decode() _ -> bad(74) }
+    }
+    state decode(&mut self) {
+        // windows `_stat64` st_mtime @40 (the ST_MTIME_OFF provides row).
+        self.mtime = (self.stat_buf[40] as i64)
+            | ((self.stat_buf[41] as i64) << 8)
+            | ((self.stat_buf[42] as i64) << 16)
+            | ((self.stat_buf[43] as i64) << 24)
+            | ((self.stat_buf[44] as i64) << 32)
+            | ((self.stat_buf[45] as i64) << 40)
+            | ((self.stat_buf[46] as i64) << 48)
+            | ((self.stat_buf[47] as i64) << 56);
+        transition self.mtime == 1500000000 { true -> good() _ -> bad(75) }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self, code: i32) { self.console.exit_process(code); }
+}

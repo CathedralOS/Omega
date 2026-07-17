@@ -1133,6 +1133,34 @@ pub(super) fn select_host_operation_operands(
                 _ => HandleSpan::empty(),
             }
         }
+        (HostCapability::Filesystem, HostOperation::SetFileTime) => {
+            // `rc = set_file_time(handle, creation, access_ft, write_ft) ->
+            // SetFileTime(handle, NULL, &access, &write)` (session slice 4b):
+            // operand[0]=result, [1]=the HANDLE, [2]=the NULL-able creation
+            // scalar (0), [3]/[4]=the two 8-byte FILETIME buffer POINTERS the
+            // API reads through.
+            let result = first_scalar_argument_operand(input, host_call, dispatch_index);
+            let handle =
+                scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 1);
+            let creation =
+                scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 2);
+            let access =
+                address_argument_operand_at(input, host_call, dispatch_index, alias_context, 3);
+            let write =
+                address_argument_operand_at(input, host_call, dispatch_index, alias_context, 4);
+            match (result, handle, creation, access, write) {
+                (Some(result), Some(handle), Some(creation), Some(access), Some(write)) => {
+                    operands.insert_many([
+                        operand(result),
+                        operand(handle),
+                        operand(creation),
+                        operand(access),
+                        operand(write),
+                    ])
+                }
+                _ => HandleSpan::empty(),
+            }
+        }
         (HostCapability::Filesystem, HostOperation::CreateHardLink) => {
             // `rc = create_hard_link(link, existing, 0) -> CreateHardLinkA(link,
             // existing, NULL)` (windows session slice 3): the two-path shape of

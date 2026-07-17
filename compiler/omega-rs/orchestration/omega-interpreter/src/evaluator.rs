@@ -3230,6 +3230,30 @@ impl<'program> Evaluator<'program> {
                     None => 0,
                 }
             }
+            "set_file_time" => {
+                // `SetFileTime(handle, creation, access_ft, write_ft)` (session
+                // slice 4b): stamp the handle's path with the WRITE time from
+                // its 8-byte FILETIME buffer (100ns units since 1601 -> unix
+                // seconds via the calibration constants), the same
+                // virtual_times store `set_file_times` uses. BOOL result;
+                // 0 for a bad handle (GetLastError semantics -- no errno).
+                let handle = self.eval_fs_scalar(arguments.first().copied(), frame)?;
+                let write_ft = self.eval_fs_bytes(arguments.get(3).copied(), frame)?;
+                match self.virtual_fds.get(&(handle as i32)) {
+                    Some(descriptor) => {
+                        let path = descriptor.path.clone();
+                        let filetime = write_ft
+                            .get(0..8)
+                            .and_then(|s| <[u8; 8]>::try_from(s).ok())
+                            .map(i64::from_le_bytes)
+                            .unwrap_or(0);
+                        let secs = filetime / 10_000_000 - 11_644_473_600;
+                        self.virtual_times.insert(path, secs);
+                        1
+                    }
+                    None => 0,
+                }
+            }
             "symlink" => {
                 // `symlink(target, linkpath)`: record the link -> target mapping.
                 // EEXIST if the link name already names a file/dir/symlink.
