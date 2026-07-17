@@ -6901,10 +6901,12 @@ pub fn encode_runtime_storage_convert(
 }
 
 /// Address-computation prefix before the value operands in a pointee binary
-/// write: `mov r14,imm64(frame)` (10) + `mov r14,[r14+ptr]` (7) -- r14 then holds
-/// the dereferenced runtime pointer (the target base) across operand evaluation.
+/// write -- CANONICALIZED by the place materializer (Binary rung 1b):
+/// `mov r15,imm64(frame)` (10) + `mov r15,[r15+ptr]` (7) + `mov r14,r15` (3)
+/// -- r14 then holds the dereferenced runtime pointer (the target base)
+/// across operand evaluation, exactly as before.
 pub fn runtime_pointee_binary_operand_start_width() -> usize {
-    17
+    20
 }
 
 pub fn runtime_pointee_binary_write_width(
@@ -6938,27 +6940,31 @@ pub fn encode_runtime_pointee_binary_write(
     operator: StateGuardOperator,
     right: RuntimeValueOperandHandle,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = Vec::with_capacity(runtime_pointee_binary_write_width(
+    // Binary delegations (rung 1b): the place walk (mov r15,imm64; deref)
+    // + the r14 hop -- the operand-start prefix grows 17 -> 20 and the
+    // offset fn moves in lockstep. Exact-domain tail preserved via the
+    // shared helper (Exact never enters the domain arms).
+    let target =
+        place_copy::transitional_place(omega_target_operations::RuntimeStorageRegion::RuntimeFrame)
+            .with_step(omega_target_operations::PlaceStep::ConstOffset(pointer_byte_offset))
+            .and_then(|place| place.with_step(omega_target_operations::PlaceStep::Deref))
+            .and_then(|place| {
+                place.with_step(omega_target_operations::PlaceStep::ConstOffset(
+                    field_byte_offset,
+                ))
+            })
+            .expect("a pointee place is four steps, within PLACE_MAX_STEPS");
+    let (bytes, _) = place_copy::encode_place_binary_write(
         runtime_value_operands,
+        &target,
         byte_size,
         left,
         operator,
         right,
-    ));
-    append_mov_r14_imm64(&mut bytes, 0); // frame base (imm64 @ +2 relocated)
-    append_load_r14_from_r14(&mut bytes, pointer_byte_offset)?; // r14 = runtime pointer (target base)
-    debug_assert_eq!(bytes.len(), runtime_pointee_binary_operand_start_width());
-    append_runtime_value_operand(runtime_value_operands, &mut bytes, Reg64::R10, left)?;
-    append_push_r10(&mut bytes);
-    append_runtime_value_operand(runtime_value_operands, &mut bytes, Reg64::R10, right)?;
-    append_mov_reg_reg(&mut bytes, Reg64::R11, Reg64::R10); // right -> r11
-    append_pop_r10(&mut bytes); // restore left -> r10
-    append_runtime_binary_operation(
-        &mut bytes,
-        operator,
-        runtime_binary_operation_byte_size(runtime_value_operands, operator, left, right, byte_size),
+        false,
+        ArithmeticDomain::Exact,
+        false,
     )?;
-    append_store_r10_to_r14(&mut bytes, field_byte_offset, byte_size)?;
     Ok(bytes)
 }
 
