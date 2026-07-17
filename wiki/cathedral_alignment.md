@@ -77,7 +77,8 @@ implementation work. Each one gets more expensive to retrofit every month.
 
 5. **Concurrency: model under amendment.** Suspension remains an ordinary
    machine contract concern; there is no `async machine` species. Decisions
-   20/21 settle non-suspending cleanup and explicit linear Join consumption.
+   20/21 settle non-suspending cleanup and explicit linear `Task<T>` lifecycle
+   consumption.
    Decision 22 supplies the required `Suspend` / `Block` vocabulary and
    pinned-row laws. Suspension composes through ordinary calls without a
    marker; continuation storage and suspension-safe loans still require their

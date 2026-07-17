@@ -4521,9 +4521,15 @@ with a real app-window story.
   copy, mixed branch treatment, and implicit zero-created obligation; add
   `Empty | Live(Token)` path-sensitive acceptance. Then make `Task<T>` a
   customer after the core checker, not the bootstrap implementation vehicle.
-- **Task-runtime slice (settled task model):** TR1 retire the synchronous
-  `spawn` desugar, parser-erased `Join<T>`, statement detach, and old canary
-  spellings with directed diagnostics; TR2 add core `[linear] Task<T>`,
+- **Task-runtime slice (settled task model):** **TR1 LANDED 2026-07-17:**
+  the synchronous `spawn` desugar, parser-erased `Join<T>`, `.join()` identity,
+  statement detach, and their reserved-name hacks are gone. Former block/type
+  spellings reject at parse with migration diagnostics naming
+  `runtime.start<Worker::run>(...)`, linear `Task<T>`, and `finish()`; `spawn`
+  remains an ordinary contextual identifier and `Join`/`join` are ordinary
+  declaration names. The five fake pass canaries and four staging-specific
+  fail canaries retired into spawn_retired + join_type_retired; the real direct
+  call/result pins remain elsewhere. TR2 add core `[linear] Task<T>`,
   transactional start and terminal task-outcome sums, and path-sensitive
   settlement/transfer tests; TR3 elaborate `runtime.start<M>(args)` from the
   existing compile-time machine-symbol parameter into a normalized activation

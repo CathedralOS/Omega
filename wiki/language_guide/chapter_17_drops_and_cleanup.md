@@ -140,7 +140,7 @@ Settled restrictions:
 - Drop guarantees relinquishment of ownership, not durability, protocol
   completion, or successful remote acknowledgement.
 - Fallible operations should be explicit machines, such as `file.close()` or
-  `transaction.commit()`. Waiting operations such as `Join::join` are explicit
+  `transaction.commit()`. Waiting operations such as `Task::finish` are explicit
   for the same reason.
 
 This avoids hiding important control flow behind cleanup while still giving the

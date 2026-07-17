@@ -8512,122 +8512,6 @@ fn runtime_multi_arm_value_transition_exit_canary_runs() {
 }
 
 #[test]
-fn runtime_spawn_join_moved_arg_exit_canary_runs() {
-    // CONCURRENCY STAGE 1: `spawn { Worker::run(move x) }` lowers to a BLOCKING
-    // call (the parser's synchronous-spawn desugar -- no scheduler/atomics exist,
-    // so nothing can observe interleaving). `Join<i32>` erases to `i32` and
-    // `handle.join()` is the identity on the completed handle. Two independent
-    // spawn+join pairs must each deliver their own moved-arg computation
-    // (exit 71 = first joined result wrong, 72 = second). Exits 70 when both
-    // joined results are correct.
-    let canary = pass_canary("concurrency/runtime_spawn_join_moved_arg_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-spawn-join-moved-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("spawn join moved-arg canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
-        .output()
-        .expect("spawn join moved-arg canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected both spawn+join pairs to deliver their moved-arg results (exit 70), got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
-    );
-
-    let _ = fs::remove_dir_all(&build_dir);
-}
-
-#[test]
-fn runtime_spawn_interleaved_join_exit_canary_runs() {
-    // CONCURRENCY STAGE 1: spawn EARLY, interleave field/local work, join LATER.
-    // Under the synchronous-spawn desugar the spawned call completes at the spawn
-    // site (one legal schedule of the concurrent program); the later join must
-    // still deliver the spawned result and the interleaved statements must be
-    // unaffected (exit 71 = joined result wrong, 72 = interleaved field wrong,
-    // 73 = interleaved local wrong). Exits 70 when all three are correct.
-    let canary = pass_canary("concurrency/runtime_spawn_interleaved_join_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-spawn-interleaved-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("spawn interleaved join canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
-        .output()
-        .expect("spawn interleaved join canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected the late join to deliver the spawned result with interleaved work intact (exit 70), got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
-    );
-
-    let _ = fs::remove_dir_all(&build_dir);
-}
-
-#[test]
-fn runtime_spawn_struct_result_exit_canary_runs() {
-    // Promoted from pending/concurrency/spawn_struct_result_miscompiled when
-    // by-value struct RETURNS landed natively. `spawn { Worker::make(move
-    // seed) }` joins a machine returning a STRUCT by value; under the
-    // synchronous-spawn desugar the joined `pair` must read back both fields
-    // ({ a: 34, b: 35 }, a + b == 69 -> exit 70). The struct-typed terminal
-    // value's per-field result-slot writes used to drop silently (ZII zeroes,
-    // exit 71). The direct no-spawn spelling is pinned by
-    // calls/runtime_free_machine_struct_return_exit.
-    let canary = pass_canary("concurrency/runtime_spawn_struct_result_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
-        "omega-spawn-struct-result-{}",
-        std::process::id()
-    ));
-    let _ = fs::remove_dir_all(&build_dir);
-
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("spawn struct result canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
-        .output()
-        .expect("spawn struct result canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected the joined by-value struct result to deliver both field values (exit 70), got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
-    );
-
-    let _ = fs::remove_dir_all(&build_dir);
-}
-
-#[test]
 fn runtime_value_transition_unsigned_guard_exit_canary_runs() {
     // A value-transition arm guard on an UNSIGNED (u32) operand must branch with
     // unsigned comparison conditions. The leaf value-transition guard path picked
@@ -31760,11 +31644,6 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "collections/runtime_bracket_matcher_stack_exit",
     "collections/runtime_argmax_index_exit",
     "control_flow/runtime_sum_field_store_payload_exit",
-    "concurrency/runtime_spawn_interleaved_join_exit",
-    "concurrency/runtime_spawn_join_moved_arg_exit",
-    "concurrency/runtime_spawn_struct_result_exit",
-    "concurrency/spawn_fire_and_forget",
-    "concurrency/spawn_join_handle",
     "data/case_payload_declaration",
     "data/case_payload_native_construction",
     "data/match_default_satisfies_exhaustiveness",
@@ -32739,9 +32618,8 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "borrow/view_return_ambiguous_ref_inputs",
     "concurrency/barrier_wait_contract",
     "concurrency/mutex_lock_guard",
-    "concurrency/spawn_borrow_capture",
-    "concurrency/spawn_self_capture",
-    "concurrency/spawn_statement_block",
+    "concurrency/spawn_retired",
+    "concurrency/join_type_retired",
     "control_flow/bare_machine_arrow_transition",
     "control_flow/bare_state_arrow_transition",
     "inline_asm/asm_label_loop",
@@ -32915,7 +32793,6 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "comptime/const_array_length_index_out_of_bounds",
     "comptime/fuel_exhausted_const_array_length",
     "borrow/method_view_receiver_unrelated_field_write",
-    "concurrency/spawn_join_result_discarded",
 ];
 
 #[derive(Clone, Copy)]
@@ -32970,11 +32847,10 @@ struct PendingCanary {
 // - traits/equatable_string_equality_guard_unlowered -> pass/traits/
 //   equatable_string_equality_guard_exit (guard-position String place
 //   compares route through TextEquals).
-// - concurrency/spawn_struct_result_miscompiled -> pass/concurrency/
-//   runtime_spawn_struct_result_exit (by-value struct RETURNS: leaf
-//   terminal-value StructLiteral substitution + call-result-backed locals
-//   keep their name); the direct no-spawn spelling is pinned by
-//   calls/runtime_free_machine_struct_return_exit.
+// - concurrency/spawn_struct_result_miscompiled: by-value struct RETURNS
+//   landed (leaf terminal-value StructLiteral substitution + call-result-backed
+//   locals keep their name). Task-runtime TR1 later retired the fake spawn
+//   wrapper; calls/runtime_free_machine_struct_return_exit keeps the real pin.
 // - versioning/versioned_match_missing_current_arm -> fail/versioning/
 //   (version-match exhaustiveness counting landed).
 // - comptime/const_array_length_bare_call_arm -> pass/comptime/
