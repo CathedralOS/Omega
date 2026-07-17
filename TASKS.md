@@ -3178,11 +3178,20 @@ rejects — an INTEGER ruling, engineering rides this ladder as F8).
   target, schema, rows, effect_set, origin_package -- NO trust
   field: classification is admission output}. covers_schema() as
   the PRV2 preview; the built-in windows Console lowering constructed
-  as a plan VALUE in tests (the PRV4 relocation shape). NEXT: PRV2
-  validation (coverage/signatures against the typed TraitDefinition,
-  call-shape normalization, normalized identity), then PRV3
-  admission through the ch10 carrier + slot-owner selection, then
-  PRV4 the std target packages + Console/filesystem/float migration. retire the `provides` keyword and platform
+  as a plan VALUE in tests (the PRV4 relocation shape). PRV2 CORE LANDED
+  2026-07-20: ServiceSchema::from_typed reifies a typed boundary
+  TraitDefinition (names, receiver-excluded parameter counts, result
+  presence, declared effects -- pinned by a pipeline round-trip test
+  in omega-validation's harness) and
+  ProviderPlan::identity_fingerprint gives the NORMALIZED identity
+  (FNV-1a over the canonical rendering; rows/methods sorted --
+  presentation-invariance pinned). provider_plan re-exported at the
+  omega-effects root. PRV2 REMAINDER: plan-vs-schema signature
+  validation + call-shape normalization against the real
+  PlatformCallData sum (needs the calling-conventions types -- decide
+  the dependency direction there), then PRV3 admission through the
+  ch10 carrier + slot-owner selection, then PRV4 the std target
+  packages + Console/filesystem/float migration. retire the `provides` keyword and platform
   blocks. PRV1 add the typed `ProviderPlan` policy carrier over boundary-trait
   service schemas and existing `Binding` cases; PRV2 validate coverage,
   signatures, calling/layout plans, and normalized identity; PRV3 admit
