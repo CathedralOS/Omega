@@ -390,6 +390,33 @@ pub fn encode_place_string_write(
     Ok((bytes, sites))
 }
 
+/// The BOUNDED-BUFFER materializer entry (Text rung 1e): write a string
+/// literal into an owned `[u8; N]` carrier at a place-shaped target -- the
+/// len word at [r15 + residual], then the content bytes as IMMEDIATES at
+/// [r15 + residual + 8 + i] (`mov byte [r15+disp32], imm8`, 8 bytes each).
+/// No data object exists, so the base relocation(s) recorded by the walk
+/// are the ONLY sites; a DIRECT place is byte-for-byte the retired machine
+/// carrier layout (27 + 8*len) and a pointee place the retired
+/// through-pointer layout (34 + 8*len).
+pub fn encode_place_bounded_buffer_write(
+    target: &Place,
+    literal: &str,
+) -> Result<(Vec<u8>, PlaceCopySites), Diagnostic> {
+    let mut bytes = Vec::new();
+    let mut sites = PlaceCopySites::default();
+    let displacement =
+        materialize_place_address(&mut bytes, &mut sites, target, AddressRegister::Target)?;
+    super::append_mov_rax_imm64(&mut bytes, literal.len() as u64);
+    super::append_store_rax_to_r15(&mut bytes, displacement, 8)?;
+    for (index, byte) in literal.as_bytes().iter().enumerate() {
+        let content_displacement = super::disp32(displacement + 8 + index)?;
+        bytes.extend([0x41, 0xc6, 0x87]); // mov byte [r15 + disp32], imm8
+        bytes.extend(content_displacement.to_le_bytes());
+        bytes.push(*byte);
+    }
+    Ok((bytes, sites))
+}
+
 /// The `CopyPlaces` entry: ONE routine that picks the emission shape from the
 /// place pair itself -- shared-base when both places root in the SAME region
 /// and a side derefs (the shape every retired same-region indexed/pointee
