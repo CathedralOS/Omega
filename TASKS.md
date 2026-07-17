@@ -3205,11 +3205,19 @@ rejects — an INTEGER ruling, engineering rides this ladder as F8).
   (`provider plan: <target>::<Trait> [<fingerprint>]`, dev-active
   standing warning until build.omg grants the plan by name or trait
   leaf). Pinned: derived_provider_plans_surface_as_trust_rows.
-  PRV3 REMAINDER: lockfile receipts hashing granted plans'
-  fingerprints (the drift face); SLOT-OWNER SELECTION rides PRV4
-  (the target-default set + per-slot overrides in build.omg is the
-  selection surface). Then PRV4: std target packages +
-  Console/filesystem/float migration + retiring provides/platform. retire the `provides` keyword and platform
+  PLAN RECEIPTS LANDED 2026-07-20: a grant naming a derived
+  plan (by name or trait leaf) pins the plan's NORMALIZED IDENTITY in
+  the lockfile -- the fingerprint IS the receipt hash, so any policy
+  change under the grant drifts (pinned:
+  granted_plan_receipt_pins_the_fingerprint -- grant, edit the
+  binding value, refusal). PRV3 IS COMPLETE except SLOT-OWNER
+  SELECTION, which IS PRV4's surface (the target-default set +
+  per-slot overrides in build.omg). PRV4 REMAINING: std target
+  packages + Console/filesystem/float migration + retiring
+  provides/platform -- the corpus-scale breaking pass (215 provides
+  tokens, the platform-block consumers across 4 crates, both
+  engines' Console special-cases, the hardcoded populate tables in
+  {windows,linux,darwin}.rs); its machinery map is banked above. retire the `provides` keyword and platform
   blocks. PRV1 add the typed `ProviderPlan` policy carrier over boundary-trait
   service schemas and existing `Binding` cases; PRV2 validate coverage,
   signatures, calling/layout plans, and normalized identity; PRV3 admit
