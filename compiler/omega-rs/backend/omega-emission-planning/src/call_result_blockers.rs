@@ -113,12 +113,6 @@ pub(crate) fn collect_call_result_return_blockers(
 fn instruction_write_target(kind: &SelectedInstructionKind) -> Option<(bool, usize, usize)> {
     use omega_target_operations::RuntimeStorageRegion;
     let (region, offset, size) = match kind {
-        SelectedInstructionKind::WriteRuntimeStorageInteger {
-            target_region,
-            byte_offset,
-            byte_size,
-            ..
-        } => (*target_region, *byte_offset, *byte_size),
         SelectedInstructionKind::WritePlaceInteger {
             target, byte_size, ..
         } => match target.const_offset() {

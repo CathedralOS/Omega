@@ -719,11 +719,25 @@ sealed progress profiles + grants, TPR4's remaining big half).
    recognizes the DIRECT WritePlaceInteger shape (deref/indexed have
    no splice equivalent). Battery green incl. differential 14/14 --
    the seven integer-write variants are PRODUCER-FREE.
-   RETIREMENT NEXT: delete the seven Write*Integer variants from both
-   enums with every echo (the Copy retirement discipline: balance-
-   aware arm deletion; KEEP the six aarch64 encoders + offset fns the
-   WritePlaceShape decompose rides; the x86 delegating encoder shells
-   die with their dispatchers).
+   RETIREMENT LANDED 2026-07-19 -- THE SEVEN INTEGER-WRITE VARIANTS
+   ARE GONE: deleted from both enums with every echo (classifications,
+   conversions, shapes arms, encoding/layout arms, walker arms
+   incl. the per-arch double arm, report arms, blocker OR-rows, the
+   two extracting matcher arms' old rows). KEPT: the six aarch64
+   encoders + offset fns (the WritePlaceShape decompose rides them);
+   runtime_storage_integer_write_kind (the WritePlaceInteger machine-
+   kind arm uses it). SURGERY LESSONS (recurring): scripted arm
+   deletion must anchor the arm END on the NEXT-ARM start (never a
+   bare `}` alternative -- it matches the pattern's own close) and
+   never swallow `_ =>` fallbacks; three files needed git-restore +
+   redo. Dead delegating shells (x86 encode_*_integer_write fns +
+   machine-emission dispatchers + the orphaned shapes *_kind helpers)
+   remain as never-used warnings -- sweep at next touch.
+   The INTEGER-WRITE COLLAPSE IS COMPLETE: 7 variants -> 1
+   (WritePlaceInteger). NEXT FAMILY: the Binary writes (the
+   leaf-cascade duplication the wiki ladder names) -- same arc:
+   materializer entry (value = operand pair instead of an immediate),
+   delegations, variant, producers, retirement.
    Rung 2a after: the WritePlaceInteger variant + echo product +
    producer migration. Pre-existing dead helpers noted en route (shapes/copies.rs
    runtime_storage_copy_kind + _to_runtime_frame_indexed_kind +

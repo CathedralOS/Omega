@@ -276,17 +276,6 @@ pub enum TargetOperationKind {
         byte_size: usize,
         zigzag: bool,
     },
-    WriteRuntimeMachineInteger {
-        byte_offset: usize,
-        byte_size: usize,
-        value: i64,
-    },
-    WriteRuntimeStorageInteger {
-        target_region: RuntimeStorageRegion,
-        byte_offset: usize,
-        byte_size: usize,
-        value: i64,
-    },
     /// Entry prologue: store the platform's incoming argument register
     /// (MS-x64: 0=RCX 1=RDX 2=R8 3=R9) into the entry parameter's frame slot.
     WriteEntryArgumentRegister {
@@ -298,12 +287,6 @@ pub enum TargetOperationKind {
         descriptor_offset: usize,
         spill_offset: usize,
         byte_length: usize,
-    },
-    WriteRuntimePointeeInteger {
-        pointer_byte_offset: usize,
-        field_byte_offset: usize,
-        byte_size: usize,
-        value: i64,
     },
     WriteRuntimeStorageBinary {
         target_region: RuntimeStorageRegion,
@@ -356,31 +339,6 @@ pub enum TargetOperationKind {
         left: TargetValueOperandHandle,
         operator: StateGuardOperator,
         right: TargetValueOperandHandle,
-    },
-    WriteRuntimeFrameIndexedInteger {
-        descriptor_offset: usize,
-        index_offset: usize,
-        element_byte_size: usize,
-        field_byte_offset: usize,
-        byte_size: usize,
-        value: i64,
-    },
-    WriteRuntimeFrameBaseIndexedInteger {
-        base_byte_offset: usize,
-        index_offset: usize,
-        element_byte_size: usize,
-        field_byte_offset: usize,
-        byte_size: usize,
-        value: i64,
-    },
-    WriteRuntimeMachineIndexedInteger {
-        base_byte_offset: usize,
-        index_region: RuntimeStorageRegion,
-        index_offset: usize,
-        element_byte_size: usize,
-        field_byte_offset: usize,
-        byte_size: usize,
-        value: i64,
     },
     WriteRuntimeFrameIndexedBinary {
         descriptor_offset: usize,
@@ -589,21 +547,6 @@ pub enum TargetOperationKind {
         target: Place,
         value: i64,
         byte_size: usize,
-    },
-    /// Const-value write into a both-runtime nested element
-    /// (`grid[i][j] = 70`) -- the double-indexed sibling of
-    /// `WriteRuntimeMachineIndexedInteger`.
-    WriteRuntimeMachineDoubleIndexedInteger {
-        base_byte_offset: usize,
-        outer_index_offset: usize,
-        outer_index_region: RuntimeStorageRegion,
-        outer_stride: usize,
-        inner_index_offset: usize,
-        inner_index_region: RuntimeStorageRegion,
-        inner_stride: usize,
-        field_byte_offset: usize,
-        byte_size: usize,
-        value: i64,
     },
     SetDispatchState {
         dispatch_index: u32,

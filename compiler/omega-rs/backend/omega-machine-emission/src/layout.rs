@@ -341,33 +341,6 @@ fn machine_instruction_width(
             *field_byte_offset,
             literal,
         ),
-        SelectedInstructionKind::WriteRuntimeMachineInteger {
-            byte_offset,
-            byte_size,
-            ..
-        } => runtime_machine_integer_write_width(
-            input.target.architecture,
-            *byte_offset,
-            *byte_size,
-        ),
-        SelectedInstructionKind::WriteRuntimeStorageInteger {
-            byte_offset,
-            byte_size,
-            ..
-        } => {
-            runtime_machine_integer_write_width(input.target.architecture, *byte_offset, *byte_size)
-        }
-        SelectedInstructionKind::WriteRuntimePointeeInteger {
-            pointer_byte_offset,
-            field_byte_offset,
-            byte_size,
-            ..
-        } => runtime_pointee_integer_write_width(
-            input.target.architecture,
-            *pointer_byte_offset,
-            *field_byte_offset,
-            *byte_size,
-        ),
         SelectedInstructionKind::WriteRuntimeStorageBinary {
             target_offset,
             byte_size,
@@ -455,32 +428,6 @@ fn machine_instruction_width(
             *left,
             *operator,
             *right,
-        ),
-        SelectedInstructionKind::WriteRuntimeFrameIndexedInteger {
-            element_byte_size,
-            field_byte_offset,
-            byte_size,
-            ..
-        } => runtime_frame_indexed_integer_write_width(
-            input.target.architecture,
-            *element_byte_size,
-            *field_byte_offset,
-            *byte_size,
-        ),
-        SelectedInstructionKind::WriteRuntimeFrameBaseIndexedInteger {
-            base_byte_offset,
-            index_offset,
-            element_byte_size,
-            field_byte_offset,
-            byte_size,
-            ..
-        } => runtime_frame_base_indexed_integer_write_width(
-            input.target.architecture,
-            *base_byte_offset,
-            *index_offset,
-            *element_byte_size,
-            *field_byte_offset,
-            *byte_size,
         ),
         SelectedInstructionKind::AppendWireLiteralByte {
             out_offset,
@@ -637,23 +584,6 @@ fn machine_instruction_width(
             *target_offset,
             *byte_size,
             *zigzag,
-        ),
-        SelectedInstructionKind::WriteRuntimeMachineIndexedInteger {
-            base_byte_offset,
-            index_region,
-            index_offset,
-            element_byte_size,
-            field_byte_offset,
-            byte_size,
-            ..
-        } => omega_instruction_selection::runtime_machine_indexed_integer_write_width(
-            input.target.architecture,
-            *base_byte_offset,
-            *index_region,
-            *index_offset,
-            *element_byte_size,
-            *field_byte_offset,
-            *byte_size,
         ),
         SelectedInstructionKind::WriteRuntimeFrameIndexedBinary {
             element_byte_size,
@@ -961,17 +891,6 @@ fn machine_instruction_width(
             *value,
             *byte_size,
         )?,
-        SelectedInstructionKind::WriteRuntimeMachineDoubleIndexedInteger {
-            outer_index_region,
-            inner_index_region,
-            value,
-            ..
-        } => runtime_machine_double_indexed_integer_write_width(
-            input.target.architecture,
-            *outer_index_region,
-            *inner_index_region,
-            *value,
-        ),
         SelectedInstructionKind::SetDispatchState { .. }
         | SelectedInstructionKind::TerminateDispatch => {
             dispatch_state_write_width(input.target.architecture)

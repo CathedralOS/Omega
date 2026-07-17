@@ -566,35 +566,6 @@ fn selected_instruction_name(
                 "wire read repeated {encoding} {target_symbol}@{target_offset} ({byte_size} bytes) while cursor < end {end_symbol}@{end_offset}, count {count_symbol}@{count_offset} += 1 <- {buffer_symbol}@{buffer_offset} (len {buffer_length}) + cursor {read_symbol}@{read_offset}, ok {ok_symbol}@{ok_offset}"
             )
         }
-        SelectedInstructionKind::WriteRuntimeMachineInteger {
-            byte_offset,
-            byte_size,
-            value,
-        } => {
-            format!(
-                "write runtime machine integer offset {byte_offset} bytes {byte_size} value {value}"
-            )
-        }
-        SelectedInstructionKind::WriteRuntimeStorageInteger {
-            target_region,
-            byte_offset,
-            byte_size,
-            value,
-        } => {
-            let target_symbol =
-                storage_region_symbol_name(*target_region, backend_plan.entry_machine_name());
-            format!(
-                "write runtime storage integer {target_symbol}@{byte_offset} bytes {byte_size} value {value}"
-            )
-        }
-        SelectedInstructionKind::WriteRuntimePointeeInteger {
-            pointer_byte_offset,
-            field_byte_offset,
-            byte_size,
-            value,
-        } => format!(
-            "write runtime pointee integer runtime_frame@{pointer_byte_offset} +{field_byte_offset} bytes {byte_size} value {value}"
-        ),
         SelectedInstructionKind::WriteRuntimeStorageBinary {
             target_region,
             target_offset,
@@ -641,43 +612,6 @@ fn selected_instruction_name(
                 "write runtime pointee binary runtime_frame@{pointer_byte_offset} +{field_byte_offset} bytes {byte_size} {} {operator:?} {}",
                 runtime_value_operand_name(backend_plan, *left),
                 runtime_value_operand_name(backend_plan, *right),
-            )
-        }
-        SelectedInstructionKind::WriteRuntimeFrameIndexedInteger {
-            descriptor_offset,
-            index_offset,
-            element_byte_size,
-            field_byte_offset,
-            byte_size,
-            value,
-        } => {
-            format!(
-                "write runtime-frame indexed integer descriptor@{descriptor_offset} index@{index_offset} elem {element_byte_size} field +{field_byte_offset} bytes {byte_size} value {value}"
-            )
-        }
-        SelectedInstructionKind::WriteRuntimeFrameBaseIndexedInteger {
-            base_byte_offset,
-            index_offset,
-            element_byte_size,
-            field_byte_offset,
-            byte_size,
-            value,
-        } => {
-            format!(
-                "write runtime-frame base indexed integer base@{base_byte_offset} index@{index_offset} elem {element_byte_size} field +{field_byte_offset} bytes {byte_size} value {value}"
-            )
-        }
-        SelectedInstructionKind::WriteRuntimeMachineIndexedInteger {
-            base_byte_offset,
-            index_region,
-            index_offset,
-            element_byte_size,
-            field_byte_offset,
-            byte_size,
-            value,
-        } => {
-            format!(
-                "write runtime-machine indexed integer machine@{base_byte_offset} index({index_region:?})@{index_offset} elem {element_byte_size} field +{field_byte_offset} bytes {byte_size} value {value}"
             )
         }
         SelectedInstructionKind::WriteRuntimeFrameIndexedBinary {
@@ -977,22 +911,6 @@ fn selected_instruction_name(
             format!(
                 "write place integer {value} ({byte_size}b) -> {target_symbol}{:?}",
                 target.steps()
-            )
-        }
-        SelectedInstructionKind::WriteRuntimeMachineDoubleIndexedInteger {
-            base_byte_offset,
-            outer_index_offset,
-            outer_index_region,
-            outer_stride,
-            inner_index_offset,
-            inner_index_region,
-            inner_stride,
-            field_byte_offset,
-            byte_size,
-            value,
-        } => {
-            format!(
-                "write int {value} ({byte_size}b) -> runtime-machine double-indexed base@{base_byte_offset} outer@{outer_index_offset}({outer_index_region:?})*{outer_stride} inner@{inner_index_offset}({inner_index_region:?})*{inner_stride} field +{field_byte_offset}"
             )
         }
         SelectedInstructionKind::SetDispatchState { dispatch_index } => {
