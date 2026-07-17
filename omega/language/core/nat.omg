@@ -794,3 +794,24 @@ terminates by b;
         transition { _ -> (gcd(Nat::Succ { prev: pb }, next)) }
     }
 }
+
+// QUOTIENT by repeated subtraction (mod's twin; the Rat carrier's
+// normalization divisor): div(a, b) for b >= 1. Same computed-subject
+// dispatch and the same sub_lt strict edge as mod; the b <= a arm wraps
+// the recursion in one Succ. Lean analog: Nat.div.
+machine div(a: Nat, b: Nat) -> Nat
+terminates by a;
+requires
+    (sub(Nat::Succ { prev: Nat::Zero }, b)) == Nat::Zero
+{
+    transition (sub(b, a)) {
+        Nat::Zero -> div_rec(a, b)
+        Nat::Succ { prev as w } -> Nat::Zero
+    }
+
+    state div_rec(a: Nat, b: Nat) -> Nat {
+        sub_lt(a, b);
+        let next: Nat = sub(a, b);
+        transition { _ -> Nat::Succ { prev: div(next, b) } }
+    }
+}
