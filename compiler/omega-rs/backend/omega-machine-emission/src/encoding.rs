@@ -527,6 +527,8 @@ pub(super) fn encode_machine_instruction_bytes(
         | SelectedInstructionKind::CompareRuntimeTextStorage { .. }
         | SelectedInstructionKind::CompareRuntimeStorage { .. }
         | SelectedInstructionKind::CompareRuntimeStorageValue { .. }
+        | SelectedInstructionKind::ComparePlaces { .. }
+        | SelectedInstructionKind::ComparePlaceValue { .. }
         | SelectedInstructionKind::SetDispatchState { .. }
         | SelectedInstructionKind::WriteReturnRegisterInteger { .. }
         | SelectedInstructionKind::CopyRuntimeStorageToReturnRegister { .. }

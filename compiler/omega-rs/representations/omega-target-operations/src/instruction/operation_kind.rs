@@ -62,6 +62,23 @@ pub enum TargetOperationKind {
         byte_size: usize,
         operator: StateGuardOperator,
     },
+
+    /// Task #131: the place-shaped storage compare (guards consume Places).
+    ComparePlaces {
+        left: Place,
+        right: Place,
+        byte_size: usize,
+        operator: StateGuardOperator,
+        is_float: bool,
+    },
+
+    /// Task #131: the place-vs-immediate compare.
+    ComparePlaceValue {
+        place: Place,
+        byte_size: usize,
+        expected_value: i64,
+        operator: StateGuardOperator,
+    },
     WriteRuntimeTextLiteral {
         buffer: TargetDataObjectHandle,
         literal: std::sync::Arc<str>,

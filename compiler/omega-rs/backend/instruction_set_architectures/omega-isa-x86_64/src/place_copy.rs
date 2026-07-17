@@ -438,6 +438,70 @@ pub fn encode_place_address_write(
     Ok((bytes, sites))
 }
 
+/// The COMPARE-family materializer entry (task #131, the wiki's
+/// guards-consume-Places step): load the LEFT operand through its place
+/// (walked in r14, the CopyPlaces source discipline) into r10, the RIGHT
+/// through r15 into r11, compare, and emit the guard failure branch.
+/// Direct places are position-identical to the retired storage compare
+/// (the left leg renames r15 -> r14). REGISTER FENCE: a two-index RIGHT
+/// place would clobber r10 (the already-loaded left operand) with its
+/// second index scratch -- it refuses loudly (the legalization principle);
+/// hoist the subject first.
+pub fn encode_place_compare(
+    left: &Place,
+    right: &Place,
+    byte_size: usize,
+    failure_branch_distance: isize,
+    operator: super::StateGuardOperator,
+    is_float: bool,
+) -> Result<(Vec<u8>, PlaceCopySites), Diagnostic> {
+    if right.scaled_index_regions().count() >= 2 {
+        return Err(Diagnostic::error(
+            "a place compare cannot walk a two-index RIGHT operand (its second \
+             index scratch would clobber the left operand in r10); hoist the \
+             subject to a frame slot first",
+        ));
+    }
+    let mut bytes = Vec::new();
+    let mut sites = PlaceCopySites::default();
+    let left_displacement =
+        materialize_place_address(&mut bytes, &mut sites, left, AddressRegister::Source)?;
+    super::append_load_reg_from_r14(&mut bytes, super::Reg64::R10, left_displacement, byte_size)?;
+    let right_displacement =
+        materialize_place_address(&mut bytes, &mut sites, right, AddressRegister::Target)?;
+    super::append_load_reg_from_r15(&mut bytes, super::Reg64::R11, right_displacement, byte_size)?;
+    if is_float {
+        super::append_float_compare_r10_r11(&mut bytes, byte_size);
+    } else {
+        super::append_cmp_r10_r11(&mut bytes, byte_size)?;
+    }
+    super::append_failure_branch(&mut bytes, operator, failure_branch_distance - 4, is_float)?;
+    Ok((bytes, sites))
+}
+
+/// The place-vs-immediate compare: the subject loads through its place into
+/// r10, the expected value stages in r11 (`mov r11, imm64` -- AFTER the
+/// walk, so the walk's r11 index scratch is long consumed), then cmp + the
+/// failure branch. A direct place is position-identical to the retired
+/// storage-value compare.
+pub fn encode_place_value_compare(
+    place: &Place,
+    byte_size: usize,
+    expected_value: i64,
+    failure_branch_distance: isize,
+    operator: super::StateGuardOperator,
+) -> Result<(Vec<u8>, PlaceCopySites), Diagnostic> {
+    let mut bytes = Vec::new();
+    let mut sites = PlaceCopySites::default();
+    let displacement =
+        materialize_place_address(&mut bytes, &mut sites, place, AddressRegister::Target)?;
+    super::append_load_reg_from_r15(&mut bytes, super::Reg64::R10, displacement, byte_size)?;
+    super::append_mov_reg_imm64(&mut bytes, super::Reg64::R11, expected_value as u64);
+    super::append_cmp_r10_r11(&mut bytes, byte_size)?;
+    super::append_failure_branch(&mut bytes, operator, failure_branch_distance - 4, false)?;
+    Ok((bytes, sites))
+}
+
 /// The `CopyPlaces` entry: ONE routine that picks the emission shape from the
 /// place pair itself -- shared-base when both places root in the SAME region
 /// and a side derefs (the shape every retired same-region indexed/pointee

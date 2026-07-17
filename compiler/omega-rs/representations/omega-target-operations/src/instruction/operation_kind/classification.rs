@@ -21,7 +21,9 @@ impl OperationSemanticQuery for TargetOperationKind {
             | Self::CompareRuntimeTextStorage { .. }
             | Self::CompareRuntimeStorage { .. }
             | Self::CompareRuntimeStorageValue { .. }
-            | Self::CompareRuntimeValues { .. } => TargetOperationDomain::GuardEvaluation,
+            | Self::CompareRuntimeValues { .. }
+            | Self::ComparePlaces { .. }
+            | Self::ComparePlaceValue { .. } => TargetOperationDomain::GuardEvaluation,
 
             Self::WriteRuntimeTextLiteral { .. }
             | Self::WriteRuntimeTextLiteralSegment { .. }

@@ -1,7 +1,8 @@
 mod place_copy;
 pub use place_copy::{
     encode_place_address_write, encode_place_binary_write, encode_place_bounded_buffer_write,
-    encode_place_integer_write, encode_place_string_write,
+    encode_place_compare, encode_place_integer_write, encode_place_string_write,
+    encode_place_value_compare,
     place_binary_index_base_positions,
     place_binary_operand_start_width,
     PLACE_COPY_MAX_SITES, PlaceCopySide, PlaceCopySites, encode_copy_places, encode_place_copy,
@@ -8848,6 +8849,35 @@ fn append_load_reg_from_r15(
         (Reg64::R11, 2) => bytes.extend([0x66, 0x45, 0x8b, 0x9f]),
         (Reg64::R11, 4) => bytes.extend([0x45, 0x8b, 0x9f]),
         (Reg64::R11, 8) => bytes.extend([0x4d, 0x8b, 0x9f]),
+        _ => {
+            return Err(Diagnostic::error(format!(
+                "X86_64 MVP encoder cannot load {byte_size}-byte runtime operands yet"
+            )));
+        }
+    }
+    bytes.extend(displacement.to_le_bytes());
+    Ok(())
+}
+
+/// The r14-base twin of `append_load_reg_from_r15` (ModRM r/m = r14): the
+/// place-compare materializer walks its LEFT operand's address in r14 (the
+/// CopyPlaces source discipline) and loads the operand through it.
+fn append_load_reg_from_r14(
+    bytes: &mut Vec<u8>,
+    destination: Reg64,
+    byte_offset: usize,
+    byte_size: usize,
+) -> Result<(), Diagnostic> {
+    let displacement = disp32(byte_offset)?;
+    match (destination, byte_size) {
+        (Reg64::R10, 1) => bytes.extend([0x45, 0x8a, 0x96]),
+        (Reg64::R10, 2) => bytes.extend([0x66, 0x45, 0x8b, 0x96]),
+        (Reg64::R10, 4) => bytes.extend([0x45, 0x8b, 0x96]),
+        (Reg64::R10, 8) => bytes.extend([0x4d, 0x8b, 0x96]),
+        (Reg64::R11, 1) => bytes.extend([0x45, 0x8a, 0x9e]),
+        (Reg64::R11, 2) => bytes.extend([0x66, 0x45, 0x8b, 0x9e]),
+        (Reg64::R11, 4) => bytes.extend([0x45, 0x8b, 0x9e]),
+        (Reg64::R11, 8) => bytes.extend([0x4d, 0x8b, 0x9e]),
         _ => {
             return Err(Diagnostic::error(format!(
                 "X86_64 MVP encoder cannot load {byte_size}-byte runtime operands yet"

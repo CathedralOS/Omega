@@ -69,6 +69,29 @@ pub enum AbstractOperationKind {
         byte_size: usize,
         operator: StateGuardOperator,
     },
+
+    /// Task #131 (guards consume Places): compare two place-shaped storage
+    /// operands. Direct places are the retired storage compare; indexed /
+    /// deref places ride the materializer walk (a two-index RIGHT place
+    /// refuses at encoding -- the register fence).
+    ComparePlaces {
+        left: Place,
+        right: Place,
+        byte_size: usize,
+        operator: StateGuardOperator,
+        /// Both operands are f64 and the compare uses `ucomisd` (whose
+        /// CF/ZF mirror an unsigned `cmp`).
+        is_float: bool,
+    },
+
+    /// Task #131: compare a place-shaped storage operand against an
+    /// immediate.
+    ComparePlaceValue {
+        place: Place,
+        byte_size: usize,
+        expected_value: i64,
+        operator: StateGuardOperator,
+    },
     WriteRuntimeTextLiteral {
         buffer: AbstractDataObjectHandle,
         literal: Arc<str>,

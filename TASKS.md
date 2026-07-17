@@ -1032,9 +1032,23 @@ sealed progress profiles + grants, TPR4's remaining big half).
    refuse loudly (legalization principle). Walker arm mirrors
    WritePlaceInteger (sites-by-region; compares' retired walker =
    runtime_storage_compares.rs; left base @0, right base @17|18).
-   Producers: 8 sites. Arc: entry + variants + echo (layout width fn
-   + instruction_bytes arm + walker + conversions/classifications) ->
-   producers -> retire the two variants. Then the
+   Producers: 8 sites. COMPARE RUNG A LANDED
+   2026-07-20: encode_place_compare (left walks in r14/Source + load
+   r10 via the NEW append_load_reg_from_r14 primitive; right in
+   r15/Target + load r11; cmp/ucomisd + failure branch; TWO-INDEX
+   right places refuse -- the register fence) +
+   encode_place_value_compare (walk + load r10 + mov r11,imm64 + cmp;
+   any shape) + ComparePlaces/ComparePlaceValue variants + FULL echo:
+   conversions, GuardEvaluation classifications, selection dispatch
+   (aarch64 = Direct-only via classify, else refuse) + width fns
+   (encode-at-distance-0) + with_sites, layout arms,
+   instruction_bytes arms (branch_distances::byte_distance_to_next_
+   runtime_write_end), encoding.rs handled-elsewhere rows, shapes
+   plain kinds, report arms, walker arms REAL both arches (x86 =
+   sites by side+region over TWO subjects; aarch64 = retained direct
+   positions). Zero producers yet. REMAINING compare: migrate the 8
+   producer sites -> retire CompareRuntimeStorage +
+   CompareRuntimeStorageValue + sweep. Then the
    bounded-buffer entry (immediate content bytes, single base reloc),
    then WritePlaceString/+Buffer variant + echo + producers +
    retirement. Then guards/operands consume Places, then the op-set

@@ -206,6 +206,32 @@ fn machine_instruction_width(
             let literal_len = input.data.objects.get(*buffer).bytes.len();
             runtime_text_storage_compare_width(input.target.architecture, *source_offset, literal_len)
         }
+        SelectedInstructionKind::ComparePlaces {
+            left,
+            right,
+            byte_size,
+            operator,
+            is_float,
+        } => omega_instruction_selection::place_compare_width(
+            input.target.architecture,
+            left,
+            right,
+            *byte_size,
+            *operator,
+            *is_float,
+        )?,
+        SelectedInstructionKind::ComparePlaceValue {
+            place,
+            byte_size,
+            expected_value,
+            operator,
+        } => omega_instruction_selection::place_value_compare_width(
+            input.target.architecture,
+            place,
+            *byte_size,
+            *expected_value,
+            *operator,
+        )?,
         SelectedInstructionKind::CompareRuntimeStorage {
             left_offset,
             right_offset,

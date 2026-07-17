@@ -108,6 +108,30 @@ impl From<&omega_abstract_operations::AbstractOperationKind> for TargetOperation
                 byte_size: *byte_size,
                 operator: *operator,
             },
+            omega_abstract_operations::AbstractOperationKind::ComparePlaces {
+                left,
+                right,
+                byte_size,
+                operator,
+                is_float,
+            } => Self::ComparePlaces {
+                left: *left,
+                right: *right,
+                byte_size: *byte_size,
+                operator: *operator,
+                is_float: *is_float,
+            },
+            omega_abstract_operations::AbstractOperationKind::ComparePlaceValue {
+                place,
+                byte_size,
+                expected_value,
+                operator,
+            } => Self::ComparePlaceValue {
+                place: *place,
+                byte_size: *byte_size,
+                expected_value: *expected_value,
+                operator: *operator,
+            },
             omega_abstract_operations::AbstractOperationKind::WriteRuntimeTextLiteral {
                 buffer,
                 literal,

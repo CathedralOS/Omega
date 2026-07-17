@@ -20,7 +20,9 @@ impl OperationSemanticQuery for AbstractOperationKind {
             | Self::CompareRuntimeTextStorage { .. }
             | Self::CompareRuntimeStorage { .. }
             | Self::CompareRuntimeStorageValue { .. }
-            | Self::CompareRuntimeValues { .. } => AbstractOperationDomain::GuardEvaluation,
+            | Self::CompareRuntimeValues { .. }
+            | Self::ComparePlaces { .. }
+            | Self::ComparePlaceValue { .. } => AbstractOperationDomain::GuardEvaluation,
 
             Self::WriteRuntimeTextLiteral { .. }
             | Self::WriteRuntimeTextLiteralSegment { .. }
