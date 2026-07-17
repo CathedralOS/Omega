@@ -275,6 +275,7 @@ impl Compiler {
             build_config.freestanding,
         )?;
         write_typed_snapshot(&self.options, &typed)?;
+        crate::pipeline::trust_report::write_trust_report(&self.options, &typed)?;
         crate::pipeline::wire_report::write_wire_protocol_report(&self.options, &typed)?;
 
         let checked = typed_trees_to_checked_trees(typed, &mut timings)?;
