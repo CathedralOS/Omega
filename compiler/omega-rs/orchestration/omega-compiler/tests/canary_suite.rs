@@ -26688,6 +26688,63 @@ fn windows_set_file_time_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// Wrapper half of the windows SetFileTime slice. Unlike the raw seam canary,
+// this value-calls Filesystem::set_times into a UnitResult field and therefore
+// pins the mutation-heavy-entry expansion. Its build file also keeps the three
+// POSIX target implementations selected and checked after the portable body's
+// migration into target files.
+#[test]
+fn filesystem_set_times_target_implementations_compile() {
+    let canary = pass_canary("filesystem/windows_wrapper_set_times_exit");
+    for target in ["windows_x64", "linux_x64", "linux_arm64", "macos_arm64"] {
+        omega_compiler::compile_to_checked(&canary.join("main.omg"), Some(target))
+            .unwrap_or_else(|d| panic!("set_times wrapper should check for {target}:\n{d:#?}"));
+    }
+}
+
+#[cfg(windows)]
+#[test]
+fn windows_wrapper_set_times_exit_canary_runs() {
+    let canary = pass_canary("filesystem/windows_wrapper_set_times_exit");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("windows set_times wrapper canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should exit 70 (wrapper stamp + metadata round-trip), got {}",
+        outcome.exit_code
+    );
+
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-win-wrapper-times-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("windows set_times wrapper canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .current_dir(&build_dir)
+        .output()
+        .expect("windows set_times wrapper canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the windows set_times wrapper round-trip to exit 70, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // The WRAPPER canonicalize contract on windows (session slice 4a): msvcrt
 // has no realpath, so the windows impl composes the HANDLE BRIDGE -- open,
 // _get_osfhandle, GetFinalPathNameByHandleA (the \\?\-prefixed DOS path),

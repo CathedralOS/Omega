@@ -336,6 +336,11 @@ data Filesystem {
     // Scratch for the two `struct timespec` (atime then mtime) that `set_times`
     // builds and hands to `futimens`.
     times_buf: [u8; 32];
+    // Win32 twin of times_buf: SetFileTime takes two independent FILETIME
+    // pointers, and boundary arguments deliberately cannot be computed
+    // subslices. Kept as explicit 8-byte arrays for simple-address lowering.
+    access_filetime: [u8; 8];
+    modified_filetime: [u8; 8];
     // Scratch for `create_dir_all`'s per-position best-effort mkdir result
     // (`walk` ignores it -- an already-present ancestor is fine).
     walk_rc: i32;
@@ -1184,34 +1189,10 @@ machine Filesystem::set_len(&mut self, file: File, length: i64) -> UnitResult {
     state err(&mut self) -> UnitResult { let kind: ErrorKind = self.last_error(); UnitResult::Error { kind: kind } }
 }
 
-// Set an open file's access + modification times (Rust `File::set_times`). Builds
-// the two `struct timespec` (atime @0, mtime @16; each {tv_sec i64, tv_nsec i64})
-// little-endian into `times_buf` and calls `futimens`. Whole-second precision:
-// `tv_nsec` stays 0 (the zeroed scratch). Each byte is `x as u8 in Wrapping` (the
-// low 8 bits of the shifted second) — the branch-free byte-decompose idiom.
-machine Filesystem::set_times(&mut self, file: File, accessed: i64, modified: i64) -> UnitResult {
-    self.times_buf[0] = accessed as u8 in Wrapping;
-    self.times_buf[1] = (accessed >> 8) as u8 in Wrapping;
-    self.times_buf[2] = (accessed >> 16) as u8 in Wrapping;
-    self.times_buf[3] = (accessed >> 24) as u8 in Wrapping;
-    self.times_buf[4] = (accessed >> 32) as u8 in Wrapping;
-    self.times_buf[5] = (accessed >> 40) as u8 in Wrapping;
-    self.times_buf[6] = (accessed >> 48) as u8 in Wrapping;
-    self.times_buf[7] = (accessed >> 56) as u8 in Wrapping;
-    self.times_buf[16] = modified as u8 in Wrapping;
-    self.times_buf[17] = (modified >> 8) as u8 in Wrapping;
-    self.times_buf[18] = (modified >> 16) as u8 in Wrapping;
-    self.times_buf[19] = (modified >> 24) as u8 in Wrapping;
-    self.times_buf[20] = (modified >> 32) as u8 in Wrapping;
-    self.times_buf[21] = (modified >> 40) as u8 in Wrapping;
-    self.times_buf[22] = (modified >> 48) as u8 in Wrapping;
-    self.times_buf[23] = (modified >> 56) as u8 in Wrapping;
-    self.file_fd = file.fd;
-    let rc: i32 = self.host.set_file_times(self.file_fd, &mut self.times_buf);
-    transition rc == 0 { true -> ok() _ -> err() }
-    state ok(&mut self) -> UnitResult { UnitResult::Ok }
-    state err(&mut self) -> UnitResult { let kind: ErrorKind = self.last_error(); UnitResult::Error { kind: kind } }
-}
+// Set an open file's access + modification times (Rust `File::set_times`) from
+// Unix whole seconds. Target implementations live in each target's
+// filesystem_impl.omg: POSIX composes timespec records for futimens;
+// windows_x64 composes FILETIME records for SetFileTime.
 
 // Flush all buffered data + metadata to durable storage (Rust `File::sync_all`).
 machine Filesystem::sync(&mut self, file: File) -> UnitResult {

@@ -793,6 +793,45 @@ windows_x64 machine Filesystem::hard_link(&mut self, original: &[u8] in Path, li
     state err(&mut self) -> UnitResult { let kind: ErrorKind = ErrorKind::Other; UnitResult::Error { kind: kind } }
 }
 
+// FILE TIMES (windows session slice 4b wrapper): convert Unix whole seconds
+// to the Win32 FILETIME epoch/tick representation, then stamp the open CRT
+// descriptor through its OS-handle bridge. The two 8-byte FILETIMEs use
+// independent scratch arrays because host-call pointers must be simple places.
+// Arithmetic is explicitly wrapping because the public carrier is the full
+// i64 Unix-seconds domain;
+// SetFileTime remains the authority on whether a resulting timestamp is valid.
+windows_x64 machine Filesystem::set_times(&mut self, file: File, accessed: i64, modified: i64) -> UnitResult {
+    let accessed_epoch: u64 in Wrapping = (accessed as u64 in Wrapping) + 11644473600;
+    let accessed_ticks: u64 in Wrapping = accessed_epoch * 10000000;
+    let modified_epoch: u64 in Wrapping = (modified as u64 in Wrapping) + 11644473600;
+    let modified_ticks: u64 in Wrapping = modified_epoch * 10000000;
+    self.access_filetime[0] = accessed_ticks as u8 in Wrapping;
+    self.access_filetime[1] = (accessed_ticks >> 8) as u8 in Wrapping;
+    self.access_filetime[2] = (accessed_ticks >> 16) as u8 in Wrapping;
+    self.access_filetime[3] = (accessed_ticks >> 24) as u8 in Wrapping;
+    self.access_filetime[4] = (accessed_ticks >> 32) as u8 in Wrapping;
+    self.access_filetime[5] = (accessed_ticks >> 40) as u8 in Wrapping;
+    self.access_filetime[6] = (accessed_ticks >> 48) as u8 in Wrapping;
+    self.access_filetime[7] = (accessed_ticks >> 56) as u8 in Wrapping;
+    self.modified_filetime[0] = modified_ticks as u8 in Wrapping;
+    self.modified_filetime[1] = (modified_ticks >> 8) as u8 in Wrapping;
+    self.modified_filetime[2] = (modified_ticks >> 16) as u8 in Wrapping;
+    self.modified_filetime[3] = (modified_ticks >> 24) as u8 in Wrapping;
+    self.modified_filetime[4] = (modified_ticks >> 32) as u8 in Wrapping;
+    self.modified_filetime[5] = (modified_ticks >> 40) as u8 in Wrapping;
+    self.modified_filetime[6] = (modified_ticks >> 48) as u8 in Wrapping;
+    self.modified_filetime[7] = (modified_ticks >> 56) as u8 in Wrapping;
+    self.file_fd = file.fd;
+    let handle: i64 = self.host.get_osfhandle(self.file_fd);
+    let rc: i32 = self.host.set_file_time(handle, 0, &self.access_filetime, &self.modified_filetime);
+    transition rc != 0 { true -> ok() _ -> err() }
+    state ok(&mut self) -> UnitResult { UnitResult::Ok }
+    state err(&mut self) -> UnitResult {
+        let kind: ErrorKind = ErrorKind::Other;
+        UnitResult::Error { kind: kind }
+    }
+}
+
 windows_x64 machine Filesystem::write_at(&mut self, file: File, bytes: &[u8], offset: i64) -> IoResult {
     self.file_fd = file.fd;
     let saved: i64 = self.host.seek(self.file_fd, 0, 1);

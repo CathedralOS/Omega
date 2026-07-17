@@ -553,6 +553,32 @@ linux_arm64 machine Filesystem::hard_link(&mut self, original: &[u8] in Path, li
     state err(&mut self) -> UnitResult { let kind: ErrorKind = self.last_error(); UnitResult::Error { kind: kind } }
 }
 
+// Set an open file's access + modification times. Compose two native timespec
+// records (atime @0, mtime @16; each {tv_sec i64, tv_nsec i64}) and futimens.
+linux_arm64 machine Filesystem::set_times(&mut self, file: File, accessed: i64, modified: i64) -> UnitResult {
+    self.times_buf[0] = accessed as u8 in Wrapping;
+    self.times_buf[1] = (accessed >> 8) as u8 in Wrapping;
+    self.times_buf[2] = (accessed >> 16) as u8 in Wrapping;
+    self.times_buf[3] = (accessed >> 24) as u8 in Wrapping;
+    self.times_buf[4] = (accessed >> 32) as u8 in Wrapping;
+    self.times_buf[5] = (accessed >> 40) as u8 in Wrapping;
+    self.times_buf[6] = (accessed >> 48) as u8 in Wrapping;
+    self.times_buf[7] = (accessed >> 56) as u8 in Wrapping;
+    self.times_buf[16] = modified as u8 in Wrapping;
+    self.times_buf[17] = (modified >> 8) as u8 in Wrapping;
+    self.times_buf[18] = (modified >> 16) as u8 in Wrapping;
+    self.times_buf[19] = (modified >> 24) as u8 in Wrapping;
+    self.times_buf[20] = (modified >> 32) as u8 in Wrapping;
+    self.times_buf[21] = (modified >> 40) as u8 in Wrapping;
+    self.times_buf[22] = (modified >> 48) as u8 in Wrapping;
+    self.times_buf[23] = (modified >> 56) as u8 in Wrapping;
+    self.file_fd = file.fd;
+    let rc: i32 = self.host.set_file_times(self.file_fd, &mut self.times_buf);
+    transition rc == 0 { true -> ok() _ -> err() }
+    state ok(&mut self) -> UnitResult { UnitResult::Ok }
+    state err(&mut self) -> UnitResult { let kind: ErrorKind = self.last_error(); UnitResult::Error { kind: kind } }
+}
+
 // CANONICALIZE (the portable canonicalize contract, windows session slice
 // 4a): posix binds realpath(3) directly -- symlink-resolving,
 // existence-checked, writes the NUL-terminated absolute path into the
