@@ -28,16 +28,7 @@ impl OperationSemanticQuery for TargetOperationKind {
             | Self::AppendRuntimeTextStoredSuffix { .. }
             | Self::MaterializeTextBufferToPlace { .. }
             | Self::AppendTextStoredToPlace { .. }
-            | Self::AppendTextLiteralToPlace { .. }
-            | Self::MaterializeRuntimeTextBuffer { .. }
-            | Self::MaterializeRuntimeTextBufferToRuntimePointee { .. }
-            | Self::MaterializeRuntimeTextBufferToRuntimeFrameIndexed { .. }
-            | Self::AppendRuntimeTextStoredPlace { .. }
-            | Self::AppendRuntimeTextStoredPlaceToRuntimePointee { .. }
-            | Self::AppendRuntimeTextStoredPlaceToRuntimeFrameIndexed { .. }
-            | Self::AppendRuntimeTextLiteral { .. }
-            | Self::AppendRuntimeTextLiteralToRuntimePointee { .. }
-            | Self::AppendRuntimeTextLiteralToRuntimeFrameIndexed { .. } => {
+            | Self::AppendTextLiteralToPlace { .. } => {
                 TargetOperationDomain::RuntimeTextAssembly
             }
 

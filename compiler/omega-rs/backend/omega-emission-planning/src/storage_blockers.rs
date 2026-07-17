@@ -363,15 +363,6 @@ fn state_mutation_is_planned(
                     | SelectedInstructionKind::MaterializeTextBufferToPlace { .. }
                     | SelectedInstructionKind::AppendTextStoredToPlace { .. }
                     | SelectedInstructionKind::AppendTextLiteralToPlace { .. }
-                    | SelectedInstructionKind::MaterializeRuntimeTextBuffer { .. }
-                    | SelectedInstructionKind::MaterializeRuntimeTextBufferToRuntimePointee { .. }
-                    | SelectedInstructionKind::MaterializeRuntimeTextBufferToRuntimeFrameIndexed { .. }
-                    | SelectedInstructionKind::AppendRuntimeTextStoredPlace { .. }
-                    | SelectedInstructionKind::AppendRuntimeTextStoredPlaceToRuntimePointee { .. }
-                    | SelectedInstructionKind::AppendRuntimeTextStoredPlaceToRuntimeFrameIndexed { .. }
-                    | SelectedInstructionKind::AppendRuntimeTextLiteral { .. }
-                    | SelectedInstructionKind::AppendRuntimeTextLiteralToRuntimePointee { .. }
-                    | SelectedInstructionKind::AppendRuntimeTextLiteralToRuntimeFrameIndexed { .. }
                     | SelectedInstructionKind::AppendRuntimeTextStoredSuffix { .. }
                     | SelectedInstructionKind::CopyPlaces { .. }
             )

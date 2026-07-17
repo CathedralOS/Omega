@@ -1092,8 +1092,17 @@ sealed progress profiles + grants, TPR4's remaining big half).
    sites migrated (text_writes/builder.rs: 2 materialize-direct + 6
    stored-append + 3 literal-append; the pointee/frame-indexed
    MATERIALIZE retired variants had ZERO producers -- already dead).
-   Canary 864 green. REMAINING: retire the 9 crossing variants +
-   sweep. Then producers + retire 9 done -> classify
+   Canary 864 green. TEXT-CROSSING RUNG C LANDED 2026-07-20:
+   RETIREMENT -- the 9 crossing variants deleted from both enums +
+   conversions + classifications (or-group arrow moved to the
+   AppendTextLiteralToPlace row) + shapes + report + host/text/
+   storage blocker rows + encoding/layout/walker arms; 9 dead shapes
+   kind fns swept. The machine-emission runtime_text encode wrappers
+   STAY LIVE (the decompose arms ride them -- the transitional
+   pattern). SCOREBOARD: 55 variants retired onto 11 place survivors
+   (the 8 prior + MaterializeTextBufferToPlace, AppendTextStoredToPlace,
+   AppendTextLiteralToPlace); enum now ~53 variants (from ~100 at the
+   pilot's start). Then producers + retire 9 done -> classify
    the remaining ~53 variants (already-place-shaped / collapsible-via
    -value-category / genuinely-distinct dispatch-host-wire-atomic /
    straggler mini-collapses); walked-place guard subjects stay a

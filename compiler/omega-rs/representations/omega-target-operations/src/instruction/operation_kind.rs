@@ -81,66 +81,6 @@ pub enum TargetOperationKind {
         target_offset: usize,
         length_delta: usize,
     },
-    MaterializeRuntimeTextBuffer {
-        buffer: TargetDataObjectHandle,
-        target_region: RuntimeStorageRegion,
-        target_offset: usize,
-    },
-    MaterializeRuntimeTextBufferToRuntimePointee {
-        buffer: TargetDataObjectHandle,
-        pointer_byte_offset: usize,
-        field_byte_offset: usize,
-    },
-    MaterializeRuntimeTextBufferToRuntimeFrameIndexed {
-        buffer: TargetDataObjectHandle,
-        descriptor_offset: usize,
-        index_offset: usize,
-        element_byte_size: usize,
-        field_byte_offset: usize,
-    },
-    AppendRuntimeTextStoredPlace {
-        buffer: TargetDataObjectHandle,
-        source_region: RuntimeStorageRegion,
-        source_offset: usize,
-        target_region: RuntimeStorageRegion,
-        target_offset: usize,
-    },
-    AppendRuntimeTextStoredPlaceToRuntimePointee {
-        buffer: TargetDataObjectHandle,
-        source_region: RuntimeStorageRegion,
-        source_offset: usize,
-        pointer_byte_offset: usize,
-        field_byte_offset: usize,
-    },
-    AppendRuntimeTextStoredPlaceToRuntimeFrameIndexed {
-        buffer: TargetDataObjectHandle,
-        source_region: RuntimeStorageRegion,
-        source_offset: usize,
-        descriptor_offset: usize,
-        index_offset: usize,
-        element_byte_size: usize,
-        field_byte_offset: usize,
-    },
-    AppendRuntimeTextLiteral {
-        buffer: TargetDataObjectHandle,
-        target_region: RuntimeStorageRegion,
-        target_offset: usize,
-        literal: std::sync::Arc<str>,
-    },
-    AppendRuntimeTextLiteralToRuntimePointee {
-        buffer: TargetDataObjectHandle,
-        pointer_byte_offset: usize,
-        field_byte_offset: usize,
-        literal: std::sync::Arc<str>,
-    },
-    AppendRuntimeTextLiteralToRuntimeFrameIndexed {
-        buffer: TargetDataObjectHandle,
-        descriptor_offset: usize,
-        index_offset: usize,
-        element_byte_size: usize,
-        field_byte_offset: usize,
-        literal: std::sync::Arc<str>,
-    },
 
     /// Task #132: the place-shaped text-buffer materialize (the 3-shape
     /// Materialize crossing's survivor).
