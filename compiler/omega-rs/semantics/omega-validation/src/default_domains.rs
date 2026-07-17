@@ -606,6 +606,7 @@ fn collect_call_summaries(
         ExpressionNode::Mutable(inner) => {
             collect_call_summaries(program, *inner, summaries, call_established);
         }
+        _ => {}
     }
 }
 
@@ -830,7 +831,6 @@ fn scan_statement_reads(
                 reads.push(*guard);
             }
         }
-        _ => {}
     }
     for read in reads {
         scan_expression_reads(
