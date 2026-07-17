@@ -32168,6 +32168,8 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "control_flow/arm_pattern_waived_field_use",
     "control_flow/arm_pattern_missing_field",
     "control_flow/arm_pattern_rest_unknown_field",
+    "calls/mutual_cycle_qualified_shape",
+    "calls/mutual_cycle_disqualified_shape",
     "comptime/const_array_length_index_out_of_bounds",
     "comptime/fuel_exhausted_const_array_length",
     "borrow/method_view_receiver_unrelated_field_write",
