@@ -3919,8 +3919,43 @@ with a real app-window story.
   introduction (`MintAuthority`), progress-profile qualification, and admitted
   provider plans; packages may claim but never self-grant. Record: ch10
   Evidence And Trust + mathematical_proofs “Trust and accepted facts” /
-  “Explicit proof citation”. No rungs cut yet —
-  ladder it when a lane picks it up.
+  “Explicit proof citation”. LANE PICKED UP 2026-07-20; RUNGS CUT
+  after a full machinery map (explorer, banked here -- the ch10
+  carrier is DESIGN-ONLY today; what exists: SemanticDomainTable
+  interner semantics.rs:309-371, MachineSupplyMode::Accepted
+  UNPOPULATED (machine.rs:67-73 emits only Boundary|CheckedBody),
+  ProgressProfileId never minted, TerminationGuarantee premises
+  hard-coded empty at 3 sites, the mint judge's staged fence
+  recasts.rs:119-211 does predicate discharge with NO authority
+  half, `accept_boundary` has ZERO parse occurrences, no
+  receipt/lockfile types anywhere; the working ANALOG to model on is
+  the effects boundary report boundary_report.rs+builder.rs and the
+  host-authority gate host_authority.rs; artifact writers live in
+  omega-artifacts/src/lib.rs). THE LADDER (sealed-domain
+  introduction first -- identity, interner, judge, and a failing
+  canary already exist):
+  GR1 carrier types in omega-core -- TrustCommitment (identity enum:
+  SemanticDomainId today; ProgressProfileId, accepted machine
+  symbols, provider plans later), TrustGrant {commitment,
+  provenance}, TrustReceipt {commitment, statement hash},
+  TrustGrantTable. Types only.
+  GR2 the MintAuthority check -- judge_qualification_cast consults
+  the grant table; grant-locality v1: OWN-PACKAGE declared domains
+  are dev-active (mint allowed + standing-warning row), the staged
+  fence keeps refusing everything else; semantic_cast_mint_staged
+  canary re-pins.
+  GR3 root-grant parse -- b.accept_boundary<path>() in build.omg
+  (compile-time machine parameter, ch13) populating the table
+  through the build-config path (build_config_granted.rs precedent).
+  GR4 receipts + the unified lockfile writer (omega-artifacts;
+  statement hash recorded automatically; drift fails until
+  re-approved).
+  GR5 accepted-tier trust-report rows (new producer beside
+  boundary_report.rs; the proof tier the report lacks).
+  GR6 the remaining consumers -- qualification AUTHORITY half
+  (qualifications.rs:26-32), ProgressProfile minting + the three
+  premises stubs, MachineContractPlan permission half, boundary
+  machines populating Accepted.
 
 ## Structural follow-ups (surface landed; semantics pending)
 
