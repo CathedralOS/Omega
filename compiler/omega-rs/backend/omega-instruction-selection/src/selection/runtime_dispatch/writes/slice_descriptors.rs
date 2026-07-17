@@ -231,12 +231,12 @@ fn emit_runtime_frame_slot_runtime_subslice_descriptor_write_in_table(
                 source_statement: statement_index,
             });
             selected_instructions.push(SelectedInstruction {
-                kind: SelectedInstructionKind::WriteRuntimeStorageInteger {
-                    target_region: RuntimeStorageRegion::RuntimeFrame,
-                    byte_offset: slot.byte_offset + descriptor.len_offset(),
-                    byte_size: descriptor.len_size(),
-                    value: length as i64,
-                },
+                kind: crate::selection::runtime_dispatch::write_place_integer_direct(
+                    RuntimeStorageRegion::RuntimeFrame,
+                    slot.byte_offset + descriptor.len_offset(),
+                    length as i64,
+                    descriptor.len_size(),
+                ),
                 source_key: value_source_key,
                 source_statement: statement_index,
             });
@@ -516,24 +516,24 @@ fn emit_runtime_descriptor_subslice(
                 .map(|layout| layout.len)
                 .unwrap_or(0);
             selected_instructions.push(SelectedInstruction {
-                kind: SelectedInstructionKind::WriteRuntimeStorageInteger {
-                    target_region: RuntimeStorageRegion::RuntimeFrame,
-                    byte_offset: target_len_offset,
-                    byte_size: len_size,
-                    value: len as i64,
-                },
+                kind: crate::selection::runtime_dispatch::write_place_integer_direct(
+                    RuntimeStorageRegion::RuntimeFrame,
+                    target_len_offset,
+                    len as i64,
+                    len_size,
+                ),
                 source_key: value_source_key,
                 source_statement: statement_index,
             });
         }
         (SubsliceBound::Literal(start), None) => match window.window_len_elements {
             Some(window_len) => selected_instructions.push(SelectedInstruction {
-                kind: SelectedInstructionKind::WriteRuntimeStorageInteger {
-                    target_region: RuntimeStorageRegion::RuntimeFrame,
-                    byte_offset: target_len_offset,
-                    byte_size: len_size,
-                    value: window_len.saturating_sub(*start) as i64,
-                },
+                kind: crate::selection::runtime_dispatch::write_place_integer_direct(
+                    RuntimeStorageRegion::RuntimeFrame,
+                    target_len_offset,
+                    window_len.saturating_sub(*start) as i64,
+                    len_size,
+                ),
                 source_key: value_source_key,
                 source_statement: statement_index,
             }),
@@ -694,12 +694,12 @@ pub(in crate::selection) fn emit_runtime_frame_slot_slice_descriptor_write_in_ta
             source_statement: statement_index,
         });
         selected_instructions.push(SelectedInstruction {
-            kind: SelectedInstructionKind::WriteRuntimeStorageInteger {
-                target_region: omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame,
-                byte_offset: slot.byte_offset + input.runtime_abi.slice_descriptor().len_offset(),
-                byte_size: 8,
-                value: length as i64,
-            },
+            kind: crate::selection::runtime_dispatch::write_place_integer_direct(
+                omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame,
+                slot.byte_offset + input.runtime_abi.slice_descriptor().len_offset(),
+                length as i64,
+                8,
+            ),
             source_key: value_source_key,
             source_statement: statement_index,
         });
@@ -1081,12 +1081,12 @@ fn emit_slice_descriptor_length(
 ) {
     let descriptor = input.runtime_abi.slice_descriptor();
     selected_instructions.push(SelectedInstruction {
-        kind: SelectedInstructionKind::WriteRuntimeStorageInteger {
-            target_region: RuntimeStorageRegion::RuntimeFrame,
-            byte_offset: slot.byte_offset + descriptor.len_offset(),
-            byte_size: descriptor.len_size(),
-            value: length as i64,
-        },
+        kind: crate::selection::runtime_dispatch::write_place_integer_direct(
+            RuntimeStorageRegion::RuntimeFrame,
+            slot.byte_offset + descriptor.len_offset(),
+            length as i64,
+            descriptor.len_size(),
+        ),
         source_key: value_source_key,
         source_statement: statement_index,
     });

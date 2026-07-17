@@ -180,12 +180,12 @@ pub(super) fn select_runtime_dispatch_argument_materialization(
         // resolves to a variant is necessarily the no-payload form.)
         if let Some(tag_value) = enum_variant_value_in_table(&input.layouts, expressions, argument) {
             selected_instructions.push(SelectedInstruction {
-                kind: SelectedInstructionKind::WriteRuntimeStorageInteger {
-                    target_region: RuntimeStorageRegion::RuntimeFrame,
-                    byte_offset: slot.byte_offset,
-                    byte_size: ENUM_TAG_BYTES,
-                    value: tag_value,
-                },
+                kind: crate::selection::runtime_dispatch::write_place_integer_direct(
+                    RuntimeStorageRegion::RuntimeFrame,
+                    slot.byte_offset,
+                    tag_value,
+                    ENUM_TAG_BYTES,
+                ),
                 source_key,
                 source_statement: statement_index,
             });
@@ -499,12 +499,12 @@ pub(super) fn select_runtime_dispatch_argument_materialization(
             }
 
             selected_instructions.push(SelectedInstruction {
-                kind: SelectedInstructionKind::WriteRuntimeStorageInteger {
-                    target_region: RuntimeStorageRegion::RuntimeFrame,
-                    byte_offset: slot.byte_offset,
-                    byte_size: slot.byte_size,
+                kind: crate::selection::runtime_dispatch::write_place_integer_direct(
+                    RuntimeStorageRegion::RuntimeFrame,
+                    slot.byte_offset,
                     value,
-                },
+                    slot.byte_size,
+                ),
                 source_key,
                 source_statement: statement_index,
             });
@@ -531,12 +531,12 @@ pub(super) fn select_runtime_dispatch_argument_materialization(
             };
             if matches!(slot.byte_size, 4 | 8) {
                 selected_instructions.push(SelectedInstruction {
-                    kind: SelectedInstructionKind::WriteRuntimeStorageInteger {
-                        target_region: RuntimeStorageRegion::RuntimeFrame,
-                        byte_offset: slot.byte_offset,
-                        byte_size: slot.byte_size,
+                    kind: crate::selection::runtime_dispatch::write_place_integer_direct(
+                        RuntimeStorageRegion::RuntimeFrame,
+                        slot.byte_offset,
                         value,
-                    },
+                        slot.byte_size,
+                    ),
                     source_key,
                     source_statement: statement_index,
                 });
@@ -582,12 +582,12 @@ pub(super) fn select_runtime_dispatch_argument_materialization(
                 };
                 if let Some(tag_value) = tag {
                     selected_instructions.push(SelectedInstruction {
-                        kind: SelectedInstructionKind::WriteRuntimeStorageInteger {
-                            target_region: RuntimeStorageRegion::RuntimeFrame,
-                            byte_offset: slot.byte_offset,
-                            byte_size: ENUM_TAG_BYTES,
-                            value: tag_value,
-                        },
+                        kind: crate::selection::runtime_dispatch::write_place_integer_direct(
+                            RuntimeStorageRegion::RuntimeFrame,
+                            slot.byte_offset,
+                            tag_value,
+                            ENUM_TAG_BYTES,
+                        ),
                         source_key,
                         source_statement: statement_index,
                     });
@@ -644,12 +644,12 @@ pub(super) fn select_runtime_dispatch_argument_materialization(
                     {
                         if matches!(field_size, 1 | 2 | 4 | 8) {
                             selected_instructions.push(SelectedInstruction {
-                                kind: SelectedInstructionKind::WriteRuntimeStorageInteger {
-                                    target_region: RuntimeStorageRegion::RuntimeFrame,
-                                    byte_offset: frame_offset,
-                                    byte_size: *field_size,
-                                    value: int_val,
-                                },
+                                kind: crate::selection::runtime_dispatch::write_place_integer_direct(
+                                    RuntimeStorageRegion::RuntimeFrame,
+                                    frame_offset,
+                                    int_val,
+                                    *field_size,
+                                ),
                                 source_key,
                                 source_statement: statement_index,
                             });
@@ -728,12 +728,12 @@ pub(super) fn select_runtime_dispatch_argument_materialization(
                     {
                         if matches!(field_size, 1 | 2 | 4 | 8) {
                             selected_instructions.push(SelectedInstruction {
-                                kind: SelectedInstructionKind::WriteRuntimeStorageInteger {
-                                    target_region: RuntimeStorageRegion::RuntimeFrame,
-                                    byte_offset: frame_offset,
-                                    byte_size: *field_size,
-                                    value: int_val,
-                                },
+                                kind: crate::selection::runtime_dispatch::write_place_integer_direct(
+                                    RuntimeStorageRegion::RuntimeFrame,
+                                    frame_offset,
+                                    int_val,
+                                    *field_size,
+                                ),
                                 source_key,
                                 source_statement: statement_index,
                             });
@@ -1117,12 +1117,12 @@ fn emit_runtime_fixed_array_slice_argument_materialization(
     });
     let descriptor = input.runtime_abi.slice_descriptor();
     selected_instructions.push(SelectedInstruction {
-        kind: SelectedInstructionKind::WriteRuntimeStorageInteger {
-            target_region: RuntimeStorageRegion::RuntimeFrame,
-            byte_offset: slot.byte_offset + descriptor.len_offset(),
-            byte_size: descriptor.len_size(),
-            value: length as i64,
-        },
+        kind: crate::selection::runtime_dispatch::write_place_integer_direct(
+            RuntimeStorageRegion::RuntimeFrame,
+            slot.byte_offset + descriptor.len_offset(),
+            length as i64,
+            descriptor.len_size(),
+        ),
         source_key,
         source_statement: statement_index,
     });
@@ -1209,12 +1209,12 @@ fn emit_runtime_detached_frame_slice_argument_materialization(
     });
     let descriptor = input.runtime_abi.slice_descriptor();
     selected_instructions.push(SelectedInstruction {
-        kind: SelectedInstructionKind::WriteRuntimeStorageInteger {
-            target_region: RuntimeStorageRegion::RuntimeFrame,
-            byte_offset: slot.byte_offset + descriptor.len_offset(),
-            byte_size: descriptor.len_size(),
-            value: length as i64,
-        },
+        kind: crate::selection::runtime_dispatch::write_place_integer_direct(
+            RuntimeStorageRegion::RuntimeFrame,
+            slot.byte_offset + descriptor.len_offset(),
+            length as i64,
+            descriptor.len_size(),
+        ),
         source_key,
         source_statement: statement_index,
     });

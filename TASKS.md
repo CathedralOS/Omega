@@ -712,12 +712,18 @@ sealed progress profiles + grants, TPR4's remaining big half).
    direct places expose their flat range, deref/indexed claim none),
    and the FIRST migration: both WriteRuntimeMachineInteger sites
    (branches/leaf.rs) build direct places. Battery green.
-   REMAINING 2b sites (mechanical, helpers ready): Pointee x6
-   (writes/mutation.rs, mutation/static_writes.rs,
-   branches/mutation.rs), FrameIndexed x3, FrameBaseIndexed x3,
-   MachineIndexed x3, MachineDoubleIndexed x1, then the LONG TAIL
-   WriteRuntimeStorageInteger x40 (all direct -- regex-sweepable);
-   then the seven variants retire with their echoes.
+   RUNG 2b COMPLETE 2026-07-19 -- ALL 58 PRODUCER SITES MIGRATED (a
+   field-aware transformer swept every construction across 13
+   selection files; match PATTERNS skipped by rest-dots/arm
+   detection); the prelude splice-covered-plain-write matcher now
+   recognizes the DIRECT WritePlaceInteger shape (deref/indexed have
+   no splice equivalent). Battery green incl. differential 14/14 --
+   the seven integer-write variants are PRODUCER-FREE.
+   RETIREMENT NEXT: delete the seven Write*Integer variants from both
+   enums with every echo (the Copy retirement discipline: balance-
+   aware arm deletion; KEEP the six aarch64 encoders + offset fns the
+   WritePlaceShape decompose rides; the x86 delegating encoder shells
+   die with their dispatchers).
    Rung 2a after: the WritePlaceInteger variant + echo product +
    producer migration. Pre-existing dead helpers noted en route (shapes/copies.rs
    runtime_storage_copy_kind + _to_runtime_frame_indexed_kind +

@@ -164,12 +164,12 @@ pub(in crate::selection) fn select_runtime_frame_slot_value_write_in_table_with_
             value,
         )
     {
-        return Some(SelectedInstructionKind::WriteRuntimeStorageInteger {
-            target_region: RuntimeStorageRegion::RuntimeFrame,
-            byte_offset: slot.byte_offset,
-            byte_size: slot.byte_size,
-            value: length,
-        });
+        return Some(crate::selection::runtime_dispatch::write_place_integer_direct(
+            RuntimeStorageRegion::RuntimeFrame,
+            slot.byte_offset,
+            length,
+            slot.byte_size,
+        ));
     }
 
     if slot.byte_size == input.runtime_abi.pointer_size
@@ -201,12 +201,12 @@ pub(in crate::selection) fn select_runtime_frame_slot_value_write_in_table_with_
                 4 => i64::from(literal.f32_bits()),
                 _ => literal.landed_f64().to_bits() as i64,
             };
-            return Some(SelectedInstructionKind::WriteRuntimeStorageInteger {
-                target_region: RuntimeStorageRegion::RuntimeFrame,
-                byte_offset: slot.byte_offset,
-                byte_size: slot.byte_size,
-                value: bits,
-            });
+            return Some(crate::selection::runtime_dispatch::write_place_integer_direct(
+                RuntimeStorageRegion::RuntimeFrame,
+                slot.byte_offset,
+                bits,
+                slot.byte_size,
+            ));
         }
     }
 
@@ -226,12 +226,12 @@ pub(in crate::selection) fn select_runtime_frame_slot_value_write_in_table_with_
         ) {
             return Some(kind);
         }
-        return Some(SelectedInstructionKind::WriteRuntimeStorageInteger {
-            target_region: RuntimeStorageRegion::RuntimeFrame,
-            byte_offset: slot.byte_offset,
-            byte_size: slot.byte_size,
+        return Some(crate::selection::runtime_dispatch::write_place_integer_direct(
+            RuntimeStorageRegion::RuntimeFrame,
+            slot.byte_offset,
             value,
-        });
+            slot.byte_size,
+        ));
     }
 
     // A NULLARY enum variant (`PairResult::Err`, a bare `Type::Case` Name) written
@@ -246,12 +246,12 @@ pub(in crate::selection) fn select_runtime_frame_slot_value_write_in_table_with_
     if !supports_scalar_integer_write(slot.byte_size)
         && let Some(tag) = enum_variant_value_in_table(&input.layouts, expressions, value)
     {
-        return Some(SelectedInstructionKind::WriteRuntimeStorageInteger {
-            target_region: RuntimeStorageRegion::RuntimeFrame,
-            byte_offset: slot.byte_offset,
-            byte_size: ENUM_TAG_BYTES,
-            value: tag,
-        });
+        return Some(crate::selection::runtime_dispatch::write_place_integer_direct(
+            RuntimeStorageRegion::RuntimeFrame,
+            slot.byte_offset,
+            tag,
+            ENUM_TAG_BYTES,
+        ));
     }
 
     if slot.byte_size == input.runtime_abi.string_descriptor_size()

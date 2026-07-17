@@ -91,12 +91,12 @@ pub(in crate::selection) fn emit_runtime_frame_slot_text_comparison_write_in_tab
     };
 
     selected_instructions.push(SelectedInstruction {
-        kind: SelectedInstructionKind::WriteRuntimeStorageInteger {
-            target_region: RuntimeStorageRegion::RuntimeFrame,
-            byte_offset: slot.byte_offset,
-            byte_size: slot.byte_size,
-            value: 1,
-        },
+        kind: crate::selection::runtime_dispatch::write_place_integer_direct(
+            RuntimeStorageRegion::RuntimeFrame,
+            slot.byte_offset,
+            1,
+            slot.byte_size,
+        ),
         source_key: value_source_key,
         source_statement: statement_index,
     });
@@ -111,12 +111,12 @@ pub(in crate::selection) fn emit_runtime_frame_slot_text_comparison_write_in_tab
         source_statement: statement_index,
     });
     selected_instructions.push(SelectedInstruction {
-        kind: SelectedInstructionKind::WriteRuntimeStorageInteger {
-            target_region: RuntimeStorageRegion::RuntimeFrame,
-            byte_offset: slot.byte_offset,
-            byte_size: slot.byte_size,
-            value: 0,
-        },
+        kind: crate::selection::runtime_dispatch::write_place_integer_direct(
+            RuntimeStorageRegion::RuntimeFrame,
+            slot.byte_offset,
+            0,
+            slot.byte_size,
+        ),
         source_key: value_source_key,
         source_statement: statement_index,
     });

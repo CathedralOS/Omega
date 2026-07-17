@@ -701,12 +701,12 @@ fn select_field_default_writes(
             constant_default_value(input, initial_value, field.layout.size)
     {
         selected_instructions.push(SelectedInstruction {
-            kind: SelectedInstructionKind::WriteRuntimeStorageInteger {
-                target_region: RuntimeStorageRegion::Machine,
-                byte_offset: field_offset,
-                byte_size: field.layout.size,
+            kind: crate::selection::runtime_dispatch::write_place_integer_direct(
+                RuntimeStorageRegion::Machine,
+                field_offset,
                 value,
-            },
+                field.layout.size,
+            ),
             source_key: input.entry_key,
             source_statement: 0,
         });
