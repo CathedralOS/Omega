@@ -1,0 +1,60 @@
+// RUN CANARY (exit 70, WINDOWS-HOST ONLY) -- the portable Filesystem::set_times
+// wrapper selected through its windows_x64 implementation. This is deliberately
+// a VALUE call into an enum field on an explicitly read/write handle. The latter
+// is load-bearing: Win32 SetFileTime requires writable-attributes authority,
+// while Filesystem::open is intentionally read-only. The metadata round-trip
+// proves both conversion and native side effects without call-form exceptions.
+// exits: 70 good; 71 create/write/reopen failed; 72 set_times returned Error;
+// 73 metadata failed; 74 modification time wrong; 75 cleanup failed. The
+// current hermetic/real SetFileTime models deliberately expose only mtime.
+
+use omega::language::std::filesystem;
+use omega::language::std::filesystem_host;
+
+boundary trait Console { machine exit_process(return_code: i32); }
+
+data Main {
+    console: Console;
+    fs: Filesystem;
+    open_result: OpenResult;
+    io_result: IoResult;
+    unit_result: UnitResult;
+    meta_result: MetadataResult;
+    file_fd: i32;
+    close_rc: i32;
+}
+
+machine Main::main(&mut self) {
+    self.open_result = self.fs.create("omega_win_times_probe.txt");
+    transition self.open_result { OpenResult::Ok { file } -> seed(file) _ -> bad(71) }
+    state seed(&mut self, file: File) {
+        self.file_fd = file.fd;
+        self.io_result = self.fs.write(File { fd: self.file_fd }, "stamp");
+        transition self.io_result { IoResult::Ok { count } -> close_seed() _ -> bad(71) }
+    }
+    state close_seed(&mut self) {
+        self.close_rc = self.fs.close(File { fd: self.file_fd });
+        let opts_rw: OpenOptions = OpenOptions { read: true, write: true };
+        self.open_result = self.fs.open_with("omega_win_times_probe.txt", opts_rw);
+        transition self.open_result { OpenResult::Ok { file } -> stamp(file) _ -> bad(71) }
+    }
+    state stamp(&mut self, file: File) {
+        self.file_fd = file.fd;
+        self.unit_result = self.fs.set_times(File { fd: self.file_fd }, 1500000100, 1500000200);
+        transition self.unit_result { UnitResult::Ok -> restat() _ -> bad(72) }
+    }
+    state restat(&mut self) {
+        self.meta_result = self.fs.metadata(File { fd: self.file_fd });
+        transition self.meta_result { MetadataResult::Ok { meta } -> modified(meta) _ -> bad(73) }
+    }
+    state modified(&mut self, meta: Metadata) {
+        transition meta.modified_secs == 1500000200 { true -> cleanup() _ -> bad(74) }
+    }
+    state cleanup(&mut self) {
+        self.close_rc = self.fs.close(File { fd: self.file_fd });
+        self.unit_result = self.fs.remove("omega_win_times_probe.txt");
+        transition self.unit_result { UnitResult::Ok -> good() _ -> bad(75) }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self, code: i32) { self.console.exit_process(code); }
+}
