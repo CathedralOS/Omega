@@ -2775,6 +2775,23 @@ impl<'program> Evaluator<'program> {
                 let flags = self.eval_fs_scalar(arguments.get(1).copied(), frame)? as i32;
                 self.virtual_open_flags(path, flags) as i64
             }
+            "open_path_handle" => {
+                // Hermetic CreateFileA model for metadata/query handles. The
+                // wrapper supplies access=0 + OPEN_EXISTING; the virtual fd
+                // table already models both files and read-only directories.
+                let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
+                let fd = self.virtual_open_flags(path, 0);
+                if fd < 0 {
+                    // `GetLastError`, not CRT errno, is the native error source.
+                    self.virtual_errno = match self.virtual_errno {
+                        13 => 5,   // EACCES -> ERROR_ACCESS_DENIED
+                        9 => 6,    // EBADF -> ERROR_INVALID_HANDLE
+                        17 => 183, // EEXIST -> ERROR_ALREADY_EXISTS
+                        _ => 2,    // ERROR_FILE_NOT_FOUND
+                    };
+                }
+                fd as i64
+            }
             "open_create" => {
                 // `open(path, flags, mode)` with O_CREAT (Rust `File::create_new`,
                 // `OpenOptions.create`/`.create_new`). Flag bits are the HOST's
@@ -2870,6 +2887,16 @@ impl<'program> Evaluator<'program> {
                 } else {
                     self.virtual_errno = 9; // EBADF
                     -1
+                }
+            }
+            "close_handle" => {
+                let handle = self.eval_fs_fd(arguments.first().copied(), frame)?;
+                if self.virtual_fds.remove(&handle).is_some() {
+                    self.virtual_flocks.retain(|_, owner| *owner != handle);
+                    1 // Win32 BOOL success
+                } else {
+                    self.virtual_errno = 6; // ERROR_INVALID_HANDLE
+                    0
                 }
             }
             "duplicate" => {

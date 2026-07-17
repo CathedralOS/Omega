@@ -82,6 +82,11 @@ pub const WINDOWS_IMPORT_ROWS: &[(&str, &str, &str, &str)] = &[
     // the designed seam op mirrors that exact shape (BOOL return) and the
     // windows Filesystem::hard_link impl swaps the portable arg order.
     ("Filesystem", "create_hard_link", "Kernel32.dll", "CreateHardLinkA"),
+    // Direct kernel HANDLE open/close. Unlike msvcrt `_open`, CreateFileA
+    // with FILE_FLAG_BACKUP_SEMANTICS can open directories for metadata and
+    // final-path queries.
+    ("Filesystem", "open_path_handle", "Kernel32.dll", "CreateFileA"),
+    ("Filesystem", "close_handle", "Kernel32.dll", "CloseHandle"),
     // The handle bridge (session slice 4a): _get_osfhandle surfaces the OS
     // HANDLE behind a CRT fd; GetFinalPathNameByHandleA resolves an open
     // handle to its final DOS path (the honest windows canonicalize --
@@ -498,6 +503,20 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
             "FilesystemHost",
             "set_file_time",
             [host_operation("Filesystem", "set_file_time")],
+            PlatformCallData::None,
+        );
+        insert_platform_lowering(
+            plan,
+            "FilesystemHost",
+            "open_path_handle",
+            [host_operation("Filesystem", "open_path_handle")],
+            PlatformCallData::None,
+        );
+        insert_platform_lowering(
+            plan,
+            "FilesystemHost",
+            "close_handle",
+            [host_operation("Filesystem", "close_handle")],
             PlatformCallData::None,
         );
         insert_platform_lowering(

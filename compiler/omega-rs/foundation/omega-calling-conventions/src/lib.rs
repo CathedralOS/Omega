@@ -306,6 +306,11 @@ pub enum HostOperation {
     Creat,
     /// `close(fd)` -- release a file descriptor.
     Close,
+    /// `CreateFileA(path, access, share, security, disposition, flags,
+    /// template)` -- open a Win32 path as a kernel HANDLE. Windows-only.
+    CreateFile,
+    /// `CloseHandle(handle)` -- release a Win32 kernel HANDLE. Windows-only.
+    CloseHandle,
     /// `unlink`/`remove` -- delete a path.
     Unlink,
     /// `lseek(fd, offset, whence)` -- reposition the descriptor, returning the
@@ -645,8 +650,10 @@ impl HostOperation {
             "pread" => Self::PRead,
             "pwrite" => Self::PWrite,
             "open" => Self::Open,
+            "open_path_handle" => Self::CreateFile,
             "creat" => Self::Creat,
             "close" => Self::Close,
+            "close_handle" => Self::CloseHandle,
             "unlink" => Self::Unlink,
             "lseek" => Self::Seek,
             "mkdir" => Self::MakeDir,
@@ -747,8 +754,10 @@ impl HostOperation {
             Self::PRead => "pread",
             Self::PWrite => "pwrite",
             Self::Open => "open",
+            Self::CreateFile => "open_path_handle",
             Self::Creat => "creat",
             Self::Close => "close",
+            Self::CloseHandle => "close_handle",
             Self::Unlink => "unlink",
             Self::Seek => "lseek",
             Self::MakeDir => "mkdir",
