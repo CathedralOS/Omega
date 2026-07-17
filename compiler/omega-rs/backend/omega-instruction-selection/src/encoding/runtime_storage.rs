@@ -1111,6 +1111,53 @@ pub fn encode_copy_places(
                 target_offset,
                 byte_count,
             ),
+            CopyPlacesShape::ToMachineDoubleIndexed {
+                source_offset,
+                base_byte_offset,
+                outer_index_region,
+                outer_index_offset,
+                outer_stride,
+                inner_index_region,
+                inner_index_offset,
+                inner_stride,
+                field_byte_offset,
+            } => aarch64::encode_runtime_storage_copy_to_runtime_machine_double_indexed_from_runtime_storage(
+                source.region,
+                source_offset,
+                base_byte_offset,
+                outer_index_offset,
+                outer_index_region,
+                outer_stride,
+                inner_index_offset,
+                inner_index_region,
+                inner_stride,
+                field_byte_offset,
+                byte_count,
+            ),
+            CopyPlacesShape::MachineIndexedPair {
+                source_base_byte_offset,
+                source_index_region,
+                source_index_offset,
+                source_element_byte_size,
+                source_field_byte_offset,
+                target_base_byte_offset,
+                target_index_region,
+                target_index_offset,
+                target_element_byte_size,
+                target_field_byte_offset,
+            } => aarch64::encode_runtime_storage_copy_machine_indexed_to_machine_indexed(
+                source_base_byte_offset,
+                source_index_offset,
+                source_index_region,
+                source_element_byte_size,
+                source_field_byte_offset,
+                target_base_byte_offset,
+                target_index_offset,
+                target_index_region,
+                target_element_byte_size,
+                target_field_byte_offset,
+                byte_count,
+            ),
             CopyPlacesShape::PointeePair { .. }
             | CopyPlacesShape::FromIndexed { .. }
             | CopyPlacesShape::ToIndexed { .. }
@@ -1238,6 +1285,33 @@ pub enum CopyPlacesShape {
         field_byte_offset: usize,
         target_offset: usize,
     },
+    /// The machine inline 2D-array element WRITE (`m[i][j] = v` -- a
+    /// const-offset source into a double-indexed machine target).
+    ToMachineDoubleIndexed {
+        source_offset: usize,
+        base_byte_offset: usize,
+        outer_index_region: omega_target_operations::RuntimeStorageRegion,
+        outer_index_offset: usize,
+        outer_stride: usize,
+        inner_index_region: omega_target_operations::RuntimeStorageRegion,
+        inner_index_offset: usize,
+        inner_stride: usize,
+        field_byte_offset: usize,
+    },
+    /// `arr[i] = arr[j]` on machine inline arrays: ONE runtime index per
+    /// side, both sides machine-resident, no deref.
+    MachineIndexedPair {
+        source_base_byte_offset: usize,
+        source_index_region: omega_target_operations::RuntimeStorageRegion,
+        source_index_offset: usize,
+        source_element_byte_size: usize,
+        source_field_byte_offset: usize,
+        target_base_byte_offset: usize,
+        target_index_region: omega_target_operations::RuntimeStorageRegion,
+        target_index_offset: usize,
+        target_element_byte_size: usize,
+        target_field_byte_offset: usize,
+    },
     /// Anything else (multi-index, multi-deref): x86_64-materializer only.
     General,
 }
@@ -1289,7 +1363,43 @@ pub fn classify_copy_places_shape(
         }
         return CopyPlacesShape::General;
     }
+    if let Some(double) = direct_double_indexed_path(target) {
+        if target.region == omega_target_operations::RuntimeStorageRegion::Machine
+            && let Some(source_offset) = source.const_offset()
+        {
+            return CopyPlacesShape::ToMachineDoubleIndexed {
+                source_offset,
+                base_byte_offset: double.base_offset,
+                outer_index_region: double.outer_region,
+                outer_index_offset: double.outer_offset,
+                outer_stride: double.outer_stride,
+                inner_index_region: double.inner_region,
+                inner_index_offset: double.inner_offset,
+                inner_stride: double.inner_stride,
+                field_byte_offset: double.field_offset,
+            };
+        }
+        return CopyPlacesShape::General;
+    }
     if let Some(indexed) = direct_indexed_path(source) {
+        // `arr[i] = arr[j]`: one runtime index EACH side, both machine.
+        if let Some(target_indexed) = direct_indexed_path(target)
+            && source.region == omega_target_operations::RuntimeStorageRegion::Machine
+            && target.region == omega_target_operations::RuntimeStorageRegion::Machine
+        {
+            return CopyPlacesShape::MachineIndexedPair {
+                source_base_byte_offset: indexed.pointer_offset,
+                source_index_region: indexed.index_region,
+                source_index_offset: indexed.index_offset,
+                source_element_byte_size: indexed.element_byte_size,
+                source_field_byte_offset: indexed.field_offset,
+                target_base_byte_offset: target_indexed.pointer_offset,
+                target_index_region: target_indexed.index_region,
+                target_index_offset: target_indexed.index_offset,
+                target_element_byte_size: target_indexed.element_byte_size,
+                target_field_byte_offset: target_indexed.field_offset,
+            };
+        }
         if source.region == omega_target_operations::RuntimeStorageRegion::Machine
             && let Some(target_offset) = target.const_offset()
         {

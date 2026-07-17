@@ -430,10 +430,26 @@ fn dual_indexed_copy_is_planned(
         .any(|(_, instruction)| {
             state_key_matches_statement_source(instruction.source_key, source_key)
                 && instruction.source_statement == statement_index
-                && matches!(
-                    instruction.kind,
-                    SelectedInstructionKind::CopyRuntimeMachineIndexedToRuntimeMachineIndexed { .. }
-                )
+                && match &instruction.kind {
+                    SelectedInstructionKind::CopyRuntimeMachineIndexedToRuntimeMachineIndexed {
+                        ..
+                    } => true,
+                    // Rung 2c-x: the pair rides CopyPlaces -- BOTH sides
+                    // carry a runtime index, which is exactly the dual
+                    // shape this fence guards.
+                    SelectedInstructionKind::CopyPlaces { source, target, .. } => {
+                        let indexed = |place: &omega_target_operations::Place| {
+                            place.steps().iter().any(|step| {
+                                matches!(
+                                    step,
+                                    omega_target_operations::PlaceStep::ScaledIndex { .. }
+                                )
+                            })
+                        };
+                        indexed(source) && indexed(target)
+                    }
+                    _ => false,
+                }
         })
 }
 
