@@ -591,11 +591,11 @@ fn select_runtime_frame_slot_address_write_in_table(
         call.receiver,
     ) {
         return Some(
-            SelectedInstructionKind::WriteRuntimePointeeAddressToRuntimeFrame {
-                pointer_byte_offset: pointer_target.pointer_byte_offset,
-                field_byte_offset: pointer_target.field_byte_offset,
-                target_offset: slot.byte_offset,
-            },
+            crate::selection::runtime_dispatch::write_place_address_pointee(
+                pointer_target.pointer_byte_offset,
+                pointer_target.field_byte_offset,
+                slot.byte_offset,
+            ),
         );
     }
 
@@ -607,14 +607,14 @@ fn select_runtime_frame_slot_address_write_in_table(
         call.receiver,
     ) {
         return Some(
-            SelectedInstructionKind::WriteRuntimeFrameIndexedAddressToRuntimeFrame {
-                descriptor_offset: indexed_target.descriptor_offset,
-                index_offset: indexed_target.index_offset,
-                index_region: RuntimeStorageRegion::RuntimeFrame,
-                element_byte_size: indexed_target.element_byte_size,
-                field_byte_offset: indexed_target.field_byte_offset,
-                target_offset: slot.byte_offset,
-            },
+            crate::selection::runtime_dispatch::write_place_address_frame_indexed_deref(
+                indexed_target.descriptor_offset,
+                RuntimeStorageRegion::RuntimeFrame,
+                indexed_target.index_offset,
+                indexed_target.element_byte_size,
+                indexed_target.field_byte_offset,
+                slot.byte_offset,
+            ),
         );
     }
 
@@ -626,13 +626,13 @@ fn select_runtime_frame_slot_address_write_in_table(
         call.receiver,
     ) {
         return Some(
-            SelectedInstructionKind::WriteRuntimeFrameBaseIndexedAddressToRuntimeFrame {
-                base_byte_offset: indexed_target.base_byte_offset,
-                index_offset: indexed_target.index_offset,
-                element_byte_size: indexed_target.element_byte_size,
-                field_byte_offset: indexed_target.field_byte_offset,
-                target_offset: slot.byte_offset,
-            },
+            crate::selection::runtime_dispatch::write_place_address_base_indexed(
+                indexed_target.base_byte_offset,
+                indexed_target.index_offset,
+                indexed_target.element_byte_size,
+                indexed_target.field_byte_offset,
+                slot.byte_offset,
+            ),
         );
     }
 
@@ -644,11 +644,11 @@ fn select_runtime_frame_slot_address_write_in_table(
         call.receiver,
     )?;
     Some(
-        SelectedInstructionKind::WriteRuntimeStorageAddressToRuntimeFrame {
-            source_region: source_place.region,
-            source_offset: source_place.byte_offset,
-            target_offset: slot.byte_offset,
-        },
+        crate::selection::runtime_dispatch::write_place_address_direct(
+            source_place.region,
+            source_place.byte_offset,
+            slot.byte_offset,
+        ),
     )
 }
 
@@ -673,13 +673,13 @@ fn select_runtime_frame_slot_place_address_write_in_table(
         referent,
     ) {
         return Some(
-            SelectedInstructionKind::WriteRuntimeFrameFixedIndexedAddressToRuntimeFrame {
-                descriptor_offset: target.descriptor_offset,
-                element_index: target.element_index,
-                element_byte_size: target.element_byte_size,
-                field_byte_offset: target.field_byte_offset,
-                target_offset: slot.byte_offset,
-            },
+            crate::selection::runtime_dispatch::write_place_address_fixed_indexed(
+                target.descriptor_offset,
+                target.element_index,
+                target.element_byte_size,
+                target.field_byte_offset,
+                slot.byte_offset,
+            ),
         );
     }
 
@@ -691,14 +691,14 @@ fn select_runtime_frame_slot_place_address_write_in_table(
         referent,
     ) {
         return Some(
-            SelectedInstructionKind::WriteRuntimeFrameIndexedAddressToRuntimeFrame {
-                descriptor_offset: target.descriptor_offset,
-                index_offset: target.index_offset,
-                index_region: RuntimeStorageRegion::RuntimeFrame,
-                element_byte_size: target.element_byte_size,
-                field_byte_offset: target.field_byte_offset,
-                target_offset: slot.byte_offset,
-            },
+            crate::selection::runtime_dispatch::write_place_address_frame_indexed_deref(
+                target.descriptor_offset,
+                RuntimeStorageRegion::RuntimeFrame,
+                target.index_offset,
+                target.element_byte_size,
+                target.field_byte_offset,
+                slot.byte_offset,
+            ),
         );
     }
 
@@ -710,13 +710,13 @@ fn select_runtime_frame_slot_place_address_write_in_table(
         referent,
     ) {
         return Some(
-            SelectedInstructionKind::WriteRuntimeFrameBaseIndexedAddressToRuntimeFrame {
-                base_byte_offset: target.base_byte_offset,
-                index_offset: target.index_offset,
-                element_byte_size: target.element_byte_size,
-                field_byte_offset: target.field_byte_offset,
-                target_offset: slot.byte_offset,
-            },
+            crate::selection::runtime_dispatch::write_place_address_base_indexed(
+                target.base_byte_offset,
+                target.index_offset,
+                target.element_byte_size,
+                target.field_byte_offset,
+                slot.byte_offset,
+            ),
         );
     }
 
@@ -728,11 +728,11 @@ fn select_runtime_frame_slot_place_address_write_in_table(
         referent,
     ) {
         return Some(
-            SelectedInstructionKind::WriteRuntimePointeeAddressToRuntimeFrame {
-                pointer_byte_offset: pointer_target.pointer_byte_offset,
-                field_byte_offset: pointer_target.field_byte_offset,
-                target_offset: slot.byte_offset,
-            },
+            crate::selection::runtime_dispatch::write_place_address_pointee(
+                pointer_target.pointer_byte_offset,
+                pointer_target.field_byte_offset,
+                slot.byte_offset,
+            ),
         );
     }
 
@@ -744,10 +744,10 @@ fn select_runtime_frame_slot_place_address_write_in_table(
         referent,
     )?;
     Some(
-        SelectedInstructionKind::WriteRuntimeStorageAddressToRuntimeFrame {
-            source_region: source_place.region,
-            source_offset: source_place.byte_offset,
-            target_offset: slot.byte_offset,
-        },
+        crate::selection::runtime_dispatch::write_place_address_direct(
+            source_place.region,
+            source_place.byte_offset,
+            slot.byte_offset,
+        ),
     )
 }

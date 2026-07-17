@@ -290,11 +290,11 @@ pub(super) fn select_wire_encode_call(
                 let staging_offset = scratch_base + 16;
                 let cursor_offset = scratch_base + 8;
 
-                push(SelectedInstructionKind::WriteRuntimeStorageAddressToRuntimeFrame {
-                    source_region: RuntimeStorageRegion::RuntimeFrame,
-                    source_offset: staging_offset,
-                    target_offset: scratch_base,
-                });
+                push(crate::selection::runtime_dispatch::write_place_address_direct(
+                    RuntimeStorageRegion::RuntimeFrame,
+                    staging_offset,
+                    scratch_base,
+                ));
                 push(crate::selection::runtime_dispatch::write_place_integer_direct(
                     RuntimeStorageRegion::RuntimeFrame,
                     cursor_offset,
@@ -380,11 +380,11 @@ pub(super) fn select_wire_encode_call(
                 // staging cursor (the descriptor's len slot) = 0, then the
                 // child's fields through the ordinary appends. NO era varint
                 // -- the era rides only the top-level envelope (decision 10).
-                push(SelectedInstructionKind::WriteRuntimeStorageAddressToRuntimeFrame {
-                    source_region: RuntimeStorageRegion::RuntimeFrame,
-                    source_offset: staging_offset,
-                    target_offset: scratch_base,
-                });
+                push(crate::selection::runtime_dispatch::write_place_address_direct(
+                    RuntimeStorageRegion::RuntimeFrame,
+                    staging_offset,
+                    scratch_base,
+                ));
                 push(crate::selection::runtime_dispatch::write_place_integer_direct(
                     RuntimeStorageRegion::RuntimeFrame,
                     cursor_offset,
