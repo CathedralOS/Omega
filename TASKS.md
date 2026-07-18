@@ -726,9 +726,23 @@ rejects — an INTEGER ruling, engineering rides this ladder as F8).
   loses its ARGUMENT (exit(70) reaches libSystem as 0) for authored
   rows and leaves alike -- filed as
   pending/providers/import_call_argument_lost; runtime exit pins
-  land with that fix. NEXT: order step (2) -- derive plan
-  coverage/signatures/effects/dependency closure from satisfies
-  edges + target-default and type-per-slot selection; (2) derive plan
+  land with that fix. STEP (2) CORE LANDED
+  2026-07-20: derive_satisfies_plans assembles one plan per
+  (boundary trait, target) from external leaves -- rows from the
+  structured via bindings, schema from the typed trait, the effect
+  surface = the union of the SATISFIED requirements' declared
+  effects (the requirement is the ceiling, never the leaf), and the
+  trust rows now show COVERAGE n/m against the schema (pinned:
+  satisfies_leaves_derive_a_covered_plan -- one of two requirements
+  covered reads 1/2). Signature refinement was already enforced
+  per-edge by the conformance checker. STEP (2) REMAINDER:
+  dependency closure joins when checked ADAPTER machines (composite
+  lowerings with satisfies) enter the derivation; target-default +
+  type-per-slot SELECTION consumes fully-covering plans (v1
+  implicit-unique + loud ambiguity; the build.omg override spelling
+  rides the target-package surface). SURFACED en route: authored/leaf
+  Syscall rows refuse at merge ("not wired yet" -- pre-existing,
+  documented refusal); (2) derive plan
   coverage/signatures/effects/dependency closure from satisfies edges +
   target-default and type-per-slot selection; (3) replace Console
   HostOperations/call-shape rows with checked Omega adapters under the

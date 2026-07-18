@@ -102,6 +102,129 @@ pub(super) fn derive_provider_plans(
 }
 
 
+/// PRV4 order step (2): derive plans from explicit SATISFIES edges -- one
+/// plan per (boundary trait, target) assembled from that pair's external
+/// leaves (checked adapter machines join the same derivation when their
+/// satisfies edges land). Coverage/signatures come from the typed schema
+/// (signature refinement is enforced by the conformance checker on each
+/// edge); the effect surface is the union of the SATISFIED requirements'
+/// declared effects -- the requirement supplies the ceiling, never the
+/// leaf. Selection v1: a slot whose (trait, target) has exactly one FULLY
+/// COVERING derived plan selects it implicitly; ambiguity or partial
+/// coverage is loud at the consumer (the trust report shows coverage).
+pub(crate) fn derive_satisfies_plans(
+    syntax_trees: &omega_syntax_trees::SyntaxTrees,
+    typed: &TypedTrees,
+) -> Vec<ProviderPlan> {
+    let mut plans: Vec<ProviderPlan> = Vec::new();
+    for item in syntax_trees.root_items() {
+        let omega_syntax_trees::item::Item::Machine(machine) = item else {
+            continue;
+        };
+        if !machine.bodyless || machine.boundary {
+            continue;
+        }
+        for clause in syntax_trees.items.satisfies_clauses(machine.satisfies) {
+            let (Some(binding), Some(requirement)) =
+                (clause.via.as_ref(), clause.requirement.as_ref())
+            else {
+                continue;
+            };
+            let target = machine
+                .target
+                .as_ref()
+                .map(|target| target.as_str().to_owned())
+                .unwrap_or_default();
+            let trait_leaf = clause.trait_name.as_str().to_owned();
+            let plan_name = if target.is_empty() {
+                format!("satisfies::{trait_leaf}")
+            } else {
+                format!("{target}::satisfies::{trait_leaf}")
+            };
+            let position = plans
+                .iter()
+                .position(|plan| plan.name == plan_name)
+                .unwrap_or_else(|| {
+                    let schema = typed
+                        .traits()
+                        .iter()
+                        .find(|definition| {
+                            definition.name.as_str() == trait_leaf
+                                || definition
+                                    .name
+                                    .as_str()
+                                    .rsplit("::")
+                                    .next()
+                                    .is_some_and(|leaf| leaf == trait_leaf)
+                        })
+                        .and_then(|definition| ServiceSchema::from_typed(typed, definition))
+                        .unwrap_or_else(|| ServiceSchema {
+                            trait_name: trait_leaf.clone(),
+                            methods: Vec::new(),
+                        });
+                    plans.push(ProviderPlan {
+                        name: plan_name.clone(),
+                        target: target.clone(),
+                        schema,
+                        rows: Vec::new(),
+                        effect_set: omega_effects::EffectSet::empty(),
+                        origin_package: String::new(),
+                    });
+                    plans.len() - 1
+                });
+            let plan = &mut plans[position];
+            use omega_syntax_trees::item::HostProviderMappingKind;
+            let row_binding = match binding {
+                HostProviderMappingKind::Syscall { number } => ProviderBinding::Syscall {
+                    number: u32::try_from(*number).unwrap_or_default(),
+                },
+                HostProviderMappingKind::DllImport { module, symbol } => {
+                    ProviderBinding::Import {
+                        library: module.clone(),
+                        symbol: symbol.clone(),
+                    }
+                }
+                HostProviderMappingKind::VtableSlot { index } => {
+                    ProviderBinding::VtableSlot { index: *index }
+                }
+                HostProviderMappingKind::VtableField { field } => ProviderBinding::VtableField {
+                    table: String::new(),
+                    field: field.as_str().to_owned(),
+                },
+                HostProviderMappingKind::TableFunction { field } => {
+                    ProviderBinding::TableFunction {
+                        table: String::new(),
+                        field: field.as_str().to_owned(),
+                    }
+                }
+                HostProviderMappingKind::Value { value } => {
+                    ProviderBinding::Value { value: *value }
+                }
+            };
+            plan.rows.push(ProviderPlanRow {
+                method: requirement.as_str().to_owned(),
+                binding: row_binding,
+                call_shape: None,
+            });
+            // The effect CEILING: the satisfied requirement's declared
+            // effects, from the schema.
+            let mut ceiling = plan.effect_set;
+            if let Some(method) = plan
+                .schema
+                .methods
+                .iter()
+                .find(|method| method.name == requirement.as_str())
+            {
+                for effect in &method.effects {
+                    ceiling.insert_name(effect);
+                }
+            }
+            plan.effect_set = ceiling;
+        }
+    }
+    plans
+}
+
 /// P4a: the CONSOLE methods the platform block declares -- the vertical's
 /// scope fence.
 pub(crate) const CONSOLE_METHODS: &[&str] = &[
