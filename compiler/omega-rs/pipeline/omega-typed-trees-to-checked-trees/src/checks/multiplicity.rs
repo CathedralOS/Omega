@@ -36,7 +36,14 @@ pub(crate) fn check_linear_obligations(
     program: &omega_typed_trees::TypedTrees,
     facts: &mut CheckFacts,
 ) -> Result<(), Vec<Diagnostic>> {
-    let mut diagnostics = Vec::new();
+    record_permission_events(program, facts);
+    validate_linear_permission_events(program, facts)
+}
+
+fn record_permission_events(
+    program: &omega_typed_trees::TypedTrees,
+    facts: &mut CheckFacts,
+) {
     let mut permission_events = Vec::new();
 
     for (_, state_flow) in facts.flow.control.states.iter() {
@@ -44,68 +51,26 @@ pub(crate) fn check_linear_obligations(
             continue;
         };
         let statements = program.statement_table.statements(state.statement_nodes);
-        let mut places = Vec::<LinearPlace>::new();
+        let mut places = initial_linear_places(
+            program,
+            state,
+            state_flow.machine_symbol,
+            state.symbol,
+        );
 
-        for parameter in program.state_parameters(state) {
-            // A by-value `self` parameter is the language's terminal-consumer
-            // form. The caller transfers the obligation into the call; an
-            // outcome carrying it would instead establish a new linear result.
-            if parameter.is_self {
-                continue;
-            }
-            let multiplicity = type_multiplicity(program, parameter.type_reference);
-            let conditional = type_has_conditional_linear_payload(program, parameter.type_reference);
-            if multiplicity == Multiplicity::Linear || conditional {
+        for place in places.iter().filter(|place| place.ever_established) {
                 permission_events.push(FlowPermissionEventFact {
                     machine_symbol: state_flow.machine_symbol,
                     state_symbol: state.symbol,
                     source: PermissionEventSource::StateEntry,
                     kind: PermissionEventKind::Establish,
-                    multiplicity,
+                    multiplicity: place.multiplicity,
                     access: PermissionAccess::Owned,
-                    provenance: established_provenance(
-                        state_flow.machine_symbol,
-                        state.symbol,
-                        PermissionEventSource::StateEntry,
-                    ),
-                    root: omega_facts::PlaceRoot::Symbol(parameter.symbol),
+                    provenance: place.provenance.expect("entry place has provenance"),
+                    root: omega_facts::PlaceRoot::Symbol(place.symbol),
                     segments: HandleSpan::empty(),
                     obligation_live: true,
                 });
-                places.push(LinearPlace {
-                    symbol: parameter.symbol,
-                    name: parameter.name.as_str().to_owned(),
-                    multiplicity,
-                    provenance: Some(established_provenance(
-                        state_flow.machine_symbol,
-                        state.symbol,
-                        PermissionEventSource::StateEntry,
-                    )),
-                    live: true,
-                    ever_established: true,
-                    conditional,
-                });
-            }
-        }
-
-        for statement in statements {
-            if let StatementNode::LocalData(local) = statement
-            {
-                let multiplicity = type_multiplicity(program, local.type_reference);
-                let conditional =
-                    type_has_conditional_linear_payload(program, local.type_reference);
-                if multiplicity == Multiplicity::Linear || conditional {
-                    places.push(LinearPlace {
-                        symbol: local.symbol,
-                        name: local.name.as_str().to_owned(),
-                        multiplicity,
-                        provenance: None,
-                        live: false,
-                        ever_established: false,
-                        conditional,
-                    });
-                }
-            }
         }
 
         let moves = facts.flow.ownership.moves.span_or_empty(state_flow.moves);
@@ -114,7 +79,7 @@ pub(crate) fn check_linear_obligations(
             .position(|statement| matches!(statement, StatementNode::Transition(_)));
         let prefix_end = first_transition.unwrap_or(statements.len());
         for (statement_index, statement) in statements[..prefix_end].iter().enumerate() {
-            apply_statement_permission_flow(
+            apply_statement_permission_production(
                 program,
                 facts,
                 state_flow.machine_symbol,
@@ -123,8 +88,104 @@ pub(crate) fn check_linear_obligations(
                 statement_index,
                 statement,
                 &mut places,
-                &mut diagnostics,
                 &mut permission_events,
+            );
+        }
+
+        if let Some(first_transition) = first_transition {
+            let entry = places.clone();
+            let arm_indices = (first_transition..statements.len())
+                .filter(|index| matches!(statements[*index], StatementNode::Transition(_)))
+                .collect::<Vec<_>>();
+            for statement_index in arm_indices.iter().copied() {
+                let mut outcome = entry.clone();
+                apply_statement_permission_production(
+                    program,
+                    facts,
+                    state_flow.machine_symbol,
+                    state.symbol,
+                    moves,
+                    statement_index,
+                    &statements[statement_index],
+                    &mut outcome,
+                    &mut permission_events,
+                );
+            }
+        }
+
+        // Once linear/conditional roots are removed, the old state-exit drops
+        // are precisely the affine cleanup events. Preserve them explicitly so
+        // later consumers never have to infer semantic kind from `drops`.
+        for drop in facts.flow.ownership.drops.span_or_empty(state_flow.drops) {
+            let tracked_linear = matches!(drop.root, omega_facts::PlaceRoot::Symbol(symbol) if places.iter().any(|place| place.symbol == symbol));
+            if tracked_linear {
+                continue;
+            }
+            permission_events.push(FlowPermissionEventFact {
+                machine_symbol: state_flow.machine_symbol,
+                state_symbol: state.symbol,
+                source: PermissionEventSource::StateExit,
+                kind: PermissionEventKind::AffineDrop,
+                multiplicity: Multiplicity::Affine,
+                access: PermissionAccess::Owned,
+                provenance: PermissionProvenance::Unknown,
+                root: drop.root,
+                segments: drop.segments,
+                obligation_live: false,
+            });
+        }
+    }
+
+    append_borrow_permission_events(facts, &mut permission_events);
+
+    facts.flow.ownership.permissions = omega_core::arena::Arena::default();
+    facts
+        .flow
+        .ownership
+        .permissions
+        .insert_many(permission_events);
+}
+
+pub(crate) fn validate_linear_permission_events(
+    program: &omega_typed_trees::TypedTrees,
+    facts: &CheckFacts,
+) -> Result<(), Vec<Diagnostic>> {
+    let mut diagnostics = Vec::new();
+
+    for (_, state_flow) in facts.flow.control.states.iter() {
+        let Some(state) = crate::find_state(program, state_flow.state_symbol) else {
+            continue;
+        };
+        let statements = program.statement_table.statements(state.statement_nodes);
+        let mut places = initial_linear_places(
+            program,
+            state,
+            state_flow.machine_symbol,
+            state.symbol,
+        );
+        let events = facts
+            .flow
+            .ownership
+            .permissions
+            .iter()
+            .filter_map(|(_, event)| {
+                (event.machine_symbol == state_flow.machine_symbol
+                    && event.state_symbol == state.symbol
+                    && event.access == PermissionAccess::Owned)
+                    .then_some(event)
+            })
+            .collect::<Vec<_>>();
+
+        let first_transition = statements
+            .iter()
+            .position(|statement| matches!(statement, StatementNode::Transition(_)));
+        let prefix_end = first_transition.unwrap_or(statements.len());
+        for statement_index in 0..prefix_end {
+            apply_recorded_statement_events(
+                statement_index,
+                &events,
+                &mut places,
+                &mut diagnostics,
             );
         }
 
@@ -137,25 +198,14 @@ pub(crate) fn check_linear_obligations(
             let mut outcomes = Vec::new();
             for statement_index in arm_indices.iter().copied() {
                 let mut outcome = entry.clone();
-                apply_statement_permission_flow(
-                    program,
-                    facts,
-                    state_flow.machine_symbol,
-                    state.symbol,
-                    moves,
+                apply_recorded_statement_events(
                     statement_index,
-                    &statements[statement_index],
+                    &events,
                     &mut outcome,
                     &mut diagnostics,
-                    &mut permission_events,
                 );
                 outcomes.push(outcome);
             }
-
-            // A non-fallthrough final guard leaves an implicit path that takes
-            // no arm. Other validation normally rejects it as non-exhaustive;
-            // retaining it here keeps the resource judgment independently
-            // conservative.
             let exhaustive = arm_indices.last().is_some_and(|index| {
                 matches!(
                     statements[*index],
@@ -201,43 +251,122 @@ pub(crate) fn check_linear_obligations(
                 place.name
             )));
         }
-
-        // Once linear/conditional roots are removed, the old state-exit drops
-        // are precisely the affine cleanup events. Preserve them explicitly so
-        // later consumers never have to infer semantic kind from `drops`.
-        for drop in facts.flow.ownership.drops.span_or_empty(state_flow.drops) {
-            let tracked_linear = matches!(drop.root, omega_facts::PlaceRoot::Symbol(symbol) if places.iter().any(|place| place.symbol == symbol));
-            if tracked_linear {
-                continue;
-            }
-            permission_events.push(FlowPermissionEventFact {
-                machine_symbol: state_flow.machine_symbol,
-                state_symbol: state.symbol,
-                source: PermissionEventSource::StateExit,
-                kind: PermissionEventKind::AffineDrop,
-                multiplicity: Multiplicity::Affine,
-                access: PermissionAccess::Owned,
-                provenance: PermissionProvenance::Unknown,
-                root: drop.root,
-                segments: drop.segments,
-                obligation_live: false,
-            });
-        }
     }
-
-    append_borrow_permission_events(facts, &mut permission_events);
-
-    facts.flow.ownership.permissions = omega_core::arena::Arena::default();
-    facts
-        .flow
-        .ownership
-        .permissions
-        .insert_many(permission_events);
 
     if diagnostics.is_empty() {
         Ok(())
     } else {
         Err(diagnostics)
+    }
+}
+
+fn initial_linear_places(
+    program: &omega_typed_trees::TypedTrees,
+    state: &omega_typed_trees::state::State,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+) -> Vec<LinearPlace> {
+    let mut places = Vec::new();
+    for parameter in program.state_parameters(state) {
+        // A by-value `self` parameter is the language's terminal-consumer
+        // form. The caller owns the consumption judgment.
+        if parameter.is_self {
+            continue;
+        }
+        let multiplicity = type_multiplicity(program, parameter.type_reference);
+        let conditional = type_has_conditional_linear_payload(program, parameter.type_reference);
+        if multiplicity == Multiplicity::Linear || conditional {
+            places.push(LinearPlace {
+                symbol: parameter.symbol,
+                name: parameter.name.as_str().to_owned(),
+                multiplicity,
+                provenance: Some(established_provenance(
+                    machine_symbol,
+                    state_symbol,
+                    PermissionEventSource::StateEntry,
+                )),
+                live: true,
+                ever_established: true,
+                conditional,
+            });
+        }
+    }
+    for statement in program.statement_table.statements(state.statement_nodes) {
+        let StatementNode::LocalData(local) = statement else {
+            continue;
+        };
+        let multiplicity = type_multiplicity(program, local.type_reference);
+        let conditional = type_has_conditional_linear_payload(program, local.type_reference);
+        if multiplicity == Multiplicity::Linear || conditional {
+            places.push(LinearPlace {
+                symbol: local.symbol,
+                name: local.name.as_str().to_owned(),
+                multiplicity,
+                provenance: None,
+                live: false,
+                ever_established: false,
+                conditional,
+            });
+        }
+    }
+    places
+}
+
+fn apply_recorded_statement_events(
+    statement_index: usize,
+    events: &[&FlowPermissionEventFact],
+    places: &mut [LinearPlace],
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    for event in events.iter().copied().filter(|event| {
+        permission_event_statement_index(event.source) == Some(statement_index)
+            && event.kind != PermissionEventKind::AffineDrop
+    }) {
+        let omega_facts::PlaceRoot::Symbol(symbol) = event.root else {
+            continue;
+        };
+        let Some(place) = places.iter_mut().find(|place| place.symbol == symbol) else {
+            continue;
+        };
+        match event.kind {
+            PermissionEventKind::Transfer | PermissionEventKind::Consume => {
+                if !place.ever_established {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "linear value `{}` has not been established (implicit zero-fill creates no linear obligation); it cannot be moved here",
+                        place.name
+                    )));
+                } else if !place.live && !place.conditional {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "linear value `{}` was already transferred or consumed; it cannot be moved here",
+                        place.name
+                    )));
+                } else {
+                    place.live = false;
+                }
+            }
+            PermissionEventKind::Establish => {
+                if place.live {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "assignment would overwrite live linear value `{}`; consume or transfer the existing obligation first",
+                        place.name
+                    )));
+                }
+                place.live = event.obligation_live;
+                place.ever_established = true;
+                place.provenance = Some(event.provenance);
+            }
+            PermissionEventKind::AffineDrop => {}
+        }
+    }
+}
+
+fn permission_event_statement_index(source: PermissionEventSource) -> Option<usize> {
+    match source {
+        PermissionEventSource::Statement { statement_index }
+        | PermissionEventSource::Call {
+            statement_index, ..
+        } => Some(statement_index),
+        PermissionEventSource::StateEntry | PermissionEventSource::StateExit => None,
     }
 }
 
@@ -370,7 +499,7 @@ fn permission_source_from_invalidation(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn apply_statement_permission_flow(
+fn apply_statement_permission_production(
     program: &omega_typed_trees::TypedTrees,
     facts: &CheckFacts,
     machine_symbol: SymbolHandle,
@@ -379,7 +508,6 @@ fn apply_statement_permission_flow(
     statement_index: usize,
     statement: &StatementNode,
     places: &mut [LinearPlace],
-    diagnostics: &mut Vec<Diagnostic>,
     permission_events: &mut Vec<FlowPermissionEventFact>,
 ) {
     // Destructure coverage markers are proof-only reads synthesized by the
@@ -430,19 +558,7 @@ fn apply_statement_permission_flow(
             segments: event.segments,
             obligation_live,
         });
-        if !place.live && !place.conditional {
-            let reason = if place.ever_established {
-                "was already transferred or consumed"
-            } else {
-                "has not been established (implicit zero-fill creates no linear obligation)"
-            };
-            diagnostics.push(Diagnostic::error(format!(
-                "linear value `{}` {reason}; it cannot be moved here",
-                place.name
-            )));
-        } else {
-            place.live = false;
-        }
+        place.live = false;
     }
 
     if let Some(WrittenLinearTarget {
@@ -455,12 +571,6 @@ fn apply_statement_permission_flow(
             .iter_mut()
             .find(|place| place.symbol == symbol)
             .expect("written linear target came from the tracked place set");
-        if place.live {
-            diagnostics.push(Diagnostic::error(format!(
-                "assignment would overwrite live linear value `{}`; consume or transfer the existing obligation first",
-                place.name
-            )));
-        }
         place.live = obligation_live;
         place.ever_established = true;
         place.provenance = Some(provenance.unwrap_or_else(|| {

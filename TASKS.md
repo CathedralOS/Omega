@@ -4559,8 +4559,13 @@ with a real app-window story.
   the borrowed place: shared loans are `Unrestricted + Shared`, exclusive
   loans are `Affine + Exclusive`, and both retain one establishment origin
   through release. Borrow legality remains in the established checker; this
-  rung removes the representational split without changing it. **CML3 next:**
-  flip the checker fully off move/drop input; cover returned-obligation outcomes and nested
+  rung removes the representational split without changing it. **CML3 SLICE 5
+  LANDED 2026-07-17:** permission production and linear judgment are separate;
+  the validator reads only qualified permission events (a test deletes both
+  legacy arenas before re-running it), while the transitional producer may
+  still project legacy move/drop discovery. This also closes the conditional
+  zero-storage hole: payload-debt=false is not establishment evidence. **CML3
+  next:** replace the producer's legacy projection; cover returned-obligation outcomes and nested
   conditional payload extraction along that migration. Terminal consumption needs no annotation: an ordinary
   `move self` call consumes when no returned outcome carries the obligation,
   while a `try_*` incomplete outcome must return the live token. Pin create ->
