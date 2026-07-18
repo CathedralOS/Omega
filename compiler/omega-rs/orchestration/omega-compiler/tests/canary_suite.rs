@@ -13365,6 +13365,37 @@ fn const_fold_wrapping_narrow_canary_runs() {
 }
 
 #[test]
+fn runtime_adapter_dispatch_exit_canary_runs() {
+    // PRV4 adapter dispatch: the boundary-trait call rewrites to the unique
+    // satisfying adapter in both engines; the interpreter leg rides the
+    // differential row.
+    let canary = pass_canary("providers/runtime_adapter_dispatch_exit");
+    let main_path = canary.join("main.omg");
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("adapter-dispatch canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(outcome.exit_code, 70, "interpreter dispatches the adapter");
+
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-adapter-dispatch-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("adapter-dispatch canary should compile natively");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("adapter-dispatch canary should run");
+    assert_eq!(output.status.code(), Some(70), "native dispatches the adapter");
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_import_call_argument_exit_canary_runs() {
     // The authored-import argument fix: exit(70) through a provides
     // DllImport row reaches libSystem with its argument intact. NATIVE
@@ -32133,6 +32164,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "providers/adapter_satisfies_compile",
     "providers/external_leaf_dllimport_compile",
     "providers/runtime_import_call_argument_exit",
+    "providers/runtime_adapter_dispatch_exit",
     "arithmetic/const_fold_unsigned_shift_right_arg_exit",
     "arithmetic/const_fold_unsigned_divide_arg_exit",
     "arithmetic/unsigned_min_max_wrapping_local_exit",

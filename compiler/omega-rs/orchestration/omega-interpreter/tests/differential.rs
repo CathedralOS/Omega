@@ -71,6 +71,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("arithmetic/float_to_int_unsigned_narrow_saturating_exit", 70),
     // F5 Saturating float arithmetic is native on both backends.
     ("arithmetic/float_saturating_overflow_exit", 70),
+    ("providers/runtime_adapter_dispatch_exit", 70),
     ("proofs/runtime_decreases_u64_measure_exit", 70),
     ("arithmetic/runtime_wrapping_operand_truncation_exit", 70),
     ("text/case_literal_texteq_field_store_exit", 70),
