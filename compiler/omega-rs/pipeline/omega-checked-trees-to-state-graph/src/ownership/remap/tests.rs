@@ -7,10 +7,12 @@ fn remaps_ownership_summary_from_source_roots_into_target_roots() {
     let mut segments = Arena::new();
     let mut moves = Arena::new();
     let mut drops = Arena::new();
+    let mut permissions = Arena::new();
 
     let mut segment_span = HandleSpan::empty();
     let mut move_span = HandleSpan::empty();
     let mut drop_span = HandleSpan::empty();
+    let mut permission_span = HandleSpan::empty();
 
     segments.append_to_span(
         &mut segment_span,
@@ -38,6 +40,18 @@ fn remaps_ownership_summary_from_source_roots_into_target_roots() {
             segments: segment_span,
         },
     );
+    permissions.append_to_span(
+        &mut permission_span,
+        StatePermissionEvent {
+            source: omega_core::semantics::PermissionEventSource::Statement {
+                statement_index: 7,
+            },
+            kind: omega_core::semantics::PermissionEventKind::Consume,
+            root: omega_facts::PlaceRoot::Symbol(SymbolHandle::from_arena_index(7)),
+            segments: segment_span,
+            obligation_live: true,
+        },
+    );
 
     let remapped = remap_state_ownership_summary(
         &mut target,
@@ -45,18 +59,22 @@ fn remaps_ownership_summary_from_source_roots_into_target_roots() {
             segments: &segments,
             moves: &moves,
             drops: &drops,
+            permissions: &permissions,
         },
         &StateOwnershipSummary {
             moves: move_span,
             drops: drop_span,
+            permissions: permission_span,
         },
     );
 
     assert_eq!(remapped.moves.count(), 1);
     assert_eq!(remapped.drops.count(), 1);
+    assert_eq!(remapped.permissions.count(), 1);
     assert_eq!(target.semantics.ownership.moves.len(), 1);
     assert_eq!(target.semantics.ownership.drops.len(), 1);
-    assert_eq!(target.semantics.ownership.segments.len(), 2);
+    assert_eq!(target.semantics.ownership.permissions.len(), 1);
+    assert_eq!(target.semantics.ownership.segments.len(), 3);
 
     let move_event = target
         .semantics
@@ -69,5 +87,16 @@ fn remaps_ownership_summary_from_source_roots_into_target_roots() {
     assert_eq!(
         move_event.root,
         omega_facts::PlaceRoot::Symbol(SymbolHandle::from_arena_index(5))
+    );
+    let permission = target
+        .semantics
+        .ownership
+        .permissions
+        .span_or_empty(remapped.permissions)
+        .first()
+        .unwrap();
+    assert_eq!(
+        permission.kind,
+        omega_core::semantics::PermissionEventKind::Consume
     );
 }

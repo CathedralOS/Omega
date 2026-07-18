@@ -52,6 +52,27 @@ fn write_ownership_events(output: &mut String, backend_plan: &BackendReportInput
             event.segments,
         ));
     }
+
+    output.push_str(&format!("permissions: {}\n", ownership.permissions.len()));
+    for (_, event) in ownership.permissions.iter() {
+        let (machine_name, state_name) = backend_plan
+            .control_flow
+            .state_names_by_key(event.source_key)
+            .map(|(machine, state)| (machine.to_string(), state.to_string()))
+            .unwrap_or_else(|| ("<unknown>".to_owned(), "<unknown>".to_owned()));
+        output.push_str(&format!(
+            "- {kind:?} `{place}` in machine `{machine_name}` state `{state_name}` at {source} (obligation_live={live})\n",
+            kind = event.kind,
+            place = ownership_place_text(
+                backend_plan,
+                event.source_key,
+                event.root,
+                event.segments,
+            ),
+            source = permission_source_text(event.source),
+            live = event.obligation_live,
+        ));
+    }
 }
 
 fn ownership_event_line(
@@ -86,6 +107,21 @@ fn ownership_source_text(source: AbstractOwnershipEventSource) -> String {
             ..
         } => format!("call ordinal {call_ordinal} in statement {statement_index}"),
         AbstractOwnershipEventSource::StateExit => "state exit".to_owned(),
+    }
+}
+
+fn permission_source_text(source: omega_core::semantics::PermissionEventSource) -> String {
+    match source {
+        omega_core::semantics::PermissionEventSource::StateEntry => "state entry".to_owned(),
+        omega_core::semantics::PermissionEventSource::Statement { statement_index } => {
+            format!("statement {statement_index}")
+        }
+        omega_core::semantics::PermissionEventSource::Call {
+            statement_index,
+            call_ordinal,
+            ..
+        } => format!("call ordinal {call_ordinal} in statement {statement_index}"),
+        omega_core::semantics::PermissionEventSource::StateExit => "state exit".to_owned(),
     }
 }
 

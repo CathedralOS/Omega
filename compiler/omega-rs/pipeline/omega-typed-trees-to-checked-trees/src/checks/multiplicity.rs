@@ -1,10 +1,7 @@
-use omega_checked_trees::{
-    CheckFacts, FlowOwnershipEventSource, FlowPermissionEventFact, FlowPermissionEventKind,
-    FlowPermissionEventSource,
-};
+use omega_checked_trees::{CheckFacts, FlowOwnershipEventSource, FlowPermissionEventFact};
 use omega_core::arena::HandleSpan;
 use omega_core::diagnostics::Diagnostic;
-use omega_core::semantics::Multiplicity;
+use omega_core::semantics::{Multiplicity, PermissionEventKind, PermissionEventSource};
 use omega_core::symbols::SymbolHandle;
 use omega_typed_trees::statement::StatementNode;
 use omega_typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
@@ -56,8 +53,8 @@ pub(crate) fn check_linear_obligations(
                 permission_events.push(FlowPermissionEventFact {
                     machine_symbol: state_flow.machine_symbol,
                     state_symbol: state.symbol,
-                    source: FlowPermissionEventSource::StateEntry,
-                    kind: FlowPermissionEventKind::Establish,
+                    source: PermissionEventSource::StateEntry,
+                    kind: PermissionEventKind::Establish,
                     root: omega_facts::PlaceRoot::Symbol(parameter.symbol),
                     segments: HandleSpan::empty(),
                     obligation_live: true,
@@ -195,8 +192,8 @@ pub(crate) fn check_linear_obligations(
             permission_events.push(FlowPermissionEventFact {
                 machine_symbol: state_flow.machine_symbol,
                 state_symbol: state.symbol,
-                source: FlowPermissionEventSource::StateExit,
-                kind: FlowPermissionEventKind::AffineDrop,
+                source: PermissionEventSource::StateExit,
+                kind: PermissionEventKind::AffineDrop,
                 root: drop.root,
                 segments: drop.segments,
                 obligation_live: false,
@@ -311,8 +308,8 @@ fn apply_statement_permission_flow(
         permission_events.push(FlowPermissionEventFact {
             machine_symbol,
             state_symbol,
-            source: FlowPermissionEventSource::Statement { statement_index },
-            kind: FlowPermissionEventKind::Establish,
+            source: PermissionEventSource::Statement { statement_index },
+            kind: PermissionEventKind::Establish,
             root: omega_facts::PlaceRoot::Symbol(symbol),
             segments: HandleSpan::empty(),
             obligation_live,
@@ -330,21 +327,21 @@ fn event_statement_index(source: FlowOwnershipEventSource) -> Option<usize> {
     }
 }
 
-fn permission_source(source: FlowOwnershipEventSource) -> FlowPermissionEventSource {
+fn permission_source(source: FlowOwnershipEventSource) -> PermissionEventSource {
     match source {
         FlowOwnershipEventSource::Statement { statement_index } => {
-            FlowPermissionEventSource::Statement { statement_index }
+            PermissionEventSource::Statement { statement_index }
         }
         FlowOwnershipEventSource::Call {
             statement_index,
             call_ordinal,
             target_symbol,
-        } => FlowPermissionEventSource::Call {
+        } => PermissionEventSource::Call {
             statement_index,
             call_ordinal,
             target_symbol,
         },
-        FlowOwnershipEventSource::StateExit => FlowPermissionEventSource::StateExit,
+        FlowOwnershipEventSource::StateExit => PermissionEventSource::StateExit,
     }
 }
 
@@ -354,14 +351,14 @@ fn permission_kind_for_move(
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     event: &omega_checked_trees::FlowMoveEventFact,
-) -> FlowPermissionEventKind {
+) -> PermissionEventKind {
     let FlowOwnershipEventSource::Call {
         statement_index,
         call_ordinal,
         target_symbol,
     } = event.source
     else {
-        return FlowPermissionEventKind::Transfer;
+        return PermissionEventKind::Transfer;
     };
     let Some(call_site) = crate::find_call_site(
         program,
@@ -370,15 +367,15 @@ fn permission_kind_for_move(
         statement_index,
         call_ordinal,
     ) else {
-        return FlowPermissionEventKind::Transfer;
+        return PermissionEventKind::Transfer;
     };
     let Some(target_state) = crate::find_state(program, target_symbol) else {
-        return FlowPermissionEventKind::Transfer;
+        return PermissionEventKind::Transfer;
     };
     let arguments = crate::call_site_argument_expressions(program, &call_site);
     let parameters = program.state_parameters(target_state);
     if arguments.len() != parameters.len() {
-        return FlowPermissionEventKind::Transfer;
+        return PermissionEventKind::Transfer;
     }
     let event_segments = facts
         .flow
@@ -398,10 +395,10 @@ fn permission_kind_for_move(
             continue;
         };
         if place.root == event.root && place.segments.as_slice() == event_segments {
-            return FlowPermissionEventKind::Consume;
+            return PermissionEventKind::Consume;
         }
     }
-    FlowPermissionEventKind::Transfer
+    PermissionEventKind::Transfer
 }
 
 fn written_whole_linear_target(

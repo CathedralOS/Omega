@@ -2,7 +2,7 @@ use omega_checked_trees::{CheckedTrees, FlowOwnershipEventSource};
 use omega_core::arena::HandleSpan;
 use omega_state_graph::{
     StateDropEvent, StateGraph, StateKey, StateMoveEvent, StateOwnershipEventSource,
-    StateOwnershipSummary,
+    StateOwnershipSummary, StatePermissionEvent,
 };
 
 pub(crate) fn state_ownership_summary(
@@ -76,7 +76,48 @@ pub(crate) fn state_ownership_summary(
         );
     }
 
-    StateOwnershipSummary { moves, drops }
+    let mut permissions = HandleSpan::empty();
+    for event in program
+        .facts
+        .flow
+        .ownership
+        .permissions
+        .iter()
+        .filter_map(|(_, event)| {
+            (event.machine_symbol == key.machine && event.state_symbol == key.state)
+                .then_some(event)
+        })
+    {
+        state_graph
+            .semantics
+            .ownership
+            .permissions
+            .append_to_span(
+                &mut permissions,
+                StatePermissionEvent {
+                    source: event.source,
+                    kind: event.kind,
+                    root: event.root,
+                    segments: state_graph.semantics.ownership.segments.insert_many(
+                        program
+                            .facts
+                            .flow
+                            .ownership
+                            .segments
+                            .span_or_empty(event.segments)
+                            .iter()
+                            .copied(),
+                    ),
+                    obligation_live: event.obligation_live,
+                },
+            );
+    }
+
+    StateOwnershipSummary {
+        moves,
+        drops,
+        permissions,
+    }
 }
 
 fn remap_flow_ownership_event_source(

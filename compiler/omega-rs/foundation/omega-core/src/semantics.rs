@@ -25,6 +25,43 @@ pub enum Multiplicity {
     Linear,
 }
 
+/// Semantic ownership-event roles. Shared by checked flow and every lowered
+/// semantic summary so no stage can reinterpret a generic move/drop marker.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PermissionEventKind {
+    Establish,
+    Transfer,
+    Consume,
+    AffineDrop,
+}
+
+impl Default for PermissionEventKind {
+    fn default() -> Self {
+        Self::Transfer
+    }
+}
+
+/// Stable source identity for a permission event across IR stages.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PermissionEventSource {
+    StateEntry,
+    Statement {
+        statement_index: usize,
+    },
+    Call {
+        statement_index: usize,
+        call_ordinal: usize,
+        target_symbol: crate::symbols::SymbolHandle,
+    },
+    StateExit,
+}
+
+impl Default for PermissionEventSource {
+    fn default() -> Self {
+        Self::StateEntry
+    }
+}
+
 /// How a machine is supplied to its consumers (record §Machines). The old
 /// `boundary: bool` conflates all four; provider admission, proof
 /// artifacts, manifests, and lowering must consume THIS, not re-derive

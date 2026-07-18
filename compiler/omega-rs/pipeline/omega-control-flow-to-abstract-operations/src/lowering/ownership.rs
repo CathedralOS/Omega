@@ -1,5 +1,6 @@
 use omega_abstract_operations::{
     AbstractDropEvent, AbstractMoveEvent, AbstractOwnershipEventSource, AbstractOwnershipSummary,
+    AbstractPermissionEvent,
 };
 use omega_control_flow::{ControlFlowPlan, StateOwnershipEventSource};
 
@@ -10,6 +11,7 @@ pub(super) fn build_abstract_ownership_summary(
         control_flow.semantics.ownership.segments.len(),
         control_flow.semantics.ownership.moves.len(),
         control_flow.semantics.ownership.drops.len(),
+        control_flow.semantics.ownership.permissions.len(),
     );
 
     for (_, state) in control_flow.states.iter() {
@@ -32,6 +34,30 @@ pub(super) fn build_abstract_ownership_summary(
                         .iter()
                         .copied(),
                 ),
+            });
+        }
+
+        for event in control_flow
+            .semantics
+            .ownership
+            .permissions
+            .span_or_empty(state.ownership.permissions)
+        {
+            summary.permissions.insert(AbstractPermissionEvent {
+                source_key: state.key,
+                source: event.source,
+                kind: event.kind,
+                root: event.root,
+                segments: summary.segments.insert_many(
+                    control_flow
+                        .semantics
+                        .ownership
+                        .segments
+                        .span_or_empty(event.segments)
+                        .iter()
+                        .copied(),
+                ),
+                obligation_live: event.obligation_live,
             });
         }
 

@@ -1,4 +1,4 @@
-use omega_control_flow::{StateDropEvent, StateMoveEvent};
+use omega_control_flow::{StateDropEvent, StateMoveEvent, StatePermissionEvent};
 use omega_core::arena::HandleSpan;
 
 use super::remap_span;
@@ -13,4 +13,10 @@ pub(crate) fn remap_drop_event_span(
     drops: HandleSpan<omega_state_graph::StateDropEvent>,
 ) -> HandleSpan<StateDropEvent> {
     remap_span(drops)
+}
+
+pub(crate) fn remap_permission_event_span(
+    permissions: HandleSpan<omega_state_graph::StatePermissionEvent>,
+) -> HandleSpan<StatePermissionEvent> {
+    remap_span(permissions)
 }

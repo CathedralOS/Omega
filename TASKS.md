@@ -4544,9 +4544,12 @@ with a real app-window story.
   bit. The compiler-recording check path writes the artifact once; unit tests
   pin create -> transfer -> create -> consume plus affine cleanup, and `Empty`
   establishment with no debt. Legacy move/drop arenas remain temporarily for
-  downstream compatibility, not as the semantic event taxonomy. **CML3 next:**
-  propagate permission events through state-graph/control-flow/backend semantic
-  summaries, add access/provenance to permission entries, then flip the checker
+  downstream compatibility, not as the semantic event taxonomy. **CML3 SLICE 2
+  LANDED 2026-07-17:** one core `PermissionEventKind/Source` vocabulary and the
+  typed events now survive state graph -> control flow -> abstract/target/
+  assigned operations -> machine program/instructions/bytes; exact capacities,
+  machine-graph merge/remap, tests, the audit pin, and backend report all carry
+  them. **CML3 next:** add access/provenance to permission entries, then flip the checker
   fully off move/drop input; cover returned-obligation outcomes and nested
   conditional payload extraction along that migration. Terminal consumption needs no annotation: an ordinary
   `move self` call consumes when no returned outcome carries the obligation,

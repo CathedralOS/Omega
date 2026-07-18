@@ -170,18 +170,18 @@ fn effect_set_is_still_a_flat_bitset() {
 }
 
 /// LOSS 5 (record §Multiplicity, ownership summaries): control-flow
-/// PARTIALLY RE-PINNED (CML3, 2026-07-17): checked flow now retains
-/// Establish / Transfer / Consume / AffineDrop permission events (including
-/// conditional-payload debt). The downstream control-flow summary below still
-/// records MOVE and DROP only, with no permission access/provenance; lowering
-/// migration must consume the checked permission artifact rather than infer it
-/// back from this compatibility pair.
+/// RE-PINNED (CML3, 2026-07-17): checked flow and every downstream semantic
+/// spine now retain Establish / Transfer / Consume / AffineDrop permission
+/// events (including conditional-payload debt). MOVE/DROP remain compatibility
+/// fields, not the source taxonomy. Still open: permission entries need
+/// explicit access + provenance rather than only event/place identity.
 #[test]
-fn downstream_ownership_summary_is_still_move_and_drop_only() {
+fn downstream_ownership_summary_carries_permission_events() {
     use omega_control_flow::StateOwnershipSummary;
     let StateOwnershipSummary {
         moves: _,
         drops: _,
+        permissions: _,
         ..
     } = StateOwnershipSummary::default();
 }

@@ -2,7 +2,7 @@ use super::*;
 use omega_core::symbols::SymbolHandle;
 
 #[test]
-fn remap_ownership_summary_preserves_move_and_drop_event_handles() {
+fn remap_ownership_summary_preserves_all_event_handles() {
     let target_symbol = SymbolHandle::from_arena_index(1);
 
     let move_event = omega_state_graph::StateMoveEvent {
@@ -21,18 +21,32 @@ fn remap_ownership_summary_preserves_move_and_drop_event_handles() {
     };
     let mut moves = Arena::new();
     let mut drops = Arena::new();
+    let mut permissions = Arena::new();
     let mut move_span = omega_core::arena::HandleSpan::empty();
     let mut drop_span = omega_core::arena::HandleSpan::empty();
+    let mut permission_span = omega_core::arena::HandleSpan::empty();
     moves.append_to_span(&mut move_span, move_event);
     drops.append_to_span(&mut drop_span, drop_event);
+    permissions.append_to_span(
+        &mut permission_span,
+        omega_state_graph::StatePermissionEvent {
+            source: omega_core::semantics::PermissionEventSource::StateEntry,
+            kind: omega_core::semantics::PermissionEventKind::Establish,
+            root: Default::default(),
+            segments: Default::default(),
+            obligation_live: true,
+        },
+    );
 
     let summary = remap_ownership_summary(&omega_state_graph::StateOwnershipSummary {
         moves: move_span,
         drops: drop_span,
+        permissions: permission_span,
     });
 
     assert_eq!(summary.moves.count(), 1);
     assert_eq!(summary.drops.count(), 1);
+    assert_eq!(summary.permissions.count(), 1);
     assert_eq!(
         summary.moves.start().arena_index(),
         move_span.start().arena_index()
@@ -40,6 +54,10 @@ fn remap_ownership_summary_preserves_move_and_drop_event_handles() {
     assert_eq!(
         summary.drops.start().arena_index(),
         drop_span.start().arena_index()
+    );
+    assert_eq!(
+        summary.permissions.start().arena_index(),
+        permission_span.start().arena_index()
     );
 }
 

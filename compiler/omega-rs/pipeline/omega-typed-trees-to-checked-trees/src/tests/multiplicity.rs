@@ -27,7 +27,7 @@ fn retains_semantic_permission_events_beside_legacy_moves_and_drops() {
         "#,
     );
 
-    use omega_checked_trees::FlowPermissionEventKind as Kind;
+    use omega_core::semantics::PermissionEventKind as Kind;
     let kinds = checked
         .facts
         .flow
@@ -75,7 +75,7 @@ fn empty_conditional_sum_records_establishment_without_payload_debt() {
         .permissions
         .iter()
         .map(|(_, event)| event)
-        .find(|event| event.kind == omega_checked_trees::FlowPermissionEventKind::Establish)
+        .find(|event| event.kind == omega_core::semantics::PermissionEventKind::Establish)
         .expect("conditional establishment event");
     assert!(!event.obligation_live);
 }
