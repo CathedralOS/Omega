@@ -318,16 +318,23 @@ sealed progress profiles + grants, TPR4's remaining big half).
    f32_guard_const_arith_landed_exit (EXACTLY the divergence probe:
    2^24 + 1.0 == 2^24 at f32 where an f64 window takes the wrong arm;
    dual-engine exit 70, in the differential legs at line 139). CM2's
-   REAL remaining rung = the metadata-carrying CARRIER. RETIREMENT
-   CHECKLIST SCOPED: the consumer-fallback family the carrier change
-   retires = signedness_adjusted_operator_for_tree_operands (3
-   consumers: writes/mutation.rs, binary_table_writes.rs,
-   value_operands.rs) + the write-TARGET signedness fallbacks
-   (mutation.rs:2026, binary_table_writes.rs:655/716,
-   frame_slots.rs:524). The rung: the folded-constant carrier grows
-   type/domain/format (rides IntegerLiteral's landing, per the CR1
-   design) so operands are never typeless at selection -- then the
-   four fallback sites retire. CM3 DIFFERENTIAL LEGS LANDED
+   REAL remaining rung = the metadata-carrying CARRIER. INTEGER
+   STATIC-TABLE FACE LANDED 2026-07-20: RuntimeStaticValues now carries
+   exact bits + IntegerLanding instead of a bare i64, literal/store
+   resolution preserves that landing across place tracking, and table
+   operator selection consults the carried signedness before any
+   destination fallback. The non-table tree write TARGET fallback is
+   retired; signedness_adjusted_operator_for_tree_operands is now
+   operand-only, pinned by unsigned_min_max_{wrapping_local,
+   operand_position}_exit. ONE RESIDUAL IS DELIBERATE: transition-arg
+   frame materialization still reconstructs a slot-backed initializer
+   as an anonymous nested expression, so its table write keeps the
+   frame-slot target primitive as a last resort (pinned by
+   const_fold_unsigned_shift_right_arg_exit). Next CM2 slice: carry the
+   captured landing through that alias-flow, then remove
+   select_runtime_storage_binary_write_in_table's target_primitive and
+   its frame_slots caller. Float-format carrier work remains with the
+   float ladder. CM3 DIFFERENTIAL LEGS LANDED
    2026-07-20: const_fold_saturating_narrow_exit (fold_landed's
    Saturating CLAMP at i8 127/-128 + u8 255 + unsigned u8 division;
    composed guards discriminate the bare-i64 window) +

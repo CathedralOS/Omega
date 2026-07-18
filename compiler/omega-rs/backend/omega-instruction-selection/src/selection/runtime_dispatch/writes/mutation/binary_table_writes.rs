@@ -20,7 +20,10 @@ use omega_checked_trees::types::PrimitiveType;
 use omega_control_flow::StateKey;
 use omega_core::arena::Arena;
 
-use super::super::static_values::{RuntimeStaticValues, invalidate_runtime_static_value_in_table};
+use super::super::static_values::{
+    RuntimeStaticValues, invalidate_runtime_static_value_in_table,
+    resolve_runtime_static_integer_landing_in_table,
+};
 use super::operators::{builtin_runtime_call_operator_in_table, runtime_binary_operator};
 use super::value_operands::{
     binary_value_operands_are_float, resolve_runtime_comparison_operand_in_table,
@@ -604,6 +607,23 @@ fn unsigned_operator_form(operator: StateGuardOperator) -> Option<StateGuardOper
     }
 }
 
+fn resolve_runtime_operand_signedness_in_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    expressions: &ExpressionTable,
+    expression: ExpressionHandle,
+    static_values: &RuntimeStaticValues,
+) -> Option<bool> {
+    resolve_runtime_storage_is_signed_in_table(
+        input, dispatch_index, source_key, expressions, expression,
+    )
+    .or_else(|| {
+        resolve_runtime_static_integer_landing_in_table(expressions, expression, static_values)
+            .map(|landing| landing.landed_type.is_signed())
+    })
+}
+
 /// Operand-only variant of [`signedness_adjusted_operator`] for write paths that
 /// carry a PRE-RESOLVED target place instead of a target expression (the
 /// frame-slot value write that materializes call/transition arguments like
@@ -651,11 +671,8 @@ pub(in crate::selection::runtime_dispatch) fn signedness_adjusted_operator_for_o
 /// write paths (alias-resolved branch-arm expressions carry OWNED
 /// `Expression` trees, not table handles). Follows the standard
 /// `insert_tree`+delegate collapse pattern so the signedness decision lives
-/// once. When the caller has a write TARGET expression, pass it: it is the
-/// fallback of last resort for operands that all folded to typeless
-/// constants (the erased-const-local shape -- validation guarantees the
-/// value lands at the target's type), mirroring the table variant's
-/// operand-then-target probe order.
+/// once. Signedness comes from the operands themselves; a write destination
+/// must not reinterpret an already-landed constant expression.
 pub(in crate::selection::runtime_dispatch) fn signedness_adjusted_operator_for_tree_operands(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
@@ -663,7 +680,6 @@ pub(in crate::selection::runtime_dispatch) fn signedness_adjusted_operator_for_t
     left_expression: &omega_checked_trees::expression::Expression,
     right_expression: &omega_checked_trees::expression::Expression,
     operator: StateGuardOperator,
-    target: Option<(StateKey, &omega_checked_trees::expression::Expression)>,
 ) -> StateGuardOperator {
     if unsigned_operator_form(operator).is_none() {
         return operator;
@@ -674,20 +690,6 @@ pub(in crate::selection::runtime_dispatch) fn signedness_adjusted_operator_for_t
     let mut delegated_expressions = ExpressionTable::default();
     let left = delegated_expressions.insert_tree(left_expression);
     let right = delegated_expressions.insert_tree(right_expression);
-    if let Some((target_source_key, target_expression)) = target {
-        let target = delegated_expressions.insert_tree(target_expression);
-        return signedness_adjusted_operator(
-            input,
-            dispatch_index,
-            target_source_key,
-            value_source_key,
-            &delegated_expressions,
-            target,
-            left,
-            right,
-            operator,
-        );
-    }
     signedness_adjusted_operator_for_operands(
         input,
         dispatch_index,
@@ -699,7 +701,6 @@ pub(in crate::selection::runtime_dispatch) fn signedness_adjusted_operator_for_t
     )
 }
 
-#[allow(clippy::too_many_arguments)]
 #[allow(clippy::too_many_arguments)]
 pub(in crate::selection::runtime_dispatch) fn select_runtime_storage_binary_write_in_table(
     input: &InstructionSelectionInput<'_>,
@@ -760,20 +761,22 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_storage_binary_writ
     // falling back to the caller-supplied TARGET primitive when neither operand
     // resolves (the sign-sensitive `>> / %` on fully-folded constants used to
     // default SIGNED here -- the const-fold sign class's arg-delivery face).
-    let operand_signed = resolve_runtime_storage_is_signed_in_table(
+    let operand_signed = resolve_runtime_operand_signedness_in_table(
         input,
         dispatch_index,
         source_key,
         expressions,
         left_expression,
+        static_values,
     )
     .or_else(|| {
-        resolve_runtime_storage_is_signed_in_table(
+        resolve_runtime_operand_signedness_in_table(
             input,
             dispatch_index,
             source_key,
             expressions,
             right_expression,
+            static_values,
         )
     });
     let resolved_signed =

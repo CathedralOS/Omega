@@ -47,7 +47,7 @@ use super::super::text_writes::{
 use super::slice_descriptors::emit_runtime_frame_slot_slice_descriptor_write_in_table;
 use super::static_values::{
     RuntimeStaticValues, invalidate_runtime_static_collection_for_indexed_write,
-    resolve_runtime_static_integer_value, set_runtime_static_value,
+    resolve_runtime_static_integer, resolve_runtime_static_integer_value, set_runtime_static_value,
 };
 use super::storage_copy::runtime_storage_copy;
 use super::storage_copy::runtime_storage_indexed_source_copy;
@@ -1747,7 +1747,7 @@ pub(super) fn select_runtime_resolved_target_value_source_mutation_writes(
         target_source_key,
         resolved_target,
     ) && supports_scalar_integer_write(indexed_target.byte_count)
-        && let Some(value) = resolve_runtime_static_integer_value(
+        && let Some(value) = resolve_runtime_static_integer(
             input,
             operation_source_key,
             &value,
@@ -1766,7 +1766,7 @@ pub(super) fn select_runtime_resolved_target_value_source_mutation_writes(
             kind: crate::selection::runtime_dispatch::write_place_integer_pointee(
                 indexed_target.descriptor_offset,
                 field_byte_offset,
-                value,
+                value.bits(),
                 indexed_target.byte_count,
             ),
             source_key: operation_source_key,
@@ -1775,7 +1775,7 @@ pub(super) fn select_runtime_resolved_target_value_source_mutation_writes(
         return;
     }
 
-    let Some(value) = resolve_runtime_static_integer_value(
+    let Some(value) = resolve_runtime_static_integer(
         input,
         operation_source_key,
         value,
@@ -1798,8 +1798,13 @@ pub(super) fn select_runtime_resolved_target_value_source_mutation_writes(
     // dropped the operand domains (`self.v: u8 in Saturating = a * b`, a,b folded
     // to 100), so the target's declared domain is the authoritative signal -- the
     // store must write 255, not the wrapped low byte. See task #39.
-    let value =
-        clamp_constant_to_target_domain(input, dispatch_index, target_source_key, resolved_target, value);
+    let value = value.with_bits(clamp_constant_to_target_domain(
+        input,
+        dispatch_index,
+        target_source_key,
+        resolved_target,
+        value.bits(),
+    ));
     if let Some(pointer_target) = resolve_runtime_pointee_slot_offset(
         input,
         dispatch_index,
@@ -1815,7 +1820,7 @@ pub(super) fn select_runtime_resolved_target_value_source_mutation_writes(
             kind: crate::selection::runtime_dispatch::write_place_integer_pointee(
                 pointer_target.pointer_byte_offset,
                 pointer_target.field_byte_offset,
-                value,
+                value.bits(),
                 pointer_target.pointee_byte_size,
             ),
             source_key: operation_source_key,
@@ -1867,7 +1872,7 @@ pub(super) fn select_runtime_resolved_target_value_source_mutation_writes(
         target_source_key,
         resolved_target,
         &target_place,
-        value,
+        value.bits(),
         runtime_value_operands,
     ) {
         // The program traps here, so nothing downstream observes the target; no
@@ -1889,7 +1894,7 @@ pub(super) fn select_runtime_resolved_target_value_source_mutation_writes(
         kind: crate::selection::runtime_dispatch::write_place_integer_direct(
             target_place.region,
             target_place.byte_offset,
-            value,
+            value.bits(),
             target_place.byte_count,
         ),
         source_key: operation_source_key,
@@ -2021,11 +2026,9 @@ fn select_runtime_binary_mutation_write(
         }
         _ => return None,
     };
-    // Same signedness policy as the `_in_table` binary writes: unsigned operands
-    // pick the unsigned division/modulo/shift/min/max/comparison encoding, with
-    // the write TARGET as the fallback of last resort when every operand folded
-    // to a typeless constant (`let m: u64 = max(big, 5)` with `big` an erased
-    // const local -- the u64 min/max divergence).
+    // Same signedness policy as the `_in_table` binary writes: landed unsigned
+    // operands pick the unsigned division/modulo/shift/min/max/comparison
+    // encoding without being reinterpreted by the write target.
     let operator = binary_table_writes::signedness_adjusted_operator_for_tree_operands(
         input,
         dispatch_index,
@@ -2033,7 +2036,6 @@ fn select_runtime_binary_mutation_write(
         left_expression,
         right_expression,
         operator,
-        Some((target_source_key, resolved_target)),
     );
     let left = resolve_runtime_value_operand(
         input,
