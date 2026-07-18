@@ -4565,8 +4565,13 @@ with a real app-window story.
   legacy arenas before re-running it), while the transitional producer may
   still project legacy move/drop discovery. This also closes the conditional
   zero-storage hole: payload-debt=false is not establishment evidence. **CML3
-  next:** replace the producer's legacy projection; cover returned-obligation outcomes and nested
-  conditional payload extraction along that migration. Terminal consumption needs no annotation: an ordinary
+  SLICE 6 LANDED 2026-07-17:** a by-value `self` call whose result carries a
+  linear/conditional obligation is a transfer, not a terminal consume; a
+  single unambiguous moved input preserves its origin into the result binding.
+  The direct `Receipt -> Receipt` customer and canary pin this before task
+  outcomes depend on it. **CML3 next:** replace the producer's legacy
+  projection and carry origins through nested conditional payload extraction.
+  Terminal consumption needs no annotation: an ordinary
   `move self` call consumes when no returned outcome carries the obligation,
   while a `try_*` incomplete outcome must return the live token. Pin create ->
   multi-binding transfer -> consume as one obligation; reject scope loss,

@@ -135,6 +135,12 @@ reimplemented. The linear judgment reads this context exclusively. Legacy
 move/drop summaries remain only as transitional producer input until ownership
 discovery emits the semantic events directly.
 
+Consuming calls are classified from result flow: if a by-value `self` call
+returns a type carrying the obligation, it transfers rather than terminally
+consumes. One unambiguous moved input preserves its origin into the result;
+ambiguous multi-resource results remain conservative until the general
+resource algebra can state their mapping.
+
 A backend may erase multiplicity after it has received a checked ownership and
 cleanup plan, but proof/debug artifacts must retain the conservation witness.
 The current move/drop-only summaries are not sufficient; see
