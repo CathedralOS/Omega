@@ -124,6 +124,30 @@ continuation lowering and suspension-safe-loan rules remain the queued
 suspension amendment. See
 [effects_authority_and_observation.md](../design_briefs/effects_authority_and_observation.md).
 
+## Carry Policy Is A Product
+
+Values that remain live across scheduler/storage transitions contribute four
+independent demands: suspension allowed or forbidden, same/any CPU,
+same/any host thread, and stable/movable address. Type-wide guarantees use the
+compiler-built-in `[carry(...)]` property from chapter 7. Transparent data
+derives structurally; opaque data is maximally strict unless a verified or
+receipt-admitted declaration says otherwise. Sealed domains established by a
+constructor's `ensures` may add permissions for one minted value.
+
+This replaces the provisional one-bit `[send]` property. Moving exclusively
+owned data into another activation is legal when ordinary ownership and the
+target runtime's carry contract both permit it. Sending a shared reference also
+requires a sanctioned shared-access/atomic/protocol contract. Neither question
+is a marker trait, and neither follows merely from `[copy]`.
+
+At every suspension, migration, or relocation point the local checker reads
+canonical place liveness and rejects when a live value's policy forbids the
+transition. Provider admission separately checks the activation's accumulated
+demands against normalized runtime behavior. The future temporal/model checker
+will consume the same policies, provenance anchors, operation contracts,
+effects, and provider hypotheses; carry is an input to that model, not a
+miniature trace language.
+
 ## Task Storage: Accountable, Provider-Planned
 
 Task execution has three deliberately separate owners:
@@ -141,9 +165,9 @@ the handle does not move a parked continuation.
 Measured, tail-only runtime recursion leaves a bounded lowered call graph. If
 ordinary calls may suspend, a parked continuation can retain a bounded chain
 of compiler-planned frames; bounded does not mean single-frame or free. The
-activation plan records frame/continuation size, alignment, address-stability,
-and related requirements. The runtime provider must admit that plan against
-its storage contract before returning a pending task.
+activation plan records frame/continuation size, alignment, address stability,
+carry demands, and related requirements. The runtime provider must admit that
+plan against its storage contract before returning a pending task.
 
 Storage strategy is not fixed by the language:
 

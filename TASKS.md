@@ -1056,7 +1056,8 @@ lowering can use it. Authoritative audit and target shapes:
 - **Multiplicity (decision 21):** `Unrestricted | Affine | Linear`, with
   establishment and create/transfer/consume/affine-drop events in a
   place-keyed permission context carrying access and provenance. `zero_init`
-  and `send` stay orthogonal.
+  and four-axis carry policy stay orthogonal. The provisional `send: bool` is
+  compatibility residue scheduled for deletion, not semantic canon.
 - **Effects/observation (decision 22):** replace the flat `u64` source of truth
   with normalized, symbol-resolved members kinded as `ServiceReach` or
   `OperationalMay`; retain authored interface ceilings separately from checked
@@ -1078,6 +1079,21 @@ lowering can use it. Authoritative audit and target shapes:
   linear external loans; carry demands join runtime behavior at admission. No
   interrupt DSL, volatile qualifier, external-satisfier keyword, instruction
   wrappers, source-visible static entry pointer, or parallel admission spine.
+- **Carry policy (settled 2026-07-18):** compiler-built-in
+  `[carry(suspension: ..., cpu: ..., thread: ..., address: ...)]` states a
+  type-wide permission floor. Transparent data derives structurally; opaque
+  omission is maximally strict; opaque claims are inert until proved/admitted;
+  sealed `ensures` domains may add per-mint permissions. Normalize one
+  four-axis compiler record with provenance anchors, not `omega::core` data, a
+  trait, a policy machine, or a use-site marker. Retire `[send]` and its bool
+  fields/canaries. Engineering ladder: CRY1 propagate the normalized record
+  through syntax/resolved/typed/checked trees plus snapshots; CRY2 parse and
+  normalize the parameterized property and migrate/delete `[send]`; CRY3 add
+  structural derivation and generic-bound ordering; CRY4 add sealed per-mint
+  facts to the permission context; CRY5 check canonical live sets at local
+  transitions; CRY6 join activation demands with admitted runtime behavior and
+  emit diagnostic/artifact/model-export facts. CRY1-5 are design-unblocked.
+  CRY6 waits only on `OWNER_QUESTIONS.md`'s provider-side supply spelling.
 
 Ordering gates: no general domain mint/operator-family build on the old
 undifferentiated domain record; no linear Task/transaction/buffer build on
@@ -1505,15 +1521,16 @@ with a real app-window story.
   `runtime.start<M>(args)` from the
   existing compile-time machine-symbol parameter into a normalized activation
   plan (contract/entry IDs, argument/result layout, continuation requirement,
-  alignment/pinning, cancellation/effect metadata); TR4 add the `TaskRuntime`
-  boundary requirement, provider validation/admission, and return of every
+  alignment/pinning, carry demands, cancellation/effect metadata); TR4 add the
+  `TaskRuntime` boundary requirement, provider validation/admission, and return of every
   moved argument/lease on rejected start; TR5 represent provider provenance
   and child storage leases so close/reclaim rejects while dependent claims
   live; TR6 lower continuations and land a first provider, with inline
   completion admitted only where the pinned contract permits it; TR7 enforce
   the conservative suspension-safe-loan subset (moved ownership, shared
-  immutable, explicit synchronization first); TR8 build `ArenaTaskPool`, a
-  bounded mailbox, and a supervisor reference package, then migrate the sample
+  immutable, explicit synchronization first) plus CRY1-5 carry checks; TR8
+  build `ArenaTaskPool`, a bounded mailbox, and a supervisor reference package,
+  then migrate the sample
   corpus. Acceptance register lives in
   wiki/design_briefs/task_runtime_and_lifecycle.md. Pool/supervisor convenience
   never earns core syntax unless the packages expose a semantic impossibility.

@@ -81,8 +81,8 @@ Two payoffs:
 - **Thread-safety becomes ordinary.** One-root does *not* invent a static-safety
   mechanism; it makes static state *subject to the existing one*. Two threads
   wanting `&mut` into the root's subtree → refused by ordinary aliasing. Shared
-  `&` across threads → the ordinary `Send`/`Share` story. Static stops being
-  special. (Generic statics needed bespoke thread-safety analysis *precisely
+  `&` across activations → the ordinary borrow/access plus carry/runtime story.
+  Static stops being special. (Generic statics needed bespoke thread-safety analysis *precisely
   because* they were name-reachable.)
 
 ## 3. `main`'s `&self` — the root, made explicit

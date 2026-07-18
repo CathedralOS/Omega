@@ -191,9 +191,8 @@ The likely durable homes are:
 ## Type Properties
 
 Some static laws are about the TYPE itself, not any particular value: "copies
-are sound", "the zero value is the canonical empty value", "values may cross a
-concurrent activation boundary", "established values must be consumed exactly
-once". These are
+are sound", "the zero value is the canonical empty value", "values impose this
+carry floor while live", "established values must be consumed exactly once". These are
 PROPERTIES -- declared as a lowercase list in brackets on the data declaration,
 the same bracket syntax invariant parameters use in type positions
 (`&[u8, [non_empty]]`):
@@ -207,6 +206,16 @@ data Point [copy, zero_init] {
 data Task<T> [linear] {
     // representation omitted
 }
+
+boundary data PerCpuLease [
+    linear,
+    carry(
+        suspension: allowed,
+        cpu: same,
+        thread: any,
+        address: movable,
+    ),
+];
 ```
 
 Properties are static checker laws, not behavior: declaring one generates
@@ -215,7 +224,8 @@ linear permission algebra for established values. It must not be stored as a
 weakenable flow fact.
 They are acquired exactly three ways:
 
-- COMPUTED: the compiler always knows (`sized`); never written. The
+- COMPUTED: the compiler always knows (`sized`); never written. Transparent
+  carry policy is also derived structurally rather than annotated. The
   `unbounded` property (chapter 10) is the proof-only marker: no machine
   layout, no ZII, fact-position use only.
 - DECLARED + VERIFIED: the bracket list requests the property and the compiler
@@ -224,11 +234,14 @@ They are acquired exactly three ways:
   zero; `linear`: mutually exclusive with `copy`, and every contained linear
   obligation is structurally preserved). Failure is a loud error at the
   declaration.
-- BOUNDARY-ASSERTED: a boundary provider asserts a property for an opaque host
-  type, audited like every other boundary guarantee.
+- BOUNDARY-ASSERTED: a boundary provider claims a property for an opaque host
+  type. The spelling is inert until validation/admission accepts it and records
+  a receipt; packages can never self-grant it. Opaque authored carry floors use
+  this path as well.
 
-There is no silent inference and no negative form: a type that does not
-declare a property simply does not carry the fact. Properties cannot be
+Except for structurally derived carry policy, there is no silent inference and
+no negative form: a type that does not declare a property simply does not carry
+the fact. Properties cannot be
 declared on foreign types (their rules read the fields; boundary providers
 are the audited exception).
 
@@ -245,6 +258,58 @@ data Box<T [copy]> [copy] {
 }
 ```
 
+### Carry policy
+
+Carry is one compiler-built-in parameterized property, not four traits or an
+open attribute system. It normalizes directly into a compiler semantic record
+with four independent axes:
+
+| Axis | Strict/default end | Relaxed end |
+|---|---|---|
+| suspension | `forbidden` | `allowed` |
+| CPU affinity | `same` (the mint/provenance CPU) | `any` |
+| host-thread affinity | `same` (the mint/provenance thread) | `any` |
+| address stability | `stable` | `movable` |
+
+The axis vocabulary is closed because every member changes compiler liveness,
+relocation, or runtime-admission behavior. A new axis is a language/compiler
+release with composition and validation rules; packages cannot add one by
+naming data or a trait. `CarryPolicy` is structured normalized compiler IR, not
+ordinary `omega::core` data and not the result of a policy machine.
+
+Transparent scalars and data derive the most permissive policy their structure
+proves. Aggregates share the field traversal used by other structural
+properties but combine each carry axis under its own algebra, selecting the
+most restrictive live-field demand. Opacity stops derivation. Opaque data with
+no `carry` property is maximally strict; writing `[carry(...)]` is an inert
+universal claim until proved or admitted.
+
+A declared policy is a universal floor: every value of the type permits at
+least those transitions. Constructor-specific sealed domains established by
+`ensures` may add permissions for one minted value but may never retract a
+universal permission callers already rely upon:
+
+```omega
+boundary data SlotLease [linear];
+
+machine Queue::lease_owned(&mut self) -> SlotLease
+    ensures result in Carry::AcrossSuspend
+    ensures result in Carry::AnyCpu;
+```
+
+The provenance attached at mint supplies relational anchors such as the
+meaning of `cpu: same`; no runtime tag is added to ordinary values. Generic
+property bounds use the same policy ordering and are checked parametrically;
+carry checking is not inherently blocked on backend monomorphization.
+
+There is no use-site carry marker. Canonical place liveness, the normalized
+type/per-mint policy, and the selected runtime contract decide whether a
+suspension, migration, transfer, or relocation is legal. The old `[send]`
+property is retired: one bit cannot distinguish suspension, CPU/thread
+affinity, and address stability. Cross-activation ownership transfer is checked
+from ownership plus carry/runtime compatibility; shared references additionally
+require a sanctioned shared-access contract.
+
 The Rust-style colon bound (`<T: copy>`) and the attribute-prefix form
 (`[copy]` on its own line above the declaration) are both rejected: the colon
 would split the spelling system in half, and a floating prefix line is
@@ -253,7 +318,7 @@ The spelling leaves room for trait bounds without collision
 (`T [copy] satisfies Equatable`).[^property-open]
 
 [^property-open]: Open: the initial core property set beyond
-copy/linear/zero_init/send; whether evolution-contract facts join the same surface
+copy/linear/zero_init/carry; whether evolution-contract facts join the same surface
 (`[open]` was ruled OUT for sums -- unknown-case handling is a wire decode
 policy, frozen decision 10; `must_use` was ruled out by strict result use,
 frozen decision 9). A `[max_size = N]` property is a candidate for this

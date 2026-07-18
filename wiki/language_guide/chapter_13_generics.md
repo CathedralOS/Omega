@@ -167,8 +167,9 @@ Rules:
   stateful callback is a machine *instance* — its fields are its declared
   captures, construction is the capture clause, and borrow modes are field
   types. A type-erased callable is a `dyn` trait (chapter 14). Concurrent task
-  start moves the instance, and the `send` property (chapter 7) gates what may
-  cross an activation boundary.
+  start moves the instance. Ownership determines whether the value may be
+  transferred; its four-axis carry policy and the selected runtime contract
+  determine whether that activation boundary is legal (chapters 7 and 18).
 - Accepted generic axioms are granted once at the normalized template
   statement, including its machine-parameter contract. Each instantiation
   records that template receipt and the selected machine-contract identities
