@@ -1,0 +1,8 @@
+use omega::language::core::task;
+
+// TR2a: a real Task<T> claim cannot disappear through ordinary scope cleanup.
+data Main {}
+
+machine Main::main(&mut self) {
+    let task: Task<i32> = Task { provider: 1, activation: 7 };
+}

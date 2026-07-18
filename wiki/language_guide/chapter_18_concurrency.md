@@ -70,6 +70,11 @@ A later machine may consume it with `finish()` or transfer it again. A live
 task may not be copied, overwritten, dropped at ordinary scope exit, or lost
 on one branch.
 
+Implementation staging: the core `Task<T>` claim carrier has landed. The
+generic terminal/start outcome sums land only with qualifier-aware payload
+propagation, so a substituted linear result or rejected argument bundle cannot
+silently lose its obligation through an unconstrained generic field.
+
 `request_cancel()` retains the claim: requesting cancellation does not prove
 that execution stopped. `finish()` may suspend, consumes the claim, and returns
 an ordinary terminal-outcome sum such as returned, cancelled, or provider

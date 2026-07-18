@@ -204,6 +204,13 @@ lease provenance until settlement or transfer. Provider-specific handles and
 physical frame locations are lowering details and must not be confused with
 machine-contract or result-type identity.
 
+Implementation status (TR2A, 2026-07-17): core owns the source-visible
+`[linear] Task<T>` claim carrier, and task-specific canaries pin transfer,
+conditional payload extraction, terminal by-value-self consumption, and scope
+loss. Generic terminal/start outcome sums remain gated on qualifier-aware
+payload propagation so substituted linear results and rejected argument
+bundles cannot lose their debts.
+
 ### Multiplicity and permission context
 
 Replace `copy` as the whole usage model with:

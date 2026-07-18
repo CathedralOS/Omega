@@ -248,8 +248,10 @@ valuable later theorem but not a prerequisite for the conservative task v1.
 
 1. Retire the stage-1 synchronous `spawn` desugar and erased `Join<T>` parser
    fiction with directed migration diagnostics.
-2. Land core `[linear] Task<T>`, start/task outcome sums, and lifecycle
-   conservation on all control-flow paths.
+2. Land core `[linear] Task<T>`, then start/task outcome sums with
+   qualifier-aware generic payload propagation, and pin lifecycle conservation
+   on all control-flow paths. `Returned(LinearT)` and
+   `Rejected(LinearArguments)` must never erase the substituted payload debt.
 3. Extend compile-time machine-symbol parameters into task-target elaboration
    and emit the normalized activation-plan artifact.
 4. Add the `TaskRuntime` boundary requirement, provider admission, and
