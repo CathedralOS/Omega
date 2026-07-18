@@ -93,7 +93,7 @@ transition arguments stop inline-folding recast locals (they were silently
 dropped). Verified live under QEMU/OVMF with POSITIVE evidence: firmware
 out-values echoed over debugcon (status 0, stride 48, version 1),
 98-descriptor walk, ExitBootServices gated on its captured status, first
-Region mint, "Owned 35 MiB" over Cathedral's own 16550 driver (LSR-polled
+physical-Extent mint (still spelled `Region` in the bootstrap sample), "Owned 35 MiB" over Cathedral's own 16550 driver (LSR-polled
 FIFO bursts, decimal by place subtraction), hlt idle; 842 canaries green,
 the 7 known reds, zero regressions. Trust only positive-evidence
 verification on boot claims. The gap list below stands as history.
@@ -1142,7 +1142,7 @@ with a real app-window story.
   ownership-transactional outcome that returns moved arguments/leases on
   rejection; `request_cancel` retains the claim; `finish` terminally settles
   it; `adopt` is ordinary transfer. Pools, mailboxes, supervisors, and task
-  groups are packages. `RegionTaskPool` is the standard bounded reference
+  groups are packages. `ArenaTaskPool` is the standard bounded reference
   implementation/Cathedral profile, not universal semantics. RETIRE the
   synchronous `spawn` parser desugar, erased `Join<T>`, mandatory/vestigial
   `await`, statement fire-and-forget, detach, and privileged scope/group
@@ -1171,9 +1171,16 @@ with a real app-window story.
   capture inference; dynamic dispatch remains `dyn Trait`.
 
 - **Allocator story:** `Vec` has no runtime. Retire ambient legacy `alloc` in
-  favor of explicit allocator/region capabilities and dependent resource
+  favor of explicit `Arena`/`Allocation` capabilities and dependent resource
   contracts. Quantitative `Alloc<Peak, Retained>`-style rows wait for the
   resource-algebra brief; do not canonize a one-number allocation effect.
+  Migrate Cathedral's milestone-2 bootstrap `Region` / `mint_region` carrier
+  to `Extent`; that live sample predates the range-authority/allocation-authority
+  split and does not denote an Arena.
+  The settled semantics permit debt-bearing `Allocation<T>` and derive its
+  multiplicity structurally from `T`; the initial implementation MAY reject
+  such `T` until structural multiplicity through generics is enforced. That
+  rejection is a removable engineering fence, not language semantics.
 - **Repr control** — FOLDED into the layouts ladder (2026-07-18): L4
   plan-laid types + policies ARE repr control (CLayout pilot landed;
   packed = a no-padding policy); remaining work is surface polish, no
@@ -1505,7 +1512,7 @@ with a real app-window story.
   live; TR6 lower continuations and land a first provider, with inline
   completion admitted only where the pinned contract permits it; TR7 enforce
   the conservative suspension-safe-loan subset (moved ownership, shared
-  immutable, explicit synchronization first); TR8 build `RegionTaskPool`, a
+  immutable, explicit synchronization first); TR8 build `ArenaTaskPool`, a
   bounded mailbox, and a supervisor reference package, then migrate the sample
   corpus. Acceptance register lives in
   wiki/design_briefs/task_runtime_and_lifecycle.md. Pool/supervisor convenience

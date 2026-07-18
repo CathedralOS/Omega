@@ -50,8 +50,14 @@ instruction-wrapper keyword, or parallel admission system is introduced.
 
 ## Extents are not allocators
 
-`Region` is allocation authority: it permits drawing storage from a resource
-under capacity and lifetime rules. A placed view needs authority over an
+`Arena` is bounded allocation authority: it permits drawing storage from a
+resource under capacity and lifetime rules. A borrow-backed Arena is affine; an
+owned-backing wrapper derives linearity from its Extent. The returned
+`Allocation<T>` borrows its Arena and carries typed establishment/ownership; it
+is not itself the allocator or a fresh root authority. See
+[`allocator_story.md`](allocator_story.md).
+
+A placed view instead needs authority over an
 already-existing range that was not allocated by the program, such as a UART
 register block. That is an `Extent`.
 
@@ -103,7 +109,8 @@ DMA tokens, shootdown tokens, and similar authority/debt values remain linear.
 Mapping requires authority on both sides. A requested `addr` may be a placement
 hint, but it never authorizes occupation of a virtual range. Fixed placement
 therefore consumes an owned extent in the virtual space. Automatic placement
-draws that destination from a caller-supplied virtual allocator/Region.
+draws that destination from a caller-supplied virtual-space allocator whose
+own authority descends from the destination Extent.
 
 The source relationship is independent: a mapping may consume an owned physical
 extent or borrow one. A mapped virtual extent retains that relationship, so a
@@ -436,7 +443,7 @@ redesign.
    executable publication.
 8. Add the external-root ledger and IDT/timer vertical slice.
 9. Add external loans and DMA/hostile-IPC vertical slices.
-10. Add carry/runtime admission and the region-backed Cathedral task profile.
+10. Add carry/runtime admission and the Arena-backed Cathedral task profile.
 
 ## Gauntlet
 

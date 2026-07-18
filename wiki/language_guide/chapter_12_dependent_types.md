@@ -224,7 +224,7 @@ When a witness is a runtime value:
 Runtime-sized data takes exactly three shapes, permanently: borrowed views
 (`{ptr, len}` over someone else's bytes), fixed-capacity buffers with
 dynamic validity (as `MemoryMap` above: static storage, a runtime valid
-prefix carried as facts), and — once the `Region` allocator lands — owned
+prefix carried as facts), and — once the `Arena` allocator lands — owned
 allocations (`{handle, len}`, Vec-shaped, the length proof-visible). An
 owned value whose INLINE size is a runtime witness (`payload: [u8; len]` as
 machine-resident storage) is not part of the language: the facts never

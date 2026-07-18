@@ -16,6 +16,15 @@
 > adversarial verification pass. The body incorporates the resulting
 > corrections.
 
+> **Vocabulary reconciliation (2026-07-18):** this brief remains authoritative
+> for growth-bound inference and peak accounting. Its older allocator taxonomy
+> is superseded by [`allocator_story.md`](allocator_story.md): `Extent` is
+> concrete-range authority, `Arena` is the bounded allocation/lifetime domain,
+> and `Allocation<T>` is arena-bound typed storage. `Allocator` remains the
+> deferred general interface. Loop-shaped snippets below are mathematical
+> pseudocode for state-transition or tail-recursive cycles, not proposed
+> `for`/`while` surface syntax.
+
 ---
 
 ## 1. Bottom line up front
@@ -52,19 +61,20 @@ loop:**
   unbounded case is *rejected at the low rung*, never silently truncated as the
   256-byte hack does today.
 
-**The future allocator has ONE primitive — a `Region` (a memory capability; static
-⇒ a BSS section, dynamic ⇒ a fallible request); everything else (bump, heap-with-
-free, `FixedVec`, text buffer) is a record built over a region, not a tier.** The
-one theorem is `Σ region sizes at peak ≤ budget`; effects stay **honest**
-(`allocates` means allocates, gated by holding a `Region`); a target's **ceiling**
-is enforced by *not minting the capability*, so forbidden allocation simply fails
-to compile. The whole field (Zig, Ada/SPARK, Jai/Odin, Vale/Austral, Verona, PMR)
+**The future bounded allocator surface is an explicit `Arena`; static storage
+remains inline/BSS and dynamic storage is an arena Allocation or a later general
+Allocator request.** The proof target is peak live requested bytes within the
+declared Arena/provider budget; effects stay honest (allocation-service reach
+records the possibility of a runtime request), and a target's ceiling is enforced by withholding allocation
+authority. Extent range authority, Arena allocation permission, and
+Allocation-owned bytes remain distinct. The whole field (Zig, Ada/SPARK,
+Jai/Odin, Vale/Austral, Verona, PMR)
 validates the pieces *ergonomically* but proves *nothing* — every existing bound is
 a runtime check or a prohibition. Omega's genuinely novel, defensible claim is
 **no-OOM as a discharged theorem on the same engine that discharges array-index
 bounds** — the unification the safety-critical industry assembles today from 3–4
 tools that don't share a semantic model. The concentrated novelty (and the real
-research risk) is **global peak-accounting over region requests** — the exact piece
+research risk) is **global peak-accounting over allocation requests** — the exact piece
 Ada/SPARK *deferred*. (Full decided shape: §4 and §4.1–§4.9.)
 
 ---
@@ -313,7 +323,7 @@ already in place for range-refined fields.
   capabilities compose; viral generics colour every enclosing type.* (`heapless`'s
   `Vec<T,N>` is the direct FixedVec analog, runtime-checked.)
 - **Jai / Odin** — *ambient-context allocation is ergonomic but every footgun is an
-  unproven obligation*: dangling-after-`temp`-reset, fixed-arena overflow (Odin
+  unproven obligation*: dangling-after-`temp`-reset, fixed-bump overflow (Odin
   patched it with a runtime `panic_allocator`), lifetime mismatch. Odin's static
   virtual arena (reserve big, commit-on-demand, stable base) is a clean
   **peak-not-net** substrate. *Omega may keep ambient ergonomics only if the
@@ -361,12 +371,12 @@ already in place for range-refined fields.
   whole-program access — so Omega's *dyn-dispatch* sites need call targets resolved
   before the existing stack capability applies cleanly.)
 - **C++17 PMR / production allocators** — *separate the three "multi-heap" wins.*
-  **Lifetime** (bulk-free cohort) = the fixed-arena/`Region` rung. **Locality**
+  **Lifetime** (bulk-free cohort) = the fixed-bump/proof-bounded-Arena rung. **Locality**
   (per-core hot memory: mimalloc/snmalloc/tcmalloc/jemalloc — no universal winner
   per warehouse-scale studies) = an **implementation detail below the language**,
   a pluggable backend under the bounded-heap rung, **never a type concept**.
   **Isolation** (refs can't escape a heap) = the *only* one that must be a prover
-  concern = the proven-`Region` rung (Verona's closest prior art, via linear `iso`
+  concern = the proof-bounded-Arena rung (Verona's closest prior art, via linear `iso`
   not an interval engine). *AVOID PMR's anti-pattern — allocator as a **runtime
   value** (`memory_resource*`, vtable-per-alloc) erases which heap an object's
   storage came from at the type level; Omega's "domains stay bound to storage, no
@@ -376,36 +386,36 @@ already in place for range-refined fields.
 lifetimes + interval refinements + FixedVec's compile-time push obligation + ZII
 are all shipped — ahead of Zig/Jai/Odin (unproven) and orthogonal to Rust (no
 viral generic). **Where it lags:** global peak-accounting (the work Ada
-*deferred*), the proven-`Region` rung (Vale stalled here), and a *mechanized*
+*deferred*), the proof-bounded-Arena rung (Vale stalled here), and a *mechanized*
 soundness proof (no one has one yet).
 
 ---
 
-## 4. What a future-language allocator looks like — the decided shape
+## 4. How growth inference meets allocation — the decided shape
 
-**There is ONE primitive: a `Region` — "give me N bytes," a capability.** Static
-size ⇒ a **BSS section** (zero-initialized, ZII-valid, no runtime request, *cannot
-fail*); dynamic size ⇒ a **fallible runtime request**. A region is **splittable**
-— it hands out sub-regions, which is both the seL4 untyped/Retype move and the IPC
-grant move. That is the entire memory surface.
+Static storage, concrete range authority, allocation permission, and returned
+owned bytes are separate relationships:
 
-**Everything else is a *record over a region*, not a primitive and not a tier:** a
-bump allocator is a region + a cursor; a "heap" (individual free) is a region +
-*your own* free-list, so **fragmentation is your data structure's problem, never a
-language concept**; a `FixedVec<u8, N>` is a region + a used-length; a text buffer
-is exactly that. The earlier "fixed-arena / proven-region / bounded-heap / mmap"
-**tier table conflated usage patterns with the primitive — struck.** There is no
-"heap tier" (heap = a record that supports individual free) and no "mmap" (a host
-backing-store detail *below* the language; the sharing flavour is IPC, handled by
-`SharedRegion`, not a memory tier).
+- a statically bounded place lowers inline or into BSS and performs no allocation;
+- an `Extent` is authority over one concrete address-space range;
+- an `Arena` is bounded permission to allocate within one lifetime/resource
+  domain, backed by an Extent or admitted provider; and
+- `Allocation<T>` is arena-bound storage carrying layout and establishment state.
 
-**The one theorem:** `Σ region sizes at peak ≤ budget`. A region's *interior* is
-bounded by its own size by construction (you can't bump past it — the `FixedVec`
-push obligation already *is* that bound), so the only global obligation is over the
-*region requests* — a handful of coarse asks, with disjointness for regions that
-don't co-exist (peak-not-net). For the all-static case it is **the link map** —
-exactly what avionics does today, now a type-level property instead of an external
-audit.
+An Arena never manufactures Extents. An Extent-backed Arena borrows its backing;
+allocations borrow the Arena; slices/views borrow allocations. General heaps,
+pools, and movable storage remain packages or later `Allocator` implementations,
+not alternate meanings of Arena.
+
+**The accounting theorem:** peak live allocation demand stays within every
+declared Arena/provider budget. An Arena's remaining-capacity contract gates each
+request; reset can reduce a sum to a maximum only after every Allocation has
+ended. For the all-static case the corresponding artifact is the link map.
+
+Storage initially grants reserved bytes, not a live value. Establishment gates
+reads until construction proves a `T`. When bytes cross a trust boundary,
+provider-established non-disclosure must hold for the entire visible range
+before visibility; scrubbing is one discharge route, not the semantic rule.
 
 **Genuinely novel (the defensible claim):** (1) **no-OOM as a *discharged
 theorem*** rather than a prohibition (MISRA/DO-178), an unproven runtime check
@@ -413,7 +423,7 @@ theorem*** rather than a prohibition (MISRA/DO-178), an unproven runtime check
 capacity, *and* index bounds discharged on the *same* refinement engine** — the
 unification the safety-critical world assembles from a linker map + `-fstack-usage`
 + a WCET tool + GNATprove, none sharing a model; (3) **peak-not-net high-water-mark
-budgeting** with region-reset as a disjointness proof (the AARA peak-soundness
+budgeting** with Arena reset as a disjointness proof (the AARA peak-soundness
 shape, on intervals/octagons not potential).
 
 **Borrowed:** allocator-as-capability (seL4 untyped+Retype, Austral linear
@@ -424,10 +434,10 @@ language (mimalloc/snmalloc); weakening/rewrite annotation hints (Pastis); in-pl
 reuse via uniqueness (Perceus/FIP) as a later rung-2 optimization.
 
 > §4.1–§4.9 are the authoritative shape: §4.1 names it (tiers as sugar), §4.2
-> capabilities-are-the-truth, §4.3 named regions, §4.4 no unbounded tier, §4.5
+> capabilities-are-the-truth, §4.3 named Arenas, §4.4 no unbounded tier, §4.5
 > ceiling = capability provision, §4.6 the cases + ergonomics, and §4.7–§4.9 the
-> follow-up decisions (the `allocates` effect, place-storage-class, and the
-> SSO/effect-honesty call with its enforcement-strength scope).
+> follow-up decisions (allocation-service reach, place-storage-class, and the
+> SSO/reach-honesty call with its enforcement-strength scope).
 
 ### 4.1 Naming — "storage tiers", kept distinct from the bootstrap lattice
 
@@ -448,17 +458,16 @@ ordering. **The granted capability set is the truth; "tier"/"ceiling" is just a
 readable label for a common capability set.** This dissolves the "is the taxonomy
 perfect?" worry — you check capability *availability*, never tier comparison.
 
-### 4.3 Multiple named regions, not "the heap"
+### 4.3 Multiple named Arenas, not "the heap"
 
-The top of the stack is **not** a singleton heap; it is *"you may mint **named
-regions**, each its own capability with its own budget"* (`region frame`, `region
-assets`, `region request`). The global heap is just the root region. This
-separates the three multi-heap wins cleanly: **lifetime** (bulk-free at `}`),
-**isolation** (a ref into `frame` escaping into `assets` is an `outlives` *type
-error*), **accounting** (per-region budget). Per-core/NUMA locality stays an
-implementation detail *below* the region, never a type concept. (Open: capability
-granularity — likely split `Heap` / `Mmap` / `GrowableRegion` so a target can
-grant paging-to-disk but forbid true heap.)
+The top of the stack is not a singleton heap. A program may hold several named
+Arenas, each with an independent lifetime and budget (`frame`, `assets`,
+`request`). That yields the useful multi-heap properties without overloading
+range authority: lifetime (bulk reclamation after all Allocations end), isolation
+(an Allocation from `frame` cannot escape its Arena), and accounting (per-Arena
+budget). Per-core/NUMA locality remains provider strategy. A future general
+Allocator interface may expose heap, pool, or movable strategies without
+changing Arena or Extent semantics.
 
 ### 4.4 No "unbounded" tier — bounded-fallible with a declared (possibly huge) max
 
@@ -478,17 +487,18 @@ small: "grow until something external stops me, un-nameable even at runtime.")
 ### 4.5 Opting in / disabling — the ceiling is capability provision, not a lint
 
 The entry point mints capabilities only up to the declared ceiling. Set `ceiling =
-proven` and the heap/region-minting capability is **never created**, so code that
-needs it **fails to type-check at the acquisition site** — and because the
-requirement is an *effect* (`alloc`/`oom`, declared where used and bubbled to every
-boundary), the compiler returns the **blame path**: *"`render_map` needs `Heap`
-(effect `oom`), not granted at ceiling=proven; reached via `load → parse →
-alloc`."* Disabling is the **absence of an authority**, not a switch you must trust
-— you cannot exercise a capability you were never handed. "Is this whole image
-bounded-memory?" is answered by reading `main`'s effect row, mechanically — a type
-check over the binary, not a coding-standard audit. (Open: ceiling declared in the
-target manifest, with optional module-level tightening; the cross-call rule is just
-§4.2 capability availability.)
+proven` and the Arena/allocation capability is **never created**, so code that
+needs it **fails to type-check at the acquisition/use site**. Reaching the
+selected allocation boundary contributes that boundary trait's service identity
+to the inferred effects row; exhaustion remains an explicit outcome and resource
+use remains a dependent contract. The compiler can therefore report the full
+blame path without conflating the axes: *"`render_map` requires Arena authority
+and reaches the allocation service via `load → parse → allocate`; that authority
+and service ceiling are unavailable in this profile."* Disabling is the absence
+of authority plus a ceiling that excludes the service, not a lint. A bounded-memory
+claim additionally checks the quantitative provisioning artifact; an effects row
+alone does not prove a resource bound. (Open: profile selection in target/build
+configuration, with optional package-level tightening.)
 
 ### 4.6 Where the friction lands (the cases) — and the ergonomics stance
 
@@ -498,44 +508,43 @@ For `dst = a + b` on a growable collection:
 |---|---|---|---|---|---|---|
 | **Static** | literal/const sizes | **no** — sized `FixedVec` push | none | none | none (proven fits) | bare `a + b` |
 | **Runtime-measured** | declared `input.len ≤ N` | **no** — sized from `N` | none | none | none (proven fits) | `a + b` + one `≤ N` |
-| **Region-budgeted** | ambient region budget | yes, from the region | ambient (R2) | inside the region row | proven at `}` | normal code inside `region r { }` |
-| **Declared max** | a large declared cap | yes, named heap | named cap | `oom` to boundary | **fallible at reserve** | handle one failure point |
+| **Arena-budgeted** | explicit Arena budget | yes, from the Arena | tracked capability | allocation reach | proven or one reserve outcome | ordinary code passed an Arena |
+| **Declared max** | a large declared cap | yes, general allocator | explicit allocator capability | allocation-service reach | **fallible reserve outcome** | handle one failure point |
 | **(Truly unbounded)** | — | — | — | — | — | collapses into *Declared max* (§4.4) |
 
 **Friction is proportional to how little the compiler can prove — and that is
 acceptable.** (a) Bound-inferable concat/append (the common case) is a sized push
-with **no allocation and no effect** — strictly better than Rust/C++, which
+with **no allocation and no allocation-service reach** — strictly better than Rust/C++, which
 allocate and can OOM-*panic silently*; we don't allocate at all. (b) Where growth
-isn't statically provable, fallibility **hoists to a region boundary**: inside
-`region r { … }` per-op allocations are ambient draws from `r`, and the single
-failure point is `r`'s budget at `}`, not a `?` on every `+`. (c) Genuinely
-un-provable, un-region-scoped growth surfaces per-op fallibility — the honest
+isn't statically provable, fallibility can **hoist to Arena provisioning**:
+operations draw from a tracked Arena under its dependent budget, with one
+reserve/provisioning outcome rather than a hidden failure on every `+`. (c)
+Genuinely unproved growth outside an Arena surfaces per-operation fallibility — the honest
 minority case the other languages hide and then crash on.
 
 **Ergonomics is explicitly a SECONDARY objective.** LLMs write most code, and
 surfacing a real failure mode beats hiding it; we will trade ergonomics for the
 proof. But proof tricks that recover ergonomics *for free* — bound inference (no
-allocation or allocator reach), region-hoisting (one failure point per scope), `?`-sugar — are
+allocation or allocator reach), Arena provisioning (one failure point per scope), explicit outcome routing — are
 pure upside and worth pursuing. **Open:** the residual per-`+` fallibility when a
-site can be *neither* bound-proved *nor* region-scoped — whether an `a +? b` form,
-or letting the enclosing region's failure contract absorb it, is the right sugar.
+site can be neither bound-proved nor Arena-scoped. Surface sugar remains deferred.
 
 ---
 
 ### 4.7 Allocation reach, authority, resources, and failure are separate
 
-The allocator boundary trait contributes allocator **service reach**. A
-`Region` value supplies **authority** and identifies the resource being
+The allocation boundary trait contributes allocator **service reach**. An
+`Arena` value supplies **authority** and identifies the resource being
 consumed. Its dependent contract accounts for peak/retained capacity.
 Exhaustion is a return/failure outcome. These facts often appear together at an
-allocation call, but they are not interchangeable: holding a Region does not
-mean allocation occurs, an effect ceiling does not mint a Region, and reaching
+allocation call, but they are not interchangeable: holding an Arena does not
+mean allocation occurs, an effect ceiling does not mint an Arena, and reaching
 a checked allocator still consumes the explicit resource.
 
 Therefore “does this allocate?” is answered by whether an allocator operation
-is reachable after stable control-flow normalization. No `Region` in scope
+is reachable after stable control-flow normalization. No `Arena` in scope
 makes the allocation untypable, so the site must prove a static bound or fail
-to compile. A `Region` in scope permits the request only when the caller's
+to compile. An `Arena` in scope permits the request only when the caller's
 effect ceiling and resource contract also admit it. Static bound inference can
 erase the dynamic request and its allocator reach; it never manufactures
 authority or hides a possible failure.
@@ -545,41 +554,40 @@ authority or hides a possible failure.
 The static-vs-dynamic choice is a property of the **place** (field/local), computed
 as the **least-upper-bound over every write to it**: all writes provably bounded ⇒
 a **static buffer sized to the max bound** (large ⇒ **BSS**: reserve-zeroed,
-ZII-valid, *zero bytes on disk*); **one** unbounded write ⇒ the place is
-region-backed for *everyone* (one defector contaminates it). So keeping a place off
+ZII-valid, *zero bytes on disk*); **one** dynamically allocated write ⇒ the place is
+Allocation-backed for everyone (one defector contaminates it). So keeping a place off
 the allocator means **all** its writers stay bounded. Rule: **declared at
-boundaries** (a public field's type states `text[<= N]` static vs `text in r`
-region-backed; a write that can't fit is a compile error — so a distant caller
+boundaries** (a public field's contract states bounded inline storage versus an
+Arena-bound Allocation; a write that cannot fit is a compile error, so a distant caller
 can't silently drag a public field onto the allocator), **inferred for locals**
-(all writers in view). A `text[<= N]` field is just a static (BSS) region + a
-length; `FixedVec<u8>` ≈ region + length — the "FixedVec is its own storage" idea
-is mostly fake, the storage is a region.
+(all writers in view). A `text[<= N]` field is static storage plus a length;
+dynamic storage is an Allocation plus a length. Neither is itself an Extent or
+Arena.
 
-### 4.9 Decision: effects stay HONEST; do not prune them to make allocation ergonomic
+### 4.9 Decision: reach stays honest; do not launder possible allocation
 
 The live debate was whether proving the spill-arm of an SSO type (`String<N,D>` =
-inline `[u8;N] in D` | spilled `Region`) dead should **mask** its `allocates`
-effect. Verdict: **no — keep effects honest, and don't ship the silent-SSO wrapper
+inline `[u8;N] in D` | spilled `Allocation<u8>`) dead should **mask** its allocation
+reach. Verdict: **no — keep reach honest, and don't ship the silent-SSO wrapper
 as a default.** Reasoning, with the decider being that *frictionless allocation is
 the disease, not the goal* (a 2026 Rust program is `Vec<Vec<Vec<…>>>` — heap allocs
 for tiny things everywhere, mis-using the machine; we should not build a faithful
 emulator of that):
 
-- **Growth-inference (prove bounded ⇒ static, no alloc, no effect) is honest and
+- **Growth inference (prove bounded ⇒ static, no allocation call or reach) is honest and
   KEPT** — it makes the well-utilized path the default and is the real ergonomic
-  lift. This is *not* effect-pruning; there is genuinely no allocation.
-- **Effect-pruning on a maybe-allocating type is NOT done by default.** In a vanilla
-  effect system, dead-code elimination does *not* stop effect propagation — the
-  effect is syntactic. Making it vanish requires a **refinement-coupled** effect
-  system (F\* `Pure`-under-a-precondition), which Omega *could* build on its existing
-  prover — but its *purpose* would be to make allocation ergonomic, the wrong goal.
+  lift. Stable normalization may remove an unreachable allocation call before
+  the exact local summary is computed; no later handler, mask, or subtraction can
+  erase reach that remains.
+- **A maybe-spilling public operation publishes the allocation-service ceiling.**
+  A proof about one blessed caller does not redefine that authored identity.
 - **The honest resolution to "a consumer needs the string bigger" is the contract,
   not a wrapper:** a field is declared `text[<= N]` (bounded — if N is too small,
-  that's a real interface change, because sizing *is* part of the API) or `text in r`
-  (growable — the consumer supplies a bigger region). No wrap, no fork; the
+  that's a real interface change, because sizing *is* part of the API) or as
+  Arena-backed growable storage. No wrap, no fork; the
   growability is in the type.
-- **The SSO sum, if it exists at all, is an explicit opt-in std convenience that
-  carries `allocates` honestly** — its true meaning is "growable with an inline fast
+- **The SSO sum, if it exists at all, is an explicit opt-in std convenience whose
+  operations carry allocation-service reach honestly** — its true meaning is "growable with an inline fast
   path," not "static that might grow." The only place to consider masking is *purely
   local, post-inline*, invisible to any consumer; never behind a published boundary.
 
@@ -588,12 +596,13 @@ emulator of that):
 | Goal | Strength | Routable-around? |
 |---|---|---|
 | no-OOM / bounded memory | **hard wall** (ceiling = capability never minted) | **no**, in a strict project |
-| allocation is visible / auditable | **type-level signal** (effect row) | ignorable, but legible + wall-buildable within a project |
+| allocation is visible / auditable | **normalized service reach + authority/resource reports** | policy may permit it, but wrappers cannot hide it |
 | good cache / data layout | **nudge only** (arena makes contiguous-with-indices the easy path) | **yes** — a taste problem; no type system enforces it |
 
-You **cannot** stop a determined dev in a *permissive* project: they declare
-`main: allocates`, smear it across boundaries, use the dumb growable everywhere, and
-honestly rebuild the status quo. That's the floor, and it's fine — it's *labeled*.
+You **cannot** stop a determined dev in a *permissive* project from selecting an
+allocation provider, authoring the corresponding public ceiling, and using the
+dumb growable everywhere. That's the floor, and it is visible in normalized
+reach, authority, and resource reports.
 What's novel and unroutable is the **ceiling**: where it forbids the capability, the
 slop doesn't compile. The design's job is not to make slop impossible (taste isn't a
 type) — it's to (a) forbid it absolutely where a target opts into strictness, (b)
@@ -611,7 +620,7 @@ EITHER a blessed loop-append invariant axiom OR a small octagon domain — not t
 bare non-relational interval engine. Do NOT build AARA, a string solver,
 whole-program region inference, or size-indexed `Vect`.** The future allocator is
 the settled rung lattice with allocator-as-capability; concentrate novelty on rungs
-3–4 (proven `Region` + global peak-accounting), the piece Ada deferred.
+3–4 (proof-bounded Arena + global peak-accounting), the piece Ada deferred.
 
 Ordered, tied to the lattice and the #66 unblock:
 
@@ -630,7 +639,7 @@ Ordered, tied to the lattice and the #66 unblock:
    ⊤), symbolic×symbolic (must *reject* unless a side is pinned).
 3. **(rung 2, optional) Add octagons** only if blessed invariants prove too narrow
    in practice — the relational fallback CSSV validates.
-4. **(rung 3) Proven `Region`: `alloc(r,n)` obligation `n ≤ remaining`, infallible
+4. **(rung 3) Proof-bounded Arena:** `allocate(a,n)` obligation `n ≤ remaining`, infallible
    after proof.** SSA-thread the remaining-bytes interval through the *same*
    arithmetic-domain merge (resolved ergonomics R3). SPARK's heap `Storage_Error`
    → a theorem — the headline novelty. Keep the handle affine/non-escaping
@@ -638,7 +647,7 @@ Ordered, tied to the lattice and the #66 unblock:
 5. **(rung 3, peak-accounting) Peak-not-net high-water-mark summation** — the
    global obligation Ada deferred. Per-site proofs are local; `total live ≤ budget`
    is global; region-reset = disjointness proof. Hardest and most defensible. If it
-   doesn't scale, fall back to per-region budgets with a declared envelope — never
+   doesn't scale, fall back to per-Arena budgets with a declared envelope — never
    silent over-approximation.
 6. **(rung 4) Bounded heap** with a pluggable locality backend (mimalloc/snmalloc
    *under* the rung, invisible to the prover) and the fallible/abort escape for
@@ -696,7 +705,7 @@ into the body above:
 - **SPARK `Storage_Error` has three sources** (primary stack, secondary stack,
   heap), not two; and SPARK's reason is "whole-program resource properties outside
   modular deductive verification," not literally "never modeled the allocator" (§3).
-- **Region space leak / Cyclone attribution:** the leak is from region lifetimes
+- **Region-inference space leak / Cyclone attribution:** the leak is from inferred region lifetimes
   tied to static scope (not whole-program inference per se); cite **Cyclone**
   (Grossman/Morrisett) for the local+annotated model and **do not** co-attribute it
   to **Gay/Aiken's `RC`** (a different, dynamic refcounting approach) (§2.5).

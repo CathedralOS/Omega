@@ -42,7 +42,7 @@ Starting a task establishes three relationships that must not be conflated:
    arranges execution, parking, waking, and cancellation according to its
    pinned contract.
 2. A **storage owner** holds the activation's physical state. This may be a
-   caller-provisioned Region pool, an OS/runtime provider, a remote executor,
+   caller-provisioned Arena pool, an OS/runtime provider, a remote executor,
    or no persistent activation storage when execution completes inline.
 3. The owner of **`Task<T>`** holds the linear lifecycle claim: the right and
    obligation to observe, request cancellation of, transfer, or terminally
@@ -53,9 +53,9 @@ is normally a small provider/activation identity plus sealed lifecycle
 authority. A provider may embed an already-completed outcome as an
 optimization, but completion never silently settles the linear claim.
 
-All physical storage still has an accountable owner: an Omega value such as a
-Region, a provider under its admitted resource contract, or the platform under
-a boundary contract. Region ownership is the in-model bounded case, not the
+All physical storage still has an accountable owner: an Arena-issued
+Allocation, a provider under its admitted resource contract, or the platform
+under a boundary contract. Arena-backed Allocation is the in-model bounded case, not the
 definition of all task storage.
 
 ## Machine target elaboration
@@ -178,16 +178,16 @@ provider validates that requirement against its storage plan. Frame size is a
 necessary input, not the whole admission law: alignment, address stability,
 continuation representation, and provider contract also participate.
 
-### Region-backed reference model
+### Arena-backed reference model
 
-`RegionTaskPool` is the standard bounded-storage reference package and the
+`ArenaTaskPool` is the standard bounded-storage reference package and the
 likely Cathedral default, not a language primitive:
 
 ```text
-Region -> RegionTaskPool -> bounded activation leases
+Arena -> ArenaTaskPool -> bounded activation leases
 ```
 
-The Region supplies owned, bounded memory and partition authority. The pool
+The Arena supplies bounded Allocations and capacity authority. The pool
 adds slot/arena layout, free-capacity accounting, and runtime integration.
 Provisioning fixes a maximum; start and settlement still perform dynamic
 accounting. A static proof or owned reservation may make start infallible;
@@ -210,7 +210,7 @@ storage. Its backing storage, sending endpoints, and receiving endpoint may
 have different owners. When messages may contain linear values, task death and
 mailbox closure must preserve a surviving owner for every undelivered payload.
 
-Region-backed pools/mailboxes and fixed-layout supervisors form a useful
+Arena-backed pools/mailboxes and fixed-layout supervisors form a useful
 bounded reference profile. Hosted OS allocation, remote execution, and inline
 execution remain valid providers when their admitted contracts say so.
 
@@ -239,7 +239,7 @@ valuable later theorem but not a prerequisite for the conservative task v1.
 7. A local pool/runtime cannot close while dependent task/storage claims live.
 8. A provider whose storage or operational contract does not admit the derived
    activation plan is rejected before execution.
-9. Region-, OS-, remote-, and inline-backed providers share one task contract
+9. Arena-, OS-, remote-, and inline-backed providers share one task contract
    without sharing one physical storage representation.
 10. No user program requires `spawn`, `await`, implicit detach, or a privileged
     task-group construct.
@@ -262,6 +262,6 @@ valuable later theorem but not a prerequisite for the conservative task v1.
    provider is valid only where the pinned contract permits inline completion.
 7. Add conservative suspension-safe-loan checking, then expand it without
    weakening the storage/alias/cancellation theorem.
-8. Build `RegionTaskPool`, bounded mailbox, and supervisor reference packages;
+8. Build `ArenaTaskPool`, bounded mailbox, and supervisor reference packages;
    promote no additional language construct unless a package finds something
    semantically inexpressible.

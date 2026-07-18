@@ -87,7 +87,7 @@ implementation work. Each one gets more expensive to retrofit every month.
    Still compatible: a futex-shaped scheduler boundary, cancellation as an
    explicit outcome, ordinary machines started through an admitted
    `TaskRuntime`, linear `Task<T>` claims, compiler-planned local activation
-   requirements, bounded Region-backed provider packages, and one-mailbox
+   requirements, bounded Arena-backed provider packages, and one-mailbox
    sums. Bare/scoped `spawn` is retired; conservative suspension-safe loans
    replace its special borrowing rule. Remaining: suspension elaboration,
    continuation layout, child-lease accounting, and cross-suspension loans.
@@ -104,10 +104,10 @@ implementation work. Each one gets more expensive to retrofit every month.
 7. **Freestanding target + OS memory/hardware foundation** (BOOT CORE PARTIAL;
    reusable primitives designed, engineering incomplete). Cathedral M1/M2 and
    M3 serial prove typed UEFI entry, firmware-table calls, the runtime-stride
-   memory-map walk, `ExitBootServices`, first Region mint, port I/O, and `hlt`.
+   memory-map walk, `ExitBootServices`, first physical-Extent mint, port I/O, and `hlt`.
    The remaining foundation is now factored generically in
    `design_briefs/os_memory_and_hardware_foundation.md`: inert `addr` values;
-   concrete-range `Extent` authority distinct from allocator `Region`;
+   concrete-range `Extent` authority distinct from allocator `Arena`;
    `LayoutPlan` geometry plus separate `AccessPlan`; sealed placed views;
    parsed checked asm; independent `CallPlan + StatePlan`; symbolic
    materialization; external-root reporting; DMA external loans; and carry /
@@ -128,7 +128,7 @@ implementation work. Each one gets more expensive to retrofit every month.
 ## The boot ladder — UEFI/QEMU (status 2026-07-18)
 
 The Omega-emitted UEFI application now boots under QEMU/OVMF, owns the final
-memory map, exits firmware, mints its first Region, writes through its own
+memory map, exits firmware, mints its first physical Extent, writes through its own
 16550 serial path, and idles with `hlt`. Harness:
 `qemu-system-x86_64 -bios OVMF.fd -drive
 format=raw,file=fat:rw:dir` — OVMF loads `\EFI\BOOT\BOOTX64.EFI` and calls
@@ -139,7 +139,7 @@ in RDX; no reset-vector path is involved.
 PE32+ EFI application emission, and runtime table-function calls serve.
 
 **Milestone 2 — own the machine** (`GetMemoryMap` → `ExitBootServices` →
-first `Region` mint): COMPLETE with positive firmware-return evidence and a
+first physical-`Extent` mint): COMPLETE with positive firmware-return evidence and a
 98-descriptor runtime-stride walk.
 
 **Milestone 3 — alive after firmware dies:** serial + idle COMPLETE; timer tick

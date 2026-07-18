@@ -34,7 +34,7 @@ Settled 2026-07-04. Two different operations, two separators:
 
 - **`::` resolves a compile-time name path** — packages, modules, types,
   associated items. It is the same `::` already used for type-scoped machines
-  (`Main::run`, `Region::mint`), now used uniformly for *all* static name
+  (`Main::run`, `Arena::allocate`), now used uniformly for *all* static name
   resolution.
 - **`.` accesses a runtime value** — a field of a value, a method on an
   instance (`table.con_out`, `player.take_damage(...)`).
