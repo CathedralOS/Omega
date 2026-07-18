@@ -4531,10 +4531,17 @@ with a real app-window story.
   bounds participate in instantiation checks. Pinned by a fixed-size Receipt
   token: create -> two bindings -> consume; zero storage without use; and fail
   twins for unestablished use, duplicate transfer, scope loss, and affine
-  containment. **CML2 next:** replace the straight-line whole-place state with
-  path-sensitive branch/sum reconciliation and explicit permission facts in
-  checked IR, then cover assignment re-establishment and returned-obligation
-  outcomes. Terminal consumption needs no annotation: an ordinary
+  containment. **CML2 SLICE 2 LANDED 2026-07-17:** permission states fork at
+  transition arms and reconcile exactly; both-arm transfer passes while mixed
+  transfer/retention rejects. Explicit assignment establishes previously bare
+  storage and cannot overwrite a live obligation. Affine sums now carry
+  conditional obligations in only those cases whose payload is linear:
+  `Empty` drops normally, `Live(Receipt)` must transfer/consume, and moving the
+  whole live sum conserves the payload claim. Pass/fail canaries pin all three
+  faces. **CML3 next:** materialize create/transfer/consume/affine-drop as
+  explicit permission facts in checked IR (retiring the move/drop summary as
+  the checker's source), then cover returned-obligation outcomes and nested
+  conditional payload extraction. Terminal consumption needs no annotation: an ordinary
   `move self` call consumes when no returned outcome carries the obligation,
   while a `try_*` incomplete outcome must return the live token. Pin create ->
   multi-binding transfer -> consume as one obligation; reject scope loss,

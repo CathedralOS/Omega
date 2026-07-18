@@ -1,0 +1,12 @@
+// PASS canary (decision 21): a bare declaration owns only zeroed storage;
+// explicit assignment establishes the value and creates the obligation.
+data Receipt [linear] { code: i32; }
+machine Receipt::ack(self) {}
+data Main {}
+
+machine Main::run() -> i32 {
+    let mut receipt: Receipt;
+    receipt = Receipt { code: 7 };
+    Receipt::ack(receipt);
+    0
+}
