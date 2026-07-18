@@ -334,8 +334,12 @@ impl Compiler {
             build_config.freestanding,
         )?;
         write_typed_snapshot(&self.options, &typed)?;
-        let provider_plans =
+        let mut provider_plans =
             crate::pipeline::provider_plans::derive_provider_plans(&syntax_trees, &typed);
+        provider_plans.extend(crate::pipeline::provider_plans::derive_satisfies_plans(
+            &syntax_trees,
+            &typed,
+        ));
         crate::pipeline::trust_lockfile::enforce_trust_lockfile(
             &self.options,
             &typed,

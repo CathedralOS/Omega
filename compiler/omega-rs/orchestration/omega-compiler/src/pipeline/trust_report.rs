@@ -27,11 +27,18 @@ pub(super) fn write_trust_report(
         let granted = root_grants
             .iter()
             .any(|grant| grant == &plan.name || grant == leaf);
+        let covered = plan
+            .schema
+            .methods
+            .iter()
+            .filter(|method| plan.rows.iter().any(|row| row.method == method.name))
+            .count();
         report.rows.push(TrustReportRow {
             commitment: format!(
-                "provider plan: {} [{:016x}]",
+                "provider plan: {} [{:016x}] coverage {covered}/{}",
                 plan.name,
-                plan.identity_fingerprint()
+                plan.identity_fingerprint(),
+                plan.schema.methods.len()
             ),
             provenance: if granted {
                 "root grant (build.omg)".to_owned()

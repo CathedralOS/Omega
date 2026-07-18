@@ -398,3 +398,56 @@ machine Main::main(&mut self) {
 
     let _ = std::fs::remove_dir_all(&project);
 }
+
+#[test]
+fn satisfies_leaves_derive_a_covered_plan() {
+    // PRV4 step (2): external leaves assemble one plan per (trait, target)
+    // with coverage counted against the typed schema; the trust row shows
+    // the fingerprint and coverage.
+    let project = std::env::temp_dir().join(format!("omega-sat-plan-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&project);
+    std::fs::create_dir_all(&project).expect("create project dir");
+    std::fs::write(
+        project.join("main.omg"),
+        r#"boundary trait Console { machine exit_process(return_code: i32); }
+boundary trait Pair {
+    machine first(code: i32) -> i32;
+    machine second(code: i32) -> i32;
+}
+
+machine first_leaf(code: i32) -> i32 satisfies Pair::first via VtableSlot(1);
+
+data Main { console: Console; }
+machine Main::main(&mut self) {
+    self.console.exit_process(70);
+}
+"#,
+    )
+    .expect("write main.omg");
+
+    let build_dir = project.join("build");
+    compile(CompileOptions {
+        root_path: project.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("satisfies-leaf project should compile");
+
+    let report = std::fs::read_to_string(build_dir.join("trust_report.md"))
+        .expect("trust report should be written");
+    assert!(
+        report.contains("provider plan: satisfies::Pair ["),
+        "expected the satisfies-derived plan row:\n{report}"
+    );
+    let row = report
+        .lines()
+        .find(|line| line.contains("provider plan: satisfies::Pair"))
+        .unwrap_or_default();
+    assert!(
+        row.contains("coverage 1/2"),
+        "one of two requirements satisfied -> coverage 1/2:\n{report}"
+    );
+
+    let _ = std::fs::remove_dir_all(&project);
+}
