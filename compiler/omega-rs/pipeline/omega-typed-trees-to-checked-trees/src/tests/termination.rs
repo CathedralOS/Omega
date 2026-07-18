@@ -179,11 +179,11 @@ fn rejects_terminating_countdown_machine_with_stalled_decrease() {
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let diagnostics = lower_typed_trees(typed).expect_err("termination check should fail");
 
-    assert!(
-        diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.message.contains("cannot prove decreases clause"))
-    );
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("cannot prove the `terminates by` ranking")
+    }));
 }
 
 #[test]
@@ -221,11 +221,11 @@ fn rejects_terminating_slice_distance_machine_with_stalled_index() {
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let diagnostics = lower_typed_trees(typed).expect_err("termination check should fail");
 
-    assert!(
-        diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.message.contains("cannot prove decreases clause"))
-    );
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("cannot prove the `terminates by` ranking")
+    }));
 }
 
 #[test]
@@ -263,11 +263,11 @@ fn rejects_terminating_slice_length_order_without_supported_progress_shape() {
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let diagnostics = lower_typed_trees(typed).expect_err("termination check should fail");
 
-    assert!(
-        diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.message.contains("cannot prove decreases clause"))
-    );
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("cannot prove the `terminates by` ranking")
+    }));
 }
 
 #[test]
@@ -383,11 +383,11 @@ fn rejects_terminating_mutually_recursive_states_without_decrease() {
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let diagnostics = lower_typed_trees(typed).expect_err("termination check should fail");
 
-    assert!(
-        diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.message.contains("cannot prove decreases clause"))
-    );
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("cannot prove the `terminates by` ranking")
+    }));
 }
 
 #[test]
@@ -548,11 +548,11 @@ fn rejects_inverted_bounded_distance_with_naming_diagnostic() {
         diagnostics.iter().any(|diagnostic| {
             diagnostic
                 .message
-                .contains("`decreases (limit, index)` inverts the named bounded distance")
+                .contains("`terminates by (limit, index)` inverts the named bounded distance")
                 && diagnostic.message.contains("`Nat::BoundedDistance`")
                 && diagnostic
                     .message
-                    .contains("write `decreases (index, limit) -> Nat::BoundedDistance`")
+                    .contains("write `terminates by (index, limit) -> Nat::BoundedDistance`")
         }),
         "expected the inverted bounded-distance diagnostic, got: {:?}",
         diagnostics
@@ -587,7 +587,25 @@ fn rejects_retired_subtraction_decreases_spelling_with_tuple_guidance() {
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
     let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let mut typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let machine = typed
+        .machines_mut()
+        .iter_mut()
+        .find(|machine| machine.name.as_str() == "Main::walk")
+        .expect("walk machine");
+    assert_eq!(
+        machine
+            .termination_plan
+            .implementation_witness
+            .as_ref()
+            .expect("ranking witness")
+            .subjects,
+        ["limit - index"]
+    );
+    machine.decreases = Default::default();
+    machine.decrease_order = Default::default();
+    machine.decrease_view_arguments = Default::default();
+    machine.decrease_range = omega_typed_trees::expression::ExpressionHandle::invalid();
     let diagnostics =
         lower_typed_trees(typed).expect_err("the subtraction spelling is retired surface");
 
@@ -595,10 +613,10 @@ fn rejects_retired_subtraction_decreases_spelling_with_tuple_guidance() {
         diagnostics.iter().any(|diagnostic| {
             diagnostic
                 .message
-                .contains("the use-site subtraction `decreases limit - index`")
+                .contains("the use-site subtraction `terminates by limit - index`")
                 && diagnostic.message.contains("is retired")
                 && diagnostic.message.contains(
-                    "spell the ranking as `decreases (index, limit) -> Nat::BoundedDistance`",
+                    "spell the ranking as `terminates by (index, limit) -> Nat::BoundedDistance`",
                 )
         }),
         "expected the retired-subtraction diagnostic, got: {:?}",
@@ -637,11 +655,11 @@ fn rejects_named_bounded_distance_view_over_single_subject() {
     let diagnostics =
         lower_typed_trees(typed).expect_err("the view ranks a (lower, upper) pair only");
 
-    assert!(
-        diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.message.contains("cannot prove decreases clause"))
-    );
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("cannot prove the `terminates by` ranking")
+    }));
 }
 
 #[test]
@@ -678,11 +696,13 @@ fn rejects_ambiguous_default_order_requiring_explicit_form() {
         diagnostics.iter().any(|diagnostic| {
             diagnostic
                 .message
-                .contains("cannot infer a ranking for `decreases remaining`")
+                .contains("cannot infer a ranking for `terminates by remaining`")
                 && diagnostic
                     .message
                     .contains("signed values have no default well-founded order")
-                && diagnostic.message.contains("`decreases remaining -> View`")
+                && diagnostic
+                    .message
+                    .contains("`terminates by remaining -> View`")
         }),
         "expected a signed-value ambiguity diagnostic, got: {:?}",
         diagnostics
@@ -762,13 +782,13 @@ fn plain_decreases_never_selects_a_declared_measure_even_when_unique() {
         diagnostics.iter().any(|diagnostic| {
             diagnostic
                 .message
-                .contains("cannot infer a ranking for `decreases card`")
+                .contains("cannot infer a ranking for `terminates by card`")
                 && diagnostic
                     .message
                     .contains("declared measures are never selected implicitly")
                 && diagnostic
                     .message
-                    .contains("`decreases card -> Card::PowerOrder`")
+                    .contains("`terminates by card -> Card::PowerOrder`")
         }),
         "expected the declared-measure suggestion diagnostic, got: {:?}",
         diagnostics

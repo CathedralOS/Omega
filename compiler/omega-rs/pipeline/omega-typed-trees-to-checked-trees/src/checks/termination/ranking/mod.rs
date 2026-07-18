@@ -9,14 +9,14 @@ use omega_typed_trees::expression::ExpressionHandle;
 use super::graph;
 use super::order::{AmbiguousDefault, OrderResolution, RankingOrder, decreasing_value_text};
 
-/// The outcome of attempting to prove a terminating machine's `decreases`
+/// The outcome of attempting to prove a machine's `terminates by`
 /// clause, distinguishing the cases the caller renders as different diagnostics.
 pub(super) enum DecreaseOutcome {
     /// The decrease was proven across every cyclic edge.
     Proven,
     /// The order resolved, but the decrease could not be proven.
     Unproven,
-    /// A plain `decreases value` clause whose decreasing value has no single
+    /// A plain `terminates by value` clause whose decreasing value has no single
     /// builtin well-founded order; the explicit `-> View` form is required.
     /// Carries the details the diagnostic renders.
     AmbiguousOrder(AmbiguousDefault),
@@ -46,7 +46,7 @@ pub(super) struct InvertedDistance {
 }
 
 /// Which subject orientation the nat distance prover should read from a
-/// two-subject decreases tuple: the declared `(lower, upper)`, or the swapped
+/// two-subject ranking tuple: the declared `(lower, upper)`, or the swapped
 /// probe used to recognize an inverted bounded distance.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) enum DistanceOrientation {
@@ -54,7 +54,7 @@ pub(super) enum DistanceOrientation {
     Swapped,
 }
 
-/// The ranked subjects a `decreases` clause threads into the edge provers: a
+/// The ranked subjects a `terminates by` clause threads into the edge provers: a
 /// single decreasing value, or the two-subject bounded distance whose subjects
 /// bind in order to `Nat::BoundedDistance`'s `(lower, upper)` parameters.
 #[derive(Clone, Copy)]
@@ -71,7 +71,7 @@ pub(super) fn machine_decrease_outcome(
     machine: &omega_typed_trees::machine::Machine,
 ) -> DecreaseOutcome {
     let states = program.machine_states(machine);
-    // The decreases clause is declared on the machine signature, so its names
+    // The ranking clause is declared on the machine signature, so its names
     // resolve against the machine's root (entry) state.
     let Some(root_state) = states.first() else {
         return DecreaseOutcome::Proven;

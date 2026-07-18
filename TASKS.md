@@ -171,8 +171,12 @@ swept this rung and RUN-VERIFIED natively (exit 70 each). Retired
 spellings survive ONLY in the three deliberate fail canaries that pin
 the retirement diagnostics and in clearly-labeled historical wiki
 notes. The checked-in `.omg` corpus now demonstrates NORMATIVE
-decision-23 syntax everywhere. TPR6 (artifact/cache/diagnostic
-firewall + the ten acceptance tests) remains; of the ten, 2/3/4/5/6/7/
+decision-23 syntax everywhere. TPR6 DIAGNOSTIC SLICE LANDED 2026-07-17:
+checked-stage errors now name only `terminates by`; the directed retired-
+subtraction error is derived from the normalized witness and remains identical
+after every legacy typed-machine compatibility span is cleared. TPR6's
+artifact/cache firewall + the remaining acceptance tests remain; of the ten,
+2/3/4/5/6/7/
 10 are already pinned by the TPR2-TPR4 test batteries -- outstanding:
 1's export-omission half (needs artifact serialization), 8/9 (need
 sealed progress profiles + grants, TPR4's remaining big half).

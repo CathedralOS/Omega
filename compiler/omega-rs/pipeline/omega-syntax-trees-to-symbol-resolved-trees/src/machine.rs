@@ -194,6 +194,22 @@ fn render_ranked_subject(
             render_ranked_subject(syntax_trees, member.receiver),
             member.member.as_str()
         ),
+        // A subtraction is not an admissible ranking subject under decision
+        // 23, but retaining its exact normalized spelling lets the checked
+        // stage issue the directed tuple-view migration diagnostic without
+        // consulting the legacy expression-span projection.
+        syntax::expression::ExpressionNode::Binary(binary)
+            if matches!(
+                binary.operator,
+                syntax::expression::BinaryOperator::Subtract
+            ) =>
+        {
+            format!(
+                "{} - {}",
+                render_ranked_subject(syntax_trees, binary.left),
+                render_ranked_subject(syntax_trees, binary.right)
+            )
+        }
         _ => "value".to_string(),
     }
 }

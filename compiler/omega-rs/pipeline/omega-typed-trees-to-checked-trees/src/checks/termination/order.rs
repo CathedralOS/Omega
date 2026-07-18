@@ -2,14 +2,14 @@ use omega_typed_trees::data::DataMember;
 use omega_typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use omega_typed_trees::measure::MeasureDefinition;
 
-/// The well-founded ordering selected for a `decreases value -> Order` clause.
+/// The well-founded ordering selected for a `terminates by value -> Order` clause.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) enum RankingOrder {
     /// Built-in descending naturals (also used for a simple `usize`-valued measure
     /// whose body forwards the parameter directly).
     NatDescending,
     /// Built-in `Nat::BoundedDistance`: the named bounded-distance ranking over
-    /// a two-subject tuple. `decreases (index, limit) -> Nat::BoundedDistance`
+    /// a two-subject tuple. `terminates by (index, limit) -> Nat::BoundedDistance`
     /// binds the subjects in order to the view's `(lower, upper)` parameters
     /// and ranks the pair by the natural-number distance from `lower` up to
     /// `upper`, which descends as the lower value climbs toward the fixed
@@ -37,7 +37,7 @@ pub(super) enum RankingOrder {
     Lexicographic(Vec<omega_typed_trees::name::Identifier>),
 }
 
-/// The result of resolving the ordering for a `decreases` clause: either a
+/// The result of resolving the ordering for a `terminates by` clause: either a
 /// concrete [`RankingOrder`], or a reason it could not be resolved that lets the
 /// caller emit a precise diagnostic.
 pub(super) enum OrderResolution {
@@ -56,7 +56,7 @@ pub(super) enum OrderResolution {
     Rejected { message: String },
 }
 
-/// Why a plain `decreases value` clause could not infer a default ranking, plus
+/// Why a plain `terminates by value` clause could not infer a default ranking, plus
 /// everything the diagnostic needs to suggest the explicit `-> View` form.
 pub(super) struct AmbiguousDefault {
     /// The decreasing value rendered as source-like text, e.g. `self.health`.
@@ -67,11 +67,11 @@ pub(super) struct AmbiguousDefault {
     /// decreasing value's type, rendered as `Type::Name` selection paths. These
     /// are suggestions only: a declared measure is NEVER selected implicitly,
     /// even when it is the only one, so that declaring a second measure later
-    /// cannot silently change or break distant `decreases` clauses.
+    /// cannot silently change or break distant `terminates by` clauses.
     pub(super) declared_measures: Vec<String>,
 }
 
-/// The reason a plain `decreases value` has no inferable default order.
+/// The reason a plain `terminates by value` has no inferable default order.
 pub(super) enum AmbiguityReason {
     /// The value is a signed integer: `value - 1` is not well-founded without a
     /// positivity interpretation.
@@ -85,13 +85,13 @@ pub(super) enum AmbiguityReason {
 }
 
 impl RankingOrder {
-    /// Resolve the ordering for a `decreases subjects -> order` clause. A
-    /// single subject with an empty `order` (plain `decreases value`) infers
+    /// Resolve the ordering for a `terminates by subjects -> order` clause. A
+    /// single subject with an empty `order` (plain `terminates by value`) infers
     /// from the value's type when that interpretation is unambiguous;
     /// otherwise an [`OrderResolution::AmbiguousDefault`] is returned so the
     /// caller can ask for the explicit form. The explicit
-    /// `decreases value -> Type::Name` path is unchanged. A two-subject tuple
-    /// `decreases (lower, upper)` is the argumented bounded distance: the
+    /// `terminates by value -> Type::Name` path is unchanged. A two-subject tuple
+    /// `terminates by (lower, upper)` is the argumented bounded distance: the
     /// subjects bind in order to `Nat::BoundedDistance`'s `(lower, upper)`
     /// parameters, and the view is inferred when omitted because it is the
     /// only builtin two-subject ranking.
@@ -221,7 +221,7 @@ impl RankingOrder {
     }
 }
 
-/// Infer the well-founded order for a plain `decreases value` clause (no
+/// Infer the well-founded order for a plain `terminates by value` clause (no
 /// explicit `-> Order`) from the shape and type of the decreasing value.
 ///
 /// Inference only succeeds when the value has a single obvious well-founded
@@ -230,9 +230,9 @@ impl RankingOrder {
 ///     naturals;
 ///   * a slice parameter decreases by its length.
 ///
-/// (The two-subject bounded distance `decreases (index, limit)` is inferred
+/// (The two-subject bounded distance `terminates by (index, limit)` is inferred
 /// upstream in [`RankingOrder::resolve`]; the retired use-site subtraction
-/// `decreases upper - lower` is rejected before inference runs.)
+/// `terminates by upper - lower` is rejected before inference runs.)
 ///
 /// Anything else (an unrecognized expression, or a value whose type offers no
 /// obvious interpretation) is reported as ambiguous so the caller can require
@@ -245,7 +245,7 @@ fn infer_default_order(
     decreases: ExpressionHandle,
 ) -> OrderResolution {
     match program.expression_table.expression(decreases) {
-        // `decreases value` where `value` is a nat-like scalar counts down; where
+        // `terminates by value` where `value` is a nat-like scalar counts down; where
         // it is a slice it decreases by length. A `value.len` member is already
         // nat-like.
         ExpressionNode::Name(_) | ExpressionNode::Member(_) => {
@@ -334,7 +334,7 @@ fn is_signed_integer_type(name: &str) -> bool {
 /// `Type::Name` selection paths. A simple measure applies when its parameter
 /// has the value's type; a lexicographic measure applies when its owner (the
 /// first path segment) is the value's type. These are diagnostic suggestions
-/// only — plain `decreases value` never selects a declared measure implicitly.
+/// only — plain `terminates by value` never selects a declared measure implicitly.
 fn declared_measures_for_type(
     program: &omega_typed_trees::TypedTrees,
     type_name: &str,
