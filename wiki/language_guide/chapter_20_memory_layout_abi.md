@@ -215,12 +215,31 @@ stable versus externally-changing observation, generic RMW permission, and the
 statically pinned boundary-service reach. Combining these plans would pollute
 wire formats with device semantics and hardware layouts with codec semantics.
 
+`Extent` is one opaque linear carrier. Address space, rights, provenance, and
+mapping era are sealed domain facts, not nominal extent families or generic
+parameters. Root authority is provider-minted; checked code may split,
+attenuate, borrow, and merge only by conservation. Split consumes its parent.
+Merge requires contiguous compatible descendants of the same private authority
+origin; numeric adjacency never manufactures a combined grant.
+
+Mapping also requires authority on both sides. Fixed placement consumes an
+owned virtual-range extent; a bare `addr` is at most a hint. The physical source
+may be owned or borrowed, and the mapped extent preserves that relationship.
+Unmapping consumes the mapping and returns reusable authority only after any
+required shootdown/quiescence token completes. V1 performs no generation check
+on each access: ordinary borrowing prevents in-language reclamation while a
+view remains live.
+
 The compiler derives sealed field-access values. Pure projection narrows the
-extent to a field without performing I/O; a field operation performs the exact
-declared access. There is no public arbitrary-offset `volatile_read` escape and
-no `volatile` field qualifier. A volatile access occurs exactly once at its
-declared width. It does not imply device ordering; fences and device contracts
-remain separate.
+extent to a passable borrow-carrying field accessor without performing I/O.
+Readable fields expose one exact-width snapshot read; writable fields expose a
+whole-container write; explicitly atomic fields expose the checked atomic API.
+Shared projections cannot perform ordinary mutation, ordinary writes require
+exclusive projection, and no projection can outlive the parent mapping. There
+is no public arbitrary-offset
+`volatile_read` escape and no `volatile` field qualifier. A volatile access
+occurs exactly once at its declared width. It does not imply device ordering;
+fences and device contracts remain separate.
 
 Hardware-shaped structures use the same programmable layout mechanism as
 Omega-native and protocol formats. Name-keyed fragmented bit placements are
@@ -230,7 +249,7 @@ do not become layout cases.
 
 See [`Programmable Layouts`](../design_briefs/programmable_layouts.md) and the
 [`OS Memory And Hardware Foundation`](../design_briefs/os_memory_and_hardware_foundation.md)
-for the settled separation and remaining API/validator questions.
+for the settled public model and remaining engineering work.
 
 ## Endianness
 

@@ -34,9 +34,6 @@ Last pruned: 2026-07-18.
   for lock-free structures before requiring a mediated or accepted boundary.
 - Complete standalone fences, `compare_exchange` failure ordering, and the
   treatment of relaxed visibility in concurrency proofs.
-- Settle the exact opaque `Extent` carrier/lifetime/revocation API and the
-  separate `AccessPlan` vocabulary/public field-access values. The authority /
-  geometry / access split and absence of a volatile qualifier are fixed.
 - Settle source spelling for independent carry demands (suspension, CPU/thread
   affinity, address stability) and runtime behavior. Safe-point scheduling is a
   strict reference profile, not a universal language restriction.

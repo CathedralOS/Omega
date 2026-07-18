@@ -220,8 +220,8 @@ None block current compiler development; all should stay visible.
   implementing `Vec` lowering, not after.
 - **DECIDED, engineering pending: hardware representation** — programmable
   `LayoutPlan` geometry, name-keyed fragments, separate `AccessPlan`, extent
-  authority, and plan-derived field access. Exact carriers remain in
-  OWNER_QUESTIONS #1.
+  authority, and plan-derived field access. The public Extent/access model is
+  settled; implementation is tracked in TASKS.md.
 - **TBD: function pointers / first-class machine references** — driver
   dispatch tables; partially covered by `dyn Trait` (single-impl works,
   multi-impl backend pending).

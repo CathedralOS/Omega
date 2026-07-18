@@ -951,10 +951,18 @@ rejects — an INTEGER ruling, engineering rides this ladder as F8).
   materializer consumers; (b) a SEPARATE `AccessPlan` with exact transfer,
   observation, RMW, visibility, and pinned reach, validated with layout to
   derive sealed field-access values; (c) opaque linear `Extent` authority over
-  concrete ranges. Do not add W1C/read-clear to FieldPlan or expose generic
-  arbitrary-offset volatile access. Exact public Extent/Access carrier shape is
-  OWNER_QUESTIONS #1; fragment/materializer backend work is otherwise
-  agent-ready. Durability plan grades and publish-time predecessor diff remain.
+  concrete ranges. **Extent/access public model RULED:** one carrier with sealed
+  grant-established space/rights/provenance/era facts; move-split and common-
+  authority-origin merge; borrow-carrying subranges; destination virtual-range
+  authority plus borrowed-or-owned physical source for mapping; exclusive
+  reclamation with provider shootdown/quiescence; plan-derived projection,
+  exact snapshot read, whole write, and explicitly atomic operations preserving
+  borrow polarity. Do not add W1C/read-clear to FieldPlan, expose generic
+  arbitrary-offset volatile access, or add a per-access generation probe.
+  Required negatives: adjacent extents from different authority origins cannot
+  merge; two shared projections cannot perform ordinary non-atomic writes.
+  Fragment/materializer and Extent/Access implementation are agent-ready.
+  Durability plan grades and publish-time predecessor diff remain.
 
 ## Language ergonomics
 
