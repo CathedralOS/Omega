@@ -227,6 +227,50 @@ fn consuming_call_that_returns_an_obligation_transfers_its_origin() {
 }
 
 #[test]
+fn permission_producer_discovers_affine_cleanup_without_legacy_drops() {
+    let checked = checked(
+        r#"
+        data Box { value: i32; }
+        data Main {}
+        machine Main::run() -> i32 { 0 }
+        machine Main::consume(input: Box) -> i32 {
+            let first: Box = Box { value: 1 };
+            let second: Box = Box { value: 2 };
+            0
+        }
+        "#,
+    );
+    let expected = checked
+        .facts
+        .flow
+        .ownership
+        .permissions
+        .iter()
+        .filter_map(|(_, event)| {
+            (event.kind == omega_core::semantics::PermissionEventKind::AffineDrop)
+                .then_some(event.root)
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(expected.len(), 3, "two locals and one owned parameter clean up");
+
+    let mut facts = checked.facts.clone();
+    facts.flow.ownership.drops = Default::default();
+    facts.flow.ownership.permissions = Default::default();
+    crate::checks::record_permission_events(&checked.typed, &mut facts);
+    let actual = facts
+        .flow
+        .ownership
+        .permissions
+        .iter()
+        .filter_map(|(_, event)| {
+            (event.kind == omega_core::semantics::PermissionEventKind::AffineDrop)
+                .then_some(event.root)
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(actual, expected);
+}
+
+#[test]
 fn nested_conditional_payload_extraction_preserves_its_origin() {
     let checked = checked(
         r#"

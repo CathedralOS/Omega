@@ -40,7 +40,7 @@ pub(crate) fn check_linear_obligations(
     validate_linear_permission_events(program, facts)
 }
 
-fn record_permission_events(
+pub(crate) fn record_permission_events(
     program: &omega_typed_trees::TypedTrees,
     facts: &mut CheckFacts,
 ) {
@@ -113,27 +113,13 @@ fn record_permission_events(
             }
         }
 
-        // Once linear/conditional roots are removed, the old state-exit drops
-        // are precisely the affine cleanup events. Preserve them explicitly so
-        // later consumers never have to infer semantic kind from `drops`.
-        for drop in facts.flow.ownership.drops.span_or_empty(state_flow.drops) {
-            let tracked_linear = matches!(drop.root, omega_facts::PlaceRoot::Symbol(symbol) if places.iter().any(|place| place.symbol == symbol));
-            if tracked_linear {
-                continue;
-            }
-            permission_events.push(FlowPermissionEventFact {
-                machine_symbol: state_flow.machine_symbol,
-                state_symbol: state.symbol,
-                source: PermissionEventSource::StateExit,
-                kind: PermissionEventKind::AffineDrop,
-                multiplicity: Multiplicity::Affine,
-                access: PermissionAccess::Owned,
-                provenance: PermissionProvenance::Unknown,
-                root: drop.root,
-                segments: drop.segments,
-                obligation_live: false,
-            });
-        }
+        append_affine_cleanup_permission_events(
+            program,
+            state,
+            state_flow.machine_symbol,
+            &places,
+            &mut permission_events,
+        );
     }
 
     append_borrow_permission_events(facts, &mut permission_events);
@@ -824,6 +810,56 @@ fn expression_permission_provenance(
         .iter()
         .find(|place| place.symbol == symbol && (source.segments.is_empty() || place.conditional))
         .and_then(|place| place.provenance)
+}
+
+/// Discover ordinary affine cleanup directly from typed ownership rather than
+/// projecting it back out of the compatibility `drops` arena. Locals drop in
+/// reverse declaration order, followed by owned by-value parameters in reverse
+/// declaration order, exactly matching the language's cleanup order. Linear
+/// and conditional roots are excluded because their path-sensitive settlement
+/// is represented by the permission events produced above.
+fn append_affine_cleanup_permission_events(
+    program: &omega_typed_trees::TypedTrees,
+    state: &omega_typed_trees::state::State,
+    machine_symbol: SymbolHandle,
+    tracked_places: &[LinearPlace],
+    permission_events: &mut Vec<FlowPermissionEventFact>,
+) {
+    let mut append = |symbol: SymbolHandle, type_reference: TypeReferenceHandle| {
+        if tracked_places.iter().any(|place| place.symbol == symbol)
+            || type_multiplicity(program, type_reference) == Multiplicity::Unrestricted
+        {
+            return;
+        }
+        permission_events.push(FlowPermissionEventFact {
+            machine_symbol,
+            state_symbol: state.symbol,
+            source: PermissionEventSource::StateExit,
+            kind: PermissionEventKind::AffineDrop,
+            multiplicity: Multiplicity::Affine,
+            access: PermissionAccess::Owned,
+            provenance: PermissionProvenance::Unknown,
+            root: omega_facts::PlaceRoot::Symbol(symbol),
+            segments: HandleSpan::empty(),
+            obligation_live: false,
+        });
+    };
+
+    for statement in program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .rev()
+    {
+        if let StatementNode::LocalData(local) = statement {
+            append(local.symbol, local.type_reference);
+        }
+    }
+    for parameter in program.state_parameters(state).iter().rev() {
+        if !parameter.is_self {
+            append(parameter.symbol, parameter.type_reference);
+        }
+    }
 }
 
 fn common_permission_provenance(

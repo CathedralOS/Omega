@@ -61,10 +61,11 @@ establishment provenance, and conditional-payload debt. Legacy-derived affine
 cleanup is deliberately `Unknown` provenance rather than fabricated evidence.
 Borrow activations/weakenings now feed the same context as
 `Unrestricted + Shared` and `Affine + Exclusive` entries, respectively. The
-linearity judgment now consumes only the qualified permission events; legacy
-move/drop arenas are transitional producer input, not checker input. The
-remaining migration is to emit transfers/cleanup directly at discovery and
-finish returned/nested obligation flow.
+linearity judgment now consumes only the qualified permission events. Affine
+cleanup derives directly from typed state ownership, so the legacy drop arena
+is compatibility output only; legacy moves remain transitional producer input.
+The remaining migration is to emit transfers directly at discovery and finish
+the deliberately deferred multi-resource/nested obligation algebra.
 
 ### Effects
 
