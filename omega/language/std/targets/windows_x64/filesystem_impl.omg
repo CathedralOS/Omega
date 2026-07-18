@@ -238,9 +238,8 @@ windows_x64 machine Filesystem::remove_dir_all(&mut self, path: &[u8] in Path) -
 // documented provable trade). Returns 0 on success, -1 on
 // error/fuel-exhaustion/depth overflow (> 16).
 windows_x64 machine Filesystem::rda_drain(&mut self, fuel: u64)
-terminates {
-    decreases fuel;
-}
+terminates;
+terminates by fuel;
 -> i32
 {
     self.rda_step(0);
@@ -457,15 +456,14 @@ windows_x64 machine Filesystem::rda_step(&mut self, step: u64) {
 // ---------------------------------------------------------------------------
 
 // Copy the `in Path` param into w_path, byte by byte -- the mkall_walk /
-// mkall_step forward-recursion shape (decreases BoundedDistance). Bytes past
+// mkall_step forward-recursion shape (`terminates by` BoundedDistance). Bytes past
 // index 508 are skipped (the caller's `path.len < 509` gate rejects such
 // paths before any use). STATEMENT-CALLED, like every helper below: their
 // effects live in guarded arm states, which the value-call fence rejects --
 // the fence's own prescription is statement call + field result.
 windows_x64 machine Filesystem::w_path_copy(&mut self, path: &[u8] in Path, i: u64)
-terminates {
-    decreases (i, path.len) -> Nat::BoundedDistance;
-}
+terminates;
+terminates by (i, path.len) -> Nat::BoundedDistance;
 {
     self.w_path_put(path, i);
     transition i < path.len {
@@ -602,9 +600,8 @@ windows_x64 machine Filesystem::w_capture_name(&mut self, step: u64) {
 // The fueled scan loop -- rda_drain's exact shape over w_scan_step (full
 // fuel, no-op once done; verdict protocol). Returns 0 clean / -1 error.
 windows_x64 machine Filesystem::w_scan_drain(&mut self, fuel: u64)
-terminates {
-    decreases fuel;
-}
+terminates;
+terminates by fuel;
 -> i32
 {
     self.w_scan_step(0);

@@ -7,14 +7,13 @@ impl TypeReferenceNode {
             TypeReferenceNode::Reference {
                 referee,
                 is_mutable,
-                is_relaxed,
                 // Lifetime intentionally omitted from display: this string is the
                 // structural type-equality oracle (`type_references_match`), and
                 // `&'a T` / `&'b T` / `&T` are the SAME type — regions are checked
                 // by the borrow analysis, not by type equality (decision 15).
                 lifetime: _,
             } => {
-                let qualifier = reference_qualifier(*is_mutable, *is_relaxed);
+                let qualifier = reference_qualifier(*is_mutable);
                 format!("&{qualifier}{}", table.display_name(*referee))
             }
             TypeReferenceNode::Constrained {
@@ -66,12 +65,11 @@ impl TypeReferenceNode {
             TypeReferenceNode::Reference {
                 referee,
                 is_mutable,
-                is_relaxed,
                 // Omitted from display: see `display_name` above — lifetimes do
                 // not participate in structural type equality.
                 lifetime: _,
             } => {
-                let qualifier = reference_qualifier(*is_mutable, *is_relaxed);
+                let qualifier = reference_qualifier(*is_mutable);
                 format!(
                     "&{qualifier}{}",
                     table.display_name_with_constraints(*referee, expressions)
@@ -124,13 +122,8 @@ impl TypeReferenceNode {
     }
 }
 
-fn reference_qualifier(is_mutable: bool, is_relaxed: bool) -> &'static str {
-    match (is_mutable, is_relaxed) {
-        (true, true) => "mut relaxed ",
-        (true, false) => "mut ",
-        (false, true) => "relaxed ",
-        (false, false) => "",
-    }
+fn reference_qualifier(is_mutable: bool) -> &'static str {
+    if is_mutable { "mut " } else { "" }
 }
 
 impl TypeConstraintNode {
@@ -146,6 +139,7 @@ impl TypeConstraintNode {
                 )
             }
             TypeConstraintNode::ArithmeticDomain(domain) => format!("in {}", domain.name()),
+            TypeConstraintNode::ValueDomain(domain) => format!("in {}", domain.name()),
         }
     }
 }

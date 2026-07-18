@@ -1,0 +1,19 @@
+// COMPILE CANARY. A classifier-backed membership fact participates in a data
+// default domain: the literal's bytes establish the otherwise zero-invalid
+// NonEmpty gate at construction.
+domain [u8]::NonEmpty when non_empty(self) {
+}
+
+data Message
+where
+    text in NonEmpty,
+{
+    text: &[u8];
+}
+
+data Main {
+}
+
+machine Main::run(&mut self) {
+    let message: Message = Message { text: "omega" };
+}

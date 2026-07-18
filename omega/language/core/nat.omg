@@ -6,9 +6,9 @@
 // other core rankings.
 //
 // Planned public surface:
-// - plain `decreases value` resolves here when the value has an unambiguous
+// - plain `terminates by value` resolves here when the value has an unambiguous
 //   natural-number ranking
-// - `decreases value -> Nat::Descending` spells the ranking explicitly
+// - `terminates by value -> Nat::Descending` spells the ranking explicitly
 // - custom numeric-like domains can define their own named rankings instead of
 //   pretending every ordering belongs directly to the data type
 
@@ -25,8 +25,10 @@ use omega::language::core::algebra;
 // DATA -- legal to declare and proof-only by N1's computed
 // classification (recursive data has no layout; every runtime
 // consumption face refuses with the classification named). N2's exact
-// engine evaluates Nat facts; the structural bridge (n > 0 => n ==
-// Succ(n - 1)) and the fact-position operator routing are N2(d)/N3.
+// engine evaluates Nat facts. N2(d)'s structural bridge is live: a proof
+// machine may induct over guarded unsigned `n - 1` while its recursive result
+// and contract stay in this structural Nat world. Wider fact-position operator
+// routing remains N3 work.
 data Nat {
     case Zero;
     case Succ(prev: Nat);
@@ -41,9 +43,8 @@ data Nat {
 // ensures-extraction rung.
 machine add(a: Nat, b: Nat) -> Nat
 satisfies CommutativeSemiring::add
-terminates {
-    decreases a;
-}
+terminates;
+terminates by a;
 {
     transition a {
         Nat::Zero -> (b)
@@ -53,9 +54,8 @@ terminates {
 
 machine mul(a: Nat, b: Nat) -> Nat
 satisfies CommutativeSemiring::mul
-terminates {
-    decreases a;
-}
+terminates;
+terminates by a;
 {
     transition a {
         Nat::Zero -> Nat::Zero
@@ -99,9 +99,8 @@ ensures
 // `add(b, Zero) == b` at those operands). Both are discharged per arm
 // with the machine's own ensures as the inductive hypothesis.
 machine add_zero_right(a: Nat) -> Nat
-terminates {
-    decreases a;
-}
+terminates;
+terminates by a;
 ensures
     result == a;
     (add(a, Nat::Zero)) == a
@@ -110,6 +109,19 @@ ensures
         Nat::Zero -> Nat::Zero
         Nat::Succ { prev } -> Nat::Succ { prev: add_zero_right(prev) }
     }
+}
+
+// Additive identity in the trait's SLOT vocabulary. `zero()` unfolds to the
+// constructor `Nat::Zero`; the cited constructor-form theorem supplies the
+// symbolic right-identity step.
+machine add_identity(a: Nat) -> Nat
+satisfies CommutativeSemiring::add_identity
+ensures
+    result == a;
+    (add(a, zero())) == a
+{
+    add_zero_right(a);
+    transition { _ -> (a) }
 }
 
 // mul's left annihilator: mul(Zero, b) == Zero (compute-mode, unfolds the
@@ -130,9 +142,8 @@ ensures
 // `lhs == rhs` law rewriting matching applications everywhere), not the
 // laws themselves.
 machine add_succ_law(a: Nat, b: Nat) -> Nat
-terminates {
-    decreases a;
-}
+terminates;
+terminates by a;
 ensures
     (add(a, Nat::Succ { prev: b })) == (Nat::Succ { prev: add(a, b) })
 {
@@ -153,9 +164,8 @@ ensures
 // payload).
 machine add_comm(a: Nat, b: Nat) -> Nat
 satisfies CommutativeSemiring::add_comm
-terminates {
-    decreases a;
-}
+terminates;
+terminates by a;
 ensures
     (add(a, b)) == (add(b, a))
 {
@@ -179,9 +189,8 @@ ensures
 // normalize by unfolding plus the inductive hypothesis.
 machine add_assoc(a: Nat, b: Nat, c: Nat) -> Nat
 satisfies CommutativeSemiring::add_assoc
-terminates {
-    decreases a;
-}
+terminates;
+terminates by a;
 ensures
     (add(add(a, b), c)) == (add(a, add(b, c)))
 {
@@ -194,9 +203,8 @@ ensures
 // mul's RIGHT annihilator (the left one is compute-mode; this one is the
 // induction).
 machine mul_zero_right(a: Nat) -> Nat
-terminates {
-    decreases a;
-}
+terminates;
+terminates by a;
 ensures
     (mul(a, Nat::Zero)) == Nat::Zero
 {
@@ -215,9 +223,8 @@ ensures
 // under Nat's CommutativeSemiring conformance, and the msr_step sub-state
 // deletes entirely.
 machine mul_succ_right(a: Nat, b: Nat) -> Nat
-terminates {
-    decreases a;
-}
+terminates;
+terminates by a;
 ensures
     (mul(a, Nat::Succ { prev: b })) == (add(a, mul(a, b)))
 {
@@ -225,6 +232,21 @@ ensures
         Nat::Zero -> Nat::Zero
         Nat::Succ { prev } -> Nat::Succ { prev: mul_succ_right(prev, b) }
     }
+}
+
+// Multiplicative identity in SLOT vocabulary. `one()` computes to Succ Zero;
+// the three cited constructor-form laws reduce mul(a, one()) through
+// add(a, mul(a, Zero)) to a.
+machine mul_identity(a: Nat) -> Nat
+satisfies CommutativeSemiring::mul_identity
+ensures
+    result == a;
+    (mul(a, one())) == a
+{
+    mul_succ_right(a, Nat::Zero);
+    mul_zero_right(a);
+    add_zero_right(a);
+    transition { _ -> (a) }
 }
 
 // DISTRIBUTIVITY -- CITATION-FREE (the rearrange-mode acceptance,
@@ -238,9 +260,8 @@ ensures
 // imports in scope.
 machine mul_distributes(a: Nat, b: Nat, c: Nat) -> Nat
 satisfies CommutativeSemiring::mul_distributes
-terminates {
-    decreases a;
-}
+terminates;
+terminates by a;
 ensures
     (mul(a, add(b, c))) == (add(mul(a, b), mul(a, c)))
 {
@@ -250,13 +271,37 @@ ensures
     }
 }
 
+// Multiplication associates. The recursive definition unfolds on the first
+// operand; the step derives right-distribution from the already proven
+// commutativity + left-distribution laws, then consumes this machine's
+// recursive contract as the induction hypothesis.
+machine mul_assoc(a: Nat, b: Nat, c: Nat) -> Nat
+satisfies CommutativeSemiring::mul_assoc
+terminates;
+terminates by a;
+ensures
+    (mul(mul(a, b), c)) == (mul(a, mul(b, c)))
+{
+    transition a {
+        Nat::Zero -> Nat::Zero
+        Nat::Succ { prev } -> ma_step(prev, b, c)
+    }
+
+    state ma_step(prev: Nat, b: Nat, c: Nat) -> Nat {
+        mul_comm(add(b, mul(prev, b)), c);
+        mul_distributes(c, b, mul(prev, b));
+        mul_comm(c, b);
+        mul_comm(c, mul(prev, b));
+        transition { _ -> Nat::Succ { prev: mul_assoc(prev, b, c) } }
+    }
+}
+
 // MULTIPLICATION COMMUTES: base cites mul_zero_right; step cites
 // mul_succ_right at (b, prev) plus the inductive hypothesis.
 machine mul_comm(a: Nat, b: Nat) -> Nat
 satisfies CommutativeSemiring::mul_comm
-terminates {
-    decreases a;
-}
+terminates;
+terminates by a;
 ensures
     (mul(a, b)) == (mul(b, a))
 {

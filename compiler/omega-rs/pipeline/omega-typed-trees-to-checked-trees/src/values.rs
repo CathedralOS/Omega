@@ -16,13 +16,22 @@ pub(crate) fn build_value_facts(program: &TypedTrees) -> CheckedValueFacts {
     };
 
     for machine in program.machines() {
-        for (ordinal, expression) in program
+        let mut ranking_expressions = program
             .expression_table
-            .expression_handles(machine.decreases)
-            .iter()
-            .copied()
-            .enumerate()
-        {
+            .expression_handles(machine.ranking_witness.subjects)
+            .to_vec();
+        ranking_expressions.extend_from_slice(
+            program
+                .expression_table
+                .expression_handles(machine.ranking_witness.view_arguments),
+        );
+        if machine.ranking_witness.range.is_present() {
+            ranking_expressions.extend([
+                machine.ranking_witness.range.start,
+                machine.ranking_witness.range.end,
+            ]);
+        }
+        for (ordinal, expression) in ranking_expressions.into_iter().enumerate() {
             builder.collect_expression(
                 expression,
                 CheckedValueOrigin::MachineDecrease {

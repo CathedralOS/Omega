@@ -1,0 +1,6 @@
+// A full-range runtime count is not sufficient evidence for an Exact shift.
+data Main { count: u32; }
+machine Main::main(&mut self) {
+    let value: u32 = 1;
+    let shifted: u32 = value >> self.count;
+}

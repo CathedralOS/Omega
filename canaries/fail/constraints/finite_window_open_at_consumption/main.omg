@@ -1,0 +1,13 @@
+boundary trait Console { machine exit_process(return_code: i32); }
+
+data Main {
+    console: Console;
+    value: f64 in Finite;
+}
+
+machine Main::main(&mut self) {
+    self.value = 0.0 / 0.0;
+    transition { _ -> consume() }
+
+    state consume(&self) { self.console.exit_process(77); }
+}

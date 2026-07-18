@@ -205,7 +205,12 @@ fn encode_place_copy_with_sites(
         materialize_place_address(&mut bytes, &mut sites, source, AddressRegister::Source)?;
     let target_displacement =
         materialize_place_address(&mut bytes, &mut sites, target, AddressRegister::Target)?;
-    append_copy_chunks(&mut bytes, source_displacement, target_displacement, byte_count)?;
+    append_copy_chunks(
+        &mut bytes,
+        source_displacement,
+        target_displacement,
+        byte_count,
+    )?;
     Ok((bytes, sites))
 }
 
@@ -293,7 +298,12 @@ fn encode_place_copy_shared_base_with_sites(
         let source_displacement =
             walk_hopping_side(&mut bytes, source, HopDirection::BaseR15SourceHops)?;
         let target_displacement = walk_base_side(&mut bytes, target, AddressRegister::Target)?;
-        append_copy_chunks(&mut bytes, source_displacement, target_displacement, byte_count)?;
+        append_copy_chunks(
+            &mut bytes,
+            source_displacement,
+            target_displacement,
+            byte_count,
+        )?;
         Ok((bytes, sites))
     } else if target_derefs {
         // The mirror: the source is direct, so the base lives in r14 (the
@@ -310,7 +320,12 @@ fn encode_place_copy_shared_base_with_sites(
         let target_displacement =
             walk_hopping_side(&mut bytes, target, HopDirection::BaseR14TargetHops)?;
         let source_displacement = walk_base_side(&mut bytes, source, AddressRegister::Source)?;
-        append_copy_chunks(&mut bytes, source_displacement, target_displacement, byte_count)?;
+        append_copy_chunks(
+            &mut bytes,
+            source_displacement,
+            target_displacement,
+            byte_count,
+        )?;
         Ok((bytes, sites))
     } else {
         Err(Diagnostic::error(
@@ -567,10 +582,7 @@ mod tests {
             .unwrap();
         let target = Place::at(RuntimeStorageRegion::Machine, 64);
         let bytes = encode_place_copy(&source, &target, 8).expect("encodes");
-        assert_eq!(
-            super::super::FRAME_FIXED_INDEXED_COPY_TARGET_IMM_OFFSET,
-            17
-        );
+        assert_eq!(super::super::FRAME_FIXED_INDEXED_COPY_TARGET_IMM_OFFSET, 17);
         // 49 BF = mov r15, imm64 at the pinned offset.
         assert_eq!(&bytes[17..19], &[0x49, 0xbf]);
     }

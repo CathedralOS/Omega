@@ -1,4 +1,5 @@
 use crate::expression::lower_expression_into_table;
+use crate::domain::lower_proof_facts;
 use crate::lowerer::Lowerer;
 use crate::type_reference::lower_type_reference_handle;
 use omega_core::arena::HandleSpan;
@@ -27,6 +28,7 @@ pub(crate) fn lower_data_definition(
     let type_parameters =
         lower_type_parameters(lowerer, syntax_trees, data_definition.type_parameters)?;
     let members = lower_data_members(lowerer, syntax_trees, data_definition.members)?;
+    let default_domain = lower_proof_facts(lowerer, syntax_trees, data_definition.default_domain)?;
 
     Ok(DataDefinition {
         symbol: SymbolHandle::invalid(),
@@ -38,6 +40,7 @@ pub(crate) fn lower_data_definition(
                 zero_init: data_definition.properties.zero_init,
                 send: data_definition.properties.send,
             },
+            default_domain,
             members,
         },
     })
@@ -101,6 +104,7 @@ pub(crate) fn lower_data_version_definitions(
                 // Historical shapes carry no declared properties; a property
                 // describes the CURRENT shape only.
                 properties: DataProperties::default(),
+                default_domain: HandleSpan::empty(),
                 members,
             },
         });
@@ -197,6 +201,7 @@ pub(crate) fn lower_versioned_container_definition(
             // like any other field-bearing data (a zeroed container reads as
             // the oldest declared era with a zeroed payload).
             properties: DataProperties::default(),
+            default_domain: HandleSpan::empty(),
             members: span,
         },
     }

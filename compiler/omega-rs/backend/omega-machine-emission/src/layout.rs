@@ -8,37 +8,35 @@ use omega_calling_conventions::HostBindingMechanism;
 use omega_core::diagnostics::Diagnostic;
 use omega_instruction_selection::{
     dispatch_case_enter_width, dispatch_case_leave_width, dispatch_guard_compare_static_width,
-    runtime_atomic_compare_exchange_width, runtime_atomic_fetch_add_width,
+    dispatch_loop_enter_width, dispatch_state_write_width, entry_argument_register_write_width,
+    entry_arguments_slice_descriptor_write_width, function_enter_width, host_call_sequence_width,
+    machine_halt_width, port_read_width, port_write_width, return_register_integer_write_width,
+    return_width, runtime_atomic_compare_exchange_width, runtime_atomic_fetch_add_width,
     runtime_byte_read_width, runtime_byte_write_width,
-    dispatch_loop_enter_width, dispatch_state_write_width, function_enter_width,
-    host_call_sequence_width, machine_halt_width, port_read_width, port_write_width,
-    return_register_integer_write_width, return_width, table_function_call_sequence_width,
-    vtable_call_sequence_width,
     runtime_frame_base_indexed_binary_write_width, runtime_frame_base_indexed_integer_write_width,
     runtime_frame_indexed_binary_write_width, runtime_frame_indexed_integer_write_width,
     runtime_frame_indexed_string_write_width, runtime_frame_string_write_width,
     runtime_machine_bounded_buffer_literal_append_width,
     runtime_machine_bounded_buffer_source_append_width, runtime_machine_bounded_buffer_write_width,
-    runtime_machine_indexed_binary_write_width, runtime_machine_integer_write_width,
-    runtime_machine_string_write_width,
-    runtime_pointee_binary_write_width, runtime_pointee_integer_write_width,
-    runtime_pointee_bounded_buffer_write_width, runtime_pointee_string_write_width,
-    runtime_storage_binary_write_width,
-    runtime_storage_compare_width, runtime_storage_convert_width,
-    runtime_storage_copy_from_runtime_machine_double_indexed_to_runtime_storage_width,
-    runtime_storage_copy_to_runtime_machine_double_indexed_from_runtime_storage_width,
-    runtime_machine_double_indexed_integer_write_width,
     runtime_machine_double_indexed_binary_write_width,
+    runtime_machine_double_indexed_integer_write_width, runtime_machine_indexed_binary_write_width,
+    runtime_machine_integer_write_width, runtime_machine_string_write_width,
+    runtime_pointee_binary_write_width, runtime_pointee_bounded_buffer_write_width,
+    runtime_pointee_integer_write_width, runtime_pointee_string_write_width,
+    runtime_storage_binary_write_width, runtime_storage_compare_width,
+    runtime_storage_convert_width,
     runtime_storage_copy_from_runtime_frame_base_double_indexed_to_runtime_storage_width,
+    runtime_storage_copy_from_runtime_machine_double_indexed_to_runtime_storage_width,
     runtime_storage_copy_machine_indexed_to_machine_indexed_width,
-    entry_argument_register_write_width, entry_arguments_slice_descriptor_write_width,
     runtime_storage_copy_to_return_register_width,
+    runtime_storage_copy_to_runtime_machine_double_indexed_from_runtime_storage_width,
     runtime_storage_value_compare_width, runtime_text_buffer_materialize_width,
     runtime_text_line_read_width, runtime_text_literal_append_width,
     runtime_text_literal_compare_width, runtime_text_literal_segment_write_width,
     runtime_text_literal_write_width, runtime_text_storage_compare_width,
     runtime_text_stored_place_append_width, runtime_text_stored_suffix_append_width,
-    runtime_value_compare_width, syscall_sequence_width,
+    runtime_value_compare_width, syscall_sequence_width, table_function_call_sequence_width,
+    vtable_call_sequence_width,
 };
 use omega_machine_instructions::{MachineInstruction, MachineInstructionKind};
 
@@ -398,6 +396,8 @@ fn machine_instruction_width(
             source_is_float,
             target_is_float,
             source_signed,
+            domain,
+            target_signed,
             ..
         } => runtime_storage_convert_width(
             input.target.architecture,
@@ -409,6 +409,8 @@ fn machine_instruction_width(
             *source_is_float,
             *target_is_float,
             *source_signed,
+            *domain,
+            *target_signed,
         ),
         SelectedInstructionKind::AtomicFetchAdd {
             target_offset,
@@ -873,9 +875,22 @@ fn machine_instruction_width(
             *field_byte_offset,
             *target_offset,
         ),
-        SelectedInstructionKind::WriteRuntimeMachineIndexedAddressToRuntimeFrame { .. } => {
+        SelectedInstructionKind::WriteRuntimeMachineIndexedAddressToRuntimeFrame {
+            base_byte_offset,
+            index_region,
+            index_offset,
+            element_byte_size,
+            field_byte_offset,
+            target_offset,
+        } => {
             omega_instruction_selection::runtime_machine_indexed_address_to_runtime_frame_write_width(
                 input.target.architecture,
+                *base_byte_offset,
+                *index_region,
+                *index_offset,
+                *element_byte_size,
+                *field_byte_offset,
+                *target_offset,
             )
         }
         SelectedInstructionKind::ReadRuntimeTextLine { .. } => {

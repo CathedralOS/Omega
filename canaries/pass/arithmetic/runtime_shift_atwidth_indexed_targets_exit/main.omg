@@ -1,8 +1,7 @@
-// RUN CANARY (exit 70) + interpreter differential. At/above-width Wrapping
-// shifts reaching INDEXED, POINTEE, and EXACT-COUNT spellings -- the
-// slice-B tail audit (2026-07-14) found all of these already correct
-// because the planner routes non-Exact binary VALUES through the operand
-// path (whose domain machinery clamps on both ISAs) rather than fusing
+// RUN CANARY (exit 70) + interpreter differential. Wrapping shifts reaching
+// INDEXED, POINTEE, and Exact-count spellings mask the count by the language
+// operand width. The planner routes non-Exact binary VALUES through the
+// operand path (whose domain machinery applies the mask) rather than fusing
 // them into the indexed/pointee binary-write kinds, whose encoders carry no
 // domain and would hardware-mask. This canary PINS that routing: if the
 // planner ever starts fusing wrapping shifts into those kinds, these legs
@@ -12,7 +11,7 @@
 //
 // The exact-count legs pin the witness side: the node's domain comes from
 // the LHS (its declared type), so a plain-Exact count under a Wrapping
-// value still clamps (slice-A exemption spelling at an at-width count).
+// value still uses Wrapping count masking.
 // exits: 71 = machine-indexed u64 <<; 72 = machine-indexed i32 >> (signed
 // sign-fill); 73 = frame-local indexed u64 <<; 74 = pointee u64 <<;
 // 75 = exact-count u64 <<; 76 = exact-count i32 >>.
@@ -29,7 +28,7 @@ machine Main::main(&mut self) {
     let a: u64 in Wrapping = (1 as u64 in Wrapping);
     let c: u64 in Wrapping = (70 as u64 in Wrapping);
     self.arr[1] = a << c;
-    transition self.arr[1] == 0 {
+    transition self.arr[1] == 64 {
         true  -> indexed_shr()
         false -> bad_machine_indexed_shl()
     }
@@ -47,7 +46,7 @@ machine Main::main(&mut self) {
         let a2: u64 in Wrapping = (1 as u64 in Wrapping);
         let c3: u64 in Wrapping = (70 as u64 in Wrapping);
         arr2[2] = a2 << c3;
-        transition arr2[2] == 0 {
+        transition arr2[2] == 64 {
             true  -> pointee()
             false -> bad_frame_indexed()
         }
@@ -55,7 +54,7 @@ machine Main::main(&mut self) {
     state pointee(&mut self) {
         // `&mut self.h` spelled explicitly (2026-07-18 borrow-mutability check).
         self.write_slot(&mut self.h);
-        transition self.h.slot == 0 {
+        transition self.h.slot == 64 {
             true  -> exact_count_shl()
             false -> bad_pointee()
         }
@@ -64,7 +63,7 @@ machine Main::main(&mut self) {
         self.k = 70;
         let a3: u64 in Wrapping = (1 as u64 in Wrapping);
         let s: u64 in Wrapping = a3 << self.k;
-        transition s == 0 {
+        transition s == 64 {
             true  -> exact_count_shr()
             false -> bad_exact_shl()
         }

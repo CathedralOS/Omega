@@ -1,0 +1,15 @@
+// COMPILE CANARY. A zero-excluding default domain gates the type, while an
+// explicit construction that proves the fact establishes an ordinary value.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Player
+where
+    health >= 1,
+{
+    health: i32;
+    score: i32;
+}
+data Main { console: Console; }
+machine Main::run(&mut self) {
+    let player: Player = Player { health: 50 };
+    self.console.exit_process(70);
+}

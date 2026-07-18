@@ -1,0 +1,22 @@
+// RUN CANARY (exit 70) + interpreter differential. A dominating incoming
+// guard proves a runtime Exact count is in 0..32, so no dynamic policy is
+// required and the shift executes normally.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; count: u32; value: u32; result: u32; }
+machine Main::main(&mut self) {
+    self.count = 5;
+    self.value = 3;
+    transition self.count < 32 {
+        true -> shift()
+        _ -> bad()
+    }
+    state shift(&mut self) {
+        self.result = self.value << self.count;
+        transition self.result == 96 {
+            true -> good()
+            _ -> bad()
+        }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self)  { self.console.exit_process(71); }
+}

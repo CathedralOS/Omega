@@ -1,0 +1,17 @@
+// COMPILE CANARY: the cursor itself increases; the view owns the bounded
+// remaining-distance normalization, and the optional range constrains rank.
+data Main {}
+
+machine Main::main(&mut self) {
+    let value: u64 = self.walk(4, 0);
+}
+
+machine Main::walk(&mut self, limit: u64, index: u64)
+terminates by index -> Nat::IncreasingTo(limit) in 0..=limit;
+-> u64
+{
+    transition index < limit {
+        true -> self.walk(limit, index + 1)
+        false -> index
+    }
+}

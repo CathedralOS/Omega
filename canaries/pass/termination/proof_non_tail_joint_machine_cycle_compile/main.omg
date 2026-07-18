@@ -1,0 +1,31 @@
+// COMPILE CANARY. Free machines over recursive proof-only data may form a
+// non-tail call SCC because no runtime frame is emitted. Each cross-machine
+// edge consumes the case-payload subterm selected by the shared witness.
+data ProofNat {
+    case Zero;
+    case Succ(prev: ProofNat);
+}
+
+data Main {}
+
+machine Main::main(&mut self) {}
+
+machine left(n: ProofNat)
+terminates by n;
+-> ProofNat
+{
+    transition n {
+        ProofNat::Zero -> ProofNat::Zero
+        ProofNat::Succ { prev } -> ProofNat::Succ { prev: right(prev) }
+    }
+}
+
+machine right(n: ProofNat)
+terminates by n;
+-> ProofNat
+{
+    transition n {
+        ProofNat::Zero -> ProofNat::Zero
+        ProofNat::Succ { prev } -> ProofNat::Succ { prev: left(prev) }
+    }
+}

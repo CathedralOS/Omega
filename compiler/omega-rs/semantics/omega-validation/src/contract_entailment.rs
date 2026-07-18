@@ -14,10 +14,10 @@
 //! bound to the arm's value, under the requires plus that arm's guard
 //! polarity. On a tail SELF-call arm the engine may assume the machine's own
 //! ensures for the call's arguments -- the INDUCTION HYPOTHESIS -- but only
-//! after discharging a strict decrease of the declared `decreases` measure at
+//! after discharging a strict decrease of the declared ranking witness at
 //! that exact call site (measure strictly smaller AND still non-negative
 //! under the arm's facts), which is the well-foundedness that makes the
-//! induction sound. No decreases clause, or an undischarged one, means no
+//! induction sound. No ranking witness, or an undischarged one, means no
 //! hypothesis. See `inductive_transition_entailment` below.
 //!
 //! ## The engine's language
@@ -59,8 +59,8 @@
 use std::collections::BTreeMap;
 
 use omega_core::bignum::BigInt;
-use omega_core::symbols::SymbolHandle;
 use omega_core::diagnostics::Diagnostic;
+use omega_core::symbols::SymbolHandle;
 use omega_typed_trees::TypedTrees;
 use omega_typed_trees::domain::ProofFact;
 use omega_typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
@@ -169,8 +169,7 @@ pub(crate) fn validate_machine_contract_entailment(
                 StatementNode::Call(call)
                     if is_citation_statement(program, &proof_only, machine, call) => {}
                 StatementNode::LocalData(local_data) => {
-                    let term =
-                        structural.callee_term(local_data.initial_value, &environment, 0)?;
+                    let term = structural.callee_term(local_data.initial_value, &environment, 0)?;
                     environment.push((local_data.name.as_str().to_owned(), term));
                 }
                 StatementNode::Transition(transition) => {
@@ -198,12 +197,15 @@ pub(crate) fn validate_machine_contract_entailment(
         );
     }
     // STRUCTURAL INDUCTION (the L7 protocol's structural twin): a bodied
-    // machine whose single state is a chain of case arms over one matched
-    // parameter judges the ensures PER ARM -- the arm's case hypothesis
-    // substitutes the subject with a constructor over FRESH payload
-    // variables, `result` binds to the arm's value term, and every
-    // self-application in that term assumes the machine's own ensures for
-    // its arguments (the inductive hypothesis; sound because
+    // machine whose single state is a chain of value-producing arms judges
+    // the ensures PER ARM. A data-case arm substitutes its subject with a
+    // constructor over FRESH payload variables. N2(d) also admits arithmetic
+    // guarded arms: their guard is used by the shared termination checker to
+    // prove the integer predecessor edge, while this judge only needs the
+    // arm's structural result. In both forms, `result` binds to the arm's
+    // value term, and every self-application in that term assumes the
+    // machine's own ensures for its arguments (the inductive hypothesis;
+    // sound because
     // validate_proof_machine_recursion refuses non-descending self-calls in
     // this same diagnostics batch, so an unsound assumption never certifies
     // a program that compiles). Case arms of inhabited proof data are
@@ -213,8 +215,7 @@ pub(crate) fn validate_machine_contract_entailment(
     let ensures_terms: Vec<Option<(StructuralTerm, StructuralTerm)>> = ensures
         .iter()
         .map(|fact| {
-            let ExpressionNode::Binary(binary) = program.expression_table.expression(*fact)
-            else {
+            let ExpressionNode::Binary(binary) = program.expression_table.expression(*fact) else {
                 return None;
             };
             if binary.operator != BinaryOperator::Equal {
@@ -244,6 +245,12 @@ pub(crate) fn validate_machine_contract_entailment(
         };
         let mut verdict = StructuralJudgment::Proven;
         for arm in arms {
+            if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                eprintln!(
+                    "STRUCT machine={} arm_value={:?} citations={:?}",
+                    machine.name, arm.value, arm.citations
+                );
+            }
             let mut bound = structural.clone();
             if let Some((subject, constructor)) = &arm.case_hypothesis {
                 bound
@@ -321,10 +328,9 @@ pub(crate) fn validate_machine_contract_entailment(
                     // lemma's ensures shape-matches the fenced goal, the
                     // diagnostic names the missing citation. Suggestion at
                     // failure, never silent application.
-                    let suggestion =
-                        suggest_missing_citation(program, &proof_only, machine, *fact)
-                            .map(|note| format!("; {note}"))
-                            .unwrap_or_default();
+                    let suggestion = suggest_missing_citation(program, &proof_only, machine, *fact)
+                        .map(|note| format!("; {note}"))
+                        .unwrap_or_default();
                     diagnostics.push(Diagnostic::error(format!(
                         "machine `{}` ensures contract proof fact `{}` speaks about proof-only \
                          `{held}`, which no entailment tier judges yet -- accepting it would \
@@ -346,9 +352,9 @@ pub(crate) fn validate_machine_contract_entailment(
     // mark the contract not-fully-visible so it stands down instead of
     // rejecting integer goals it cannot prove without them.
     if any_structural
-        || requires
-            .iter()
-            .any(|fact| fact_mentions_proof_only_data(program, &proof_only, machine, *fact).is_some())
+        || requires.iter().any(|fact| {
+            fact_mentions_proof_only_data(program, &proof_only, machine, *fact).is_some()
+        })
     {
         all_facts_are_expressions = false;
     }
@@ -746,14 +752,14 @@ fn self_call_argument_map(
 }
 
 /// SOUNDNESS GATE for the induction hypothesis: prove, from the arm's own
-/// facts (requires + guard, no hypothesis), that the declared `decreases`
+/// facts (requires + guard, no hypothesis), that the declared ranking witness
 /// measure is strictly smaller at the recursive call AND still non-negative
 /// there. A strictly decreasing integer measure bounded below by zero admits
 /// no infinite descent, which is exactly the well-foundedness that justifies
 /// assuming the contract for the smaller instance. Only the polynomial
 /// readings are verified here: the plain descending-naturals order
-/// (`decreases value`, or explicitly `-> Nat::Descending`) and the named
-/// bounded distance (the argumented tuple `decreases (lower, upper)`, or
+/// (`terminates by value`, or explicitly `-> Nat::Descending`) and the named
+/// bounded distance (`terminates by (lower, upper) -> Nat::BoundedDistance`, or
 /// explicitly `-> Nat::BoundedDistance`), whose distance polynomial
 /// `upper - lower` goes through the identical strict-decrease +
 /// non-negativity check. Other view and declared-measure orders have meanings
@@ -766,13 +772,13 @@ fn discharges_strict_decrease(
     engine: &mut Engine<'_>,
     argument_map: &BTreeMap<String, Polynomial>,
 ) -> bool {
-    if !machine.terminates {
+    if !machine.ranking_witness.is_present() {
         return false;
     }
     let decreases = program
         .expression_table
-        .expression_handles(machine.decreases);
-    let order = program.machine_decrease_order(machine.decrease_order);
+        .expression_handles(machine.ranking_witness.subjects);
+    let order = program.machine_decrease_order(machine.ranking_witness.view);
     let polynomial_order = order.is_empty()
         || (order.len() == 2
             && order[0].as_str() == "Nat"
@@ -1954,8 +1960,7 @@ fn is_citation_statement(
             candidate.attached_data.is_none() && candidate.name.as_str() == call.target.as_str()
         })
         .is_some_and(|callee| {
-            !std::ptr::eq(callee, machine)
-                && classification.is_proof_machine(program, callee)
+            !std::ptr::eq(callee, machine) && classification.is_proof_machine(program, callee)
         })
 }
 
@@ -2018,10 +2023,7 @@ fn collect_citation_equations(
         );
     }
     if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
-        eprintln!(
-            "CITE machine={} equations={equations:?}",
-            machine.name
-        );
+        eprintln!("CITE machine={} equations={equations:?}", machine.name);
     }
     equations
 }
@@ -2069,10 +2071,7 @@ fn suggest_missing_citation(
         for contract in program.machine_contracts(lemma) {
             match contract.kind {
                 SignatureContractKind::Requires => {
-                    has_requires |= !program
-                        .proof_facts
-                        .span_or_empty(contract.facts)
-                        .is_empty();
+                    has_requires |= !program.proof_facts.span_or_empty(contract.facts).is_empty();
                 }
                 SignatureContractKind::Ensures => {
                     for lemma_fact in program.proof_facts.span_or_empty(contract.facts) {
@@ -2127,11 +2126,21 @@ fn suggest_conjunct_match(
     match binary.operator {
         BinaryOperator::And => {
             return suggest_conjunct_match(
-                program, lemma, parameters, binary.left, goal_left, goal_right,
+                program,
+                lemma,
+                parameters,
+                binary.left,
+                goal_left,
+                goal_right,
             )
             .or_else(|| {
                 suggest_conjunct_match(
-                    program, lemma, parameters, binary.right, goal_left, goal_right,
+                    program,
+                    lemma,
+                    parameters,
+                    binary.right,
+                    goal_left,
+                    goal_right,
                 )
             });
         }
@@ -2263,8 +2272,7 @@ pub(crate) fn check_law_conformance(
 
     let result_binder = RESULT_BINDER.to_owned();
     for law_conjunct in &law_conjuncts {
-        let ExpressionNode::Binary(binary) =
-            program.expression_table.expression(*law_conjunct)
+        let ExpressionNode::Binary(binary) = program.expression_table.expression(*law_conjunct)
         else {
             continue;
         };
@@ -2318,22 +2326,19 @@ pub(crate) fn check_law_conformance(
             {
                 return false;
             }
-            [
-                (&proven_left, &proven_right),
-                (&proven_right, &proven_left),
-            ]
-            .into_iter()
-            .any(|(first, second)| {
-                let mut bindings: Vec<(String, StructuralTerm)> = Vec::new();
-                diagnostic_shape_match(&law_left, first, &requirement_parameters, &mut bindings)
-                    && diagnostic_shape_match(
-                        &law_right,
-                        second,
-                        &requirement_parameters,
-                        &mut bindings,
-                    )
-                    && bindings_are_forall_general(&bindings, &satisfier_parameters)
-            })
+            [(&proven_left, &proven_right), (&proven_right, &proven_left)]
+                .into_iter()
+                .any(|(first, second)| {
+                    let mut bindings: Vec<(String, StructuralTerm)> = Vec::new();
+                    diagnostic_shape_match(&law_left, first, &requirement_parameters, &mut bindings)
+                        && diagnostic_shape_match(
+                            &law_right,
+                            second,
+                            &requirement_parameters,
+                            &mut bindings,
+                        )
+                        && bindings_are_forall_general(&bindings, &satisfier_parameters)
+                })
         });
 
         if !matched {
@@ -2364,7 +2369,10 @@ fn bindings_are_forall_general(
         let StructuralTerm::Variable(name) = bound else {
             return false;
         };
-        if !satisfier_parameters.iter().any(|parameter| parameter == name) {
+        if !satisfier_parameters
+            .iter()
+            .any(|parameter| parameter == name)
+        {
             return false;
         }
         if seen.iter().any(|previous| *previous == name) {
@@ -2446,7 +2454,10 @@ fn carrier_slot_bindings(
                 }
                 candidates.push((
                     candidate.name.as_str().to_owned(),
-                    conformance.alias.as_ref().map(|alias| alias.as_str().to_owned()),
+                    conformance
+                        .alias
+                        .as_ref()
+                        .map(|alias| alias.as_str().to_owned()),
                 ));
             }
         }
@@ -2627,16 +2638,13 @@ fn display_structural_term(term: &StructuralTerm) -> String {
             } else {
                 let rendered: Vec<String> = fields
                     .iter()
-                    .map(|(name, value)| {
-                        format!("{name}: {}", display_structural_term(value))
-                    })
+                    .map(|(name, value)| format!("{name}: {}", display_structural_term(value)))
                     .collect();
                 format!("{data}::{case} {{ {} }}", rendered.join(", "))
             }
         }
         StructuralTerm::Application { machine, arguments } => {
-            let rendered: Vec<String> =
-                arguments.iter().map(display_structural_term).collect();
+            let rendered: Vec<String> = arguments.iter().map(display_structural_term).collect();
             format!("{machine}({})", rendered.join(", "))
         }
         StructuralTerm::Opaque(display) => display.clone(),
@@ -2716,10 +2724,7 @@ fn instantiate_citation(
     for contract in program.machine_contracts(callee) {
         match contract.kind {
             SignatureContractKind::Requires => {
-                has_requires |= !program
-                    .proof_facts
-                    .span_or_empty(contract.facts)
-                    .is_empty();
+                has_requires |= !program.proof_facts.span_or_empty(contract.facts).is_empty();
             }
             SignatureContractKind::Ensures => {
                 for fact in program.proof_facts.span_or_empty(contract.facts) {
@@ -2832,9 +2837,12 @@ struct StructuralCaseArm {
     value: StructuralTerm,
 }
 
-/// Recognize a single-state proof machine whose statements are case arms
-/// over its parameters (`transition a { Nat::Zero -> .. Nat::Succ { prev }
-/// -> .. }` desugars to per-arm transitions guarded by `a == Nat::Case`).
+/// Recognize a single-state proof machine whose statements are value-producing
+/// induction arms. Data-case dispatch (`transition a { Nat::Zero -> ..
+/// Nat::Succ { prev } -> .. }`) desugars to guards of the form
+/// `a == Nat::Case` and supplies a constructor hypothesis. An arithmetic guard
+/// supplies no structural hypothesis; N2(d) needs only its result term here,
+/// while the termination pass independently proves the guarded predecessor.
 /// Returns `None` for anything out of shape -- judging then proceeds
 /// without result binding, which only weakens toward Unknown.
 fn recognize_structural_case_arms(
@@ -2884,18 +2892,32 @@ fn recognize_structural_case_arms(
         let case_hypothesis = match transition.guard {
             TransitionGuardNode::Always => None,
             TransitionGuardNode::When(guard) => {
-                let ExpressionNode::Binary(comparison) =
-                    program.expression_table.expression(guard)
+                let ExpressionNode::Binary(comparison) = program.expression_table.expression(guard)
                 else {
                     return None;
                 };
-                if comparison.operator != BinaryOperator::Equal {
-                    return None;
-                }
-                let Some(StructuralTerm::Variable(subject)) =
-                    structural_term(program, comparison.left)
+                let Some(StructuralTerm::Variable(subject)) = (comparison.operator
+                    == BinaryOperator::Equal)
+                    .then(|| structural_term(program, comparison.left))
+                    .flatten()
                 else {
-                    return None;
+                    // An arithmetic/boolean arm has no constructor equation
+                    // to install in the structural context. Its reachability
+                    // and ranking decrease remain obligations of the ordinary
+                    // guard and termination passes.
+                    arms.push(structural_value_arm(
+                        program,
+                        machine,
+                        judge,
+                        classification,
+                        diagnostics,
+                        states,
+                        &machine_name,
+                        &parameter_names,
+                        transition,
+                        None,
+                    )?);
+                    continue;
                 };
                 if !parameter_names.iter().any(|name| name == &subject) {
                     return None;
@@ -2903,7 +2925,19 @@ fn recognize_structural_case_arms(
                 let Some(StructuralTerm::Constructor { data, case, fields }) =
                     structural_term(program, comparison.right)
                 else {
-                    return None;
+                    arms.push(structural_value_arm(
+                        program,
+                        machine,
+                        judge,
+                        classification,
+                        diagnostics,
+                        states,
+                        &machine_name,
+                        &parameter_names,
+                        transition,
+                        None,
+                    )?);
+                    continue;
                 };
                 if !fields.is_empty() {
                     return None;
@@ -2948,116 +2982,18 @@ fn recognize_structural_case_arms(
                 ))
             }
         };
-        // The arm environment: the subject maps to its constructor (so
-        // payload member reads index the fresh variables); every other
-        // parameter maps to itself.
-        let environment: Vec<(String, StructuralTerm)> = parameter_names
-            .iter()
-            .map(|name| {
-                if let Some((subject, constructor)) = &case_hypothesis
-                    && subject == name
-                {
-                    (name.clone(), constructor.clone())
-                } else {
-                    (name.clone(), StructuralTerm::Variable(name.clone()))
-                }
-            })
-            .collect();
-        let (value, citations) =
-            match program.statement_table.transition_target(transition.target) {
-                TransitionTargetNode::Value(value) => {
-                    (judge.callee_term(*value, &environment, 0)?, Vec::new())
-                }
-                // A NAMED target hands the arm to a sub-state: its
-                // parameters bind to the transition's argument terms
-                // (converted under THIS arm's environment, so payload
-                // bindings become the fresh variables), its citation
-                // statements instantiate under that sub-environment, and
-                // its sole Always value terminal is the arm's value.
-                TransitionTargetNode::Named { path, arguments } => {
-                    let [state_name] =
-                        program.statement_table.name_path_members(path.members)
-                    else {
-                        return None;
-                    };
-                    let sub_state = states[1..]
-                        .iter()
-                        .find(|state| state.name.as_str() == state_name.as_str())?;
-                    let sub_parameters = program.state_parameters(sub_state);
-                    let argument_handles =
-                        program.statement_table.expression_handles(*arguments);
-                    if sub_parameters.len() != argument_handles.len() {
-                        return None;
-                    }
-                    let mut sub_environment: Vec<(String, StructuralTerm)> =
-                        Vec::with_capacity(sub_parameters.len());
-                    for (parameter, argument) in sub_parameters.iter().zip(argument_handles) {
-                        let term = judge.callee_term(*argument, &environment, 0)?;
-                        sub_environment.push((parameter.name.as_str().to_owned(), term));
-                    }
-                    let mut citations = Vec::new();
-                    let mut terminal: Option<StructuralTerm> = None;
-                    for statement in
-                        program.statement_table.statements(sub_state.statement_nodes)
-                    {
-                        if terminal.is_some() {
-                            return None; // statements after the terminal: out of shape
-                        }
-                        if let Some((target, argument_handles)) =
-                            citation_call_in_statement(program, statement)
-                        {
-                            let mut argument_terms =
-                                Vec::with_capacity(argument_handles.len());
-                            let mut arguments_termify = true;
-                            for argument in &argument_handles {
-                                let Some(term) =
-                                    judge.callee_term(*argument, &sub_environment, 0)
-                                else {
-                                    arguments_termify = false;
-                                    break;
-                                };
-                                argument_terms.push(term);
-                            }
-                            if arguments_termify {
-                                instantiate_citation(
-                                    program,
-                                    classification,
-                                    machine,
-                                    target,
-                                    &argument_terms,
-                                    diagnostics,
-                                    &mut citations,
-                                );
-                            }
-                            continue;
-                        }
-                        let StatementNode::Transition(sub_transition) = statement else {
-                            return None;
-                        };
-                        if !matches!(sub_transition.guard, TransitionGuardNode::Always)
-                            || sub_transition.continuation.is_valid()
-                        {
-                            return None;
-                        }
-                        let TransitionTargetNode::Value(value) = program
-                            .statement_table
-                            .transition_target(sub_transition.target)
-                        else {
-                            return None;
-                        };
-                        terminal = Some(judge.callee_term(*value, &sub_environment, 0)?);
-                    }
-                    (terminal?, citations)
-                }
-                _ => return None,
-            };
-        arms.push(StructuralCaseArm {
-            machine_name: machine_name.clone(),
-            parameter_names: parameter_names.clone(),
+        arms.push(structural_value_arm(
+            program,
+            machine,
+            judge,
+            classification,
+            diagnostics,
+            states,
+            &machine_name,
+            &parameter_names,
+            transition,
             case_hypothesis,
-            citations,
-            value,
-        });
+        )?);
     }
     // A body of citations alone yields no arms -- returning Some([]) would
     // judge every fact vacuously Proven. No arms, no shape.
@@ -3065,6 +3001,125 @@ fn recognize_structural_case_arms(
         return None;
     }
     Some(arms)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn structural_value_arm(
+    program: &TypedTrees,
+    machine: &Machine,
+    judge: &StructuralJudge<'_>,
+    classification: &omega_typed_trees::proof_only::ProofOnlyClassification,
+    diagnostics: &mut Vec<Diagnostic>,
+    states: &[omega_typed_trees::state::State],
+    machine_name: &str,
+    parameter_names: &[String],
+    transition: &omega_typed_trees::statement::TableTransition,
+    case_hypothesis: Option<(String, StructuralTerm)>,
+) -> Option<StructuralCaseArm> {
+    // The arm environment: the subject maps to its constructor (so
+    // payload member reads index the fresh variables); every other
+    // parameter maps to itself.
+    let environment: Vec<(String, StructuralTerm)> = parameter_names
+        .iter()
+        .map(|name| {
+            if let Some((subject, constructor)) = &case_hypothesis
+                && subject == name
+            {
+                (name.clone(), constructor.clone())
+            } else {
+                (name.clone(), StructuralTerm::Variable(name.clone()))
+            }
+        })
+        .collect();
+    let (value, citations) = match program.statement_table.transition_target(transition.target) {
+        TransitionTargetNode::Value(value) => {
+            (judge.callee_term(*value, &environment, 0)?, Vec::new())
+        }
+        // A NAMED target hands the arm to a sub-state: its
+        // parameters bind to the transition's argument terms
+        // (converted under THIS arm's environment, so payload
+        // bindings become the fresh variables), its citation
+        // statements instantiate under that sub-environment, and
+        // its sole Always value terminal is the arm's value.
+        TransitionTargetNode::Named { path, arguments } => {
+            let [state_name] = program.statement_table.name_path_members(path.members) else {
+                return None;
+            };
+            let sub_state = states[1..]
+                .iter()
+                .find(|state| state.name.as_str() == state_name.as_str())?;
+            let sub_parameters = program.state_parameters(sub_state);
+            let argument_handles = program.statement_table.expression_handles(*arguments);
+            if sub_parameters.len() != argument_handles.len() {
+                return None;
+            }
+            let mut sub_environment: Vec<(String, StructuralTerm)> =
+                Vec::with_capacity(sub_parameters.len());
+            for (parameter, argument) in sub_parameters.iter().zip(argument_handles) {
+                let term = judge.callee_term(*argument, &environment, 0)?;
+                sub_environment.push((parameter.name.as_str().to_owned(), term));
+            }
+            let mut citations = Vec::new();
+            let mut terminal: Option<StructuralTerm> = None;
+            for statement in program
+                .statement_table
+                .statements(sub_state.statement_nodes)
+            {
+                if terminal.is_some() {
+                    return None; // statements after the terminal: out of shape
+                }
+                if let Some((target, argument_handles)) =
+                    citation_call_in_statement(program, statement)
+                {
+                    let mut argument_terms = Vec::with_capacity(argument_handles.len());
+                    let mut arguments_termify = true;
+                    for argument in &argument_handles {
+                        let Some(term) = judge.callee_term(*argument, &sub_environment, 0) else {
+                            arguments_termify = false;
+                            break;
+                        };
+                        argument_terms.push(term);
+                    }
+                    if arguments_termify {
+                        instantiate_citation(
+                            program,
+                            classification,
+                            machine,
+                            target,
+                            &argument_terms,
+                            diagnostics,
+                            &mut citations,
+                        );
+                    }
+                    continue;
+                }
+                let StatementNode::Transition(sub_transition) = statement else {
+                    return None;
+                };
+                if !matches!(sub_transition.guard, TransitionGuardNode::Always)
+                    || sub_transition.continuation.is_valid()
+                {
+                    return None;
+                }
+                let TransitionTargetNode::Value(value) = program
+                    .statement_table
+                    .transition_target(sub_transition.target)
+                else {
+                    return None;
+                };
+                terminal = Some(judge.callee_term(*value, &sub_environment, 0)?);
+            }
+            (terminal?, citations)
+        }
+        _ => return None,
+    };
+    Some(StructuralCaseArm {
+        machine_name: machine_name.to_owned(),
+        parameter_names: parameter_names.to_vec(),
+        case_hypothesis,
+        citations,
+        value,
+    })
 }
 
 enum StructuralJudgment {
@@ -3111,6 +3166,10 @@ enum StructuralTerm {
 #[derive(Clone, Debug)]
 struct RingLicense {
     add_machine: String,
+    /// Present only for the tier-2 semiring license: `add_machine` and this
+    /// multiplication machine share one carrier with all five conformed laws
+    /// (add/mul comm+assoc and multiplication distributing over addition).
+    mul_machine: Option<String>,
 }
 
 struct StructuralJudge<'program> {
@@ -3143,12 +3202,19 @@ impl<'program> StructuralJudge<'program> {
         judged_machine: &Machine,
         requires: &[ExpressionHandle],
     ) -> Self {
+        let ring_licenses = compute_ring_licenses(program, judged_machine);
+        if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+            eprintln!(
+                "STRUCT machine={} ring_licenses={ring_licenses:?}",
+                judged_machine.name
+            );
+        }
         let mut judge = Self {
             program,
             substitutions: Vec::new(),
             rewrites: Vec::new(),
             hypotheses_contradictory: false,
-            ring_licenses: compute_ring_licenses(program, judged_machine),
+            ring_licenses,
         };
         for fact in requires {
             judge.intake(program, *fact);
@@ -3206,8 +3272,7 @@ impl<'program> StructuralJudge<'program> {
                     return;
                 }
                 for (name_l, value_l) in fields_l {
-                    if let Some((_, value_r)) =
-                        fields_r.iter().find(|(name_r, _)| name_r == name_l)
+                    if let Some((_, value_r)) = fields_r.iter().find(|(name_r, _)| name_r == name_l)
                     {
                         self.intake_equation(value_l.clone(), value_r.clone(), depth + 1);
                     }
@@ -3288,9 +3353,7 @@ impl<'program> StructuralJudge<'program> {
                     let StructuralTerm::Application { machine, arguments } = &resolved else {
                         unreachable!();
                     };
-                    if let Some(unfolded) =
-                        self.unfold_application(machine, arguments, depth + 1)
-                    {
+                    if let Some(unfolded) = self.unfold_application(machine, arguments, depth + 1) {
                         term = unfolded;
                         continue;
                     }
@@ -3327,12 +3390,9 @@ impl<'program> StructuralJudge<'program> {
             return None;
         }
         let program = self.program;
-        let machine = program
-            .machines()
-            .iter()
-            .find(|machine| {
-                machine.attached_data.is_none() && machine.name.as_str() == machine_name
-            })?;
+        let machine = program.machines().iter().find(|machine| {
+            machine.attached_data.is_none() && machine.name.as_str() == machine_name
+        })?;
         let [state] = program.machine_states(machine) else {
             return None;
         };
@@ -3408,9 +3468,8 @@ impl<'program> StructuralJudge<'program> {
                     if !arm_fields.is_empty() {
                         return None;
                     }
-                    let (_, subject_term) = environment
-                        .iter()
-                        .find(|(name, _)| name == &subject_name)?;
+                    let (_, subject_term) =
+                        environment.iter().find(|(name, _)| name == &subject_name)?;
                     let StructuralTerm::Constructor { case: got_case, .. } =
                         self.resolve_at(subject_term.clone(), depth + 1)
                     else {
@@ -3556,6 +3615,15 @@ impl<'program> StructuralJudge<'program> {
                     arguments,
                 })
             }
+            // Integer expressions are opaque atoms to the structural judge.
+            // N2(d) needs this for the recursive argument `n - 1`: arithmetic
+            // proves it is the predecessor, while structural reasoning only
+            // needs a stable term with which to instantiate the recursive
+            // contract. Opaque terms are compared only for exact identity and
+            // are never decomposed or granted arithmetic meaning here.
+            ExpressionNode::Binary(_) | ExpressionNode::Integer(_) => Some(StructuralTerm::Opaque(
+                program.expression_table.display_name(expression),
+            )),
             _ => None,
         }
     }
@@ -3563,10 +3631,7 @@ impl<'program> StructuralJudge<'program> {
     /// Substitute variables in a term (used to instantiate the machine's
     /// own ensures as the INDUCTIVE HYPOTHESIS at a self-call: params -> the
     /// call's argument terms, `result` -> the application term).
-    fn substitute_term(
-        term: &StructuralTerm,
-        map: &[(String, StructuralTerm)],
-    ) -> StructuralTerm {
+    fn substitute_term(term: &StructuralTerm, map: &[(String, StructuralTerm)]) -> StructuralTerm {
         match term {
             StructuralTerm::Variable(name) => map
                 .iter()
@@ -3642,8 +3707,7 @@ impl<'program> StructuralJudge<'program> {
                 ) else {
                     return StructuralJudgment::Unknown;
                 };
-                let equality =
-                    self.judge_equation(self.resolve(left), self.resolve(right), 0);
+                let equality = self.judge_equation(self.resolve(left), self.resolve(right), 0);
                 if binary.operator == BinaryOperator::Equal {
                     equality
                 } else {
@@ -3723,7 +3787,40 @@ impl<'program> StructuralJudge<'program> {
     /// else is an atom by canonical display) and compare. At least two
     /// addends must appear -- a single atom has nothing to rearrange.
     fn ring_rearranged_equal(&self, left: &StructuralTerm, right: &StructuralTerm) -> bool {
+        // Tier 2: a natural-coefficient polynomial normal form. Addition is
+        // multiset union; multiplication is a Cartesian product of monomials;
+        // factors and monomials sort canonically. There is deliberately no
+        // zero/one simplification here -- identity bridging is a separate
+        // roster rung and has not licensed those equations yet.
         for license in &self.ring_licenses {
+            let Some(mul) = license.mul_machine.as_deref() else {
+                continue;
+            };
+            let add = license.add_machine.as_str();
+            if !term_uses_application(left, add)
+                && !term_uses_application(right, add)
+                && !term_uses_application(left, mul)
+                && !term_uses_application(right, mul)
+            {
+                continue;
+            }
+            let Some(mut left_polynomial) = semiring_monomials(left, add, mul, 0) else {
+                continue;
+            };
+            let Some(mut right_polynomial) = semiring_monomials(right, add, mul, 0) else {
+                continue;
+            };
+            left_polynomial.sort();
+            right_polynomial.sort();
+            if left_polynomial == right_polynomial {
+                return true;
+            }
+        }
+
+        for license in &self.ring_licenses {
+            if license.mul_machine.is_some() {
+                continue;
+            }
             let op = license.add_machine.as_str();
             if !term_uses_application(left, op) && !term_uses_application(right, op) {
                 continue;
@@ -3743,6 +3840,55 @@ impl<'program> StructuralJudge<'program> {
         }
         false
     }
+}
+
+/// Normalize a semiring term to a multiset of monomials. Each monomial is a
+/// sorted multiset of opaque factors; the outer vector preserves repeated
+/// monomials as natural coefficients. The cap prevents distributive expansion
+/// from becoming an accidental proof-time exponential.
+fn semiring_monomials(
+    term: &StructuralTerm,
+    add: &str,
+    mul: &str,
+    depth: usize,
+) -> Option<Vec<Vec<String>>> {
+    const MAX_MONOMIALS: usize = 256;
+    if depth >= 32 {
+        return None;
+    }
+    if let StructuralTerm::Application { machine, arguments } = term
+        && arguments.len() == 2
+    {
+        if machine == add {
+            let mut left = semiring_monomials(&arguments[0], add, mul, depth + 1)?;
+            let right = semiring_monomials(&arguments[1], add, mul, depth + 1)?;
+            if left.len().checked_add(right.len())? > MAX_MONOMIALS {
+                return None;
+            }
+            left.extend(right);
+            return Some(left);
+        }
+        if machine == mul {
+            let left = semiring_monomials(&arguments[0], add, mul, depth + 1)?;
+            let right = semiring_monomials(&arguments[1], add, mul, depth + 1)?;
+            if left.len().checked_mul(right.len())? > MAX_MONOMIALS {
+                return None;
+            }
+            let mut product = Vec::with_capacity(left.len() * right.len());
+            for left_monomial in &left {
+                for right_monomial in &right {
+                    let mut monomial =
+                        Vec::with_capacity(left_monomial.len().checked_add(right_monomial.len())?);
+                    monomial.extend(left_monomial.iter().cloned());
+                    monomial.extend(right_monomial.iter().cloned());
+                    monomial.sort();
+                    product.push(monomial);
+                }
+            }
+            return Some(product);
+        }
+    }
+    Some(vec![vec![display_structural_term(term)]])
 }
 
 /// Flatten nested applications of the licensed op into its addend list; any
@@ -3796,6 +3942,7 @@ fn compute_ring_licenses(program: &TypedTrees, judged_machine: &Machine) -> Vec<
         // must exist for the carrier).
         let mut comm_laws: Vec<(String, String)> = Vec::new(); // (op, law requirement)
         let mut assoc_laws: Vec<(String, String)> = Vec::new();
+        let mut distributive_laws: Vec<(String, String, String)> = Vec::new(); // (mul, add, law)
 
         for requirement in program.trait_machine_signatures(trait_definition) {
             let parameters: Vec<String> = program
@@ -3831,9 +3978,22 @@ fn compute_ring_licenses(program: &TypedTrees, judged_machine: &Machine) -> Vec<
                         if let Some(op) = associativity_shape(&left, &right, &parameters) {
                             assoc_laws.push((op, requirement.name.as_str().to_owned()));
                         }
+                        if let Some((mul, add)) = distributivity_shape(&left, &right, &parameters) {
+                            distributive_laws.push((
+                                mul,
+                                add,
+                                requirement.name.as_str().to_owned(),
+                            ));
+                        }
                     }
                 }
             }
+        }
+        if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+            eprintln!(
+                "STRUCT licenses trait={} comm={comm_laws:?} assoc={assoc_laws:?} dist={distributive_laws:?}",
+                trait_definition.name
+            );
         }
 
         // The judged machine binding ANY comm/assoc law slot of this trait
@@ -3843,31 +4003,54 @@ fn compute_ring_licenses(program: &TypedTrees, judged_machine: &Machine) -> Vec<
             .chain(assoc_laws.iter())
             .map(|(_, law)| law)
             .collect();
-        let judged_binds_law_slot =
-            program
-                .machine_trait_conformances(judged_machine)
-                .iter()
-                .any(|conformance| {
-                    if conformance.symbol != trait_definition.symbol {
-                        return false;
-                    }
-                    let bound = conformance
-                        .requirement
-                        .as_ref()
-                        .map(|name| name.as_str().to_owned())
-                        .or_else(|| {
-                            judged_machine
-                                .attached_data
-                                .is_none()
-                                .then(|| judged_machine.name.as_str().to_owned())
-                        });
-                    bound
-                        .as_deref()
-                        .is_some_and(|name| law_slot_names.iter().any(|law| law.as_str() == name))
-                });
+        let judged_binds_law_slot = program
+            .machine_trait_conformances(judged_machine)
+            .iter()
+            .any(|conformance| {
+                if conformance.symbol != trait_definition.symbol {
+                    return false;
+                }
+                let bound = conformance
+                    .requirement
+                    .as_ref()
+                    .map(|name| name.as_str().to_owned())
+                    .or_else(|| {
+                        judged_machine
+                            .attached_data
+                            .is_none()
+                            .then(|| judged_machine.name.as_str().to_owned())
+                    });
+                bound
+                    .as_deref()
+                    .is_some_and(|name| law_slot_names.iter().any(|law| law.as_str() == name))
+            });
         if judged_binds_law_slot {
             continue;
         }
+
+        let judged_binds_distributive_slot = program
+            .machine_trait_conformances(judged_machine)
+            .iter()
+            .any(|conformance| {
+                if conformance.symbol != trait_definition.symbol {
+                    return false;
+                }
+                let bound = conformance
+                    .requirement
+                    .as_ref()
+                    .map(|name| name.as_str().to_owned())
+                    .or_else(|| {
+                        judged_machine
+                            .attached_data
+                            .is_none()
+                            .then(|| judged_machine.name.as_str().to_owned())
+                    });
+                bound.as_deref().is_some_and(|name| {
+                    distributive_laws
+                        .iter()
+                        .any(|(_, _, law)| law.as_str() == name)
+                })
+            });
 
         for (op_slot, comm_law) in &comm_laws {
             let Some((_, assoc_law)) = assoc_laws.iter().find(|(op, _)| op == op_slot) else {
@@ -3906,6 +4089,64 @@ fn compute_ring_licenses(program: &TypedTrees, judged_machine: &Machine) -> Vec<
                     {
                         licenses.push(RingLicense {
                             add_machine: candidate.name.as_str().to_owned(),
+                            mul_machine: None,
+                        });
+                    }
+                }
+            }
+        }
+
+        // Pair the two licensed operations into a full semiring license only
+        // when the SAME carrier supplies all five law satisfiers. This is the
+        // load-bearing distributivity gate; merely having two independently
+        // commutative monoids never enables polynomial expansion.
+        if judged_binds_distributive_slot {
+            continue;
+        }
+        for (mul_slot, add_slot, distributive_law) in &distributive_laws {
+            let Some((_, add_comm)) = comm_laws.iter().find(|(op, _)| op == add_slot) else {
+                continue;
+            };
+            let Some((_, add_assoc)) = assoc_laws.iter().find(|(op, _)| op == add_slot) else {
+                continue;
+            };
+            let Some((_, mul_comm)) = comm_laws.iter().find(|(op, _)| op == mul_slot) else {
+                continue;
+            };
+            let Some((_, mul_assoc)) = assoc_laws.iter().find(|(op, _)| op == mul_slot) else {
+                continue;
+            };
+            for add_candidate in machines_conforming_slot(program, trait_definition, add_slot) {
+                let Some(add_entry) = program.machine_states(add_candidate).first() else {
+                    continue;
+                };
+                let carrier = program
+                    .state_parameters(add_entry)
+                    .first()
+                    .map(|parameter| parameter.type_reference)
+                    .unwrap_or(add_entry.return_type);
+                if !slot_satisfier_exists(program, trait_definition, add_comm, carrier)
+                    || !slot_satisfier_exists(program, trait_definition, add_assoc, carrier)
+                    || !slot_satisfier_exists(program, trait_definition, mul_comm, carrier)
+                    || !slot_satisfier_exists(program, trait_definition, mul_assoc, carrier)
+                    || !slot_satisfier_exists(program, trait_definition, distributive_law, carrier)
+                {
+                    continue;
+                }
+                for mul_candidate in machines_conforming_slot(program, trait_definition, mul_slot) {
+                    let Some(mul_entry) = program.machine_states(mul_candidate).first() else {
+                        continue;
+                    };
+                    let mul_carrier = program
+                        .state_parameters(mul_entry)
+                        .first()
+                        .map(|parameter| parameter.type_reference)
+                        .unwrap_or(mul_entry.return_type);
+                    if crate::type_references::type_references_match(program, carrier, mul_carrier)
+                    {
+                        licenses.push(RingLicense {
+                            add_machine: add_candidate.name.as_str().to_owned(),
+                            mul_machine: Some(mul_candidate.name.as_str().to_owned()),
                         });
                     }
                 }
@@ -3914,6 +4155,38 @@ fn compute_ring_licenses(program: &TypedTrees, judged_machine: &Machine) -> Vec<
     }
 
     licenses
+}
+
+fn machines_conforming_slot<'program>(
+    program: &'program TypedTrees,
+    trait_definition: &TraitDefinition,
+    slot: &str,
+) -> Vec<&'program Machine> {
+    program
+        .machines()
+        .iter()
+        .filter(|candidate| {
+            program
+                .machine_trait_conformances(candidate)
+                .iter()
+                .any(|conformance| {
+                    if conformance.symbol != trait_definition.symbol {
+                        return false;
+                    }
+                    conformance
+                        .requirement
+                        .as_ref()
+                        .map(|name| name.as_str())
+                        .or_else(|| {
+                            candidate
+                                .attached_data
+                                .is_none()
+                                .then(|| candidate.name.as_str())
+                        })
+                        == Some(slot)
+                })
+        })
+        .collect()
 }
 
 /// Whether SOME machine conforms `(trait, requirement)` for this carrier.
@@ -3988,8 +4261,7 @@ fn commutativity_shape(
         return None;
     };
     let is_parameter = |name: &String| parameters.iter().any(|parameter| parameter == name);
-    (x != y && rx == y && ry == x && is_parameter(x) && is_parameter(y))
-        .then(|| op_l.clone())
+    (x != y && rx == y && ry == x && is_parameter(x) && is_parameter(y)).then(|| op_l.clone())
 }
 
 /// `R(R(x, y), z) == R(x, R(y, z))` (either orientation) with distinct
@@ -4020,11 +4292,8 @@ fn associativity_shape(
         if op_inner != op_outer || inner_args.len() != 2 {
             continue;
         }
-        let (
-            StructuralTerm::Variable(x),
-            StructuralTerm::Variable(y),
-            StructuralTerm::Variable(z),
-        ) = (&inner_args[0], &inner_args[1], &outer_args[1])
+        let (StructuralTerm::Variable(x), StructuralTerm::Variable(y), StructuralTerm::Variable(z)) =
+            (&inner_args[0], &inner_args[1], &outer_args[1])
         else {
             continue;
         };
@@ -4072,6 +4341,88 @@ fn associativity_shape(
     None
 }
 
+/// `M(x, A(y, z)) == A(M(x, y), M(x, z))` (either equation orientation)
+/// with three distinct requirement parameters. Returns `(M, A)`. The shape
+/// identifies trait operation slots, never similarly named ambient machines.
+fn distributivity_shape(
+    left: &StructuralTerm,
+    right: &StructuralTerm,
+    parameters: &[String],
+) -> Option<(String, String)> {
+    for (product, sum) in [(left, right), (right, left)] {
+        let StructuralTerm::Application {
+            machine: mul,
+            arguments: product_args,
+        } = product
+        else {
+            continue;
+        };
+        let [
+            StructuralTerm::Variable(x),
+            StructuralTerm::Application {
+                machine: add,
+                arguments: inner_sum,
+            },
+        ] = product_args.as_slice()
+        else {
+            continue;
+        };
+        let [StructuralTerm::Variable(y), StructuralTerm::Variable(z)] = inner_sum.as_slice()
+        else {
+            continue;
+        };
+        let StructuralTerm::Application {
+            machine: outer_add,
+            arguments: expanded,
+        } = sum
+        else {
+            continue;
+        };
+        if outer_add != add {
+            continue;
+        }
+        let [
+            StructuralTerm::Application {
+                machine: left_mul,
+                arguments: left_product,
+            },
+            StructuralTerm::Application {
+                machine: right_mul,
+                arguments: right_product,
+            },
+        ] = expanded.as_slice()
+        else {
+            continue;
+        };
+        if left_mul != mul || right_mul != mul {
+            continue;
+        }
+        let [StructuralTerm::Variable(lx), StructuralTerm::Variable(ly)] = left_product.as_slice()
+        else {
+            continue;
+        };
+        let [StructuralTerm::Variable(rx), StructuralTerm::Variable(rz)] = right_product.as_slice()
+        else {
+            continue;
+        };
+        let is_parameter = |name: &String| parameters.iter().any(|parameter| parameter == name);
+        if x != y
+            && x != z
+            && y != z
+            && lx == x
+            && ly == y
+            && rx == x
+            && rz == z
+            && is_parameter(x)
+            && is_parameter(y)
+            && is_parameter(z)
+        {
+            return Some((mul.clone(), add.clone()));
+        }
+    }
+    None
+}
+
 /// Whether `haystack` contains `needle` as a subterm (occurs check for the
 /// rewrite orientation: a rewrite whose replacement contains its own pattern
 /// would loop; the resolution cap would still bound it, but skipping keeps
@@ -4081,9 +4432,9 @@ fn term_contains(haystack: &StructuralTerm, needle: &StructuralTerm) -> bool {
         return true;
     }
     match haystack {
-        StructuralTerm::Constructor { fields, .. } => fields
-            .iter()
-            .any(|(_, value)| term_contains(value, needle)),
+        StructuralTerm::Constructor { fields, .. } => {
+            fields.iter().any(|(_, value)| term_contains(value, needle))
+        }
         StructuralTerm::Application { arguments, .. } => arguments
             .iter()
             .any(|argument| term_contains(argument, needle)),
@@ -4165,4 +4516,3 @@ fn structural_term(program: &TypedTrees, expression: ExpressionHandle) -> Option
         _ => None,
     }
 }
-

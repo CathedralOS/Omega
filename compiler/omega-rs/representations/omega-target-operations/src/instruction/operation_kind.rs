@@ -329,6 +329,8 @@ pub enum TargetOperationKind {
         source_is_float: bool,
         target_is_float: bool,
         source_signed: bool,
+        domain: omega_core::arithmetic::ArithmeticDomain,
+        target_signed: bool,
     },
     /// Atomic `fetch_add`: `LOCK xadd` of `delta` into the storage place.
     AtomicFetchAdd {

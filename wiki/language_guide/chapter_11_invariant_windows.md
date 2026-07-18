@@ -8,11 +8,12 @@ re-established. No explicit `relax` construct exists—the checker derives an
 invariant window from writes and closes it at the next consumption point.
 
 ```omega
-data Span {
+data Span
+where
+    start <= end,
+{
     start: u32;
     end: u32;
-
-    self.start <= self.end;
 }
 
 machine Span::shift(&mut self, delta: u32 [0..=1000]) {

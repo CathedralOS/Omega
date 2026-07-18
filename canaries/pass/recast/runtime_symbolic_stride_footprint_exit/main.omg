@@ -1,0 +1,44 @@
+// RUN CANARY (exit 70) + interpreter differential. Cathedral M2 gap 4b:
+// the record-view offset has no declared range. Its bound is the meet of
+// the literal entry edge and the self-loop edge. On the loop, the guard
+// bounds the COMPOUND forwarded argument (`off + desc_size`) against the
+// SYMBOLIC `map_size`; the entry guard bounds map_size above and desc_size
+// below, while the loop self-forwards both witnesses unchanged. Therefore
+//
+//   off' + sizeof(Desc) <= 48 + 16 <= 64
+//
+// follows from `off' + desc_size <= map_size`, `desc_size >= 16`, and
+// `map_size <= 64`. Weakening the loop guard to omit the extra stride must
+// refuse (fail/recast/symbolic_stride_footprint_rejected).
+boundary trait Console { machine exit_process(return_code: i32); }
+data Desc { kind: u64; pages: u64; }
+data Main {
+    console: Console;
+    buf: [u8; 64];
+    descriptor_size: u32 in Wrapping;
+    map_size: u32 in Wrapping;
+}
+machine Main::main(&mut self) {
+    self.descriptor_size = 16;
+    self.map_size = 64;
+    transition self.map_size <= 64 && self.descriptor_size >= 16 {
+        true -> walk(0, self.descriptor_size, self.map_size)
+        _ -> bad()
+    }
+
+    state walk(
+        &mut self,
+        off: u32 in Wrapping,
+        desc_size: u32 in Wrapping,
+        map_size: u32 in Wrapping
+    ) {
+        let d: &Desc = &self.buf[off] as &Desc;
+        transition off + desc_size + desc_size <= map_size {
+            true -> walk(off + desc_size, desc_size, map_size)
+            _ -> good()
+        }
+    }
+
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

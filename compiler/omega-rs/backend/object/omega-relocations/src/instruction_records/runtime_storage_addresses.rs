@@ -42,7 +42,11 @@ pub(super) fn collect_runtime_storage_address_relocations(
             true
         }
         SelectedInstructionKind::WriteRuntimeMachineIndexedAddressToRuntimeFrame {
+            base_byte_offset,
             index_region,
+            index_offset,
+            element_byte_size,
+            field_byte_offset,
             ..
         } => {
             // MACHINE base (the element-address computation) at the start,
@@ -50,22 +54,28 @@ pub(super) fn collect_runtime_storage_address_relocations(
             // base at the store's reload.
             context
                 .insert_data_address_at_instruction_start(context.machine_storage_symbol_handle());
-            if let Some((index_base_offset, target_frame_offset)) =
+            let (index_base_offset, target_frame_offset) =
                 omega_instruction_selection::runtime_machine_indexed_address_relocation_offsets(
                     context.input.target.architecture,
-                )
-            {
+                    *base_byte_offset,
+                    *index_region,
+                    *index_offset,
+                    *element_byte_size,
+                    *field_byte_offset,
+                );
+            if let Some(index_base_offset) = index_base_offset {
                 let index_symbol = context.storage_region_symbol_handle(*index_region);
                 context.insert_data_address_at_relative_offset(index_base_offset, index_symbol);
-                context.insert_data_address_at_relative_offset(
-                    target_frame_offset,
-                    context.runtime_frame_symbol_handle(),
-                );
             }
+            context.insert_data_address_at_relative_offset(
+                target_frame_offset,
+                context.runtime_frame_symbol_handle(),
+            );
             true
         }
         SelectedInstructionKind::WriteRuntimeFrameIndexedAddressToRuntimeFrame {
-            index_region, ..
+            index_region,
+            ..
         } => {
             // Source frame base at the start; x86_64 reloads the frame base for
             // the target store, and a MACHINE-resident index loads the machine

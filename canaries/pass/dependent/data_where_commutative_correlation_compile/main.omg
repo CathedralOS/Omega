@@ -1,0 +1,26 @@
+// COMPILE CANARY. Symbolic provenance canonicalizes commutative operands, so
+// the write order may differ from the default-domain fact without losing it.
+data SumTriple
+where
+    total == left + right,
+{
+    left: u32;
+    right: u32;
+    total: u32;
+}
+
+machine SumTriple::set(
+    &mut self,
+    first: u32 [0..=100],
+    second: u32 [0..=100]
+) {
+    self.left = first;
+    self.right = second;
+    self.total = second + first;
+}
+
+data Main {
+}
+
+machine Main::run(&mut self) {
+}

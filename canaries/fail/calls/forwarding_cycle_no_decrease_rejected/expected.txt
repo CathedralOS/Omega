@@ -1,1 +1,1 @@
-cannot prove decreases clause for terminating machine Main::sum
+cannot prove `terminates by` ranking witness for machine Main::sum

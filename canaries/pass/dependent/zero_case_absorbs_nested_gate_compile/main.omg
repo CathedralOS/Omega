@@ -1,0 +1,14 @@
+// COMPILE CANARY. The first sum case is the zero value. A payload-free Empty
+// therefore absorbs Player's gate, and an array of slots can zero-initialize.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Player { health: i32 [1..=100]; }
+data PlayerSlot {
+    case Empty;
+    case Filled(player: Player);
+}
+data Team { roster: [PlayerSlot; 8]; }
+data Main { console: Console; }
+machine Main::run(&mut self) {
+    let team: Team = Team {};
+    self.console.exit_process(70);
+}

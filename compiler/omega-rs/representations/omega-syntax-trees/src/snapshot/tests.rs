@@ -11,7 +11,9 @@ fn snapshots_materialize_handle_backed_syntax_shape() {
     let i32_type = syntax_trees
         .type_references
         .insert(TypeReferenceNode::Named(Identifier::generated("i32")));
-    let one = syntax_trees.expressions.insert(ExpressionNode::Integer(omega_core::literals::IntegerLiteral::from_value(1)));
+    let one = syntax_trees.expressions.insert(ExpressionNode::Integer(
+        omega_core::literals::IntegerLiteral::from_value(1),
+    ));
     let field = TableStructLiteralField {
         name: Identifier::generated("value"),
         value: one,
@@ -29,6 +31,7 @@ fn snapshots_materialize_handle_backed_syntax_shape() {
         name: Identifier::generated("Example"),
         type_parameters: omega_core::arena::HandleSpan::empty(),
         properties: crate::item::DataProperties::default(),
+        default_domain: omega_core::arena::HandleSpan::empty(),
         members: omega_core::arena::HandleSpan::from_parts(
             syntax_trees
                 .items
@@ -57,6 +60,7 @@ fn snapshots_materialize_handle_backed_syntax_shape() {
                     source_backed: false,
                 },
                 type_parameters: Vec::new(),
+                default_domain: Vec::new(),
                 members: vec![super::DataMemberSnapshot::Field {
                     name: super::IdentifierSnapshot {
                         text: "field".to_owned(),

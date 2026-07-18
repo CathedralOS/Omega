@@ -8,7 +8,8 @@
 boundary trait Console { machine exit_process(return_code: i32); }
 data Main { console: Console; base: i32 in Wrapping; }
 machine Main::count(&mut self, i: u64, j: u64)
-terminates { decreases (j, i) -> Nat::BoundedDistance; }
+terminates;
+terminates by (j, i) -> Nat::BoundedDistance;
 -> i32
 {
     transition j < i {

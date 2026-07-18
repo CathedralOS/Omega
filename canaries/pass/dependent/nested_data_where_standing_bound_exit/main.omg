@@ -1,0 +1,14 @@
+// RUN CANARY (exit 70). A zero-valid nested record contributes its standing
+// bound at the qualified place, so exact arithmetic sees self.map.value <= 60.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Map
+where
+    value <= 60,
+{
+    value: i32;
+}
+data Main { console: Console; map: Map; }
+machine Main::run(&mut self) {
+    let return_code: i32 = 70 + self.map.value;
+    self.console.exit_process(return_code);
+}

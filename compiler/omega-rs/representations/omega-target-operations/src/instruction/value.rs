@@ -65,11 +65,21 @@ pub trait RuntimeValueOperandSource {
         handle: RuntimeValueOperandHandle,
     ) -> Option<(omega_core::arithmetic::ArithmeticDomain, bool)>;
     /// A `Convert` (numeric cast) operand: `(source, source_byte_size,
-    /// target_byte_size, source_is_float, target_is_float, source_signed)`.
+    /// target_byte_size, source_is_float, target_is_float, source_signed,
+    /// arithmetic_domain, target_signed)`.
     fn convert(
         &self,
         handle: RuntimeValueOperandHandle,
-    ) -> Option<(RuntimeValueOperandHandle, usize, usize, bool, bool, bool)>;
+    ) -> Option<(
+        RuntimeValueOperandHandle,
+        usize,
+        usize,
+        bool,
+        bool,
+        bool,
+        omega_core::arithmetic::ArithmeticDomain,
+        bool,
+    )>;
     /// A `TextEquals` (value-position text content compare) operand:
     /// `(left_region, left_offset, right_region, right_offset)` of the two
     /// `{ptr, len}` text descriptor places. Evaluates to bool 0/1.
@@ -290,7 +300,16 @@ impl RuntimeValueOperandSource for Arena<RuntimeValueOperand> {
     fn convert(
         &self,
         handle: RuntimeValueOperandHandle,
-    ) -> Option<(RuntimeValueOperandHandle, usize, usize, bool, bool, bool)> {
+    ) -> Option<(
+        RuntimeValueOperandHandle,
+        usize,
+        usize,
+        bool,
+        bool,
+        bool,
+        omega_core::arithmetic::ArithmeticDomain,
+        bool,
+    )> {
         match self.get(handle) {
             RuntimeValueOperand::Convert {
                 source,
@@ -299,6 +318,8 @@ impl RuntimeValueOperandSource for Arena<RuntimeValueOperand> {
                 source_is_float,
                 target_is_float,
                 source_signed,
+                arithmetic_domain,
+                target_signed,
             } => Some((
                 *source,
                 *source_byte_size,
@@ -306,6 +327,8 @@ impl RuntimeValueOperandSource for Arena<RuntimeValueOperand> {
                 *source_is_float,
                 *target_is_float,
                 *source_signed,
+                *arithmetic_domain,
+                *target_signed,
             )),
             _ => None,
         }

@@ -1,0 +1,21 @@
+// COMPILE CANARY. A classifier-accepted literal re-establishes a membership
+// default-domain window on machine-owned, initially gated storage.
+domain [u8]::NonEmpty when non_empty(self) {
+}
+
+data Message
+where
+    text in NonEmpty,
+{
+    text: &[u8];
+}
+
+machine Message::establish(&mut self) {
+    self.text = "omega";
+}
+
+data Main {
+}
+
+machine Main::run(&mut self) {
+}

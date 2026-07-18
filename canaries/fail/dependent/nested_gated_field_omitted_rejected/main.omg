@@ -1,0 +1,8 @@
+// FAIL CANARY. The zero bytes of Player are not a Player, so Team cannot omit
+// its captain field even though Team itself spells no additional clause.
+data Player { health: i32 [1..=100]; }
+data Team { captain: Player; score: i32; }
+data Main {}
+machine Main::run(&mut self) {
+    let team: Team = Team {};
+}

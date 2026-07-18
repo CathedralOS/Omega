@@ -1,1 +1,1 @@
-cannot prove decreases clause
+cannot prove `terminates by` ranking witness

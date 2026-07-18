@@ -9,7 +9,8 @@ trait RingOps2 {
 }
 machine plus(a: Peano, b: Peano) -> Peano
 satisfies RingOps2::add
-terminates { decreases a; }
+terminates;
+terminates by a;
 {
     transition a {
         Peano::Zero -> (b)
@@ -18,7 +19,8 @@ terminates { decreases a; }
 }
 machine narrow_assoc(a: Peano, b: Peano, c: Peano) -> Peano
 satisfies RingOps2::add_assoc
-terminates { decreases a; }
+terminates;
+terminates by a;
 ensures
     (plus(plus(a, a), c)) == (plus(a, plus(a, c)))
 {

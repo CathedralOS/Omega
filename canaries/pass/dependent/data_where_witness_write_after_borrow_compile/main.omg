@@ -1,0 +1,19 @@
+// COMPILE CANARY. Witness pinning follows the ordinary loan lifetime: once the
+// view's last use passes, later writes may open and restore a fresh window.
+data Map
+where
+    start <= end,
+{
+    start: i32;
+    end: i32;
+}
+data Main { map: Map; }
+machine Main::run(&mut self) {
+    self.map.start = 10;
+    self.map.end = 20;
+    let view: &mut i32 = &mut self.map.start;
+    self.touch(view);
+    self.map.start = 10;
+    self.map.end = 30;
+}
+machine Main::touch(&mut self, value: &mut i32) { value = 10; }

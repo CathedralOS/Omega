@@ -1,6 +1,7 @@
 use omega_checked_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, ExpressionTable,
 };
+use omega_core::literals::FloatFormat;
 use omega_layout::{DataShape, LayoutPlan};
 
 /// Whether a guard operand is a CONSTANT float expression (a float literal
@@ -12,7 +13,7 @@ pub(crate) fn guard_operand_is_float_constant(
 ) -> bool {
     match table.expression(expression) {
         ExpressionNode::Float(_) => true,
-        ExpressionNode::Binary(_) => const_fold_float(table, expression).is_some(),
+        ExpressionNode::Binary(_) => const_fold_float(table, expression, None).is_some(),
         _ => false,
     }
 }
@@ -46,7 +47,7 @@ pub(super) fn resolved_guard_operand_value(
         // which already handles `self.a == self.b + self.c`. The guard's is_float comes
         // from the LEFT place, so a folded-bits RHS still lowers to `ucomisd`.
         ExpressionNode::Binary(_) => {
-            if let Some(folded) = const_fold_float(table, expression) {
+            if let Some(folded) = const_fold_float(table, expression, None) {
                 return Some(folded.to_bits() as i64);
             }
         }
@@ -56,23 +57,110 @@ pub(super) fn resolved_guard_operand_value(
     enum_variant_tag_value(layouts, table, expression)
 }
 
-/// Folds a guard operand that is a constant f64 expression -- a float literal or a binary
-/// arithmetic tree over float literals -- to its value. Returns `None` the moment any leaf
-/// is not a constant float (e.g. a place), so a runtime operand is never mistaken for a
-/// constant. Strictly constant: no place reads, so the folded value matches the value the
-/// arithmetic would produce at runtime.
-fn const_fold_float(table: &ExpressionTable, expression: ExpressionHandle) -> Option<f64> {
+/// Folds a constant float tree at its explicit or contextual format. Each
+/// arithmetic node rounds at that width, matching the runtime instruction;
+/// a place leaf still refuses the fold.
+fn const_fold_float(
+    table: &ExpressionTable,
+    expression: ExpressionHandle,
+    contextual_format: Option<FloatFormat>,
+) -> Option<f64> {
+    // Anonymous constants remain exact Rat trees until this fold site requests
+    // a format. Round the whole anonymous subtree once; landed leaves take the
+    // per-operation path below instead.
+    if let Some(exact) = exact_anonymous_float_expression(table, expression) {
+        return Some(match contextual_format.unwrap_or(FloatFormat::F64) {
+            FloatFormat::F32 => f64::from(exact.to_f32()),
+            FloatFormat::F64 => exact.to_f64(),
+        });
+    }
+    let format = float_expression_format(table, expression).or(contextual_format);
     match table.expression(expression) {
-        ExpressionNode::Float(literal) => Some(literal.landed_f64()),
+        ExpressionNode::Float(literal) => Some(match format {
+            Some(FloatFormat::F32) => f64::from(literal.value_f32()),
+            Some(FloatFormat::F64) | None => literal.landed_f64(),
+        }),
         ExpressionNode::Binary(binary) => {
-            let left = const_fold_float(table, binary.left)?;
-            let right = const_fold_float(table, binary.right)?;
-            match binary.operator {
-                BinaryOperator::Add => Some(left + right),
-                BinaryOperator::Subtract => Some(left - right),
-                BinaryOperator::Multiply => Some(left * right),
-                BinaryOperator::Divide => Some(left / right),
-                _ => None,
+            let left = const_fold_float(table, binary.left, format)?;
+            let right = const_fold_float(table, binary.right, format)?;
+            Some(match format {
+                Some(FloatFormat::F32) => {
+                    let (left, right) = (left as f32, right as f32);
+                    f64::from(match binary.operator {
+                        BinaryOperator::Add => left + right,
+                        BinaryOperator::Subtract => left - right,
+                        BinaryOperator::Multiply => left * right,
+                        BinaryOperator::Divide => left / right,
+                        _ => return None,
+                    })
+                }
+                Some(FloatFormat::F64) | None => match binary.operator {
+                    BinaryOperator::Add => left + right,
+                    BinaryOperator::Subtract => left - right,
+                    BinaryOperator::Multiply => left * right,
+                    BinaryOperator::Divide => left / right,
+                    _ => return None,
+                },
+            })
+        }
+        _ => None,
+    }
+}
+
+fn exact_anonymous_float_expression(
+    table: &ExpressionTable,
+    expression: ExpressionHandle,
+) -> Option<omega_core::bignum::ExactFloat> {
+    use omega_core::bignum::ExactFloat;
+
+    match table.expression(expression) {
+        ExpressionNode::Float(literal) if literal.landing().is_none() => {
+            ExactFloat::from_decimal_str(literal.text())
+        }
+        ExpressionNode::Binary(binary) => {
+            let left = exact_anonymous_float_expression(table, binary.left)?;
+            let right = exact_anonymous_float_expression(table, binary.right)?;
+            Some(match binary.operator {
+                BinaryOperator::Add => left.add(&right),
+                BinaryOperator::Subtract => left.sub(&right),
+                BinaryOperator::Multiply => left.mul(&right),
+                BinaryOperator::Divide => left.div(&right),
+                _ => return None,
+            })
+        }
+        _ => None,
+    }
+}
+
+/// Re-fold a constant guard leg at the width of the place on the other side.
+/// Anonymous literals inherit that width; an explicit f64 suffix promotes
+/// the expression and keeps an f64 fold.
+pub(super) fn resolved_float_guard_operand_value(
+    table: &ExpressionTable,
+    expression: ExpressionHandle,
+    place_byte_size: usize,
+) -> Option<i64> {
+    let contextual_format = match place_byte_size {
+        4 => FloatFormat::F32,
+        8 => FloatFormat::F64,
+        _ => return None,
+    };
+    const_fold_float(table, expression, Some(contextual_format)).map(|value| value.to_bits() as i64)
+}
+
+fn float_expression_format(
+    table: &ExpressionTable,
+    expression: ExpressionHandle,
+) -> Option<FloatFormat> {
+    match table.expression(expression) {
+        ExpressionNode::Float(literal) => literal.landing(),
+        ExpressionNode::Binary(binary) => {
+            let left = float_expression_format(table, binary.left);
+            let right = float_expression_format(table, binary.right);
+            match (left, right) {
+                (Some(FloatFormat::F64), _) | (_, Some(FloatFormat::F64)) => Some(FloatFormat::F64),
+                (Some(FloatFormat::F32), _) | (_, Some(FloatFormat::F32)) => Some(FloatFormat::F32),
+                (None, None) => None,
             }
         }
         _ => None,

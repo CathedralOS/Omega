@@ -1,0 +1,21 @@
+// R2: `.capacity` is a standing O(1) measure alongside `.len`. Literal
+// construction and a later place write carry the exact String capacity fact.
+data Buffer
+where
+    used == storage.capacity,
+{
+    used: u64;
+    storage: String;
+}
+
+machine Buffer::replace(&mut self) {
+    self.storage = "omega";
+    self.used = 5;
+}
+
+data Main {
+}
+
+machine Main::run(&mut self) {
+    let buffer: Buffer = Buffer { used: 5, storage: "omega" };
+}

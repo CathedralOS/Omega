@@ -1,1 +1,1 @@
-array ELEMENT range that excludes
+open default-domain invariant window

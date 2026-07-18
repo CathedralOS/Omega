@@ -1,7 +1,6 @@
-// A plain two-subject tuple `decreases (index, limit)` infers the named
-// bounded distance: Nat::BoundedDistance is the only builtin two-subject
-// ranking, so the view may be omitted. The subjects bind in order to the
-// view's (lower, upper) parameters.
+// A two-subject tuple has no canonical default. This canary selects
+// Nat::BoundedDistance explicitly; the subjects bind in order to the view's
+// (lower, upper) parameters.
 
 data Main {}
 
@@ -12,9 +11,8 @@ machine Main::main(&mut self) -> u64 {
 }
 
 machine Main::walk(&mut self, limit: u64, index: u64)
-terminates {
-    decreases (index, limit);
-}
+terminates;
+terminates by (index, limit) -> Nat::BoundedDistance;
 -> u64
 {
     transition index < limit {

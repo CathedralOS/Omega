@@ -69,6 +69,7 @@ pub(crate) fn data_definition_from_wire_schema(
         storage: DataDefinitionStorage {
             type_parameters: omega_core::arena::HandleSpan::empty(),
             properties: DataProperties::default(),
+            default_domain: omega_core::arena::HandleSpan::empty(),
             members,
         },
     }

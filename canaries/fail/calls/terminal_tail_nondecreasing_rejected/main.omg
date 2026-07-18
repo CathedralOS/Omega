@@ -1,12 +1,13 @@
 // MR2 negative twin: the terminal tail call passes `n` UNCHANGED, so no
 // measure decreases across the rewritten loop-back edge -- the machine
 // would spin forever. The fall-through complement supplies positivity,
-// never the decrease itself; `decreases n` stays unproven and refuses.
+// never the decrease itself; `terminates by n` stays unproven and refuses.
 // (Deleting the base-case exit refuses identically: nothing to refute.)
 boundary trait Console { machine exit_process(return_code: i32); }
 data Main { console: Console; }
 machine Main::countdown(&mut self, n: u64 [0..=100]) -> u64
-terminates { decreases n; }
+terminates;
+terminates by n;
 {
     transition n == 0 { true -> 7 }
     self.countdown(n)

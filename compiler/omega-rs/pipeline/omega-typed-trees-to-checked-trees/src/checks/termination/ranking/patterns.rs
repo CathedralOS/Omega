@@ -154,35 +154,6 @@ pub(super) fn edge_to_any_guard<'program>(
     None
 }
 
-/// Match a guarded transition from `state` whose target is exactly
-/// `target_symbol`. Unlike [`guarded_self_loop`], the target may be a different
-/// state, which is what lets cycle reasoning prove a decrease across a
-/// back-edge of a mutually-recursive cycle.
-pub(super) fn guarded_edge_to<'program>(
-    program: &'program omega_typed_trees::TypedTrees,
-    statement: &StatementNode,
-    target_symbol: omega_core::symbols::SymbolHandle,
-) -> Option<GuardedEdge<'program>> {
-    let StatementNode::Transition(transition) = statement else {
-        return None;
-    };
-    let TransitionGuardNode::When(guard) = transition.guard else {
-        return None;
-    };
-    let target = program.statement_table.transition_target(transition.target);
-    let TransitionTargetNode::Named { path, arguments } = target else {
-        return None;
-    };
-    if path.symbol != target_symbol {
-        return None;
-    }
-
-    Some(GuardedEdge {
-        guard,
-        arguments: program.statement_table.expression_handles(*arguments),
-    })
-}
-
 pub(super) fn parameter_matched_by_expression<'program>(
     program: &'program omega_typed_trees::TypedTrees,
     state: &'program omega_typed_trees::state::State,

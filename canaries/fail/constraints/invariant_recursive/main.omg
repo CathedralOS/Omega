@@ -1,7 +1,0 @@
-
-data Main {
-    speed: f32 = 0.0f;
-}
-
-machine Main::main(&mut self) {
-}

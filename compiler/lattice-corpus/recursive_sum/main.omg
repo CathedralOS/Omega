@@ -41,9 +41,8 @@ data Main {
 // Recursive value-returning machine: sum all elements in slice s.
 // The guard `s.len > 0` proves bounds for both s[0] and s[1..].
 machine Summer::sum(&mut self, s: &[i32 in Wrapping], acc: i32 in Wrapping) -> i32
-terminates {
-    decreases s -> Slice::Length;
-}
+terminates;
+terminates by s -> Slice::Length;
 {
     transition s.len > 0 {
         true -> sum(s[1..], acc + s[0])
@@ -53,9 +52,8 @@ terminates {
 
 // Recursive value-returning machine: count elements in slice s.
 machine Summer::count(&mut self, s: &[i32 in Wrapping], acc: i32 in Wrapping) -> i32
-terminates {
-    decreases s -> Slice::Length;
-}
+terminates;
+terminates by s -> Slice::Length;
 {
     transition s.len > 0 {
         true -> count(s[1..], acc + 1)

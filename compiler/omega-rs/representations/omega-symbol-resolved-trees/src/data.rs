@@ -15,6 +15,7 @@ pub struct DataDefinition {
 pub struct DataDefinitionStorage {
     pub type_parameters: HandleSpan<TypeParameter>,
     pub properties: DataProperties,
+    pub default_domain: HandleSpan<crate::domain::ProofFact>,
     pub members: HandleSpan<DataMember>,
 }
 

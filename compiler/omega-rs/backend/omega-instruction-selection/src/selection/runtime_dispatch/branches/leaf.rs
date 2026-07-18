@@ -200,7 +200,7 @@ fn leaf_expansion_matches_operation(
 }
 
 /// A machine is RE-ENTRANT when any of its states transitions back to its
-/// ENTRY state (the first StateFlow) -- the `terminates {{ decreases .. }}`
+/// ENTRY state (the first StateFlow) -- the `terminates by ..;`
 /// walk shape (`true -> walk(path, i + 1)`). Ordinary forward state chains
 /// never target the entry, so they are not flagged.
 fn order_return_value_fallbacks_first(expansions: &mut [&RuntimeLeafBranchExpansion]) {
@@ -1247,7 +1247,13 @@ fn select_runtime_leaf_assignment_value_target_copy(
         && source_slot.byte_size > 0
     {
         selected_instructions.push(SelectedInstruction {
-            kind: crate::selection::runtime_dispatch::copy_places_to_pointee(RuntimeStorageRegion::RuntimeFrame, source_slot.byte_offset, pointer_target.pointer_byte_offset, pointer_target.field_byte_offset, source_slot.byte_size),
+            kind: crate::selection::runtime_dispatch::copy_places_to_pointee(
+                RuntimeStorageRegion::RuntimeFrame,
+                source_slot.byte_offset,
+                pointer_target.pointer_byte_offset,
+                pointer_target.field_byte_offset,
+                source_slot.byte_size,
+            ),
             source_key: expansion.source_key,
             source_statement: expansion.statement_index,
         });
@@ -1267,7 +1273,13 @@ fn select_runtime_leaf_assignment_value_target_copy(
     }
 
     selected_instructions.push(SelectedInstruction {
-        kind: crate::selection::runtime_dispatch::copy_places_direct(RuntimeStorageRegion::RuntimeFrame, source_slot.byte_offset, target_place.region, target_place.byte_offset, source_slot.byte_size),
+        kind: crate::selection::runtime_dispatch::copy_places_direct(
+            RuntimeStorageRegion::RuntimeFrame,
+            source_slot.byte_offset,
+            target_place.region,
+            target_place.byte_offset,
+            source_slot.byte_size,
+        ),
         source_key: expansion.source_key,
         source_statement: expansion.statement_index,
     });
@@ -1323,7 +1335,9 @@ fn select_runtime_leaf_local_initializer_writes(
         if std::env::var_os("OMEGA_DEBUG_CALL_RESULT").is_some() {
             eprintln!(
                 "LEAFINIT:   slot? {}",
-                slot_lookup.map(|slot| slot.byte_offset as i64).unwrap_or(-1),
+                slot_lookup
+                    .map(|slot| slot.byte_offset as i64)
+                    .unwrap_or(-1),
             );
         }
         let Some(slot) = slot_lookup else {

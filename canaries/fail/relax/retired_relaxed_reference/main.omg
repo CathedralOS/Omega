@@ -1,0 +1,15 @@
+// FAIL CANARY. Relaxed reference qualifiers are retired together with relax
+// scopes; ordinary `&mut` carries the exclusive access used by invariant windows.
+data Tree {
+    root: i32;
+}
+
+machine Tree::rotate_raw(root: &mut relaxed i32) {
+}
+
+data Main {
+    tree: Tree;
+}
+
+machine Main::main(&mut self) {
+}

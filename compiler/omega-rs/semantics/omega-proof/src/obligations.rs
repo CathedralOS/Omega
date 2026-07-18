@@ -1,4 +1,5 @@
 use omega_core::arena::{Arena, HandleSpan};
+use omega_core::arithmetic::ArithmeticDomain;
 use omega_core::bignum::BigInt;
 use omega_core::symbols::{BuiltinType, BuiltinTypeMember, SymbolHandle};
 use omega_typed_trees::TypedTrees;
@@ -14,7 +15,7 @@ use omega_typed_trees::statement::{
     TransitionTargetHandle, TransitionTargetNode,
 };
 use omega_typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
-use std::fmt;
+use std::{collections::BTreeMap, fmt};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProofPlan<'program> {
@@ -105,6 +106,9 @@ impl ProofConstraint {
     fn from_node(program: &TypedTrees, constraint: &TypeConstraintNode) -> Option<Self> {
         match constraint {
             TypeConstraintNode::Named(name) => Some(Self::Named(name.clone())),
+            TypeConstraintNode::ValueDomain(domain) => {
+                Some(Self::Named(Identifier::generated(domain.proof_name())))
+            }
             // A declared encoding domain (`[u8] in Utf8`) is a domain-MEMBERSHIP
             // obligation, NOT a scalar proof constraint -- `ProofConstraint::Named`
             // is consumed only by the arithmetic/range logic (`exact`/`wrapping`/
@@ -132,9 +136,15 @@ impl ProofConstraint {
         // used to behave unbounded), then the node reader covers the
         // `u32::MAX`-style named-constant spelling.
         let integer_bound = |bound: ExpressionHandle| {
-            program.expression_table.constant_integer_value(bound).or_else(|| {
-                integer_constant_value_from_node(program, program.expression_table.expression(bound))
-            })
+            program
+                .expression_table
+                .constant_integer_value(bound)
+                .or_else(|| {
+                    integer_constant_value_from_node(
+                        program,
+                        program.expression_table.expression(bound),
+                    )
+                })
         };
         if let (Some(minimum), Some(maximum)) = (integer_bound(minimum), integer_bound(maximum)) {
             return Some(Self::IntegerRange {
@@ -471,7 +481,6 @@ struct FloatRange {
     maximum: f64,
 }
 
-
 /// The caller's argument for the SIBLING a sibling-length atom names --
 /// `None`/invalid when the parameter's constraints carry no such atom or the
 /// sibling name matches no parameter. Positional: parameters and arguments
@@ -562,18 +571,40 @@ pub fn build_proof_plan(program: &TypedTrees) -> ProofPlan<'_> {
             }
 
             let table_statements = program.statement_table.statements(state.statement_nodes);
+            // Float wellness/range constraints are invariant WINDOWS: writes may
+            // transiently leave the domain, but the last write must re-establish
+            // it before a consumption point. Keep one pending obligation per
+            // place; overwriting poison before observation deliberately replaces
+            // the earlier debt.
+            let mut pending_float_windows: BTreeMap<String, (usize, &TableAssignment)> =
+                BTreeMap::new();
             for (statement_index, statement) in table_statements.iter().enumerate() {
+                if statement_closes_float_windows(program, statement) {
+                    flush_pending_float_windows(
+                        program,
+                        machine,
+                        state,
+                        table_statements,
+                        &mut pending_float_windows,
+                        &mut proof_plan,
+                    );
+                }
                 let transition = match statement {
                     StatementNode::Assignment(assignment) => {
-                        collect_bounded_assignment_obligation(
-                            program,
-                            machine,
-                            state,
-                            assignment,
-                            table_statements,
-                            statement_index,
-                            &mut proof_plan,
-                        );
+                        if assignment_opens_float_window(program, machine, state, assignment) {
+                            let place = program.expression_table.display_name(assignment.target);
+                            pending_float_windows.insert(place, (statement_index, assignment));
+                        } else {
+                            collect_bounded_assignment_obligation(
+                                program,
+                                machine,
+                                state,
+                                assignment,
+                                table_statements,
+                                statement_index,
+                                &mut proof_plan,
+                            );
+                        }
                         continue;
                     }
                     StatementNode::Call(table_call) => {
@@ -612,10 +643,78 @@ pub fn build_proof_plan(program: &TypedTrees) -> ProofPlan<'_> {
                     &mut proof_plan,
                 );
             }
+            flush_pending_float_windows(
+                program,
+                machine,
+                state,
+                table_statements,
+                &mut pending_float_windows,
+                &mut proof_plan,
+            );
         }
     }
 
     proof_plan
+}
+
+fn assignment_opens_float_window(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    assignment: &TableAssignment,
+) -> bool {
+    expression_type_reference(program, machine, state, assignment.target)
+        .map(|type_reference| {
+            collect_constraints_in_state(program, machine, state, type_reference)
+                .iter()
+                .any(|constraint| {
+                    matches!(constraint, ProofConstraint::FloatRange { .. })
+                        || matches!(constraint, ProofConstraint::Named(name) if name.as_str() == "finite")
+                })
+        })
+        .unwrap_or(false)
+}
+
+fn statement_closes_float_windows(program: &TypedTrees, statement: &StatementNode) -> bool {
+    matches!(
+        statement,
+        StatementNode::Call(_) | StatementNode::Transition(_) | StatementNode::Expression(_)
+    ) || matches!(statement, StatementNode::LocalData(local)
+        if type_reference_is_borrow(program, local.type_reference))
+}
+
+fn type_reference_is_borrow(program: &TypedTrees, type_reference: TypeReferenceHandle) -> bool {
+    if !type_reference.is_valid() {
+        return false;
+    }
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Reference { .. } => true,
+        TypeReferenceNode::Constrained { base_type, .. } => {
+            type_reference_is_borrow(program, *base_type)
+        }
+        _ => false,
+    }
+}
+
+fn flush_pending_float_windows(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    statements: &[StatementNode],
+    pending: &mut BTreeMap<String, (usize, &TableAssignment)>,
+    proof_plan: &mut ProofPlan<'_>,
+) {
+    for (_, (statement_index, assignment)) in std::mem::take(pending) {
+        collect_bounded_assignment_obligation(
+            program,
+            machine,
+            state,
+            assignment,
+            statements,
+            statement_index,
+            proof_plan,
+        );
+    }
 }
 
 fn estimated_proof_obligation_capacity(program: &TypedTrees) -> usize {
@@ -869,9 +968,9 @@ fn ensures_witness_bounds_at(
         match statement {
             StatementNode::Call(call) => {
                 witnesses.clear();
-                let Some(signature) = omega_typed_trees::boundary::called_boundary_signature(
-                    program, machine, call,
-                ) else {
+                let Some(signature) =
+                    omega_typed_trees::boundary::called_boundary_signature(program, machine, call)
+                else {
                     continue;
                 };
                 let arguments = program.statement_table.expression_handles(call.arguments);
@@ -1239,9 +1338,7 @@ fn expression_contains_call_node(program: &TypedTrees, expression: ExpressionHan
             expression_contains_call_node(program, indexed.collection)
                 || expression_contains_call_node(program, indexed.index)
         }
-        ExpressionNode::Member(member) => {
-            expression_contains_call_node(program, member.receiver)
-        }
+        ExpressionNode::Member(member) => expression_contains_call_node(program, member.receiver),
         _ => false,
     }
 }
@@ -1564,7 +1661,40 @@ fn expression_constraints(
         ExpressionNode::Binary(binary) => {
             let left = expression_constraints(program, machine, state, binary.left);
             let right = expression_constraints(program, machine, state, binary.right);
-            derived_binary_constraints(binary.operator, &left, &right)
+            let mut constraints = derived_binary_constraints(binary.operator, &left, &right);
+            let domain = expression_arithmetic_domain(program, machine, state, binary.left)
+                .filter(|domain| *domain != ArithmeticDomain::Exact)
+                .or_else(|| {
+                    expression_arithmetic_domain(program, machine, state, binary.right)
+                        .filter(|domain| *domain != ArithmeticDomain::Exact)
+                })
+                .unwrap_or(ArithmeticDomain::Exact);
+            let arithmetic = matches!(
+                binary.operator,
+                BinaryOperator::Add
+                    | BinaryOperator::Subtract
+                    | BinaryOperator::Multiply
+                    | BinaryOperator::Divide
+            );
+            let trapping_result_is_finite = domain == ArithmeticDomain::Trapping && arithmetic;
+            let saturating_result_is_finite = domain == ArithmeticDomain::Saturating
+                && constraints_are_finite(&left)
+                && constraints_are_finite(&right)
+                && match binary.operator {
+                    BinaryOperator::Add | BinaryOperator::Subtract | BinaryOperator::Multiply => {
+                        true
+                    }
+                    BinaryOperator::Divide => float_constraints_exclude_zero(&right),
+                    _ => false,
+                };
+            if (trapping_result_is_finite || saturating_result_is_finite)
+                && !has_named_constraint(&constraints, "finite")
+            {
+                constraints.push(ProofConstraint::Named(Identifier::generated_static(
+                    "finite",
+                )));
+            }
+            constraints
         }
         ExpressionNode::Range(range) => {
             let mut constraints = ConstraintBuffer::new();
@@ -1721,6 +1851,31 @@ fn expression_type_reference(
     }
 }
 
+fn expression_arithmetic_domain(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    expression: ExpressionHandle,
+) -> Option<ArithmeticDomain> {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Cast(cast) => Some(cast.domain),
+        ExpressionNode::Mutable(inner) => {
+            expression_arithmetic_domain(program, machine, state, *inner)
+        }
+        ExpressionNode::Unary(unary) => {
+            expression_arithmetic_domain(program, machine, state, unary.operand)
+        }
+        ExpressionNode::Binary(binary) => {
+            let left = expression_arithmetic_domain(program, machine, state, binary.left);
+            let right = expression_arithmetic_domain(program, machine, state, binary.right);
+            left.filter(|domain| *domain != ArithmeticDomain::Exact)
+                .or(right)
+        }
+        _ => expression_type_reference(program, machine, state, expression)
+            .map(|type_reference| program.arithmetic_domain_for_type_reference(type_reference)),
+    }
+}
+
 /// The ELEMENT type of an array/slice type reference, through reference and
 /// constraint shells: `[T; N]` / `[T]` / `&[T]` -> `T` (constraints intact).
 fn element_type_reference(
@@ -1787,9 +1942,11 @@ fn self_field_path(program: &TypedTrees, expression: ExpressionHandle) -> Option
         }
         ExpressionNode::Name(name) => {
             match program.expression_table.name_path_members(name.members) {
-                [first, rest @ ..] if first.as_str() == "self" => {
-                    Some(rest.iter().map(|segment| segment.as_str().to_owned()).collect())
-                }
+                [first, rest @ ..] if first.as_str() == "self" => Some(
+                    rest.iter()
+                        .map(|segment| segment.as_str().to_owned())
+                        .collect(),
+                ),
                 _ => None,
             }
         }
@@ -1826,9 +1983,7 @@ fn type_reference_data_name(
 ) -> Option<String> {
     match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Named { name, .. } => Some(name.as_str().to_owned()),
-        TypeReferenceNode::Reference { referee, .. } => {
-            type_reference_data_name(program, *referee)
-        }
+        TypeReferenceNode::Reference { referee, .. } => type_reference_data_name(program, *referee),
         TypeReferenceNode::Constrained { base_type, .. } => {
             type_reference_data_name(program, *base_type)
         }
@@ -1941,7 +2096,6 @@ fn dehoisted_initializer(
     }
     Some(initializer)
 }
-
 
 fn local_data_by_name<'program>(
     program: &'program TypedTrees,
@@ -2101,9 +2255,7 @@ fn data_field_in_definition(
         })
 }
 
-fn integer_literal_constraints(
-    literal: &omega_core::literals::IntegerLiteral,
-) -> ConstraintBuffer {
+fn integer_literal_constraints(literal: &omega_core::literals::IntegerLiteral) -> ConstraintBuffer {
     let mut constraints = ConstraintBuffer::new();
     // N2: literal facts are EXACT at any magnitude (canonical text always
     // parses); the D14 width gate still owns which POSITIONS may spell an
@@ -2468,6 +2620,16 @@ fn has_named_constraint(constraints: &ConstraintBuffer, name: &str) -> bool {
             ProofConstraint::Named(constraint_name) if constraint_name.as_str() == name
         )
     })
+}
+
+fn constraints_are_finite(constraints: &ConstraintBuffer) -> bool {
+    has_named_constraint(constraints, "finite")
+        || float_range_from_constraints(constraints).is_some()
+}
+
+fn float_constraints_exclude_zero(constraints: &ConstraintBuffer) -> bool {
+    float_range_from_constraints(constraints)
+        .is_some_and(|range| range.minimum > 0.0 || range.maximum < 0.0)
 }
 
 fn integer_range_from_constraints(constraints: &ConstraintBuffer) -> Option<IntegerRange> {

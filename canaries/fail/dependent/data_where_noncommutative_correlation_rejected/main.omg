@@ -1,0 +1,26 @@
+// FAIL CANARY. Symbolic provenance must preserve operand order for
+// non-commutative operators: `right - left` cannot establish `left - right`.
+data DifferenceTriple
+where
+    total == left - right,
+{
+    left: i32;
+    right: i32;
+    total: i32;
+}
+
+machine DifferenceTriple::set(
+    &mut self,
+    first: i32 [0..=100],
+    second: i32 [0..=100]
+) {
+    self.left = first;
+    self.right = second;
+    self.total = second - first;
+}
+
+data Main {
+}
+
+machine Main::run(&mut self) {
+}

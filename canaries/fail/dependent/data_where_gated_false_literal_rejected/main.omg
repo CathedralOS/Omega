@@ -1,0 +1,12 @@
+// FAIL CANARY. Naming the witness is insufficient: construction must prove
+// the default-domain fact from the actual initializer value.
+data Player
+where
+    health >= 1,
+{
+    health: i32;
+}
+data Main {}
+machine Main::run(&mut self) {
+    let player: Player = Player { health: 0 };
+}

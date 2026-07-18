@@ -421,10 +421,21 @@ Ordered rungs, each independently shippable, each with its acceptance driver:
   (`requires a.cols == b.rows`; `i: u64 [0..items.len]` as requires sugar).
   Engine: DBM atoms already relational; plumbing + surface only. Driver:
   matrix agreement.
-- **R2 — Couplings + loans:** default-domain build-out (already settled)
-  carrying cross-field couplings; loan-on-witness in the borrow checker;
-  store-checker enforcement of couplings; zero-satisfies-coupling ZII rule.
-  Driver: `len`-sizes-`payload` data.
+- **R2 — Couplings + loans (partially landed 2026-07-17):** data default-domain
+  clauses, exact construction gates, range-as-domain sugar, recursive gating,
+  standing scalar bounds, direct/nested/indexed consumption-point windows, and
+  loan-on-witness pinning and flow-proven local construction are live.
+  Classifier-backed byte-domain membership now participates in zero validity,
+  literal construction, standing facts, and window restoration; versioned
+  expression provenance proves identical and affine correlations across
+  construction and adjacent writes, while invalidating them on overwrite.
+  The `.len` and `.capacity` measure facts follow supported zero values,
+  literals, and place copies through construction and writes. Symbolic
+  provenance also canonicalizes commutative binary operators without assuming
+  associativity, so equivalent operand order restores a coupling while
+  subtraction order remains distinct. Remaining implementation is other
+  non-classifier operator/measure facts, broader relational evaluation beyond
+  this normalization, and finer read-consumption precision.
 - **R3 — Bounded-product rule** in the polynomial engine. Drivers: `y*W+x`
   (unblocks the TASKS.md nonlinear-index entry), `i*stride`.
 - **R4 — View parameters + boundary witness mints:** out-params as

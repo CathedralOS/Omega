@@ -1,0 +1,6 @@
+// Exact shifts require a statically proven count in 0..operand_width.
+data Main { }
+machine Main::main(&mut self) {
+    let value: u32 = 1;
+    let shifted: u32 = value << 32;
+}

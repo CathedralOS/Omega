@@ -17,10 +17,19 @@ pub(crate) fn lower_typed_trees(
     // and before both engines fork off it -- every downstream read (native
     // and interpreter) then rounds once from the spelling.
     omega_validation::land_float_literal_destinations(&mut program);
+    checks::termination::inherit_requirement_guarantees(&mut program);
+    checks::termination::elaborate_canonical_ranking_views(&mut program);
     let validated = validate_typed_program(&program)?;
     let facts = build_check_facts(&program, &validated.proof_plan, validated.effects);
 
     checks::check_checked_facts(&program, &facts)?;
 
-    Ok(CheckedTrees::with_roots(program, facts))
+    let termination_summaries =
+        checks::termination::checked_termination_summaries(&program);
+
+    Ok(CheckedTrees::with_termination_summaries(
+        program,
+        facts,
+        termination_summaries,
+    ))
 }

@@ -30,7 +30,7 @@
 //!   compare the encoder emits is SIGNED, and a bit-pattern u64 under it is
 //!   sign-blind.
 //! - **Accepted (fire G, 2026-07-11, math roster N2):** literals inside
-//!   CONTRACT FACT positions (`requires`/`ensures` facts, `decreases`
+//!   CONTRACT FACT positions (`requires`/`ensures` facts, ranking-witness
 //!   measures) at ANY magnitude -- contracts never lower to runtime bytes;
 //!   their one consumer is the proof engine, which reads literals exactly
 //!   (`value_bignum`, N2 bignum coefficients). This is the position where
@@ -108,10 +108,7 @@ fn u64_blessed_literals(program: &TypedTrees) -> Vec<ExpressionHandle> {
             let Some(primitive) = program.primitive_type_reference(unwrapped) else {
                 continue;
             };
-            if matches!(
-                primitive,
-                PrimitiveType::U64 | PrimitiveType::Addr
-            ) {
+            if matches!(primitive, PrimitiveType::U64 | PrimitiveType::Addr) {
                 blessed.push(field.value);
             }
         }
@@ -135,10 +132,9 @@ fn u64_blessed_literals(program: &TypedTrees) -> Vec<ExpressionHandle> {
                         if !oversize_literal(program, local.initial_value) {
                             continue;
                         }
-                        let Some(unwrapped) = crate::places::unwrapped_type_reference(
-                            program,
-                            local.type_reference,
-                        ) else {
+                        let Some(unwrapped) =
+                            crate::places::unwrapped_type_reference(program, local.type_reference)
+                        else {
                             continue;
                         };
                         if primitive_is_u64_classed(program, unwrapped) {
@@ -156,7 +152,11 @@ fn u64_blessed_literals(program: &TypedTrees) -> Vec<ExpressionHandle> {
                             transition.guard
                         {
                             bless_equality_guard_literals(
-                                program, machine, state, guard, &mut blessed,
+                                program,
+                                machine,
+                                state,
+                                guard,
+                                &mut blessed,
                             );
                         }
                     }
@@ -165,7 +165,7 @@ fn u64_blessed_literals(program: &TypedTrees) -> Vec<ExpressionHandle> {
             }
         }
 
-        // Fire G: contract facts and decreases measures live in the proof
+        // Fire G: contract facts and ranking witnesses live in the proof
         // domain only; the exact engine is their sole reader.
         for contract in program.machine_contracts(machine) {
             for fact in program.proof_facts.span_or_empty(contract.facts) {
@@ -174,8 +174,21 @@ fn u64_blessed_literals(program: &TypedTrees) -> Vec<ExpressionHandle> {
                 }
             }
         }
-        for measure in program.expression_table.expression_handles(machine.decreases) {
+        for measure in program
+            .expression_table
+            .expression_handles(machine.ranking_witness.subjects)
+        {
             bless_fact_literals(program, *measure, &mut blessed);
+        }
+        for argument in program
+            .expression_table
+            .expression_handles(machine.ranking_witness.view_arguments)
+        {
+            bless_fact_literals(program, *argument, &mut blessed);
+        }
+        if machine.ranking_witness.range.is_present() {
+            bless_fact_literals(program, machine.ranking_witness.range.start, &mut blessed);
+            bless_fact_literals(program, machine.ranking_witness.range.end, &mut blessed);
         }
     }
     blessed
@@ -288,41 +301,319 @@ pub(crate) fn validate_suffix_magnitudes(program: &TypedTrees, diagnostics: &mut
 /// 8388609.499999999999999 witness lands on the wrong side of the tie).
 ///
 /// The walk enumerates EXACTLY the destinations of `validate_suffix_landings`
-/// below (struct-literal fields, assignments, let locals) -- keep the two in
-/// lockstep. Already-landed (suffixed) literals are untouched: their landing
-/// was chosen at the spelling, and the suffix-vs-destination check owns any
-/// disagreement. Runs on the still-mutable typed tree BEFORE validation, so
-/// both engines consume one stamped tree.
+/// below -- keep the two in lockstep. It propagates the destination format
+/// through a homogeneous arithmetic spine. A wholly anonymous constant
+/// subtree evaluates as exact rational arithmetic and rounds once where it
+/// meets that format; a landed operand instead keeps its riding format and
+/// makes subsequent operations round per node. Runs on the still-mutable typed
+/// tree BEFORE validation, so both engines consume one stamped/folded tree.
 pub fn land_float_literal_destinations(program: &mut TypedTrees) {
-    use omega_core::literals::FloatFormat;
+    let pairs = literal_destination_pairs(program);
 
-    let mut pairs: Vec<(
-        ExpressionHandle,
-        omega_typed_trees::types::TypeReferenceHandle,
-    )> = Vec::new();
-
-    for (handle, node) in program.expression_table.expression_entries() {
-        let _ = handle;
-        let ExpressionNode::StructLiteral(literal) = node else {
+    for (value, declared) in pairs {
+        let Some(format) = destination_float_format(program, declared) else {
             continue;
         };
-        let Some(data_definition) = program
-            .data_definitions()
-            .iter()
-            .find(|definition| definition.name.as_str() == literal.type_name.as_str())
+        land_float_expression(program, value, format);
+    }
+
+    // Guards are not value destinations, but a float place supplies the
+    // contextual format for the opposite adaptive constant/expression leg.
+    // Collect first, then mutate the table, so native and interpreter receive
+    // the same landed/exact-folded guard tree before their pipeline fork.
+    let mut guard_landings = Vec::new();
+    for machine in program.machines() {
+        for state in program.machine_states(machine) {
+            for statement in program.statement_table.statements(state.statement_nodes) {
+                if let StatementNode::Transition(transition) = statement
+                    && let omega_typed_trees::statement::TransitionGuardNode::When(guard) =
+                        transition.guard
+                {
+                    collect_float_guard_landings(
+                        program,
+                        machine,
+                        state,
+                        guard,
+                        &mut guard_landings,
+                    );
+                }
+            }
+        }
+    }
+    for (expression, format) in guard_landings {
+        land_float_expression(program, expression, format);
+    }
+    fold_anonymous_float_comparisons(program);
+}
+
+fn destination_float_format(
+    program: &TypedTrees,
+    type_reference: omega_typed_trees::types::TypeReferenceHandle,
+) -> Option<omega_core::literals::FloatFormat> {
+    use omega_typed_trees::types::TypeReferenceNode;
+
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Reference { referee, .. } => destination_float_format(program, *referee),
+        TypeReferenceNode::Constrained { base_type, .. } => {
+            destination_float_format(program, *base_type)
+        }
+        TypeReferenceNode::FixedArray { element_type, .. }
+        | TypeReferenceNode::Slice { element_type } => {
+            destination_float_format(program, *element_type)
+        }
+        TypeReferenceNode::Named { name, .. } => match PrimitiveType::from_name(name.as_str())? {
+            PrimitiveType::F32 => Some(omega_core::literals::FloatFormat::F32),
+            PrimitiveType::F64 => Some(omega_core::literals::FloatFormat::F64),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+fn collect_float_guard_landings(
+    program: &TypedTrees,
+    machine: &omega_typed_trees::machine::Machine,
+    state: &omega_typed_trees::state::State,
+    expression: ExpressionHandle,
+    landings: &mut Vec<(ExpressionHandle, omega_core::literals::FloatFormat)>,
+) {
+    use omega_typed_trees::expression::BinaryOperator;
+
+    let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
+        return;
+    };
+    if matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or) {
+        collect_float_guard_landings(program, machine, state, binary.left, landings);
+        collect_float_guard_landings(program, machine, state, binary.right, landings);
+        return;
+    }
+    // Multi-arm guard desugaring wraps the spelled comparison as
+    // `(subject) == true`; peel that boolean shell to reach the actual float
+    // comparison and its place-supplied format.
+    if matches!(
+        binary.operator,
+        BinaryOperator::Equal | BinaryOperator::NotEqual
+    ) {
+        if matches!(
+            program.expression_table.expression(binary.left),
+            ExpressionNode::Boolean(_)
+        ) {
+            collect_float_guard_landings(program, machine, state, binary.right, landings);
+            return;
+        }
+        if matches!(
+            program.expression_table.expression(binary.right),
+            ExpressionNode::Boolean(_)
+        ) {
+            collect_float_guard_landings(program, machine, state, binary.left, landings);
+            return;
+        }
+    }
+    if !matches!(
+        binary.operator,
+        BinaryOperator::Equal
+            | BinaryOperator::NotEqual
+            | BinaryOperator::Less
+            | BinaryOperator::LessOrEqual
+            | BinaryOperator::Greater
+            | BinaryOperator::GreaterOrEqual
+    ) {
+        return;
+    }
+    let left = float_place_format(program, machine, state, binary.left);
+    let right = float_place_format(program, machine, state, binary.right);
+    if let Some(format) = left
+        && right.is_none()
+    {
+        landings.push((binary.right, format));
+    }
+    if let Some(format) = right
+        && left.is_none()
+    {
+        landings.push((binary.left, format));
+    }
+}
+
+fn float_place_format(
+    program: &TypedTrees,
+    machine: &omega_typed_trees::machine::Machine,
+    state: &omega_typed_trees::state::State,
+    expression: ExpressionHandle,
+) -> Option<omega_core::literals::FloatFormat> {
+    let declared =
+        crate::places::declared_place_type_raw(program, machine, Some(state), expression)?;
+    destination_float_format(program, declared)
+}
+
+fn land_float_expression(
+    program: &mut TypedTrees,
+    expression: ExpressionHandle,
+    format: omega_core::literals::FloatFormat,
+) {
+    let node = program.expression_table.expression(expression).clone();
+    match node {
+        ExpressionNode::Mutable(inner) => land_float_expression(program, inner, format),
+        ExpressionNode::ArrayLiteral(values) => {
+            let values = program.expression_table.expression_handles(values).to_vec();
+            for value in values {
+                land_float_expression(program, value, format);
+            }
+        }
+        ExpressionNode::Cast(cast) => {
+            let cast_format = program
+                .expression_table
+                .name_path_members(cast.target_type)
+                .last()
+                .and_then(|name| PrimitiveType::from_name(name.as_str()))
+                .and_then(|primitive| match primitive {
+                    PrimitiveType::F32 => Some(omega_core::literals::FloatFormat::F32),
+                    PrimitiveType::F64 => Some(omega_core::literals::FloatFormat::F64),
+                    _ => None,
+                });
+            if let Some(cast_format) = cast_format {
+                land_float_expression(program, cast.value, cast_format);
+            }
+        }
+        ExpressionNode::Float(literal) if literal.landing().is_none() => {
+            *program.expression_table.expression_mut(expression) =
+                ExpressionNode::Float(literal.with_landing(format));
+        }
+        ExpressionNode::Binary(binary) => {
+            if let Some(exact) =
+                exact_anonymous_float_expression(&program.expression_table, expression)
+            {
+                let rounded = match format {
+                    omega_core::literals::FloatFormat::F32 => f64::from(exact.to_f32()),
+                    omega_core::literals::FloatFormat::F64 => exact.to_f64(),
+                };
+                let literal =
+                    omega_core::literals::FloatLiteral::from_f64(rounded).with_landing(format);
+                *program.expression_table.expression_mut(expression) =
+                    ExpressionNode::Float(literal);
+            } else {
+                land_float_expression(program, binary.left, format);
+                land_float_expression(program, binary.right, format);
+            }
+        }
+        _ => {}
+    }
+}
+
+fn fold_anonymous_float_comparisons(program: &mut TypedTrees) {
+    use omega_typed_trees::expression::BinaryOperator;
+
+    let mut folded = Vec::new();
+    for (expression, node) in program.expression_table.expression_entries() {
+        let ExpressionNode::Binary(binary) = node else {
+            continue;
+        };
+        if !matches!(
+            binary.operator,
+            BinaryOperator::Equal
+                | BinaryOperator::NotEqual
+                | BinaryOperator::Less
+                | BinaryOperator::LessOrEqual
+                | BinaryOperator::Greater
+                | BinaryOperator::GreaterOrEqual
+        ) {
+            continue;
+        }
+        let Some(left) = exact_anonymous_float_expression(&program.expression_table, binary.left)
         else {
             continue;
         };
-        for field in program.expression_table.struct_fields(literal.fields) {
-            let Some(field_type) = crate::struct_literals::construction_field_type(
+        let Some(right) = exact_anonymous_float_expression(&program.expression_table, binary.right)
+        else {
+            continue;
+        };
+        let ordering = left.partial_cmp_value(&right);
+        let value = match binary.operator {
+            BinaryOperator::Equal => left.equal_value(&right),
+            BinaryOperator::NotEqual => !left.equal_value(&right),
+            BinaryOperator::Less => ordering == Some(std::cmp::Ordering::Less),
+            BinaryOperator::LessOrEqual => {
+                matches!(
+                    ordering,
+                    Some(std::cmp::Ordering::Less | std::cmp::Ordering::Equal)
+                )
+            }
+            BinaryOperator::Greater => ordering == Some(std::cmp::Ordering::Greater),
+            BinaryOperator::GreaterOrEqual => matches!(
+                ordering,
+                Some(std::cmp::Ordering::Greater | std::cmp::Ordering::Equal)
+            ),
+            _ => unreachable!(),
+        };
+        folded.push((expression, value));
+    }
+    for (expression, value) in folded {
+        *program.expression_table.expression_mut(expression) = ExpressionNode::Boolean(value);
+    }
+}
+
+fn exact_anonymous_float_expression(
+    table: &omega_typed_trees::expression::ExpressionTable,
+    expression: ExpressionHandle,
+) -> Option<omega_core::bignum::ExactFloat> {
+    use omega_core::bignum::ExactFloat;
+
+    match table.expression(expression) {
+        ExpressionNode::Float(literal) if literal.landing().is_none() => {
+            ExactFloat::from_decimal_str(literal.text())
+        }
+        ExpressionNode::Mutable(inner) => exact_anonymous_float_expression(table, *inner),
+        ExpressionNode::Binary(binary) => {
+            let left = exact_anonymous_float_expression(table, binary.left)?;
+            let right = exact_anonymous_float_expression(table, binary.right)?;
+            Some(match binary.operator {
+                omega_typed_trees::expression::BinaryOperator::Add => left.add(&right),
+                omega_typed_trees::expression::BinaryOperator::Subtract => left.sub(&right),
+                omega_typed_trees::expression::BinaryOperator::Multiply => left.mul(&right),
+                omega_typed_trees::expression::BinaryOperator::Divide => left.div(&right),
+                _ => return None,
+            })
+        }
+        _ => None,
+    }
+}
+
+fn literal_destination_pairs(
+    program: &TypedTrees,
+) -> Vec<(
+    ExpressionHandle,
+    omega_typed_trees::types::TypeReferenceHandle,
+)> {
+    let mut pairs = Vec::new();
+
+    for (_, node) in program.expression_table.expression_entries() {
+        match node {
+            ExpressionNode::StructLiteral(literal) => {
+                let Some(data_definition) = program
+                    .data_definitions()
+                    .iter()
+                    .find(|definition| definition.name.as_str() == literal.type_name.as_str())
+                else {
+                    continue;
+                };
+                for field in program.expression_table.struct_fields(literal.fields) {
+                    let Some(field_type) = crate::struct_literals::construction_field_type(
+                        program,
+                        data_definition,
+                        literal.case_name.as_ref().map(|name| name.as_str()),
+                        field.name.as_str(),
+                    ) else {
+                        continue;
+                    };
+                    pairs.push((field.value, field_type));
+                }
+            }
+            ExpressionNode::Call(call) => append_call_destination_pairs(
                 program,
-                data_definition,
-                literal.case_name.as_ref().map(|name| name.as_str()),
-                field.name.as_str(),
-            ) else {
-                continue;
-            };
-            pairs.push((field.value, field_type));
+                call.target_symbol,
+                program.expression_table.expression_handles(call.arguments),
+                &mut pairs,
+            ),
+            _ => {}
         }
     }
 
@@ -340,45 +631,104 @@ pub fn land_float_literal_destinations(program: &mut TypedTrees) {
                             pairs.push((assignment.value, declared));
                         }
                     }
+                    StatementNode::Call(call) => append_call_destination_pairs(
+                        program,
+                        call.target_symbol,
+                        program.statement_table.expression_handles(call.arguments),
+                        &mut pairs,
+                    ),
                     StatementNode::LocalData(local) => {
                         if local.initial_value.is_valid() && local.type_reference.is_valid() {
                             pairs.push((local.initial_value, local.type_reference));
                         }
                     }
-                    _ => {}
-                }
-            }
-        }
-    }
-
-    for (value, declared) in pairs {
-        let Some(unwrapped) = crate::places::unwrapped_type_reference(program, declared) else {
-            continue;
-        };
-        let Some(primitive) = program.primitive_type_reference(unwrapped) else {
-            continue;
-        };
-        let format = match primitive {
-            PrimitiveType::F32 => FloatFormat::F32,
-            PrimitiveType::F64 => FloatFormat::F64,
-            _ => continue,
-        };
-        let mut current = value;
-        loop {
-            match program.expression_table.expression(current) {
-                ExpressionNode::Mutable(inner) => current = *inner,
-                ExpressionNode::Float(literal) => {
-                    if literal.landing().is_none() {
-                        let landed = literal.with_landing(format);
-                        *program.expression_table.expression_mut(current) =
-                            ExpressionNode::Float(landed);
+                    StatementNode::Transition(transition) => {
+                        for target in [transition.target, transition.continuation] {
+                            if !target.is_valid() {
+                                continue;
+                            }
+                            match program.statement_table.transition_target(target) {
+                                omega_typed_trees::statement::TransitionTargetNode::Named {
+                                    path,
+                                    arguments,
+                                } => append_call_destination_pairs(
+                                    program,
+                                    path.symbol,
+                                    program.statement_table.expression_handles(*arguments),
+                                    &mut pairs,
+                                ),
+                                omega_typed_trees::statement::TransitionTargetNode::Value(
+                                    value,
+                                ) if state.return_type.is_valid() => {
+                                    pairs.push((*value, state.return_type));
+                                }
+                                _ => {}
+                            }
+                        }
                     }
-                    break;
+                    StatementNode::Expression(_) => {}
                 }
-                _ => break,
             }
         }
     }
+    pairs
+}
+
+fn append_call_destination_pairs(
+    program: &TypedTrees,
+    target_symbol: omega_core::symbols::SymbolHandle,
+    arguments: &[ExpressionHandle],
+    pairs: &mut Vec<(
+        ExpressionHandle,
+        omega_typed_trees::types::TypeReferenceHandle,
+    )>,
+) {
+    let Some(parameters) = call_target_parameters(program, target_symbol) else {
+        return;
+    };
+    pairs.extend(
+        arguments
+            .iter()
+            .zip(parameters.iter().filter(|parameter| !parameter.is_self))
+            .map(|(argument, parameter)| (*argument, parameter.type_reference)),
+    );
+}
+
+fn call_target_parameters(
+    program: &TypedTrees,
+    target_symbol: omega_core::symbols::SymbolHandle,
+) -> Option<&[omega_typed_trees::signature::StateParameter]> {
+    if !target_symbol.is_valid() {
+        return None;
+    }
+    for machine in program.machines() {
+        if let Some(state) = program
+            .machine_states(machine)
+            .iter()
+            .find(|state| state.symbol == target_symbol)
+        {
+            return Some(program.state_parameters(state));
+        }
+    }
+    for trait_definition in program.traits() {
+        if let Some(signature) = program
+            .trait_machine_signatures(trait_definition)
+            .iter()
+            .find(|signature| signature.symbol == target_symbol)
+        {
+            return Some(program.state_signature_parameters(signature));
+        }
+    }
+    for platform in program.platforms() {
+        if let Some(signature) = program
+            .platform_state_signatures(platform)
+            .iter()
+            .find(|signature| signature.symbol == target_symbol)
+        {
+            return Some(program.state_signature_parameters(signature));
+        }
+    }
+    None
 }
 
 pub(crate) fn validate_suffix_landings(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>) {
@@ -399,23 +749,21 @@ pub(crate) fn validate_suffix_landings(program: &TypedTrees, diagnostics: &mut V
         })
     };
 
-    let literal_landing = |expression: ExpressionHandle| -> Option<(
-        ExpressionHandle,
-        LandedIntegerType,
-    )> {
-        let mut current = expression;
-        loop {
-            match program.expression_table.expression(current) {
-                ExpressionNode::Mutable(inner) => current = *inner,
-                ExpressionNode::Integer(literal) => {
-                    return literal
-                        .landing()
-                        .map(|landing| (current, landing.landed_type));
+    let literal_landing =
+        |expression: ExpressionHandle| -> Option<(ExpressionHandle, LandedIntegerType)> {
+            let mut current = expression;
+            loop {
+                match program.expression_table.expression(current) {
+                    ExpressionNode::Mutable(inner) => current = *inner,
+                    ExpressionNode::Integer(literal) => {
+                        return literal
+                            .landing()
+                            .map(|landing| (current, landing.landed_type));
+                    }
+                    _ => return None,
                 }
-                _ => return None,
             }
-        }
-    };
+        };
 
     // The FLOAT twin (F2a): a width-suffixed float literal landed its FORMAT
     // at the spelling; a destination declaring the other format is the same
@@ -436,9 +784,9 @@ pub(crate) fn validate_suffix_landings(program: &TypedTrees, diagnostics: &mut V
         }
     };
 
-    let mut check = |value: ExpressionHandle,
-                     declared: omega_typed_trees::types::TypeReferenceHandle,
-                     diagnostics: &mut Vec<Diagnostic>| {
+    let check = |value: ExpressionHandle,
+                 declared: omega_typed_trees::types::TypeReferenceHandle,
+                 diagnostics: &mut Vec<Diagnostic>| {
         let Some(unwrapped) = crate::places::unwrapped_type_reference(program, declared) else {
             return;
         };
@@ -481,53 +829,8 @@ pub(crate) fn validate_suffix_landings(program: &TypedTrees, diagnostics: &mut V
         }
     };
 
-    for (_, node) in program.expression_table.expression_entries() {
-        let ExpressionNode::StructLiteral(literal) = node else {
-            continue;
-        };
-        let Some(data_definition) = program
-            .data_definitions()
-            .iter()
-            .find(|definition| definition.name.as_str() == literal.type_name.as_str())
-        else {
-            continue;
-        };
-        for field in program.expression_table.struct_fields(literal.fields) {
-            let Some(field_type) = crate::struct_literals::construction_field_type(
-                program,
-                data_definition,
-                literal.case_name.as_ref().map(|name| name.as_str()),
-                field.name.as_str(),
-            ) else {
-                continue;
-            };
-            check(field.value, field_type, diagnostics);
-        }
-    }
-
-    for machine in program.machines() {
-        for state in program.machine_states(machine) {
-            for statement in program.statement_table.statements(state.statement_nodes) {
-                match statement {
-                    StatementNode::Assignment(assignment) => {
-                        if let Some(declared) = crate::places::declared_place_type_raw(
-                            program,
-                            machine,
-                            Some(state),
-                            assignment.target,
-                        ) {
-                            check(assignment.value, declared, diagnostics);
-                        }
-                    }
-                    StatementNode::LocalData(local) => {
-                        if local.initial_value.is_valid() && local.type_reference.is_valid() {
-                            check(local.initial_value, local.type_reference, diagnostics);
-                        }
-                    }
-                    _ => {}
-                }
-            }
-        }
+    for (value, declared) in literal_destination_pairs(program) {
+        check(value, declared, diagnostics);
     }
 }
 
@@ -590,10 +893,7 @@ fn bless_equality_guard_literals(
             bless_equality_guard_literals(program, machine, state, binary.right, blessed);
         }
         BinaryOperator::Equal | BinaryOperator::NotEqual => {
-            for (literal, other) in [
-                (binary.left, binary.right),
-                (binary.right, binary.left),
-            ] {
+            for (literal, other) in [(binary.left, binary.right), (binary.right, binary.left)] {
                 if oversize_literal(program, literal)
                     && place_is_u64_classed(program, machine, state, other)
                 {

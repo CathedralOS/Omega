@@ -1,0 +1,16 @@
+// RUN CANARY (exit 70). A literal-indexed dependent element owns its own
+// window; writes to maps[0] restore that element before the call.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Map
+where
+    start <= end,
+{
+    start: i32;
+    end: i32;
+}
+data Main { console: Console; maps: [Map; 2]; }
+machine Main::run(&mut self) {
+    self.maps[0].start = 10;
+    self.maps[0].end = 20;
+    self.console.exit_process(70);
+}

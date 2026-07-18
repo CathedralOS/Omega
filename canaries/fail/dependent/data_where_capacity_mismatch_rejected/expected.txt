@@ -1,0 +1,1 @@
+cannot prove default-domain fact `used == storage.capacity`

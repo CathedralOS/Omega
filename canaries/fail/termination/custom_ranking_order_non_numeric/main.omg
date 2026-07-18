@@ -12,9 +12,8 @@ machine Main::main(&mut self) {
 }
 
 machine Main::weaken(&mut self, power: u64)
-terminates {
-    decreases power -> Card::PowerOrder;
-}
+terminates;
+terminates by power -> Card::PowerOrder;
 -> u64
 {
     transition power > 0 {

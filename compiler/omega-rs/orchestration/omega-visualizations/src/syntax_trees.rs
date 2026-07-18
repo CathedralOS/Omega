@@ -379,11 +379,7 @@ fn item_kind(item: &Item) -> &'static str {
 fn item_label(syntax: &SyntaxTrees, item: &Item) -> String {
     match item {
         Item::Capability(value) => format!("capability {}", value.name.as_str()),
-        Item::Const(value) => format!(
-            "const {}::{}",
-            value.scope.as_str(),
-            value.name.as_str()
-        ),
+        Item::Const(value) => format!("const {}::{}", value.scope.as_str(), value.name.as_str()),
         Item::Conformance(value) => format!(
             "{} satisfies {}",
             value.type_name.as_str(),
@@ -602,15 +598,9 @@ fn type_reference_label(syntax: &SyntaxTrees, handle: TypeReferenceHandle) -> St
         TypeReferenceNode::Reference {
             referee,
             is_mutable,
-            is_relaxed,
             lifetime,
         } => {
-            let qualifier = match (*is_mutable, *is_relaxed) {
-                (true, true) => "mut relaxed ",
-                (true, false) => "mut ",
-                (false, true) => "relaxed ",
-                (false, false) => "",
-            };
+            let qualifier = if *is_mutable { "mut " } else { "" };
             let lifetime = lifetime
                 .as_ref()
                 .map(|name| format!("'{} ", name.as_str()))
@@ -683,11 +673,6 @@ fn statement_label(syntax: &SyntaxTrees, statement: &StatementNode) -> String {
         StatementNode::Call(call) => call_label(syntax, call),
         StatementNode::Expression(_) => "expression".to_owned(),
         StatementNode::LocalData(value) => format!("local {}", value.name.as_str()),
-        StatementNode::Relax(relax) => format!(
-            "relax {}\nstatements: {}",
-            syntax.expressions.display_name(relax.target),
-            relax.statements.len()
-        ),
         StatementNode::Transition(transition) => transition_label(syntax, transition),
     }
 }

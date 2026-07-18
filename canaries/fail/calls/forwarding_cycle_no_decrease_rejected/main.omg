@@ -1,11 +1,12 @@
 // MR4 negative twin: BOTH cycle edges forward the measure unchanged
 // (`step(n, acc)` and `self.sum(n, acc)`), so the non-strict subgraph
 // IS the cycle -- no traversal decreases anything and the machine would
-// spin forever. The decreases clause stays unproven and refuses.
+// spin forever. The ranking witness stays unproven and refuses.
 boundary trait Console { machine exit_process(return_code: i32); }
 data Main { console: Console; }
 machine Main::sum(&mut self, n: u64 [0..=100], acc: u64 [0..=5050])
-terminates { decreases n; }
+terminates;
+terminates by n;
 -> u64
 {
     transition n > 0 && acc <= 4950 { true -> step(n, acc) _ -> leaf(acc) }

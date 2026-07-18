@@ -219,6 +219,8 @@ pub fn build_type_surface_report(syntax_trees: &SyntaxTrees) -> TypeSurfaceRepor
                             is_default: signature.is_default,
                             parameters: signature.parameters,
                             return_type: signature.return_type,
+                            termination_guarantee: signature.termination_guarantee,
+                            ranking_witness: signature.ranking_witness,
                             effects: signature.effects,
                             contracts: signature.contracts,
                         },
@@ -246,6 +248,8 @@ pub fn build_type_surface_report(syntax_trees: &SyntaxTrees) -> TypeSurfaceRepor
                             is_default: signature.is_default,
                             parameters: signature.parameters,
                             return_type: signature.return_type,
+                            termination_guarantee: signature.termination_guarantee,
+                            ranking_witness: signature.ranking_witness,
                             effects: signature.effects,
                             contracts: signature.contracts,
                         },
@@ -451,7 +455,7 @@ fn collect_constraints(
                 );
             }
             // An arithmetic domain is a behaviour tag, not a referenced type name.
-            TypeConstraintNode::ArithmeticDomain(_) => {}
+            TypeConstraintNode::ArithmeticDomain(_) | TypeConstraintNode::ValueDomain(_) => {}
         }
     }
 }
@@ -528,7 +532,6 @@ mod tests {
                 .insert(TypeReferenceNode::Reference {
                     referee: slice_type,
                     is_mutable: false,
-                    is_relaxed: false,
                     lifetime: None,
                 });
         let index_type = syntax_trees
@@ -657,11 +660,15 @@ mod tests {
         let base_type = syntax_trees
             .type_references
             .insert(TypeReferenceNode::Named(Identifier::generated("f32")));
-        let minimum = syntax_trees
-            .expressions
-            .insert(omega_syntax_trees::expression::ExpressionNode::Integer(omega_core::literals::IntegerLiteral::from_value(0)));
+        let minimum = syntax_trees.expressions.insert(
+            omega_syntax_trees::expression::ExpressionNode::Integer(
+                omega_core::literals::IntegerLiteral::from_value(0),
+            ),
+        );
         let maximum = syntax_trees.expressions.insert(
-            omega_syntax_trees::expression::ExpressionNode::Integer(omega_core::literals::IntegerLiteral::from_value(100000)),
+            omega_syntax_trees::expression::ExpressionNode::Integer(
+                omega_core::literals::IntegerLiteral::from_value(100000),
+            ),
         );
         let finite = syntax_trees
             .type_references
@@ -705,9 +712,8 @@ mod tests {
             boundary: false,
             type_parameters: HandleSpan::empty(),
             satisfies: HandleSpan::empty(),
-            terminates: false,
-            decreases: HandleSpan::empty(),
-            decrease_order: HandleSpan::empty(),
+            termination_guarantee: false,
+            ranking_witness: omega_syntax_trees::item::RankingWitnessSyntax::default(),
             effects: HandleSpan::empty(),
             contracts: HandleSpan::empty(),
             states: HandleSpan::from_parts(state, 1),

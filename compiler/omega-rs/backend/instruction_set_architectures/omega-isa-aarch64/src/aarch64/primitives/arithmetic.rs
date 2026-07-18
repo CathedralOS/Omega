@@ -374,6 +374,20 @@ pub(in crate::aarch64) fn encode_lslv_x_register(
     )
 }
 
+/// `LSLV Wd, Wn, Wm` — 32-bit logical variable left shift.
+pub(in crate::aarch64) fn encode_lslv_w_register(
+    destination_register: u8,
+    left_register: u8,
+    right_register: u8,
+) -> [u8; 4] {
+    encode_instruction(
+        0x1AC02000
+            | (u32::from(right_register) << 16)
+            | (u32::from(left_register) << 5)
+            | u32::from(destination_register),
+    )
+}
+
 /// `LSRV Xd, Xn, Xm` — LOGICAL shift right (zero-fill), opcode `0b001001`. Used for
 /// an unsigned `>>` (`ShiftRightLogical`).
 pub(in crate::aarch64) fn encode_lsrv_x_register(
@@ -383,6 +397,20 @@ pub(in crate::aarch64) fn encode_lsrv_x_register(
 ) -> [u8; 4] {
     encode_instruction(
         0x9AC02400
+            | (u32::from(right_register) << 16)
+            | (u32::from(left_register) << 5)
+            | u32::from(destination_register),
+    )
+}
+
+/// `LSRV Wd, Wn, Wm` — 32-bit logical variable right shift.
+pub(in crate::aarch64) fn encode_lsrv_w_register(
+    destination_register: u8,
+    left_register: u8,
+    right_register: u8,
+) -> [u8; 4] {
+    encode_instruction(
+        0x1AC02400
             | (u32::from(right_register) << 16)
             | (u32::from(left_register) << 5)
             | u32::from(destination_register),
@@ -573,6 +601,22 @@ pub(in crate::aarch64) fn encode_and_x_immediate_low_seven(
 ) -> [u8; 4] {
     encode_instruction(
         0x9240_1800 | (u32::from(source_register) << 5) | u32::from(destination_register),
+    )
+}
+
+/// `AND Xd, Xn, #(2^low_bits - 1)` for a 64-bit logical immediate.
+/// Used by F8 to mask a shift count to the language operand width.
+pub(in crate::aarch64) fn encode_and_x_immediate_low_bits(
+    destination_register: u8,
+    source_register: u8,
+    low_bits: u8,
+) -> [u8; 4] {
+    debug_assert!((1..64).contains(&low_bits));
+    encode_instruction(
+        0x9240_0000
+            | (u32::from(low_bits - 1) << 10)
+            | (u32::from(source_register) << 5)
+            | u32::from(destination_register),
     )
 }
 

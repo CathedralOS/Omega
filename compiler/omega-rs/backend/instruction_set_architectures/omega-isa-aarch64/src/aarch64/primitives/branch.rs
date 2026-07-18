@@ -100,6 +100,16 @@ pub(in crate::aarch64) fn encode_conditional_branch_no_overflow(
     ))
 }
 
+/// `B.VS` (V set). After FCMP this is the unordered/NaN condition.
+pub(in crate::aarch64) fn encode_conditional_branch_overflow(
+    byte_distance: isize,
+) -> Result<[u8; 4], Diagnostic> {
+    let instruction_distance = checked_instruction_distance(byte_distance, 19, "b.vs")?;
+    Ok(encode_instruction(
+        0x54000006 | ((instruction_distance as u32 & 0x7ffff) << 5),
+    ))
+}
+
 pub(in crate::aarch64) fn encode_conditional_branch_higher(
     byte_distance: isize,
 ) -> Result<[u8; 4], Diagnostic> {

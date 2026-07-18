@@ -38,9 +38,14 @@ pub(super) fn parse_platform<'tokens, 'source>(
         if rest.at_contextual("effects")
             || rest.at_contextual("requires")
             || rest.at_contextual("ensures")
+            || rest.at_contextual("terminates")
+            || rest.at_contextual("decreases")
+            || rest.at_contextual("increases")
         {
-            let ((effects, contracts), after_clauses) =
+            let ((termination_guarantee, ranking_witness, effects, contracts), after_clauses) =
                 parse_signature_clauses(syntax_trees, rest)?;
+            signature.termination_guarantee = termination_guarantee;
+            signature.ranking_witness = ranking_witness;
             signature.effects = effects;
             signature.contracts = contracts;
             rest = after_clauses;

@@ -41,9 +41,8 @@ machine Main::main(&mut self) {
 }
 
 machine Main::accumulate(&mut self, items: &[Entry], take: u32 in Wrapping)
-terminates {
-    decreases items -> Slice::Length;
-}
+terminates;
+terminates by items -> Slice::Length;
 {
     self.total = self.total + take;
 

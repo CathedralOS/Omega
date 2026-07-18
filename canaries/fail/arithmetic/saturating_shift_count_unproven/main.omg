@@ -1,0 +1,6 @@
+// Saturating controls value overflow; its shift count must still be proven.
+data Main { count: u32; }
+machine Main::main(&mut self) {
+    let value: u32 in Saturating = (3 as u32 in Saturating);
+    let shifted: u32 in Saturating = value << self.count;
+}

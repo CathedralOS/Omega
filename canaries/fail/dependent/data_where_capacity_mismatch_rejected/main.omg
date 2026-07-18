@@ -1,0 +1,14 @@
+data Buffer
+where
+    used == storage.capacity,
+{
+    used: u64;
+    storage: String;
+}
+
+data Main {
+}
+
+machine Main::run(&mut self) {
+    let buffer: Buffer = Buffer { used: 6, storage: "omega" };
+}

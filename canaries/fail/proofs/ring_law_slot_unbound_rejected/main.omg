@@ -8,7 +8,8 @@ trait RingOps2 {
     ensures add(add(a, b), c) == add(a, add(b, c));
 }
 machine plus(a: Peano, b: Peano) -> Peano
-terminates { decreases a; }
+terminates;
+terminates by a;
 {
     transition a {
         Peano::Zero -> (b)
@@ -17,7 +18,8 @@ terminates { decreases a; }
 }
 machine plus_assoc(a: Peano, b: Peano, c: Peano) -> Peano
 satisfies RingOps2::add_assoc
-terminates { decreases a; }
+terminates;
+terminates by a;
 ensures
     (plus(plus(a, b), c)) == (plus(a, plus(b, c)))
 {

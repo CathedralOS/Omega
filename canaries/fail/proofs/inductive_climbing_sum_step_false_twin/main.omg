@@ -17,9 +17,8 @@ machine Main::main(&mut self) {
 }
 
 machine Main::climb(&mut self, limit: u64, index: u64, acc: u64) -> u64
-terminates {
-    decreases (index, limit) -> Nat::BoundedDistance;
-}
+terminates;
+terminates by (index, limit) -> Nat::BoundedDistance;
 ensures
     result >= acc + limit - index
 {

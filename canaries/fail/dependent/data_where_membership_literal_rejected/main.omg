@@ -1,0 +1,18 @@
+// FAIL CANARY. Membership gates are per-value proofs: an empty byte literal
+// does not satisfy the domain's declared non_empty classifier.
+domain [u8]::NonEmpty when non_empty(self) {
+}
+
+data Message
+where
+    text in NonEmpty,
+{
+    text: &[u8];
+}
+
+data Main {
+}
+
+machine Main::run(&mut self) {
+    let message: Message = Message { text: "" };
+}

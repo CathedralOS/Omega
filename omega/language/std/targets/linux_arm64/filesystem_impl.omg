@@ -400,19 +400,18 @@ linux_arm64 machine Filesystem::remove_dir_all(&mut self, path: &[u8] in Path) -
 // call recursion, which no native route can lower (the clone dispatch
 // refuses cycles; the splice runs effects once). The loop is ENTRY-recursion
 // (`rda_drain(fuel - 1)` from the entry's own transition -- the only shape
-// the decreases prover accepts, the mkall precedent); each iteration's WORK
+// the ranking prover accepts, the mkall precedent); each iteration's WORK
 // is one `rda_step` STATEMENT call (the fence doctrine's prescribed shape:
 // a statement call from a dispatched state, verdict read from a field).
 // Returns 0 on success, -1 on error/fuel-exhaustion/depth overflow (> 16).
 linux_arm64 machine Filesystem::rda_drain(&mut self, fuel: u64)
-terminates {
-    decreases fuel;
-}
+terminates;
+terminates by fuel;
 -> i32
 {
     self.rda_step(0);
     // The re-entry is the ENTRY's OWN single-comparison transition -- the only
-    // shape the decreases prover accepts (the mkall precedent; an arm-state
+    // shape the ranking prover accepts (the mkall precedent; an arm-state
     // re-entry or a conjunct guard is unprovable to it). The loop therefore
     // runs its FULL fuel unconditionally; once the stack drains, rda_step
     // no-ops (depth == 0 -> verdict 0) and the tail settles on the verdict.

@@ -1,0 +1,7 @@
+// FAIL CANARY. The omitted health field would be zero, outside its standing
+// range, so range-as-default-domain sugar makes it mandatory.
+data Player { health: i32 [1..=100]; score: i32; }
+data Main {}
+machine Main::run(&mut self) {
+    let player: Player = Player {};
+}

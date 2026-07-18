@@ -1,0 +1,12 @@
+data Main {}
+
+machine Main::countdown(&mut self, remaining: u64)
+terminates {
+    decreases remaining;
+}
+{
+    transition remaining > 0 {
+        true -> countdown(remaining - 1)
+        false -> 0
+    }
+}

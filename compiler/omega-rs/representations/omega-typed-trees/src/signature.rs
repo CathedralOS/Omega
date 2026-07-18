@@ -10,6 +10,8 @@ pub struct StateSignature {
     pub is_default: bool,
     pub parameters: HandleSpan<StateParameter>,
     pub return_type: TypeReferenceHandle,
+    pub termination_guarantee: omega_core::termination::TerminationGuarantee,
+    pub ranking_witness: crate::machine::RankingWitness,
     pub effects: HandleSpan<Identifier>,
     pub contracts: HandleSpan<SignatureContract>,
 }
@@ -22,6 +24,8 @@ impl Default for StateSignature {
             is_default: false,
             parameters: HandleSpan::empty(),
             return_type: TypeReferenceHandle::invalid(),
+            termination_guarantee: omega_core::termination::TerminationGuarantee::None,
+            ranking_witness: crate::machine::RankingWitness::default(),
             effects: HandleSpan::empty(),
             contracts: HandleSpan::empty(),
         }

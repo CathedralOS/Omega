@@ -12,12 +12,175 @@ use omega_core::diagnostics::Diagnostic;
 use omega_typed_trees::TypedTrees;
 use omega_typed_trees::data::{DataDefinition, DataMember};
 use omega_typed_trees::expression::{ExpressionHandle, ExpressionNode, TableStructLiteral};
-use omega_typed_trees::types::{
-    FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode,
-};
 use omega_typed_trees::machine::Machine;
 use omega_typed_trees::state::State;
 use omega_typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
+
+pub(crate) fn validate_statement_default_domain_constructions(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    statement: &StatementNode,
+    env: &ValueEnv,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    match statement {
+        StatementNode::Assignment(assignment) => {
+            scan_flow_construction(program, machine, state, assignment.target, env, diagnostics);
+            scan_flow_construction(program, machine, state, assignment.value, env, diagnostics);
+        }
+        StatementNode::Call(call) => {
+            for argument in program.statement_table.expression_handles(call.arguments) {
+                scan_flow_construction(program, machine, state, *argument, env, diagnostics);
+            }
+        }
+        StatementNode::Expression(expression) => {
+            scan_flow_construction(program, machine, state, *expression, env, diagnostics);
+        }
+        StatementNode::LocalData(local) => {
+            scan_flow_construction(
+                program,
+                machine,
+                state,
+                local.initial_value,
+                env,
+                diagnostics,
+            );
+        }
+        StatementNode::Transition(transition) => {
+            if let TransitionGuardNode::When(guard) = transition.guard {
+                scan_flow_construction(program, machine, state, guard, env, diagnostics);
+            }
+            for target in [transition.target, transition.continuation] {
+                if !target.is_valid() {
+                    continue;
+                }
+                match program.statement_table.transition_target(target) {
+                    TransitionTargetNode::Named { arguments, .. } => {
+                        for argument in program.statement_table.expression_handles(*arguments) {
+                            scan_flow_construction(
+                                program,
+                                machine,
+                                state,
+                                *argument,
+                                env,
+                                diagnostics,
+                            );
+                        }
+                    }
+                    TransitionTargetNode::Value(expression) => scan_flow_construction(
+                        program,
+                        machine,
+                        state,
+                        *expression,
+                        env,
+                        diagnostics,
+                    ),
+                    TransitionTargetNode::SelfTarget | TransitionTargetNode::Terminal => {}
+                }
+            }
+        }
+    }
+}
+
+fn scan_flow_construction(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    expression: ExpressionHandle,
+    env: &ValueEnv,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if !expression.is_valid() {
+        return;
+    }
+    match program.expression_table.expression(expression) {
+        ExpressionNode::StructLiteral(literal) => {
+            if !crate::arithmetic_domains::struct_literal_default_domain_is_proven(
+                program, machine, state, literal, env,
+            ) {
+                let fact = program
+                    .data_definitions()
+                    .iter()
+                    .find(|data| data.name.as_str() == literal.type_name.as_str())
+                    .and_then(|data| {
+                        program
+                            .proof_facts
+                            .span_or_empty(data.default_domain)
+                            .first()
+                    })
+                    .map(|fact| match fact {
+                        omega_typed_trees::domain::ProofFact::Expression(expression) => {
+                            program.expression_table.display_name(*expression)
+                        }
+                        omega_typed_trees::domain::ProofFact::Membership(_) => {
+                            "<domain membership>".to_owned()
+                        }
+                    })
+                    .unwrap_or_else(|| "<field range or nested gate>".to_owned());
+                diagnostics.push(Diagnostic::error(format!(
+                    "construction of `{}` cannot prove default-domain fact `{fact}` from the current flow facts and field initializers",
+                    literal.type_name.as_str(),
+                )));
+            }
+            for field in program.expression_table.struct_fields(literal.fields) {
+                scan_flow_construction(program, machine, state, field.value, env, diagnostics);
+            }
+        }
+        ExpressionNode::ArrayLiteral(values) => {
+            for value in program.expression_table.expression_handles(*values) {
+                scan_flow_construction(program, machine, state, *value, env, diagnostics);
+            }
+        }
+        ExpressionNode::Binary(binary) => {
+            scan_flow_construction(program, machine, state, binary.left, env, diagnostics);
+            scan_flow_construction(program, machine, state, binary.right, env, diagnostics);
+        }
+        ExpressionNode::Call(call) => {
+            if call.receiver.is_valid() {
+                scan_flow_construction(program, machine, state, call.receiver, env, diagnostics);
+            }
+            for argument in program.expression_table.expression_handles(call.arguments) {
+                scan_flow_construction(program, machine, state, *argument, env, diagnostics);
+            }
+        }
+        ExpressionNode::Cast(cast) => {
+            scan_flow_construction(program, machine, state, cast.value, env, diagnostics);
+        }
+        ExpressionNode::Indexed(indexed) => {
+            scan_flow_construction(
+                program,
+                machine,
+                state,
+                indexed.collection,
+                env,
+                diagnostics,
+            );
+            scan_flow_construction(program, machine, state, indexed.index, env, diagnostics);
+        }
+        ExpressionNode::Member(member) => {
+            scan_flow_construction(program, machine, state, member.receiver, env, diagnostics);
+        }
+        ExpressionNode::Mutable(inner) => {
+            scan_flow_construction(program, machine, state, *inner, env, diagnostics);
+        }
+        ExpressionNode::Range(range) => {
+            scan_flow_construction(program, machine, state, range.start, env, diagnostics);
+            scan_flow_construction(program, machine, state, range.end, env, diagnostics);
+        }
+        ExpressionNode::Unary(unary) => {
+            scan_flow_construction(program, machine, state, unary.operand, env, diagnostics);
+        }
+        ExpressionNode::Boolean(_)
+        | ExpressionNode::Float(_)
+        | ExpressionNode::Integer(_)
+        | ExpressionNode::Name(_)
+        | ExpressionNode::String(_) => {}
+    }
+}
+use omega_typed_trees::types::{
+    FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode,
+};
 
 pub(crate) fn validate_struct_literal_fields(
     program: &TypedTrees,
@@ -28,23 +191,29 @@ pub(crate) fn validate_struct_literal_fields(
             for statement in program.statement_table.statements(state.statement_nodes) {
                 match statement {
                     StatementNode::Assignment(assignment) => {
-                        scan_expression(program, machine, state,assignment.target, diagnostics);
-                        scan_expression(program, machine, state,assignment.value, diagnostics);
+                        scan_expression(program, machine, state, assignment.target, diagnostics);
+                        scan_expression(program, machine, state, assignment.value, diagnostics);
                     }
                     StatementNode::Call(call) => {
                         for argument in program.statement_table.expression_handles(call.arguments) {
-                            scan_expression(program, machine, state,*argument, diagnostics);
+                            scan_expression(program, machine, state, *argument, diagnostics);
                         }
                     }
                     StatementNode::Expression(expression) => {
-                        scan_expression(program, machine, state,*expression, diagnostics);
+                        scan_expression(program, machine, state, *expression, diagnostics);
                     }
                     StatementNode::LocalData(local_data) => {
-                        scan_expression(program, machine, state,local_data.initial_value, diagnostics);
+                        scan_expression(
+                            program,
+                            machine,
+                            state,
+                            local_data.initial_value,
+                            diagnostics,
+                        );
                     }
                     StatementNode::Transition(transition) => {
                         if let TransitionGuardNode::When(guard) = &transition.guard {
-                            scan_expression(program, machine, state,*guard, diagnostics);
+                            scan_expression(program, machine, state, *guard, diagnostics);
                         }
                         for target in [transition.target, transition.continuation] {
                             if !target.is_valid() {
@@ -75,11 +244,11 @@ fn scan_transition_target(
     match target {
         TransitionTargetNode::Named { arguments, .. } => {
             for argument in program.statement_table.expression_handles(*arguments) {
-                scan_expression(program, machine, state,*argument, diagnostics);
+                scan_expression(program, machine, state, *argument, diagnostics);
             }
         }
         TransitionTargetNode::Value(expression) => {
-            scan_expression(program, machine, state,*expression, diagnostics);
+            scan_expression(program, machine, state, *expression, diagnostics);
         }
         TransitionTargetNode::SelfTarget | TransitionTargetNode::Terminal => {}
     }
@@ -101,36 +270,44 @@ fn scan_expression(
             validate_literal_field_names(program, &literal, diagnostics);
             enforce_construction_field_obligations(program, machine, state, &literal, diagnostics);
             for field in program.expression_table.struct_fields(literal.fields) {
-                scan_expression(program, machine, state,field.value, diagnostics);
+                scan_expression(program, machine, state, field.value, diagnostics);
             }
         }
         ExpressionNode::ArrayLiteral(elements) => {
             for element in program.expression_table.expression_handles(*elements) {
-                scan_expression(program, machine, state,*element, diagnostics);
+                scan_expression(program, machine, state, *element, diagnostics);
             }
         }
         ExpressionNode::Binary(binary) => {
-            scan_expression(program, machine, state,binary.left, diagnostics);
-            scan_expression(program, machine, state,binary.right, diagnostics);
+            scan_expression(program, machine, state, binary.left, diagnostics);
+            scan_expression(program, machine, state, binary.right, diagnostics);
         }
-        ExpressionNode::Cast(cast) => scan_expression(program, machine, state,cast.value, diagnostics),
+        ExpressionNode::Cast(cast) => {
+            scan_expression(program, machine, state, cast.value, diagnostics)
+        }
         ExpressionNode::Call(call) => {
-            scan_expression(program, machine, state,call.receiver, diagnostics);
+            scan_expression(program, machine, state, call.receiver, diagnostics);
             for argument in program.expression_table.expression_handles(call.arguments) {
-                scan_expression(program, machine, state,*argument, diagnostics);
+                scan_expression(program, machine, state, *argument, diagnostics);
             }
         }
         ExpressionNode::Indexed(indexed) => {
-            scan_expression(program, machine, state,indexed.collection, diagnostics);
-            scan_expression(program, machine, state,indexed.index, diagnostics);
+            scan_expression(program, machine, state, indexed.collection, diagnostics);
+            scan_expression(program, machine, state, indexed.index, diagnostics);
         }
-        ExpressionNode::Member(member) => scan_expression(program, machine, state,member.receiver, diagnostics),
-        ExpressionNode::Mutable(inner) => scan_expression(program, machine, state,*inner, diagnostics),
+        ExpressionNode::Member(member) => {
+            scan_expression(program, machine, state, member.receiver, diagnostics)
+        }
+        ExpressionNode::Mutable(inner) => {
+            scan_expression(program, machine, state, *inner, diagnostics)
+        }
         ExpressionNode::Range(range) => {
-            scan_expression(program, machine, state,range.start, diagnostics);
-            scan_expression(program, machine, state,range.end, diagnostics);
+            scan_expression(program, machine, state, range.start, diagnostics);
+            scan_expression(program, machine, state, range.end, diagnostics);
         }
-        ExpressionNode::Unary(unary) => scan_expression(program, machine, state,unary.operand, diagnostics),
+        ExpressionNode::Unary(unary) => {
+            scan_expression(program, machine, state, unary.operand, diagnostics)
+        }
         ExpressionNode::Boolean(_)
         | ExpressionNode::Float(_)
         | ExpressionNode::Integer(_)
@@ -289,6 +466,8 @@ fn enforce_construction_field_obligations(
         return;
     }
 
+    enforce_gated_field_presence(program, data_definition, literal, diagnostics);
+
     for field in program.expression_table.struct_fields(literal.fields) {
         let Some(field_type) = construction_field_type(
             program,
@@ -301,13 +480,23 @@ fn enforce_construction_field_obligations(
         // An array-literal field value (`Holder { arr: [300, ..] }`) is checked
         // element-wise against the field's `[T; N]` element type. The scalar guards
         // below no-op on a non-primitive (array) field, so this is the complement.
-        validate_array_literal_elements(program, machine, state, field.value, field_type, diagnostics);
+        validate_array_literal_elements(
+            program,
+            machine,
+            state,
+            field.value,
+            field_type,
+            diagnostics,
+        );
         // Cross-class guard: a `bool`/text value stored into a numeric field (or
         // vice versa) at construction is a silent miscompile, exactly as at the
         // assignment / call-argument positions. Reject it before the range check
         // (which only applies to `[a..=b]`-constrained fields), so every primitive
         // field -- range-constrained or not -- is class-checked.
-        let slot_context = format!("construction of `{type_name}` field `{}`", field.name.as_str());
+        let slot_context = format!(
+            "construction of `{type_name}` field `{}`",
+            field.name.as_str()
+        );
         // Shape guard: `P { x: self.xs }` puts an array into a scalar field (or a
         // scalar into an array field). Runs for EVERY field -- the scalar class
         // guard and the data nominal guard below both no-op on an array value.
@@ -393,7 +582,10 @@ fn enforce_construction_field_obligations(
         let bounds = format!(
             "{}..={}",
             range.low().map(|low| low.to_string()).unwrap_or_default(),
-            range.high().map(|high| high.to_string()).unwrap_or_default(),
+            range
+                .high()
+                .map(|high| high.to_string())
+                .unwrap_or_default(),
         );
         match construction_field_literal(program, field.value) {
             Some(value) => {
@@ -431,9 +623,9 @@ fn enforce_construction_field_obligations(
                 let provably_in_range = range
                     .low()
                     .is_none_or(|low| interval.low().is_some_and(|value_low| value_low >= low))
-                    && range
-                        .high()
-                        .is_none_or(|high| interval.high().is_some_and(|value_high| value_high <= high));
+                    && range.high().is_none_or(|high| {
+                        interval.high().is_some_and(|value_high| value_high <= high)
+                    });
                 if !provably_in_range {
                     diagnostics.push(Diagnostic::error(format!(
                         "construction of `{type_name}` field `{}` cannot be proven within its declared range `{bounds}`; constrain the value, construct with a literal in range, or widen the field",
@@ -441,6 +633,32 @@ fn enforce_construction_field_obligations(
                     )));
                 }
             }
+        }
+    }
+}
+
+fn enforce_gated_field_presence(
+    program: &TypedTrees,
+    data_definition: &DataDefinition,
+    literal: &TableStructLiteral,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    for member in program.data_members(data_definition) {
+        let DataMember::Field(field) = member else {
+            continue;
+        };
+        let omitted = !program
+            .expression_table
+            .struct_fields(literal.fields)
+            .iter()
+            .any(|initializer| initializer.name.as_str() == field.name.as_str());
+        let gated = !crate::data::data_field_type_zero_is_valid(program, field.type_reference);
+        if omitted && gated {
+            diagnostics.push(Diagnostic::error(format!(
+                "construction of `{}` omits gated field `{}`; its zero value does not satisfy the field type's default domain, so the field is mandatory",
+                data_definition.name.as_str(),
+                field.name.as_str(),
+            )));
         }
     }
 }
@@ -497,7 +715,10 @@ pub(crate) fn validate_array_literal_elements(
     match program.primitive_type_reference(element_type) {
         // SCALAR element type: cross-class + narrowing per element.
         Some(element_primitive) => {
-            let owner = format!("array literal element of type `{}`", element_primitive.name());
+            let owner = format!(
+                "array literal element of type `{}`",
+                element_primitive.name()
+            );
             for element in element_handles {
                 // Class check first; a cross-class element is not also narrowing-checked.
                 if crate::expression_types::report_cross_class_store(
@@ -587,16 +808,13 @@ pub(crate) fn construction_field_type(
     field_name: &str,
 ) -> Option<omega_typed_trees::types::TypeReferenceHandle> {
     if let Some(case_name) = case_name
-        && let Some(variant) =
-            program
-                .data_members(data_definition)
-                .iter()
-                .find_map(|member| match member {
-                    DataMember::Variant(variant) if variant.name.as_str() == case_name => {
-                        Some(variant)
-                    }
-                    _ => None,
-                })
+        && let Some(variant) = program
+            .data_members(data_definition)
+            .iter()
+            .find_map(|member| match member {
+                DataMember::Variant(variant) if variant.name.as_str() == case_name => Some(variant),
+                _ => None,
+            })
     {
         for payload_field in program.data_payload_fields(variant) {
             if payload_field.name.as_str() == field_name {

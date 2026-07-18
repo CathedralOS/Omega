@@ -1,0 +1,15 @@
+// FAIL CANARY. Creating a borrow is a consumption point: no view may be handed
+// out while start=10/end=0 leaves Map's default domain suspended.
+data Map
+where
+    start <= end,
+{
+    start: i32;
+    end: i32;
+}
+data Main { map: Map; }
+machine Main::run(&mut self) {
+    self.map.start = 10;
+    let view: &mut i32 = &mut self.map.start;
+    view = 20;
+}

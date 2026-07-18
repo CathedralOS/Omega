@@ -1,0 +1,20 @@
+// COMPILE CANARY. Adjacent writes from one unknown value restore an equality
+// invariant window without requiring that value to be interval-singleton.
+data EqualPair
+where
+    left == right,
+{
+    left: i32;
+    right: i32;
+}
+
+machine EqualPair::set(&mut self, value: i32) {
+    self.left = value;
+    self.right = value;
+}
+
+data Main {
+}
+
+machine Main::run(&mut self) {
+}

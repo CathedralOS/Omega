@@ -1,0 +1,7 @@
+// Exact float-to-int is a proof obligation; an unbounded f64 place is neither
+// proven finite nor proven within i32's conversion interval.
+data Main { value: f64; out: i32; }
+machine Main::main(&mut self) {
+    self.value = 100000000000000000000.0;
+    self.out = self.value as i32;
+}

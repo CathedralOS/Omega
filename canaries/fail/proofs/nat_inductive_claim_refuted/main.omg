@@ -7,9 +7,8 @@ boundary trait Console { machine exit_process(return_code: i32); }
 data Main { console: Console; }
 machine Main::main(&mut self) { self.console.exit_process(70); }
 machine bogus(a: Nat) -> Nat
-terminates {
-    decreases a;
-}
+terminates;
+terminates by a;
 ensures
     result == Nat::Zero
 {

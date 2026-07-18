@@ -44,7 +44,6 @@ impl TypeReferenceTable {
             .collect()
     }
 
-
     pub fn insert_named(&mut self, name: Identifier) -> TypeReferenceHandle {
         self.insert(TypeReferenceNode::Named(name))
     }
@@ -65,12 +64,10 @@ impl TypeReferenceTable {
         &mut self,
         referee: TypeReferenceHandle,
         is_mutable: bool,
-        is_relaxed: bool,
     ) -> TypeReferenceHandle {
         self.insert(TypeReferenceNode::Reference {
             referee,
             is_mutable,
-            is_relaxed,
             lifetime: None,
         })
     }
@@ -79,13 +76,11 @@ impl TypeReferenceTable {
         &mut self,
         referee: TypeReferenceHandle,
         is_mutable: bool,
-        is_relaxed: bool,
         lifetime: Option<Identifier>,
     ) -> TypeReferenceHandle {
         self.insert(TypeReferenceNode::Reference {
             referee,
             is_mutable,
-            is_relaxed,
             lifetime,
         })
     }
@@ -201,7 +196,6 @@ pub enum TypeReferenceNode {
     Reference {
         referee: TypeReferenceHandle,
         is_mutable: bool,
-        is_relaxed: bool,
         /// Explicit lifetime name (`&'buf T`), frozen decision 15 stage 2. `None`
         /// is the elided case (stage 1). A borrow-region tag only: it carries no
         /// symbol and is ignored by layout, codegen, and structural type
@@ -278,6 +272,9 @@ pub enum TypeConstraintNode {
     /// An arithmetic overflow domain on a primitive (`u32 in Wrapping`); decision
     /// 17. A behaviour tag, not a value-range predicate.
     ArithmeticDomain(omega_core::arithmetic::ArithmeticDomain),
+    /// A compiler-known wellness predicate (`f64 in Finite`). Unlike an
+    /// arithmetic domain it constrains stored values, not operation behavior.
+    ValueDomain(omega_core::value_domain::ValueDomain),
     /// A DECLARED domain on a carrier (`[u8] in Utf8`); ch8 "domains over
     /// carriers". The name resolves to a `domain X::Y` declaration. Distinct from
     /// `Named` (a structural property like `copy`) so it can be validated against
@@ -320,8 +317,12 @@ mod tests {
         let mut expressions = ExpressionTable::new();
         let mut types = TypeReferenceTable::new();
         let base_type = types.insert_named(Identifier::generated("i32"));
-        let minimum = expressions.insert(ExpressionNode::Integer(omega_core::literals::IntegerLiteral::from_value(0)));
-        let maximum = expressions.insert(ExpressionNode::Integer(omega_core::literals::IntegerLiteral::from_value(10)));
+        let minimum = expressions.insert(ExpressionNode::Integer(
+            omega_core::literals::IntegerLiteral::from_value(0),
+        ));
+        let maximum = expressions.insert(ExpressionNode::Integer(
+            omega_core::literals::IntegerLiteral::from_value(10),
+        ));
         let constraint = types.append_constraint(TypeConstraintNode::Range { minimum, maximum });
         let root = types.insert_constrained(base_type, HandleSpan::from_parts(constraint, 1));
 

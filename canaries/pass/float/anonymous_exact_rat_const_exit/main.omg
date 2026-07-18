@@ -1,0 +1,73 @@
+// RUN CANARY (exit 77, differential) -- F2e anonymous float const evaluation.
+// Anonymous decimal arithmetic stays exact Rat until its destination requests
+// a format, then rounds once. Three faces:
+//   1. exact 0.1 + 0.2 lands as the same f64 as literal 0.3 (an f64 op does not),
+//   2. a double-rounding-sensitive spelling inside an expression lands directly
+//      at f32 instead of passing through f64 operand immediates, and
+//   3. a guard-side anonymous constant tree folds exactly at the compared
+//      place's contextual format, and
+//   4. an explicit cast requests the format across its operand tree,
+//   5. fixed-array element destinations request their element format,
+//   6. a wholly anonymous comparison evaluates in Rat, and
+//   7. exact division by zero produces the format's NaN special.
+boundary trait Console { machine exit_process(return_code: i32); }
+
+data Main { console: Console; exact: f64; values: [f64; 1]; }
+
+machine Main::main(&mut self) {
+    let decimal: f64 = 0.1 + 0.2;
+    transition decimal == 0.3 {
+        true -> narrow_face()
+        _ -> bad(78)
+    }
+
+    state narrow_face(&mut self) {
+        let narrow: f32 = 8388609.499999999999999 + 0.0;
+        transition narrow == 8388609.0 {
+            true -> guard_face()
+            _ -> bad(79)
+        }
+    }
+
+    state guard_face(&mut self) {
+        self.exact = 0.3;
+        transition self.exact == (0.1 + 0.2) {
+            true -> cast_face()
+            _ -> bad(80)
+        }
+    }
+
+    state cast_face(&mut self) {
+        let casted: f64 = (0.1 + 0.2) as f64;
+        transition casted == 0.3 {
+            true -> array_face()
+            _ -> bad(81)
+        }
+    }
+
+    state array_face(&mut self) {
+        self.values = [0.1 + 0.2];
+        transition self.values[0] == 0.3 {
+            true -> comparison_face()
+            _ -> bad(82)
+        }
+    }
+
+    state comparison_face(&mut self) {
+        transition 0.1 + 0.2 == 0.3 {
+            true -> special_face()
+            _ -> bad(83)
+        }
+    }
+
+    state special_face(&mut self) {
+        let nan: f64 = 0.0 / 0.0;
+        transition nan != nan {
+            true -> good()
+            _ -> bad(84)
+        }
+    }
+
+    state good(&self) { self.console.exit_process(77); }
+    state bad(&self, code2: i32) { self.console.exit_process(code2); }
+}

@@ -518,9 +518,11 @@ fn refutes_constant_false_ensures_on_empty_proof_machine() {
     )
     .expect_err("constant-false ensures should be refuted");
     assert!(
-        diagnostics.iter().any(|diagnostic| diagnostic
-            .message
-            .contains("ensures contract proof fact `1 + 1 == 3` is disproved by constant arithmetic")),
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains(
+                "ensures contract proof fact `1 + 1 == 3` is disproved by constant arithmetic"
+            )),
         "expected constant refutation diagnostic, got {diagnostics:#?}"
     );
 }
@@ -731,9 +733,8 @@ fn proves_inductive_theorem_via_recursive_contract_and_decrease() {
     }
 
     machine Main::gauss_sum(&mut self, n: u64, acc: u64) -> u64
-    terminates {
-        decreases n;
-    }
+    terminates;
+    terminates by n;
     ensures
         result * 2 == acc * 2 + n * (n + 1)
     {
@@ -761,9 +762,8 @@ fn refutes_inductive_false_twin_on_the_base_arm() {
     }
 
     machine Main::gauss_sum(&mut self, n: u64, acc: u64) -> u64
-    terminates {
-        decreases n;
-    }
+    terminates;
+    terminates by n;
     ensures
         result * 2 == acc * 2 + n * (n + 1) + 1
     {
@@ -798,9 +798,8 @@ fn rejects_inductive_step_false_twin_on_the_recursive_arm() {
     }
 
     machine Main::gauss_sum(&mut self, n: u64, acc: u64) -> u64
-    terminates {
-        decreases n;
-    }
+    terminates;
+    terminates by n;
     ensures
         result * 2 == acc * 2 + n * (n + 3)
     {
@@ -822,7 +821,7 @@ fn rejects_inductive_step_false_twin_on_the_recursive_arm() {
 
 #[test]
 fn no_induction_hypothesis_without_a_decreases_claim() {
-    // SOUNDNESS GATE: without `terminates { decreases ... }` there is no
+    // SOUNDNESS GATE: without `terminates by ...;` there is no
     // well-founded measure, so the recursive arm gets no induction
     // hypothesis. The goal cannot prove, but the missing hypothesis (not the
     // theorem) may be at fault, so the engine stands down rather than
@@ -853,7 +852,7 @@ fn no_induction_hypothesis_without_a_decreases_claim() {
 
 #[test]
 fn no_induction_hypothesis_when_the_call_site_decrease_is_undischarged() {
-    // The decreases clause names `n`, but the recursive call passes `n`
+    // The ranking witness names `n`, but the recursive call passes `n`
     // unchanged: the strict decrease fails at that exact call site, so no
     // hypothesis enters and the arm cannot drive a rejection. (The
     // machine-level termination pass independently rejects this program; the
@@ -868,9 +867,8 @@ fn no_induction_hypothesis_when_the_call_site_decrease_is_undischarged() {
     }
 
     machine Main::gauss_sum(&mut self, n: u64, acc: u64) -> u64
-    terminates {
-        decreases n;
-    }
+    terminates;
+    terminates by n;
     ensures
         result * 2 == acc * 2 + n * (n + 1)
     {
@@ -1537,7 +1535,7 @@ mod structural_entailment {
             "data Nat {{ case Zero; case Succ(prev: Nat); }}\n\
              data Main {{}}\n\
              machine Main::main(&mut self) {{}}\n\
-             machine add(a: Nat, b: Nat) -> Nat terminates {{ decreases a; }} {{\n\
+             machine add(a: Nat, b: Nat) -> Nat terminates; terminates by a; {{\n\
              transition a {{ Nat::Zero -> (b) Nat::Succ {{ prev }} -> Nat::Succ {{ prev: add(prev, b) }} }}\n\
              }}\n\
              {body}\n"
@@ -1573,10 +1571,9 @@ mod structural_entailment {
 
     #[test]
     fn case_disjointness_refutes() {
-        let error = validate(
-            "machine bad(a: Nat) requires a == Nat::Zero; ensures a != Nat::Zero; {}",
-        )
-        .expect_err("a != Zero under a == Zero should refute");
+        let error =
+            validate("machine bad(a: Nat) requires a == Nat::Zero; ensures a != Nat::Zero; {}")
+                .expect_err("a != Zero under a == Zero should refute");
         assert!(
             error.contains("disproved structurally"),
             "expected a structural disproof, got: {error}"
@@ -1609,7 +1606,7 @@ mod structural_entailment {
     #[test]
     fn structural_induction_proves() {
         validate(
-            "machine right_id(a: Nat) -> Nat terminates { decreases a; } \
+            "machine right_id(a: Nat) -> Nat terminates; terminates by a; \
              ensures result == a { \
              transition a { Nat::Zero -> Nat::Zero \
              Nat::Succ { prev } -> Nat::Succ { prev: right_id(prev) } } }",
@@ -1620,7 +1617,7 @@ mod structural_entailment {
     #[test]
     fn false_inductive_claim_refutes() {
         let error = validate(
-            "machine bad(a: Nat) -> Nat terminates { decreases a; } \
+            "machine bad(a: Nat) -> Nat terminates; terminates by a; \
              ensures result == Nat::Zero { \
              transition a { Nat::Zero -> Nat::Zero \
              Nat::Succ { prev } -> Nat::Succ { prev: bad(prev) } } }",
@@ -1635,7 +1632,7 @@ mod structural_entailment {
     #[test]
     fn application_equation_law_proves() {
         validate(
-            "machine succ_law(a: Nat, b: Nat) -> Nat terminates { decreases a; } \
+            "machine succ_law(a: Nat, b: Nat) -> Nat terminates; terminates by a; \
              ensures (add(a, Nat::Succ { prev: b })) == (Nat::Succ { prev: add(a, b) }) { \
              transition a { Nat::Zero -> Nat::Zero \
              Nat::Succ { prev } -> Nat::Succ { prev: succ_law(prev, b) } } }",
@@ -1650,7 +1647,7 @@ mod structural_entailment {
         // unfold, the tail's length staying symbolic on both sides.
         validate(
             "data Seq { case Empty; case Cons(head: Nat, tail: Seq); } \
-             machine length(s: Seq) -> Nat terminates { decreases s; } { \
+             machine length(s: Seq) -> Nat terminates; terminates by s; { \
              transition s { Seq::Empty -> Nat::Zero \
              Seq::Cons { head, tail } -> Nat::Succ { prev: length(tail) } } } \
              machine length_cons(x: Nat, s: Seq) \
@@ -1665,7 +1662,7 @@ mod structural_entailment {
         // right_id proves `result == a`; a caller cites it (its inductive
         // body never finitely unfolds for a symbolic argument).
         validate(
-            "machine right_id(a: Nat) -> Nat terminates { decreases a; } \
+            "machine right_id(a: Nat) -> Nat terminates; terminates by a; \
              ensures result == a { \
              transition a { Nat::Zero -> Nat::Zero \
              Nat::Succ { prev } -> Nat::Succ { prev: right_id(prev) } } } \
@@ -1679,24 +1676,26 @@ mod structural_entailment {
     /// `result == a` (functional) plus `add(a, Zero) == a` (the LAW an
     /// explicit citation delivers), both by one induction.
     const RIGHT_ID_LAW: &str = "machine right_id(a: Nat) -> Nat \
-         terminates { decreases a; } \
+         terminates;
+         terminates by a; \
          ensures result == a; (add(a, Nat::Zero)) == a; { \
          transition a { Nat::Zero -> Nat::Zero \
          Nat::Succ { prev } -> Nat::Succ { prev: right_id(prev) } } }";
 
     #[test]
     fn law_conjunct_proves_alongside_functional_ensures() {
-        validate(RIGHT_ID_LAW)
-            .expect("both conjuncts should prove by the same induction");
+        validate(RIGHT_ID_LAW).expect("both conjuncts should prove by the same induction");
     }
 
     #[test]
     fn statement_citation_proves() {
         // ch10 "Citing Proofs" / the OWNER_QUESTIONS #14 answer: the bare
         // statement call injects right_id's law instantiated at `b`.
-        validate(&(RIGHT_ID_LAW.to_owned()
-            + " machine cite_zero(b: Nat) ensures (add(b, Nat::Zero)) == b { \
-               right_id(b); }"))
+        validate(
+            &(RIGHT_ID_LAW.to_owned()
+                + " machine cite_zero(b: Nat) ensures (add(b, Nat::Zero)) == b { \
+               right_id(b); }"),
+        )
         .expect("a statement citation should deliver the law");
     }
 
@@ -1706,8 +1705,10 @@ mod structural_entailment {
         // WITHOUT the citation statement must fence -- and the settled
         // ergonomics mitigation names the lemma whose ensures
         // shape-matches it, with the exact operands.
-        let error = validate(&(RIGHT_ID_LAW.to_owned()
-            + " machine uncited(b: Nat) ensures (add(b, Nat::Zero)) == b {}"))
+        let error = validate(
+            &(RIGHT_ID_LAW.to_owned()
+                + " machine uncited(b: Nat) ensures (add(b, Nat::Zero)) == b {}"),
+        )
         .expect_err("an uncited law fact should fence");
         assert!(
             error.contains("no entailment tier judges yet"),
@@ -1737,7 +1738,8 @@ mod structural_entailment {
 
     /// The successor-shift law, the step case's citation material.
     const SUCC_LAW: &str = "machine add_succ_law(a: Nat, b: Nat) -> Nat \
-         terminates { decreases a; } \
+         terminates;
+         terminates by a; \
          ensures (add(a, Nat::Succ { prev: b })) == (Nat::Succ { prev: add(a, b) }) { \
          transition a { Nat::Zero -> Nat::Zero \
          Nat::Succ { prev } -> Nat::Succ { prev: add_succ_law(prev, b) } } }";
@@ -1747,7 +1749,8 @@ mod structural_entailment {
     /// cites add_succ_law AT THE CASE PAYLOAD (only reachable from a
     /// sub-state's frame) and takes the IH from its self-application.
     const ADD_COMM: &str = "machine add_comm(a: Nat, b: Nat) -> Nat \
-         terminates { decreases a; } \
+         terminates;
+         terminates by a; \
          ensures (add(a, b)) == (add(b, a)) { \
          transition a { Nat::Zero -> base_case(b) \
          Nat::Succ { prev } -> step_case(prev, b) } \
@@ -1806,7 +1809,8 @@ mod structural_entailment {
                 + " "
                 + SUCC_LAW
                 + " machine bad_comm(a: Nat, b: Nat) -> Nat \
-                   terminates { decreases a; } \
+                   terminates;
+                   terminates by a; \
                    ensures (add(a, b)) == (add(b, b)) { \
                    transition a { Nat::Zero -> base_case(b) \
                    Nat::Succ { prev } -> step_case(prev, b) } \
@@ -1831,7 +1835,8 @@ mod structural_entailment {
         // measure), so the self-call through it must reject.
         let error = validate(
             "machine bad(a: Nat, b: Nat) -> Nat \
-             terminates { decreases a; } \
+             terminates;
+             terminates by a; \
              ensures (add(a, b)) == (add(a, b)) { \
              transition a { Nat::Zero -> done(b) \
              Nat::Succ { prev } -> spin(b, b) } \
@@ -1842,27 +1847,30 @@ mod structural_entailment {
         )
         .expect_err("recursion through a non-descending sub-state parameter should reject");
         assert!(
-            error.contains("cannot prove the measure"),
+            error.contains("does not make ranking subject `a` descend structurally"),
             "expected the descent error, got: {error}"
         );
     }
 
     /// Multiplication (the harness prelude only carries `add`).
     const MUL: &str = "machine mul(a: Nat, b: Nat) -> Nat \
-         terminates { decreases a; } { \
+         terminates;
+         terminates by a; { \
          transition a { Nat::Zero -> Nat::Zero \
          Nat::Succ { prev } -> (add(b, mul(prev, b))) } }";
 
     /// Associativity: pure induction, no citations -- both sides normalize
     /// by unfolding plus the IH rewrite.
     const ADD_ASSOC: &str = "machine add_assoc(a: Nat, b: Nat, c: Nat) -> Nat \
-         terminates { decreases a; } \
+         terminates;
+         terminates by a; \
          ensures (add(add(a, b), c)) == (add(a, add(b, c))) { \
          transition a { Nat::Zero -> Nat::Zero \
          Nat::Succ { prev } -> Nat::Succ { prev: add_assoc(prev, b, c) } } }";
 
     const MUL_ZERO_RIGHT: &str = "machine mul_zero_right(a: Nat) -> Nat \
-         terminates { decreases a; } \
+         terminates;
+         terminates by a; \
          ensures (mul(a, Nat::Zero)) == Nat::Zero { \
          transition a { Nat::Zero -> Nat::Zero \
          Nat::Succ { prev } -> Nat::Succ { prev: mul_zero_right(prev) } } }";
@@ -1872,7 +1880,8 @@ mod structural_entailment {
     /// normalize `add(b, add(prev, m))` onto the goal's other side --
     /// explicit Dafny-style proof text, no search.
     const MUL_SUCC_RIGHT: &str = "machine mul_succ_right(a: Nat, b: Nat) -> Nat \
-         terminates { decreases a; } \
+         terminates;
+         terminates by a; \
          ensures (mul(a, Nat::Succ { prev: b })) == (add(a, mul(a, b))) { \
          transition a { Nat::Zero -> Nat::Zero \
          Nat::Succ { prev } -> step_msr(prev, b) } \
@@ -1885,7 +1894,8 @@ mod structural_entailment {
     /// Multiplication commutes: base cites mul_zero_right, step cites
     /// mul_succ_right at (b, prev) plus the IH.
     const MUL_COMM: &str = "machine mul_comm(a: Nat, b: Nat) -> Nat \
-         terminates { decreases a; } \
+         terminates;
+         terminates by a; \
          ensures (mul(a, b)) == (mul(b, a)) { \
          transition a { Nat::Zero -> base_mc(b) \
          Nat::Succ { prev } -> step_mc(prev, b) } \
@@ -1973,14 +1983,14 @@ mod structural_entailment {
         // inductions on the first sequence, no citations.
         validate(
             "data Seq { case Empty; case Cons(head: Nat, tail: Seq); } \
-             machine append(s: Seq, t: Seq) -> Seq terminates { decreases s; } { \
+             machine append(s: Seq, t: Seq) -> Seq terminates; terminates by s; { \
              transition s { Seq::Empty -> (t) \
              Seq::Cons { head, tail } -> Seq::Cons { head: head, tail: append(tail, t) } } } \
-             machine append_empty_right(s: Seq) -> Seq terminates { decreases s; } \
+             machine append_empty_right(s: Seq) -> Seq terminates; terminates by s; \
              ensures (append(s, Seq::Empty)) == s { \
              transition s { Seq::Empty -> Seq::Empty \
              Seq::Cons { head, tail } -> Seq::Cons { head: head, tail: append_empty_right(tail) } } } \
-             machine append_assoc(s: Seq, t: Seq, u: Seq) -> Seq terminates { decreases s; } \
+             machine append_assoc(s: Seq, t: Seq, u: Seq) -> Seq terminates; terminates by s; \
              ensures (append(append(s, t), u)) == (append(s, append(t, u))) { \
              transition s { Seq::Empty -> Seq::Empty \
              Seq::Cons { head, tail } -> Seq::Cons { head: head, tail: append_assoc(tail, t, u) } } }",
@@ -1996,13 +2006,13 @@ mod structural_entailment {
         // IH as a rewrite. No citations needed: both sides normalize.
         validate(
             "data Seq { case Empty; case Cons(head: Nat, tail: Seq); } \
-             machine length(s: Seq) -> Nat terminates { decreases s; } { \
+             machine length(s: Seq) -> Nat terminates; terminates by s; { \
              transition s { Seq::Empty -> Nat::Zero \
              Seq::Cons { head, tail } -> Nat::Succ { prev: length(tail) } } } \
-             machine append(s: Seq, t: Seq) -> Seq terminates { decreases s; } { \
+             machine append(s: Seq, t: Seq) -> Seq terminates; terminates by s; { \
              transition s { Seq::Empty -> (t) \
              Seq::Cons { head, tail } -> Seq::Cons { head: head, tail: append(tail, t) } } } \
-             machine length_append(s: Seq, t: Seq) -> Nat terminates { decreases s; } \
+             machine length_append(s: Seq, t: Seq) -> Nat terminates; terminates by s; \
              ensures (length(append(s, t))) == (add(length(s), length(t))) { \
              transition s { Seq::Empty -> Nat::Zero \
              Seq::Cons { head, tail } -> Nat::Succ { prev: length_append(tail, t) } } }",
@@ -2017,10 +2027,12 @@ mod structural_entailment {
         // serve goals one compute step away, like `add(Succ(b), Zero) ==
         // Succ(b)` -- the Succ arm unfolds and exposes exactly the cited
         // instance; that is sound derivation, not leakage.)
-        let error = validate(&(RIGHT_ID_LAW.to_owned()
-            + " machine wrong_operand(b: Nat, c: Nat) \
+        let error = validate(
+            &(RIGHT_ID_LAW.to_owned()
+                + " machine wrong_operand(b: Nat, c: Nat) \
                ensures (add(c, Nat::Zero)) == c { \
-               right_id(b); }"))
+               right_id(b); }"),
+        )
         .expect_err("a citation at the wrong operands should not discharge the goal");
         assert!(
             error.contains("no entailment tier judges yet"),

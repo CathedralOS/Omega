@@ -20,9 +20,8 @@ fn carries_machine_contract_facts_into_checked_proof_facts() {
         contains: Default::default(),
         owned_data: Default::default(),
         satisfies: Default::default(),
-        terminates: false,
-        decreases: Default::default(),
-        decrease_order: Default::default(),
+        termination_guarantee: omega_core::termination::TerminationGuarantee::None,
+        ranking_witness: Default::default(),
         effects: Default::default(),
         contracts: Default::default(),
         states: Default::default(),
@@ -76,9 +75,8 @@ fn centralizes_contract_facts_in_semantic_fact_plan() {
         contains: Default::default(),
         owned_data: Default::default(),
         satisfies: Default::default(),
-        terminates: false,
-        decreases: Default::default(),
-        decrease_order: Default::default(),
+        termination_guarantee: omega_core::termination::TerminationGuarantee::None,
+        ranking_witness: Default::default(),
         effects: Default::default(),
         contracts: Default::default(),
         states: Default::default(),
@@ -158,6 +156,8 @@ fn carries_trait_signature_contract_facts_into_checked_proof_facts() {
         is_default: false,
         parameters: Default::default(),
         return_type: omega_typed_trees::types::TypeReferenceHandle::invalid(),
+        termination_guarantee: omega_core::termination::TerminationGuarantee::None,
+        ranking_witness: Default::default(),
         effects: Default::default(),
         contracts: Default::default(),
     };
@@ -218,9 +218,8 @@ fn indexes_call_contract_facts_by_target_machine() {
         contains: Default::default(),
         owned_data: Default::default(),
         satisfies: Default::default(),
-        terminates: false,
-        decreases: Default::default(),
-        decrease_order: Default::default(),
+        termination_guarantee: omega_core::termination::TerminationGuarantee::None,
+        ranking_witness: Default::default(),
         effects: Default::default(),
         contracts: Default::default(),
         states: Default::default(),
@@ -254,9 +253,8 @@ fn indexes_call_contract_facts_by_target_machine() {
         contains: Default::default(),
         owned_data: Default::default(),
         satisfies: Default::default(),
-        terminates: false,
-        decreases: Default::default(),
-        decrease_order: Default::default(),
+        termination_guarantee: omega_core::termination::TerminationGuarantee::None,
+        ranking_witness: Default::default(),
         effects: Default::default(),
         contracts: Default::default(),
         states: Default::default(),
@@ -343,6 +341,8 @@ fn indexes_inherited_trait_contracts_by_concrete_call_target() {
         is_default: false,
         parameters: Default::default(),
         return_type: omega_typed_trees::types::TypeReferenceHandle::invalid(),
+        termination_guarantee: omega_core::termination::TerminationGuarantee::None,
+        ranking_witness: Default::default(),
         effects: Default::default(),
         contracts: Default::default(),
     };
@@ -366,9 +366,8 @@ fn indexes_inherited_trait_contracts_by_concrete_call_target() {
         contains: Default::default(),
         owned_data: Default::default(),
         satisfies: Default::default(),
-        terminates: false,
-        decreases: Default::default(),
-        decrease_order: Default::default(),
+        termination_guarantee: omega_core::termination::TerminationGuarantee::None,
+        ranking_witness: Default::default(),
         effects: Default::default(),
         contracts: Default::default(),
         states: Default::default(),
@@ -378,6 +377,8 @@ fn indexes_inherited_trait_contracts_by_concrete_call_target() {
         TraitConformance {
             symbol: trait_symbol,
             name: Identifier::generated("Drawable"),
+            requirement: None,
+            alias: None,
         },
     );
     program.push_machine_state(
@@ -401,9 +402,8 @@ fn indexes_inherited_trait_contracts_by_concrete_call_target() {
         contains: Default::default(),
         owned_data: Default::default(),
         satisfies: Default::default(),
-        terminates: false,
-        decreases: Default::default(),
-        decrease_order: Default::default(),
+        termination_guarantee: omega_core::termination::TerminationGuarantee::None,
+        ranking_witness: Default::default(),
         effects: Default::default(),
         contracts: Default::default(),
         states: Default::default(),
@@ -475,9 +475,12 @@ fn indexes_terminal_state_contract_ensures() {
         .append(omega_typed_trees::domain::ProofFact::Expression(
             fact_expression,
         ));
-    let return_expression = program
-        .expression_table
-        .insert(omega_typed_trees::expression::ExpressionNode::Integer(omega_core::literals::IntegerLiteral::from_value(0)));
+    let return_expression =
+        program
+            .expression_table
+            .insert(omega_typed_trees::expression::ExpressionNode::Integer(
+                omega_core::literals::IntegerLiteral::from_value(0),
+            ));
 
     let mut machine = Machine {
         symbol: machine_symbol,
@@ -488,9 +491,8 @@ fn indexes_terminal_state_contract_ensures() {
         contains: Default::default(),
         owned_data: Default::default(),
         satisfies: Default::default(),
-        terminates: false,
-        decreases: Default::default(),
-        decrease_order: Default::default(),
+        termination_guarantee: omega_core::termination::TerminationGuarantee::None,
+        ranking_witness: Default::default(),
         effects: Default::default(),
         contracts: Default::default(),
         states: Default::default(),
@@ -536,7 +538,6 @@ fn indexes_terminal_state_contract_ensures() {
     assert_eq!(ensures.len(), 1);
     assert_eq!(facts.contract_facts.get(ensures[0].fact).fact, fact);
 }
-
 
 #[test]
 fn boundary_out_param_ensures_discharges_index_bounds() {
@@ -603,7 +604,6 @@ fn boundary_out_param_ensures_bound_too_wide_keeps_index_refusal() {
         "expected the index refusal, got {diagnostics:#?}"
     );
 }
-
 
 #[test]
 fn boundary_ensures_transport_through_transition_arguments() {
@@ -689,7 +689,6 @@ fn boundary_ensures_transport_rebind_before_transition_kills_the_fact() {
     );
 }
 
-
 #[test]
 fn boundary_ensures_witness_discharges_bounded_assignment() {
     // R4 containment: `ensures size <= 8` refolds `self.n + 1` into
@@ -764,7 +763,6 @@ fn boundary_ensures_witness_bounded_assignment_dies_on_later_call() {
         "expected a refusal naming the unproven value, got {diagnostics:#?}"
     );
 }
-
 
 #[test]
 fn value_vs_value_guard_transfers_the_range_endpoint() {

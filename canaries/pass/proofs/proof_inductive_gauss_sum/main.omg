@@ -3,7 +3,7 @@
 // Lean analog: `Finset.sum_range_id_mul_two` by induction on n. The engine
 // judges each transition arm: the base arm binds `result := acc` under
 // n == 0, and the recursive arm may assume the machine's own ensures for
-// (n - 1, acc + n) -- the induction hypothesis -- because the `decreases n`
+// (n - 1, acc + n) -- the induction hypothesis -- because the `terminates by n`
 // measure strictly decreases (and stays non-negative) at that exact call
 // site under the n > 0 guard. Both arms discharge by polynomial identity.
 
@@ -15,9 +15,8 @@ machine Main::main(&mut self) {
 }
 
 machine Main::gauss_sum(&mut self, n: u64, acc: u64) -> u64
-terminates {
-    decreases n;
-}
+terminates;
+terminates by n;
 ensures
     result * 2 == acc * 2 + n * (n + 1)
 {

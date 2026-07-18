@@ -1,0 +1,16 @@
+// FAIL CANARY. N2(d) admits an integer ranking subject for a proof machine,
+// but the ordinary termination proof remains load-bearing: passing `n` back
+// unchanged is not a predecessor step.
+use omega::language::core::nat;
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine Main::main(&mut self) { self.console.exit_process(70); }
+machine stalled(n: u64) -> Nat
+terminates;
+terminates by n;
+{
+    transition n > 0 {
+        true -> Nat::Succ { prev: stalled(n) }
+        false -> Nat::Zero
+    }
+}

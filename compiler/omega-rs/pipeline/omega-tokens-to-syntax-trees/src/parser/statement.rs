@@ -10,8 +10,8 @@ use omega_syntax_trees::expression::{
 };
 use omega_syntax_trees::identifier::Identifier;
 use omega_syntax_trees::statement::{
-    StatementHandle, StatementNode, TableAssignment, TableCall, TableLocalData, TableRelax,
-    TableTransition, TransitionGuardNode, TransitionTargetHandle, TransitionTargetNode,
+    StatementHandle, StatementNode, TableAssignment, TableCall, TableLocalData, TableTransition,
+    TransitionGuardNode, TransitionTargetHandle, TransitionTargetNode,
 };
 use omega_tokens::{KeywordKind, PunctuationKind};
 
@@ -29,7 +29,9 @@ pub(super) fn parse_statement_handle<'tokens, 'source>(
     }
 
     if input.at_contextual("relax") {
-        return parse_relax_statement_handle(syntax_trees, input);
+        return Err(input.error_here(
+            "the `relax` statement is retired; ordinary exclusive writes open and close invariant windows automatically",
+        ));
     }
 
     if input.at_contextual("asm") {
@@ -192,12 +194,12 @@ fn parse_spawn_statement_handle<'tokens, 'source>(
     // The spawn body is guaranteed to be a call expression; statement-call
     // conversion only fails for call shapes (e.g. indexed receivers) that the
     // ordinary call-statement path also leaves as expression statements.
-    let statement = if let Some(call) = expression_handle_to_statement_call(syntax_trees, expression)
-    {
-        StatementNode::Call(call)
-    } else {
-        StatementNode::Expression(expression)
-    };
+    let statement =
+        if let Some(call) = expression_handle_to_statement_call(syntax_trees, expression) {
+            StatementNode::Call(call)
+        } else {
+            StatementNode::Expression(expression)
+        };
 
     Ok((syntax_trees.statements.insert(statement), input))
 }
@@ -315,14 +317,17 @@ fn parse_asm_statement_handle<'tokens, 'source>(
             let input = input.take_punctuation(PunctuationKind::Comma, ",")?;
             let (port, input) = parse_expression_handle(syntax_trees, input)?;
             let input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
-            let arguments = syntax_trees.expressions.insert_expression_handles(vec![port]);
-            let value = syntax_trees
+            let arguments = syntax_trees
                 .expressions
-                .insert(ExpressionNode::Call(TableCallExpression {
-                    receiver: ExpressionHandle::invalid(),
-                    target: Identifier::new("asm#port_in", mnemonic.source_span()),
-                    arguments,
-                }));
+                .insert_expression_handles(vec![port]);
+            let value =
+                syntax_trees
+                    .expressions
+                    .insert(ExpressionNode::Call(TableCallExpression {
+                        receiver: ExpressionHandle::invalid(),
+                        target: Identifier::new("asm#port_in", mnemonic.source_span()),
+                        arguments,
+                    }));
             Ok((
                 syntax_trees
                     .statements
@@ -338,43 +343,6 @@ fn parse_asm_statement_handle<'tokens, 'source>(
              (`hlt`, `in`, `out`, `jmp`); opaque forms (`db`, raw bytes) are rejected"
         ))),
     }
-}
-
-fn parse_relax_statement_handle<'tokens, 'source>(
-    syntax_trees: &mut SyntaxTrees,
-    input: Input<'tokens, 'source>,
-) -> ParseResult<'tokens, 'source, StatementHandle> {
-    let input = input.take_contextual("relax")?;
-    let (target, input) = parse_expression_handle(syntax_trees, input)?;
-    let mut input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
-    let mut statement_start = Handle::invalid();
-    let mut statement_count = 0u32;
-
-    while !input.at_punctuation(PunctuationKind::RightBrace) {
-        let (statement, rest) = parse_statement_handle(syntax_trees, input)?;
-        let handle = syntax_trees.items.append_statement_handle(statement);
-        if statement_count == 0 {
-            statement_start = handle;
-        }
-        statement_count = statement_count
-            .checked_add(1)
-            .expect("relax statement span count overflow");
-        input = rest;
-    }
-
-    let input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
-    let statements = if statement_count == 0 {
-        HandleSpan::empty()
-    } else {
-        HandleSpan::from_parts(statement_start, statement_count)
-    };
-
-    Ok((
-        syntax_trees
-            .statements
-            .insert(StatementNode::Relax(TableRelax { target, statements })),
-        input,
-    ))
 }
 
 /// RETIRED (settled 2026-07-02: "if isn't a thing"). The `if` STATEMENT had
@@ -537,8 +505,10 @@ fn parse_local_data_statement_handle<'tokens, 'source>(
 pub(super) fn try_parse_atomic_compare_exchange_let<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
-) -> Option<(HandleSpan<omega_syntax_trees::statement::StatementHandle>, Input<'tokens, 'source>)>
-{
+) -> Option<(
+    HandleSpan<omega_syntax_trees::statement::StatementHandle>,
+    Input<'tokens, 'source>,
+)> {
     // Must start with `let`.
     if !input.at_keyword(KeywordKind::Let) {
         return None;
@@ -661,8 +631,10 @@ pub(super) fn try_parse_atomic_compare_exchange_let<'tokens, 'source>(
 pub(super) fn try_parse_atomic_fetch_add_let<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
-) -> Option<(HandleSpan<omega_syntax_trees::statement::StatementHandle>, Input<'tokens, 'source>)>
-{
+) -> Option<(
+    HandleSpan<omega_syntax_trees::statement::StatementHandle>,
+    Input<'tokens, 'source>,
+)> {
     // Must start with `let`.
     if !input.at_keyword(KeywordKind::Let) {
         return None;

@@ -1,0 +1,40 @@
+// COMPILE CANARY. Two machines share the same declared lexicographic view.
+// The first edge forwards the tuple; the second preserves the first component
+// and strictly decreases the second.
+data Progress {
+    outer: u64;
+    inner: u64;
+}
+
+measure Progress::Steps lexicographic { outer, inner }
+
+data Main {}
+
+machine Main::main(&mut self) -> u64 {
+    transition {
+        _ -> self.scan_a(Progress { outer: 1, inner: 4 })
+    }
+}
+
+machine Main::scan_a(&mut self, progress: Progress)
+terminates by progress -> Progress::Steps;
+-> u64
+{
+    transition progress.inner > 0 {
+        true -> self.scan_b(progress)
+        false -> 0
+    }
+}
+
+machine Main::scan_b(&mut self, progress: Progress)
+terminates by progress -> Progress::Steps;
+-> u64
+{
+    transition progress.inner > 0 {
+        true -> self.scan_a(Progress {
+            outer: progress.outer,
+            inner: progress.inner - 1,
+        })
+        false -> 0
+    }
+}

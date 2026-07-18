@@ -38,18 +38,21 @@ useful bootstrap behavior but not the general domain model.
 
 ### Machines
 
-The symbol-resolved and typed `Machine` records carry `boundary: bool`,
-`terminates: bool`, a flat effect-name span, contracts, and states. They do not
+The symbol-resolved and typed `Machine` records carry `boundary: bool`, a
+normalized `termination_guarantee`, a private `RankingWitness`, a flat
+effect-name span, contracts, and states. They do not yet
 carry a normalized semantic contract, supply mode, consumption eligibility,
 observation surface/floor, progress contract, or boundary-facing contract
 identity. Requirement, provider, checked body, and accepted declaration are
 therefore liable to be inferred from syntax and lookup context repeatedly.
 
-The same `terminates` boolean and attached `decreases` span also conflate a
-public eventual-terminal guarantee with the private ranking witness used to
-prove one body. They cannot represent an inherited guarantee with an
-implementation-local witness, a conditional guarantee with pinned progress
-premises, or a witness change that leaves interface identity untouched.
+The guarantee/witness split now represents an inherited guarantee with an
+implementation-local witness and lets a witness change leave interface
+identity untouched. Checked summaries derive local completion independently;
+the cycle gate covers state SCCs, same-shaped runtime machine SCCs, and
+structural non-tail proof-only SCCs. The remaining gap is the full conditional
+guarantee with pinned progress premises and its boundary-facing contract
+identity.
 
 ### Multiplicity and permissions
 

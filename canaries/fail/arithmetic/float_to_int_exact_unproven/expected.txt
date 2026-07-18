@@ -1,0 +1,1 @@
+cannot prove Exact float-to-`i32` cast operand

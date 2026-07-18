@@ -621,10 +621,15 @@ impl ArtifactWriter {
         } else {
             for (_, contract) in boundary_report.contracts.iter() {
                 output.push_str(&format!(
-                    "- {}.{} boundary `{}` requires {} ensures {}\n",
+                    "- {}.{} boundary `{}` termination `{}` requires {} ensures {}\n",
                     contract.capability,
                     contract.state,
                     contract.boundary,
+                    if contract.eventual_terminal {
+                        "eventual_terminal"
+                    } else {
+                        "none"
+                    },
                     contract.requires_count,
                     contract.ensures_count
                 ));
@@ -1141,6 +1146,9 @@ pub struct BoundaryContract {
     pub capability: String,
     pub state: String,
     pub boundary: String,
+    /// Published interface promise only. Private ranking evidence is excluded
+    /// from the boundary artifact and its identity surface.
+    pub eventual_terminal: bool,
     pub requires_count: usize,
     pub ensures_count: usize,
 }
@@ -1271,6 +1279,9 @@ fn mark_executable_if_needed(_path: &Path) -> Result<(), Diagnostic> {
 
 #[cfg(test)]
 mod tests {
+    use std::fs;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
     use omega_checked_trees::CheckedTrees;
     use omega_checked_trees::machine::Machine;
     use omega_checked_trees::name::Identifier;
@@ -1279,7 +1290,7 @@ mod tests {
     use omega_checked_trees::state::State;
     use omega_core::symbols::SymbolHandle;
 
-    use super::build_backend_surface_report;
+    use super::{ArtifactWriter, BoundaryContract, BoundaryReport, build_backend_surface_report};
 
     #[test]
     fn collects_entry_machine_and_platforms() {
@@ -1328,5 +1339,39 @@ mod tests {
         assert_eq!(report.entry_points.len(), 1);
         assert_eq!(report.platforms.len(), 1);
         assert_eq!(report.machines.len(), 1);
+    }
+
+    #[test]
+    fn boundary_artifact_emits_only_the_public_termination_guarantee() {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system clock should follow the Unix epoch")
+            .as_nanos();
+        let output_dir = std::env::temp_dir().join(format!(
+            "omega-boundary-artifact-{}-{unique}",
+            std::process::id()
+        ));
+        let writer = ArtifactWriter::new(&output_dir).expect("create artifact writer");
+        let mut report = BoundaryReport::default();
+        report.contracts.insert(BoundaryContract {
+            capability: "Clock".to_owned(),
+            state: "wait".to_owned(),
+            boundary: "host".to_owned(),
+            eventual_terminal: true,
+            requires_count: 1,
+            ensures_count: 1,
+        });
+
+        writer
+            .write_boundary_report(&report)
+            .expect("write boundary report");
+        let artifact = fs::read_to_string(output_dir.join("10_boundary.html"))
+            .expect("read boundary report");
+
+        assert!(artifact.contains("termination `eventual_terminal`"));
+        assert!(!artifact.contains("ranking"));
+        assert!(!artifact.contains("witness"));
+
+        fs::remove_dir_all(&output_dir).expect("remove test artifact directory");
     }
 }

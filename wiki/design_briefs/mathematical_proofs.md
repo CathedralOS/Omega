@@ -51,6 +51,13 @@ Every terminating recursive call cycle requires a `terminates by` ranking.
   indefinitely.
 - Mutual recursion requires a joint well-founded ranking.
 
+For the common bridge from finite runtime counts into structural mathematics,
+a proof machine may rank on an unsigned integer parameter and recurse through
+the guarded predecessor shape `n > 0` / `n - 1`. The arithmetic checker proves
+that edge well-founded; the structural judge may instantiate the recursive
+contract at the opaque predecessor term and reason about a surrounding
+`Nat::Succ`. Neither checker fabricates facts in the other's domain.
+
 This gives induction its natural source form without weakening the systems
 language's stack guarantee.
 
@@ -83,8 +90,15 @@ law. Named satisfiers disambiguate multiple algebras over one carrier.
 
 The judge may normalize only operations licensed by that conformance. It never
 enables algebra by noticing similarly named lemmas in scope. The current
-implementation includes licensed associative/commutative rearrangement and
-canaries proving that removal of a law conformance disables the proof.
+implementation includes licensed associative/commutative rearrangement and a
+natural-coefficient polynomial form when the carrier conforms all five
+commutative-semiring laws (add/mul commutativity and associativity plus
+distributivity). Expansion is capped and unequal normal forms never refute.
+Zero/one identities are separate conformed law slots: carrier proofs bridge
+their nullary slot applications to constructor constants through ordinary
+unfolding and citation. The polynomial normalizer itself does not silently
+erase identity terms. Canaries prove that missing conformance disables the
+corresponding proof.
 
 Remaining engineering extends the normalized form to full distributive
 polynomials, identity bridging, and additional carriers such as `Int`/`Rat`.

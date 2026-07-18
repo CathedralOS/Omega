@@ -18,6 +18,7 @@ use omega_tokens::{KeywordKind, PunctuationKind};
 
 mod clauses;
 
+pub(super) use clauses::{ParsedTerminationClause, parse_termination_clause};
 use clauses::{parse_machine_clauses, parse_satisfies_traits};
 
 pub(super) fn parse_machine<'tokens, 'source>(
@@ -46,11 +47,11 @@ pub(super) fn parse_machine<'tokens, 'source>(
     let (machine_parameters, input) = parse_optional_state_parameters(syntax_trees, input)?;
     let (machine_return_type, mut input) = parse_optional_return_type(syntax_trees, input)?;
     let (satisfies, next) = parse_satisfies_traits(syntax_trees, input)?;
-    let ((terminates, decreases, decrease_order, effects, contracts, clauses_return_type), next) =
+    let ((termination_guarantee, ranking_witness, effects, contracts, clauses_return_type), next) =
         parse_machine_clauses(syntax_trees, next)?;
     input = next;
     // `-> T` is written either before the clauses or after them
-    // (`terminates {..} -> usize`); both spell the machine's return type.
+    // (`terminates; -> usize`); both spell the machine's return type.
     let machine_return_type = if machine_return_type.is_valid() {
         machine_return_type
     } else {
@@ -139,7 +140,7 @@ pub(super) fn parse_machine<'tokens, 'source>(
     // proof, loop-carried arg staging, both engines) sees the same bare
     // back-edge the arm spelling produces. Unmeasured machines keep the
     // call; validation names the missing measure.
-    if terminates && !decreases.is_empty() {
+    if ranking_witness.is_present() {
         let entry_callable = entry_name.clone().unwrap_or_else(|| name.clone());
         rewrite_terminal_tail_self_calls(
             syntax_trees,
@@ -156,9 +157,8 @@ pub(super) fn parse_machine<'tokens, 'source>(
             boundary: false,
             type_parameters,
             satisfies,
-            terminates,
-            decreases,
-            decrease_order,
+            termination_guarantee,
+            ranking_witness,
             effects,
             contracts,
             states,
@@ -317,8 +317,10 @@ fn rewrite_terminal_tail_self_calls(
     };
 
     // Phase 1 (reads): collect the rewrite sites.
-    let mut sites: Vec<(StatementHandle, Vec<omega_syntax_trees::expression::ExpressionHandle>)> =
-        Vec::new();
+    let mut sites: Vec<(
+        StatementHandle,
+        Vec<omega_syntax_trees::expression::ExpressionHandle>,
+    )> = Vec::new();
     for state_handle in syntax_trees.items.state_handles(states).to_vec() {
         let state = syntax_trees.items.state(state_handle);
         let Some(&last) = syntax_trees.items.statements(state.statements).last() else {
@@ -366,13 +368,14 @@ fn rewrite_terminal_tail_self_calls(
                 argument_span = HandleSpan::from_parts(handle, arguments.len() as u32);
             }
         }
-        let target = syntax_trees
-            .statements
-            .insert_transition_target(TransitionTargetNode::Named {
-                path,
-                path_starts_at_self: false,
-                arguments: argument_span,
-            });
+        let target =
+            syntax_trees
+                .statements
+                .insert_transition_target(TransitionTargetNode::Named {
+                    path,
+                    path_starts_at_self: false,
+                    arguments: argument_span,
+                });
         syntax_trees.statements.replace_statement(
             statement_handle,
             StatementNode::Transition(TableTransition {

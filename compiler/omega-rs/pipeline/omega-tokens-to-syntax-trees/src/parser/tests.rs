@@ -49,6 +49,48 @@ fn parses_dungeon_state_flow() {
 }
 
 #[test]
+fn parses_data_default_domain_where_facts() {
+    let source = r#"
+        data MemoryMap
+        where
+            count * stride <= len,
+            stride >= 40,
+        {
+            len: u32;
+            stride: u32;
+            count: u32;
+        }
+        "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let parsed = parse_syntax_trees(&tokens).expect("data where clause should parse");
+    let data = parsed
+        .root_items()
+        .find_map(|item| match item {
+            omega_syntax_trees::item::Item::Data(data) => Some(data),
+            _ => None,
+        })
+        .expect("data root item");
+    let facts = parsed.items.proof_facts(data.default_domain);
+    assert_eq!(facts.len(), 2);
+    assert!(facts.iter().all(|fact| matches!(
+        fact,
+        omega_syntax_trees::item::ProofFact::Expression(_)
+    )));
+}
+
+#[test]
+fn rejects_empty_data_where_clause() {
+    let source = "data Empty where { value: u32; }";
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let error = parse_syntax_trees(&tokens).expect_err("empty where clause must reject");
+    assert!(error.message.contains("requires at least one fact"));
+}
+
+#[test]
 fn parses_attached_main_state_name_as_main() {
     let source = r#"
         data Main {
@@ -162,9 +204,8 @@ fn parses_machine_contract_clauses() {
 fn parses_machine_termination_clauses() {
     let source = r#"
         machine walk(items: &[Item], remaining: usize)
-        terminates {
-            decreases remaining -> Nat::Descending;
-        }
+        terminates;
+        terminates by remaining -> Nat::Descending;
         {
         }
         "#;
@@ -181,18 +222,18 @@ fn parses_machine_termination_clauses() {
         })
         .expect("machine root item");
 
-    assert!(machine.terminates);
+    assert!(machine.termination_guarantee);
     assert_eq!(
         parsed
             .expressions
-            .expression_handles(machine.decreases)
+            .expression_handles(machine.ranking_witness.subjects)
             .len(),
         1
     );
     assert_eq!(
         parsed
             .items
-            .identifier_path_members(machine.decrease_order)
+            .identifier_path_members(machine.ranking_witness.view)
             .len(),
         2
     );
@@ -204,9 +245,7 @@ fn parses_machine_termination_tuple_subjects() {
     // ranked-subject tuple, bound in order to the named view's parameters.
     let source = r#"
         machine walk(limit: usize, index: usize)
-        terminates {
-            decreases (index, limit) -> Nat::BoundedDistance;
-        }
+        terminates by (index, limit) -> Nat::IncreasingTo(limit) in 0..=limit;
         {
         }
         "#;
@@ -223,21 +262,74 @@ fn parses_machine_termination_tuple_subjects() {
         })
         .expect("machine root item");
 
-    assert!(machine.terminates);
+    assert!(!machine.termination_guarantee);
     assert_eq!(
         parsed
             .expressions
-            .expression_handles(machine.decreases)
+            .expression_handles(machine.ranking_witness.subjects)
             .len(),
         2
     );
     assert_eq!(
         parsed
             .items
-            .identifier_path_members(machine.decrease_order)
+            .identifier_path_members(machine.ranking_witness.view)
             .len(),
         2
     );
+    assert_eq!(
+        parsed
+            .expressions
+            .expression_handles(machine.ranking_witness.view_arguments)
+            .len(),
+        1
+    );
+    assert!(machine.ranking_witness.range.is_present());
+    assert!(machine.ranking_witness.range.end_inclusive);
+}
+
+#[test]
+fn rejects_retired_block_termination_syntax() {
+    let source = r#"
+        machine walk(remaining: usize)
+        terminates { decreases remaining; }
+        {
+        }
+        "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let error = parse_syntax_trees(&tokens)
+        .expect_err("parser should reject retired block-form termination syntax");
+    assert!(error.message.contains("block-form"), "{}", error.message);
+}
+
+#[test]
+fn parses_bodyless_termination_guarantee() {
+    let source = r#"
+        boundary trait FiniteReader {
+            machine read_all(&mut self) terminates;
+        }
+        "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let parsed = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let signature = parsed
+        .root_items()
+        .find_map(|item| match item {
+            omega_syntax_trees::item::Item::Trait(definition) => parsed
+                .items
+                .state_signatures(definition.machines)
+                .first()
+                .map(|handle| parsed.items.state_signature(*handle)),
+            _ => None,
+        })
+        .expect("trait machine signature");
+    assert!(signature.termination_guarantee);
+    assert!(!signature.ranking_witness.is_present());
 }
 
 #[test]
@@ -581,8 +673,7 @@ fn parses_asm_mnemonics_as_intrinsic_calls() {
     assert_eq!(out.target.as_str(), "asm#port_out");
     assert_eq!(out.arguments.count(), 2);
 
-    let StatementNode::Assignment(read) = parsed.statements.statement(statements[3]).clone()
-    else {
+    let StatementNode::Assignment(read) = parsed.statements.statement(statements[3]).clone() else {
         panic!("asm {{ in .. }} should desugar to an assignment");
     };
     let ExpressionNode::Call(port_in) = parsed.expressions.expression(read.value).clone() else {

@@ -12,7 +12,8 @@
 boundary trait Console { machine exit_process(return_code: i32); }
 data Main { console: Console; }
 machine Main::count(&mut self, i: u64, j: u64, acc: i8 in Saturating)
-terminates { decreases (j, i) -> Nat::BoundedDistance; }
+terminates;
+terminates by (j, i) -> Nat::BoundedDistance;
 -> i8
 {
     transition j < i {

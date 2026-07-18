@@ -1,0 +1,36 @@
+// FAIL CANARY. This is the Cathedral stride proof with its footprint leg
+// deliberately weakened: `off + desc_size <= map_size` bounds the next
+// OFFSET at 64, not the next descriptor's END. A 16-byte view may therefore
+// begin at 64 in a 64-byte buffer, and must refuse at the recast.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Desc { kind: u64; pages: u64; }
+data Main {
+    console: Console;
+    buf: [u8; 64];
+    descriptor_size: u32 in Wrapping;
+    map_size: u32 in Wrapping;
+}
+machine Main::main(&mut self) {
+    self.descriptor_size = 16;
+    self.map_size = 64;
+    transition self.map_size <= 64 && self.descriptor_size >= 16 {
+        true -> walk(0, self.descriptor_size, self.map_size)
+        _ -> bad()
+    }
+
+    state walk(
+        &mut self,
+        off: u32 in Wrapping,
+        desc_size: u32 in Wrapping,
+        map_size: u32 in Wrapping
+    ) {
+        let d: &Desc = &self.buf[off] as &Desc;
+        transition off + desc_size <= map_size {
+            true -> walk(off + desc_size, desc_size, map_size)
+            _ -> good()
+        }
+    }
+
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

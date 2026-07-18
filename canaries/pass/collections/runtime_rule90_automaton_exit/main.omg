@@ -94,7 +94,7 @@ machine Main::main(&mut self) {
         transition self.op >= 0 && self.op < 8 { true -> scan_do() _ -> scan_advance() }
     }
     state scan_do(&mut self) {
-        self.nv = (90 >> self.window) & 1;
+        self.nv = ((90 as i32 in Trapping) >> self.window) & 1;
         self.next[self.op] = self.nv;
         transition { _ -> scan_advance() }
     }

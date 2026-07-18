@@ -16,6 +16,8 @@ pub struct StateSignatureStorage {
     pub is_default: bool,
     pub parameters: HandleSpan<StateParameter>,
     pub return_type: Option<TypeReference>,
+    pub termination_guarantee: omega_core::termination::TerminationGuarantee,
+    pub ranking_witness: crate::machine::RankingWitness,
     pub effects: HandleSpan<DiagnosticName>,
     pub contracts: HandleSpan<SignatureContract>,
 }

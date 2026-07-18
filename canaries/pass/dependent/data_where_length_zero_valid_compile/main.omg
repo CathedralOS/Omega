@@ -1,0 +1,16 @@
+// COMPILE CANARY. ZII gives a slice length zero and scalar zero, so an omitted
+// Packet construction begins established.
+data Packet
+where
+    length == payload.len,
+{
+    length: u64;
+    payload: &[u8];
+}
+
+data Main {
+}
+
+machine Main::run(&mut self) {
+    let packet: Packet = Packet { };
+}

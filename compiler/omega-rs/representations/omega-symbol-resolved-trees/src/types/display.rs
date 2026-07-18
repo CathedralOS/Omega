@@ -6,7 +6,7 @@ impl TypeReference {
     pub fn display_name(&self) -> String {
         match self {
             TypeReference::Reference(reference) => {
-                let qualifier = reference_qualifier(reference.is_mutable, reference.is_relaxed);
+                let qualifier = reference_qualifier(reference.is_mutable);
                 format!("&{qualifier}<type>")
             }
             TypeReference::Constrained(constrained) => {
@@ -45,7 +45,7 @@ impl TypeReference {
     ) -> String {
         match self {
             TypeReference::Reference(reference) => {
-                let qualifier = reference_qualifier(reference.is_mutable, reference.is_relaxed);
+                let qualifier = reference_qualifier(reference.is_mutable);
                 format!("&{qualifier}<type>")
             }
             TypeReference::Constrained(constrained) => {
@@ -79,13 +79,8 @@ impl TypeReference {
     }
 }
 
-fn reference_qualifier(is_mutable: bool, is_relaxed: bool) -> &'static str {
-    match (is_mutable, is_relaxed) {
-        (true, true) => "mut relaxed ",
-        (true, false) => "mut ",
-        (false, true) => "relaxed ",
-        (false, false) => "",
-    }
+fn reference_qualifier(is_mutable: bool) -> &'static str {
+    if is_mutable { "mut " } else { "" }
 }
 
 impl TypeConstraint {
@@ -98,6 +93,7 @@ impl TypeConstraint {
                 "expression..=expression".to_owned()
             }
             TypeConstraint::ArithmeticDomain(domain) => format!("in {}", domain.name()),
+            TypeConstraint::ValueDomain(domain) => format!("in {}", domain.name()),
         }
     }
 }

@@ -1,0 +1,18 @@
+// FAIL CANARY. A rank range constrains the value produced by the view. Natural
+// rankings can reach zero, so a lower bound of one cannot establish their
+// well-founded floor.
+data Main {}
+
+machine Main::main(&mut self) {
+    let value: u64 = self.walk(4, 0);
+}
+
+machine Main::walk(&mut self, limit: u64, index: u64)
+terminates by index -> Nat::IncreasingTo(limit) in 1..=limit;
+-> u64
+{
+    transition index < limit {
+        true -> self.walk(limit, index + 1)
+        false -> index
+    }
+}

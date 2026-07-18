@@ -304,6 +304,24 @@ value overflow, not operand validity, so its count obligation is Exact's.
 The compiler never adopts the ISA's silent count-masking under Exact —
 `x << 64 == x` is an invented number.
 
+### Float-to-integer casts
+
+A float-to-integer cast is also proof-or-policy (settled and implemented
+2026-07-18):
+
+- The default Exact cast must prove that the operand is finite and inside the
+  target integer's half-open conversion interval. A declared float range can
+  supply the proof. A dominating incoming guard can supply it with ordered
+  lower/upper comparisons; `x == x` is the explicit witness that excludes NaN.
+- `in Saturating` truncates toward zero and clamps at the target width on every
+  integer target. NaN converts to zero.
+- `in Trapping` truncates an in-range finite value and traps on NaN, infinity,
+  or either out-of-range direction.
+- `in Wrapping` is a compile error: floats have no modular conversion reading.
+
+These rules are identical in the interpreter and the x86-64/AArch64 bindings;
+ISA-specific invalid-conversion sentinels are never language-visible.
+
 Two rules keep it honest:
 
 - **No implicit widening.** `u8 + u8` is a `u8` and must be proven to fit a

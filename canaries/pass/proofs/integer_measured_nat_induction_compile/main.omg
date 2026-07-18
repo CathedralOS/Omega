@@ -1,0 +1,23 @@
+// COMPILE CANARY. Math roster N2(d): a proof machine may recurse over an
+// integer predecessor while producing and proving facts about structural Nat.
+// The positive arm is the arithmetic successor bridge: under `n > 0`, the
+// recursive argument `n - 1` is a well-founded predecessor. Its instantiated
+// structural contract is then the induction hypothesis for the surrounding
+// `Nat::Succ` result.
+use omega::language::core::nat;
+
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine Main::run(&mut self) { self.console.exit_process(70); }
+
+machine build_right_identity(n: u64) -> Nat
+terminates;
+terminates by n;
+ensures
+    (add(result, Nat::Zero)) == result
+{
+    transition n > 0 {
+        true -> Nat::Succ { prev: build_right_identity(n - 1) }
+        false -> Nat::Zero
+    }
+}

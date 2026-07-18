@@ -86,7 +86,12 @@ fn windows_pe_ships_base_relocations_and_dynamicbase() {
         "DYNAMICBASE must be set for a relocatable PE"
     );
     let dir5 = optional + 112 + 5 * 8;
-    let reloc_rva = u32::from_le_bytes([bytes[dir5], bytes[dir5 + 1], bytes[dir5 + 2], bytes[dir5 + 3]]);
+    let reloc_rva = u32::from_le_bytes([
+        bytes[dir5],
+        bytes[dir5 + 1],
+        bytes[dir5 + 2],
+        bytes[dir5 + 3],
+    ]);
     let reloc_size = u32::from_le_bytes([
         bytes[dir5 + 4],
         bytes[dir5 + 5],
@@ -157,8 +162,7 @@ machine build(b: &mut Build) {
         })
         .expect("build.omg canary should compile");
 
-        let bytes =
-            fs::read(dir.join("build").join("omega-program.exe")).expect("read emitted PE");
+        let bytes = fs::read(dir.join("build").join("omega-program.exe")).expect("read emitted PE");
         assert_eq!(
             read_subsystem(&bytes),
             expected,
@@ -217,18 +221,12 @@ fn linux_x64_recent_encoder_canaries_compile() {
     }
 }
 
-/// The x86_64 Wrapping `<<` count clamp (modular at-width semantics) was
-/// implemented and byte-reviewed from an arm64 host, where the suite cannot
-/// RUN x86 output. Pin the emitted bytes: the cross-compiled ELF must carry
-/// the clamp (xor eax,eax + cmp r11,#width + cmovae r10,rax) at both the
-/// 32- and 64-bit widths the at-width canary legs exercise. (Runtime
-/// behavior is pinned natively on aarch64 + the interpreter by the canary's
-/// own suite tests.)
+/// Pin x86_64's explicit F8 count policies from a non-x86 host: Wrapping masks
+/// the count before the shift, and Trapping compares the full count and aborts.
 #[test]
-fn linux_x64_wrapping_shl_clamp_bytes_present() {
+fn linux_x64_shift_count_policy_bytes_present() {
     let canary = pass_canary("arithmetic/runtime_shift_count_domain_exit");
-    let scratch =
-        std::env::temp_dir().join(format!("omega-x64-shlclamp-{}", std::process::id()));
+    let scratch = std::env::temp_dir().join(format!("omega-x64-shlclamp-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
     let src_dir = scratch.join("src");
     fs::create_dir_all(&src_dir).expect("scratch src dir");
@@ -245,19 +243,16 @@ fn linux_x64_wrapping_shl_clamp_bytes_present() {
         write_output: true,
     })
     .expect("at-width shift canary should cross-compile for linux_x64");
-    let elf =
-        fs::read(scratch.join("out").join("omega-program")).expect("linux_x64 ELF emitted");
-    for width_bits in [32u8, 64] {
-        let clamp = [0x31, 0xc0, 0x49, 0x83, 0xfb, width_bits, 0x4c, 0x0f, 0x43, 0xd0];
+    let elf = fs::read(scratch.join("out").join("omega-program")).expect("linux_x64 ELF emitted");
+    for width_mask in [31u8, 63] {
+        let mask = [0x49, 0x83, 0xe3, width_mask];
         assert!(
-            elf.windows(clamp.len()).any(|window| window == clamp),
-            "the Wrapping shl count clamp at width {width_bits} must be emitted"
+            elf.windows(mask.len()).any(|window| window == mask),
+            "the Wrapping shift count mask {width_mask} must be emitted"
         );
     }
 
-    // The OPERAND-POSITION arm (the promoted at-width canary nests `b << c`
-    // under an add): clamp at the node width followed by the node-width
-    // extension (mov r10d, r10d for unsigned width 4).
+    // The operand-position arm masks, shifts, then extends at the node width.
     let atwidth = pass_canary("arithmetic/runtime_shift_atwidth_signed_modular_exit");
     fs::copy(atwidth.join("main.omg"), src_dir.join("main.omg")).expect("copy atwidth canary");
     let out2 = scratch.join("out2");
@@ -269,13 +264,15 @@ fn linux_x64_wrapping_shl_clamp_bytes_present() {
     })
     .expect("at-width modular canary should cross-compile for linux_x64");
     let elf2 = fs::read(out2.join("omega-program")).expect("linux_x64 ELF emitted");
-    let operand_clamp_then_extend = [
-        0x31, 0xc0, 0x49, 0x83, 0xfb, 32, 0x4c, 0x0f, 0x43, 0xd0, 0x45, 0x89, 0xd2,
+    let operand_mask_shift_extend = [
+        0x49, 0x83, 0xe3, 31, // and r11,31
+        0x44, 0x89, 0xd9, 0x41, 0xd3, 0xe2, // mov ecx,r11d + shl r10d,cl
+        0x45, 0x89, 0xd2, // mov r10d,r10d
     ];
     assert!(
-        elf2.windows(operand_clamp_then_extend.len())
-            .any(|window| window == operand_clamp_then_extend),
-        "the operand-position clamp + node-width extension must be emitted"
+        elf2.windows(operand_mask_shift_extend.len())
+            .any(|window| window == operand_mask_shift_extend),
+        "the operand-position mask + shift + node-width extension must be emitted"
     );
 
     // Saturating `<<` (the promoted slice-C canary): the count cap
@@ -309,10 +306,7 @@ fn linux_x64_wrapping_shl_clamp_bytes_present() {
         "the saturating shl cap + shift + clamp sequence must be emitted"
     );
 
-    // Arithmetic `>>` (the shr at-width canary): the count SATURATION
-    // (mov eax,width-1 + cmp r11,#width + cmovae r11,rax -- the count
-    // register, not the value) followed by the plain mov-ecx + sar, at both
-    // widths.
+    // Right shifts use the same explicit mask, for both signed and unsigned forms.
     let shr = pass_canary("arithmetic/runtime_shift_right_atwidth_exit");
     fs::copy(shr.join("main.omg"), src_dir.join("main.omg")).expect("copy shr canary");
     let out3 = scratch.join("out3");
@@ -324,23 +318,39 @@ fn linux_x64_wrapping_shl_clamp_bytes_present() {
     })
     .expect("at-width shr canary should cross-compile for linux_x64");
     let elf3 = fs::read(out3.join("omega-program")).expect("linux_x64 ELF emitted");
-    let saturate_sar_32 = [
-        0xb8, 31, 0, 0, 0, 0x49, 0x83, 0xfb, 32, 0x4c, 0x0f, 0x43, 0xd8, // saturate count
+    let mask_sar_32 = [
+        0x49, 0x83, 0xe3, 31, // mask count
         0x44, 0x89, 0xd9, 0x41, 0xd3, 0xfa, // mov ecx, r11d + sar r10d, cl
     ];
-    let saturate_sar_64 = [
-        0xb8, 63, 0, 0, 0, 0x49, 0x83, 0xfb, 64, 0x4c, 0x0f, 0x43, 0xd8, // saturate count
+    let mask_sar_64 = [
+        0x49, 0x83, 0xe3, 63, // mask count
         0x4c, 0x89, 0xd9, 0x49, 0xd3, 0xfa, // mov rcx, r11 + sar r10, cl
     ];
-    for (name, sequence) in [
-        ("32-bit", &saturate_sar_32[..]),
-        ("64-bit", &saturate_sar_64[..]),
-    ] {
+    for (name, sequence) in [("32-bit", &mask_sar_32[..]), ("64-bit", &mask_sar_64[..])] {
         assert!(
-            elf3.windows(sequence.len()).any(|window| window == sequence),
-            "the {name} arithmetic >> count-saturate + sar must be emitted"
+            elf3.windows(sequence.len())
+                .any(|window| window == sequence),
+            "the {name} arithmetic >> count-mask + sar must be emitted"
         );
     }
+
+    let trapping = pass_canary("arithmetic/runtime_trapping_shift_count_exit");
+    fs::copy(trapping.join("main.omg"), src_dir.join("main.omg"))
+        .expect("copy trapping shift canary");
+    let out4 = scratch.join("out4");
+    compile(CompileOptions {
+        root_path: src_dir.join("main.omg"),
+        build_dir: Some(out4.clone()),
+        target_name: Some("linux_x64".to_owned()),
+        write_output: true,
+    })
+    .expect("trapping shift canary should cross-compile for linux_x64");
+    let elf4 = fs::read(out4.join("omega-program")).expect("linux_x64 ELF emitted");
+    let guard = [0x49, 0x83, 0xfb, 32, 0x72, 0x02, 0x0f, 0x0b];
+    assert!(
+        elf4.windows(guard.len()).any(|window| window == guard),
+        "the Trapping full-count comparison and ud2 path must be emitted"
+    );
 
     // The MIN-idiom sat-subtract (the promoted canary): left (a convert of
     // 0) extends, the wide immediate right does NOT, one exact 64-bit sub,
@@ -1328,7 +1338,8 @@ fn struct_literal_narrowing_rejected_canary_is_rejected() {
         .collect::<Vec<_>>()
         .join("\n");
     assert!(
-        combined.contains("narrowing store") && combined.contains("construction of `Small` field `v`"),
+        combined.contains("narrowing store")
+            && combined.contains("construction of `Small` field `v`"),
         "expected a narrowing diagnostic at the construction boundary, got:\n{combined}"
     );
 }
@@ -1587,7 +1598,10 @@ fn runtime_time_host_virtual_interpreter_oracle() {
     let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
         .expect("time host virtual canary should compile to checked trees");
     let outcome = omega_interpreter::interpret(&checked, &[]);
-    assert_eq!(outcome.error, None, "time host ops should interpret cleanly");
+    assert_eq!(
+        outcome.error, None,
+        "time host ops should interpret cleanly"
+    );
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter oracle should exit 70 for the virtual clock chain, got {}",
@@ -1607,7 +1621,10 @@ fn runtime_time_elapsed_since_exit_canary_runs() {
     let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
         .expect("elapsed-since canary should compile to checked trees");
     let outcome = omega_interpreter::interpret(&checked, &[]);
-    assert_eq!(outcome.error, None, "elapsed-since chain should interpret cleanly");
+    assert_eq!(
+        outcome.error, None,
+        "elapsed-since chain should interpret cleanly"
+    );
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter oracle should exit 70 for the elapsed-since chain, got {}",
@@ -1643,8 +1660,7 @@ fn cross_darwin_time_host_compiles() {
     // the three POSIX calibration constants as no-call constant results.
     // COMPILE-ONLY (structural): native confirmation needs a Mac.
     let canary = pass_canary("time/cross_darwin_time_host");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-darwin-time-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!("omega-darwin-time-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
     compile(CompileOptions {
         root_path: canary.join("main.omg"),
@@ -1666,7 +1682,10 @@ fn runtime_checked_time_arith_exit_canary_runs() {
     let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
         .expect("checked time arith canary should compile to checked trees");
     let outcome = omega_interpreter::interpret(&checked, &[]);
-    assert_eq!(outcome.error, None, "checked arith should interpret cleanly");
+    assert_eq!(
+        outcome.error, None,
+        "checked arith should interpret cleanly"
+    );
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter oracle should exit 70 for the checked-arith chain, got {}",
@@ -1744,14 +1763,16 @@ fn runtime_system_time_after_2026_exit_canary_runs() {
     let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
         .expect("system-time canary should compile to checked trees");
     let outcome = omega_interpreter::interpret(&checked, &[]);
-    assert_eq!(outcome.error, None, "system-time chain should interpret cleanly");
+    assert_eq!(
+        outcome.error, None,
+        "system-time chain should interpret cleanly"
+    );
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter oracle should exit 70 for the system-time chain, got {}",
         outcome.exit_code
     );
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-system-time-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!("omega-system-time-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
     compile(CompileOptions {
         root_path: canary.join("main.omg"),
@@ -1783,7 +1804,10 @@ fn runtime_instant_elapsed_exit_canary_runs() {
     let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
         .expect("instant elapsed canary should compile to checked trees");
     let outcome = omega_interpreter::interpret(&checked, &[]);
-    assert_eq!(outcome.error, None, "instant chain should interpret cleanly");
+    assert_eq!(
+        outcome.error, None,
+        "instant chain should interpret cleanly"
+    );
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter oracle should exit 70 for the instant chain, got {}",
@@ -2089,8 +2113,10 @@ fn runtime_guarded_computed_index_operand_exit_canary_runs() {
     // under its INITIALIZER label. Was the computed-index FAIL canary.
     let canary = pass_canary("collections/runtime_guarded_computed_index_operand_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-guarded-computed-index-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-guarded-computed-index-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -2123,8 +2149,10 @@ stderr:
 fn runtime_computed_index_direct_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_computed_index_direct_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-computed-index-direct-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-computed-index-direct-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -2159,8 +2187,7 @@ fn runtime_dual_indexed_copy_exit_canary_runs() {
     // nums=[10,20,30,40,50], i=0, j=4 -> nums[0]=50, exited as the code. Exit 10
     // = the historic base-copy/no-op bug returned.
     let canary = pass_canary("collections/runtime_dual_indexed_copy_exit");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-dual-copy-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!("omega-dual-copy-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -2193,8 +2220,8 @@ fn runtime_double_indexed_write_exit_canary_runs() {
     // frame place sources, neighbor-validated. Was the write fail canary.
     let canary = pass_canary("collections/runtime_double_indexed_write_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-double-indexed-write-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-double-indexed-write-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -2227,8 +2254,8 @@ stderr:
 fn runtime_container_setter_matrix_exit_canary_runs() {
     let canary = pass_canary("generics/runtime_container_setter_matrix_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-container-setter-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-container-setter-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -2261,8 +2288,8 @@ stderr:
 fn runtime_container_method_instances_exit_canary_runs() {
     let canary = pass_canary("generics/runtime_container_method_instances_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-container-methods-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-container-methods-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -2295,8 +2322,8 @@ stderr:
 fn runtime_frame_double_indexed_read_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_frame_double_indexed_read_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-frame-double-read-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-frame-double-read-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -2330,8 +2357,8 @@ stderr:
 fn runtime_double_indexed_rmw_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_double_indexed_rmw_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-double-indexed-rmw-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-double-indexed-rmw-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -2365,8 +2392,7 @@ stderr:
 fn runtime_indexed_operand_transition_arg_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_indexed_operand_transition_arg_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-indexed-arg-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!("omega-indexed-arg-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -2400,8 +2426,8 @@ stderr:
 fn runtime_shared_ref_param_guard_exit_canary_runs() {
     let canary = pass_canary("references/runtime_shared_ref_param_guard_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-shared-ref-guard-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-shared-ref-guard-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -2437,8 +2463,10 @@ stderr:
 fn runtime_nested_receiver_distinct_types_exit_canary_runs() {
     let canary = pass_canary("references/runtime_nested_receiver_distinct_types_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-nested-receiver-distinct-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-nested-receiver-distinct-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -2473,8 +2501,10 @@ stderr:
 fn runtime_double_indexed_member_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_double_indexed_member_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-double-indexed-member-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-double-indexed-member-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -2507,8 +2537,10 @@ stderr:
 fn runtime_double_indexed_operand_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_double_indexed_operand_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-double-indexed-operand-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-double-indexed-operand-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -2607,8 +2639,7 @@ fn runtime_indexed_write_frame_local_source_exit_canary_runs() {
     // `nums[i] = t` with t a FRAME-slot capture: nums[2] must land the captured
     // 99 (exit 70); the old stale fold wrote the post-overwrite 0.
     let canary = pass_canary("collections/runtime_indexed_write_frame_local_source_exit");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-frame-src-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!("omega-frame-src-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -2677,8 +2708,7 @@ fn runtime_dual_indexed_copy_in_loop_exit_canary_runs() {
     // would no-op); the recorded write then selects the dual copy. b=[10,20,40]
     // copies into a; sum(a)=70. Exit 0 = the historic silent no-op returned.
     let canary = pass_canary("collections/runtime_dual_indexed_copy_in_loop_exit");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-dual-loop-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!("omega-dual-loop-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -2857,8 +2887,10 @@ fn utf8_param_len_field_exit_canary_runs() {
 fn utf8_regular_call_len_exit_canary_runs() {
     let canary = pass_canary("domains/utf8_regular_call_len_exit");
     let main_path = canary.join("main.omg");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-utf8-regular-call-len-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-utf8-regular-call-len-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -2968,8 +3000,10 @@ fn utf8_equals_view_exit_canary_runs() {
 fn utf8_field_read_carries_domain_exit_canary_runs() {
     let canary = pass_canary("domains/utf8_field_read_carries_domain_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-utf8-field-read-domain-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-utf8-field-read-domain-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -3008,8 +3042,10 @@ fn utf8_field_read_carries_domain_exit_canary_runs() {
 fn domain_field_write_then_read_exit_canary_runs() {
     let canary = pass_canary("domains/domain_field_write_then_read_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-domain-field-write-then-read-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-domain-field-write-then-read-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -3047,8 +3083,10 @@ fn domain_field_write_then_read_exit_canary_runs() {
 fn runtime_bounded_carrier_write_read_exit_canary_runs() {
     let canary = pass_canary("text/runtime_bounded_carrier_write_read_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-bounded-carrier-write-read-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-bounded-carrier-write-read-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -3084,8 +3122,10 @@ fn runtime_bounded_carrier_write_read_exit_canary_runs() {
 fn runtime_bounded_carrier_length_exit_canary_runs() {
     let canary = pass_canary("text/runtime_bounded_carrier_length_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-bounded-carrier-length-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-bounded-carrier-length-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -3121,8 +3161,10 @@ fn runtime_bounded_carrier_length_exit_canary_runs() {
 fn runtime_bounded_carrier_length_field_exit_canary_runs() {
     let canary = pass_canary("text/runtime_bounded_carrier_length_field_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-bounded-carrier-length-field-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-bounded-carrier-length-field-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -3159,8 +3201,10 @@ fn runtime_bounded_carrier_length_field_exit_canary_runs() {
 fn runtime_bounded_carrier_byte_index_exit_canary_runs() {
     let canary = pass_canary("text/runtime_bounded_carrier_byte_index_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-bounded-carrier-byte-index-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-bounded-carrier-byte-index-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -3288,8 +3332,10 @@ fn runtime_decimal_to_number_exit_canary_runs() {
 fn runtime_carrier_indexed_write_exit_canary_runs() {
     let canary = pass_canary("text/runtime_carrier_indexed_write_exit");
     let main_path = canary.join("main.omg");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-carrier-indexed-write-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-carrier-indexed-write-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -3319,8 +3365,8 @@ fn runtime_carrier_indexed_write_exit_canary_runs() {
 fn runtime_carrier_indexed_read_operand_exit_canary_runs() {
     let canary = pass_canary("text/runtime_carrier_indexed_read_operand_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-carrier-read-operand-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-carrier-read-operand-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -3381,8 +3427,8 @@ fn runtime_carrier_cipher_exit_canary_runs() {
 fn runtime_carrier_indexed_const_write_exit_canary_runs() {
     let canary = pass_canary("text/runtime_carrier_indexed_const_write_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-carrier-const-write-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-carrier-const-write-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -3590,7 +3636,8 @@ fn runtime_binary_format_exit_canary_runs() {
     // amount + bitwise AND in value position), written to a carrier. 42 -> "00101010",
     // all eight bytes checked -> exit 70.
     let canary = pass_canary("text/runtime_binary_format_exit");
-    let build_dir = std::env::temp_dir().join(format!("omega-binary-format-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-binary-format-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
     compile(CompileOptions {
         root_path: canary.join("main.omg"),
@@ -3676,8 +3723,7 @@ fn runtime_string_palindrome_exit_canary_runs() {
 fn runtime_carrier_itoa_exit_canary_runs() {
     let canary = pass_canary("text/runtime_carrier_itoa_exit");
     let main_path = canary.join("main.omg");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-carrier-itoa-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!("omega-carrier-itoa-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -3752,8 +3798,10 @@ fn runtime_carrier_byte_write_width_coercion_canary_runs() {
 fn runtime_bounded_carrier_byte_write_exit_canary_runs() {
     let canary = pass_canary("text/runtime_bounded_carrier_byte_write_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-bounded-carrier-byte-write-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-bounded-carrier-byte-write-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -3789,8 +3837,8 @@ fn runtime_bounded_carrier_byte_write_exit_canary_runs() {
 fn runtime_slice_length_field_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_slice_length_field_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-slice-length-field-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-slice-length-field-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -3825,8 +3873,8 @@ fn runtime_slice_length_field_exit_canary_runs() {
 fn runtime_guarded_runtime_index_increment_exit_canary_runs() {
     let canary = pass_canary("range/runtime_guarded_runtime_index_increment_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-guarded-rt-idx-inc-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-guarded-rt-idx-inc-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -3861,8 +3909,8 @@ stderr:
 fn runtime_guarded_element_increment_exit_canary_runs() {
     let canary = pass_canary("range/runtime_guarded_element_increment_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-guarded-elem-inc-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-guarded-elem-inc-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -3897,8 +3945,7 @@ fn runtime_guarded_element_increment_exit_canary_runs() {
 fn runtime_element_range_dataflow_exit_canary_runs() {
     let canary = pass_canary("range/runtime_element_range_dataflow_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-elem-range-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!("omega-elem-range-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -3933,8 +3980,7 @@ fn runtime_element_range_dataflow_exit_canary_runs() {
 fn runtime_funnel_guard_agreement_exit_canary_runs() {
     let canary = pass_canary("range/runtime_funnel_guard_agreement_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-funnel-guard-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!("omega-funnel-guard-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -3970,8 +4016,8 @@ fn runtime_funnel_guard_agreement_exit_canary_runs() {
 fn runtime_guarded_binary_operand_exit_canary_runs() {
     let canary = pass_canary("range/runtime_guarded_binary_operand_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-guarded-bin-operand-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-guarded-bin-operand-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -4006,8 +4052,7 @@ fn runtime_guarded_binary_operand_exit_canary_runs() {
 fn runtime_guarded_copy_narrowing_exit_canary_runs() {
     let canary = pass_canary("range/runtime_guarded_copy_narrowing_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-guarded-copy-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!("omega-guarded-copy-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -4041,8 +4086,8 @@ fn runtime_guarded_copy_narrowing_exit_canary_runs() {
 fn runtime_ranged_divide_modulo_chain_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_ranged_divide_modulo_chain_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-ranged-divmod-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-ranged-divmod-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -4075,8 +4120,8 @@ fn runtime_ranged_divide_modulo_chain_exit_canary_runs() {
 fn runtime_ranged_bitwise_and_mask_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_ranged_bitwise_and_mask_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-ranged-andmask-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-ranged-andmask-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -4110,8 +4155,8 @@ fn runtime_ranged_bitwise_and_mask_exit_canary_runs() {
 fn runtime_declared_range_index_read_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_declared_range_index_read_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-range-idx-read-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-range-idx-read-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -4144,8 +4189,8 @@ fn runtime_declared_range_index_read_exit_canary_runs() {
 fn runtime_declared_range_index_write_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_declared_range_index_write_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-range-idx-write-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-range-idx-write-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -4181,8 +4226,8 @@ fn runtime_declared_range_index_write_exit_canary_runs() {
 fn runtime_expression_range_bound_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_expression_range_bound_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-expr-range-bound-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-expr-range-bound-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -4217,8 +4262,7 @@ fn runtime_expression_range_bound_exit_canary_runs() {
 fn runtime_indexed_struct_field_rmw_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_indexed_struct_field_rmw_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-idx-sf-rmw-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!("omega-idx-sf-rmw-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -4253,8 +4297,8 @@ stderr:
 fn runtime_indexed_struct_field_operand_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_indexed_struct_field_operand_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-idx-sf-operand-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-idx-sf-operand-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -4290,8 +4334,8 @@ stderr:
 fn runtime_machine_indexed_arg_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_machine_indexed_arg_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-machine-indexed-arg-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-machine-indexed-arg-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -4325,8 +4369,8 @@ stderr:
 fn runtime_machine_indexed_struct_field_arg_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_machine_indexed_struct_field_arg_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-machine-indexed-sfa-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-machine-indexed-sfa-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -4361,8 +4405,8 @@ stderr:
 fn runtime_frame_indexed_param_read_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_frame_indexed_param_read_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-frame-idx-param-read-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-frame-idx-param-read-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -4397,8 +4441,8 @@ stderr:
 fn runtime_frame_indexed_param_operand_arg_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_frame_indexed_param_operand_arg_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-frame-idx-param-opa-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-frame-idx-param-opa-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -4432,8 +4476,10 @@ stderr:
 fn runtime_frame_indexed_param_field_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_frame_indexed_param_field_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-frame-idx-param-field-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-frame-idx-param-field-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -4467,8 +4513,8 @@ stderr:
 fn runtime_frame_indexed_local_read_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_frame_indexed_local_read_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-frame-idx-local-read-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-frame-idx-local-read-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -4502,8 +4548,8 @@ stderr:
 fn runtime_frame_indexed_byte_param_read_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_frame_indexed_byte_param_read_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-frame-idx-byte-read-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-frame-idx-byte-read-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -4539,8 +4585,8 @@ stderr:
 fn runtime_value_machine_param_array_index_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_value_machine_param_array_index_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-vm-param-arr-idx-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-vm-param-arr-idx-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -4574,8 +4620,7 @@ stderr:
 fn runtime_machine_frame_index_read_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_machine_frame_index_read_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-mfi-read-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!("omega-mfi-read-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -4609,8 +4654,7 @@ stderr:
 fn runtime_machine_frame_index_write_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_machine_frame_index_write_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-mfi-write-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!("omega-mfi-write-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -4644,8 +4688,8 @@ stderr:
 fn runtime_machine_frame_index_dual_frame_write_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_machine_frame_index_dual_frame_write_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-mfi-dual-write-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-mfi-dual-write-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -4680,8 +4724,7 @@ stderr:
 fn runtime_machine_frame_index_rmw_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_machine_frame_index_rmw_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-mfi-rmw-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!("omega-mfi-rmw-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -4715,8 +4758,8 @@ stderr:
 fn runtime_machine_frame_index_arg_operand_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_machine_frame_index_arg_operand_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-mfi-arg-operand-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-mfi-arg-operand-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -4749,8 +4792,10 @@ stderr:
 fn runtime_nested_const_row_indexed_read_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_nested_const_row_indexed_read_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-nested-const-row-read-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-nested-const-row-read-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -4783,8 +4828,10 @@ stderr:
 fn runtime_nested_const_row_struct_field_write_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_nested_const_row_struct_field_write_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-nested-const-row-sf-write-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-nested-const-row-sf-write-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -4818,8 +4865,8 @@ stderr:
 fn runtime_nested_middle_index_3d_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_nested_middle_index_3d_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-nested-middle-3d-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-nested-middle-3d-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -4853,8 +4900,8 @@ stderr:
 fn runtime_let_bound_computed_index_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_let_bound_computed_index_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-let-computed-index-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-let-computed-index-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -4888,8 +4935,8 @@ stderr:
 fn runtime_struct_field_operand_matrix_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_struct_field_operand_matrix_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-sf-operand-matrix-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-sf-operand-matrix-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -4922,8 +4969,8 @@ stderr:
 fn runtime_struct_field_operand_param_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_struct_field_operand_param_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-sf-operand-param-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-sf-operand-param-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -4957,8 +5004,8 @@ stderr:
 fn runtime_double_indexed_read_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_double_indexed_read_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-double-indexed-read-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-double-indexed-read-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -4992,8 +5039,10 @@ stderr:
 fn runtime_nested_deep_const_prefix_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_nested_deep_const_prefix_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-nested-deep-const-prefix-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-nested-deep-const-prefix-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -5026,8 +5075,7 @@ stderr:
 fn runtime_dual_frame_index_copy_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_dual_frame_index_copy_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-dual-fi-copy-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!("omega-dual-fi-copy-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -5061,8 +5109,7 @@ stderr:
 fn runtime_dual_mixed_index_copy_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_dual_mixed_index_copy_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-dual-mi-copy-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!("omega-dual-mi-copy-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -5097,8 +5144,8 @@ stderr:
 fn runtime_duration_constructors_exit_canary_runs() {
     let canary = pass_canary("time/runtime_duration_constructors_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-duration-ctors-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-duration-ctors-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -5132,8 +5179,8 @@ stderr:
 fn runtime_slice_element_machine_roundtrip_exit_canary_runs() {
     let canary = pass_canary("slices/runtime_slice_element_machine_roundtrip_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-slice-elem-rt-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-slice-elem-rt-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -5166,8 +5213,8 @@ stderr:
 fn runtime_slice_element_runtime_index_read_exit_canary_runs() {
     let canary = pass_canary("slices/runtime_slice_element_runtime_index_read_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-slice-elem-ri-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-slice-elem-ri-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -5203,8 +5250,8 @@ stderr:
 fn runtime_member_arg_nested_read_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_member_arg_nested_read_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-member-arg-nested-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-member-arg-nested-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -5238,8 +5285,8 @@ stderr:
 fn runtime_constructor_computed_field_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_constructor_computed_field_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-ctor-computed-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-ctor-computed-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -5273,8 +5320,8 @@ stderr:
 fn runtime_machine_bounded_subslice_local_exit_canary_runs() {
     let canary = pass_canary("slices/runtime_machine_bounded_subslice_local_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-mach-subslice-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-mach-subslice-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -5308,8 +5355,7 @@ stderr:
 fn runtime_subslice_start_pointer_exit_canary_runs() {
     let canary = pass_canary("slices/runtime_subslice_start_pointer_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-subslice-ptr-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!("omega-subslice-ptr-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -5343,8 +5389,7 @@ stderr:
 fn runtime_loop_accumulator_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_loop_accumulator_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-rec-accum-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!("omega-rec-accum-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -5378,8 +5423,7 @@ stderr:
 fn runtime_loop_rotation_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_loop_rotation_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-rec-rot-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!("omega-rec-rot-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -5414,8 +5458,8 @@ stderr:
 fn runtime_post_clauses_return_type_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_post_clauses_return_type_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-post-clauses-ret-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-post-clauses-ret-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -5453,8 +5497,8 @@ stderr:
 fn runtime_slice_length_local_binding_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_slice_length_local_binding_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-slice-len-local-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-slice-len-local-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -5490,8 +5534,8 @@ fn runtime_slice_length_local_binding_exit_canary_runs() {
 fn runtime_slice_length_local_param_binding_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_slice_length_local_param_binding_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-slice-len-param-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-slice-len-param-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -5527,8 +5571,8 @@ fn runtime_slice_length_local_param_binding_exit_canary_runs() {
 fn runtime_subslice_length_local_binding_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_subslice_length_local_binding_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-subslice-len-local-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-subslice-len-local-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -5564,8 +5608,8 @@ fn runtime_subslice_length_local_binding_exit_canary_runs() {
 fn runtime_inline_subslice_length_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_inline_subslice_length_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-inline-subslice-len-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-inline-subslice-len-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -5601,8 +5645,8 @@ fn runtime_inline_subslice_length_exit_canary_runs() {
 fn runtime_end_fixed_array_subslice_local_exit_canary_runs() {
     let canary = pass_canary("slices/runtime_end_fixed_array_subslice_local_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-rt-end-subslice-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-rt-end-subslice-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -5637,8 +5681,8 @@ fn runtime_end_fixed_array_subslice_local_exit_canary_runs() {
 fn runtime_end_fixed_array_subslice_element_exit_canary_runs() {
     let canary = pass_canary("slices/runtime_end_fixed_array_subslice_element_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-rt-end-subslice-elem-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-rt-end-subslice-elem-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -5674,8 +5718,8 @@ fn runtime_end_fixed_array_subslice_element_exit_canary_runs() {
 fn guard_fixed_array_len_operand_exit_canary_runs() {
     let canary = pass_canary("slices/guard_fixed_array_len_operand_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-guard-arr-len-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-guard-arr-len-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -5711,8 +5755,10 @@ fn guard_fixed_array_len_operand_exit_canary_runs() {
 fn runtime_bounded_fixed_array_subslice_arg_exit_canary_runs() {
     let canary = pass_canary("slices/runtime_bounded_fixed_array_subslice_arg_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-rt-bounded-subslice-arg-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-rt-bounded-subslice-arg-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -5747,8 +5793,10 @@ fn runtime_bounded_fixed_array_subslice_arg_exit_canary_runs() {
 fn runtime_bounded_carrier_concat_exit_canary_runs() {
     let canary = pass_canary("text/runtime_bounded_carrier_concat_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-bounded-carrier-concat-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-bounded-carrier-concat-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -5783,8 +5831,10 @@ fn runtime_bounded_carrier_concat_exit_canary_runs() {
 fn runtime_bounded_carrier_alias_concat_exit_canary_runs() {
     let canary = pass_canary("text/runtime_bounded_carrier_alias_concat_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-bounded-carrier-alias-concat-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-bounded-carrier-alias-concat-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -5817,8 +5867,10 @@ fn runtime_bounded_carrier_alias_concat_exit_canary_runs() {
 fn runtime_bounded_carrier_local_source_concat_exit_canary_runs() {
     let canary = pass_canary("text/runtime_bounded_carrier_local_source_concat_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-bounded-carrier-local-source-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-bounded-carrier-local-source-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -5855,8 +5907,10 @@ fn runtime_bounded_carrier_local_source_concat_exit_canary_runs() {
 fn runtime_value_call_slice_view_carrier_guard_exit_canary_runs() {
     let canary = pass_canary("text/runtime_value_call_slice_view_carrier_guard_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-value-call-slice-view-carrier-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-value-call-slice-view-carrier-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -5893,8 +5947,10 @@ fn runtime_value_call_slice_view_carrier_guard_exit_canary_runs() {
 fn runtime_value_call_slice_view_element_arg_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_value_call_slice_view_element_arg_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-value-call-slice-view-elem-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-value-call-slice-view-elem-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -5932,7 +5988,8 @@ fn runtime_linear_search_early_exit_canary_runs() {
     // Linear search with EARLY loop exit: scan for `target`, leave the loop the instant it's found
     // (each element read into a field first, then compared). arr=[3,7,12,18,5], target=12 -> index 2.
     let canary = pass_canary("control_flow/runtime_linear_search_early_exit");
-    let build_dir = std::env::temp_dir().join(format!("omega-linear-search-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-linear-search-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
     compile(CompileOptions {
         root_path: canary.join("main.omg"),
@@ -6023,8 +6080,10 @@ fn runtime_composite_initializer_local_arg_exit_canary_runs() {
     // must recurse into the composite to resolve the inner local; missing Cast/Binary/
     // Unary arms re-materialized it in the target frame (no slot) and read 0.
     let canary = pass_canary("control_flow/runtime_composite_initializer_local_arg_exit");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-composite-initializer-arg-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-composite-initializer-arg-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -6054,8 +6113,10 @@ fn runtime_composite_initializer_local_arg_exit_canary_runs() {
 fn runtime_captured_local_remutated_field_exit_canary_runs() {
     let canary = pass_canary("control_flow/runtime_captured_local_remutated_field_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-captured-local-remutated-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-captured-local-remutated-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -6093,8 +6154,10 @@ fn runtime_captured_local_remutated_field_exit_canary_runs() {
 fn runtime_bounded_carrier_pointee_guard_exit_canary_runs() {
     let canary = pass_canary("text/runtime_bounded_carrier_pointee_guard_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-bounded-carrier-pointee-guard-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-bounded-carrier-pointee-guard-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -6128,8 +6191,10 @@ fn runtime_bounded_carrier_pointee_guard_exit_canary_runs() {
 fn runtime_bounded_carrier_slice_field_write_exit_canary_runs() {
     let canary = pass_canary("text/runtime_bounded_carrier_slice_field_write_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-bounded-carrier-slice-field-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-bounded-carrier-slice-field-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -6164,8 +6229,10 @@ fn runtime_bounded_carrier_slice_field_write_exit_canary_runs() {
 fn runtime_bounded_carrier_write_line_exit_canary_runs() {
     let canary = pass_canary("text/runtime_bounded_carrier_write_line_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-bounded-carrier-write-line-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-bounded-carrier-write-line-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -6205,8 +6272,8 @@ fn runtime_bounded_carrier_write_line_exit_canary_runs() {
 fn runtime_text_builder_canary_runs() {
     let canary = pass_canary("text/runtime_text_builder");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-runtime-text-builder-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-runtime-text-builder-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -6584,10 +6651,8 @@ fn by_value_case_param_self_write_exit_canary_runs() {
     // `self.register.balance` stayed 0. Exits 70 when the write-back lands.
     let canary = pass_canary("calls/by_value_case_param_self_write_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
-        "omega-by-value-case-param-{}",
-        std::process::id()
-    ));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-by-value-case-param-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -6843,8 +6908,10 @@ fn runtime_widened_bitwise_exit_canary_runs() {
     // (the rejected mismatched_width_bitwise bug) would drop the 256. -> exit 70.
     let canary = pass_canary("expressions/runtime_widened_bitwise_exit");
     let main_path = canary.join("main.omg");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-runtime-widened-bitor-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-widened-bitor-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -7460,10 +7527,8 @@ fn runtime_wire_encode_repeated_then_string_exit_canary_runs() {
     // 10 bytes are asserted in-program.
     let canary = pass_canary("wire/runtime_wire_encode_repeated_then_string_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
-        "omega-wire-repeated-string-{}",
-        std::process::id()
-    ));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-wire-repeated-string-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -7496,10 +7561,8 @@ fn runtime_wire_roundtrip_nested_and_repeated_exit_canary_runs() {
     // them on both the encode and decode sides (written = read = 13).
     let canary = pass_canary("wire/runtime_wire_roundtrip_nested_and_repeated_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
-        "omega-wire-nested-repeated-{}",
-        std::process::id()
-    ));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-wire-nested-repeated-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -8178,8 +8241,10 @@ fn runtime_wire_decode_byte_slice_exit_canary_runs() {
     // len point at the right buffer bytes); exits 70 when byte-exact.
     let canary = pass_canary("wire/runtime_wire_decode_byte_slice_exit");
     let main_path = canary.join("main.omg");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-wire-decode-byte-slice-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-wire-decode-byte-slice-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -8253,8 +8318,10 @@ fn runtime_wire_decoded_byte_slice_len_exit_canary_runs() {
     // proves the len slot is targeted; exits 70 when n == 2.
     let canary = pass_canary("wire/runtime_wire_decoded_byte_slice_len_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-wire-decoded-byte-slice-len-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-wire-decoded-byte-slice-len-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -8548,10 +8615,8 @@ fn runtime_spawn_struct_result_exit_canary_runs() {
     // calls/runtime_free_machine_struct_return_exit.
     let canary = pass_canary("concurrency/runtime_spawn_struct_result_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
-        "omega-spawn-struct-result-{}",
-        std::process::id()
-    ));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-spawn-struct-result-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -8628,10 +8693,8 @@ fn runtime_const_array_length_exit_canary_runs() {
     // written `[i64; 16]`. Exits 70 only when both ends hold their values.
     let canary = pass_canary("comptime/runtime_const_array_length_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
-        "omega-const-array-length-{}",
-        std::process::id()
-    ));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-const-array-length-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -8670,10 +8733,8 @@ fn runtime_fixed_vec_round_trip_exit_canary_runs() {
     // is 1) and exits 70 only when all hold.
     let canary = pass_canary("collections/runtime_fixed_vec_round_trip_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
-        "omega-fixed-vec-round-trip-{}",
-        std::process::id()
-    ));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-fixed-vec-round-trip-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -8763,7 +8824,8 @@ fn runtime_value_call_let_combine_exit_canary_runs() {
     // eagerly and correct (dbl(3)=6, dbl(4)=8 -> 6*100+8 == 608 -> exit 70). Guards against
     // re-broadening the shared-value-call-slot fence into a false positive on this valid pattern.
     let canary = pass_canary("calls/runtime_value_call_let_combine_exit");
-    let build_dir = std::env::temp_dir().join(format!("omega-vc-letcombine-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-vc-letcombine-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
     compile(CompileOptions {
         root_path: canary.join("main.omg"),
@@ -8875,7 +8937,8 @@ fn runtime_cast_sign_zero_extension_exit_canary_runs() {
     // (sign-extend), -1 as u8 as i32 == 255 (zero-extend), 200 as i8 as i32 == -56 (truncate +
     // sign-extend). All chained -> exit 70.
     let canary = pass_canary("arithmetic/runtime_cast_sign_zero_extension_exit");
-    let build_dir = std::env::temp_dir().join(format!("omega-cast-sign-zero-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-cast-sign-zero-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
     compile(CompileOptions {
         root_path: canary.join("main.omg"),
@@ -9015,7 +9078,8 @@ fn runtime_monte_carlo_pi_exit_canary_runs() {
     // those inside the quarter circle (px*px+py*py < 100*100). Deterministic from seed 1:
     // 53 inside, scaled estimate 400*53/64 = 331 (pi ~= 3.31) -> exit 70.
     let canary = pass_canary("arithmetic/runtime_monte_carlo_pi_exit");
-    let build_dir = std::env::temp_dir().join(format!("omega-monte-carlo-pi-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-monte-carlo-pi-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
     compile(CompileOptions {
         root_path: canary.join("main.omg"),
@@ -9097,7 +9161,8 @@ fn runtime_activity_selection_greedy_exit_canary_runs() {
     // no earlier than the last chosen finish. Six activities yield 3 non-overlapping ->
     // exit 70.
     let canary = pass_canary("collections/runtime_activity_selection_greedy_exit");
-    let build_dir = std::env::temp_dir().join(format!("omega-activity-greedy-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-activity-greedy-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
     compile(CompileOptions {
         root_path: canary.join("main.omg"),
@@ -9125,7 +9190,8 @@ fn runtime_maze_pathfind_exit_canary_runs() {
     // the adjacency-matrix BFS). The shortest distance from cell 0 to cell 24 through the
     // snaking corridor is 16 -> exit 70.
     let canary = pass_canary("collections/runtime_maze_pathfind_exit");
-    let build_dir = std::env::temp_dir().join(format!("omega-maze-pathfind-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-maze-pathfind-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
     compile(CompileOptions {
         root_path: canary.join("main.omg"),
@@ -9187,7 +9253,8 @@ fn runtime_coin_change_dp_exit_canary_runs() {
     // relaxing dp[a] toward 1 + dp[a-c] over a computed subproblem index. Coins {1,3,4},
     // amount 6 -> 2 coins (3+3) -> exit 70.
     let canary = pass_canary("collections/runtime_coin_change_dp_exit");
-    let build_dir = std::env::temp_dir().join(format!("omega-coin-change-dp-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-coin-change-dp-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
     compile(CompileOptions {
         root_path: canary.join("main.omg"),
@@ -9215,7 +9282,8 @@ fn runtime_bfs_traversal_exit_canary_runs() {
     // set): from node 0 the frontier expands level by level, visit order 0,1,2,3, all four
     // reached -> exit 70.
     let canary = pass_canary("collections/runtime_bfs_traversal_exit");
-    let build_dir = std::env::temp_dir().join(format!("omega-bfs-traversal-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-bfs-traversal-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
     compile(CompileOptions {
         root_path: canary.join("main.omg"),
@@ -9355,8 +9423,7 @@ fn runtime_2d_transpose_exit_canary_runs() {
     // (row,col) and transposed output index are computed into fields, then used as plain
     // indices. Self-checks four transposed cells -> exit 70. Proves 2D/matrix data.
     let canary = pass_canary("collections/runtime_2d_transpose_exit");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-2d-transpose-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!("omega-2d-transpose-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
     compile(CompileOptions {
         root_path: canary.join("main.omg"),
@@ -9385,8 +9452,7 @@ fn runtime_indexed_through_guard_chain_exit_canary_runs() {
     // a single unconditional predecessor, each guard split dropped the bound. Compiling
     // + reading arr[3]=70 -> exit 70 confirms the bound survives the chain.
     let canary = pass_canary("collections/runtime_indexed_through_guard_chain_exit");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-guard-chain-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!("omega-guard-chain-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
     compile(CompileOptions {
         root_path: canary.join("main.omg"),
@@ -9444,8 +9510,10 @@ fn runtime_two_pointer_palindrome_exit_canary_runs() {
     // non-negativity (non_negative_is_proven_via_ordering). Compiling + exiting 70
     // confirms the decreasing-counter lower bound is derived and the walk is correct.
     let canary = pass_canary("collections/runtime_two_pointer_palindrome_exit");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-two-pointer-palindrome-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-two-pointer-palindrome-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
     compile(CompileOptions {
         root_path: canary.join("main.omg"),
@@ -9500,7 +9568,8 @@ fn runtime_enum_grid_scan_exit_canary_runs() {
     // Scan an array of enums (tile grid) by runtime index via the bind-to-local workaround: read
     // grid[i] into self.c, then match. grid=[Wall,Door,Floor,Door,Wall] -> 2 Doors -> exit 70.
     let canary = pass_canary("collections/runtime_enum_grid_scan_exit");
-    let build_dir = std::env::temp_dir().join(format!("omega-enum-grid-scan-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-enum-grid-scan-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
     compile(CompileOptions {
         root_path: canary.join("main.omg"),
@@ -10041,8 +10110,10 @@ fn arithmetic_domain_wrapping_exit_canary_runs() {
     // Decision 17 S1a: `u8 in Wrapping` parses and wraps (200+100 -> 44).
     let canary = pass_canary("expressions/arithmetic_domain_wrapping_exit");
     let main_path = canary.join("main.omg");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-arith-domain-wrapping-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-arith-domain-wrapping-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -10074,8 +10145,10 @@ fn arithmetic_domain_saturating_exit_canary_runs() {
     // NOT wraps to 44. Native emits a width-correct add + carry-flag cmov.
     let canary = pass_canary("expressions/arithmetic_domain_saturating_exit");
     let main_path = canary.join("main.omg");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-arith-domain-saturating-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-arith-domain-saturating-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -10110,8 +10183,10 @@ fn arithmetic_domain_saturating_div_mod_exit_canary_runs() {
     // divisor==-1 guard + cmovo saturation.
     let canary = pass_canary("expressions/arithmetic_domain_saturating_div_mod_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-arith-domain-sat-div-mod-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-arith-domain-sat-div-mod-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -10146,8 +10221,10 @@ fn runtime_guard_divide_modulo_exit_canary_runs() {
     // regression would exit 71-74 instead of 70.
     let canary = pass_canary("expressions/runtime_guard_divide_modulo_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-runtime-guard-div-mod-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-guard-div-mod-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -10182,8 +10259,10 @@ fn runtime_guard_negative_arithmetic_exit_canary_runs() {
     // reached only on a correct guard, so a regression exits 71-74.
     let canary = pass_canary("expressions/runtime_guard_negative_arithmetic_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-runtime-guard-neg-arith-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-guard-neg-arith-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -10217,8 +10296,10 @@ fn runtime_guard_divide_modulo_signedness_exit_canary_runs() {
     // u32 so a large u32 is not misread as negative. A regression exits 71-74.
     let canary = pass_canary("expressions/runtime_guard_divide_modulo_signedness_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-runtime-guard-divmod-sign-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-guard-divmod-sign-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -10308,8 +10389,10 @@ fn case_payload_shared_field_name_exit_canary_runs() {
     // `amount` (40), not a same-named field in an earlier variant (would read to=3).
     let canary = pass_canary("control_flow/case_payload_shared_field_name_exit");
     let main_path = canary.join("main.omg");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-case-payload-collision-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-case-payload-collision-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
     compile(CompileOptions {
         root_path: main_path,
@@ -10487,8 +10570,10 @@ fn arithmetic_domain_trapping_div_exit_canary_runs() {
     // overflow / div-by-zero); in range 140/2 = 70.
     let canary = pass_canary("expressions/arithmetic_domain_trapping_div_exit");
     let main_path = canary.join("main.omg");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-arith-domain-trap-div-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-arith-domain-trap-div-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
     compile(CompileOptions {
         root_path: main_path,
@@ -10517,8 +10602,10 @@ fn arithmetic_domain_trapping_mul_exit_canary_runs() {
     // Decision 17: in-range Trapping multiply (10*10=100) does not trap.
     let canary = pass_canary("expressions/arithmetic_domain_trapping_mul_exit");
     let main_path = canary.join("main.omg");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-arith-domain-trap-mul-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-arith-domain-trap-mul-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
     compile(CompileOptions {
         root_path: main_path,
@@ -10608,8 +10695,10 @@ fn runtime_requires_one_sided_bound_exit_canary_runs() {
 #[test]
 fn runtime_transition_value_guard_narrowing_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_transition_value_guard_narrowing_exit");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-transition-value-guard-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-transition-value-guard-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
     compile(CompileOptions {
         root_path: canary.join("main.omg"),
@@ -10636,8 +10725,10 @@ fn runtime_transition_value_guard_narrowing_exit_canary_runs() {
 #[test]
 fn runtime_transition_arg_false_arm_narrowing_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_transition_arg_false_arm_narrowing_exit");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-transition-arg-false-arm-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-transition-arg-false-arm-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
     compile(CompileOptions {
         root_path: canary.join("main.omg"),
@@ -10645,7 +10736,9 @@ fn runtime_transition_arg_false_arm_narrowing_exit_canary_runs() {
         target_name: None,
         write_output: true,
     })
-    .expect("false-arm transition-arg increment should compile (negated guard narrows n+1 to Exact)");
+    .expect(
+        "false-arm transition-arg increment should compile (negated guard narrows n+1 to Exact)",
+    );
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("transition-arg false-arm narrowing canary should run");
@@ -10665,8 +10758,10 @@ fn runtime_transition_arg_false_arm_narrowing_exit_canary_runs() {
 #[test]
 fn runtime_transition_arg_saturating_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_transition_arg_saturating_exit");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-transition-arg-saturating-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-transition-arg-saturating-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
     compile(CompileOptions {
         root_path: canary.join("main.omg"),
@@ -10751,8 +10846,10 @@ fn runtime_comparison_signedness_exit_canary_runs() {
     // boundary. The canary self-checks u32/u8/u16 unsigned cases and i32/i64 signed
     // cases; the wrong arm exits 71.
     let canary = pass_canary("arithmetic/runtime_comparison_signedness_exit");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-comparison-signedness-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-comparison-signedness-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
     compile(CompileOptions {
         root_path: canary.join("main.omg"),
@@ -10873,8 +10970,7 @@ fn runtime_parenthesized_guard_subjects_exit_canary_runs() {
     // with no top-level comma through the general expression parser. Values built
     // at runtime; all guards must hold -> exit 70.
     let canary = pass_canary("arithmetic/runtime_parenthesized_guard_subjects_exit");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-paren-guard-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!("omega-paren-guard-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
     compile(CompileOptions {
         root_path: canary.join("main.omg"),
@@ -10903,8 +10999,7 @@ fn runtime_and_of_or_guard_exit_canary_runs() {
     // (which already handles a full DNF) takes it. The canary discriminates true
     // and false arms via different operands; all must be correct -> exit 70.
     let canary = pass_canary("arithmetic/runtime_and_of_or_guard_exit");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-and-of-or-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!("omega-and-of-or-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
     compile(CompileOptions {
         root_path: canary.join("main.omg"),
@@ -11023,8 +11118,7 @@ fn runtime_unsigned_high_bit_u32_ops_exit_canary_runs() {
     // compare is the sharpest check (signed `3e9 > 2e9` would be false). Differential
     // native==interp.
     let canary = pass_canary("arithmetic/runtime_unsigned_high_bit_u32_ops_exit");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-u32-highbit-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!("omega-u32-highbit-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
     compile(CompileOptions {
         root_path: canary.join("main.omg"),
@@ -11079,8 +11173,10 @@ fn runtime_narrow_signed_guard_ops_exit_canary_runs() {
     // Narrow (i8) signed compare/sub/mul with negative values as guard subjects -- the
     // working siblings of the narrow-signed-divide-guard fix; guards the area.
     let canary = pass_canary("arithmetic/runtime_narrow_signed_guard_ops_exit");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-narrow-signed-guard-ops-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-narrow-signed-guard-ops-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
     compile(CompileOptions {
         root_path: canary.join("main.omg"),
@@ -11108,8 +11204,10 @@ fn runtime_narrow_signed_divide_guard_exit_canary_runs() {
     // result. Guard-subject operands arrive zero-extended, so the 32-bit idiv divided
     // i8 -20 as 236 -- the divide core now sign-extends narrow signed operands.
     let canary = pass_canary("arithmetic/runtime_narrow_signed_divide_guard_exit");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-narrow-signed-divide-guard-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-narrow-signed-divide-guard-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
     compile(CompileOptions {
         root_path: canary.join("main.omg"),
@@ -11137,8 +11235,10 @@ fn runtime_saturating_narrow_divide_exit_canary_runs() {
     // normal divide, and the TYPE_MIN/-1 overflow clamped to TYPE_MAX (i8 127, i16
     // 32767). The narrow path clamps -a > TYPE_MAX instead of using neg's overflow flag.
     let canary = pass_canary("arithmetic/runtime_saturating_narrow_divide_exit");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-saturating-narrow-divide-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-saturating-narrow-divide-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
     compile(CompileOptions {
         root_path: canary.join("main.omg"),
@@ -11197,7 +11297,8 @@ fn runtime_integer_casts_exit_canary_runs() {
     // whose initializer is a cast (or binary) reading a prior local was re-materialized
     // in the target state -- where the source local has no slot -- and read 0.
     let canary = pass_canary("arithmetic/runtime_integer_casts_exit");
-    let build_dir = std::env::temp_dir().join(format!("omega-integer-casts-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-integer-casts-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
     compile(CompileOptions {
         root_path: canary.join("main.omg"),
@@ -11225,8 +11326,7 @@ fn runtime_i64_divide_modulo_exit_canary_runs() {
     // byte-size resolver must fall back to the i64 target width, not 4, or the encoder
     // emits a 32-bit idiv (width mismatch + a truncated 64-bit dividend).
     let canary = pass_canary("arithmetic/runtime_i64_divide_modulo_exit");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-i64-divmod-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!("omega-i64-divmod-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
     compile(CompileOptions {
         root_path: canary.join("main.omg"),
@@ -11280,8 +11380,7 @@ fn runtime_float_compare_cast_exit_canary_runs() {
 #[test]
 fn runtime_float_operations_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_float_operations_exit");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-float-ops-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!("omega-float-ops-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
     compile(CompileOptions {
         root_path: canary.join("main.omg"),
@@ -11403,7 +11502,9 @@ fn runtime_struct_field_range_narrowing_exit_canary_runs() {
         target_name: None,
         write_output: true,
     })
-    .expect("struct-field range narrowing should compile (constrained field discharges the obligation)");
+    .expect(
+        "struct-field range narrowing should compile (constrained field discharges the obligation)",
+    );
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("struct-field range narrowing canary should run");
@@ -11433,7 +11534,9 @@ fn runtime_payload_range_narrowing_exit_canary_runs() {
         target_name: None,
         write_output: true,
     })
-    .expect("payload range narrowing should compile (constrained payload discharges the obligation)");
+    .expect(
+        "payload range narrowing should compile (constrained payload discharges the obligation)",
+    );
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("payload range narrowing canary should run");
@@ -11580,8 +11683,10 @@ fn runtime_fnv1a_hash_exit_canary_runs() {
 #[test]
 fn runtime_min_max_clamp_narrowing_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_min_max_clamp_narrowing_exit");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-min-max-clamp-narrowing-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-min-max-clamp-narrowing-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
     compile(CompileOptions {
         root_path: canary.join("main.omg"),
@@ -11674,8 +11779,10 @@ fn arithmetic_domain_saturating_signed_exit_canary_runs() {
     // Decision 17 S1b: signed `i8 in Saturating` clamps 100+100=200 to 127.
     let canary = pass_canary("expressions/arithmetic_domain_saturating_signed_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-arith-domain-sat-signed-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-arith-domain-sat-signed-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -11707,8 +11814,10 @@ fn arithmetic_domain_requires_proven_exact_exit_canary_runs() {
     // `amount + amount` in [0,200] -> exact (no domain). compute(35) -> 70.
     let canary = pass_canary("expressions/arithmetic_domain_requires_proven_exact_exit");
     let main_path = canary.join("main.omg");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-arith-domain-requires-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-arith-domain-requires-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -11805,8 +11914,10 @@ fn arithmetic_domain_trapping_exit_canary_runs() {
     // Decision 17 S1b: `u8 in Trapping` runs normally when in range (100+50=150).
     let canary = pass_canary("expressions/arithmetic_domain_trapping_exit");
     let main_path = canary.join("main.omg");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-arith-domain-trapping-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-arith-domain-trapping-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -11841,8 +11952,10 @@ fn arithmetic_domain_trapping_overflow_aborts() {
     // clean-exit run canary.)
     let canary = pass_canary("expressions/arithmetic_domain_trapping_overflow");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-arith-domain-trapping-of-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-arith-domain-trapping-of-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -11926,10 +12039,8 @@ fn arithmetic_domain_return_range_proven_exact_exit_canary_runs() {
     // caller's exact arithmetic on the result stay Exact (5+5+60=70). Enforcement
     // (callee must return in range) makes trusting the range sound.
     let canary = pass_canary("expressions/arithmetic_domain_return_range_proven_exact_exit");
-    let build_dir = std::env::temp_dir().join(format!(
-        "omega-return-range-exact-{}",
-        std::process::id()
-    ));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-return-range-exact-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
     compile(CompileOptions {
         root_path: canary.join("main.omg"),
@@ -12004,10 +12115,8 @@ fn dead_trapping_let_traps_aborts() {
     // trapped. Named without `_canary_runs` (non-clean-exit; outside the
     // RUN-list drift guard, like the const-fold overflow twin above).
     let canary = pass_canary("expressions/dead_trapping_let_traps");
-    let build_dir = std::env::temp_dir().join(format!(
-        "omega-dead-trapping-let-{}",
-        std::process::id()
-    ));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-dead-trapping-let-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -12081,8 +12190,10 @@ fn f32_to_f64_local_cast_exit_canary_runs() {
     // chain (cvtss2sd -> cvttsd2si) builds instead of the write being dropped.
     let canary = pass_canary("expressions/f32_to_f64_local_cast");
     let main_path = canary.join("main.omg");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-f32-to-f64-local-cast-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-f32-to-f64-local-cast-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -12116,8 +12227,10 @@ fn f32_deep_chain_binary_exit_canary_runs() {
     // re-derivation stopped agreeing.
     let canary = pass_canary("expressions/f32_deep_chain_binary");
     let main_path = canary.join("main.omg");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-f32-deep-chain-binary-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-f32-deep-chain-binary-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -12714,7 +12827,8 @@ fn runtime_deep_nested_field_exit_canary_runs() {
     // A 5-level nested field chain (self.l1.l2.l3.l4.v) written and read back; offsets must compose
     // through every level. v + w = 30 + 40 = 70 (a sibling `tag` decoy discriminates the offsets).
     let canary = pass_canary("data/runtime_deep_nested_field_exit");
-    let build_dir = std::env::temp_dir().join(format!("omega-deep-nested-field-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-deep-nested-field-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
     compile(CompileOptions {
         root_path: canary.join("main.omg"),
@@ -12741,7 +12855,8 @@ fn runtime_struct_value_copy_exit_canary_runs() {
     // Struct assignment is a value copy, not an alias: copy a->b, mutate a, b stays unchanged;
     // same between array-of-structs elements. Both sums stay 14 -> exit 70.
     let canary = pass_canary("data/runtime_struct_value_copy_exit");
-    let build_dir = std::env::temp_dir().join(format!("omega-struct-value-copy-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-struct-value-copy-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
     compile(CompileOptions {
         root_path: canary.join("main.omg"),
@@ -12780,8 +12895,7 @@ fn runtime_whole_struct_mutation_copy_canary_runs() {
         outcome.exit_code
     );
 
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-copy-places-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!("omega-copy-places-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -13155,8 +13269,7 @@ fn saturating_multiply_overflow_both_signs_canary_runs() {
         outcome.exit_code
     );
 
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-sat-mul-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!("omega-sat-mul-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
     compile(CompileOptions {
         root_path: main_path,
@@ -13196,8 +13309,7 @@ fn saturating_signed_divide_min_by_neg_one_canary_runs() {
         outcome.exit_code
     );
 
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-sat-div-min-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!("omega-sat-div-min-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
     compile(CompileOptions {
         root_path: main_path,
@@ -13238,8 +13350,7 @@ fn wrapping_signed_divide_min_by_neg_one_canary_runs() {
         outcome.exit_code
     );
 
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-wrap-div-min-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!("omega-wrap-div-min-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
     compile(CompileOptions {
         root_path: main_path,
@@ -13314,8 +13425,10 @@ fn runtime_shift_right_signedness_canary_runs() {
         outcome.exit_code
     );
 
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-shift-right-signedness-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-shift-right-signedness-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -13503,8 +13616,7 @@ fn unsigned_min_max_wrapping_local_canary_runs() {
         outcome.exit_code
     );
 
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-minmax-local-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!("omega-minmax-local-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -13640,8 +13752,7 @@ fn float_value_call_return_canary_runs() {
         outcome.exit_code
     );
 
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-float-vret-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!("omega-float-vret-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -13731,8 +13842,7 @@ fn float_value_call_runtime_arg_canary_runs() {
         outcome.exit_code
     );
 
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-float-varg-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!("omega-float-varg-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -13777,8 +13887,7 @@ fn runtime_std_is_finite_canary_runs() {
         outcome.exit_code
     );
 
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-std-isfin-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!("omega-std-isfin-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -13823,8 +13932,7 @@ fn bool_value_call_return_canary_runs() {
         outcome.exit_code
     );
 
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-bool-vcall-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!("omega-bool-vcall-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -13869,8 +13977,7 @@ fn struct_literal_transition_arg_canary_runs() {
         outcome.exit_code
     );
 
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-struct-arg-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!("omega-struct-arg-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -14007,8 +14114,7 @@ fn suffix_f32_single_rounding_canary_runs() {
         outcome.exit_code
     );
 
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-f32-rounding-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!("omega-f32-rounding-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -14080,6 +14186,163 @@ fn unsuffixed_f32_destination_single_rounding_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn unsuffixed_f32_argument_single_rounding_canary_runs() {
+    // F2c: typed call/transition parameter and return destinations stamp the
+    // same f32 format before the native/interpreter fork.
+    let canary = pass_canary("float/unsuffixed_f32_argument_single_rounding_exit");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("unsuffixed f32 argument canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 77,
+        "interpreter should single-round call, return, and transition faces"
+    );
+
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-f32-arg-rounding-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("unsuffixed f32 argument canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("unsuffixed f32 argument canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(77),
+        "expected call, return, and transition faces single-rounded (exit 77), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn f32_per_operation_rounding_canary_runs() {
+    // F2d: the constant guard folder, substituted-local native operands, and
+    // interpreter runtime evaluator all round after each binary32 operation.
+    // At 2^24, two sequential +1 legs plateau; an f64-window fold followed by
+    // one narrowing reaches 2^24+2.
+    let canary = pass_canary("float/f32_per_operation_rounding_exit");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("f32 per-operation rounding canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 77,
+        "interpreter should round every f32 arithmetic node"
+    );
+
+    let build_dir = std::env::temp_dir().join(format!("omega-f32-per-op-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("f32 per-operation rounding canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("f32 per-operation rounding canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(77),
+        "expected constant and runtime f32 chains to plateau (exit 77), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn anonymous_exact_rat_const_canary_runs() {
+    // F2e: anonymous decimal trees evaluate as exact rationals, then round
+    // once at a destination or guard-context format. Specials are produced
+    // before landing and rendered at the same format on both engines.
+    let canary = pass_canary("float/anonymous_exact_rat_const_exit");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("anonymous exact-Rat canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 77,
+        "interpreter should consume exact folds"
+    );
+
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-float-exact-rat-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("anonymous exact-Rat canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("anonymous exact-Rat canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(77),
+        "expected all exact-Rat destination/guard/special faces (exit 77), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn finite_core_domain_range_discharge_canary_runs() {
+    // F3a: the built-in value domain crosses the full type pipeline, and a
+    // declared float range proves Finite when passed into a constrained state.
+    let canary = pass_canary("float/finite_core_domain_range_discharge");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("Finite core-domain canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 77,
+        "interpreter should preserve ranged f32 value"
+    );
+
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-finite-domain-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("Finite core-domain canary should compile natively");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("Finite core-domain canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(77),
+        "expected range-to-Finite discharge and value preservation (exit 77), got {:?}",
+        output.status.code()
+    );
     let _ = fs::remove_dir_all(&build_dir);
 }
 
@@ -14541,8 +14804,10 @@ fn runtime_local_string_field_copy_through_mut_exit_canary_runs() {
 #[test]
 fn runtime_min_call_result_arithmetic_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_min_call_result_arithmetic_exit");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-min-call-result-arith-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-min-call-result-arith-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
     compile(CompileOptions {
         root_path: canary.join("main.omg"),
@@ -15829,10 +16094,8 @@ fn runtime_param_domain_forward_exit_canary_runs() {
         outcome.exit_code
     );
 
-    let build_dir = std::env::temp_dir().join(format!(
-        "omega-param-domain-forward-{}",
-        std::process::id()
-    ));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-param-domain-forward-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -16210,8 +16473,10 @@ fn runtime_dispatch_mutable_slice_element_write_exit_canary_runs() {
 fn runtime_array_indexed_read_exit_canary_runs() {
     let canary = pass_canary("slices/runtime_array_indexed_read_exit");
     let main_path = canary.join("main.omg");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-runtime-array-indexed-read-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-array-indexed-read-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -16244,8 +16509,10 @@ fn runtime_indexed_struct_field_write_exit_canary_runs() {
     // `arr[2].field` sees live storage. Regression for the stale-fold that the
     // earlier `arr[i] = v` fix missed (the `Member(Indexed(..))` target shape).
     let canary = pass_canary("slices/runtime_indexed_struct_field_write_exit");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-runtime-indexed-struct-field-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-indexed-struct-field-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -16306,8 +16573,10 @@ fn runtime_nested_struct_construction_exit_canary_runs() {
     // inner struct's fields mid-loop, interleaving the outer span). Fixed with
     // reserve-then-set. This canary self-checks the constructed nested fields.
     let canary = pass_canary("structs/runtime_nested_struct_construction_exit");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-nested-struct-construct-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-nested-struct-construct-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -16340,8 +16609,10 @@ fn runtime_cross_machine_substate_name_exit_canary_runs() {
     // name and run the other machine's body. read_at(4) must return table[4]=60 even after
     // pick(2) (whose try1 yields a literal) runs -> exit 70. (Was an interp miscompile.)
     let canary = pass_canary("calls/runtime_cross_machine_substate_name_exit");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-cross-machine-substate-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-cross-machine-substate-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
     compile(CompileOptions {
         root_path: canary.join("main.omg"),
@@ -16397,7 +16668,8 @@ fn runtime_computed_transition_args_exit_canary_runs() {
     // arguments materialize correctly. chk(7+3, 7-3, 300 as u8) sees sum=10, diff=4, byte=44
     // -> exit 70. The working contrast to the value-call-as-transition-arg silent drop.
     let canary = pass_canary("calls/runtime_computed_transition_args_exit");
-    let build_dir = std::env::temp_dir().join(format!("omega-computed-args-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-computed-args-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
     compile(CompileOptions {
         root_path: canary.join("main.omg"),
@@ -16425,7 +16697,8 @@ fn runtime_struct_by_value_param_exit_canary_runs() {
     // positional weights. decode(Coeffs{1,2,3}) = 1*100 + 2*10 + 3 = 123 -> exit 70. Pins
     // the working envelope around task #15 (scalar fields of a by-value struct param resolve).
     let canary = pass_canary("calls/runtime_struct_by_value_param_exit");
-    let build_dir = std::env::temp_dir().join(format!("omega-struct-by-value-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-struct-by-value-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
     compile(CompileOptions {
         root_path: canary.join("main.omg"),
@@ -16453,7 +16726,10 @@ fn runtime_value_call_composition_exit_canary_runs() {
     // add_ten(5)=15, double(15)=30, minus_five(30)=25 -> exit 70. (Sequential binding; the
     // nested form f(g(x)) is a clean error today, documented in the canary.)
     let canary = pass_canary("calls/runtime_value_call_composition_exit");
-    let build_dir = std::env::temp_dir().join(format!("omega-value-call-composition-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-value-call-composition-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
     compile(CompileOptions {
         root_path: canary.join("main.omg"),
@@ -16481,7 +16757,8 @@ fn runtime_struct_value_call_exit_canary_runs() {
     // value-call return-type map alongside scalars and sum-type returns. stats(7,3) returns
     // a record whose two independently-computed fields are 10 and 4 -> exit 70.
     let canary = pass_canary("calls/runtime_struct_value_call_exit");
-    let build_dir = std::env::temp_dir().join(format!("omega-struct-value-call-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-struct-value-call-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
     compile(CompileOptions {
         root_path: canary.join("main.omg"),
@@ -16510,7 +16787,8 @@ fn runtime_option_value_call_exit_canary_runs() {
     // [5,-3,7] yields two present values and one absent; the present values sum to 12 and
     // one absent is counted -> exit 70.
     let canary = pass_canary("calls/runtime_option_value_call_exit");
-    let build_dir = std::env::temp_dir().join(format!("omega-option-value-call-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-option-value-call-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
     compile(CompileOptions {
         root_path: canary.join("main.omg"),
@@ -16626,7 +16904,8 @@ fn runtime_array_element_struct_copy_exit_canary_runs() {
     // independent copy, so mutating f leaves arr[1] untouched. Discriminates both ways: arr[1]
     // keeps (5,6), f holds the mutated (50,60) -> exit 70.
     let canary = pass_canary("structs/runtime_array_element_struct_copy_exit");
-    let build_dir = std::env::temp_dir().join(format!("omega-arr-elem-copy-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-arr-elem-copy-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
     compile(CompileOptions {
         root_path: canary.join("main.omg"),
@@ -16815,8 +17094,10 @@ fn runtime_nested_field_accumulate_loop_exit_canary_runs() {
 #[test]
 fn runtime_indexed_write_const_read_exit_canary_runs() {
     let canary = pass_canary("slices/runtime_indexed_write_const_read_exit");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-indexed-write-const-read-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-indexed-write-const-read-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -16875,8 +17156,10 @@ fn runtime_indexed_rmw_temp_exit_canary_runs() {
 #[test]
 fn runtime_indexed_write_adjacent_field_exit_canary_runs() {
     let canary = pass_canary("slices/runtime_indexed_write_adjacent_field_exit");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-indexed-write-adjacent-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-indexed-write-adjacent-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -17458,7 +17741,10 @@ fn custom_ranking_field_countdown_canary_runs() {
     // terminal delivery (the aggregate unserved-recursive-call-result
     // sweep): weaken counts down to 0 and the let-bound result must land.
     let canary = pass_canary("termination/custom_ranking_field_countdown_compile");
-    let build_dir = std::env::temp_dir().join(format!("omega-custom_ranking_field_countdown-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-custom_ranking_field_countdown-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
     compile(CompileOptions {
         root_path: canary.join("main.omg"),
@@ -17485,7 +17771,10 @@ fn custom_ranking_struct_view_canary_runs() {
     // terminal delivery (the aggregate unserved-recursive-call-result
     // sweep): weaken counts down to 0 and the let-bound result must land.
     let canary = pass_canary("termination/custom_ranking_struct_view");
-    let build_dir = std::env::temp_dir().join(format!("omega-custom_ranking_struct_view-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-custom_ranking_struct_view-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
     compile(CompileOptions {
         root_path: canary.join("main.omg"),
@@ -17560,10 +17849,28 @@ fn runtime_shift_count_domain_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_exact_guarded_shift_count_exit_canary_runs() {
+    let canary = pass_canary("arithmetic/runtime_exact_guarded_shift_count_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-shiftexact-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("guard-proven Exact shift canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("guard-proven Exact shift canary should run");
+    assert_eq!(output.status.code(), Some(70));
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_shift_atwidth_signed_modular_exit_canary_runs() {
-    // Wrapping << at/above-width counts are modular ZERO on every engine
-    // (shift-domain ruling): the promoted i32 write-path repro plus u32
-    // operand-position legs (counts 40 and 70).
+    // Wrapping << masks counts by the language width on every engine: the
+    // i32 write path plus u32 operand-position legs (counts 40 and 70).
     let canary = pass_canary("arithmetic/runtime_shift_atwidth_signed_modular_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-shlatw-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
@@ -17588,8 +17895,8 @@ fn runtime_shift_atwidth_signed_modular_exit_canary_runs() {
 
 #[test]
 fn runtime_shift_right_atwidth_exit_canary_runs() {
-    // Wrapping >> at/above-width counts: logical -> 0, arithmetic ->
-    // sign-fill (floor-division semantics; hardware masks the count).
+    // Wrapping >> masks counts by the language width for logical and
+    // arithmetic forms, in write and nested operand positions.
     let canary = pass_canary("arithmetic/runtime_shift_right_atwidth_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-shratw-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
@@ -17614,9 +17921,9 @@ fn runtime_shift_right_atwidth_exit_canary_runs() {
 
 #[test]
 fn runtime_shift_atwidth_indexed_targets_exit_canary_runs() {
-    // Pins the planner routing that keeps at-width Wrapping shifts correct
+    // Pins the planner routing that keeps masked-count Wrapping shifts correct
     // for indexed/pointee targets and Exact-count spellings: the value
-    // travels the (clamped) operand path, never the domain-less indexed
+    // travels the (masked) operand path, never the domain-less indexed
     // binary-write kinds.
     let canary = pass_canary("arithmetic/runtime_shift_atwidth_indexed_targets_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-shlidx-{}", std::process::id()));
@@ -17745,10 +18052,9 @@ fn runtime_shl_saturating_exit_canary_runs() {
 }
 
 #[test]
-fn runtime_shl_saturating_atwidth_exit_canary_runs() {
-    // Saturating << at/above-width clamps nonzero x to the bound.
-    let canary = pass_canary("arithmetic/runtime_shl_saturating_atwidth_exit");
-    let build_dir = std::env::temp_dir().join(format!("omega-shlsataw-{}", std::process::id()));
+fn runtime_trapping_shift_count_exit_canary_runs() {
+    let canary = pass_canary("arithmetic/runtime_trapping_shift_count_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-shltrapok-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
     compile(CompileOptions {
         root_path: canary.join("main.omg"),
@@ -17756,15 +18062,33 @@ fn runtime_shl_saturating_atwidth_exit_canary_runs() {
         target_name: None,
         write_output: true,
     })
-    .expect("at-width saturating shl canary should compile");
+    .expect("in-range Trapping shift canary should compile");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
-        .expect("at-width saturating shl canary should run");
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "at-width saturating shl canary should clamp (exit 70), got {:?}",
-        output.status.code(),
+        .expect("in-range Trapping shift canary should run");
+    assert_eq!(output.status.code(), Some(70));
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_trapping_shift_count_canary_aborts() {
+    let canary = pass_canary("arithmetic/runtime_trapping_shift_count_traps");
+    let build_dir = std::env::temp_dir().join(format!("omega-shltrap-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("out-of-range Trapping shift canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("out-of-range Trapping shift canary should spawn");
+    let code = output.status.code();
+    assert!(
+        code.is_none() || code.is_some_and(|code| code < 0),
+        "Trapping shift count must abort, got {code:?}"
     );
     let _ = fs::remove_dir_all(&build_dir);
 }
@@ -18959,7 +19283,8 @@ fn runtime_indexed_reduction_loop_exit_canary_runs() {
     // an indexed read as an accumulation operand, the sum/reduce primitive. Sums [5,10,15,20,8,12]
     // = 70. The index bound is proven by the loop guard.
     let canary = pass_canary("collections/runtime_indexed_reduction_loop_exit");
-    let build_dir = std::env::temp_dir().join(format!("omega-indexed-reduce-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-indexed-reduce-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
     compile(CompileOptions {
         root_path: canary.join("main.omg"),
@@ -19018,7 +19343,8 @@ fn runtime_computed_indexed_write_exit_canary_runs() {
     // pull `marker` into the index's high dword and store out of bounds). Fills [0..40] -> sum
     // 100 and marker survives -> exit 70.
     let canary = pass_canary("collections/runtime_computed_indexed_write_exit");
-    let build_dir = std::env::temp_dir().join(format!("omega-computed-indexed-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-computed-indexed-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
     compile(CompileOptions {
         root_path: canary.join("main.omg"),
@@ -19048,7 +19374,8 @@ fn runtime_nested_const_product_index_exit_canary_runs() {
     // the bound; the depth-2 hoist lowers it by slot. Pinned the former
     // silent-ZII miscompile.
     let canary = pass_canary("collections/runtime_nested_const_product_index_exit");
-    let build_dir = std::env::temp_dir().join(format!("omega-nested-product-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-nested-product-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
     compile(CompileOptions {
         root_path: canary.join("main.omg"),
@@ -19076,7 +19403,8 @@ fn runtime_hoisted_index_write_exit_canary_runs() {
     // value local's frame slot + the storage-to-indexed copy (the
     // value-side slot carve-out in omega-state-storage).
     let canary = pass_canary("collections/runtime_hoisted_index_write_exit");
-    let build_dir = std::env::temp_dir().join(format!("omega-hoisted-write-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-hoisted-write-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
     compile(CompileOptions {
         root_path: canary.join("main.omg"),
@@ -19158,7 +19486,8 @@ fn runtime_dependent_param_range_exit_canary_runs() {
     // proofs through the substituted store-enforced high; the exclusive
     // sugar leg rides a strict `<` guard.
     let canary = pass_canary("dependent/runtime_dependent_param_range_exit");
-    let build_dir = std::env::temp_dir().join(format!("omega-dependent-param-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-dependent-param-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
     compile(CompileOptions {
         root_path: canary.join("main.omg"),
@@ -19186,7 +19515,8 @@ fn runtime_dependent_product_index_exit_canary_runs() {
     // product index with runtime arguments; both the overflow proof and the
     // hoist's temp range read substituted intervals.
     let canary = pass_canary("dependent/runtime_dependent_product_index_exit");
-    let build_dir = std::env::temp_dir().join(format!("omega-dependent-product-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-dependent-product-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
     compile(CompileOptions {
         root_path: canary.join("main.omg"),
@@ -19213,7 +19543,8 @@ fn runtime_dependent_subtract_exit_canary_runs() {
     // The relational subtraction rule: `self.count - i` proves non-negative
     // in exact u32 from i's dependent atom (capacity-minus-used).
     let canary = pass_canary("dependent/runtime_dependent_subtract_exit");
-    let build_dir = std::env::temp_dir().join(format!("omega-dependent-subtract-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-dependent-subtract-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
     compile(CompileOptions {
         root_path: canary.join("main.omg"),
@@ -19241,7 +19572,8 @@ fn runtime_dependent_ordering_chain_exit_canary_runs() {
     // dominating `count < 5` guard to discharge an index the substituted
     // range alone cannot.
     let canary = pass_canary("dependent/runtime_dependent_ordering_chain_exit");
-    let build_dir = std::env::temp_dir().join(format!("omega-dependent-ordering-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-dependent-ordering-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
     compile(CompileOptions {
         root_path: canary.join("main.omg"),
@@ -19268,7 +19600,8 @@ fn runtime_requires_subtract_exit_canary_runs() {
     // Channel (b): a machine-level `requires self.a <= self.b` proves
     // `self.b - self.a` in exact u32 (machine-wide field preservation).
     let canary = pass_canary("dependent/runtime_requires_subtract_exit");
-    let build_dir = std::env::temp_dir().join(format!("omega-requires-subtract-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-requires-subtract-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
     compile(CompileOptions {
         root_path: canary.join("main.omg"),
@@ -19295,7 +19628,8 @@ fn runtime_requires_guarded_call_exit_canary_runs() {
     // The requires loop closed: a dominating arm guard proves the callee's
     // requires at the call site; the requires proves the subtraction inside.
     let canary = pass_canary("dependent/runtime_requires_guarded_call_exit");
-    let build_dir = std::env::temp_dir().join(format!("omega-requires-guarded-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-requires-guarded-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
     compile(CompileOptions {
         root_path: canary.join("main.omg"),
@@ -19349,7 +19683,8 @@ fn runtime_bounded_product_index_exit_canary_runs() {
     // R3: runtime dims coupled only by `requires rows * cols <= 12`; the
     // product rule store-proves the ranged temp and the index rides it.
     let canary = pass_canary("dependent/runtime_bounded_product_index_exit");
-    let build_dir = std::env::temp_dir().join(format!("omega-bounded-product-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-bounded-product-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
     compile(CompileOptions {
         root_path: canary.join("main.omg"),
@@ -19403,7 +19738,8 @@ fn runtime_interior_byte_recast_exit_canary_runs() {
     // Rung B: `&self.buf[4] as &u32` assembles the little-endian u32 from
     // the byte region on both engines.
     let canary = pass_canary("recast/runtime_interior_byte_recast_exit");
-    let build_dir = std::env::temp_dir().join(format!("omega-interior-recast-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-interior-recast-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
     compile(CompileOptions {
         root_path: canary.join("main.omg"),
@@ -19430,7 +19766,10 @@ fn runtime_offset_byte_recast_exit_canary_runs() {
     // Rung C1: the runtime-offset interior recast (the Cathedral stride
     // substrate) -- footprint via the offset's enforced interval.
     let canary = pass_canary("recast/runtime_offset_byte_recast_exit");
-    let build_dir = std::env::temp_dir().join(format!("omega-runtime-offset-recast-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-offset-recast-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
     compile(CompileOptions {
         root_path: canary.join("main.omg"),
@@ -19483,8 +19822,7 @@ fn runtime_core_roster_ops_exit_canary_runs() {
     // N4 roster slice: core add/mul (cross-machine composition) + generic
     // recursive Seq<T> + a program-side structural length lemma.
     let canary = pass_canary("proofs/runtime_core_roster_ops_exit");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-core-roster-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!("omega-core-roster-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
     compile(CompileOptions {
         root_path: canary.join("main.omg"),
@@ -19680,7 +20018,8 @@ fn runtime_computed_index_match_subject_exit_canary_runs() {
     // R0's last position: a computed index in an enum-match SUBJECT hoists
     // like every other position.
     let canary = pass_canary("collections/runtime_computed_index_match_subject_exit");
-    let build_dir = std::env::temp_dir().join(format!("omega-match-subject-index-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-match-subject-index-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
     compile(CompileOptions {
         root_path: canary.join("main.omg"),
@@ -19707,7 +20046,8 @@ fn runtime_const_measured_recursion_exit_canary_runs() {
     // MR5: measured tail recursion evaluates at compile time under the
     // const-eval fuel cap to size a fixed array.
     let canary = pass_canary("comptime/runtime_const_measured_recursion_exit");
-    let build_dir = std::env::temp_dir().join(format!("omega-const-recursion-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-const-recursion-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
     compile(CompileOptions {
         root_path: canary.join("main.omg"),
@@ -19734,7 +20074,8 @@ fn runtime_two_state_tail_cycle_exit_canary_runs() {
     // MR4 in-machine sub-rung: forwarding edge + strict edge, non-strict
     // subgraph acyclic.
     let canary = pass_canary("calls/runtime_two_state_tail_cycle_exit");
-    let build_dir = std::env::temp_dir().join(format!("omega-two-state-cycle-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-two-state-cycle-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
     compile(CompileOptions {
         root_path: canary.join("main.omg"),
@@ -19761,7 +20102,8 @@ fn runtime_terminal_tail_recursion_exit_canary_runs() {
     // MR2 complete: the terminal tail call rewrites onto the loop-back and
     // the fall-through complement proves the decrease.
     let canary = pass_canary("calls/runtime_terminal_tail_recursion_exit");
-    let build_dir = std::env::temp_dir().join(format!("omega-terminal-tail-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-terminal-tail-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
     compile(CompileOptions {
         root_path: canary.join("main.omg"),
@@ -19788,7 +20130,8 @@ fn runtime_measured_tail_recursion_exit_canary_runs() {
     // MR1: the call-spelled tail arm on a measured machine resolves onto
     // the bare loop-back edge and runs.
     let canary = pass_canary("calls/runtime_measured_tail_recursion_exit");
-    let build_dir = std::env::temp_dir().join(format!("omega-measured-tail-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-measured-tail-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
     compile(CompileOptions {
         root_path: canary.join("main.omg"),
@@ -19815,7 +20158,8 @@ fn runtime_u64_guarded_cap_store_exit_canary_runs() {
     // N2 rung (c): the guarded-copy discharge survives the exact u64 range
     // fact (the retired i64::MAX cap's positive twin).
     let canary = pass_canary("arithmetic/runtime_u64_guarded_cap_store_exit");
-    let build_dir = std::env::temp_dir().join(format!("omega-u64-guarded-cap-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-u64-guarded-cap-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
     compile(CompileOptions {
         root_path: canary.join("main.omg"),
@@ -19842,7 +20186,8 @@ fn runtime_proof_only_data_declared_exit_canary_runs() {
     // Math roster N1: declaring recursive (proof-only) data is legal; the
     // classification fences consumption, not declaration.
     let canary = pass_canary("data/runtime_proof_only_data_declared_exit");
-    let build_dir = std::env::temp_dir().join(format!("omega-proof-only-declared-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-proof-only-declared-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
     compile(CompileOptions {
         root_path: canary.join("main.omg"),
@@ -19869,7 +20214,10 @@ fn runtime_guarded_offset_recast_exit_canary_runs() {
     // M2 gap #4: the runtime-offset recast whose bound arrives from the
     // caller's dominating incoming-edge guard, not a declared interval.
     let canary = pass_canary("recast/runtime_guarded_offset_recast_exit");
-    let build_dir = std::env::temp_dir().join(format!("omega-guarded-offset-recast-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-guarded-offset-recast-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
     compile(CompileOptions {
         root_path: canary.join("main.omg"),
@@ -19885,6 +20233,36 @@ fn runtime_guarded_offset_recast_exit_canary_runs() {
         output.status.code(),
         Some(70),
         "expected the guard-discharged view to read 0x04030201 (exit 70), got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_symbolic_stride_footprint_exit_canary_runs() {
+    // Cathedral M2 gap 4b: symbolic map-size ceiling + stride floor compose
+    // across the self-loop to prove the record view's complete footprint.
+    let canary = pass_canary("recast/runtime_symbolic_stride_footprint_exit");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-symbolic-stride-footprint-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("symbolic stride-footprint recast canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("symbolic stride-footprint recast canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the symbolic stride-footprint walk to exit 70, got {:?}\n{}",
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
@@ -19951,7 +20329,8 @@ fn runtime_computed_array_fill_via_temp_exit_canary_runs() {
     // indexed element -- native emission cannot yet store a computed expression straight into an
     // indexed element. Fills [0,10,20,30,40], sums to 100, self-checks -> exit 70.
     let canary = pass_canary("collections/runtime_computed_array_fill_via_temp_exit");
-    let build_dir = std::env::temp_dir().join(format!("omega-computed-fill-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-computed-fill-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
     compile(CompileOptions {
         root_path: canary.join("main.omg"),
@@ -19980,7 +20359,8 @@ fn runtime_nested_loop_fill_exit_canary_runs() {
     // inner head sits inside the outer loop's natural loop yet its own back-edge guard still
     // proves the write. Sum self-checks to 3 -> exit 70.
     let canary = pass_canary("collections/runtime_nested_loop_fill_exit");
-    let build_dir = std::env::temp_dir().join(format!("omega-nested-loop-fill-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-nested-loop-fill-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
     compile(CompileOptions {
         root_path: canary.join("main.omg"),
@@ -20009,8 +20389,7 @@ fn runtime_loop_counter_init_hoisted_exit_canary_runs() {
     // counter-untouched state to find the constant init, so the fill loop's index bound proves.
     // Fills [0..4], sums to 10, self-checks -> exit 70.
     let canary = pass_canary("collections/runtime_loop_counter_init_hoisted_exit");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-init-hoisted-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!("omega-init-hoisted-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
     compile(CompileOptions {
         root_path: canary.join("main.omg"),
@@ -20066,8 +20445,10 @@ fn runtime_write_first_loop_index_exit_canary_runs() {
 fn runtime_array_indexed_loop_exit_canary_runs() {
     let canary = pass_canary("slices/runtime_array_indexed_loop_exit");
     let main_path = canary.join("main.omg");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-runtime-array-indexed-loop-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-array-indexed-loop-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -20138,8 +20519,10 @@ fn runtime_decreasing_index_exit_canary_runs() {
 fn runtime_slice_indexed_read_exit_canary_runs() {
     let canary = pass_canary("slices/runtime_slice_indexed_read_exit");
     let main_path = canary.join("main.omg");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-runtime-slice-indexed-read-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-slice-indexed-read-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -20169,8 +20552,10 @@ fn runtime_slice_indexed_read_exit_canary_runs() {
 fn runtime_array_adjacent_index_exit_canary_runs() {
     let canary = pass_canary("slices/runtime_array_adjacent_index_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-runtime-adjacent-index-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-adjacent-index-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -20200,8 +20585,10 @@ fn runtime_array_adjacent_index_exit_canary_runs() {
 fn runtime_nested_decreasing_index_exit_canary_runs() {
     let canary = pass_canary("slices/runtime_nested_decreasing_index_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-runtime-nested-decreasing-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-nested-decreasing-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -20231,8 +20618,8 @@ fn runtime_nested_decreasing_index_exit_canary_runs() {
 fn runtime_narrow_widen_cast_exit_canary_runs() {
     let canary = pass_canary("slices/runtime_narrow_widen_cast_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-runtime-narrow-widen-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-runtime-narrow-widen-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -20262,8 +20649,10 @@ fn runtime_narrow_widen_cast_exit_canary_runs() {
 fn runtime_signed_index_guarded_exit_canary_runs() {
     let canary = pass_canary("slices/runtime_signed_index_guarded_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-runtime-signed-index-guarded-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-signed-index-guarded-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -20293,8 +20682,8 @@ fn runtime_signed_index_guarded_exit_canary_runs() {
 fn runtime_two_pointer_sum_exit_canary_runs() {
     let canary = pass_canary("slices/runtime_two_pointer_sum_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-runtime-two-pointer-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-runtime-two-pointer-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -20324,8 +20713,10 @@ fn runtime_two_pointer_sum_exit_canary_runs() {
 fn runtime_two_pointer_reverse_exit_canary_runs() {
     let canary = pass_canary("slices/runtime_two_pointer_reverse_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-runtime-two-pointer-reverse-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-two-pointer-reverse-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -20355,8 +20746,10 @@ fn runtime_two_pointer_reverse_exit_canary_runs() {
 fn runtime_branched_index_bound_exit_canary_runs() {
     let canary = pass_canary("slices/runtime_branched_index_bound_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-runtime-branched-bound-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-branched-bound-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -20386,8 +20779,10 @@ fn runtime_branched_index_bound_exit_canary_runs() {
 fn runtime_indexed_array_write_exit_canary_runs() {
     let canary = pass_canary("slices/runtime_indexed_array_write_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-runtime-indexed-write-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-indexed-write-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -20559,8 +20954,10 @@ fn runtime_indexed_read_operand_exit_canary_runs() {
     // big == 20.
     let canary = pass_canary("slices/runtime_indexed_read_operand_exit");
     let main_path = canary.join("main.omg");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-runtime-indexed-operand-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-indexed-operand-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -20594,8 +20991,7 @@ fn runtime_subslice_len_exit_canary_runs() {
     // place read with no descriptor slot. Exits 70 when `s.len == 2`.
     let canary = pass_canary("slices/runtime_subslice_len_exit");
     let main_path = canary.join("main.omg");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-subslice-len-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!("omega-subslice-len-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -21144,8 +21540,10 @@ fn runtime_local_aggregate_into_let_exit_canary_runs() {
     // missing slot. Fixed by keeping the slot for an array-literal local referenced in a
     // later let value (array-only -- borrow-carrying structs must stay folded).
     let canary = pass_canary("slices/runtime_local_aggregate_into_let_exit");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-local-aggregate-into-let-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-local-aggregate-into-let-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -21178,8 +21576,10 @@ fn runtime_field_array_element_value_operand_exit_canary_runs() {
     // local-array form (`let arr = [..]; let e = arr[i]`) silently yields 0 -- a
     // machine-indexed-value-operand gap tracked separately.
     let canary = pass_canary("slices/runtime_field_array_element_value_operand_exit");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-field-array-value-operand-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-field-array-value-operand-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -21986,8 +22386,10 @@ fn runtime_value_call_return_types_exit_canary_runs() {
     // written directly as an arg to another VALUE-call miscompiles -- tracked
     // separately; the sound form is to bind the inner call to a local first.)
     let canary = pass_canary("calls/runtime_value_call_return_types_exit");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-value-call-return-types-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-value-call-return-types-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -22020,8 +22422,10 @@ fn runtime_value_call_struct_result_to_target_exit_canary_runs() {
     // call returning a struct assigned DIRECTLY to a field silently stores 0 -- tracked
     // separately; bind to a local first.)
     let canary = pass_canary("calls/runtime_value_call_struct_result_to_target_exit");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-value-call-struct-result-target-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-value-call-struct-result-target-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -22054,8 +22458,10 @@ fn runtime_value_call_self_field_enum_match_exit_canary_runs() {
     // enum TYPE matching bare `self`, called `self.s.sides()`, mis-dispatches -- tracked
     // separately; dispatching on a self field or a param both work.)
     let canary = pass_canary("calls/runtime_value_call_self_field_enum_match_exit");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-value-call-self-field-enum-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-value-call-self-field-enum-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -22089,8 +22495,10 @@ fn runtime_value_call_struct_literal_arms_exit_canary_runs() {
     // leading path and left the `{`); fixed by re-parsing a path-followed-by-`{` arm
     // value as an expression. The natural "dispatch on an enum, return a struct" shape.
     let canary = pass_canary("calls/runtime_value_call_struct_literal_arms_exit");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-value-call-struct-lit-arms-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-value-call-struct-lit-arms-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -22459,10 +22867,8 @@ fn borrow_carrying_data_field_exit_canary_runs() {
         outcome.exit_code
     );
 
-    let build_dir = std::env::temp_dir().join(format!(
-        "omega-borrow-carrying-data-{}",
-        std::process::id()
-    ));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-borrow-carrying-data-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
     compile(CompileOptions {
         root_path: main_path,
@@ -23701,10 +24107,8 @@ fn runtime_param_receiver_second_instance_exit_canary_runs() {
 fn runtime_param_forward_chain_second_receiver_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_param_forward_chain_second_receiver_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
-        "omega-param-forward-chain-{}",
-        std::process::id()
-    ));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-param-forward-chain-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
     compile(CompileOptions {
         root_path: main_path,
@@ -23796,10 +24200,8 @@ fn runtime_saturating_time_arith_exit_canary_runs() {
 fn runtime_natural_termination_exit_canary_runs() {
     let canary = pass_canary("core/runtime_natural_termination_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
-        "omega-natural-termination-{}",
-        std::process::id()
-    ));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-natural-termination-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
     compile(CompileOptions {
         root_path: main_path,
@@ -24789,6 +25191,39 @@ fn runtime_slice_alias_indexed_field_write_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_local_slice_forward_exit_canary_runs() {
+    let canary = pass_canary("storage/runtime_local_slice_forward_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-local-slice-forward-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("local slice forward canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("local slice forward canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the forwarded frame-local-backed slice to exit 70, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_slice_indexed_binary_rmw_exit_canary_runs() {
     // The runtime twin of requires_slice_indexed_alias_field_binary_compile:
     // a binary RMW through a slice-descriptor alias with a runtime index
@@ -24944,8 +25379,8 @@ fn runtime_stdin_command_branch_exit_canary_runs() {
 fn contained_loop_command_branch_carrier_canary_runs() {
     let canary = run_canary("contained_loop_command_branch");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-contained-loop-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-contained-loop-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -25366,8 +25801,7 @@ fn windows_fs_wrapper_open_with_exit_canary_runs() {
         outcome.exit_code
     );
 
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-fs-open-with-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!("omega-fs-open-with-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -25513,8 +25947,8 @@ fn runtime_qualified_case_value_exit_canary_runs() {
         outcome.exit_code
     );
 
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-qualified-case-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-qualified-case-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -25556,8 +25990,8 @@ fn runtime_provides_value_exit_canary_runs() {
         outcome.exit_code
     );
 
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-provides-value-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-provides-value-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -25605,8 +26039,10 @@ fn single_target_internal_machine_skipped_canary_runs() {
         outcome.exit_code
     );
 
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-single-target-internal-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-single-target-internal-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -25798,8 +26234,7 @@ fn windows_find_enumeration_exit_canary_runs() {
         outcome.exit_code
     );
 
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-find-enum-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!("omega-find-enum-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -25848,8 +26283,7 @@ fn windows_wrapper_metadata_exit_canary_runs() {
         outcome.exit_code
     );
 
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-fs-metadata-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!("omega-fs-metadata-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -26013,8 +26447,8 @@ fn windows_provides_import_exit_canary_runs() {
     let canary = pass_canary("capabilities/windows_provides_import_exit");
     let main_path = canary.join("main.omg");
 
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-provides-import-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-provides-import-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -26062,8 +26496,10 @@ fn windows_fs_wrapper_breadth_exit_canary_runs() {
         outcome.exit_code
     );
 
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-fs-win-wrapper-breadth-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-fs-win-wrapper-breadth-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -26219,8 +26655,8 @@ fn runtime_value_call_entry_field_write_exit_canary_runs() {
         outcome.exit_code
     );
 
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-entry-field-write-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-entry-field-write-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -26364,8 +26800,10 @@ fn value_machine_const_index_self_array_exit_canary_runs() {
         outcome.exit_code
     );
 
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-value-machine-const-index-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-value-machine-const-index-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -26593,8 +27031,7 @@ fn runtime_nested_value_call_guard_exit_canary_runs() {
         outcome.exit_code
     );
 
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-nested-guard-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!("omega-nested-guard-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -26692,8 +27129,8 @@ fn runtime_value_call_same_callee_sites_exit_canary_runs() {
         outcome.exit_code
     );
 
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-same-callee-sites-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-same-callee-sites-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -26741,8 +27178,8 @@ fn runtime_value_call_transition_args_exit_canary_runs() {
         outcome.exit_code
     );
 
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-transition-args-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-transition-args-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -26787,8 +27224,8 @@ fn runtime_value_call_transition_args_straight_line_exit_canary_runs() {
         outcome.exit_code
     );
 
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-transition-args-sl-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-transition-args-sl-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -26833,8 +27270,8 @@ fn runtime_value_call_shared_slot_straight_line_exit_canary_runs() {
         outcome.exit_code
     );
 
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-shared-slot-straight-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-shared-slot-straight-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -26882,8 +27319,8 @@ fn runtime_enum_self_method_exit_canary_runs() {
         outcome.exit_code
     );
 
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-enum-self-method-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-enum-self-method-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -26931,8 +27368,8 @@ fn runtime_value_call_dispatch_results_exit_canary_runs() {
         outcome.exit_code
     );
 
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-dispatch-results-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-dispatch-results-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -26981,8 +27418,10 @@ fn runtime_value_call_literal_len_arm_guard_exit_canary_runs() {
         outcome.exit_code
     );
 
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-literal-len-arm-guard-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-literal-len-arm-guard-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -27030,8 +27469,8 @@ fn runtime_value_call_guard_subject_exit_canary_runs() {
         outcome.exit_code
     );
 
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-guard-subject-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-guard-subject-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -27080,8 +27519,8 @@ fn runtime_value_call_nested_entry_call_exit_canary_runs() {
         outcome.exit_code
     );
 
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-nested-entry-call-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-nested-entry-call-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -27130,8 +27569,8 @@ fn runtime_value_call_shared_payload_name_exit_canary_runs() {
         outcome.exit_code
     );
 
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-shared-payload-name-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-shared-payload-name-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -27177,8 +27616,10 @@ fn runtime_value_call_struct_payload_cast_field_exit_canary_runs() {
         outcome.exit_code
     );
 
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-value-call-cast-field-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-value-call-cast-field-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -27231,8 +27672,10 @@ fn value_call_entry_host_state_payload_canary_runs() {
         );
     }
 
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-entry-host-state-payload-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-entry-host-state-payload-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -27278,8 +27721,10 @@ fn value_call_entry_host_state_payload_canary_runs() {
 fn contained_health_loop_command_branch_carrier_canary_runs() {
     let canary = run_canary("contained_health_loop_command_branch");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-contained-health-loop-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-contained-health-loop-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -27327,8 +27772,10 @@ fn contained_health_loop_command_branch_carrier_canary_runs() {
 fn runtime_stdin_line_buffering_carrier_canary_runs() {
     let canary = pass_canary("text/runtime_stdin_line_buffering_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-runtime-line-buffering-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-line-buffering-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -27376,8 +27823,8 @@ fn runtime_stdin_line_buffering_carrier_canary_runs() {
 fn runtime_text_storage_carrier_canary_runs() {
     let canary = pass_canary("text/runtime_text_storage");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-runtime-text-storage-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-runtime-text-storage-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -28935,7 +29382,11 @@ fn efi_freestanding_skeleton_emits_importless_subsystem_10_pe() {
     let image = fs::read(build_dir.join("omega-program.exe")).expect("emitted image should exist");
     let e_lfanew = u32::from_le_bytes(image[0x3c..0x40].try_into().unwrap()) as usize;
     let optional_header = e_lfanew + 4 + 20;
-    let magic = u16::from_le_bytes(image[optional_header..optional_header + 2].try_into().unwrap());
+    let magic = u16::from_le_bytes(
+        image[optional_header..optional_header + 2]
+            .try_into()
+            .unwrap(),
+    );
     assert_eq!(magic, 0x20b, "expected a PE32+ optional header");
     let subsystem = u16::from_le_bytes(
         image[optional_header + 68..optional_header + 70]
@@ -29001,7 +29452,11 @@ fn efi_entry_arguments_prologue_unmarshals_rcx_rdx() {
         &[0x49, 0x89, 0x8f],
         "store 0: mov [r15+disp32], rcx"
     );
-    assert_eq!(&entry[13..17], &0u32.to_le_bytes(), "param 0 frame offset 0");
+    assert_eq!(
+        &entry[13..17],
+        &0u32.to_le_bytes(),
+        "param 0 frame offset 0"
+    );
     // Store 1: mov r15, imm64 ; mov [r15+8], rdx
     assert_eq!(&entry[17..19], &[0x49, 0xbf], "store 1: mov r15, imm64");
     assert_eq!(
@@ -29009,7 +29464,11 @@ fn efi_entry_arguments_prologue_unmarshals_rcx_rdx() {
         &[0x49, 0x89, 0x97],
         "store 1: mov [r15+disp32], rdx"
     );
-    assert_eq!(&entry[30..34], &8u32.to_le_bytes(), "param 1 frame offset 8");
+    assert_eq!(
+        &entry[30..34],
+        &8u32.to_le_bytes(),
+        "param 1 frame offset 8"
+    );
 
     let _ = fs::remove_dir_all(&build_dir);
 }
@@ -29184,8 +29643,7 @@ fn efi_struct_handoff_prologue_spreads_registers() {
     })
     .expect("struct-handoff canary should compile");
     let bytes = fs::read(build_dir.join("omega-program.exe")).expect("read emitted PE");
-    let lfanew =
-        u32::from_le_bytes([bytes[0x3c], bytes[0x3d], bytes[0x3e], bytes[0x3f]]) as usize;
+    let lfanew = u32::from_le_bytes([bytes[0x3c], bytes[0x3d], bytes[0x3e], bytes[0x3f]]) as usize;
     let opt = lfanew + 4 + 20;
     let opt_size = u16::from_le_bytes([bytes[lfanew + 4 + 16], bytes[lfanew + 4 + 17]]) as usize;
     let section_count = u16::from_le_bytes([bytes[lfanew + 6], bytes[lfanew + 7]]) as usize;
@@ -29211,7 +29669,11 @@ fn efi_struct_handoff_prologue_spreads_registers() {
     );
     // store #1 immediately follows: 49 BF ... 49 89 97 08 00 00 00
     let second = text + 17;
-    assert_eq!(&bytes[second..second + 2], &[0x49, 0xbf], "frame-base mov #1");
+    assert_eq!(
+        &bytes[second..second + 2],
+        &[0x49, 0xbf],
+        "frame-base mov #1"
+    );
     assert_eq!(
         &bytes[second + 10..second + 17],
         &[0x49, 0x89, 0x97, 8, 0, 0, 0],
@@ -29372,8 +29834,7 @@ fn runtime_float_min_max_abs_clamp_exit_canary_runs() {
     // Float min/max on SSE (maxsd/minsd), plus abs/clamp over floats which
     // desugar to them: max(3,7)+min(3,7)+abs(-12)+clamp(300,0,200) = 222.
     let canary = pass_canary("arithmetic/runtime_float_min_max_abs_clamp_exit");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-float-minmax-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!("omega-float-minmax-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -29610,8 +30071,7 @@ fn runtime_palindrome_two_pointer_exit_canary_runs() {
     // Two-pointer palindrome over [1,2,3,4,1] (NOT a palindrome): must detect the
     // arr[1]=2 vs arr[3]=4 mismatch -> exit 70; missing it -> exit 71.
     let canary = pass_canary("collections/runtime_palindrome_two_pointer_exit");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-palindrome-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!("omega-palindrome-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -29676,8 +30136,7 @@ fn runtime_dual_indexed_guard_equality_exit_canary_runs() {
     // PROBE: `arr[i] == arr[j]` (equality op, both runtime indices) in a guard.
     // arr[0]=10 == arr[3]=10 TRUE; arr[0]=10 == arr[1]=20 FALSE -> exit 70.
     let canary = pass_canary("collections/runtime_dual_indexed_guard_equality_exit");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-dual-idx-eq-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!("omega-dual-idx-eq-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -29808,8 +30267,7 @@ fn runtime_clamp_narrowing_exit_canary_runs() {
     // so `self.i8 = clamp(self.i32, 0, 100)` compiles AND the backend stores the
     // clamped value: clamp(300,0,100)=100 lands in i8, read back = exit 100.
     let canary = pass_canary("arithmetic/runtime_clamp_narrowing_exit");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-clamp-narrow-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!("omega-clamp-narrow-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -29841,8 +30299,7 @@ fn runtime_negative_float_to_int_exit_canary_runs() {
     // Guards on the results and exits 70 (a positive code) so the assertion is
     // robust to shells that mangle negative process exit codes.
     let canary = pass_canary("arithmetic/runtime_negative_float_to_int_exit");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-negfloat-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!("omega-negfloat-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -29866,6 +30323,137 @@ fn runtime_negative_float_to_int_exit_canary_runs() {
     );
 
     let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn float_to_int_policy_canary_runs() {
+    let canary = pass_canary("float/float_to_int_policy_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-float-int-policy-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("float-to-int policy canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("float-to-int policy canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(77),
+        "expected target-width saturation and NaN->0 (exit 77); got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn float_to_int_exact_proofs_canary_runs() {
+    let canary = pass_canary("float/float_to_int_exact_proofs_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-float-int-exact-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("proven Exact float-to-int canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("proven Exact float-to-int canary should run");
+    assert_eq!(output.status.code(), Some(78));
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn float_to_int_trapping_canaries_abort() {
+    for name in [
+        "float/float_to_int_trapping_nan_traps",
+        "float/float_to_int_trapping_overflow_traps",
+    ] {
+        let canary = pass_canary(name);
+        let leaf = name.rsplit('/').next().unwrap_or("trap");
+        let build_dir =
+            std::env::temp_dir().join(format!("omega-float-int-{leaf}-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&build_dir);
+        compile(CompileOptions {
+            root_path: canary.join("main.omg"),
+            build_dir: Some(build_dir.clone()),
+            target_name: None,
+            write_output: true,
+        })
+        .expect("Trapping float-to-int canary should compile");
+        let output = Command::new(build_dir.join(executable_name()))
+            .output()
+            .expect("Trapping float-to-int canary should start");
+        assert!(
+            !output.status.success(),
+            "{name} reached exit(70) instead of trapping"
+        );
+        let _ = fs::remove_dir_all(&build_dir);
+    }
+}
+
+#[test]
+fn float_saturating_arithmetic_canary_runs() {
+    let canary = pass_canary("float/float_saturating_arithmetic_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-float-saturating-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("Saturating float arithmetic canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("Saturating float arithmetic canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(77),
+        "expected overflow-only f32 saturation (exit 77); got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn float_trapping_arithmetic_canaries_abort() {
+    for name in [
+        "float/float_trapping_overflow_traps",
+        "float/float_trapping_divide_zero_traps",
+        "float/float_trapping_invalid_traps",
+    ] {
+        let canary = pass_canary(name);
+        let leaf = name.rsplit('/').next().unwrap_or("trap");
+        let build_dir =
+            std::env::temp_dir().join(format!("omega-float-{leaf}-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&build_dir);
+        compile(CompileOptions {
+            root_path: canary.join("main.omg"),
+            build_dir: Some(build_dir.clone()),
+            target_name: None,
+            write_output: true,
+        })
+        .expect("Trapping float arithmetic canary should compile");
+        let output = Command::new(build_dir.join(executable_name()))
+            .output()
+            .expect("Trapping float arithmetic canary should start");
+        assert!(
+            !output.status.success(),
+            "{name} reached exit(70) instead of trapping"
+        );
+        let _ = fs::remove_dir_all(&build_dir);
+    }
 }
 
 #[test]
@@ -30087,10 +30675,8 @@ fn value_call_sequential_result_slots_exit_canary_runs() {
 fn arithmetic_domain_saturating_const_fold_exit_canary_runs() {
     // Decision 17 / task #39: const*const Saturating overflow must clamp, not wrap.
     let canary = pass_canary("expressions/arithmetic_domain_saturating_const_fold_exit");
-    let build_dir = std::env::temp_dir().join(format!(
-        "omega-sat-const-fold-{}",
-        std::process::id()
-    ));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-sat-const-fold-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
     compile(CompileOptions {
         root_path: canary.join("main.omg"),
@@ -30170,10 +30756,8 @@ fn runtime_f64_state_arg_exit_canary_runs() {
     // bad_int (regression); exit 70 = both args arrived correctly.
     let canary = pass_canary("expressions/runtime_f64_state_arg_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
-        "omega-f64-state-arg-{}",
-        std::process::id()
-    ));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-f64-state-arg-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -30413,7 +30997,6 @@ fn executable_name() -> &'static str {
 
 const ACTIVE_PASS_CANARIES: &[&str] = &[
     "arithmetic/bare_name_scopes",
-    "arithmetic/shift_amount_over_width_compiles",
     "arithmetic/const_fold_overflow_compiles",
     "arithmetic/runtime_i64_min_literal_exit",
     "constants/runtime_scoped_const_exit",
@@ -30437,6 +31020,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "targets/target_machine_gating_exit",
     "targets/single_target_internal_machine_skipped",
     "traits/ring_requirement_satisfies_exit",
+    "traits/default_machine_in_trait",
     "proofs/ring_law_conformance",
     "proofs/ring_rearrange_core_nat",
     "expressions/runtime_qualified_case_value_exit",
@@ -30571,6 +31155,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "arithmetic/runtime_float_compare_bool_exit",
     "arithmetic/runtime_float_nested_operand_exit",
     "arithmetic/runtime_shift_count_domain_exit",
+    "arithmetic/runtime_exact_guarded_shift_count_exit",
     "arithmetic/runtime_shift_atwidth_signed_modular_exit",
     "arithmetic/runtime_shift_right_atwidth_exit",
     "arithmetic/runtime_shift_atwidth_indexed_targets_exit",
@@ -30580,7 +31165,8 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "types/runtime_addr_value_flow_exit",
     "types/runtime_addr_algebra_exit",
     "arithmetic/runtime_shl_saturating_exit",
-    "arithmetic/runtime_shl_saturating_atwidth_exit",
+    "arithmetic/runtime_trapping_shift_count_exit",
+    "arithmetic/runtime_trapping_shift_count_traps",
     "proofs/runtime_decreases_u64_measure_exit",
     "arithmetic/runtime_wrapping_operand_truncation_exit",
     "text/case_literal_texteq_field_store_exit",
@@ -30660,6 +31246,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "storage/runtime_machine_owned_indexed_struct_copy_exit",
     "storage/runtime_dispatch_helper_local_alias_add_exit",
     "storage/requires_slice_indexed_alias_field_binary_compile",
+    "storage/runtime_local_slice_forward_exit",
     "storage/runtime_slice_indexed_binary_rmw_exit",
     "calls/runtime_mut_ref_forward_exit",
     "text/runtime_alias_string_write",
@@ -30869,10 +31456,35 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "dependent/runtime_requires_guarded_call_exit",
     "dependent/runtime_sibling_len_index_exit",
     "dependent/runtime_bounded_product_index_exit",
+    "dependent/data_where_surface_compile",
+    "dependent/data_where_gated_construction_compile",
+    "dependent/data_where_membership_literal_compile",
+    "dependent/data_where_membership_window_restored_compile",
+    "dependent/data_where_membership_zero_valid_compile",
+    "dependent/data_where_length_construction_compile",
+    "dependent/data_where_length_window_compile",
+    "dependent/data_where_length_zero_valid_compile",
+    "dependent/data_where_symbolic_equal_construction_compile",
+    "dependent/data_where_symbolic_equal_window_compile",
+    "dependent/data_where_symbolic_affine_window_compile",
+    "dependent/data_where_commutative_correlation_compile",
+    "dependent/data_where_standing_bound_exit",
+    "dependent/data_where_invariant_window_restored_exit",
+    "dependent/data_where_gated_machine_established_exit",
+    "dependent/range_sugar_gated_construction_compile",
+    "dependent/nested_gated_construction_compile",
+    "dependent/zero_case_absorbs_nested_gate_compile",
+    "dependent/nested_data_where_window_restored_exit",
+    "dependent/nested_data_where_standing_bound_exit",
+    "dependent/data_where_witness_write_after_borrow_compile",
+    "dependent/indexed_data_where_window_restored_exit",
+    "dependent/indexed_data_where_standing_bound_exit",
+    "dependent/data_where_flow_proven_construction_compile",
     "recast/runtime_scalar_pun_shared_let_exit",
     "recast/runtime_interior_byte_recast_exit",
     "recast/runtime_offset_byte_recast_exit",
     "recast/runtime_guarded_offset_recast_exit",
+    "recast/runtime_symbolic_stride_footprint_exit",
     "data/runtime_proof_only_data_declared_exit",
     "arithmetic/runtime_u64_guarded_cap_store_exit",
     "calls/runtime_measured_tail_recursion_exit",
@@ -30886,6 +31498,9 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "constants/runtime_free_const_exit",
     "proofs/runtime_core_nat_declared_exit",
     "proofs/runtime_nat_structural_recursion_exit",
+    "proofs/integer_measured_nat_induction_compile",
+    "proofs/ring_full_polynomial_compile",
+    "proofs/ring_identity_slot_bridge_compile",
     "proofs/runtime_core_roster_ops_exit",
     "build/runtime_depend_mapping_exit",
     "recast/runtime_record_view_exit",
@@ -30961,8 +31576,22 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "arithmetic/unsigned_min_max_operand_position_exit",
     "arithmetic/suffix_landed_operand_position_exit",
     "arithmetic/suffix_boundary_magnitudes_exit",
+    "float/anonymous_exact_rat_const_exit",
+    "float/f32_per_operation_rounding_exit",
+    "float/finite_core_domain_range_discharge",
+    "float/float_saturating_arithmetic_exit",
+    "float/float_to_int_exact_proofs_exit",
+    "float/float_to_int_policy_exit",
+    "float/float_to_int_trapping_nan_traps",
+    "float/float_to_int_trapping_overflow_traps",
+    "float/float_trapping_divide_zero_traps",
+    "float/float_trapping_invalid_traps",
+    "float/float_trapping_overflow_traps",
+    "dependent/data_where_capacity_measure_compile",
+    "dependent/data_where_field_read_during_window_compile",
     "float/suffix_f32_single_rounding_exit",
     "float/unsuffixed_f32_destination_single_rounding_exit",
+    "float/unsuffixed_f32_argument_single_rounding_exit",
     "arithmetic/runtime_unsigned_division_exit",
     "arithmetic/runtime_min_max_signedness_exit",
     "arithmetic/runtime_comparison_value_signedness_exit",
@@ -31205,6 +31834,16 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "calls/value_call_wrong_argument_count_rejected",
     "expressions/cast_to_non_scalar_type_rejected",
     "constraints/inverted_range_rejected",
+    "constraints/finite_core_domain_on_int",
+    "constraints/finite_window_open_at_consumption",
+    "constraints/multiple_policy_domain_chain",
+    "arithmetic/float_to_int_exact_unproven",
+    "arithmetic/float_to_int_wrapping_rejected",
+    "arithmetic/exact_shift_count_out_of_range",
+    "arithmetic/exact_shift_count_unproven",
+    "arithmetic/saturating_shift_count_unproven",
+    "dependent/data_where_capacity_mismatch_rejected",
+    "dependent/data_where_whole_read_during_window_rejected",
     "parser/nesting_exceeds_max_depth",
     "arithmetic/divide_by_zero_rejected",
     "arithmetic/modulo_by_zero_rejected",
@@ -31238,6 +31877,24 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "dependent/sibling_len_arg_unrelated_rejected",
     "dependent/sibling_len_unknown_sibling_rejected",
     "dependent/bounded_product_weak_coupling_rejected",
+    "dependent/data_where_gated_field_omitted_rejected",
+    "dependent/data_where_ambiguous_domain_short_name_rejected",
+    "dependent/data_where_gated_false_literal_rejected",
+    "dependent/data_where_membership_literal_rejected",
+    "dependent/data_where_length_mismatch_rejected",
+    "dependent/data_where_membership_carrier_mismatch_rejected",
+    "dependent/data_where_symbolic_correlation_stale_rejected",
+    "dependent/data_where_noncommutative_correlation_rejected",
+    "dependent/data_where_standing_bound_absent_rejected",
+    "dependent/data_where_invariant_window_unclosed_rejected",
+    "dependent/data_where_gated_machine_unestablished_rejected",
+    "dependent/range_sugar_gated_field_omitted_rejected",
+    "dependent/zero_init_range_excludes_zero_rejected",
+    "dependent/nested_gated_field_omitted_rejected",
+    "dependent/nested_data_where_window_unclosed_rejected",
+    "dependent/data_where_live_borrow_pins_witness_rejected",
+    "dependent/indexed_data_where_window_unclosed_rejected",
+    "dependent/data_where_borrow_during_window_rejected",
     "collections/deep_nested_runtime_indexed_write_rejected",
     "layouts/plan_laid_dynamic_plan",
     "layouts/plan_laid_policy_without_plan_machine",
@@ -31250,6 +31907,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "recast/interior_recast_footprint_rejected",
     "recast/runtime_offset_footprint_rejected",
     "recast/record_view_footprint_rejected",
+    "recast/symbolic_stride_footprint_rejected",
     "calls/plain_let_reassign_rejected",
     "control_flow/tuple_transition_uncovered_rejected",
     "control_flow/transition_fall_through_bool",
@@ -31261,6 +31919,10 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "proofs/core_nat_runtime_consumption_rejected",
     "proofs/nat_unmeasured_recursion_rejected",
     "proofs/nat_nondescending_recursion_rejected",
+    "proofs/integer_measured_nat_recursion_stalled",
+    "proofs/integer_measured_nat_claim_refuted",
+    "proofs/ring_full_polynomial_false_rejected",
+    "proofs/ring_identity_slots_distinct_rejected",
     "proofs/structural_ensures_unjudged_rejected",
     "proofs/nat_structural_disproof_refuted",
     "proofs/nat_payload_disjointness_refuted",
@@ -31304,6 +31966,8 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "calls/ambiguous_spliced_second_receiver_rejected",
     "calls/empty_body_return_machine_rejected",
     "parse/machine_clause_garbage_rejected",
+    "relax/retired_relax_statement",
+    "relax/retired_relaxed_reference",
     "arithmetic/nested_field_exact_overflow_rejected",
     "arithmetic/zii_range_excludes_zero_rejected",
     "arithmetic/guard_invalidated_by_prior_write_rejected",
@@ -31316,12 +31980,14 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "arithmetic/suffix_magnitude_overflow_rejected",
     "arithmetic/suffix_negative_unsigned_rejected",
     "float/suffix_format_disagrees_rejected",
+    "float/suffix_call_argument_disagrees_rejected",
     "capabilities/host_provides_unknown_binding",
     "capabilities/host_provides_two_unknown_rejected",
     "capabilities/provides_value_wrong_target_rejected",
     "targets/target_machine_missing_rejected",
     "targets/target_machine_duplicate_rejected",
     "traits/ring_requirement_unknown_rejected",
+    "traits/default_keyword_retired",
     "traits/ring_requirement_signature_rejected",
     "traits/free_machine_bare_satisfies_rejected",
     "proofs/ring_law_unproven_rejected",
@@ -31654,12 +32320,10 @@ struct PendingCanary {
 //   arm bodies are value expressions; sibling-state callees re-classify).
 #[allow(dead_code)]
 // The f32 scalar-width family + the sequential self-field RMW stale-fold all
-// closed 2026-06-14 and are now pass RUN canaries. The one remaining pending
-// entry is a native/interpreter DIVERGENCE (not a one-sided miscompile) whose
-// fix is gated on a maintainer SEMANTICS decision about i32 overflow in a
-// nested value operand -- see the canary header. Tracked as CurrentlyAccepts
-// (it compiles); deliberately NOT a RUN canary until the semantics is settled,
-// so the differential oracle is not asked to adjudicate an undecided question.
+// closed 2026-06-14 and are now pass RUN canaries. The float-to-int divergence
+// was retired 2026-07-18 when F4's proof-or-policy conversion landed; its exact,
+// saturating, trapping, NaN, and Wrapping legs now live in active pass/fail
+// coverage rather than this drift ledger.
 // Empty: nested_i32_mul_overflow_divergence was promoted to a FAIL canary
 // (expressions/nested_i32_mul_overflow) once decision 17 S3 made the unprovable
 // i32 multiply a compile error -- the divergence was a symptom of accepting an
@@ -31688,10 +32352,6 @@ const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
         path: "calls/trailing_state_mut_param_phase_divergence",
         expectation: PendingCanaryExpectation::CurrentlyAccepts,
     },
-    PendingCanary {
-        path: "arithmetic/float_to_int_overflow_divergence",
-        expectation: PendingCanaryExpectation::CurrentlyAccepts,
-    },
     // immutable_arg_for_mut_param_not_checked PROMOTED to
     // fail/calls/immutable_arg_for_mut_param_rejected (borrow-mutability
     // enforcement landed 2026-07-18).
@@ -31699,14 +32359,12 @@ const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
     // pass/arithmetic/unsigned_min_max_operand_position_exit (carrier CR3
     // landed 2026-07-18: binding-capture stamping + operand-derived
     // anonymous-destination folds carry the landing to the signedness probe).
-    PendingCanary {
-        path: "storage/local_slice_forward_segfault",
-        expectation: PendingCanaryExpectation::CurrentlyAccepts,
-    },
+    // local_slice_forward_segfault PROMOTED to
+    // pass/storage/runtime_local_slice_forward_exit: a struct local used as
+    // slice backing storage now keeps its address-stable frame slot.
     // shift_amount_at_or_above_width_divergence PROMOTED to
-    // pass/arithmetic/runtime_shift_atwidth_signed_modular_exit: the
-    // shift-domain ruling made Wrapping << modular and all three engines
-    // now clamp at/above-width counts to zero.
+    // pass/arithmetic/runtime_shift_atwidth_signed_modular_exit; F8 now pins
+    // the final Wrapping rule, count masking by the language operand width.
     // multiarm_texteq_local_divergence PROMOTED to
     // pass/calls/runtime_multiarm_texteq_local_exit: Terminal-value arm
     // expansions now carry their sub-state's call-free LocalData
@@ -31728,10 +32386,8 @@ const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
 fn runtime_atomic_load_store_exit_canary_runs() {
     let canary = pass_canary("atomics/runtime_atomic_load_store_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
-        "omega-atomic-load-store-{}",
-        std::process::id()
-    ));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-atomic-load-store-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -31766,10 +32422,8 @@ fn runtime_atomic_load_store_exit_canary_runs() {
 fn runtime_atomic_fetch_add_exit_canary_runs() {
     let canary = pass_canary("atomics/runtime_atomic_fetch_add_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
-        "omega-atomic-fetch-add-{}",
-        std::process::id()
-    ));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-atomic-fetch-add-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -31807,10 +32461,8 @@ fn runtime_atomic_fetch_add_exit_canary_runs() {
 fn runtime_atomic_compare_exchange_exit_canary_runs() {
     let canary = pass_canary("atomics/runtime_atomic_compare_exchange_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
-        "omega-atomic-cmpxchg-{}",
-        std::process::id()
-    ));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-atomic-cmpxchg-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -31847,10 +32499,8 @@ fn runtime_atomic_compare_exchange_exit_canary_runs() {
 fn runtime_console_byte_echo_exit_canary_runs() {
     let canary = pass_canary("host/runtime_console_byte_echo_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
-        "omega-console-byte-echo-{}",
-        std::process::id()
-    ));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-console-byte-echo-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
     compile(CompileOptions {
         root_path: main_path,
@@ -31899,7 +32549,8 @@ fn runtime_console_byte_echo_exit_canary_runs() {
         String::from_utf8_lossy(&piped.stderr)
     );
     assert_eq!(
-        piped.stdout, b"AB",
+        piped.stdout,
+        b"AB",
         "write_byte must echo the raw bytes, got {:?}",
         String::from_utf8_lossy(&piped.stdout)
     );
@@ -31918,10 +32569,7 @@ fn runtime_console_byte_echo_exit_canary_runs() {
 #[test]
 fn efi_vtable_field_call_emits_indirect_dispatch() {
     let canary = pass_canary("targets/efi_vtable_field_call");
-    let build_dir = std::env::temp_dir().join(format!(
-        "omega-vtable-field-{}",
-        std::process::id()
-    ));
+    let build_dir = std::env::temp_dir().join(format!("omega-vtable-field-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
     compile(CompileOptions {
         root_path: canary.join("main.omg"),
@@ -31967,10 +32615,7 @@ fn efi_two_provides_rows_cross_compile() {
 #[test]
 fn efi_out_param_call_marshals_addresses_and_stack_args() {
     let canary = pass_canary("targets/efi_out_param_call");
-    let build_dir = std::env::temp_dir().join(format!(
-        "omega-out-param-{}",
-        std::process::id()
-    ));
+    let build_dir = std::env::temp_dir().join(format!("omega-out-param-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
     compile(CompileOptions {
         root_path: canary.join("main.omg"),
@@ -31984,7 +32629,9 @@ fn efi_out_param_call_marshals_addresses_and_stack_args() {
     // hdr + four leading fn-ptr fields).
     let dispatch = [0x48u8, 0x8b, 0x81, 0x28, 0x00, 0x00, 0x00, 0xff, 0xd0];
     assert!(
-        bytes.windows(dispatch.len()).any(|window| window == dispatch),
+        bytes
+            .windows(dispatch.len())
+            .any(|window| window == dispatch),
         "expected `mov rax, [rcx+40]; call rax` (field-model dispatch) in .text"
     );
     // The stack spills: mov [rsp+0x20], rax and mov [rsp+0x28], rax (args 5-6).
@@ -32017,10 +32664,7 @@ fn cross_console_byte_targets_emit_x86_64_flavors() {
     let canary = pass_canary("host/cross_console_byte_targets");
     let main_path = canary.join("main.omg");
 
-    let build_dir = std::env::temp_dir().join(format!(
-        "omega-bytes-win-{}",
-        std::process::id()
-    ));
+    let build_dir = std::env::temp_dir().join(format!("omega-bytes-win-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
     compile(CompileOptions {
         root_path: main_path.clone(),
@@ -32035,9 +32679,14 @@ fn cross_console_byte_targets_emit_x86_64_flavors() {
         ("STD_OUTPUT_HANDLE", &[0xb9u8, 0xf5, 0xff, 0xff, 0xff][..]),
         (
             "count-1 + bytes-read out-param",
-            &[0x41u8, 0xb8, 0x01, 0x00, 0x00, 0x00, 0x4c, 0x8d, 0x4c, 0x24, 0x28][..],
+            &[
+                0x41u8, 0xb8, 0x01, 0x00, 0x00, 0x00, 0x4c, 0x8d, 0x4c, 0x24, 0x28,
+            ][..],
         ),
-        ("conditional tag-1 store", &[0x74u8, 0x0b, 0x41, 0xc7, 0x86][..]),
+        (
+            "conditional tag-1 store",
+            &[0x74u8, 0x0b, 0x41, 0xc7, 0x86][..],
+        ),
     ] {
         assert!(
             pe.windows(needle.len()).any(|window| window == needle),
@@ -32046,10 +32695,7 @@ fn cross_console_byte_targets_emit_x86_64_flavors() {
     }
     let _ = fs::remove_dir_all(&build_dir);
 
-    let build_dir = std::env::temp_dir().join(format!(
-        "omega-bytes-linux-{}",
-        std::process::id()
-    ));
+    let build_dir = std::env::temp_dir().join(format!("omega-bytes-linux-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
     compile(CompileOptions {
         root_path: main_path,
@@ -32060,10 +32706,22 @@ fn cross_console_byte_targets_emit_x86_64_flavors() {
     .expect("byte-op canary should cross-compile for linux_x64");
     let elf = fs::read(build_dir.join("omega-program")).expect("read emitted ELF");
     for (name, needle) in [
-        ("fd-0 + payload lea", &[0x48u8, 0x31, 0xff, 0x49, 0x8d, 0xb6][..]),
-        ("read syscall", &[0xb8u8, 0x00, 0x00, 0x00, 0x00, 0x0f, 0x05][..]),
-        ("write syscall", &[0xb8u8, 0x01, 0x00, 0x00, 0x00, 0x0f, 0x05][..]),
-        ("conditional tag-1 store", &[0x7eu8, 0x0b, 0x41, 0xc7, 0x86][..]),
+        (
+            "fd-0 + payload lea",
+            &[0x48u8, 0x31, 0xff, 0x49, 0x8d, 0xb6][..],
+        ),
+        (
+            "read syscall",
+            &[0xb8u8, 0x00, 0x00, 0x00, 0x00, 0x0f, 0x05][..],
+        ),
+        (
+            "write syscall",
+            &[0xb8u8, 0x01, 0x00, 0x00, 0x00, 0x0f, 0x05][..],
+        ),
+        (
+            "conditional tag-1 store",
+            &[0x7eu8, 0x0b, 0x41, 0xc7, 0x86][..],
+        ),
     ] {
         assert!(
             elf.windows(needle.len()).any(|window| window == needle),
@@ -32109,10 +32767,8 @@ fn console_byte_field_target_rejected_canary_is_rejected() {
 fn runtime_dutch_flag_partition_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_dutch_flag_partition_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
-        "omega-dutch-flag-partition-{}",
-        std::process::id()
-    ));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-dutch-flag-partition-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -32186,30 +32842,5 @@ fn float_wrapping_domain_rejected_canary_is_rejected() {
         combined.contains("Wrapping") && combined.contains("no modular reading of a float"),
         "expected the wrapping-on-float diagnostic to name the policy and the reason, \
          got:\n{combined}"
-    );
-}
-
-// Float semantics F1: a `Saturating`/`Trapping` policy on a float is recognized
-// but does not lower yet (the F5 rung) -- it refuses loudly rather than silently
-// no-opping.
-#[test]
-fn float_saturating_domain_rejected_canary_is_rejected() {
-    let canary = fail_canary("arithmetic/float_saturating_domain_rejected");
-    let diagnostics = match compile_canary_without_output(&canary) {
-        Ok(report) => panic!(
-            "expected `f64 in Saturating` to reject, but it compiled: {}",
-            report.summary()
-        ),
-        Err(diagnostics) => diagnostics,
-    };
-    let combined = diagnostics
-        .iter()
-        .map(ToString::to_string)
-        .collect::<Vec<_>>()
-        .join("\n");
-    assert!(
-        combined.contains("Saturating") && combined.contains("not lowered yet"),
-        "expected the saturating-on-float diagnostic to name the policy and the F5 \
-         deferral, got:\n{combined}"
     );
 }

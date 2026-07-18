@@ -1,0 +1,19 @@
+data Map
+where
+    start <= end,
+{
+    start: i32;
+    end: i32;
+}
+
+machine Map::leak(&mut self) {
+    self.start = 10;
+    let snapshot: Map = self;
+    self.end = 10;
+}
+
+data Main {
+}
+
+machine Main::run(&mut self) {
+}

@@ -1,7 +1,7 @@
 // UNMEASURED call-spelled self-recursion is REJECTED (measured-recursion
 // ruling 2026-07-18, MR1): a recursive CALL spelling (`true ->
 // self.countdown(remaining - 1)`) is legal ONLY on a measured machine
-// (`terminates { decreases ... }`, the decrease proven across the loop
+// (`terminates by ...;`, the decrease proven across the loop
 // edge). This machine declares no measure, so the arm refuses and names
 // both fixes: measure the machine, or spell unmeasured repetition as the
 // bare loop `-> countdown(..)` (constant stack, may legally diverge).

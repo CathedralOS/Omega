@@ -1,0 +1,13 @@
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main {
+    console: Console;
+    maximum: f32 in Trapping;
+    two: f32 in Trapping;
+    result: f32 in Trapping;
+}
+machine Main::main(&mut self) {
+    self.maximum = 340282346638528859811704183484516925440.0;
+    self.two = 2.0;
+    self.result = self.maximum * self.two;
+    self.console.exit_process(70);
+}

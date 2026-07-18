@@ -1,10 +1,10 @@
 // The argumented bounded-distance ranking selected explicitly: the
 // climbing-index loop proves termination with
-// `decreases (index, limit) -> Nat::BoundedDistance`. The arrow's left side
+// `terminates by (index, limit) -> Nat::BoundedDistance`. The arrow's left side
 // is uniformly the ranked subjects, bound in order to the named view's
 // (lower, upper) parameters, so the use site reads as a ranking selection
 // rather than ad-hoc proof arithmetic (the use-site subtraction spelling
-// `decreases limit - index` is retired).
+// `terminates by limit - index` is retired).
 
 data Main {}
 
@@ -15,9 +15,8 @@ machine Main::main(&mut self) -> u64 {
 }
 
 machine Main::walk(&mut self, limit: u64, index: u64)
-terminates {
-    decreases (index, limit) -> Nat::BoundedDistance;
-}
+terminates;
+terminates by (index, limit) -> Nat::BoundedDistance;
 -> u64
 {
     transition index < limit {

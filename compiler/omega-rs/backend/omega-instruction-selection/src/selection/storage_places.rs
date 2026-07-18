@@ -1190,8 +1190,9 @@ pub(super) fn resolve_runtime_storage_arithmetic_domain_in_table(
 /// classification (float-vs-integer, byte width). The single funnel every
 /// binary-write / convert producer should use so they all agree: a storage PLACE
 /// of any shape resolves to its leaf type; a LITERAL classifies from its node (a
-/// float literal is `f64` -- the default float width; an integer literal `i64`;
-/// a boolean `bool`). Returns `None` for non-scalar / unresolved expressions.
+/// float literal uses its riding format when landed and otherwise defaults to
+/// `f64`; an integer literal is `i64`; a boolean is `bool`). Returns `None` for
+/// non-scalar / unresolved expressions.
 /// (A `Cast` value resolves via its own selection, so it is not classified here.)
 pub(super) fn classify_scalar_value_type_in_table(
     input: &InstructionSelectionInput<'_>,
@@ -1210,7 +1211,10 @@ pub(super) fn classify_scalar_value_type_in_table(
         return Some(primitive);
     }
     match expressions.expression(expression) {
-        ExpressionNode::Float(_) => Some(PrimitiveType::F64),
+        ExpressionNode::Float(literal) => Some(match literal.landing() {
+            Some(omega_core::literals::FloatFormat::F32) => PrimitiveType::F32,
+            Some(omega_core::literals::FloatFormat::F64) | None => PrimitiveType::F64,
+        }),
         ExpressionNode::Integer(_) => Some(PrimitiveType::I64),
         ExpressionNode::Boolean(_) => Some(PrimitiveType::Bool),
         // An arithmetic sub-expression (a folded `let c = a + b` inlined into a

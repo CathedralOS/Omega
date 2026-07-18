@@ -11,11 +11,10 @@ today (2026-06).
 > [design_briefs/proof_engine_north_star.md](design_briefs/proof_engine_north_star.md).
 > This roadmap is the rung-by-rung status; that brief is the endpoint.
 
-> **Syntax migration:** frozen decision 23 replaces the compiler's currently
-> implemented `terminates { decreases ...; }` spelling with
-> `terminates by ...;`. The L7 checker behavior below remains landed substrate;
-> TPR1–TPR6 in `TASKS.md` migrate its source and representation without
-> discarding the proof work.
+> **Syntax migration:** frozen decision 23's `terminates;` / `terminates by
+> ...;` surface and guarantee/witness representation are implemented. The L7
+> checker behavior below remains landed substrate while the remaining TPR
+> progress-premise and identity-firewall work continues.
 
 ## UPDATE 2026-06-12: L7 IS DISCHARGED (induction via recursive contracts + ranking)
 

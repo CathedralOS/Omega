@@ -1,0 +1,6 @@
+// Floats have no modular conversion interpretation.
+data Main { value: f64; out: i32; }
+machine Main::main(&mut self) {
+    self.value = 3.5;
+    self.out = self.value as i32 in Wrapping;
+}

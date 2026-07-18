@@ -1,0 +1,11 @@
+// FAIL CANARY. Explicit relax scopes are retired: ordinary exclusive writes
+// create inferred invariant windows and must restore them before consumption.
+data Main {
+    health: i32;
+}
+
+machine Main::main(&mut self) {
+    relax self.health {
+        self.health = 5;
+    }
+}

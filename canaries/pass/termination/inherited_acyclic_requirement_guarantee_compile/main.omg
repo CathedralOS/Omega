@@ -1,0 +1,17 @@
+// COMPILE CANARY. An acyclic satisfier inherits the requirement's published
+// guarantee without repeating either `terminates;` or a private witness.
+trait Value {
+    machine value() -> u64 terminates;
+}
+
+data Main {}
+
+machine Main::main(&mut self) {
+    let result: u64 = value();
+}
+
+machine value() -> u64
+satisfies Value::value
+{
+    7
+}

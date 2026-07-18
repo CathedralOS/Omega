@@ -7,7 +7,7 @@ data Main {
     console: Console;
 }
 machine Main::pick(&mut self, x: u64)
-terminates
+terminates;
 -> u64
 {
     transition x > 0 {

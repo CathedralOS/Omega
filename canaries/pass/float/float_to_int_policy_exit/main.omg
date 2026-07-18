@@ -1,0 +1,43 @@
+// F4: Saturating float-to-integer casts clamp at the TARGET width on both
+// native ISAs and in the interpreter; NaN maps to zero.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main {
+    console: Console;
+    huge: f64;
+    negative: f64;
+    nan: f64;
+    si8: i8;
+    su8: u8;
+    si32: i32;
+    su32: u32;
+    si64: i64;
+    su64: u64;
+    ni8: i8;
+    nu8: u8;
+    nani: i32;
+}
+machine Main::main(&mut self) {
+    self.huge = 100000000000000000000.0;
+    self.negative = 0.0 - self.huge;
+    self.nan = 0.0 / 0.0;
+    self.si8 = self.huge as i8 in Saturating;
+    self.su8 = self.huge as u8 in Saturating;
+    self.si32 = self.huge as i32 in Saturating;
+    self.su32 = self.huge as u32 in Saturating;
+    self.si64 = self.huge as i64 in Saturating;
+    self.su64 = self.huge as u64 in Saturating;
+    self.ni8 = self.negative as i8 in Saturating;
+    self.nu8 = self.negative as u8 in Saturating;
+    self.nani = self.nan as i32 in Saturating;
+    transition self.si8 == 127 && self.su8 == 255
+        && self.si32 == 2147483647 && self.su32 == 4294967295
+        && self.si64 == 9223372036854775807
+        && self.su64 == 18446744073709551615
+        && self.ni8 == (0 - 128) && self.nu8 == 0 && self.nani == 0 {
+        true -> good()
+        _ -> bad()
+    }
+    state good(&mut self) { self.console.exit_process(77); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}
+machine Main::run(&mut self) { self.main(); }

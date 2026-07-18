@@ -275,6 +275,13 @@ facts plus state `requires`, chapter 11) is the hypothesis itself, proven at
 every in-edge. Nothing was added to the language to express induction; the
 state machine was already its shape.
 
+Induction may also be indexed by a finite unsigned count while its theorem is
+about proof-only data. On an arm guarded by `n > 0` (or `n >= 1`), a recursive
+argument `n - 1` is the checked predecessor. The structural checker treats that
+argument as an opaque index, imports the recursive contract there, and can then
+unfold or cite `Nat` lemmas around the recursive result. This is a bridge at the
+recursive edge, not an implicit conversion between `u64` and structural `Nat`.
+
 ## Termination Proofs
 
 Termination is a proof over every cycle in the reachable machine/state graph,

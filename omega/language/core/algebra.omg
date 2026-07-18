@@ -8,13 +8,15 @@
 // declarations). The engine detects the licensing laws by SHAPE, never by
 // name -- commutativity `add(a, b) == add(b, a)` plus associativity licenses
 // addend rearrangement over the carrier's bound op; a trait declaring the
-// same shapes under other names licenses identically.
+// same shapes under other names licenses identically. When one carrier also
+// conforms commutativity + associativity for `mul` and the distributivity law,
+// the tier-2 normalizer earns the paired `(add, mul)` license and expands a
+// capped natural-coefficient polynomial form.
 //
-// Identity laws (`add(a, zero()) == a` and the `one` twins) are deliberately
-// NOT declared yet: their facts mention the zero/one slots as applications,
-// and the existing carrier lemmas prove the constructor spellings
-// (`add(a, Nat::Zero) == a`) -- bridging the two is its own rung. The
-// zero/one op slots stand ready for it.
+// Identity laws use the slot applications themselves. Carrier satisfiers may
+// bridge those nullary applications to their constructor constants by ordinary
+// compute-mode unfolding and explicit lemma citation; the checker has no
+// compiler-known zero/one form.
 trait CommutativeSemiring {
     machine zero() -> Self;
     machine one() -> Self;
@@ -24,10 +26,14 @@ trait CommutativeSemiring {
     ensures add(a, b) == add(b, a);
     machine add_assoc(a: Self, b: Self, c: Self) -> Self
     ensures add(add(a, b), c) == add(a, add(b, c));
+    machine add_identity(a: Self) -> Self
+    ensures add(a, zero()) == a;
     machine mul_comm(a: Self, b: Self) -> Self
     ensures mul(a, b) == mul(b, a);
     machine mul_assoc(a: Self, b: Self, c: Self) -> Self
     ensures mul(mul(a, b), c) == mul(a, mul(b, c));
+    machine mul_identity(a: Self) -> Self
+    ensures mul(a, one()) == a;
     machine mul_distributes(a: Self, b: Self, c: Self) -> Self
     ensures mul(a, add(b, c)) == add(mul(a, b), mul(a, c));
 }

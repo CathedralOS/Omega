@@ -1,0 +1,18 @@
+// COMPILE CANARY. The empty ZII byte sequence satisfies Ascii, so an omitted
+// field remains legal and the data is not construction-gated.
+domain [u8]::Ascii when ascii_only(self) {
+}
+
+data Label
+where
+    text in Ascii,
+{
+    text: &[u8];
+}
+
+data Main {
+}
+
+machine Main::run(&mut self) {
+    let label: Label = Label { };
+}

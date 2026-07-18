@@ -1,0 +1,15 @@
+// FAIL CANARY. A trait machine body is its fallback implementation; the
+// redundant `default` marker is retired.
+trait ResettableCounter {
+    machine set(&mut self, value: i32);
+
+    default machine reset(&mut self) {
+        self.set(0);
+    }
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

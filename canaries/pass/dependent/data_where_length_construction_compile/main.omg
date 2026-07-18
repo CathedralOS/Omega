@@ -1,0 +1,20 @@
+// COMPILE CANARY. `.len` is a default-domain measure. A string literal seeds a
+// local length fact, and the fact follows the place into record construction.
+data Packet
+where
+    length == payload.len,
+{
+    length: u64;
+    payload: &[u8];
+}
+
+data Main {
+}
+
+machine Main::build(&self) {
+    let text: &[u8] = "omega";
+    let packet: Packet = Packet { length: 5, payload: text };
+}
+
+machine Main::run(&mut self) {
+}

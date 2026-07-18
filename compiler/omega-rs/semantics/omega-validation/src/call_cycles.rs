@@ -1,13 +1,8 @@
-//! Q6 ruling (Zach, 2026-07-13): machine CALL cycles are banned ("yes
-//! fucking banned"), regardless of boundedness. The specializer already
-//! refuses UNBOUNDED cycles ("calls into a recursive cycle"), but a bounded
-//! `A -> B -> A` -- the dungeon's old find_item_at/find_item_after pair,
-//! spelled through arm-target `self.SIBLING(..)` calls -- was absorbed by
-//! clone specialization and compiled. Absorbable does not make it legal
-//! Omega: calls are stack-based; repetition is a STATE transition. This walk
-//! sees every call spelling (statement calls, value-position calls, and
-//! `self.X(..)` transition/match arm targets), builds the machine-level call
-//! graph, and rejects any cycle with the cycle path named.
+//! Machine call-cycle front gate. Decision 23 supersedes the older blanket
+//! ban: a same-shaped SCC may proceed to the termination checker when every
+//! participant authors a private ranking witness. Unranked cycles are still
+//! rejected here, and the checked-tree pass subsequently enforces one joint
+//! view, tail-only runtime edges, and a strict decrease on every cycle.
 
 use crate::symbols::TopLevelSymbols;
 use omega_core::diagnostics::Diagnostic;
@@ -82,16 +77,22 @@ fn dfs_report_cycles(
             let key: BTreeSet<usize> = cycle.iter().copied().collect();
             if reported.insert(key) {
                 let machines = program.machines();
+                if cycle
+                    .iter()
+                    .all(|member| machines[*member].ranking_witness.is_present())
+                {
+                    continue;
+                }
                 let mut names: Vec<&str> = cycle
                     .iter()
                     .map(|&member| machines[member].name.as_str())
                     .collect();
                 names.push(machines[next].name.as_str());
                 diagnostics.push(Diagnostic::error(format!(
-                    "machine call cycle: `{}` -- machine call cycles are banned \
-                     (stack size must be predictable), even when specialization \
-                     could unroll this one. Fold the cycle into ONE machine whose \
-                     sub-states loop by transition: states are jumps, not calls",
+                    "machine call cycle: `{}` -- a cyclic machine SCC requires \
+                     a same-shaped joint `terminates by` ranking witness on every \
+                     participant; otherwise fold the cycle into one machine whose \
+                     sub-states loop by transition",
                     names.join("` -> `"),
                 )));
             }
