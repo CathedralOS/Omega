@@ -833,24 +833,10 @@ pub(super) fn resolve_runtime_storage_is_signed_in_table(
         });
     }
     // A LANDED constant carries its own signedness (carrier CR3, ch5
-    // two-phase law): a folded `u64 in Wrapping` local substituted to its
-    // literal keeps typing the operand even though the place is gone -- the
-    // operand-position min/max on a folded unsigned local ran SIGNED before
-    // this. An anonymous literal stays untyped (fall through to the place
-    // resolution / the caller's fallback chain).
-    // A LANDED constant carries its own signedness (carrier CR3, ch5
-    // two-phase law). LATENT until the static-value table carries landings:
-    // substituted locals reach here through RuntimeStaticValues, whose
-    // PlaceKey -> i64 entries strip the stamp (the pinned operand-position
-    // min/max divergence is the acceptance test for that rung).
+    // two-phase law): a folded unsigned local keeps typing the operand even
+    // after the place is gone. Anonymous literals stay untyped and fall
+    // through to the caller's ordinary fallback chain.
     if let ExpressionNode::Integer(literal) = expressions.expression(expression) {
-        if std::env::var_os("OMEGA_DEBUG_RECEIVER").is_some() {
-            eprintln!(
-                "BTW signed-probe literal: {:?} landing {:?}",
-                literal.value_i64(),
-                literal.landing()
-            );
-        }
         if let Some(landing) = literal.landing() {
             return Some(landing.landed_type.is_signed());
         }
@@ -1189,9 +1175,10 @@ pub(super) fn resolve_runtime_storage_arithmetic_domain_in_table(
 /// The scalar primitive type of a VALUE/source expression, for codegen
 /// classification (float-vs-integer, byte width). The single funnel every
 /// binary-write / convert producer should use so they all agree: a storage PLACE
-/// of any shape resolves to its leaf type; a LITERAL classifies from its node (a
-/// float literal is `f64` -- the default float width; an integer literal `i64`;
-/// a boolean `bool`). Returns `None` for non-scalar / unresolved expressions.
+/// of any shape resolves to its leaf type; a LITERAL classifies from its node
+/// and carried landing (anonymous float/integer literals default to f64/i64;
+/// landed literals keep their format/type); a boolean is `bool`. Returns
+/// `None` for non-scalar / unresolved expressions.
 /// (A `Cast` value resolves via its own selection, so it is not classified here.)
 pub(super) fn classify_scalar_value_type_in_table(
     input: &InstructionSelectionInput<'_>,
@@ -1219,7 +1206,12 @@ pub(super) fn classify_scalar_value_type_in_table(
             Some(omega_core::literals::FloatFormat::F32) => PrimitiveType::F32,
             _ => PrimitiveType::F64,
         }),
-        ExpressionNode::Integer(_) => Some(PrimitiveType::I64),
+        ExpressionNode::Integer(literal) => Some(
+            literal
+                .landing()
+                .map(|landing| primitive_type_for_landed_integer(landing.landed_type))
+                .unwrap_or(PrimitiveType::I64),
+        ),
         ExpressionNode::Boolean(_) => Some(PrimitiveType::Bool),
         // An arithmetic sub-expression (a folded `let c = a + b` inlined into a
         // later cast `c as i32`) has the type of its operands. Classify from a
@@ -1269,6 +1261,23 @@ pub(super) fn classify_scalar_value_type_in_table(
             descriptor_primitive_type(collection_descriptor.element_type()?)
         }
         _ => None,
+    }
+}
+
+fn primitive_type_for_landed_integer(
+    landed: omega_core::literals::LandedIntegerType,
+) -> PrimitiveType {
+    use omega_core::literals::LandedIntegerType;
+    match landed {
+        LandedIntegerType::I8 => PrimitiveType::I8,
+        LandedIntegerType::I16 => PrimitiveType::I16,
+        LandedIntegerType::I32 => PrimitiveType::I32,
+        LandedIntegerType::I64 => PrimitiveType::I64,
+        LandedIntegerType::U8 => PrimitiveType::U8,
+        LandedIntegerType::U16 => PrimitiveType::U16,
+        LandedIntegerType::U32 => PrimitiveType::U32,
+        LandedIntegerType::U64 => PrimitiveType::U64,
+        LandedIntegerType::Addr => PrimitiveType::Addr,
     }
 }
 
@@ -3749,4 +3758,31 @@ fn primitive_layout(
         },
         primitive_type,
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use omega_checked_trees::types::PrimitiveType;
+    use omega_core::literals::LandedIntegerType;
+
+    use super::primitive_type_for_landed_integer;
+
+    #[test]
+    fn landed_integer_classification_preserves_width_and_signedness() {
+        let cases = [
+            (LandedIntegerType::I8, PrimitiveType::I8),
+            (LandedIntegerType::I16, PrimitiveType::I16),
+            (LandedIntegerType::I32, PrimitiveType::I32),
+            (LandedIntegerType::I64, PrimitiveType::I64),
+            (LandedIntegerType::U8, PrimitiveType::U8),
+            (LandedIntegerType::U16, PrimitiveType::U16),
+            (LandedIntegerType::U32, PrimitiveType::U32),
+            (LandedIntegerType::U64, PrimitiveType::U64),
+            (LandedIntegerType::Addr, PrimitiveType::Addr),
+        ];
+
+        for (landing, expected) in cases {
+            assert_eq!(primitive_type_for_landed_integer(landing), expected);
+        }
+    }
 }
