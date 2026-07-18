@@ -771,7 +771,21 @@ rejects — an INTEGER ruling, engineering rides this ladder as F8).
   coverage/signatures/effects/dependency closure from satisfies edges +
   target-default and type-per-slot selection; (3) replace Console
   HostOperations/call-shape rows with checked Omega adapters under the
-  lossless oracle; (4) move foreign offsets/bit constants out of
+  lossless oracle -- SHAPE ANALYSIS (2026-07-20, load-bearing): the
+  INTERPRETER can never serve ARBITRARY authored imports (dlsym-ing
+  user symbols from the evaluator is unsound; authored-binding calls
+  refuse there today, differential-excluded), so Console adapters
+  must bottom out in ops BOTH engines serve -- a RAW-STDIO std
+  boundary trait whose methods are SEMANTIC operations (the existing
+  byte-io composites natively; the existing console serving in the
+  interpreter), NOT authored import leaves. Rung order: (3a) the
+  raw-stdio boundary trait (write_bytes/read_byte) served
+  dual-engine by the EXISTING mechanisms; (3b) Console's
+  write_line/write/write_byte as std checked adapters over it (the
+  newline append becomes adapter body code); (3c) oracle-compare +
+  flip the built-in Console rows out. The import-argument fix
+  unblocked authored-import adapter leaves generally (fs-style
+  seams), but Console's own path rides semantics, not imports; (4) move foreign offsets/bit constants out of
   Binding::Value into programmable layout/format declarations, migrate
   filesystem leaves; (5) delete call_shape, HostOperations, Value, the
   populate tables, and provides syntax/consumers only after their last
