@@ -234,10 +234,9 @@ sealed progress profiles + grants, TPR4's remaining big half).
    its landing from a LANDED operand (one witness, left first). Two
    anonymous literals keep the transitional window. The latent
    landing-aware signedness arm now fires end to end.
-   The STATIC-TABLE sub-rung (RuntimeStaticValues → IntegerLiteral)
-   stays BANKED, not built: acceptance is green without it; revive when
-   a selection-recorded static (a TABLE round-trip, not a binding
-   substitution) is caught stripping a landing. CR3 FACE CLOSED
+   The STATIC-TABLE sub-rung was later REACTIVATED by CM2's table
+   round-trip: RuntimeStaticValues now carries bits + IntegerLanding rather
+   than a bare i64 (see CM2 below). CR3 FACE CLOSED
    2026-07-16 — D14 Fire H: the literal-width gate now blesses a
    u64-magnitude literal in TRANSITION-ARGUMENT position when the
    target state's declared parameter is u64-classed (the same
@@ -246,8 +245,12 @@ sealed progress profiles + grants, TPR4's remaining big half).
    pass/arithmetic/u64_magnitude_transition_arg_exit (differential 70;
    struct-field + guard-equality fires exercised en route) + fail twin
    u64_magnitude_arg_non_u64_rejected (u32 param keeps the loud
-   rejection). Remaining CR3 face: classify resolvers reading
-   landings (consumer migration continues with CR4/CM1).
+   rejection). CLASSIFIER FACE LANDED 2026-07-20: the scalar-value funnel
+   maps every LandedIntegerType to its exact PrimitiveType instead of
+   classifying all integer literals as i64; anonymous literals alone retain
+   the i64 default. Exhaustive mapping unit + suffix/landed operand canaries
+   pin width and signedness. CR3 is complete; consumer work continues under
+   CM2's one explicit alias-flow residual.
    CR4 — parse-site stamping. INTEGER HALF (CR4a) LANDED 2026-07-18:
    width suffixes stamp landings at parse (Exact domain — destination
    landings still govern their own folds by precedence);
