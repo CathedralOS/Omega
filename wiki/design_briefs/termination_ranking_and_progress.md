@@ -91,6 +91,11 @@ its view/range identity directly. The typed machine's older decreases/order/
 argument/range spans are compatibility output only; clearing them does not
 change the termination judgment.
 
+The diagnostic firewall follows the same rule: checked-stage messages use the
+current `terminates by` spelling exclusively, and even the directed rejection
+of a retired subtraction subject is reconstructed from the normalized witness,
+not from compatibility spans.
+
 Mutually recursive or mutually cyclic machines use one joint ranking for the
 strongly connected component, and every cyclic edge must decrease it. The
 exact source spelling for differently shaped participants remains deferred;

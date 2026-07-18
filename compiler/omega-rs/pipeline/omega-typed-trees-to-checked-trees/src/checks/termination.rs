@@ -4,16 +4,15 @@ mod ranking;
 
 use crate::labels::machine_name;
 use omega_core::diagnostics::Diagnostic;
-use omega_typed_trees::expression::{BinaryOperator, ExpressionNode};
 
 pub(crate) fn check_machine_termination(
     program: &omega_typed_trees::TypedTrees,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
 
-    // The use-site subtraction spelling `decreases upper - lower` is retired:
+    // The use-site subtraction spelling `terminates by upper - lower` is retired:
     // the ranked subjects are spelled as the argumented tuple
-    // `decreases (lower, upper) -> Nat::BoundedDistance` (the arrow's left
+    // `terminates by (lower, upper) -> Nat::BoundedDistance` (the arrow's left
     // side is uniformly the ranked subjects; the named view receives them as
     // arguments in order). This fires for every machine carrying the retired
     // shape, terminating or not, so the old spelling cannot linger inertly.
@@ -56,7 +55,7 @@ pub(crate) fn check_machine_termination(
             ranking::DecreaseOutcome::Proven => {}
             ranking::DecreaseOutcome::Unproven => {
                 diagnostics.push(Diagnostic::error(format!(
-                    "cannot prove decreases clause for terminating machine {}",
+                    "cannot prove the `terminates by` ranking for machine {}",
                     machine_name(program, machine.symbol)
                 )));
             }
@@ -146,12 +145,12 @@ pub(crate) fn build_termination_facts(
     omega_checked_trees::TerminationFacts { machines }
 }
 
-/// Render the diagnostic for a plain `decreases value` clause whose value has
+/// Render the diagnostic for a plain `terminates by value` clause whose value has
 /// no inferable builtin ranking: name the value, say why inference failed, and
 /// suggest the explicit `-> View` form. Declared measures matching the value's
 /// type are suggested by name but are never selected implicitly — even a single
 /// declared measure requires the explicit form, so declaring a second measure
-/// later cannot silently change distant `decreases` clauses.
+/// later cannot silently change distant `terminates by` clauses.
 fn ambiguous_order_message(machine: &str, ambiguity: &order::AmbiguousDefault) -> String {
     let clause = ambiguity.clause.as_str();
     let reason = match &ambiguity.reason {
@@ -167,26 +166,26 @@ fn ambiguous_order_message(machine: &str, ambiguity: &order::AmbiguousDefault) -
     };
     let suggestion = match ambiguity.declared_measures.as_slice() {
         [] => format!(
-            "select one with `decreases {clause} -> View` \
+            "select one with `terminates by {clause} -> View` \
              (builtin views: Nat::Descending, Nat::BoundedDistance, Slice::Length)"
         ),
         [only] => format!(
             "declared measures are never selected implicitly; \
-             select one with `decreases {clause} -> {only}`"
+             select one with `terminates by {clause} -> {only}`"
         ),
         many => format!(
             "declared measures are never selected implicitly; \
-             select one with `decreases {clause} -> View` (declared measures: {})",
+             select one with `terminates by {clause} -> View` (declared measures: {})",
             many.join(", ")
         ),
     };
     format!(
-        "cannot infer a ranking for `decreases {clause}` in terminating machine {machine}: \
+        "cannot infer a ranking for `terminates by {clause}` in machine {machine}: \
          {reason} -- {suggestion}"
     )
 }
 
-/// Render the diagnostic for a two-subject `decreases` tuple whose subjects
+/// Render the diagnostic for a two-subject `terminates by` tuple whose subjects
 /// are inverted: the swapped subjects prove as the named bounded distance, so
 /// the message names the ranking and the corrected spelling instead of a bare
 /// "cannot prove".
@@ -194,38 +193,34 @@ fn inverted_distance_message(machine: &str, inverted: &ranking::InvertedDistance
     let declared = inverted.declared.as_str();
     let corrected = inverted.corrected.as_str();
     format!(
-        "cannot prove decreases clause for terminating machine {machine}: \
-         `decreases {declared}` inverts the named bounded distance -- \
+        "cannot prove the `terminates by` ranking for machine {machine}: \
+         `terminates by {declared}` inverts the named bounded distance -- \
          `Nat::BoundedDistance` ranks `(lower, upper)`, which descends as the \
-         lower value climbs; write `decreases {corrected} -> Nat::BoundedDistance`"
+         lower value climbs; write `terminates by {corrected} -> Nat::BoundedDistance`"
     )
 }
 
 /// The retirement diagnostic for the use-site subtraction spelling, or `None`
-/// when the machine's decreases clause is not a single top-level subtraction.
+/// when the witness subject is not a single top-level subtraction.
 /// The message spells the exact argumented replacement, with the subtraction's
 /// operands reordered into the view's `(lower, upper)` parameter order.
 fn retired_subtraction_message(
     program: &omega_typed_trees::TypedTrees,
     machine: &omega_typed_trees::machine::Machine,
 ) -> Option<String> {
-    let [decreases] = program
-        .expression_table
-        .expression_handles(machine.decreases)
+    let [subject] = machine
+        .termination_plan
+        .implementation_witness
+        .as_ref()?
+        .subjects
+        .as_slice()
     else {
         return None;
     };
-    let ExpressionNode::Binary(binary) = program.expression_table.expression(*decreases) else {
-        return None;
-    };
-    if !matches!(binary.operator, BinaryOperator::Subtract) {
-        return None;
-    }
-    let upper = order::decreasing_value_text(program, binary.left);
-    let lower = order::decreasing_value_text(program, binary.right);
+    let (upper, lower) = subject.split_once(" - ")?;
     Some(format!(
-        "the use-site subtraction `decreases {upper} - {lower}` on machine {} is retired: \
-         spell the ranking as `decreases ({lower}, {upper}) -> Nat::BoundedDistance` \
+        "the use-site subtraction `terminates by {upper} - {lower}` on machine {} is retired: \
+         spell the ranking as `terminates by ({lower}, {upper}) -> Nat::BoundedDistance` \
          (the tuple lists the ranked subjects, bound in order to the view's \
          (lower, upper) parameters)",
         machine_name(program, machine.symbol)

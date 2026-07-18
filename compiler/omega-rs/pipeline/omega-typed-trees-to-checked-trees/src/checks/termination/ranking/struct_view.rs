@@ -5,7 +5,7 @@ use super::patterns;
 
 /// Proves a self-loop terminates under a struct-view measure that projects a
 /// single field, e.g. `measure Card::PowerOrder(card: Card) -> usize { card.power }`
-/// used as `decreases card -> Card::PowerOrder`.
+/// used as `terminates by card -> Card::PowerOrder`.
 ///
 /// The decreasing value is the whole struct value; each recursive call argument is
 /// a struct literal whose projected field must strictly decrease relative to the
