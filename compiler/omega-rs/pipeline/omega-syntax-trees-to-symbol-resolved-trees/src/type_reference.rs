@@ -20,13 +20,11 @@ pub(crate) fn lower_type_reference_handle(
         syntax::types::TypeReferenceNode::Reference {
             referee,
             is_mutable,
-            is_relaxed,
             lifetime,
         } => Ok(TypeReference::Reference(ReferenceTypeReference {
             storage: ReferenceTypeReferenceStorage {
                 referee: lower_type_reference_child(lowerer, syntax_trees, *referee)?,
                 is_mutable: *is_mutable,
-                is_relaxed: *is_relaxed,
                 lifetime: lifetime.as_ref().map(crate::name::lower_name),
             },
         })),
@@ -206,6 +204,9 @@ fn lower_type_constraint_handle(
         }
         syntax::types::TypeConstraintNode::ArithmeticDomain(domain) => {
             Ok(TypeConstraint::ArithmeticDomain(*domain))
+        }
+        syntax::types::TypeConstraintNode::ValueDomain(domain) => {
+            Ok(TypeConstraint::ValueDomain(*domain))
         }
     }
 }

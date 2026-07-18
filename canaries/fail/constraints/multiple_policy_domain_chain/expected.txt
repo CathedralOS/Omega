@@ -1,0 +1,1 @@
+a domain chain may carry at most one policy

@@ -11,7 +11,8 @@ data Main { console: Console; }
 data Cnt { n: u64; }
 measure Cnt::Order(n: u64) -> u64 { n }
 machine Main::countdown(&mut self, c: Cnt)
-terminates { decreases c.n -> Cnt::Order; }
+terminates;
+terminates by c.n -> Cnt::Order;
 -> u64
 {
     transition c.n > 0 { true -> countdown(Cnt { n: c.n - 1 }) false -> 5 }

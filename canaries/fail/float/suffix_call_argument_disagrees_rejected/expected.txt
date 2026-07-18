@@ -1,0 +1,1 @@
+is suffixed `f64` but lands in a `f32` place

@@ -6,7 +6,7 @@ machine Main::main(&mut self) -> u64 {
 }
 
 machine Main::countdown(&mut self, remaining: u64) -> u64
-terminates
+terminates;
 {
     transition remaining > 0 {
         true -> countdown(remaining - 1)

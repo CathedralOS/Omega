@@ -47,7 +47,6 @@ pub struct ReferenceTypeReference {
 pub struct ReferenceTypeReferenceStorage {
     pub referee: Handle<TypeReference>,
     pub is_mutable: bool,
-    pub is_relaxed: bool,
     /// Explicit lifetime name (`&'buf T`), frozen decision 15 stage 2. A
     /// borrow-region tag only — no symbol, ignored by layout/codegen and by
     /// structural type equality; consulted solely by the borrow checker.
@@ -59,7 +58,6 @@ impl Default for ReferenceTypeReferenceStorage {
         Self {
             referee: Handle::invalid(),
             is_mutable: false,
-            is_relaxed: false,
             lifetime: None,
         }
     }
@@ -142,7 +140,9 @@ pub enum FixedArrayLength {
     },
     /// A zero-argument machine call in length position (`[u8; table_size()]`),
     /// const-evaluated before layout (comptime stage 1).
-    ConstCall { name: DiagnosticName },
+    ConstCall {
+        name: DiagnosticName,
+    },
 }
 
 impl Default for FixedArrayLength {
@@ -447,7 +447,6 @@ impl TypeReferenceTable {
                 self.insert(TypeReferenceNode::Reference {
                     referee,
                     is_mutable: reference.is_mutable,
-                    is_relaxed: reference.is_relaxed,
                     lifetime: reference.lifetime.clone(),
                 })
             }
@@ -536,7 +535,6 @@ pub enum TypeReferenceNode {
     Reference {
         referee: TypeReferenceHandle,
         is_mutable: bool,
-        is_relaxed: bool,
         /// Explicit lifetime name (`&'buf T`), frozen decision 15 stage 2.
         lifetime: Option<DiagnosticName>,
     },
@@ -584,6 +582,7 @@ pub enum TypeConstraint {
         maximum: crate::expression::ExpressionHandle,
     },
     ArithmeticDomain(omega_core::arithmetic::ArithmeticDomain),
+    ValueDomain(omega_core::value_domain::ValueDomain),
     /// A declared domain on a carrier (`[u8] in Utf8`); ch8.
     Domain(DiagnosticName),
 }
@@ -596,6 +595,7 @@ pub enum TypeConstraintNode {
         maximum: crate::expression::ExpressionHandle,
     },
     ArithmeticDomain(omega_core::arithmetic::ArithmeticDomain),
+    ValueDomain(omega_core::value_domain::ValueDomain),
     /// A declared domain on a carrier (`[u8] in Utf8`); ch8.
     Domain(DiagnosticName),
 }
@@ -613,6 +613,7 @@ impl TypeConstraintNode {
                 maximum: expressions.copy_from(source_expressions, *maximum),
             },
             TypeConstraint::ArithmeticDomain(domain) => Self::ArithmeticDomain(*domain),
+            TypeConstraint::ValueDomain(domain) => Self::ValueDomain(*domain),
             TypeConstraint::Domain(name) => Self::Domain(name.clone()),
         }
     }

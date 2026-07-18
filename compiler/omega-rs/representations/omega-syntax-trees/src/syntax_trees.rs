@@ -232,6 +232,7 @@ impl SyntaxTrees {
             name: data.name.clone(),
             type_parameters: self.copy_type_parameter_span(other, data.type_parameters),
             properties: data.properties,
+            default_domain: self.copy_domain_fact_span(other, data.default_domain),
             members: self.copy_data_member_span(other, data.members),
         }
     }
@@ -323,12 +324,28 @@ impl SyntaxTrees {
                 |_, clause| clause,
                 |this, clause| this.items.append_satisfies_clause(clause),
             ),
-            terminates: machine.terminates,
-            decreases: self.copy_expression_handle_list(other, machine.decreases),
-            decrease_order: self.copy_item_identifier_span(other, machine.decrease_order),
+            termination_guarantee: machine.termination_guarantee,
+            ranking_witness: self.copy_ranking_witness(other, machine.ranking_witness),
             effects: self.copy_item_identifier_span(other, machine.effects),
             contracts: self.copy_capability_contract_span(other, machine.contracts),
             states: self.copy_state_handle_span(other, machine.states),
+        }
+    }
+
+    fn copy_ranking_witness(
+        &mut self,
+        other: &SyntaxTrees,
+        witness: crate::item::RankingWitnessSyntax,
+    ) -> crate::item::RankingWitnessSyntax {
+        crate::item::RankingWitnessSyntax {
+            subjects: self.copy_expression_handle_list(other, witness.subjects),
+            view: self.copy_item_identifier_span(other, witness.view),
+            view_arguments: self.copy_expression_handle_list(other, witness.view_arguments),
+            range: crate::item::RankingRangeSyntax {
+                start: self.copy_expression_handle(other, witness.range.start),
+                end: self.copy_expression_handle(other, witness.range.end),
+                end_inclusive: witness.range.end_inclusive,
+            },
         }
     }
 
@@ -704,6 +721,8 @@ impl SyntaxTrees {
             is_default: signature.is_default,
             parameters: self.copy_state_parameter_handle_span(other, signature.parameters),
             return_type: self.copy_type_reference_handle(other, signature.return_type),
+            termination_guarantee: signature.termination_guarantee,
+            ranking_witness: self.copy_ranking_witness(other, signature.ranking_witness),
             effects: self.copy_item_identifier_span(other, signature.effects),
             contracts: self.copy_capability_contract_span(other, signature.contracts),
         }
@@ -719,6 +738,8 @@ impl SyntaxTrees {
             is_default: signature.is_default,
             parameters: self.copy_state_parameter_handle_span(other, signature.parameters),
             return_type: self.copy_type_reference_handle(other, signature.return_type),
+            termination_guarantee: signature.termination_guarantee,
+            ranking_witness: self.copy_ranking_witness(other, signature.ranking_witness),
             effects: self.copy_item_identifier_span(other, signature.effects),
             contracts: self.copy_capability_contract_span(other, signature.contracts),
         }
@@ -803,10 +824,6 @@ impl SyntaxTrees {
                 initial_value: self.copy_expression_handle(other, local_data.initial_value),
                 is_mutable: local_data.is_mutable,
             }),
-            StatementNode::Relax(relax) => StatementNode::Relax(crate::statement::TableRelax {
-                target: self.copy_expression_handle(other, relax.target),
-                statements: self.copy_statement_handle_span(other, relax.statements),
-            }),
             StatementNode::Transition(transition) => StatementNode::Transition(TableTransition {
                 target: self.copy_transition_target(other, transition.target),
                 continuation: self.copy_transition_target(other, transition.continuation),
@@ -862,14 +879,12 @@ impl SyntaxTrees {
             TypeReferenceNode::Reference {
                 referee,
                 is_mutable,
-                is_relaxed,
                 lifetime,
             } => {
                 let referee = self.copy_type_reference_handle(other, *referee);
                 self.type_references.insert_reference_with_lifetime(
                     referee,
                     *is_mutable,
-                    *is_relaxed,
                     lifetime.clone(),
                 )
             }
@@ -944,6 +959,7 @@ impl SyntaxTrees {
                 TypeConstraintNode::ArithmeticDomain(domain) => {
                     TypeConstraintNode::ArithmeticDomain(*domain)
                 }
+                TypeConstraintNode::ValueDomain(domain) => TypeConstraintNode::ValueDomain(*domain),
             },
             |this, constraint| this.type_references.append_constraint(constraint),
         )

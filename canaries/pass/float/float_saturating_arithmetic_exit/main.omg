@@ -1,0 +1,60 @@
+// F5: Saturating float arithmetic clamps only genuine finite-input overflow.
+// f32::MAX * 2 becomes +/-f32::MAX in both write and nested operand position;
+// division by zero and 0/0 retain their IEEE infinity/NaN results.
+boundary trait Console { machine exit_process(return_code: i32); }
+
+data Main {
+    console: Console;
+    maximum: f32 in Finite & Saturating;
+    negative_maximum: f32 in Finite & Saturating;
+    two: f32 in Finite & Saturating;
+    zero: f32 in Saturating;
+    clamped: f32 in Finite & Saturating;
+    result: f32 in Saturating;
+}
+
+machine Main::main(&mut self) {
+    self.maximum = 340282346638528859811704183484516925440.0;
+    self.negative_maximum = 0.0 - self.maximum;
+    self.two = 2.0;
+    self.zero = 0.0;
+    self.clamped = self.maximum * self.two;
+    transition self.clamped == self.maximum {
+        true -> negative()
+        _ -> bad(78)
+    }
+
+    state negative(&mut self) {
+        self.clamped = self.negative_maximum * self.two;
+        transition self.clamped == self.negative_maximum {
+            true -> nested()
+            _ -> bad(79)
+        }
+    }
+
+    state nested(&mut self) {
+        transition self.maximum * self.two == self.maximum {
+            true -> divide_zero()
+            _ -> bad(80)
+        }
+    }
+
+    state divide_zero(&mut self) {
+        self.result = self.maximum / self.zero;
+        transition self.result > self.maximum {
+            true -> invalid()
+            _ -> bad(81)
+        }
+    }
+
+    state invalid(&mut self) {
+        self.result = self.zero / self.zero;
+        transition self.result != self.result {
+            true -> good()
+            _ -> bad(82)
+        }
+    }
+
+    state good(&self) { self.console.exit_process(77); }
+    state bad(&self, code2: i32) { self.console.exit_process(code2); }
+}

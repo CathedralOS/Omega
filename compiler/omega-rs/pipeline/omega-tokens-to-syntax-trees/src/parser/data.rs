@@ -1,5 +1,6 @@
 use crate::parser::expression::parse_expression_handle;
 use crate::parser::input::{Input, ParseResult};
+use crate::parser::proof_fact::parse_proof_facts_until;
 use crate::parser::type_reference::{
     parse_type_reference_handle, parse_type_reference_handle_allowing_borrow,
 };
@@ -45,6 +46,20 @@ pub(super) fn parse_data_definition<'tokens, 'source>(
     input = next;
     let (properties, next) = parse_property_brackets(input)?;
     input = next;
+    let default_domain = if input.at_contextual("where") {
+        input = input.take_contextual("where")?;
+        let ((facts, _token_count), next) =
+            parse_proof_facts_until(syntax_trees, input, |cursor| {
+                cursor.at_punctuation(PunctuationKind::LeftBrace)
+            })?;
+        input = next;
+        if facts.is_empty() {
+            return Err(input.error_here("data `where` clause requires at least one fact"));
+        }
+        facts
+    } else {
+        HandleSpan::empty()
+    };
     input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
 
     // An IDENTITY-NUMBERED data (ch20): the first member starting with an
@@ -77,6 +92,11 @@ pub(super) fn parse_data_definition<'tokens, 'source>(
                 "identity-numbered data does not take declared properties yet",
             ));
         }
+        if !default_domain.is_empty() {
+            return Err(input.error_here(
+                "identity-numbered data does not take a default-domain `where` clause yet",
+            ));
+        }
         let (definition, input) =
             crate::parser::item::parse_identity_data_body(syntax_trees, name, input)?;
         return Ok((ParsedDataDefinition::Numbered(definition), input));
@@ -90,6 +110,7 @@ pub(super) fn parse_data_definition<'tokens, 'source>(
             name,
             type_parameters,
             properties,
+            default_domain,
             members,
         }),
         input,

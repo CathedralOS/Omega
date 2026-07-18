@@ -21,9 +21,8 @@ pub(crate) fn lower_machine(
         contains: omega_core::arena::HandleSpan::empty(),
         owned_data: omega_core::arena::HandleSpan::empty(),
         satisfies: omega_core::arena::HandleSpan::empty(),
-        terminates: machine.terminates,
-        decreases: omega_core::arena::HandleSpan::empty(),
-        decrease_order: omega_core::arena::HandleSpan::empty(),
+        termination_guarantee: machine.termination_guarantee,
+        ranking_witness: typed::machine::RankingWitness::default(),
         effects: omega_core::arena::HandleSpan::empty(),
         contracts: omega_core::arena::HandleSpan::empty(),
         states: omega_core::arena::HandleSpan::empty(),
@@ -89,29 +88,50 @@ pub(crate) fn lower_machine(
         );
     }
 
-    let mut decreases = Vec::new();
+    let mut subjects = Vec::new();
     for decrease in lowerer
         .source_trees
         .tables
         .bodies
         .expressions
-        .expression_handles(machine.decreases)
+        .expression_handles(machine.ranking_witness.subjects)
     {
         let decrease = lower_expression_handle(lowerer, *decrease)?;
-        decreases.push(decrease);
+        subjects.push(decrease);
     }
-    typed_machine.decreases = lowerer
+    typed_machine.ranking_witness.subjects = lowerer
         .typed_trees
         .expression_table
-        .insert_expression_handles(decreases);
+        .insert_expression_handles(subjects);
     for member in lowerer
         .source_trees
-        .machine_decrease_order(machine.decrease_order)
+        .machine_decrease_order(machine.ranking_witness.view)
     {
         lowerer.typed_trees.signature_effects.append_to_span(
-            &mut typed_machine.decrease_order,
+            &mut typed_machine.ranking_witness.view,
             crate::name::lower_name(member),
         );
+    }
+    let mut view_arguments = Vec::new();
+    for argument in lowerer
+        .source_trees
+        .tables
+        .bodies
+        .expressions
+        .expression_handles(machine.ranking_witness.view_arguments)
+    {
+        view_arguments.push(lower_expression_handle(lowerer, *argument)?);
+    }
+    typed_machine.ranking_witness.view_arguments = lowerer
+        .typed_trees
+        .expression_table
+        .insert_expression_handles(view_arguments);
+    if machine.ranking_witness.range.is_present() {
+        typed_machine.ranking_witness.range = typed::machine::RankingRange {
+            start: lower_expression_handle(lowerer, machine.ranking_witness.range.start)?,
+            end: lower_expression_handle(lowerer, machine.ranking_witness.range.end)?,
+            end_inclusive: machine.ranking_witness.range.end_inclusive,
+        };
     }
 
     for effect in lowerer.source_trees.machine_effects(machine) {

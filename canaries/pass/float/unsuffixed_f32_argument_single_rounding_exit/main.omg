@@ -1,0 +1,38 @@
+// RUN CANARY (exit 77, differential) -- F2c: call arguments, transition
+// arguments, and return values are typed destinations too. An unsuffixed
+// double-rounding witness flowing directly into f32 must round once from its
+// decimal spelling on both engines.
+boundary trait Console { machine exit_process(return_code: i32); }
+
+data Main {
+    console: Console;
+}
+
+machine Main::echo(&self, value: f32) -> f32 {
+    transition { _ -> (value) }
+}
+
+machine Main::produce(&self) -> f32 {
+    transition { _ -> (8388609.499999999999999) }
+}
+
+machine Main::main(&mut self) {
+    let value: f32 = self.echo(8388609.499999999999999);
+    transition value == 8388609.0 { true -> return_face() _ -> bad(78) }
+
+    state return_face(&mut self) {
+        let value: f32 = self.produce();
+        transition value == 8388609.0 { true -> transition_face() _ -> bad(79) }
+    }
+
+    state transition_face(&mut self) {
+        transition { _ -> check(8388609.499999999999999) }
+    }
+
+    state check(&mut self, value: f32) {
+        transition value == 8388609.0 { true -> good() _ -> bad(80) }
+    }
+
+    state good(&self) { self.console.exit_process(77); }
+    state bad(&self, code2: i32) { self.console.exit_process(code2); }
+}

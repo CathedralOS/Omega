@@ -391,7 +391,9 @@ mod tests {
             .tables
             .bodies
             .expressions
-            .insert(ExpressionNode::Integer(omega_core::literals::IntegerLiteral::from_value(1)));
+            .insert(ExpressionNode::Integer(
+                omega_core::literals::IntegerLiteral::from_value(1),
+            ));
         let statements =
             program
                 .tables
@@ -430,9 +432,8 @@ mod tests {
                 contains: HandleSpan::empty(),
                 owned_data: HandleSpan::empty(),
                 satisfies: HandleSpan::empty(),
-                terminates: false,
-                decreases: HandleSpan::empty(),
-                decrease_order: HandleSpan::empty(),
+                termination_guarantee: omega_core::termination::TerminationGuarantee::None,
+                ranking_witness: crate::machine::RankingWitness::default(),
                 effects: HandleSpan::empty(),
                 contracts: HandleSpan::empty(),
                 states,

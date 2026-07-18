@@ -229,6 +229,7 @@ fn operator_snapshot(
 pub struct DataDefinitionSnapshot {
     pub name: String,
     pub type_parameters: Vec<String>,
+    pub default_domain: Vec<ProofFactSnapshot>,
     pub members: Vec<DataMemberSnapshot>,
 }
 
@@ -279,14 +280,28 @@ pub struct MachineSnapshot {
     pub name: String,
     pub attached_data: Option<String>,
     pub type_parameters: Vec<String>,
-    pub terminates: bool,
-    pub decreases: Vec<ExpressionSnapshot>,
-    pub decrease_order: Vec<String>,
+    pub termination_guarantee: &'static str,
+    pub ranking_witness: Option<RankingWitnessSnapshot>,
     pub effects: Vec<String>,
     pub contracts: Vec<SignatureContractSnapshot>,
     pub contains: Vec<ContainedObjectSnapshot>,
     pub owned_data: Vec<OwnedDataSnapshot>,
     pub states: Vec<StateSnapshot>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct RankingWitnessSnapshot {
+    pub subjects: Vec<ExpressionSnapshot>,
+    pub view: Vec<String>,
+    pub view_arguments: Vec<ExpressionSnapshot>,
+    pub range: Option<RankingRangeSnapshot>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct RankingRangeSnapshot {
+    pub start: ExpressionSnapshot,
+    pub end: ExpressionSnapshot,
+    pub end_inclusive: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -333,6 +348,8 @@ pub struct StateSignatureSnapshot {
     pub is_default: bool,
     pub parameters: Vec<StateParameterSnapshot>,
     pub return_type: Option<TypeReferenceSnapshot>,
+    pub termination_guarantee: &'static str,
+    pub ranking_witness: Option<RankingWitnessSnapshot>,
     pub effects: Vec<String>,
     pub contracts: Vec<SignatureContractSnapshot>,
 }
@@ -479,7 +496,6 @@ pub enum TypeReferenceSnapshot {
     Reference {
         referee: Box<TypeReferenceSnapshot>,
         is_mutable: bool,
-        is_relaxed: bool,
     },
     Constrained {
         base_type: Box<TypeReferenceSnapshot>,
@@ -519,6 +535,9 @@ pub enum TypeConstraintSnapshot {
     ArithmeticDomain {
         domain: String,
     },
+    ValueDomain {
+        domain: String,
+    },
 }
 
 fn data_definition_snapshot(
@@ -532,6 +551,7 @@ fn data_definition_snapshot(
             .iter()
             .map(|parameter| parameter.name.to_string())
             .collect(),
+        default_domain: domain_fact_snapshots(program, data.default_domain),
         members: program
             .data_members(data.members)
             .iter()
@@ -627,20 +647,8 @@ fn machine_snapshot(program: &SymbolResolvedTrees, machine: &Machine) -> Machine
             .iter()
             .map(|parameter| parameter.name.to_string())
             .collect(),
-        terminates: machine.terminates,
-        decreases: program
-            .tables
-            .bodies
-            .expressions
-            .expression_handles(machine.decreases)
-            .iter()
-            .map(|handle| table_expression_snapshot(program, *handle))
-            .collect(),
-        decrease_order: program
-            .machine_decrease_order(machine.decrease_order)
-            .iter()
-            .map(ToString::to_string)
-            .collect(),
+        termination_guarantee: termination_guarantee_snapshot(machine.termination_guarantee),
+        ranking_witness: ranking_witness_snapshot(program, machine.ranking_witness),
         effects: program
             .machine_effects(machine)
             .iter()
@@ -758,6 +766,8 @@ fn state_signature_snapshot(
             .return_type
             .as_ref()
             .map(|type_reference| type_reference_snapshot(program, type_reference)),
+        termination_guarantee: termination_guarantee_snapshot(signature.termination_guarantee),
+        ranking_witness: ranking_witness_snapshot(program, signature.ranking_witness),
         effects: program
             .signature_effects(signature.effects)
             .iter()
@@ -769,6 +779,49 @@ fn state_signature_snapshot(
             .map(|contract| signature_contract_snapshot(program, contract))
             .collect(),
     }
+}
+
+fn termination_guarantee_snapshot(
+    guarantee: omega_core::termination::TerminationGuarantee,
+) -> &'static str {
+    match guarantee {
+        omega_core::termination::TerminationGuarantee::None => "none",
+        omega_core::termination::TerminationGuarantee::EventualTerminal => "eventual_terminal",
+    }
+}
+
+fn ranking_witness_snapshot(
+    program: &SymbolResolvedTrees,
+    witness: crate::machine::RankingWitness,
+) -> Option<RankingWitnessSnapshot> {
+    witness.is_present().then(|| RankingWitnessSnapshot {
+        subjects: program
+            .tables
+            .bodies
+            .expressions
+            .expression_handles(witness.subjects)
+            .iter()
+            .map(|handle| table_expression_snapshot(program, *handle))
+            .collect(),
+        view: program
+            .machine_decrease_order(witness.view)
+            .iter()
+            .map(ToString::to_string)
+            .collect(),
+        view_arguments: program
+            .tables
+            .bodies
+            .expressions
+            .expression_handles(witness.view_arguments)
+            .iter()
+            .map(|handle| table_expression_snapshot(program, *handle))
+            .collect(),
+        range: witness.range.is_present().then(|| RankingRangeSnapshot {
+            start: table_expression_snapshot(program, witness.range.start),
+            end: table_expression_snapshot(program, witness.range.end),
+            end_inclusive: witness.range.end_inclusive,
+        }),
+    })
 }
 
 fn signature_contract_snapshot(
@@ -1006,7 +1059,10 @@ fn type_reference_snapshot(
     type_reference_snapshot_from_program(program, type_reference)
 }
 
-fn wire_schema_snapshot(program: &SymbolResolvedTrees, wire_schema: &WireSchema) -> WireSchemaSnapshot {
+fn wire_schema_snapshot(
+    program: &SymbolResolvedTrees,
+    wire_schema: &WireSchema,
+) -> WireSchemaSnapshot {
     WireSchemaSnapshot {
         has_symbol: wire_schema.symbol.is_valid(),
         name: wire_schema.name.to_string(),
@@ -1053,7 +1109,6 @@ fn type_reference_snapshot_from_program(
                 program.child_type_reference(reference.referee),
             )),
             is_mutable: reference.is_mutable,
-            is_relaxed: reference.is_relaxed,
         },
         TypeReference::Constrained(constrained) => TypeReferenceSnapshot::Constrained {
             base_type: Box::new(type_reference_snapshot_from_program(
@@ -1116,6 +1171,9 @@ fn type_constraint_snapshot(
             maximum: table_expression_snapshot(program, *maximum),
         },
         TypeConstraint::ArithmeticDomain(domain) => TypeConstraintSnapshot::ArithmeticDomain {
+            domain: domain.name().to_owned(),
+        },
+        TypeConstraint::ValueDomain(domain) => TypeConstraintSnapshot::ValueDomain {
             domain: domain.name().to_owned(),
         },
     }

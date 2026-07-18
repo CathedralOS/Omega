@@ -1,5 +1,5 @@
 // COMPTIME STAGE 1, FUEL BACKSTOP: a const-position callee that is legal by
-// the termination discipline (tail self-loop with a decreases measure) but
+// the termination discipline (tail self-loop with a ranking witness) but
 // takes ten million steps must hit the step-budget defense-in-depth limit
 // and produce an ERROR -- the compiler must never hang inside const
 // evaluation. (M3: termination is the language's existing discipline; fuel
@@ -21,9 +21,8 @@ data Main {
 }
 
 machine burn(remaining: u64, acc: u64)
-terminates {
-    decreases remaining;
-}
+terminates;
+terminates by remaining;
 -> u64
 {
     transition remaining > 0 {

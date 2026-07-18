@@ -36,7 +36,15 @@ remain ordinary operations and may perform runtime work.
 > single-field constraints are standing invariants of the default domain; cross-field
 > invariants live there too, with stores the checker cannot prove domain-preserving
 > carried as [invariant windows](chapter_11_invariant_windows.md) until the next
-> consumption point (settled 2026-07-17). *Settled model; not yet implemented.*
+> consumption point (settled 2026-07-17). The first implementation slices now
+> cover declaration clauses, exact construction gates, range sugar, propagated
+> zero-validity, standing scalar bounds, direct/nested/indexed windows, and
+> witness-pinning loans, flow-proven local construction, and classifier-backed
+> byte-domain membership through construction and windows. Versioned expression
+> provenance discharges identical and affine correlations across construction
+> and adjacent writes; `.len` measure facts cover zero values, literals, place
+> copies, construction, and writes. Other operator facts and broader relational
+> discharge remain open.
 
 ```omega
 data Player {

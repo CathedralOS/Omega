@@ -1,0 +1,11 @@
+// FAIL CANARY. A suffix chooses the literal's format at the spelling, so an
+// f64-suffixed argument cannot silently land in an f32 parameter.
+data Main {
+}
+
+machine Main::take(&self, value: f32) {
+}
+
+machine Main::run(&mut self) {
+    self.take(1.0f64);
+}

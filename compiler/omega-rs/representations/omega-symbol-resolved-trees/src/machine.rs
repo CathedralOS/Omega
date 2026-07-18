@@ -22,12 +22,38 @@ pub struct MachineStorage {
     pub contains: HandleSpan<ContainedObject>,
     pub owned_data: HandleSpan<OwnedData>,
     pub satisfies: HandleSpan<TraitConformance>,
-    pub terminates: bool,
-    pub decreases: HandleSpan<ExpressionHandle>,
-    pub decrease_order: HandleSpan<DiagnosticName>,
+    pub termination_guarantee: omega_core::termination::TerminationGuarantee,
+    pub ranking_witness: RankingWitness,
     pub effects: HandleSpan<DiagnosticName>,
     pub contracts: HandleSpan<SignatureContract>,
     pub states: HandleSpan<Handle<State>>,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct RankingWitness {
+    pub subjects: HandleSpan<ExpressionHandle>,
+    pub view: HandleSpan<DiagnosticName>,
+    pub view_arguments: HandleSpan<ExpressionHandle>,
+    pub range: RankingRange,
+}
+
+impl RankingWitness {
+    pub fn is_present(self) -> bool {
+        !self.subjects.is_empty()
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct RankingRange {
+    pub start: ExpressionHandle,
+    pub end: ExpressionHandle,
+    pub end_inclusive: bool,
+}
+
+impl RankingRange {
+    pub fn is_present(self) -> bool {
+        self.start.is_valid() && self.end.is_valid()
+    }
 }
 
 impl Deref for Machine {

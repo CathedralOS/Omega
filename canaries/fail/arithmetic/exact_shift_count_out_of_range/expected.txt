@@ -1,0 +1,1 @@
+Exact shift in machine `Main::main` state `main` local `shifted` requires the count to be provably in `0..32`

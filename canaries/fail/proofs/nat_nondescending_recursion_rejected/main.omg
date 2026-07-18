@@ -1,5 +1,5 @@
 // FAIL CANARY: a MEASURED proof machine whose self-call passes the SAME
-// measure back (`spin(n)` under `decreases n`). The structural-descent
+// measure back (`spin(n)` under `terminates by n`). The structural-descent
 // check demands the measure-position argument be a case-payload subterm
 // (the arm-bound `prev`); the unchanged `n` proves nothing and the
 // refusal names the binding idiom.
@@ -8,9 +8,8 @@ boundary trait Console { machine exit_process(return_code: i32); }
 data Main { console: Console; }
 machine Main::main(&mut self) { self.console.exit_process(70); }
 machine spin(n: Nat) -> Nat
-terminates {
-    decreases n;
-}
+terminates;
+terminates by n;
 {
     transition n {
         Nat::Zero -> Nat::Zero

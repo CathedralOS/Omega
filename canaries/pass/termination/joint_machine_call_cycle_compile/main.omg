@@ -1,0 +1,28 @@
+// COMPILE CANARY. Same-shaped mutually recursive machines share one natural
+// ranking. The forwarding edge is non-increasing and the return edge is
+// strict, so every traversal of the SCC lowers the joint rank.
+data Main {}
+
+machine Main::main(&mut self) -> u64 {
+    transition { _ -> self.scan_a(4) }
+}
+
+machine Main::scan_a(&mut self, remaining: u64)
+terminates by remaining;
+-> u64
+{
+    transition remaining > 0 {
+        true -> self.scan_b(remaining)
+        false -> 0
+    }
+}
+
+machine Main::scan_b(&mut self, remaining: u64)
+terminates by remaining;
+-> u64
+{
+    transition remaining > 0 {
+        true -> self.scan_a(remaining - 1)
+        false -> 0
+    }
+}

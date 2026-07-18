@@ -7,9 +7,8 @@ machine Main::main(&mut self) -> i32 {
 }
 
 machine Main::countdown(&mut self, remaining: i32)
-terminates {
-    decreases remaining;
-}
+terminates;
+terminates by remaining;
 -> i32
 {
     transition remaining > 0 {

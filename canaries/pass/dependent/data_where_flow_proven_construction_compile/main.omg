@@ -1,0 +1,18 @@
+// COMPILE CANARY. Construction discharges against the ordered value
+// environment, not literals alone: local facts prove both a gate and coupling.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Span
+where
+    start <= end,
+    start >= 1,
+{
+    start: i32;
+    end: i32;
+}
+data Main { console: Console; }
+machine Main::run(&mut self) {
+    let first: i32 = 10;
+    let last: i32 = 20;
+    let span: Span = Span { start: first, end: last };
+    self.console.exit_process(70);
+}

@@ -18,9 +18,8 @@ trait RingOps2 {
 
 machine plus(a: Peano, b: Peano) -> Peano
 satisfies RingOps2::add
-terminates {
-    decreases a;
-}
+terminates;
+terminates by a;
 {
     transition a {
         Peano::Zero -> (b)
@@ -32,9 +31,8 @@ terminates {
 // `plus`: proves the LAW the trait declares, so the conformance holds.
 machine plus_assoc(a: Peano, b: Peano, c: Peano) -> Peano
 satisfies RingOps2::add_assoc
-terminates {
-    decreases a;
-}
+terminates;
+terminates by a;
 ensures
     (plus(plus(a, b), c)) == (plus(a, plus(b, c)))
 {

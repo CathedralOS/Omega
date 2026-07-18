@@ -543,6 +543,8 @@ impl From<&omega_abstract_operations::AbstractOperationKind> for TargetOperation
                 source_is_float,
                 target_is_float,
                 source_signed,
+                domain,
+                target_signed,
             } => Self::WriteRuntimeStorageConvert {
                 target_region: *target_region,
                 target_offset: *target_offset,
@@ -552,6 +554,8 @@ impl From<&omega_abstract_operations::AbstractOperationKind> for TargetOperation
                 source_is_float: *source_is_float,
                 target_is_float: *target_is_float,
                 source_signed: *source_signed,
+                domain: *domain,
+                target_signed: *target_signed,
             },
             omega_abstract_operations::AbstractOperationKind::AtomicFetchAdd {
                 target_region,

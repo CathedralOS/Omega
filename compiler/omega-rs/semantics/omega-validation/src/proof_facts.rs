@@ -10,6 +10,7 @@ use std::fmt;
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum ProofFactOwner<'program> {
+    DataDefaultDomain(&'program str),
     Domain(&'program str),
     MachineContract {
         machine: &'program str,
@@ -28,6 +29,7 @@ pub(crate) enum ProofFactOwner<'program> {
 impl fmt::Display for ProofFactOwner<'_> {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::DataDefaultDomain(data) => write!(formatter, "data `{data}` default domain"),
             Self::Domain(domain) => write!(formatter, "domain `{domain}`"),
             Self::MachineContract { machine, kind } => {
                 write!(formatter, "machine `{machine}` {kind} contract")

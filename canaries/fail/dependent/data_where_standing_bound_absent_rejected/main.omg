@@ -1,0 +1,11 @@
+// FAIL CANARY. Without a default-domain upper bound, 70 + arbitrary i32 may
+// overflow; no standing fact may be fabricated from the field name alone.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main {
+    console: Console;
+    value: i32;
+}
+machine Main::run(&mut self) {
+    let return_code: i32 = 70 + self.value;
+    self.console.exit_process(return_code);
+}

@@ -1,0 +1,1 @@
+speaks about proof-only `Nat`, which no entailment tier judges yet

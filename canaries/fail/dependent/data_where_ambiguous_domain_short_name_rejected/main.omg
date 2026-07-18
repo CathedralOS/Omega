@@ -1,0 +1,20 @@
+// FAIL CANARY. A short proof-fact domain name resolves only when its trailing
+// name is unique; two carrier-specific `Checked` domains are ambiguous.
+domain [u8]::Checked when no_nul(self) {
+}
+
+domain String::Checked when no_nul(self) {
+}
+
+data Text
+where
+    value in Checked,
+{
+    value: &[u8];
+}
+
+data Main {
+}
+
+machine Main::run(&mut self) {
+}

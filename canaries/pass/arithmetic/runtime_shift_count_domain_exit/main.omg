@@ -4,9 +4,8 @@
 // doesn't matter"): a Wrapping lhs shifted by an EXACT count resolves with
 // the LHS's domain -- previously the mixed-domain check rejected
 // `wrapped << self.k` outright. Legs: << and >> with a runtime Exact count.
-// (At-width counts are slice B: the wrapping count-clamp on x86 + aarch64
-// 64-bit; not pinned here so this canary stays arch-independent.)
-// exits: 71 = << wrong; 72 = >> wrong; 73/74 = at-width 32/64 not modular-0.
+// Wrapping counts are masked by the language operand width on every target.
+// exits: 71 = << wrong; 72 = >> wrong; 73/74 = masked 32/64 leg wrong.
 boundary trait Console { machine exit_process(return_code: i32); }
 data Main { console: Console; k: u32; }
 machine Main::main(&mut self) {
@@ -28,16 +27,12 @@ machine Main::build(&mut self) {
             _ -> wrong_shr()
         }
     }
-    // MODULAR at-width legs (slice B, aarch64+interp): a Wrapping << by a
-    // count >= the type width is x * 2^n = 0 (mod 2^w) -- the 64-bit case
-    // needs the explicit count clamp (LSLV masks mod 64) and the interp's
-    // uniform modular semantics. x86's count clamp is still pending; these
-    // legs run natively on aarch64 hosts and in the interpreter.
+    // Counts are masked at the language width: 40 & 31 = 8 and 70 & 63 = 6.
     state atwidth32(&mut self) {
         let a: u32 in Wrapping = (1 as u32 in Wrapping);
         let c: u32 in Wrapping = (40 as u32 in Wrapping);
         let r: u32 in Wrapping = a << c;
-        transition r == 0 {
+        transition r == 256 {
             true -> atwidth64()
             _ -> wrong_atwidth32()
         }
@@ -46,7 +41,7 @@ machine Main::build(&mut self) {
         let a: u64 in Wrapping = (1 as u64 in Wrapping);
         let c: u64 in Wrapping = (70 as u64 in Wrapping);
         let r: u64 in Wrapping = a << c;
-        transition r == 0 {
+        transition r == 64 {
             true -> good()
             _ -> wrong_atwidth64()
         }

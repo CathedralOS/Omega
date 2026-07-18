@@ -5,7 +5,9 @@ use crate::state::{lower_signature_contracts, lower_signature_effects, lower_sta
 use omega_core::arena::{Handle, HandleSpan};
 use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::SymbolHandle;
-use omega_symbol_resolved_trees::machine::{Machine, MachineStorage, TraitConformance};
+use omega_symbol_resolved_trees::machine::{
+    Machine, MachineStorage, RankingRange, RankingWitness, TraitConformance,
+};
 use omega_symbol_resolved_trees::state::State;
 use omega_syntax_trees::{self as syntax, SyntaxTrees};
 
@@ -19,9 +21,7 @@ pub(crate) fn lower_machine_into(
     lowerer.current_machine_is_boundary = false;
     let type_parameters = lower_type_parameters(lowerer, syntax_trees, machine.type_parameters)?;
     let satisfies = lower_machine_trait_conformances(lowerer, syntax_trees, machine.satisfies);
-    let decreases = lower_machine_decreases(lowerer, syntax_trees, machine.decreases)?;
-    let decrease_order =
-        lower_machine_decrease_order(lowerer, syntax_trees, machine.decrease_order);
+    let ranking_witness = lower_ranking_witness(lowerer, syntax_trees, machine.ranking_witness)?;
     let effects = lower_signature_effects(lowerer, syntax_trees, machine.effects);
     let contracts = lower_signature_contracts(lowerer, syntax_trees, machine.contracts)?;
     let machine_name = crate::name::lower_name(&machine.name);
@@ -37,9 +37,8 @@ pub(crate) fn lower_machine_into(
             contains: HandleSpan::empty(),
             owned_data: HandleSpan::empty(),
             satisfies,
-            terminates: machine.terminates,
-            decreases,
-            decrease_order,
+            termination_guarantee: machine.termination_guarantee.into(),
+            ranking_witness,
             effects,
             contracts,
             states,
@@ -48,7 +47,7 @@ pub(crate) fn lower_machine_into(
     Ok(())
 }
 
-fn lower_machine_decrease_order(
+fn lower_ranking_view(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
     order: HandleSpan<syntax::identifier::Identifier>,
@@ -67,7 +66,7 @@ fn lower_machine_decrease_order(
     lowered
 }
 
-fn lower_machine_decreases(
+fn lower_ranking_expressions(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
     decreases: HandleSpan<syntax::expression::ExpressionHandle>,
@@ -89,6 +88,39 @@ fn lower_machine_decreases(
         .bodies
         .expressions
         .insert_expression_handles(expressions))
+}
+
+pub(crate) fn lower_ranking_witness(
+    lowerer: &mut Lowerer,
+    syntax_trees: &SyntaxTrees,
+    witness: syntax::item::RankingWitnessSyntax,
+) -> Result<RankingWitness, Diagnostic> {
+    let subjects = lower_ranking_expressions(lowerer, syntax_trees, witness.subjects)?;
+    let view = lower_ranking_view(lowerer, syntax_trees, witness.view);
+    let view_arguments = lower_ranking_expressions(lowerer, syntax_trees, witness.view_arguments)?;
+    let range = if witness.range.is_present() {
+        RankingRange {
+            start: lower_expression_into_table(
+                syntax_trees,
+                &mut lowerer.symbol_resolved_trees.tables.bodies.expressions,
+                witness.range.start,
+            )?,
+            end: lower_expression_into_table(
+                syntax_trees,
+                &mut lowerer.symbol_resolved_trees.tables.bodies.expressions,
+                witness.range.end,
+            )?,
+            end_inclusive: witness.range.end_inclusive,
+        }
+    } else {
+        RankingRange::default()
+    };
+    Ok(RankingWitness {
+        subjects,
+        view,
+        view_arguments,
+        range,
+    })
 }
 
 fn lower_machine_trait_conformances(

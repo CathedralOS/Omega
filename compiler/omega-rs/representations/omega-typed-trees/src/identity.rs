@@ -65,6 +65,12 @@ pub fn count_identity_storage(typed_trees: &TypedTrees) -> IdentityStorageCounts
 
     for data_definition in typed_trees.data_definitions() {
         count_declaration_name(&data_definition.name, &mut counts);
+        for fact in typed_trees
+            .proof_facts
+            .span_or_empty(data_definition.default_domain)
+        {
+            count_proof_fact(typed_trees, fact, &mut counts);
+        }
         for member in typed_trees.data_members(data_definition) {
             match member {
                 DataMember::Field(field) => {
@@ -477,7 +483,7 @@ fn count_type_constraint(
             count_expression_handle(expressions, *minimum, counts);
             count_expression_handle(expressions, *maximum, counts);
         }
-        TypeConstraintNode::ArithmeticDomain(_) => {}
+        TypeConstraintNode::ArithmeticDomain(_) | TypeConstraintNode::ValueDomain(_) => {}
     }
 }
 

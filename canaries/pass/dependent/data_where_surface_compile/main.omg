@@ -1,0 +1,12 @@
+// COMPILE CANARY. R2 parser/IR rung: a data declaration carries its default
+// domain as ordinary proof facts over bare field binders.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Span
+where
+    start <= end,
+{
+    start: u32;
+    end: u32;
+}
+data Main { console: Console; span: Span; }
+machine Main::run(&mut self) { self.console.exit_process(70); }

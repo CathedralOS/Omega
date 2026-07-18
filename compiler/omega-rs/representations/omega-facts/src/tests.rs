@@ -188,7 +188,9 @@ fn expression_places_preserve_roots_and_segments() {
             head_symbol: root_symbol,
             symbol: field_symbol,
         }));
-    let index = program.expression_table.insert(ExpressionNode::Integer(omega_core::literals::IntegerLiteral::from_value(0)));
+    let index = program.expression_table.insert(ExpressionNode::Integer(
+        omega_core::literals::IntegerLiteral::from_value(0),
+    ));
     let indexed =
         program
             .expression_table
@@ -315,9 +317,8 @@ fn expression_places_resolve_attached_data_members() {
         contains: HandleSpan::empty(),
         owned_data: HandleSpan::empty(),
         satisfies: HandleSpan::empty(),
-        terminates: false,
-        decreases: HandleSpan::empty(),
-        decrease_order: HandleSpan::empty(),
+        termination_guarantee: omega_core::termination::TerminationGuarantee::None,
+        ranking_witness: Default::default(),
         effects: HandleSpan::empty(),
         contracts: HandleSpan::empty(),
         states: HandleSpan::empty(),

@@ -1,0 +1,17 @@
+// FAIL CANARY. Default-domain membership is storage-bound: a domain declared
+// over String cannot certify a field whose carrier is &[u8].
+domain String::NonEmpty when non_empty(self) {
+}
+
+data Text
+where
+    value in NonEmpty,
+{
+    value: &[u8];
+}
+
+data Main {
+}
+
+machine Main::run(&mut self) {
+}

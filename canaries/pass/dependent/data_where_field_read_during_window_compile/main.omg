@@ -1,0 +1,21 @@
+// R2 read precision: reading one scalar field does not consume the record-level
+// coupling, so the adjacent repair may still close the window.
+data Map
+where
+    start <= end,
+{
+    start: i32;
+    end: i32;
+}
+
+machine Map::repair(&mut self) {
+    self.start = 10;
+    let old_end: i32 = self.end;
+    self.end = 10;
+}
+
+data Main {
+}
+
+machine Main::run(&mut self) {
+}

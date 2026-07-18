@@ -512,6 +512,7 @@ fn constraint_handle_name(
                     .display_name(&syntax_trees.expressions)
             ),
             TypeConstraintNode::ArithmeticDomain(domain) => domain.name().to_owned(),
+            TypeConstraintNode::ValueDomain(domain) => domain.name().to_owned(),
         });
     }
 
@@ -672,9 +673,8 @@ mod tests {
             boundary: false,
             type_parameters: HandleSpan::empty(),
             satisfies: HandleSpan::empty(),
-            terminates: false,
-            decreases: HandleSpan::empty(),
-            decrease_order: HandleSpan::empty(),
+            termination_guarantee: false,
+            ranking_witness: omega_syntax_trees::item::RankingWitnessSyntax::default(),
             effects: HandleSpan::empty(),
             contracts: HandleSpan::empty(),
             states: HandleSpan::from_parts(state_handle, 1),
@@ -719,9 +719,8 @@ mod tests {
             boundary: false,
             type_parameters: HandleSpan::empty(),
             satisfies: HandleSpan::empty(),
-            terminates: false,
-            decreases: HandleSpan::empty(),
-            decrease_order: HandleSpan::empty(),
+            termination_guarantee: false,
+            ranking_witness: omega_syntax_trees::item::RankingWitnessSyntax::default(),
             effects: HandleSpan::empty(),
             contracts: HandleSpan::from_parts(
                 requires,

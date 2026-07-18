@@ -2,7 +2,7 @@ mod classify;
 mod layout;
 pub(crate) mod values;
 
-use crate::StateGuardOperand;
+use crate::{StateGuardOperand, StateGuardOperandKind};
 use classify::classify_guard_operand;
 use layout::resolve_guard_operand_layout;
 use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
@@ -78,6 +78,32 @@ pub(crate) fn guard_operands(
             binary.right,
         ),
     };
+
+    // F2c: layout supplies the contextual format for an anonymous constant
+    // float tree. Re-fold after both operands resolve so an f32 place rounds
+    // every arithmetic node in binary32 instead of narrowing one f64 result.
+    if operands.right.kind == StateGuardOperandKind::Place
+        && values::guard_operand_is_float_constant(source_expressions, binary.left)
+        && let Some(value) = values::resolved_float_guard_operand_value(
+            source_expressions,
+            binary.left,
+            operands.right.byte_size,
+        )
+    {
+        operands.left.resolved_value = value;
+        operands.left.has_resolved_value = true;
+    }
+    if operands.left.kind == StateGuardOperandKind::Place
+        && values::guard_operand_is_float_constant(source_expressions, binary.right)
+        && let Some(value) = values::resolved_float_guard_operand_value(
+            source_expressions,
+            binary.right,
+            operands.left.byte_size,
+        )
+    {
+        operands.right.resolved_value = value;
+        operands.right.has_resolved_value = true;
+    }
 
     // TAG-ONLY case comparison: when one side names a CASE of an enum-shaped
     // data (`self.cmd == Command::Move`), the storage side must read only the

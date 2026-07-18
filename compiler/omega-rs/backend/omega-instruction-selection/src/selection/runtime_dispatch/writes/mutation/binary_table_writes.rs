@@ -2,10 +2,9 @@ use crate::InstructionSelectionInput;
 use crate::selection::storage_places::{
     RuntimeStoragePlace, clamp_runtime_case_comparison_operands_in_table,
     classify_scalar_value_type_in_table, descriptor_primitive_type,
-    resolve_runtime_frame_indexed_target_in_table,
+    resolve_binary_write_arithmetic_domain_in_table, resolve_runtime_frame_indexed_target_in_table,
     resolve_runtime_pointee_fixed_indexed_target_in_table,
-    resolve_runtime_pointee_slot_offset_in_table,
-    resolve_binary_write_arithmetic_domain_in_table, resolve_runtime_storage_is_signed_in_table,
+    resolve_runtime_pointee_slot_offset_in_table, resolve_runtime_storage_is_signed_in_table,
     resolve_runtime_storage_place_in_table, resolve_runtime_storage_primitive_type_in_table,
     runtime_storage_target_is_atomic_in_table,
 };
@@ -713,12 +712,13 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_storage_binary_writ
     value: ExpressionHandle,
     static_values: &RuntimeStaticValues,
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
-    // The write TARGET's primitive, used ONLY as the signedness fallback of
+    // The write TARGET's primitive/domain, used ONLY as the fallback of
     // last resort when NEITHER operand resolves to a typed place (every
     // operand folded to a typeless constant -- the erased-const-local shape).
-    // Validation guarantees the value lands at the target's declared type,
-    // so the target's signedness IS the operands' when nothing else survives.
+    // Validation guarantees the value lands at the target's declared type and
+    // domain, so these are the operands' witnesses when nothing else survives.
     target_primitive: Option<omega_checked_trees::types::PrimitiveType>,
+    target_domain: Option<omega_core::arithmetic::ArithmeticDomain>,
 ) -> Option<SelectedInstructionKind> {
     if std::env::var_os("OMEGA_DEBUG_RECEIVER").is_some() {
         eprintln!(
@@ -855,7 +855,7 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_storage_binary_writ
     // Decision 17 (operand-driven): the arithmetic domain comes from the operands'
     // types (Exact neutral, so a literal adopts the other side); signedness from
     // whichever operand resolves to an integer place (they share the result type).
-    let domain = resolve_binary_write_arithmetic_domain_in_table(
+    let operand_domain = resolve_binary_write_arithmetic_domain_in_table(
         input,
         dispatch_index,
         source_key,
@@ -863,6 +863,13 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_storage_binary_writ
         left_expression,
         right_expression,
     );
+    let domain = if operand_domain == omega_core::arithmetic::ArithmeticDomain::Exact
+        && operand_signed.is_none()
+    {
+        target_domain.unwrap_or(operand_domain)
+    } else {
+        operand_domain
+    };
     let target_signed = resolved_signed.unwrap_or(false);
     Some(SelectedInstructionKind::WriteRuntimeStorageBinary {
         target_region,
@@ -970,6 +977,7 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_convert_mutation_wr
         target_place.byte_offset,
         target_primitive,
         source_expression,
+        cast.domain,
         static_values,
         runtime_value_operands,
     )?;
@@ -1010,6 +1018,7 @@ pub(in crate::selection::runtime_dispatch::writes) fn select_runtime_frame_slot_
         slot.byte_offset,
         target_primitive,
         cast.value,
+        cast.domain,
         static_values,
         runtime_value_operands,
     )
@@ -1030,6 +1039,7 @@ fn build_runtime_convert_write(
     target_offset: usize,
     target_primitive: PrimitiveType,
     source_expression: ExpressionHandle,
+    domain: omega_core::arithmetic::ArithmeticDomain,
     static_values: &RuntimeStaticValues,
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
 ) -> Option<SelectedInstructionKind> {
@@ -1087,5 +1097,7 @@ fn build_runtime_convert_write(
         source_is_float: source_primitive.accepts_float_literal(),
         target_is_float: target_primitive.accepts_float_literal(),
         source_signed: source_primitive.is_signed_integer(),
+        domain,
+        target_signed: target_primitive.is_signed_integer(),
     })
 }

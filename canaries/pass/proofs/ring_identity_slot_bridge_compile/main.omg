@@ -1,0 +1,17 @@
+// COMPILE CANARY. The semiring constant slots are ordinary nullary machines;
+// compute-mode must bridge their applications to Nat's constructor constants.
+use omega::language::core::nat;
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine Main::run(&mut self) { self.console.exit_process(70); }
+
+machine constant_slot_bridge(a: Nat)
+ensures
+    zero() == Nat::Zero;
+    one() == (Nat::Succ { prev: Nat::Zero });
+    add(a, zero()) == a;
+    mul(a, one()) == a
+{
+    add_identity(a);
+    mul_identity(a);
+}

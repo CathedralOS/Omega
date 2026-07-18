@@ -1,7 +1,7 @@
 // RUN CANARY (exit 70) + interpreter differential. MR2 complete: a
 // MEASURED machine's TERMINAL tail self-call (`self.countdown(n - 1)` as
 // the fall-through after the base case) rewrites at parse onto the bare
-// loop-back edge, and the decreases ranking proves the decrease through
+// loop-back edge, and the ranking witness proves the decrease through
 // the FALL-THROUGH COMPLEMENT: control reaching the loop refutes the
 // prior exit guard (`n == 0 -> 7`), and a refuted base case IS the
 // positivity the countdown proof needs. (This was the pinned MR2
@@ -19,7 +19,8 @@
 boundary trait Console { machine exit_process(return_code: i32); }
 data Main { console: Console; }
 machine Main::countdown(&mut self, n: u64 [0..=100]) -> u64
-terminates { decreases n; }
+terminates;
+terminates by n;
 {
     transition n == 0 { true -> 7 }
     self.countdown(n - 1)

@@ -1,0 +1,21 @@
+// FAIL CANARY. Symbolic equality is versioned: overwriting one witness after
+// two equal writes invalidates the correlation and leaves the window open.
+data EqualPair
+where
+    left == right,
+{
+    left: i32;
+    right: i32;
+}
+
+machine EqualPair::break_pair(&mut self, value: i32) {
+    self.left = value;
+    self.right = value;
+    self.right = 0;
+}
+
+data Main {
+}
+
+machine Main::run(&mut self) {
+}

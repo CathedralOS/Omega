@@ -1,0 +1,20 @@
+// COMPILE CANARY. A literal payload write seeds its derived `.len` measure, so
+// the adjacent scalar write restores the cross-field invariant window.
+data Packet
+where
+    length == payload.len,
+{
+    length: u64;
+    payload: &[u8];
+}
+
+machine Packet::set(&mut self) {
+    self.payload = "omega";
+    self.length = 5;
+}
+
+data Main {
+}
+
+machine Main::run(&mut self) {
+}

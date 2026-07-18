@@ -18,9 +18,8 @@ use omega::language::core::nat;
 // type. The structural entailment judge (N3) is parametric over
 // constructor names, so it discharges Seq lemmas exactly as it does Nat's.
 machine length(s: Seq<u64>) -> Nat
-terminates {
-    decreases s;
-}
+terminates;
+terminates by s;
 {
     transition s {
         Seq::Empty -> Nat::Zero
@@ -46,9 +45,8 @@ ensures
 
 // Concatenation, structurally recursive on the first sequence.
 machine append(s: Seq<u64>, t: Seq<u64>) -> Seq<u64>
-terminates {
-    decreases s;
-}
+terminates;
+terminates by s;
 {
     transition s {
         Seq::Empty -> (t)
@@ -59,9 +57,8 @@ terminates {
 // append's right identity, by induction on `s`. Lean analog:
 // `List.append_nil`.
 machine append_empty_right(s: Seq<u64>) -> Seq<u64>
-terminates {
-    decreases s;
-}
+terminates;
+terminates by s;
 ensures
     (append(s, Seq::Empty)) == s
 {
@@ -74,9 +71,8 @@ ensures
 // append associates, by induction on the outermost first sequence. Lean
 // analog: `List.append_assoc`.
 machine append_assoc(s: Seq<u64>, t: Seq<u64>, u: Seq<u64>) -> Seq<u64>
-terminates {
-    decreases s;
-}
+terminates;
+terminates by s;
 ensures
     (append(append(s, t), u)) == (append(s, append(t, u)))
 {
@@ -91,9 +87,8 @@ ensures
 // inside length inside add) plus the inductive hypothesis; no citations
 // needed. Lean analog: `List.length_append`.
 machine length_append(s: Seq<u64>, t: Seq<u64>) -> Nat
-terminates {
-    decreases s;
-}
+terminates;
+terminates by s;
 ensures
     (length(append(s, t))) == (add(length(s), length(t)))
 {

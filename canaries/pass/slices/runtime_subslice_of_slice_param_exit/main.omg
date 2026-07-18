@@ -2,7 +2,7 @@
 // Unlike subslicing a fixed array (static length), the result length is computed
 // from the source descriptor at runtime: new.ptr = ptr + start*elem, new.len =
 // len - start. Passing `sub[1..]` of a 4-element view must yield a 3-element
-// slice. This is the materialization that makes `decreases … Slice::Length`
+// slice. This is the materialization that makes `terminates by … -> Slice::Length`
 // recursion (self.walk(entries[1..])) actually shrink and terminate.
 
 boundary trait Console {

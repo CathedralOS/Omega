@@ -68,6 +68,9 @@ pub fn count_identity_storage(program: &SymbolResolvedTrees) -> IdentityStorageC
 
     for data_definition in &program.data_definitions {
         count_declaration_name(&data_definition.name, &mut counts);
+        for fact in program.proof_facts(data_definition.default_domain) {
+            count_proof_fact(program, fact, expression_table, &mut counts);
+        }
         for member in program.data_members(data_definition.members) {
             match member {
                 DataMember::Field(field) => {
@@ -561,14 +564,12 @@ fn count_type_constraint(
     counts: &mut IdentityStorageCounts,
 ) {
     match constraint {
-        TypeConstraint::Named(name) | TypeConstraint::Domain(name) => {
-            count_type_name(name, counts)
-        }
+        TypeConstraint::Named(name) | TypeConstraint::Domain(name) => count_type_name(name, counts),
         TypeConstraint::Range { minimum, maximum } => {
             count_expression_handle(expression_table, *minimum, counts);
             count_expression_handle(expression_table, *maximum, counts);
         }
-        TypeConstraint::ArithmeticDomain(_) => {}
+        TypeConstraint::ArithmeticDomain(_) | TypeConstraint::ValueDomain(_) => {}
     }
 }
 

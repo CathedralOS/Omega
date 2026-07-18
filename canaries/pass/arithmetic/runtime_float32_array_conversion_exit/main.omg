@@ -26,7 +26,7 @@ machine Main::main(&mut self) {
         self.i = 7;
         self.f64v = self.i as f64;
         self.f64v = self.f64v * 2.0;
-        self.r = self.f64v as i32 in Wrapping;
+        self.r = self.f64v as i32 in Saturating;
         transition self.r == 14 { true -> ok() _ -> bad() }
     }
     state ok(&mut self) { self.console.exit_process(70); }

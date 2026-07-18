@@ -1,3 +1,4 @@
+use crate::domain::lower_proof_facts;
 use crate::expression::lower_expression_handle;
 use crate::lowerer::Lowerer;
 use crate::type_reference::lower_type_reference_into_table;
@@ -18,6 +19,7 @@ pub(crate) fn lower_data_definition(
             zero_init: data_definition.properties.zero_init,
             send: data_definition.properties.send,
         },
+        default_domain: lower_proof_facts(lowerer, data_definition.default_domain)?,
         members: omega_core::arena::HandleSpan::empty(),
     };
 

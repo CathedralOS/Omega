@@ -91,9 +91,8 @@ fn materializes_checked_value_facts_for_machine_decreases() {
         data Main {}
 
         machine Main::countdown(&mut self, remaining: u64)
-        terminates {
-            decreases remaining -> Nat::Descending;
-        }
+        terminates;
+        terminates by remaining -> Nat::Descending;
         {
             transition remaining > 0 {
                 true -> self.countdown(remaining - 1)
@@ -118,7 +117,7 @@ fn materializes_checked_value_facts_for_machine_decreases() {
                 ordinal: 0,
             } if machine_symbol == countdown.symbol
         )),
-        "decreases clause should be visible as a checked value"
+        "ranking witness should be visible as a checked value"
     );
 }
 

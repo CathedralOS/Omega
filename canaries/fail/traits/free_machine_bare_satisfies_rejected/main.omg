@@ -10,7 +10,8 @@ trait RingOps {
 }
 machine wrongname(a: Peano, b: Peano) -> Peano
 satisfies RingOps
-terminates { decreases a; }
+terminates;
+terminates by a;
 {
     transition a {
         Peano::Zero -> (b)

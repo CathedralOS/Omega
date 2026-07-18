@@ -32,9 +32,12 @@ pub(crate) fn validate_machine_trait_conformances(
         // Data-attached machines with a bare trait name keep the whole-trait
         // semantics below, unchanged.
         let named_requirement = conformance.requirement.clone();
-        let single_requirement = named_requirement
-            .clone()
-            .or_else(|| machine.attached_data.is_none().then(|| machine.name.clone()));
+        let single_requirement = named_requirement.clone().or_else(|| {
+            machine
+                .attached_data
+                .is_none()
+                .then(|| machine.name.clone())
+        });
         if let Some(requirement_name) = single_requirement {
             validate_machine_single_requirement(
                 program,
@@ -387,10 +390,9 @@ fn type_references_match_with_trait_bindings(
     // requirements are Self-shaped -- `machine add(a: Self, b: Self) -> Self`
     // -- and the carrier type is INFERRED from the satisfier's signature).
     if required_is_self_type(program, required) {
-        if let Some(binding) = bindings
-            .iter()
-            .find(|binding| !binding.parameter_symbol.is_valid() && binding.parameter_name == "Self")
-        {
+        if let Some(binding) = bindings.iter().find(|binding| {
+            !binding.parameter_symbol.is_valid() && binding.parameter_name == "Self"
+        }) {
             return type_references_match(program, actual, binding.actual);
         }
 
@@ -427,19 +429,16 @@ fn type_references_match_with_trait_bindings(
             TypeReferenceNode::Reference {
                 referee: actual_referee,
                 is_mutable: actual_mutable,
-                is_relaxed: actual_relaxed,
                 // Lifetimes do not participate in trait-conformance matching.
                 lifetime: _,
             },
             TypeReferenceNode::Reference {
                 referee: required_referee,
                 is_mutable: required_mutable,
-                is_relaxed: required_relaxed,
                 lifetime: _,
             },
         ) => {
             actual_mutable == required_mutable
-                && actual_relaxed == required_relaxed
                 && type_references_match_with_trait_bindings(
                     program,
                     *actual_referee,

@@ -61,6 +61,7 @@ pub enum ItemSnapshot {
     Data {
         name: IdentifierSnapshot,
         type_parameters: Vec<TypeParameterSnapshot>,
+        default_domain: Vec<ProofFactSnapshot>,
         members: Vec<DataMemberSnapshot>,
     },
     Domain {
@@ -118,9 +119,8 @@ pub enum ItemSnapshot {
         name: IdentifierSnapshot,
         attached_data: Option<IdentifierSnapshot>,
         type_parameters: Vec<TypeParameterSnapshot>,
-        terminates: bool,
-        decreases: Vec<ExpressionSnapshot>,
-        decrease_order: Vec<IdentifierSnapshot>,
+        termination_guarantee: bool,
+        ranking_witness: Option<RankingWitnessSnapshot>,
         effects: Vec<IdentifierSnapshot>,
         contracts: Vec<CapabilityContractSnapshot>,
         states: Vec<StateSnapshot>,
@@ -314,8 +314,25 @@ pub struct StateSignatureSnapshot {
     pub is_default: bool,
     pub parameters: Vec<StateParameterSnapshot>,
     pub return_type: TypeReferenceSnapshot,
+    pub termination_guarantee: bool,
+    pub ranking_witness: Option<RankingWitnessSnapshot>,
     pub effects: Vec<IdentifierSnapshot>,
     pub contracts: Vec<CapabilityContractSnapshot>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct RankingWitnessSnapshot {
+    pub subjects: Vec<ExpressionSnapshot>,
+    pub view: Vec<IdentifierSnapshot>,
+    pub view_arguments: Vec<ExpressionSnapshot>,
+    pub range: Option<RankingRangeSnapshot>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct RankingRangeSnapshot {
+    pub start: ExpressionSnapshot,
+    pub end: ExpressionSnapshot,
+    pub end_inclusive: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -346,10 +363,6 @@ pub enum StatementSnapshot {
         name: IdentifierSnapshot,
         type_reference: TypeReferenceSnapshot,
         initial_value: ExpressionSnapshot,
-    },
-    Relax {
-        target: ExpressionSnapshot,
-        statements: Vec<StatementSnapshot>,
     },
     Transition {
         target: TransitionTargetSnapshot,
@@ -385,7 +398,6 @@ pub enum TypeReferenceSnapshot {
     Reference {
         referee: Box<TypeReferenceSnapshot>,
         is_mutable: bool,
-        is_relaxed: bool,
     },
     Constrained {
         base_type: Box<TypeReferenceSnapshot>,
@@ -432,6 +444,9 @@ pub enum TypeConstraintSnapshot {
         maximum: ExpressionSnapshot,
     },
     ArithmeticDomain {
+        domain: String,
+    },
+    ValueDomain {
         domain: String,
     },
 }
@@ -568,6 +583,7 @@ fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnapshot {
                 .iter()
                 .map(|parameter| snapshot_type_parameter(syntax_trees, parameter))
                 .collect(),
+            default_domain: snapshot_proof_facts(syntax_trees, value.default_domain),
             members: syntax_trees
                 .items
                 .data_members(value.members)
@@ -698,18 +714,8 @@ fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnapshot {
                 .iter()
                 .map(|parameter| snapshot_type_parameter(syntax_trees, parameter))
                 .collect(),
-            terminates: value.terminates,
-            decreases: syntax_trees
-                .expressions
-                .expression_handles(value.decreases)
-                .iter()
-                .map(|handle| snapshot_expression_handle(syntax_trees, *handle))
-                .collect(),
-            decrease_order: snapshot_identifier_slice(
-                syntax_trees
-                    .items
-                    .identifier_path_members(value.decrease_order),
-            ),
+            termination_guarantee: value.termination_guarantee,
+            ranking_witness: snapshot_ranking_witness(syntax_trees, value.ranking_witness),
             effects: snapshot_identifier_slice(
                 syntax_trees.items.identifier_path_members(value.effects),
             ),
@@ -1055,6 +1061,8 @@ fn snapshot_state_signature(
             })
             .collect(),
         return_type: snapshot_type_reference_handle(syntax_trees, signature.return_type),
+        termination_guarantee: signature.termination_guarantee,
+        ranking_witness: snapshot_ranking_witness(syntax_trees, signature.ranking_witness),
         effects: snapshot_identifier_slice(
             syntax_trees
                 .items
@@ -1080,6 +1088,8 @@ fn snapshot_state_signature_node(
             })
             .collect(),
         return_type: snapshot_type_reference_handle(syntax_trees, signature.return_type),
+        termination_guarantee: signature.termination_guarantee,
+        ranking_witness: snapshot_ranking_witness(syntax_trees, signature.ranking_witness),
         effects: snapshot_identifier_slice(
             syntax_trees
                 .items
@@ -1087,6 +1097,32 @@ fn snapshot_state_signature_node(
         ),
         contracts: snapshot_capability_contracts(syntax_trees, signature.contracts),
     }
+}
+
+fn snapshot_ranking_witness(
+    syntax_trees: &SyntaxTrees,
+    witness: crate::item::RankingWitnessSyntax,
+) -> Option<RankingWitnessSnapshot> {
+    witness.is_present().then(|| RankingWitnessSnapshot {
+        subjects: syntax_trees
+            .expressions
+            .expression_handles(witness.subjects)
+            .iter()
+            .map(|handle| snapshot_expression_handle(syntax_trees, *handle))
+            .collect(),
+        view: snapshot_identifier_slice(syntax_trees.items.identifier_path_members(witness.view)),
+        view_arguments: syntax_trees
+            .expressions
+            .expression_handles(witness.view_arguments)
+            .iter()
+            .map(|handle| snapshot_expression_handle(syntax_trees, *handle))
+            .collect(),
+        range: witness.range.is_present().then(|| RankingRangeSnapshot {
+            start: snapshot_expression_handle(syntax_trees, witness.range.start),
+            end: snapshot_expression_handle(syntax_trees, witness.range.end),
+            end_inclusive: witness.range.end_inclusive,
+        }),
+    })
 }
 
 fn snapshot_state_parameter(
@@ -1129,17 +1165,6 @@ fn snapshot_statement(syntax_trees: &SyntaxTrees, statement: &StatementNode) -> 
             name: snapshot_identifier(&value.name),
             type_reference: snapshot_type_reference_handle(syntax_trees, value.type_reference),
             initial_value: snapshot_expression_handle(syntax_trees, value.initial_value),
-        },
-        StatementNode::Relax(value) => StatementSnapshot::Relax {
-            target: snapshot_expression_handle(syntax_trees, value.target),
-            statements: syntax_trees
-                .items
-                .statements(value.statements)
-                .iter()
-                .map(|handle| {
-                    snapshot_statement(syntax_trees, syntax_trees.statements.statement(*handle))
-                })
-                .collect(),
         },
         StatementNode::Transition(value) => StatementSnapshot::Transition {
             target: snapshot_transition_target(
@@ -1200,13 +1225,11 @@ fn snapshot_type_reference_handle(
         TypeReferenceNode::Reference {
             referee,
             is_mutable,
-            is_relaxed,
             // Lifetime omitted from the structural snapshot (borrow-region tag).
             lifetime: _,
         } => TypeReferenceSnapshot::Reference {
             referee: Box::new(snapshot_type_reference_handle(syntax_trees, *referee)),
             is_mutable: *is_mutable,
-            is_relaxed: *is_relaxed,
         },
         TypeReferenceNode::Constrained {
             base_type,
@@ -1280,6 +1303,9 @@ fn snapshot_type_constraint(
             maximum: snapshot_expression_handle(syntax_trees, *maximum),
         },
         TypeConstraintNode::ArithmeticDomain(domain) => TypeConstraintSnapshot::ArithmeticDomain {
+            domain: domain.name().to_owned(),
+        },
+        TypeConstraintNode::ValueDomain(domain) => TypeConstraintSnapshot::ValueDomain {
             domain: domain.name().to_owned(),
         },
     }

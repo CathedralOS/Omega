@@ -179,6 +179,8 @@ pub fn encode_runtime_storage_convert(
     source_is_float: bool,
     target_is_float: bool,
     source_signed: bool,
+    domain: omega_core::arithmetic::ArithmeticDomain,
+    target_signed: bool,
 ) -> Result<Vec<u8>, Diagnostic> {
     match architecture {
         Architecture::Aarch64 => aarch64::encode_runtime_storage_convert(
@@ -190,6 +192,8 @@ pub fn encode_runtime_storage_convert(
             source_is_float,
             target_is_float,
             source_signed,
+            domain,
+            target_signed,
         ),
         Architecture::X86_64 => x86_64::encode_runtime_storage_convert(
             runtime_value_operands,
@@ -200,6 +204,8 @@ pub fn encode_runtime_storage_convert(
             source_is_float,
             target_is_float,
             source_signed,
+            domain,
+            target_signed,
         ),
     }
 }
@@ -212,9 +218,12 @@ pub fn encode_atomic_fetch_add(
     delta: RuntimeValueOperandHandle,
 ) -> Result<Vec<u8>, Diagnostic> {
     match architecture {
-        Architecture::Aarch64 => {
-            aarch64::encode_atomic_fetch_add(runtime_value_operands, target_offset, byte_size, delta)
-        }
+        Architecture::Aarch64 => aarch64::encode_atomic_fetch_add(
+            runtime_value_operands,
+            target_offset,
+            byte_size,
+            delta,
+        ),
         Architecture::X86_64 => {
             x86_64::encode_atomic_fetch_add(runtime_value_operands, target_offset, byte_size, delta)
         }
@@ -598,9 +607,10 @@ pub fn encode_runtime_machine_bounded_buffer_literal_append(
             target_byte_offset,
             literal,
         ),
-        Architecture::X86_64 => {
-            x86_64::encode_runtime_machine_bounded_buffer_literal_append(target_byte_offset, literal)
-        }
+        Architecture::X86_64 => x86_64::encode_runtime_machine_bounded_buffer_literal_append(
+            target_byte_offset,
+            literal,
+        ),
     }
 }
 
@@ -845,15 +855,23 @@ pub fn encode_runtime_frame_base_indexed_address_to_runtime_frame_write(
 pub fn encode_runtime_machine_indexed_address_to_runtime_frame_write(
     architecture: Architecture,
     base_byte_offset: usize,
+    index_region: omega_target_operations::RuntimeStorageRegion,
     index_offset: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
     target_offset: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
     match architecture {
-        Architecture::Aarch64 => Err(Diagnostic::error(
-            "AArch64 machine-indexed address write is not implemented (x86_64 only)",
-        )),
+        Architecture::Aarch64 => {
+            aarch64::encode_runtime_machine_indexed_address_to_runtime_frame_write(
+                base_byte_offset,
+                index_region,
+                index_offset,
+                element_byte_size,
+                field_byte_offset,
+                target_offset,
+            )
+        }
         Architecture::X86_64 => {
             x86_64::encode_runtime_machine_indexed_address_to_runtime_frame_write(
                 base_byte_offset,
@@ -1226,8 +1244,7 @@ pub fn classify_copy_places_shape(
                     target_offset,
                 };
             }
-            if let Some((pointer_byte_offset, target_field_byte_offset)) =
-                single_deref_path(target)
+            if let Some((pointer_byte_offset, target_field_byte_offset)) = single_deref_path(target)
             {
                 return CopyPlacesShape::IndexedToPointee {
                     descriptor_offset: indexed.pointer_offset,
@@ -1409,7 +1426,6 @@ pub fn x86_64_encode_copy_places_with_sites(
     x86_64::encode_copy_places(source, target, byte_count)
 }
 
-
 pub fn encode_runtime_storage_copy_machine_indexed_to_machine_indexed(
     architecture: Architecture,
     source_base_byte_offset: usize,
@@ -1440,19 +1456,21 @@ pub fn encode_runtime_storage_copy_machine_indexed_to_machine_indexed(
                 byte_count,
             )
         }
-        Architecture::X86_64 => x86_64::encode_runtime_storage_copy_machine_indexed_to_machine_indexed(
-            source_base_byte_offset,
-            source_index_offset,
-            source_index_region,
-            source_element_byte_size,
-            source_field_byte_offset,
-            target_base_byte_offset,
-            target_index_offset,
-            target_index_region,
-            target_element_byte_size,
-            target_field_byte_offset,
-            byte_count,
-        ),
+        Architecture::X86_64 => {
+            x86_64::encode_runtime_storage_copy_machine_indexed_to_machine_indexed(
+                source_base_byte_offset,
+                source_index_offset,
+                source_index_region,
+                source_element_byte_size,
+                source_field_byte_offset,
+                target_base_byte_offset,
+                target_index_offset,
+                target_index_region,
+                target_element_byte_size,
+                target_field_byte_offset,
+                byte_count,
+            )
+        }
     }
 }
 

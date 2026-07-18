@@ -1,0 +1,16 @@
+// RUN CANARY (exit 70). The first write transiently violates start <= end;
+// the second restores it, and the next call closes the derived window.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main
+where
+    start <= end,
+{
+    console: Console;
+    start: i32;
+    end: i32;
+}
+machine Main::run(&mut self) {
+    self.start = 10;
+    self.end = 20;
+    self.console.exit_process(70);
+}

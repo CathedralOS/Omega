@@ -1,0 +1,24 @@
+// RUN CANARY (exit 70) + interpreter differential. Trapping shifts accept a
+// runtime count and check it dynamically; an in-range count proceeds normally.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; count: u32; }
+machine Main::main(&mut self) {
+    self.count = 3;
+    let left: u32 in Trapping = (5 as u32 in Trapping);
+    let a: u32 in Trapping = left << self.count;
+    transition a == 40 {
+        true -> right()
+        _ -> bad_left()
+    }
+    state right(&mut self) {
+        let value: i32 in Trapping = (0 as i32 in Trapping) - 64;
+        let b: i32 in Trapping = value >> self.count;
+        transition b == (0 as i32 in Trapping) - 8 {
+            true -> good()
+            _ -> bad_right()
+        }
+    }
+    state good(&mut self)      { self.console.exit_process(70); }
+    state bad_left(&mut self)  { self.console.exit_process(71); }
+    state bad_right(&mut self) { self.console.exit_process(72); }
+}

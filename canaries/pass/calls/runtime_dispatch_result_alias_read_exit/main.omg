@@ -8,7 +8,8 @@
 boundary trait Console { machine exit_process(return_code: i32); }
 data Main { console: Console; }
 machine Main::peek(&mut self, acc: &mut i32, i: u64, j: u64)
-terminates { decreases (j, i) -> Nat::BoundedDistance; }
+terminates;
+terminates by (j, i) -> Nat::BoundedDistance;
 -> i32
 {
     transition j < i {

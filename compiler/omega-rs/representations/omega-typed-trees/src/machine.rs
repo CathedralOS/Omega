@@ -16,9 +16,8 @@ pub struct Machine {
     pub contains: HandleSpan<ContainedObject>,
     pub owned_data: HandleSpan<OwnedData>,
     pub satisfies: HandleSpan<TraitConformance>,
-    pub terminates: bool,
-    pub decreases: HandleSpan<ExpressionHandle>,
-    pub decrease_order: HandleSpan<Identifier>,
+    pub termination_guarantee: omega_core::termination::TerminationGuarantee,
+    pub ranking_witness: RankingWitness,
     pub effects: HandleSpan<Identifier>,
     pub contracts: HandleSpan<SignatureContract>,
     pub states: HandleSpan<State>,
@@ -35,13 +34,41 @@ impl Default for Machine {
             contains: HandleSpan::empty(),
             owned_data: HandleSpan::empty(),
             satisfies: HandleSpan::empty(),
-            terminates: false,
-            decreases: HandleSpan::empty(),
-            decrease_order: HandleSpan::empty(),
+            termination_guarantee: omega_core::termination::TerminationGuarantee::None,
+            ranking_witness: RankingWitness::default(),
             effects: HandleSpan::empty(),
             contracts: HandleSpan::empty(),
             states: HandleSpan::empty(),
         }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct RankingWitness {
+    pub subjects: HandleSpan<ExpressionHandle>,
+    /// Always explicit after canonical-default elaboration in the checked-tree
+    /// entry pipeline. User measures are never selected implicitly.
+    pub view: HandleSpan<Identifier>,
+    pub view_arguments: HandleSpan<ExpressionHandle>,
+    pub range: RankingRange,
+}
+
+impl RankingWitness {
+    pub fn is_present(self) -> bool {
+        !self.subjects.is_empty()
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct RankingRange {
+    pub start: ExpressionHandle,
+    pub end: ExpressionHandle,
+    pub end_inclusive: bool,
+}
+
+impl RankingRange {
+    pub fn is_present(self) -> bool {
+        self.start.is_valid() && self.end.is_valid()
     }
 }
 

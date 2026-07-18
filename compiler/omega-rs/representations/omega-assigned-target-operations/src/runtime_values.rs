@@ -200,7 +200,11 @@ impl omega_target_operations::RuntimeValueOperandSource for AssignedTargetOperat
     fn text_equals_literal(
         &self,
         handle: omega_target_operations::RuntimeValueOperandHandle,
-    ) -> Option<(omega_target_operations::RuntimeValueOperandHandle, String, bool)> {
+    ) -> Option<(
+        omega_target_operations::RuntimeValueOperandHandle,
+        String,
+        bool,
+    )> {
         match &AssignedTargetOperationPlan::runtime_value_operand(self, handle)?.kind {
             AssignedValueOperandKind::TextEqualsLiteral {
                 place,
@@ -221,6 +225,8 @@ impl omega_target_operations::RuntimeValueOperandSource for AssignedTargetOperat
         bool,
         bool,
         bool,
+        omega_core::arithmetic::ArithmeticDomain,
+        bool,
     )> {
         match &AssignedTargetOperationPlan::runtime_value_operand(self, handle)?.kind {
             AssignedValueOperandKind::Convert {
@@ -230,6 +236,8 @@ impl omega_target_operations::RuntimeValueOperandSource for AssignedTargetOperat
                 source_is_float,
                 target_is_float,
                 source_signed,
+                arithmetic_domain,
+                target_signed,
             } => Some((
                 *source,
                 *source_byte_size,
@@ -237,6 +245,8 @@ impl omega_target_operations::RuntimeValueOperandSource for AssignedTargetOperat
                 *source_is_float,
                 *target_is_float,
                 *source_signed,
+                *arithmetic_domain,
+                *target_signed,
             )),
             _ => None,
         }

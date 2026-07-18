@@ -1,15 +1,14 @@
 // RUN CANARY (exit 70) + interpreter differential. Saturating `<<` clamps
 // when the TRUE value x * 2^n leaves the type's range (shift slice C,
 // closing the shift-domain arc): u8 17 << 4 = 272 clamps to 255. All three
-// engines conform -- the interp node arm computes wide in i128; aarch64
-// caps the count at the width and range-checks the exact 64-bit LSLV
-// (recovery witness at 64-bit); x86_64 mirrors it (count cap + cmova/cmovg
-// tails, byte-verified by unit tests + the linux_x64 ELF pin). PROMOTED
+// engines conform -- the count is statically proven in range, while the
+// interpreter and both native backends detect and clamp value overflow.
+// PROMOTED
 // from canaries/pending after sitting parked as a three-way divergence.
 // exits: 71 = neither clamped nor wrapped; 72 = wrapped (the old native
 // plain-shl behavior).
 boundary trait Console { machine exit_process(return_code: i32); }
-data Main { console: Console; a: u8 in Saturating; b: u8 in Saturating; r: u8 in Saturating; }
+data Main { console: Console; a: u8 in Saturating; b: u8 [0..=7]; r: u8 in Saturating; }
 machine Main::main(&mut self) {
     self.a = 17;
     self.b = 4;

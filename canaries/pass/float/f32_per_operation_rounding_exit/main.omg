@@ -1,0 +1,43 @@
+// RUN CANARY (exit 77, differential) -- F2d per-operation binary32 rounding.
+// At 2^24, adding 1.0f32 rounds back to 2^24. Rounding EACH addition therefore
+// plateaus at 16777216; computing the whole tree in f64 and narrowing once
+// produces 16777218 instead.
+//
+// The first face pins the native guard constant folder. The second pins riding
+// f32 format metadata through static-local substitution and nested native value
+// operands. The third uses a field-backed chain, pinning the interpreter's
+// expression-width propagation and per-op rounding against native runtime f32.
+boundary trait Console { machine exit_process(return_code: i32); }
+
+data Main {
+    console: Console;
+    value: f32;
+}
+
+machine Main::main(&mut self) {
+    self.value = 16777216.0;
+    transition self.value == (16777216.0f32 + 1.0f32 + 1.0f32) {
+        true -> static_local_face()
+        _ -> bad(78)
+    }
+
+    state static_local_face(&mut self) {
+        let base: f32 = 16777216.0;
+        let stepped: f32 = base + 1.0 + 1.0;
+        transition stepped == base {
+            true -> runtime_face()
+            _ -> bad(79)
+        }
+    }
+
+    state runtime_face(&mut self) {
+        let stepped: f32 = self.value + 1.0 + 1.0;
+        transition stepped == self.value {
+            true -> good()
+            _ -> bad(80)
+        }
+    }
+
+    state good(&self) { self.console.exit_process(77); }
+    state bad(&self, code2: i32) { self.console.exit_process(code2); }
+}

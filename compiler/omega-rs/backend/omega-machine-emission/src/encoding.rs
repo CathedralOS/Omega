@@ -224,6 +224,8 @@ pub(super) fn encode_machine_instruction_bytes(
             source_is_float,
             target_is_float,
             source_signed,
+            domain,
+            target_signed,
             ..
         } => runtime_storage::encode_runtime_storage_convert(
             input,
@@ -234,6 +236,8 @@ pub(super) fn encode_machine_instruction_bytes(
             *source_is_float,
             *target_is_float,
             *source_signed,
+            *domain,
+            *target_signed,
         ),
         SelectedInstructionKind::AtomicFetchAdd {
             target_offset,
@@ -747,13 +751,14 @@ pub(super) fn encode_machine_instruction_bytes(
         SelectedInstructionKind::WriteRuntimeMachineIndexedAddressToRuntimeFrame {
             base_byte_offset,
             index_offset,
-            index_region: _,
+            index_region,
             element_byte_size,
             field_byte_offset,
             target_offset,
         } => runtime_storage::encode_runtime_machine_indexed_address_to_runtime_frame_write(
             input,
             *base_byte_offset,
+            *index_region,
             *index_offset,
             *element_byte_size,
             *field_byte_offset,

@@ -1,0 +1,28 @@
+// FAIL CANARY. The ranking descends, but an attached/runtime SCC cannot keep
+// caller frames alive. The same structural non-tail shape is accepted for
+// free proof-only machines by the proof-stratum companion canary.
+data Main {}
+
+machine Main::main(&mut self) -> u64 {
+    transition { _ -> self.left(4) }
+}
+
+machine Main::left(&mut self, remaining: u64)
+terminates by remaining;
+-> u64
+{
+    transition remaining > 0 {
+        true -> (1 + self.right(remaining - 1))
+        false -> 0
+    }
+}
+
+machine Main::right(&mut self, remaining: u64)
+terminates by remaining;
+-> u64
+{
+    transition remaining > 0 {
+        true -> (1 + self.left(remaining - 1))
+        false -> 0
+    }
+}

@@ -3,7 +3,7 @@
 // recursion, and the call-spelled `self.fact(..)` form is a compile error).
 // The loop-carried arguments stage through scratch so the multiply reads the
 // PRE-decrement n (the parallel-assignment guarantee), proven terminating by
-// `terminates { decreases n; }`.
+// `terminates; terminates by n;`.
 //
 //   fact(5, 1) = 120
 //
@@ -15,9 +15,8 @@ data Main {
     console: Console;
 }
 machine Main::fact(&mut self, n: u64, acc: u64 in Wrapping)
-terminates {
-    decreases n;
-}
+terminates;
+terminates by n;
 -> u64
 {
     transition n > 0 {

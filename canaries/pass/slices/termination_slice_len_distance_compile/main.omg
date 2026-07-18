@@ -15,9 +15,8 @@ machine Main::main(&mut self) -> u64 {
 }
 
 machine Main::walk(&mut self, entries: &[Entry], index: u64)
-terminates {
-    decreases (index, entries.len) -> Nat::BoundedDistance;
-}
+terminates;
+terminates by (index, entries.len) -> Nat::BoundedDistance;
 -> u64
 {
     transition index < entries.len {

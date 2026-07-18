@@ -1,0 +1,9 @@
+// F4: Trapping conversion rejects NaN rather than inheriting an ISA sentinel.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; value: f64; out: i32; }
+machine Main::main(&mut self) {
+    self.value = 0.0 / 0.0;
+    self.out = self.value as i32 in Trapping;
+    self.console.exit_process(70);
+}
+machine Main::run(&mut self) { self.main(); }

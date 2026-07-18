@@ -1,0 +1,29 @@
+// RUN CANARY (exit 70) + interpreter differential. A `&mut [T]` local
+// derived from a local struct's array field crosses a state boundary, then
+// supports an indexed RMW through the destination parameter.
+//
+// The storage planner must retain `room` even though it is otherwise used
+// only as the backing place of `exits`: the descriptor contains an address
+// into that aggregate. Eliding `room` used to suppress both the backing
+// aggregate and descriptor initialization, leaving the forwarded pointer
+// null and crashing natively. Same-state slice use and slices backed by a
+// `&mut` parameter already worked; this pins the frame-local backing face.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Counter { n: i32 in Wrapping; }
+data Room { exits: [Counter; 2]; }
+data Main { console: Console; }
+machine Main::main(&mut self) {
+    let room: Room = Room {
+        exits: [ Counter { n: 10 }, Counter { n: 20 } ]
+    };
+    let exits: &mut [Counter] = room.exits.as_mut_slice();
+    transition { _ -> bump_first(exits) }
+
+    state bump_first(&mut self, exits: &mut [Counter]) {
+        let index: u64 = 0;
+        exits[index].n = exits[index].n + 1;
+        transition exits[index].n == 11 { true -> good() _ -> bad() }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self)  { self.console.exit_process(71); }
+}

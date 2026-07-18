@@ -1,0 +1,19 @@
+// COMPILE CANARY. Reusing the same unknown value is an equality proof even when
+// its interval is the full i32 range; construction tracks symbolic provenance.
+data EqualPair
+where
+    left == right,
+{
+    left: i32;
+    right: i32;
+}
+
+data Main {
+}
+
+machine Main::build(&self, value: i32) {
+    let pair: EqualPair = EqualPair { left: value, right: value };
+}
+
+machine Main::run(&mut self) {
+}

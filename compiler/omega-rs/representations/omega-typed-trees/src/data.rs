@@ -9,6 +9,7 @@ pub struct DataDefinition {
     pub name: Identifier,
     pub type_parameters: HandleSpan<TypeParameter>,
     pub properties: DataProperties,
+    pub default_domain: HandleSpan<crate::domain::ProofFact>,
     pub members: HandleSpan<DataMember>,
 }
 
@@ -19,6 +20,7 @@ impl Default for DataDefinition {
             name: Identifier::default(),
             type_parameters: HandleSpan::empty(),
             properties: DataProperties::default(),
+            default_domain: HandleSpan::empty(),
             members: HandleSpan::empty(),
         }
     }

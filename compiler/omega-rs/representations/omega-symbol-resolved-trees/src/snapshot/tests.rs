@@ -16,7 +16,9 @@ fn snapshots_materialize_resolved_roots_and_table_counts() {
         .tables
         .bodies
         .expressions
-        .insert(ExpressionNode::Integer(omega_core::literals::IntegerLiteral::from_value(1)));
+        .insert(ExpressionNode::Integer(
+            omega_core::literals::IntegerLiteral::from_value(1),
+        ));
     let statements =
         program
             .tables
@@ -55,9 +57,8 @@ fn snapshots_materialize_resolved_roots_and_table_counts() {
             contains: HandleSpan::empty(),
             owned_data: HandleSpan::empty(),
             satisfies: HandleSpan::empty(),
-            terminates: false,
-            decreases: HandleSpan::empty(),
-            decrease_order: HandleSpan::empty(),
+            termination_guarantee: omega_core::termination::TerminationGuarantee::None,
+            ranking_witness: Default::default(),
             effects: HandleSpan::empty(),
             contracts: HandleSpan::empty(),
             states,

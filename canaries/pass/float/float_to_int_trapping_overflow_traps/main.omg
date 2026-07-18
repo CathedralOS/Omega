@@ -1,0 +1,9 @@
+// F4: a policy-tagged out-of-range float-to-int cast traps before the exit.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; value: f64; out: i32; }
+machine Main::main(&mut self) {
+    self.value = 100000000000000000000.0;
+    self.out = self.value as i32 in Trapping;
+    self.console.exit_process(70);
+}
+machine Main::run(&mut self) { self.main(); }

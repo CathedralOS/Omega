@@ -1,0 +1,20 @@
+// COMPILE CANARY. Symbolic provenance composes through arithmetic: the two
+// writes establish `end == start + 1` for a non-singleton input interval.
+data SuccessorPair
+where
+    end == start + 1,
+{
+    start: u32;
+    end: u32;
+}
+
+machine SuccessorPair::set(&mut self, value: u32 [0..=100]) {
+    self.start = value;
+    self.end = value + 1;
+}
+
+data Main {
+}
+
+machine Main::run(&mut self) {
+}

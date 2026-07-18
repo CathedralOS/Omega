@@ -1,0 +1,14 @@
+// RUN CANARY (exit 70). Machine-owned gated data starts as inaccessible zeroed
+// storage; assigning the witness establishes it before the boundary call.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main
+where
+    health >= 1,
+{
+    console: Console;
+    health: i32;
+}
+machine Main::run(&mut self) {
+    self.health = 70;
+    self.console.exit_process(self.health);
+}

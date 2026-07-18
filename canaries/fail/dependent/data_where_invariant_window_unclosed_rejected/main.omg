@@ -1,0 +1,15 @@
+// FAIL CANARY. A call is a consumption point, and start=10/end=0 cannot
+// re-establish the attached data's standing start <= end fact there.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main
+where
+    start <= end,
+{
+    console: Console;
+    start: i32;
+    end: i32;
+}
+machine Main::run(&mut self) {
+    self.start = 10;
+    self.console.exit_process(70);
+}

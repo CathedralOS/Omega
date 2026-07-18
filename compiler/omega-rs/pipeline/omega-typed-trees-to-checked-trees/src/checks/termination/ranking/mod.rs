@@ -9,14 +9,14 @@ use omega_typed_trees::expression::ExpressionHandle;
 use super::graph;
 use super::order::{AmbiguousDefault, OrderResolution, RankingOrder, decreasing_value_text};
 
-/// The outcome of attempting to prove a terminating machine's `decreases`
+/// The outcome of attempting to prove a machine's private ranking witness
 /// clause, distinguishing the cases the caller renders as different diagnostics.
 pub(super) enum DecreaseOutcome {
     /// The decrease was proven across every cyclic edge.
     Proven,
     /// The order resolved, but the decrease could not be proven.
     Unproven,
-    /// A plain `decreases value` clause whose decreasing value has no single
+    /// A plain `terminates by value` witness whose subject has no single
     /// builtin well-founded order; the explicit `-> View` form is required.
     /// Carries the details the diagnostic renders.
     AmbiguousOrder(AmbiguousDefault),
@@ -25,6 +25,9 @@ pub(super) enum DecreaseOutcome {
     /// as the named bounded distance on every cyclic edge. The diagnostic
     /// names the right shape instead of a bare "cannot prove".
     InvertedDistance(InvertedDistance),
+    /// The decrease itself proved, but the authored `in ...` interval could
+    /// not be shown to contain every rank produced by the selected view.
+    UnprovenRange(String),
 }
 
 /// The subject texts the inverted-distance diagnostic renders: the clause as
@@ -43,7 +46,7 @@ pub(super) enum DistanceOrientation {
     Swapped,
 }
 
-/// The ranked subjects a `decreases` clause threads into the edge provers: a
+/// The ranked subjects a ranking witness threads into the edge provers: a
 /// single decreasing value, or the two-subject bounded distance whose subjects
 /// bind in order to `Nat::BoundedDistance`'s `(lower, upper)` parameters.
 #[derive(Clone, Copy)]
@@ -61,8 +64,8 @@ pub(super) fn machine_decrease_outcome(
 ) -> DecreaseOutcome {
     let subjects = program
         .expression_table
-        .expression_handles(machine.decreases);
-    let measure = match subjects {
+        .expression_handles(machine.ranking_witness.subjects);
+    let authored_measure = match subjects {
         [single] => DecreaseMeasure::Single(*single),
         [lower, upper] => DecreaseMeasure::Distance {
             lower: *lower,
@@ -72,18 +75,36 @@ pub(super) fn machine_decrease_outcome(
     };
 
     let states = program.machine_states(machine);
-    // The decreases clause is declared on the machine signature, so its names
+    // The ranking witness is declared on the machine signature, so its names
     // resolve against the machine's root (entry) state.
     let Some(root_state) = states.first() else {
         return DecreaseOutcome::Proven;
     };
-    let decrease_order = program.machine_decrease_order(machine.decrease_order);
-    let order = match RankingOrder::resolve(program, root_state, subjects, decrease_order) {
+    let decrease_order = program.machine_decrease_order(machine.ranking_witness.view);
+    let view_arguments = program
+        .expression_table
+        .expression_handles(machine.ranking_witness.view_arguments);
+    let order = match RankingOrder::resolve(
+        program,
+        root_state,
+        subjects,
+        decrease_order,
+        view_arguments,
+    ) {
         OrderResolution::Resolved(order) => order,
         OrderResolution::AmbiguousDefault(ambiguity) => {
             return DecreaseOutcome::AmbiguousOrder(ambiguity);
         }
         OrderResolution::Unsupported => return DecreaseOutcome::Unproven,
+    };
+    let measure = match (&order, authored_measure) {
+        (RankingOrder::NatIncreasingTo(limit), DecreaseMeasure::Single(lower)) => {
+            DecreaseMeasure::Distance {
+                lower,
+                upper: *limit,
+            }
+        }
+        _ => authored_measure,
     };
 
     let adjacency = graph::machine_adjacency(program, machine);
@@ -107,6 +128,17 @@ pub(super) fn machine_decrease_outcome(
     };
 
     if proven_with(DistanceOrientation::Declared) {
+        if machine.ranking_witness.range.is_present()
+            && !rank_range_proven(program, machine, measure, &order)
+        {
+            let range = machine.ranking_witness.range;
+            return DecreaseOutcome::UnprovenRange(format!(
+                "{}..{}{}",
+                decreasing_value_text(program, range.start),
+                if range.end_inclusive { "=" } else { "" },
+                decreasing_value_text(program, range.end),
+            ));
+        }
         return DecreaseOutcome::Proven;
     }
 
@@ -133,6 +165,145 @@ pub(super) fn machine_decrease_outcome(
     }
 
     DecreaseOutcome::Unproven
+}
+
+/// Conservative discharge for an authored rank interval. Builtin natural
+/// rankings have floor zero. Their obvious carrier-owned upper bound is the
+/// subject itself (descending/length) or the fixed upper subject/view argument
+/// (bounded distance/IncreasingTo). More involved symbolic bounds remain
+/// unproven instead of being trusted.
+fn rank_range_proven(
+    program: &omega_typed_trees::TypedTrees,
+    machine: &omega_typed_trees::machine::Machine,
+    measure: DecreaseMeasure,
+    order: &RankingOrder,
+) -> bool {
+    let range = machine.ranking_witness.range;
+    let lower_contains_zero = matches!(
+        program.expression_table.expression(range.start),
+        omega_typed_trees::expression::ExpressionNode::Integer(literal)
+            if literal
+                .value_bignum()
+                .is_some_and(|value| value <= omega_core::bignum::BigInt::zero())
+    );
+    if !lower_contains_zero || !range.end_inclusive {
+        return false;
+    }
+
+    match (order, measure) {
+        (
+            RankingOrder::NatDescending | RankingOrder::CustomNatDescending,
+            DecreaseMeasure::Single(subject),
+        ) => expressions_equivalent(program, range.end, subject),
+        (
+            RankingOrder::NatIncreasingTo(_) | RankingOrder::BoundedDistance,
+            DecreaseMeasure::Distance { upper, .. },
+        ) => expressions_equivalent(program, range.end, upper),
+        (RankingOrder::SliceLength, DecreaseMeasure::Single(subject)) => {
+            expression_is_length_of(program, range.end, subject)
+                || expressions_equivalent(program, range.end, subject)
+                    && matches!(
+                        program.expression_table.expression(subject),
+                        omega_typed_trees::expression::ExpressionNode::Member(member)
+                            if member.member.as_str() == "len"
+                    )
+        }
+        (RankingOrder::CustomStructView(field), DecreaseMeasure::Single(subject)) => {
+            expression_is_member_of(program, range.end, subject, field.as_str())
+        }
+        _ => false,
+    }
+}
+
+pub(super) fn machine_rank_range_proven(
+    program: &omega_typed_trees::TypedTrees,
+    machine: &omega_typed_trees::machine::Machine,
+) -> bool {
+    if !machine.ranking_witness.range.is_present() {
+        return true;
+    }
+    let Some(root_state) = program.machine_states(machine).first() else {
+        return false;
+    };
+    let subjects = program
+        .expression_table
+        .expression_handles(machine.ranking_witness.subjects);
+    let authored_measure = match subjects {
+        [single] => DecreaseMeasure::Single(*single),
+        [lower, upper] => DecreaseMeasure::Distance {
+            lower: *lower,
+            upper: *upper,
+        },
+        _ => return false,
+    };
+    let view = program.machine_decrease_order(machine.ranking_witness.view);
+    let view_arguments = program
+        .expression_table
+        .expression_handles(machine.ranking_witness.view_arguments);
+    let order = match RankingOrder::resolve(program, root_state, subjects, view, view_arguments) {
+        OrderResolution::Resolved(order) => order,
+        _ => return false,
+    };
+    let measure = match (&order, authored_measure) {
+        (RankingOrder::NatIncreasingTo(limit), DecreaseMeasure::Single(lower)) => {
+            DecreaseMeasure::Distance {
+                lower,
+                upper: *limit,
+            }
+        }
+        _ => authored_measure,
+    };
+    rank_range_proven(program, machine, measure, &order)
+}
+
+fn expression_is_length_of(
+    program: &omega_typed_trees::TypedTrees,
+    expression: ExpressionHandle,
+    receiver: ExpressionHandle,
+) -> bool {
+    expression_is_member_of(program, expression, receiver, "len")
+}
+
+fn expression_is_member_of(
+    program: &omega_typed_trees::TypedTrees,
+    expression: ExpressionHandle,
+    receiver: ExpressionHandle,
+    member_name: &str,
+) -> bool {
+    matches!(
+        program.expression_table.expression(expression),
+        omega_typed_trees::expression::ExpressionNode::Member(member)
+            if member.member.as_str() == member_name
+                && expressions_equivalent(program, member.receiver, receiver)
+    )
+}
+
+fn expressions_equivalent(
+    program: &omega_typed_trees::TypedTrees,
+    left: ExpressionHandle,
+    right: ExpressionHandle,
+) -> bool {
+    use omega_typed_trees::expression::ExpressionNode;
+
+    if left == right {
+        return true;
+    }
+    match (
+        program.expression_table.expression(left),
+        program.expression_table.expression(right),
+    ) {
+        (ExpressionNode::Name(left), ExpressionNode::Name(right)) => {
+            left.symbol == right.symbol
+                || program.expression_table.name_path_members(left.members)
+                    == program.expression_table.name_path_members(right.members)
+        }
+        (ExpressionNode::Member(left), ExpressionNode::Member(right)) => {
+            left.member == right.member
+                && expressions_equivalent(program, left.receiver, right.receiver)
+        }
+        (ExpressionNode::Integer(left), ExpressionNode::Integer(right)) => left == right,
+        _ => false,
+    }
 }
 
 /// A cyclic component terminates when the measure strictly decreases across
@@ -193,10 +364,108 @@ fn component_has_proven_decrease(
     all_classified && subgraph_is_acyclic(component, &nonstrict_edges)
 }
 
-enum EdgeClass {
+pub(super) enum EdgeClass {
     Strict,
     NonIncreasing,
     Unknown,
+}
+
+pub(super) fn classify_cross_machine_edge(
+    program: &omega_typed_trees::TypedTrees,
+    source_machine: &omega_typed_trees::machine::Machine,
+    source_state: &omega_typed_trees::state::State,
+    target_state: &omega_typed_trees::state::State,
+    guard: ExpressionHandle,
+    arguments: &[ExpressionHandle],
+) -> EdgeClass {
+    let subjects = program
+        .expression_table
+        .expression_handles(source_machine.ranking_witness.subjects);
+    let authored_measure = match subjects {
+        [single] => DecreaseMeasure::Single(*single),
+        [lower, upper] => DecreaseMeasure::Distance {
+            lower: *lower,
+            upper: *upper,
+        },
+        _ => return EdgeClass::Unknown,
+    };
+    let view = program.machine_decrease_order(source_machine.ranking_witness.view);
+    let view_arguments = program
+        .expression_table
+        .expression_handles(source_machine.ranking_witness.view_arguments);
+    let order = match RankingOrder::resolve(program, source_state, subjects, view, view_arguments) {
+        OrderResolution::Resolved(order) => order,
+        _ => return EdgeClass::Unknown,
+    };
+    let measure = match (&order, authored_measure) {
+        (RankingOrder::NatIncreasingTo(limit), DecreaseMeasure::Single(lower)) => {
+            DecreaseMeasure::Distance {
+                lower,
+                upper: *limit,
+            }
+        }
+        _ => authored_measure,
+    };
+    if let (RankingOrder::Lexicographic(fields), DecreaseMeasure::Single(decreases)) =
+        (&order, measure)
+    {
+        return lexicographic::classify_cross_machine_edge(
+            program,
+            source_state,
+            target_state,
+            arguments,
+            decreases,
+            fields,
+        );
+    }
+    if let (RankingOrder::SliceLength, DecreaseMeasure::Single(decreases)) = (&order, measure) {
+        return slice::classify_cross_machine_edge(
+            program,
+            source_state,
+            target_state,
+            guard,
+            arguments,
+            decreases,
+        );
+    }
+    if let (RankingOrder::CustomStructView(field), DecreaseMeasure::Single(decreases)) =
+        (&order, measure)
+    {
+        return struct_view::classify_cross_machine_edge(
+            program,
+            source_state,
+            target_state,
+            guard,
+            arguments,
+            decreases,
+            field,
+        );
+    }
+    if !matches!(
+        order,
+        RankingOrder::NatDescending
+            | RankingOrder::NatIncreasingTo(_)
+            | RankingOrder::BoundedDistance
+            | RankingOrder::CustomNatDescending
+    ) {
+        return EdgeClass::Unknown;
+    }
+    if nat::edge_decrease_proven(
+        program,
+        source_state,
+        target_state,
+        guard,
+        arguments,
+        measure,
+        DistanceOrientation::Declared,
+    ) {
+        EdgeClass::Strict
+    } else if nat::edge_nonincrease_proven(program, source_state, target_state, arguments, measure)
+    {
+        EdgeClass::NonIncreasing
+    } else {
+        EdgeClass::Unknown
+    }
 }
 
 /// Classify every transition statement from `source` targeting `target`:
@@ -214,6 +483,7 @@ fn classify_cycle_edge(
     if !matches!(
         order,
         RankingOrder::NatDescending
+            | RankingOrder::NatIncreasingTo(_)
             | RankingOrder::BoundedDistance
             | RankingOrder::CustomNatDescending
     ) {
@@ -250,7 +520,11 @@ fn classify_cycle_edge(
 /// DFS cycle check over the component restricted to the given edges.
 fn subgraph_is_acyclic(component: &[usize], edges: &[(usize, usize)]) -> bool {
     // 0 unvisited, 1 on-stack, 2 done -- iterative coloring.
-    fn visit(node: usize, edges: &[(usize, usize)], color: &mut std::collections::BTreeMap<usize, u8>) -> bool {
+    fn visit(
+        node: usize,
+        edges: &[(usize, usize)],
+        color: &mut std::collections::BTreeMap<usize, u8>,
+    ) -> bool {
         color.insert(node, 1);
         for &(from, to) in edges {
             if from != node {
@@ -275,44 +549,6 @@ fn subgraph_is_acyclic(component: &[usize], edges: &[(usize, usize)]) -> bool {
         .all(|&node| color.get(&node).copied().unwrap_or(0) != 0 || visit(node, edges, &mut color))
 }
 
-/// Prove a strict decrease across one cyclic edge between (possibly distinct)
-/// states. Only orders with a pointwise cross-state meaning are accepted here.
-fn edge_has_proven_decrease(
-    program: &omega_typed_trees::TypedTrees,
-    source: &omega_typed_trees::state::State,
-    target: &omega_typed_trees::state::State,
-    measure: DecreaseMeasure,
-    order: &RankingOrder,
-    orientation: DistanceOrientation,
-) -> bool {
-    match order {
-        RankingOrder::NatDescending
-        | RankingOrder::BoundedDistance
-        | RankingOrder::CustomNatDescending => program
-            .statement_table
-            .statements(source.statement_nodes)
-            .iter()
-            .filter_map(|statement| patterns::guarded_edge_to(program, statement, target.symbol))
-            .any(|edge| {
-                nat::edge_decrease_proven(
-                    program,
-                    source,
-                    target,
-                    edge.guard,
-                    edge.arguments,
-                    measure,
-                    orientation,
-                )
-            }),
-        // Slice-length, struct-view and lexicographic decreases are only
-        // proven across direct self-loops; a multi-state cycle using one of
-        // these orders is conservatively rejected.
-        RankingOrder::SliceLength
-        | RankingOrder::CustomStructView(_)
-        | RankingOrder::Lexicographic(_) => false,
-    }
-}
-
 fn state_has_proven_supported_self_loop(
     program: &omega_typed_trees::TypedTrees,
     state: &omega_typed_trees::state::State,
@@ -326,6 +562,7 @@ fn state_has_proven_supported_self_loop(
     match (order, measure) {
         (
             RankingOrder::NatDescending
+            | RankingOrder::NatIncreasingTo(_)
             | RankingOrder::BoundedDistance
             | RankingOrder::CustomNatDescending,
             _,

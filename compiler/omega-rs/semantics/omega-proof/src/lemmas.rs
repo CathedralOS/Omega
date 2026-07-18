@@ -37,7 +37,7 @@ pub enum ProofLemma {
     WindowSubrange,
     /// A tail window `items[1..]` is strictly shorter than `items` whenever
     /// `items` is non-empty. This is the well-founded measure that backs
-    /// `decreases items -> Slice::Length` style termination proofs.
+    /// `terminates by items -> Slice::Length` ranking proofs.
     TailLengthDecreases,
 }
 

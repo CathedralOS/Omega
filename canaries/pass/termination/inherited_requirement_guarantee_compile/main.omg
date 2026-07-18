@@ -1,0 +1,21 @@
+// COMPILE CANARY: `terminates;` belongs to the published requirement;
+// the satisfier inherits it and authors only its private ranking witness.
+trait Countdown {
+    machine countdown(remaining: u64) -> u64 terminates;
+}
+
+data Main {}
+
+machine Main::main(&mut self) {
+    let value: u64 = countdown(3);
+}
+
+machine countdown(remaining: u64) -> u64
+satisfies Countdown::countdown
+terminates by remaining;
+{
+    transition remaining > 0 {
+        true -> countdown(remaining - 1)
+        false -> 0
+    }
+}

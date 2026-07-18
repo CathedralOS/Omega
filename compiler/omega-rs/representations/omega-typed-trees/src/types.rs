@@ -139,9 +139,7 @@ impl TypeReferenceTable {
         self.type_references
             .iter()
             .filter_map(|(handle, node)| match node {
-                TypeReferenceNode::Named { symbol, name } => {
-                    Some((handle, *symbol, name.as_str()))
-                }
+                TypeReferenceNode::Named { symbol, name } => Some((handle, *symbol, name.as_str())),
                 _ => None,
             })
     }
@@ -256,7 +254,6 @@ impl TypeReferenceTable {
             TypeReferenceNode::Reference {
                 referee,
                 is_mutable,
-                is_relaxed,
                 lifetime,
             } => {
                 let referee =
@@ -264,7 +261,6 @@ impl TypeReferenceTable {
                 self.insert(TypeReferenceNode::Reference {
                     referee,
                     is_mutable: *is_mutable,
-                    is_relaxed: *is_relaxed,
                     lifetime: lifetime.clone(),
                 })
             }
@@ -414,7 +410,6 @@ pub enum TypeReferenceNode {
     Reference {
         referee: TypeReferenceHandle,
         is_mutable: bool,
-        is_relaxed: bool,
         /// Explicit lifetime name (`&'buf T`), frozen decision 15 stage 2. A
         /// borrow-region tag only — no symbol, ignored by layout/codegen and by
         /// structural type equality; consulted solely by the borrow checker
@@ -565,6 +560,8 @@ pub enum TypeConstraintNode {
         maximum: crate::expression::ExpressionHandle,
     },
     ArithmeticDomain(omega_core::arithmetic::ArithmeticDomain),
+    /// A compiler-known value predicate (`f64 in Finite`).
+    ValueDomain(omega_core::value_domain::ValueDomain),
     /// A declared domain on a carrier (`[u8] in Utf8`); ch8.
     Domain(Identifier),
 }
@@ -583,6 +580,7 @@ impl TypeConstraintNode {
                 maximum: target_expressions.copy_from(source_expressions, *maximum),
             },
             TypeConstraintNode::ArithmeticDomain(domain) => Self::ArithmeticDomain(*domain),
+            TypeConstraintNode::ValueDomain(domain) => Self::ValueDomain(*domain),
         }
     }
 }

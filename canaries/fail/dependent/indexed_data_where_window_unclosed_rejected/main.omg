@@ -1,0 +1,15 @@
+// FAIL CANARY. maps[0].start=10 leaves that element's start<=end coupling
+// false at the call; a different array element cannot absorb the debt.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Map
+where
+    start <= end,
+{
+    start: i32;
+    end: i32;
+}
+data Main { console: Console; maps: [Map; 2]; }
+machine Main::run(&mut self) {
+    self.maps[0].start = 10;
+    self.console.exit_process(70);
+}

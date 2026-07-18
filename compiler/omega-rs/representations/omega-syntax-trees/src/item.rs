@@ -244,6 +244,8 @@ impl Default for LibraryFunction {
                 is_default: false,
                 parameters: HandleSpan::empty(),
                 return_type: crate::types::TypeReferenceHandle::invalid(),
+                termination_guarantee: false,
+                ranking_witness: RankingWitnessSyntax::default(),
                 effects: HandleSpan::empty(),
                 contracts: HandleSpan::empty(),
             },
@@ -446,6 +448,9 @@ pub struct DataDefinition {
     pub name: Identifier,
     pub type_parameters: HandleSpan<TypeParameter>,
     pub properties: DataProperties,
+    /// Facts of the data type's default domain, spelled by the declaration's
+    /// optional `where` clause (R2). Empty means the unconstrained domain.
+    pub default_domain: HandleSpan<ProofFact>,
     pub members: HandleSpan<DataMember>,
 }
 
@@ -612,6 +617,44 @@ pub struct SatisfiesClause {
     pub alias: Option<Identifier>,
 }
 
+/// Source-level rank range from `terminates by ... in start..end`.
+///
+/// Invalid expression handles are the ZII absence state. The range constrains
+/// the value produced by the ranking view; it never allocates runtime storage.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct RankingRangeSyntax {
+    pub start: crate::expression::ExpressionHandle,
+    pub end: crate::expression::ExpressionHandle,
+    pub end_inclusive: bool,
+}
+
+impl RankingRangeSyntax {
+    pub fn is_present(self) -> bool {
+        self.start.is_valid() && self.end.is_valid()
+    }
+}
+
+/// Private implementation evidence authored with `terminates by ...`.
+///
+/// This is deliberately separate from [`Machine::termination_guarantee`]: a
+/// checked implementation may inherit a published guarantee and author only a
+/// witness, while an exported concrete machine may author a guarantee and a
+/// witness as two clauses. TPR2 normalizes this syntax into the private
+/// `RankingWitness` representation used by semantic layers.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct RankingWitnessSyntax {
+    pub subjects: HandleSpan<crate::expression::ExpressionHandle>,
+    pub view: HandleSpan<Identifier>,
+    pub view_arguments: HandleSpan<crate::expression::ExpressionHandle>,
+    pub range: RankingRangeSyntax,
+}
+
+impl RankingWitnessSyntax {
+    pub fn is_present(self) -> bool {
+        !self.subjects.is_empty()
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Machine {
     pub name: Identifier,
@@ -630,9 +673,11 @@ pub struct Machine {
     pub boundary: bool,
     pub type_parameters: HandleSpan<TypeParameter>,
     pub satisfies: HandleSpan<SatisfiesClause>,
-    pub terminates: bool,
-    pub decreases: HandleSpan<crate::expression::ExpressionHandle>,
-    pub decrease_order: HandleSpan<Identifier>,
+    /// An authored public `terminates;` guarantee. This is contract surface,
+    /// not proof evidence and not inferred from the body.
+    pub termination_guarantee: bool,
+    /// A private `terminates by ...;` ranking witness for a checked body.
+    pub ranking_witness: RankingWitnessSyntax,
     pub effects: HandleSpan<Identifier>,
     pub contracts: HandleSpan<CapabilityContract>,
     pub states: HandleSpan<StateHandle>,
@@ -668,6 +713,10 @@ pub struct StateSignature {
     pub is_default: bool,
     pub parameters: HandleSpan<StateParameterHandle>,
     pub return_type: crate::types::TypeReferenceHandle,
+    /// Bodyless requirement/export promise authored by `terminates;`.
+    pub termination_guarantee: bool,
+    /// Present only for a body-bearing/default implementation signature.
+    pub ranking_witness: RankingWitnessSyntax,
     pub effects: HandleSpan<Identifier>,
     pub contracts: HandleSpan<CapabilityContract>,
 }
@@ -768,7 +817,9 @@ impl ItemTable {
     }
 
     pub fn satisfies_clauses(&self, span: HandleSpan<SatisfiesClause>) -> &[SatisfiesClause] {
-        self.declaration_storage.satisfies_clauses.span_or_empty(span)
+        self.declaration_storage
+            .satisfies_clauses
+            .span_or_empty(span)
     }
 
     pub fn library_functions(&self, span: HandleSpan<LibraryFunction>) -> &[LibraryFunction] {
@@ -1029,6 +1080,8 @@ impl ItemTable {
             is_default: signature.is_default,
             parameters: signature.parameters,
             return_type: signature.return_type,
+            termination_guarantee: signature.termination_guarantee,
+            ranking_witness: signature.ranking_witness,
             effects: signature.effects,
             contracts: signature.contracts,
         })
@@ -1131,6 +1184,8 @@ pub struct StateSignatureNode {
     pub is_default: bool,
     pub parameters: HandleSpan<StateParameterHandle>,
     pub return_type: crate::types::TypeReferenceHandle,
+    pub termination_guarantee: bool,
+    pub ranking_witness: RankingWitnessSyntax,
     pub effects: HandleSpan<Identifier>,
     pub contracts: HandleSpan<CapabilityContract>,
 }

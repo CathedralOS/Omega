@@ -1,1 +1,1 @@
-declares a range that excludes 0
+open default-domain invariant window

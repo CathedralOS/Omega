@@ -1,14 +1,7 @@
-// RUN CANARY (exit 70) + interpreter differential. Wrapping `>>` by a count
-// at/above the operand width is floor(x / 2^n) taken to its limit (the `>>`
-// half of the shift-domain ruling): LOGICAL shifts yield 0, ARITHMETIC
-// shifts yield the sign-fill (0 or -1). Hardware masks the count instead
-// (x86 `sar`/`shr` mod the op width; aarch64 LSRV mod 64, ASRV mod the form
-// width), and the interpreter's i64 ops masked at 64 -- so both ISAs fix the
-// count (arithmetic `>>` SATURATES it to width-1 before the shift, since a
-// post-fix cannot recover the sign; logical `>>` zero-clamps the result like
-// `<<`), and the interp resolves the node type for `>>` (it did not before:
-// the u64 leg here caught that hole -- every narrower leg was accidentally
-// correct through the sign/zero-extended i64 representation).
+// RUN CANARY (exit 70) + interpreter differential. Wrapping `>>` masks the
+// count by the language operand width. These write and nested-operand legs
+// distinguish the rule from the superseded zero/sign-fill behavior and from
+// accidentally using the host register width for u32/i32 operations.
 //
 // The i64 leg uses -(2^62), where the count-masked shift (>> 6 = -(2^56))
 // differs from the sign-fill (-1) -- small negatives like -7 mask to -1 by
@@ -24,7 +17,7 @@ machine Main::main(&mut self) {
     let a: u32 in Wrapping = (3000000000 as u32 in Wrapping);
     let c: u32 in Wrapping = (40 as u32 in Wrapping);
     let r: u32 in Wrapping = a >> c;
-    transition r == 0 {
+        transition r == 11718750 {
         true  -> neg32()
         false -> bad_u32_write()
     }
@@ -50,7 +43,7 @@ machine Main::main(&mut self) {
         let n: i64 in Wrapping = (0 as i64 in Wrapping) - 4611686018427387904;
         let c4: i64 in Wrapping = (70 as i64 in Wrapping);
         let s: i64 in Wrapping = n >> c4;
-        transition s == (0 as i64 in Wrapping) - 1 {
+        transition s == (0 as i64 in Wrapping) - 72057594037927936 {
             true  -> u64leg()
             false -> bad_i64_neg_write()
         }
@@ -59,7 +52,7 @@ machine Main::main(&mut self) {
         let w: u64 in Wrapping = (12345678901 as u64 in Wrapping);
         let c5: u64 in Wrapping = (70 as u64 in Wrapping);
         let q: u64 in Wrapping = w >> c5;
-        transition q == 0 {
+        transition q == 192901232 {
             true  -> operand_u32()
             false -> bad_u64_write()
         }
@@ -68,7 +61,7 @@ machine Main::main(&mut self) {
         let b: u32 in Wrapping = (3000000000 as u32 in Wrapping);
         let c6: u32 in Wrapping = (40 as u32 in Wrapping);
         let r2: u32 in Wrapping = (b >> c6) + 5;
-        transition r2 == 5 {
+        transition r2 == 11718755 {
             true  -> operand_i32()
             false -> bad_u32_operand()
         }

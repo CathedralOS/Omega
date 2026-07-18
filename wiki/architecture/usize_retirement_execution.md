@@ -19,7 +19,7 @@ size is a semantic disaster."
 ## Inventory (measured 2026-07-15)
 
 - **380 .omg files** (canaries + samples) use `usize`; 53 of them combine
-  it with `decreases` (termination measures). 1 file uses `isize`.
+  it in `terminates by` ranking witnesses. 1 file uses `isize`.
 - **~15 compiler files / ~32 sites** mention `PrimitiveType::Usize`: the
   two parse maps (typed-trees + symbol-resolved-trees `types.rs`),
   layout/sizing, literals + arithmetic_domains classification, selection

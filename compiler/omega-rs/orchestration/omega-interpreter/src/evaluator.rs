@@ -3601,10 +3601,7 @@ impl<'program> Evaluator<'program> {
     /// The find-enumeration twin of `build_dirent_records` (fs rung 3a): the
     /// same entry set (".", "..", then the immediate children of `dir_path`)
     /// as (name, is_dir) pairs for a `find_first` cursor snapshot.
-    fn build_find_entries(
-        &self,
-        dir_path: &[u8],
-    ) -> std::collections::VecDeque<(Vec<u8>, bool)> {
+    fn build_find_entries(&self, dir_path: &[u8]) -> std::collections::VecDeque<(Vec<u8>, bool)> {
         let mut entries: std::collections::VecDeque<(Vec<u8>, bool)> =
             std::collections::VecDeque::from([(b".".to_vec(), true), (b"..".to_vec(), true)]);
         let mut prefix = dir_path.to_vec();
@@ -4190,9 +4187,9 @@ impl<'program> Evaluator<'program> {
                 // Non-Exact ADD/SUB/MUL apply their domain at the OPERATION
                 // node (native emits the clamping/trapping/wrapping-width
                 // sequence itself), signed DIV/MOD resolve the MIN/-1
-                // corner there, and Wrapping SHIFTS need the type WIDTH for
-                // their at/above-width count semantics (modular zero /
-                // sign-fill), so resolve the expression's declared scalar
+                // corner there, and Wrapping SHIFTS need the type WIDTH to
+                // mask the count by the language operand width, so resolve
+                // the expression's declared scalar
                 // type for the operators the domains cover.
                 let scalar_type = if matches!(
                     binary.operator,
@@ -4226,7 +4223,7 @@ impl<'program> Evaluator<'program> {
                 if cast.form.is_recast() {
                     return self.eval_recast(value, target);
                 }
-                self.eval_cast(value, target)
+                self.eval_cast(value, target, cast.domain)
             }
             ExpressionNode::Indexed(indexed) => {
                 // A range index `arr[start..end]` produces a SUBSLICE view sharing the
@@ -4316,8 +4313,28 @@ impl<'program> Evaluator<'program> {
                 .expression_handles(call.arguments)
                 .to_vec();
             if args.len() == 1 {
+                let scalar_type = self.expression_scalar_type(args[0], frame);
                 return match self.eval_expression(args[0], frame)? {
-                    Value::Float(value) => Ok(Value::Float(value.sqrt())),
+                    Value::Float(value) => {
+                        let result = if scalar_type
+                            .is_some_and(|(primitive, _)| primitive == PrimitiveType::F32)
+                        {
+                            f64::from((value as f32).sqrt())
+                        } else {
+                            value.sqrt()
+                        };
+                        if scalar_type
+                            .is_some_and(|(_, domain)| domain == ArithmeticDomain::Trapping)
+                            && !result.is_finite()
+                        {
+                            trap("non-finite result in Trapping float arithmetic")
+                        } else {
+                            // Saturating is overflow-only. `sqrt` cannot overflow;
+                            // its negative-input NaN is an invalid operation and is
+                            // deliberately left for a composed `Finite` obligation.
+                            Ok(Value::Float(result))
+                        }
+                    }
                     other => Err(Halt::Trap(format!(
                         "sqrt expects a float argument, got {other:?}"
                     ))),
@@ -5269,7 +5286,12 @@ impl<'program> Evaluator<'program> {
     /// Apply an `as` cast with width/signedness semantics: int<->float conversions and
     /// integer narrowing/widening (wrapping to the target width, sign- or zero-extending on
     /// read per the SOURCE signedness, which the value carries as its width tag).
-    fn eval_cast(&self, value: Value, target: Option<PrimitiveType>) -> EvalResult<Value> {
+    fn eval_cast(
+        &self,
+        value: Value,
+        target: Option<PrimitiveType>,
+        domain: omega_core::arithmetic::ArithmeticDomain,
+    ) -> EvalResult<Value> {
         let Some(target) = target else {
             // A cast to a non-primitive (e.g. a trait object) is a no-op identity here.
             return Ok(value);
@@ -5293,7 +5315,22 @@ impl<'program> Evaluator<'program> {
                 // Float -> int truncates toward zero; int -> int reinterprets at the target
                 // width. The result keeps the target's width tag so later ops/casts wrap.
                 let raw = match value {
-                    Value::Float(f) => f.trunc() as i64,
+                    Value::Float(f) => {
+                        if domain == omega_core::arithmetic::ArithmeticDomain::Wrapping {
+                            return Err(Halt::Trap(
+                                "float-to-integer casts have no wrapping semantics".to_owned(),
+                            ));
+                        }
+                        if domain == omega_core::arithmetic::ArithmeticDomain::Trapping
+                            && !float_fits_integer_target(f, integer)
+                        {
+                            return Err(Halt::Trap(format!(
+                                "float-to-{} cast is non-finite or out of range",
+                                integer.name()
+                            )));
+                        }
+                        float_to_integer_target(f, integer)
+                    }
                     other => other
                         .as_int()
                         .ok_or_else(|| Halt::Trap("cast to integer of non-numeric".to_owned()))?,
@@ -5329,9 +5366,7 @@ impl<'program> Evaluator<'program> {
         // position the view starts at.
         let offset_value = match self.program.expression_table.expression(indexed.index) {
             ExpressionNode::Integer(literal) => literal.value_i64(),
-            _ => self
-                .eval_expression(indexed.index, frame)?
-                .as_int(),
+            _ => self.eval_expression(indexed.index, frame)?.as_int(),
         };
         let Some(offset) = offset_value.and_then(|value| usize::try_from(value).ok()) else {
             return Ok(None);
@@ -5393,9 +5428,7 @@ impl<'program> Evaluator<'program> {
             let omega_typed_trees::data::DataMember::Field(field) = member else {
                 return Ok(None);
             };
-            let Some(primitive) = self
-                .program
-                .primitive_type_reference(field.type_reference)
+            let Some(primitive) = self.program.primitive_type_reference(field.type_reference)
             else {
                 return Ok(None);
             };
@@ -5452,22 +5485,20 @@ impl<'program> Evaluator<'program> {
             PrimitiveType::F32 => {
                 let bits = match value {
                     Value::Float(f) => (f as f32).to_bits(),
-                    other => {
-                        other.as_int().ok_or_else(|| {
-                            Halt::Trap("recast to f32 of non-scalar".to_owned())
-                        })? as u32
-                    }
+                    other => other
+                        .as_int()
+                        .ok_or_else(|| Halt::Trap("recast to f32 of non-scalar".to_owned()))?
+                        as u32,
                 };
                 Ok(Value::Float(f32::from_bits(bits) as f64))
             }
             PrimitiveType::F64 => {
                 let bits = match value {
                     Value::Float(f) => f.to_bits(),
-                    other => {
-                        other.as_int().ok_or_else(|| {
-                            Halt::Trap("recast to f64 of non-scalar".to_owned())
-                        })? as u64
-                    }
+                    other => other
+                        .as_int()
+                        .ok_or_else(|| Halt::Trap("recast to f64 of non-scalar".to_owned()))?
+                        as u64,
                 };
                 Ok(Value::Float(f64::from_bits(bits)))
             }
@@ -5480,9 +5511,9 @@ impl<'program> Evaluator<'program> {
                         Some(4) => (f as f32).to_bits() as i64,
                         _ => f.to_bits() as i64,
                     },
-                    other => other.as_int().ok_or_else(|| {
-                        Halt::Trap("recast to integer of non-scalar".to_owned())
-                    })?,
+                    other => other
+                        .as_int()
+                        .ok_or_else(|| Halt::Trap("recast to integer of non-scalar".to_owned()))?,
                 };
                 // Equal-width int<->int reinterpretation is exactly the
                 // width-wrap (`u32` 0xFFFF_FFFF re-viewed as `i32` = -1).
@@ -5542,12 +5573,20 @@ impl<'program> Evaluator<'program> {
             // (`(a as u8 in Saturating) + b` in a GUARD has no landing seam);
             // hardcoding Exact here let the wide 300 through while native's
             // witness read the retag and clamped.
-            ExpressionNode::Cast(cast) => Some((
-                self.cast_target_primitive(cast.target_type)?,
-                cast.domain,
-            )),
+            ExpressionNode::Cast(cast) => {
+                Some((self.cast_target_primitive(cast.target_type)?, cast.domain))
+            }
             ExpressionNode::Mutable(inner) => self.expression_scalar_type(*inner, frame),
             ExpressionNode::Unary(unary) => self.expression_scalar_type(unary.operand, frame),
+            ExpressionNode::Float(literal) => literal.landing().map(|format| {
+                (
+                    match format {
+                        omega_core::literals::FloatFormat::F32 => PrimitiveType::F32,
+                        omega_core::literals::FloatFormat::F64 => PrimitiveType::F64,
+                    },
+                    ArithmeticDomain::Exact,
+                )
+            }),
             // A binary node computes in the PROMOTED type: mixed widths
             // auto-promote to the wider operand (u8 + i32 runs at i32 --
             // wrapping 200+100 at the node must yield 300, not the u8 44), so
@@ -5560,13 +5599,11 @@ impl<'program> Evaluator<'program> {
                 let right = self.expression_scalar_type(binary.right, frame);
                 match (left, right) {
                     (Some(left), Some(right)) => {
-                        let left_width = integer_primitive_byte_width(left.0).unwrap_or(8);
-                        let right_width = integer_primitive_byte_width(right.0).unwrap_or(8);
+                        let left_width = arithmetic_primitive_byte_width(left.0).unwrap_or(8);
+                        let right_width = arithmetic_primitive_byte_width(right.0).unwrap_or(8);
                         Some(if right_width > left_width {
                             right
-                        } else if left_width > right_width
-                            || left.1 != ArithmeticDomain::Exact
-                        {
+                        } else if left_width > right_width || left.1 != ArithmeticDomain::Exact {
                             left
                         } else {
                             // Equal widths, left Exact: prefer the side that
@@ -5707,7 +5744,7 @@ impl<'program> Evaluator<'program> {
             let r = right
                 .as_float()
                 .ok_or_else(|| Halt::Trap("non-numeric float operand".to_owned()))?;
-            return self.eval_float_binary(operator, l, r);
+            return self.eval_float_binary(operator, l, r, scalar_type);
         }
 
         // Integer arithmetic / comparison. A payload-free CASE operand
@@ -5737,8 +5774,7 @@ impl<'program> Evaluator<'program> {
                 ty @ (PrimitiveType::I8
                 | PrimitiveType::I16
                 | PrimitiveType::I32
-                | PrimitiveType::I64
-               ),
+                | PrimitiveType::I64),
                 domain @ (ArithmeticDomain::Wrapping
                 | ArithmeticDomain::Saturating
                 | ArithmeticDomain::Trapping),
@@ -5762,9 +5798,7 @@ impl<'program> Evaluator<'program> {
                     ArithmeticDomain::Saturating => {
                         Ok(Value::Int(wide.clamp(min as i128, max as i128) as i64))
                     }
-                    ArithmeticDomain::Trapping
-                        if wide < min as i128 || wide > max as i128 =>
-                    {
+                    ArithmeticDomain::Trapping if wide < min as i128 || wide > max as i128 => {
                         trap(format!(
                             "arithmetic overflow in Trapping domain: {wide} is out of range for {ty:?}"
                         ))
@@ -5785,32 +5819,18 @@ impl<'program> Evaluator<'program> {
                     Add => l.wrapping_add(r),
                     Subtract => l.wrapping_sub(r),
                     Multiply => l.wrapping_mul(r),
-                    // MODULAR at every width (shift-domain ruling,
-                    // 2026-07-13: the lhs domain defines the semantics;
-                    // Wrapping = mod 2^w): a count >= the type's width is
-                    // x * 2^n = 0 (mod 2^w). The old count-mask
-                    // (wrapping_shl) matched aarch64 LSLV at 64-bit but
-                    // contradicted the <= 32-bit behavior, where the wide
-                    // compute + wrap_to_width already produced 0.
+                    // F8: Wrapping masks the count by the LANGUAGE operand
+                    // width, including narrow types whose ISA operation uses a
+                    // wider register form.
                     ShiftLeft => {
-                        if (r as u64) >= primitive_bit_width(ty) {
-                            0
-                        } else {
-                            l.wrapping_shl(r as u32)
-                        }
+                        l.wrapping_shl(((r as u64) & (primitive_bit_width(ty) - 1)) as u32)
                     }
-                    // The `>>` half of the same ruling: x >> n is
-                    // floor(x / 2^n) at every count, so a count >= the
-                    // type's width is 0 for a logical shift and the
-                    // sign-fill (0 or -1) for an arithmetic one. Hardware
-                    // masks the count instead; both ISAs clamp to match.
                     ShiftRight => {
-                        if (r as u64) >= primitive_bit_width(ty) {
-                            if unsigned_operands || l >= 0 { 0 } else { -1 }
-                        } else if unsigned_operands {
-                            ((l as u64).wrapping_shr(r as u32)) as i64
+                        let count = ((r as u64) & (primitive_bit_width(ty) - 1)) as u32;
+                        if unsigned_operands {
+                            ((l as u64).wrapping_shr(count)) as i64
                         } else {
-                            l.wrapping_shr(r as u32)
+                            l.wrapping_shr(count)
                         }
                     }
                     _ => unreachable!(),
@@ -5821,20 +5841,18 @@ impl<'program> Evaluator<'program> {
         if let Some((ty, domain @ (ArithmeticDomain::Saturating | ArithmeticDomain::Trapping))) =
             scalar_type
         {
-            // Domain-governed SHIFTS (shift slice C). `>>` is floor(x / 2^n)
-            // and cannot overflow, so every domain shares the Wrapping floor
-            // semantics (at/above-width counts: 0, or the sign-fill for a
-            // negative signed value). `<<` is x * 2^n: Saturating clamps and
-            // Trapping traps when the TRUE value leaves the type's range --
-            // a count at/above the width forces overflow for any nonzero x.
-            // NATIVE saturating/trapping `<<` sequences are not emitted yet
-            // (the parked shl_saturating canary pins that divergence); `>>`
-            // is aligned on both ISAs.
+            // F8: Trapping checks the count dynamically; Saturating carries
+            // Exact's compile-time count obligation (an out-of-range value here
+            // is therefore only a defensive trap). Saturating still governs
+            // the shifted VALUE's overflow for `<<`.
             if operator == ShiftRight {
+                if (r as u64) >= primitive_bit_width(ty) {
+                    return trap(format!(
+                        "shift count is out of range for {ty:?} in {domain:?} domain"
+                    ));
+                }
                 return Ok(Value::Int(wrap_to_width(
-                    if (r as u64) >= primitive_bit_width(ty) {
-                        if unsigned_operands || l >= 0 { 0 } else { -1 }
-                    } else if unsigned_operands {
+                    if unsigned_operands {
                         ((l as u64).wrapping_shr(r as u32)) as i64
                     } else {
                         l.wrapping_shr(r as u32)
@@ -5843,24 +5861,18 @@ impl<'program> Evaluator<'program> {
                 )));
             }
             if operator == ShiftLeft {
+                if (r as u64) >= primitive_bit_width(ty) {
+                    return trap(format!(
+                        "shift count is out of range for {ty:?} in {domain:?} domain"
+                    ));
+                }
                 let (minimum, maximum, value) = if primitive_is_unsigned64(Some(ty)) {
                     (0i128, u64::MAX as i128, l as u64 as i128)
                 } else {
                     let (minimum, maximum) = integer_bounds(ty).unwrap_or((i64::MIN, i64::MAX));
                     (minimum as i128, maximum as i128, l as i128)
                 };
-                let wide = if (r as u64) >= primitive_bit_width(ty) {
-                    // Any nonzero x overflows once the count reaches the
-                    // width; drive the clamp/trap below with a synthetic
-                    // out-of-range value on x's side of the range.
-                    match value.signum() {
-                        0 => 0,
-                        1 => maximum + 1,
-                        _ => minimum - 1,
-                    }
-                } else {
-                    value << (r as u32)
-                };
+                let wide = value << (r as u32);
                 return match domain {
                     ArithmeticDomain::Saturating => {
                         Ok(Value::Int(wide.clamp(minimum, maximum) as i64))
@@ -5896,14 +5908,10 @@ impl<'program> Evaluator<'program> {
                 };
                 if let Some((min, max, wide)) = bounds_and_wide {
                     return match domain {
-                        ArithmeticDomain::Saturating => {
-                            Ok(Value::Int(wide.clamp(min, max) as i64))
-                        }
-                        ArithmeticDomain::Trapping if wide < min || wide > max => {
-                            trap(format!(
-                                "arithmetic overflow in Trapping domain: {wide} is out of range for {ty:?}"
-                            ))
-                        }
+                        ArithmeticDomain::Saturating => Ok(Value::Int(wide.clamp(min, max) as i64)),
+                        ArithmeticDomain::Trapping if wide < min || wide > max => trap(format!(
+                            "arithmetic overflow in Trapping domain: {wide} is out of range for {ty:?}"
+                        )),
                         _ => Ok(Value::Int(wide as i64)),
                     };
                 }
@@ -5984,22 +5992,63 @@ impl<'program> Evaluator<'program> {
         })
     }
 
-    fn eval_float_binary(&self, operator: BinaryOperator, l: f64, r: f64) -> EvalResult<Value> {
+    fn eval_float_binary(
+        &self,
+        operator: BinaryOperator,
+        l: f64,
+        r: f64,
+        scalar_type: Option<(PrimitiveType, ArithmeticDomain)>,
+    ) -> EvalResult<Value> {
         use BinaryOperator::*;
-        Ok(match operator {
-            Add => Value::Float(l + r),
-            Subtract => Value::Float(l - r),
-            Multiply => Value::Float(l * r),
-            Divide => Value::Float(l / r),
-            Less => Value::Bool(l < r),
-            LessOrEqual => Value::Bool(l <= r),
-            Greater => Value::Bool(l > r),
-            GreaterOrEqual => Value::Bool(l >= r),
-            Modulo | ShiftLeft | ShiftRight | BitwiseAnd | BitwiseOr | BitwiseXor => {
-                return unsupported("float modulo/shift/bitwise not supported");
+        let primitive = scalar_type.map(|(primitive, _)| primitive);
+        let domain = scalar_type
+            .map(|(_, domain)| domain)
+            .unwrap_or(ArithmeticDomain::Exact);
+        let result = if primitive == Some(PrimitiveType::F32)
+            && matches!(operator, Add | Subtract | Multiply | Divide)
+        {
+            let (l, r) = (l as f32, r as f32);
+            f64::from(match operator {
+                Add => l + r,
+                Subtract => l - r,
+                Multiply => l * r,
+                Divide => l / r,
+                _ => unreachable!(),
+            })
+        } else {
+            match operator {
+                Add => l + r,
+                Subtract => l - r,
+                Multiply => l * r,
+                Divide => l / r,
+                Less => return Ok(Value::Bool(l < r)),
+                LessOrEqual => return Ok(Value::Bool(l <= r)),
+                Greater => return Ok(Value::Bool(l > r)),
+                GreaterOrEqual => return Ok(Value::Bool(l >= r)),
+                Modulo | ShiftLeft | ShiftRight | BitwiseAnd | BitwiseOr | BitwiseXor => {
+                    return unsupported("float modulo/shift/bitwise not supported");
+                }
+                Equal | NotEqual | And | Or => unreachable!("handled earlier"),
             }
-            Equal | NotEqual | And | Or => unreachable!("handled earlier"),
-        })
+        };
+
+        if domain == ArithmeticDomain::Trapping && !result.is_finite() {
+            return trap("non-finite result in Trapping float arithmetic");
+        }
+        if domain == ArithmeticDomain::Saturating
+            && result.is_infinite()
+            && l.is_finite()
+            && r.is_finite()
+            && (operator != Divide || r != 0.0)
+        {
+            let maximum = if primitive == Some(PrimitiveType::F32) {
+                f64::from(f32::MAX)
+            } else {
+                f64::MAX
+            };
+            return Ok(Value::Float(result.signum() * maximum));
+        }
+        Ok(Value::Float(result))
     }
 
     fn eval_min_max(
@@ -6382,13 +6431,46 @@ fn wrap_to_width(raw: i64, ty: PrimitiveType) -> i64 {
         PrimitiveType::U32 => raw as u32 as i64,
         // 64-bit and pointer-width types keep the full value (unsigned reinterpretation of a
         // u64 is still represented by the same bit pattern in i64).
-        PrimitiveType::I64
-        | PrimitiveType::U64
-        | PrimitiveType::Addr => raw,
+        PrimitiveType::I64 | PrimitiveType::U64 | PrimitiveType::Addr => raw,
         // Non-integer primitives do not reach this path.
         PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64 | PrimitiveType::String => {
             raw
         }
+    }
+}
+
+/// Rust's direct float casts already implement Omega's Saturating conversion:
+/// truncate toward zero, clamp at the TARGET width, and map NaN to zero. Keep
+/// the conversion target-specific instead of routing through i64 first -- that
+/// intermediate loses the correct u64 and narrow-target bounds.
+fn float_to_integer_target(value: f64, target: PrimitiveType) -> i64 {
+    match target {
+        PrimitiveType::I8 => value as i8 as i64,
+        PrimitiveType::U8 => value as u8 as i64,
+        PrimitiveType::I16 => value as i16 as i64,
+        PrimitiveType::U16 => value as u16 as i64,
+        PrimitiveType::I32 => value as i32 as i64,
+        PrimitiveType::U32 => value as u32 as i64,
+        PrimitiveType::I64 => value as i64,
+        PrimitiveType::U64 | PrimitiveType::Addr => value as u64 as i64,
+        _ => value as i64,
+    }
+}
+
+/// A finite float converts without overflow exactly when it lies in the
+/// half-open interval accepted by truncation: signed `[MIN, MAX + 1)` and
+/// unsigned `[0, MAX + 1)`. Powers of two are exactly representable in f64,
+/// including the i64/u64 upper sentinels.
+fn float_fits_integer_target(value: f64, target: PrimitiveType) -> bool {
+    if !value.is_finite() {
+        return false;
+    }
+    let bits = primitive_bit_width(target) as i32;
+    if target.is_signed_integer() {
+        let limit = 2.0_f64.powi(bits - 1);
+        value >= -limit && value < limit
+    } else {
+        value >= 0.0 && value < 2.0_f64.powi(bits)
     }
 }
 
@@ -6407,27 +6489,22 @@ enum TransitionDecision {
 
 // `Frame::locals` needs interior mutability so `let` bindings can be added while the
 // frame is shared by `&`. Wrap the map in a RefCell.
-/// Byte width of an integer primitive -- the PROMOTION rank a mixed-width
-/// binary node computes in. `None` for non-integer primitives.
-fn integer_primitive_byte_width(ty: PrimitiveType) -> Option<usize> {
+/// Byte width of an arithmetic primitive -- the promotion rank a mixed-width
+/// binary node computes in.
+fn arithmetic_primitive_byte_width(ty: PrimitiveType) -> Option<usize> {
     match ty {
         PrimitiveType::I8 | PrimitiveType::U8 => Some(1),
         PrimitiveType::I16 | PrimitiveType::U16 => Some(2),
-        PrimitiveType::I32 | PrimitiveType::U32 => Some(4),
-        PrimitiveType::I64
-        | PrimitiveType::U64
-        | PrimitiveType::Addr => Some(8),
-        PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64 | PrimitiveType::String => {
-            None
+        PrimitiveType::I32 | PrimitiveType::U32 | PrimitiveType::F32 => Some(4),
+        PrimitiveType::I64 | PrimitiveType::U64 | PrimitiveType::Addr | PrimitiveType::F64 => {
+            Some(8)
         }
+        PrimitiveType::Bool | PrimitiveType::String => None,
     }
 }
 
 fn primitive_is_unsigned64(primitive: Option<PrimitiveType>) -> bool {
-    matches!(
-        primitive,
-        Some(PrimitiveType::U64 | PrimitiveType::Addr)
-    )
+    matches!(primitive, Some(PrimitiveType::U64 | PrimitiveType::Addr))
 }
 
 impl Frame {

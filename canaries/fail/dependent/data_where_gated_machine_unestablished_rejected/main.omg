@@ -1,0 +1,13 @@
+// FAIL CANARY. The zeroed health field does not satisfy health >= 1, so the
+// attached data cannot be consumed before a write establishes the gate.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main
+where
+    health >= 1,
+{
+    console: Console;
+    health: i32;
+}
+machine Main::run(&mut self) {
+    self.console.exit_process(self.health);
+}

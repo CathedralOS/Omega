@@ -24,7 +24,7 @@ machine Main::main(&mut self) {
 
     // f32->f64 cast stored in local, then cast local to i32
     let wide: f64 = self.src as f64;  // Should be 7.0
-    let n: i32 = wide as i32;          // Should be 7
+    let n: i32 = wide as i32 in Saturating; // Should be 7
 
     transition n == 7 {
         true -> good()

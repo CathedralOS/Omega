@@ -140,6 +140,7 @@ pub(super) fn build_boundary_report(syntax: &SyntaxTrees) -> BoundaryReport {
                         &mut report,
                         capability.name.as_str(),
                         state.signature.name.as_str(),
+                        state.signature.termination_guarantee,
                         syntax.items.capability_contracts(state.contracts),
                     );
                 }
@@ -156,6 +157,7 @@ pub(super) fn build_boundary_report(syntax: &SyntaxTrees) -> BoundaryReport {
                             capability: library_name.clone(),
                             state: function.signature.name.to_string(),
                             boundary: boundary_name(boundary),
+                            eventual_terminal: function.signature.termination_guarantee,
                             requires_count: 0,
                             ensures_count: 0,
                         });
@@ -164,6 +166,21 @@ pub(super) fn build_boundary_report(syntax: &SyntaxTrees) -> BoundaryReport {
             }
             Item::Operator(operator) if operator.is_boundary => {
                 collect_operator_boundary(&mut report, "operator", syntax, operator);
+            }
+            Item::Trait(trait_definition) if trait_definition.is_boundary => {
+                for signature_handle in syntax
+                    .items
+                    .state_signatures(trait_definition.machines)
+                {
+                    let signature = syntax.items.state_signature(*signature_handle);
+                    collect_declared_boundary(
+                        &mut report,
+                        trait_definition.name.as_str(),
+                        signature.name.as_str(),
+                        signature.termination_guarantee,
+                        syntax.items.capability_contracts(signature.contracts),
+                    );
+                }
             }
             Item::Domain(domain) => {
                 for operator in syntax.items.operators(domain.operators) {
@@ -252,6 +269,7 @@ fn collect_operator_boundary(
         report,
         capability,
         &identifier_path_name(syntax, operator.name),
+        false,
         syntax.items.capability_contracts(operator.contracts),
     );
 }
@@ -260,6 +278,7 @@ fn collect_boundary_contracts(
     report: &mut BoundaryReport,
     capability: &str,
     state: &str,
+    eventual_terminal: bool,
     contracts: &[omega_syntax_trees::item::CapabilityContract],
 ) {
     let requires_count = contracts
@@ -279,6 +298,7 @@ fn collect_boundary_contracts(
             capability: capability.to_owned(),
             state: state.to_owned(),
             boundary: boundary_name(boundary),
+            eventual_terminal,
             requires_count,
             ensures_count,
         });
@@ -289,6 +309,7 @@ fn collect_declared_boundary(
     report: &mut BoundaryReport,
     capability: &str,
     state: &str,
+    eventual_terminal: bool,
     contracts: &[omega_syntax_trees::item::CapabilityContract],
 ) {
     let requires_count = contracts
@@ -304,6 +325,7 @@ fn collect_declared_boundary(
         capability: capability.to_owned(),
         state: state.to_owned(),
         boundary: state.to_owned(),
+        eventual_terminal,
         requires_count,
         ensures_count,
     });
@@ -343,6 +365,10 @@ mod tests {
                 }
             }
 
+            boundary trait Scheduler {
+                machine wait() terminates;
+            }
+
             provider omega::language::core::Slice : SliceIndexing;
 
             boundary operator Slice::index<T>(items: &[T], index: usize) -> T
@@ -363,7 +389,7 @@ mod tests {
         let report = build_boundary_report(&syntax);
 
         assert_eq!(report.targets.len(), 1);
-        assert_eq!(report.contracts.len(), 2);
+        assert_eq!(report.contracts.len(), 3);
         assert_eq!(report.unchecked_policies.len(), 1);
 
         let (_, target) = report.targets.iter().next().expect("target");
@@ -377,6 +403,12 @@ mod tests {
         assert!(report.contracts.iter().any(|(_, contract)| {
             contract.capability == "operator" && contract.state == "Slice::index"
         }));
+        let (_, wait) = report
+            .contracts
+            .iter()
+            .find(|(_, contract)| contract.capability == "Scheduler")
+            .expect("boundary requirement should be reported");
+        assert!(wait.eventual_terminal);
 
         assert_eq!(report.providers.len(), 1);
         let (_, provider) = report.providers.iter().next().expect("provider row");

@@ -1,0 +1,10 @@
+data Main {}
+
+machine Main::countup(&mut self, index: u64)
+increases index;
+{
+    transition index < 4 {
+        true -> countup(index + 1)
+        false -> index
+    }
+}

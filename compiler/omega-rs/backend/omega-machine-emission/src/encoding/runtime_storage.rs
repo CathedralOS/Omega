@@ -277,6 +277,8 @@ pub(super) fn encode_runtime_storage_convert(
     source_is_float: bool,
     target_is_float: bool,
     source_signed: bool,
+    domain: omega_core::arithmetic::ArithmeticDomain,
+    target_signed: bool,
 ) -> Result<Vec<u8>, Diagnostic> {
     validate_runtime_value_home(input, source)?;
     architecture::encode_runtime_storage_convert(
@@ -289,6 +291,8 @@ pub(super) fn encode_runtime_storage_convert(
         source_is_float,
         target_is_float,
         source_signed,
+        domain,
+        target_signed,
     )
 }
 
@@ -743,6 +747,7 @@ pub(super) fn encode_runtime_frame_base_indexed_address_to_runtime_frame_write(
 pub(super) fn encode_runtime_machine_indexed_address_to_runtime_frame_write(
     input: MachineEmissionContext<'_>,
     base_byte_offset: usize,
+    index_region: omega_target_operations::RuntimeStorageRegion,
     index_offset: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
@@ -751,6 +756,7 @@ pub(super) fn encode_runtime_machine_indexed_address_to_runtime_frame_write(
     architecture::encode_runtime_machine_indexed_address_to_runtime_frame_write(
         input.target.architecture,
         base_byte_offset,
+        index_region,
         index_offset,
         element_byte_size,
         field_byte_offset,
@@ -897,4 +903,3 @@ pub(super) fn encode_runtime_storage_copy_machine_indexed_to_machine_indexed(
         byte_count,
     )
 }
-

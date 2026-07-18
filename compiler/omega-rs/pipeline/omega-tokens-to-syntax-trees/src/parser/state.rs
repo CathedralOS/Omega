@@ -42,6 +42,8 @@ pub(super) fn parse_state_signature<'tokens, 'source>(
             is_default: false,
             parameters,
             return_type,
+            termination_guarantee: false,
+            ranking_witness: omega_syntax_trees::item::RankingWitnessSyntax::default(),
             effects: HandleSpan::empty(),
             contracts: HandleSpan::empty(),
         },

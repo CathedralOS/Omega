@@ -1,0 +1,18 @@
+// FAIL CANARY. Arithmetic-measured structural induction must still judge
+// every result arm. The positive arm produces Succ, contradicting the claimed
+// all-Zero result.
+use omega::language::core::nat;
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine Main::main(&mut self) { self.console.exit_process(70); }
+machine bogus(n: u64) -> Nat
+terminates;
+terminates by n;
+ensures
+    result == Nat::Zero
+{
+    transition n > 0 {
+        true -> Nat::Succ { prev: bogus(n - 1) }
+        false -> Nat::Zero
+    }
+}

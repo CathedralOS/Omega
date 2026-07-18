@@ -208,7 +208,8 @@ pub(super) fn select_runtime_dispatch_argument_materialization(
         }
 
         // Slice-descriptor argument (an `as_slice()` view or a subslice of a
-        // runtime-length slice, including the self-recursive `decreases … Length`
+        // runtime-length slice, including a self-recursive
+        // `terminates by … -> Slice::Length` ranking witness
         // shape where source slot == target slot): one seam covers every
         // descriptor-construction strategy.
         // NOTE: a bare STRING / byte-slice LITERAL argument (`forward("hello")`) is

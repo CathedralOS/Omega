@@ -1,0 +1,13 @@
+// FAIL CANARY. Omitted fields are zero-filled, and health=0 does not establish
+// Player's default domain, so the zero-excluding witness is mandatory.
+data Player
+where
+    health >= 1,
+{
+    health: i32;
+    score: i32;
+}
+data Main {}
+machine Main::run(&mut self) {
+    let player: Player = Player {};
+}

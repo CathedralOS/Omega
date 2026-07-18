@@ -88,6 +88,8 @@ pub(crate) fn lower_state_signature_node(
         signature.parameters,
         signature.return_type,
         signature.is_default,
+        signature.termination_guarantee,
+        signature.ranking_witness,
         signature.effects,
         signature.contracts,
     )
@@ -100,6 +102,8 @@ fn lower_state_signature_parts(
     parameters: HandleSpan<syntax::item::StateParameterHandle>,
     return_type_handle: syntax::types::TypeReferenceHandle,
     is_default: bool,
+    termination_guarantee: bool,
+    ranking_witness: syntax::item::RankingWitnessSyntax,
     effects: HandleSpan<syntax::identifier::Identifier>,
     contracts: HandleSpan<syntax::item::CapabilityContract>,
 ) -> Result<StateSignature, Diagnostic> {
@@ -110,6 +114,8 @@ fn lower_state_signature_parts(
         .transpose()?;
     let effects = lower_signature_effects(lowerer, syntax_trees, effects);
     let contracts = lower_signature_contracts(lowerer, syntax_trees, contracts)?;
+    let ranking_witness =
+        crate::machine::lower_ranking_witness(lowerer, syntax_trees, ranking_witness)?;
 
     Ok(StateSignature {
         symbol: SymbolHandle::invalid(),
@@ -118,6 +124,8 @@ fn lower_state_signature_parts(
             is_default,
             parameters,
             return_type,
+            termination_guarantee: termination_guarantee.into(),
+            ranking_witness,
             effects,
             contracts,
         },
@@ -254,16 +262,6 @@ fn lower_statement_into_pending(
     } else {
         pending.extend(lowered);
         *run_start = None;
-    }
-
-    let syntax::statement::StatementNode::Relax(relax) =
-        syntax_trees.statements.statement(statement)
-    else {
-        return Ok(());
-    };
-
-    for nested in syntax_trees.items.statements(relax.statements) {
-        lower_statement_into_pending(lowerer, syntax_trees, *nested, pending, run_start)?;
     }
 
     Ok(())

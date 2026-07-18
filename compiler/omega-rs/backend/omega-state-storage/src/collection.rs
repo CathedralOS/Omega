@@ -99,7 +99,8 @@ pub fn build_state_storage_plan_with_workers(
                 local.type_reference,
             );
             let local_initial_value = if local.initial_value.is_valid() {
-                plan.expressions.copy_from(&expressions, local.initial_value)
+                plan.expressions
+                    .copy_from(&expressions, local.initial_value)
             } else {
                 ExpressionHandle::invalid()
             };
@@ -370,10 +371,37 @@ fn expression_contains_trapping_op(
             );
             let (left, right) = (binary.left, binary.right);
             (arithmetic
-                && (operand_declared_trapping(program, state, expressions, statements, local_statement_index, left)
-                    || operand_declared_trapping(program, state, expressions, statements, local_statement_index, right)))
-                || expression_contains_trapping_op(program, state, expressions, statements, local_statement_index, left)
-                || expression_contains_trapping_op(program, state, expressions, statements, local_statement_index, right)
+                && (operand_declared_trapping(
+                    program,
+                    state,
+                    expressions,
+                    statements,
+                    local_statement_index,
+                    left,
+                ) || operand_declared_trapping(
+                    program,
+                    state,
+                    expressions,
+                    statements,
+                    local_statement_index,
+                    right,
+                )))
+                || expression_contains_trapping_op(
+                    program,
+                    state,
+                    expressions,
+                    statements,
+                    local_statement_index,
+                    left,
+                )
+                || expression_contains_trapping_op(
+                    program,
+                    state,
+                    expressions,
+                    statements,
+                    local_statement_index,
+                    right,
+                )
         }
         ExpressionNode::Cast(cast) => {
             cast.domain == ArithmeticDomain::Trapping
@@ -423,20 +451,18 @@ fn operand_declared_trapping(
             if !symbol.is_valid() {
                 return false;
             }
-            program
-                .state_parameters(state)
+            program.state_parameters(state).iter().any(|parameter| {
+                parameter.symbol == symbol && reference_is_trapping(parameter.type_reference)
+            }) || statements
                 .iter()
-                .any(|parameter| parameter.symbol == symbol && reference_is_trapping(parameter.type_reference))
-                || statements
-                    .iter()
-                    .take(local_statement_index)
-                    .any(|statement| {
-                        matches!(
-                            statement,
-                            StatementNode::LocalData(local)
-                                if local.symbol == symbol && reference_is_trapping(local.type_reference)
-                        )
-                    })
+                .take(local_statement_index)
+                .any(|statement| {
+                    matches!(
+                        statement,
+                        StatementNode::LocalData(local)
+                            if local.symbol == symbol && reference_is_trapping(local.type_reference)
+                    )
+                })
         }
         ExpressionNode::Member(member) => {
             if !member.member_symbol.is_valid() {
@@ -506,8 +532,17 @@ fn local_data_requires_storage(
                     local_symbol,
                     local_name,
                     uses_runtime_flow,
-                ) || local_data_value_references_symbol(expressions, statement, local_symbol, local_name)
-                    || assignment_value_references_symbol(expressions, statement, local_symbol, local_name)
+                ) || local_data_value_references_symbol(
+                    expressions,
+                    statement,
+                    local_symbol,
+                    local_name,
+                ) || assignment_value_references_symbol(
+                    expressions,
+                    statement,
+                    local_symbol,
+                    local_name,
+                )
             })
     {
         return true;
@@ -613,6 +648,35 @@ fn local_data_requires_storage(
         return true;
     }
 
+    // A STRUCT local whose field becomes the backing storage of an
+    // `as_slice()`/`as_mut_slice()` local must keep its frame slot. The slice
+    // descriptor stores an ADDRESS into that struct; folding the struct literal
+    // is not enough because the address must remain valid after the declaration
+    // and, in particular, across a state transition. Without this dependency the
+    // planner kept only the descriptor local, its initializer could not resolve
+    // the struct field to a place, and both the source and forwarded descriptor
+    // stayed zero (native faulted on the first indexed access).
+    //
+    // Keep this narrower than all struct-literal uses. Borrow-carrying value
+    // structs deliberately remain foldable (see `initializer_is_array_literal`
+    // below); only an explicit slice-view call makes the aggregate an
+    // address-stable backing place.
+    if initializer_is_struct_literal(expressions, initial_value)
+        && statements
+            .iter()
+            .skip(local_statement_index + 1)
+            .any(|statement| {
+                local_data_initializes_slice_view_from_symbol(
+                    expressions,
+                    statement,
+                    local_symbol,
+                    local_name,
+                )
+            })
+    {
+        return true;
+    }
+
     // `statement_references_local` (the final check below) inspects Expression /
     // Assignment / Call / Transition statements but NOT a LocalData (`let`) VALUE.
     // So an AGGREGATE local (array/struct literal -- which has no immediate form to
@@ -674,8 +738,17 @@ fn local_data_requires_storage(
                     local_symbol,
                     local_name,
                     uses_runtime_flow,
-                ) || local_data_value_references_symbol(expressions, statement, local_symbol, local_name)
-                    || assignment_value_references_symbol(expressions, statement, local_symbol, local_name)
+                ) || local_data_value_references_symbol(
+                    expressions,
+                    statement,
+                    local_symbol,
+                    local_name,
+                ) || assignment_value_references_symbol(
+                    expressions,
+                    statement,
+                    local_symbol,
+                    local_name,
+                )
             })
     {
         return true;
@@ -704,8 +777,17 @@ fn local_data_requires_storage(
                 local_symbol,
                 local_name,
                 uses_runtime_flow,
-            ) || local_data_value_references_symbol(expressions, statement, local_symbol, local_name)
-                || assignment_value_references_symbol(expressions, statement, local_symbol, local_name)
+            ) || local_data_value_references_symbol(
+                expressions,
+                statement,
+                local_symbol,
+                local_name,
+            ) || assignment_value_references_symbol(
+                expressions,
+                statement,
+                local_symbol,
+                local_name,
+            )
         })
     {
         return true;
@@ -728,19 +810,20 @@ fn local_data_requires_storage(
     // covers the elided positions -- broadening this to all calls regresses the
     // canary_suite by 6 via slot-offset shifts). canary_suite stash-diff confirms
     // the boundary-gated form is exact zero-regression.
-    let referenced_by_final_scan = statements
-        .iter()
-        .skip(local_statement_index + 1)
-        .any(|statement| {
-            statement_references_local(
-                expressions,
-                statement_table,
-                statement,
-                local_symbol,
-                local_name,
-                uses_runtime_flow,
-            )
-        });
+    let referenced_by_final_scan =
+        statements
+            .iter()
+            .skip(local_statement_index + 1)
+            .any(|statement| {
+                statement_references_local(
+                    expressions,
+                    statement_table,
+                    statement,
+                    local_symbol,
+                    local_name,
+                    uses_runtime_flow,
+                )
+            });
     if !referenced_by_final_scan
         && initializer_is_boundary_call(program, expressions, initial_value)
     {
@@ -800,13 +883,11 @@ fn local_or_bare_copy_used_as_arithmetic_operand(
 ) -> bool {
     // One forward pass builds the transitive bare-copy set: statements are in
     // order, so a copy of a copy is seen after its source joined the set.
-    let mut aliases: Vec<(SymbolHandle, Identifier)> =
-        vec![(local_symbol, local_name.clone())];
+    let mut aliases: Vec<(SymbolHandle, Identifier)> = vec![(local_symbol, local_name.clone())];
     for statement in statements.iter().skip(local_statement_index + 1) {
         if let StatementNode::LocalData(local_data) = statement
             && local_data.initial_value.is_valid()
-            && let Some(source_name) =
-                bare_name_initializer(expressions, local_data.initial_value)
+            && let Some(source_name) = bare_name_initializer(expressions, local_data.initial_value)
             && aliases.iter().any(|(_, name)| *name == source_name)
         {
             aliases.push((local_data.symbol, local_data.name.clone()));
@@ -854,13 +935,11 @@ fn local_or_bare_copy_used_as_runtime_index(
     local_symbol: SymbolHandle,
     local_name: &Identifier,
 ) -> bool {
-    let mut aliases: Vec<(SymbolHandle, Identifier)> =
-        vec![(local_symbol, local_name.clone())];
+    let mut aliases: Vec<(SymbolHandle, Identifier)> = vec![(local_symbol, local_name.clone())];
     for statement in statements.iter().skip(local_statement_index + 1) {
         if let StatementNode::LocalData(local_data) = statement
             && local_data.initial_value.is_valid()
-            && let Some(source_name) =
-                bare_name_initializer(expressions, local_data.initial_value)
+            && let Some(source_name) = bare_name_initializer(expressions, local_data.initial_value)
             && aliases.iter().any(|(_, name)| *name == source_name)
         {
             aliases.push((local_data.symbol, local_data.name.clone()));
@@ -1068,12 +1147,7 @@ fn expression_uses_symbol_as_index(
         }
         ExpressionNode::Call(call) => {
             (call.receiver.is_valid()
-                && expression_uses_symbol_as_index(
-                    expressions,
-                    call.receiver,
-                    symbol,
-                    local_name,
-                ))
+                && expression_uses_symbol_as_index(expressions, call.receiver, symbol, local_name))
                 || expressions
                     .expression_handles(call.arguments)
                     .iter()
@@ -1118,8 +1192,7 @@ fn expression_is_bare_symbol(
         ExpressionNode::Name(path) => {
             let members = expressions.name_path_members(path.members);
             members.len() == 1
-                && ((symbol.is_valid() && path.head_symbol == symbol)
-                    || members[0] == *local_name)
+                && ((symbol.is_valid() && path.head_symbol == symbol) || members[0] == *local_name)
         }
         _ => false,
     }
@@ -1332,6 +1405,56 @@ fn initializer_is_runtime_bounded_subslice(
     }
 }
 
+fn initializer_is_struct_literal(
+    expressions: &omega_checked_trees::expression::ExpressionTable,
+    expression: ExpressionHandle,
+) -> bool {
+    match expressions.expression(expression) {
+        ExpressionNode::StructLiteral(_) => true,
+        ExpressionNode::Mutable(inner) => initializer_is_struct_literal(expressions, *inner),
+        _ => false,
+    }
+}
+
+/// Whether this `let` initializes a slice view whose receiver is rooted in the
+/// named local (`let view = room.items.as_mut_slice()`).
+fn local_data_initializes_slice_view_from_symbol(
+    expressions: &omega_checked_trees::expression::ExpressionTable,
+    statement: &StatementNode,
+    symbol: SymbolHandle,
+    local_name: &Identifier,
+) -> bool {
+    let StatementNode::LocalData(local) = statement else {
+        return false;
+    };
+    expression_is_slice_view_from_symbol(expressions, local.initial_value, symbol, local_name)
+}
+
+fn expression_is_slice_view_from_symbol(
+    expressions: &omega_checked_trees::expression::ExpressionTable,
+    expression: ExpressionHandle,
+    symbol: SymbolHandle,
+    local_name: &Identifier,
+) -> bool {
+    if !expression.is_valid() {
+        return false;
+    }
+    match expressions.expression(expression) {
+        ExpressionNode::Mutable(inner)
+        | ExpressionNode::Cast(omega_checked_trees::expression::TableCastExpression {
+            value: inner,
+            ..
+        }) => expression_is_slice_view_from_symbol(expressions, *inner, symbol, local_name),
+        ExpressionNode::Call(call) => {
+            call.receiver.is_valid()
+                && call.arguments.is_empty()
+                && matches!(call.target.as_str(), "as_slice" | "as_mut_slice")
+                && expression_references_symbol(expressions, call.receiver, symbol, local_name)
+        }
+        _ => false,
+    }
+}
+
 /// Whether a LocalData (`let`) statement's initializer VALUE references the
 /// symbol/name -- the position `statement_references_local` does not inspect.
 fn local_data_value_references_symbol(
@@ -1405,9 +1528,7 @@ fn initializer_is_runtime_indexed_read(
             expressions.expression(indexed.index),
             ExpressionNode::Integer(_)
         ),
-        ExpressionNode::Mutable(inner) => {
-            initializer_is_runtime_indexed_read(expressions, *inner)
-        }
+        ExpressionNode::Mutable(inner) => initializer_is_runtime_indexed_read(expressions, *inner),
         // A field read off a runtime-indexed element (`arr[i].field`) is the same
         // unresolvable-without-a-slot value as the bare read: it is not folded back
         // into an operand position either, so a local initialized from it and used
@@ -1516,8 +1637,7 @@ fn expression_uses_symbol_as_arithmetic_operand(
         // a slot-less local is not substituted into the cast, so the cast write
         // would drop it. Treat the cast OF the symbol as such a use.
         ExpressionNode::Cast(cast) => {
-            expression_is_symbol(expressions, cast.value, symbol, local_name)
-                || recurse(cast.value)
+            expression_is_symbol(expressions, cast.value, symbol, local_name) || recurse(cast.value)
         }
         ExpressionNode::Mutable(inner) => recurse(*inner),
         ExpressionNode::Member(member) => recurse(member.receiver),
@@ -1531,9 +1651,11 @@ fn expression_uses_symbol_as_arithmetic_operand(
                     .copied()
                     .any(recurse)
         }
-        ExpressionNode::ArrayLiteral(items) => {
-            expressions.expression_handles(*items).iter().copied().any(recurse)
-        }
+        ExpressionNode::ArrayLiteral(items) => expressions
+            .expression_handles(*items)
+            .iter()
+            .copied()
+            .any(recurse),
         ExpressionNode::StructLiteral(struct_literal) => expressions
             .struct_fields(struct_literal.fields)
             .iter()
@@ -1568,9 +1690,12 @@ fn statement_uses_symbol_as_arithmetic_operand(
             symbol,
             local_name,
         ),
-        StatementNode::Expression(expression) => {
-            expression_uses_symbol_as_arithmetic_operand(expressions, *expression, symbol, local_name)
-        }
+        StatementNode::Expression(expression) => expression_uses_symbol_as_arithmetic_operand(
+            expressions,
+            *expression,
+            symbol,
+            local_name,
+        ),
         StatementNode::Call(call) => expressions
             .expression_handles(call.arguments)
             .iter()

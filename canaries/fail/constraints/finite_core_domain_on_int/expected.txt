@@ -1,0 +1,1 @@
+`Finite` is only valid on floats

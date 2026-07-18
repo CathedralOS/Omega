@@ -5,7 +5,7 @@ mod guards;
 
 use self::arguments::argument_is_parameter_tail_slice;
 use self::guards::guard_is_non_empty_slice;
-use super::patterns;
+use super::{EdgeClass, patterns};
 
 pub(super) fn state_has_proven_self_loop(
     program: &omega_typed_trees::TypedTrees,
@@ -34,4 +34,39 @@ pub(super) fn state_has_proven_self_loop(
             guard_is_non_empty_slice(program, self_loop.guard, parameter)
                 && argument_is_parameter_tail_slice(program, argument, parameter)
         })
+}
+
+pub(super) fn classify_cross_machine_edge(
+    program: &omega_typed_trees::TypedTrees,
+    source: &omega_typed_trees::state::State,
+    target: &omega_typed_trees::state::State,
+    guard: ExpressionHandle,
+    arguments: &[ExpressionHandle],
+    decreases: ExpressionHandle,
+) -> EdgeClass {
+    let Some(parameter) = patterns::parameter_matched_by_expression(program, source, decreases)
+    else {
+        return EdgeClass::Unknown;
+    };
+    let Some(argument_index) = program
+        .state_parameters(target)
+        .iter()
+        .filter(|candidate| !candidate.is_self)
+        .position(|candidate| candidate.name == parameter.name)
+    else {
+        return EdgeClass::Unknown;
+    };
+    let Some(argument) = arguments.get(argument_index).copied() else {
+        return EdgeClass::Unknown;
+    };
+
+    if guard_is_non_empty_slice(program, guard, parameter)
+        && argument_is_parameter_tail_slice(program, argument, parameter)
+    {
+        EdgeClass::Strict
+    } else if patterns::expression_is_parameter(program, argument, parameter) {
+        EdgeClass::NonIncreasing
+    } else {
+        EdgeClass::Unknown
+    }
 }

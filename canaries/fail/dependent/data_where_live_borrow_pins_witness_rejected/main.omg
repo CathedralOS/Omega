@@ -1,0 +1,18 @@
+// FAIL CANARY. A live borrow into a dependent record pins every sibling named
+// by its default-domain coupling; end cannot change while the start view lives.
+data Map
+where
+    start <= end,
+{
+    start: i32;
+    end: i32;
+}
+data Main { map: Map; }
+machine Main::run(&mut self) {
+    self.map.start = 10;
+    self.map.end = 20;
+    let view: &mut i32 = &mut self.map.start;
+    self.map.end = 30;
+    self.touch(view);
+}
+machine Main::touch(&mut self, value: &mut i32) { value = 10; }

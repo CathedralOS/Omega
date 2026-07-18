@@ -77,7 +77,8 @@ pub(crate) fn desugar_generic_data_instances(
     // data without its generic machines (Phase 2) would break method
     // resolution (`self.items.push(..)` on a `Vec<i32>` field). Phase 1 =
     // method-less generic data only.
-    let mut data_with_machines: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut data_with_machines: std::collections::HashSet<String> =
+        std::collections::HashSet::new();
     // Attached machines per data name, as ROOT-ITEM indexes (the synthesis
     // loop clones them from a snapshot when it builds a container instance).
     let mut attached_machines: HashMap<String, Vec<usize>> = HashMap::new();
@@ -118,38 +119,37 @@ pub(crate) fn desugar_generic_data_instances(
                 .iter()
                 .map(|parameter| parameter.name.as_str().to_string())
                 .collect();
-            let all_methods_covered = attached_machines[definition.name.as_str()]
-                .iter()
-                .all(|&item_index| {
-                    let Some(Item::Machine(machine)) = syntax.root_items().nth(item_index)
-                    else {
-                        return false;
-                    };
-                    // DECLARATION-ONLY methods (the stdlib `Vec<T>` surface --
-                    // empty state bodies, type-check-only) must NOT clone: a
-                    // concrete clone of an empty body trips the
-                    // returns-but-empty check that generic templates are
-                    // exempt from. Such containers stay type-check-only.
-                    let has_bodies = syntax
-                        .tables
-                        .items
-                        .state_handles(machine.states)
-                        .iter()
-                        .any(|state| {
-                            !syntax.tables.items.state(*state).statements.is_empty()
-                        });
-                    has_bodies
-                        && syntax
+            let all_methods_covered =
+                attached_machines[definition.name.as_str()]
+                    .iter()
+                    .all(|&item_index| {
+                        let Some(Item::Machine(machine)) = syntax.root_items().nth(item_index)
+                        else {
+                            return false;
+                        };
+                        // DECLARATION-ONLY methods (the stdlib `Vec<T>` surface --
+                        // empty state bodies, type-check-only) must NOT clone: a
+                        // concrete clone of an empty body trips the
+                        // returns-but-empty check that generic templates are
+                        // exempt from. Such containers stay type-check-only.
+                        let has_bodies = syntax
                             .tables
                             .items
-                            .type_parameters(machine.type_parameters)
+                            .state_handles(machine.states)
                             .iter()
-                            .all(|parameter| {
-                                data_parameter_names
-                                    .iter()
-                                    .any(|name| name == parameter.name.as_str())
-                            })
-                });
+                            .any(|state| !syntax.tables.items.state(*state).statements.is_empty());
+                        has_bodies
+                            && syntax
+                                .tables
+                                .items
+                                .type_parameters(machine.type_parameters)
+                                .iter()
+                                .all(|parameter| {
+                                    data_parameter_names
+                                        .iter()
+                                        .any(|name| name == parameter.name.as_str())
+                                })
+                    });
             if !all_methods_covered {
                 continue;
             }
@@ -213,11 +213,8 @@ pub(crate) fn desugar_generic_data_instances(
                 .zip(instance.argument_handles.iter().copied())
                 .collect();
 
-            let members: Vec<DataMember> = syntax
-                .tables
-                .items
-                .data_members(base_info.members)
-                .to_vec();
+            let members: Vec<DataMember> =
+                syntax.tables.items.data_members(base_info.members).to_vec();
             let properties = base_info.properties;
             let mut first: Handle<DataMember> = Handle::invalid();
             let mut count = 0u32;
@@ -233,6 +230,7 @@ pub(crate) fn desugar_generic_data_instances(
                 name: Identifier::generated(instance.synthetic_name.as_str()),
                 type_parameters: HandleSpan::default(),
                 properties,
+                default_domain: HandleSpan::empty(),
                 members: HandleSpan::from_parts(first, count),
             }));
 
@@ -247,8 +245,7 @@ pub(crate) fn desugar_generic_data_instances(
             };
             let snapshot = syntax.clone();
             for &item_index in machine_items {
-                let Some(Item::Machine(machine)) = snapshot.root_items().nth(item_index)
-                else {
+                let Some(Item::Machine(machine)) = snapshot.root_items().nth(item_index) else {
                     continue;
                 };
                 let watermark = syntax.tables.type_references.node_count();
@@ -270,21 +267,17 @@ pub(crate) fn desugar_generic_data_instances(
                     .next()
                     .unwrap_or(machine.name.as_str())
                     .to_string();
-                clone.name = Identifier::generated(format!(
-                    "{}::{}",
-                    instance.synthetic_name, method_tail
-                ));
-                clone.attached_data =
-                    Some(Identifier::generated(instance.synthetic_name.as_str()));
+                clone.name =
+                    Identifier::generated(format!("{}::{}", instance.synthetic_name, method_tail));
+                clone.attached_data = Some(Identifier::generated(instance.synthetic_name.as_str()));
                 clone.type_parameters = HandleSpan::default();
-                for (handle, name) in syntax
-                    .tables
-                    .type_references
-                    .named_nodes_from(watermark)
-                {
+                for (handle, name) in syntax.tables.type_references.named_nodes_from(watermark) {
                     if let Some(argument) = substitution.get(&name) {
-                        let replacement =
-                            syntax.tables.type_references.type_reference(*argument).clone();
+                        let replacement = syntax
+                            .tables
+                            .type_references
+                            .type_reference(*argument)
+                            .clone();
                         syntax
                             .tables
                             .type_references
@@ -462,6 +455,7 @@ fn constraint_slug(constraint: &TypeConstraintNode) -> Option<String> {
         TypeConstraintNode::Named(name) => Some(name.as_str().to_string()),
         TypeConstraintNode::Domain(name) => Some(name.as_str().to_string()),
         TypeConstraintNode::ArithmeticDomain(domain) => Some(domain.name().to_string()),
+        TypeConstraintNode::ValueDomain(domain) => Some(domain.name().to_string()),
         TypeConstraintNode::Range { .. } => None,
     }
 }
@@ -491,7 +485,11 @@ fn base_is_fully_monomorphizable(
             let DataMember::Field(field) = member else {
                 return false; // case/version member
             };
-            match syntax.tables.type_references.type_reference(field.type_reference) {
+            match syntax
+                .tables
+                .type_references
+                .type_reference(field.type_reference)
+            {
                 // exactly the parameter, or a concrete Named -> fine.
                 TypeReferenceNode::Named(_) => true,
                 // a nested generic of a KNOWN base whose args are each the
@@ -512,7 +510,9 @@ fn base_is_fully_monomorphizable(
                                     syntax.tables.type_references.type_reference(argument),
                                     TypeReferenceNode::Named(_)
                                 ) || !type_reference_mentions_parameter(
-                                    syntax, argument, &parameters,
+                                    syntax,
+                                    argument,
+                                    &parameters,
                                 )
                             })
                 }
@@ -559,14 +559,14 @@ fn substitute_member(
                 .to_vec();
             let substituted_arguments: Vec<TypeReferenceHandle> = argument_handles
                 .iter()
-                .map(|&argument| {
-                    match syntax.tables.type_references.type_reference(argument) {
+                .map(
+                    |&argument| match syntax.tables.type_references.type_reference(argument) {
                         TypeReferenceNode::Named(name) => {
                             substitution.get(name.as_str()).copied().unwrap_or(argument)
                         }
                         _ => argument,
-                    }
-                })
+                    },
+                )
                 .collect();
             let new_span = syntax
                 .tables
@@ -602,9 +602,7 @@ fn type_reference_mentions_parameter(
             .type_references
             .type_reference_handles(*arguments)
             .iter()
-            .any(|&argument| {
-                type_reference_mentions_parameter(syntax, argument, substitution)
-            }),
+            .any(|&argument| type_reference_mentions_parameter(syntax, argument, substitution)),
         // The common composite shells recurse precisely, so a parameter-FREE
         // field like `touched: i32 in Wrapping` (Constrained) or
         // `tags: [u8; 4]` shares unchanged instead of refusing the whole

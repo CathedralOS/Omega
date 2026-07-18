@@ -7,9 +7,8 @@ use omega::language::core::nat;
 boundary trait Console { machine exit_process(return_code: i32); }
 
 machine bogus_shuffle(a: Nat, b: Nat, c: Nat) -> Nat
-terminates {
-    decreases a;
-}
+terminates;
+terminates by a;
 ensures
     (add(a, add(b, c))) == (add(a, add(a, c)))
 {

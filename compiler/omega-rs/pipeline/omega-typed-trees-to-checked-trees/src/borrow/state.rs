@@ -3,7 +3,7 @@ use omega_checked_trees::BorrowLoanFact;
 
 use super::calls::collect_statement_borrow_calls;
 use super::last_uses::update_state_loan_last_uses;
-use super::loans::statement_borrow_loan;
+use super::loans::{dependent_witness_loan_places, statement_borrow_loan};
 use super::roots::{append_state_writable_roots, mutable_parameter_count};
 use super::tracker::StateLoanTracker;
 
@@ -67,9 +67,32 @@ pub(super) fn append_state_borrow_facts(
             state_loan_trackers.push(StateLoanTracker {
                 handle,
                 owner_symbol,
-                owner_name,
-                place,
+                owner_name: owner_name.clone(),
+                place: place.clone(),
             });
+            for witness_place in dependent_witness_loan_places(program, &place) {
+                let witness_segments = arenas
+                    .access_segments
+                    .insert_many(witness_place.segments.clone());
+                let handle = arenas.loans.append_to_span(
+                    &mut loans_span,
+                    BorrowLoanFact {
+                        statement_index,
+                        last_use_statement_index: statement_index,
+                        owner_symbol,
+                        source_owner_symbol,
+                        root_symbol: witness_place.root_symbol,
+                        segments: witness_segments,
+                        kind: omega_checked_trees::BorrowAccessKind::Read,
+                    },
+                );
+                state_loan_trackers.push(StateLoanTracker {
+                    handle,
+                    owner_symbol,
+                    owner_name: owner_name.clone(),
+                    place: witness_place,
+                });
+            }
         }
         let mut call_ordinal = 0usize;
         collect_statement_borrow_calls(

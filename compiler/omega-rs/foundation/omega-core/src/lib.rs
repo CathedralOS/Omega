@@ -1,8 +1,8 @@
-pub mod byte_predicates;
 pub mod allocations;
 pub mod arena;
 pub mod arithmetic;
 pub mod bignum;
+pub mod byte_predicates;
 pub mod cast_form;
 pub mod diagnostics;
 pub mod literals;
@@ -12,6 +12,8 @@ pub mod parallel;
 pub mod source;
 pub mod span;
 pub mod symbols;
+pub mod termination;
+pub mod value_domain;
 pub mod versioning;
 
 pub use diagnostics::{Diagnostic, format_diagnostics};

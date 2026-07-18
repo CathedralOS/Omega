@@ -43,7 +43,10 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("arithmetic/runtime_divide_min_edge_guard_exit", 70),
     ("arithmetic/runtime_nested_unsigned_witness_exit", 70),
     ("slices/runtime_local_array_element_value_operand_exit", 70),
-    ("slices/runtime_machine_array_element_fused_call_arg_exit", 70),
+    (
+        "slices/runtime_machine_array_element_fused_call_arg_exit",
+        70,
+    ),
     ("termination/custom_ranking_field_countdown_compile", 70),
     ("termination/custom_ranking_struct_view", 70),
     ("termination/runtime_recursive_result_roles_exit", 70),
@@ -53,6 +56,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("arithmetic/runtime_float_compare_bool_exit", 70),
     ("arithmetic/runtime_float_nested_operand_exit", 70),
     ("arithmetic/runtime_shift_count_domain_exit", 70),
+    ("arithmetic/runtime_exact_guarded_shift_count_exit", 70),
     ("arithmetic/runtime_shift_atwidth_signed_modular_exit", 70),
     ("arithmetic/runtime_shift_right_atwidth_exit", 70),
     ("arithmetic/runtime_shift_atwidth_indexed_targets_exit", 70),
@@ -60,7 +64,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("arithmetic/runtime_sat_unsigned_onedirection_exit", 70),
     ("arithmetic/runtime_sat_min_idiom_exit", 70),
     ("arithmetic/runtime_shl_saturating_exit", 70),
-    ("arithmetic/runtime_shl_saturating_atwidth_exit", 70),
+    ("arithmetic/runtime_trapping_shift_count_exit", 70),
     ("proofs/runtime_decreases_u64_measure_exit", 70),
     ("arithmetic/runtime_wrapping_operand_truncation_exit", 70),
     ("text/case_literal_texteq_field_store_exit", 70),
@@ -90,6 +94,10 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("arithmetic/runtime_narrow_signed_wrap_boundaries_exit", 70),
     ("arithmetic/runtime_domain_boundaries_exit", 70),
     ("arithmetic/runtime_float_compare_cast_exit", 70),
+    ("float/finite_core_domain_range_discharge", 77),
+    ("float/float_saturating_arithmetic_exit", 77),
+    ("float/float_to_int_exact_proofs_exit", 78),
+    ("float/float_to_int_policy_exit", 77),
     ("arithmetic/runtime_i64_divide_modulo_exit", 70),
     ("arithmetic/runtime_float_operations_exit", 70),
     ("arithmetic/runtime_comparison_guard_signedness_exit", 70),
@@ -121,6 +129,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("arithmetic/const_fold_unsigned_divide_arg_exit", 70),
     ("arithmetic/unsigned_min_max_wrapping_local_exit", 77),
     ("storage/runtime_slice_indexed_binary_rmw_exit", 70),
+    ("storage/runtime_local_slice_forward_exit", 70),
     ("calls/runtime_mut_ref_forward_exit", 70),
     ("arithmetic/const_fold_cast_signedness", 70),
     ("arithmetic/wrapping_signed_divide_min_by_neg_one", 70),
@@ -137,7 +146,10 @@ const RUN_CANARIES: &[(&str, i32)] = &[
         70,
     ),
     ("arithmetic/runtime_transition_arg_guard_narrowing_exit", 70),
-    ("arithmetic/runtime_transition_value_guard_narrowing_exit", 42),
+    (
+        "arithmetic/runtime_transition_value_guard_narrowing_exit",
+        42,
+    ),
     ("arithmetic/runtime_requires_one_sided_bound_exit", 42),
     ("arithmetic/runtime_transition_arg_saturating_exit", 70),
     ("arithmetic/runtime_unsigned_division_exit", 70),
@@ -224,8 +236,14 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("calls/runtime_selfcall_chain_second_receiver_exit", 70),
     ("calls/runtime_nested_inline_chain_result_exit", 70),
     ("calls/runtime_nonentry_inline_second_receiver_exit", 70),
-    ("calls/runtime_nested_local_terminal_second_instance_exit", 70),
-    ("calls/runtime_nested_field_terminal_second_instance_exit", 70),
+    (
+        "calls/runtime_nested_local_terminal_second_instance_exit",
+        70,
+    ),
+    (
+        "calls/runtime_nested_field_terminal_second_instance_exit",
+        70,
+    ),
     ("calls/runtime_multiarm_same_named_locals_exit", 70),
     ("calls/runtime_multiarm_texteq_local_exit", 70),
     ("calls/runtime_param_receiver_single_instance_exit", 70),
@@ -237,7 +255,10 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("arithmetic/runtime_u64_literal_let_guard_exit", 70),
     ("time/runtime_saturating_time_arith_exit", 70),
     ("calls/runtime_dispatch_float_terminal_exit", 70),
-    ("time/runtime_value_machine_receiver_field_postentry_exit", 70),
+    (
+        "time/runtime_value_machine_receiver_field_postentry_exit",
+        70,
+    ),
     ("references/runtime_nested_receiver_same_type_exit", 70),
     ("calls/runtime_same_type_second_receiver_mutation_exit", 70),
     ("calls/runtime_dispatch_slice_element_terminal_exit", 70),
@@ -355,6 +376,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("recast/runtime_interior_byte_recast_exit", 70),
     ("recast/runtime_offset_byte_recast_exit", 70),
     ("recast/runtime_guarded_offset_recast_exit", 70),
+    ("recast/runtime_symbolic_stride_footprint_exit", 70),
     ("data/runtime_proof_only_data_declared_exit", 70),
     ("arithmetic/runtime_u64_guarded_cap_store_exit", 70),
     ("calls/runtime_measured_tail_recursion_exit", 70),
@@ -441,10 +463,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
         70,
     ),
     ("collections/runtime_indexed_local_copy_chain_exit", 70),
-    (
-        "collections/runtime_inplace_reverse_local_temp_exit",
-        70,
-    ),
+    ("collections/runtime_inplace_reverse_local_temp_exit", 70),
     ("control_flow/runtime_captured_local_swap_exit", 70),
     ("calls/runtime_same_type_contained_direct_fields_exit", 70),
     ("calls/runtime_shared_ref_param_member_exit", 42),
@@ -915,9 +934,12 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("arithmetic/unsigned_min_max_operand_position_exit", 77),
     ("arithmetic/suffix_boundary_magnitudes_exit", 70),
     ("arithmetic/suffix_landed_operand_position_exit", 77),
+    ("float/anonymous_exact_rat_const_exit", 77),
     ("float/expansion_float_local_guard_exit", 70),
+    ("float/f32_per_operation_rounding_exit", 77),
     ("float/suffix_f32_single_rounding_exit", 77),
     ("float/unsuffixed_f32_destination_single_rounding_exit", 77),
+    ("float/unsuffixed_f32_argument_single_rounding_exit", 77),
     ("expressions/runtime_qualified_case_value_exit", 70),
     ("calls/runtime_arm_target_host_result_exit", 70),
     ("calls/runtime_enum_self_method_exit", 70),
@@ -931,14 +953,20 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("calls/runtime_nested_value_call_guard_exit", 70),
     ("calls/runtime_value_call_same_callee_sites_exit", 70),
     ("calls/runtime_two_site_struct_result_exit", 70),
-    ("calls/runtime_value_call_shared_slot_straight_line_exit", 22),
+    (
+        "calls/runtime_value_call_shared_slot_straight_line_exit",
+        22,
+    ),
     ("calls/runtime_value_call_transition_args_exit", 70),
     (
         "calls/runtime_value_call_transition_args_straight_line_exit",
         12,
     ),
     ("calls/runtime_value_call_shared_payload_name_exit", 70),
-    ("calls/runtime_value_call_struct_payload_cast_field_exit", 70),
+    (
+        "calls/runtime_value_call_struct_payload_cast_field_exit",
+        70,
+    ),
     ("time/runtime_duration_core_exit", 70),
     ("time/runtime_instant_elapsed_exit", 70),
     ("time/runtime_system_time_after_2026_exit", 70),
@@ -950,7 +978,10 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("constants/runtime_scoped_const_exit", 70),
     ("collections/runtime_declared_range_index_write_exit", 30),
     ("collections/runtime_nested_const_row_indexed_read_exit", 1),
-    ("collections/runtime_nested_const_row_struct_field_write_exit", 1),
+    (
+        "collections/runtime_nested_const_row_struct_field_write_exit",
+        1,
+    ),
     ("collections/runtime_nested_middle_index_3d_exit", 1),
     ("collections/runtime_nested_deep_const_prefix_exit", 1),
     ("collections/runtime_double_indexed_read_exit", 1),
@@ -966,7 +997,10 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("generics/runtime_container_setter_matrix_exit", 1),
     ("collections/runtime_let_bound_computed_index_exit", 1),
     ("collections/runtime_computed_index_direct_exit", 1),
-    ("collections/runtime_guarded_computed_index_operand_exit", 30),
+    (
+        "collections/runtime_guarded_computed_index_operand_exit",
+        30,
+    ),
     ("collections/runtime_struct_field_operand_matrix_exit", 1),
     ("collections/runtime_struct_field_operand_param_exit", 1),
     ("collections/runtime_dual_frame_index_copy_exit", 1),
@@ -974,11 +1008,17 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("collections/runtime_frame_indexed_byte_param_read_exit", 1),
     ("collections/runtime_frame_indexed_local_read_exit", 1),
     ("collections/runtime_frame_indexed_param_field_exit", 1),
-    ("collections/runtime_frame_indexed_param_operand_arg_exit", 1),
+    (
+        "collections/runtime_frame_indexed_param_operand_arg_exit",
+        1,
+    ),
     ("collections/runtime_frame_indexed_param_read_exit", 1),
     ("collections/runtime_indexed_struct_field_operand_exit", 1),
     ("collections/runtime_indexed_struct_field_rmw_exit", 1),
-    ("collections/runtime_machine_frame_index_dual_frame_write_exit", 1),
+    (
+        "collections/runtime_machine_frame_index_dual_frame_write_exit",
+        1,
+    ),
     ("collections/runtime_machine_frame_index_read_exit", 1),
     ("collections/runtime_machine_frame_index_rmw_exit", 1),
     ("collections/runtime_machine_frame_index_write_exit", 1),
@@ -1845,9 +1885,8 @@ fn compile_and_run_native_with_stdin(
     main_path: &Path,
     stdin: &[u8],
 ) -> (i32, Vec<u8>, Vec<u8>) {
-    try_compile_and_run_native_with_stdin(canary_name, main_path, stdin).unwrap_or_else(
-        |failure| panic!("{canary_name}: native compile failed:\n{failure}"),
-    )
+    try_compile_and_run_native_with_stdin(canary_name, main_path, stdin)
+        .unwrap_or_else(|failure| panic!("{canary_name}: native compile failed:\n{failure}"))
 }
 
 /// The fallible core of [`compile_and_run_native_with_stdin`]: `Err(joined
@@ -1936,27 +1975,34 @@ enum PendingInterpOutcome {
 /// omega-run sweep. Entries mirror canaries/pending/*/ headers -- update BOTH
 /// when a divergence's documented behavior changes.
 const PENDING_RUNTIME_DIVERGENCES: &[(&str, i32, PendingInterpOutcome)] = &[
-    ("arithmetic/array_field_default_silent", 0, PendingInterpOutcome::Exit(1)),
-    ("calls/texteq_local_guard_read_divergence", 71, PendingInterpOutcome::Exit(70)),
-    ("calls/texteq_local_arg_forward_divergence", 71, PendingInterpOutcome::Exit(70)),
-    ("calls/trailing_state_mut_param_phase_divergence", 71, PendingInterpOutcome::Exit(70)),
-    // Host-correct legs (this gate runs native on the HOST): x86 truncation
-    // yields 70; the header records aarch64's 99 as the cross-target face.
-    ("arithmetic/float_to_int_overflow_divergence", 70, PendingInterpOutcome::Exit(71)),
+    (
+        "arithmetic/array_field_default_silent",
+        0,
+        PendingInterpOutcome::Exit(1),
+    ),
+    (
+        "calls/texteq_local_guard_read_divergence",
+        71,
+        PendingInterpOutcome::Exit(70),
+    ),
+    (
+        "calls/texteq_local_arg_forward_divergence",
+        71,
+        PendingInterpOutcome::Exit(70),
+    ),
+    (
+        "calls/trailing_state_mut_param_phase_divergence",
+        71,
+        PendingInterpOutcome::Exit(70),
+    ),
     // 72/72: the two legs AGREE on this host (aarch64 LSLV masks the count
     // at 64 like the interp); the parked divergence is vs x86's 32-bit mask.
     // unsigned_min_max_operand_position_divergence PROMOTED 2026-07-18 to
     // pass/arithmetic/unsigned_min_max_operand_position_exit (carrier CR3:
     // binding-capture stamping + operand-derived anonymous-destination folds
     // carry the landing to the signedness probe; both engines exit 77).
-    // A frame-LOCAL-backed slice descriptor forwarded across a state
-    // boundary goes wild natively (the known-good shapes are same-state
-    // use, or forwarding a slice derived from a `&mut` PARAM).
-    (
-        "storage/local_slice_forward_segfault",
-        -1073741819,
-        PendingInterpOutcome::Exit(70),
-    ),
+    // local_slice_forward_segfault PROMOTED to
+    // pass/storage/runtime_local_slice_forward_exit (native/interp 70).
 ];
 
 /// COLLECT-ALL runtime drift-check over the parked divergences above.
@@ -1965,7 +2011,10 @@ fn pending_runtime_divergences_hold() {
     let mut drifted: Vec<String> = Vec::new();
 
     for (name, expected_native, expected_interp) in PENDING_RUNTIME_DIVERGENCES {
-        let main_path = repo_root().join("canaries/pending").join(name).join("main.omg");
+        let main_path = repo_root()
+            .join("canaries/pending")
+            .join(name)
+            .join("main.omg");
 
         let checked = match compile_to_checked(&main_path, None) {
             Ok(checked) => checked,
@@ -2056,6 +2105,65 @@ fn interpreter_traps_on_trapping_guard_overflow() {
         error.contains("Trapping"),
         "expected an arithmetic-overflow trap naming the Trapping domain, got: {error}"
     );
+}
+
+#[test]
+fn interpreter_traps_on_out_of_range_shift_count() {
+    let main_path = repo_root()
+        .join("canaries/pass/arithmetic/runtime_trapping_shift_count_traps")
+        .join("main.omg");
+    let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
+        panic!(
+            "Trapping shift-count repro should reach the interpreter:\n{}",
+            join_diagnostics(&diagnostics)
+        )
+    });
+    let outcome = interpret(&checked, b"");
+    let error = outcome
+        .error
+        .as_deref()
+        .expect("an out-of-range Trapping shift count must trap");
+    assert!(
+        error.contains("shift count") || error.contains("Trapping"),
+        "unexpected shift-count trap: {error}"
+    );
+}
+
+#[test]
+fn interpreter_honors_float_arithmetic_policies() {
+    let saturating = pass_canary("float/float_saturating_arithmetic_exit").join("main.omg");
+    let checked = compile_to_checked(&saturating, None).unwrap_or_else(|diagnostics| {
+        panic!(
+            "Saturating float arithmetic should reach the interpreter:\n{}",
+            join_diagnostics(&diagnostics)
+        )
+    });
+    let outcome = interpret(&checked, b"");
+    assert_eq!(outcome.error, None, "Saturating float arithmetic trapped");
+    assert_eq!(outcome.exit_code, 77);
+
+    for name in [
+        "float/float_trapping_overflow_traps",
+        "float/float_trapping_divide_zero_traps",
+        "float/float_trapping_invalid_traps",
+    ] {
+        let main_path = pass_canary(name).join("main.omg");
+        let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
+            panic!(
+                "{name} should reach the interpreter:\n{}",
+                join_diagnostics(&diagnostics)
+            )
+        });
+        let outcome = interpret(&checked, b"");
+        let error = outcome
+            .error
+            .as_deref()
+            .expect("Trapping float arithmetic must not exit cleanly");
+        assert!(
+            error.contains("Trapping"),
+            "{name}: unexpected trap: {error}"
+        );
+    }
 }
 
 #[cfg(windows)]

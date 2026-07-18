@@ -104,7 +104,8 @@ fn resolve_fixed_array_subslice_base(
 ///              = source.len - start      when the range is open-ended
 /// Because the binary write reads `left` from the source descriptor and writes
 /// the target, this also handles the self-recursive case where source and target
-/// are the same slot (an in-place shrink) — exactly what a `decreases … Length`
+/// are the same slot (an in-place shrink) — exactly what a
+/// `terminates by … -> Slice::Length`
 /// recursion needs.
 #[allow(clippy::too_many_arguments)]
 fn emit_runtime_frame_slot_runtime_subslice_descriptor_write_in_table(

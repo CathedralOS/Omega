@@ -1824,17 +1824,39 @@ fn resolve_runtime_value_operand_in_table(
             binary.left,
             binary.right,
         );
+        let operand_primitives = [binary.left, binary.right].map(|operand| {
+            classify_scalar_value_type_in_table(
+                input,
+                dispatch_index,
+                source_key,
+                expressions,
+                operand,
+            )
+        });
+        let is_float = operand_primitives
+            .iter()
+            .flatten()
+            .any(|primitive| matches!(primitive, PrimitiveType::F32 | PrimitiveType::F64));
+        let float_byte_width = if operand_primitives
+            .iter()
+            .flatten()
+            .any(|primitive| *primitive == PrimitiveType::F64)
+        {
+            8
+        } else {
+            4
+        };
         return Some(runtime_value_operands.insert(RuntimeValueOperand::Binary {
             left,
             operator,
             right,
-            // Guard comparison operands; float comparisons lower via ucomisd
-            // elsewhere, so the integer value-operand path stays as-is here.
-            is_float: false,
+            is_float,
             // The plain integer arm ignores the width (default 8 matches prior
             // behavior); a non-Exact operand instead needs its REAL
             // operand width for the width-correct op + clamp bounds.
-            byte_width: if domain_signedness.0 != omega_core::arithmetic::ArithmeticDomain::Exact {
+            byte_width: if is_float {
+                float_byte_width
+            } else if domain_signedness.0 != omega_core::arithmetic::ArithmeticDomain::Exact {
                 runtime_value_compare_byte_size(runtime_value_operands, left, right)
             } else {
                 8
@@ -1883,6 +1905,8 @@ fn resolve_runtime_value_operand_in_table(
             source_is_float: source_primitive.accepts_float_literal(),
             target_is_float: target_primitive.accepts_float_literal(),
             source_signed: source_primitive.is_signed_integer(),
+            arithmetic_domain: cast.domain,
+            target_signed: target_primitive.is_signed_integer(),
         }));
     }
 

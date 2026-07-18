@@ -444,6 +444,10 @@ pub enum AbstractOperationKind {
         /// Whether the integer source is signed (drives sign- vs zero-extension
         /// of a narrow source and the signedness of an int->float conversion).
         source_signed: bool,
+        /// Cast-node policy for float-to-integer conversion.
+        domain: omega_core::arithmetic::ArithmeticDomain,
+        /// Whether the integer target is signed.
+        target_signed: bool,
     },
     WriteRuntimePointeeBinary {
         pointer_byte_offset: usize,

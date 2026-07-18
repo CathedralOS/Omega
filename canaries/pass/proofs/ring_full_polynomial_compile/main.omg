@@ -1,0 +1,16 @@
+// COMPILE CANARY. N3 rearrange tier 2: Nat has conformed all five semiring
+// laws, so the structural judge may distribute multiplication through
+// addition and canonically reorder both sums and products. No theorem citation
+// appears here; the license comes solely from explicit conformance.
+use omega::language::core::nat;
+
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine Main::run(&mut self) { self.console.exit_process(70); }
+
+machine four_term_expansion(a: Nat, b: Nat, c: Nat, d: Nat)
+ensures
+    (mul(add(a, b), add(c, d)))
+        == (add(add(mul(a, c), mul(a, d)), add(mul(b, c), mul(b, d))))
+{
+}
