@@ -1,0 +1,24 @@
+use omega::language::core::task;
+
+// TR2a: Task<T> is ordinary generic [linear] data. Moving the claim through a
+// binding transfers one obligation; an ordinary by-value-self consumer
+// settles it. This local consumer stands in for TaskRuntime's TR4 finish edge.
+machine Task::settle<T>(self) {}
+
+data WorkerState {
+    case Idle;
+    case Running(task: Task<i32>);
+}
+
+data Main {}
+
+machine Main::main(&mut self) {
+    let started: Task<i32> = Task { provider: 1, activation: 7 };
+    let forwarded: Task<i32> = started;
+    Task::settle(forwarded);
+
+    let pending: Task<i32> = Task { provider: 1, activation: 8 };
+    let state: WorkerState = WorkerState::Running { task: pending };
+    let extracted: Task<i32> = state.task;
+    Task::settle(extracted);
+}

@@ -1,0 +1,21 @@
+// Core task-lifecycle vocabulary (task runtime TR2).
+//
+// `Task<T>` is the owned lifecycle CLAIM for one provider-held activation. It
+// is deliberately not a stack, continuation frame, pool slot, or scheduler
+// object. The runtime/provider layers establish values of this type; this core
+// module only gives the claim a source home.
+//
+// The integer fields are the bootstrap carrier for provider and activation
+// identity. They are not public proof that a provider accepted custody: TR4's
+// boundary requirement and admission path own establishment of real claims.
+data Task<T> [linear] {
+    provider: u64;
+    activation: u64;
+}
+
+// TaskOutcome<T> and StartOutcome<T, Arguments> deliberately do not ship in
+// this rung. Their generic payloads must propagate the substituted argument's
+// multiplicity: Returned(LinearT) and Rejected(LinearArguments) cannot erase
+// a debt merely because the generic declaration cannot see the substitution.
+// Land those sums with qualifier-aware generic payload propagation, then add
+// the TaskRuntime boundary operations in TR4.

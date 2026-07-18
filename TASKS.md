@@ -4614,9 +4614,15 @@ with a real app-window story.
   remains an ordinary contextual identifier and `Join`/`join` are ordinary
   declaration names. The five fake pass canaries and four staging-specific
   fail canaries retired into spawn_retired + join_type_retired; the real direct
-  call/result pins remain elsewhere. TR2 add core `[linear] Task<T>`,
-  transactional start and terminal task-outcome sums, and path-sensitive
-  settlement/transfer tests; TR3 elaborate `runtime.start<M>(args)` from the
+  call/result pins remain elsewhere. **TR2A LANDED 2026-07-17:** core now owns
+  the source-visible `[linear] Task<T>` claim carrier. Task-specific pass/fail
+  canaries pin multi-binding transfer, terminal by-value-self settlement,
+  `Idle | Running(Task<T>)` payload extraction, and scope-loss rejection.
+  TR2B adds transactional start and terminal task-outcome sums with
+  qualifier-aware generic payload propagation: `Returned(LinearT)` and
+  `Rejected(LinearArguments)` must retain their substituted debts rather than
+  laundering them through an unconstrained generic field. TR3 elaborate
+  `runtime.start<M>(args)` from the
   existing compile-time machine-symbol parameter into a normalized activation
   plan (contract/entry IDs, argument/result layout, continuation requirement,
   alignment/pinning, cancellation/effect metadata); TR4 add the `TaskRuntime`

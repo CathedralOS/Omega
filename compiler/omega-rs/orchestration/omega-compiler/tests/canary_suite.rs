@@ -32040,6 +32040,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "core/zii_default_composite_exit",
     "core/fixed_vec_core_surface",
     "core/region_core_surface",
+    "core/task_core_linear_claim",
     "core/collections_text_core_surface",
     "core/nat_core_surface",
     "core/int_core_surface",
@@ -32330,6 +32331,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
 ];
 
 const ACTIVE_FAIL_CANARIES: &[&str] = &[
+    "core/task_core_scope_loss",
     "ownership/copy_linear_conflict",
     "ownership/linear_field_erased_by_affine_container",
     "ownership/linear_mixed_branch_treatment",
