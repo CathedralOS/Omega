@@ -32333,6 +32333,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "ownership/linear_mixed_branch_treatment",
     "ownership/linear_live_overwrite",
     "ownership/conditional_linear_live_scope_loss",
+    "ownership/conditional_linear_zero_storage_not_established",
     "ownership/linear_scope_loss",
     "ownership/linear_second_transfer",
     "ownership/linear_zero_storage_not_established",

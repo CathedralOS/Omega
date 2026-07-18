@@ -162,3 +162,25 @@ fn borrow_loans_share_the_permission_context_with_access_and_origin() {
         Multiplicity::Affine
     );
 }
+
+#[test]
+fn linear_judgment_reads_permission_events_not_legacy_move_drop_arenas() {
+    let checked = checked(
+        r#"
+        data Receipt [linear] { code: i32; }
+        machine Receipt::ack(self) {}
+        data Main {}
+        machine Main::run() -> i32 {
+            let issued: Receipt = Receipt { code: 7 };
+            let forwarded: Receipt = issued;
+            Receipt::ack(forwarded);
+            0
+        }
+        "#,
+    );
+    let mut facts = checked.facts.clone();
+    facts.flow.ownership.moves = Default::default();
+    facts.flow.ownership.drops = Default::default();
+    crate::checks::validate_linear_permission_events(&checked.typed, &facts)
+        .expect("semantic permission events are sufficient for the judgment");
+}

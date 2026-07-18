@@ -131,8 +131,9 @@ Implementation status (CML3, 2026-07-17): these events now survive the full
 semantic pipeline with multiplicity, access, and transfer-stable provenance.
 Existing shared/exclusive borrow loans enter the same permission context at
 activation and leave it at weakening; their mature legality checks are not
-reimplemented. Legacy move/drop summaries remain only as transitional input
-until the ownership producers emit the semantic events directly.
+reimplemented. The linear judgment reads this context exclusively. Legacy
+move/drop summaries remain only as transitional producer input until ownership
+discovery emits the semantic events directly.
 
 A backend may erase multiplicity after it has received a checked ownership and
 cleanup plan, but proof/debug artifacts must retain the conservation witness.
