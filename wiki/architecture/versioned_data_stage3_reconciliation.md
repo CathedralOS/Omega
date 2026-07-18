@@ -1,6 +1,12 @@
-# `Versioned<T>` Stage-3 Placement
+# `Versioned<T>` Stage-3 Placement — Superseded
 
-Current as of 2026-07-18. Chapter 22 is the language authority.
+> Historical implementation record only. The language ruling in Chapter 22
+> retired the `Versioned<T>` container, era paths, and replacement DSL in favor
+> of ordinary era data, sums, codecs, and conversion machines. `TASKS.md` tracks
+> removal of the Stage-3 implementation and corpus migration. Do not extend or
+> cite this design as current architecture.
+
+The remainder records the implementation that is being removed.
 
 ## Implemented role
 

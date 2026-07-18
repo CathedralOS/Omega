@@ -41,9 +41,12 @@ field projection, recasts, or ABI artifacts.
 
 The closed vocabulary includes only primitive placement concepts the backend
 must understand: offsets/alignment, fixed and runtime strides, tagged/untagged
-overlays, bit ranges, variable-length wire placements, and explicit endianness.
-A new format is normally a library policy; a new placement primitive requires a
-compiler release.
+overlays, bit ranges, fragmented placement of one logical source across several
+destination ranges, variable-length wire placements, and explicit endianness.
+Entries are keyed by schema-field identity rather than by positional array
+index, because fragments and overlays may contribute more than one placement
+for a field. A new format is normally a library policy; a new placement
+primitive requires a compiler release.
 
 ## Plan validation
 
@@ -54,12 +57,35 @@ The validator proves deterministic structural rules such as:
 - alignments are valid;
 - non-overlay fields do not overlap;
 - bit ranges fit their storage slots;
+- repeated fragments tile the declared source bits exactly, without source or
+  destination gaps/overlap except where an explicit overlay permits it;
 - overlay/tag rules are internally consistent;
 - dynamic extents are bounded by the enclosing carrier; and
 - the plan normalizes to one stable identity.
 
 Published layout/type identity is normalizer-owned. Prover strength may accept
 or reject a policy conformance but never change the canonical plan or ABI key.
+
+## One plan, several derived consumers
+
+The same normalized geometry may feed different compiler-owned consumers:
+
+- a codec plan for bytes in buffers the program owns;
+- direct field projection for ordinary plan-laid values;
+- placed-view projection over an authorized external extent; or
+- a materializer that resolves symbolic data/entry identities into an artifact
+  or post-load structure.
+
+Consumer applicability is derived and validated. A policy cannot claim that a
+symbolic relocation is decodable, or that a variable-length wire placement is
+a valid MMIO projection, merely by setting a flag.
+
+Access behavior is deliberately not part of `LayoutPlan`. A separate normalized
+`AccessPlan` describes exact transfer width, read/write/atomic permission,
+stable versus externally-changing observation, generic RMW permission, and the
+statically pinned boundary reach. Layout and access plans are validated as a
+pair when deriving a placed view. See
+[`os_memory_and_hardware_foundation.md`](os_memory_and_hardware_foundation.md).
 
 ## Codecs are hand-written and proved
 
@@ -150,16 +176,20 @@ cache is a different policy choice made at that boundary.
 1. Build-time evaluation for `Layout::plan`.
 2. `Schema`, `Plan`, and the closed placement vocabulary.
 3. Deterministic plan validation and normalized identity.
-4. Plan-laid type layout and field projection.
-5. Representation-compatible recast checking.
-6. Hand-written codec conformances and roundtrip-law checking.
-7. Home-policy resolution and artifact reporting.
-8. Remove `wire data` and legacy repr/format special cases.
+4. Name-keyed fragment placement and exact source/destination tiling.
+5. Plan-laid type layout and field projection.
+6. Representation-compatible recast checking.
+7. Hand-written codec conformances and roundtrip-law checking.
+8. Symbolic materializer derivation and consumer-applicability validation.
+9. Home-policy resolution and artifact reporting.
+10. Remove `wire data` and legacy repr/format special cases.
 
 ## Still open
 
 - final `Schema` reflection and `Plan` source types;
-- exact placement vocabulary for unions, runtime strides, and bitfields;
+- exact source types for name-keyed fragments, unions, and runtime strides;
+- symbolic relocation-source and phase/placement-constraint records;
+- the separate `AccessPlan` vocabulary and placed-view pairing validator;
 - recast syntax and diagnostics;
 - schema-evolution law traits beyond strict roundtrip;
 - policy selection through generics; and

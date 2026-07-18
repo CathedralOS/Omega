@@ -106,30 +106,41 @@ then M4 (scheduler/IPC) opens. Atomics already serve — `fetch_add`/
 dispatched, canary-pinned); the cathedral_alignment RMW-blocker note was
 stale and is corrected (`174ddbaf4`).
 
-1. **InterruptFrame inbound plan** — the second stated convention
-   (calling_plans.md: `boundary(InterruptFrame) machine on_timer(...)`;
-   freestanding brief "Interrupt entry"). Entry stub: CPU-pushed frame
-   (SS:RSP, RFLAGS, CS, RIP, ± error code), full register save/restore,
-   `iretq` return. The declaration surface is settled; the concrete plan
-   spec + acknowledgement-token types are the freestanding brief's named
-   Still-open residue — the register-file layout half is architectural
-   fact, agent-ready; the ack-token TYPE wants an owner glance when the
-   LAPIC shape lands.
-2. **Handler-address registration** — the IDT is a stated-layout data
-   struct whose entries need a `boundary(InterruptFrame)` machine's
-   ENTRY-STUB ADDRESS as a runtime value ("interrupt entry registrations"
-   in the freestanding brief's required build report). The registration
-   grammar rides the brief's "exact build/entry declaration grammar"
-   Still-open item — flagged here so the timer tick does not discover it
-   late.
-3. **`cli`/`sti`/`lidt` known-contract asm** — the hlt pattern
-   (machine_control; encoders 0xFA / 0xFB / 0F 01 /3 with a memory
-   operand for the descriptor pointer).
-4. **Cathedral timer-tick acceptance** — IDT + PIT (or LAPIC timer)
+1. **Checked-asm prerequisite (agent-ready)** — implement the already-designed
+   parsed `asm {}` surface and first x86 contract catalog. The timer slice needs
+   save/restore flags, `cli`/`sti`, `lidt`, `iretq` as DERIVER-ONLY, `hlt`, port
+   I/O, fences, and the relevant MSR/control operations. Direct instructions
+   emit the same normalized reach/authority as their abstract service; unknown
+   instructions and raw bytes reject. Retire `Binding::Instruction` as coverage
+   lands. No owner decision blocks this rung.
+2. **Calling + machine-state plans (agent-ready after trait parents)** — build
+   ordinary trait-parent composition for `Calling<C>`, then split the inbound
+   artifact into `CallPlan` (ABI placement) + `StatePlan` (initial regime,
+   interrupted set, save/restore, permitted transitive state). Derive the entry
+   stub, constrain codegen by the state ceiling, emit footprint evidence, and
+   validate the FINAL realized artifact including thunks/relaxation/stubs. The
+   published plan hashes requirements; the footprint certificate stays provider
+   evidence. Concrete x86 register/frame facts are engineering data, not an open
+   language surface.
+3. **IDT layout/materialization/root ledger (agent-ready after 1/2)** — extend
+   `LayoutPlan` to name-keyed fragmented fields with exact source tiling; add
+   sealed symbolic `Entry(EntryStubId)` relocation sources and a generated
+   post-load writer for the split gate address. Static provider/build selection
+   retains entry identity privately: no runtime function pointer or handler-
+   registration grammar is required. `lidt` installation consumes IDT authority
+   and records each installed handler as an external root with effects, receipt,
+   state plan, stack/IST class, nesting/WCSU, and version pins.
+4. **Acknowledgement and masking values (agent-ready)** — model EOI and saved
+   interrupt-mask state as ordinary linear tokens with explicit consuming
+   completion/restore. Gate construction to the owning provider; no drop-based
+   cleanup and no interrupt-specific linearity rule.
+5. **Cathedral timer-tick acceptance** — IDT + PIT (or LAPIC timer)
    programming via the landed port I/O; the handler posts a bounded tick
    event; done-check: tick count reported over the owned serial line under
-   QEMU, hlt between ticks.
-5. **Compiler gaps filed en route (none M4-blocking):** (a) a
+   QEMU, `hlt` between ticks. Negative checks: direct-asm reach cannot launder;
+   user `iretq` rejects; incomplete fragment tiling rejects; forbidden SIMD
+   introduced by a final thunk rejects; omitted/double EOI rejects.
+6. **Compiler gaps filed en route (none M4-blocking):** (a) a
    binary-initialized local consumed as a STATE-CALL argument inside a
    proof-obligation-carrying guarded state refuses ("CallArgument binary
    expression needs runtime value lowering"; ANY operator, division was a
@@ -644,7 +655,8 @@ rejects — an INTEGER ruling, engineering rides this ladder as F8).
   LANDED; the P4 flip RULED 2026-07-20 with a strict order.**
   LANDED: PRV1 the typed carrier (omega-effects provider_plan.rs:
   ServiceSchema/ProviderBinding incl. the HostOperations sequence arm +
-  reserved Instruction arm/ProviderPlanRow with rendered call_shape/
+  transitional reserved Instruction arm (retire onto checked parsed asm per
+  the OS-foundation brief)/ProviderPlanRow with rendered call_shape/
   ProviderPlan — no trust field, classification is admission output);
   PRV2 ServiceSchema::from_typed + identity_fingerprint (FNV over the
   canonical rendering, presentation-invariant) + validate_against_schema
@@ -934,8 +946,15 @@ rejects — an INTEGER ruling, engineering rides this ladder as F8).
   REMAINING
   tail: non-scalar-field records, `&mut` views, plan-tiling beyond
   fact-free shapes (L5).
-- **L6+:** Bits placements + access classes (MMIO deriver); durability plan
-  grades; publish-time predecessor diff.
+- **L6+ (OS foundation split):** (a) name-keyed fragmented `LayoutPlan`
+  placements + source/destination tiling, symbolic relocation sources, and
+  materializer consumers; (b) a SEPARATE `AccessPlan` with exact transfer,
+  observation, RMW, visibility, and pinned reach, validated with layout to
+  derive sealed field-access values; (c) opaque linear `Extent` authority over
+  concrete ranges. Do not add W1C/read-clear to FieldPlan or expose generic
+  arbitrary-offset volatile access. Exact public Extent/Access carrier shape is
+  OWNER_QUESTIONS #1; fragment/materializer backend work is otherwise
+  agent-ready. Durability plan grades and publish-time predecessor diff remain.
 
 ## Language ergonomics
 
@@ -1042,6 +1061,15 @@ lowering can use it. Authoritative audit and target shapes:
   ranking witnesses. Witness subjects/views/ranges/SCC certificates drive
   checking and proof-cache identity, never public contract identity. Sealed
   progress profiles carry grant/receipt identity and stay outside proof facts.
+- **OS memory/hardware foundation (2026-07-18 brief):** bare `addr` is inert;
+  `Extent` carries concrete-range authority; `LayoutPlan` carries geometry;
+  separate `AccessPlan` carries exact access semantics and static reach;
+  checked parsed asm carries instruction contracts; boundary entries normalize
+  independent `CallPlan + StatePlan`; symbolic materialization owns toolchain
+  addresses; installed inbound entries join an external-root ledger; DMA uses
+  linear external loans; carry demands join runtime behavior at admission. No
+  interrupt DSL, volatile qualifier, external-satisfier keyword, instruction
+  wrappers, source-visible static entry pointer, or parallel admission spine.
 
 Ordering gates: no general domain mint/operator-family build on the old
 undifferentiated domain record; no linear Task/transaction/buffer build on
@@ -1082,6 +1110,10 @@ with a real app-window story.
   states are the reliable shape.
 - **Historical formats and live replacement (magic retired):** no builtin
   `Versioned<T>`, era-path type syntax, migration chain, or `replace` block.
+  **Cleanup is still engineering work:** delete the landed Stage-3
+  `Versioned<T>` parser/IR/checker/lowering path and migrate every canary/sample
+  to explicit era data + envelopes + conversions; remove the obsolete
+  reconciliation record once no implementation references it.
   Historical eras are immutable ordinary data plus sum envelopes, layout
   metadata, codecs, provenance domains, and checked conversion machines.
   Live replacement is a Cathedral/component package over artifact identities,

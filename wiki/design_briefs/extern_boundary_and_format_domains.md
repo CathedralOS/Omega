@@ -34,7 +34,6 @@ data Binding {
     case Syscall(number: u64, plan: CallingPlanId);
     case Firmware(table: TableId, slot: u32, plan: CallingPlanId);
     case CompilerIntrinsic(name: IntrinsicId);
-    case Instruction(operation: InstructionOperationId);
 }
 ```
 
@@ -42,6 +41,9 @@ Exact cases may grow only when a genuinely different irreducible binding
 mechanism exists. Host-specific flags and `host:` mini-languages are not part
 of Omega. Foreign struct offsets and bit positions belong to programmable
 layout/format declarations, not a generic `Binding::Value` escape hatch.
+Privileged target instructions belong to parsed, contract-emitting `asm {}`;
+`Binding::Instruction` is retired rather than preserving two ways to state the
+same operation with different visibility to effect and authority analysis.
 
 ```omega
 machine Kernel32::write_file(handle: WinHandle, bytes: &[u8]) -> WriteResult
@@ -105,13 +107,19 @@ trait.
 
 ## Calling plans
 
-ABI behavior is a normalized calling-plan policy: parameter/result placement,
-register classes, stack layout, clobbers, unwind/control behavior, and target
-applicability. It is not inferred from library or symbol strings.
+Boundary-entry behavior is one normalized artifact with independent `CallPlan`
+and `StatePlan` facets. The first owns parameter/result placement and ordinary
+ABI clobbers; the second owns initial machine regime, interrupted state,
+save/restore commitments, and permitted transitive machine-state use. It is not
+inferred from library or symbol strings.
 
 Bindings cite a plan identity. Provider admission verifies that the binding and
 entry stub implement the pinned boundary-machine contract. See
 [`calling_plans.md`](calling_plans.md).
+
+The evaluated plan belongs to the satisfied requirement through ordinary
+`Calling<C>` policy composition. The old `boundary(<Plan>)` marker is retired;
+`boundary` identifies the trust/supply edge and does not carry deployment data.
 
 ## Foreign data and formats
 
@@ -153,6 +161,13 @@ Foreign pointers fit four contract shapes:
 Raw address arithmetic is not a fifth user-facing escape hatch. Pointer access
 must remain attributable to one of these ownership/provenance contracts.
 
+Every installed callback/interrupt entry is also an external artifact root.
+Because no Omega call edge reaches it, the root ledger must include its effects,
+authority/trust receipts, state footprint, stack domain, nesting relation, and
+version pins. Static build plans declare roots during image derivation; dynamic
+admission records them at installation. This reuses provider admission rather
+than creating an entry-specific trust system.
+
 ## Process entry
 
 `main` is an exported boundary callable with a typed handoff shape. A
@@ -178,13 +193,16 @@ handoff. Those details stay in providers. Image/subsystem selection belongs in
 3. Validate provider admission and emit trust/boundary reports.
 4. Lower imported calls and inbound stubs from checked plans only.
 5. Integrate programmable layout validation/materialization.
-6. Add callback and foreign-pointer lifetime canaries.
-7. Delete host-string special cases and legacy target blocks.
+6. Add final-artifact state-footprint validation and external-root reporting.
+7. Add callback and foreign-pointer lifetime canaries.
+8. Delete host-string special cases and legacy target blocks.
 
 ## Still open
 
 - callback registration/revocation and long-lived foreign borrows;
 - dynamic-library loading/unloading under component versioning; and
+- source-visible reified entry references (deferred until dynamic callbacks
+  demonstrate a need beyond build/provider selection); and
 - target-specific launch/exit details not covered by existing calling plans.
 
 Exact `Build` library method names for choosing a target profile or overriding

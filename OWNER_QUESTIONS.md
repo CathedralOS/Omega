@@ -4,6 +4,65 @@ Only unresolved owner-level language or architecture decisions belong here.
 Settled decisions live in the language guide and design briefs; implementation
 and deliberately deferred research live in `TASKS.md`.
 
-Last pruned: 2026-07-20.
+Last pruned: 2026-07-18.
 
-There are currently no unresolved owner-level questions.
+## 1. Extent and placed-view public model
+
+The architecture is settled: bare addresses carry no authority; `Extent` owns
+authority over a concrete range; `LayoutPlan` owns geometry; `AccessPlan` owns
+primitive access; validated plans derive sealed field access.
+
+The remaining owner decision is the exact public carrier boundary:
+
+- Is one opaque linear `Extent` with contract/domain facts sufficient, or do
+  physical, virtual, I/O, and mapped extents require distinct nominal carriers?
+- What parent/child lifetime and revocation rule ships in v1?
+- What is the smallest public field-access API that remains passable and
+  attenuable without exposing arbitrary-offset volatile access?
+
+Recommendation: one opaque carrier with explicit facts and conservative
+exclusive revocation; distinct nominal types only where confusing address spaces
+would otherwise type-check. Settle before implementing placed views or DMA.
+
+## 2. Carry and runtime contract spelling
+
+The normalized model keeps suspension, CPU affinity, host-thread affinity, and
+address stability independent. Runtime providers separately state preemption,
+migration, affinity support, and continuation-storage behavior; admission joins
+the two.
+
+The remaining owner decision is declaration vocabulary and defaulting:
+
+- Which restrictions use the existing declaration-property surface?
+- Which are constructor/provider result contracts because they vary per mint?
+- How are opaque resources born strict without making transparent ordinary data
+  noisy?
+
+Recommendation: structural permissive derivation for transparent data; opaque
+resources born strict; declaration properties only for type-wide facts and
+constructor contracts for mint-dependent facts. Do not add use-site keywords.
+
+## 3. Executable publication evidence and lifecycle
+
+The architecture distinguishes first publication of writable/unpublished bytes
+from replacement of already-executable code. The first is a target provider
+operation; the second belongs to component quiescence/versioning.
+
+The remaining owner decision is the normalized evidence/API boundary:
+
+- What value/domain proves bytes are finalized and eligible for first
+  publication?
+- What artifact records cache/coherence/W^X completion and target scope?
+- How does the publication contract distinguish dormant future executors (for
+  example an AP waiting for SIPI) from cores that may already be executing the
+  range and therefore require quiescence/replacement authority?
+- How do static images, runtime-generated code, and dynamically admitted code
+  share footprint validation without pretending there is one universal final
+  link step?
+
+Recommendation: a linear publication-state transition producing an executable
+artifact/capability; validate at every realization/admission boundary; keep
+live replacement entirely separate.
+
+Detailed settled context and engineering residue are in
+[`wiki/design_briefs/os_memory_and_hardware_foundation.md`](wiki/design_briefs/os_memory_and_hardware_foundation.md).
