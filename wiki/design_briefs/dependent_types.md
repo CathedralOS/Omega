@@ -241,7 +241,7 @@ machinery solving the *wrong* problem (ABI resilience via hidden global
 metadata); the transferable lesson is only size-vs-stride and the
 alloca/boxing swamp that runtime-sized *locals* drag in — hence v1's rule:
 dynamic-sized regions live behind views or fixed-capacity buffers; owned
-runtime-sized values wait for `Region`.
+runtime-sized values wait for Arena-backed Allocation.
 
 **The no-implicit-checks fork is decided structurally, not aesthetically.**
 Implicit residual checks (hybrid typing's "maybe" casts) require an ambient

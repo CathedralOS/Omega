@@ -114,7 +114,7 @@ exclusive output, observes no shared or atomic racing state, and calls only
 deterministic providers. An empty effects row alone is necessary but not
 sufficient to establish determinism.
 
-Region-backed pools, quiescence tokens, coexistence policy, migration graphs,
+Arena-backed pools, quiescence tokens, coexistence policy, migration graphs,
 and replacement orchestration are package concerns. Cathedral is the planned
 first customer. If that implementation discovers a semantic requirement that
 ordinary data, machines, traits, domains, ownership, and boundary providers

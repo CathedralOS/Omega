@@ -636,8 +636,8 @@ now hardware claims rather than OS claims:
   described by this page-table value is active" (an MMU provider),
 - "this MSR read returns the current value of register X" (a register
   provider),
-- "stores to this physical region reach device Y in program order" (an MMIO
-  region provider, see
+- "stores to this physical range reach device Y in program order" (an MMIO
+  access provider, see
   [Memory Layout And ABI](chapter_20_memory_layout_abi.md) on volatile),
 - "this instruction sequence masks interrupts until the matching unmask" (an
   interrupt-control provider).

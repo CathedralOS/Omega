@@ -131,7 +131,7 @@ sharpen the roots but no fix landed — recorded so the next attempt is targeted
   composition, etc. Untouched — this is the big backend revamp.
 - **M1–M6** beyond stage 1: const args, field defaults, const type params,
   the trait-generator framework, retiring equatable.rs.
-- **A1–A5** beyond stage 1: the real `Region<'r>` runtime, `Vec<'r, T>`,
+- **A1–A5** beyond stage 1: the then-named `Region<'r>` runtime (now `Arena`), `Vec<'r, T>`,
   pluggable allocators.
 - **Decision 11 residue**: VALUE-position machine calls bypass argument
   validation entirely, so a `[copy]` bound on `let r = self.pick(&self.h)`

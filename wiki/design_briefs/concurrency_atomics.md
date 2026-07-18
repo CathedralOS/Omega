@@ -33,9 +33,9 @@ and Join-on-drop designs are not canon.
   a bounded queue. The language does not need a `select` construct.
 - Runtime custody, physical storage ownership, and lifecycle-claim ownership
   are separate. The compiler plans local activation requirements; admitted
-  providers may use Region-backed, OS, remote, or inline storage strategies.
+  providers may use Arena-backed, OS, remote, or inline storage strategies.
 - Pools, supervisors, mailboxes, and task groups are library data/policy, not
-  language constructs. `RegionTaskPool` is the bounded reference package, not
+  language constructs. `ArenaTaskPool` is the bounded reference package, not
   the universal task model.
 
 ## Suspension amendment still required
@@ -149,7 +149,7 @@ hard-real-time requirements force it.
 7. Atomic ordering is explicit and invalid success/failure pairs reject.
 8. A deadlock proof depending on fairness requires a provider contract that
    actually promises fairness.
-9. Region-, OS-, remote-, and inline-backed runtimes refine the same task
+9. Arena-, OS-, remote-, and inline-backed runtimes refine the same task
    requirement without sharing one storage representation.
 10. A pool/runtime cannot close while dependent task claims or leases remain.
 
@@ -159,7 +159,7 @@ hard-real-time requirements force it.
 - `TaskRuntime` requirement, activation-plan artifact, transactional start
   outcome, task/provider provenance, and child-lease accounting.
 - Core `Task<T>` lifecycle outcome and terminal-consumer implementation.
-- `RegionTaskPool`, bounded mailbox, and supervisor reference packages.
+- `ArenaTaskPool`, bounded mailbox, and supervisor reference packages.
 - Scheduler contracts using decision 23's sealed progress profiles; general
   trace propositions and profile entailment remain deferred.
 - Scheduler operation details and provider admission tests.

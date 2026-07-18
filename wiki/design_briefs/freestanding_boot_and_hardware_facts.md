@@ -77,7 +77,7 @@ uses the supplied stride, not `sizeof`, and every typed projection is proven
 inside the returned byte extent.
 
 The final map supplies physical extents, not freely forged allocator values.
-A `Region` is allocation authority over appropriate backing extents. Device,
+A bounded `Arena` is allocation authority over appropriate backing extents. Device,
 reserved, firmware, and executable ranges retain different provenance and
 rights. Metadata capacity is explicit.
 
@@ -191,8 +191,9 @@ than relying on friendly names:
 ## Status and remaining work
 
 The first two Cathedral milestones already validate the typed UEFI entry,
-runtime firmware-table calls, memory-map walk, `ExitBootServices`, first Region
-mint, port I/O, and `hlt` path. The timer/IDT slice is not yet specified or
+runtime firmware-table calls, memory-map walk, `ExitBootServices`, first
+physical-Extent mint (still spelled `Region` in the bootstrap sample), port I/O,
+and `hlt` path. The timer/IDT slice is not yet specified or
 implemented end to end.
 
 The next implementation order is:

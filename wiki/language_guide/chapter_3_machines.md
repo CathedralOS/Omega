@@ -208,7 +208,7 @@ Working rules:
   whose call returns into more work (`1 + max(depth(l), depth(r))`) is
   rejected with the classification error. Depth belongs in data: iterate
   with explicit storage the machine declares and sizes — a fixed-capacity
-  field today, a Region when the allocator arc lands. Activation frames are
+  field today, an Arena-backed Allocation when the allocator arc lands. Activation frames are
   storage the author never sees or sizes; depth does not hide there.
 - **The range is a termination fact, never a size.** `terminates by cursor ->
   Cursor::TowardStart in lo..=hi` constrains the rank produced by the view;

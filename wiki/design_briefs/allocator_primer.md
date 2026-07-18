@@ -4,22 +4,25 @@
 > plan + decisions (A1–A5) live in [`allocator_story.md`](allocator_story.md);
 > this is the "why / what does everyone else do / what fits us" companion.
 > Synthesized from a 6-facet research sweep (Rust, Zig/Jai/Odin, safety-critical,
-> regions/multi-heap, proofs/guarantees, Omega-fit); every Omega claim verified
-> against `region.omg` / `vec.omg` / `fixed_vec.omg` / `omega-runtime-abi`.
+> regions/multi-heap, proofs/guarantees, Omega-fit); implementation claims were
+> checked against the then-live corpus and must be rechecked as the Arena slice
+> lands.
 
-The durable model is an explicit allocator or region capability with dependent
-resource contracts; reaching an allocator boundary contributes its
+The durable model is an explicit bounded `Arena` capability with dependent
+resource contracts; reaching an allocation boundary contributes its
 boundary-trait service identity. Quantitative `Alloc<Peak, Retained>` rows
 remain deferred to the resource algebra.
 
 **Where Omega is today.** No heap, no allocator. Storage is inline (`[T;N]`,
 struct fields), bounded (`FixedVec<T,N>` — `push` is a *compile-time* proof
 obligation `len < N`, never a runtime trap), or borrowed (`{ptr,len}` slice
-descriptors). ZII (all-zero is a valid inhabitant) is the soundness backbone.
-The allocator is **designed but unbuilt**: `allocator_story.md` (A1–A5, REC:yes,
-awaiting sign-off) specifies `Region<'r>` as a capability bound through the
-reserved `Allocation` boundary-provider category, with explicit allocation
-authority and resource contracts. Concretely blocked: `Vec<u8> in Utf8` (owned/growable text),
+descriptors). Zero-expressibility is a representation preference, not a promise
+that zero establishes every value; domains and construction gate authority or
+validity when zero would forge either.
+The allocator is **designed but unbuilt**: `allocator_story.md` specifies an
+`Arena` as a bounded lifetime-scoped capability, backed by an Extent or admitted
+provider, with explicit allocation authority and resource contracts. Concretely
+blocked: `Vec<u8> in Utf8` (owned/growable text),
 copy-out wire decode, `read_line(&mut String)`.
 
 ## What other languages do (and the one lesson each)
@@ -82,24 +85,24 @@ lifetimes (decision 15), and the `{ptr,len}` descriptor ABI.
   impossible by construction. *Gap to close first:* generic-machine
   instantiation (FixedVec's real bodies are pinned concrete to i32/N=4; generic
   `data` whose layout depends on `T` fails layout).
-- **B — `Region<'r>` arena with a *proven capacity refinement* (the
-  differentiator).** `reserve(n)` yields a region whose type carries
-  `remaining`; `alloc(r,n)` carries obligation `n <= remaining`, postcondition
-  `remaining' = remaining - n`; the region handle is threaded **affinely** so
+- **B — `Arena<'a>` with a *proven capacity refinement* (the
+  differentiator).** Arena construction establishes a `remaining` fact;
+  `allocate(a,n)` carries obligation `n <= remaining`, postcondition
+  `remaining' = remaining - n`; the Arena handle is threaded **affinely** so
   the budget can't be double-spent. `alloc` is **infallible after proof**
   (returns a bare handle, no Result) — SPARK's `Storage_Error` residual turned
   into a discharged theorem. *Cost:* data-dependent sizes need worst-case
   *input* refinements (`input: &[u8] [len <= N]`); unboundable sites degrade
   visibly.
-- **C — `Vec<'r,T>` borrowing a Region, capacity fixed at `with_capacity`, NO
+- **C — `Vec<'a,T>` borrowing an Arena, capacity fixed at `with_capacity`, NO
   growth (allocator-story stage 2; smallest viable unblock).** Bind one
   `Allocation` provider (host malloc), extend the descriptor to `{ptr,len,cap}`
   under its existing owner `omega-runtime-abi`, lower `core/vec.omg` ops through
   `Allocation` + the working `vec_views` provider, wire drops. Unblocks owned
   text/decode/`read_line` with no realloc — reuses FixedVec's
   proof-obligated-capacity model with a runtime capacity measure.
-- **D — Demote unprovable sites to fallible `try_alloc -> Result` or the abort
-  effect.** Keeps unboundable inputs *visible*, not unsound (mirrors SPARK's
+- **D — Demote unprovable sites to an explicit fallible allocation outcome or
+  abort reach.** Keeps unboundable inputs *visible*, not unsound (mirrors SPARK's
   verdict). Risk: over-use fragments the fallibility story.
 
 **Three non-negotiables when building B/C:** (1) enforce *every* budget
@@ -112,18 +115,19 @@ silent-miscompile risk class).
 ## Recommendation
 **Ship the ladder, not a heap.** Keep model A (`FixedVec`/`[T;N]`) as the
 permanent default — it is the safety-critical answer and already works. Add
-model B (`Region<'r>` whose *type* carries a proven `remaining` interval) as the
+model B (`Arena<'a>` whose contract carries a proven `remaining` interval) as the
 differentiator no mainstream stack offers. Concretely, **build allocator-story
-stage 2 first** (Region provider + fixed-capacity `Vec<'r,T>`, no growth): least
-machinery, unblocks the real corpus. Frame allocation as an **effect** from day
-one so pure code is *provably* allocation-free. Demote genuinely-unbounded sites
+stage 2 first** (Arena provider + fixed-capacity `Vec<'a,T>`, no growth): least
+machinery, unblocks the real corpus. Allocation-provider reach is inferred and
+reported from day one so allocation-free code is mechanically visible. Demote genuinely-unbounded sites
 to fallible/abort (D) rather than weakening the proven core. Defer growth,
 pluggable allocators, and `try_push` to stage 3 until demand is real. Optionally
 layer RAML/AARA-style automatic size inference later to cut annotation burden.
 
 ## The rung lattice, the bootstrap, and downstream opt-in
 The rungs form a **partial order (lattice), not a total ladder** — memory
-(static → stack → fixed-arena → proven-Region → bounded-heap → unrestricted) and
+(static → stack → fixed-capacity bump allocation → proof-bounded Arena →
+bounded general allocator → unrestricted allocator) and
 concurrency (static → awaitable) are separate axes with no forced order between
 them. A program or build target **picks a fixed point** and the compiler enforces
 that point's obligations — turning DO-178C/MISRA/Power-of-Ten constraints from
@@ -135,8 +139,9 @@ Thompson-resistance an aspirational Tier-2 TBD, skipped until self-host).** For 
 *self-hosting proof-carrying* compiler the usual two ladders fuse: a feature is
 usable on the compiler's **own source** only once *both* its lowering AND its
 proof machinery exist in the running stage. So the **seed** must restrict its own
-source to rungs 0–2 (heap-free / fixed-arena, no prover needed) — rung 3 (proven
-Region) is un-admittable until the interval engine is self-hostable. Caveats from
+source to rungs 0–2 (heap-free / fixed-capacity bump allocation, no prover
+needed) — rung 3 (proof-bounded Arena) is un-admittable until the interval engine
+is self-hostable. Caveats from
 precedent: (a) this binds the seed's *source*, not the running binary at every
 stage — real bootstraps (Guix hex0→Mes→tcc→gcc, GCC 3-stage, mrustc) route
 *through* a mature host language and allocate freely from the first C-subset rung;
@@ -146,49 +151,54 @@ auditability, and the proof-kernel is a *third* independent ladder. Keep all
 three claims distinct.
 
 ## Affine-handle ergonomics — recommended design (decision #2)
-The affine `Region<'r>` handle is *positional in the move-graph*, so naïvely it's
+The borrow-backed affine `Arena<'a>` handle is *positional in the move-graph*, so naïvely it's
 worse than Zig's allocator coloring (signature tax + hand-threaded version chain +
 higher-order virality). Omega is the rare language with all three levers to
 collapse the noise — layer them:
-- **R1 elide `'r`** (Rust/Cyclone) when one region is in scope. Reject
+- **R1 elide `'a`** (Rust/Cyclone) when one Arena is in scope. Reject
   Tofte-Talpin whole-program inference — its failure mode is a *space leak*,
   poison for a no-OOM proof.
-- **R2 ambient-but-tracked capability** (Jai delivery + Scala/Austral tracking):
-  `region r { }` summons the budget at the leaf `alloc`, invisible at intermediate
-  call sites, budget tracked in the effect.
+- **R2 tracked capability delivery** (Jai delivery + Scala/Austral tracking):
+  a selected Arena may be threaded to leaf allocation without becoming ambient
+  authority; intermediate summaries retain its resource/reach requirement.
 - **R3 `inout`/consume passing mode** (Val/Hylo) not rebind-and-return — the
   compiler reconstructs consume-and-rebind and **SSA-threads the remaining-bytes
   interval using the SAME merge/narrowing the arithmetic-domain engine already
   does.** Biggest single win.
-- **R4 effect-row inference** (Koka) so higher-order combinators stay polymorphic
-  over their callee's `alloc` effect (kills virality).
-- **R5 `?`-style sugar** at the fallible boundary (FixedVec already has fallible push).
+- **R4 effect-row inference** so higher-order combinators can eventually remain
+  polymorphic over their callee's allocation-service reach (deferred until that
+  customer exists).
+- **R5 explicit outcome routing** at genuinely fallible boundaries; no `?`
+  syntax is assumed.
 
 **Irreducible residuals** (must stay explicit — they ARE the theorem's spec):
-declare the budget bound; disambiguate when >1 region is live; mark each
+declare the budget bound; disambiguate when more than one Arena is live; mark each
 **split/fan-out** (a sequential thread can be hidden, a partition cannot); mark
 each fallible escape hatch; state `outlives` at escape.
 
 ## Settled accounting law
 
-Track peak live bytes, not net allocation. A persistent arena does not regain
+Track peak live bytes, not net allocation. A persistent Arena does not regain
 capacity merely because an object becomes unreachable. A declared reset or
 proved phase separation can reduce the bound from a sum to a maximum. Linear
 growth-bound inference is specified in
 [`growth_inference_and_allocator.md`](growth_inference_and_allocator.md); do not
-build a general AARA/string solver or whole-program region inference.
+build a general AARA/string solver or whole-program arena inference.
 
 ## Remaining design decisions
 
 1. How far can `inout`, row inference, and lifetime elision reduce affine-handle
-   noise before explicit region identity is required?
+   noise before explicit Arena identity is required?
 2. When must an API state a worst-case input refinement rather than returning a
    fallible capacity outcome?
 3. Does bounded recursion also require a first-class stack-byte proof, or is
    stack accounting an external artifact?
-4. May a bulk-freed region store affine/capability-owning values, and if so how
-   are their cleanup obligations discharged before reset?
-5. Does Cathedral's splittable physical-memory capability unify with
-   userspace `Region<'r>` or remain a lower layer?
+4. **Resolved:** an Allocation borrows its Arena, reset rejects while any
+   Allocation is live, and structural multiplicity propagates contained linear
+   debt. Consumption must discharge or move every obligation before
+   reclamation; bulk free never substitutes for element consumption.
+5. **Resolved:** Cathedral's splittable physical-memory authority is `Extent`,
+   a lower layer. An Arena may borrow an Extent as backing but cannot mint or
+   replace its range authority.
 6. Must generic-machine instantiation land before an ergonomic generic `Vec`,
    or can the first dynamic container ship only at concrete instantiations?

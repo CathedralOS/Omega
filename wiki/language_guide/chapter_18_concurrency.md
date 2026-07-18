@@ -129,7 +129,8 @@ suspension amendment. See
 Task execution has three deliberately separate owners:
 
 - the runtime provider has operational custody of the activation;
-- a Region, provider, remote runtime, or platform owns its physical storage;
+- an Arena-issued Allocation, provider, remote runtime, or platform owns its
+  physical storage;
   and
 - the holder of `Task<T>` owns the linear lifecycle claim.
 
@@ -147,14 +148,14 @@ its storage contract before returning a pending task.
 Storage strategy is not fixed by the language:
 
 - a hosted provider may allocate an OS thread stack internally;
-- a Region-backed provider may lease a pre-provisioned frame slot;
+- an Arena-backed provider may lease a pre-provisioned frame slot;
 - a remote provider may keep no local activation frame; and
 - an inline provider may return an already-complete, still-unsettled task when
   the pinned contract permits inline completion.
 
-`RegionTaskPool` is the standard bounded-storage reference package and likely
+`ArenaTaskPool` is the standard bounded-storage reference package and likely
 Cathedral default, not a task primitive. It imposes slot/arena layout and
-dynamic availability accounting on a Region. Provisioning fixes a maximum;
+dynamic availability accounting on an Arena. Provisioning fixes a maximum;
 each start still consumes capacity and settlement releases it. Under shared
 interference, an available-capacity proposition does not replace ownership of
 a real reservation; dynamic sites use fallible start/reserve operations.
@@ -272,7 +273,7 @@ cancellation, finish children, classify outcomes, and restart work. It is not
 the task runtime and need not own child frame storage. A failure mailbox is an
 optional event-loop/library choice rather than a condition of task execution.
 
-Region-backed pools, bounded mailboxes, and supervisors are reference packages
+Arena-backed pools, bounded mailboxes, and supervisors are reference packages
 over ordinary ownership, linearity, and boundary providers. The language adds
 no pool, mailbox, nursery, scope, or manager construct.
 

@@ -176,8 +176,9 @@ The current move/drop-only summaries are not sufficient; see
 - Interaction with suspension-safe loans, which depends on the effects and
   suspension settlement.
 
-The first general resource-algebra customer is Region split/merge: splitting
-consumes one parent authority and returns disjoint child authorities; merging
-consumes the matching children and restores the parent. Region-backed task
-pool leases reuse that algebra. General owned `LinBuf` splitting and
+The first general resource-algebra customer is Extent split/merge: splitting
+consumes one parent range authority and returns disjoint child authorities;
+common-origin merging consumes matching children and restores the parent.
+Arena-backed task-pool leases reuse the conservation discipline without
+conflating allocation permission with range authority. General owned `LinBuf` splitting and
 quantitative effect members come later.
