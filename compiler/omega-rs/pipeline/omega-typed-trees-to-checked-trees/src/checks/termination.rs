@@ -105,19 +105,17 @@ pub(crate) fn check_machine_termination(
 /// proof functions the check uses, so facts and diagnostics cannot
 /// disagree; an unproven claimant records `NoGuarantee` AND fails
 /// compilation, so a compiled artifact never carries an unestablished
-/// claim. An ACYCLIC claiming body derives eventual termination without a
-/// witness (the brief: "an acyclic checked body derives termination
-/// without source annotation").
+/// claim. Every ACYCLIC checked body derives eventual termination without a
+/// witness (the brief: "an acyclic checked body derives termination without
+/// source annotation"). This local summary never publishes a promise: the
+/// contract plan continues to read only `termination_plan.published`.
 pub(crate) fn build_termination_facts(
     program: &omega_typed_trees::TypedTrees,
 ) -> omega_checked_trees::TerminationFacts {
     use omega_core::semantics::TerminationGuarantee;
 
     let mut machines = Vec::new();
-    for machine in program.machines().iter().filter(|machine| {
-        let plan = &machine.termination_plan;
-        plan.published.is_some() || plan.implementation_witness.is_some()
-    }) {
+    for machine in program.machines() {
         let established = if retired_subtraction_message(program, machine).is_some() {
             false
         } else if !graph::machine_has_cycle(program, machine) {

@@ -175,11 +175,13 @@ decision-23 syntax everywhere. TPR6 DIAGNOSTIC SLICE LANDED 2026-07-17:
 checked-stage errors now name only `terminates by`; the directed retired-
 subtraction error is derived from the normalized witness and remains identical
 after every legacy typed-machine compatibility span is cleared. TPR6's
-artifact/cache firewall + the remaining acceptance tests remain; of the ten,
-2/3/4/5/6/7/
+LOCAL/PUBLISHED SUMMARY FIREWALL LANDED 2026-07-17: every acyclic checked body
+now records a local `EventualTerminal` summary without annotation, while an
+omitted authored clause still normalizes to published `NoGuarantee` in the
+machine contract plan (pinned together in one test). External artifact/cache
+serialization + the remaining acceptance tests remain; of the ten, 1/2/3/4/5/6/7/
 10 are already pinned by the TPR2-TPR4 test batteries -- outstanding:
-1's export-omission half (needs artifact serialization), 8/9 (need
-sealed progress profiles + grants, TPR4's remaining big half).
+8/9 (need sealed progress profiles + grants, TPR4's remaining big half).
 
 1. **Math roster ladder N1→N4 — CORE ARC LANDED** (section below) — N1
    proof-only classification, N2 bignum/exact engines, N3 fact-position

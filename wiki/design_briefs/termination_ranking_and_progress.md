@@ -96,6 +96,12 @@ current `terminates by` spelling exclusively, and even the directed rejection
 of a retired subtraction subject is reconstructed from the normalized witness,
 not from compatibility spans.
 
+Checked-artifact status (2026-07-17): every acyclic body records a local
+`EventualTerminal` summary, including an unannotated private body. The
+normalized machine contract independently records only the authored promise;
+omission therefore remains published `NoGuarantee`. One regression test pins
+both halves so body inference cannot silently become interface authorship.
+
 Mutually recursive or mutually cyclic machines use one joint ranking for the
 strongly connected component, and every cyclic edge must decrease it. The
 exact source spelling for differently shaped participants remains deferred;

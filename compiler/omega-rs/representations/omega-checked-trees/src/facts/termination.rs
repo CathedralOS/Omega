@@ -11,8 +11,9 @@ use omega_core::symbols::SymbolHandle;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct TerminationFacts {
-    /// One fact per CLAIMING machine (authored guarantee or witness), in
-    /// machine-table order.
+    /// One local checked summary per machine, in machine-table order. Public
+    /// consumers use `MachineContractPlan::published_termination` instead;
+    /// recording an inferred local fact never publishes a promise.
     pub machines: Vec<MachineTerminationFact>,
 }
 
