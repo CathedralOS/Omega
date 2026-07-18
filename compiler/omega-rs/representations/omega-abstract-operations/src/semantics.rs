@@ -27,6 +27,7 @@ impl AbstractSemanticSummary {
         ownership_segment_capacity: usize,
         move_capacity: usize,
         drop_capacity: usize,
+        permission_capacity: usize,
     ) -> Self {
         Self::with_roots(
             AbstractValueSummary::with_capacity(value_capacity),
@@ -38,6 +39,7 @@ impl AbstractSemanticSummary {
                 ownership_segment_capacity,
                 move_capacity,
                 drop_capacity,
+                permission_capacity,
             ),
         )
     }

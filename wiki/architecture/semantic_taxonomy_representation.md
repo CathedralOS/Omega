@@ -213,10 +213,11 @@ remain permission operations, not linear obligations by fiat.
 
 Implementation status (CML3, 2026-07-17): checked flow retains normalized
 `Establish | Transfer | Consume | AffineDrop` events, including whether a
-conditional sum event carries live payload debt. The older move/drop arenas
-remain as compatibility input while downstream state-graph/control-flow
-summaries migrate; no downstream consumer may reconstruct permission kind from
-that lossy pair.
+conditional sum event carries live payload debt. CML3's second slice propagates
+the same typed events through state graph, control flow, abstract/target/
+assigned operations, machine instructions/program/bytes, and the backend
+report. The older move/drop arenas remain compatibility input only; no consumer
+may reconstruct permission kind from that lossy pair.
 
 ### Effects and observation
 

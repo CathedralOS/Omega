@@ -32,6 +32,7 @@ impl StateGraph {
         ownership_segment_capacity: usize,
         move_event_capacity: usize,
         drop_event_capacity: usize,
+        permission_event_capacity: usize,
         operation_capacity: usize,
         transition_capacity: usize,
     ) -> Self {
@@ -71,6 +72,7 @@ impl StateGraph {
                     Arena::with_capacity(ownership_segment_capacity),
                     Arena::with_capacity(move_event_capacity),
                     Arena::with_capacity(drop_event_capacity),
+                    Arena::with_capacity(permission_event_capacity),
                 ),
             ),
         )

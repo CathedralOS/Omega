@@ -22,7 +22,7 @@ mod tests {
             functions: Arena::with_capacity(1),
             instructions: Arena::with_capacity(2),
         };
-        let semantics = MachineSemanticSummary::with_capacity(3, 4, 5, 6, 7, 8);
+        let semantics = MachineSemanticSummary::with_capacity(3, 4, 5, 6, 7, 8, 9);
 
         let program = MachineProgram::with_roots(target, code.clone(), semantics.clone());
 

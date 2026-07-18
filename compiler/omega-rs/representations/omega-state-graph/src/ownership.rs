@@ -35,9 +35,19 @@ pub struct StateDropEvent {
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct StatePermissionEvent {
+    pub source: omega_core::semantics::PermissionEventSource,
+    pub kind: omega_core::semantics::PermissionEventKind,
+    pub root: omega_facts::PlaceRoot,
+    pub segments: HandleSpan<omega_facts::PlaceSegment>,
+    pub obligation_live: bool,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct StateOwnershipSummary {
     pub moves: HandleSpan<StateMoveEvent>,
     pub drops: HandleSpan<StateDropEvent>,
+    pub permissions: HandleSpan<StatePermissionEvent>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -45,6 +55,7 @@ pub struct StateGraphOwnershipRoots {
     pub segments: Arena<omega_facts::PlaceSegment>,
     pub moves: Arena<StateMoveEvent>,
     pub drops: Arena<StateDropEvent>,
+    pub permissions: Arena<StatePermissionEvent>,
 }
 
 impl StateGraphOwnershipRoots {
@@ -52,11 +63,13 @@ impl StateGraphOwnershipRoots {
         segments: Arena<omega_facts::PlaceSegment>,
         moves: Arena<StateMoveEvent>,
         drops: Arena<StateDropEvent>,
+        permissions: Arena<StatePermissionEvent>,
     ) -> Self {
         Self {
             segments,
             moves,
             drops,
+            permissions,
         }
     }
 }
