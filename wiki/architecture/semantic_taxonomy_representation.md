@@ -59,8 +59,10 @@ those events survive through machine bytes and backend reports with
 multiplicity, explicit `Owned | Shared | Exclusive` access, transfer-stable
 establishment provenance, and conditional-payload debt. Legacy-derived affine
 cleanup is deliberately `Unknown` provenance rather than fabricated evidence.
-The remaining migration is to feed borrow loans into the same place-keyed
-permission context and then retire move/drop summaries as checker input.
+Borrow activations/weakenings now feed the same context as
+`Unrestricted + Shared` and `Affine + Exclusive` entries, respectively. The
+remaining migration is to retire move/drop summaries as checker input and
+finish returned/nested obligation flow.
 
 ### Effects
 

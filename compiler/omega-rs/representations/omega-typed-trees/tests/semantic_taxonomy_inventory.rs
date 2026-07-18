@@ -174,8 +174,9 @@ fn effect_set_is_still_a_flat_bitset() {
 /// spine now retain Establish / Transfer / Consume / AffineDrop permission
 /// events (including conditional-payload debt). MOVE/DROP remain compatibility
 /// fields, not the source taxonomy. CML3 slice 3 added multiplicity, explicit
-/// owned/shared/exclusive access, and transfer-stable origin provenance; the
-/// remaining gap is feeding shared/exclusive borrow loans into this context.
+/// owned/shared/exclusive access, and transfer-stable origin provenance.
+/// Borrow activations/weakenings also enter this context; the remaining gap is
+/// retiring move/drop as producer/checker input.
 #[test]
 fn downstream_ownership_summary_carries_qualified_permission_events() {
     use omega_control_flow::{StateOwnershipSummary, StatePermissionEvent};
