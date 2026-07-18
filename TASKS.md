@@ -790,21 +790,46 @@ rejects — an INTEGER ruling, engineering rides this ladder as F8).
   runtime_adapter_dispatch_exit (interpreter + native both exit 70
   through the adapter). Rung order forward: (3a) Console's byte ops
   ARE the raw-stdio surface (write_byte/read_byte already serve
-  dual-engine -- no new trait needed); (3b) Console's write_line/
-  write as std checked adapters over write_byte -- CONSTRAINT
-  (2026-07-20): a Console adapter must CALL write_byte, which is
-  only reachable through a Console-typed PLACE -- so the adapter
-  cannot be a v1 FREE machine (it needs a console capability field),
-  and adapter dispatch must extend to ATTACHED adapters with
-  receiver threading (construct/borrow the adapter's data around the
-  dispatch-only slot -- the composed-provider model). EXTEND
-  DISPATCH FIRST: attached adapters whose data holds exactly the
-  capability fields the body needs, the call rewriting to
-  attached-machine form with the caller's own capability fields
-  forwarded (Main's console forwards into the adapter's console) --
-  spec the forwarding rule before building; (3c) oracle-compare +
-  retire the built-in write_line/write rows from tables +
-  interpreter serving. The import-argument fix
+  dual-engine -- no new trait needed); (3b) SELF-FORWARDING
+  ADAPTERS LANDED 2026-07-21 (the attached-adapter variant is
+  REJECTED for v1 -- a leading parameter is the ordinary-machine
+  spelling of the capability need; no instance/aliasing semantics
+  invented). THE FORWARDING RULE: a FREE machine satisfying a
+  BOUNDARY-trait requirement may take the requirement's OWN trait as
+  ONE extra LEADING parameter (`write_line_plus(console: Console,
+  text: String) satisfies Console::write_line`); adapter dispatch
+  rewrites the call with the receiver place forwarded as argument 0
+  (statement calls synthesize the parser's exact `self.<field>`
+  Member tree; value calls prepend the existing receiver handle);
+  conformance validation skips the lead (boundary trait + free
+  machine + exact trait-type match only -- a non-trait lead keeps
+  the strict positional match, pinned by
+  fail/providers/adapter_forwarding_bad_lead); the capability
+  registry treats requirement-named free-machine satisfies edges as
+  SUPPLY edges, not in-package implementations (the adapter FORWARDS
+  already-held authority through its lead param and cannot mint;
+  whole-trait + attached conformances still revoke approval --
+  unapproved_host_call stays red). Pinned DUAL-ENGINE:
+  runtime_adapter_forwarding_exit (stdout "Hi!\n" -- the ! PROVES
+  adapter routing over the built-in row -- both engines, +
+  differential row). FIXED EN ROUTE (dead from birth):
+  write_byte(<integer literal>) never lowered natively -- host-call
+  lowering folds literals to HostCallArgumentKind::Integer before
+  any plan sees the call, but the data-planning stager AND the
+  selection literal arm matched only Expression-wrapped Integer
+  nodes; both now match the Integer kind (pinned dual-engine:
+  host/runtime_console_byte_literal_exit, "7\n"). PROBED FACTS:
+  machine params are REGISTER-resident (no frame slot) -- byte-op
+  place args need the `let`-copy idiom in adapter bodies; param-place
+  Console serving works BOTH engines (write/write_byte through a
+  `console: Console` param). (3c) REMAINING -- std write_line/write
+  adapters in console.omg + oracle-compare + retire the built-in
+  rows from tables + interpreter serving; GATED BY a pre-existing
+  native gap: literal-to-String-param threading into host text calls
+  refuses (`forward_write(self.console, "Hi")` -> "no encodable call
+  sequence" even parser-authored; field-backed text works) -- the
+  corpus calls write_line("literal") everywhere, so the row flip
+  would regress until that rung lands. The import-argument fix
   unblocked authored-import adapter leaves generally (fs-style
   seams), but Console's own path rides semantics, not imports; (4) move foreign offsets/bit constants out of
   Binding::Value into programmable layout/format declarations, migrate

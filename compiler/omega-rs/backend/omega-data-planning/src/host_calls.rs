@@ -40,15 +40,11 @@ fn collect_byte_literal_data(
     let Some(first_argument) = arguments.first() else {
         return;
     };
-    let HostCallArgumentKind::Expression(expression) = &first_argument.kind else {
-        return;
-    };
-    let omega_checked_trees::expression::ExpressionNode::Integer(value) =
-        host_calls.expressions.expression(*expression)
-    else {
-        return;
-    };
-    let Some(value) = value.value_i64() else {
+    // Integer literals arrive PRE-RESOLVED as the Integer kind (host-call
+    // argument lowering folds `ExpressionNode::Integer` before the plan is
+    // built), so that is the shape staged here; place-backed arguments stay
+    // Expression and contribute nothing.
+    let HostCallArgumentKind::Integer(value) = first_argument.kind else {
         return;
     };
 

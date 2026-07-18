@@ -1,0 +1,18 @@
+// std Console write_byte with INTEGER-LITERAL arguments (the staged 1-byte
+// data object path). This shape was DEAD from birth: host-call lowering
+// folds literals to HostCallArgumentKind::Integer BEFORE any plan sees the
+// call, but both the data-planning stager and the selection literal arm
+// matched only Expression-wrapped Integer nodes -- so every literal write
+// refused natively while place-backed writes (the echo canary) served.
+// The program writes "7\n" byte-by-byte from literals and exits 70.
+use omega::language::std::console;
+
+data Main {
+    console: Console;
+}
+
+machine Main::main(&mut self) {
+    self.console.write_byte(55);
+    self.console.write_byte(10);
+    self.console.exit_process(70);
+}
