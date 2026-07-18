@@ -238,6 +238,814 @@ fn machine_indexed_place(
         .expect("a machine-indexed place is three steps, within PLACE_MAX_STEPS")
 }
 
+/// Rung 2c-x: an inline 2D-array element path (`arr[i][j].field`, no
+/// deref): `[Const(base), SI(outer), SI(inner), Const(field)]`.
+fn double_indexed_place(
+    region: RuntimeStorageRegion,
+    base_byte_offset: usize,
+    outer_index_region: RuntimeStorageRegion,
+    outer_index_offset: usize,
+    outer_stride: usize,
+    inner_index_region: RuntimeStorageRegion,
+    inner_index_offset: usize,
+    inner_stride: usize,
+    field_byte_offset: usize,
+) -> omega_abstract_operations::Place {
+    omega_abstract_operations::Place::at(region, base_byte_offset)
+        .with_step(omega_abstract_operations::PlaceStep::ScaledIndex {
+            index_region: outer_index_region,
+            index_offset: outer_index_offset,
+            element_byte_size: outer_stride,
+        })
+        .and_then(|place| {
+            place.with_step(omega_abstract_operations::PlaceStep::ScaledIndex {
+                index_region: inner_index_region,
+                index_offset: inner_index_offset,
+                element_byte_size: inner_stride,
+            })
+        })
+        .and_then(|place| {
+            place.with_step(omega_abstract_operations::PlaceStep::ConstOffset(
+                field_byte_offset,
+            ))
+        })
+        .expect("a double-indexed place is four steps, within PLACE_MAX_STEPS")
+}
+
+/// Rung 2c-x: the machine inline 2D-array element READ.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn copy_places_from_machine_double_indexed(
+    base_byte_offset: usize,
+    outer_index_region: RuntimeStorageRegion,
+    outer_index_offset: usize,
+    outer_stride: usize,
+    inner_index_region: RuntimeStorageRegion,
+    inner_index_offset: usize,
+    inner_stride: usize,
+    field_byte_offset: usize,
+    target_region: RuntimeStorageRegion,
+    target_offset: usize,
+    byte_count: usize,
+) -> SelectedInstructionKind {
+    SelectedInstructionKind::CopyPlaces {
+        source: double_indexed_place(
+            RuntimeStorageRegion::Machine,
+            base_byte_offset,
+            outer_index_region,
+            outer_index_offset,
+            outer_stride,
+            inner_index_region,
+            inner_index_offset,
+            inner_stride,
+            field_byte_offset,
+        ),
+        target: omega_abstract_operations::Place::at(target_region, target_offset),
+        byte_count,
+    }
+}
+
+/// Binary rung 2b: the place-shaped binary write constructors. The shaped
+/// forms are Exact-only (matching the retired kinds' field sets); the
+/// direct form carries the full float/domain/signedness triple.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn write_place_binary_direct(
+    region: RuntimeStorageRegion,
+    byte_offset: usize,
+    byte_size: usize,
+    left: omega_abstract_operations::AbstractValueOperandHandle,
+    operator: omega_abstract_operations::StateGuardOperator,
+    right: omega_abstract_operations::AbstractValueOperandHandle,
+    is_float: bool,
+    domain: omega_core::arithmetic::ArithmeticDomain,
+    target_signed: bool,
+) -> SelectedInstructionKind {
+    SelectedInstructionKind::WritePlaceBinary {
+        target: omega_abstract_operations::Place::at(region, byte_offset),
+        byte_size,
+        left,
+        operator,
+        right,
+        is_float,
+        domain,
+        target_signed,
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn write_place_binary_pointee(
+    pointer_byte_offset: usize,
+    field_byte_offset: usize,
+    byte_size: usize,
+    left: omega_abstract_operations::AbstractValueOperandHandle,
+    operator: omega_abstract_operations::StateGuardOperator,
+    right: omega_abstract_operations::AbstractValueOperandHandle,
+) -> SelectedInstructionKind {
+    SelectedInstructionKind::WritePlaceBinary {
+        target: omega_abstract_operations::Place::at(
+            RuntimeStorageRegion::RuntimeFrame,
+            pointer_byte_offset,
+        )
+        .with_step(omega_abstract_operations::PlaceStep::Deref)
+        .and_then(|place| {
+            place.with_step(omega_abstract_operations::PlaceStep::ConstOffset(
+                field_byte_offset,
+            ))
+        })
+        .expect("a pointee place is three steps, within PLACE_MAX_STEPS"),
+        byte_size,
+        left,
+        operator,
+        right,
+        is_float: false,
+        domain: omega_core::arithmetic::ArithmeticDomain::Exact,
+        target_signed: false,
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn write_place_binary_frame_indexed(
+    descriptor_offset: usize,
+    index_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    byte_size: usize,
+    left: omega_abstract_operations::AbstractValueOperandHandle,
+    operator: omega_abstract_operations::StateGuardOperator,
+    right: omega_abstract_operations::AbstractValueOperandHandle,
+) -> SelectedInstructionKind {
+    SelectedInstructionKind::WritePlaceBinary {
+        target: omega_abstract_operations::Place::at(
+            RuntimeStorageRegion::RuntimeFrame,
+            descriptor_offset,
+        )
+        .with_step(omega_abstract_operations::PlaceStep::Deref)
+        .and_then(|place| {
+            place.with_step(omega_abstract_operations::PlaceStep::ScaledIndex {
+                index_region: RuntimeStorageRegion::RuntimeFrame,
+                index_offset,
+                element_byte_size,
+            })
+        })
+        .and_then(|place| {
+            place.with_step(omega_abstract_operations::PlaceStep::ConstOffset(
+                field_byte_offset,
+            ))
+        })
+        .expect("a frame-indexed place is four steps, within PLACE_MAX_STEPS"),
+        byte_size,
+        left,
+        operator,
+        right,
+        is_float: false,
+        domain: omega_core::arithmetic::ArithmeticDomain::Exact,
+        target_signed: false,
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn write_place_binary_base_indexed(
+    region: RuntimeStorageRegion,
+    base_byte_offset: usize,
+    index_region: RuntimeStorageRegion,
+    index_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    byte_size: usize,
+    left: omega_abstract_operations::AbstractValueOperandHandle,
+    operator: omega_abstract_operations::StateGuardOperator,
+    right: omega_abstract_operations::AbstractValueOperandHandle,
+) -> SelectedInstructionKind {
+    SelectedInstructionKind::WritePlaceBinary {
+        target: omega_abstract_operations::Place::at(region, base_byte_offset)
+            .with_step(omega_abstract_operations::PlaceStep::ScaledIndex {
+                index_region,
+                index_offset,
+                element_byte_size,
+            })
+            .and_then(|place| {
+                place.with_step(omega_abstract_operations::PlaceStep::ConstOffset(
+                    field_byte_offset,
+                ))
+            })
+            .expect("a base-indexed place is three steps, within PLACE_MAX_STEPS"),
+        byte_size,
+        left,
+        operator,
+        right,
+        is_float: false,
+        domain: omega_core::arithmetic::ArithmeticDomain::Exact,
+        target_signed: false,
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn write_place_binary_double_indexed(
+    base_byte_offset: usize,
+    outer_index_region: RuntimeStorageRegion,
+    outer_index_offset: usize,
+    outer_stride: usize,
+    inner_index_region: RuntimeStorageRegion,
+    inner_index_offset: usize,
+    inner_stride: usize,
+    field_byte_offset: usize,
+    byte_size: usize,
+    left: omega_abstract_operations::AbstractValueOperandHandle,
+    operator: omega_abstract_operations::StateGuardOperator,
+    right: omega_abstract_operations::AbstractValueOperandHandle,
+) -> SelectedInstructionKind {
+    SelectedInstructionKind::WritePlaceBinary {
+        target: double_indexed_place(
+            RuntimeStorageRegion::Machine,
+            base_byte_offset,
+            outer_index_region,
+            outer_index_offset,
+            outer_stride,
+            inner_index_region,
+            inner_index_offset,
+            inner_stride,
+            field_byte_offset,
+        ),
+        byte_size,
+        left,
+        operator,
+        right,
+        is_float: false,
+        domain: omega_core::arithmetic::ArithmeticDomain::Exact,
+        target_signed: false,
+    }
+}
+
+/// Write rung 2b: the place-shaped integer write constructors -- the seven
+/// Write*Integer kinds collapse onto WritePlaceInteger through these.
+pub(crate) fn write_place_integer_direct(
+    region: RuntimeStorageRegion,
+    byte_offset: usize,
+    value: i64,
+    byte_size: usize,
+) -> SelectedInstructionKind {
+    SelectedInstructionKind::WritePlaceInteger {
+        target: omega_abstract_operations::Place::at(region, byte_offset),
+        value,
+        byte_size,
+    }
+}
+
+pub(crate) fn write_place_integer_pointee(
+    pointer_byte_offset: usize,
+    field_byte_offset: usize,
+    value: i64,
+    byte_size: usize,
+) -> SelectedInstructionKind {
+    SelectedInstructionKind::WritePlaceInteger {
+        target: omega_abstract_operations::Place::at(
+            RuntimeStorageRegion::RuntimeFrame,
+            pointer_byte_offset,
+        )
+        .with_step(omega_abstract_operations::PlaceStep::Deref)
+        .and_then(|place| {
+            place.with_step(omega_abstract_operations::PlaceStep::ConstOffset(
+                field_byte_offset,
+            ))
+        })
+        .expect("a pointee place is three steps, within PLACE_MAX_STEPS"),
+        value,
+        byte_size,
+    }
+}
+
+/// Frame descriptor deref + frame index (`slice[i] = v`).
+pub(crate) fn write_place_integer_frame_indexed(
+    descriptor_offset: usize,
+    index_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    value: i64,
+    byte_size: usize,
+) -> SelectedInstructionKind {
+    SelectedInstructionKind::WritePlaceInteger {
+        target: omega_abstract_operations::Place::at(
+            RuntimeStorageRegion::RuntimeFrame,
+            descriptor_offset,
+        )
+        .with_step(omega_abstract_operations::PlaceStep::Deref)
+        .and_then(|place| {
+            place.with_step(omega_abstract_operations::PlaceStep::ScaledIndex {
+                index_region: RuntimeStorageRegion::RuntimeFrame,
+                index_offset,
+                element_byte_size,
+            })
+        })
+        .and_then(|place| {
+            place.with_step(omega_abstract_operations::PlaceStep::ConstOffset(
+                field_byte_offset,
+            ))
+        })
+        .expect("a frame-indexed place is four steps, within PLACE_MAX_STEPS"),
+        value,
+        byte_size,
+    }
+}
+
+/// Text rung 2b: the place-string constructor family (the five retired
+/// Write*String spellings as places).
+pub(crate) fn write_place_string_direct(
+    region: RuntimeStorageRegion,
+    byte_offset: usize,
+    data: omega_abstract_operations::AbstractDataObjectHandle,
+    byte_length: usize,
+) -> SelectedInstructionKind {
+    SelectedInstructionKind::WritePlaceString {
+        target: omega_abstract_operations::Place::at(region, byte_offset),
+        data,
+        byte_length,
+    }
+}
+
+pub(crate) fn write_place_string_pointee(
+    pointer_byte_offset: usize,
+    field_byte_offset: usize,
+    data: omega_abstract_operations::AbstractDataObjectHandle,
+    byte_length: usize,
+) -> SelectedInstructionKind {
+    SelectedInstructionKind::WritePlaceString {
+        target: omega_abstract_operations::Place::at(
+            RuntimeStorageRegion::RuntimeFrame,
+            pointer_byte_offset,
+        )
+        .with_step(omega_abstract_operations::PlaceStep::Deref)
+        .and_then(|place| {
+            place.with_step(omega_abstract_operations::PlaceStep::ConstOffset(
+                field_byte_offset,
+            ))
+        })
+        .expect("a pointee place is three steps, within PLACE_MAX_STEPS"),
+        data,
+        byte_length,
+    }
+}
+
+pub(crate) fn write_place_string_frame_indexed(
+    descriptor_offset: usize,
+    index_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    data: omega_abstract_operations::AbstractDataObjectHandle,
+    byte_length: usize,
+) -> SelectedInstructionKind {
+    SelectedInstructionKind::WritePlaceString {
+        target: omega_abstract_operations::Place::at(
+            RuntimeStorageRegion::RuntimeFrame,
+            descriptor_offset,
+        )
+        .with_step(omega_abstract_operations::PlaceStep::Deref)
+        .and_then(|place| {
+            place.with_step(omega_abstract_operations::PlaceStep::ScaledIndex {
+                index_region: RuntimeStorageRegion::RuntimeFrame,
+                index_offset,
+                element_byte_size,
+            })
+        })
+        .and_then(|place| {
+            place.with_step(omega_abstract_operations::PlaceStep::ConstOffset(
+                field_byte_offset,
+            ))
+        })
+        .expect("a frame-indexed place is four steps, within PLACE_MAX_STEPS"),
+        data,
+        byte_length,
+    }
+}
+
+pub(crate) fn write_place_string_machine_indexed(
+    base_byte_offset: usize,
+    index_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    data: omega_abstract_operations::AbstractDataObjectHandle,
+    byte_length: usize,
+) -> SelectedInstructionKind {
+    SelectedInstructionKind::WritePlaceString {
+        target: machine_indexed_place(
+            base_byte_offset,
+            RuntimeStorageRegion::RuntimeFrame,
+            index_offset,
+            element_byte_size,
+            field_byte_offset,
+        ),
+        data,
+        byte_length,
+    }
+}
+
+/// Task #132: the text-crossing constructors (the nine retired
+/// Materialize/AppendStored/AppendLiteral spellings as places).
+pub(crate) fn text_place_direct(
+    region: RuntimeStorageRegion,
+    byte_offset: usize,
+) -> omega_abstract_operations::Place {
+    omega_abstract_operations::Place::at(region, byte_offset)
+}
+
+pub(crate) fn text_place_pointee(
+    pointer_byte_offset: usize,
+    field_byte_offset: usize,
+) -> omega_abstract_operations::Place {
+    omega_abstract_operations::Place::at(
+        RuntimeStorageRegion::RuntimeFrame,
+        pointer_byte_offset,
+    )
+    .with_step(omega_abstract_operations::PlaceStep::Deref)
+    .and_then(|place| {
+        place.with_step(omega_abstract_operations::PlaceStep::ConstOffset(
+            field_byte_offset,
+        ))
+    })
+    .expect("a pointee place is three steps, within PLACE_MAX_STEPS")
+}
+
+pub(crate) fn text_place_frame_indexed(
+    descriptor_offset: usize,
+    index_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+) -> omega_abstract_operations::Place {
+    omega_abstract_operations::Place::at(
+        RuntimeStorageRegion::RuntimeFrame,
+        descriptor_offset,
+    )
+    .with_step(omega_abstract_operations::PlaceStep::Deref)
+    .and_then(|place| {
+        place.with_step(omega_abstract_operations::PlaceStep::ScaledIndex {
+            index_region: RuntimeStorageRegion::RuntimeFrame,
+            index_offset,
+            element_byte_size,
+        })
+    })
+    .and_then(|place| {
+        place.with_step(omega_abstract_operations::PlaceStep::ConstOffset(
+            field_byte_offset,
+        ))
+    })
+    .expect("a frame-indexed place is four steps, within PLACE_MAX_STEPS")
+}
+
+/// Task #131 (guards consume Places): the direct-place compare
+/// constructors (the retired storage-compare spellings as places).
+pub(crate) fn compare_places_direct(
+    left_region: RuntimeStorageRegion,
+    left_offset: usize,
+    right_region: RuntimeStorageRegion,
+    right_offset: usize,
+    byte_size: usize,
+    operator: omega_abstract_operations::StateGuardOperator,
+    is_float: bool,
+) -> SelectedInstructionKind {
+    SelectedInstructionKind::ComparePlaces {
+        left: omega_abstract_operations::Place::at(left_region, left_offset),
+        right: omega_abstract_operations::Place::at(right_region, right_offset),
+        byte_size,
+        operator,
+        is_float,
+    }
+}
+
+pub(crate) fn compare_place_value_direct(
+    region: RuntimeStorageRegion,
+    byte_offset: usize,
+    byte_size: usize,
+    expected_value: i64,
+    operator: omega_abstract_operations::StateGuardOperator,
+) -> SelectedInstructionKind {
+    SelectedInstructionKind::ComparePlaceValue {
+        place: omega_abstract_operations::Place::at(region, byte_offset),
+        byte_size,
+        expected_value,
+        operator,
+    }
+}
+
+/// Task #131: the place-address constructor family (the six retired
+/// Write*AddressToRuntimeFrame spellings as places).
+pub(crate) fn write_place_address_direct(
+    source_region: RuntimeStorageRegion,
+    source_offset: usize,
+    target_offset: usize,
+) -> SelectedInstructionKind {
+    SelectedInstructionKind::WritePlaceAddress {
+        source: omega_abstract_operations::Place::at(source_region, source_offset),
+        target_offset,
+    }
+}
+
+pub(crate) fn write_place_address_pointee(
+    pointer_byte_offset: usize,
+    field_byte_offset: usize,
+    target_offset: usize,
+) -> SelectedInstructionKind {
+    SelectedInstructionKind::WritePlaceAddress {
+        source: omega_abstract_operations::Place::at(
+            RuntimeStorageRegion::RuntimeFrame,
+            pointer_byte_offset,
+        )
+        .with_step(omega_abstract_operations::PlaceStep::Deref)
+        .and_then(|place| {
+            place.with_step(omega_abstract_operations::PlaceStep::ConstOffset(
+                field_byte_offset,
+            ))
+        })
+        .expect("a pointee place is three steps, within PLACE_MAX_STEPS"),
+        target_offset,
+    }
+}
+
+/// The retired FIXED-index shape: the constant element index folds into the
+/// post-deref const offset, so the place is pointee-shaped.
+pub(crate) fn write_place_address_fixed_indexed(
+    descriptor_offset: usize,
+    element_index: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    target_offset: usize,
+) -> SelectedInstructionKind {
+    // Layout-derived constants cannot overflow usize in a real program; the
+    // encoder's disp32 fence still refuses any displacement past i32.
+    let displacement = element_index
+        .checked_mul(element_byte_size)
+        .and_then(|scaled| scaled.checked_add(field_byte_offset))
+        .expect("fixed indexed address offset overflows usize");
+    write_place_address_pointee(descriptor_offset, displacement, target_offset)
+}
+
+pub(crate) fn write_place_address_frame_indexed_deref(
+    descriptor_offset: usize,
+    index_region: RuntimeStorageRegion,
+    index_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    target_offset: usize,
+) -> SelectedInstructionKind {
+    SelectedInstructionKind::WritePlaceAddress {
+        source: omega_abstract_operations::Place::at(
+            RuntimeStorageRegion::RuntimeFrame,
+            descriptor_offset,
+        )
+        .with_step(omega_abstract_operations::PlaceStep::Deref)
+        .and_then(|place| {
+            place.with_step(omega_abstract_operations::PlaceStep::ScaledIndex {
+                index_region,
+                index_offset,
+                element_byte_size,
+            })
+        })
+        .and_then(|place| {
+            place.with_step(omega_abstract_operations::PlaceStep::ConstOffset(
+                field_byte_offset,
+            ))
+        })
+        .expect("an indexed-deref place is four steps, within PLACE_MAX_STEPS"),
+        target_offset,
+    }
+}
+
+pub(crate) fn write_place_address_base_indexed(
+    base_byte_offset: usize,
+    index_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    target_offset: usize,
+) -> SelectedInstructionKind {
+    SelectedInstructionKind::WritePlaceAddress {
+        source: omega_abstract_operations::Place::at(
+            RuntimeStorageRegion::RuntimeFrame,
+            base_byte_offset,
+        )
+        .with_step(omega_abstract_operations::PlaceStep::ScaledIndex {
+            index_region: RuntimeStorageRegion::RuntimeFrame,
+            index_offset,
+            element_byte_size,
+        })
+        .and_then(|place| {
+            place.with_step(omega_abstract_operations::PlaceStep::ConstOffset(
+                field_byte_offset,
+            ))
+        })
+        .expect("a base-indexed place is three steps, within PLACE_MAX_STEPS"),
+        target_offset,
+    }
+}
+
+pub(crate) fn write_place_address_machine_indexed(
+    base_byte_offset: usize,
+    index_region: RuntimeStorageRegion,
+    index_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    target_offset: usize,
+) -> SelectedInstructionKind {
+    SelectedInstructionKind::WritePlaceAddress {
+        source: machine_indexed_place(
+            base_byte_offset,
+            index_region,
+            index_offset,
+            element_byte_size,
+            field_byte_offset,
+        ),
+        target_offset,
+    }
+}
+
+/// Text rung 2b: the bounded-buffer constructor pair (the two retired
+/// carrier-write spellings as places).
+pub(crate) fn write_place_bounded_buffer_direct(
+    region: RuntimeStorageRegion,
+    byte_offset: usize,
+    literal: std::sync::Arc<str>,
+) -> SelectedInstructionKind {
+    SelectedInstructionKind::WritePlaceBoundedBuffer {
+        target: omega_abstract_operations::Place::at(region, byte_offset),
+        literal,
+    }
+}
+
+pub(crate) fn write_place_bounded_buffer_pointee(
+    pointer_byte_offset: usize,
+    field_byte_offset: usize,
+    literal: std::sync::Arc<str>,
+) -> SelectedInstructionKind {
+    SelectedInstructionKind::WritePlaceBoundedBuffer {
+        target: omega_abstract_operations::Place::at(
+            RuntimeStorageRegion::RuntimeFrame,
+            pointer_byte_offset,
+        )
+        .with_step(omega_abstract_operations::PlaceStep::Deref)
+        .and_then(|place| {
+            place.with_step(omega_abstract_operations::PlaceStep::ConstOffset(
+                field_byte_offset,
+            ))
+        })
+        .expect("a pointee place is three steps, within PLACE_MAX_STEPS"),
+        literal,
+    }
+}
+
+/// No-deref inline array element (`arr[i] = v`; frame or machine root).
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn write_place_integer_base_indexed(
+    region: RuntimeStorageRegion,
+    base_byte_offset: usize,
+    index_region: RuntimeStorageRegion,
+    index_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    value: i64,
+    byte_size: usize,
+) -> SelectedInstructionKind {
+    SelectedInstructionKind::WritePlaceInteger {
+        target: omega_abstract_operations::Place::at(region, base_byte_offset)
+            .with_step(omega_abstract_operations::PlaceStep::ScaledIndex {
+                index_region,
+                index_offset,
+                element_byte_size,
+            })
+            .and_then(|place| {
+                place.with_step(omega_abstract_operations::PlaceStep::ConstOffset(
+                    field_byte_offset,
+                ))
+            })
+            .expect("a base-indexed place is three steps, within PLACE_MAX_STEPS"),
+        value,
+        byte_size,
+    }
+}
+
+/// Machine 2D inline array element (`grid[i][j] = v`).
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn write_place_integer_double_indexed(
+    base_byte_offset: usize,
+    outer_index_region: RuntimeStorageRegion,
+    outer_index_offset: usize,
+    outer_stride: usize,
+    inner_index_region: RuntimeStorageRegion,
+    inner_index_offset: usize,
+    inner_stride: usize,
+    field_byte_offset: usize,
+    value: i64,
+    byte_size: usize,
+) -> SelectedInstructionKind {
+    SelectedInstructionKind::WritePlaceInteger {
+        target: double_indexed_place(
+            RuntimeStorageRegion::Machine,
+            base_byte_offset,
+            outer_index_region,
+            outer_index_offset,
+            outer_stride,
+            inner_index_region,
+            inner_index_offset,
+            inner_stride,
+            field_byte_offset,
+        ),
+        value,
+        byte_size,
+    }
+}
+
+/// Rung 2c-x: the machine inline 2D-array element WRITE.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn copy_places_to_machine_double_indexed(
+    source_region: RuntimeStorageRegion,
+    source_offset: usize,
+    base_byte_offset: usize,
+    outer_index_region: RuntimeStorageRegion,
+    outer_index_offset: usize,
+    outer_stride: usize,
+    inner_index_region: RuntimeStorageRegion,
+    inner_index_offset: usize,
+    inner_stride: usize,
+    field_byte_offset: usize,
+    byte_count: usize,
+) -> SelectedInstructionKind {
+    SelectedInstructionKind::CopyPlaces {
+        source: omega_abstract_operations::Place::at(source_region, source_offset),
+        target: double_indexed_place(
+            RuntimeStorageRegion::Machine,
+            base_byte_offset,
+            outer_index_region,
+            outer_index_offset,
+            outer_stride,
+            inner_index_region,
+            inner_index_offset,
+            inner_stride,
+            field_byte_offset,
+        ),
+        byte_count,
+    }
+}
+
+/// Rung 2c-x: `arr[i] = arr[j]` on machine inline arrays -- one runtime
+/// index each side.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn copy_places_machine_indexed_pair(
+    source_base_byte_offset: usize,
+    source_index_region: RuntimeStorageRegion,
+    source_index_offset: usize,
+    source_element_byte_size: usize,
+    source_field_byte_offset: usize,
+    target_base_byte_offset: usize,
+    target_index_region: RuntimeStorageRegion,
+    target_index_offset: usize,
+    target_element_byte_size: usize,
+    target_field_byte_offset: usize,
+    byte_count: usize,
+) -> SelectedInstructionKind {
+    SelectedInstructionKind::CopyPlaces {
+        source: machine_indexed_place(
+            source_base_byte_offset,
+            source_index_region,
+            source_index_offset,
+            source_element_byte_size,
+            source_field_byte_offset,
+        ),
+        target: machine_indexed_place(
+            target_base_byte_offset,
+            target_index_region,
+            target_index_offset,
+            target_element_byte_size,
+            target_field_byte_offset,
+        ),
+        byte_count,
+    }
+}
+
+/// Rung 2c-x: the frame inline 2D-array element READ (all-frame).
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn copy_places_from_frame_base_double_indexed(
+    base_byte_offset: usize,
+    outer_index_offset: usize,
+    outer_stride: usize,
+    inner_index_offset: usize,
+    inner_stride: usize,
+    field_byte_offset: usize,
+    target_region: RuntimeStorageRegion,
+    target_offset: usize,
+    byte_count: usize,
+) -> SelectedInstructionKind {
+    SelectedInstructionKind::CopyPlaces {
+        source: double_indexed_place(
+            RuntimeStorageRegion::RuntimeFrame,
+            base_byte_offset,
+            RuntimeStorageRegion::RuntimeFrame,
+            outer_index_offset,
+            outer_stride,
+            RuntimeStorageRegion::RuntimeFrame,
+            inner_index_offset,
+            inner_stride,
+            field_byte_offset,
+        ),
+        target: omega_abstract_operations::Place::at(target_region, target_offset),
+        byte_count,
+    }
+}
+
 /// Rung 2c-vii: the retired machine inline-array element READ.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn copy_places_from_machine_indexed(
@@ -358,126 +1166,6 @@ pub(crate) fn select_runtime_unaliased_storage_mutation_write_with_scratch(
         runtime_value_operands,
         selected_instructions,
     )
-}
-
-/// Emit writes that initialize the entry machine's data fields to their declared
-/// default values (`data Main { x: i32 = 5 }`). Without this a field with a default
-/// reads zero at runtime — the default is captured front-end (`DataField.initial_
-/// value`) but otherwise never emitted. Covers the ENTRY machine's own fields and,
-/// recursively, the fields of any nested `data` member (`data Main { c: Counter }`
-/// where `Counter` carries its own defaults), each at the accumulated byte offset
-/// inside the Machine region. Handles CONSTANT defaults (integer / boolean / float
-/// literal). Non-constant defaults are a follow-up (would need startup code that
-/// evaluates the initializer expression).
-fn select_entry_machine_field_default_writes(
-    input: &InstructionSelectionInput<'_>,
-    selected_instructions: &mut SelectedInstructionSink,
-) {
-    let Some((_, machine_layout)) = input
-        .layouts
-        .machine_layouts
-        .iter()
-        .find(|(_, layout)| layout.symbol == input.entry_key.machine)
-    else {
-        return;
-    };
-    let Some(fields) = input.layouts.fields.span(machine_layout.fields) else {
-        return;
-    };
-    for field in fields {
-        select_field_default_writes(input, field, 0, selected_instructions);
-    }
-}
-
-/// Emit the default write for a single field at `base_offset + field.offset`, then
-/// recurse into the field's type if it is itself a `data` record so nested defaults
-/// (`data Main { c: Counter }`, `Counter { base: i32 = 5 }`) are emitted too.
-fn select_field_default_writes(
-    input: &InstructionSelectionInput<'_>,
-    field: &omega_layout::FieldLayout,
-    base_offset: usize,
-    selected_instructions: &mut SelectedInstructionSink,
-) {
-    let field_offset = base_offset + field.offset;
-
-    if let Some(initial_value) = entry_machine_field_initial_value(input, field.symbol)
-        && matches!(field.layout.size, 1 | 2 | 4 | 8)
-        && let Some(value) =
-            constant_default_value(input, initial_value, field.layout.size)
-    {
-        selected_instructions.push(SelectedInstruction {
-            kind: SelectedInstructionKind::WriteRuntimeStorageInteger {
-                target_region: RuntimeStorageRegion::Machine,
-                byte_offset: field_offset,
-                byte_size: field.layout.size,
-                value,
-            },
-            source_key: input.entry_key,
-            source_statement: 0,
-        });
-    }
-
-    // Recurse into a nested `data` record so its own field defaults are emitted at the
-    // accumulated offset. References/slices/arrays of data are skipped: their storage
-    // is not the inlined record bytes, so a default would not land on real fields.
-    if !matches!(field.type_descriptor, omega_layout::TypeLayoutDescriptor::Named { .. }) {
-        return;
-    }
-    let Some((_, nested_layout)) = input
-        .layouts
-        .data_layouts
-        .iter()
-        .find(|(_, data_layout)| data_layout.symbol == field.type_symbol)
-    else {
-        return;
-    };
-    let omega_layout::DataShape::Record { fields } = nested_layout.shape else {
-        return;
-    };
-    let Some(nested_fields) = input.layouts.fields.span(fields) else {
-        return;
-    };
-    for nested_field in nested_fields {
-        select_field_default_writes(input, nested_field, field_offset, selected_instructions);
-    }
-}
-
-/// Fold a constant default initializer into the raw bytes to store, sized to the
-/// field. Returns `None` for non-constant initializers.
-fn constant_default_value(
-    input: &InstructionSelectionInput<'_>,
-    initial_value: ExpressionHandle,
-    field_size: usize,
-) -> Option<i64> {
-    match input.program.expression_table.expression(initial_value) {
-        ExpressionNode::Integer(value) => value.value_i64(),
-        ExpressionNode::Boolean(value) => Some(i64::from(*value)),
-        ExpressionNode::Float(literal) => Some(if field_size <= 4 {
-            i64::from(literal.f32_bits())
-        } else {
-            literal.value().to_bits() as i64
-        }),
-        _ => None,
-    }
-}
-
-/// The declared default initializer for a data field, looked up by field symbol
-/// across the program's data definitions.
-fn entry_machine_field_initial_value(
-    input: &InstructionSelectionInput<'_>,
-    field_symbol: omega_core::symbols::SymbolHandle,
-) -> Option<ExpressionHandle> {
-    for data_definition in input.program.data_definitions() {
-        for member in input.program.data_members(data_definition) {
-            if let DataMember::Field(field) = member
-                && field.symbol == field_symbol
-                && field.initial_value.is_valid()
-            {
-                return Some(field.initial_value);
-            }
-        }
-    }
-    None
 }
 
 /// Emit the ENTRY PROLOGUE's argument unmarshal: one register store per declared
@@ -612,11 +1300,6 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
     // The entry prologue's argument unmarshal runs FIRST (the incoming argument
     // registers are volatile; anything else emitted here may clobber them).
     select_entry_argument_register_writes(input, selected_instructions);
-
-    // Initialize the entry machine's data-field defaults (`data Main { x: i32 = 5 }`)
-    // before the dispatch loop, so a field starts at its declared value rather than
-    // zero. Runs once at program entry.
-    select_entry_machine_field_default_writes(input, selected_instructions);
 
     selected_instructions.push(SelectedInstruction {
         kind: SelectedInstructionKind::EnterDispatchLoop {
@@ -1321,14 +2004,14 @@ fn select_runtime_dispatch_local_initializer_write(
             )
         {
             let kind = if size > input.runtime_abi.pointer_size {
-                SelectedInstructionKind::WriteRuntimeMachineIndexedAddressToRuntimeFrame {
-                    base_byte_offset: indexed.base_byte_offset,
-                    index_offset: indexed.index_offset,
-                    index_region: indexed.index_region,
-                    element_byte_size: indexed.element_byte_size,
-                    field_byte_offset: indexed.field_byte_offset,
-                    target_offset: slot.byte_offset,
-                }
+                write_place_address_machine_indexed(
+                    indexed.base_byte_offset,
+                    indexed.index_region,
+                    indexed.index_offset,
+                    indexed.element_byte_size,
+                    indexed.field_byte_offset,
+                    slot.byte_offset,
+                )
             } else {
                 crate::selection::runtime_dispatch::copy_places_from_machine_indexed(indexed.base_byte_offset, indexed.index_region, indexed.index_offset, indexed.element_byte_size, indexed.field_byte_offset, omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame, slot.byte_offset, size)
             };

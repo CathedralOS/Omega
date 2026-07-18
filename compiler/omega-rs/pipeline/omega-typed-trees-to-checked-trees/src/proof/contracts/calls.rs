@@ -184,6 +184,16 @@ pub(crate) fn contract_target_from_state_symbol(
         return Some((target_machine.symbol, target_state_symbol));
     }
 
+    if program
+        .machine_parameter_signature(target_state_symbol)
+        .is_some()
+    {
+        // The parameter symbol owns its callable contract. Using the
+        // declaring machine here would also select that machine's entry
+        // requires as if they belonged to the callee.
+        return Some((target_state_symbol, target_state_symbol));
+    }
+
     // A call through a trait-typed receiver targets a trait machine signature
     // rather than a machine state; the owning trait stands in for the machine
     // so the signature's requires/ensures contracts attach to the call.
@@ -196,13 +206,5 @@ pub(crate) fn contract_target_from_state_symbol(
         return Some((target_trait.symbol, target_state_symbol));
     }
 
-    // Same shape for a platform-typed receiver: the owning platform stands in
-    // for the machine so its state signature's contracts attach to the call.
-    let target_platform = program.platforms().iter().find(|platform| {
-        program
-            .platform_state_signatures(platform)
-            .iter()
-            .any(|signature| signature.symbol == target_state_symbol)
-    })?;
-    Some((target_platform.symbol, target_state_symbol))
+    None
 }

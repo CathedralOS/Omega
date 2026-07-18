@@ -15,6 +15,7 @@ pub use capabilities::host_authority::{
     HOST_AUTHORITY_EFFECT_NAMES, HostAuthorityProvider, HostAuthorityRegistry,
     HostCallAuthorization, authority_effects, host_authority_effects, requires_host_authority,
 };
+pub use capabilities::provider_plan;
 pub use capabilities::providers::{
     BoundaryProvider, BoundaryProviderRegistry, build_provider_registry, validate_provider_bindings,
 };
@@ -72,6 +73,30 @@ pub fn effect_index(name: &str) -> Option<u8> {
 
 pub fn effect_name(index: u8) -> Option<&'static str> {
     STANDARD_EFFECT_NAMES.get(usize::from(index)).copied()
+}
+
+#[cfg(test)]
+mod catalog_consistency {
+    use super::STANDARD_EFFECT_NAMES;
+
+    /// STR4 (decision 22): the CANONICAL kinded catalog in omega-core and
+    /// this legacy bit table must stay name-for-name consistent -- row
+    /// identity never reads the legacy bits, but the two vocabularies must
+    /// describe the same members.
+    #[test]
+    fn legacy_bit_table_matches_the_canonical_catalog() {
+        let catalog = omega_core::semantics::EFFECT_MEMBER_CATALOG;
+        assert_eq!(catalog.len(), STANDARD_EFFECT_NAMES.len());
+        for (position, name) in STANDARD_EFFECT_NAMES.iter().enumerate() {
+            assert_eq!(catalog[position].0, *name, "catalog order drifted");
+            assert_eq!(
+                omega_core::semantics::effect_member_id(name),
+                Some(omega_core::semantics::EffectMemberId(
+                    u32::try_from(position + 1).expect("fits")
+                ))
+            );
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -284,8 +309,20 @@ pub enum EffectPathSource {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MachineEffects {
     pub symbol: SymbolHandle,
+    /// The DECLARED clause (the machine's authored `effects` seed) -- the
+    /// build seeds it and never mutates it; observations live below.
     pub direct: EffectSet,
     pub transitive: EffectSet,
+    /// STR4 slice 3 (decision 22): what THIS body's own statements observe
+    /// (state + call direct sets), declaration-free -- the honest inferred
+    /// direct summary.
+    pub body_observed: EffectSet,
+    /// STR4 seed rework: the declaration-free TRANSITIVE reach -- the same
+    /// call-graph fixpoint as `transitive`, seeded from the body
+    /// observations instead of the authored clause (boundary callees still
+    /// contribute through the call's direct set, which carries the CALLEE's
+    /// declaration -- only the machine's OWN clause is excluded).
+    pub body_transitive: EffectSet,
     pub states: HandleSpan<StateEffects>,
 }
 
@@ -295,6 +332,8 @@ impl Default for MachineEffects {
             symbol: SymbolHandle::invalid(),
             direct: EffectSet::empty(),
             transitive: EffectSet::empty(),
+            body_observed: EffectSet::empty(),
+            body_transitive: EffectSet::empty(),
             states: HandleSpan::empty(),
         }
     }
@@ -347,6 +386,7 @@ struct MachineWork {
     symbol: SymbolHandle,
     direct: EffectSet,
     transitive: EffectSet,
+    body_transitive: EffectSet,
     states: Vec<StateWork>,
 }
 
@@ -394,6 +434,7 @@ fn build_machine_work(program: &TypedTrees) -> Vec<MachineWork> {
             symbol: machine.symbol,
             direct,
             transitive: direct,
+            body_transitive: EffectSet::empty(),
             states,
         });
     }
@@ -647,12 +688,11 @@ fn direct_effects_for_signature_symbol(program: &TypedTrees, symbol: SymbolHandl
         return EffectSet::empty();
     }
 
-    for platform in program.platforms() {
-        for signature in program.platform_state_signatures(platform) {
-            if signature.symbol == symbol {
-                return signature_effects(program, signature);
-            }
-        }
+    if let Some((_, signature)) = program.machine_parameter_signature(symbol) {
+        // A machine-parameter requirement's authored row is its complete
+        // modular ceiling. The concrete callee does not exist in this body;
+        // MP2b separately proves every eventual selection stays within it.
+        return signature_effects(program, signature);
     }
 
     for trait_definition in program.traits() {
@@ -689,29 +729,43 @@ fn propagate_machine_effects(machines: &mut [MachineWork]) {
     loop {
         let previous = machines
             .iter()
-            .map(|machine| machine.transitive.bits())
+            .map(|machine| (machine.transitive.bits(), machine.body_transitive.bits()))
             .collect::<Vec<_>>();
 
         for machine_index in 0..machines.len() {
             let mut transitive = machines[machine_index].direct;
+            // Seed rework: the declaration-free twin -- same fixpoint, no
+            // OWN-clause seed. A callee contributes its declared CEILING
+            // when it has one (ceiling enforcement guarantees it covers the
+            // body, and the callee may change within it without recompiling
+            // the caller -- the modular bound), else its own honest reach.
+            let mut body_transitive = EffectSet::empty();
             for state in &machines[machine_index].states {
                 transitive.insert_all(state.direct);
+                body_transitive.insert_all(state.direct);
                 for call in &state.calls {
                     transitive.insert_all(call.direct);
+                    body_transitive.insert_all(call.direct);
                     if let Some(target_index) = machines
                         .iter()
                         .position(|machine| machine.symbol == call.target_machine_symbol)
                     {
                         transitive.insert_all(machines[target_index].transitive);
+                        if machines[target_index].direct.bits() != 0 {
+                            body_transitive.insert_all(machines[target_index].direct);
+                        } else {
+                            body_transitive.insert_all(machines[target_index].body_transitive);
+                        }
                     }
                 }
             }
             machines[machine_index].transitive = transitive;
+            machines[machine_index].body_transitive = body_transitive;
         }
 
         if machines
             .iter()
-            .map(|machine| machine.transitive.bits())
+            .map(|machine| (machine.transitive.bits(), machine.body_transitive.bits()))
             .eq(previous.into_iter())
         {
             break;
@@ -746,6 +800,14 @@ fn build_effect_plan(machines: Vec<MachineWork>) -> EffectPlan {
     let mut plan = EffectPlan::default();
 
     for machine in machines {
+        // STR4 slice 3: the body's own observations, declaration-free.
+        let mut body_observed = EffectSet::empty();
+        for state in &machine.states {
+            body_observed.insert_all(state.direct);
+            for call in &state.calls {
+                body_observed.insert_all(call.direct);
+            }
+        }
         let mut states = HandleSpan::empty();
         for state in machine.states {
             let mut calls = HandleSpan::empty();
@@ -780,6 +842,8 @@ fn build_effect_plan(machines: Vec<MachineWork>) -> EffectPlan {
                 symbol: machine.symbol,
                 direct: machine.direct,
                 transitive: machine.transitive,
+                body_observed,
+                body_transitive: machine.body_transitive,
                 states,
             },
         );

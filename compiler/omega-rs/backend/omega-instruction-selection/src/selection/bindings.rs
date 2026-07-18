@@ -452,6 +452,7 @@ pub(super) fn resolve_runtime_alias_binding_handle(
                         value: resolved.expression,
                         target_type: cast.target_type,
                         domain: cast.domain,
+                        semantic_domain: cast.semantic_domain,
                         form: cast.form,
                     },
                 )),
@@ -497,6 +498,7 @@ pub(super) fn resolve_runtime_alias_binding_handle(
                             .unwrap_or_else(ExpressionHandle::invalid),
                         target_symbol: call.target_symbol,
                         target: call.target.clone(),
+                        machine_arguments: call.machine_arguments.clone(),
                         arguments: copied_arguments,
                     },
                 )),
@@ -697,6 +699,7 @@ fn resolve_leaf_binding_expression_handle_at_depth(
                     value,
                     target_type: cast.target_type,
                     domain: cast.domain,
+                    semantic_domain: cast.semantic_domain,
                     form: cast.form,
                 },
             ))
@@ -721,6 +724,7 @@ fn resolve_leaf_binding_expression_handle_at_depth(
                     receiver: receiver.unwrap_or_else(ExpressionHandle::invalid),
                     target_symbol: call.target_symbol,
                     target: call.target.clone(),
+                    machine_arguments: call.machine_arguments.clone(),
                     arguments: copied_arguments,
                 },
             ))
@@ -934,6 +938,7 @@ fn resolve_straight_line_binding_expression_handle_at_depth(
                     value,
                     target_type: cast.target_type,
                     domain: cast.domain,
+                    semantic_domain: cast.semantic_domain,
                     form: cast.form,
                 },
             ))
@@ -965,6 +970,7 @@ fn resolve_straight_line_binding_expression_handle_at_depth(
                     receiver: receiver.unwrap_or_else(ExpressionHandle::invalid),
                     target_symbol: call.target_symbol,
                     target: call.target.clone(),
+                    machine_arguments: call.machine_arguments.clone(),
                     arguments: copied_arguments,
                 },
             ))

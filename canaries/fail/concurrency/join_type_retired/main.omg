@@ -1,0 +1,4 @@
+// FAIL canary (task-runtime TR1): Join<T> used to erase to T in the parser,
+// losing the lifecycle claim. Task<T> is a real linear value in the settled
+// model and is terminally consumed by finish() or transferred.
+machine consume(task: Join<i32>) {}

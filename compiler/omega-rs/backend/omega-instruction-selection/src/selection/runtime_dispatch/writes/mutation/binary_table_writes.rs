@@ -2,9 +2,10 @@ use crate::InstructionSelectionInput;
 use crate::selection::storage_places::{
     RuntimeStoragePlace, clamp_runtime_case_comparison_operands_in_table,
     classify_scalar_value_type_in_table, descriptor_primitive_type,
-    resolve_binary_write_arithmetic_domain_in_table, resolve_runtime_frame_indexed_target_in_table,
+    resolve_runtime_frame_indexed_target_in_table,
     resolve_runtime_pointee_fixed_indexed_target_in_table,
-    resolve_runtime_pointee_slot_offset_in_table, resolve_runtime_storage_is_signed_in_table,
+    resolve_runtime_pointee_slot_offset_in_table,
+    resolve_binary_write_arithmetic_domain_in_table, resolve_runtime_storage_is_signed_in_table,
     resolve_runtime_storage_place_in_table, resolve_runtime_storage_primitive_type_in_table,
     runtime_storage_target_is_atomic_in_table,
 };
@@ -19,7 +20,10 @@ use omega_checked_trees::types::PrimitiveType;
 use omega_control_flow::StateKey;
 use omega_core::arena::Arena;
 
-use super::super::static_values::{RuntimeStaticValues, invalidate_runtime_static_value_in_table};
+use super::super::static_values::{
+    RuntimeStaticValues, invalidate_runtime_static_value_in_table,
+    resolve_runtime_static_integer_landing_in_table,
+};
 use super::operators::{builtin_runtime_call_operator_in_table, runtime_binary_operator};
 use super::value_operands::{
     binary_value_operands_are_float, resolve_runtime_comparison_operand_in_table,
@@ -321,17 +325,17 @@ fn select_runtime_targeted_binary_mutation_write_in_table(
         invalidate_runtime_static_value_in_table(static_values, expressions, target);
         let zero = runtime_value_operands.insert(RuntimeValueOperand::Immediate(0));
         let target_place = target_place?;
-        return Some(SelectedInstructionKind::WriteRuntimeStorageBinary {
-            target_region: target_place.region,
-            target_offset: target_place.byte_offset,
-            byte_size: target_place.byte_count,
-            left: text_equals,
-            operator: StateGuardOperator::Or,
-            right: zero,
-            is_float: false,
-            domain: omega_core::arithmetic::ArithmeticDomain::Exact,
-            target_signed: false,
-        });
+        return Some(crate::selection::runtime_dispatch::write_place_binary_direct(
+            target_place.region,
+            target_place.byte_offset,
+            target_place.byte_count,
+            text_equals,
+            StateGuardOperator::Or,
+            zero,
+            false,
+            omega_core::arithmetic::ArithmeticDomain::Exact,
+            false,
+        ));
     }
 
     // Division, modulo, right shift, min/max, and comparisons differ by
@@ -447,16 +451,16 @@ fn select_runtime_targeted_binary_mutation_write_in_table(
             expressions,
             target,
         ) {
-            return Some(SelectedInstructionKind::WriteRuntimeFrameIndexedBinary {
-                descriptor_offset: indexed_target.descriptor_offset,
-                index_offset: indexed_target.index_offset,
-                element_byte_size: indexed_target.element_byte_size,
-                field_byte_offset: indexed_target.field_byte_offset,
-                byte_size: indexed_target.byte_count,
+            return Some(crate::selection::runtime_dispatch::write_place_binary_frame_indexed(
+                indexed_target.descriptor_offset,
+                indexed_target.index_offset,
+                indexed_target.element_byte_size,
+                indexed_target.field_byte_offset,
+                indexed_target.byte_count,
                 left,
                 operator,
                 right,
-            });
+            ));
         }
 
         if let Some(pointer_target) = resolve_runtime_pointee_fixed_indexed_target_in_table(
@@ -466,14 +470,14 @@ fn select_runtime_targeted_binary_mutation_write_in_table(
             expressions,
             target,
         ) {
-            return Some(SelectedInstructionKind::WriteRuntimePointeeBinary {
-                pointer_byte_offset: pointer_target.pointer_byte_offset,
-                field_byte_offset: pointer_target.field_byte_offset,
-                byte_size: pointer_target.pointee_byte_size,
+            return Some(crate::selection::runtime_dispatch::write_place_binary_pointee(
+                pointer_target.pointer_byte_offset,
+                pointer_target.field_byte_offset,
+                pointer_target.pointee_byte_size,
                 left,
                 operator,
                 right,
-            });
+            ));
         }
 
         if let Some(pointer_target) = resolve_runtime_pointee_slot_offset_in_table(
@@ -483,14 +487,14 @@ fn select_runtime_targeted_binary_mutation_write_in_table(
             expressions,
             target,
         ) {
-            return Some(SelectedInstructionKind::WriteRuntimePointeeBinary {
-                pointer_byte_offset: pointer_target.pointer_byte_offset,
-                field_byte_offset: pointer_target.field_byte_offset,
-                byte_size: pointer_target.pointee_byte_size,
+            return Some(crate::selection::runtime_dispatch::write_place_binary_pointee(
+                pointer_target.pointer_byte_offset,
+                pointer_target.field_byte_offset,
+                pointer_target.pointee_byte_size,
                 left,
                 operator,
                 right,
-            });
+            ));
         }
     }
 
@@ -517,17 +521,17 @@ fn select_runtime_targeted_binary_mutation_write_in_table(
     .unwrap_or(false);
 
     let target_place = target_place?;
-    Some(SelectedInstructionKind::WriteRuntimeStorageBinary {
-        target_region: target_place.region,
-        target_offset: target_place.byte_offset,
-        byte_size: target_place.byte_count,
+    Some(crate::selection::runtime_dispatch::write_place_binary_direct(
+        target_place.region,
+        target_place.byte_offset,
+        target_place.byte_count,
         left,
         operator,
         right,
         is_float,
         domain,
         target_signed,
-    })
+    ))
 }
 
 /// Replace a signed division/modulo/right-shift/min/max/comparison operator with
@@ -603,6 +607,23 @@ fn unsigned_operator_form(operator: StateGuardOperator) -> Option<StateGuardOper
     }
 }
 
+fn resolve_runtime_operand_signedness_in_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    expressions: &ExpressionTable,
+    expression: ExpressionHandle,
+    static_values: &RuntimeStaticValues,
+) -> Option<bool> {
+    resolve_runtime_storage_is_signed_in_table(
+        input, dispatch_index, source_key, expressions, expression,
+    )
+    .or_else(|| {
+        resolve_runtime_static_integer_landing_in_table(expressions, expression, static_values)
+            .map(|landing| landing.landed_type.is_signed())
+    })
+}
+
 /// Operand-only variant of [`signedness_adjusted_operator`] for write paths that
 /// carry a PRE-RESOLVED target place instead of a target expression (the
 /// frame-slot value write that materializes call/transition arguments like
@@ -650,11 +671,8 @@ pub(in crate::selection::runtime_dispatch) fn signedness_adjusted_operator_for_o
 /// write paths (alias-resolved branch-arm expressions carry OWNED
 /// `Expression` trees, not table handles). Follows the standard
 /// `insert_tree`+delegate collapse pattern so the signedness decision lives
-/// once. When the caller has a write TARGET expression, pass it: it is the
-/// fallback of last resort for operands that all folded to typeless
-/// constants (the erased-const-local shape -- validation guarantees the
-/// value lands at the target's type), mirroring the table variant's
-/// operand-then-target probe order.
+/// once. Signedness comes from the operands themselves; a write destination
+/// must not reinterpret an already-landed constant expression.
 pub(in crate::selection::runtime_dispatch) fn signedness_adjusted_operator_for_tree_operands(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
@@ -662,31 +680,13 @@ pub(in crate::selection::runtime_dispatch) fn signedness_adjusted_operator_for_t
     left_expression: &omega_checked_trees::expression::Expression,
     right_expression: &omega_checked_trees::expression::Expression,
     operator: StateGuardOperator,
-    target: Option<(StateKey, &omega_checked_trees::expression::Expression)>,
 ) -> StateGuardOperator {
     if unsigned_operator_form(operator).is_none() {
         return operator;
     }
-    if std::env::var_os("OMEGA_DEBUG_RECEIVER").is_some() {
-        eprintln!("BTW tree-operand probe: left {left_expression:?} right {right_expression:?}");
-    }
     let mut delegated_expressions = ExpressionTable::default();
     let left = delegated_expressions.insert_tree(left_expression);
     let right = delegated_expressions.insert_tree(right_expression);
-    if let Some((target_source_key, target_expression)) = target {
-        let target = delegated_expressions.insert_tree(target_expression);
-        return signedness_adjusted_operator(
-            input,
-            dispatch_index,
-            target_source_key,
-            value_source_key,
-            &delegated_expressions,
-            target,
-            left,
-            right,
-            operator,
-        );
-    }
     signedness_adjusted_operator_for_operands(
         input,
         dispatch_index,
@@ -698,7 +698,6 @@ pub(in crate::selection::runtime_dispatch) fn signedness_adjusted_operator_for_t
     )
 }
 
-#[allow(clippy::too_many_arguments)]
 #[allow(clippy::too_many_arguments)]
 pub(in crate::selection::runtime_dispatch) fn select_runtime_storage_binary_write_in_table(
     input: &InstructionSelectionInput<'_>,
@@ -712,23 +711,7 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_storage_binary_writ
     value: ExpressionHandle,
     static_values: &RuntimeStaticValues,
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
-    // The write TARGET's primitive/domain, used ONLY as the fallback of
-    // last resort when NEITHER operand resolves to a typed place (every
-    // operand folded to a typeless constant -- the erased-const-local shape).
-    // Validation guarantees the value lands at the target's declared type and
-    // domain, so these are the operands' witnesses when nothing else survives.
-    target_primitive: Option<omega_checked_trees::types::PrimitiveType>,
-    target_domain: Option<omega_core::arithmetic::ArithmeticDomain>,
 ) -> Option<SelectedInstructionKind> {
-    if std::env::var_os("OMEGA_DEBUG_RECEIVER").is_some() {
-        eprintln!(
-            "BTW select_runtime_storage_binary_write_in_table: dispatch {} source m{} s{} stmt {}",
-            dispatch_index,
-            source_key.machine.arena_index(),
-            source_key.state.arena_index(),
-            statement_index
-        );
-    }
     let (operator, comparison_operator, left_expression, right_expression) =
         match expressions.expression(value) {
             ExpressionNode::Binary(binary) => (
@@ -756,39 +739,31 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_storage_binary_writ
         };
 
     // Same signedness policy as the targeted-mutation path above; this entry has
-    // no target EXPRESSION (the place is pre-resolved), so probe the operands,
-    // falling back to the caller-supplied TARGET primitive when neither operand
-    // resolves (the sign-sensitive `>> / %` on fully-folded constants used to
-    // default SIGNED here -- the const-fold sign class's arg-delivery face).
-    let operand_signed = resolve_runtime_storage_is_signed_in_table(
+    // no target EXPRESSION (the place is pre-resolved), so probe the operands.
+    // Typed alias materialization retains landed constants on this expression,
+    // so the destination never reinterprets an anonymous value as a fallback.
+    let resolved_signed = resolve_runtime_operand_signedness_in_table(
         input,
         dispatch_index,
         source_key,
         expressions,
         left_expression,
+        static_values,
     )
     .or_else(|| {
-        resolve_runtime_storage_is_signed_in_table(
+        resolve_runtime_operand_signedness_in_table(
             input,
             dispatch_index,
             source_key,
             expressions,
             right_expression,
+            static_values,
         )
     });
-    let resolved_signed =
-        operand_signed.or_else(|| target_primitive.map(|primitive| primitive.is_signed_integer()));
     let operator = match (unsigned_operator_form(operator), resolved_signed) {
         (Some(unsigned), Some(false)) => unsigned,
         _ => operator,
     };
-    if std::env::var_os("OMEGA_DEBUG_RECEIVER").is_some() {
-        eprintln!(
-            "BTW signedness: operand={operand_signed:?} target={:?} -> {operator:?}",
-            target_primitive.map(|primitive| primitive.name()),
-        );
-    }
-
     let left = resolve_runtime_comparison_operand_in_table(
         input,
         dispatch_index,
@@ -855,7 +830,7 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_storage_binary_writ
     // Decision 17 (operand-driven): the arithmetic domain comes from the operands'
     // types (Exact neutral, so a literal adopts the other side); signedness from
     // whichever operand resolves to an integer place (they share the result type).
-    let operand_domain = resolve_binary_write_arithmetic_domain_in_table(
+    let domain = resolve_binary_write_arithmetic_domain_in_table(
         input,
         dispatch_index,
         source_key,
@@ -863,15 +838,8 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_storage_binary_writ
         left_expression,
         right_expression,
     );
-    let domain = if operand_domain == omega_core::arithmetic::ArithmeticDomain::Exact
-        && operand_signed.is_none()
-    {
-        target_domain.unwrap_or(operand_domain)
-    } else {
-        operand_domain
-    };
     let target_signed = resolved_signed.unwrap_or(false);
-    Some(SelectedInstructionKind::WriteRuntimeStorageBinary {
+    Some(crate::selection::runtime_dispatch::write_place_binary_direct(
         target_region,
         target_offset,
         byte_size,
@@ -881,7 +849,7 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_storage_binary_writ
         is_float,
         domain,
         target_signed,
-    })
+    ))
 }
 
 /// When a binary's target is f32, a float-LITERAL operand was resolved to its f64
@@ -1039,7 +1007,7 @@ fn build_runtime_convert_write(
     target_offset: usize,
     target_primitive: PrimitiveType,
     source_expression: ExpressionHandle,
-    domain: omega_core::arithmetic::ArithmeticDomain,
+    cast_domain: omega_core::arithmetic::ArithmeticDomain,
     static_values: &RuntimeStaticValues,
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
 ) -> Option<SelectedInstructionKind> {
@@ -1097,7 +1065,13 @@ fn build_runtime_convert_write(
         source_is_float: source_primitive.accepts_float_literal(),
         target_is_float: target_primitive.accepts_float_literal(),
         source_signed: source_primitive.is_signed_integer(),
-        domain,
         target_signed: target_primitive.is_signed_integer(),
+        // F4: a Trapping float->int cast carries its trap guard.
+        trapping: cast_domain == omega_core::arithmetic::ArithmeticDomain::Trapping
+            && source_primitive.accepts_float_literal()
+            && !target_primitive.accepts_float_literal(),
+        saturating: cast_domain == omega_core::arithmetic::ArithmeticDomain::Saturating
+            && source_primitive.accepts_float_literal()
+            && !target_primitive.accepts_float_literal(),
     })
 }

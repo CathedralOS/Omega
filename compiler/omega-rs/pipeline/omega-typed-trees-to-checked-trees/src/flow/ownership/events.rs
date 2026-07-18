@@ -1,16 +1,78 @@
 use super::*;
 
+pub(crate) trait MoveEventSink {
+    fn append_move_event(
+        &mut self,
+        program: &omega_typed_trees::TypedTrees,
+        place: CanonicalPlace,
+        source: FlowOwnershipEventSource,
+    );
+}
+
+impl MoveEventSink for FlowBuildContext {
+    fn append_move_event(
+        &mut self,
+        program: &omega_typed_trees::TypedTrees,
+        place: CanonicalPlace,
+        source: FlowOwnershipEventSource,
+    ) {
+        self.ownership.moves.append(FlowMoveEventFact {
+            source,
+            root: normalized_event_place_root(program, place.root),
+            segments: self.ownership.segments.insert_many(place.segments),
+        });
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct DiscoveredMoveEvent {
+    pub(crate) source: FlowOwnershipEventSource,
+    pub(crate) root: omega_facts::PlaceRoot,
+    pub(crate) segments: HandleSpan<omega_facts::PlaceSegment>,
+}
+
+pub(crate) struct DirectMoveEventSink<'segments> {
+    segments: &'segments mut omega_core::arena::Arena<omega_facts::PlaceSegment>,
+    events: Vec<DiscoveredMoveEvent>,
+}
+
+impl<'segments> DirectMoveEventSink<'segments> {
+    pub(crate) fn new(
+        segments: &'segments mut omega_core::arena::Arena<omega_facts::PlaceSegment>,
+    ) -> Self {
+        Self {
+            segments,
+            events: Vec::new(),
+        }
+    }
+
+    pub(crate) fn finish(self) -> Vec<DiscoveredMoveEvent> {
+        self.events
+    }
+}
+
+impl MoveEventSink for DirectMoveEventSink<'_> {
+    fn append_move_event(
+        &mut self,
+        program: &omega_typed_trees::TypedTrees,
+        place: CanonicalPlace,
+        source: FlowOwnershipEventSource,
+    ) {
+        self.events.push(DiscoveredMoveEvent {
+            source,
+            root: normalized_event_place_root(program, place.root),
+            segments: self.segments.insert_many(place.segments),
+        });
+    }
+}
+
 pub(in crate::flow::ownership) fn append_move_event_for_place(
     program: &omega_typed_trees::TypedTrees,
-    ctx: &mut FlowBuildContext,
+    sink: &mut impl MoveEventSink,
     place: CanonicalPlace,
     source: FlowOwnershipEventSource,
 ) {
-    ctx.ownership.moves.append(FlowMoveEventFact {
-        source,
-        root: normalized_event_place_root(program, place.root),
-        segments: ctx.ownership.segments.insert_many(place.segments),
-    });
+    sink.append_move_event(program, place, source);
 }
 
 pub(in crate::flow::ownership) fn append_drop_event_for_place(

@@ -1,0 +1,32 @@
+// RUN CANARY (exit 70), native + interpreter. F4 (the float->int cast ruling):
+// `in Saturating` is the defined clamp policy -- NaN -> 0 (cast-specific,
+// per the float brief), out-of-range clamps to the target bounds, in-range
+// truncates toward zero. aarch64 FCVTZS natively IS these semantics; the
+// interp's Saturating cast arm mirrors them. x86 classifies NaN/range before
+// cvttsd2si and selects the corresponding clamp result.
+// Legs: 1e20 -> i32::MAX (71); -1e20 -> i32::MIN (72); runtime 0.0/0.0
+// (NaN) -> 0 (73); -3.7 -> -3 (74).
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; f: f64; z: f64; r: i32; }
+machine Main::main(&mut self) {
+    self.f = 100000000000000000000.0;
+    self.r = self.f as i32 in Saturating;
+    transition self.r == 2147483647 { true -> neg() _ -> bad(71) }
+    state neg(&mut self) {
+        self.f = 0.0 - 100000000000000000000.0;
+        self.r = self.f as i32 in Saturating;
+        transition self.r == (0 as i32 in Wrapping) - 2147483647 - 1 { true -> nan() _ -> bad(72) }
+    }
+    state nan(&mut self) {
+        self.f = self.z / self.z; // 0.0/0.0 constructs NaN portably at runtime
+        self.r = self.f as i32 in Saturating;
+        transition self.r == 0 { true -> inrange() _ -> bad(73) }
+    }
+    state inrange(&mut self) {
+        self.f = 0.0 - 3.7;
+        self.r = self.f as i32 in Saturating;
+        transition self.r == (0 as i32 in Wrapping) - 3 { true -> good() _ -> bad(74) }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self, code: i32) { self.console.exit_process(code); }
+}

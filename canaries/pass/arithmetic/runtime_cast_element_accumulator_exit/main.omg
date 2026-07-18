@@ -8,7 +8,6 @@ boundary trait Console { machine exit_process(return_code: i32); }
 data Summer {}
 data Main { console: Console; arr: [i32; 4]; summer: Summer; }
 machine Summer::sum(&mut self, s: &[i32], acc: i32 in Wrapping) -> i32
-terminates;
 terminates by s -> Slice::Length;
 {
     transition s.len > 0 {

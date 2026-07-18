@@ -10,7 +10,6 @@ machine Main::main(&mut self) {
 }
 
 machine Main::weaken(&mut self, power: u64)
-terminates;
 terminates by power -> Card::PowerOrder;
 -> u64
 {

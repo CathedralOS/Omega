@@ -65,21 +65,20 @@ pub trait RuntimeValueOperandSource {
         handle: RuntimeValueOperandHandle,
     ) -> Option<(omega_core::arithmetic::ArithmeticDomain, bool)>;
     /// A `Convert` (numeric cast) operand: `(source, source_byte_size,
-    /// target_byte_size, source_is_float, target_is_float, source_signed,
-    /// arithmetic_domain, target_signed)`.
+    /// target_byte_size, source_is_float, target_is_float, source_signed)`.
     fn convert(
         &self,
         handle: RuntimeValueOperandHandle,
-    ) -> Option<(
-        RuntimeValueOperandHandle,
-        usize,
-        usize,
-        bool,
-        bool,
-        bool,
-        omega_core::arithmetic::ArithmeticDomain,
-        bool,
-    )>;
+    ) -> Option<(RuntimeValueOperandHandle, usize, usize, bool, bool, bool)>;
+    /// F4: whether a `Convert` operand is a TRAPPING float->int cast (traps
+    /// on NaN/out-of-range before converting). False for non-convert
+    /// operands. Kept separate from `convert()` so the existing tuple
+    /// accessor (and its many callers) stays unchanged.
+    fn convert_trapping(&self, handle: RuntimeValueOperandHandle) -> bool;
+    /// F4: whether a `Convert` operand is a SATURATING float->int cast.
+    fn convert_saturating(&self, handle: RuntimeValueOperandHandle) -> bool;
+    /// Whether a `Convert` operand's integer target is signed.
+    fn convert_target_signed(&self, handle: RuntimeValueOperandHandle) -> bool;
     /// A `TextEquals` (value-position text content compare) operand:
     /// `(left_region, left_offset, right_region, right_offset)` of the two
     /// `{ptr, len}` text descriptor places. Evaluates to bool 0/1.
@@ -300,16 +299,7 @@ impl RuntimeValueOperandSource for Arena<RuntimeValueOperand> {
     fn convert(
         &self,
         handle: RuntimeValueOperandHandle,
-    ) -> Option<(
-        RuntimeValueOperandHandle,
-        usize,
-        usize,
-        bool,
-        bool,
-        bool,
-        omega_core::arithmetic::ArithmeticDomain,
-        bool,
-    )> {
+    ) -> Option<(RuntimeValueOperandHandle, usize, usize, bool, bool, bool)> {
         match self.get(handle) {
             RuntimeValueOperand::Convert {
                 source,
@@ -318,8 +308,7 @@ impl RuntimeValueOperandSource for Arena<RuntimeValueOperand> {
                 source_is_float,
                 target_is_float,
                 source_signed,
-                arithmetic_domain,
-                target_signed,
+                ..
             } => Some((
                 *source,
                 *source_byte_size,
@@ -327,10 +316,35 @@ impl RuntimeValueOperandSource for Arena<RuntimeValueOperand> {
                 *source_is_float,
                 *target_is_float,
                 *source_signed,
-                *arithmetic_domain,
-                *target_signed,
             )),
             _ => None,
         }
+    }
+
+    fn convert_trapping(&self, handle: RuntimeValueOperandHandle) -> bool {
+        matches!(
+            self.get(handle),
+            RuntimeValueOperand::Convert { trapping: true, .. }
+        )
+    }
+
+    fn convert_saturating(&self, handle: RuntimeValueOperandHandle) -> bool {
+        matches!(
+            self.get(handle),
+            RuntimeValueOperand::Convert {
+                saturating: true,
+                ..
+            }
+        )
+    }
+
+    fn convert_target_signed(&self, handle: RuntimeValueOperandHandle) -> bool {
+        matches!(
+            self.get(handle),
+            RuntimeValueOperand::Convert {
+                target_signed: true,
+                ..
+            }
+        )
     }
 }

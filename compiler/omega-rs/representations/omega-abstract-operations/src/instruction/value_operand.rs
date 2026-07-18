@@ -144,10 +144,13 @@ pub enum ValueOperand {
         source_is_float: bool,
         target_is_float: bool,
         source_signed: bool,
-        /// Float-to-integer conversion policy carried by the cast node.
-        arithmetic_domain: omega_core::arithmetic::ArithmeticDomain,
-        /// Whether the integer target is signed (range/clamp selection).
         target_signed: bool,
+        /// F4: a TRAPPING float->int cast traps on NaN/out-of-range before
+        /// converting; false for every other cast.
+        trapping: bool,
+        /// F4: a SATURATING float->int cast maps NaN to zero and clamps an
+        /// out-of-range value before converting; false for every other cast.
+        saturating: bool,
     },
 }
 
@@ -205,8 +208,9 @@ impl ValueOperand {
                 source_is_float,
                 target_is_float,
                 source_signed,
-                arithmetic_domain,
                 target_signed,
+                trapping,
+                saturating,
             } => Self::Convert {
                 source: remap(*source),
                 source_byte_size: *source_byte_size,
@@ -214,8 +218,9 @@ impl ValueOperand {
                 source_is_float: *source_is_float,
                 target_is_float: *target_is_float,
                 source_signed: *source_signed,
-                arithmetic_domain: *arithmetic_domain,
                 target_signed: *target_signed,
+                trapping: *trapping,
+                saturating: *saturating,
             },
             other => other.clone(),
         }

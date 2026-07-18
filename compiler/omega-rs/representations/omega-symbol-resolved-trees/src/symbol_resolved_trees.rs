@@ -12,6 +12,15 @@ pub struct SymbolResolvedTrees {
     pub roots: SymbolResolvedRoots,
     pub tables: SymbolResolvedTableStorage,
     pub symbols: SymbolTable,
+    /// STR4 (decision 22): the deterministic effect-row interner --
+    /// machines carry `effect_row` ids into THIS table. Populated at the
+    /// syntax->resolved lowering, copied verbatim downstream.
+    pub effect_rows: omega_core::semantics::EffectRowTable,
+    /// STR4 checked plans, slice 1: the deterministic semantic-domain
+    /// interner (declared-name identity, declaration order).
+    pub semantic_domains: omega_core::semantics::SemanticDomainTable,
+    /// PRV4: normalized `via` bindings, interned once at lowering.
+    pub external_bindings: omega_core::semantics::ExternalBindingTable,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -22,7 +31,6 @@ pub struct SymbolResolvedRoots {
     pub machines: OrderedRootArena<crate::machine::Machine>,
     pub measures: OrderedRootArena<measure::MeasureDefinition>,
     pub operators: OrderedRootArena<operator::OperatorDefinition>,
-    pub platforms: OrderedRootArena<crate::platform::Platform>,
     pub traits: OrderedRootArena<crate::trait_definition::TraitDefinition>,
     pub conformances: OrderedRootArena<crate::trait_definition::DataConformance>,
     pub wire_schemas: OrderedRootArena<wire::WireSchema>,
@@ -35,7 +43,6 @@ impl SymbolResolvedRoots {
         invariant_definitions: OrderedRootArena<crate::invariant::InvariantDefinition>,
         machines: OrderedRootArena<crate::machine::Machine>,
         operators: OrderedRootArena<operator::OperatorDefinition>,
-        platforms: OrderedRootArena<crate::platform::Platform>,
         traits: OrderedRootArena<crate::trait_definition::TraitDefinition>,
     ) -> Self {
         Self {
@@ -45,7 +52,6 @@ impl SymbolResolvedRoots {
             machines,
             measures: OrderedRootArena::default(),
             operators,
-            platforms,
             traits,
             conformances: OrderedRootArena::default(),
             wire_schemas: OrderedRootArena::default(),
@@ -74,7 +80,6 @@ pub struct SymbolResolvedDeclarationStorage {
     pub machine_trait_conformances: Arena<crate::machine::TraitConformance>,
     pub machine_state_handles: Arena<Handle<state::State>>,
     pub machine_states: Arena<state::State>,
-    pub platform_state_signatures: Arena<signature::StateSignature>,
     pub trait_requirements: Arena<crate::trait_definition::TraitRequirement>,
     pub trait_machine_signatures: Arena<signature::StateSignature>,
     pub signature_effects: Arena<crate::name::DiagnosticName>,
@@ -108,6 +113,9 @@ impl SymbolResolvedTrees {
             roots,
             tables,
             symbols,
+            effect_rows: omega_core::semantics::EffectRowTable::default(),
+            semantic_domains: omega_core::semantics::SemanticDomainTable::default(),
+            external_bindings: omega_core::semantics::ExternalBindingTable::default(),
         }
     }
 
@@ -173,16 +181,6 @@ impl SymbolResolvedTrees {
         self.tables
             .declarations
             .operator_path_members
-            .span_or_empty(span)
-    }
-
-    pub fn platform_state_signatures(
-        &self,
-        span: HandleSpan<signature::StateSignature>,
-    ) -> &[signature::StateSignature] {
-        self.tables
-            .declarations
-            .platform_state_signatures
             .span_or_empty(span)
     }
 
@@ -403,7 +401,7 @@ impl DerefMut for SymbolResolvedTrees {
 mod tests {
     use crate::{
         SymbolResolvedRoots, SymbolResolvedTableStorage, SymbolResolvedTrees, data, domain,
-        invariant, machine, operator, platform, trait_definition,
+        invariant, machine, operator, trait_definition,
     };
     use omega_core::arena::OrderedRootArena;
     use omega_core::symbols::SymbolTable;
@@ -415,7 +413,6 @@ mod tests {
         let invariant_definitions = OrderedRootArena::<invariant::InvariantDefinition>::default();
         let machines = OrderedRootArena::<machine::Machine>::default();
         let operators = OrderedRootArena::<operator::OperatorDefinition>::default();
-        let platforms = OrderedRootArena::<platform::Platform>::default();
         let traits = OrderedRootArena::<trait_definition::TraitDefinition>::default();
 
         let roots = SymbolResolvedRoots::with_roots(
@@ -424,7 +421,6 @@ mod tests {
             invariant_definitions.clone(),
             machines.clone(),
             operators.clone(),
-            platforms.clone(),
             traits.clone(),
         );
 
@@ -433,7 +429,6 @@ mod tests {
         assert_eq!(roots.invariant_definitions, invariant_definitions);
         assert_eq!(roots.machines, machines);
         assert_eq!(roots.operators, operators);
-        assert_eq!(roots.platforms, platforms);
         assert_eq!(roots.traits, traits);
     }
 

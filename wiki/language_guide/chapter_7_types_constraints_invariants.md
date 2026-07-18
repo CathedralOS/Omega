@@ -192,7 +192,8 @@ The likely durable homes are:
 
 Some static laws are about the TYPE itself, not any particular value: "copies
 are sound", "the zero value is the canonical empty value", "values may cross a
-spawn boundary", "established values must be consumed exactly once". These are
+concurrent activation boundary", "established values must be consumed exactly
+once". These are
 PROPERTIES -- declared as a lowercase list in brackets on the data declaration,
 the same bracket syntax invariant parameters use in type positions
 (`&[u8, [non_empty]]`):
@@ -203,7 +204,7 @@ data Point [copy, zero_init] {
     y: i32;
 }
 
-data Join<T> [linear] {
+data Task<T> [linear] {
     // representation omitted
 }
 ```

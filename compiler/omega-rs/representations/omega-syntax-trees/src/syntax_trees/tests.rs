@@ -16,9 +16,7 @@ fn syntax_trees_collect_state_expression_and_type_payloads() {
     let mut syntax_trees = SyntaxTrees::new(Default::default());
     let guard = syntax_trees
         .expressions
-        .insert(crate::expression::ExpressionNode::Integer(
-            omega_core::literals::IntegerLiteral::from_value(1),
-        ));
+        .insert(crate::expression::ExpressionNode::Integer(omega_core::literals::IntegerLiteral::from_value(1)));
     let target = syntax_trees
         .statements
         .insert_transition_target(TransitionTargetNode::Terminal);
@@ -47,10 +45,15 @@ fn syntax_trees_collect_state_expression_and_type_payloads() {
         attached_data: None,
         target: None,
         boundary: false,
+            bodyless: false,
         type_parameters: HandleSpan::empty(),
         satisfies: HandleSpan::empty(),
-        termination_guarantee: false,
-        ranking_witness: crate::item::RankingWitnessSyntax::default(),
+        terminates: false,
+        terminates_guarantee: false,
+        decreases: HandleSpan::empty(),
+        decrease_order: HandleSpan::empty(),
+        decrease_view_arguments: HandleSpan::empty(),
+        decrease_range: crate::expression::ExpressionHandle::invalid(),
         effects: HandleSpan::empty(),
         contracts: HandleSpan::empty(),
         states: HandleSpan::from_parts(state_handle, 1),
@@ -82,10 +85,15 @@ fn syntax_trees_extend_from_preserves_root_payload_handles() {
         attached_data: None,
         target: None,
         boundary: false,
+            bodyless: false,
         type_parameters: HandleSpan::empty(),
         satisfies: HandleSpan::empty(),
-        termination_guarantee: false,
-        ranking_witness: crate::item::RankingWitnessSyntax::default(),
+        terminates: false,
+        terminates_guarantee: false,
+        decreases: HandleSpan::empty(),
+        decrease_order: HandleSpan::empty(),
+        decrease_view_arguments: HandleSpan::empty(),
+        decrease_range: crate::expression::ExpressionHandle::invalid(),
         effects: HandleSpan::empty(),
         contracts: HandleSpan::empty(),
         states: HandleSpan::from_parts(state, 1),
@@ -117,14 +125,13 @@ fn syntax_trees_extend_from_preserves_statement_call_arguments() {
     let receiver = HandleSpan::from_parts(receiver, 1);
     let argument = file
         .expressions
-        .insert(crate::expression::ExpressionNode::Integer(
-            omega_core::literals::IntegerLiteral::from_value(0),
-        ));
+        .insert(crate::expression::ExpressionNode::Integer(omega_core::literals::IntegerLiteral::from_value(0)));
     let argument = file.statements.append_expression_handle(argument);
     let call = file.statements.insert(StatementNode::Call(TableCall {
         receiver,
         receiver_starts_at_self: true,
         target: Identifier::generated("take_non_negative"),
+        machine_arguments: Box::default(),
         arguments: HandleSpan::from_parts(argument, 1),
         discards_result: false,
     }));
@@ -141,10 +148,15 @@ fn syntax_trees_extend_from_preserves_statement_call_arguments() {
         attached_data: None,
         target: None,
         boundary: false,
+            bodyless: false,
         type_parameters: HandleSpan::empty(),
         satisfies: HandleSpan::empty(),
-        termination_guarantee: false,
-        ranking_witness: crate::item::RankingWitnessSyntax::default(),
+        terminates: false,
+        terminates_guarantee: false,
+        decreases: HandleSpan::empty(),
+        decrease_order: HandleSpan::empty(),
+        decrease_view_arguments: HandleSpan::empty(),
+        decrease_range: crate::expression::ExpressionHandle::invalid(),
         effects: HandleSpan::empty(),
         contracts: HandleSpan::empty(),
         states: HandleSpan::from_parts(state, 1),
@@ -212,12 +224,11 @@ fn syntax_trees_extend_from_preserves_nested_expression_argument_spans() {
         .insert(ExpressionNode::Call(TableCallExpression {
             receiver: self_value,
             target: Identifier::generated("xp_required"),
+            machine_arguments: Box::default(),
             arguments: nested_arguments,
         }));
 
-    let zero = file.expressions.insert(ExpressionNode::Integer(
-        omega_core::literals::IntegerLiteral::from_value(0),
-    ));
+    let zero = file.expressions.insert(ExpressionNode::Integer(omega_core::literals::IntegerLiteral::from_value(0)));
     let max_arguments = file
         .expressions
         .insert_expression_handles([zero, nested_call]);
@@ -226,6 +237,7 @@ fn syntax_trees_extend_from_preserves_nested_expression_argument_spans() {
         .insert(ExpressionNode::Call(TableCallExpression {
             receiver: ExpressionHandle::invalid(),
             target: Identifier::generated("max"),
+            machine_arguments: Box::default(),
             arguments: max_arguments,
         }));
 
@@ -248,10 +260,15 @@ fn syntax_trees_extend_from_preserves_nested_expression_argument_spans() {
         attached_data: None,
         target: None,
         boundary: false,
+            bodyless: false,
         type_parameters: HandleSpan::empty(),
         satisfies: HandleSpan::empty(),
-        termination_guarantee: false,
-        ranking_witness: crate::item::RankingWitnessSyntax::default(),
+        terminates: false,
+        terminates_guarantee: false,
+        decreases: HandleSpan::empty(),
+        decrease_order: HandleSpan::empty(),
+        decrease_view_arguments: HandleSpan::empty(),
+        decrease_range: crate::expression::ExpressionHandle::invalid(),
         effects: HandleSpan::empty(),
         contracts: HandleSpan::empty(),
         states: HandleSpan::from_parts(state, 1),

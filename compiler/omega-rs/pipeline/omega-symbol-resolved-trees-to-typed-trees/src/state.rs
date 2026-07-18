@@ -63,66 +63,11 @@ pub(crate) fn lower_state_signature(
             .map(|type_reference| lower_type_reference_into_table(lowerer, type_reference))
             .transpose()?
             .unwrap_or_else(typed::types::TypeReferenceHandle::invalid),
-        termination_guarantee: signature.termination_guarantee,
-        ranking_witness: typed::machine::RankingWitness::default(),
         effects: Default::default(),
         contracts: Default::default(),
+        // TPR4: copied, never re-derived.
+        terminates_guarantee: signature.terminates_guarantee,
     };
-
-    let mut ranking_subjects = Vec::new();
-    for subject in lowerer
-        .source_trees
-        .tables
-        .bodies
-        .expressions
-        .expression_handles(signature.ranking_witness.subjects)
-    {
-        ranking_subjects.push(crate::expression::lower_expression_handle(
-            lowerer, *subject,
-        )?);
-    }
-    typed_signature.ranking_witness.subjects = lowerer
-        .typed_trees
-        .expression_table
-        .insert_expression_handles(ranking_subjects);
-    for member in lowerer
-        .source_trees
-        .machine_decrease_order(signature.ranking_witness.view)
-    {
-        lowerer.typed_trees.signature_effects.append_to_span(
-            &mut typed_signature.ranking_witness.view,
-            crate::name::lower_name(member),
-        );
-    }
-    let mut ranking_view_arguments = Vec::new();
-    for argument in lowerer
-        .source_trees
-        .tables
-        .bodies
-        .expressions
-        .expression_handles(signature.ranking_witness.view_arguments)
-    {
-        ranking_view_arguments.push(crate::expression::lower_expression_handle(
-            lowerer, *argument,
-        )?);
-    }
-    typed_signature.ranking_witness.view_arguments = lowerer
-        .typed_trees
-        .expression_table
-        .insert_expression_handles(ranking_view_arguments);
-    if signature.ranking_witness.range.is_present() {
-        typed_signature.ranking_witness.range = typed::machine::RankingRange {
-            start: crate::expression::lower_expression_handle(
-                lowerer,
-                signature.ranking_witness.range.start,
-            )?,
-            end: crate::expression::lower_expression_handle(
-                lowerer,
-                signature.ranking_witness.range.end,
-            )?,
-            end_inclusive: signature.ranking_witness.range.end_inclusive,
-        };
-    }
 
     // #66: collect parameters whose type carries an encoding-DOMAIN constraint
     // (`bytes: [u8] in Utf8`). Each desugars below into an implicit
@@ -184,12 +129,9 @@ pub(crate) fn lower_state_signature(
     // signature; the regular-machine path is `lower_machine`). The existing
     // `in Domain` entailment then enforces it at every call site.
     for (param_symbol, param_name, domain_name) in domain_constrained_parameters {
-        if let Some(contract) = build_domain_membership_contract(
-            lowerer,
-            param_symbol,
-            param_name,
-            domain_name.as_str(),
-        ) {
+        if let Some(contract) =
+            build_domain_membership_contract(lowerer, param_symbol, param_name, domain_name.as_str())
+        {
             lowerer
                 .typed_trees
                 .push_state_signature_contract(&mut typed_signature, contract);
@@ -246,18 +188,17 @@ pub(crate) fn build_domain_membership_contract(
         .typed_trees
         .expression_table
         .push_name_path_member_symbol(&mut member_symbols, param_symbol);
-    let value =
-        lowerer
-            .typed_trees
-            .expression_table
-            .insert(typed::expression::ExpressionNode::Name(
-                typed::expression::TableNamePath {
-                    members,
-                    member_symbols,
-                    head_symbol: param_symbol,
-                    symbol: param_symbol,
-                },
-            ));
+    let value = lowerer
+        .typed_trees
+        .expression_table
+        .insert(typed::expression::ExpressionNode::Name(
+            typed::expression::TableNamePath {
+                members,
+                member_symbols,
+                head_symbol: param_symbol,
+                symbol: param_symbol,
+            },
+        ));
 
     let mut domain = omega_core::arena::HandleSpan::empty();
     for part in domain_full_name.split("::") {
@@ -290,8 +231,7 @@ fn resolve_domain(
 ) -> Option<(omega_core::symbols::SymbolHandle, String)> {
     source.domain_definitions.iter().find_map(|domain| {
         let full = domain.name.as_str();
-        (full.rsplit("::").next().unwrap_or(full) == wanted)
-            .then(|| (domain.symbol, full.to_owned()))
+        (full.rsplit("::").next().unwrap_or(full) == wanted).then(|| (domain.symbol, full.to_owned()))
     })
 }
 

@@ -13,7 +13,7 @@ use omega_symbol_resolved_trees::SymbolResolvedTrees;
 use crate::symbols::symbol_table::children::{
     insert_builtin_type_symbol_children, insert_data_symbol_children,
     insert_domain_symbol_children, insert_machine_symbol_children, insert_operator_symbol_children,
-    insert_platform_symbol_children, insert_trait_symbol_children,
+    insert_trait_symbol_children,
 };
 use crate::symbols::symbol_table::names::{operator_symbol_name, symbol_seed};
 
@@ -59,11 +59,6 @@ pub(super) fn build_symbol_table(
                     root_operator_names
                         .iter()
                         .map(|name| (SymbolKind::Operator, SymbolNameRef::Borrowed(name.as_str()))),
-                )
-                .chain(
-                    program.platforms.iter().map(|platform| {
-                        symbol_seed(SymbolKind::Platform, &platform.name, has_sources)
-                    }),
                 )
                 .chain(program.traits.iter().map(|trait_definition| {
                     symbol_seed(SymbolKind::Trait, &trait_definition.name, has_sources)
@@ -125,17 +120,6 @@ pub(super) fn build_symbol_table(
                 program,
                 operator_symbol,
                 operator,
-                has_sources,
-            );
-        }
-    }
-    for platform in &program.platforms {
-        if let Some(platform_symbol) = root_children.next() {
-            insert_platform_symbol_children(
-                &mut builder,
-                program,
-                platform_symbol,
-                platform,
                 has_sources,
             );
         }

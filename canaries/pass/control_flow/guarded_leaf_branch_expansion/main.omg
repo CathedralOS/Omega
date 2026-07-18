@@ -24,11 +24,15 @@ data Main {
     console: Console;
     selected: Cell;
     line: CellLine;
-    first: Cell = Cell { id: CellId::A1, label: "A1" };
-    second: Cell = Cell { id: CellId::A2, label: "A2" };
+    first: Cell;
+    second: Cell;
 }
 
 machine Main::main(&mut self) {
+    self.first.id = CellId::A1;
+    self.first.label = "A1";
+    self.second.id = CellId::A2;
+    self.second.label = "A2";
     scan(self.first, CellId::A2, mut self.selected);
     scan(self.second, CellId::A2, mut self.selected);
     self.line.text = self.selected.label;

@@ -1,0 +1,19 @@
+// TPR3 slice 3: a rank floor ABOVE the natural floor `0` would need a guard
+// proof that does not exist yet -- rejected with a directed message (every
+// builtin view produces a natural rank, so only floor `0` verifies
+// structurally today).
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine Main::climb(&mut self, limit: u64, index: u64)
+terminates by index -> Nat::IncreasingTo(limit) in 1..=limit;
+-> u64
+{
+    transition index < limit {
+        true -> climb(limit, index + 1)
+        false -> index
+    }
+}
+machine Main::main(&mut self) {
+    let value: u64 = self.climb(4, 0);
+    self.console.exit_process(70);
+}

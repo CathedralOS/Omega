@@ -1,0 +1,21 @@
+// R2 rung 3 slice 8 (ch11 INVARIANT WINDOWS): shrinking len below count
+// momentarily violates `count <= len` -- the write OPENS a window instead
+// of refusing; the next write restores the facts (1 <= 2) and CLOSES it
+// before any consumption point (read / call / state exit). The strict
+// store-time order-sensitivity dissolves exactly as ch11 sanctions.
+boundary trait Console { machine exit_process(return_code: i32); }
+data MemoryMap
+where
+    count <= len,
+{
+    len: u32;
+    count: u32;
+}
+data Main { console: Console; map: MemoryMap; }
+machine Main::main(&mut self) {
+    self.map.len = 8;
+    self.map.count = 3;
+    self.map.len = 2;
+    self.map.count = 1;
+    self.console.exit_process(70);
+}

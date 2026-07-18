@@ -194,10 +194,13 @@ impl ExpressionTable {
             ExpressionNode::Cast(cast) => {
                 let value = self.copy_from(source, cast.value);
                 let target_type = self.copy_name_path_members(source, cast.target_type);
+                let semantic_domain =
+                    self.copy_name_path_members(source, cast.semantic_domain);
                 self.insert(ExpressionNode::Cast(TableCastExpression {
                     value,
                     target_type,
                     domain: cast.domain,
+                    semantic_domain,
                     form: cast.form,
                 }))
             }
@@ -212,6 +215,7 @@ impl ExpressionTable {
                     receiver,
                     target_symbol: call.target_symbol,
                     target: call.target.clone(),
+                    machine_arguments: call.machine_arguments.clone(),
                     arguments,
                 }))
             }
@@ -569,10 +573,13 @@ impl ExpressionTable {
             ExpressionNode::Cast(cast) => {
                 let value = self.copy_from_self(cast.value);
                 let target_type = self.copy_name_path_members_from_self(cast.target_type);
+                let semantic_domain =
+                    self.copy_name_path_members_from_self(cast.semantic_domain);
                 self.insert(ExpressionNode::Cast(TableCastExpression {
                     value,
                     target_type,
                     domain: cast.domain,
+                    semantic_domain,
                     form: cast.form,
                 }))
             }
@@ -587,6 +594,7 @@ impl ExpressionTable {
                     receiver,
                     target_symbol: call.target_symbol,
                     target: call.target,
+                    machine_arguments: call.machine_arguments,
                     arguments,
                 }))
             }
@@ -888,6 +896,9 @@ pub struct TableCastExpression {
     pub target_type: HandleSpan<DiagnosticName>,
     /// Arithmetic domain cast (`x as u8 in Saturating`), decision 17 S2.
     pub domain: omega_core::arithmetic::ArithmeticDomain,
+    /// A NON-policy `in <Name>` suffix -- the semantic-domain qualification
+    /// spelling (decision 19), judged at validation. EMPTY = no suffix.
+    pub semantic_domain: HandleSpan<DiagnosticName>,
     /// Value conversion vs §5b borrow recast (`&x as &T`).
     pub form: omega_core::cast_form::CastForm,
 }
@@ -928,7 +939,15 @@ pub struct TableCallExpression {
     pub receiver: ExpressionHandle,
     pub target_symbol: SymbolHandle,
     pub target: DiagnosticName,
+    pub machine_arguments: Box<[StaticMachineArgument]>,
     pub arguments: HandleSpan<ExpressionHandle>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StaticMachineArgument {
+    pub path: Box<[DiagnosticName]>,
+    /// Entry-state symbol of the selected concrete machine.
+    pub symbol: SymbolHandle,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]

@@ -1,0 +1,16 @@
+// SEMANTIC-DOMAIN QUALIFICATION (decision 19): the mint's v1 folds the
+// domain facts at LITERAL values only -- a RUNTIME value's qualification
+// keeps the staged fence pointing at validating calls/guards until the
+// flow-integration rung lands.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+
+domain i64::Km {
+    self >= 0;
+}
+
+machine Main::main(&mut self) {
+    let raw: i64 = 5;
+    let distance: i64 = raw as i64 in Km;
+    self.console.exit_process(70);
+}

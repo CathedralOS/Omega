@@ -1,0 +1,28 @@
+// Multi-state callee summary NEGATIVE twin: recruit's `fresh` arm does
+// NOT establish self.champion, so the summary (intersection over every
+// exit) is empty and the read after the call refuses at the access gate.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Player
+where
+    health >= 1,
+{
+    health: i32;
+}
+data Main { console: Console; champion: Player; }
+machine Main::recruit(&mut self, veteran: bool) {
+    transition {
+        veteran == true -> strong()
+        _ -> fresh()
+    }
+    state strong(&mut self) {
+        self.champion = Player { health: 90 };
+    }
+    state fresh(&mut self) {
+        let idle: i32 = 0;
+    }
+}
+machine Main::main(&mut self) {
+    self.recruit(true);
+    let power: i32 = self.champion.health;
+    self.console.exit_process(70);
+}

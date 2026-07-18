@@ -1,1 +1,1 @@
-the trait `default` keyword is retired
+the `default` keyword is retired

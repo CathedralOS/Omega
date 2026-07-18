@@ -16,10 +16,13 @@ pub struct StateSignatureStorage {
     pub is_default: bool,
     pub parameters: HandleSpan<StateParameter>,
     pub return_type: Option<TypeReference>,
-    pub termination_guarantee: omega_core::termination::TerminationGuarantee,
-    pub ranking_witness: crate::machine::RankingWitness,
     pub effects: HandleSpan<DiagnosticName>,
     pub contracts: HandleSpan<SignatureContract>,
+    /// TPR4 (decision 23): the bodyless requirement's authored PUBLIC
+    /// guarantee (bare `terminates;`); implementations inherit it at
+    /// conformance. Populated at the syntax->resolved lowering, copied --
+    /// never re-derived -- downstream.
+    pub terminates_guarantee: bool,
 }
 
 impl Deref for StateSignature {

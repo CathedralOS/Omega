@@ -276,8 +276,14 @@ pub(super) fn select_host_operation_operands(
         }
         (
             HostCapability::Filesystem,
-            HostOperation::Close | HostOperation::Dup | HostOperation::FindClose,
+            HostOperation::Close
+            | HostOperation::CloseHandle
+            | HostOperation::Dup
+            | HostOperation::FindClose
+            | HostOperation::GetOsfHandle,
         ) => {
+            // `handle = get_osfhandle(fd) -> _get_osfhandle(fd)` (session
+            // slice 4a) rides the same one-scalar shape below.
             // Value-returning `rc = close(fd) -> _close(fd)` and
             // `new_fd = duplicate(fd) -> _dup(fd)` (identical one-fd shape; dup
             // returns the new fd instead of a status). `rc = find_close(handle)
@@ -294,8 +300,12 @@ pub(super) fn select_host_operation_operands(
                 _ => HandleSpan::empty(),
             }
         }
-        (HostCapability::Filesystem, HostOperation::ReadErrno) => {
-            // `errno = read_errno() -> ___error()` then deref. NO call args:
+        (
+            HostCapability::Filesystem,
+            HostOperation::ReadErrno | HostOperation::GetLastError,
+        ) => {
+            // `errno = read_errno() -> ___error()` then deref, or
+            // `error = get_last_error() -> GetLastError()` directly. NO call args:
             // operand[0] is the result place, and that is the whole operand
             // list. Unresolvable result => no operands so the encoder errors.
             match first_scalar_argument_operand(input, host_call, dispatch_index) {
@@ -1096,6 +1106,212 @@ pub(super) fn select_host_operation_operands(
                     operand(InstructionOperandKind::DataAddress { data: from }),
                     operand(InstructionOperandKind::DataAddress { data: to }),
                 ]),
+                _ => HandleSpan::empty(),
+            }
+        }
+        (HostCapability::Filesystem, HostOperation::FinalPathNameByHandle) => {
+            // `len = final_path_name_by_handle(handle, buffer, capacity, flags)
+            // -> GetFinalPathNameByHandleA(handle, &buffer, capacity, flags)`
+            // (session slice 4a): the FStat [result, scalar, buffer] shape plus
+            // the two trailing scalars. operand[0]=result, [1]=the HANDLE,
+            // [2]=buffer POINTER (the system writes the NUL-terminated path
+            // through it), [3]=capacity, [4]=flags.
+            let result = first_scalar_argument_operand(input, host_call, dispatch_index);
+            let handle =
+                scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 1);
+            let buffer =
+                address_argument_operand_at(input, host_call, dispatch_index, alias_context, 2);
+            let capacity =
+                scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 3);
+            let flags =
+                scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 4);
+            match (result, handle, buffer, capacity, flags) {
+                (Some(result), Some(handle), Some(buffer), Some(capacity), Some(flags)) => {
+                    operands.insert_many([
+                        operand(result),
+                        operand(handle),
+                        operand(buffer),
+                        operand(capacity),
+                        operand(flags),
+                    ])
+                }
+                _ => HandleSpan::empty(),
+            }
+        }
+        (HostCapability::Filesystem, HostOperation::SetFileTime) => {
+            // `rc = set_file_time(handle, creation, access_ft, write_ft) ->
+            // SetFileTime(handle, NULL, &access, &write)` (session slice 4b):
+            // operand[0]=result, [1]=the HANDLE, [2]=the NULL-able creation
+            // scalar (0), [3]/[4]=the two 8-byte FILETIME buffer POINTERS the
+            // API reads through.
+            let result = first_scalar_argument_operand(input, host_call, dispatch_index);
+            let handle =
+                scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 1);
+            let creation =
+                scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 2);
+            let access =
+                address_argument_operand_at(input, host_call, dispatch_index, alias_context, 3);
+            let write =
+                address_argument_operand_at(input, host_call, dispatch_index, alias_context, 4);
+            match (result, handle, creation, access, write) {
+                (Some(result), Some(handle), Some(creation), Some(access), Some(write)) => {
+                    operands.insert_many([
+                        operand(result),
+                        operand(handle),
+                        operand(creation),
+                        operand(access),
+                        operand(write),
+                    ])
+                }
+                _ => HandleSpan::empty(),
+            }
+        }
+        (HostCapability::Filesystem, HostOperation::CreateFile) => {
+            // `handle = open_path_handle(path, access, share, security,
+            // disposition, flags, template) -> CreateFileA(...)`. The path is
+            // a NUL-terminated pointer; the remaining six arguments are exact
+            // Win32 scalars. Win64 marshals arguments beyond the fourth in the
+            // outgoing stack area through the ordinary import-call encoder.
+            let result = first_scalar_argument_operand(input, host_call, dispatch_index);
+            let path = path_pointer_operand(input, host_call, dispatch_index, alias_context, 1);
+            let access =
+                scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 2);
+            let share =
+                scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 3);
+            let security =
+                scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 4);
+            let disposition =
+                scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 5);
+            let flags =
+                scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 6);
+            let template =
+                scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 7);
+            match (result, path, access, share, security, disposition, flags, template) {
+                (
+                    Some(result),
+                    Some(path),
+                    Some(access),
+                    Some(share),
+                    Some(security),
+                    Some(disposition),
+                    Some(flags),
+                    Some(template),
+                ) => operands.insert_many([
+                    operand(result),
+                    operand(path),
+                    operand(access),
+                    operand(share),
+                    operand(security),
+                    operand(disposition),
+                    operand(flags),
+                    operand(template),
+                ]),
+                _ => HandleSpan::empty(),
+            }
+        }
+        (HostCapability::Filesystem, HostOperation::LockFileEx) => {
+            // `rc = lock_file_ex(handle, flags, reserved, low, high, overlapped)`
+            // mirrors LockFileEx exactly. The last two scalar arguments ride
+            // Win64's outgoing stack area; the pointer is the sixth argument.
+            let result = first_scalar_argument_operand(input, host_call, dispatch_index);
+            let handle =
+                scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 1);
+            let flags =
+                scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 2);
+            let reserved =
+                scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 3);
+            let low =
+                scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 4);
+            let high =
+                scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 5);
+            let overlapped =
+                address_argument_operand_at(input, host_call, dispatch_index, alias_context, 6);
+            match (result, handle, flags, reserved, low, high, overlapped) {
+                (
+                    Some(result),
+                    Some(handle),
+                    Some(flags),
+                    Some(reserved),
+                    Some(low),
+                    Some(high),
+                    Some(overlapped),
+                ) => operands.insert_many([
+                    operand(result),
+                    operand(handle),
+                    operand(flags),
+                    operand(reserved),
+                    operand(low),
+                    operand(high),
+                    operand(overlapped),
+                ]),
+                _ => HandleSpan::empty(),
+            }
+        }
+        (HostCapability::Filesystem, HostOperation::UnlockFile) => {
+            // `rc = unlock_file(handle, offset_low, offset_high, length_low,
+            // length_high) -> UnlockFile(...)` -- five scalar call arguments.
+            let result = first_scalar_argument_operand(input, host_call, dispatch_index);
+            let handle =
+                scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 1);
+            let offset_low =
+                scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 2);
+            let offset_high =
+                scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 3);
+            let length_low =
+                scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 4);
+            let length_high =
+                scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 5);
+            match (
+                result,
+                handle,
+                offset_low,
+                offset_high,
+                length_low,
+                length_high,
+            ) {
+                (
+                    Some(result),
+                    Some(handle),
+                    Some(offset_low),
+                    Some(offset_high),
+                    Some(length_low),
+                    Some(length_high),
+                ) => operands.insert_many([
+                    operand(result),
+                    operand(handle),
+                    operand(offset_low),
+                    operand(offset_high),
+                    operand(length_low),
+                    operand(length_high),
+                ]),
+                _ => HandleSpan::empty(),
+            }
+        }
+        (HostCapability::Filesystem, HostOperation::CreateHardLink) => {
+            // `rc = create_hard_link(link, existing, 0) -> CreateHardLinkA(link,
+            // existing, NULL)` (windows session slice 3): the two-path shape of
+            // Rename/Link above PLUS the trailing security-attributes scalar the
+            // API requires as NULL. operand[0]=result, [1]=link path POINTER,
+            // [2]=existing path POINTER, [3]=the 0 scalar. Paths resolve per
+            // argument through the alias chain like the Rename arm.
+            let result = first_scalar_argument_operand(input, host_call, dispatch_index);
+            let link = aliased_literal_data_object(input, host_call, alias_context, 1)
+                .map(|(handle, _)| handle)
+                .unwrap_or_else(|| find_nth_data_object(input, host_call, 0));
+            let existing = aliased_literal_data_object(input, host_call, alias_context, 2)
+                .map(|(handle, _)| handle)
+                .unwrap_or_else(|| find_nth_data_object(input, host_call, 1));
+            let security =
+                scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 3);
+            match (result, security) {
+                (Some(result), Some(security)) if link.is_valid() && existing.is_valid() => {
+                    operands.insert_many([
+                        operand(result),
+                        operand(InstructionOperandKind::DataAddress { data: link }),
+                        operand(InstructionOperandKind::DataAddress { data: existing }),
+                        operand(security),
+                    ])
+                }
                 _ => HandleSpan::empty(),
             }
         }

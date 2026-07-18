@@ -116,6 +116,29 @@ pub fn encode_host_call_sequence<T: InstructionOperandLike>(
     }
 }
 
+/// A provides-authored / via-leaf IMPORT call (custom capability): the
+/// emission-planning blocker enforces the result-binding shape, so the call
+/// ALWAYS carries a leading result operand -- on aarch64 it routes to the
+/// value-returning sequence directly (the capability-keyed returns_value()
+/// catalog cannot know authored operations; routing by catalog sent the
+/// result place into x0 and shifted every real argument -- the
+/// import_call_argument_lost class). x86_64's encoder handles the key
+/// itself (windows-session verified).
+pub fn encode_authored_import_call_sequence<T: InstructionOperandLike>(
+    architecture: Architecture,
+    operation_key: HostOperationKey,
+    operands: &[T],
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::Aarch64 => {
+            aarch64::encode_host_call_sequence_value_returning_from_operands(
+                operands.iter().map(aarch64_call_operand),
+            )
+        }
+        Architecture::X86_64 => x86_64::encode_host_call_sequence(operation_key, operands),
+    }
+}
+
 pub fn encode_syscall_sequence<T: InstructionOperandLike>(
     architecture: Architecture,
     operands: &[T],

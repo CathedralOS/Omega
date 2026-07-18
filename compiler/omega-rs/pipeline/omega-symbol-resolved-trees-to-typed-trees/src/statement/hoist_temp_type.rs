@@ -66,7 +66,27 @@ pub(super) fn infer_hoist_temp_type(
                             .find(|(_, candidate)| candidate.symbol == target_symbol)
                             .and_then(|(_, candidate)| candidate.storage.return_type.clone())
                     })
-                    .flatten();
+                    .flatten()
+                    .or_else(|| {
+                        // MP3/MP4: a call through a static machine parameter
+                        // has the authored `where machine F(..) -> R` return
+                        // type even before a concrete selection is known.
+                        lowerer.source_trees.roots.machines.iter().find_map(|machine| {
+                            lowerer
+                                .source_trees
+                                .machine_type_parameters(machine)
+                                .iter()
+                                .find_map(|parameter| match &parameter.kind {
+                                    resolved::data::TypeParameterKind::Machine { contract }
+                                        if parameter.symbol == target_symbol
+                                            || contract.symbol == target_symbol =>
+                                    {
+                                        contract.return_type.clone()
+                                    }
+                                    _ => None,
+                                })
+                        })
+                    });
                 let Some(declared_return) = declared_return else {
                     return Err(Diagnostic::error(format!(
                         "a value-machine call in a guard comparison needs the callee's \

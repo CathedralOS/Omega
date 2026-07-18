@@ -3,7 +3,6 @@ use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::{SymbolHandle, SymbolKind};
 use omega_typed_trees::TypedTrees;
 use omega_typed_trees::machine::Machine;
-use omega_typed_trees::platform::Platform;
 use omega_typed_trees::state::State;
 use omega_typed_trees::trait_definition::TraitDefinition;
 
@@ -11,7 +10,6 @@ use omega_typed_trees::trait_definition::TraitDefinition;
 pub struct TopLevelSymbols<'program> {
     data_definitions: Vec<DataDefinitionSymbol<'program>>,
     machines: Vec<MachineSymbol<'program>>,
-    platforms: Vec<PlatformSymbol<'program>>,
     traits: Vec<TraitSymbol<'program>>,
     types: Vec<TypeSymbol<'program>>,
 }
@@ -26,13 +24,6 @@ struct DataDefinitionSymbol<'program> {
 struct MachineSymbol<'program> {
     name: &'program str,
     machine: &'program Machine,
-    symbol: SymbolHandle,
-}
-
-#[derive(Debug)]
-struct PlatformSymbol<'program> {
-    name: &'program str,
-    platform: &'program Platform,
     symbol: SymbolHandle,
 }
 
@@ -53,12 +44,10 @@ impl<'program> TopLevelSymbols<'program> {
     pub fn build(program: &'program TypedTrees, diagnostics: &mut Vec<Diagnostic>) -> Self {
         let data_definition_count = program.data_definitions().len();
         let machine_count = program.machines().len();
-        let platform_count = program.platforms().len();
         let trait_count = program.traits().len();
         let mut symbols = Self {
             data_definitions: Vec::with_capacity(data_definition_count),
             machines: Vec::with_capacity(machine_count),
-            platforms: Vec::with_capacity(platform_count),
             traits: Vec::with_capacity(trait_count),
             types: builtin_type_symbols(program),
         };
@@ -97,38 +86,6 @@ impl<'program> TopLevelSymbols<'program> {
                 name: machine.name.as_str(),
                 machine,
                 symbol: top_level_symbol(program, machine.name.as_str()),
-            });
-        }
-
-        for platform in program.platforms() {
-            if symbols.platform(platform.name.as_str()).is_some() {
-                diagnostics.push(Diagnostic::error(format!(
-                    "duplicate platform `{}`",
-                    platform.name
-                )));
-            }
-
-            if symbols
-                .data_definition_symbol(platform.name.as_str())
-                .is_valid()
-            {
-                diagnostics.push(Diagnostic::error(format!(
-                    "`{}` is declared as both data and a platform",
-                    platform.name
-                )));
-            }
-
-            if symbols.machine(platform.name.as_str()).is_some() {
-                diagnostics.push(Diagnostic::error(format!(
-                    "`{}` is declared as both a machine and a platform",
-                    platform.name
-                )));
-            }
-
-            symbols.platforms.push(PlatformSymbol {
-                name: platform.name.as_str(),
-                platform,
-                symbol: top_level_symbol(program, platform.name.as_str()),
             });
         }
 
@@ -177,7 +134,6 @@ impl<'program> TopLevelSymbols<'program> {
     pub fn has_type(&self, name: &str) -> bool {
         self.type_symbol(name).is_valid()
             || self.machine_symbol(name).is_valid()
-            || self.platform_symbol(name).is_valid()
             || self.trait_symbol(name).is_valid()
     }
 
@@ -234,21 +190,6 @@ impl<'program> TopLevelSymbols<'program> {
             .unwrap_or_else(SymbolHandle::invalid)
     }
 
-    pub fn platform(&self, name: &str) -> Option<&'program Platform> {
-        self.platforms
-            .iter()
-            .find(|symbol| symbol.name == name)
-            .map(|symbol| symbol.platform)
-    }
-
-    fn platform_symbol(&self, name: &str) -> SymbolHandle {
-        self.platforms
-            .iter()
-            .find(|symbol| symbol.name == name)
-            .map(|symbol| symbol.symbol)
-            .unwrap_or_else(SymbolHandle::invalid)
-    }
-
     pub fn trait_definition(&self, name: &str) -> Option<&'program TraitDefinition> {
         self.traits
             .iter()
@@ -265,9 +206,7 @@ impl<'program> TopLevelSymbols<'program> {
     }
 
     pub fn is_callable_receiver_type(&self, name: &str) -> bool {
-        self.machine_symbol(name).is_valid()
-            || self.platform_symbol(name).is_valid()
-            || self.trait_symbol(name).is_valid()
+        self.machine_symbol(name).is_valid() || self.trait_symbol(name).is_valid()
     }
 }
 

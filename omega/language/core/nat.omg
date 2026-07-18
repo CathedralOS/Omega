@@ -43,7 +43,6 @@ data Nat {
 // ensures-extraction rung.
 machine add(a: Nat, b: Nat) -> Nat
 satisfies CommutativeSemiring::add
-terminates;
 terminates by a;
 {
     transition a {
@@ -54,7 +53,6 @@ terminates by a;
 
 machine mul(a: Nat, b: Nat) -> Nat
 satisfies CommutativeSemiring::mul
-terminates;
 terminates by a;
 {
     transition a {
@@ -99,7 +97,7 @@ ensures
 // `add(b, Zero) == b` at those operands). Both are discharged per arm
 // with the machine's own ensures as the inductive hypothesis.
 machine add_zero_right(a: Nat) -> Nat
-terminates;
+satisfies CommutativeSemiring::add_identity
 terminates by a;
 ensures
     result == a;
@@ -111,17 +109,20 @@ ensures
     }
 }
 
-// Additive identity in the trait's SLOT vocabulary. `zero()` unfolds to the
-// constructor `Nat::Zero`; the cited constructor-form theorem supplies the
-// symbolic right-identity step.
-machine add_identity(a: Nat) -> Nat
-satisfies CommutativeSemiring::add_identity
+// add's one-step successor: add(a, Succ(Zero)) == Succ(a) -- structural
+// induction on `a`, the add_zero_right pattern shifted by one (the Zero
+// arm computes; each Succ arm's ensures is the inductive hypothesis).
+// Bridges length_append's trailing `add(length(s), Succ(Zero))` to
+// `Succ(length(s))` in seq.omg's length_snoc. Lean analog: `Nat.add_one`.
+machine add_one_right(a: Nat) -> Nat
+terminates by a;
 ensures
-    result == a;
-    (add(a, zero())) == a
+    (add(a, Nat::Succ { prev: Nat::Zero })) == (Nat::Succ { prev: a })
 {
-    add_zero_right(a);
-    transition { _ -> (a) }
+    transition a {
+        Nat::Zero -> Nat::Succ { prev: Nat::Zero }
+        Nat::Succ { prev } -> Nat::Succ { prev: add_one_right(prev) }
+    }
 }
 
 // mul's left annihilator: mul(Zero, b) == Zero (compute-mode, unfolds the
@@ -142,7 +143,6 @@ ensures
 // `lhs == rhs` law rewriting matching applications everywhere), not the
 // laws themselves.
 machine add_succ_law(a: Nat, b: Nat) -> Nat
-terminates;
 terminates by a;
 ensures
     (add(a, Nat::Succ { prev: b })) == (Nat::Succ { prev: add(a, b) })
@@ -164,7 +164,6 @@ ensures
 // payload).
 machine add_comm(a: Nat, b: Nat) -> Nat
 satisfies CommutativeSemiring::add_comm
-terminates;
 terminates by a;
 ensures
     (add(a, b)) == (add(b, a))
@@ -189,7 +188,6 @@ ensures
 // normalize by unfolding plus the inductive hypothesis.
 machine add_assoc(a: Nat, b: Nat, c: Nat) -> Nat
 satisfies CommutativeSemiring::add_assoc
-terminates;
 terminates by a;
 ensures
     (add(add(a, b), c)) == (add(a, add(b, c)))
@@ -203,7 +201,6 @@ ensures
 // mul's RIGHT annihilator (the left one is compute-mode; this one is the
 // induction).
 machine mul_zero_right(a: Nat) -> Nat
-terminates;
 terminates by a;
 ensures
     (mul(a, Nat::Zero)) == Nat::Zero
@@ -223,7 +220,6 @@ ensures
 // under Nat's CommutativeSemiring conformance, and the msr_step sub-state
 // deletes entirely.
 machine mul_succ_right(a: Nat, b: Nat) -> Nat
-terminates;
 terminates by a;
 ensures
     (mul(a, Nat::Succ { prev: b })) == (add(a, mul(a, b)))
@@ -260,7 +256,6 @@ ensures
 // imports in scope.
 machine mul_distributes(a: Nat, b: Nat, c: Nat) -> Nat
 satisfies CommutativeSemiring::mul_distributes
-terminates;
 terminates by a;
 ensures
     (mul(a, add(b, c))) == (add(mul(a, b), mul(a, c)))
@@ -271,13 +266,31 @@ ensures
     }
 }
 
-// Multiplication associates. The recursive definition unfolds on the first
-// operand; the step derives right-distribution from the already proven
-// commutativity + left-distribution laws, then consumes this machine's
-// recursive contract as the induction hypothesis.
+// RIGHT distributivity -- CITATION-FREE like its left twin: induction on
+// `a`; the step case unfolds mul/add and applies the inductive
+// hypothesis, leaving a three-addend shuffle (`add(c, add(X, Y))` against
+// `add(add(c, X), Y)`) the rearrange tier discharges under the
+// CommutativeSemiring conformance.
+machine mul_distributes_right(a: Nat, b: Nat, c: Nat) -> Nat
+terminates by a;
+ensures
+    (mul(add(a, b), c)) == (add(mul(a, c), mul(b, c)))
+{
+    transition a {
+        Nat::Zero -> Nat::Zero
+        Nat::Succ { prev } -> Nat::Succ { prev: mul_distributes_right(prev, b, c) }
+    }
+}
+
+// MULTIPLICATION ASSOCIATES -- the last CommutativeSemiring law slot for
+// Nat. Induction on `a`; the base case is compute-mode (both sides
+// unfold to Zero); the step case cites RIGHT distributivity at
+// (b, mul(prev, b), c) -- rewriting the unfolded left side
+// `mul(add(b, mul(prev, b)), c)` into `add(mul(b, c), mul(mul(prev, b), c))`
+// -- and takes the inductive hypothesis from its self-application, after
+// which both sides meet at `add(mul(b, c), mul(prev, mul(b, c)))`.
 machine mul_assoc(a: Nat, b: Nat, c: Nat) -> Nat
 satisfies CommutativeSemiring::mul_assoc
-terminates;
 terminates by a;
 ensures
     (mul(mul(a, b), c)) == (mul(a, mul(b, c)))
@@ -288,11 +301,37 @@ ensures
     }
 
     state ma_step(prev: Nat, b: Nat, c: Nat) -> Nat {
-        mul_comm(add(b, mul(prev, b)), c);
-        mul_distributes(c, b, mul(prev, b));
-        mul_comm(c, b);
-        mul_comm(c, mul(prev, b));
+        mul_distributes_right(b, mul(prev, b), c);
         transition { _ -> Nat::Succ { prev: mul_assoc(prev, b, c) } }
+    }
+}
+
+// mul's left identity: mul(Succ(Zero), b) == b -- compute unfolds the
+// Succ arm to add(b, mul(Zero, b)), the Zero arm annihilates, and ONE
+// citation of add_zero_right collapses the trailing add. Lean analog:
+// `Nat.one_mul`.
+machine mul_one_left(b: Nat) -> Nat
+ensures
+    (mul(Nat::Succ { prev: Nat::Zero }, b)) == b
+{
+    add_zero_right(b);
+    transition { _ -> (b) }
+}
+
+// mul's right identity: mul(a, Succ(Zero)) == a -- structural induction:
+// the Zero arm computes; each Succ arm unfolds to
+// add(Succ(Zero), mul(prev, Succ(Zero))), the head add computes one Succ,
+// and the machine's own ensures is the inductive hypothesis. Lean analog:
+// `Nat.mul_one`.
+machine mul_one_right(a: Nat) -> Nat
+satisfies CommutativeSemiring::mul_identity
+terminates by a;
+ensures
+    (mul(a, Nat::Succ { prev: Nat::Zero })) == a
+{
+    transition a {
+        Nat::Zero -> Nat::Zero
+        Nat::Succ { prev } -> Nat::Succ { prev: mul_one_right(prev) }
     }
 }
 
@@ -300,7 +339,6 @@ ensures
 // mul_succ_right at (b, prev) plus the inductive hypothesis.
 machine mul_comm(a: Nat, b: Nat) -> Nat
 satisfies CommutativeSemiring::mul_comm
-terminates;
 terminates by a;
 ensures
     (mul(a, b)) == (mul(b, a))
@@ -318,5 +356,479 @@ ensures
     state mc_step(prev: Nat, b: Nat) -> Nat {
         mul_succ_right(b, prev);
         transition { _ -> Nat::Succ { prev: mul_comm(prev, b) } }
+    }
+}
+
+// CANCELLATION (requires-bearing induction, 2026-07-16): add is left-
+// cancellative. Induction on c: the Zero arm's requires unfolds to a == b
+// outright; the Succ arm's requires unfolds to Succ-wrapped sides whose
+// injectivity yields the prev-level equation -- exactly the inductive
+// hypothesis's PREMISE, so the IH discharges and closes the arm. This is
+// the lemma quotient transitivity stands on (comm+assoc alone cannot
+// cancel).
+machine add_cancel(c: Nat, a: Nat, b: Nat) -> Nat
+terminates by c;
+requires
+    (add(c, a)) == (add(c, b))
+ensures
+    (a) == (b)
+{
+    transition c {
+        Nat::Zero -> ac_base(a, b)
+        Nat::Succ { prev } -> ac_step(prev, a, b)
+    }
+
+    state ac_base(a: Nat, b: Nat) -> Nat {
+        transition { _ -> (a) }
+    }
+
+    state ac_step(prev: Nat, a: Nat, b: Nat) -> Nat {
+        transition { _ -> (add_cancel(prev, a, b)) }
+    }
+}
+
+
+// PREDECESSOR (N4 Rat-ladder prerequisite 2026-07-20): pred(Zero) = Zero,
+// pred(Succ a') = a' -- the single-transition shape the structural judge
+// unfolds. Lean analog: Nat.pred.
+machine pred(a: Nat) -> Nat
+{
+    transition a {
+        Nat::Zero -> Nat::Zero
+        Nat::Succ { prev } -> (prev)
+    }
+}
+
+// TRUNCATED SUBTRACTION (monus): sub(a, Zero) = a; sub(a, Succ b') =
+// pred(sub(a, b')) -- Lean's Nat.sub spelling, recursion on `b` composing
+// `pred` cross-machine (the mul-over-add pattern; every machine here stays
+// single-transition so lemma facts unfold). `sub(a, b) == Zero` is the
+// roster's `a <= b` spelling until an order surface lands.
+machine sub(a: Nat, b: Nat) -> Nat
+terminates by b;
+{
+    transition b {
+        Nat::Zero -> (a)
+        Nat::Succ { prev } -> (pred(sub(a, prev)))
+    }
+}
+
+// sub's right identity: sub(a, Zero) == a (compute-mode -- the Zero arm
+// returns `a` outright). Lean analog: Nat.sub_zero.
+machine sub_zero_right(a: Nat) -> Nat
+ensures
+    result == a;
+    (sub(a, Nat::Zero)) == a
+{
+    transition { _ -> (sub(a, Nat::Zero)) }
+}
+
+// The Succ-stripping law: sub(Succ(a), Succ(b)) == sub(a, b) -- structural
+// induction on `b`. The Zero arm computes (pred(Succ(a)) = a = sub(a, Zero));
+// each Succ arm rewrites under pred with the inductive hypothesis. Lean
+// analog: Nat.succ_sub_succ.
+machine succ_sub_succ(a: Nat, b: Nat) -> Nat
+terminates by b;
+ensures
+    (sub(Nat::Succ { prev: a }, Nat::Succ { prev: b })) == (sub(a, b))
+{
+    transition b {
+        Nat::Zero -> Nat::Zero
+        Nat::Succ { prev } -> sss_step(a, prev)
+    }
+
+    state sss_step(a: Nat, prev: Nat) -> Nat {
+        transition { _ -> (succ_sub_succ(a, prev)) }
+    }
+}
+
+// Left-zero annihilation: sub(Zero, b) == Zero -- structural induction on
+// `b` (the Zero arm computes; each Succ arm is pred of the inductive
+// hypothesis's Zero). Lean analog: Nat.zero_sub.
+machine sub_zero_left(b: Nat) -> Nat
+terminates by b;
+ensures
+    (sub(Nat::Zero, b)) == Nat::Zero
+{
+    transition b {
+        Nat::Zero -> Nat::Zero
+        Nat::Succ { prev } -> szl_step(prev)
+    }
+
+    state szl_step(prev: Nat) -> Nat {
+        transition { _ -> (sub_zero_left(prev)) }
+    }
+}
+
+// Self-annihilation: sub(a, a) == Zero -- structural induction on `a`; each
+// Succ arm strips one Succ from both sides by citing succ_sub_succ at
+// (prev, prev), then the ensures is the inductive hypothesis. Lean analog:
+// Nat.sub_self.
+machine sub_self(a: Nat) -> Nat
+terminates by a;
+ensures
+    (sub(a, a)) == Nat::Zero
+{
+    transition a {
+        Nat::Zero -> Nat::Zero
+        Nat::Succ { prev } -> ss_step(prev)
+    }
+
+    state ss_step(prev: Nat) -> Nat {
+        succ_sub_succ(prev, prev);
+        transition { _ -> (sub_self(prev)) }
+    }
+}
+
+// Left-addition cancels under monus: sub(add(b, a), b) == a -- structural
+// induction on `b`. The Zero arm computes through add's and sub's Zero
+// arms; each Succ arm strips the added Succ against the subtracted one by
+// citing succ_sub_succ at (add(prev, a), prev), then the ensures is the
+// inductive hypothesis. This is the Rat ladder's normalization workhorse.
+// Lean analog: Nat.add_sub_cancel_left.
+machine add_sub_cancel(b: Nat, a: Nat) -> Nat
+terminates by b;
+ensures
+    (sub((add(b, a)), b)) == a
+{
+    transition b {
+        Nat::Zero -> (a)
+        Nat::Succ { prev } -> asc_step(prev, a)
+    }
+
+    state asc_step(prev: Nat, a: Nat) -> Nat {
+        succ_sub_succ((add(prev, a)), prev);
+        transition { _ -> (add_sub_cancel(prev, a)) }
+    }
+}
+
+
+// ORDER AS MONUS (N4 Rat-ladder strict-ranking evidence, design-ruled
+// 2026-07-17): the roster spelling is `a <= b` := sub(a, b) == Zero and
+// `a < b` := sub(Succ a, b) == Zero -- no new predicate, the monus IS the
+// order carrier until an order surface lands.
+
+// Stripping a Succ from the LEFT preserves <=: sub(Succ r, a) == Zero
+// entails sub(r, a) == Zero. Case on `a`: the Zero arm's premise unfolds
+// to Succ r == Zero, a constructor clash (vacuous); the Succ arm strips
+// the pair with succ_sub_succ, so the premise becomes sub(r, s) == Zero
+// and the goal sub(r, Succ s) unfolds to pred of exactly that. Lean
+// analog: Nat.le_of_succ_le.
+machine le_of_succ_le(r: Nat, a: Nat) -> Nat
+requires
+    (sub(Nat::Succ { prev: r }, a)) == Nat::Zero
+ensures
+    (sub(r, a)) == Nat::Zero
+{
+    transition a {
+        Nat::Zero -> Nat::Zero
+        Nat::Succ { prev } -> losl_step(r, prev)
+    }
+
+    state losl_step(r: Nat, prev: Nat) -> Nat {
+        succ_sub_succ(r, prev);
+        transition { _ -> Nat::Zero }
+    }
+}
+
+// pred preserves <= on the left: sub(x, a) == Zero entails
+// sub(pred(x), a) == Zero. Case on `x`: the Zero arm computes (pred(Zero)
+// = Zero, the goal is the premise); the Succ arm is le_of_succ_le.
+machine pred_le_left(x: Nat, a: Nat) -> Nat
+requires
+    (sub(x, a)) == Nat::Zero
+ensures
+    (sub((pred(x)), a)) == Nat::Zero
+{
+    transition x {
+        Nat::Zero -> Nat::Zero
+        Nat::Succ { prev } -> pll_step(prev, a)
+    }
+
+    state pll_step(prev: Nat, a: Nat) -> Nat {
+        le_of_succ_le(prev, a);
+        transition { _ -> Nat::Zero }
+    }
+}
+
+// Monus never exceeds its left argument: sub(a, b) <= a, premise-free --
+// induction on `b` (following sub's own recursion). The Zero arm computes
+// through sub's Zero arm to sub_self's fact; each Succ arm unfolds
+// sub(a, Succ q) to pred(sub(a, q)), takes the inductive hypothesis
+// sub(sub(a, q), a) == Zero, and closes with pred_le_left. Lean analog:
+// Nat.sub_le.
+machine sub_le(a: Nat, b: Nat) -> Nat
+terminates by b;
+ensures
+    (sub((sub(a, b)), a)) == Nat::Zero
+{
+    transition b {
+        Nat::Zero -> sle_zero(a)
+        Nat::Succ { prev as q } -> sle_step(a, q)
+    }
+
+    state sle_zero(a: Nat) -> Nat {
+        sub_self(a);
+        transition { _ -> Nat::Zero }
+    }
+
+    state sle_step(a: Nat, q: Nat) -> Nat {
+        pred_le_left((sub(a, q)), a);
+        transition { _ -> (sub_le(a, q)) }
+    }
+}
+
+// THE STRICT-RANKING EVIDENCE: sub(Succ a, Succ b) < Succ a, premise-free
+// (positivity encoded by the Succ constructors -- both operands are
+// nonzero by shape). In the monus order spelling the claim is
+// sub(Succ(sub(Succ a, Succ b)), Succ a) == Zero. succ_sub_succ strips the
+// outer pair to sub(a, b), then a second strip reduces the goal to
+// sub_le's fact sub(sub(a, b), a) == Zero. This is the lemma a computed
+// recursive subject (mod/gcd recursing on sub) cites to discharge the
+// ranking view's strict-edge obligation. Lean analog: Nat.sub_lt.
+machine sub_lt_succ(a: Nat, b: Nat) -> Nat
+ensures
+    (sub(Nat::Succ { prev: (sub(Nat::Succ { prev: a }, Nat::Succ { prev: b })) }, Nat::Succ { prev: a })) == Nat::Zero
+{
+    transition {
+        _ -> slt_body(a, b)
+    }
+
+    state slt_body(a: Nat, b: Nat) -> Nat {
+        succ_sub_succ(a, b);
+        succ_sub_succ((sub(a, b)), a);
+        sub_le(a, b);
+        transition { _ -> Nat::Zero }
+    }
+}
+
+// The SYMBOLIC strict fact, positivity via a premise instead of Succ
+// shape: Succ pb <= a entails sub(a, Succ pb) < a. The Zero arm is
+// vacuous (Succ pb <= Zero clashes); the Succ arm strips the pair twice
+// with succ_sub_succ and closes on sub_le -- no induction, the premise
+// only serves the vacuity.
+machine sub_lt_of_le(pb: Nat, a: Nat) -> Nat
+requires
+    (sub(Nat::Succ { prev: pb }, a)) == Nat::Zero
+ensures
+    (sub(Nat::Succ { prev: (sub(a, Nat::Succ { prev: pb })) }, a)) == Nat::Zero
+{
+    transition a {
+        Nat::Zero -> Nat::Zero
+        Nat::Succ { prev as pa } -> slol_step(pa, pb)
+    }
+
+    state slol_step(pa: Nat, pb: Nat) -> Nat {
+        succ_sub_succ(pa, pb);
+        succ_sub_succ((sub(pa, pb)), pa);
+        sub_le(pa, pb);
+        transition { _ -> Nat::Zero }
+    }
+}
+
+// THE RANKING CITATION (slice a2): fully symbolic in (a, b) --
+// 1 <= b and b <= a entail sub(a, b) < a, in the monus order spelling
+// sub(Succ(sub(a, b)), a) == Zero. A machine recursing on the computed
+// subject sub(a, b) (mod, gcd) cites THIS lemma at (a, b); the
+// termination checker matches the instantiated ensures against its
+// strict-edge obligation literally. The Zero arm is vacuous (1 <= Zero
+// clashes); the Succ arm hands to sub_lt_of_le under the arm-refined
+// premise b == Succ pb. Lean analog: Nat.sub_lt.
+machine sub_lt(a: Nat, b: Nat) -> Nat
+requires
+    (sub(Nat::Succ { prev: Nat::Zero }, b)) == Nat::Zero;
+    (sub(b, a)) == Nat::Zero
+ensures
+    (sub(Nat::Succ { prev: (sub(a, b)) }, a)) == Nat::Zero
+{
+    transition b {
+        Nat::Zero -> Nat::Zero
+        Nat::Succ { prev as pb } -> slt_of(pb, a)
+    }
+
+    state slt_of(pb: Nat, a: Nat) -> Nat {
+        sub_lt_of_le(pb, a);
+        transition { _ -> Nat::Zero }
+    }
+}
+
+// MODULO by repeated subtraction (slice a3 opener): mod(a, b) for b >= 1.
+// The root cases the COMPUTED subject sub(b, a): the Zero arm (b <= a)
+// subtracts and recurses; the Succ arm (a < b) returns a. The recursive
+// edge's strict decrease is NOT structural -- sub(a, b) is a computed
+// subject -- so mod_rec CITES sub_lt(a, b), whose requires discharge at
+// the site from the machine requires (1 <= b) and the incoming Zero-arm
+// equation (sub(b, a) == Zero), and whose instantiated ensures IS the
+// strict-edge fact sub(Succ(sub(a, b)), a) == Zero. Lean analog: Nat.mod.
+machine mod(a: Nat, b: Nat) -> Nat
+terminates by a;
+requires
+    (sub(Nat::Succ { prev: Nat::Zero }, b)) == Nat::Zero
+ensures
+    (sub(Nat::Succ { prev: result }, b)) == Nat::Zero
+{
+    transition (sub(b, a)) {
+        Nat::Zero -> mod_rec(a, b)
+        Nat::Succ { prev as w } -> mod_done(a, b)
+    }
+
+    state mod_rec(a: Nat, b: Nat) -> Nat {
+        sub_lt(a, b);
+        let next: Nat = sub(a, b);
+        transition { _ -> (mod(next, b)) }
+    }
+
+    state mod_done(a: Nat, b: Nat) -> Nat {
+        lt_of_sub_pos(a, b, (pred(sub(b, a))));
+        transition { _ -> (a) }
+    }
+}
+
+// pred is injective off zero: pred(x) == Succ w entails x == Succ (Succ w).
+// Case on x: the Zero arm is vacuous (pred(Zero) computes to Zero, which
+// clashes with Succ w); the Succ arm's premise rewrites the payload.
+machine pred_eq_succ(x: Nat, w: Nat) -> Nat
+requires
+    (pred(x)) == (Nat::Succ { prev: w })
+ensures
+    (x) == (Nat::Succ { prev: Nat::Succ { prev: w } })
+{
+    transition x {
+        Nat::Zero -> Nat::Zero
+        Nat::Succ { prev } -> Nat::Zero
+    }
+}
+
+// A positive monus reconstructs the addition: sub(b, a) == Succ w entails
+// b == add(a, Succ w). Induction on `a`: the Zero arm's premise computes
+// to b == Succ w and the goal's add computes to Succ w; the Succ arm
+// unfolds the premise to pred(sub(b, pa)) == Succ w, cites pred_eq_succ
+// to recover sub(b, pa) == Succ (Succ w), takes the inductive hypothesis
+// at (pa, b, Succ w), and closes through add_succ_law.
+machine sub_eq_add(a: Nat, b: Nat, w: Nat) -> Nat
+terminates by a;
+requires
+    (sub(b, a)) == (Nat::Succ { prev: w })
+ensures
+    (b) == (add(a, Nat::Succ { prev: w }))
+{
+    transition a {
+        Nat::Zero -> Nat::Zero
+        Nat::Succ { prev as pa } -> sea_step(pa, b, w)
+    }
+
+    state sea_step(pa: Nat, b: Nat, w: Nat) -> Nat {
+        pred_eq_succ((sub(b, pa)), w);
+        add_succ_law(pa, Nat::Succ { prev: w });
+        transition { _ -> (sub_eq_add(pa, b, Nat::Succ { prev: w })) }
+    }
+}
+
+// Succ a never exceeds a + (w + 1): sub(Succ a, add(a, Succ w)) == Zero --
+// premise-free, induction on `a`. The Zero arm computes both sides down to
+// sub_zero_left's fact; the Succ arm strips one Succ from each side with
+// succ_sub_succ and is the inductive hypothesis.
+machine le_add(a: Nat, w: Nat) -> Nat
+terminates by a;
+ensures
+    (sub(Nat::Succ { prev: a }, (add(a, Nat::Succ { prev: w })))) == Nat::Zero
+{
+    transition a {
+        Nat::Zero -> la_zero(w)
+        Nat::Succ { prev as pa } -> la_step(pa, w)
+    }
+
+    state la_zero(w: Nat) -> Nat {
+        succ_sub_succ(Nat::Zero, w);
+        sub_zero_left(w);
+        transition { _ -> Nat::Zero }
+    }
+
+    state la_step(pa: Nat, w: Nat) -> Nat {
+        succ_sub_succ(Nat::Succ { prev: pa }, (add(pa, Nat::Succ { prev: w })));
+        transition { _ -> (le_add(pa, w)) }
+    }
+}
+
+// THE MONUS CONVERSION (mod's ensures workhorse): a positive difference
+// the other way entails strict order -- sub(b, a) == Succ w entails
+// sub(Succ a, b) == Zero (`a < b`). Flat: sub_eq_add reconstructs
+// b == add(a, Succ w), le_add bounds Succ a by exactly that sum, and the
+// goal rewrites through the reconstruction.
+machine lt_of_sub_pos(a: Nat, b: Nat, w: Nat) -> Nat
+requires
+    (sub(b, a)) == (Nat::Succ { prev: w })
+ensures
+    (sub(Nat::Succ { prev: a }, b)) == Nat::Zero
+{
+    transition {
+        _ -> lsp_body(a, b, w)
+    }
+
+    state lsp_body(a: Nat, b: Nat, w: Nat) -> Nat {
+        sub_eq_add(a, b, w);
+        le_add(a, w);
+        transition { _ -> Nat::Zero }
+    }
+}
+
+// One is at most any successor: sub(Succ Zero, Succ pb) == Zero --
+// premise-free, flat (strip the pair, annihilate on the left). The site
+// fact gcd's recursive arm needs to discharge mod's positivity premise.
+machine le_one_succ(pb: Nat) -> Nat
+ensures
+    (sub(Nat::Succ { prev: Nat::Zero }, Nat::Succ { prev: pb })) == Nat::Zero
+{
+    transition {
+        _ -> los_body(pb)
+    }
+
+    state los_body(pb: Nat) -> Nat {
+        succ_sub_succ(Nat::Zero, pb);
+        sub_zero_left(pb);
+        transition { _ -> Nat::Zero }
+    }
+}
+
+// EUCLID (slice a3): gcd(a, Zero) = a; gcd(a, Succ pb) = gcd(b, mod(a, b))
+// at b = Succ pb. The recursive edge's measure argument is the COMPUTED
+// mod(a, Succ pb); its strict decrease judges through the structural edge
+// judge: the incoming payload alias (b == Succ { prev: pb }), le_one_succ's
+// cited fact (discharging mod's positivity premise), and mod's own ensures
+// at the let-citation (result < divisor) close the obligation. Lean analog:
+// Nat.gcd.
+machine gcd(a: Nat, b: Nat) -> Nat
+terminates by b;
+{
+    transition b {
+        Nat::Zero -> (a)
+        Nat::Succ { prev as pb } -> gcd_rec(a, b, pb)
+    }
+
+    state gcd_rec(a: Nat, b: Nat, pb: Nat) -> Nat {
+        le_one_succ(pb);
+        let next: Nat = mod(a, Nat::Succ { prev: pb });
+        transition { _ -> (gcd(Nat::Succ { prev: pb }, next)) }
+    }
+}
+
+// QUOTIENT by repeated subtraction (mod's twin; the Rat carrier's
+// normalization divisor): div(a, b) for b >= 1. Same computed-subject
+// dispatch and the same sub_lt strict edge as mod; the b <= a arm wraps
+// the recursion in one Succ. Lean analog: Nat.div.
+machine div(a: Nat, b: Nat) -> Nat
+terminates by a;
+requires
+    (sub(Nat::Succ { prev: Nat::Zero }, b)) == Nat::Zero
+{
+    transition (sub(b, a)) {
+        Nat::Zero -> div_rec(a, b)
+        Nat::Succ { prev as w } -> Nat::Zero
+    }
+
+    state div_rec(a: Nat, b: Nat) -> Nat {
+        sub_lt(a, b);
+        let next: Nat = sub(a, b);
+        transition { _ -> Nat::Succ { prev: div(next, b) } }
     }
 }

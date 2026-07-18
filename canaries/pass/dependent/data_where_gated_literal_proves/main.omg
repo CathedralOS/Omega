@@ -1,0 +1,20 @@
+// R2 rung 2b (ch12's Player example): a GATED type (zero health is not a
+// Player) constructs through a literal that PROVES the default domain --
+// health = 50 satisfies `health >= 1 && health <= 100`; construction is
+// the gate.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Player
+where
+    health >= 1,
+    health <= 100,
+{
+    health: i32;
+}
+data Main { console: Console; champion: Player; }
+machine Main::main(&mut self) {
+    self.champion = Player { health: 50 };
+    // The access gate opens after the proven construction: this read is
+    // legal (rung 3 slice 2).
+    let strength: i32 = self.champion.health;
+    self.console.exit_process(70);
+}

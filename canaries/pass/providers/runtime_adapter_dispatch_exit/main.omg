@@ -1,0 +1,17 @@
+// PRV4 ADAPTER DISPATCH (dual-engine): a call through a field whose
+// declared type is a boundary trait rewrites -- in BOTH engine pipelines,
+// before checking -- to a direct call to the unique checked adapter
+// satisfying that requirement, and runs as ordinary Omega. Without an
+// adapter the call keeps its host-lowering route.
+boundary trait Console { machine exit_process(return_code: i32); }
+boundary trait Echo {
+    machine echo(x: i32) -> i32;
+}
+machine echo_adapter(x: i32) -> i32 satisfies Echo::echo {
+    transition { _ -> (x) }
+}
+data Main { console: Console; e: Echo; }
+machine Main::main(&mut self) {
+    let v: i32 = self.e.echo(70);
+    self.console.exit_process(v);
+}

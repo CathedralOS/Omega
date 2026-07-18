@@ -132,6 +132,65 @@ fn extract_provides_rows(
             });
         }
     }
+
+    // PRV4 step 1c: EXTERNAL LEAVES feed the same row stream. A bodyless
+    // `satisfies Trait::method via <Binding>;` machine contributes one row
+    // for the satisfied requirement; a `<target>`-scoped leaf rides its own
+    // marker, an unscoped leaf rides the portable name (resolves to the
+    // host target). Table-addressed mechanisms (VtableField/TableFunction)
+    // wait for the leaf `over`-struct surface and are skipped here -- the
+    // via validation rung keeps them from silently dropping.
+    for item in syntax_trees.root_items() {
+        let omega_syntax_trees::item::Item::Machine(machine) = item else {
+            continue;
+        };
+        if !machine.bodyless || machine.boundary {
+            continue;
+        }
+        for clause in syntax_trees.items.satisfies_clauses(machine.satisfies) {
+            let (Some(binding), Some(requirement)) =
+                (clause.via.as_ref(), clause.requirement.as_ref())
+            else {
+                continue;
+            };
+            use omega_syntax_trees::item::HostProviderMappingKind;
+            let binding = match binding {
+                HostProviderMappingKind::Syscall { number } => {
+                    ProvidesBindingKind::Syscall { number: *number }
+                }
+                HostProviderMappingKind::DllImport { module, symbol } => {
+                    ProvidesBindingKind::DllImport {
+                        module: module.clone(),
+                        symbol: symbol.clone(),
+                    }
+                }
+                HostProviderMappingKind::VtableSlot { index } => {
+                    ProvidesBindingKind::VtableSlot { index: *index }
+                }
+                HostProviderMappingKind::Value { value } => {
+                    ProvidesBindingKind::Value { value: *value }
+                }
+                HostProviderMappingKind::VtableField { .. }
+                | HostProviderMappingKind::TableFunction { .. } => continue,
+            };
+            rows.push(ProvidesRow {
+                target_name: machine
+                    .target
+                    .as_ref()
+                    .map(|target| target.as_str().to_owned())
+                    .unwrap_or_else(|| "cross_platform_cli".to_owned()),
+                trait_name: clause.trait_name.as_str().to_owned(),
+                method: requirement.as_str().to_owned(),
+                vtable_struct: String::new(),
+                parameter_count: boundary_trait_method_parameter_count(
+                    syntax_trees,
+                    clause.trait_name.as_str(),
+                    requirement.as_str(),
+                ),
+                binding,
+            });
+        }
+    }
     rows
 }
 
@@ -255,6 +314,9 @@ impl Compiler {
         // placement plan; the wire codec selection consumes it (tag + framing
         // from the plan, asserted against its own walk).
         crate::pipeline::wire_plans::compute_wire_plans(&mut typed)?;
+    // PRV4 adapter dispatch (both engines, before checking): boundary-trait
+    // calls with a unique satisfying adapter rewrite to direct calls.
+    crate::pipeline::adapter_dispatch::rewrite_adapter_calls(&mut typed)?;
         // BUILD CONFIG (build_and_package_model.md): image facts from
         // build.omg's augmenting `build(b: &mut Build)` machine, evaluated at
         // build time. When present it is AUTHORITATIVE; the legacy in-source
@@ -275,6 +337,38 @@ impl Compiler {
             build_config.freestanding,
         )?;
         write_typed_snapshot(&self.options, &typed)?;
+        let mut provider_plans =
+            crate::pipeline::provider_plans::derive_provider_plans(&syntax_trees, &typed);
+        provider_plans.extend(crate::pipeline::provider_plans::derive_satisfies_plans(
+            &syntax_trees,
+            &typed,
+        ));
+        let selected_native_target = omega_target::NativeTarget::from_omega_target_name(
+            self.options.target_name.as_deref(),
+        )
+        .unwrap_or_else(|_| omega_target::NativeTarget::host());
+        let mut selection_diagnostics = crate::pipeline::provider_plans::validate_slot_selection(
+            &provider_plans,
+            selected_native_target,
+        );
+        selection_diagnostics.extend(
+            crate::pipeline::provider_plans::validate_adapter_refinement(&typed, &provider_plans),
+        );
+        if !selection_diagnostics.is_empty() {
+            return Err(selection_diagnostics);
+        }
+        crate::pipeline::trust_lockfile::enforce_trust_lockfile(
+            &self.options,
+            &typed,
+            &build_config.grants,
+            &provider_plans,
+        )?;
+        crate::pipeline::trust_report::write_trust_report(
+            &self.options,
+            &typed,
+            &build_config.grants,
+            &provider_plans,
+        )?;
         crate::pipeline::wire_report::write_wire_protocol_report(&self.options, &typed)?;
 
         let checked = typed_trees_to_checked_trees(typed, &mut timings)?;

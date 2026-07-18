@@ -2,6 +2,7 @@ use std::cell::RefCell;
 
 use omega_checked_trees::{FlowCallFact, FlowStateFact};
 use omega_typed_trees::expression::ExpressionHandle;
+use omega_typed_trees::signature::StateParameter;
 use omega_typed_trees::state::State;
 
 mod booleans;
@@ -14,7 +15,8 @@ pub(super) fn call_site_proves_boolean_contract_expression(
     state_flow: &FlowStateFact,
     call_flow: &FlowCallFact,
     call_site: &crate::CallSite<'_>,
-    target_state: &State,
+    target_symbol: omega_core::symbols::SymbolHandle,
+    target_parameters: &[StateParameter],
     expression: ExpressionHandle,
 ) -> bool {
     let Some(caller_state) =
@@ -28,7 +30,8 @@ pub(super) fn call_site_proves_boolean_contract_expression(
         caller_state,
         statement_index: call_flow.statement_index,
         call_site,
-        target_state,
+        target_symbol,
+        target_parameters,
         active_evaluations: RefCell::new(Vec::new()),
         active_resolutions: RefCell::new(Vec::new()),
     }
@@ -41,7 +44,8 @@ pub(super) struct ContractExpressionEvaluator<'program, 'call> {
     caller_state: &'program State,
     statement_index: usize,
     call_site: &'call crate::CallSite<'program>,
-    target_state: &'program State,
+    target_symbol: omega_core::symbols::SymbolHandle,
+    target_parameters: &'program [StateParameter],
     /// Expressions whose integer evaluation is in progress on the call
     /// stack. Following a SELF call site maps a parameter back to an
     /// argument that mentions that same parameter (`n` resolves to

@@ -154,33 +154,34 @@ fn selected_instruction_name(
                 "compare runtime text storage {source_symbol}@{source_offset} {operator:?} `{buffer_symbol}`"
             )
         }
-        SelectedInstructionKind::CompareRuntimeStorage {
-            left_region,
-            left_offset,
-            right_region,
-            right_offset,
+        SelectedInstructionKind::ComparePlaces {
+            left,
+            right,
             byte_size,
             operator,
             ..
         } => {
             let left_symbol =
-                storage_region_symbol_name(*left_region, backend_plan.entry_machine_name());
+                storage_region_symbol_name(left.region, backend_plan.entry_machine_name());
             let right_symbol =
-                storage_region_symbol_name(*right_region, backend_plan.entry_machine_name());
+                storage_region_symbol_name(right.region, backend_plan.entry_machine_name());
             format!(
-                "compare runtime storage {left_symbol}@{left_offset} {operator:?} {right_symbol}@{right_offset} bytes {byte_size}"
+                "compare places {left_symbol}{:?} {operator:?} {right_symbol}{:?} bytes {byte_size}",
+                left.steps(),
+                right.steps()
             )
         }
-        SelectedInstructionKind::CompareRuntimeStorageValue {
-            region,
-            byte_offset,
+        SelectedInstructionKind::ComparePlaceValue {
+            place,
             byte_size,
             expected_value,
             operator,
         } => {
-            let symbol = storage_region_symbol_name(*region, backend_plan.entry_machine_name());
+            let symbol =
+                storage_region_symbol_name(place.region, backend_plan.entry_machine_name());
             format!(
-                "compare runtime storage {symbol}@{byte_offset} {operator:?} {expected_value} bytes {byte_size}"
+                "compare place {symbol}{:?} {operator:?} {expected_value} bytes {byte_size}",
+                place.steps()
             )
         }
         SelectedInstructionKind::CompareRuntimeValues {
@@ -225,121 +226,42 @@ fn selected_instruction_name(
                 "append runtime text suffix {source_symbol}@{source_offset} -> `{buffer_symbol}`@{buffer_offset}, descriptor {target_symbol}@{target_offset}, len +{length_delta}"
             )
         }
-        SelectedInstructionKind::MaterializeRuntimeTextBuffer {
-            buffer,
-            target_region,
-            target_offset,
-        } => {
+        SelectedInstructionKind::MaterializeTextBufferToPlace { buffer, target } => {
             let buffer_symbol = backend_plan.data.objects.get(*buffer).symbol.as_ref();
             let target_symbol =
-                storage_region_symbol_name(*target_region, backend_plan.entry_machine_name());
+                storage_region_symbol_name(target.region, backend_plan.entry_machine_name());
             format!(
-                "materialize runtime text buffer `{buffer_symbol}` for {target_symbol}@{target_offset}"
+                "materialize text buffer `{buffer_symbol}` -> {target_symbol}{:?}",
+                target.steps()
             )
         }
-        SelectedInstructionKind::MaterializeRuntimeTextBufferToRuntimePointee {
-            buffer,
-            pointer_byte_offset,
-            field_byte_offset,
-        } => {
-            let buffer_symbol = backend_plan.data.objects.get(*buffer).symbol.as_ref();
-            format!(
-                "materialize runtime text buffer `{buffer_symbol}` for runtime_frame@{pointer_byte_offset} +{field_byte_offset}"
-            )
-        }
-        SelectedInstructionKind::MaterializeRuntimeTextBufferToRuntimeFrameIndexed {
-            buffer,
-            descriptor_offset,
-            index_offset,
-            element_byte_size,
-            field_byte_offset,
-        } => {
-            let buffer_symbol = backend_plan.data.objects.get(*buffer).symbol.as_ref();
-            format!(
-                "materialize runtime text buffer `{buffer_symbol}` for runtime_frame[{descriptor_offset}; index @{index_offset}; elem {element_byte_size}] +{field_byte_offset}"
-            )
-        }
-        SelectedInstructionKind::AppendRuntimeTextStoredPlace {
+        SelectedInstructionKind::AppendTextStoredToPlace {
             buffer,
             source_region,
             source_offset,
-            target_region,
-            target_offset,
+            target,
         } => {
             let buffer_symbol = backend_plan.data.objects.get(*buffer).symbol.as_ref();
             let source_symbol =
                 storage_region_symbol_name(*source_region, backend_plan.entry_machine_name());
             let target_symbol =
-                storage_region_symbol_name(*target_region, backend_plan.entry_machine_name());
+                storage_region_symbol_name(target.region, backend_plan.entry_machine_name());
             format!(
-                "append runtime text stored place {source_symbol}@{source_offset} -> `{buffer_symbol}`, descriptor {target_symbol}@{target_offset}"
+                "append text stored {source_symbol}@{source_offset} via `{buffer_symbol}` -> {target_symbol}{:?}",
+                target.steps()
             )
         }
-        SelectedInstructionKind::AppendRuntimeTextStoredPlaceToRuntimePointee {
+        SelectedInstructionKind::AppendTextLiteralToPlace {
             buffer,
-            source_region,
-            source_offset,
-            pointer_byte_offset,
-            field_byte_offset,
-        } => {
-            let buffer_symbol = backend_plan.data.objects.get(*buffer).symbol.as_ref();
-            let source_symbol =
-                storage_region_symbol_name(*source_region, backend_plan.entry_machine_name());
-            format!(
-                "append runtime text stored place {source_symbol}@{source_offset} -> `{buffer_symbol}`, descriptor runtime_frame@{pointer_byte_offset} +{field_byte_offset}"
-            )
-        }
-        SelectedInstructionKind::AppendRuntimeTextStoredPlaceToRuntimeFrameIndexed {
-            buffer,
-            source_region,
-            source_offset,
-            descriptor_offset,
-            index_offset,
-            element_byte_size,
-            field_byte_offset,
-        } => {
-            let buffer_symbol = backend_plan.data.objects.get(*buffer).symbol.as_ref();
-            let source_symbol =
-                storage_region_symbol_name(*source_region, backend_plan.entry_machine_name());
-            format!(
-                "append runtime text stored place {source_symbol}@{source_offset} -> `{buffer_symbol}`, descriptor runtime_frame[{descriptor_offset}; index @{index_offset}; elem {element_byte_size}] +{field_byte_offset}"
-            )
-        }
-        SelectedInstructionKind::AppendRuntimeTextLiteral {
-            buffer,
-            target_region,
-            target_offset,
+            target,
             literal,
         } => {
             let buffer_symbol = backend_plan.data.objects.get(*buffer).symbol.as_ref();
             let target_symbol =
-                storage_region_symbol_name(*target_region, backend_plan.entry_machine_name());
+                storage_region_symbol_name(target.region, backend_plan.entry_machine_name());
             format!(
-                "append runtime text literal `{buffer_symbol}`, descriptor {target_symbol}@{target_offset} += {literal:?}"
-            )
-        }
-        SelectedInstructionKind::AppendRuntimeTextLiteralToRuntimePointee {
-            buffer,
-            pointer_byte_offset,
-            field_byte_offset,
-            literal,
-        } => {
-            let buffer_symbol = backend_plan.data.objects.get(*buffer).symbol.as_ref();
-            format!(
-                "append runtime text literal `{buffer_symbol}`, descriptor runtime_frame@{pointer_byte_offset} +{field_byte_offset} += {literal:?}"
-            )
-        }
-        SelectedInstructionKind::AppendRuntimeTextLiteralToRuntimeFrameIndexed {
-            buffer,
-            descriptor_offset,
-            index_offset,
-            element_byte_size,
-            field_byte_offset,
-            literal,
-        } => {
-            let buffer_symbol = backend_plan.data.objects.get(*buffer).symbol.as_ref();
-            format!(
-                "append runtime text literal `{buffer_symbol}`, descriptor runtime_frame[{descriptor_offset}; index @{index_offset}; elem {element_byte_size}] +{field_byte_offset} += {literal:?}"
+                "append text literal {literal:?} via `{buffer_symbol}` -> {target_symbol}{:?}",
+                target.steps()
             )
         }
         SelectedInstructionKind::AppendWireLiteralByte {
@@ -566,52 +488,6 @@ fn selected_instruction_name(
                 "wire read repeated {encoding} {target_symbol}@{target_offset} ({byte_size} bytes) while cursor < end {end_symbol}@{end_offset}, count {count_symbol}@{count_offset} += 1 <- {buffer_symbol}@{buffer_offset} (len {buffer_length}) + cursor {read_symbol}@{read_offset}, ok {ok_symbol}@{ok_offset}"
             )
         }
-        SelectedInstructionKind::WriteRuntimeMachineInteger {
-            byte_offset,
-            byte_size,
-            value,
-        } => {
-            format!(
-                "write runtime machine integer offset {byte_offset} bytes {byte_size} value {value}"
-            )
-        }
-        SelectedInstructionKind::WriteRuntimeStorageInteger {
-            target_region,
-            byte_offset,
-            byte_size,
-            value,
-        } => {
-            let target_symbol =
-                storage_region_symbol_name(*target_region, backend_plan.entry_machine_name());
-            format!(
-                "write runtime storage integer {target_symbol}@{byte_offset} bytes {byte_size} value {value}"
-            )
-        }
-        SelectedInstructionKind::WriteRuntimePointeeInteger {
-            pointer_byte_offset,
-            field_byte_offset,
-            byte_size,
-            value,
-        } => format!(
-            "write runtime pointee integer runtime_frame@{pointer_byte_offset} +{field_byte_offset} bytes {byte_size} value {value}"
-        ),
-        SelectedInstructionKind::WriteRuntimeStorageBinary {
-            target_region,
-            target_offset,
-            byte_size,
-            left,
-            operator,
-            right,
-            ..
-        } => {
-            let target_symbol =
-                storage_region_symbol_name(*target_region, backend_plan.entry_machine_name());
-            format!(
-                "write runtime storage binary {target_symbol}@{target_offset} bytes {byte_size} {} {operator:?} {}",
-                runtime_value_operand_name(backend_plan, *left),
-                runtime_value_operand_name(backend_plan, *right),
-            )
-        }
         SelectedInstructionKind::WriteRuntimeStorageConvert {
             target_region,
             target_offset,
@@ -629,145 +505,6 @@ fn selected_instruction_name(
                 runtime_value_operand_name(backend_plan, *source),
             )
         }
-        SelectedInstructionKind::WriteRuntimePointeeBinary {
-            pointer_byte_offset,
-            field_byte_offset,
-            byte_size,
-            left,
-            operator,
-            right,
-        } => {
-            format!(
-                "write runtime pointee binary runtime_frame@{pointer_byte_offset} +{field_byte_offset} bytes {byte_size} {} {operator:?} {}",
-                runtime_value_operand_name(backend_plan, *left),
-                runtime_value_operand_name(backend_plan, *right),
-            )
-        }
-        SelectedInstructionKind::WriteRuntimeFrameIndexedInteger {
-            descriptor_offset,
-            index_offset,
-            element_byte_size,
-            field_byte_offset,
-            byte_size,
-            value,
-        } => {
-            format!(
-                "write runtime-frame indexed integer descriptor@{descriptor_offset} index@{index_offset} elem {element_byte_size} field +{field_byte_offset} bytes {byte_size} value {value}"
-            )
-        }
-        SelectedInstructionKind::WriteRuntimeFrameBaseIndexedInteger {
-            base_byte_offset,
-            index_offset,
-            element_byte_size,
-            field_byte_offset,
-            byte_size,
-            value,
-        } => {
-            format!(
-                "write runtime-frame base indexed integer base@{base_byte_offset} index@{index_offset} elem {element_byte_size} field +{field_byte_offset} bytes {byte_size} value {value}"
-            )
-        }
-        SelectedInstructionKind::WriteRuntimeMachineIndexedInteger {
-            base_byte_offset,
-            index_region,
-            index_offset,
-            element_byte_size,
-            field_byte_offset,
-            byte_size,
-            value,
-        } => {
-            format!(
-                "write runtime-machine indexed integer machine@{base_byte_offset} index({index_region:?})@{index_offset} elem {element_byte_size} field +{field_byte_offset} bytes {byte_size} value {value}"
-            )
-        }
-        SelectedInstructionKind::WriteRuntimeFrameIndexedBinary {
-            descriptor_offset,
-            index_offset,
-            element_byte_size,
-            field_byte_offset,
-            byte_size,
-            left,
-            operator,
-            right,
-        } => {
-            format!(
-                "write runtime-frame indexed binary descriptor@{descriptor_offset} index@{index_offset} elem {element_byte_size} field +{field_byte_offset} bytes {byte_size} {} {operator:?} {}",
-                runtime_value_operand_name(backend_plan, *left),
-                runtime_value_operand_name(backend_plan, *right),
-            )
-        }
-        SelectedInstructionKind::WriteRuntimeFrameBaseIndexedBinary {
-            base_byte_offset,
-            index_offset,
-            element_byte_size,
-            field_byte_offset,
-            byte_size,
-            left,
-            operator,
-            right,
-        } => {
-            format!(
-                "write runtime-frame base indexed binary base@{base_byte_offset} index@{index_offset} elem {element_byte_size} field +{field_byte_offset} bytes {byte_size} {} {operator:?} {}",
-                runtime_value_operand_name(backend_plan, *left),
-                runtime_value_operand_name(backend_plan, *right),
-            )
-        }
-        SelectedInstructionKind::WriteRuntimeMachineDoubleIndexedBinary {
-            base_byte_offset,
-            outer_index_offset,
-            outer_index_region,
-            outer_stride,
-            inner_index_offset,
-            inner_index_region,
-            inner_stride,
-            field_byte_offset,
-            byte_size,
-            left,
-            operator,
-            right,
-        } => {
-            format!(
-                "write binary {left:?} {operator:?} {right:?} ({byte_size}b) -> runtime-machine double-indexed base@{base_byte_offset} outer@{outer_index_offset}({outer_index_region:?})*{outer_stride} inner@{inner_index_offset}({inner_index_region:?})*{inner_stride} field +{field_byte_offset}"
-            )
-        }
-        SelectedInstructionKind::WriteRuntimeMachineIndexedBinary {
-            base_byte_offset,
-            index_region,
-            index_offset,
-            element_byte_size,
-            field_byte_offset,
-            byte_size,
-            left,
-            operator,
-            right,
-        } => {
-            format!(
-                "write runtime-machine indexed binary machine@{base_byte_offset} index({index_region:?})@{index_offset} elem {element_byte_size} field +{field_byte_offset} bytes {byte_size} {} {operator:?} {}",
-                runtime_value_operand_name(backend_plan, *left),
-                runtime_value_operand_name(backend_plan, *right),
-            )
-        }
-        SelectedInstructionKind::WriteRuntimeMachineString {
-            byte_offset,
-            data,
-            byte_length,
-        } => {
-            let data_symbol = backend_plan.data.objects.get(*data).symbol.as_ref();
-            format!(
-                "write runtime machine string offset {byte_offset} data `{data_symbol}` len {byte_length}"
-            )
-        }
-        SelectedInstructionKind::WriteRuntimeMachineBoundedBuffer {
-            byte_offset,
-            literal,
-            target_in_frame,
-        } => {
-            let region = if *target_in_frame { "frame" } else { "machine" };
-            format!(
-                "write runtime {region} bounded buffer offset {byte_offset} literal {literal:?} len {}",
-                literal.len()
-            )
-        }
         SelectedInstructionKind::AppendRuntimeMachineBoundedBufferSource {
             target_byte_offset,
             source_byte_offset,
@@ -783,116 +520,6 @@ fn selected_instruction_name(
             literal,
         } => format!(
             "append runtime machine bounded buffer literal target@{target_byte_offset} {literal:?}"
-        ),
-        SelectedInstructionKind::WriteRuntimeFrameString {
-            byte_offset,
-            data,
-            byte_length,
-        } => {
-            let data_symbol = backend_plan.data.objects.get(*data).symbol.as_ref();
-            format!(
-                "write runtime-frame string offset {byte_offset} data `{data_symbol}` len {byte_length}"
-            )
-        }
-        SelectedInstructionKind::WriteRuntimePointeeString {
-            pointer_byte_offset,
-            field_byte_offset,
-            data,
-            byte_length,
-        } => {
-            let data_symbol = backend_plan.data.objects.get(*data).symbol.as_ref();
-            format!(
-                "write runtime pointee string runtime_frame@{pointer_byte_offset} +{field_byte_offset} data `{data_symbol}` len {byte_length}"
-            )
-        }
-        SelectedInstructionKind::WriteRuntimePointeeBoundedBuffer {
-            pointer_byte_offset,
-            field_byte_offset,
-            literal,
-        } => format!(
-            "write runtime pointee bounded buffer runtime_frame@{pointer_byte_offset} +{field_byte_offset} {literal:?}"
-        ),
-        SelectedInstructionKind::WriteRuntimeFrameIndexedString {
-            descriptor_offset,
-            index_offset,
-            element_byte_size,
-            field_byte_offset,
-            data,
-            byte_length,
-        } => {
-            let data_symbol = backend_plan.data.objects.get(*data).symbol.as_ref();
-            format!(
-                "write runtime-frame indexed string descriptor@{descriptor_offset} index@{index_offset} elem {element_byte_size} field +{field_byte_offset} data `{data_symbol}` len {byte_length}"
-            )
-        }
-        SelectedInstructionKind::WriteRuntimeMachineIndexedString {
-            base_byte_offset,
-            index_offset,
-            element_byte_size,
-            field_byte_offset,
-            data,
-            byte_length,
-        } => {
-            let data_symbol = backend_plan.data.objects.get(*data).symbol.as_ref();
-            format!(
-                "write runtime-machine indexed string machine@{base_byte_offset} index@{index_offset} elem {element_byte_size} field +{field_byte_offset} data `{data_symbol}` len {byte_length}"
-            )
-        }
-        SelectedInstructionKind::WriteRuntimeStorageAddressToRuntimeFrame {
-            source_region,
-            source_offset,
-            target_offset,
-        } => {
-            let source_symbol =
-                storage_region_symbol_name(*source_region, backend_plan.entry_machine_name());
-            format!(
-                "write runtime-frame pointer @{target_offset} = &{source_symbol}@{source_offset}"
-            )
-        }
-        SelectedInstructionKind::WriteRuntimePointeeAddressToRuntimeFrame {
-            pointer_byte_offset,
-            field_byte_offset,
-            target_offset,
-        } => format!(
-            "write runtime-frame pointer @{target_offset} = *(runtime_frame@{pointer_byte_offset}) +{field_byte_offset}"
-        ),
-        SelectedInstructionKind::WriteRuntimeFrameIndexedAddressToRuntimeFrame {
-            descriptor_offset,
-            index_offset,
-            index_region,
-            element_byte_size,
-            field_byte_offset,
-            target_offset,
-        } => format!(
-            "write runtime-frame pointer @{target_offset} = &(*runtime_frame@{descriptor_offset})[{index_region:?}@{index_offset} * {element_byte_size}] +{field_byte_offset}"
-        ),
-        SelectedInstructionKind::WriteRuntimeFrameFixedIndexedAddressToRuntimeFrame {
-            descriptor_offset,
-            element_index,
-            element_byte_size,
-            field_byte_offset,
-            target_offset,
-        } => format!(
-            "write runtime-frame pointer @{target_offset} = &(runtime_frame@{descriptor_offset}[{element_index} * {element_byte_size}]) +{field_byte_offset}"
-        ),
-        SelectedInstructionKind::WriteRuntimeFrameBaseIndexedAddressToRuntimeFrame {
-            base_byte_offset,
-            index_offset,
-            element_byte_size,
-            field_byte_offset,
-            target_offset,
-        } => format!(
-            "write runtime-frame pointer @{target_offset} = &(runtime_frame@{base_byte_offset}[runtime_frame@{index_offset} * {element_byte_size}]) +{field_byte_offset}"
-        ),
-        SelectedInstructionKind::WriteRuntimeMachineIndexedAddressToRuntimeFrame {
-            base_byte_offset,
-            index_offset,
-            index_region,
-            element_byte_size,
-            field_byte_offset,
-            target_offset,
-        } => format!(
-            "write runtime-frame pointer @{target_offset} = &(machine@{base_byte_offset}[{index_region:?}@{index_offset} * {element_byte_size}]) +{field_byte_offset}"
         ),
         SelectedInstructionKind::ReadRuntimeTextLine {
             buffer,
@@ -967,86 +594,65 @@ fn selected_instruction_name(
                 target.steps()
             )
         }
-        SelectedInstructionKind::CopyRuntimeMachineIndexedToRuntimeMachineIndexed {
-            source_base_byte_offset,
-            source_index_offset,
-            source_index_region,
-            source_element_byte_size,
-            source_field_byte_offset,
-            target_base_byte_offset,
-            target_index_offset,
-            target_index_region,
-            target_element_byte_size,
-            target_field_byte_offset,
-            byte_count,
-        } => {
-            format!(
-                "copy runtime-machine indexed base@{source_base_byte_offset} index@{source_index_offset}({source_index_region:?}) elem {source_element_byte_size} field +{source_field_byte_offset} -> runtime-machine indexed base@{target_base_byte_offset} index@{target_index_offset}({target_index_region:?}) elem {target_element_byte_size} field +{target_field_byte_offset} bytes {byte_count}"
-            )
-        }
-        SelectedInstructionKind::CopyRuntimeMachineDoubleIndexedToRuntimeStorage {
-            base_byte_offset,
-            outer_index_offset,
-            outer_index_region,
-            outer_stride,
-            inner_index_offset,
-            inner_index_region,
-            inner_stride,
-            field_byte_offset,
-            target_region,
-            target_offset,
-            byte_count,
-        } => {
-            format!(
-                "copy runtime-machine double-indexed base@{base_byte_offset} outer@{outer_index_offset}({outer_index_region:?})*{outer_stride} inner@{inner_index_offset}({inner_index_region:?})*{inner_stride} field +{field_byte_offset} -> {target_region:?}@{target_offset} bytes {byte_count}"
-            )
-        }
-        SelectedInstructionKind::CopyRuntimeFrameBaseDoubleIndexedToRuntimeStorage {
-            base_byte_offset,
-            outer_index_offset,
-            outer_stride,
-            inner_index_offset,
-            inner_stride,
-            field_byte_offset,
-            target_region,
-            target_offset,
-            byte_count,
-        } => {
-            format!(
-                "copy runtime-frame-base double-indexed base@{base_byte_offset} outer@{outer_index_offset}*{outer_stride} inner@{inner_index_offset}*{inner_stride} field +{field_byte_offset} -> {target_region:?}@{target_offset} bytes {byte_count}"
-            )
-        }
-        SelectedInstructionKind::CopyRuntimeStorageToRuntimeMachineDoubleIndexed {
-            source_region,
-            source_offset,
-            base_byte_offset,
-            outer_index_offset,
-            outer_index_region,
-            outer_stride,
-            inner_index_offset,
-            inner_index_region,
-            inner_stride,
-            field_byte_offset,
-            byte_count,
-        } => {
-            format!(
-                "copy runtime storage {source_region:?}@{source_offset} -> runtime-machine double-indexed base@{base_byte_offset} outer@{outer_index_offset}({outer_index_region:?})*{outer_stride} inner@{inner_index_offset}({inner_index_region:?})*{inner_stride} field +{field_byte_offset} bytes {byte_count}"
-            )
-        }
-        SelectedInstructionKind::WriteRuntimeMachineDoubleIndexedInteger {
-            base_byte_offset,
-            outer_index_offset,
-            outer_index_region,
-            outer_stride,
-            inner_index_offset,
-            inner_index_region,
-            inner_stride,
-            field_byte_offset,
-            byte_size,
+        SelectedInstructionKind::WritePlaceInteger {
+            target,
             value,
+            byte_size,
         } => {
+            let target_symbol =
+                storage_region_symbol_name(target.region, backend_plan.entry_machine_name());
             format!(
-                "write int {value} ({byte_size}b) -> runtime-machine double-indexed base@{base_byte_offset} outer@{outer_index_offset}({outer_index_region:?})*{outer_stride} inner@{inner_index_offset}({inner_index_region:?})*{inner_stride} field +{field_byte_offset}"
+                "write place integer {value} ({byte_size}b) -> {target_symbol}{:?}",
+                target.steps()
+            )
+        }
+        SelectedInstructionKind::WritePlaceString {
+            target,
+            data,
+            byte_length,
+        } => {
+            let target_symbol =
+                storage_region_symbol_name(target.region, backend_plan.entry_machine_name());
+            let data_symbol = backend_plan.data.objects.get(*data).symbol.as_ref();
+            format!(
+                "write place string data `{data_symbol}` len {byte_length} -> {target_symbol}{:?}",
+                target.steps()
+            )
+        }
+        SelectedInstructionKind::WritePlaceAddress {
+            source,
+            target_offset,
+        } => {
+            let source_symbol =
+                storage_region_symbol_name(source.region, backend_plan.entry_machine_name());
+            format!(
+                "write place address &{source_symbol}{:?} -> frame[{target_offset}]",
+                source.steps()
+            )
+        }
+        SelectedInstructionKind::WritePlaceBoundedBuffer { target, literal } => {
+            let target_symbol =
+                storage_region_symbol_name(target.region, backend_plan.entry_machine_name());
+            format!(
+                "write place bounded buffer {literal:?} -> {target_symbol}{:?}",
+                target.steps()
+            )
+        }
+        SelectedInstructionKind::WritePlaceBinary {
+            target,
+            byte_size,
+            left,
+            operator,
+            right,
+            is_float,
+            domain,
+            target_signed,
+        } => {
+            let target_symbol =
+                storage_region_symbol_name(target.region, backend_plan.entry_machine_name());
+            format!(
+                "write place binary {left:?} {operator:?} {right:?} ({byte_size}b, float {is_float}, {domain:?}, signed {target_signed}) -> {target_symbol}{:?}",
+                target.steps()
             )
         }
         SelectedInstructionKind::SetDispatchState { dispatch_index } => {

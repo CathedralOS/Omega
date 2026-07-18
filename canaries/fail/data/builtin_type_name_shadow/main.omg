@@ -1,0 +1,13 @@
+// BUILTIN-NAME SHADOW FENCE (2026-07-16): `Int` is a builtin type name
+// (with UInt/Real/bool/i32/...); type lookup searches BuiltinType before
+// Data, so this definition would be silently ORPHANED -- every reference
+// binds to the builtin, and contracts over it stand down unvalidated.
+// The declaration must refuse.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine Main::main(&mut self) { self.console.exit_process(70); }
+
+data Int {
+    high: u64;
+    low: u64;
+}

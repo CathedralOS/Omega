@@ -9,7 +9,13 @@ pub struct DataDefinition {
     pub name: Identifier,
     pub type_parameters: HandleSpan<TypeParameter>,
     pub properties: DataProperties,
-    pub default_domain: HandleSpan<crate::domain::ProofFact>,
+    /// R2 rung 2 slice 2 (ch12): the ADMITTED zero-satisfying
+    /// default-domain facts, copied from the resolved record. INERT until
+    /// rung 3 wires entailment hypotheses + write obligations ATOMICALLY.
+    pub where_facts: HandleSpan<crate::domain::ProofFact>,
+    /// R2 rung 2b: zero violates the default domain (copied; see the
+    /// resolved record).
+    pub zero_gated: bool,
     pub members: HandleSpan<DataMember>,
 }
 
@@ -20,7 +26,8 @@ impl Default for DataDefinition {
             name: Identifier::default(),
             type_parameters: HandleSpan::empty(),
             properties: DataProperties::default(),
-            default_domain: HandleSpan::empty(),
+            where_facts: HandleSpan::empty(),
+            zero_gated: false,
             members: HandleSpan::empty(),
         }
     }
@@ -34,6 +41,10 @@ pub struct DataProperties {
     pub copy: bool,
     pub zero_init: bool,
     pub send: bool,
+    /// STR3: the first-class usage model (`[copy]` -> Unrestricted,
+    /// ordinary data -> Affine, `[linear]` -> Linear). `copy` survives as the
+    /// compatibility bool until STR7 retires it.
+    pub multiplicity: omega_core::semantics::Multiplicity,
 }
 
 impl DataDefinition {
@@ -106,6 +117,11 @@ pub enum TypeParameterKind {
     Const {
         type_reference: TypeReferenceHandle,
     },
+    /// Static machine-symbol parameter and the declaration-site contract
+    /// against which generic bodies and later instantiations are checked.
+    Machine {
+        contract: crate::signature::StateSignature,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -113,7 +129,6 @@ pub struct DataField {
     pub symbol: SymbolHandle,
     pub name: Identifier,
     pub type_reference: TypeReferenceHandle,
-    pub initial_value: crate::expression::ExpressionHandle,
 }
 
 impl Default for DataField {
@@ -122,7 +137,6 @@ impl Default for DataField {
             symbol: SymbolHandle::invalid(),
             name: Identifier::default(),
             type_reference: TypeReferenceHandle::invalid(),
-            initial_value: crate::expression::ExpressionHandle::invalid(),
         }
     }
 }

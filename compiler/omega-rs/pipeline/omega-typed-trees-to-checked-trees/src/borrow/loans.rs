@@ -1,7 +1,7 @@
+use crate::context::*;
 use crate::borrow::view_link::{
     ViewReturnSource, is_borrow_carrying_data, resolve_view_return_source,
 };
-use crate::context::*;
 use crate::semantic_calls::find_state;
 
 use super::accesses::{self, borrow_access_place};
@@ -9,127 +9,6 @@ use super::tracker::StateLoanTracker;
 mod types;
 
 use types::{is_mutable_reference_type, is_reference_type};
-
-pub(super) fn dependent_witness_loan_places(
-    program: &omega_typed_trees::TypedTrees,
-    borrowed: &accesses::BorrowAccessPlace,
-) -> Vec<accesses::BorrowAccessPlace> {
-    let borrowed_field = borrowed
-        .segments
-        .last()
-        .and_then(|segment| match segment {
-            omega_facts::PlaceSegment::Field { symbol } => Some(*symbol),
-            omega_facts::PlaceSegment::Index { .. } => None,
-        })
-        .unwrap_or(borrowed.root_symbol);
-    if !borrowed_field.is_valid() {
-        return Vec::new();
-    }
-    let data_symbol = program.symbols.get(borrowed_field).parent;
-    let Some(data_definition) = program
-        .data_definitions()
-        .iter()
-        .find(|data| data.symbol == data_symbol)
-    else {
-        return Vec::new();
-    };
-    let mut witness_symbols = Vec::new();
-    for fact in program
-        .proof_facts
-        .span_or_empty(data_definition.default_domain)
-    {
-        let expression = match fact {
-            omega_typed_trees::domain::ProofFact::Expression(expression) => *expression,
-            omega_typed_trees::domain::ProofFact::Membership(membership) => membership.value,
-        };
-        collect_default_domain_name_symbols(program, expression, &mut witness_symbols);
-    }
-    witness_symbols.sort_by_key(|symbol| symbol.arena_index());
-    witness_symbols.dedup();
-    witness_symbols.retain(|symbol| *symbol != borrowed_field && symbol.is_valid());
-
-    witness_symbols
-        .into_iter()
-        .map(|witness_symbol| {
-            if borrowed.segments.is_empty() {
-                accesses::BorrowAccessPlace {
-                    root_symbol: witness_symbol,
-                    segments: Vec::new(),
-                }
-            } else {
-                let mut segments = borrowed.segments.clone();
-                *segments
-                    .last_mut()
-                    .expect("borrowed place has a last segment") =
-                    omega_facts::PlaceSegment::Field {
-                        symbol: witness_symbol,
-                    };
-                accesses::BorrowAccessPlace {
-                    root_symbol: borrowed.root_symbol,
-                    segments,
-                }
-            }
-        })
-        .collect()
-}
-
-fn collect_default_domain_name_symbols(
-    program: &omega_typed_trees::TypedTrees,
-    expression: ExpressionHandle,
-    symbols: &mut Vec<SymbolHandle>,
-) {
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Name(path) => symbols.push(path.symbol),
-        ExpressionNode::ArrayLiteral(values) => {
-            for value in program.expression_table.expression_handles(*values) {
-                collect_default_domain_name_symbols(program, *value, symbols);
-            }
-        }
-        ExpressionNode::Binary(binary) => {
-            collect_default_domain_name_symbols(program, binary.left, symbols);
-            collect_default_domain_name_symbols(program, binary.right, symbols);
-        }
-        ExpressionNode::Call(call) => {
-            if call.receiver.is_valid() {
-                collect_default_domain_name_symbols(program, call.receiver, symbols);
-            }
-            for argument in program.expression_table.expression_handles(call.arguments) {
-                collect_default_domain_name_symbols(program, *argument, symbols);
-            }
-        }
-        ExpressionNode::Indexed(indexed) => {
-            collect_default_domain_name_symbols(program, indexed.collection, symbols);
-            collect_default_domain_name_symbols(program, indexed.index, symbols);
-        }
-        ExpressionNode::Member(member) => {
-            collect_default_domain_name_symbols(program, member.receiver, symbols);
-        }
-        ExpressionNode::Mutable(inner) => {
-            collect_default_domain_name_symbols(program, *inner, symbols);
-        }
-        ExpressionNode::Range(range) => {
-            if range.start.is_valid() {
-                collect_default_domain_name_symbols(program, range.start, symbols);
-            }
-            if range.end.is_valid() {
-                collect_default_domain_name_symbols(program, range.end, symbols);
-            }
-        }
-        ExpressionNode::StructLiteral(literal) => {
-            for field in program.expression_table.struct_fields(literal.fields) {
-                collect_default_domain_name_symbols(program, field.value, symbols);
-            }
-        }
-        ExpressionNode::Unary(unary) => {
-            collect_default_domain_name_symbols(program, unary.operand, symbols);
-        }
-        ExpressionNode::Boolean(_)
-        | ExpressionNode::Cast(_)
-        | ExpressionNode::Float(_)
-        | ExpressionNode::Integer(_)
-        | ExpressionNode::String(_) => {}
-    }
-}
 
 pub(super) fn statement_borrow_loan(
     program: &omega_typed_trees::TypedTrees,
@@ -241,9 +120,8 @@ fn borrow_carrying_data_loan(
     SymbolHandle,
     omega_checked_trees::BorrowAccessKind,
 )> {
-    let ExpressionNode::StructLiteral(literal) = program
-        .expression_table
-        .expression(local_data.initial_value)
+    let ExpressionNode::StructLiteral(literal) =
+        program.expression_table.expression(local_data.initial_value)
     else {
         return None;
     };

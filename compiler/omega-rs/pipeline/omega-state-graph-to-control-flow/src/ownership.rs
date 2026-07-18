@@ -1,11 +1,14 @@
 use omega_control_flow::{
     StateDropEvent, StateMoveEvent, StateOwnershipEventSource, StateOwnershipSummary,
+    StatePermissionEvent,
 };
 use omega_core::arena::Arena;
 use omega_state_graph::StateGraph;
 
 use crate::arena_remap::remap_arena;
-use crate::handles::{remap_drop_event_span, remap_move_event_span};
+use crate::handles::{
+    remap_drop_event_span, remap_move_event_span, remap_permission_event_span,
+};
 
 pub(crate) fn remap_move_event_owned(event: omega_state_graph::StateMoveEvent) -> StateMoveEvent {
     StateMoveEvent {
@@ -37,12 +40,35 @@ pub(crate) fn remap_drop_events(state_graph: &StateGraph) -> Arena<StateDropEven
     )
 }
 
+pub(crate) fn remap_permission_event_owned(
+    event: omega_state_graph::StatePermissionEvent,
+) -> StatePermissionEvent {
+    StatePermissionEvent {
+        source: event.source,
+        kind: event.kind,
+        multiplicity: event.multiplicity,
+        access: event.access,
+        provenance: event.provenance,
+        root: event.root,
+        segments: event.segments,
+        obligation_live: event.obligation_live,
+    }
+}
+
+pub(crate) fn remap_permission_events(state_graph: &StateGraph) -> Arena<StatePermissionEvent> {
+    remap_arena(
+        &state_graph.semantics.ownership.permissions,
+        remap_permission_event_owned,
+    )
+}
+
 pub(crate) fn remap_ownership_summary(
     summary: &omega_state_graph::StateOwnershipSummary,
 ) -> StateOwnershipSummary {
     StateOwnershipSummary {
         moves: remap_move_event_span(summary.moves),
         drops: remap_drop_event_span(summary.drops),
+        permissions: remap_permission_event_span(summary.permissions),
     }
 }
 

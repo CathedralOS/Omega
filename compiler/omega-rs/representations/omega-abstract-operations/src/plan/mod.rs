@@ -22,7 +22,7 @@ mod tests {
             operands: Arena::with_capacity(3),
             runtime_value_operands: Arena::with_capacity(4),
         };
-        let semantics = AbstractSemanticSummary::with_capacity(5, 6, 7, 8, 9, 10);
+        let semantics = AbstractSemanticSummary::with_capacity(5, 6, 7, 8, 9, 10, 11);
 
         let plan = AbstractOperationPlan::with_roots(code.clone(), semantics.clone());
 

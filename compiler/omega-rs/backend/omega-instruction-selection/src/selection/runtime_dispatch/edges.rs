@@ -444,12 +444,12 @@ fn select_runtime_dispatch_call_result_return(
         static_runtime_argument_value(input.control_flow.expressions.expression(value_expr))
     {
         selected_instructions.push(SelectedInstruction {
-            kind: SelectedInstructionKind::WriteRuntimeStorageInteger {
+            kind: crate::selection::runtime_dispatch::write_place_integer_direct(
                 target_region,
-                byte_offset: target_offset,
-                byte_size,
+                target_offset,
                 value,
-            },
+                byte_size,
+            ),
             source_key,
             source_statement: edge.statement_index,
         });
@@ -469,12 +469,12 @@ fn select_runtime_dispatch_call_result_return(
             literal.value().to_bits() as i64
         };
         selected_instructions.push(SelectedInstruction {
-            kind: SelectedInstructionKind::WriteRuntimeStorageInteger {
+            kind: crate::selection::runtime_dispatch::write_place_integer_direct(
                 target_region,
-                byte_offset: target_offset,
-                byte_size,
+                target_offset,
                 value,
-            },
+                byte_size,
+            ),
             source_key,
             source_statement: edge.statement_index,
         });
@@ -629,12 +629,12 @@ fn zero_slot(
             _ => 1,
         };
         selected_instructions.push(SelectedInstruction {
-            kind: SelectedInstructionKind::WriteRuntimeStorageInteger {
+            kind: crate::selection::runtime_dispatch::write_place_integer_direct(
                 target_region,
-                byte_offset: target_offset + zeroed,
-                byte_size: step,
-                value: 0,
-            },
+                target_offset + zeroed,
+                0,
+                step,
+            ),
             source_key,
             source_statement: statement_index,
         });
@@ -778,12 +778,12 @@ fn select_dispatch_case_literal_terminal_return(
             selected_instructions,
         );
         selected_instructions.push(SelectedInstruction {
-            kind: SelectedInstructionKind::WriteRuntimeStorageInteger {
+            kind: crate::selection::runtime_dispatch::write_place_integer_direct(
                 target_region,
-                byte_offset: target_offset,
-                byte_size: omega_layout::ENUM_TAG_BYTES,
-                value: tag,
-            },
+                target_offset,
+                tag,
+                omega_layout::ENUM_TAG_BYTES,
+            ),
             source_key,
             source_statement: edge.statement_index,
         });
@@ -860,12 +860,12 @@ fn select_dispatch_case_literal_terminal_return(
     );
     if let Some(tag) = tag {
         selected_instructions.push(SelectedInstruction {
-            kind: SelectedInstructionKind::WriteRuntimeStorageInteger {
+            kind: crate::selection::runtime_dispatch::write_place_integer_direct(
                 target_region,
-                byte_offset: target_offset,
-                byte_size: omega_layout::ENUM_TAG_BYTES,
-                value: tag,
-            },
+                target_offset,
+                tag,
+                omega_layout::ENUM_TAG_BYTES,
+            ),
             source_key,
             source_statement: edge.statement_index,
         });
@@ -874,12 +874,12 @@ fn select_dispatch_case_literal_terminal_return(
         match write {
             FieldWrite::Integer(offset, size, value) => {
                 selected_instructions.push(SelectedInstruction {
-                    kind: SelectedInstructionKind::WriteRuntimeStorageInteger {
+                    kind: crate::selection::runtime_dispatch::write_place_integer_direct(
                         target_region,
-                        byte_offset: target_offset + offset,
-                        byte_size: size,
+                        target_offset + offset,
                         value,
-                    },
+                        size,
+                    ),
                     source_key,
                     source_statement: edge.statement_index,
                 });
@@ -1040,12 +1040,12 @@ fn select_dispatch_binary_terminal_return(
                 folded.to_bits() as i64
             };
             selected_instructions.push(SelectedInstruction {
-                kind: SelectedInstructionKind::WriteRuntimeStorageInteger {
+                kind: crate::selection::runtime_dispatch::write_place_integer_direct(
                     target_region,
-                    byte_offset: target_offset,
-                    byte_size,
+                    target_offset,
                     value,
-                },
+                    byte_size,
+                ),
                 source_key,
                 source_statement: edge.statement_index,
             });
@@ -1068,12 +1068,12 @@ fn select_dispatch_binary_terminal_return(
             _ => return false,
         };
         selected_instructions.push(SelectedInstruction {
-            kind: SelectedInstructionKind::WriteRuntimeStorageInteger {
+            kind: crate::selection::runtime_dispatch::write_place_integer_direct(
                 target_region,
-                byte_offset: target_offset,
+                target_offset,
+                folded,
                 byte_size,
-                value: folded,
-            },
+            ),
             source_key,
             source_statement: edge.statement_index,
         });
@@ -1113,7 +1113,7 @@ fn select_dispatch_binary_terminal_return(
     let left = runtime_value_operands.insert(left_operand);
     let right = runtime_value_operands.insert(right_operand);
     selected_instructions.push(SelectedInstruction {
-        kind: SelectedInstructionKind::WriteRuntimeStorageBinary {
+        kind: crate::selection::runtime_dispatch::write_place_binary_direct(
             target_region,
             target_offset,
             byte_size,
@@ -1122,8 +1122,8 @@ fn select_dispatch_binary_terminal_return(
             right,
             is_float,
             domain,
-            target_signed: !is_float && is_signed,
-        },
+            !is_float && is_signed,
+        ),
         source_key,
         source_statement: edge.statement_index,
     });
@@ -1304,18 +1304,18 @@ fn select_dispatch_guard_instructions(
                     && clause.has_storage
                     && clause.has_right_storage
                 {
-                    SelectedInstructionKind::CompareRuntimeStorage {
-                        left_region: guard_storage_region(clause.storage),
-                        left_offset: clause.byte_offset,
-                        right_region: guard_storage_region(clause.right_storage),
-                        right_offset: clause.right_byte_offset,
-                        byte_size: clause.byte_size,
+                    crate::selection::runtime_dispatch::compare_places_direct(
+                        guard_storage_region(clause.storage),
+                        clause.byte_offset,
+                        guard_storage_region(clause.right_storage),
+                        clause.right_byte_offset,
+                        clause.byte_size,
                         operator,
                         // Place-vs-place float conjuncts stay a follow-on; the
                         // clause carries float-kindedness for constant-float
                         // compares.
-                        is_float: clause.is_float,
-                    }
+                        clause.is_float,
+                    )
                 } else {
                     SelectedInstructionKind::EvaluateDispatchGuard {
                         guard_lowering: clause.lowering,
@@ -1415,15 +1415,15 @@ fn select_dispatch_guard_instructions(
         StateGuardLowering::CompareRuntimeValue
             if edge.guard_has_storage && edge.guard_has_right_storage =>
         {
-            SelectedInstructionKind::CompareRuntimeStorage {
-                left_region: guard_storage_region(edge.guard_storage),
-                left_offset: edge.guard_byte_offset,
-                right_region: guard_storage_region(edge.guard_right_storage),
-                right_offset: edge.guard_right_byte_offset,
-                byte_size: edge.guard_byte_size,
+            crate::selection::runtime_dispatch::compare_places_direct(
+                guard_storage_region(edge.guard_storage),
+                edge.guard_byte_offset,
+                guard_storage_region(edge.guard_right_storage),
+                edge.guard_right_byte_offset,
+                edge.guard_byte_size,
                 operator,
                 is_float,
-            }
+            )
         }
         _ => SelectedInstructionKind::EvaluateDispatchGuard {
             guard_lowering: edge.guard_lowering,

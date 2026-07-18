@@ -351,12 +351,19 @@ fn select_runtime_branch_prelude_local_initializer_write(
         // kind stays: indexed/descriptor reads (fixed_vec's
         // `cells[index]` through the prelude-bound descriptor) and plain
         // copies have no splice equivalent here, and none of them trap.
-        let splice_covered_plain_write = matches!(
-            kind,
-            SelectedInstructionKind::WriteRuntimeStorageInteger { .. }
-                | SelectedInstructionKind::WriteRuntimeStorageBinary { .. }
-                | SelectedInstructionKind::WriteRuntimeStorageConvert { .. }
-        );
+        let splice_covered_plain_write = match kind {
+            SelectedInstructionKind::WriteRuntimeStorageConvert { .. } => true,
+            // Write rung 2b: the plain integer write rides WritePlaceInteger
+            // now; only the DIRECT place shape is the splice-covered plain
+            // write (deref/indexed shapes have no splice equivalent here).
+            SelectedInstructionKind::WritePlaceInteger { target, .. } => {
+                target.const_offset().is_some()
+            }
+            SelectedInstructionKind::WritePlaceBinary { target, .. } => {
+                target.const_offset().is_some()
+            }
+            _ => false,
+        };
         if expansion.role == omega_state_calls::StateCallRole::TransitionGuard
             || !splice_covered_plain_write
         {

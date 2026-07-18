@@ -1,0 +1,11 @@
+// D14 literal-width gate: a u64-magnitude literal in transition-argument
+// position is only blessed when the TARGET parameter is u64-classed; a u32
+// param keeps the loud rejection (Fire H's negative face).
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine Main::main(&mut self) {
+    transition { _ -> fwd(18446744073709551614) }
+    state fwd(&mut self, n: u32) {
+        self.console.exit_process(70);
+    }
+}

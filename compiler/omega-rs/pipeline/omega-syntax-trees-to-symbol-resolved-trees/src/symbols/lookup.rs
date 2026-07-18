@@ -7,7 +7,6 @@ pub(super) fn top_level_type_symbol(symbols: &SymbolTable, name: &str) -> Symbol
             SymbolKind::BuiltinType,
             SymbolKind::Data,
             SymbolKind::Machine,
-            SymbolKind::Platform,
             SymbolKind::Trait,
             SymbolKind::Invariant,
         ],

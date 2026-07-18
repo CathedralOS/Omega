@@ -8,7 +8,7 @@ boundary trait Console {
 
 data Main {
     console: Console;
-    return_code: i32 = 1;
+    return_code: i32;
 }
 
 machine Main::main(&mut self) {

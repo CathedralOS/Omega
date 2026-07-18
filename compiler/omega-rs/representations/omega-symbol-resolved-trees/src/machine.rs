@@ -13,6 +13,29 @@ pub struct Machine {
     pub name: DiagnosticName,
     pub attached_data: Option<DiagnosticName>,
     pub boundary: bool,
+    /// STR3: the first-class supply mode (`boundary: bool` is the
+    /// compatibility flag until STR7 retires it). Populated at the
+    /// syntax->resolved lowering, copied -- never re-derived -- downstream.
+    /// Requirement/Accepted gain their own sources when their spellings
+    /// reach this record.
+    pub supply_mode: omega_core::semantics::MachineSupplyMode,
+    /// TPR2 (decision 23): the normalized termination plan -- the authored
+    /// PUBLIC guarantee and the PRIVATE ranking witness as separate fields.
+    /// Populated ONCE at the syntax->resolved lowering (bare `terminates;`
+    /// -> published guarantee; `terminates by ...` -> witness subjects +
+    /// explicit view, canonical defaults elaborated where the root-state
+    /// parameter type determines them), copied -- never re-derived --
+    /// downstream. `checked_summary` stays `NoGuarantee` until TPR3's
+    /// migrated cycle checker establishes it. `terminates`/`decreases`/
+    /// `decrease_order` in the storage below remain the compatibility
+    /// shape the current checker consumes until TPR3/TPR6 retire them.
+    pub termination_plan: omega_core::semantics::MachineTerminationPlan,
+    /// STR4 (decision 22): the machine's NORMALIZED effect-row identity
+    /// (into the tree's `effect_rows` table) -- order/duplicate-blind and
+    /// independent of the legacy bits. Populated ONCE at syntax->resolved
+    /// from the flat `effects` span (the compatibility carrier until STR7),
+    /// copied downstream.
+    pub effect_row: omega_core::semantics::EffectRowId,
     pub storage: MachineStorage,
 }
 
@@ -22,38 +45,17 @@ pub struct MachineStorage {
     pub contains: HandleSpan<ContainedObject>,
     pub owned_data: HandleSpan<OwnedData>,
     pub satisfies: HandleSpan<TraitConformance>,
-    pub termination_guarantee: omega_core::termination::TerminationGuarantee,
-    pub ranking_witness: RankingWitness,
+    pub terminates: bool,
+    pub decreases: HandleSpan<ExpressionHandle>,
+    pub decrease_order: HandleSpan<DiagnosticName>,
+    /// TPR3: argumented-view arguments (`-> Nat::IncreasingTo(limit)`).
+    pub decrease_view_arguments: HandleSpan<ExpressionHandle>,
+    /// TPR3: the optional `in <range>` rank constraint (a Range expression;
+    /// invalid = absent). The checker verifies it structurally.
+    pub decrease_range: ExpressionHandle,
     pub effects: HandleSpan<DiagnosticName>,
     pub contracts: HandleSpan<SignatureContract>,
     pub states: HandleSpan<Handle<State>>,
-}
-
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub struct RankingWitness {
-    pub subjects: HandleSpan<ExpressionHandle>,
-    pub view: HandleSpan<DiagnosticName>,
-    pub view_arguments: HandleSpan<ExpressionHandle>,
-    pub range: RankingRange,
-}
-
-impl RankingWitness {
-    pub fn is_present(self) -> bool {
-        !self.subjects.is_empty()
-    }
-}
-
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub struct RankingRange {
-    pub start: ExpressionHandle,
-    pub end: ExpressionHandle,
-    pub end_inclusive: bool,
-}
-
-impl RankingRange {
-    pub fn is_present(self) -> bool {
-        self.start.is_valid() && self.end.is_valid()
-    }
 }
 
 impl Deref for Machine {
@@ -96,6 +98,8 @@ pub struct TraitConformance {
     /// (`as Name`) for plural algebras / signature collisions.
     pub requirement: Option<DiagnosticName>,
     pub alias: Option<DiagnosticName>,
+    /// PRV4: the external leaf's NORMALIZED binding rendering (`via`).
+    pub via: Option<String>,
 }
 
 impl Default for TraitConformance {
@@ -105,6 +109,7 @@ impl Default for TraitConformance {
             name: DiagnosticName::default(),
             requirement: None,
             alias: None,
+            via: None,
         }
     }
 }

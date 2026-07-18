@@ -9,8 +9,8 @@ use crate::item::{
     CapabilityDefinition, CapabilityField, CapabilityMember, CapabilityState, DataDefinition,
     DataField, DataMember, DataVariant, DataVersion, DomainDefinition, HostProviderDefinition,
     HostProviderMapping, Item, ItemHandle, ItemTable, LibraryDefinition, LibraryFunction, Machine,
-    MeasureDefinition, OperatorDefinition, Platform, ProofFact, ProofMembershipFact, State,
-    StateHandle, StateParameterHandle, StateParameterNode, StateSignature, StateSignatureHandle,
+    MeasureDefinition, OperatorDefinition, ProofFact, ProofMembershipFact, State, StateHandle,
+    StateParameterHandle, StateParameterNode, StateSignature, StateSignatureHandle,
     TargetDefinition, TargetHost, TargetHostSetting, TargetHostSettingValue, TraitDefinition,
     TypeParameter, UseItem, WireDataDefinition, WireDataField, WireDataMember, WireDataReserved,
     WireDataVersion,
@@ -101,7 +101,6 @@ impl SyntaxTrees {
     fn insert_item(&mut self, item: Item) -> ItemHandle {
         match &item {
             Item::Machine(machine) => self.insert_machine(machine),
-            Item::Platform(platform) => self.insert_platform(platform),
             Item::Trait(trait_definition) => self.insert_trait_definition(trait_definition),
             Item::Capability(_)
             | Item::Conformance(_)
@@ -127,10 +126,6 @@ impl SyntaxTrees {
 
     fn insert_machine(&mut self, machine: &Machine) {
         self.items.insert_machine(machine);
-    }
-
-    fn insert_platform(&mut self, platform: &Platform) {
-        self.items.insert_platform(platform);
     }
 
     fn insert_trait_definition(&mut self, trait_definition: &TraitDefinition) {
@@ -201,7 +196,6 @@ impl SyntaxTrees {
                 path: self.copy_item_identifier_span(other, use_item.path),
             }),
             Item::Machine(machine) => Item::Machine(self.copy_machine(other, machine)),
-            Item::Platform(platform) => Item::Platform(self.copy_platform(other, platform)),
             Item::Trait(trait_definition) => {
                 Item::Trait(self.copy_trait_definition(other, trait_definition))
             }
@@ -232,7 +226,7 @@ impl SyntaxTrees {
             name: data.name.clone(),
             type_parameters: self.copy_type_parameter_span(other, data.type_parameters),
             properties: data.properties,
-            default_domain: self.copy_domain_fact_span(other, data.default_domain),
+            where_facts: self.copy_domain_fact_span(other, data.where_facts),
             members: self.copy_data_member_span(other, data.members),
         }
     }
@@ -318,41 +312,27 @@ impl SyntaxTrees {
             attached_data: machine.attached_data.clone(),
             target: machine.target.clone(),
             boundary: machine.boundary,
+            bodyless: machine.bodyless,
             type_parameters: self.copy_type_parameter_span(other, machine.type_parameters),
             satisfies: self.copy_mapped_span(
                 other.items.satisfies_clauses(machine.satisfies).to_vec(),
                 |_, clause| clause,
                 |this, clause| this.items.append_satisfies_clause(clause),
             ),
-            termination_guarantee: machine.termination_guarantee,
-            ranking_witness: self.copy_ranking_witness(other, machine.ranking_witness),
+            terminates: machine.terminates,
+            terminates_guarantee: machine.terminates_guarantee,
+            decreases: self.copy_expression_handle_list(other, machine.decreases),
+            decrease_order: self.copy_item_identifier_span(other, machine.decrease_order),
+            decrease_view_arguments: self
+                .copy_expression_handle_list(other, machine.decrease_view_arguments),
+            decrease_range: if machine.decrease_range.is_valid() {
+                self.copy_expression_handle(other, machine.decrease_range)
+            } else {
+                crate::expression::ExpressionHandle::invalid()
+            },
             effects: self.copy_item_identifier_span(other, machine.effects),
             contracts: self.copy_capability_contract_span(other, machine.contracts),
             states: self.copy_state_handle_span(other, machine.states),
-        }
-    }
-
-    fn copy_ranking_witness(
-        &mut self,
-        other: &SyntaxTrees,
-        witness: crate::item::RankingWitnessSyntax,
-    ) -> crate::item::RankingWitnessSyntax {
-        crate::item::RankingWitnessSyntax {
-            subjects: self.copy_expression_handle_list(other, witness.subjects),
-            view: self.copy_item_identifier_span(other, witness.view),
-            view_arguments: self.copy_expression_handle_list(other, witness.view_arguments),
-            range: crate::item::RankingRangeSyntax {
-                start: self.copy_expression_handle(other, witness.range.start),
-                end: self.copy_expression_handle(other, witness.range.end),
-                end_inclusive: witness.range.end_inclusive,
-            },
-        }
-    }
-
-    fn copy_platform(&mut self, other: &SyntaxTrees, platform: &Platform) -> Platform {
-        Platform {
-            name: platform.name.clone(),
-            states: self.copy_state_signature_handle_span(other, platform.states),
         }
     }
 
@@ -416,8 +396,30 @@ impl SyntaxTrees {
         other: &SyntaxTrees,
         span: HandleSpan<TypeParameter>,
     ) -> HandleSpan<TypeParameter> {
-        self.copy_span(
-            other.items.type_parameters(span).iter().cloned(),
+        self.copy_mapped_span(
+            other.items.type_parameters(span).to_vec(),
+            |this, parameter| {
+                let kind = match &parameter.kind {
+                    crate::item::TypeParameterKind::Type => crate::item::TypeParameterKind::Type,
+                    crate::item::TypeParameterKind::Const { type_reference } => {
+                        crate::item::TypeParameterKind::Const {
+                            type_reference: this.copy_type_reference_handle(other, *type_reference),
+                        }
+                    }
+                    crate::item::TypeParameterKind::Machine { contract } => {
+                        crate::item::TypeParameterKind::Machine {
+                            contract: contract
+                                .as_ref()
+                                .map(|contract| this.copy_state_signature_value(other, contract)),
+                        }
+                    }
+                };
+                TypeParameter {
+                    name: parameter.name.clone(),
+                    kind,
+                    bounds: parameter.bounds,
+                }
+            },
             |this, parameter| this.items.append_type_parameter(parameter),
         )
     }
@@ -518,7 +520,6 @@ impl SyntaxTrees {
                 DataMember::Field(field) => DataMember::Field(DataField {
                     name: field.name.clone(),
                     type_reference: this.copy_type_reference_handle(other, field.type_reference),
-                    initial_value: this.copy_expression_handle(other, field.initial_value),
                 }),
                 DataMember::Variant(variant) => DataMember::Variant(DataVariant {
                     name: variant.name.clone(),
@@ -543,7 +544,6 @@ impl SyntaxTrees {
             |this, field| DataField {
                 name: field.name.clone(),
                 type_reference: this.copy_type_reference_handle(other, field.type_reference),
-                initial_value: this.copy_expression_handle(other, field.initial_value),
             },
             |this, field| this.items.append_data_payload_field(field),
         )
@@ -721,10 +721,9 @@ impl SyntaxTrees {
             is_default: signature.is_default,
             parameters: self.copy_state_parameter_handle_span(other, signature.parameters),
             return_type: self.copy_type_reference_handle(other, signature.return_type),
-            termination_guarantee: signature.termination_guarantee,
-            ranking_witness: self.copy_ranking_witness(other, signature.ranking_witness),
             effects: self.copy_item_identifier_span(other, signature.effects),
             contracts: self.copy_capability_contract_span(other, signature.contracts),
+            terminates_guarantee: signature.terminates_guarantee,
         }
     }
 
@@ -738,10 +737,9 @@ impl SyntaxTrees {
             is_default: signature.is_default,
             parameters: self.copy_state_parameter_handle_span(other, signature.parameters),
             return_type: self.copy_type_reference_handle(other, signature.return_type),
-            termination_guarantee: signature.termination_guarantee,
-            ranking_witness: self.copy_ranking_witness(other, signature.ranking_witness),
             effects: self.copy_item_identifier_span(other, signature.effects),
             contracts: self.copy_capability_contract_span(other, signature.contracts),
+            terminates_guarantee: signature.terminates_guarantee,
         }
     }
 
@@ -812,6 +810,7 @@ impl SyntaxTrees {
                 receiver: self.copy_statement_identifier_span(other, call.receiver),
                 receiver_starts_at_self: call.receiver_starts_at_self,
                 target: call.target.clone(),
+                machine_arguments: call.machine_arguments.clone(),
                 arguments: self.copy_statement_expression_span(other, call.arguments),
                 discards_result: call.discards_result,
             }),
@@ -959,7 +958,6 @@ impl SyntaxTrees {
                 TypeConstraintNode::ArithmeticDomain(domain) => {
                     TypeConstraintNode::ArithmeticDomain(*domain)
                 }
-                TypeConstraintNode::ValueDomain(domain) => TypeConstraintNode::ValueDomain(*domain),
             },
             |this, constraint| this.type_references.append_constraint(constraint),
         )
@@ -988,11 +986,13 @@ impl SyntaxTrees {
                 value: self.copy_expression_handle(other, cast.value),
                 target_type: self.copy_expression_identifier_span(other, cast.target_type),
                 domain: cast.domain,
+                semantic_domain: self.copy_expression_identifier_span(other, cast.semantic_domain),
                 form: cast.form,
             }),
             ExpressionNode::Call(call) => ExpressionNode::Call(TableCallExpression {
                 receiver: self.copy_expression_handle(other, call.receiver),
                 target: call.target.clone(),
+                machine_arguments: call.machine_arguments.clone(),
                 arguments: self.copy_expression_handle_list(other, call.arguments),
             }),
             ExpressionNode::Float(value) => ExpressionNode::Float(value.clone()),

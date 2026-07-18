@@ -27,7 +27,11 @@ machine Main::build(&mut self) {
             _ -> wrong_shr()
         }
     }
-    // Counts are masked at the language width: 40 & 31 = 8 and 70 & 63 = 6.
+    // MASKED-COUNT at-width legs (F8b, ch5 shift-count ruling 2026-07-18):
+    // a Wrapping shift masks its count to `k & (width - 1)` -- the genuinely
+    // modular reading, and what the hardware computes anyway. 1 << 40 at u32
+    // is 1 << 8 = 256; 1 << 70 at u64 is 1 << 6 = 64. (Supersedes the
+    // retired modular-VALUE semantics where at-width counts collapsed to 0.)
     state atwidth32(&mut self) {
         let a: u32 in Wrapping = (1 as u32 in Wrapping);
         let c: u32 in Wrapping = (40 as u32 in Wrapping);

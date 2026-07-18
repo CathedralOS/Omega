@@ -16,22 +16,13 @@ pub(crate) fn build_value_facts(program: &TypedTrees) -> CheckedValueFacts {
     };
 
     for machine in program.machines() {
-        let mut ranking_expressions = program
+        for (ordinal, expression) in program
             .expression_table
-            .expression_handles(machine.ranking_witness.subjects)
-            .to_vec();
-        ranking_expressions.extend_from_slice(
-            program
-                .expression_table
-                .expression_handles(machine.ranking_witness.view_arguments),
-        );
-        if machine.ranking_witness.range.is_present() {
-            ranking_expressions.extend([
-                machine.ranking_witness.range.start,
-                machine.ranking_witness.range.end,
-            ]);
-        }
-        for (ordinal, expression) in ranking_expressions.into_iter().enumerate() {
+            .expression_handles(machine.decreases)
+            .iter()
+            .copied()
+            .enumerate()
+        {
             builder.collect_expression(
                 expression,
                 CheckedValueOrigin::MachineDecrease {
@@ -52,28 +43,6 @@ pub(crate) fn build_value_facts(program: &TypedTrees) -> CheckedValueFacts {
                 );
             }
         }
-        if let Some(attached_data) = machine.attached_data.as_ref()
-            && let Some(data_definition) = program
-                .data_definitions()
-                .iter()
-                .find(|definition| definition.name == *attached_data)
-        {
-            for member in program.data_members(data_definition) {
-                let omega_typed_trees::data::DataMember::Field(field) = member else {
-                    continue;
-                };
-                if field.initial_value.is_valid() {
-                    builder.collect_expression(
-                        field.initial_value,
-                        CheckedValueOrigin::MachineOwnedDataInitializer {
-                            machine_symbol: machine.symbol,
-                            data_symbol: field.symbol,
-                        },
-                    );
-                }
-            }
-        }
-
         for state in program.machine_states(machine) {
             for (statement_index, statement) in program
                 .statement_table

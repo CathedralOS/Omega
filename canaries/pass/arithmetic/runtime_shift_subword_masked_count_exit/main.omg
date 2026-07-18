@@ -1,0 +1,44 @@
+// RUN CANARY (exit 70) + interpreter differential. SUB-WORD Wrapping shifts
+// mask their count at the OPERAND width (F8b, ch5 shift-count ruling:
+// `k & (width - 1)`), which needs the explicit count AND on both ISAs (the
+// register-form shifts only mask mod 32/64 -- aarch64 `and w,#7/#15` before
+// the W-form shift; x86 `and r11d, 7/15` before the cl copy). Counts are
+// chosen to UNIQUELY witness the mask width: 3u8 << 13 masks to << 5 = 96
+// (mask 3 would give 6, mask 15/no-mask 0); 200u8 >> 9 masks to >> 1 = 100
+// (logical); -32768i16 >> 25 masks to >> 9 = -64 (mask 7 would give -16384,
+// no-mask sign-fills to -1).
+// exits: 71 = u8 << not masked; 72 = u8 >> not masked; 73 = i16 >> not
+// masked.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine Main::main(&mut self) {
+    let a: u8 in Wrapping = (3 as u8 in Wrapping);
+    let c: u8 in Wrapping = (13 as u8 in Wrapping);
+    let r: u8 in Wrapping = a << c;
+    transition r == 96 {
+        true  -> shr_u8()
+        false -> bad_shl_u8()
+    }
+    state shr_u8(&mut self) {
+        let b: u8 in Wrapping = (200 as u8 in Wrapping);
+        let c2: u8 in Wrapping = (9 as u8 in Wrapping);
+        let s: u8 in Wrapping = b >> c2;
+        transition s == 100 {
+            true  -> shr_i16()
+            false -> bad_shr_u8()
+        }
+    }
+    state shr_i16(&mut self) {
+        let n: i16 in Wrapping = (0 as i16 in Wrapping) - 32768;
+        let c3: i16 in Wrapping = (25 as i16 in Wrapping);
+        let t: i16 in Wrapping = n >> c3;
+        transition t == (0 as i16 in Wrapping) - 64 {
+            true  -> good()
+            false -> bad_shr_i16()
+        }
+    }
+    state good(&mut self)       { self.console.exit_process(70); }
+    state bad_shl_u8(&mut self) { self.console.exit_process(71); }
+    state bad_shr_u8(&mut self) { self.console.exit_process(72); }
+    state bad_shr_i16(&mut self){ self.console.exit_process(73); }
+}

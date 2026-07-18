@@ -13,6 +13,7 @@ use crate::symbols::{MachineSymbols, TopLevelSymbols};
 use crate::type_references::type_reference_label;
 use omega_core::arena::HandleSpan;
 use omega_core::diagnostics::Diagnostic;
+use omega_core::symbols::SymbolHandle;
 use omega_typed_trees::TypedTrees;
 use omega_typed_trees::data::DataMember;
 use omega_typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
@@ -106,6 +107,68 @@ pub(crate) fn validate_call_node(
     if receiver_members.is_empty()
         || matches!(receiver_members, [receiver] if receiver.as_str() == "self")
     {
+        if let Some(signature) =
+            program.machine_parameter_signature_in(current_machine, call.target_symbol)
+        {
+            validate_result_use(
+                program,
+                call,
+                signature.name.as_str(),
+                signature.return_type,
+                diagnostics,
+            );
+            validate_call_arguments_handles(
+                program,
+                current_machine,
+                machine_symbols.state(state_name),
+                value_env,
+                arguments,
+                signature.name.as_str(),
+                program.state_signature_parameters(signature),
+                writable_roots,
+                diagnostics,
+            );
+            return;
+        }
+
+        // MP4 specializes `F(args)` to the selected concrete ENTRY symbol.
+        // It remains receiverless because the whole callable parameter list
+        // (including any explicit data argument) is already present.
+        if let Some((callee_machine, state)) = machine_state_by_symbol(program, call.target_symbol)
+            && callee_machine.symbol != current_machine.symbol
+        {
+            validate_result_use(
+                program,
+                call,
+                state.name.as_str(),
+                state.return_type,
+                diagnostics,
+            );
+            validate_call_arguments_handles(
+                program,
+                current_machine,
+                machine_symbols.state(state_name),
+                value_env,
+                arguments,
+                state.name.as_str(),
+                program.state_parameters(state),
+                writable_roots,
+                diagnostics,
+            );
+            validate_machine_call_type_parameter_bounds(
+                program,
+                symbols,
+                callee_machine,
+                state,
+                state.name.as_str(),
+                arguments,
+                current_machine,
+                machine_symbols.state(state_name),
+                diagnostics,
+            );
+            return;
+        }
+
         if let Some(state) = machine_symbols.state(&call.target) {
             validate_result_use(
                 program,
@@ -201,40 +264,6 @@ pub(crate) fn validate_call_node(
         .map(|member| member.as_str())
         .unwrap_or_default();
     let receiver_type = machine_symbols.contained_type(receiver);
-
-    if let Some(platform) = receiver_type.and_then(|type_name| symbols.platform(type_name)) {
-        let Some(state_signature) = program
-            .platform_state_signatures(platform)
-            .iter()
-            .find(|state| state.name == call.target)
-        else {
-            diagnostics.push(Diagnostic::error(format!(
-                "platform `{}` has no state `{}`",
-                platform.name, call.target
-            )));
-            return;
-        };
-
-        validate_result_use(
-            program,
-            call,
-            &state_signature.name,
-            state_signature.return_type,
-            diagnostics,
-        );
-        validate_call_arguments_handles(
-            program,
-            current_machine,
-            machine_symbols.state(state_name),
-            value_env,
-            arguments,
-            &state_signature.name,
-            program.state_signature_parameters(state_signature),
-            writable_roots,
-            diagnostics,
-        );
-        return;
-    }
 
     if let Some(machine) = receiver_type
         .and_then(|type_name| symbols.machine(type_name))
@@ -389,6 +418,19 @@ pub(crate) fn free_machine_entry_state<'program>(
         .or_else(|| states.iter().find(|state| state.name.as_str() == "entry"))
         .or_else(|| states.first())
         .map(|state| (machine, state))
+}
+
+fn machine_state_by_symbol(
+    program: &TypedTrees,
+    symbol: SymbolHandle,
+) -> Option<(&Machine, &State)> {
+    program.machines().iter().find_map(|machine| {
+        program
+            .machine_states(machine)
+            .iter()
+            .find(|state| state.symbol == symbol)
+            .map(|state| (machine, state))
+    })
 }
 
 /// FROZEN DECISION 13 residue -- machine-call monomorphization arguments.
@@ -1167,19 +1209,402 @@ pub(crate) fn validate_self_recursive_call_positions(
 /// rule does not apply (no frame survives anything) -- structural recursion
 /// in ANY position is the induction the measure licenses. What DOES apply,
 /// both strata: a cycle without a measure is an unproven termination claim.
-/// Every self-call must be measured. For a proof-data ranking subject, rung 1
-/// proves the decrease STRUCTURALLY: the argument in the measure's parameter
-/// position is a case-payload SUBTERM of the measure -- a pattern binding like
+/// Every self-call must be measured, and rung 1 proves the decrease
+/// STRUCTURALLY: the argument in the measure's parameter position is a
+/// case-payload SUBTERM of the measure -- a pattern binding like
 /// `transition n { Nat::Succ { prev } -> .. double(prev) .. }` lowers
 /// `prev` to the case-tagged member read `n.prev`, so the test is "a Member
-/// chain (>= 1 hop) rooted at the measure parameter". For an ordinary integer
-/// ranking subject, N2(d) delegates the predecessor proof (`n > 0`, `n - 1`)
-/// to the shared machine-level termination checker: this validation pass has
-/// no separate arithmetic interpretation and must not demand a proof-data
-/// payload from an integer measure.
+/// chain (>= 1 hop) rooted at the measure parameter". Anything else refuses
+/// with the shape named; the arithmetic bridge (n > 0 => n == Succ(n - 1))
+/// is the recorded follow-on.
+/// COMPUTED-SUBJECT strict decrease by CITATION (N4 order rung, slice a2,
+/// design-ruled 2026-07-17): a recursive proof machine whose measure
+/// argument is an application (`mod(sub(a, b), b)` at measure `a`) proves
+/// the strict edge by citing a lemma in the SAME state whose instantiated
+/// ensures is EXACTLY the monus-order strict fact
+/// `sub(Succ(ARG), MEASURE) == Zero` (`ARG < MEASURE`). The cited lemma's
+/// REQUIRES discharge syntactically at the site against (i) the citing
+/// machine's own requires and (ii) the incoming-arm case equations (every
+/// transition arm targeting this state whose guard cases subject S into
+/// constructor C contributes the fact `S == C` -- the mod shape's Zero arm
+/// over `sub(b, a)` contributes exactly `sub(b, a) == Zero`, the `b <= a`
+/// premise). Everything is structural expression equality -- no arithmetic
+/// is re-derived here; the lemma carries the mathematics.
+fn cited_strict_decrease(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &omega_typed_trees::state::State,
+    argument: ExpressionHandle,
+    measure_name: Option<&omega_typed_trees::name::Identifier>,
+) -> bool {
+    let Some(measure_name) = measure_name else {
+        return false;
+    };
+    // A let-bound edge argument (`let next = sub(a, b); .. mod(next, b)` --
+    // the value-call face forces the hoist) resolves through its
+    // initializer before matching.
+    let argument = resolve_state_local(program, state, argument);
+    // Site facts: the citing machine's requires + incoming-arm equations.
+    let mut site_facts: Vec<SiteFact> = Vec::new();
+    for contract in program.machine_contracts(machine) {
+        if !matches!(
+            contract.kind,
+            omega_typed_trees::signature::SignatureContractKind::Requires
+        ) {
+            continue;
+        }
+        for fact in program.proof_facts.span_or_empty(contract.facts) {
+            if let omega_typed_trees::domain::ProofFact::Expression(expression) = fact
+                && let ExpressionNode::Binary(binary) =
+                    program.expression_table.expression(*expression)
+                && binary.operator == omega_typed_trees::expression::BinaryOperator::Equal
+            {
+                site_facts.push(SiteFact {
+                    left: binary.left,
+                    right: binary.right,
+                });
+            }
+        }
+    }
+    for other in program.machine_states(machine) {
+        for statement in program.statement_table.statements(other.statement_nodes) {
+            let StatementNode::Transition(transition) = statement else {
+                continue;
+            };
+            let omega_typed_trees::statement::TransitionGuardNode::When(guard) = transition.guard
+            else {
+                continue;
+            };
+            if !transition.target.is_valid() {
+                continue;
+            }
+            let TransitionTargetNode::Named { path, .. } =
+                program.statement_table.transition_target(transition.target)
+            else {
+                continue;
+            };
+            let targets_state = program
+                .statement_table
+                .name_path_members(path.members)
+                .last()
+                .is_some_and(|name| name.as_str() == state.name.as_str());
+            if !targets_state {
+                continue;
+            }
+            if let ExpressionNode::Binary(binary) = program.expression_table.expression(guard)
+                && binary.operator == omega_typed_trees::expression::BinaryOperator::Equal
+            {
+                site_facts.push(SiteFact {
+                    left: binary.left,
+                    right: binary.right,
+                });
+            }
+        }
+    }
+
+    // Each citation in THIS state: a bare statement call to a free machine.
+    for statement in program.statement_table.statements(state.statement_nodes) {
+        let StatementNode::Call(call) = statement else {
+            continue;
+        };
+        let receiver_members = program.statement_table.name_path_members(call.receiver);
+        if !receiver_members.is_empty() {
+            continue;
+        }
+        let Some(callee) = program.machines().iter().find(|candidate| {
+            candidate.attached_data.is_none()
+                && candidate
+                    .name
+                    .as_str()
+                    .rsplit("::")
+                    .next()
+                    .unwrap_or(candidate.name.as_str())
+                    == call.target.as_str()
+        }) else {
+            continue;
+        };
+        let Some(entry) = program.machine_states(callee).first() else {
+            continue;
+        };
+        let parameters = program.state_parameters(entry);
+        let citation_arguments = program.statement_table.expression_handles(call.arguments);
+        if parameters.len() != citation_arguments.len() {
+            continue;
+        }
+        let map: Vec<(&str, ExpressionHandle)> = parameters
+            .iter()
+            .zip(citation_arguments)
+            .map(|(parameter, argument)| (parameter.name.as_str(), *argument))
+            .collect();
+
+        // The callee's requires must all discharge against the site facts.
+        let mut requires_ok = true;
+        let mut ensures_matches = false;
+        for contract in program.machine_contracts(callee) {
+            match contract.kind {
+                omega_typed_trees::signature::SignatureContractKind::Requires => {
+                    for fact in program.proof_facts.span_or_empty(contract.facts) {
+                        let omega_typed_trees::domain::ProofFact::Expression(expression) = fact
+                        else {
+                            requires_ok = false;
+                            continue;
+                        };
+                        let ExpressionNode::Binary(binary) =
+                            program.expression_table.expression(*expression)
+                        else {
+                            requires_ok = false;
+                            continue;
+                        };
+                        if binary.operator != omega_typed_trees::expression::BinaryOperator::Equal {
+                            requires_ok = false;
+                            continue;
+                        }
+                        let discharged = site_facts.iter().any(|site| {
+                            substituted_expression_equals(program, binary.left, &map, site.left)
+                                && substituted_expression_equals(
+                                    program,
+                                    binary.right,
+                                    &map,
+                                    site.right,
+                                )
+                        });
+                        if !discharged {
+                            requires_ok = false;
+                        }
+                    }
+                }
+                omega_typed_trees::signature::SignatureContractKind::Ensures => {
+                    for fact in program.proof_facts.span_or_empty(contract.facts) {
+                        let omega_typed_trees::domain::ProofFact::Expression(expression) = fact
+                        else {
+                            continue;
+                        };
+                        if ensures_is_strict_decrease(
+                            program,
+                            *expression,
+                            &map,
+                            argument,
+                            measure_name,
+                        ) {
+                            ensures_matches = true;
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+        if requires_ok && ensures_matches {
+            return true;
+        }
+    }
+    false
+}
+
+/// Resolve a single-name expression through a same-state `let` binding to
+/// its initializer (one hop; anything else returns the input unchanged).
+fn resolve_state_local(
+    program: &TypedTrees,
+    state: &omega_typed_trees::state::State,
+    expression: ExpressionHandle,
+) -> ExpressionHandle {
+    let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
+        return expression;
+    };
+    let [only] = program.expression_table.name_path_members(path.members) else {
+        return expression;
+    };
+    for statement in program.statement_table.statements(state.statement_nodes) {
+        if let StatementNode::LocalData(local) = statement
+            && local.name.as_str() == only.as_str()
+            && local.initial_value.is_valid()
+        {
+            return local.initial_value;
+        }
+    }
+    expression
+}
+
+struct SiteFact {
+    left: ExpressionHandle,
+    right: ExpressionHandle,
+}
+
+/// The callee's ensures fact, instantiated at the citation's arguments,
+/// must be exactly `sub(Succ { prev: ARG }, MEASURE) == Nat::Zero`.
+fn ensures_is_strict_decrease(
+    program: &TypedTrees,
+    fact: ExpressionHandle,
+    map: &[(&str, ExpressionHandle)],
+    edge_argument: ExpressionHandle,
+    measure_name: &omega_typed_trees::name::Identifier,
+) -> bool {
+    let ExpressionNode::Binary(binary) = program.expression_table.expression(fact) else {
+        return false;
+    };
+    if binary.operator != omega_typed_trees::expression::BinaryOperator::Equal {
+        return false;
+    }
+    // RHS: the Zero constructor.
+    if !expression_is_nat_zero(program, binary.right) {
+        return false;
+    }
+    // LHS: sub(Succ { prev: X }, M).
+    let ExpressionNode::Call(sub_call) = program.expression_table.expression(binary.left) else {
+        return false;
+    };
+    if sub_call.target.as_str() != "sub" {
+        return false;
+    }
+    let sub_arguments = program
+        .expression_table
+        .expression_handles(sub_call.arguments);
+    let [succ_side, measure_side] = sub_arguments else {
+        return false;
+    };
+    let ExpressionNode::StructLiteral(literal) = program.expression_table.expression(*succ_side)
+    else {
+        return false;
+    };
+    if literal.case_name.as_ref().map(|name| name.as_str()) != Some("Succ") {
+        return false;
+    }
+    let fields = program.expression_table.struct_fields(literal.fields);
+    let [field] = fields else {
+        return false;
+    };
+    if field.name.as_str() != "prev" {
+        return false;
+    }
+    substituted_expression_equals(program, field.value, map, edge_argument)
+        && substituted_name_is(program, *measure_side, map, measure_name.as_str())
+}
+
+fn expression_is_nat_zero(program: &TypedTrees, handle: ExpressionHandle) -> bool {
+    match program.expression_table.expression(handle) {
+        ExpressionNode::StructLiteral(literal) => {
+            literal.case_name.as_ref().map(|name| name.as_str()) == Some("Zero")
+                && program
+                    .expression_table
+                    .struct_fields(literal.fields)
+                    .is_empty()
+        }
+        ExpressionNode::Name(path) => program
+            .expression_table
+            .name_path_members(path.members)
+            .last()
+            .is_some_and(|member| member.as_str() == "Zero"),
+        _ => false,
+    }
+}
+
+/// Does the callee-side expression, with callee parameters substituted by
+/// the citation's argument expressions, resolve to the single NAME `name`?
+fn substituted_name_is(
+    program: &TypedTrees,
+    callee_side: ExpressionHandle,
+    map: &[(&str, ExpressionHandle)],
+    name: &str,
+) -> bool {
+    if let ExpressionNode::Name(path) = program.expression_table.expression(callee_side)
+        && let [only] = program.expression_table.name_path_members(path.members)
+    {
+        if let Some((_, substituted)) = map.iter().find(|(param, _)| *param == only.as_str()) {
+            return expression_is_single_name(program, *substituted, name);
+        }
+        return only.as_str() == name;
+    }
+    false
+}
+
+fn expression_is_single_name(program: &TypedTrees, handle: ExpressionHandle, name: &str) -> bool {
+    matches!(
+        program.expression_table.expression(handle),
+        ExpressionNode::Name(path)
+            if matches!(
+                program.expression_table.name_path_members(path.members),
+                [only] if only.as_str() == name
+            )
+    )
+}
+
+/// Structural equality: callee-side expression under the citation's
+/// parameter substitution vs a caller-side expression. Names compare by
+/// their (single) member spelling; parenthesization is transparent in the
+/// table form. Conservative: unhandled node kinds compare false.
+fn substituted_expression_equals(
+    program: &TypedTrees,
+    callee_side: ExpressionHandle,
+    map: &[(&str, ExpressionHandle)],
+    caller_side: ExpressionHandle,
+) -> bool {
+    // A callee-side parameter name substitutes to its citation argument
+    // and the comparison continues caller-vs-caller.
+    if let ExpressionNode::Name(path) = program.expression_table.expression(callee_side)
+        && let [only] = program.expression_table.name_path_members(path.members)
+        && let Some((_, substituted)) = map.iter().find(|(param, _)| *param == only.as_str())
+    {
+        return caller_expressions_equal(program, *substituted, caller_side);
+    }
+    match (
+        program.expression_table.expression(callee_side),
+        program.expression_table.expression(caller_side),
+    ) {
+        (ExpressionNode::Name(left), ExpressionNode::Name(right)) => {
+            let left = program.expression_table.name_path_members(left.members);
+            let right = program.expression_table.name_path_members(right.members);
+            left.len() == right.len()
+                && left
+                    .iter()
+                    .zip(right)
+                    .all(|(l, r)| l.as_str() == r.as_str())
+        }
+        (ExpressionNode::Call(left), ExpressionNode::Call(right)) => {
+            if left.target.as_str() != right.target.as_str() {
+                return false;
+            }
+            let left_arguments = program.expression_table.expression_handles(left.arguments);
+            let right_arguments = program.expression_table.expression_handles(right.arguments);
+            left_arguments.len() == right_arguments.len()
+                && left_arguments
+                    .iter()
+                    .zip(right_arguments)
+                    .all(|(l, r)| substituted_expression_equals(program, *l, map, *r))
+        }
+        (ExpressionNode::StructLiteral(left), ExpressionNode::StructLiteral(right)) => {
+            if left.type_name.as_str() != right.type_name.as_str()
+                || left.case_name.as_ref().map(|name| name.as_str())
+                    != right.case_name.as_ref().map(|name| name.as_str())
+            {
+                return false;
+            }
+            let left_fields = program.expression_table.struct_fields(left.fields);
+            let right_fields = program.expression_table.struct_fields(right.fields);
+            left_fields.len() == right_fields.len()
+                && left_fields.iter().zip(right_fields).all(|(l, r)| {
+                    l.name.as_str() == r.name.as_str()
+                        && substituted_expression_equals(program, l.value, map, r.value)
+                })
+        }
+        (ExpressionNode::Integer(left), ExpressionNode::Integer(right)) => {
+            left.value_i64() == right.value_i64()
+        }
+        _ => false,
+    }
+}
+
+/// Caller-space structural equality (no substitution on either side).
+fn caller_expressions_equal(
+    program: &TypedTrees,
+    left: ExpressionHandle,
+    right: ExpressionHandle,
+) -> bool {
+    substituted_expression_equals(program, left, &[], right)
+}
+
 pub(crate) fn validate_proof_machine_recursion(
     program: &TypedTrees,
     machine: &Machine,
+    state: &omega_typed_trees::state::State,
     statement: &StatementNode,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -1199,7 +1624,7 @@ pub(crate) fn validate_proof_machine_recursion(
 
     let subjects = program
         .expression_table
-        .expression_handles(machine.ranking_witness.subjects);
+        .expression_handles(machine.decreases);
     let [subject] = subjects else {
         diagnostics.push(Diagnostic::error(format!(
             "recursive proof machine `{}` needs a single structural measure: declare \
@@ -1245,74 +1670,6 @@ pub(crate) fn validate_proof_machine_recursion(
         return;
     };
 
-    // N2(d), the arithmetic/structural bridge. A proof machine is classified
-    // by ANY proof-only type in its signature; its ranking subject need not be
-    // that type. When it ranks recursion by an ordinary integer parameter, the
-    // checked-trees termination pass proves the guarded predecessor edge just
-    // as it does for a runtime/dual-use machine. Structural subterm validation
-    // applies only when the ranking parameter itself is proof-only.
-    let measure_parameter = program
-        .machine_states(machine)
-        .first()
-        .and_then(|entry| program.state_parameters(entry).get(measure_position));
-    let measure_is_proof_only = measure_parameter.is_some_and(|parameter| {
-        omega_typed_trees::proof_only::classify(program)
-            .proof_only_mention(program, parameter.type_reference)
-            .is_some()
-    });
-    let measure_is_unsigned = measure_parameter.is_some_and(|parameter| {
-        type_reference_is_unsigned_integer(program, parameter.type_reference)
-    });
-    if !measure_is_proof_only && measure_is_unsigned {
-        let guard_proves_positive = statement_guard_proves_measure_positive(
-            program,
-            statement,
-            measure_symbol,
-            measure_name.as_ref(),
-        );
-        for arguments in self_calls {
-            let argument = program
-                .expression_table
-                .expression_handles(arguments)
-                .get(measure_position)
-                .copied();
-            let predecessor = argument.is_some_and(|argument| {
-                is_unit_predecessor_of_measure(
-                    program,
-                    argument,
-                    measure_symbol,
-                    measure_name.as_ref(),
-                )
-            });
-            if !guard_proves_positive || !predecessor {
-                diagnostics.push(Diagnostic::error(format!(
-                    "`{entry_name}(..)` does not prove the arithmetic predecessor of ranking \
-                     subject `{}` at this self-call: N2(d) requires the recursive argument \
-                     `{0} - 1` on an arm guarded by `{0} > 0`; this is the integer \
-                     successor bridge that keeps the structural induction well-founded",
-                    measure_name
-                        .as_ref()
-                        .map(|name| name.as_str())
-                        .unwrap_or("<measure>"),
-                )));
-            }
-        }
-        return;
-    }
-    if !measure_is_proof_only {
-        diagnostics.push(Diagnostic::error(format!(
-            "recursive proof machine `{}`: ranking subject `{}` must be proof-only \
-             structural data or an unsigned integer parameter; signed integers have no \
-             well-founded floor without an explicit Nat-valued/range-floored view",
-            machine.name,
-            measure_name
-                .as_ref()
-                .map(|name| name.as_str())
-                .unwrap_or("<measure>"),
-        )));
-        return;
-    }
-
     for arguments in self_calls {
         let argument = program
             .expression_table
@@ -1328,11 +1685,21 @@ pub(crate) fn validate_proof_machine_recursion(
                     measure_symbol,
                     measure_name.as_ref(),
                 )
+                || cited_strict_decrease(program, machine, state, argument, measure_name.as_ref())
+                || measure_name.as_ref().is_some_and(|name| {
+                    crate::contract_entailment::proof_edge_strict_decrease_judged(
+                        program,
+                        machine,
+                        state,
+                        argument,
+                        name.as_str(),
+                    )
+                })
         });
         if !descends {
             diagnostics.push(Diagnostic::error(format!(
-                "`{entry_name}(..)` does not make ranking subject `{}` descend \
-                 structurally at this self-call: the argument in the ranking position \
+                "`{entry_name}(..)` cannot prove the measure `{}` structurally \
+                 decreases at this self-call: the argument in the measure position \
                  must be a case-payload subterm of the measure -- bind it in the arm \
                  pattern (`Nat::Succ {{ prev }} -> .. {entry_name}(prev)`) so the \
                  recursion consumes one constructor per step",
@@ -1342,122 +1709,6 @@ pub(crate) fn validate_proof_machine_recursion(
                     .unwrap_or("<measure>"),
             )));
         }
-    }
-}
-
-fn statement_guard_proves_measure_positive(
-    program: &TypedTrees,
-    statement: &StatementNode,
-    measure_symbol: omega_core::symbols::SymbolHandle,
-    measure_name: Option<&Identifier>,
-) -> bool {
-    let StatementNode::Transition(transition) = statement else {
-        return false;
-    };
-    let TransitionGuardNode::When(guard) = transition.guard else {
-        return false;
-    };
-    guard_expression_proves_measure_positive(program, guard, measure_symbol, measure_name)
-}
-
-fn guard_expression_proves_measure_positive(
-    program: &TypedTrees,
-    expression: ExpressionHandle,
-    measure_symbol: omega_core::symbols::SymbolHandle,
-    measure_name: Option<&Identifier>,
-) -> bool {
-    let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
-        return false;
-    };
-    // Transition lowering records an arm as `<source guard> == true`.
-    if binary.operator == omega_typed_trees::expression::BinaryOperator::Equal
-        && matches!(
-            program.expression_table.expression(binary.right),
-            ExpressionNode::Boolean(true)
-        )
-    {
-        return guard_expression_proves_measure_positive(
-            program,
-            binary.left,
-            measure_symbol,
-            measure_name,
-        );
-    }
-    match binary.operator {
-        omega_typed_trees::expression::BinaryOperator::Greater => {
-            expression_names_measure(program, binary.left, measure_symbol, measure_name)
-                && integer_literal_is(program, binary.right, 0)
-        }
-        omega_typed_trees::expression::BinaryOperator::Less => {
-            integer_literal_is(program, binary.left, 0)
-                && expression_names_measure(program, binary.right, measure_symbol, measure_name)
-        }
-        omega_typed_trees::expression::BinaryOperator::GreaterOrEqual => {
-            expression_names_measure(program, binary.left, measure_symbol, measure_name)
-                && integer_literal_is(program, binary.right, 1)
-        }
-        omega_typed_trees::expression::BinaryOperator::LessOrEqual => {
-            integer_literal_is(program, binary.left, 1)
-                && expression_names_measure(program, binary.right, measure_symbol, measure_name)
-        }
-        _ => false,
-    }
-}
-
-fn is_unit_predecessor_of_measure(
-    program: &TypedTrees,
-    expression: ExpressionHandle,
-    measure_symbol: omega_core::symbols::SymbolHandle,
-    measure_name: Option<&Identifier>,
-) -> bool {
-    let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
-        return false;
-    };
-    binary.operator == omega_typed_trees::expression::BinaryOperator::Subtract
-        && expression_names_measure(program, binary.left, measure_symbol, measure_name)
-        && integer_literal_is(program, binary.right, 1)
-}
-
-fn expression_names_measure(
-    program: &TypedTrees,
-    expression: ExpressionHandle,
-    measure_symbol: omega_core::symbols::SymbolHandle,
-    measure_name: Option<&Identifier>,
-) -> bool {
-    let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
-        return false;
-    };
-    (path.symbol.is_valid() && path.symbol == measure_symbol)
-        || measure_name.is_some_and(|name| {
-            matches!(
-                program.expression_table.name_path_members(path.members),
-                [only] if only.as_str() == name.as_str()
-            )
-        })
-}
-
-fn integer_literal_is(program: &TypedTrees, expression: ExpressionHandle, expected: u64) -> bool {
-    let ExpressionNode::Integer(literal) = program.expression_table.expression(expression) else {
-        return false;
-    };
-    literal
-        .value_bignum()
-        .is_some_and(|value| value == omega_core::bignum::BigInt::from_u64(expected))
-}
-
-fn type_reference_is_unsigned_integer(
-    program: &TypedTrees,
-    type_reference: TypeReferenceHandle,
-) -> bool {
-    match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Constrained { base_type, .. } => {
-            type_reference_is_unsigned_integer(program, *base_type)
-        }
-        TypeReferenceNode::Named { name, .. } => matches!(
-            PrimitiveType::from_name(name.as_str()),
-            Some(PrimitiveType::U8 | PrimitiveType::U16 | PrimitiveType::U32 | PrimitiveType::U64)
-        ),
-        _ => false,
     }
 }
 
@@ -1513,7 +1764,7 @@ fn collect_self_entry_call_arguments(
     if !expression.is_valid() {
         return;
     }
-    let recurse = |handle: ExpressionHandle, found: &mut Vec<HandleSpan<ExpressionHandle>>| {
+    let mut recurse = |handle: ExpressionHandle, found: &mut Vec<HandleSpan<ExpressionHandle>>| {
         collect_self_entry_call_arguments(program, entry_name, handle, found);
     };
     match program.expression_table.expression(expression) {
@@ -1826,10 +2077,9 @@ fn is_known_bare_name(
     {
         return true;
     }
-    // Top-level symbol: a type, machine, platform, or trait spelled bare.
+    // Top-level symbol: a type, machine, or trait spelled bare.
     if symbols.has_type(name)
         || symbols.machine(name).is_some()
-        || symbols.platform(name).is_some()
         || symbols.trait_definition(name).is_some()
     {
         return true;
@@ -2539,6 +2789,68 @@ fn validate_expression_call_bounds(
     // current machine, an attached-data sibling machine, or a free machine.
     // Mirrors the same three-way fallback in `validate_call_node`.
     if call_is_self {
+        if let Some(signature) =
+            program.machine_parameter_signature_in(current_machine, call.target_symbol)
+        {
+            if !signature.return_type.is_valid() {
+                diagnostics.push(Diagnostic::error(format!(
+                    "machine `{}` state `{}`: machine parameter `{}` does not return a value but is used in a VALUE position",
+                    current_machine.name,
+                    current_state.name,
+                    signature.name,
+                )));
+            }
+            validate_call_arguments_handles(
+                program,
+                current_machine,
+                Some(current_state),
+                value_env,
+                arguments,
+                signature.name.as_str(),
+                program.state_signature_parameters(signature),
+                writable_roots,
+                diagnostics,
+            );
+            return;
+        }
+
+        if let Some((callee_machine, callee_state)) =
+            machine_state_by_symbol(program, call.target_symbol)
+            && callee_machine.symbol != current_machine.symbol
+        {
+            report_void_value_callee(
+                program,
+                callee_machine,
+                current_machine,
+                current_state,
+                callee_state,
+                call.target.as_str(),
+                diagnostics,
+            );
+            fence_generic_value_callee(program, callee_machine, call.target.as_str(), diagnostics);
+            validate_machine_call_type_parameter_bounds(
+                program,
+                symbols,
+                callee_machine,
+                callee_state,
+                call.target.as_str(),
+                arguments,
+                current_machine,
+                Some(current_state),
+                diagnostics,
+            );
+            validate_value_call_argument_classes(
+                program,
+                current_machine,
+                current_state,
+                value_env,
+                arguments,
+                callee_state,
+                diagnostics,
+            );
+            return;
+        }
+
         if let Some(callee_state) = machine_symbols.state(call.target.as_str()) {
             report_void_value_callee(
                 program,
@@ -3100,23 +3412,14 @@ fn named_type_reference_name<'program>(
 }
 
 /// True when `type_name` resolves the value-call target through any of the
-/// channels the LOWERING understands: a platform state, a boundary-trait
-/// machine signature, a machine's local state, or a machine attached to that
-/// data type.
+/// channels the LOWERING understands: a boundary-trait machine signature, a
+/// machine's local state, or a machine attached to that data type.
 fn type_name_resolves_value_call(
     program: &TypedTrees,
     symbols: &TopLevelSymbols<'_>,
     type_name: &str,
     target: &str,
 ) -> bool {
-    if let Some(platform) = symbols.platform(type_name)
-        && program
-            .platform_state_signatures(platform)
-            .iter()
-            .any(|state| state.name.as_str() == target)
-    {
-        return true;
-    }
     if let Some(trait_definition) = symbols.trait_definition(type_name)
         && program
             .trait_machine_signatures(trait_definition)

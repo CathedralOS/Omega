@@ -58,13 +58,13 @@ cleanup responsibility is not.
 
 ## Linear Values
 
-Linear values represent protocols that must reach an explicit conclusion:
-task joins, transactions, acknowledgements, DMA submissions, and similar
+Linear values represent protocols that must reach an explicit conclusion: task
+lifecycle claims, transactions, acknowledgements, DMA submissions, and similar
 resources. A move transfers the live obligation. Ordinary scope exit with an
 unconsumed linear value is a compile error; automatic drop cannot silently
 discharge it.
 
-Conditional ownership uses an ordinary sum such as `Empty | Live(Join<T>)`.
+Conditional ownership uses an ordinary sum such as `Idle | Running(Task<T>)`.
 The obligation belongs only to the live payload. Zeroed storage is not a
 universal consumed linear value.
 

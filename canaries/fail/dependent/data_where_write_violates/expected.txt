@@ -1,0 +1,1 @@
+invariant window opened on `self.map` must close

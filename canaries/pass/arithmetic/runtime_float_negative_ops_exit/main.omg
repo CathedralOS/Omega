@@ -35,7 +35,7 @@ machine Main::main(&mut self) {
     }
     state cast_neg(&mut self) {
         self.h = 0.0 - 2.7;
-        self.ri = self.h as i32 in Saturating; // truncates toward zero -> -2
+        self.ri = self.h as i32 in Saturating; // truncates toward zero -> -2 (F4: float casts have no Wrapping)
         transition self.ri == 0 - 2 { true -> mul_neg() _ -> bad() }
     }
     state mul_neg(&mut self) {

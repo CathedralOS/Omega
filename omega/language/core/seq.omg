@@ -18,7 +18,6 @@ use omega::language::core::nat;
 // type. The structural entailment judge (N3) is parametric over
 // constructor names, so it discharges Seq lemmas exactly as it does Nat's.
 machine length(s: Seq<u64>) -> Nat
-terminates;
 terminates by s;
 {
     transition s {
@@ -45,7 +44,6 @@ ensures
 
 // Concatenation, structurally recursive on the first sequence.
 machine append(s: Seq<u64>, t: Seq<u64>) -> Seq<u64>
-terminates;
 terminates by s;
 {
     transition s {
@@ -57,7 +55,6 @@ terminates by s;
 // append's right identity, by induction on `s`. Lean analog:
 // `List.append_nil`.
 machine append_empty_right(s: Seq<u64>) -> Seq<u64>
-terminates;
 terminates by s;
 ensures
     (append(s, Seq::Empty)) == s
@@ -71,7 +68,6 @@ ensures
 // append associates, by induction on the outermost first sequence. Lean
 // analog: `List.append_assoc`.
 machine append_assoc(s: Seq<u64>, t: Seq<u64>, u: Seq<u64>) -> Seq<u64>
-terminates;
 terminates by s;
 ensures
     (append(append(s, t), u)) == (append(s, append(t, u)))
@@ -87,7 +83,6 @@ ensures
 // inside length inside add) plus the inductive hypothesis; no citations
 // needed. Lean analog: `List.length_append`.
 machine length_append(s: Seq<u64>, t: Seq<u64>) -> Nat
-terminates;
 terminates by s;
 ensures
     (length(append(s, t))) == (add(length(s), length(t)))
@@ -96,4 +91,156 @@ ensures
         Seq::Empty -> Nat::Zero
         Seq::Cons { head, tail } -> Nat::Succ { prev: length_append(tail, t) }
     }
+}
+
+// Reversal, structurally recursive (the naive quadratic form: each step
+// appends the head as a singleton on the right). Lean analog:
+// `List.reverse` (the non-accumulator spelling).
+machine reverse(s: Seq<u64>) -> Seq<u64>
+terminates by s;
+{
+    transition s {
+        Seq::Empty -> Seq::Empty
+        Seq::Cons { head, tail } ->
+            (append(reverse(tail), Seq::Cons { head: head, tail: Seq::Empty }))
+    }
+}
+
+// Reversal preserves length, by induction on `s` -- the zoo's deepest
+// citation chain yet: the step case rewrites through length_append (at
+// the reversed tail and the singleton), then lands the arithmetic with
+// nat's add_succ_law + add_zero_right, plus the inductive hypothesis.
+// Landing this lemma required the state-values simplifier hardening
+// (boolean depth budget + distribution size gate + the helper-expansion
+// fuel budget): the backend used to crash, then hang, expanding the
+// proof machine's recursion. Lean analog: `List.length_reverse`.
+machine length_reverse(s: Seq<u64>) -> Nat
+terminates by s;
+ensures
+    (length(reverse(s))) == (length(s))
+{
+    transition s {
+        Seq::Empty -> Nat::Zero
+        Seq::Cons { head, tail } -> lr_step(head, tail)
+    }
+
+    state lr_step(head: u64, tail: Seq<u64>) -> Nat {
+        length_append(reverse(tail), Seq::Cons { head: head, tail: Seq::Empty });
+        add_succ_law(length(tail), Nat::Zero);
+        add_zero_right(length(tail));
+        transition { _ -> Nat::Succ { prev: length_reverse(tail) } }
+    }
+}
+
+
+
+// Reversal anti-distributes over append, by induction on `s`: the base
+// case needs append's RIGHT identity; the step case rewrites the appended
+// singleton through append_assoc, with the inductive self-application
+// BOUND TO A LOCAL (the nested value-call fence's own hint) -- landing
+// this shape took the recognizer's let-binding rung (a sub-proof `let`,
+// spelled or the lowering's own __hoist_N of a call terminal, termifies
+// its initializer and joins the arm environment). Lean analog:
+// `List.reverse_append`.
+machine reverse_append(s: Seq<u64>, t: Seq<u64>) -> Seq<u64>
+terminates by s;
+ensures
+    (reverse(append(s, t))) == (append(reverse(t), reverse(s)))
+{
+    transition s {
+        Seq::Empty -> ra_base(t)
+        Seq::Cons { head, tail } -> ra_step(head, tail, t)
+    }
+
+    state ra_base(t: Seq<u64>) -> Seq<u64> {
+        append_empty_right(reverse(t));
+        transition { _ -> (reverse(t)) }
+    }
+
+    state ra_step(head: u64, tail: Seq<u64>, t: Seq<u64>) -> Seq<u64> {
+        let ih: Seq<u64> = reverse_append(tail, t);
+        append_assoc(reverse(t), reverse(tail), Seq::Cons { head: head, tail: Seq::Empty });
+        transition { _ -> (append(ih, Seq::Cons { head: head, tail: Seq::Empty })) }
+    }
+}
+
+// Reversal is an involution, by induction on `s`: the step case rewrites
+// `reverse(append(reverse(tail), [head]))` through reverse_append (cited
+// at the reversed tail and the singleton), after which the singleton's
+// own reversal and the outer append unfold; the inductive hypothesis
+// closes `reverse(reverse(tail)) == tail`. Lean analog:
+// `List.reverse_reverse`.
+machine reverse_reverse(s: Seq<u64>) -> Seq<u64>
+terminates by s;
+ensures
+    (reverse(reverse(s))) == s
+{
+    transition s {
+        Seq::Empty -> Seq::Empty
+        Seq::Cons { head, tail } -> rr_step(head, tail)
+    }
+
+    state rr_step(head: u64, tail: Seq<u64>) -> Seq<u64> {
+        reverse_append(reverse(tail), Seq::Cons { head: head, tail: Seq::Empty });
+        transition { _ -> Seq::Cons { head: head, tail: reverse_reverse(tail) } }
+    }
+}
+
+
+// Append-one-element (the reverse-facing constructor twin). Definitional
+// wrapper: snoc(s, x) = append(s, [x]).
+machine snoc(s: Seq<u64>, x: u64) -> Seq<u64>
+{
+    transition { _ -> (append(s, Seq::Cons { head: x, tail: Seq::Empty })) }
+}
+
+// Reversing a snoc CONSES: reverse(snoc(s, x)) == Cons(x, reverse(s)) --
+// compute-mode over the definitions plus ONE citation of reverse_append
+// at (s, [x]); the singleton's reversal and the outer append unfold.
+// (Landing this took the unfold_application let-binding rung: snoc's own
+// body is the lowering's hoisted `let __hoist = append(..)` shape.)
+// Lean analog: `List.reverse_concat`.
+machine reverse_snoc(s: Seq<u64>, x: u64) -> Seq<u64>
+ensures
+    (reverse(snoc(s, x))) == (Seq::Cons { head: x, tail: reverse(s) })
+{
+    reverse_append(s, Seq::Cons { head: x, tail: Seq::Empty });
+    transition { _ -> (reverse(s)) }
+}
+
+// length of a snoc is the successor: length(snoc(s, x)) == Succ(length(s)).
+// Two citations: length_append at (s, [x]) rewrites the snoc's append to
+// `add(length(s), length([x]))`; the singleton's length computes to
+// Succ(Zero); add_one_right at length(s) collapses the trailing add.
+// Lean analog: `List.length_concat`.
+machine length_snoc(s: Seq<u64>, x: u64) -> Nat
+ensures
+    (length(snoc(s, x))) == (Nat::Succ { prev: length(s) })
+{
+    length_append(s, Seq::Cons { head: x, tail: Seq::Empty });
+    add_one_right(length(s));
+    transition { _ -> (length(s)) }
+}
+
+// Snoc distributes over append: snoc(append(s, t), x) == append(s, snoc(t, x))
+// -- ONE citation of append_assoc at (s, t, [x]); both sides unfold to the
+// same right-associated shape. Lean analog: `List.concat_append` mirrored.
+machine snoc_append(s: Seq<u64>, t: Seq<u64>, x: u64) -> Seq<u64>
+ensures
+    (snoc(append(s, t), x)) == (append(s, snoc(t, x)))
+{
+    append_assoc(s, t, Seq::Cons { head: x, tail: Seq::Empty });
+    transition { _ -> (append(s, t)) }
+}
+
+// Reversing a cons SNOCS: reverse(Cons(x, s)) == snoc(reverse(s), x) --
+// the definitional mirror of reverse_snoc: reverse's Cons arm IS
+// append(reverse(s), [x]), and snoc's body unfolds to the same append.
+// Pure compute-mode (both sides normalize to one term); no citations.
+// Lean analog: `List.reverse_cons`.
+machine snoc_reverse(x: u64, s: Seq<u64>) -> Seq<u64>
+ensures
+    (reverse(Seq::Cons { head: x, tail: s })) == (snoc(reverse(s), x))
+{
+    transition { _ -> (reverse(s)) }
 }

@@ -15,7 +15,7 @@ data Node {
 Node satisfies Equatable;
 
 data Main {
-    value: i32 = 0;
+    value: i32;
 }
 
 machine Main::main(&mut self) {

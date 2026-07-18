@@ -6,8 +6,8 @@ a terminal outcome. A productive machine may run forever, so an ordinary
 function-like call is one important use of a machine, not its definition.
 
 > **Machine taxonomy settled 2026-07-18.** Runtime calls, compile-time
-> evaluation, proof citation, spawning, trait satisfaction, and boundary
-> provision consume the same semantic construct. Checked bodies, requirements,
+> evaluation, proof citation, concurrent activation, trait satisfaction, and
+> boundary provision consume the same semantic construct. Checked bodies, requirements,
 > external providers, and accepted trust declarations are supply modes, not
 > separate machine species. See
 > [machine_taxonomy.md](../design_briefs/machine_taxonomy.md).
@@ -19,7 +19,8 @@ owning data type.
 
 The same machine can be called at runtime and evaluated by the compiler when
 its contract, effects, and totality make that evaluation legal. It can also be
-cited as proof, spawned, or used to satisfy a trait/boundary requirement.
+cited as proof, started through a task runtime, or used to satisfy a
+trait/boundary requirement.
 Those contexts change eligibility and lowering; they do not create parallel
 `async`, `proof`, or `const` machine identities.
 
@@ -106,6 +107,51 @@ machine Parser::resolve(
 
 Every reachable terminal path in a typed machine must produce a compatible
 return value.
+
+Machine code always uses a brace body. There is no `machine f(...) = expr;`
+form; a one-expression machine simply returns its final expression:
+
+```omega
+machine in_span(g: Game) -> bool {
+    g.turn in 1..=9
+}
+```
+
+## Supply Forms
+
+The one machine construct has four explicit supply forms:
+
+| Supply | Spelling |
+|---|---|
+| Checked Omega implementation | `{ ... }` body |
+| Trait requirement | Bodyless declaration inside the trait |
+| External realization | `satisfies Requirement via <Binding>;` |
+| Accepted claim | Bodyless `boundary machine ... ensures ...;` |
+
+An external realization binds an irreducible imported operation to a
+requirement without pretending the binding is executable Omega code:
+
+```omega
+machine Kernel32::write_file(handle: WinHandle, bytes: &[u8]) -> WriteResult
+    satisfies Kernel32Requirements::write_file
+    via Binding::DllImport {
+        library: kernel32_lib,
+        symbol: write_file_symbol,
+        plan: MsX64,
+    };
+```
+
+The value after `via` must be compile-time evaluable to the closed `Binding`
+vocabulary. The compiler normalizes and validates it, derives the provider
+plan from explicit conformances, and assigns any trust expenditure only when
+the provider is admitted. `satisfies` supplies the requirement contract and
+public effect ceiling; the binding/provider behavior must refine it. A `via`
+machine does not repeat an `effects` clause.
+
+Composite adaptation is ordinary checked code. For example, an implementation
+of `Console::write_line` may call separately bound `get_stdout` and
+`write_file` machines, cache a handle, or merge writes. Those decisions belong
+in its brace body rather than a call-shape DSL or authored plan row.
 
 ## Calls
 

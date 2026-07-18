@@ -29,21 +29,26 @@ pub(super) struct DestructureBinding {
     pub(super) case_variant: Option<Identifier>,
 }
 
-impl DestructureBinding {
-    fn field(name: Identifier, case_variant: Option<Identifier>) -> Self {
-        Self {
-            member: name.clone(),
-            binding: name,
-            case_variant,
-        }
-    }
-}
-
 /// The named bindings a destructure pattern arm introduces: each bound `field`
 /// rewrites to `subject.field` in the arm's guard and transition-target arguments.
 pub(super) struct DestructureBindings {
     pub(super) subject: ExpressionHandle,
     pub(super) fields: Vec<DestructureBinding>,
+    /// The SPELLED field set (bound AND waived) + variant + `..` flag -- the
+    /// exhaustiveness law's carrier. `None` for version arms (whole-value
+    /// binding; no field spelling to compare).
+    pub(super) spelling: Option<ArmPatternSpelling>,
+}
+
+/// What a destructure arm SPELLED, for the exhaustiveness law: a `..`-free
+/// pattern must mention every field of the record (variant `None`) or of the
+/// named case's payload. The block parser encodes this into a marker let
+/// (`__arm_destructure#V=<variant>#<f1>#<f2>`) that the typed-stage
+/// validation resolves against the data definition.
+pub(super) struct ArmPatternSpelling {
+    pub(super) variant: Option<Identifier>,
+    pub(super) members: Vec<Identifier>,
+    pub(super) has_rest: bool,
 }
 
 pub(super) fn parse_transition_guard_node<'tokens, 'source>(
@@ -369,7 +374,7 @@ fn parse_version_pattern_arm(
         None => Vec::new(),
     };
 
-    Ok(Some((guard, DestructureBindings { subject, fields })))
+    Ok(Some((guard, DestructureBindings { subject, fields, spelling: None })))
 }
 
 fn looks_like_version_match_arm(input: Input<'_, '_>) -> bool {
@@ -458,7 +463,8 @@ fn parse_destructure_pattern_arm<'tokens, 'source>(
         return Ok(None);
     }
 
-    let (fields, pattern_rest) = parse_data_destructure_pattern_fields(syntax_trees, after_path)?;
+    let ((fields, has_rest), pattern_rest) =
+        parse_data_destructure_pattern_fields(syntax_trees, after_path)?;
     // A `Type::Case { .. }` pattern (two-member path) binds payload fields of that
     // specific CASE, so tag each binding with the variant -- the rewritten field
     // access must resolve to this variant's field, not a same-named field at a
@@ -471,10 +477,25 @@ fn parse_destructure_pattern_arm<'tokens, 'source>(
             None
         }
     };
+    // Waived fields (`as _`) are spelled but introduce NO binding; renamed
+    // fields (`as name`) bind the new name to the same `subject.member` read.
+    let spelled_members: Vec<Identifier> =
+        fields.iter().map(|(member, _)| member.clone()).collect();
     let fields = fields
         .into_iter()
-        .map(|name| DestructureBinding::field(name, case_variant.clone()))
+        .filter_map(|(member, binding)| {
+            binding.map(|binding| DestructureBinding {
+                binding,
+                member,
+                case_variant: case_variant.clone(),
+            })
+        })
         .collect::<Vec<_>>();
+    let spelling = Some(ArmPatternSpelling {
+        variant: case_variant.clone(),
+        members: spelled_members,
+        has_rest,
+    });
     if !pattern_rest.tokens.is_empty() {
         return Err(pattern_rest.error_here("expected data destructure pattern"));
     }
@@ -523,7 +544,7 @@ fn parse_destructure_pattern_arm<'tokens, 'source>(
     } else {
         TransitionGuardNode::Always
     };
-    Ok(Some((guard, DestructureBindings { subject, fields })))
+    Ok(Some((guard, DestructureBindings { subject, fields, spelling })))
 }
 
 fn find_top_level_keyword(input: Input<'_, '_>, keyword: KeywordKind) -> Option<usize> {
@@ -555,20 +576,44 @@ fn find_top_level_keyword(input: Input<'_, '_>, keyword: KeywordKind) -> Option<
 }
 
 /// Parse the `{ field, .. }` part of a destructure pattern (the leading path is
-/// already consumed by the caller).
+/// already consumed by the caller). Arm position SHARES the record-pattern
+/// field grammar (owner spec 2026-07-18): `field as name` renames the binding
+/// and `field as _` waives it (spelled but unbound). `..` stays the arm-only
+/// rest escape (predates the spec; the LET form has no `..` -- its
+/// exhaustiveness law makes waivers explicit instead). Each entry is
+/// `(member, binding)`: `binding = None` for a waived field.
 fn parse_data_destructure_pattern_fields<'tokens, 'source>(
     _syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
-) -> ParseResult<'tokens, 'source, Vec<Identifier>> {
+) -> ParseResult<'tokens, 'source, (Vec<(Identifier, Option<Identifier>)>, bool)> {
     let mut input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
     let mut fields = Vec::new();
+    let mut has_rest = false;
 
     while !input.at_punctuation(PunctuationKind::RightBrace) {
         if input.at_punctuation(PunctuationKind::DotDot) {
+            has_rest = true;
             input = input.take_punctuation(PunctuationKind::DotDot, "..")?;
         } else {
             let (field, rest) = input.take_identifier()?;
-            fields.push(field);
+            let mut binding = Some(field.clone());
+            let mut rest = rest;
+            if rest.at_keyword(KeywordKind::As) {
+                let after_as = rest.take_keyword(KeywordKind::As, "as")?;
+                if after_as.at_contextual("_") {
+                    binding = None;
+                    rest = after_as.take_contextual("_")?;
+                } else {
+                    let (renamed, after_renamed) = after_as.take_identifier()?;
+                    if renamed.as_str() == "_" {
+                        binding = None;
+                    } else {
+                        binding = Some(renamed);
+                    }
+                    rest = after_renamed;
+                }
+            }
+            fields.push((field, binding));
             input = rest;
         }
 
@@ -580,7 +625,7 @@ fn parse_data_destructure_pattern_fields<'tokens, 'source>(
     }
 
     input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
-    Ok((fields, input))
+    Ok(((fields, has_rest), input))
 }
 
 pub(super) fn rewrite_destructure_guard_expression(
@@ -613,12 +658,14 @@ pub(super) fn rewrite_destructure_guard_expression(
         ExpressionNode::Call(call) => ExpressionNode::Call(TableCallExpression {
             receiver: rewrite_optional_expression(syntax_trees, call.receiver, subject, fields),
             target: call.target,
+            machine_arguments: call.machine_arguments,
             arguments: rewrite_expression_span(syntax_trees, call.arguments, subject, fields),
         }),
         ExpressionNode::Cast(cast) => ExpressionNode::Cast(TableCastExpression {
             value: rewrite_destructure_guard_expression(syntax_trees, cast.value, subject, fields),
             target_type: cast.target_type,
             domain: cast.domain,
+            semantic_domain: cast.semantic_domain,
             form: cast.form,
         }),
         ExpressionNode::Indexed(indexed) => ExpressionNode::Indexed(TableIndexedExpression {

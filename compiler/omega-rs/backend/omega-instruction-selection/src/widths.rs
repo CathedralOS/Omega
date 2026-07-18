@@ -71,11 +71,7 @@ pub fn host_call_sequence_width<T: InstructionOperandLike>(
             // A stack-mode op (`open_create`) brackets the call with `sub sp` +
             // `str [sp]` + `add sp` = 12 bytes beyond counting the mode immediate
             // as a register arg (same lockstep discipline).
-            let deref = if operation_key.dereferences_result() {
-                4
-            } else {
-                0
-            };
+            let deref = if operation_key.dereferences_result() { 4 } else { 0 };
             let float_return = if operation_key.returns_float() { 4 } else { 0 };
             let stack_mode = if operation_key.passes_trailing_mode_on_stack() {
                 12
@@ -298,41 +294,6 @@ pub fn runtime_text_storage_compare_delimiter_branch_offset(
         }
         Architecture::X86_64 => {
             x86_64::runtime_text_storage_compare_failure_branch_offset(literal_len)
-        }
-    }
-}
-
-pub fn runtime_storage_compare_width(
-    architecture: Architecture,
-    left_offset: usize,
-    right_offset: usize,
-    byte_size: usize,
-    is_float: bool,
-) -> usize {
-    match architecture {
-        Architecture::Aarch64 => {
-            aarch64::runtime_storage_compare_width(left_offset, right_offset, byte_size, is_float)
-        }
-        Architecture::X86_64 => omega_isa_x86_64::runtime_storage_compare_width(
-            left_offset,
-            right_offset,
-            byte_size,
-            is_float,
-        ),
-    }
-}
-
-pub fn runtime_storage_value_compare_width(
-    architecture: Architecture,
-    byte_offset: usize,
-    byte_size: usize,
-) -> usize {
-    match architecture {
-        Architecture::Aarch64 => {
-            aarch64::runtime_storage_value_compare_width(byte_offset, byte_size)
-        }
-        Architecture::X86_64 => {
-            omega_isa_x86_64::runtime_storage_value_compare_width(byte_offset, byte_size)
         }
     }
 }
@@ -625,8 +586,9 @@ pub fn runtime_storage_convert_width(
     source_is_float: bool,
     target_is_float: bool,
     source_signed: bool,
-    domain: omega_core::arithmetic::ArithmeticDomain,
     target_signed: bool,
+    trapping: bool,
+    saturating: bool,
 ) -> usize {
     match architecture {
         Architecture::Aarch64 => aarch64::runtime_storage_convert_width(
@@ -638,8 +600,9 @@ pub fn runtime_storage_convert_width(
             source_is_float,
             target_is_float,
             source_signed,
-            domain,
             target_signed,
+            trapping,
+            saturating,
         ),
         Architecture::X86_64 => {
             // The x86_64 converting store reaches the target through `r14`-relative
@@ -654,8 +617,9 @@ pub fn runtime_storage_convert_width(
                 source_is_float,
                 target_is_float,
                 source_signed,
-                domain,
                 target_signed,
+                trapping,
+                saturating,
             )
         }
     }
@@ -910,12 +874,7 @@ pub fn runtime_machine_indexed_binary_write_width(
             right,
         ),
         Architecture::X86_64 => {
-            let _ = (
-                base_byte_offset,
-                index_offset,
-                element_byte_size,
-                field_byte_offset,
-            );
+            let _ = (base_byte_offset, index_offset, element_byte_size, field_byte_offset);
             x86_64::runtime_machine_indexed_binary_write_width(
                 runtime_value_operands,
                 index_region,
@@ -1055,23 +1014,6 @@ pub fn runtime_frame_indexed_binary_left_operand_offset(
     }
 }
 
-pub fn runtime_machine_string_write_width(architecture: Architecture, byte_length: usize) -> usize {
-    match architecture {
-        Architecture::Aarch64 => aarch64::runtime_machine_string_write_width(byte_length),
-        Architecture::X86_64 => x86_64::runtime_machine_string_write_width(byte_length),
-    }
-}
-
-pub fn runtime_machine_bounded_buffer_write_width(
-    architecture: Architecture,
-    literal: &str,
-) -> usize {
-    match architecture {
-        Architecture::Aarch64 => aarch64::runtime_machine_bounded_buffer_write_width(literal),
-        Architecture::X86_64 => x86_64::runtime_machine_bounded_buffer_write_width(literal),
-    }
-}
-
 pub fn runtime_machine_bounded_buffer_source_append_width(
     architecture: Architecture,
     target_byte_offset: usize,
@@ -1105,94 +1047,6 @@ pub fn runtime_machine_bounded_buffer_literal_append_width(
             let _ = target_byte_offset;
             x86_64::runtime_machine_bounded_buffer_literal_append_width(literal)
         }
-    }
-}
-
-pub fn runtime_frame_string_write_width(architecture: Architecture, byte_length: usize) -> usize {
-    match architecture {
-        Architecture::Aarch64 => aarch64::runtime_frame_string_write_width(byte_length),
-        Architecture::X86_64 => x86_64::runtime_frame_string_write_width(byte_length),
-    }
-}
-
-pub fn runtime_pointee_string_write_width(
-    architecture: Architecture,
-    pointer_byte_offset: usize,
-    field_byte_offset: usize,
-    byte_length: usize,
-) -> usize {
-    match architecture {
-        Architecture::Aarch64 => aarch64::runtime_pointee_string_write_width(
-            pointer_byte_offset,
-            field_byte_offset,
-            byte_length,
-        ),
-        Architecture::X86_64 => {
-            let _ = pointer_byte_offset;
-            x86_64::runtime_pointee_string_write_width(field_byte_offset, byte_length)
-        }
-    }
-}
-
-pub fn runtime_pointee_bounded_buffer_write_width(
-    architecture: Architecture,
-    pointer_byte_offset: usize,
-    field_byte_offset: usize,
-    literal: &str,
-) -> usize {
-    match architecture {
-        Architecture::Aarch64 => aarch64::runtime_pointee_bounded_buffer_write_width(
-            pointer_byte_offset,
-            field_byte_offset,
-            literal,
-        ),
-        Architecture::X86_64 => {
-            let _ = (pointer_byte_offset, field_byte_offset);
-            x86_64::runtime_pointee_bounded_buffer_write_width(literal)
-        }
-    }
-}
-
-pub fn runtime_frame_indexed_string_write_width(
-    architecture: Architecture,
-    element_byte_size: usize,
-    field_byte_offset: usize,
-    byte_length: usize,
-) -> usize {
-    match architecture {
-        Architecture::Aarch64 => aarch64::runtime_frame_indexed_string_write_width(
-            element_byte_size,
-            field_byte_offset,
-            byte_length,
-        ),
-        Architecture::X86_64 => x86_64::runtime_frame_indexed_string_write_width(
-            element_byte_size,
-            field_byte_offset,
-            byte_length,
-        ),
-    }
-}
-
-pub fn runtime_machine_indexed_string_write_width(
-    architecture: Architecture,
-    base_byte_offset: usize,
-    element_byte_size: usize,
-    field_byte_offset: usize,
-    byte_length: usize,
-) -> usize {
-    match architecture {
-        Architecture::Aarch64 => aarch64::runtime_machine_indexed_string_write_width(
-            base_byte_offset,
-            element_byte_size,
-            field_byte_offset,
-            byte_length,
-        ),
-        Architecture::X86_64 => x86_64::runtime_machine_indexed_string_write_width(
-            base_byte_offset,
-            element_byte_size,
-            field_byte_offset,
-            byte_length,
-        ),
     }
 }
 
@@ -1275,12 +1129,7 @@ pub fn runtime_storage_copy_from_runtime_machine_indexed_target_address_offset(
             // layout comment): the single-value layout has it after the
             // element load (+44 frame-index / +34 machine-index); the chunked
             // layout puts it right after `add r15,rax` (+37 / +27).
-            let _ = (
-                base_byte_offset,
-                index_offset,
-                element_byte_size,
-                field_byte_offset,
-            );
+            let _ = (base_byte_offset, index_offset, element_byte_size, field_byte_offset);
             let frame_index =
                 index_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame;
             if matches!(byte_count, 1 | 4 | 8) {
@@ -1291,20 +1140,6 @@ pub fn runtime_storage_copy_from_runtime_machine_indexed_target_address_offset(
                 27
             }
         }
-    }
-}
-
-pub fn runtime_storage_address_to_runtime_frame_write_width(
-    architecture: Architecture,
-    source_offset: usize,
-    target_offset: usize,
-) -> usize {
-    match architecture {
-        Architecture::Aarch64 => aarch64::runtime_storage_address_to_runtime_frame_write_width(
-            source_offset,
-            target_offset,
-        ),
-        Architecture::X86_64 => x86_64::runtime_storage_address_to_runtime_frame_write_width(),
     }
 }
 
@@ -1323,126 +1158,6 @@ pub fn runtime_storage_address_to_runtime_frame_target_frame_offset(
     }
 }
 
-pub fn runtime_pointee_address_to_runtime_frame_write_width(
-    architecture: Architecture,
-    pointer_byte_offset: usize,
-    field_byte_offset: usize,
-    target_offset: usize,
-) -> usize {
-    match architecture {
-        Architecture::Aarch64 => aarch64::runtime_pointee_address_to_runtime_frame_write_width(
-            pointer_byte_offset,
-            field_byte_offset,
-            target_offset,
-        ),
-        Architecture::X86_64 => {
-            let _ = pointer_byte_offset;
-            x86_64::runtime_pointee_address_to_runtime_frame_write_width()
-        }
-    }
-}
-
-pub fn runtime_frame_indexed_address_to_runtime_frame_write_width(
-    architecture: Architecture,
-    index_region: omega_target_operations::RuntimeStorageRegion,
-    element_byte_size: usize,
-    field_byte_offset: usize,
-    target_offset: usize,
-) -> usize {
-    match architecture {
-        Architecture::Aarch64 => {
-            aarch64::runtime_frame_indexed_address_to_runtime_frame_write_width(
-                index_region,
-                element_byte_size,
-                field_byte_offset,
-                target_offset,
-            )
-        }
-        // Was `=> 0`: the runtime-START subslice ptr write silently DROPPED on
-        // x86_64 and the descriptor kept the whole-array base.
-        Architecture::X86_64 => {
-            x86_64::runtime_frame_indexed_deref_address_to_runtime_frame_write_width(index_region)
-        }
-    }
-}
-
-/// Relocation offset of the TARGET frame-base `mov` in the descriptor-deref
-/// indexed address write (pre-`+2`); the machine-index variant also relocates
-/// the machine base at +10.
-pub fn runtime_frame_indexed_deref_address_target_frame_offset(
-    architecture: Architecture,
-    index_region: omega_target_operations::RuntimeStorageRegion,
-) -> Option<usize> {
-    match architecture {
-        Architecture::Aarch64 => None,
-        Architecture::X86_64 => {
-            Some(x86_64::runtime_frame_indexed_deref_address_target_frame_offset(index_region))
-        }
-    }
-}
-
-pub fn runtime_frame_fixed_indexed_address_to_runtime_frame_write_width(
-    architecture: Architecture,
-    descriptor_offset: usize,
-    element_index: usize,
-    element_byte_size: usize,
-    field_byte_offset: usize,
-    target_offset: usize,
-) -> usize {
-    match architecture {
-        Architecture::Aarch64 => {
-            aarch64::runtime_frame_fixed_indexed_address_to_runtime_frame_write_width(
-                descriptor_offset,
-                element_index,
-                element_byte_size,
-                field_byte_offset,
-                target_offset,
-            )
-        }
-        Architecture::X86_64 => {
-            let _ = (
-                descriptor_offset,
-                element_index,
-                element_byte_size,
-                field_byte_offset,
-                target_offset,
-            );
-            x86_64::runtime_frame_fixed_indexed_address_to_runtime_frame_write_width()
-        }
-    }
-}
-
-pub fn runtime_frame_base_indexed_address_to_runtime_frame_write_width(
-    architecture: Architecture,
-    base_byte_offset: usize,
-    index_offset: usize,
-    element_byte_size: usize,
-    field_byte_offset: usize,
-    target_offset: usize,
-) -> usize {
-    match architecture {
-        Architecture::Aarch64 => {
-            aarch64::runtime_frame_base_indexed_address_to_runtime_frame_write_width(
-                base_byte_offset,
-                index_offset,
-                element_byte_size,
-                field_byte_offset,
-                target_offset,
-            )
-        }
-        Architecture::X86_64 => {
-            let _ = (
-                base_byte_offset,
-                index_offset,
-                element_byte_size,
-                field_byte_offset,
-                target_offset,
-            );
-            x86_64::runtime_frame_base_indexed_address_to_runtime_frame_write_width()
-        }
-    }
-}
-
 /// Relocation imm offset (pre-`+2`) of the second runtime-frame base load in the
 /// frame-base-indexed address write, when the architecture loads the frame base
 /// more than once. `None` when a single load is reused (aarch64).
@@ -1455,67 +1170,9 @@ pub fn runtime_frame_base_indexed_address_target_frame_offset(
     }
 }
 
-pub fn runtime_machine_indexed_address_to_runtime_frame_write_width(
-    architecture: Architecture,
-    base_byte_offset: usize,
-    index_region: omega_target_operations::RuntimeStorageRegion,
-    index_offset: usize,
-    element_byte_size: usize,
-    field_byte_offset: usize,
-    target_offset: usize,
-) -> usize {
-    match architecture {
-        Architecture::Aarch64 => {
-            aarch64::runtime_machine_indexed_address_to_runtime_frame_write_width(
-                base_byte_offset,
-                index_region,
-                index_offset,
-                element_byte_size,
-                field_byte_offset,
-                target_offset,
-            )
-        }
-        Architecture::X86_64 => {
-            x86_64::runtime_machine_indexed_address_to_runtime_frame_write_width()
-        }
-    }
-}
-
-pub fn runtime_machine_indexed_address_relocation_offsets(
-    architecture: Architecture,
-    base_byte_offset: usize,
-    index_region: omega_target_operations::RuntimeStorageRegion,
-    index_offset: usize,
-    element_byte_size: usize,
-    field_byte_offset: usize,
-) -> (Option<usize>, usize) {
-    match architecture {
-        Architecture::Aarch64 => (
-            aarch64::runtime_machine_indexed_address_index_base_offset(
-                base_byte_offset,
-                index_region,
-            ),
-            aarch64::runtime_machine_indexed_address_target_frame_offset(
-                base_byte_offset,
-                index_region,
-                index_offset,
-                element_byte_size,
-                field_byte_offset,
-            ),
-        ),
-        Architecture::X86_64 => (
-            Some(x86_64::MACHINE_INDEXED_ADDRESS_INDEX_BASE_IMM_OFFSET),
-            x86_64::MACHINE_INDEXED_ADDRESS_TARGET_FRAME_IMM_OFFSET,
-        ),
-    }
-}
-
 /// Width of the ByteRead stdin read (0 = the refuse-to-emit convention for
 /// mechanisms the op can never bind to).
-pub fn runtime_byte_read_width(
-    architecture: Architecture,
-    binding: &HostBindingMechanism,
-) -> usize {
+pub fn runtime_byte_read_width(architecture: Architecture, binding: &HostBindingMechanism) -> usize {
     match architecture {
         Architecture::Aarch64 => match binding {
             HostBindingMechanism::Import { .. } => aarch64::runtime_byte_read_import_width(),
@@ -1749,13 +1406,7 @@ pub fn runtime_storage_copy_to_runtime_machine_indexed_source_address_offset(
             )
         }
         Architecture::X86_64 => {
-            let _ = (
-                base_byte_offset,
-                index_region,
-                index_offset,
-                element_byte_size,
-                field_byte_offset,
-            );
+            let _ = (base_byte_offset, index_region, index_offset, element_byte_size, field_byte_offset);
             0
         }
     }
@@ -1769,8 +1420,7 @@ pub fn runtime_storage_copy_to_runtime_machine_indexed_frame_source_machine_base
     match architecture {
         Architecture::Aarch64 => 0,
         Architecture::X86_64 => {
-            x86_64::runtime_storage_copy_to_runtime_machine_indexed_frame_source_machine_base_offset(
-            )
+            x86_64::runtime_storage_copy_to_runtime_machine_indexed_frame_source_machine_base_offset()
         }
     }
 }
@@ -1871,6 +1521,18 @@ pub fn runtime_storage_copy_from_runtime_machine_double_indexed_to_runtime_stora
 
 /// Frame-base relocation start inside the double-indexed read (pre-`+2`;
 /// present only when an index is frame-resident). x86_64 only.
+/// Write rung 1c (x86-only; aarch64 keeps the shared-base layout): the
+/// canonicalized double-indexed integer WRITE's per-index frame bases.
+pub fn runtime_machine_double_indexed_integer_write_outer_frame_offset() -> usize {
+    x86_64::runtime_machine_double_indexed_integer_write_outer_frame_offset()
+}
+
+pub fn runtime_machine_double_indexed_integer_write_inner_frame_offset(
+    outer_index_region: omega_target_operations::RuntimeStorageRegion,
+) -> usize {
+    x86_64::runtime_machine_double_indexed_integer_write_inner_frame_offset(outer_index_region)
+}
+
 pub fn runtime_storage_copy_from_runtime_machine_double_indexed_frame_base_offset(
     architecture: Architecture,
 ) -> usize {
@@ -1992,10 +1654,12 @@ pub fn runtime_machine_double_indexed_binary_left_operand_offset(
                 inner_index_region,
             )
         }
-        Architecture::X86_64 => x86_64::runtime_machine_double_indexed_binary_left_operand_offset(
-            outer_index_region,
-            inner_index_region,
-        ),
+        Architecture::X86_64 => {
+            x86_64::runtime_machine_double_indexed_binary_left_operand_offset(
+                outer_index_region,
+                inner_index_region,
+            )
+        }
     }
 }
 
@@ -2018,8 +1682,7 @@ pub fn runtime_storage_copy_from_runtime_frame_base_double_indexed_target_base_o
 ) -> usize {
     match architecture {
         Architecture::Aarch64 => {
-            aarch64::runtime_storage_copy_from_runtime_frame_base_double_indexed_target_base_offset(
-            )
+            aarch64::runtime_storage_copy_from_runtime_frame_base_double_indexed_target_base_offset()
         }
         Architecture::X86_64 => {
             x86_64::runtime_storage_copy_from_runtime_frame_base_double_indexed_target_base_offset()
@@ -2033,9 +1696,7 @@ pub fn append_wire_literal_byte_width(
     written_offset: usize,
 ) -> usize {
     match architecture {
-        Architecture::Aarch64 => {
-            aarch64::append_wire_literal_byte_width(out_offset, written_offset)
-        }
+        Architecture::Aarch64 => aarch64::append_wire_literal_byte_width(out_offset, written_offset),
         Architecture::X86_64 => x86_64::append_wire_literal_byte_width(out_offset, written_offset),
     }
 }

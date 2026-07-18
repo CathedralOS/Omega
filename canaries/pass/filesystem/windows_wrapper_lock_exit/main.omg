@@ -1,0 +1,83 @@
+// RUN CANARY (exit 70, WINDOWS-HOST ONLY) -- the portable whole-file lock
+// family selected through its windows_x64 implementation: CRT fd -> HANDLE,
+// LockFileEx/UnlockFile, and immediate GetLastError capture for contention.
+// Two independent read/write handles prove both exclusive and shared conflict.
+// exits: 70 good; 71 setup/open; 72 exclusive; 73 expected WouldBlock;
+// 74 unlock; 75 shared try; 76 exclusive-vs-shared WouldBlock; 77 cleanup.
+
+use omega::language::std::filesystem;
+use omega::language::std::filesystem_host;
+
+boundary trait Console { machine exit_process(return_code: i32); }
+
+data Main {
+    console: Console;
+    fs: Filesystem;
+    open_result: OpenResult;
+    io_result: IoResult;
+    unit_result: UnitResult;
+    try_result: TryLockResult;
+    fd1: i32;
+    fd2: i32;
+    close_rc: i32;
+}
+
+machine Main::main(&mut self) {
+    self.open_result = self.fs.create("omega_win_lock_probe.txt");
+    transition self.open_result { OpenResult::Ok { file } -> seed(file) _ -> bad(71) }
+    state seed(&mut self, file: File) {
+        self.fd1 = file.fd;
+        self.io_result = self.fs.write(File { fd: self.fd1 }, "lock");
+        transition self.io_result { IoResult::Ok { count } -> close_seed() _ -> bad(71) }
+    }
+    state close_seed(&mut self) {
+        self.close_rc = self.fs.close(File { fd: self.fd1 });
+        let opts: OpenOptions = OpenOptions { read: true, write: true };
+        self.open_result = self.fs.open_with("omega_win_lock_probe.txt", opts);
+        transition self.open_result { OpenResult::Ok { file } -> opened_first(file) _ -> bad(71) }
+    }
+    state opened_first(&mut self, file: File) {
+        self.fd1 = file.fd;
+        let opts: OpenOptions = OpenOptions { read: true, write: true };
+        self.open_result = self.fs.open_with("omega_win_lock_probe.txt", opts);
+        transition self.open_result { OpenResult::Ok { file } -> lock_first(file) _ -> bad(71) }
+    }
+    state lock_first(&mut self, file: File) {
+        self.fd2 = file.fd;
+        self.unit_result = self.fs.lock(File { fd: self.fd1 });
+        transition self.unit_result { UnitResult::Ok -> contend_exclusive() _ -> bad(72) }
+    }
+    state contend_exclusive(&mut self) {
+        self.try_result = self.fs.try_lock(File { fd: self.fd2 });
+        transition self.try_result { TryLockResult::WouldBlock -> unlock_first() _ -> bad(73) }
+    }
+    state unlock_first(&mut self) {
+        self.unit_result = self.fs.unlock(File { fd: self.fd1 });
+        transition self.unit_result { UnitResult::Ok -> take_shared() _ -> bad(74) }
+    }
+    state take_shared(&mut self) {
+        self.try_result = self.fs.try_lock_shared(File { fd: self.fd2 });
+        transition self.try_result { TryLockResult::Acquired -> contend_shared() _ -> bad(75) }
+    }
+    state contend_shared(&mut self) {
+        self.try_result = self.fs.try_lock(File { fd: self.fd1 });
+        transition self.try_result { TryLockResult::WouldBlock -> release_shared() _ -> bad(76) }
+    }
+    state release_shared(&mut self) {
+        self.unit_result = self.fs.unlock(File { fd: self.fd2 });
+        transition self.unit_result { UnitResult::Ok -> blocking_shared() _ -> bad(77) }
+    }
+    state blocking_shared(&mut self) {
+        self.unit_result = self.fs.lock_shared(File { fd: self.fd1 });
+        transition self.unit_result { UnitResult::Ok -> cleanup() _ -> bad(77) }
+    }
+    state cleanup(&mut self) {
+        self.unit_result = self.fs.unlock(File { fd: self.fd1 });
+        self.close_rc = self.fs.close(File { fd: self.fd1 });
+        self.close_rc = self.fs.close(File { fd: self.fd2 });
+        self.unit_result = self.fs.remove("omega_win_lock_probe.txt");
+        transition self.unit_result { UnitResult::Ok -> good() _ -> bad(77) }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self, code: i32) { self.console.exit_process(code); }
+}

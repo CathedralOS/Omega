@@ -9,14 +9,14 @@ use omega_typed_trees::expression::ExpressionHandle;
 use super::graph;
 use super::order::{AmbiguousDefault, OrderResolution, RankingOrder, decreasing_value_text};
 
-/// The outcome of attempting to prove a machine's private ranking witness
+/// The outcome of attempting to prove a machine's `terminates by`
 /// clause, distinguishing the cases the caller renders as different diagnostics.
 pub(super) enum DecreaseOutcome {
     /// The decrease was proven across every cyclic edge.
     Proven,
     /// The order resolved, but the decrease could not be proven.
     Unproven,
-    /// A plain `terminates by value` witness whose subject has no single
+    /// A plain `terminates by value` clause whose decreasing value has no single
     /// builtin well-founded order; the explicit `-> View` form is required.
     /// Carries the details the diagnostic renders.
     AmbiguousOrder(AmbiguousDefault),
@@ -25,9 +25,17 @@ pub(super) enum DecreaseOutcome {
     /// as the named bounded distance on every cyclic edge. The diagnostic
     /// names the right shape instead of a bare "cannot prove".
     InvertedDistance(InvertedDistance),
-    /// The decrease itself proved, but the authored `in ...` interval could
-    /// not be shown to contain every rank produced by the selected view.
-    UnprovenRange(String),
+    /// TPR3 slice 1 (decision 23): the plan's RECORDED witness view (the
+    /// canonical-default elaboration at the syntax->resolved lowering) and
+    /// the checker's independently resolved order DISAGREE. This is an
+    /// internal invariant, never a user error -- the lowering mirrors the
+    /// checker's inference exactly, so a divergence means one of them
+    /// changed without the other.
+    PlanViewDivergence { recorded: String, resolved: String },
+    /// TPR3: a DIRECTED rejection from view resolution (unbounded
+    /// increasing view, argument-arity mismatch, arguments on a plain
+    /// view); the message names the fix and is rendered verbatim.
+    Rejected(String),
 }
 
 /// The subject texts the inverted-distance diagnostic renders: the clause as
@@ -38,7 +46,7 @@ pub(super) struct InvertedDistance {
 }
 
 /// Which subject orientation the nat distance prover should read from a
-/// two-subject decreases tuple: the declared `(lower, upper)`, or the swapped
+/// two-subject ranking tuple: the declared `(lower, upper)`, or the swapped
 /// probe used to recognize an inverted bounded distance.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) enum DistanceOrientation {
@@ -46,7 +54,7 @@ pub(super) enum DistanceOrientation {
     Swapped,
 }
 
-/// The ranked subjects a ranking witness threads into the edge provers: a
+/// The ranked subjects a `terminates by` clause threads into the edge provers: a
 /// single decreasing value, or the two-subject bounded distance whose subjects
 /// bind in order to `Nat::BoundedDistance`'s `(lower, upper)` parameters.
 #[derive(Clone, Copy)]
@@ -62,50 +70,93 @@ pub(super) fn machine_decrease_outcome(
     program: &omega_typed_trees::TypedTrees,
     machine: &omega_typed_trees::machine::Machine,
 ) -> DecreaseOutcome {
-    let subjects = program
-        .expression_table
-        .expression_handles(machine.ranking_witness.subjects);
-    let authored_measure = match subjects {
-        [single] => DecreaseMeasure::Single(*single),
-        [lower, upper] => DecreaseMeasure::Distance {
-            lower: *lower,
-            upper: *upper,
-        },
-        _ => return DecreaseOutcome::Unproven,
-    };
-
     let states = program.machine_states(machine);
-    // The ranking witness is declared on the machine signature, so its names
+    // The ranking clause is declared on the machine signature, so its names
     // resolve against the machine's root (entry) state.
     let Some(root_state) = states.first() else {
         return DecreaseOutcome::Proven;
     };
-    let decrease_order = program.machine_decrease_order(machine.ranking_witness.view);
-    let view_arguments = program
-        .expression_table
-        .expression_handles(machine.ranking_witness.view_arguments);
+    let Some(witness) = machine.termination_plan.implementation_witness.as_ref() else {
+        return DecreaseOutcome::Unproven;
+    };
+    let Some(subjects) = resolve_witness_expressions(program, root_state, &witness.subjects) else {
+        return DecreaseOutcome::Rejected(
+            "internal: normalized ranking-witness subjects did not resolve in the root state"
+                .to_string(),
+        );
+    };
+    let Some(view_arguments) =
+        resolve_witness_expressions(program, root_state, &witness.view_arguments)
+    else {
+        return DecreaseOutcome::Rejected(
+            "internal: normalized ranking-view arguments did not resolve in the root state"
+                .to_string(),
+        );
+    };
+    let decrease_order = witness
+        .view_path
+        .split("::")
+        .filter(|member| !member.is_empty())
+        .collect::<Vec<_>>();
     let order = match RankingOrder::resolve(
         program,
         root_state,
-        subjects,
-        decrease_order,
-        view_arguments,
+        &subjects,
+        &decrease_order,
+        &view_arguments,
     ) {
         OrderResolution::Resolved(order) => order,
         OrderResolution::AmbiguousDefault(ambiguity) => {
             return DecreaseOutcome::AmbiguousOrder(ambiguity);
         }
         OrderResolution::Unsupported => return DecreaseOutcome::Unproven,
+        OrderResolution::Rejected { message } => return DecreaseOutcome::Rejected(message),
     };
-    let measure = match (&order, authored_measure) {
-        (RankingOrder::NatIncreasingTo(limit), DecreaseMeasure::Single(lower)) => {
-            DecreaseMeasure::Distance {
-                lower,
-                upper: *limit,
-            }
-        }
-        _ => authored_measure,
+
+    // The measure follows the resolved view: `Nat::IncreasingTo(limit)`
+    // ranks its single subject by the distance up to the named bound (the
+    // bounded-distance machinery with a view-fixed orientation); everything
+    // else ranks the subjects directly.
+    let measure = match (&order, subjects.as_slice()) {
+        (RankingOrder::IncreasingTo(limit), [single]) => DecreaseMeasure::Distance {
+            lower: *single,
+            upper: *limit,
+        },
+        (_, [single]) => DecreaseMeasure::Single(*single),
+        (_, [lower, upper]) => DecreaseMeasure::Distance {
+            lower: *lower,
+            upper: *upper,
+        },
+        _ => return DecreaseOutcome::Unproven,
     };
+
+    // TPR3 slice 1 (decision 23): when the plan RECORDED an elaborated view
+    // (TPR2's lowering-time canonical defaults / authored builtins) and the
+    // checker's resolution lands on a canonical builtin, the two must agree
+    // -- the recorded witness is what proof-cache keys and diagnostics will
+    // trust, so a silent divergence is unacceptable. Declared-measure orders
+    // resolve from the same authored path the plan recorded (agreement by
+    // construction), and a PENDING plan view (empty path) constrains
+    // nothing.
+    if witness.ranking_view.is_valid()
+        && let Some(recorded_path) = witness.ranking_view.canonical_path()
+        && let Some(resolved_path) = canonical_order_path(&order)
+        && recorded_path != resolved_path
+    {
+        return DecreaseOutcome::PlanViewDivergence {
+            recorded: recorded_path.to_string(),
+            resolved: resolved_path.to_string(),
+        };
+    }
+
+    // TPR3 slice 3: the `in <range>` rank constraint is CONSUMED here. V1
+    // verifies the structurally-true shape and rejects everything else with
+    // a directed message -- never a silent drop, never an unproven fact.
+    if let Some(range) = witness.rank_range.as_ref()
+        && let Some(message) = rank_range_violation(program, range, &order)
+    {
+        return DecreaseOutcome::Rejected(message);
+    }
 
     let adjacency = graph::machine_adjacency(program, machine);
     let components = graph::strongly_connected_components(&adjacency);
@@ -128,17 +179,6 @@ pub(super) fn machine_decrease_outcome(
     };
 
     if proven_with(DistanceOrientation::Declared) {
-        if machine.ranking_witness.range.is_present()
-            && !rank_range_proven(program, machine, measure, &order)
-        {
-            let range = machine.ranking_witness.range;
-            return DecreaseOutcome::UnprovenRange(format!(
-                "{}..{}{}",
-                decreasing_value_text(program, range.start),
-                if range.end_inclusive { "=" } else { "" },
-                decreasing_value_text(program, range.end),
-            ));
-        }
         return DecreaseOutcome::Proven;
     }
 
@@ -167,142 +207,176 @@ pub(super) fn machine_decrease_outcome(
     DecreaseOutcome::Unproven
 }
 
-/// Conservative discharge for an authored rank interval. Builtin natural
-/// rankings have floor zero. Their obvious carrier-owned upper bound is the
-/// subject itself (descending/length) or the fixed upper subject/view argument
-/// (bounded distance/IncreasingTo). More involved symbolic bounds remain
-/// unproven instead of being trusted.
-fn rank_range_proven(
+/// TPR3 slice 3: verify the authored `in <range>` rank constraint against
+/// the resolved view. V1 accepts exactly the shape that is TRUE BY THE
+/// VIEW'S DEFINITION -- floor `0` (every builtin view produces a natural
+/// rank) and a ceiling equal to the argumented view's own bound, spelled
+/// identically and inclusively (`in 0..=limit` on `Nat::IncreasingTo(limit)`:
+/// the rank IS the distance up to that bound). Everything else needs an
+/// invariant proof that does not exist yet and is rejected with a directed
+/// message.
+fn rank_range_violation(
     program: &omega_typed_trees::TypedTrees,
-    machine: &omega_typed_trees::machine::Machine,
-    measure: DecreaseMeasure,
+    range: &omega_core::semantics::RankRange,
     order: &RankingOrder,
-) -> bool {
-    let range = machine.ranking_witness.range;
-    let lower_contains_zero = matches!(
-        program.expression_table.expression(range.start),
-        omega_typed_trees::expression::ExpressionNode::Integer(literal)
-            if literal
-                .value_bignum()
-                .is_some_and(|value| value <= omega_core::bignum::BigInt::zero())
-    );
-    if !lower_contains_zero || !range.end_inclusive {
-        return false;
+) -> Option<String> {
+    if range.floor != "0" {
+        return Some(
+            "a rank floor above the natural floor `0` is not consumed yet (decision 23 \
+             TPR3): every builtin view produces a natural rank -- spell `in 0..=<bound>` \
+             or omit the range"
+                .to_string(),
+        );
     }
-
-    match (order, measure) {
-        (
-            RankingOrder::NatDescending | RankingOrder::CustomNatDescending,
-            DecreaseMeasure::Single(subject),
-        ) => expressions_equivalent(program, range.end, subject),
-        (
-            RankingOrder::NatIncreasingTo(_) | RankingOrder::BoundedDistance,
-            DecreaseMeasure::Distance { upper, .. },
-        ) => expressions_equivalent(program, range.end, upper),
-        (RankingOrder::SliceLength, DecreaseMeasure::Single(subject)) => {
-            expression_is_length_of(program, range.end, subject)
-                || expressions_equivalent(program, range.end, subject)
-                    && matches!(
-                        program.expression_table.expression(subject),
-                        omega_typed_trees::expression::ExpressionNode::Member(member)
-                            if member.member.as_str() == "len"
-                    )
+    match order {
+        RankingOrder::IncreasingTo(limit) => {
+            let bound = decreasing_value_text(program, *limit);
+            if !range.ceiling_inclusive {
+                return Some(format!(
+                    "the rank of `Nat::IncreasingTo({bound})` reaches `{bound}` itself -- \
+                     spell the ceiling inclusively (`in 0..={bound}`)"
+                ));
+            }
+            (range.ceiling != bound).then(|| {
+                format!(
+                    "the rank ceiling `{}` is not the view's own bound `{bound}`: \
+                     only `in 0..={bound}` verifies structurally on \
+                     `Nat::IncreasingTo({bound})` today (decision 23 TPR3)",
+                    range.ceiling
+                )
+            })
         }
-        (RankingOrder::CustomStructView(field), DecreaseMeasure::Single(subject)) => {
-            expression_is_member_of(program, range.end, subject, field.as_str())
-        }
-        _ => false,
+        _ => Some(
+            "a rank range is only consumed on the argumented `Nat::IncreasingTo(bound)` \
+             today (`in 0..=bound`, decision 23 TPR3) -- other views' ceilings need \
+             invariant proofs that do not exist yet"
+                .to_string(),
+        ),
     }
 }
 
-pub(super) fn machine_rank_range_proven(
+/// TPR3 slice 4: the RESOLVED view's explicit spelling for the checked
+/// termination facts -- the canonical builtin path, or the authored
+/// declared-measure path (the plan's recorded spelling). Empty when the
+/// machine carries no witness or nothing resolves.
+pub(in crate::checks::termination) fn machine_resolved_view_path(
     program: &omega_typed_trees::TypedTrees,
     machine: &omega_typed_trees::machine::Machine,
-) -> bool {
-    if !machine.ranking_witness.range.is_present() {
-        return true;
-    }
+) -> String {
+    let Some(witness) = machine.termination_plan.implementation_witness.as_ref() else {
+        return String::new();
+    };
     let Some(root_state) = program.machine_states(machine).first() else {
+        return String::new();
+    };
+    let Some(subjects) = resolve_witness_expressions(program, root_state, &witness.subjects) else {
+        return String::new();
+    };
+    let Some(view_arguments) =
+        resolve_witness_expressions(program, root_state, &witness.view_arguments)
+    else {
+        return String::new();
+    };
+    let decrease_order = witness
+        .view_path
+        .split("::")
+        .filter(|member| !member.is_empty())
+        .collect::<Vec<_>>();
+    match RankingOrder::resolve(
+        program,
+        root_state,
+        &subjects,
+        &decrease_order,
+        &view_arguments,
+    ) {
+        OrderResolution::Resolved(order) => canonical_order_path(&order)
+            .map(str::to_string)
+            .unwrap_or_else(|| {
+                machine
+                    .termination_plan
+                    .implementation_witness
+                    .as_ref()
+                    .map(|witness| witness.view_path.clone())
+                    .unwrap_or_default()
+            }),
+        _ => String::new(),
+    }
+}
+
+/// Resolve the normalized witness's source-like subject names back to the
+/// typed expression nodes already retained in the expression arena. This is
+/// deliberately independent of `Machine::{decreases,decrease_order,...}`:
+/// those spans are compatibility output, while the witness is the semantic
+/// producer consumed by the checker.
+fn resolve_witness_expressions(
+    program: &omega_typed_trees::TypedTrees,
+    state: &omega_typed_trees::state::State,
+    rendered: &[String],
+) -> Option<Vec<ExpressionHandle>> {
+    rendered
+        .iter()
+        .map(|expected| {
+            if expected == "value" {
+                return None;
+            }
+            program
+                .expression_table
+                .iter_expressions()
+                .filter(|(handle, _)| decreasing_value_text(program, *handle) == *expected)
+                .find_map(|(handle, _)| {
+                    expression_belongs_to_state(program, state, handle).then_some(handle)
+                })
+                .or_else(|| {
+                    // Literal view arguments/range bounds have no place root.
+                    program
+                        .expression_table
+                        .iter_expressions()
+                        .find_map(|(handle, _)| {
+                            (decreasing_value_text(program, handle) == *expected).then_some(handle)
+                        })
+                })
+        })
+        .collect()
+}
+
+fn expression_belongs_to_state(
+    program: &omega_typed_trees::TypedTrees,
+    state: &omega_typed_trees::state::State,
+    expression: ExpressionHandle,
+) -> bool {
+    let Some(root) = ranked_expression_root(program, expression) else {
         return false;
     };
-    let subjects = program
-        .expression_table
-        .expression_handles(machine.ranking_witness.subjects);
-    let authored_measure = match subjects {
-        [single] => DecreaseMeasure::Single(*single),
-        [lower, upper] => DecreaseMeasure::Distance {
-            lower: *lower,
-            upper: *upper,
-        },
-        _ => return false,
-    };
-    let view = program.machine_decrease_order(machine.ranking_witness.view);
-    let view_arguments = program
-        .expression_table
-        .expression_handles(machine.ranking_witness.view_arguments);
-    let order = match RankingOrder::resolve(program, root_state, subjects, view, view_arguments) {
-        OrderResolution::Resolved(order) => order,
-        _ => return false,
-    };
-    let measure = match (&order, authored_measure) {
-        (RankingOrder::NatIncreasingTo(limit), DecreaseMeasure::Single(lower)) => {
-            DecreaseMeasure::Distance {
-                lower,
-                upper: *limit,
-            }
-        }
-        _ => authored_measure,
-    };
-    rank_range_proven(program, machine, measure, &order)
+    program
+        .state_parameters(state)
+        .iter()
+        .any(|parameter| parameter.symbol == root)
 }
 
-fn expression_is_length_of(
+fn ranked_expression_root(
     program: &omega_typed_trees::TypedTrees,
     expression: ExpressionHandle,
-    receiver: ExpressionHandle,
-) -> bool {
-    expression_is_member_of(program, expression, receiver, "len")
-}
-
-fn expression_is_member_of(
-    program: &omega_typed_trees::TypedTrees,
-    expression: ExpressionHandle,
-    receiver: ExpressionHandle,
-    member_name: &str,
-) -> bool {
-    matches!(
-        program.expression_table.expression(expression),
-        omega_typed_trees::expression::ExpressionNode::Member(member)
-            if member.member.as_str() == member_name
-                && expressions_equivalent(program, member.receiver, receiver)
-    )
-}
-
-fn expressions_equivalent(
-    program: &omega_typed_trees::TypedTrees,
-    left: ExpressionHandle,
-    right: ExpressionHandle,
-) -> bool {
+) -> Option<omega_core::symbols::SymbolHandle> {
     use omega_typed_trees::expression::ExpressionNode;
-
-    if left == right {
-        return true;
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Name(path) => Some(path.symbol),
+        ExpressionNode::Member(member) => ranked_expression_root(program, member.receiver),
+        ExpressionNode::Cast(cast) => ranked_expression_root(program, cast.value),
+        _ => None,
     }
-    match (
-        program.expression_table.expression(left),
-        program.expression_table.expression(right),
-    ) {
-        (ExpressionNode::Name(left), ExpressionNode::Name(right)) => {
-            left.symbol == right.symbol
-                || program.expression_table.name_path_members(left.members)
-                    == program.expression_table.name_path_members(right.members)
-        }
-        (ExpressionNode::Member(left), ExpressionNode::Member(right)) => {
-            left.member == right.member
-                && expressions_equivalent(program, left.receiver, right.receiver)
-        }
-        (ExpressionNode::Integer(left), ExpressionNode::Integer(right)) => left == right,
-        _ => false,
+}
+
+/// The canonical spelling of a BUILTIN resolved order (`None` for declared
+/// measures, whose normalized identity lands with the rest of TPR3).
+fn canonical_order_path(order: &RankingOrder) -> Option<&'static str> {
+    match order {
+        RankingOrder::NatDescending => Some("Nat::Descending"),
+        RankingOrder::BoundedDistance => Some("Nat::BoundedDistance"),
+        RankingOrder::SliceLength => Some("Slice::Length"),
+        RankingOrder::IncreasingTo(_) => Some("Nat::IncreasingTo"),
+        RankingOrder::CustomNatDescending
+        | RankingOrder::CustomStructView(_)
+        | RankingOrder::Lexicographic(_) => None,
     }
 }
 
@@ -364,108 +438,10 @@ fn component_has_proven_decrease(
     all_classified && subgraph_is_acyclic(component, &nonstrict_edges)
 }
 
-pub(super) enum EdgeClass {
+enum EdgeClass {
     Strict,
     NonIncreasing,
     Unknown,
-}
-
-pub(super) fn classify_cross_machine_edge(
-    program: &omega_typed_trees::TypedTrees,
-    source_machine: &omega_typed_trees::machine::Machine,
-    source_state: &omega_typed_trees::state::State,
-    target_state: &omega_typed_trees::state::State,
-    guard: ExpressionHandle,
-    arguments: &[ExpressionHandle],
-) -> EdgeClass {
-    let subjects = program
-        .expression_table
-        .expression_handles(source_machine.ranking_witness.subjects);
-    let authored_measure = match subjects {
-        [single] => DecreaseMeasure::Single(*single),
-        [lower, upper] => DecreaseMeasure::Distance {
-            lower: *lower,
-            upper: *upper,
-        },
-        _ => return EdgeClass::Unknown,
-    };
-    let view = program.machine_decrease_order(source_machine.ranking_witness.view);
-    let view_arguments = program
-        .expression_table
-        .expression_handles(source_machine.ranking_witness.view_arguments);
-    let order = match RankingOrder::resolve(program, source_state, subjects, view, view_arguments) {
-        OrderResolution::Resolved(order) => order,
-        _ => return EdgeClass::Unknown,
-    };
-    let measure = match (&order, authored_measure) {
-        (RankingOrder::NatIncreasingTo(limit), DecreaseMeasure::Single(lower)) => {
-            DecreaseMeasure::Distance {
-                lower,
-                upper: *limit,
-            }
-        }
-        _ => authored_measure,
-    };
-    if let (RankingOrder::Lexicographic(fields), DecreaseMeasure::Single(decreases)) =
-        (&order, measure)
-    {
-        return lexicographic::classify_cross_machine_edge(
-            program,
-            source_state,
-            target_state,
-            arguments,
-            decreases,
-            fields,
-        );
-    }
-    if let (RankingOrder::SliceLength, DecreaseMeasure::Single(decreases)) = (&order, measure) {
-        return slice::classify_cross_machine_edge(
-            program,
-            source_state,
-            target_state,
-            guard,
-            arguments,
-            decreases,
-        );
-    }
-    if let (RankingOrder::CustomStructView(field), DecreaseMeasure::Single(decreases)) =
-        (&order, measure)
-    {
-        return struct_view::classify_cross_machine_edge(
-            program,
-            source_state,
-            target_state,
-            guard,
-            arguments,
-            decreases,
-            field,
-        );
-    }
-    if !matches!(
-        order,
-        RankingOrder::NatDescending
-            | RankingOrder::NatIncreasingTo(_)
-            | RankingOrder::BoundedDistance
-            | RankingOrder::CustomNatDescending
-    ) {
-        return EdgeClass::Unknown;
-    }
-    if nat::edge_decrease_proven(
-        program,
-        source_state,
-        target_state,
-        guard,
-        arguments,
-        measure,
-        DistanceOrientation::Declared,
-    ) {
-        EdgeClass::Strict
-    } else if nat::edge_nonincrease_proven(program, source_state, target_state, arguments, measure)
-    {
-        EdgeClass::NonIncreasing
-    } else {
-        EdgeClass::Unknown
-    }
 }
 
 /// Classify every transition statement from `source` targeting `target`:
@@ -483,8 +459,8 @@ fn classify_cycle_edge(
     if !matches!(
         order,
         RankingOrder::NatDescending
-            | RankingOrder::NatIncreasingTo(_)
             | RankingOrder::BoundedDistance
+            | RankingOrder::IncreasingTo(_)
             | RankingOrder::CustomNatDescending
     ) {
         // Slice-length, struct-view and lexicographic orders stay
@@ -520,11 +496,7 @@ fn classify_cycle_edge(
 /// DFS cycle check over the component restricted to the given edges.
 fn subgraph_is_acyclic(component: &[usize], edges: &[(usize, usize)]) -> bool {
     // 0 unvisited, 1 on-stack, 2 done -- iterative coloring.
-    fn visit(
-        node: usize,
-        edges: &[(usize, usize)],
-        color: &mut std::collections::BTreeMap<usize, u8>,
-    ) -> bool {
+    fn visit(node: usize, edges: &[(usize, usize)], color: &mut std::collections::BTreeMap<usize, u8>) -> bool {
         color.insert(node, 1);
         for &(from, to) in edges {
             if from != node {
@@ -549,6 +521,45 @@ fn subgraph_is_acyclic(component: &[usize], edges: &[(usize, usize)]) -> bool {
         .all(|&node| color.get(&node).copied().unwrap_or(0) != 0 || visit(node, edges, &mut color))
 }
 
+/// Prove a strict decrease across one cyclic edge between (possibly distinct)
+/// states. Only orders with a pointwise cross-state meaning are accepted here.
+fn edge_has_proven_decrease(
+    program: &omega_typed_trees::TypedTrees,
+    source: &omega_typed_trees::state::State,
+    target: &omega_typed_trees::state::State,
+    measure: DecreaseMeasure,
+    order: &RankingOrder,
+    orientation: DistanceOrientation,
+) -> bool {
+    match order {
+        RankingOrder::NatDescending
+        | RankingOrder::BoundedDistance
+        | RankingOrder::IncreasingTo(_)
+        | RankingOrder::CustomNatDescending => program
+            .statement_table
+            .statements(source.statement_nodes)
+            .iter()
+            .filter_map(|statement| patterns::guarded_edge_to(program, statement, target.symbol))
+            .any(|edge| {
+                nat::edge_decrease_proven(
+                    program,
+                    source,
+                    target,
+                    edge.guard,
+                    edge.arguments,
+                    measure,
+                    orientation,
+                )
+            }),
+        // Slice-length, struct-view and lexicographic decreases are only
+        // proven across direct self-loops; a multi-state cycle using one of
+        // these orders is conservatively rejected.
+        RankingOrder::SliceLength
+        | RankingOrder::CustomStructView(_)
+        | RankingOrder::Lexicographic(_) => false,
+    }
+}
+
 fn state_has_proven_supported_self_loop(
     program: &omega_typed_trees::TypedTrees,
     state: &omega_typed_trees::state::State,
@@ -562,8 +573,8 @@ fn state_has_proven_supported_self_loop(
     match (order, measure) {
         (
             RankingOrder::NatDescending
-            | RankingOrder::NatIncreasingTo(_)
             | RankingOrder::BoundedDistance
+            | RankingOrder::IncreasingTo(_)
             | RankingOrder::CustomNatDescending,
             _,
         ) => nat::state_has_proven_self_loop(program, state, measure, orientation),

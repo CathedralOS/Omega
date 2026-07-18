@@ -1,0 +1,20 @@
+// N4 TIER-2: a WRONG expansion (the bd monomial replaced by a second bc)
+// has a different monomial multiset -- the polynomial normal form stands
+// down (it proves multiset equality only, never certifies inequality
+// away) and the fence fires.
+use omega::language::core::nat;
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine Main::main(&mut self) { self.console.exit_process(70); }
+
+machine binomial_wrong(a: Nat, b: Nat, c: Nat, d: Nat) -> Nat
+terminates by a;
+ensures
+    (mul(add(a, b), add(c, d)))
+        == (add(add(mul(a, c), mul(a, d)), add(mul(b, c), mul(b, c))))
+{
+    transition a {
+        Nat::Zero -> Nat::Zero
+        Nat::Succ { prev } -> Nat::Succ { prev: binomial_wrong(prev, b, c, d) }
+    }
+}

@@ -20,7 +20,6 @@ machine Main::main(&mut self) {
 }
 
 machine Main::gauss_sum(&mut self, n: u64, acc: u64, limit: u64) -> u64
-terminates;
 terminates by n;
 requires
     limit > 0

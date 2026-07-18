@@ -113,7 +113,7 @@ pub(super) fn simple_local_bindings(
         // self.v = 0; nums[i] = t` silently wrote 0 -- the stale-fold family).
         // Skip the binding so the local resolves through its captured slot.
         // A field written only BEFORE the declaration still folds -- the
-        // don't-over-block rule (runtime_spawn_interleaved_join depends on it).
+        // don't-over-block rule (the captured-local runtime canaries depend on it).
         if initializer_field_reassigned_between(
             &program.expression_table,
             statements,

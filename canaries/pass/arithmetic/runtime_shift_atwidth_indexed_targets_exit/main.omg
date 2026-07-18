@@ -1,7 +1,9 @@
-// RUN CANARY (exit 70) + interpreter differential. Wrapping shifts reaching
-// INDEXED, POINTEE, and Exact-count spellings mask the count by the language
-// operand width. The planner routes non-Exact binary VALUES through the
-// operand path (whose domain machinery applies the mask) rather than fusing
+// RUN CANARY (exit 70) + interpreter differential. At/above-width Wrapping
+// shifts reaching INDEXED, POINTEE, and EXACT-COUNT spellings -- MASKED
+// COUNT semantics (F8b, ch5 ruling: u64 << 70 = << 6 = 64; i32 >> 40 =
+// >> 8 = -1 for -2). The slice-B tail audit (2026-07-14) found all of these
+// routed correctly: the planner sends non-Exact binary VALUES through the
+// operand path (whose domain machinery masks on both ISAs) rather than fusing
 // them into the indexed/pointee binary-write kinds, whose encoders carry no
 // domain and would hardware-mask. This canary PINS that routing: if the
 // planner ever starts fusing wrapping shifts into those kinds, these legs
@@ -22,7 +24,7 @@ data Main { console: Console; arr: [u64; 4]; sarr: [i32; 4]; h: Holder; k: u64; 
 machine Main::write_slot(&mut self, target: &mut Holder) {
     let a: u64 in Wrapping = (1 as u64 in Wrapping);
     let c: u64 in Wrapping = (70 as u64 in Wrapping);
-    target.slot = a << c;
+    target.slot = a << c; // 1 << (70 & 63) = 64
 }
 machine Main::main(&mut self) {
     let a: u64 in Wrapping = (1 as u64 in Wrapping);

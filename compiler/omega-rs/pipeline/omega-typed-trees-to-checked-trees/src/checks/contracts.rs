@@ -22,8 +22,51 @@ pub(crate) fn check_flow_call_contracts(
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
 
+    // PROOF-machine calls are exempt from the runtime requires prover: a
+    // proof machine emits no runtime code, and a call between proof
+    // machines denotes a mathematical application whose VALUE does not
+    // depend on the callee's requires -- the requires conditions only the
+    // callee's ENSURES, and every ensures-consumption face is gated in the
+    // structural validation layer (citation site discharge, IH premise
+    // discharge, functional-ensures exclusion for requires-bearing
+    // callees). Keeping this prover on proof-proof calls double-gates and
+    // refuses sound requires-bearing INDUCTION, whose recursive call's
+    // premise only the structural judge can derive (injectivity
+    // decomposition of the arm-refined requires; probed 2026-07-16 with
+    // add_cancel).
+    let proof_only = omega_typed_trees::proof_only::classify(program);
+    // Call targets carry the callee's ENTRY-STATE symbol (sub-state targets
+    // carry that state's); resolve through states as well as the machine
+    // symbol itself.
+    let is_proof_machine = |symbol: omega_core::symbols::SymbolHandle| {
+        program
+            .machines()
+            .iter()
+            .find(|machine| {
+                machine.symbol == symbol
+                    || program
+                        .machine_states(machine)
+                        .iter()
+                        .any(|state| state.symbol == symbol)
+            })
+            .is_some_and(|machine| proof_only.is_proof_machine(program, machine))
+    };
+
     for (_, state_flow) in facts.flow.control.states.iter() {
+        let caller_is_proof = is_proof_machine(state_flow.machine_symbol);
         for call_flow in facts.flow.control.calls.span_or_empty(state_flow.calls) {
+            if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                eprintln!(
+                    "CALLREQ caller={} proof={} target={} proof={}",
+                    crate::labels::machine_name(program, state_flow.machine_symbol),
+                    caller_is_proof,
+                    crate::labels::call_target_label(program, call_flow.target_symbol),
+                    is_proof_machine(call_flow.target_symbol),
+                );
+            }
+            if caller_is_proof && is_proof_machine(call_flow.target_symbol) {
+                continue;
+            }
             check_call_requires(program, facts, state_flow, call_flow, &mut diagnostics);
         }
         for exit_flow in facts.flow.control.exits.span_or_empty(state_flow.exits) {

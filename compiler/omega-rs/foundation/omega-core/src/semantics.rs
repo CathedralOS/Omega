@@ -1,0 +1,597 @@
+//! STR2 — the core semantic vocabulary (semantic-taxonomy migration rung 2;
+//! record: wiki/architecture/semantic_taxonomy_representation.md).
+//!
+//! These are the settled distinctions the old shapes LOSE (the STR1 pins in
+//! omega-typed-trees witness the loss): first-class multiplicity, the
+//! machine supply mode, decision 23's termination guarantee/ranking-witness
+//! firewall, and decision 22's kinded effect members. Landed here, in the
+//! lowest dependency-safe crate, with NO consumer yet — rungs STR3+
+//! propagate them through the trees and plans. Nothing in this module may
+//! grow behavior: it is vocabulary, identity handles, and the invariants
+//! spelled next to them.
+
+/// First-class usage multiplicity (record §Multiplicity). Replaces `copy`
+/// as the whole usage model: `[copy]` maps to `Unrestricted`, ordinary data
+/// defaults to `Affine`, `[linear]` maps to `Linear`. `zero_init` and
+/// `send` remain orthogonal properties, never folded in.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Multiplicity {
+    /// Freely duplicable and discardable (`[copy]`).
+    Unrestricted,
+    /// Use at most once; silent discard is legal (ordinary data).
+    #[default]
+    Affine,
+    /// Use exactly once; discard is an error (`[linear]`).
+    Linear,
+}
+
+/// Semantic ownership-event roles. Shared by checked flow and every lowered
+/// semantic summary so no stage can reinterpret a generic move/drop marker.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PermissionEventKind {
+    Establish,
+    Transfer,
+    Consume,
+    AffineDrop,
+}
+
+/// Access carried by one permission-context entry. Ownership events use
+/// `Owned`; borrow loans use `Shared` or `Exclusive`. Keeping this axis
+/// separate from multiplicity prevents a shared loan from being mistaken for
+/// a copyable owned value (or an exclusive loan for a linear value).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum PermissionAccess {
+    #[default]
+    Owned,
+    Shared,
+    Exclusive,
+}
+
+impl Default for PermissionEventKind {
+    fn default() -> Self {
+        Self::Transfer
+    }
+}
+
+/// Stable source identity for a permission event across IR stages.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PermissionEventSource {
+    StateEntry,
+    Statement {
+        statement_index: usize,
+    },
+    Call {
+        statement_index: usize,
+        call_ordinal: usize,
+        target_symbol: crate::symbols::SymbolHandle,
+    },
+    StateExit,
+}
+
+impl Default for PermissionEventSource {
+    fn default() -> Self {
+        Self::StateEntry
+    }
+}
+
+/// Stable origin of the semantic value/obligation carried by a permission
+/// event. Transfers preserve this value; they do not mint a fresh origin.
+/// `Unknown` is retained only while a legacy compatibility producer cannot
+/// identify where an affine value was established.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum PermissionProvenance {
+    #[default]
+    Unknown,
+    Established {
+        machine_symbol: crate::symbols::SymbolHandle,
+        state_symbol: crate::symbols::SymbolHandle,
+        source: PermissionEventSource,
+    },
+}
+
+/// How a machine is supplied to its consumers (record §Machines). The old
+/// `boundary: bool` conflates all four; provider admission, proof
+/// artifacts, manifests, and lowering must consume THIS, not re-derive
+/// supply from syntax and lookup context.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum MachineSupplyMode {
+    /// An ordinary checked body compiled in this program (the ZII default).
+    #[default]
+    CheckedBody,
+    /// A requirement slot: the signature is the contract; a provider is
+    /// admitted against it.
+    Requirement,
+    /// A boundary declaration: supplied by the host/component seam, claims
+    /// gated by grants.
+    Boundary,
+    /// An accepted (axiom-tier) declaration: trusted without proof, shown
+    /// in the trust report.
+    Accepted,
+    /// PRV4: an irreducible external leaf -- `satisfies Requirement via
+    /// <Binding>;` on a bodyless machine. The satisfied requirement supplies
+    /// the public contract/effect ceiling; the normalized binding is the
+    /// realization the lowering consumes. Composite lowerings are ordinary
+    /// CheckedBody machines and never carry a binding.
+    ExternalRealization { binding: ExternalBindingId },
+}
+
+/// Decision 23's PUBLIC half: the eventual-terminal guarantee that
+/// participates in published machine-contract and import-slot identity.
+/// The premises are explicit; an exported omission normalizes to
+/// `NoGuarantee` (never to an implied promise).
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub enum TerminationGuarantee {
+    #[default]
+    NoGuarantee,
+    EventualTerminal {
+        /// Progress-profile premises the guarantee is conditional on
+        /// (sealed semantic commitments with grant/receipt identity).
+        premises: Vec<ProgressProfileId>,
+    },
+}
+
+/// Decision 23's PRIVATE half: the ranking witness proving one body. It
+/// feeds checker legality, proof-cache identity, diagnostics, and
+/// provider-local revalidation — and NEVER enters published contract
+/// identity (the record's ordering constraint: swapping one valid witness
+/// for another revalidates only the provider/proof artifact).
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct RankingWitness {
+    /// The ranked subjects (parameter/field names, in rank order).
+    pub subjects: Vec<String>,
+    /// The canonical ranking view. Stable defaults elaborate IMMEDIATELY
+    /// to an explicit view — the checker never selects a noncanonical view
+    /// heuristically. `NULL` when the view is a user-declared measure (its
+    /// normalized identity lands with the TPR3 checker migration) or while
+    /// a single-subject short form awaits its type-directed elaboration.
+    pub ranking_view: RankingViewId,
+    /// The explicit, elaborated view SPELLING (`Nat::Descending`,
+    /// `Card::PowerOrder`) — the witness is private, so a rendered path is
+    /// its honest identity carrier for diagnostics and proof-cache keys.
+    /// Empty ONLY while a single-subject short form awaits type-directed
+    /// elaboration (the one canonical-default case that needs the subject's
+    /// carrier type; TPR3 completes it inside the migrated checker).
+    pub view_path: String,
+    /// An ARGUMENTED view's arguments (`Nat::IncreasingTo(limit)` carries
+    /// `["limit"]`), rendered source-like in order; empty for plain views.
+    /// The bound is part of the view — an unbounded increasing view is not
+    /// a valid ranking.
+    pub view_arguments: Vec<String>,
+    /// The optional `in <range>` constraint on the RANK the view produces
+    /// (TPR3, decision 23): a termination FACT, no storage. Authored
+    /// material like the subjects — the checker verifies it structurally
+    /// and FAILS compilation otherwise, so a compiled artifact never
+    /// carries an unverified range.
+    pub rank_range: Option<RankRange>,
+}
+
+/// The rank-range fact (`in 0..=capacity`), rendered source-like. Its floor
+/// establishes the well-founded floor; the ceiling bounds the produced rank.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct RankRange {
+    pub floor: String,
+    pub ceiling: String,
+    pub ceiling_inclusive: bool,
+}
+
+/// The interface/implementation split for one machine's termination story
+/// (record §Machines): the published guarantee is contract identity, the
+/// checked summary serves local consumers, the witness stays private.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct MachineTerminationPlan {
+    /// `None` = internal/derived (not serialized as an authored external
+    /// promise); `Some` = published, participating in contract identity.
+    pub published: Option<TerminationGuarantee>,
+    /// What the checker established for THIS body (local consumers only).
+    pub checked_summary: TerminationGuarantee,
+    /// The private proof material, if a ranked body carried one.
+    pub implementation_witness: Option<RankingWitness>,
+}
+
+/// Decision 22's member kinds: the qualitative effect row is KINDED, never
+/// one undifferentiated name list. A provider carrying an `OperationalMay`
+/// member (e.g. `Block`) cannot satisfy a slot pinned without it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EffectMemberKind {
+    /// Reach to a boundary service (minted by boundary-trait declarations).
+    ServiceReach,
+    /// An operational possibility the caller must tolerate (core-minted v1
+    /// set: `Suspend`, `Block`).
+    OperationalMay,
+}
+
+macro_rules! semantic_id {
+    ($(#[$doc:meta])* $name:ident) => {
+        $(#[$doc])*
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+        pub struct $name(pub u32);
+
+        impl $name {
+            /// The ZII-inert null identity (index 0 is reserved).
+            pub const NULL: Self = Self(0);
+
+            pub fn is_valid(self) -> bool {
+                self.0 != 0
+            }
+        }
+    };
+}
+
+semantic_id!(
+    /// Normalized semantic-domain identity (record §Domain theory): the
+    /// deterministic normalizer owns it; checked types/bindings carry it;
+    /// layout keeps using the carrier ABI (semantic interface identity and
+    /// physical ABI identity are DISTINCT and both queryable).
+    SemanticDomainId
+);
+semantic_id!(
+    /// Normalized declaration/core identity of one effect member.
+    EffectMemberId
+);
+semantic_id!(
+    /// Normalized effect-row identity (member set + parent closure). Must
+    /// never depend on prover strength, provider selection, or the legacy
+    /// numeric bit assigned to a name.
+    EffectRowId
+);
+semantic_id!(
+    /// A sealed boundary progress profile (grant/receipt identity);
+    /// participates in provider admission, outside the ordinary proof-fact
+    /// catalog in v1.
+    ProgressProfileId
+);
+semantic_id!(
+    /// A normalized EXTERNAL-BINDING identity (PRV4 step 1): the rendered,
+    /// compile-time-evaluable `via <Binding>` expression of an
+    /// ExternalRealization leaf, interned so supply modes stay Copy and two
+    /// spellings of one binding share one identity.
+    ExternalBindingId
+);
+semantic_id!(
+    /// A canonical ranking view (e.g. `Nat::Descending`); the witness names
+    /// it explicitly, defaults elaborate at once.
+    RankingViewId
+);
+
+/// The BUILTIN canonical ranking-view catalog (decision 23, TPR2). The ids
+/// are FIXED (deterministic across programs — they may enter proof-cache
+/// keys); user-declared measures are NOT here (they get per-program
+/// normalized identity with the TPR3 checker migration and carry
+/// `RankingViewId::NULL` until then).
+impl RankingViewId {
+    /// `Nat::Descending` — an unsigned/bounded scalar counting down.
+    pub const NAT_DESCENDING: Self = Self(1);
+    /// `Nat::BoundedDistance` — a `(lower, upper)` pair ranked by the
+    /// distance from `lower` up to the fixed `upper`; the only builtin
+    /// two-subject view (and therefore the two-subject short-form default).
+    pub const NAT_BOUNDED_DISTANCE: Self = Self(2);
+    /// `Slice::Length` — a slice decreasing by its length.
+    pub const SLICE_LENGTH: Self = Self(3);
+    /// `Nat::IncreasingTo(limit)` — a cursor climbing toward the bound the
+    /// view NAMES (the bound is part of the view: this is well-founded
+    /// because the distance to `limit` descends; an unbounded `Increasing`
+    /// is not a valid ranking).
+    pub const NAT_INCREASING_TO: Self = Self(4);
+
+    /// Look up a builtin canonical view by its explicit spelling (the BASE
+    /// path — an argumented view's arguments live beside it).
+    pub fn canonical(path: &str) -> Option<Self> {
+        match path {
+            "Nat::Descending" => Some(Self::NAT_DESCENDING),
+            "Nat::BoundedDistance" => Some(Self::NAT_BOUNDED_DISTANCE),
+            "Slice::Length" => Some(Self::SLICE_LENGTH),
+            "Nat::IncreasingTo" => Some(Self::NAT_INCREASING_TO),
+            _ => None,
+        }
+    }
+
+    /// The explicit spelling of a builtin canonical view.
+    pub fn canonical_path(self) -> Option<&'static str> {
+        match self {
+            Self::NAT_DESCENDING => Some("Nat::Descending"),
+            Self::NAT_BOUNDED_DISTANCE => Some("Nat::BoundedDistance"),
+            Self::SLICE_LENGTH => Some("Slice::Length"),
+            Self::NAT_INCREASING_TO => Some("Nat::IncreasingTo"),
+            _ => None,
+        }
+    }
+}
+
+/// Decision 22 (STR4): the CANONICAL effect-member catalog v1 -- each
+/// standard effect name with its KIND. `EffectMemberId` = catalog position
+/// + 1 (deterministic across programs). omega-effects' legacy bit table
+/// must stay name-for-name consistent (its unit test pins the
+/// correspondence); ROW identity never reads the legacy bits.
+pub const EFFECT_MEMBER_CATALOG: &[(&str, EffectMemberKind)] = &[
+    ("alloc", EffectMemberKind::ServiceReach),
+    ("dealloc", EffectMemberKind::ServiceReach),
+    ("stdin_io", EffectMemberKind::ServiceReach),
+    ("stdout_io", EffectMemberKind::ServiceReach),
+    ("stderr_io", EffectMemberKind::ServiceReach),
+    ("filesystem_io", EffectMemberKind::ServiceReach),
+    ("network_io", EffectMemberKind::ServiceReach),
+    ("process_spawn", EffectMemberKind::ServiceReach),
+    ("process_exit", EffectMemberKind::ServiceReach),
+    ("process_signal", EffectMemberKind::ServiceReach),
+    ("env_read", EffectMemberKind::ServiceReach),
+    ("env_write", EffectMemberKind::ServiceReach),
+    ("clock_read", EffectMemberKind::ServiceReach),
+    ("random_read", EffectMemberKind::ServiceReach),
+    ("thread_spawn", EffectMemberKind::ServiceReach),
+    ("thread_block", EffectMemberKind::OperationalMay),
+    ("sync_wait", EffectMemberKind::OperationalMay),
+    ("sync_wake", EffectMemberKind::ServiceReach),
+    ("device_io", EffectMemberKind::ServiceReach),
+    ("memory_map", EffectMemberKind::ServiceReach),
+    ("dynamic_link", EffectMemberKind::ServiceReach),
+    ("host_boundary", EffectMemberKind::ServiceReach),
+    ("machine_control", EffectMemberKind::ServiceReach),
+];
+
+/// The canonical member identity for a standard effect name.
+pub fn effect_member_id(name: &str) -> Option<EffectMemberId> {
+    EFFECT_MEMBER_CATALOG
+        .iter()
+        .position(|(candidate, _)| *candidate == name)
+        .map(|position| EffectMemberId(u32::try_from(position + 1).expect("catalog fits u32")))
+}
+
+/// The kind of a standard effect member.
+pub fn effect_member_kind(name: &str) -> Option<EffectMemberKind> {
+    EFFECT_MEMBER_CATALOG
+        .iter()
+        .find(|(candidate, _)| *candidate == name)
+        .map(|(_, kind)| *kind)
+}
+
+/// Decision 22 (STR4): the deterministic effect-ROW interner -- normalized
+/// row identity is the SORTED, DEDUPED member-id set, independent of
+/// spelling order, prover strength, provider selection, and the legacy
+/// numeric bits. `EffectRowId(1)` is ALWAYS the empty row; further ids
+/// follow intern order (deterministic because lowering order is).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct EffectRowTable {
+    rows: Vec<Vec<EffectMemberId>>,
+}
+
+impl EffectRowTable {
+    /// The empty row's fixed identity (`NULL`/0 stays "not computed").
+    pub const EMPTY_ROW: EffectRowId = EffectRowId(1);
+
+    /// Intern a member set (sorted + deduped here) and return its row id.
+    pub fn intern(&mut self, mut members: Vec<EffectMemberId>) -> EffectRowId {
+        members.sort_by_key(|member| member.0);
+        members.dedup();
+        if self.rows.is_empty() {
+            // Reserve id 1 for the empty row before anything else interns.
+            self.rows.push(Vec::new());
+        }
+        if let Some(position) = self.rows.iter().position(|row| *row == members) {
+            return EffectRowId(u32::try_from(position + 1).expect("row table fits u32"));
+        }
+        self.rows.push(members);
+        EffectRowId(u32::try_from(self.rows.len()).expect("row table fits u32"))
+    }
+
+    /// The members of an interned row (empty for `NULL`/unknown ids).
+    pub fn members(&self, row: EffectRowId) -> &[EffectMemberId] {
+        row.0
+            .checked_sub(1)
+            .and_then(|index| self.rows.get(index as usize))
+            .map(Vec::as_slice)
+            .unwrap_or(&[])
+    }
+}
+
+/// PRV4 step 1: the deterministic EXTERNAL-BINDING interner -- normalized
+/// rendered `via` bindings, minted in declaration order. `NULL`/0 stays
+/// "not computed"; ids start at 1.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ExternalBindingTable {
+    renderings: Vec<String>,
+}
+
+impl ExternalBindingTable {
+    pub fn intern(&mut self, rendering: &str) -> ExternalBindingId {
+        if let Some(index) = self
+            .renderings
+            .iter()
+            .position(|existing| existing == rendering)
+        {
+            return ExternalBindingId(index as u32 + 1);
+        }
+        self.renderings.push(rendering.to_owned());
+        ExternalBindingId(self.renderings.len() as u32)
+    }
+
+    pub fn rendering(&self, id: ExternalBindingId) -> Option<&str> {
+        id.0.checked_sub(1)
+            .and_then(|index| self.renderings.get(index as usize))
+            .map(String::as_str)
+    }
+}
+
+/// Decision 19/22 (STR4 checked plans, slice 1): the deterministic
+/// SEMANTIC-DOMAIN interner -- normalized domain identity is the declared
+/// NAME, minted in declaration order (deterministic because lowering order
+/// is; presentation is excluded from identity per the facets brief).
+/// `NULL`/0 stays "not computed"; ids start at 1.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SemanticDomainTable {
+    names: Vec<String>,
+}
+
+impl Default for SemanticDomainTable {
+    fn default() -> Self {
+        // The compiler-blessed arithmetic policies (the closed semantic-facet
+        // subset, decision 17/19) PRE-SEED with FIXED identities -- ids 1-3
+        // are deterministic across programs (proof-cache-safe); declared
+        // domains follow in declaration order.
+        Self {
+            names: vec![
+                "Wrapping".to_owned(),
+                "Saturating".to_owned(),
+                "Trapping".to_owned(),
+            ],
+        }
+    }
+}
+
+impl SemanticDomainTable {
+    /// The fixed identity of the `Wrapping` arithmetic policy.
+    pub const WRAPPING: SemanticDomainId = SemanticDomainId(1);
+    /// The fixed identity of the `Saturating` arithmetic policy.
+    pub const SATURATING: SemanticDomainId = SemanticDomainId(2);
+    /// The fixed identity of the `Trapping` arithmetic policy.
+    pub const TRAPPING: SemanticDomainId = SemanticDomainId(3);
+
+    /// Intern a declared domain name and return its identity (idempotent).
+    pub fn intern(&mut self, name: &str) -> SemanticDomainId {
+        if let Some(position) = self.names.iter().position(|candidate| candidate == name) {
+            return SemanticDomainId(
+                u32::try_from(position + 1).expect("domain table fits u32"),
+            );
+        }
+        self.names.push(name.to_owned());
+        SemanticDomainId(u32::try_from(self.names.len()).expect("domain table fits u32"))
+    }
+
+    /// The declared name of an interned identity (`None` for NULL/unknown).
+    pub fn name(&self, id: SemanticDomainId) -> Option<&str> {
+        id.0
+            .checked_sub(1)
+            .and_then(|index| self.names.get(index as usize))
+            .map(String::as_str)
+    }
+
+    /// Look up an existing identity without minting.
+    pub fn lookup(&self, name: &str) -> Option<SemanticDomainId> {
+        self.names
+            .iter()
+            .position(|candidate| candidate == name)
+            .map(|position| {
+                SemanticDomainId(u32::try_from(position + 1).expect("domain table fits u32"))
+            })
+    }
+}
+
+/// The domain-theory facet PAIR (record §Domain theory): optional facets,
+/// NOT a mutually exclusive enum — hybrids are first-class. The facet
+/// bodies land with STR3+ (they need tree vocabulary); the skeleton lands
+/// now so no checked-stage query ever infers predicate-vs-semantic behavior
+/// by testing whether a domain happens to have facts or operators.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct DomainFacets {
+    pub predicate: bool,
+    pub semantic: Option<SemanticDomainId>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn semantic_domain_table_is_deterministic_and_idempotent() {
+        // Identity = declaration order; re-interning the same name returns
+        // the same id; NULL never resolves to a name.
+        let mut table = SemanticDomainTable::default();
+        // Policies pre-seed with FIXED ids; declared domains follow.
+        assert_eq!(table.lookup("Wrapping"), Some(SemanticDomainTable::WRAPPING));
+        assert_eq!(
+            table.lookup("Saturating"),
+            Some(SemanticDomainTable::SATURATING)
+        );
+        assert_eq!(table.lookup("Trapping"), Some(SemanticDomainTable::TRAPPING));
+        let kilometres = table.intern("Km");
+        assert_eq!(kilometres, SemanticDomainId(4));
+        assert_eq!(table.intern("Km"), kilometres);
+        assert_eq!(table.name(kilometres), Some("Km"));
+        // Re-interning a policy returns its fixed id, never a duplicate.
+        assert_eq!(table.intern("Wrapping"), SemanticDomainTable::WRAPPING);
+        assert_eq!(table.name(SemanticDomainId::NULL), None);
+        assert_eq!(table.lookup("Miles"), None);
+    }
+
+    #[test]
+    fn multiplicity_default_is_affine() {
+        // Ordinary data defaults to Affine (the record's mapping); `[copy]`
+        // opts into Unrestricted, `[linear]` into Linear.
+        assert_eq!(Multiplicity::default(), Multiplicity::Affine);
+    }
+
+    #[test]
+    fn termination_guarantee_default_is_no_guarantee() {
+        // Exported omission normalizes to NoGuarantee — never an implied
+        // promise.
+        assert_eq!(
+            TerminationGuarantee::default(),
+            TerminationGuarantee::NoGuarantee
+        );
+    }
+
+    #[test]
+    fn witness_stays_out_of_the_published_half() {
+        // The plan SHAPE enforces the firewall: the witness lives beside
+        // the published guarantee, never inside it — equality of two plans'
+        // published halves is witness-blind by construction.
+        let with_witness = MachineTerminationPlan {
+            published: Some(TerminationGuarantee::NoGuarantee),
+            checked_summary: TerminationGuarantee::NoGuarantee,
+            implementation_witness: Some(RankingWitness::default()),
+        };
+        let without_witness = MachineTerminationPlan {
+            implementation_witness: None,
+            ..with_witness.clone()
+        };
+        assert_eq!(with_witness.published, without_witness.published);
+    }
+
+    #[test]
+    fn semantic_ids_are_zii_inert() {
+        assert!(!SemanticDomainId::default().is_valid());
+        assert!(EffectRowId(1).is_valid());
+    }
+
+    #[test]
+    fn effect_row_identity_is_order_and_duplicate_blind() {
+        // Decision 22: row identity = the normalized member SET. The empty
+        // row always gets the fixed id 1.
+        let mut table = EffectRowTable::default();
+        let io = effect_member_id("filesystem_io").expect("catalog member");
+        let block = effect_member_id("thread_block").expect("catalog member");
+        assert_eq!(table.intern(Vec::new()), EffectRowTable::EMPTY_ROW);
+        let row = table.intern(vec![block, io]);
+        assert_eq!(table.intern(vec![io, block, io]), row);
+        assert_ne!(row, EffectRowTable::EMPTY_ROW);
+        assert_eq!(table.members(row), &[io, block]);
+        assert_eq!(table.members(EffectRowId::NULL), &[] as &[EffectMemberId]);
+        // The kinded split: reaching a service vs an operational possibility.
+        assert_eq!(
+            effect_member_kind("filesystem_io"),
+            Some(EffectMemberKind::ServiceReach)
+        );
+        assert_eq!(
+            effect_member_kind("thread_block"),
+            Some(EffectMemberKind::OperationalMay)
+        );
+    }
+
+    #[test]
+    fn canonical_view_catalog_round_trips() {
+        // Fixed, deterministic ids: the catalog may enter proof-cache keys,
+        // so a builtin's id and spelling must round-trip exactly.
+        for id in [
+            RankingViewId::NAT_DESCENDING,
+            RankingViewId::NAT_BOUNDED_DISTANCE,
+            RankingViewId::SLICE_LENGTH,
+            RankingViewId::NAT_INCREASING_TO,
+        ] {
+            assert!(id.is_valid());
+            let path = id.canonical_path().expect("builtin has a spelling");
+            assert_eq!(RankingViewId::canonical(path), Some(id));
+        }
+        // Declared measures are NOT canonical builtins.
+        assert_eq!(RankingViewId::canonical("Card::PowerOrder"), None);
+        assert_eq!(RankingViewId::NULL.canonical_path(), None);
+    }
+}

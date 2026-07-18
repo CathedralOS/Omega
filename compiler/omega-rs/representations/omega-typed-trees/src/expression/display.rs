@@ -190,6 +190,18 @@ impl CallExpression {
 
 impl TableCallExpression {
     pub fn display_name(&self, table: &ExpressionTable) -> String {
+        let machine_arguments = if self.machine_arguments.is_empty() {
+            String::new()
+        } else {
+            format!(
+                "<{}>",
+                self.machine_arguments
+                    .iter()
+                    .map(|argument| display_name_path(&argument.path, "::"))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            )
+        };
         let arguments =
             comma_join_display_names(table.expression_handles(self.arguments), |argument| {
                 table.display_name(*argument)
@@ -197,12 +209,12 @@ impl TableCallExpression {
 
         if self.receiver.is_valid() {
             format!(
-                "{}.{}({arguments})",
+                "{}.{}{machine_arguments}({arguments})",
                 table.display_name(self.receiver),
                 self.target
             )
         } else {
-            format!("{}({arguments})", self.target)
+            format!("{}{machine_arguments}({arguments})", self.target)
         }
     }
 }

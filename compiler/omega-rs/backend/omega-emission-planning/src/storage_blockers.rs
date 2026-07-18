@@ -352,50 +352,19 @@ fn state_mutation_is_planned(
                 SelectedInstructionKind::AtomicFetchAdd { .. }
                     | SelectedInstructionKind::HostOperation { .. }
                     | SelectedInstructionKind::AtomicCompareExchange { .. }
-                    | SelectedInstructionKind::WriteRuntimeMachineInteger { .. }
-                    | SelectedInstructionKind::WriteRuntimeStorageInteger { .. }
-                    | SelectedInstructionKind::WriteRuntimePointeeInteger { .. }
-                    | SelectedInstructionKind::WriteRuntimeStorageBinary { .. }
+                    | SelectedInstructionKind::WritePlaceInteger { .. }
+                    | SelectedInstructionKind::WritePlaceBinary { .. }
+                    | SelectedInstructionKind::WritePlaceString { .. }
+                    | SelectedInstructionKind::WritePlaceBoundedBuffer { .. }
+                    | SelectedInstructionKind::WritePlaceAddress { .. }
                     | SelectedInstructionKind::WriteRuntimeStorageConvert { .. }
-                    | SelectedInstructionKind::WriteRuntimePointeeBinary { .. }
-                    | SelectedInstructionKind::WriteRuntimeFrameIndexedInteger { .. }
-                    | SelectedInstructionKind::WriteRuntimeFrameBaseIndexedInteger { .. }
-                    | SelectedInstructionKind::WriteRuntimeMachineIndexedInteger { .. }
-                    | SelectedInstructionKind::WriteRuntimeFrameIndexedBinary { .. }
-                    | SelectedInstructionKind::WriteRuntimeFrameBaseIndexedBinary { .. }
-                    | SelectedInstructionKind::WriteRuntimeMachineIndexedBinary { .. }
-                    | SelectedInstructionKind::WriteRuntimeMachineDoubleIndexedBinary { .. }
-                    | SelectedInstructionKind::WriteRuntimeMachineString { .. }
-                    | SelectedInstructionKind::WriteRuntimeMachineBoundedBuffer { .. }
                     | SelectedInstructionKind::AppendRuntimeMachineBoundedBufferSource { .. }
                     | SelectedInstructionKind::AppendRuntimeMachineBoundedBufferLiteral { .. }
-                    | SelectedInstructionKind::WriteRuntimeFrameString { .. }
-                    | SelectedInstructionKind::WriteRuntimePointeeString { .. }
-                    | SelectedInstructionKind::WriteRuntimePointeeBoundedBuffer { .. }
-                    | SelectedInstructionKind::WriteRuntimeFrameIndexedString { .. }
-                    | SelectedInstructionKind::WriteRuntimeMachineIndexedString { .. }
-                    | SelectedInstructionKind::WriteRuntimeStorageAddressToRuntimeFrame { .. }
-                    | SelectedInstructionKind::WriteRuntimePointeeAddressToRuntimeFrame { .. }
-                    | SelectedInstructionKind::WriteRuntimeFrameIndexedAddressToRuntimeFrame { .. }
-                    | SelectedInstructionKind::WriteRuntimeFrameFixedIndexedAddressToRuntimeFrame { .. }
-                    | SelectedInstructionKind::WriteRuntimeFrameBaseIndexedAddressToRuntimeFrame { .. }
-                        | SelectedInstructionKind::WriteRuntimeMachineIndexedAddressToRuntimeFrame { .. }
-                    | SelectedInstructionKind::MaterializeRuntimeTextBuffer { .. }
-                    | SelectedInstructionKind::MaterializeRuntimeTextBufferToRuntimePointee { .. }
-                    | SelectedInstructionKind::MaterializeRuntimeTextBufferToRuntimeFrameIndexed { .. }
-                    | SelectedInstructionKind::AppendRuntimeTextStoredPlace { .. }
-                    | SelectedInstructionKind::AppendRuntimeTextStoredPlaceToRuntimePointee { .. }
-                    | SelectedInstructionKind::AppendRuntimeTextStoredPlaceToRuntimeFrameIndexed { .. }
-                    | SelectedInstructionKind::AppendRuntimeTextLiteral { .. }
-                    | SelectedInstructionKind::AppendRuntimeTextLiteralToRuntimePointee { .. }
-                    | SelectedInstructionKind::AppendRuntimeTextLiteralToRuntimeFrameIndexed { .. }
+                    | SelectedInstructionKind::MaterializeTextBufferToPlace { .. }
+                    | SelectedInstructionKind::AppendTextStoredToPlace { .. }
+                    | SelectedInstructionKind::AppendTextLiteralToPlace { .. }
                     | SelectedInstructionKind::AppendRuntimeTextStoredSuffix { .. }
                     | SelectedInstructionKind::CopyPlaces { .. }
-                    | SelectedInstructionKind::CopyRuntimeMachineDoubleIndexedToRuntimeStorage { .. }
-                    | SelectedInstructionKind::CopyRuntimeFrameBaseDoubleIndexedToRuntimeStorage { .. }
-                    | SelectedInstructionKind::CopyRuntimeStorageToRuntimeMachineDoubleIndexed { .. }
-                    | SelectedInstructionKind::WriteRuntimeMachineDoubleIndexedInteger { .. }
-                    | SelectedInstructionKind::CopyRuntimeMachineIndexedToRuntimeMachineIndexed { .. }
             )
         })
 }
@@ -430,10 +399,23 @@ fn dual_indexed_copy_is_planned(
         .any(|(_, instruction)| {
             state_key_matches_statement_source(instruction.source_key, source_key)
                 && instruction.source_statement == statement_index
-                && matches!(
-                    instruction.kind,
-                    SelectedInstructionKind::CopyRuntimeMachineIndexedToRuntimeMachineIndexed { .. }
-                )
+                && match &instruction.kind {
+                    // Rung 2c-x: the pair rides CopyPlaces -- BOTH sides
+                    // carry a runtime index, which is exactly the dual
+                    // shape this fence guards.
+                    SelectedInstructionKind::CopyPlaces { source, target, .. } => {
+                        let indexed = |place: &omega_target_operations::Place| {
+                            place.steps().iter().any(|step| {
+                                matches!(
+                                    step,
+                                    omega_target_operations::PlaceStep::ScaledIndex { .. }
+                                )
+                            })
+                        };
+                        indexed(source) && indexed(target)
+                    }
+                    _ => false,
+                }
         })
 }
 

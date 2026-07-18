@@ -12,7 +12,6 @@ data Peano {
 }
 
 machine plus(a: Peano, b: Peano) -> Peano
-terminates;
 terminates by a;
 {
     transition a {
@@ -22,7 +21,6 @@ terminates by a;
 }
 
 machine plus_assoc(a: Peano, b: Peano, c: Peano) -> Peano
-terminates;
 terminates by a;
 ensures
     (plus(plus(a, b), c)) == (plus(a, plus(b, c)))
@@ -37,7 +35,6 @@ ensures
 // declared, it must stay fenced (its truth is beside the point; the LICENSE
 // is the point).
 machine needs_rearrange(a: Peano, b: Peano, c: Peano) -> Peano
-terminates;
 terminates by a;
 ensures
     (plus(b, plus(a, c))) == (plus(a, plus(b, c)))

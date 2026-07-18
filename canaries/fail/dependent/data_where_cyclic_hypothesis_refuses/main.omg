@@ -1,0 +1,19 @@
+// CYCLIC field-vs-field hypotheses (count <= mid, mid <= count) carry no
+// bound -- the transitive chain exhausts its depth cap and resolves to
+// None, so the narrowing store refuses. Over-refusal only, never a
+// fabricated bound.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Tally
+where
+    count <= mid,
+    mid <= count,
+{
+    count: u32;
+    mid: u32;
+}
+data Main { console: Console; }
+machine Main::main(&mut self) {
+    let t: Tally = Tally { count: 5, mid: 5 };
+    let bounded: u32 [0..=100] = t.count;
+    self.console.exit_process(70);
+}

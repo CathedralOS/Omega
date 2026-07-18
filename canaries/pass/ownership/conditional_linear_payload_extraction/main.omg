@@ -1,0 +1,30 @@
+// A conditional sum's live payload carries one linear obligation. Moving that
+// payload into a new binding transfers the original obligation; it does not
+// strand a debt on the affine sum or mint a fresh origin for the payload.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Receipt [linear] {
+    code: i32;
+}
+
+machine Receipt::ack(self) {}
+
+data ReceiptState {
+    case Empty;
+    case Live(receipt: Receipt);
+}
+
+data Main {
+    console: Console;
+}
+
+machine Main::main(&mut self) {
+    let issued: Receipt = Receipt { code: 7 };
+    let state: ReceiptState = ReceiptState::Live { receipt: issued };
+    let extracted: Receipt = state.receipt;
+    Receipt::ack(extracted);
+    self.console.exit_process(70);
+}

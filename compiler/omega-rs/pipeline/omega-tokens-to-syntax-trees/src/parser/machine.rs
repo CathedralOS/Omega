@@ -1,11 +1,12 @@
 use crate::parser::context::StateKind;
-use crate::parser::data::parse_type_parameters;
+use crate::parser::data::parse_machine_type_parameters;
 use crate::parser::input::{Input, ParseResult, parse_path_handle_span};
 use crate::parser::state::{
     parse_optional_return_type, parse_optional_state_parameters, parse_state,
 };
 use crate::parser::statement::{
     parse_statement_handle, try_parse_atomic_compare_exchange_let, try_parse_atomic_fetch_add_let,
+    try_parse_destructure_let,
 };
 use crate::parser::transition::parse_transition_block_handles;
 use omega_core::arena::{Handle, HandleSpan};
@@ -18,7 +19,6 @@ use omega_tokens::{KeywordKind, PunctuationKind};
 
 mod clauses;
 
-pub(super) use clauses::{ParsedTerminationClause, parse_termination_clause};
 use clauses::{parse_machine_clauses, parse_satisfies_traits};
 
 pub(super) fn parse_machine<'tokens, 'source>(
@@ -30,28 +30,28 @@ pub(super) fn parse_machine<'tokens, 'source>(
             .expressions
             .append_identifier_path_member(member)
     })?;
-    // CONCURRENCY STAGE 1: `join` is reserved as a callable name so that the
-    // parser's `handle.join()` identity rewrite (expression/postfix.rs) can
-    // never shadow a user machine.
-    if syntax_trees
-        .expressions
-        .identifier_path_members(path)
-        .last()
-        .is_some_and(|member| member.as_str() == "join")
-    {
-        return Err(input.error_here(
-            "machine name `join` is reserved: `handle.join()` joins a spawned task (chapter 17)",
-        ));
-    }
-    let (type_parameters, input) = parse_type_parameters(syntax_trees, input)?;
+    let (type_parameters, input) = parse_machine_type_parameters(syntax_trees, input)?;
     let (machine_parameters, input) = parse_optional_state_parameters(syntax_trees, input)?;
-    let (machine_return_type, mut input) = parse_optional_return_type(syntax_trees, input)?;
+    let (machine_return_type, input) = parse_optional_return_type(syntax_trees, input)?;
+    let ((), mut input) = parse_machine_parameter_contracts(syntax_trees, type_parameters, input)?;
     let (satisfies, next) = parse_satisfies_traits(syntax_trees, input)?;
-    let ((termination_guarantee, ranking_witness, effects, contracts, clauses_return_type), next) =
-        parse_machine_clauses(syntax_trees, next)?;
+    let (
+        (
+            terminates,
+            terminates_guarantee,
+            decreases,
+            decrease_order,
+            decrease_view_arguments,
+            decrease_range,
+            effects,
+            contracts,
+            clauses_return_type,
+        ),
+        next,
+    ) = parse_machine_clauses(syntax_trees, next)?;
     input = next;
     // `-> T` is written either before the clauses or after them
-    // (`terminates; -> usize`); both spell the machine's return type.
+    // (`terminates by ..; -> usize`); both spell the machine's return type.
     let machine_return_type = if machine_return_type.is_valid() {
         machine_return_type
     } else {
@@ -62,6 +62,52 @@ pub(super) fn parse_machine<'tokens, 'source>(
         attached_data,
         entry_name,
     } = split_machine_path(syntax_trees, path);
+
+    // CH10 ACCEPTED FORM (GR6d): `boundary machine f(..) ensures <fact>;`
+    // -- a contract with NO body ends at `;` in body position. The implicit
+    // ENTRY state still materializes (empty; it carries the signature so
+    // citations bind parameters). The item parser refuses the bodyless form
+    // without `boundary`.
+    if input.at_punctuation(PunctuationKind::Semicolon) {
+        let input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
+        let mut state_start = Handle::invalid();
+        let mut state_count = 0u32;
+        let entry_state = State {
+            name: entry_name
+                .clone()
+                .unwrap_or_else(|| Identifier::generated("entry")),
+            parameters: machine_parameters,
+            return_type: machine_return_type,
+            statements: HandleSpan::empty(),
+        };
+        append_machine_state(
+            syntax_trees,
+            &mut state_start,
+            &mut state_count,
+            entry_state,
+        );
+        return Ok((
+            Machine {
+                name,
+                attached_data,
+                target: None,
+                boundary: false,
+                bodyless: true,
+                type_parameters,
+                satisfies,
+                terminates,
+                terminates_guarantee,
+                decreases,
+                decrease_order,
+                decrease_view_arguments,
+                decrease_range,
+                effects,
+                contracts,
+                states: HandleSpan::from_parts(state_start, state_count),
+            },
+            input,
+        ));
+    }
 
     input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
     let mut state_start = Handle::invalid();
@@ -140,7 +186,7 @@ pub(super) fn parse_machine<'tokens, 'source>(
     // proof, loop-carried arg staging, both engines) sees the same bare
     // back-edge the arm spelling produces. Unmeasured machines keep the
     // call; validation names the missing measure.
-    if ranking_witness.is_present() {
+    if terminates && !decreases.is_empty() {
         let entry_callable = entry_name.clone().unwrap_or_else(|| name.clone());
         rewrite_terminal_tail_self_calls(
             syntax_trees,
@@ -155,16 +201,130 @@ pub(super) fn parse_machine<'tokens, 'source>(
             attached_data,
             target: None,
             boundary: false,
+            bodyless: false,
             type_parameters,
             satisfies,
-            termination_guarantee,
-            ranking_witness,
+            terminates,
+            terminates_guarantee,
+            decreases,
+            decrease_order,
+            decrease_view_arguments,
+            decrease_range,
             effects,
             contracts,
             states,
         },
         input,
     ))
+}
+
+/// Parse the declaration-site contracts for static machine-symbol parameters.
+/// The parameter list only names symbols (`<machine F>`); every such symbol
+/// must receive exactly one authored `where machine F(...)` requirement before
+/// the executable body's clauses begin. Nothing is inferred from uses.
+fn parse_machine_parameter_contracts<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    type_parameters: HandleSpan<omega_syntax_trees::item::TypeParameter>,
+    mut input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, ()> {
+    loop {
+        if !input.at_contextual("where") {
+            break;
+        }
+        let after_where = input.take_contextual("where")?;
+        if !after_where.at_keyword(KeywordKind::Machine) {
+            break;
+        }
+        let after_machine = after_where.take_keyword(KeywordKind::Machine, "machine")?;
+        let (name, after_name) = after_machine.take_identifier()?;
+
+        // The ch13 ONE-OFF METHOD REQUIREMENT on a TYPE parameter
+        // (`where machine T::increment(&mut self)`) is a different clause:
+        // the `::` after the name discriminates it from an MP1 machine-
+        // parameter contract (`where machine M(args) -> R`). Leave it for
+        // the general where-clause parser.
+        if after_name.at_punctuation(PunctuationKind::ColonColon) {
+            break;
+        }
+
+        let parameter_index = syntax_trees
+            .items
+            .type_parameters(type_parameters)
+            .iter()
+            .position(|parameter| parameter.name == name)
+            .ok_or_else(|| {
+                after_name.error_here(format!(
+                    "`where machine {}` has no matching `<machine {}>` parameter",
+                    name.as_str(),
+                    name.as_str()
+                ))
+            })?;
+
+        match &syntax_trees.items.type_parameters(type_parameters)[parameter_index].kind {
+            omega_syntax_trees::item::TypeParameterKind::Machine { contract: None } => {}
+            omega_syntax_trees::item::TypeParameterKind::Machine { contract: Some(_) } => {
+                return Err(after_name.error_here(format!(
+                    "machine parameter `{}` already has a `where machine` contract",
+                    name.as_str()
+                )));
+            }
+            _ => {
+                return Err(after_name.error_here(format!(
+                    "`{}` is not a machine parameter; declare it as `<machine {}>` before writing a machine contract",
+                    name.as_str(),
+                    name.as_str()
+                )));
+            }
+        }
+
+        let (parameters, after_parameters) =
+            parse_optional_state_parameters(syntax_trees, after_name)?;
+        let (return_type, after_return) =
+            parse_optional_return_type(syntax_trees, after_parameters)?;
+        let ((effects, contracts, terminates_guarantee), mut rest) =
+            crate::parser::trait_definition::parse_signature_clauses(syntax_trees, after_return)?;
+        // Permit a separator after the requirement. The semicolon belongs to
+        // this `where machine` signature, never to the generic machine body.
+        if rest.at_punctuation(PunctuationKind::Semicolon) {
+            rest = rest.take_punctuation(PunctuationKind::Semicolon, ";")?;
+        }
+
+        let contract = omega_syntax_trees::item::StateSignature {
+            name: name.clone(),
+            is_default: false,
+            parameters,
+            return_type,
+            effects,
+            contracts,
+            terminates_guarantee,
+        };
+        let parameter =
+            &mut syntax_trees.items.type_parameters_mut(type_parameters)[parameter_index];
+        parameter.kind = omega_syntax_trees::item::TypeParameterKind::Machine {
+            contract: Some(contract),
+        };
+        input = rest;
+    }
+
+    if let Some(missing) = syntax_trees
+        .items
+        .type_parameters(type_parameters)
+        .iter()
+        .find(|parameter| {
+            matches!(
+                parameter.kind,
+                omega_syntax_trees::item::TypeParameterKind::Machine { contract: None }
+            )
+        })
+    {
+        return Err(input.error_here(format!(
+            "machine parameter `{}` requires an authored declaration-site contract: write `where machine {}(...) -> Result`",
+            missing.name.as_str(),
+            missing.name.as_str()
+        )));
+    }
+
+    Ok(((), input))
 }
 
 fn starts_implicit_entry_body(input: Input<'_, '_>) -> bool {
@@ -244,6 +404,18 @@ fn parse_implicit_entry_statements<'tokens, 'source>(
             input = rest;
         // ATOMICS STAGE 1 (ch17, M3): `let name: T = place.fetch_add(n, ord);`
         // expands to two statements (capture prior + increment).
+        // RECORD PATTERNS IN LET POSITION (owner spec 2026-07-18):
+        // `let { x, y as h, z as _ } = place;` expands to the marker +
+        // per-field lets.
+        } else if let Some((new_statements, rest)) = try_parse_destructure_let(syntax_trees, input)
+        {
+            if statement_count == 0 {
+                statement_start = new_statements.start();
+            }
+            statement_count = statement_count
+                .checked_add(new_statements.count())
+                .expect("state statement span count overflow");
+            input = rest;
         } else if let Some((new_statements, rest)) =
             try_parse_atomic_fetch_add_let(syntax_trees, input)
         {

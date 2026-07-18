@@ -1,7 +1,7 @@
 use omega_typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use omega_typed_trees::name::Identifier;
 
-use super::{EdgeClass, patterns};
+use super::patterns;
 
 /// Proves a self-loop terminates under a struct-view measure that projects a
 /// single field, e.g. `measure Card::PowerOrder(card: Card) -> usize { card.power }`
@@ -34,42 +34,6 @@ pub(super) fn state_has_proven_self_loop(
             guard_is_positive_member(program, self_loop.guard, &parameter, field)
                 && argument_rebuilds_with_field_minus_one(program, argument, &parameter, field)
         })
-}
-
-pub(super) fn classify_cross_machine_edge(
-    program: &omega_typed_trees::TypedTrees,
-    source: &omega_typed_trees::state::State,
-    target: &omega_typed_trees::state::State,
-    guard: ExpressionHandle,
-    arguments: &[ExpressionHandle],
-    decreases: ExpressionHandle,
-    field: &Identifier,
-) -> EdgeClass {
-    let Some(parameter) = patterns::parameter_matched_by_expression(program, source, decreases)
-    else {
-        return EdgeClass::Unknown;
-    };
-    let Some(argument_index) = program
-        .state_parameters(target)
-        .iter()
-        .filter(|candidate| !candidate.is_self)
-        .position(|candidate| candidate.name == parameter.name)
-    else {
-        return EdgeClass::Unknown;
-    };
-    let Some(argument) = arguments.get(argument_index).copied() else {
-        return EdgeClass::Unknown;
-    };
-
-    if guard_is_positive_member(program, guard, parameter, field)
-        && argument_rebuilds_with_field_minus_one(program, argument, parameter, field)
-    {
-        EdgeClass::Strict
-    } else if patterns::expression_is_parameter(program, argument, parameter) {
-        EdgeClass::NonIncreasing
-    } else {
-        EdgeClass::Unknown
-    }
 }
 
 fn guard_is_positive_member(

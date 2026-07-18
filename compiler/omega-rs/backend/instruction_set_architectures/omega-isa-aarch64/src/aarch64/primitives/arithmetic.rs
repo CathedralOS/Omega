@@ -374,7 +374,11 @@ pub(in crate::aarch64) fn encode_lslv_x_register(
     )
 }
 
-/// `LSLV Wd, Wn, Wm` — 32-bit logical variable left shift.
+/// `LSLV Wd, Wn, Wm` — 32-bit logical shift left. The W form masks the count
+/// mod 32, which IS the F8 Wrapping masked-count semantics for 4-byte (and,
+/// with the explicit sub-word count mask, 1/2-byte) operands; the X form's
+/// mod-64 masking would let a count in [32, 63] compute wide and truncate to
+/// the RETIRED modular-value semantics instead.
 pub(in crate::aarch64) fn encode_lslv_w_register(
     destination_register: u8,
     left_register: u8,
@@ -384,6 +388,73 @@ pub(in crate::aarch64) fn encode_lslv_w_register(
         0x1AC02000
             | (u32::from(right_register) << 16)
             | (u32::from(left_register) << 5)
+            | u32::from(destination_register),
+    )
+}
+
+/// `AND Wd, Wn, #((1 << ones) - 1)` — 32-bit bitmask-immediate AND keeping the
+/// low `ones` bits (2..=31). Bitmask-immediate encoding for a 32-bit element:
+/// `N = 0`, `immr = 0` (no rotation), `imms = ones - 1` (a run of `ones` set
+/// bits from bit 0). The F8 Wrapping shift-count mask for sub-word operands
+/// (`count & 7` / `count & 15`); the 32/64-bit widths ride the register-form
+/// shifts' own masking instead.
+pub(in crate::aarch64) fn encode_and_w_low_ones(
+    destination_register: u8,
+    source_register: u8,
+    ones: u32,
+) -> [u8; 4] {
+    debug_assert!((2..=31).contains(&ones), "low-ones mask needs 2..=31 bits");
+    encode_instruction(
+        0x12000000
+            | ((ones - 1) << 10)
+            | (u32::from(source_register) << 5)
+            | u32::from(destination_register),
+    )
+}
+
+/// `AND Xd, Xn, #((1 << ones) - 1)` — 64-bit bitmask-immediate AND keeping the
+/// low `ones` bits (2..=63). `N = 1` (64-bit element), `immr = 0`,
+/// `imms = ones - 1`. The F5 float-policy guard's ABS mask (low 63 ones
+/// clears the sign bit of an f64 bit pattern).
+pub(in crate::aarch64) fn encode_and_x_low_ones(
+    destination_register: u8,
+    source_register: u8,
+    ones: u32,
+) -> [u8; 4] {
+    debug_assert!((2..=63).contains(&ones), "low-ones mask needs 2..=63 bits");
+    encode_instruction(
+        0x92400000
+            | ((ones - 1) << 10)
+            | (u32::from(source_register) << 5)
+            | u32::from(destination_register),
+    )
+}
+
+/// `AND Xd, Xn, #0x8000_0000_0000_0000` — keep only the TOP bit (an f64 bit
+/// pattern's sign). Bitmask immediate: one set bit (`imms = 0`) rotated
+/// right by 1 (`immr = 1`) lands it at bit 63; `N = 1`.
+pub(in crate::aarch64) fn encode_and_x_top_bit(
+    destination_register: u8,
+    source_register: u8,
+) -> [u8; 4] {
+    encode_instruction(
+        0x92400000
+            | (1 << 16)
+            | (u32::from(source_register) << 5)
+            | u32::from(destination_register),
+    )
+}
+
+/// `AND Wd, Wn, #0x8000_0000` — keep only the top bit of the low word (an
+/// f32 bit pattern's sign). `N = 0`, `imms = 0`, `immr = 1`.
+pub(in crate::aarch64) fn encode_and_w_top_bit(
+    destination_register: u8,
+    source_register: u8,
+) -> [u8; 4] {
+    encode_instruction(
+        0x12000000
+            | (1 << 16)
+            | (u32::from(source_register) << 5)
             | u32::from(destination_register),
     )
 }
@@ -403,7 +474,12 @@ pub(in crate::aarch64) fn encode_lsrv_x_register(
     )
 }
 
-/// `LSRV Wd, Wn, Wm` — 32-bit logical variable right shift.
+/// `LSRV Wd, Wn, Wm` — 32-bit LOGICAL shift right (zero-fill from bit 31). The
+/// narrow form of `encode_lsrv_x_register`: an unsigned `>>` at operand width
+/// <= 4 must zero-fill from the OPERAND's width, not bit 63 -- the X form lets
+/// garbage/wrapped high bits (e.g. a 64-bit nested Wrapping op's untruncated
+/// result) shift down into the live word (the const_fold_unsigned_shift_right
+/// arg-delivery face).
 pub(in crate::aarch64) fn encode_lsrv_w_register(
     destination_register: u8,
     left_register: u8,
@@ -601,22 +677,6 @@ pub(in crate::aarch64) fn encode_and_x_immediate_low_seven(
 ) -> [u8; 4] {
     encode_instruction(
         0x9240_1800 | (u32::from(source_register) << 5) | u32::from(destination_register),
-    )
-}
-
-/// `AND Xd, Xn, #(2^low_bits - 1)` for a 64-bit logical immediate.
-/// Used by F8 to mask a shift count to the language operand width.
-pub(in crate::aarch64) fn encode_and_x_immediate_low_bits(
-    destination_register: u8,
-    source_register: u8,
-    low_bits: u8,
-) -> [u8; 4] {
-    debug_assert!((1..64).contains(&low_bits));
-    encode_instruction(
-        0x9240_0000
-            | (u32::from(low_bits - 1) << 10)
-            | (u32::from(source_register) << 5)
-            | u32::from(destination_register),
     )
 }
 

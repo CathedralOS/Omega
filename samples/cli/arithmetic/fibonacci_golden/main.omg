@@ -60,7 +60,7 @@ machine Main::main(&mut self) {
         self.fb = self.fib.b as f64;
         self.ratio = self.fb / self.fa;
         self.ratio = self.ratio * 100.0;
-        self.result = self.ratio as i32 in Wrapping;
+        self.result = self.ratio as i32 in Saturating; // F4: float casts have no Wrapping reading
         self.console.write_line("result: floor(100 * fib(15)/fib(14)), 161 for this run (the exit code)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);

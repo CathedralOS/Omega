@@ -7,7 +7,6 @@ pub type StateParameterHandle = Handle<StateParameterNode>;
 pub type StateSignatureHandle = Handle<StateSignatureNode>;
 pub type StateHandle = Handle<StateNode>;
 pub type MachineHandle = Handle<MachineNode>;
-pub type PlatformHandle = Handle<PlatformNode>;
 pub type TraitHandle = Handle<TraitNode>;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -28,7 +27,6 @@ pub enum Item {
     Export(ExportItem),
     Use(UseItem),
     Machine(Machine),
-    Platform(Platform),
     Trait(TraitDefinition),
     Target(TargetDefinition),
     WireData(WireDataDefinition),
@@ -87,11 +85,59 @@ pub struct HostProviderDefinition {
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
+
 pub struct HostProviderMapping {
     /// The boundary-trait method this arm binds (the `output_string` in
     /// `output_string -> VtableSlot(1)`).
     pub machine: Identifier,
     pub binding: HostProviderMappingKind,
+}
+
+impl HostProviderMappingKind {
+    /// PRV4: the NORMALIZED rendering -- the compile-time-evaluable binding
+    /// expression's canonical text, the ExternalRealization identity the
+    /// interner keys on. Exactly one spelling per binding value.
+    /// The exact inverse of `normalized_rendering` (round-trip pinned):
+    /// the merge seam re-materializes a leaf's structured binding from the
+    /// interned rendering. `None` = unrecognized (refuses at extraction).
+    pub fn from_normalized_rendering(rendering: &str) -> Option<Self> {
+        let (case, rest) = rendering.split_once('(')?;
+        let payload = rest.strip_suffix(')')?;
+        match case {
+            "Syscall" => payload.parse().ok().map(|number| Self::Syscall { number }),
+            "VtableSlot" => payload.parse().ok().map(|index| Self::VtableSlot { index }),
+            "Value" => payload.parse().ok().map(|value| Self::Value { value }),
+            "DllImport" => {
+                let (module, symbol) = payload.split_once(',')?;
+                Some(Self::DllImport {
+                    module: module.into(),
+                    symbol: symbol.into(),
+                })
+            }
+            "VtableField" => Some(Self::VtableField {
+                field: Identifier::generated(payload.to_owned()),
+            }),
+            "TableFunction" => Some(Self::TableFunction {
+                field: Identifier::generated(payload.to_owned()),
+            }),
+            _ => None,
+        }
+    }
+
+    pub fn normalized_rendering(&self) -> String {
+        match self {
+            Self::Syscall { number } => format!("Syscall({number})"),
+            Self::DllImport { module, symbol } => {
+                format!("DllImport({module},{symbol})")
+            }
+            Self::VtableSlot { index } => format!("VtableSlot({index})"),
+            Self::VtableField { field } => format!("VtableField({})", field.as_str()),
+            Self::TableFunction { field } => {
+                format!("TableFunction({})", field.as_str())
+            }
+            Self::Value { value } => format!("Value({value})"),
+        }
+    }
 }
 
 /// The compiler-known, CLOSED `Binding` sum (extern brief §12.1): each provides
@@ -244,10 +290,9 @@ impl Default for LibraryFunction {
                 is_default: false,
                 parameters: HandleSpan::empty(),
                 return_type: crate::types::TypeReferenceHandle::invalid(),
-                termination_guarantee: false,
-                ranking_witness: RankingWitnessSyntax::default(),
                 effects: HandleSpan::empty(),
                 contracts: HandleSpan::empty(),
+                terminates_guarantee: false,
             },
             symbol: None,
             calling_convention: None,
@@ -448,9 +493,12 @@ pub struct DataDefinition {
     pub name: Identifier,
     pub type_parameters: HandleSpan<TypeParameter>,
     pub properties: DataProperties,
-    /// Facts of the data type's default domain, spelled by the declaration's
-    /// optional `where` clause (R2). Empty means the unconstrained domain.
-    pub default_domain: HandleSpan<ProofFact>,
+    /// R2 rung 1 (ch12 "Dependent Data"): the DEFAULT-DOMAIN facts --
+    /// `data M where count * stride <= len, { ... }` -- bare field names,
+    /// any number of facts, holding at every observation. Parsed and
+    /// stored; the syntax->resolved lowering refuses them loudly until R2
+    /// rung 2 consumes the model (never a silent drop).
+    pub where_facts: HandleSpan<ProofFact>,
     pub members: HandleSpan<DataMember>,
 }
 
@@ -467,12 +515,15 @@ pub struct ConformanceItem {
 /// Declared type properties: lowercase facts in brackets on the data
 /// declaration (`data Point [copy, zero_init]`). The known set is closed;
 /// unknown names are parse errors, so downstream representations carry the
-/// resolved flags rather than spellings. `sized` is computed from the shape
-/// and may not be declared.
+/// resolved properties rather than spellings. `sized` is computed from the
+/// shape and may not be declared.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct DataProperties {
-    /// Values copy bit-for-bit; verified: every field is itself copyable.
-    pub copy: bool,
+    /// Usage multiplicity. Ordinary data defaults to affine; `[copy]` selects
+    /// unrestricted and `[linear]` selects exact consumption. Keeping the enum
+    /// here prevents syntax lowering from reconstructing semantic identity
+    /// from compatibility booleans.
+    pub multiplicity: omega_core::semantics::Multiplicity,
     /// Zero means empty: the zeroed value is the type's empty value; owns the
     /// zero-case-payload-free rule and rejects non-zero field defaults.
     pub zero_init: bool,
@@ -498,6 +549,11 @@ pub enum TypeParameterKind {
     Const {
         type_reference: crate::types::TypeReferenceHandle,
     },
+    /// A compile-time machine-symbol parameter. The authored `where machine`
+    /// requirement is mandatory and stored with the parameter rather than
+    /// inferred from uses or instantiations. `None` exists only while the
+    /// parser is between `<machine M>` and its declaration-site validation.
+    Machine { contract: Option<StateSignature> },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -540,7 +596,6 @@ pub fn is_version_selector(name: &str) -> bool {
 pub struct DataField {
     pub name: Identifier,
     pub type_reference: crate::types::TypeReferenceHandle,
-    pub initial_value: crate::expression::ExpressionHandle,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -615,50 +670,22 @@ pub struct SatisfiesClause {
     pub trait_name: Identifier,
     pub requirement: Option<Identifier>,
     pub alias: Option<Identifier>,
-}
-
-/// Source-level rank range from `terminates by ... in start..end`.
-///
-/// Invalid expression handles are the ZII absence state. The range constrains
-/// the value produced by the ranking view; it never allocates runtime storage.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub struct RankingRangeSyntax {
-    pub start: crate::expression::ExpressionHandle,
-    pub end: crate::expression::ExpressionHandle,
-    pub end_inclusive: bool,
-}
-
-impl RankingRangeSyntax {
-    pub fn is_present(self) -> bool {
-        self.start.is_valid() && self.end.is_valid()
-    }
-}
-
-/// Private implementation evidence authored with `terminates by ...`.
-///
-/// This is deliberately separate from [`Machine::termination_guarantee`]: a
-/// checked implementation may inherit a published guarantee and author only a
-/// witness, while an exported concrete machine may author a guarantee and a
-/// witness as two clauses. TPR2 normalizes this syntax into the private
-/// `RankingWitness` representation used by semantic layers.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub struct RankingWitnessSyntax {
-    pub subjects: HandleSpan<crate::expression::ExpressionHandle>,
-    pub view: HandleSpan<Identifier>,
-    pub view_arguments: HandleSpan<crate::expression::ExpressionHandle>,
-    pub range: RankingRangeSyntax,
-}
-
-impl RankingWitnessSyntax {
-    pub fn is_present(self) -> bool {
-        !self.subjects.is_empty()
-    }
+    /// PRV4 step 1: `satisfies Requirement via <Binding>` -- the irreducible
+    /// EXTERNAL LEAF. The binding expression is the closed compile-time sum
+    /// (the provides grammar's RHS); its normalized rendering becomes the
+    /// machine's ExternalRealization supply identity. Only legal on a
+    /// BODYLESS machine (a composite lowering is an ordinary checked body).
+    pub via: Option<HostProviderMappingKind>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Machine {
     pub name: Identifier,
     pub attached_data: Option<Identifier>,
+    /// CH10 ACCEPTED FORM (GR6d): a contract with NO body (`boundary
+    /// machine f(..) ensures ..;`) -- the accepted-axiom tier. Only legal
+    /// with `boundary`; the item parser enforces the pairing.
+    pub bodyless: bool,
     /// TARGET-SCOPED implementation machine (`<target> machine ...`, the fs
     /// portable-contract settle 2026-07-18): the machine participates in the
     /// program only when this target is SELECTED. The pre-resolution filter
@@ -673,11 +700,23 @@ pub struct Machine {
     pub boundary: bool,
     pub type_parameters: HandleSpan<TypeParameter>,
     pub satisfies: HandleSpan<SatisfiesClause>,
-    /// An authored public `terminates;` guarantee. This is contract surface,
-    /// not proof evidence and not inferred from the body.
-    pub termination_guarantee: bool,
-    /// A private `terminates by ...;` ranking witness for a checked body.
-    pub ranking_witness: RankingWitnessSyntax,
+    pub terminates: bool,
+    /// TPR2 (decision 23): the machine authored BARE `terminates;` — the
+    /// public eventual-terminal guarantee. `terminates by ...` supplies only
+    /// the private ranking witness and does NOT set this; `terminates`
+    /// above stays the compatibility bool (true for either spelling) until
+    /// the TPR6 firewall retires it.
+    pub terminates_guarantee: bool,
+    pub decreases: HandleSpan<crate::expression::ExpressionHandle>,
+    pub decrease_order: HandleSpan<Identifier>,
+    /// TPR3: an ARGUMENTED view's arguments (`-> Nat::IncreasingTo(limit)`),
+    /// in order; empty for plain views. The bound is part of the view.
+    pub decrease_view_arguments: HandleSpan<crate::expression::ExpressionHandle>,
+    /// TPR1: the witness clause's optional `in <range>` (decision 23's
+    /// rank-range constraint). Invalid = absent. Parsed and stored here;
+    /// the syntax->resolved lowering refuses it loudly until TPR3's cycle
+    /// checker consumes ranges (never silently dropped).
+    pub decrease_range: crate::expression::ExpressionHandle,
     pub effects: HandleSpan<Identifier>,
     pub contracts: HandleSpan<CapabilityContract>,
     pub states: HandleSpan<StateHandle>,
@@ -689,12 +728,6 @@ pub struct State {
     pub parameters: HandleSpan<StateParameterHandle>,
     pub return_type: crate::types::TypeReferenceHandle,
     pub statements: HandleSpan<crate::statement::StatementHandle>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Platform {
-    pub name: Identifier,
-    pub states: HandleSpan<StateSignatureHandle>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -713,12 +746,14 @@ pub struct StateSignature {
     pub is_default: bool,
     pub parameters: HandleSpan<StateParameterHandle>,
     pub return_type: crate::types::TypeReferenceHandle,
-    /// Bodyless requirement/export promise authored by `terminates;`.
-    pub termination_guarantee: bool,
-    /// Present only for a body-bearing/default implementation signature.
-    pub ranking_witness: RankingWitnessSyntax,
     pub effects: HandleSpan<Identifier>,
     pub contracts: HandleSpan<CapabilityContract>,
+    /// TPR4 (decision 23): the bodyless requirement authored bare
+    /// `terminates;` -- the PUBLIC eventual-terminal guarantee its
+    /// implementations inherit. A requirement never carries a witness
+    /// (`terminates by ...` is rejected at parse: the witness belongs to
+    /// implementations).
+    pub terminates_guarantee: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -738,7 +773,6 @@ struct StateStorage {
     signature_handles: Arena<StateSignatureHandle>,
     statement_handles: Arena<crate::statement::StatementHandle>,
     machines: Arena<MachineNode>,
-    platforms: Arena<PlatformNode>,
     traits: Arena<TraitNode>,
 }
 
@@ -798,16 +832,18 @@ impl ItemTable {
         self.state_storage.machines.get(handle)
     }
 
-    pub fn platform(&self, handle: PlatformHandle) -> &PlatformNode {
-        self.state_storage.platforms.get(handle)
-    }
-
     pub fn trait_definition(&self, handle: TraitHandle) -> &TraitNode {
         self.state_storage.traits.get(handle)
     }
 
     pub fn type_parameters(&self, span: HandleSpan<TypeParameter>) -> &[TypeParameter] {
         self.declaration_storage.type_parameters.span_or_empty(span)
+    }
+
+    pub fn type_parameters_mut(&mut self, span: HandleSpan<TypeParameter>) -> &mut [TypeParameter] {
+        self.declaration_storage
+            .type_parameters
+            .span_mut_or_empty(span)
     }
 
     pub fn identifier_path_members(&self, span: HandleSpan<Identifier>) -> &[Identifier] {
@@ -1080,10 +1116,9 @@ impl ItemTable {
             is_default: signature.is_default,
             parameters: signature.parameters,
             return_type: signature.return_type,
-            termination_guarantee: signature.termination_guarantee,
-            ranking_witness: signature.ranking_witness,
             effects: signature.effects,
             contracts: signature.contracts,
+            terminates_guarantee: signature.terminates_guarantee,
         })
     }
 
@@ -1103,13 +1138,6 @@ impl ItemTable {
             effects: machine.effects,
             contracts: machine.contracts,
             states: machine.states,
-        })
-    }
-
-    pub fn insert_platform(&mut self, platform: &Platform) -> PlatformHandle {
-        self.state_storage.platforms.append(PlatformNode {
-            name: platform.name.clone(),
-            states: platform.states,
         })
     }
 
@@ -1140,7 +1168,6 @@ impl StateStorage {
             signature_handles: Arena::new(),
             statement_handles: Arena::new(),
             machines: Arena::new(),
-            platforms: Arena::new(),
             traits: Arena::new(),
         }
     }
@@ -1184,10 +1211,10 @@ pub struct StateSignatureNode {
     pub is_default: bool,
     pub parameters: HandleSpan<StateParameterHandle>,
     pub return_type: crate::types::TypeReferenceHandle,
-    pub termination_guarantee: bool,
-    pub ranking_witness: RankingWitnessSyntax,
     pub effects: HandleSpan<Identifier>,
     pub contracts: HandleSpan<CapabilityContract>,
+    /// TPR4 (decision 23): the bodyless requirement's authored guarantee.
+    pub terminates_guarantee: bool,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -1205,12 +1232,6 @@ pub struct MachineNode {
     pub effects: HandleSpan<Identifier>,
     pub contracts: HandleSpan<CapabilityContract>,
     pub states: HandleSpan<StateHandle>,
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct PlatformNode {
-    pub name: Identifier,
-    pub states: HandleSpan<StateSignatureHandle>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

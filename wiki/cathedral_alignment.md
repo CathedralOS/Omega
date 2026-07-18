@@ -38,12 +38,13 @@ implementation work. Each one gets more expensive to retrofit every month.
    the legacy `wire data` compatibility surface.
 
 3. **Persisted history and live replacement** (SEMANTICS SPLIT; PARTIAL).
-   `Versioned<T>` and historical wire shapes belong to persisted data. Live
-   component replacement instead anchors on normalized machine-contract
-   identity and checked state-upgrade machines. Chapter 22 specifies typed
-   upgrades, liveness pins, contract-pinned imports, and bounded coexistence as
-   the leading deployment model. Component artifact/linking mechanics,
-   outbound calls from old continuations, budgets, and eviction remain open.
+   Omega has no builtin `Versioned<T>` or `replace` DSL. Historical wire shapes
+   are immutable ordinary data, sum envelopes, format metadata, and checked
+   conversion machines. Live replacement instead anchors on normalized
+   machine-contract identity and is a Cathedral/component package over pinned
+   imports, liveness pins, admitted runtime operations, and ordinary phase
+   machines. Component artifact/linking mechanics, outbound calls from old
+   continuations, budgets, and eviction remain Cathedral design work.
 
 4. **Separate compilation and a component artifact model** (ABSENT). Omega is
    a whole-program compiler emitting one image; the runtime model is a single
@@ -76,16 +77,20 @@ implementation work. Each one gets more expensive to retrofit every month.
 
 5. **Concurrency: model under amendment.** Suspension remains an ordinary
    machine contract concern; there is no `async machine` species. Decisions
-   20/21 settle non-suspending cleanup and explicit linear Join consumption.
+   20/21 settle non-suspending cleanup and explicit linear `Task<T>` lifecycle
+   consumption.
    Decision 22 supplies the required `Suspend` / `Block` vocabulary and
    pinned-row laws. Suspension composes through ordinary calls without a
    marker; continuation storage and suspension-safe loans still require their
    amendment brief.
 
    Still compatible: a futex-shaped scheduler boundary, cancellation as an
-   explicit outcome, scoped borrowing spawns, compiler-planned bounded task
-   storage, and one-mailbox sums. Remaining: suspension elaboration,
-   continuation layout, and cross-suspension loans.
+   explicit outcome, ordinary machines started through an admitted
+   `TaskRuntime`, linear `Task<T>` claims, compiler-planned local activation
+   requirements, bounded Region-backed provider packages, and one-mailbox
+   sums. Bare/scoped `spawn` is retired; conservative suspension-safe loans
+   replace its special borrowing rule. Remaining: suspension elaboration,
+   continuation layout, child-lease accounting, and cross-suspension loans.
 
 6. **Atomics and a memory model** — direction scouted + chapter 18 now
    carries the Rust-like atomics section (distinct core types, five C11
@@ -94,7 +99,7 @@ implementation work. Each one gets more expensive to retrofit every month.
    as C4/C5 in TASKS.md's register. The wait primitive itself is decided
    (decision 16): `wait_until_nonzero(&AtomicU32)` / wake — atomics are
    the words everything parks on, so C4/C5 gate IPC, the scheduler, and
-   `spawn` implementation.
+   task-runtime implementation.
 
 7. **Freestanding target + hardware access vocabulary** (ABSENT/narrow).
    Boot needs: a target with *no* host bindings and a custom entry (the
@@ -114,8 +119,9 @@ implementation work. Each one gets more expensive to retrofit every month.
    (`programmable_layouts.md`); foreign *pointers* use the extern brief's
    “Foreign pointer cases”
    taxonomy (borrows for call-scoped args, gated tokens / owned mints for
-   returned pointers, `Binding`-sum provides mappings — `Syscall(n)` /
-   `DllImport(m, s)` / `VtableSlot(i)` — for call targets). Remaining asks:
+   returned pointers, and explicit `satisfies ... via <Binding>` leaves —
+   `Syscall(n)` / `DllImport(m, s)` / `VtableSlot(i)` — from which the
+   toolchain derives `ProviderPlan` call-target mappings). Remaining asks:
    no-host target + entry spelling, lowering-contract vocabulary (volatile
    `exactly_once`, `clobbers tlb`), and the **entry-stub lowering** — one
    design for interrupt entry, the firmware seam's UEFI export table, and

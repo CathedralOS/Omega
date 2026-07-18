@@ -2,7 +2,7 @@ use super::{Lexer, lower_symbol_resolved_trees, lower_typed_trees, parse_syntax_
 use omega_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
 
 #[test]
-fn rejects_public_termination_guarantee_without_private_ranking_witness() {
+fn rejects_terminating_recursive_machine_without_decreases() {
     let source = r#"
     data Main {}
 
@@ -10,7 +10,7 @@ fn rejects_public_termination_guarantee_without_private_ranking_witness() {
         let value: u64 = self.countdown(2);
     }
 
-    machine Main::countdown(&mut self, remaining: u64) terminates; {
+    machine Main::countdown(&mut self, remaining: u64) terminates {
         transition remaining > 0 {
             true -> self.countdown(remaining - 1)
             false -> 0
@@ -34,97 +34,6 @@ fn rejects_public_termination_guarantee_without_private_ranking_witness() {
 }
 
 #[test]
-fn inherits_public_termination_guarantee_from_satisfied_requirement() {
-    let source = r#"
-    trait Countdown {
-        machine countdown(remaining: u64) -> u64 terminates;
-    }
-
-    data Main {}
-
-    machine Main::main(&mut self) {
-        let value: u64 = countdown(3);
-    }
-
-    machine countdown(remaining: u64) -> u64
-    satisfies Countdown::countdown
-    terminates by remaining;
-    {
-        transition remaining > 0 {
-            true -> countdown(remaining - 1)
-            false -> 0
-        }
-    }
-    "#;
-
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let authored = typed
-        .machines()
-        .iter()
-        .find(|machine| machine.ranking_witness.is_present())
-        .expect("satisfier should exist");
-    assert!(!authored.termination_guarantee.is_eventual_terminal());
-
-    let checked = lower_typed_trees(typed).expect("inherited guarantee should be discharged");
-    let normalized = checked
-        .machines()
-        .iter()
-        .find(|machine| machine.ranking_witness.is_present())
-        .expect("satisfier should exist");
-    assert!(normalized.termination_guarantee.is_eventual_terminal());
-    assert!(normalized.ranking_witness.is_present());
-}
-
-#[test]
-fn acyclic_satisfier_inherits_guarantee_without_any_termination_clause() {
-    let source = r#"
-    trait Value {
-        machine value() -> u64 terminates;
-    }
-
-    data Main {}
-
-    machine Main::main(&mut self) {
-        let result: u64 = value();
-    }
-
-    machine value() -> u64
-    satisfies Value::value
-    {
-        7
-    }
-    "#;
-
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let authored = typed
-        .machines()
-        .iter()
-        .find(|machine| machine.name.as_str() == "value")
-        .expect("satisfier should exist");
-    assert!(!authored.termination_guarantee.is_eventual_terminal());
-    assert!(!authored.ranking_witness.is_present());
-
-    let checked = lower_typed_trees(typed).expect("acyclic satisfier should discharge guarantee");
-    let normalized = checked
-        .machines()
-        .iter()
-        .find(|machine| machine.name.as_str() == "value")
-        .expect("satisfier should exist");
-    assert!(normalized.termination_guarantee.is_eventual_terminal());
-    assert!(!normalized.ranking_witness.is_present());
-}
-
-#[test]
 fn accepts_slice_range_surface_during_checked_lowering() {
     let source = r#"
     data Main {}
@@ -144,14 +53,7 @@ fn accepts_slice_range_surface_during_checked_lowering() {
     let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
 
-    let checked = lower_typed_trees(typed).expect("checked lowering should accept ranges");
-    let machine = checked.machines().first().expect("main machine should exist");
-    assert!(!machine.termination_guarantee.is_eventual_terminal());
-    assert!(
-        checked
-            .machine_termination_summary(machine.symbol)
-            .is_eventual_terminal()
-    );
+    lower_typed_trees(typed).expect("checked lowering should accept ranges");
 }
 
 #[test]
@@ -164,7 +66,6 @@ fn accepts_terminating_countdown_machine_with_decreases() {
     }
 
     machine Main::countdown(&mut self, remaining: u64)
-    terminates;
     terminates by remaining -> Nat::Descending;
     {
         transition remaining > 0 {
@@ -194,7 +95,6 @@ fn accepts_terminating_distance_machine_with_decreases() {
     }
 
     machine Main::walk(&mut self, limit: u64, index: u64)
-    terminates;
     terminates by (index, limit) -> Nat::BoundedDistance;
     -> u64
     {
@@ -216,405 +116,6 @@ fn accepts_terminating_distance_machine_with_decreases() {
 }
 
 #[test]
-fn accepts_private_increasing_to_witness_with_rank_range() {
-    let source = r#"
-    data Main {}
-
-    machine Main::main(&mut self) {
-        let value: u64 = self.walk(4, 0);
-    }
-
-    machine Main::walk(&mut self, limit: u64, index: u64)
-    terminates by index -> Nat::IncreasingTo(limit) in 0..=limit;
-    -> u64
-    {
-        transition index < limit {
-            true -> self.walk(limit, index + 1)
-            false -> index
-        }
-    }
-    "#;
-
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let witness_owner = typed
-        .machines()
-        .iter()
-        .find(|machine| machine.ranking_witness.is_present())
-        .expect("walk machine should carry its private witness");
-    assert!(!witness_owner.termination_guarantee.is_eventual_terminal());
-    assert_eq!(
-        typed
-            .expression_table
-            .expression_handles(witness_owner.ranking_witness.view_arguments)
-            .len(),
-        1
-    );
-    assert!(witness_owner.ranking_witness.range.is_present());
-
-    let checked =
-        lower_typed_trees(typed).expect("bounded increasing rank should prove termination");
-    let machine = checked
-        .machines()
-        .iter()
-        .find(|machine| machine.ranking_witness.is_present())
-        .expect("walk machine should exist");
-    assert!(
-        checked
-            .machine_termination_summary(machine.symbol)
-            .is_eventual_terminal()
-    );
-}
-
-#[test]
-fn rejects_rank_range_that_excludes_the_natural_floor() {
-    let source = r#"
-    data Main {}
-
-    machine Main::main(&mut self) {
-        let value: u64 = self.walk(4, 0);
-    }
-
-    machine Main::walk(&mut self, limit: u64, index: u64)
-    terminates by index -> Nat::IncreasingTo(limit) in 1..=limit;
-    -> u64
-    {
-        transition index < limit {
-            true -> self.walk(limit, index + 1)
-            false -> index
-        }
-    }
-    "#;
-
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let diagnostics = lower_typed_trees(typed).expect_err("rank floor must be in range");
-
-    assert!(
-        diagnostics.iter().any(|diagnostic| {
-            diagnostic
-                .message
-                .contains("cannot prove rank range `1..=limit`")
-        }),
-        "unexpected diagnostics: {:?}",
-        diagnostics
-            .iter()
-            .map(|diagnostic| diagnostic.message.as_str())
-            .collect::<Vec<_>>()
-    );
-}
-
-#[test]
-fn accepts_same_shaped_joint_ranking_across_machine_call_cycle() {
-    let source = r#"
-    data Main {}
-
-    machine Main::main(&mut self) -> u64 {
-        transition { _ -> self.scan_a(4) }
-    }
-
-    machine Main::scan_a(&mut self, remaining: u64)
-    terminates by remaining;
-    -> u64
-    {
-        transition remaining > 0 {
-            true -> self.scan_b(remaining)
-            false -> 0
-        }
-    }
-
-    machine Main::scan_b(&mut self, remaining: u64)
-    terminates by remaining;
-    -> u64
-    {
-        transition remaining > 0 {
-            true -> self.scan_a(remaining - 1)
-            false -> 0
-        }
-    }
-    "#;
-
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-
-    lower_typed_trees(typed).expect("joint same-shaped ranking should prove the call SCC");
-}
-
-#[test]
-fn rejects_same_shaped_machine_call_cycle_without_a_strict_edge() {
-    let source = r#"
-    data Main {}
-
-    machine Main::main(&mut self) -> u64 {
-        transition { _ -> self.scan_a(4) }
-    }
-
-    machine Main::scan_a(&mut self, remaining: u64)
-    terminates by remaining;
-    -> u64
-    {
-        transition remaining > 0 {
-            true -> self.scan_b(remaining)
-            false -> 0
-        }
-    }
-
-    machine Main::scan_b(&mut self, remaining: u64)
-    terminates by remaining;
-    -> u64
-    {
-        transition remaining > 0 {
-            true -> self.scan_a(remaining)
-            false -> 0
-        }
-    }
-    "#;
-
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let diagnostics = lower_typed_trees(typed).expect_err("forwarding-only SCC must fail");
-
-    assert!(diagnostics.iter().any(|diagnostic| {
-        diagnostic
-            .message
-            .contains("cannot prove one joint `terminates by` ranking")
-    }));
-}
-
-#[test]
-fn accepts_same_shaped_lexicographic_machine_call_cycle() {
-    let source = r#"
-    data Progress {
-        outer: u64;
-        inner: u64;
-    }
-
-    measure Progress::Steps lexicographic { outer, inner }
-
-    data Main {}
-
-    machine Main::main(&mut self) -> u64 {
-        transition {
-            _ -> self.scan_a(Progress { outer: 1, inner: 4 })
-        }
-    }
-
-    machine Main::scan_a(&mut self, progress: Progress)
-    terminates by progress -> Progress::Steps;
-    -> u64
-    {
-        transition progress.inner > 0 {
-            true -> self.scan_b(progress)
-            false -> 0
-        }
-    }
-
-    machine Main::scan_b(&mut self, progress: Progress)
-    terminates by progress -> Progress::Steps;
-    -> u64
-    {
-        transition progress.inner > 0 {
-            true -> self.scan_a(Progress {
-                outer: progress.outer,
-                inner: progress.inner - 1,
-            })
-            false -> 0
-        }
-    }
-    "#;
-
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-
-    lower_typed_trees(typed).expect("joint lexicographic ranking should prove the call SCC");
-}
-
-#[test]
-fn accepts_same_shaped_slice_length_machine_call_cycle() {
-    let source = r#"
-    data Main {}
-
-    machine Main::main(&mut self) -> u64 {
-        let values: [u64; 4] = [1, 2, 3, 4];
-        let view: &[u64] = values.as_slice();
-        transition { _ -> self.scan_a(view) }
-    }
-
-    machine Main::scan_a(&mut self, items: &[u64])
-    terminates by items -> Slice::Length;
-    -> u64
-    {
-        transition items.len > 0 {
-            true -> self.scan_b(items)
-            false -> 0
-        }
-    }
-
-    machine Main::scan_b(&mut self, items: &[u64])
-    terminates by items -> Slice::Length;
-    -> u64
-    {
-        transition items.len > 0 {
-            true -> self.scan_a(items[1..])
-            false -> 0
-        }
-    }
-    "#;
-
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-
-    lower_typed_trees(typed).expect("joint slice-length ranking should prove the call SCC");
-}
-
-#[test]
-fn accepts_non_tail_joint_cycle_in_proof_stratum() {
-    let source = r#"
-    data ProofNat {
-        case Zero;
-        case Succ(prev: ProofNat);
-    }
-
-    data Main {}
-
-    machine Main::main(&mut self) {}
-
-    machine left(n: ProofNat)
-    terminates by n;
-    -> ProofNat
-    {
-        transition n {
-            ProofNat::Zero -> ProofNat::Zero
-            ProofNat::Succ { prev } -> ProofNat::Succ { prev: right(prev) }
-        }
-    }
-
-    machine right(n: ProofNat)
-    terminates by n;
-    -> ProofNat
-    {
-        transition n {
-            ProofNat::Zero -> ProofNat::Zero
-            ProofNat::Succ { prev } -> ProofNat::Succ { prev: left(prev) }
-        }
-    }
-    "#;
-
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-
-    lower_typed_trees(typed).expect("proof-only non-tail SCC should use structural ranking");
-}
-
-#[test]
-fn rejects_non_tail_joint_cycle_in_runtime_stratum() {
-    let source = r#"
-    data Main {}
-
-    machine Main::main(&mut self) -> u64 {
-        transition { _ -> self.left(4) }
-    }
-
-    machine Main::left(&mut self, remaining: u64)
-    terminates by remaining;
-    -> u64
-    {
-        transition remaining > 0 {
-            true -> (1 + self.right(remaining - 1))
-            false -> 0
-        }
-    }
-
-    machine Main::right(&mut self, remaining: u64)
-    terminates by remaining;
-    -> u64
-    {
-        transition remaining > 0 {
-            true -> (1 + self.left(remaining - 1))
-            false -> 0
-        }
-    }
-    "#;
-
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let diagnostics = lower_typed_trees(typed).expect_err("runtime non-tail SCC must fail");
-
-    assert!(diagnostics.iter().any(|diagnostic| {
-        diagnostic
-            .message
-            .contains("ranked runtime cycles must be tail-position calls")
-    }));
-}
-
-#[test]
-fn rejects_increasing_to_witness_when_index_stalls() {
-    let source = r#"
-    data Main {}
-
-    machine Main::main(&mut self) {
-        let value: u64 = self.walk(4, 0);
-    }
-
-    machine Main::walk(&mut self, limit: u64, index: u64)
-    terminates by index -> Nat::IncreasingTo(limit);
-    -> u64
-    {
-        transition index < limit {
-            true -> self.walk(limit, index)
-            false -> index
-        }
-    }
-    "#;
-
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let diagnostics = lower_typed_trees(typed).expect_err("stalled rank should be rejected");
-
-    assert!(diagnostics.iter().any(|diagnostic| {
-        diagnostic
-            .message
-            .contains("cannot prove `terminates by` ranking witness")
-    }));
-}
-
-#[test]
 fn accepts_terminating_slice_distance_machine_with_decreases() {
     let source = r#"
     data Entry {
@@ -631,7 +132,6 @@ fn accepts_terminating_slice_distance_machine_with_decreases() {
     }
 
     machine Main::walk(&mut self, entries: &[Entry], index: u64)
-    terminates;
     terminates by (index, entries.len) -> Nat::BoundedDistance;
     -> u64
     {
@@ -662,7 +162,6 @@ fn rejects_terminating_countdown_machine_with_stalled_decrease() {
     }
 
     machine Main::countdown(&mut self, remaining: u64)
-    terminates;
     terminates by remaining -> Nat::Descending;
     {
         transition remaining > 0 {
@@ -683,7 +182,7 @@ fn rejects_terminating_countdown_machine_with_stalled_decrease() {
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
-            .contains("cannot prove `terminates by` ranking witness")
+            .contains("cannot prove the `terminates by` ranking")
     }));
 }
 
@@ -704,7 +203,6 @@ fn rejects_terminating_slice_distance_machine_with_stalled_index() {
     }
 
     machine Main::walk(&mut self, entries: &[Entry], index: u64)
-    terminates;
     terminates by (index, entries.len) -> Nat::BoundedDistance;
     -> u64
     {
@@ -726,7 +224,7 @@ fn rejects_terminating_slice_distance_machine_with_stalled_index() {
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
-            .contains("cannot prove `terminates by` ranking witness")
+            .contains("cannot prove the `terminates by` ranking")
     }));
 }
 
@@ -747,7 +245,6 @@ fn rejects_terminating_slice_length_order_without_supported_progress_shape() {
     }
 
     machine Main::walk(&mut self, entries: &[Entry], index: u64)
-    terminates;
     terminates by entries -> Slice::Length;
     -> u64
     {
@@ -769,7 +266,7 @@ fn rejects_terminating_slice_length_order_without_supported_progress_shape() {
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
-            .contains("cannot prove `terminates by` ranking witness")
+            .contains("cannot prove the `terminates by` ranking")
     }));
 }
 
@@ -790,7 +287,6 @@ fn accepts_terminating_slice_length_order_with_shrinking_subslice() {
     }
 
     machine Main::walk(&mut self, entries: &[Entry])
-    terminates;
     terminates by entries -> Slice::Length;
     -> u64
     {
@@ -823,7 +319,6 @@ fn accepts_terminating_mutually_recursive_states_with_decreases() {
     }
 
     machine Main::ping(&mut self, remaining: u64)
-    terminates;
     terminates by remaining -> Nat::Descending;
     -> u64
     {
@@ -863,7 +358,6 @@ fn rejects_terminating_mutually_recursive_states_without_decrease() {
     }
 
     machine Main::ping(&mut self, remaining: u64)
-    terminates;
     terminates by remaining -> Nat::Descending;
     -> u64
     {
@@ -892,12 +386,12 @@ fn rejects_terminating_mutually_recursive_states_without_decrease() {
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
-            .contains("cannot prove `terminates by` ranking witness")
+            .contains("cannot prove the `terminates by` ranking")
     }));
 }
 
 #[test]
-fn elaborates_short_form_nat_witness_without_changing_public_guarantee() {
+fn infers_default_nat_descending_for_plain_usize_decreases() {
     let source = r#"
     data Main {}
 
@@ -906,7 +400,6 @@ fn elaborates_short_form_nat_witness_without_changing_public_guarantee() {
     }
 
     machine Main::countdown(&mut self, remaining: u64)
-    terminates;
     terminates by remaining;
     {
         transition remaining > 0 {
@@ -922,31 +415,8 @@ fn elaborates_short_form_nat_witness_without_changing_public_guarantee() {
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
     let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let authored = typed
-        .machines()
-        .iter()
-        .find(|machine| machine.ranking_witness.is_present())
-        .expect("countdown machine should exist");
-    assert!(authored.termination_guarantee.is_eventual_terminal());
-    assert!(authored.ranking_witness.is_present());
-    assert!(authored.ranking_witness.view.is_empty());
 
-    let checked =
-        lower_typed_trees(typed).expect("default nat-descending inference should succeed");
-    let elaborated = checked
-        .machines()
-        .iter()
-        .find(|machine| machine.ranking_witness.is_present())
-        .expect("countdown machine should exist");
-    assert!(elaborated.termination_guarantee.is_eventual_terminal());
-    assert_eq!(
-        checked
-            .machine_decrease_order(elaborated.ranking_witness.view)
-            .iter()
-            .map(|member| member.as_str())
-            .collect::<Vec<_>>(),
-        ["Nat", "Descending"]
-    );
+    lower_typed_trees(typed).expect("default nat-descending inference should succeed");
 }
 
 #[test]
@@ -966,7 +436,6 @@ fn infers_default_slice_length_for_plain_slice_decreases() {
     }
 
     machine Main::walk(&mut self, entries: &[Entry])
-    terminates;
     terminates by entries;
     -> u64
     {
@@ -988,7 +457,7 @@ fn infers_default_slice_length_for_plain_slice_decreases() {
 }
 
 #[test]
-fn does_not_infer_a_default_view_for_two_subject_tuple() {
+fn infers_default_bounded_distance_for_plain_two_subject_tuple() {
     let source = r#"
     data Main {}
 
@@ -997,7 +466,6 @@ fn does_not_infer_a_default_view_for_two_subject_tuple() {
     }
 
     machine Main::walk(&mut self, limit: u64, index: u64)
-    terminates;
     terminates by (index, limit);
     -> u64
     {
@@ -1014,14 +482,8 @@ fn does_not_infer_a_default_view_for_two_subject_tuple() {
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
     let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let diagnostics =
-        lower_typed_trees(typed).expect_err("a tuple has no carrier-owned canonical default");
 
-    assert!(diagnostics.iter().any(|diagnostic| {
-        diagnostic
-            .message
-            .contains("cannot prove `terminates by` ranking witness for machine")
-    }));
+    lower_typed_trees(typed).expect("default bounded-distance inference should succeed");
 }
 
 #[test]
@@ -1034,7 +496,6 @@ fn accepts_explicit_named_bounded_distance_view() {
     }
 
     machine Main::walk(&mut self, limit: u64, index: u64)
-    terminates;
     terminates by (index, limit) -> Nat::BoundedDistance;
     -> u64
     {
@@ -1065,8 +526,7 @@ fn rejects_inverted_bounded_distance_with_naming_diagnostic() {
     }
 
     machine Main::walk(&mut self, limit: u64, index: u64)
-    terminates;
-    terminates by (limit, index) -> Nat::BoundedDistance;
+    terminates by (limit, index);
     -> u64
     {
         transition index < limit {
@@ -1092,7 +552,7 @@ fn rejects_inverted_bounded_distance_with_naming_diagnostic() {
                 && diagnostic.message.contains("`Nat::BoundedDistance`")
                 && diagnostic
                     .message
-                    .contains("write `terminates by (index, limit) -> Nat::BoundedDistance;`")
+                    .contains("write `terminates by (index, limit) -> Nat::BoundedDistance`")
         }),
         "expected the inverted bounded-distance diagnostic, got: {:?}",
         diagnostics
@@ -1112,7 +572,6 @@ fn rejects_retired_subtraction_decreases_spelling_with_tuple_guidance() {
     }
 
     machine Main::walk(&mut self, limit: u64, index: u64)
-    terminates;
     terminates by limit - index;
     -> u64
     {
@@ -1128,7 +587,25 @@ fn rejects_retired_subtraction_decreases_spelling_with_tuple_guidance() {
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
     let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let mut typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let machine = typed
+        .machines_mut()
+        .iter_mut()
+        .find(|machine| machine.name.as_str() == "Main::walk")
+        .expect("walk machine");
+    assert_eq!(
+        machine
+            .termination_plan
+            .implementation_witness
+            .as_ref()
+            .expect("ranking witness")
+            .subjects,
+        ["limit - index"]
+    );
+    machine.decreases = Default::default();
+    machine.decrease_order = Default::default();
+    machine.decrease_view_arguments = Default::default();
+    machine.decrease_range = omega_typed_trees::expression::ExpressionHandle::invalid();
     let diagnostics =
         lower_typed_trees(typed).expect_err("the subtraction spelling is retired surface");
 
@@ -1136,10 +613,10 @@ fn rejects_retired_subtraction_decreases_spelling_with_tuple_guidance() {
         diagnostics.iter().any(|diagnostic| {
             diagnostic
                 .message
-                .contains("the use-site subtraction `terminates by limit - index;`")
+                .contains("the use-site subtraction `terminates by limit - index`")
                 && diagnostic.message.contains("is retired")
                 && diagnostic.message.contains(
-                    "spell the ranking as `terminates by (index, limit) -> Nat::BoundedDistance;`",
+                    "spell the ranking as `terminates by (index, limit) -> Nat::BoundedDistance`",
                 )
         }),
         "expected the retired-subtraction diagnostic, got: {:?}",
@@ -1160,7 +637,6 @@ fn rejects_named_bounded_distance_view_over_single_subject() {
     }
 
     machine Main::countdown(&mut self, remaining: u64)
-    terminates;
     terminates by remaining -> Nat::BoundedDistance;
     {
         transition remaining > 0 {
@@ -1182,7 +658,7 @@ fn rejects_named_bounded_distance_view_over_single_subject() {
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
-            .contains("cannot prove `terminates by` ranking witness")
+            .contains("cannot prove the `terminates by` ranking")
     }));
 }
 
@@ -1198,7 +674,6 @@ fn rejects_ambiguous_default_order_requiring_explicit_form() {
     }
 
     machine Main::countdown(&mut self, remaining: i32)
-    terminates;
     terminates by remaining;
     -> i32
     {
@@ -1221,13 +696,13 @@ fn rejects_ambiguous_default_order_requiring_explicit_form() {
         diagnostics.iter().any(|diagnostic| {
             diagnostic
                 .message
-                .contains("cannot infer a ranking view for `terminates by remaining;`")
+                .contains("cannot infer a ranking for `terminates by remaining`")
                 && diagnostic
                     .message
                     .contains("signed values have no default well-founded order")
                 && diagnostic
                     .message
-                    .contains("`terminates by remaining -> View;`")
+                    .contains("`terminates by remaining -> View`")
         }),
         "expected a signed-value ambiguity diagnostic, got: {:?}",
         diagnostics
@@ -1247,7 +722,6 @@ fn infers_default_nat_descending_for_plain_u32_decreases() {
     }
 
     machine Main::countdown(&mut self, remaining: u32)
-    terminates;
     terminates by remaining;
     -> u32
     {
@@ -1285,7 +759,6 @@ fn plain_decreases_never_selects_a_declared_measure_even_when_unique() {
     }
 
     machine Main::weaken(&mut self, card: Card)
-    terminates;
     terminates by card;
     -> u64
     {
@@ -1309,13 +782,13 @@ fn plain_decreases_never_selects_a_declared_measure_even_when_unique() {
         diagnostics.iter().any(|diagnostic| {
             diagnostic
                 .message
-                .contains("cannot infer a ranking view for `terminates by card;`")
+                .contains("cannot infer a ranking for `terminates by card`")
                 && diagnostic
                     .message
                     .contains("declared measures are never selected implicitly")
                 && diagnostic
                     .message
-                    .contains("`terminates by card -> Card::PowerOrder;`")
+                    .contains("`terminates by card -> Card::PowerOrder`")
         }),
         "expected the declared-measure suggestion diagnostic, got: {:?}",
         diagnostics
@@ -1325,24 +798,135 @@ fn plain_decreases_never_selects_a_declared_measure_even_when_unique() {
     );
 }
 
+/// TPR2 (decision 23): the normalized `MachineTerminationPlan` populates at
+/// the syntax->resolved lowering and copies -- never re-derives -- through
+/// resolved->typed. Bare `terminates;` authors the PUBLIC guarantee and no
+/// witness; `terminates by ...` supplies the PRIVATE witness and publishes
+/// NOTHING; canonical defaults elaborate immediately to the explicit view
+/// (single unsigned subject -> Nat::Descending, two subjects ->
+/// Nat::BoundedDistance); `checked_summary` stays NoGuarantee at this stage
+/// (the checker's to establish, TPR3).
 #[test]
-fn adding_a_second_declared_measure_does_not_reinterpret_short_form() {
+fn termination_plan_splits_guarantee_from_witness_with_elaborated_defaults() {
+    use omega_core::semantics::{RankingViewId, TerminationGuarantee};
+
     let source = r#"
-    data Card {
-        power: u64;
-    }
-
-    measure Card::PowerOrder(card: Card) -> u64 { card.power }
-    measure Card::AlternateOrder(card: Card) -> u64 { card.power }
-
     data Main {}
 
     machine Main::main(&mut self) {
-        let value: u64 = self.weaken(Card { power: 3 });
+        let a: u64 = self.promise();
+        let b: u64 = self.countdown(2);
+        let c: u64 = self.walk(4, 0);
+    }
+
+    machine Main::promise(&mut self) -> u64 terminates; { 7 }
+
+    machine Main::countdown(&mut self, remaining: u64)
+    terminates by remaining;
+    {
+        transition remaining > 0 {
+            true -> self.countdown(remaining - 1)
+            false -> 0
+        }
+    }
+
+    machine Main::walk(&mut self, limit: u64, index: u64)
+    terminates by (index, limit);
+    -> u64
+    {
+        transition index < limit {
+            true -> self.walk(limit, index + 1)
+            false -> index
+        }
+    }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+
+    let plan_of = |name: &str| {
+        &typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == name)
+            .unwrap_or_else(|| panic!("machine {name}"))
+            .termination_plan
+    };
+
+    // Bare `terminates;`: the authored public promise, no witness.
+    let promise = plan_of("Main::promise");
+    assert_eq!(
+        promise.published,
+        Some(TerminationGuarantee::EventualTerminal {
+            premises: Vec::new()
+        })
+    );
+    assert!(promise.implementation_witness.is_none());
+
+    // `terminates by remaining;`: witness only (publishes nothing); the
+    // single u64 subject's canonical default elaborates immediately.
+    let countdown = plan_of("Main::countdown");
+    assert_eq!(countdown.published, None);
+    let witness = countdown
+        .implementation_witness
+        .as_ref()
+        .expect("countdown witness");
+    assert_eq!(witness.subjects, vec!["remaining".to_string()]);
+    assert_eq!(witness.ranking_view, RankingViewId::NAT_DESCENDING);
+    assert_eq!(witness.view_path, "Nat::Descending");
+
+    // Two-subject short form: the only builtin two-subject view.
+    let walk = plan_of("Main::walk");
+    assert_eq!(walk.published, None);
+    let witness = walk.implementation_witness.as_ref().expect("walk witness");
+    assert_eq!(
+        witness.subjects,
+        vec!["index".to_string(), "limit".to_string()]
+    );
+    assert_eq!(witness.ranking_view, RankingViewId::NAT_BOUNDED_DISTANCE);
+    assert_eq!(witness.view_path, "Nat::BoundedDistance");
+
+    // Nothing claims a checked summary before the checker runs (TPR3).
+    for name in ["Main::promise", "Main::countdown", "Main::walk"] {
+        assert_eq!(
+            plan_of(name).checked_summary,
+            TerminationGuarantee::NoGuarantee
+        );
+    }
+}
+
+/// TPR2: an authored `-> View` records verbatim -- canonical builtins carry
+/// their fixed ids; a declared measure keeps the spelled path with a NULL id
+/// until TPR3 assigns normalized measure identity.
+#[test]
+fn termination_plan_records_authored_views_verbatim() {
+    use omega_core::semantics::RankingViewId;
+
+    let source = r#"
+    data Card { power: u64 }
+    data Main {}
+
+    measure Card::PowerOrder(card: Card) -> u64 { card.power }
+
+    machine Main::main(&mut self) {
+        let a: u64 = self.countdown(2);
+    }
+
+    machine Main::countdown(&mut self, remaining: u64)
+    terminates by remaining -> Nat::Descending;
+    {
+        transition remaining > 0 {
+            true -> self.countdown(remaining - 1)
+            false -> 0
+        }
     }
 
     machine Main::weaken(&mut self, card: Card)
-    terminates by card;
+    terminates by card -> Card::PowerOrder;
     -> u64
     {
         transition card.power > 0 {
@@ -1358,15 +942,1017 @@ fn adding_a_second_declared_measure_does_not_reinterpret_short_form() {
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
     let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let diagnostics =
-        lower_typed_trees(typed).expect_err("declared measures must not reinterpret short form");
-    let message = diagnostics
-        .iter()
-        .map(|diagnostic| diagnostic.message.as_str())
-        .find(|message| message.contains("cannot infer a ranking view"))
-        .expect("ranking diagnostic should be present");
 
-    assert!(message.contains("declared measures are never selected implicitly"));
-    assert!(message.contains("Card::AlternateOrder"));
-    assert!(message.contains("Card::PowerOrder"));
+    let witness_of = |name: &str| {
+        typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == name)
+            .unwrap_or_else(|| panic!("machine {name}"))
+            .termination_plan
+            .implementation_witness
+            .as_ref()
+            .unwrap_or_else(|| panic!("{name} witness"))
+    };
+
+    let countdown = witness_of("Main::countdown");
+    assert_eq!(countdown.ranking_view, RankingViewId::NAT_DESCENDING);
+    assert_eq!(countdown.view_path, "Nat::Descending");
+
+    let weaken = witness_of("Main::weaken");
+    assert_eq!(weaken.ranking_view, RankingViewId::NULL);
+    assert_eq!(weaken.view_path, "Card::PowerOrder");
+}
+
+/// TPR3/TPR6 firewall: the witness's normalized builtin identity and its
+/// explicit path must agree. Constructed by mutating the path post-typing;
+/// real lowering stamps both together.
+#[test]
+fn recorded_view_divergence_is_loud() {
+    let source = r#"
+    data Main {}
+
+    machine Main::main(&mut self) {
+        let a: u64 = self.countdown(2);
+    }
+
+    machine Main::countdown(&mut self, remaining: u64)
+    terminates by remaining;
+    {
+        transition remaining > 0 {
+            true -> self.countdown(remaining - 1)
+            false -> 0
+        }
+    }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let mut typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+
+    let machine = typed
+        .machines_mut()
+        .iter_mut()
+        .find(|machine| machine.name.as_str() == "Main::countdown")
+        .expect("countdown machine");
+    let witness = machine
+        .termination_plan
+        .implementation_witness
+        .as_mut()
+        .expect("countdown witness");
+    assert_eq!(witness.view_path, "Nat::Descending");
+    witness.view_path = "Slice::Length".to_string();
+
+    let diagnostics =
+        lower_typed_trees(typed).expect_err("a diverging recorded view must be loud");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.message.contains("recorded ranking view `Nat::Descending`")
+                && diagnostic.message.contains("resolved view `Slice::Length`")
+        }),
+        "expected the divergence invariant diagnostic, got: {:?}",
+        diagnostics
+            .iter()
+            .map(|diagnostic| diagnostic.message.clone())
+            .collect::<Vec<_>>()
+    );
+}
+
+/// TPR3 (decision 23's acceptance test 5): an INCREASING cursor is accepted
+/// through the bounded argumented view `Nat::IncreasingTo(limit)` without an
+/// authored subtraction -- the bound is part of the view, the measure is the
+/// distance up to it, and the plan witness records the base path plus the
+/// argument.
+#[test]
+fn accepts_increasing_cursor_via_bounded_argumented_view() {
+    use omega_core::semantics::RankingViewId;
+
+    let source = r#"
+    data Main {}
+
+    machine Main::main(&mut self) {
+        let value: u64 = self.climb(4, 0);
+    }
+
+    machine Main::climb(&mut self, limit: u64, index: u64)
+    terminates by index -> Nat::IncreasingTo(limit);
+    -> u64
+    {
+        transition index < limit {
+            true -> self.climb(limit, index + 1)
+            false -> index
+        }
+    }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+
+    let witness = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Main::climb")
+        .expect("climb machine")
+        .termination_plan
+        .implementation_witness
+        .as_ref()
+        .expect("climb witness");
+    assert_eq!(witness.subjects, vec!["index".to_string()]);
+    assert_eq!(witness.ranking_view, RankingViewId::NAT_INCREASING_TO);
+    assert_eq!(witness.view_path, "Nat::IncreasingTo");
+    assert_eq!(witness.view_arguments, vec!["limit".to_string()]);
+
+    lower_typed_trees(typed).expect("the bounded increasing cursor should prove");
+}
+
+/// TPR3: the unbounded `Nat::Increasing` is NOT a valid ranking -- the
+/// rejection is directed at the bounded spelling instead of a bare
+/// "cannot prove".
+#[test]
+fn rejects_unbounded_increasing_view_with_directed_message() {
+    let source = r#"
+    data Main {}
+
+    machine Main::main(&mut self) {
+        let value: u64 = self.climb(4, 0);
+    }
+
+    machine Main::climb(&mut self, limit: u64, index: u64)
+    terminates by index -> Nat::Increasing;
+    -> u64
+    {
+        transition index < limit {
+            true -> self.climb(limit, index + 1)
+            false -> index
+        }
+    }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let diagnostics =
+        lower_typed_trees(typed).expect_err("the unbounded increasing view must be rejected");
+
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("unbounded `Nat::Increasing` is not a well-founded ranking")
+                && diagnostic.message.contains("`-> Nat::IncreasingTo(limit)`")
+        }),
+        "expected the directed unbounded-increasing rejection, got: {:?}",
+        diagnostics
+            .iter()
+            .map(|diagnostic| diagnostic.message.clone())
+            .collect::<Vec<_>>()
+    );
+}
+
+/// TPR3: argument-arity misuse gets directed rejections too -- a missing
+/// bound on `IncreasingTo`, and arguments on a plain view.
+#[test]
+fn rejects_view_argument_arity_misuse_with_directed_messages() {
+    let cases = [
+        (
+            "terminates by index -> Nat::IncreasingTo;",
+            "`Nat::IncreasingTo` names exactly one bound argument",
+        ),
+        (
+            "terminates by index -> Nat::Descending(limit);",
+            "view arguments are only meaningful on an argumented view",
+        ),
+    ];
+    for (clause, expected) in cases {
+        let source = format!(
+            r#"
+    data Main {{}}
+
+    machine Main::main(&mut self) {{
+        let value: u64 = self.climb(4, 0);
+    }}
+
+    machine Main::climb(&mut self, limit: u64, index: u64)
+    {clause}
+    -> u64
+    {{
+        transition index < limit {{
+            true -> self.climb(limit, index + 1)
+            false -> index
+        }}
+    }}
+    "#
+        );
+
+        let tokens = Lexer::new(source.as_str())
+            .tokenize()
+            .expect("tokenize should succeed");
+        let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+        let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+        let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+        let diagnostics = lower_typed_trees(typed).expect_err("arity misuse must be rejected");
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains(expected)),
+            "clause `{clause}`: expected `{expected}`, got: {:?}",
+            diagnostics
+                .iter()
+                .map(|diagnostic| diagnostic.message.clone())
+                .collect::<Vec<_>>()
+        );
+    }
+}
+
+/// TPR3 slice 3: the `in <range>` rank constraint is CONSUMED -- v1 accepts
+/// exactly the shape true by the view's definition (`in 0..=limit` on
+/// `Nat::IncreasingTo(limit)`) and records the verified fact in the plan
+/// witness; every other shape gets a directed rejection.
+#[test]
+fn rank_range_on_increasing_to_is_consumed_and_recorded() {
+    let source = r#"
+    data Main {}
+
+    machine Main::main(&mut self) {
+        let value: u64 = self.climb(4, 0);
+    }
+
+    machine Main::climb(&mut self, limit: u64, index: u64)
+    terminates by index -> Nat::IncreasingTo(limit) in 0..=limit;
+    -> u64
+    {
+        transition index < limit {
+            true -> self.climb(limit, index + 1)
+            false -> index
+        }
+    }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+
+    let witness = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Main::climb")
+        .expect("climb machine")
+        .termination_plan
+        .implementation_witness
+        .as_ref()
+        .expect("climb witness");
+    let range = witness.rank_range.as_ref().expect("recorded rank range");
+    assert_eq!(range.floor, "0");
+    assert_eq!(range.ceiling, "limit");
+    assert!(range.ceiling_inclusive);
+
+    lower_typed_trees(typed).expect("the structurally-true rank range should verify");
+}
+
+/// TPR3 completion: checker legality resolves subjects, view arguments, view
+/// identity, and rank range from the normalized witness. The old typed-machine
+/// spans are compatibility output only and can be cleared without changing the
+/// judgment.
+#[test]
+fn termination_checker_uses_witness_not_compatibility_spans() {
+    let source = r#"
+    data Main {}
+
+    machine Main::main(&mut self) {
+        let value: u64 = self.climb(4, 0);
+    }
+
+    machine Main::climb(&mut self, limit: u64, index: u64)
+    terminates by index -> Nat::IncreasingTo(limit) in 0..=limit;
+    -> u64
+    {
+        transition index < limit {
+            true -> self.climb(limit, index + 1)
+            false -> index
+        }
+    }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let mut typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+
+    let machine = typed
+        .machines_mut()
+        .iter_mut()
+        .find(|machine| machine.name.as_str() == "Main::climb")
+        .expect("climb machine");
+    machine.decreases = Default::default();
+    machine.decrease_order = Default::default();
+    machine.decrease_view_arguments = Default::default();
+    machine.decrease_range = omega_typed_trees::expression::ExpressionHandle::invalid();
+
+    lower_typed_trees(typed)
+        .expect("normalized witness should independently prove the bounded climb");
+}
+
+/// TPR3 slice 3: the range shapes v1 cannot verify are rejected with
+/// DIRECTED messages -- nonzero floor, ceiling that is not the view's own
+/// bound, exclusive ceiling, and a range on a non-argumented view.
+#[test]
+fn rank_range_unverifiable_shapes_are_rejected_with_directed_messages() {
+    let cases = [
+        (
+            "terminates by index -> Nat::IncreasingTo(limit) in 1..=limit;",
+            "rank floor above the natural floor",
+        ),
+        (
+            "terminates by index -> Nat::IncreasingTo(limit) in 0..=index;",
+            "is not the view's own bound",
+        ),
+        (
+            "terminates by index -> Nat::IncreasingTo(limit) in 0..limit;",
+            "spell the ceiling inclusively",
+        ),
+        (
+            "terminates by index in 0..=limit;",
+            "rank range is only consumed on the argumented",
+        ),
+    ];
+    for (clause, expected) in cases {
+        let source = format!(
+            r#"
+    data Main {{}}
+
+    machine Main::main(&mut self) {{
+        let value: u64 = self.climb(4, 0);
+    }}
+
+    machine Main::climb(&mut self, limit: u64, index: u64)
+    {clause}
+    -> u64
+    {{
+        transition index < limit {{
+            true -> self.climb(limit, index + 1)
+            false -> index
+        }}
+    }}
+    "#
+        );
+
+        let tokens = Lexer::new(source.as_str())
+            .tokenize()
+            .expect("tokenize should succeed");
+        let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+        let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+        let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+        let diagnostics =
+            lower_typed_trees(typed).expect_err("an unverifiable range must be rejected");
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains(expected)),
+            "clause `{clause}`: expected `{expected}`, got: {:?}",
+            diagnostics
+                .iter()
+                .map(|diagnostic| diagnostic.message.clone())
+                .collect::<Vec<_>>()
+        );
+    }
+}
+
+/// TPR3 slice 4: the checked termination facts -- the `checked_summary`'s
+/// producer. Every acyclic checked body derives EventualTerminal without a
+/// witness; a proven witness establishes it WITH the resolved explicit
+/// view. The local summary remains separate from the authored public promise.
+#[test]
+fn termination_facts_record_checked_summaries_and_resolved_views() {
+    use omega_core::semantics::TerminationGuarantee;
+
+    let source = r#"
+    data Main {}
+
+    machine Main::main(&mut self) {
+        let a: u64 = self.promise();
+        let b: u64 = self.countdown(2);
+    }
+
+    machine Main::promise(&mut self) -> u64 terminates; { 7 }
+
+    machine Main::countdown(&mut self, remaining: u64)
+    terminates by remaining;
+    {
+        transition remaining > 0 {
+            true -> self.countdown(remaining - 1)
+            false -> 0
+        }
+    }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+
+    let facts = crate::checks::termination::build_termination_facts(&typed);
+    let machine_symbol = |name: &str| {
+        typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == name)
+            .unwrap_or_else(|| panic!("machine {name}"))
+            .symbol
+    };
+
+    let promise = facts
+        .for_machine(machine_symbol("Main::promise"))
+        .expect("acyclic claimant fact");
+    assert_eq!(
+        promise.checked_summary,
+        TerminationGuarantee::EventualTerminal {
+            premises: Vec::new()
+        }
+    );
+    assert!(promise.resolved_view_path.is_empty());
+
+    let countdown = facts
+        .for_machine(machine_symbol("Main::countdown"))
+        .expect("proven witness fact");
+    assert_eq!(
+        countdown.checked_summary,
+        TerminationGuarantee::EventualTerminal {
+            premises: Vec::new()
+        }
+    );
+    assert_eq!(countdown.resolved_view_path, "Nat::Descending");
+
+    let inferred = facts
+        .for_machine(machine_symbol("Main::main"))
+        .expect("unannotated acyclic body still gets a local summary");
+    assert_eq!(
+        inferred.checked_summary,
+        TerminationGuarantee::EventualTerminal {
+            premises: Vec::new()
+        }
+    );
+    assert!(inferred.resolved_view_path.is_empty());
+}
+
+#[test]
+fn inferred_completion_never_publishes_a_promise() {
+    use omega_core::semantics::TerminationGuarantee;
+
+    let source = r#"
+    data Main {}
+    machine Main::run(&mut self) -> u64 { self.inferred() }
+    machine Main::inferred(&mut self) -> u64 { 1 }
+    machine Main::promised(&mut self) -> u64 terminates; { 1 }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let symbol_of = |name: &str| {
+        typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == name)
+            .unwrap_or_else(|| panic!("machine {name}"))
+            .symbol
+    };
+    let inferred = symbol_of("Main::inferred");
+    let promised = symbol_of("Main::promised");
+    let checked = lower_typed_trees(typed).expect("checked lowering should succeed");
+
+    assert_eq!(
+        checked
+            .facts
+            .termination
+            .for_machine(inferred)
+            .expect("inferred local summary")
+            .checked_summary,
+        TerminationGuarantee::EventualTerminal {
+            premises: Vec::new()
+        }
+    );
+    assert_eq!(
+        checked
+            .facts
+            .contract_plans
+            .for_machine(inferred)
+            .expect("inferred contract plan")
+            .published_termination,
+        TerminationGuarantee::NoGuarantee,
+        "body inference must never redefine the published contract"
+    );
+    assert_eq!(
+        checked
+            .facts
+            .contract_plans
+            .for_machine(promised)
+            .expect("promised contract plan")
+            .published_termination,
+        TerminationGuarantee::EventualTerminal {
+            premises: Vec::new()
+        }
+    );
+}
+
+/// TPR4 slice 2: the requirement's authored guarantee PROPAGATES into the
+/// resolved trait-signature record (populated at syntax->resolved, per
+/// signature -- inheritance at conformance consumes it next).
+#[test]
+fn trait_requirement_guarantee_propagates_to_resolved_signatures() {
+    let source = r#"
+    trait Worker {
+        machine run(&mut self, n: u64) -> u64 terminates;
+        machine peek(&self) -> u64;
+    }
+
+    data Main {}
+
+    machine Main::main(&mut self) -> u64 { 7 }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+
+    let worker = resolved
+        .traits
+        .iter()
+        .find(|definition| definition.name.as_str() == "Worker")
+        .expect("Worker trait");
+    let signatures = resolved.trait_machine_signatures(worker.machines);
+    let flag_of = |name: &str| {
+        signatures
+            .iter()
+            .find(|signature| signature.name.as_str() == name)
+            .unwrap_or_else(|| panic!("signature {name}"))
+            .terminates_guarantee
+    };
+    assert!(flag_of("run"), "run authored the guarantee");
+    assert!(!flag_of("peek"), "peek promised nothing");
+}
+
+/// TPR4 slice 3 (decision 23): an implementation satisfying a requirement
+/// that authored `terminates;` INHERITS the published guarantee -- it does
+/// not repeat the clause. A cyclic inheritor must then supply the
+/// discharging witness or FAIL (the inherited claim is not optional), and
+/// with a witness it proves like any measured machine.
+#[test]
+fn implementation_inherits_requirement_guarantee() {
+    use omega_core::semantics::TerminationGuarantee;
+
+    let source = r#"
+    trait Worker {
+        machine run(&mut self, n: u64) -> u64 terminates;
+    }
+
+    data Main {}
+
+    machine Main::run(&mut self, n: u64) -> u64 satisfies Worker {
+        n
+    }
+
+    machine Main::main(&mut self) -> u64 {
+        let value: u64 = self.run(7);
+        value
+    }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+
+    let run = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Main::run")
+        .expect("run machine");
+    assert_eq!(
+        run.termination_plan.published,
+        Some(TerminationGuarantee::EventualTerminal {
+            premises: Vec::new()
+        }),
+        "the implementation inherits the requirement's published guarantee"
+    );
+    assert!(run.termination_plan.implementation_witness.is_none());
+
+    lower_typed_trees(typed).expect("an acyclic inheritor discharges the claim for free");
+}
+
+/// TPR4 slice 3: a CYCLIC implementation inheriting the guarantee without a
+/// witness FAILS with the missing-witness diagnostic -- the inherited claim
+/// is enforced by the same plan gate as an authored one. Supplying the
+/// witness (`terminates by n;`) discharges it.
+#[test]
+fn cyclic_inheritor_without_witness_fails_and_witness_discharges() {
+    let template = |witness_clause: &str| {
+        format!(
+            r#"
+    trait Worker {{
+        machine run(&mut self, n: u64) -> u64 terminates;
+    }}
+
+    data Main {{}}
+
+    machine Main::run(&mut self, n: u64) -> u64 satisfies Worker
+    {witness_clause}
+    {{
+        transition n > 0 {{
+            true -> self.run(n - 1)
+            false -> 0
+        }}
+    }}
+
+    machine Main::main(&mut self) -> u64 {{
+        let value: u64 = self.run(7);
+        value
+    }}
+    "#
+        )
+    };
+
+    // Without a witness: the inherited claim cannot be checked on a cycle.
+    let source = template("");
+    let tokens = Lexer::new(source.as_str())
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let diagnostics =
+        lower_typed_trees(typed).expect_err("a cyclic inheritor without a witness must fail");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.message.contains("recursive cycle")
+                && diagnostic.message.contains("ranking witness")
+        }),
+        "expected the missing-witness diagnostic, got: {:?}",
+        diagnostics
+            .iter()
+            .map(|diagnostic| diagnostic.message.clone())
+            .collect::<Vec<_>>()
+    );
+
+    // With the witness: the inherited claim discharges.
+    let source = template("terminates by n;");
+    let tokens = Lexer::new(source.as_str())
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    lower_typed_trees(typed).expect("the witness discharges the inherited claim");
+}
+
+/// STR4 slice 1 (decision 22): the normalized kinded effect row propagates
+/// -- populated ONCE at syntax->resolved from the flat effects span
+/// (order/duplicate-blind), copied with its interner into the typed trees.
+/// Same member set -> same row id; no effects -> the fixed EMPTY row.
+#[test]
+fn machine_effect_rows_normalize_and_propagate() {
+    use omega_core::semantics::{EffectRowTable, effect_member_id};
+
+    let source = r#"
+    data Main {}
+
+    machine Main::alpha(&mut self) effects filesystem_io, clock_read { 1 }
+    machine Main::beta(&mut self) effects clock_read, filesystem_io { 2 }
+    machine Main::plain(&mut self) -> u64 { 3 }
+
+    machine Main::main(&mut self) {
+        let a: u64 = self.alpha();
+        let b: u64 = self.beta();
+        let c: u64 = self.plain();
+    }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+
+    let row_of = |name: &str| {
+        typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == name)
+            .unwrap_or_else(|| panic!("machine {name}"))
+            .effect_row
+    };
+
+    // Spelling order is identity-blind: alpha and beta share one row.
+    let alpha = row_of("Main::alpha");
+    assert_eq!(alpha, row_of("Main::beta"));
+    assert!(alpha.is_valid());
+    assert_ne!(alpha, EffectRowTable::EMPTY_ROW);
+
+    // The interner traveled with the trees: the row's members are the
+    // canonical ids, sorted.
+    let filesystem = effect_member_id("filesystem_io").expect("catalog");
+    let clock = effect_member_id("clock_read").expect("catalog");
+    let mut expected = vec![filesystem, clock];
+    expected.sort_by_key(|member| member.0);
+    assert_eq!(typed.effect_rows.members(alpha), expected.as_slice());
+
+    // No effects -> the fixed empty row (never NULL: it was computed).
+    assert_eq!(row_of("Main::plain"), EffectRowTable::EMPTY_ROW);
+    assert_eq!(row_of("Main::main"), EffectRowTable::EMPTY_ROW);
+}
+
+/// STR4 slice 2 (decision 22): the checked facts split the PUBLISHED
+/// ceiling (the authored `effects` clause) from the checker-INFERRED
+/// direct/transitive summaries, all as normalized kinded row identities.
+/// A ceiling wider than the body's reality is visible as row inequality.
+#[test]
+fn effect_row_facts_split_ceiling_from_inferred_summaries() {
+    use omega_core::semantics::EffectRowTable;
+
+    let source = r#"
+    data Main {}
+
+    machine Main::quiet(&mut self) -> u64 effects filesystem_io { 1 }
+
+    machine Main::main(&mut self) -> u64 {
+        let a: u64 = self.quiet();
+        a
+    }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let symbol_of = |name: &str| {
+        typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == name)
+            .unwrap_or_else(|| panic!("machine {name}"))
+            .symbol
+    };
+    let quiet_symbol = symbol_of("Main::quiet");
+    let main_symbol = symbol_of("Main::main");
+    let checked = lower_typed_trees(typed).expect("checked lowering should succeed");
+
+    // quiet: the authored ceiling names filesystem_io while the BODY
+    // observes nothing -- the declaration-free inferred direct (STR4 slice
+    // 3) is the fixed EMPTY row, visibly different from the ceiling.
+    let quiet = checked
+        .facts
+        .effect_rows
+        .for_machine(quiet_symbol)
+        .expect("quiet's effect-row fact");
+    assert_ne!(quiet.published_ceiling, EffectRowTable::EMPTY_ROW);
+    assert_eq!(quiet.inferred_direct, EffectRowTable::EMPTY_ROW);
+    assert_ne!(quiet.published_ceiling, quiet.inferred_direct);
+    // Seed rework: the TRANSITIVE summary is declaration-free too -- the
+    // body reaches nothing, so the honest reach is the EMPTY row even
+    // though the ceiling names filesystem_io. (Callers still see the
+    // CEILING through their call edges -- the modular bound.)
+    assert_eq!(quiet.inferred_transitive, EffectRowTable::EMPTY_ROW);
+    assert_eq!(
+        checked.facts.effect_rows.rows.members(quiet.published_ceiling),
+        &[omega_core::semantics::effect_member_id("filesystem_io").expect("catalog")]
+    );
+
+    // main: NO authored clause (ceiling = the fixed EMPTY row) but the
+    // TRANSITIVE summary reaches quiet's filesystem_io -- the published
+    // ceiling and the inferred reality are visibly DIFFERENT rows.
+    let main = checked
+        .facts
+        .effect_rows
+        .for_machine(main_symbol)
+        .expect("main's effect-row fact");
+    assert_eq!(main.published_ceiling, EffectRowTable::EMPTY_ROW);
+    assert_eq!(main.inferred_transitive, quiet.published_ceiling);
+    assert_ne!(main.published_ceiling, main.inferred_transitive);
+}
+
+#[test]
+fn qualification_facts_record_policy_commitments() {
+    // STR4 checked plans, slice 2: a machine whose body casts under an
+    // arithmetic policy COMMITS to that policy's fixed semantic identity;
+    // a cast-free machine carries no entry.
+    use omega_core::semantics::SemanticDomainTable;
+
+    let source = r#"
+    data Main {}
+
+    domain i64::Km {
+        self >= 0;
+    }
+
+    machine Main::clamped(&mut self, value: u64) -> u8 {
+        let squeezed: u8 = value as u8 in Saturating;
+        squeezed
+    }
+
+    machine Main::minted(&mut self) -> i64 {
+        let distance: i64 = 5 as i64 in Km;
+        distance
+    }
+
+    machine Main::main(&mut self) -> u64 {
+        7
+    }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let symbol_of = |name: &str| {
+        typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == name)
+            .unwrap_or_else(|| panic!("machine {name}"))
+            .symbol
+    };
+    let clamped_symbol = symbol_of("Main::clamped");
+    let minted_symbol = symbol_of("Main::minted");
+    let main_symbol = symbol_of("Main::main");
+    let km_id = typed.semantic_domains.lookup("i64::Km").expect("Km interned");
+    let checked = lower_typed_trees(typed).expect("checked lowering should succeed");
+
+    let clamped = checked
+        .facts
+        .qualifications
+        .for_machine(clamped_symbol)
+        .expect("clamped's qualification fact");
+    assert_eq!(
+        clamped.body_committed,
+        vec![SemanticDomainTable::SATURATING],
+        "the saturating cast commits to the fixed Saturating identity"
+    );
+    // The MINT commits to the DECLARED domain's interned identity.
+    let minted = checked
+        .facts
+        .qualifications
+        .for_machine(minted_symbol)
+        .expect("minted's qualification fact");
+    assert_eq!(minted.body_committed, vec![km_id]);
+    assert!(
+        checked
+            .facts
+            .qualifications
+            .for_machine(main_symbol)
+            .is_none(),
+        "a cast-free machine carries no qualification entry"
+    );
+}
+
+#[test]
+fn contract_plans_fingerprint_published_halves() {
+    // STR4 checked plans (machine_taxonomy.md): the contract fingerprint
+    // covers ONLY the published halves -- two machines with the same
+    // declared surface share it; a different effects clause changes it;
+    // inferred rows never enter (prover-independence by construction).
+    let source = r#"
+    data Main {}
+
+    machine Main::quiet_a(&mut self) -> u64 effects filesystem_io { 1 }
+    machine Main::quiet_b(&mut self) -> u64 effects filesystem_io { 2 }
+    machine Main::loud(&mut self) -> u64 effects network_io { 3 }
+    machine bounded_ab(x: u64, y: u64) -> u64
+    requires
+        x >= 1;
+        y >= 2
+    { x }
+    machine bounded_ba(x: u64, y: u64) -> u64
+    requires
+        y >= 2;
+        x >= 1
+    { x }
+    machine bounded_wider(x: u64, y: u64) -> u64
+    requires
+        x >= 1;
+        y >= 3
+    { x }
+    machine bounded_renamed(alpha: u64, beta: u64) -> u64
+    requires
+        alpha >= 1;
+        beta >= 2
+    { alpha }
+    machine Main::main(&mut self) -> u64 { 7 }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let symbol_of = |name: &str| {
+        typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == name)
+            .unwrap_or_else(|| panic!("machine {name}"))
+            .symbol
+    };
+    let quiet_a = symbol_of("Main::quiet_a");
+    let quiet_b = symbol_of("Main::quiet_b");
+    let loud = symbol_of("Main::loud");
+    let checked = lower_typed_trees(typed).expect("checked lowering should succeed");
+
+    let plan = |symbol| {
+        checked
+            .facts
+            .contract_plans
+            .for_machine(symbol)
+            .expect("contract plan")
+    };
+    // Same declared surface (different BODIES) -> same fingerprint.
+    assert_eq!(plan(quiet_a).fingerprint, plan(quiet_b).fingerprint);
+    // A different effects clause -> a different fingerprint.
+    assert_ne!(plan(quiet_a).fingerprint, plan(loud).fingerprint);
+    // Slice 2: REQUIRES clause ORDER never enters the identity...
+    let ab = symbol_of_checked(&checked, "bounded_ab");
+    let ba = symbol_of_checked(&checked, "bounded_ba");
+    let wider = symbol_of_checked(&checked, "bounded_wider");
+    assert_eq!(plan(ab).fingerprint, plan(ba).fingerprint);
+    // ...but a changed BOUND does.
+    assert_ne!(plan(ab).fingerprint, plan(wider).fingerprint);
+    // Parameter RENAMES normalize positionally -- identical contracts.
+    let renamed = symbol_of_checked(&checked, "bounded_renamed");
+    assert_eq!(plan(ab).fingerprint, plan(renamed).fingerprint);
+}
+
+fn symbol_of_checked(
+    checked: &omega_checked_trees::CheckedTrees,
+    name: &str,
+) -> omega_core::symbols::SymbolHandle {
+    checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == name)
+        .unwrap_or_else(|| panic!("machine {name}"))
+        .symbol
+}
+
+/// R2 rung 2 slice 2: the admitted zero-satisfying default-domain facts
+/// travel to the TYPED data definition -- rung 3's consumer substrate.
+#[test]
+fn data_where_facts_propagate_to_typed() {
+    let source = r#"
+    data Ledger
+    where
+        count <= len,
+    {
+        len: u32;
+        count: u32;
+    }
+
+    data Main { ledger: Ledger; }
+
+    machine Main::main(&mut self) -> u64 { 7 }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+
+    let ledger = typed
+        .data_definitions()
+        .iter()
+        .find(|data| data.name.as_str() == "Ledger")
+        .expect("Ledger data");
+    assert_eq!(
+        typed.proof_facts.span_or_empty(ledger.where_facts).len(),
+        1
+    );
 }

@@ -3,8 +3,8 @@ data Entry {
 }
 
 data Main {
-    entries: [Entry; 2] = [Entry { value: 1 }, Entry { value: 2 }];
-    index: u64 = 0;
+    entries: [Entry; 2];
+    index: u64;
 }
 
 machine Main::main(&mut self) -> i32 {

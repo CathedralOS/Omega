@@ -87,11 +87,17 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                 let value = self.lower(cast.value)?;
                 let target_type =
                     lower_name_path_members_into_table(self.source, self.target, cast.target_type);
+                let semantic_domain = lower_name_path_members_into_table(
+                    self.source,
+                    self.target,
+                    cast.semantic_domain,
+                );
                 Ok(self.target.insert(typed::expression::ExpressionNode::Cast(
                     typed::expression::TableCastExpression {
                         value,
                         target_type,
                         domain: cast.domain,
+                        semantic_domain,
                         form: cast.form,
                     },
                 )))
@@ -104,6 +110,15 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                         receiver,
                         target_symbol: call.target_symbol,
                         target: lower_name(&call.target),
+                        machine_arguments: call
+                            .machine_arguments
+                            .iter()
+                            .map(|argument| typed::expression::StaticMachineArgument {
+                                path: argument.path.iter().map(lower_name).collect::<Vec<_>>().into_boxed_slice(),
+                                symbol: argument.symbol,
+                            })
+                            .collect::<Vec<_>>()
+                            .into_boxed_slice(),
                         arguments,
                     },
                 )))

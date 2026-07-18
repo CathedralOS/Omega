@@ -1,0 +1,56 @@
+// RUN CANARY (exit 70): F4 native/interpreter coverage for the target shapes
+// that require target signedness and actual narrow bounds. Saturating maps
+// unsigned negatives to zero, clamps u8/i8 at their own bounds, and preserves
+// the full u64 high half instead of applying a signed-i64 conversion ceiling.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main {
+    console: Console;
+    f: f64;
+    f32v: f32;
+    u8v: u8;
+    u16v: u16;
+    i8v: i8;
+    u32v: u32;
+    u64v: u64;
+}
+machine Main::main(&mut self) {
+    self.f = 300.0;
+    self.u8v = (self.f as u8 in Saturating) + (0 as u8 in Saturating);
+    transition self.u8v == 255 { true -> f32_unsigned_high() _ -> bad(71) }
+    state f32_unsigned_high(&mut self) {
+        self.f32v = 70000.0;
+        self.u16v = self.f32v as u16 in Saturating;
+        transition self.u16v == 65535 { true -> signed_high() _ -> bad(78) }
+    }
+    state signed_high(&mut self) {
+        self.f = 200.0;
+        self.i8v = self.f as i8 in Saturating;
+        transition self.i8v == 127 { true -> signed_low() _ -> bad(72) }
+    }
+    state signed_low(&mut self) {
+        self.f = 0.0 - 200.0;
+        self.i8v = self.f as i8 in Saturating;
+        transition self.i8v == (0 as i8 in Wrapping) - 128 { true -> unsigned_low() _ -> bad(73) }
+    }
+    state unsigned_low(&mut self) {
+        self.f = 0.0 - 3.7;
+        self.u32v = self.f as u32 in Saturating;
+        transition self.u32v == 0 { true -> unsigned_high() _ -> bad(74) }
+    }
+    state unsigned_high(&mut self) {
+        self.f = 100000000000000000000.0;
+        self.u32v = self.f as u32 in Saturating;
+        transition self.u32v == 4294967295 { true -> unsigned_wide_exact() _ -> bad(75) }
+    }
+    state unsigned_wide_exact(&mut self) {
+        self.u64v = 10000000000000000000.0 as u64;
+        transition self.u64v == 10000000000000000000 { true -> unsigned_wide_sat() _ -> bad(76) }
+    }
+    state unsigned_wide_sat(&mut self) {
+        self.f = 1000000000000000000000000000000.0;
+        self.u64v = self.f as u64 in Saturating;
+        transition self.u64v == 18446744073709551615 { true -> good() _ -> bad(77) }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self, code: i32) { self.console.exit_process(code); }
+}

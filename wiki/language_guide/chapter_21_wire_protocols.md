@@ -106,7 +106,7 @@ CounterMessage::encode(&save, &mut scratch, &mut written);
   the wire (`Packed` on a numbered schema — caches, same-version shared-memory
   rings) and can never be **invented** at a carrier.
 - Foreign grammars (`Protobuf`, C-ABI layouts, …) are sibling policies over
-  the same schemas; a provides-mapping to a foreign symbol implies its format
+  the same schemas; a selected provider binding to a foreign symbol implies its format
   (see the extern brief).
 - **Decoding is not a compiler-derived operation.** Turning inbound `&[u8]`
   into a domain-refined view is domain MINTING, and minting is ordinary
@@ -285,10 +285,11 @@ varint, un-zigzagging signed fields, and writes each value into the matching
 field of `value`. `read` receives the byte count consumed and `verdict` the
 result: a `WireVerdict` enum (`case Invalid; case Sound;` -- Invalid is the
 ZII zero case, so an untouched verdict reads as failure), dispatched with
-ordinary transition arms rather than remembered like a flag. The decoder accepts the schema's CURRENT era only — a payload
-carrying any other era discriminator fails on its first byte; decoding
-historical eras is deferred until the `Versioned<T>` container (chapter 22
-stage 3) is signed off, since ordinary values cannot carry an era tag.
+ordinary transition arms rather than remembered like a flag. This concrete
+decoder accepts one era only, so another discriminator fails on its first byte.
+A decoder supporting historical eras targets an ordinary lineage envelope
+declared by the format package (Chapter 22); there is no builtin
+`Versioned<T>` container.
 Failure semantics: the verdict is sticky — the first violation (wrong era, a tag
 that is not the next expected field number, truncated input, or an overlong
 varint past ten groups) makes the decode report failure, and nothing can set

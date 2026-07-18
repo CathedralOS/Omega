@@ -1,0 +1,1 @@
+does not mention field `z` of `Point` -- record patterns are exhaustive by law

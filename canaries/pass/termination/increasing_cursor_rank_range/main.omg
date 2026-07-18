@@ -1,0 +1,23 @@
+// TPR3 slice 3: the rank-range FACT `in 0..=limit` on the argumented view
+// `Nat::IncreasingTo(limit)` is CONSUMED and verified structurally -- the
+// rank is the distance up to the view's own bound, so `0 <= rank <= limit`
+// holds by definition. (Any other range shape is rejected with a directed
+// message: fail/termination/rank_range_unconsumed + rank_floor_unconsumed.)
+
+data Main {}
+
+machine Main::main(&mut self) -> u64 {
+    transition {
+        _ -> self.climb(4, 0)
+    }
+}
+
+machine Main::climb(&mut self, limit: u64, index: u64)
+terminates by index -> Nat::IncreasingTo(limit) in 0..=limit;
+-> u64
+{
+    transition index < limit {
+        true -> climb(limit, index + 1)
+        false -> index
+    }
+}

@@ -1,5 +1,3 @@
-use crate::expression::lower_expression_into_table;
-use crate::domain::lower_proof_facts;
 use crate::lowerer::Lowerer;
 use crate::type_reference::lower_type_reference_handle;
 use omega_core::arena::HandleSpan;
@@ -28,7 +26,44 @@ pub(crate) fn lower_data_definition(
     let type_parameters =
         lower_type_parameters(lowerer, syntax_trees, data_definition.type_parameters)?;
     let members = lower_data_members(lowerer, syntax_trees, data_definition.members)?;
-    let default_domain = lower_proof_facts(lowerer, syntax_trees, data_definition.default_domain)?;
+    // R2 rung 2 slice 1 (ch12 gating): lower the default-domain facts and
+    // classify AT ZERO. Zero-satisfying facts are admitted -- the value is
+    // born established (the zero-constructible tier); they stay INERT until
+    // rung 3 wires entailment hypotheses and write obligations ATOMICALLY.
+    // A GATED type (zero violates the domain) refuses until rung 2b lands
+    // construction-mandatory fields; a fact the folder cannot evaluate at
+    // zero refuses as unsupported (v1 fence). Never a silent drop.
+    let where_facts =
+        crate::domain::lower_proof_facts(lowerer, syntax_trees, data_definition.where_facts)?;
+    let mut zero_gated = false;
+    for fact in lowerer.symbol_resolved_trees.proof_facts(where_facts) {
+        let omega_symbol_resolved_trees::domain::ProofFact::Expression(expression) = fact else {
+            return Err(Diagnostic::error(format!(
+                "data `{}`: a domain-membership fact in the default-domain `where` \
+                 clause is not supported yet (R2) -- spell arithmetic facts over the \
+                 fields",
+                data_definition.name.as_str()
+            )));
+        };
+        match zero_fold(
+            &lowerer.symbol_resolved_trees.tables.bodies.expressions,
+            *expression,
+        ) {
+            Some(value) if value != 0 => {}
+            // R2 rung 2b: zero violates the domain -- the type is GATED
+            // (admitted; its literals must PROVE the domain, and rung 3's
+            // access gate covers zeroed storage).
+            Some(_) => zero_gated = true,
+            None => {
+                return Err(Diagnostic::error(format!(
+                    "data `{}`: a default-domain `where` fact is outside the v1 \
+                     zero-foldable fragment (field names, integer literals, + - *, \
+                     comparisons, && ) -- simplify the fact for now (R2)",
+                    data_definition.name.as_str()
+                )));
+            }
+        }
+    }
 
     Ok(DataDefinition {
         symbol: SymbolHandle::invalid(),
@@ -36,14 +71,50 @@ pub(crate) fn lower_data_definition(
         storage: DataDefinitionStorage {
             type_parameters,
             properties: DataProperties {
-                copy: data_definition.properties.copy,
+                copy: data_definition.properties.multiplicity
+                    == omega_core::semantics::Multiplicity::Unrestricted,
                 zero_init: data_definition.properties.zero_init,
                 send: data_definition.properties.send,
+                multiplicity: data_definition.properties.multiplicity,
             },
-            default_domain,
+            where_facts,
+            zero_gated,
             members,
         },
     })
+}
+
+/// R2 rung 2 slice 1: fold one default-domain fact AT THE ZERO VALUE --
+/// every field name reads 0, literals read themselves, `+ - *` fold,
+/// comparisons and `&&`/`||` yield 1/0. `None` = outside the fragment.
+fn zero_fold(
+    expressions: &omega_symbol_resolved_trees::expression::ExpressionTable,
+    expression: omega_symbol_resolved_trees::expression::ExpressionHandle,
+) -> Option<i128> {
+    use omega_symbol_resolved_trees::expression::{BinaryOperator, ExpressionNode};
+    match expressions.expression(expression) {
+        ExpressionNode::Name(_) => Some(0),
+        ExpressionNode::Integer(literal) => literal.text().parse::<i128>().ok(),
+        ExpressionNode::Binary(binary) => {
+            let left = zero_fold(expressions, binary.left)?;
+            let right = zero_fold(expressions, binary.right)?;
+            match binary.operator {
+                BinaryOperator::Add => left.checked_add(right),
+                BinaryOperator::Subtract => left.checked_sub(right),
+                BinaryOperator::Multiply => left.checked_mul(right),
+                BinaryOperator::LessOrEqual => Some(i128::from(left <= right)),
+                BinaryOperator::Less => Some(i128::from(left < right)),
+                BinaryOperator::GreaterOrEqual => Some(i128::from(left >= right)),
+                BinaryOperator::Greater => Some(i128::from(left > right)),
+                BinaryOperator::Equal => Some(i128::from(left == right)),
+                BinaryOperator::NotEqual => Some(i128::from(left != right)),
+                BinaryOperator::And => Some(i128::from(left != 0 && right != 0)),
+                BinaryOperator::Or => Some(i128::from(left != 0 || right != 0)),
+                _ => None,
+            }
+        }
+        _ => None,
+    }
 }
 
 /// Lower each `version vN { ... }` block of a data declaration into its own
@@ -101,10 +172,11 @@ pub(crate) fn lower_data_version_definitions(
             )),
             storage: DataDefinitionStorage {
                 type_parameters: HandleSpan::empty(),
+                where_facts: omega_core::arena::HandleSpan::empty(),
+                zero_gated: false,
                 // Historical shapes carry no declared properties; a property
                 // describes the CURRENT shape only.
                 properties: DataProperties::default(),
-                default_domain: HandleSpan::empty(),
                 members,
             },
         });
@@ -149,7 +221,6 @@ pub(crate) fn lower_versioned_container_definition(
             symbol: SymbolHandle::invalid(),
             name: crate::name::lower_name(&Identifier::generated("u32".to_owned())),
         },
-        initial_value: omega_symbol_resolved_trees::expression::ExpressionHandle::invalid(),
     }));
 
     for version_name in version_names {
@@ -164,7 +235,6 @@ pub(crate) fn lower_versioned_container_definition(
                     "{data_name}::{version_name}"
                 ))),
             },
-            initial_value: omega_symbol_resolved_trees::expression::ExpressionHandle::invalid(),
         }));
     }
 
@@ -177,7 +247,6 @@ pub(crate) fn lower_versioned_container_definition(
             symbol: SymbolHandle::invalid(),
             name: crate::name::lower_name(&Identifier::generated(data_name.to_owned())),
         },
-        initial_value: omega_symbol_resolved_trees::expression::ExpressionHandle::invalid(),
     }));
 
     let mut span = HandleSpan::empty();
@@ -197,11 +266,12 @@ pub(crate) fn lower_versioned_container_definition(
         )),
         storage: DataDefinitionStorage {
             type_parameters: HandleSpan::empty(),
+            where_facts: omega_core::arena::HandleSpan::empty(),
+            zero_gated: false,
             // The container itself is plain runtime state: zero-initialized
             // like any other field-bearing data (a zeroed container reads as
             // the oldest declared era with a zeroed payload).
             properties: DataProperties::default(),
-            default_domain: HandleSpan::empty(),
             members: span,
         },
     }
@@ -223,15 +293,38 @@ pub(crate) fn lower_type_parameters(
                     *type_reference,
                 )?,
             },
+            syntax::item::TypeParameterKind::Machine { contract } => {
+                let contract = contract.as_ref().ok_or_else(|| {
+                    Diagnostic::error(format!(
+                        "machine parameter `{}` reached symbol resolution without its mandatory `where machine` contract",
+                        parameter.name.as_str()
+                    ))
+                })?;
+                TypeParameterKind::Machine {
+                    contract: crate::state::lower_state_signature_parts(
+                        lowerer,
+                        syntax_trees,
+                        &contract.name,
+                        contract.parameters,
+                        contract.return_type,
+                        contract.is_default,
+                        contract.effects,
+                        contract.contracts,
+                        contract.terminates_guarantee,
+                    )?,
+                }
+            }
         };
         lowered.push(TypeParameter {
             symbol: SymbolHandle::invalid(),
             name: crate::name::lower_name(&parameter.name),
             kind,
             bounds: DataProperties {
-                copy: parameter.bounds.copy,
+                copy: parameter.bounds.multiplicity
+                    == omega_core::semantics::Multiplicity::Unrestricted,
                 zero_init: parameter.bounds.zero_init,
                 send: parameter.bounds.send,
+                multiplicity: parameter.bounds.multiplicity,
             },
         });
     }
@@ -281,18 +374,6 @@ fn lower_data_member(
                 syntax_trees,
                 field.type_reference,
             )?,
-            initial_value: field
-                .initial_value
-                .is_valid()
-                .then(|| {
-                    lower_expression_into_table(
-                        syntax_trees,
-                        &mut lowerer.symbol_resolved_trees.tables.bodies.expressions,
-                        field.initial_value,
-                    )
-                })
-                .transpose()?
-                .unwrap_or_else(omega_symbol_resolved_trees::expression::ExpressionHandle::invalid),
         })),
         syntax::item::DataMember::Variant(variant) => {
             let mut payload = HandleSpan::empty();
@@ -305,8 +386,6 @@ fn lower_data_member(
                         syntax_trees,
                         field.type_reference,
                     )?,
-                    initial_value:
-                        omega_symbol_resolved_trees::expression::ExpressionHandle::invalid(),
                 };
                 lowerer
                     .symbol_resolved_trees

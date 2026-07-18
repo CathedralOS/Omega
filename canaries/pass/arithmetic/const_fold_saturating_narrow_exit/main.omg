@@ -1,0 +1,40 @@
+// PASS canary (CM3 differential legs, 2026-07-20): the state-values folder's
+// Saturating CLAMP face at NARROW widths. fold_landed computes exact in i128
+// and clamps to the landed width's bounds:
+//   i8:  100 + 100 -> 127 (clamp high);  -100 - 100 -> -128 (clamp low)
+//   u8:  200 + 100 -> 255 (clamp high);  255 / 5 folds unsigned -> 51
+// The i8 faces compose to one guard: 127 + (-128) = -1 in-range (no clamp on
+// the compose). A fold regressed to the bare-i64 window computes 200 - 200 =
+// 0 != -1 and 300 / 5 = 60 != 51 -- both guards discriminate. Values are
+// consumed through the locals' own slots in the SAME state (the u32 landed-ops
+// canary's discipline).
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+}
+
+machine Main::main(&mut self) {
+    let a: i8 in Saturating = 100;
+    let b: i8 in Saturating = a + 100;   // clamps to 127
+    let e: i8 in Saturating = 0 - 100;   // -100 (in range)
+    let f: i8 in Saturating = e - 100;   // clamps to -128
+    let z: i8 in Saturating = b + f;     // 127 + -128 = -1 (in range)
+
+    let c: u8 in Saturating = 200;
+    let d: u8 in Saturating = c + 100;   // clamps to 255
+    let w: u8 in Saturating = d / 5;     // 51, folds unsigned at u8
+
+    transition (z == -1, w == 51) {
+        (true, true) -> good()
+        (true, false) -> bad()
+        (false, true) -> bad()
+        (false, false) -> bad()
+    }
+
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self)  { self.console.exit_process(71); }
+}

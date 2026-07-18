@@ -17,12 +17,25 @@ pub(crate) fn lower_machine(
         name: crate::name::lower_name(&machine.name),
         attached_data: machine.attached_data.as_ref().map(crate::name::lower_name),
         boundary: machine.boundary,
+        // STR3: copied, never re-derived.
+        supply_mode: machine.supply_mode,
+        // TPR2: copied, never re-derived (populated at syntax->resolved).
+        // TPR4 slice 3: an implementation satisfying a requirement that
+        // authored `terminates;` INHERITS the published guarantee (see
+        // inherit_requirement_guarantee below).
+        termination_plan: inherit_requirement_guarantee(lowerer, machine),
+        // STR4: copied, never re-derived (the row table copies verbatim at
+        // the tree level, so ids stay valid).
+        effect_row: machine.effect_row,
         type_parameters: omega_core::arena::HandleSpan::empty(),
         contains: omega_core::arena::HandleSpan::empty(),
         owned_data: omega_core::arena::HandleSpan::empty(),
         satisfies: omega_core::arena::HandleSpan::empty(),
-        termination_guarantee: machine.termination_guarantee,
-        ranking_witness: typed::machine::RankingWitness::default(),
+        terminates: machine.terminates,
+        decreases: omega_core::arena::HandleSpan::empty(),
+        decrease_order: omega_core::arena::HandleSpan::empty(),
+        decrease_view_arguments: omega_core::arena::HandleSpan::empty(),
+        decrease_range: typed::expression::ExpressionHandle::invalid(),
         effects: omega_core::arena::HandleSpan::empty(),
         contracts: omega_core::arena::HandleSpan::empty(),
         states: omega_core::arena::HandleSpan::empty(),
@@ -84,54 +97,54 @@ pub(crate) fn lower_machine(
                     .as_ref()
                     .map(crate::name::lower_name),
                 alias: conformance.alias.as_ref().map(crate::name::lower_name),
+                via: conformance.via.clone(),
             },
         );
     }
 
-    let mut subjects = Vec::new();
+    let mut decreases = Vec::new();
     for decrease in lowerer
         .source_trees
         .tables
         .bodies
         .expressions
-        .expression_handles(machine.ranking_witness.subjects)
+        .expression_handles(machine.decreases)
     {
         let decrease = lower_expression_handle(lowerer, *decrease)?;
-        subjects.push(decrease);
+        decreases.push(decrease);
     }
-    typed_machine.ranking_witness.subjects = lowerer
+    typed_machine.decreases = lowerer
         .typed_trees
         .expression_table
-        .insert_expression_handles(subjects);
-    for member in lowerer
-        .source_trees
-        .machine_decrease_order(machine.ranking_witness.view)
-    {
-        lowerer.typed_trees.signature_effects.append_to_span(
-            &mut typed_machine.ranking_witness.view,
-            crate::name::lower_name(member),
-        );
-    }
+        .insert_expression_handles(decreases);
+    // TPR3: argumented-view arguments lower exactly like the subjects.
     let mut view_arguments = Vec::new();
     for argument in lowerer
         .source_trees
         .tables
         .bodies
         .expressions
-        .expression_handles(machine.ranking_witness.view_arguments)
+        .expression_handles(machine.decrease_view_arguments)
     {
-        view_arguments.push(lower_expression_handle(lowerer, *argument)?);
+        let argument = lower_expression_handle(lowerer, *argument)?;
+        view_arguments.push(argument);
     }
-    typed_machine.ranking_witness.view_arguments = lowerer
+    typed_machine.decrease_view_arguments = lowerer
         .typed_trees
         .expression_table
         .insert_expression_handles(view_arguments);
-    if machine.ranking_witness.range.is_present() {
-        typed_machine.ranking_witness.range = typed::machine::RankingRange {
-            start: lower_expression_handle(lowerer, machine.ranking_witness.range.start)?,
-            end: lower_expression_handle(lowerer, machine.ranking_witness.range.end)?,
-            end_inclusive: machine.ranking_witness.range.end_inclusive,
-        };
+    // TPR3 slice 3: the rank-range constraint (invalid = absent).
+    if machine.decrease_range.is_valid() {
+        typed_machine.decrease_range = lower_expression_handle(lowerer, machine.decrease_range)?;
+    }
+    for member in lowerer
+        .source_trees
+        .machine_decrease_order(machine.decrease_order)
+    {
+        lowerer.typed_trees.signature_effects.append_to_span(
+            &mut typed_machine.decrease_order,
+            crate::name::lower_name(member),
+        );
     }
 
     for effect in lowerer.source_trees.machine_effects(machine) {
@@ -220,6 +233,69 @@ pub(crate) fn lower_machine(
     // at CALL sites, which is robust.
 
     Ok(typed_machine)
+}
+
+/// TPR4 slice 3 (decision 23): "an implementation satisfying a requirement
+/// inherits the requirement's guarantee and premises. It does not repeat
+/// `terminates;`; a textual `terminates by ...` on the implementation
+/// supplies only the witness needed to discharge the inherited claim."
+/// The inheritance happens HERE (the resolved->typed machine lowering),
+/// where the conformance edge and the requirement's signature flag are both
+/// in reach -- so the TPR3-migrated checker's plan gate then enforces the
+/// inherited claim for free (a cyclic inheritor without a witness fails
+/// with the missing-witness diagnostic). Requirement matching mirrors the
+/// conformance validator's carrier model: an explicitly named requirement,
+/// or the machine's own SIMPLE name (free machines conform
+/// machine-by-machine; attached machines' whole-trait conformance matches
+/// requirements by simple name). An authored guarantee is never overwritten.
+fn inherit_requirement_guarantee(
+    lowerer: &Lowerer,
+    machine: &resolved::machine::Machine,
+) -> omega_core::semantics::MachineTerminationPlan {
+    use omega_core::semantics::TerminationGuarantee;
+
+    let mut plan = machine.termination_plan.clone();
+    if plan.published.is_some() {
+        return plan;
+    }
+    let simple_name = machine
+        .name
+        .as_str()
+        .rsplit("::")
+        .next()
+        .unwrap_or(machine.name.as_str());
+    for conformance in lowerer
+        .source_trees
+        .machine_trait_conformances(machine.satisfies)
+    {
+        let Some(trait_definition) = lowerer
+            .source_trees
+            .traits
+            .iter()
+            .find(|definition| definition.symbol == conformance.symbol)
+        else {
+            continue;
+        };
+        let required_name = conformance
+            .requirement
+            .as_ref()
+            .map(|requirement| requirement.as_str())
+            .unwrap_or(simple_name);
+        let inherited = lowerer
+            .source_trees
+            .trait_machine_signatures(trait_definition.machines)
+            .iter()
+            .any(|requirement| {
+                requirement.terminates_guarantee && requirement.name.as_str() == required_name
+            });
+        if inherited {
+            plan.published = Some(TerminationGuarantee::EventualTerminal {
+                premises: Vec::new(),
+            });
+            break;
+        }
+    }
+    plan
 }
 
 fn lower_contract_kind(

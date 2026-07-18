@@ -9,7 +9,6 @@ use crate::parser::library::parse_library_definition;
 use crate::parser::machine::parse_machine;
 use crate::parser::measure::parse_measure_definition;
 use crate::parser::operator::parse_operator_definition;
-use crate::parser::platform::parse_platform;
 use crate::parser::target::parse_target_definition;
 use crate::parser::trait_definition::parse_trait_definition;
 use crate::parser::type_reference::parse_type_reference_handle_allowing_borrow;
@@ -131,6 +130,23 @@ pub(super) fn parse_item<'tokens, 'source>(
     if input.at_keyword(KeywordKind::Machine) {
         let input = input.take_keyword(KeywordKind::Machine, "machine")?;
         let (item, rest) = parse_machine(syntax_trees, input)?;
+        // PRV4 step 1: a bodyless machine is legal when it is an EXTERNAL
+        // LEAF -- `satisfies Requirement via <Binding>;` -- whose realization
+        // is the binding. Every other bodyless machine remains the accepted
+        // boundary form.
+        let has_via = syntax_trees
+            .items
+            .satisfies_clauses(item.satisfies)
+            .iter()
+            .any(|clause| clause.via.is_some());
+        if item.bodyless && !has_via {
+            return Err(rest.error_here(
+                "a machine without a body is the ACCEPTED boundary form -- spell it \
+                 `boundary machine ...;` (chapter 10: bodyless contracts are trust \
+                 rows, not ordinary machines) -- or an EXTERNAL LEAF \
+                 (`satisfies Requirement via <Binding>;`)",
+            ));
+        }
         return Ok((Item::Machine(item), rest));
     }
 
@@ -192,9 +208,17 @@ pub(super) fn parse_item<'tokens, 'source>(
     }
 
     if input.at_keyword(KeywordKind::Platform) {
-        let input = input.take_keyword(KeywordKind::Platform, "platform")?;
-        let (item, rest) = parse_platform(syntax_trees, input)?;
-        return Ok((Item::Platform(item), rest));
+        // RETIRED (PRV4/P4d, ruling 2026-07-17): platform blocks are the
+        // pre-boundary-culture host surface. A host service is a
+        // `boundary trait` (declared effects rows, ordinary requires/
+        // ensures); Console's promotion proved the migration is a
+        // spelling change.
+        return Err(input.error_here(
+            "`platform` blocks are retired: declare the host surface as a \
+             `boundary trait` with per-method `effects` rows (std's Console \
+             is the model) -- same signatures, same requires/ensures, and \
+             the purity checker sees the truth",
+        ));
     }
 
     if input.at_contextual("trait") {
@@ -462,7 +486,7 @@ fn parse_host_provider_definition<'tokens, 'source>(
 /// `DllImport("module", "symbol")`, or `VtableSlot(n)`. Parsed directly (the
 /// sum is closed, so the case names are compiler-known, not user identifiers to
 /// resolve later); an unknown case is a guided error.
-fn parse_host_provider_binding<'tokens, 'source>(
+pub(crate) fn parse_host_provider_binding<'tokens, 'source>(
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, HostProviderMappingKind> {
     // An INTEGER-led RHS is a per-target VALUE row (`O_CREATE -> 32768`),

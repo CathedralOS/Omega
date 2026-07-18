@@ -174,12 +174,12 @@ pub(super) fn select_wire_encode_call(
 
     // written = 0: the cursor convention starts every encode at the buffer
     // head, and the final cursor value IS the written-byte count.
-    push(SelectedInstructionKind::WriteRuntimeStorageInteger {
-        target_region: written_place.region,
-        byte_offset: written_place.byte_offset,
-        byte_size: written_place.byte_count,
-        value: 0,
-    });
+    push(crate::selection::runtime_dispatch::write_place_integer_direct(
+        written_place.region,
+        written_place.byte_offset,
+        0,
+        written_place.byte_count,
+    ));
 
     for byte in wire_varint_bytes(era) {
         push(SelectedInstructionKind::AppendWireLiteralByte {
@@ -290,17 +290,17 @@ pub(super) fn select_wire_encode_call(
                 let staging_offset = scratch_base + 16;
                 let cursor_offset = scratch_base + 8;
 
-                push(SelectedInstructionKind::WriteRuntimeStorageAddressToRuntimeFrame {
-                    source_region: RuntimeStorageRegion::RuntimeFrame,
-                    source_offset: staging_offset,
-                    target_offset: scratch_base,
-                });
-                push(SelectedInstructionKind::WriteRuntimeStorageInteger {
-                    target_region: RuntimeStorageRegion::RuntimeFrame,
-                    byte_offset: cursor_offset,
-                    byte_size: 8,
-                    value: 0,
-                });
+                push(crate::selection::runtime_dispatch::write_place_address_direct(
+                    RuntimeStorageRegion::RuntimeFrame,
+                    staging_offset,
+                    scratch_base,
+                ));
+                push(crate::selection::runtime_dispatch::write_place_integer_direct(
+                    RuntimeStorageRegion::RuntimeFrame,
+                    cursor_offset,
+                    0,
+                    8,
+                ));
                 for index in 0..*max_count {
                     push(SelectedInstructionKind::AppendWireRepeatedScalarVarint {
                         source_region: base.region,
@@ -380,17 +380,17 @@ pub(super) fn select_wire_encode_call(
                 // staging cursor (the descriptor's len slot) = 0, then the
                 // child's fields through the ordinary appends. NO era varint
                 // -- the era rides only the top-level envelope (decision 10).
-                push(SelectedInstructionKind::WriteRuntimeStorageAddressToRuntimeFrame {
-                    source_region: RuntimeStorageRegion::RuntimeFrame,
-                    source_offset: staging_offset,
-                    target_offset: scratch_base,
-                });
-                push(SelectedInstructionKind::WriteRuntimeStorageInteger {
-                    target_region: RuntimeStorageRegion::RuntimeFrame,
-                    byte_offset: cursor_offset,
-                    byte_size: 8,
-                    value: 0,
-                });
+                push(crate::selection::runtime_dispatch::write_place_address_direct(
+                    RuntimeStorageRegion::RuntimeFrame,
+                    staging_offset,
+                    scratch_base,
+                ));
+                push(crate::selection::runtime_dispatch::write_place_integer_direct(
+                    RuntimeStorageRegion::RuntimeFrame,
+                    cursor_offset,
+                    0,
+                    8,
+                ));
                 for (child_index, child) in children.iter().enumerate() {
                     let child_tag = child_plan
                         .and_then(|placements| placements.get(child_index))

@@ -73,9 +73,7 @@ pub(crate) fn emit_function_bytes(
         )?;
         if byte_span.len() != laid_out_instruction.byte_width {
             let operand_note = match &machine_instruction.source_kind {
-                SelectedInstructionKind::WriteRuntimeStorageBinary { left, right, .. }
-                | SelectedInstructionKind::WriteRuntimePointeeBinary { left, right, .. }
-                | SelectedInstructionKind::WriteRuntimeFrameIndexedBinary { left, right, .. } => {
+                SelectedInstructionKind::WritePlaceBinary { left, right, .. } => {
                     format!(
                         "; operands: left={:?}, right={:?}",
                         emission_context
@@ -241,18 +239,17 @@ fn insert_fixed_machine_instruction_bytes(
             }
             Ok(true)
         }
-        SelectedInstructionKind::CompareRuntimeStorage {
-            left_offset,
-            right_offset,
+        SelectedInstructionKind::ComparePlaces {
+            left,
+            right,
             byte_size,
             operator,
             is_float,
-            ..
         } => {
-            let bytes = omega_instruction_selection::encode_runtime_storage_compare_bytes(
+            let bytes = omega_instruction_selection::encode_place_compare_bytes(
                 emission_context.target.architecture,
-                *left_offset,
-                *right_offset,
+                left,
+                right,
                 *byte_size,
                 branch_distances::byte_distance_to_next_runtime_write_end(
                     emission_context,
@@ -267,16 +264,15 @@ fn insert_fixed_machine_instruction_bytes(
             }
             Ok(true)
         }
-        SelectedInstructionKind::CompareRuntimeStorageValue {
-            byte_offset,
+        SelectedInstructionKind::ComparePlaceValue {
+            place,
             byte_size,
             expected_value,
             operator,
-            ..
         } => {
-            let bytes = omega_instruction_selection::encode_runtime_storage_value_compare_bytes(
+            let bytes = omega_instruction_selection::encode_place_value_compare_bytes(
                 emission_context.target.architecture,
-                *byte_offset,
+                place,
                 *byte_size,
                 *expected_value,
                 branch_distances::byte_distance_to_next_runtime_write_end(

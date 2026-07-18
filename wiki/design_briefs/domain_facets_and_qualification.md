@@ -102,6 +102,13 @@ only through owner-exported evidence — a transformer's postcondition
 (`sanitize_sql -> Bytes in SanitizedForSQL`) or an exported decision
 procedure's true-arm. The owner chooses the evidence surface.
 
+**Progress-profile customer.** An opaque progress profile is a semantic domain
+over a boundary-provider capability (`domain Scheduler::WeakFair {
+introduction sealed; }`). It classifies the provider commitment, not an
+execution result. Admission/grants authorize qualification; flow never invents
+it. V1 profiles supply no operators and entail no other profile, so no new
+`profile` declaration or checker role is required.
+
 > Facts may be established by anyone possessing sufficient proof; modules
 > control the premises and evidence for abstract facts. Commitments may be
 > introduced only according to the semantic domain's declared introduction

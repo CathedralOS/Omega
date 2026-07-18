@@ -1,3 +1,6 @@
+use super::operation_aliases::{
+    integer_landing_for_type_reference, stamp_anonymous_integer_landing_on_value_spine,
+};
 use super::writes::{
     emit_runtime_frame_slot_slice_descriptor_write_in_table,
     select_runtime_frame_slot_value_write_in_table_with_source_anchor,
@@ -168,6 +171,20 @@ pub(super) fn select_runtime_dispatch_argument_materialization(
             &mut resolved_argument_expressions,
             resolved_argument.expression,
         );
+        // A state parameter is a first typed landing site. Prior-local folding
+        // can reconstruct its argument from anonymous literal syntax, so stamp
+        // the same-typed binary value spine from the declared parameter before
+        // operator selection. This is parameter-contract metadata, not a write-
+        // destination fallback.
+        let argument = integer_landing_for_type_reference(input, parameter.type_reference)
+            .map(|landing| {
+                stamp_anonymous_integer_landing_on_value_spine(
+                    &mut resolved_argument_expressions,
+                    argument,
+                    landing,
+                )
+            })
+            .unwrap_or(argument);
         let expressions = &resolved_argument_expressions;
 
         // A NO-PAYLOAD case variant used as a value (`AlarmEvent::Trigger`) is a
@@ -180,12 +197,12 @@ pub(super) fn select_runtime_dispatch_argument_materialization(
         // resolves to a variant is necessarily the no-payload form.)
         if let Some(tag_value) = enum_variant_value_in_table(&input.layouts, expressions, argument) {
             selected_instructions.push(SelectedInstruction {
-                kind: SelectedInstructionKind::WriteRuntimeStorageInteger {
-                    target_region: RuntimeStorageRegion::RuntimeFrame,
-                    byte_offset: slot.byte_offset,
-                    byte_size: ENUM_TAG_BYTES,
-                    value: tag_value,
-                },
+                kind: crate::selection::runtime_dispatch::write_place_integer_direct(
+                    RuntimeStorageRegion::RuntimeFrame,
+                    slot.byte_offset,
+                    tag_value,
+                    ENUM_TAG_BYTES,
+                ),
                 source_key,
                 source_statement: statement_index,
             });
@@ -208,8 +225,7 @@ pub(super) fn select_runtime_dispatch_argument_materialization(
         }
 
         // Slice-descriptor argument (an `as_slice()` view or a subslice of a
-        // runtime-length slice, including a self-recursive
-        // `terminates by … -> Slice::Length` ranking witness
+        // runtime-length slice, including the self-recursive `decreases … Length`
         // shape where source slot == target slot): one seam covers every
         // descriptor-construction strategy.
         // NOTE: a bare STRING / byte-slice LITERAL argument (`forward("hello")`) is
@@ -500,12 +516,12 @@ pub(super) fn select_runtime_dispatch_argument_materialization(
             }
 
             selected_instructions.push(SelectedInstruction {
-                kind: SelectedInstructionKind::WriteRuntimeStorageInteger {
-                    target_region: RuntimeStorageRegion::RuntimeFrame,
-                    byte_offset: slot.byte_offset,
-                    byte_size: slot.byte_size,
+                kind: crate::selection::runtime_dispatch::write_place_integer_direct(
+                    RuntimeStorageRegion::RuntimeFrame,
+                    slot.byte_offset,
                     value,
-                },
+                    slot.byte_size,
+                ),
                 source_key,
                 source_statement: statement_index,
             });
@@ -532,12 +548,12 @@ pub(super) fn select_runtime_dispatch_argument_materialization(
             };
             if matches!(slot.byte_size, 4 | 8) {
                 selected_instructions.push(SelectedInstruction {
-                    kind: SelectedInstructionKind::WriteRuntimeStorageInteger {
-                        target_region: RuntimeStorageRegion::RuntimeFrame,
-                        byte_offset: slot.byte_offset,
-                        byte_size: slot.byte_size,
+                    kind: crate::selection::runtime_dispatch::write_place_integer_direct(
+                        RuntimeStorageRegion::RuntimeFrame,
+                        slot.byte_offset,
                         value,
-                    },
+                        slot.byte_size,
+                    ),
                     source_key,
                     source_statement: statement_index,
                 });
@@ -583,12 +599,12 @@ pub(super) fn select_runtime_dispatch_argument_materialization(
                 };
                 if let Some(tag_value) = tag {
                     selected_instructions.push(SelectedInstruction {
-                        kind: SelectedInstructionKind::WriteRuntimeStorageInteger {
-                            target_region: RuntimeStorageRegion::RuntimeFrame,
-                            byte_offset: slot.byte_offset,
-                            byte_size: ENUM_TAG_BYTES,
-                            value: tag_value,
-                        },
+                        kind: crate::selection::runtime_dispatch::write_place_integer_direct(
+                            RuntimeStorageRegion::RuntimeFrame,
+                            slot.byte_offset,
+                            tag_value,
+                            ENUM_TAG_BYTES,
+                        ),
                         source_key,
                         source_statement: statement_index,
                     });
@@ -645,12 +661,12 @@ pub(super) fn select_runtime_dispatch_argument_materialization(
                     {
                         if matches!(field_size, 1 | 2 | 4 | 8) {
                             selected_instructions.push(SelectedInstruction {
-                                kind: SelectedInstructionKind::WriteRuntimeStorageInteger {
-                                    target_region: RuntimeStorageRegion::RuntimeFrame,
-                                    byte_offset: frame_offset,
-                                    byte_size: *field_size,
-                                    value: int_val,
-                                },
+                                kind: crate::selection::runtime_dispatch::write_place_integer_direct(
+                                    RuntimeStorageRegion::RuntimeFrame,
+                                    frame_offset,
+                                    int_val,
+                                    *field_size,
+                                ),
                                 source_key,
                                 source_statement: statement_index,
                             });
@@ -729,12 +745,12 @@ pub(super) fn select_runtime_dispatch_argument_materialization(
                     {
                         if matches!(field_size, 1 | 2 | 4 | 8) {
                             selected_instructions.push(SelectedInstruction {
-                                kind: SelectedInstructionKind::WriteRuntimeStorageInteger {
-                                    target_region: RuntimeStorageRegion::RuntimeFrame,
-                                    byte_offset: frame_offset,
-                                    byte_size: *field_size,
-                                    value: int_val,
-                                },
+                                kind: crate::selection::runtime_dispatch::write_place_integer_direct(
+                                    RuntimeStorageRegion::RuntimeFrame,
+                                    frame_offset,
+                                    int_val,
+                                    *field_size,
+                                ),
                                 source_key,
                                 source_statement: statement_index,
                             });
@@ -1108,22 +1124,22 @@ fn emit_runtime_fixed_array_slice_argument_materialization(
     };
 
     selected_instructions.push(SelectedInstruction {
-        kind: SelectedInstructionKind::WriteRuntimeStorageAddressToRuntimeFrame {
-            source_region: source_place.region,
-            source_offset: source_place.byte_offset,
-            target_offset: slot.byte_offset,
-        },
+        kind: crate::selection::runtime_dispatch::write_place_address_direct(
+            source_place.region,
+            source_place.byte_offset,
+            slot.byte_offset,
+        ),
         source_key,
         source_statement: statement_index,
     });
     let descriptor = input.runtime_abi.slice_descriptor();
     selected_instructions.push(SelectedInstruction {
-        kind: SelectedInstructionKind::WriteRuntimeStorageInteger {
-            target_region: RuntimeStorageRegion::RuntimeFrame,
-            byte_offset: slot.byte_offset + descriptor.len_offset(),
-            byte_size: descriptor.len_size(),
-            value: length as i64,
-        },
+        kind: crate::selection::runtime_dispatch::write_place_integer_direct(
+            RuntimeStorageRegion::RuntimeFrame,
+            slot.byte_offset + descriptor.len_offset(),
+            length as i64,
+            descriptor.len_size(),
+        ),
         source_key,
         source_statement: statement_index,
     });
@@ -1200,22 +1216,22 @@ fn emit_runtime_detached_frame_slice_argument_materialization(
         source_statement: statement_index,
     });
     selected_instructions.push(SelectedInstruction {
-        kind: SelectedInstructionKind::WriteRuntimeStorageAddressToRuntimeFrame {
-            source_region: RuntimeStorageRegion::RuntimeFrame,
-            source_offset: scratch_offset,
-            target_offset: slot.byte_offset,
-        },
+        kind: crate::selection::runtime_dispatch::write_place_address_direct(
+            RuntimeStorageRegion::RuntimeFrame,
+            scratch_offset,
+            slot.byte_offset,
+        ),
         source_key,
         source_statement: statement_index,
     });
     let descriptor = input.runtime_abi.slice_descriptor();
     selected_instructions.push(SelectedInstruction {
-        kind: SelectedInstructionKind::WriteRuntimeStorageInteger {
-            target_region: RuntimeStorageRegion::RuntimeFrame,
-            byte_offset: slot.byte_offset + descriptor.len_offset(),
-            byte_size: descriptor.len_size(),
-            value: length as i64,
-        },
+        kind: crate::selection::runtime_dispatch::write_place_integer_direct(
+            RuntimeStorageRegion::RuntimeFrame,
+            slot.byte_offset + descriptor.len_offset(),
+            length as i64,
+            descriptor.len_size(),
+        ),
         source_key,
         source_statement: statement_index,
     });
@@ -1502,6 +1518,7 @@ fn resolve_prior_local_initializers_in_table(
                         receiver,
                         target_symbol: call.target_symbol,
                         target: call.target,
+                        machine_arguments: call.machine_arguments,
                         arguments,
                     },
                 ))
@@ -1619,6 +1636,7 @@ fn resolve_prior_local_initializers_in_table(
                         value,
                         target_type: cast.target_type,
                         domain: cast.domain,
+                        semantic_domain: cast.semantic_domain,
                         form: cast.form,
                     },
                 ))

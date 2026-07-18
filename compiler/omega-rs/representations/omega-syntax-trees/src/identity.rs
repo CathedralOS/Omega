@@ -64,20 +64,11 @@ fn count_item(syntax_trees: &SyntaxTrees, item: &Item, counts: &mut AstIdentityS
         }
         Item::Data(data_definition) => {
             count_identifier(&data_definition.name, counts);
-            for fact in syntax_trees
-                .items
-                .proof_facts(data_definition.default_domain)
-            {
-                count_proof_fact(syntax_trees, fact, counts);
-            }
             for member in syntax_trees.items.data_members(data_definition.members) {
                 match member {
                     crate::item::DataMember::Field(field) => {
                         count_identifier(&field.name, counts);
                         count_type_reference_handle(syntax_trees, field.type_reference, counts);
-                        if field.initial_value.is_valid() {
-                            count_expression_handle(syntax_trees, field.initial_value, counts);
-                        }
                     }
                     crate::item::DataMember::Variant(variant) => {
                         count_identifier(&variant.name, counts);
@@ -221,13 +212,7 @@ fn count_item(syntax_trees: &SyntaxTrees, item: &Item, counts: &mut AstIdentityS
                 }
             }
         }
-        Item::Platform(platform) => {
-            count_identifier(&platform.name, counts);
-            for signature in syntax_trees.items.state_signatures(platform.states) {
-                let signature = syntax_trees.items.state_signature(*signature);
-                count_state_signature_node(syntax_trees, signature, counts);
-            }
-        }
+
         Item::Trait(trait_definition) => {
             count_identifier(&trait_definition.name, counts);
             for parameter in syntax_trees
@@ -293,9 +278,6 @@ fn count_data_member_identity_storage(
             crate::item::DataMember::Field(field) => {
                 count_identifier(&field.name, counts);
                 count_type_reference_handle(syntax_trees, field.type_reference, counts);
-                if field.initial_value.is_valid() {
-                    count_expression_handle(syntax_trees, field.initial_value, counts);
-                }
             }
             crate::item::DataMember::Variant(variant) => count_identifier(&variant.name, counts),
             crate::item::DataMember::Version(version) => {
@@ -371,6 +353,11 @@ fn count_statement_node(
                 count_identifier(member, counts);
             }
             count_identifier(&call.target, counts);
+            for argument in &call.machine_arguments {
+                for member in &argument.path {
+                    count_identifier(member, counts);
+                }
+            }
             for argument in syntax_trees.statements.expression_handles(call.arguments) {
                 count_expression_handle(syntax_trees, *argument, counts);
             }
@@ -518,6 +505,11 @@ fn count_expression_handle(
                 count_expression_handle(syntax_trees, call.receiver, counts);
             }
             count_identifier(&call.target, counts);
+            for argument in &call.machine_arguments {
+                for member in &argument.path {
+                    count_identifier(member, counts);
+                }
+            }
             for argument in syntax_trees.expressions.expression_handles(call.arguments) {
                 count_expression_handle(syntax_trees, *argument, counts);
             }
@@ -612,8 +604,7 @@ fn count_type_reference_handle(
                         count_expression_handle(syntax_trees, *minimum, counts);
                         count_expression_handle(syntax_trees, *maximum, counts);
                     }
-                    crate::types::TypeConstraintNode::ArithmeticDomain(_)
-                    | crate::types::TypeConstraintNode::ValueDomain(_) => {}
+                    crate::types::TypeConstraintNode::ArithmeticDomain(_) => {}
                 }
             }
         }
@@ -657,8 +648,16 @@ fn count_type_parameter_kind(
     kind: &crate::item::TypeParameterKind,
     counts: &mut AstIdentityStorageCounts,
 ) {
-    if let crate::item::TypeParameterKind::Const { type_reference } = kind {
-        count_type_reference_handle(syntax_trees, *type_reference, counts);
+    match kind {
+        crate::item::TypeParameterKind::Type => {}
+        crate::item::TypeParameterKind::Const { type_reference } => {
+            count_type_reference_handle(syntax_trees, *type_reference, counts);
+        }
+        crate::item::TypeParameterKind::Machine { contract } => {
+            if let Some(contract) = contract {
+                count_state_signature(syntax_trees, contract, counts);
+            }
+        }
     }
 }
 
@@ -674,8 +673,7 @@ fn count_type_constraint_handle(
             count_expression_handle(syntax_trees, *minimum, counts);
             count_expression_handle(syntax_trees, *maximum, counts);
         }
-        crate::types::TypeConstraintNode::ArithmeticDomain(_)
-        | crate::types::TypeConstraintNode::ValueDomain(_) => {}
+        crate::types::TypeConstraintNode::ArithmeticDomain(_) => {}
     }
 }
 

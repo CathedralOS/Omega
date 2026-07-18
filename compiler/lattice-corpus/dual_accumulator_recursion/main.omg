@@ -45,7 +45,6 @@ data Main {
 
 // Recursive: sum all elements (linear accumulator: acc + s[0]).
 machine Recursor::sum(&mut self, s: &[i32 in Wrapping], acc: i32 in Wrapping) -> i32
-terminates;
 terminates by s -> Slice::Length;
 {
     transition s.len > 0 {
@@ -56,7 +55,6 @@ terminates by s -> Slice::Length;
 
 // Recursive: sum of squares (quadratic accumulator: acc + s[0]*s[0]).
 machine Recursor::sum_sq(&mut self, s: &[i32 in Wrapping], acc: i32 in Wrapping) -> i32
-terminates;
 terminates by s -> Slice::Length;
 {
     transition s.len > 0 {

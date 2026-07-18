@@ -16,9 +16,7 @@ fn snapshots_materialize_resolved_roots_and_table_counts() {
         .tables
         .bodies
         .expressions
-        .insert(ExpressionNode::Integer(
-            omega_core::literals::IntegerLiteral::from_value(1),
-        ));
+        .insert(ExpressionNode::Integer(omega_core::literals::IntegerLiteral::from_value(1)));
     let statements =
         program
             .tables
@@ -52,13 +50,19 @@ fn snapshots_materialize_resolved_roots_and_table_counts() {
         name: DiagnosticName::generated("main"),
         attached_data: None,
         boundary: false,
+        supply_mode: Default::default(),
+        termination_plan: Default::default(),
+        effect_row: Default::default(),
         storage: MachineStorage {
             type_parameters: HandleSpan::empty(),
             contains: HandleSpan::empty(),
             owned_data: HandleSpan::empty(),
             satisfies: HandleSpan::empty(),
-            termination_guarantee: omega_core::termination::TerminationGuarantee::None,
-            ranking_witness: Default::default(),
+            terminates: false,
+            decreases: HandleSpan::empty(),
+            decrease_order: HandleSpan::empty(),
+            decrease_view_arguments: HandleSpan::empty(),
+            decrease_range: Default::default(),
             effects: HandleSpan::empty(),
             contracts: HandleSpan::empty(),
             states,

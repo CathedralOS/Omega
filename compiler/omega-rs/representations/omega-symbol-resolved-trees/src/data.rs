@@ -15,17 +15,32 @@ pub struct DataDefinition {
 pub struct DataDefinitionStorage {
     pub type_parameters: HandleSpan<TypeParameter>,
     pub properties: DataProperties,
-    pub default_domain: HandleSpan<crate::domain::ProofFact>,
+    /// R2 rung 2 slice 1 (ch12): the DEFAULT-DOMAIN facts. Admitted only
+    /// when every fact HOLDS AT ZERO (born established -- the
+    /// zero-constructible tier); gated types refuse at lowering until rung
+    /// 2b lands construction-mandatory fields. INERT until rung 3 wires
+    /// the entailment hypotheses and write obligations ATOMICALLY (a
+    /// standing invariant nobody enforces must not be consumable).
+    pub where_facts: HandleSpan<crate::domain::ProofFact>,
+    /// R2 rung 2b: zero VIOLATES the default domain -- the type is GATED
+    /// (not zero-constructible; literals must prove the domain; reading
+    /// zeroed storage as the type is refused by rung 3's access gate).
+    pub zero_gated: bool,
     pub members: HandleSpan<DataMember>,
 }
 
 /// Declared type properties (`data Point [copy, zero_init]`). The spelling
 /// set is closed at parse time, so only the resolved flags travel here.
+/// STR3: `multiplicity` is the first-class usage model (`[copy]` ->
+/// Unrestricted, ordinary data -> Affine, `[linear]` -> Linear);
+/// `copy` survives as the compatibility bool until STR7 retires it —
+/// consumers migrate to the multiplicity, never the other way.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct DataProperties {
     pub copy: bool,
     pub zero_init: bool,
     pub send: bool,
+    pub multiplicity: omega_core::semantics::Multiplicity,
 }
 
 impl Deref for DataDefinition {
@@ -99,6 +114,12 @@ pub enum TypeParameterKind {
     Const {
         type_reference: TypeReference,
     },
+    /// Static machine-symbol parameter with its mandatory authored
+    /// requirement. The signature is carried inline so no use-site or
+    /// instantiation-dependent inference can redefine the abstraction.
+    Machine {
+        contract: crate::signature::StateSignature,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -106,7 +127,6 @@ pub struct DataField {
     pub symbol: SymbolHandle,
     pub name: DiagnosticName,
     pub type_reference: TypeReference,
-    pub initial_value: crate::expression::ExpressionHandle,
 }
 
 impl Default for DataField {
@@ -115,7 +135,6 @@ impl Default for DataField {
             symbol: SymbolHandle::invalid(),
             name: DiagnosticName::default(),
             type_reference: TypeReference::Unit,
-            initial_value: crate::expression::ExpressionHandle::invalid(),
         }
     }
 }

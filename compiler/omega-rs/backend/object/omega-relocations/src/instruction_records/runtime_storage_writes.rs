@@ -3,7 +3,6 @@ use super::runtime_values::collect_runtime_value_operand_relocations;
 use crate::offsets::{
     runtime_frame_base_indexed_binary_left_operand_offset,
     runtime_frame_indexed_binary_left_operand_offset,
-    runtime_machine_indexed_integer_runtime_frame_address_offset,
     runtime_pointee_binary_left_operand_offset, runtime_storage_binary_left_operand_offset,
 };
 use omega_target::Architecture;
@@ -14,16 +13,6 @@ pub(super) fn collect_runtime_storage_write_relocations(
     instruction: &SelectedInstructionKind,
 ) -> bool {
     match instruction {
-        SelectedInstructionKind::WriteRuntimeMachineInteger { .. } => {
-            let symbol = context.machine_storage_symbol_handle();
-            context.insert_data_address_at_instruction_start(symbol);
-            true
-        }
-        SelectedInstructionKind::WriteRuntimeStorageInteger { target_region, .. } => {
-            let symbol = context.storage_region_symbol_handle(*target_region);
-            context.insert_data_address_at_instruction_start(symbol);
-            true
-        }
         SelectedInstructionKind::WriteEntryArgumentRegister { .. }
         | SelectedInstructionKind::WriteEntryArgumentsSliceDescriptor { .. } => {
             // The entry prologue's `mov r15, imm64` materializes the RUNTIME
@@ -34,33 +23,159 @@ pub(super) fn collect_runtime_storage_write_relocations(
             context.insert_data_address_at_instruction_start(symbol);
             true
         }
-        SelectedInstructionKind::WriteRuntimePointeeInteger { .. } => {
-            let symbol = context.runtime_frame_symbol_handle();
-            context.insert_data_address_at_instruction_start(symbol);
-            true
-        }
-        SelectedInstructionKind::WriteRuntimeStorageBinary {
-            target_region,
+        SelectedInstructionKind::WritePlaceBinary {
+            target,
             left,
             right,
             ..
         } => {
-            let target_symbol = context.storage_region_symbol_handle(*target_region);
-            context.insert_data_address_at_instruction_start(target_symbol);
-            let left_offset = context.selected_text_offset
-                + runtime_storage_binary_left_operand_offset(context.input.target.architecture);
-            collect_runtime_value_operand_relocations(context, left_offset, *left);
-            let left_width = omega_instruction_selection::runtime_value_operand_width(
-                context.input.target.architecture,
-                context.input.assigned_target_operations,
-                *left,
-            );
-            let right_offset = left_offset
-                + left_width
-                + omega_instruction_selection::runtime_binary_right_operand_gap(
-                    context.input.target.architecture,
-                );
-            collect_runtime_value_operand_relocations(context, right_offset, *right);
+            // Binary rung 2a. x86_64: the target base at instruction start +
+            // each CROSS-REGION index's own base at its deterministic prefix
+            // position, operands at place_binary_operand_start_width -- all
+            // walk-summed from the materializer's own widths (no drift).
+            // aarch64 is served by shape decompose at ENCODING; its reloc
+            // arm lands with the producers (zero exist yet) -- refuse loudly
+            // rather than silently under-patch.
+            match context.input.target.architecture {
+                Architecture::X86_64 => {
+                    context.insert_data_address_at_instruction_start(
+                        context.storage_region_symbol_handle(target.region),
+                    );
+                    for (position, region) in
+                        omega_instruction_selection::place_binary_index_base_positions(target)
+                    {
+                        context.insert_data_address_at_relative_offset(
+                            position,
+                            context.storage_region_symbol_handle(region),
+                        );
+                    }
+                    let left_offset = context.selected_text_offset
+                        + omega_instruction_selection::place_binary_operand_start_width(target);
+                    collect_runtime_value_operand_relocations(context, left_offset, *left);
+                    let left_width = omega_instruction_selection::runtime_value_operand_width(
+                        context.input.target.architecture,
+                        context.input.assigned_target_operations,
+                        *left,
+                    );
+                    let right_offset = left_offset
+                        + left_width
+                        + omega_instruction_selection::runtime_binary_right_operand_gap(
+                            context.input.target.architecture,
+                        );
+                    collect_runtime_value_operand_relocations(context, right_offset, *right);
+                }
+                Architecture::Aarch64 => {
+                    // Mirror the retained kinds' aarch64 arms by shape (the
+                    // SAME classifier the encoder decomposes with).
+                    context.insert_data_address_at_instruction_start(
+                        context.storage_region_symbol_handle(target.region),
+                    );
+                    let frame = omega_target_operations::RuntimeStorageRegion::RuntimeFrame;
+                    let shape =
+                        omega_instruction_selection::classify_write_place_shape(target);
+                    let mut operand_start = match shape {
+                        omega_instruction_selection::WritePlaceShape::Direct { .. } => {
+                            runtime_storage_binary_left_operand_offset(
+                                context.input.target.architecture,
+                            )
+                        }
+                        omega_instruction_selection::WritePlaceShape::Pointee {
+                            pointer_byte_offset,
+                            field_byte_offset,
+                        } => runtime_pointee_binary_left_operand_offset(
+                            context.input.target.architecture,
+                            pointer_byte_offset,
+                            field_byte_offset,
+                        ),
+                        omega_instruction_selection::WritePlaceShape::FrameIndexed {
+                            element_byte_size,
+                            field_byte_offset,
+                            ..
+                        } => runtime_frame_indexed_binary_left_operand_offset(
+                            context.input.target.architecture,
+                            element_byte_size,
+                            field_byte_offset,
+                        ),
+                        omega_instruction_selection::WritePlaceShape::FrameBaseIndexed {
+                            base_byte_offset,
+                            index_offset,
+                            element_byte_size,
+                            field_byte_offset,
+                        } => runtime_frame_base_indexed_binary_left_operand_offset(
+                            context.input.target.architecture,
+                            base_byte_offset,
+                            index_offset,
+                            element_byte_size,
+                            field_byte_offset,
+                        ),
+                        omega_instruction_selection::WritePlaceShape::MachineIndexed {
+                            base_byte_offset,
+                            index_region,
+                            index_offset,
+                            element_byte_size,
+                            field_byte_offset,
+                        } => {
+                            let mut start = runtime_frame_base_indexed_binary_left_operand_offset(
+                                context.input.target.architecture,
+                                base_byte_offset,
+                                index_offset,
+                                element_byte_size,
+                                field_byte_offset,
+                            );
+                            if index_region == frame {
+                                context.insert_data_address_at_relative_offset(
+                                    omega_instruction_selection::runtime_machine_indexed_string_runtime_frame_address_offset(
+                                        context.input.target.architecture,
+                                        base_byte_offset,
+                                    ),
+                                    context.runtime_frame_symbol_handle(),
+                                );
+                                start += 8;
+                            }
+                            start
+                        }
+                        omega_instruction_selection::WritePlaceShape::MachineDoubleIndexed {
+                            outer_index_region,
+                            inner_index_region,
+                            ..
+                        } => {
+                            if outer_index_region == frame || inner_index_region == frame {
+                                context.insert_data_address_at_relative_offset(
+                                    omega_instruction_selection::runtime_storage_copy_from_runtime_machine_double_indexed_frame_base_offset(
+                                        context.input.target.architecture,
+                                    ),
+                                    context.runtime_frame_symbol_handle(),
+                                );
+                            }
+                            omega_instruction_selection::runtime_machine_double_indexed_binary_left_operand_offset(
+                                context.input.target.architecture,
+                                outer_index_region,
+                                inner_index_region,
+                            )
+                        }
+                        omega_instruction_selection::WritePlaceShape::Unsupported => {
+                            unreachable!(
+                                "an unsupported WritePlaceBinary shape refuses at \
+                                 aarch64 encoding; layout would have failed first"
+                            )
+                        }
+                    };
+                    let left_offset = context.selected_text_offset + operand_start;
+                    collect_runtime_value_operand_relocations(context, left_offset, *left);
+                    let left_width = omega_instruction_selection::runtime_value_operand_width(
+                        context.input.target.architecture,
+                        context.input.assigned_target_operations,
+                        *left,
+                    );
+                    let right_offset = left_offset
+                        + left_width
+                        + omega_instruction_selection::runtime_binary_right_operand_gap(
+                            context.input.target.architecture,
+                        );
+                    collect_runtime_value_operand_relocations(context, right_offset, *right);
+                    let _ = &mut operand_start;
+                }
+            }
             true
         }
         SelectedInstructionKind::WriteRuntimeStorageConvert {
@@ -119,237 +234,6 @@ pub(super) fn collect_runtime_storage_write_relocations(
                     context.input.target.architecture,
                 );
             collect_runtime_value_operand_relocations(context, expected_offset, *expected);
-            true
-        }
-        SelectedInstructionKind::WriteRuntimePointeeBinary {
-            pointer_byte_offset,
-            field_byte_offset,
-            left,
-            right,
-            ..
-        } => {
-            let symbol = context.runtime_frame_symbol_handle();
-            context.insert_data_address_at_instruction_start(symbol);
-            let left_offset = context.selected_text_offset
-                + runtime_pointee_binary_left_operand_offset(
-                    context.input.target.architecture,
-                    *pointer_byte_offset,
-                    *field_byte_offset,
-                );
-            collect_runtime_value_operand_relocations(context, left_offset, *left);
-            let left_width = omega_instruction_selection::runtime_value_operand_width(
-                context.input.target.architecture,
-                context.input.assigned_target_operations,
-                *left,
-            );
-            // The encoder stashes the left result (push r10) between the operands;
-            // the right operand's bytes start after that gap.
-            let right_offset = left_offset
-                + left_width
-                + omega_instruction_selection::runtime_binary_right_operand_gap(
-                    context.input.target.architecture,
-                );
-            collect_runtime_value_operand_relocations(context, right_offset, *right);
-            true
-        }
-        SelectedInstructionKind::WriteRuntimeFrameIndexedInteger { .. }
-        | SelectedInstructionKind::WriteRuntimeFrameBaseIndexedInteger { .. } => {
-            let symbol = context.runtime_frame_symbol_handle();
-            context.insert_data_address_at_instruction_start(symbol);
-            true
-        }
-        SelectedInstructionKind::WriteRuntimeMachineIndexedInteger {
-            base_byte_offset,
-            index_region,
-            ..
-        } => {
-            context
-                .insert_data_address_at_instruction_start(context.machine_storage_symbol_handle());
-            if *index_region == omega_assigned_target_operations::RuntimeStorageRegion::RuntimeFrame
-            {
-                context.insert_data_address_at_relative_offset(
-                    runtime_machine_indexed_integer_runtime_frame_address_offset(
-                        context.input.target.architecture,
-                        *base_byte_offset,
-                    ),
-                    context.runtime_frame_symbol_handle(),
-                );
-            }
-            true
-        }
-        SelectedInstructionKind::WriteRuntimeFrameIndexedBinary {
-            element_byte_size,
-            field_byte_offset,
-            left,
-            right,
-            ..
-        } => {
-            let symbol = context.runtime_frame_symbol_handle();
-            context.insert_data_address_at_instruction_start(symbol);
-            let left_offset = context.selected_text_offset
-                + runtime_frame_indexed_binary_left_operand_offset(
-                    context.input.target.architecture,
-                    *element_byte_size,
-                    *field_byte_offset,
-                );
-            collect_runtime_value_operand_relocations(context, left_offset, *left);
-            let left_width = omega_instruction_selection::runtime_value_operand_width(
-                context.input.target.architecture,
-                context.input.assigned_target_operations,
-                *left,
-            );
-            // x86_64 pushes the left result between the operands (2 bytes);
-            // aarch64's gap is 0, so this is identity there.
-            let right_offset = left_offset
-                + left_width
-                + omega_instruction_selection::runtime_binary_right_operand_gap(
-                    context.input.target.architecture,
-                );
-            collect_runtime_value_operand_relocations(context, right_offset, *right);
-            true
-        }
-        SelectedInstructionKind::WriteRuntimeFrameBaseIndexedBinary {
-            base_byte_offset,
-            index_offset,
-            element_byte_size,
-            field_byte_offset,
-            left,
-            right,
-            ..
-        } => {
-            let symbol = context.runtime_frame_symbol_handle();
-            context.insert_data_address_at_instruction_start(symbol);
-            let left_offset = context.selected_text_offset
-                + runtime_frame_base_indexed_binary_left_operand_offset(
-                    context.input.target.architecture,
-                    *base_byte_offset,
-                    *index_offset,
-                    *element_byte_size,
-                    *field_byte_offset,
-                );
-            collect_runtime_value_operand_relocations(context, left_offset, *left);
-            let left_width = omega_instruction_selection::runtime_value_operand_width(
-                context.input.target.architecture,
-                context.input.assigned_target_operations,
-                *left,
-            );
-            let right_offset = left_offset
-                + left_width
-                + omega_instruction_selection::runtime_binary_right_operand_gap(
-                    context.input.target.architecture,
-                );
-            collect_runtime_value_operand_relocations(context, right_offset, *right);
-            true
-        }
-        SelectedInstructionKind::WriteRuntimeMachineDoubleIndexedBinary {
-            outer_index_region,
-            inner_index_region,
-            left,
-            right,
-            ..
-        } => {
-            // Machine base at the instruction start; ONE shared frame base at
-            // +10 when either index is frame-resident (the double prologue's
-            // r10 load); then the left/right value operands at the double
-            // prologue's end.
-            context
-                .insert_data_address_at_instruction_start(context.machine_storage_symbol_handle());
-            if [outer_index_region, inner_index_region].iter().any(|region| {
-                **region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
-            }) {
-                context.insert_data_address_at_relative_offset(
-                    // The shared frame base: x86_64 the `mov r10,imm64` at +10;
-                    // aarch64 the page pair directly after the machine pair.
-                    omega_instruction_selection::runtime_storage_copy_from_runtime_machine_double_indexed_frame_base_offset(
-                        context.input.target.architecture,
-                    ),
-                    context.runtime_frame_symbol_handle(),
-                );
-            }
-            let left_offset = context.selected_text_offset
-                + omega_instruction_selection::runtime_machine_double_indexed_binary_left_operand_offset(
-                    context.input.target.architecture,
-                    *outer_index_region,
-                    *inner_index_region,
-                );
-            collect_runtime_value_operand_relocations(context, left_offset, *left);
-            let left_width = omega_instruction_selection::runtime_value_operand_width(
-                context.input.target.architecture,
-                context.input.assigned_target_operations,
-                *left,
-            );
-            let right_offset = left_offset
-                + left_width
-                + omega_instruction_selection::runtime_binary_right_operand_gap(
-                    context.input.target.architecture,
-                );
-            collect_runtime_value_operand_relocations(context, right_offset, *right);
-            true
-        }
-        SelectedInstructionKind::WriteRuntimeMachineIndexedBinary {
-            base_byte_offset,
-            index_offset,
-            index_region,
-            element_byte_size,
-            field_byte_offset,
-            left,
-            right,
-            ..
-        } => {
-            // Machine-region sibling of `WriteRuntimeFrameBaseIndexedBinary`: the
-            // base at the instruction start (`mov r14, imm64`) relocates to the
-            // MACHINE-storage symbol instead of the frame symbol. The byte layout
-            // matches, so the left/right value-operand offsets reuse the
-            // frame-base helper. A FRAME-resident index (x86_64) inserts a
-            // `mov r15,imm64` frame-base load at +10, shifting the operands.
-            context
-                .insert_data_address_at_instruction_start(context.machine_storage_symbol_handle());
-            // A FRAME-resident index adds a frame-base materialization: x86_64
-            // a `mov r15,imm64` at +10; aarch64 the page pair at the same
-            // constant the machine-indexed string write uses (after the
-            // machine pair + mov + base add), shifting the operands by 8.
-            let frame_index_shift = if *index_region
-                == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
-            {
-                let (frame_offset, shift) = match context.input.target.architecture {
-                    Architecture::X86_64 => (10, 10),
-                    Architecture::Aarch64 => (
-                        omega_instruction_selection::runtime_machine_indexed_string_runtime_frame_address_offset(
-                            context.input.target.architecture,
-                            *base_byte_offset,
-                        ),
-                        8,
-                    ),
-                };
-                context.insert_data_address_at_relative_offset(
-                    frame_offset,
-                    context.runtime_frame_symbol_handle(),
-                );
-                shift
-            } else {
-                0
-            };
-            let left_offset = context.selected_text_offset
-                + frame_index_shift
-                + runtime_frame_base_indexed_binary_left_operand_offset(
-                    context.input.target.architecture,
-                    *base_byte_offset,
-                    *index_offset,
-                    *element_byte_size,
-                    *field_byte_offset,
-                );
-            collect_runtime_value_operand_relocations(context, left_offset, *left);
-            let left_width = omega_instruction_selection::runtime_value_operand_width(
-                context.input.target.architecture,
-                context.input.assigned_target_operations,
-                *left,
-            );
-            let right_offset = left_offset
-                + left_width
-                + omega_instruction_selection::runtime_binary_right_operand_gap(
-                    context.input.target.architecture,
-                );
-            collect_runtime_value_operand_relocations(context, right_offset, *right);
             true
         }
         SelectedInstructionKind::PortWrite { port, value } => {

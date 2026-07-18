@@ -1,0 +1,17 @@
+// PASS canary (decision 21): one established linear obligation transfers
+// through multiple bindings and is terminally consumed by an ordinary
+// by-value-self machine. There is no terminal-consumer annotation.
+data Receipt [linear] {
+    code: i32;
+}
+
+machine Receipt::ack(self) {}
+
+data Main {}
+
+machine Main::run() -> i32 {
+    let issued: Receipt = Receipt { code: 7 };
+    let forwarded: Receipt = issued;
+    Receipt::ack(forwarded);
+    0
+}

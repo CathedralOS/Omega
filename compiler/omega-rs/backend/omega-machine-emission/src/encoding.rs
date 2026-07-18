@@ -71,151 +71,113 @@ pub(super) fn encode_machine_instruction_bytes(
             *target_offset,
             *length_delta,
         ),
-        SelectedInstructionKind::AppendRuntimeTextStoredPlace {
-            source_offset,
-            target_offset,
-            ..
-        } => runtime_text::encode_runtime_text_stored_place_append(
-            input,
-            *source_offset,
-            *target_offset,
-        ),
-        SelectedInstructionKind::AppendRuntimeTextStoredPlaceToRuntimePointee {
-            source_offset,
-            pointer_byte_offset,
-            field_byte_offset,
-            ..
-        } => runtime_text::encode_runtime_text_stored_place_append_to_runtime_pointee(
-            input,
-            *source_offset,
-            *pointer_byte_offset,
-            *field_byte_offset,
-        ),
-        SelectedInstructionKind::AppendRuntimeTextStoredPlaceToRuntimeFrameIndexed {
-            source_offset,
-            descriptor_offset,
-            index_offset,
-            element_byte_size,
-            field_byte_offset,
-            ..
-        } => runtime_text::encode_runtime_text_stored_place_append_to_runtime_frame_indexed(
-            input,
-            *source_offset,
-            *descriptor_offset,
-            *index_offset,
-            *element_byte_size,
-            *field_byte_offset,
-        ),
-        SelectedInstructionKind::AppendRuntimeTextLiteral {
-            target_offset,
-            literal,
-            ..
-        } => runtime_text::encode_runtime_text_literal_append(input, *target_offset, literal),
-        SelectedInstructionKind::AppendRuntimeTextLiteralToRuntimePointee {
-            pointer_byte_offset,
-            field_byte_offset,
-            literal,
-            ..
-        } => runtime_text::encode_runtime_text_literal_append_to_runtime_pointee(
-            input,
-            *pointer_byte_offset,
-            *field_byte_offset,
-            literal,
-        ),
-        SelectedInstructionKind::AppendRuntimeTextLiteralToRuntimeFrameIndexed {
-            descriptor_offset,
-            index_offset,
-            element_byte_size,
-            field_byte_offset,
-            literal,
-            ..
-        } => runtime_text::encode_runtime_text_literal_append_to_runtime_frame_indexed(
-            input,
-            *descriptor_offset,
-            *index_offset,
-            *element_byte_size,
-            *field_byte_offset,
-            literal,
-        ),
-        SelectedInstructionKind::MaterializeRuntimeTextBuffer { target_offset, .. } => {
-            runtime_text::encode_runtime_text_buffer_materialize(input, *target_offset)
+        // Task #132: the place-shaped text-crossing survivors DECOMPOSE by
+        // place shape to the retained per-shape encoders on both
+        // architectures (the transitional pattern); unsupported shapes
+        // refuse loudly.
+        SelectedInstructionKind::MaterializeTextBufferToPlace { target, .. } => {
+            match omega_instruction_selection::classify_write_place_shape(target) {
+                omega_instruction_selection::WritePlaceShape::Direct { byte_offset } => {
+                    runtime_text::encode_runtime_text_buffer_materialize(input, byte_offset)
+                }
+                omega_instruction_selection::WritePlaceShape::Pointee {
+                    pointer_byte_offset,
+                    field_byte_offset,
+                } => runtime_text::encode_runtime_text_buffer_materialize_to_runtime_pointee(
+                    input,
+                    pointer_byte_offset,
+                    field_byte_offset,
+                ),
+                omega_instruction_selection::WritePlaceShape::FrameIndexed {
+                    descriptor_offset,
+                    index_offset,
+                    element_byte_size,
+                    field_byte_offset,
+                } => runtime_text::encode_runtime_text_buffer_materialize_to_runtime_frame_indexed(
+                    input,
+                    descriptor_offset,
+                    index_offset,
+                    element_byte_size,
+                    field_byte_offset,
+                ),
+                _ => Err(omega_core::diagnostics::Diagnostic::error(
+                    "MaterializeTextBufferToPlace serves direct, pointee, and \
+                     frame-indexed place shapes only; this shape refuses loudly",
+                )),
+            }
         }
-        SelectedInstructionKind::MaterializeRuntimeTextBufferToRuntimePointee {
-            pointer_byte_offset,
-            field_byte_offset,
+        SelectedInstructionKind::AppendTextStoredToPlace {
+            source_offset,
+            target,
             ..
-        } => runtime_text::encode_runtime_text_buffer_materialize_to_runtime_pointee(
-            input,
-            *pointer_byte_offset,
-            *field_byte_offset,
-        ),
-        SelectedInstructionKind::MaterializeRuntimeTextBufferToRuntimeFrameIndexed {
-            descriptor_offset,
-            index_offset,
-            element_byte_size,
-            field_byte_offset,
-            ..
-        } => runtime_text::encode_runtime_text_buffer_materialize_to_runtime_frame_indexed(
-            input,
-            *descriptor_offset,
-            *index_offset,
-            *element_byte_size,
-            *field_byte_offset,
-        ),
-        SelectedInstructionKind::WriteRuntimeMachineInteger {
-            byte_offset,
-            byte_size,
-            value,
-        } => runtime_storage::encode_runtime_machine_integer_write(
-            input,
-            *byte_offset,
-            *byte_size,
-            *value,
-        ),
-        SelectedInstructionKind::WriteRuntimeStorageInteger {
-            byte_offset,
-            byte_size,
-            value,
-            ..
-        } => runtime_storage::encode_runtime_machine_integer_write(
-            input,
-            *byte_offset,
-            *byte_size,
-            *value,
-        ),
-        SelectedInstructionKind::WriteRuntimePointeeInteger {
-            pointer_byte_offset,
-            field_byte_offset,
-            byte_size,
-            value,
-        } => runtime_storage::encode_runtime_pointee_integer_write(
-            input,
-            *pointer_byte_offset,
-            *field_byte_offset,
-            *byte_size,
-            *value,
-        ),
-        SelectedInstructionKind::WriteRuntimeStorageBinary {
-            target_offset,
-            byte_size,
-            left,
-            operator,
-            right,
-            is_float,
-            domain,
-            target_signed,
-            ..
-        } => runtime_storage::encode_runtime_storage_binary_write(
-            input,
-            *target_offset,
-            *byte_size,
-            *left,
-            *operator,
-            *right,
-            *is_float,
-            *domain,
-            *target_signed,
-        ),
+        } => match omega_instruction_selection::classify_write_place_shape(target) {
+            omega_instruction_selection::WritePlaceShape::Direct { byte_offset } => {
+                runtime_text::encode_runtime_text_stored_place_append(
+                    input,
+                    *source_offset,
+                    byte_offset,
+                )
+            }
+            omega_instruction_selection::WritePlaceShape::Pointee {
+                pointer_byte_offset,
+                field_byte_offset,
+            } => runtime_text::encode_runtime_text_stored_place_append_to_runtime_pointee(
+                input,
+                *source_offset,
+                pointer_byte_offset,
+                field_byte_offset,
+            ),
+            omega_instruction_selection::WritePlaceShape::FrameIndexed {
+                descriptor_offset,
+                index_offset,
+                element_byte_size,
+                field_byte_offset,
+            } => runtime_text::encode_runtime_text_stored_place_append_to_runtime_frame_indexed(
+                input,
+                *source_offset,
+                descriptor_offset,
+                index_offset,
+                element_byte_size,
+                field_byte_offset,
+            ),
+            _ => Err(omega_core::diagnostics::Diagnostic::error(
+                "AppendTextStoredToPlace serves direct, pointee, and frame-indexed \
+                 place shapes only; this shape refuses loudly",
+            )),
+        },
+        SelectedInstructionKind::AppendTextLiteralToPlace {
+            target, literal, ..
+        } => match omega_instruction_selection::classify_write_place_shape(target) {
+            omega_instruction_selection::WritePlaceShape::Direct { byte_offset } => {
+                runtime_text::encode_runtime_text_literal_append(input, byte_offset, literal)
+            }
+            omega_instruction_selection::WritePlaceShape::Pointee {
+                pointer_byte_offset,
+                field_byte_offset,
+            } => runtime_text::encode_runtime_text_literal_append_to_runtime_pointee(
+                input,
+                pointer_byte_offset,
+                field_byte_offset,
+                literal,
+            ),
+            omega_instruction_selection::WritePlaceShape::FrameIndexed {
+                descriptor_offset,
+                index_offset,
+                element_byte_size,
+                field_byte_offset,
+            } => runtime_text::encode_runtime_text_literal_append_to_runtime_frame_indexed(
+                input,
+                descriptor_offset,
+                index_offset,
+                element_byte_size,
+                field_byte_offset,
+                literal,
+            ),
+            _ => Err(omega_core::diagnostics::Diagnostic::error(
+                "AppendTextLiteralToPlace serves direct, pointee, and frame-indexed \
+                 place shapes only; this shape refuses loudly",
+            )),
+        },
         SelectedInstructionKind::WriteRuntimeStorageConvert {
             target_offset,
             target_byte_size,
@@ -224,8 +186,9 @@ pub(super) fn encode_machine_instruction_bytes(
             source_is_float,
             target_is_float,
             source_signed,
-            domain,
             target_signed,
+            trapping,
+            saturating,
             ..
         } => runtime_storage::encode_runtime_storage_convert(
             input,
@@ -236,8 +199,9 @@ pub(super) fn encode_machine_instruction_bytes(
             *source_is_float,
             *target_is_float,
             *source_signed,
-            *domain,
             *target_signed,
+            *trapping,
+            *saturating,
         ),
         SelectedInstructionKind::AtomicFetchAdd {
             target_offset,
@@ -262,54 +226,6 @@ pub(super) fn encode_machine_instruction_bytes(
             *byte_size,
             *expected,
             *new_value,
-        ),
-        SelectedInstructionKind::WriteRuntimePointeeBinary {
-            pointer_byte_offset,
-            field_byte_offset,
-            byte_size,
-            left,
-            operator,
-            right,
-        } => runtime_storage::encode_runtime_pointee_binary_write(
-            input,
-            *pointer_byte_offset,
-            *field_byte_offset,
-            *byte_size,
-            *left,
-            *operator,
-            *right,
-        ),
-        SelectedInstructionKind::WriteRuntimeFrameIndexedInteger {
-            descriptor_offset,
-            index_offset,
-            element_byte_size,
-            field_byte_offset,
-            byte_size,
-            value,
-        } => runtime_storage::encode_runtime_frame_indexed_integer_write(
-            input,
-            *descriptor_offset,
-            *index_offset,
-            *element_byte_size,
-            *field_byte_offset,
-            *byte_size,
-            *value,
-        ),
-        SelectedInstructionKind::WriteRuntimeFrameBaseIndexedInteger {
-            base_byte_offset,
-            index_offset,
-            element_byte_size,
-            field_byte_offset,
-            byte_size,
-            value,
-        } => runtime_storage::encode_runtime_frame_base_indexed_integer_write(
-            input,
-            *base_byte_offset,
-            *index_offset,
-            *element_byte_size,
-            *field_byte_offset,
-            *byte_size,
-            *value,
         ),
         SelectedInstructionKind::AppendWireLiteralByte {
             out_offset,
@@ -487,130 +403,6 @@ pub(super) fn encode_machine_instruction_bytes(
             *byte_size,
             *zigzag,
         ),
-        SelectedInstructionKind::WriteRuntimeMachineIndexedInteger {
-            base_byte_offset,
-            index_region,
-            index_offset,
-            element_byte_size,
-            field_byte_offset,
-            byte_size,
-            value,
-        } => runtime_storage::encode_runtime_machine_indexed_integer_write(
-            input,
-            *base_byte_offset,
-            *index_region,
-            *index_offset,
-            *element_byte_size,
-            *field_byte_offset,
-            *byte_size,
-            *value,
-        ),
-        SelectedInstructionKind::WriteRuntimeFrameIndexedBinary {
-            descriptor_offset,
-            index_offset,
-            element_byte_size,
-            field_byte_offset,
-            byte_size,
-            left,
-            operator,
-            right,
-        } => runtime_storage::encode_runtime_frame_indexed_binary_write(
-            input,
-            *descriptor_offset,
-            *index_offset,
-            *element_byte_size,
-            *field_byte_offset,
-            *byte_size,
-            *left,
-            *operator,
-            *right,
-        ),
-        SelectedInstructionKind::WriteRuntimeFrameBaseIndexedBinary {
-            base_byte_offset,
-            index_offset,
-            element_byte_size,
-            field_byte_offset,
-            byte_size,
-            left,
-            operator,
-            right,
-        } => runtime_storage::encode_runtime_frame_base_indexed_binary_write(
-            input,
-            *base_byte_offset,
-            *index_offset,
-            *element_byte_size,
-            *field_byte_offset,
-            *byte_size,
-            *left,
-            *operator,
-            *right,
-        ),
-        SelectedInstructionKind::WriteRuntimeMachineIndexedBinary {
-            base_byte_offset,
-            index_region,
-            index_offset,
-            element_byte_size,
-            field_byte_offset,
-            byte_size,
-            left,
-            operator,
-            right,
-        } => runtime_storage::encode_runtime_machine_indexed_binary_write(
-            input,
-            *base_byte_offset,
-            *index_region,
-            *index_offset,
-            *element_byte_size,
-            *field_byte_offset,
-            *byte_size,
-            *left,
-            *operator,
-            *right,
-        ),
-        SelectedInstructionKind::WriteRuntimeMachineDoubleIndexedBinary {
-            base_byte_offset,
-            outer_index_offset,
-            outer_index_region,
-            outer_stride,
-            inner_index_offset,
-            inner_index_region,
-            inner_stride,
-            field_byte_offset,
-            byte_size,
-            left,
-            operator,
-            right,
-        } => runtime_storage::encode_runtime_machine_double_indexed_binary_write(
-            input,
-            *base_byte_offset,
-            *outer_index_offset,
-            *outer_index_region,
-            *outer_stride,
-            *inner_index_offset,
-            *inner_index_region,
-            *inner_stride,
-            *field_byte_offset,
-            *byte_size,
-            *left,
-            *operator,
-            *right,
-        ),
-        SelectedInstructionKind::WriteRuntimeMachineString {
-            byte_offset,
-            byte_length,
-            ..
-        } => {
-            runtime_storage::encode_runtime_machine_string_write(input, *byte_offset, *byte_length)
-        }
-        SelectedInstructionKind::WriteRuntimeMachineBoundedBuffer {
-            byte_offset,
-            literal,
-            ..
-        } => runtime_storage::encode_runtime_machine_bounded_buffer_write(
-            input,
-            *byte_offset,
-            literal,
-        ),
         SelectedInstructionKind::AppendRuntimeMachineBoundedBufferSource {
             target_byte_offset,
             source_byte_offset,
@@ -628,141 +420,6 @@ pub(super) fn encode_machine_instruction_bytes(
             input,
             *target_byte_offset,
             literal,
-        ),
-        SelectedInstructionKind::WriteRuntimeFrameString {
-            byte_offset,
-            byte_length,
-            ..
-        } => runtime_storage::encode_runtime_frame_string_write(input, *byte_offset, *byte_length),
-        SelectedInstructionKind::WriteRuntimePointeeString {
-            pointer_byte_offset,
-            field_byte_offset,
-            byte_length,
-            ..
-        } => runtime_storage::encode_runtime_pointee_string_write(
-            input,
-            *pointer_byte_offset,
-            *field_byte_offset,
-            *byte_length,
-        ),
-        SelectedInstructionKind::WriteRuntimePointeeBoundedBuffer {
-            pointer_byte_offset,
-            field_byte_offset,
-            literal,
-        } => runtime_storage::encode_runtime_pointee_bounded_buffer_write(
-            input,
-            *pointer_byte_offset,
-            *field_byte_offset,
-            literal,
-        ),
-        SelectedInstructionKind::WriteRuntimeFrameIndexedString {
-            descriptor_offset,
-            index_offset,
-            element_byte_size,
-            field_byte_offset,
-            byte_length,
-            ..
-        } => runtime_storage::encode_runtime_frame_indexed_string_write(
-            input,
-            *descriptor_offset,
-            *index_offset,
-            *element_byte_size,
-            *field_byte_offset,
-            *byte_length,
-        ),
-        SelectedInstructionKind::WriteRuntimeMachineIndexedString {
-            base_byte_offset,
-            index_offset,
-            element_byte_size,
-            field_byte_offset,
-            byte_length,
-            ..
-        } => runtime_storage::encode_runtime_machine_indexed_string_write(
-            input,
-            *base_byte_offset,
-            *index_offset,
-            *element_byte_size,
-            *field_byte_offset,
-            *byte_length,
-        ),
-        SelectedInstructionKind::WriteRuntimeStorageAddressToRuntimeFrame {
-            source_offset,
-            target_offset,
-            ..
-        } => runtime_storage::encode_runtime_storage_address_to_runtime_frame_write(
-            input,
-            *source_offset,
-            *target_offset,
-        ),
-        SelectedInstructionKind::WriteRuntimePointeeAddressToRuntimeFrame {
-            pointer_byte_offset,
-            field_byte_offset,
-            target_offset,
-        } => runtime_storage::encode_runtime_pointee_address_to_runtime_frame_write(
-            input,
-            *pointer_byte_offset,
-            *field_byte_offset,
-            *target_offset,
-        ),
-        SelectedInstructionKind::WriteRuntimeFrameIndexedAddressToRuntimeFrame {
-            descriptor_offset,
-            index_offset,
-            index_region,
-            element_byte_size,
-            field_byte_offset,
-            target_offset,
-        } => runtime_storage::encode_runtime_frame_indexed_address_to_runtime_frame_write(
-            input,
-            *descriptor_offset,
-            *index_offset,
-            *index_region,
-            *element_byte_size,
-            *field_byte_offset,
-            *target_offset,
-        ),
-        SelectedInstructionKind::WriteRuntimeFrameFixedIndexedAddressToRuntimeFrame {
-            descriptor_offset,
-            element_index,
-            element_byte_size,
-            field_byte_offset,
-            target_offset,
-        } => runtime_storage::encode_runtime_frame_fixed_indexed_address_to_runtime_frame_write(
-            input,
-            *descriptor_offset,
-            *element_index,
-            *element_byte_size,
-            *field_byte_offset,
-            *target_offset,
-        ),
-        SelectedInstructionKind::WriteRuntimeFrameBaseIndexedAddressToRuntimeFrame {
-            base_byte_offset,
-            index_offset,
-            element_byte_size,
-            field_byte_offset,
-            target_offset,
-        } => runtime_storage::encode_runtime_frame_base_indexed_address_to_runtime_frame_write(
-            input,
-            *base_byte_offset,
-            *index_offset,
-            *element_byte_size,
-            *field_byte_offset,
-            *target_offset,
-        ),
-        SelectedInstructionKind::WriteRuntimeMachineIndexedAddressToRuntimeFrame {
-            base_byte_offset,
-            index_offset,
-            index_region,
-            element_byte_size,
-            field_byte_offset,
-            target_offset,
-        } => runtime_storage::encode_runtime_machine_indexed_address_to_runtime_frame_write(
-            input,
-            *base_byte_offset,
-            *index_region,
-            *index_offset,
-            *element_byte_size,
-            *field_byte_offset,
-            *target_offset,
         ),
         SelectedInstructionKind::ReadRuntimeTextLine {
             ..
@@ -807,131 +464,60 @@ pub(super) fn encode_machine_instruction_bytes(
             target,
             *byte_count,
         ),
-        SelectedInstructionKind::CopyRuntimeMachineDoubleIndexedToRuntimeStorage {
-            base_byte_offset,
-            outer_index_offset,
-            outer_index_region,
-            outer_stride,
-            inner_index_offset,
-            inner_index_region,
-            inner_stride,
-            field_byte_offset,
-            target_offset,
-            byte_count,
-            ..
-        } => runtime_storage::encode_runtime_storage_copy_from_runtime_machine_double_indexed_to_runtime_storage(
-            input,
-            *base_byte_offset,
-            *outer_index_offset,
-            *outer_index_region,
-            *outer_stride,
-            *inner_index_offset,
-            *inner_index_region,
-            *inner_stride,
-            *field_byte_offset,
-            *target_offset,
-            *byte_count,
-        ),
-        SelectedInstructionKind::CopyRuntimeFrameBaseDoubleIndexedToRuntimeStorage {
-            base_byte_offset,
-            outer_index_offset,
-            outer_stride,
-            inner_index_offset,
-            inner_stride,
-            field_byte_offset,
-            target_offset,
-            byte_count,
-            ..
-        } => runtime_storage::encode_runtime_storage_copy_from_runtime_frame_base_double_indexed_to_runtime_storage(
-            input,
-            *base_byte_offset,
-            *outer_index_offset,
-            *outer_stride,
-            *inner_index_offset,
-            *inner_stride,
-            *field_byte_offset,
-            *target_offset,
-            *byte_count,
-        ),
-        SelectedInstructionKind::CopyRuntimeStorageToRuntimeMachineDoubleIndexed {
-            source_region,
-            source_offset,
-            base_byte_offset,
-            outer_index_offset,
-            outer_index_region,
-            outer_stride,
-            inner_index_offset,
-            inner_index_region,
-            inner_stride,
-            field_byte_offset,
-            byte_count,
-        } => runtime_storage::encode_runtime_storage_copy_to_runtime_machine_double_indexed_from_runtime_storage(
-            input,
-            *source_region,
-            *source_offset,
-            *base_byte_offset,
-            *outer_index_offset,
-            *outer_index_region,
-            *outer_stride,
-            *inner_index_offset,
-            *inner_index_region,
-            *inner_stride,
-            *field_byte_offset,
-            *byte_count,
-        ),
-        SelectedInstructionKind::WriteRuntimeMachineDoubleIndexedInteger {
-            base_byte_offset,
-            outer_index_offset,
-            outer_index_region,
-            outer_stride,
-            inner_index_offset,
-            inner_index_region,
-            inner_stride,
-            field_byte_offset,
-            byte_size,
+        SelectedInstructionKind::WritePlaceInteger {
+            target,
             value,
-        } => runtime_storage::encode_runtime_machine_double_indexed_integer_write(
-            input,
-            *base_byte_offset,
-            *outer_index_offset,
-            *outer_index_region,
-            *outer_stride,
-            *inner_index_offset,
-            *inner_index_region,
-            *inner_stride,
-            *field_byte_offset,
-            *byte_size,
+            byte_size,
+        } => omega_instruction_selection::encode_write_place_integer(
+            input.target.architecture,
+            target,
             *value,
+            *byte_size,
         ),
-        SelectedInstructionKind::CopyRuntimeMachineIndexedToRuntimeMachineIndexed {
-            source_base_byte_offset,
-            source_index_offset,
-            source_index_region,
-            source_element_byte_size,
-            source_field_byte_offset,
-            target_base_byte_offset,
-            target_index_offset,
-            target_index_region,
-            target_element_byte_size,
-            target_field_byte_offset,
-            byte_count,
-        } => runtime_storage::encode_runtime_storage_copy_machine_indexed_to_machine_indexed(
+        SelectedInstructionKind::WritePlaceString {
+            target,
+            byte_length,
+            ..
+        } => omega_instruction_selection::encode_write_place_string(
+            input.target.architecture,
+            target,
+            *byte_length,
+        ),
+        SelectedInstructionKind::WritePlaceBoundedBuffer { target, literal } => {
+            omega_instruction_selection::encode_write_place_bounded_buffer(
+                input.target.architecture,
+                target,
+                literal,
+            )
+        }
+        SelectedInstructionKind::WritePlaceAddress {
+            source,
+            target_offset,
+        } => omega_instruction_selection::encode_write_place_address(
+            input.target.architecture,
+            source,
+            *target_offset,
+        ),
+        SelectedInstructionKind::WritePlaceBinary {
+            target,
+            byte_size,
+            left,
+            operator,
+            right,
+            is_float,
+            domain,
+            target_signed,
+        } => runtime_storage::encode_write_place_binary(
             input,
-            *source_base_byte_offset,
-            *source_index_offset,
-            *source_index_region,
-            *source_element_byte_size,
-            *source_field_byte_offset,
-            *target_base_byte_offset,
-            *target_index_offset,
-            *target_index_region,
-            *target_element_byte_size,
-            *target_field_byte_offset,
-            *byte_count,
+            target,
+            *byte_size,
+            *left,
+            *operator,
+            *right,
+            *is_float,
+            *domain,
+            *target_signed,
         ),
-        // `hlt` (`asm { hlt }`) is position-independent with no relocation and
-        // no branch distance, so it emits its bytes HERE rather than through
-        // the branch-distance-aware instruction_bytes path.
         SelectedInstructionKind::MachineHalt => Ok(
             omega_instruction_selection::encode_machine_halt_bytes(input.target.architecture),
         ),
@@ -959,8 +545,8 @@ pub(super) fn encode_machine_instruction_bytes(
         | SelectedInstructionKind::EnterDispatchCase { .. }
         | SelectedInstructionKind::EvaluateDispatchGuard { .. }
         | SelectedInstructionKind::CompareRuntimeTextStorage { .. }
-        | SelectedInstructionKind::CompareRuntimeStorage { .. }
-        | SelectedInstructionKind::CompareRuntimeStorageValue { .. }
+        | SelectedInstructionKind::ComparePlaces { .. }
+        | SelectedInstructionKind::ComparePlaceValue { .. }
         | SelectedInstructionKind::SetDispatchState { .. }
         | SelectedInstructionKind::WriteReturnRegisterInteger { .. }
         | SelectedInstructionKind::CopyRuntimeStorageToReturnRegister { .. }

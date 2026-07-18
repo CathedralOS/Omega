@@ -13,7 +13,8 @@
 //! the place's own region when the kinds themselves collapse -- until then
 //! `Place::region` is documentation, not behavior, on this path.
 //!
-//! Index discipline (the ScaledIndex rung): a place may carry AT MOST ONE
+//! Index discipline (the ScaledIndex rung, extended by the double-index
+//! rung to TWO): a place may carry AT MOST TWO
 //! runtime scaled index, its slot readable from the place's own base region
 //! -- the index loads into r11 (32-bit, zero-extended) and scales IMMEDIATELY
 //! AFTER the base materializes and BEFORE any deref consumes the base, then
@@ -40,11 +41,16 @@ pub enum PlaceCopySide {
     SourceIndex,
     /// The target place's ScaledIndex slot base.
     TargetIndex,
+    /// The source place's SECOND ScaledIndex slot base (the double-index
+    /// rung; r10 is the second index scratch).
+    SourceIndex2,
+    /// The target place's SECOND ScaledIndex slot base.
+    TargetIndex2,
 }
 
-/// Four covers every emitted shape: two bases today, plus room for the
-/// machine-indexed rung's separate index-base materializations.
-pub const PLACE_COPY_MAX_SITES: usize = 4;
+/// Six covers every emitted shape: two bases, plus up to two cross-region
+/// index-base materializations per side (the double-index rung).
+pub const PLACE_COPY_MAX_SITES: usize = 6;
 
 /// The base-materialization relocation sites of one place copy: the byte
 /// position of each `mov r??, imm64(0)` placeholder WITHIN the encoded
@@ -107,12 +113,13 @@ fn materialize_place_address(
     }
     // The index (at most one) loads and scales BEFORE any deref consumes the
     // base register its slot is addressed from.
-    let index_side = match register {
-        AddressRegister::Source => PlaceCopySide::SourceIndex,
-        AddressRegister::Target => PlaceCopySide::TargetIndex,
+    let index_sides = match register {
+        AddressRegister::Source => (PlaceCopySide::SourceIndex, PlaceCopySide::SourceIndex2),
+        AddressRegister::Target => (PlaceCopySide::TargetIndex, PlaceCopySide::TargetIndex2),
     };
-    prepare_place_index(bytes, sites, place, register, index_side)?;
+    prepare_place_index(bytes, sites, place, register, index_sides)?;
     let mut displacement = 0usize;
+    let mut index_ordinal = 0usize;
     for step in place.steps() {
         match step {
             PlaceStep::ConstOffset(offset) => displacement += offset,
@@ -127,24 +134,29 @@ fn materialize_place_address(
                 }
                 displacement = 0;
             }
-            PlaceStep::ScaledIndex { .. } => append_scaled_index_add(bytes, register),
+            PlaceStep::ScaledIndex { .. } => {
+                append_scaled_index_add(bytes, register, index_ordinal);
+                index_ordinal += 1;
+            }
         }
     }
     Ok(displacement)
 }
 
-/// Pre-load the place's runtime index (if any) into r11 and scale it by the
-/// element size. Refuses more than one index per place: r11 is the single
-/// index scratch. A SAME-region index reads through the place's own base
-/// register; a CROSS-region index first materializes the index region's
-/// base into r11 itself (a recorded relocation site), then loads through it
-/// -- no extra scratch register enters the discipline.
+/// Pre-load the place's runtime indices (up to TWO) and scale each by its
+/// element size: the FIRST loads into r11 (byte-identical to the
+/// single-index rung), the SECOND into r10 (the double-index rung). Both
+/// load while the base register still equals the region base -- the walk's
+/// adds then consume them in step order. A SAME-region index reads through
+/// the place's own base register; a CROSS-region index first materializes
+/// the index region's base into its own scratch (a recorded relocation
+/// site), then loads through it.
 fn prepare_place_index(
     bytes: &mut Vec<u8>,
     sites: &mut PlaceCopySites,
     place: &Place,
     base_register: AddressRegister,
-    index_side: PlaceCopySide,
+    index_sides: (PlaceCopySide, PlaceCopySide),
 ) -> Result<(), Diagnostic> {
     let mut indices = place.steps().iter().filter_map(|step| match step {
         PlaceStep::ScaledIndex {
@@ -157,10 +169,11 @@ fn prepare_place_index(
     let Some((index_region, index_offset, element_byte_size)) = indices.next() else {
         return Ok(());
     };
+    let second = indices.next();
     if indices.next().is_some() {
         return Err(Diagnostic::error(
-            "place materializer: at most one runtime scaled index per place \
-             (r11 is the single index scratch)",
+            "place materializer: at most two runtime scaled indices per place \
+             (r11 and r10 are the index scratches)",
         ));
     }
     if index_region == place.region {
@@ -169,18 +182,40 @@ fn prepare_place_index(
             AddressRegister::Target => super::append_load_index_r11_from_r15(bytes, index_offset)?,
         }
     } else {
-        sites.record(bytes.len(), index_side);
+        sites.record(bytes.len(), index_sides.0);
         super::append_mov_r11_imm64(bytes, 0);
         super::append_load_r11_from_r11(bytes, index_offset)?;
     }
     super::append_imul_r11_imm32(bytes, super::element_scale(element_byte_size)?);
+    if let Some((second_region, second_offset, second_element)) = second {
+        if second_region == place.region {
+            match base_register {
+                AddressRegister::Source => {
+                    super::append_load_index_r10_from_r14(bytes, second_offset)?
+                }
+                AddressRegister::Target => {
+                    super::append_load_index_r10_from_r15(bytes, second_offset)?
+                }
+            }
+        } else {
+            sites.record(bytes.len(), index_sides.1);
+            super::append_mov_r10_imm64(bytes, 0);
+            super::append_load_index_r10_from_r10(bytes, second_offset)?;
+        }
+        super::append_imul_r10_imm32(bytes, super::element_scale(second_element)?);
+    }
     Ok(())
 }
 
-fn append_scaled_index_add(bytes: &mut Vec<u8>, register: AddressRegister) {
-    match register {
-        AddressRegister::Source => super::append_add_r14_r11(bytes),
-        AddressRegister::Target => super::append_add_r15_r11(bytes),
+/// The walk's index consumption: the FIRST ScaledIndex step adds r11, the
+/// SECOND adds r10 (loaded/scaled by `prepare_place_index` while the base
+/// register still equaled the region base).
+fn append_scaled_index_add(bytes: &mut Vec<u8>, register: AddressRegister, ordinal: usize) {
+    match (register, ordinal) {
+        (AddressRegister::Source, 0) => super::append_add_r14_r11(bytes),
+        (AddressRegister::Target, 0) => super::append_add_r15_r11(bytes),
+        (AddressRegister::Source, _) => super::append_add_r14_r10(bytes),
+        (AddressRegister::Target, _) => super::append_add_r15_r10(bytes),
     }
 }
 
@@ -211,6 +246,261 @@ fn encode_place_copy_with_sites(
         target_displacement,
         byte_count,
     )?;
+    Ok((bytes, sites))
+}
+
+/// A zero-offset place rooted in `region` -- the transitional delegating
+/// encoders' construction seed (their kinds carry offsets, not regions, so
+/// the region here is documentation; direct-place bytes never consult it).
+pub(crate) fn transitional_place(region: omega_target_operations::RuntimeStorageRegion) -> Place {
+    Place::at(region, 0)
+}
+
+/// The WRITE-family materializer entry (Write rung 1a): store an immediate
+/// integer at `byte_size` into a place-shaped target. The target address
+/// materializes through the SAME walk as the copy entries (r15 base, the
+/// r11/r10 index discipline unchanged); the value stages through rax. For a
+/// DIRECT place this is byte-for-byte the retired integer-write layout
+/// (`mov r15,imm64(0)`; `mov rax,imm64(value)`; width store).
+pub fn encode_place_integer_write(
+    target: &Place,
+    value: i64,
+    byte_size: usize,
+) -> Result<(Vec<u8>, PlaceCopySites), Diagnostic> {
+    let mut bytes = Vec::new();
+    let mut sites = PlaceCopySites::default();
+    let displacement =
+        materialize_place_address(&mut bytes, &mut sites, target, AddressRegister::Target)?;
+    super::append_mov_rax_imm64(&mut bytes, value as u64);
+    super::append_store_rax_to_r15(&mut bytes, displacement, byte_size)?;
+    Ok((bytes, sites))
+}
+
+/// The BINARY-write materializer entry (Binary rung 1a): evaluate
+/// `left OP right` under the arithmetic domain and store the result into a
+/// place-shaped target. The target address materializes through the SAME
+/// walk as every place entry (r15 base, r11/r10 indices -- fully consumed
+/// into the address BEFORE operands evaluate), then hops to r14 (operand
+/// evaluation reloads r15 per source base and clobbers r10/r11); the shared
+/// `append_binary_operands_op_and_store` half is the SAME code the retired
+/// direct encoder runs.
+#[allow(clippy::too_many_arguments)]
+pub fn encode_place_binary_write(
+    runtime_value_operands: &impl super::RuntimeValueOperandSource,
+    target: &Place,
+    byte_size: usize,
+    left: super::RuntimeValueOperandHandle,
+    operator: super::StateGuardOperator,
+    right: super::RuntimeValueOperandHandle,
+    is_float: bool,
+    domain: super::ArithmeticDomain,
+    target_signed: bool,
+) -> Result<(Vec<u8>, PlaceCopySites), Diagnostic> {
+    let mut bytes = Vec::new();
+    let mut sites = PlaceCopySites::default();
+    let displacement =
+        materialize_place_address(&mut bytes, &mut sites, target, AddressRegister::Target)?;
+    super::append_mov_r14_r15(&mut bytes);
+    super::append_binary_operands_op_and_store(
+        runtime_value_operands,
+        &mut bytes,
+        displacement,
+        byte_size,
+        left,
+        operator,
+        right,
+        is_float,
+        domain,
+        target_signed,
+    )?;
+    Ok((bytes, sites))
+}
+
+/// The DETERMINISTIC base-relocation positions of a place binary write's
+/// prefix: the target base mov at 0, then each CROSS-REGION index's own
+/// base mov at its prep position (index preps run in place order BEFORE the
+/// walk; same-region indices load off the target base and add no site).
+/// Mirrors `prepare_place_index` + the walk exactly -- the same sums as
+/// `place_binary_operand_start_width`.
+pub fn place_binary_index_base_positions(
+    target: &Place,
+) -> impl Iterator<Item = (usize, omega_target_operations::RuntimeStorageRegion)> + '_ {
+    let mut width = 10usize; // after the target base mov
+    target.steps().iter().filter_map(move |step| match step {
+        PlaceStep::ScaledIndex { index_region, .. } => {
+            let site = if *index_region != target.region {
+                let position = width;
+                width += 17 + 7; // mov imm64 + load + imul
+                Some((position, *index_region))
+            } else {
+                width += 7 + 7; // load off the base + imul
+                None
+            };
+            site
+        }
+        _ => None,
+    })
+}
+
+/// The byte length of `encode_place_binary_write`'s ADDRESS PREFIX (base
+/// mov + index preps + walk adds/derefs + the r14 hop) -- the walker's
+/// operand relocations start here. Walk-summed from the materializer's own
+/// emission widths, so it can never drift from the bytes.
+pub fn place_binary_operand_start_width(target: &Place) -> usize {
+    let mut width = 10; // mov r15, imm64
+    let mut index_ordinal = 0usize;
+    for step in target.steps() {
+        match step {
+            PlaceStep::ConstOffset(_) => {}
+            PlaceStep::Deref => width += 7,
+            PlaceStep::ScaledIndex { index_region, .. } => {
+                width += if *index_region == target.region {
+                    7 // same-region 32-bit ZX load off the base register
+                } else {
+                    17 // own-base mov imm64 + load through it
+                };
+                width += 7; // imul
+                width += 3; // add at the walk position
+                index_ordinal += 1;
+            }
+        }
+    }
+    let _ = index_ordinal;
+    width + 3 // mov r14, r15
+}
+
+/// The TEXT-family materializer entry (Text rung 1a): store a string
+/// DESCRIPTOR ({ptr -> rodata, len}) into a place-shaped target. The data
+/// pointer stages in r14 via the leading `mov r14,imm64(0)` (the retired
+/// convention -- its data-object relocation is ALWAYS at instruction
+/// start); the target address materializes through the standard walk
+/// (r15 base + the r11/r10 index discipline, base site at +10); the
+/// descriptor stores land at [r15 + residual] / +8. A DIRECT place is
+/// byte-for-byte the retired machine/frame string layout.
+pub fn encode_place_string_write(
+    target: &Place,
+    byte_length: usize,
+) -> Result<(Vec<u8>, PlaceCopySites), Diagnostic> {
+    let mut bytes = Vec::new();
+    let mut sites = PlaceCopySites::default();
+    super::append_mov_r14_imm64(&mut bytes, 0); // data ptr (rodata reloc at +2)
+    let displacement =
+        materialize_place_address(&mut bytes, &mut sites, target, AddressRegister::Target)?;
+    super::append_store_r14_to_r15(&mut bytes, displacement)?;
+    super::append_mov_rax_imm64(&mut bytes, byte_length as u64);
+    super::append_store_rax_to_r15(&mut bytes, displacement + 8, 8)?;
+    Ok((bytes, sites))
+}
+
+/// The BOUNDED-BUFFER materializer entry (Text rung 1e): write a string
+/// literal into an owned `[u8; N]` carrier at a place-shaped target -- the
+/// len word at [r15 + residual], then the content bytes as IMMEDIATES at
+/// [r15 + residual + 8 + i] (`mov byte [r15+disp32], imm8`, 8 bytes each).
+/// No data object exists, so the base relocation(s) recorded by the walk
+/// are the ONLY sites; a DIRECT place is byte-for-byte the retired machine
+/// carrier layout (27 + 8*len) and a pointee place the retired
+/// through-pointer layout (34 + 8*len).
+pub fn encode_place_bounded_buffer_write(
+    target: &Place,
+    literal: &str,
+) -> Result<(Vec<u8>, PlaceCopySites), Diagnostic> {
+    let mut bytes = Vec::new();
+    let mut sites = PlaceCopySites::default();
+    let displacement =
+        materialize_place_address(&mut bytes, &mut sites, target, AddressRegister::Target)?;
+    super::append_mov_rax_imm64(&mut bytes, literal.len() as u64);
+    super::append_store_rax_to_r15(&mut bytes, displacement, 8)?;
+    for (index, byte) in literal.as_bytes().iter().enumerate() {
+        let content_displacement = super::disp32(displacement + 8 + index)?;
+        bytes.extend([0x41, 0xc6, 0x87]); // mov byte [r15 + disp32], imm8
+        bytes.extend(content_displacement.to_le_bytes());
+        bytes.push(*byte);
+    }
+    Ok((bytes, sites))
+}
+
+/// The ADDRESS-family materializer entry (task #131): compute the address
+/// OF a place-shaped source and store that POINTER into the runtime-frame
+/// slot at `target_offset`. The source address rides the standard walk into
+/// r15; the residual const offset is then ADDED to r15 (always emitted, so
+/// the width is walk-deterministic -- the address IS the payload, nothing
+/// folds into a store displacement); the frame slot's own base stages in
+/// r14 (`mov r14,imm64`, its relocation at width-17) for the final store.
+pub fn encode_place_address_write(
+    source: &Place,
+    target_offset: usize,
+) -> Result<(Vec<u8>, PlaceCopySites), Diagnostic> {
+    let mut bytes = Vec::new();
+    let mut sites = PlaceCopySites::default();
+    let displacement =
+        materialize_place_address(&mut bytes, &mut sites, source, AddressRegister::Target)?;
+    super::append_add_r15_imm32(&mut bytes, displacement)?; // r15 = full source address
+    super::append_mov_r14_imm64(&mut bytes, 0); // target frame base (reloc at width-17)
+    super::append_store_r15_to_r14(&mut bytes, target_offset)?; // frame[target] = address
+    Ok((bytes, sites))
+}
+
+/// The COMPARE-family materializer entry (task #131, the wiki's
+/// guards-consume-Places step): load the LEFT operand through its place
+/// (walked in r14, the CopyPlaces source discipline) into r10, the RIGHT
+/// through r15 into r11, compare, and emit the guard failure branch.
+/// Direct places are position-identical to the retired storage compare
+/// (the left leg renames r15 -> r14). REGISTER FENCE: a two-index RIGHT
+/// place would clobber r10 (the already-loaded left operand) with its
+/// second index scratch -- it refuses loudly (the legalization principle);
+/// hoist the subject first.
+pub fn encode_place_compare(
+    left: &Place,
+    right: &Place,
+    byte_size: usize,
+    failure_branch_distance: isize,
+    operator: super::StateGuardOperator,
+    is_float: bool,
+) -> Result<(Vec<u8>, PlaceCopySites), Diagnostic> {
+    if right.scaled_index_regions().count() >= 2 {
+        return Err(Diagnostic::error(
+            "a place compare cannot walk a two-index RIGHT operand (its second \
+             index scratch would clobber the left operand in r10); hoist the \
+             subject to a frame slot first",
+        ));
+    }
+    let mut bytes = Vec::new();
+    let mut sites = PlaceCopySites::default();
+    let left_displacement =
+        materialize_place_address(&mut bytes, &mut sites, left, AddressRegister::Source)?;
+    super::append_load_reg_from_r14(&mut bytes, super::Reg64::R10, left_displacement, byte_size)?;
+    let right_displacement =
+        materialize_place_address(&mut bytes, &mut sites, right, AddressRegister::Target)?;
+    super::append_load_reg_from_r15(&mut bytes, super::Reg64::R11, right_displacement, byte_size)?;
+    if is_float {
+        super::append_float_compare_r10_r11(&mut bytes, byte_size);
+    } else {
+        super::append_cmp_r10_r11(&mut bytes, byte_size)?;
+    }
+    super::append_failure_branch(&mut bytes, operator, failure_branch_distance - 4, is_float)?;
+    Ok((bytes, sites))
+}
+
+/// The place-vs-immediate compare: the subject loads through its place into
+/// r10, the expected value stages in r11 (`mov r11, imm64` -- AFTER the
+/// walk, so the walk's r11 index scratch is long consumed), then cmp + the
+/// failure branch. A direct place is position-identical to the retired
+/// storage-value compare.
+pub fn encode_place_value_compare(
+    place: &Place,
+    byte_size: usize,
+    expected_value: i64,
+    failure_branch_distance: isize,
+    operator: super::StateGuardOperator,
+) -> Result<(Vec<u8>, PlaceCopySites), Diagnostic> {
+    let mut bytes = Vec::new();
+    let mut sites = PlaceCopySites::default();
+    let displacement =
+        materialize_place_address(&mut bytes, &mut sites, place, AddressRegister::Target)?;
+    super::append_load_reg_from_r15(&mut bytes, super::Reg64::R10, displacement, byte_size)?;
+    super::append_mov_reg_imm64(&mut bytes, super::Reg64::R11, expected_value as u64);
+    super::append_cmp_r10_r11(&mut bytes, byte_size)?;
+    super::append_failure_branch(&mut bytes, operator, failure_branch_distance - 4, false)?;
     Ok((bytes, sites))
 }
 
@@ -290,9 +580,9 @@ fn encode_place_copy_shared_base_with_sites(
             if source_indexed { source } else { target },
             AddressRegister::Target,
             if source_indexed {
-                PlaceCopySide::SourceIndex
+                (PlaceCopySide::SourceIndex, PlaceCopySide::SourceIndex2)
             } else {
-                PlaceCopySide::TargetIndex
+                (PlaceCopySide::TargetIndex, PlaceCopySide::TargetIndex2)
             },
         )?;
         let source_displacement =
@@ -315,7 +605,7 @@ fn encode_place_copy_shared_base_with_sites(
             &mut sites,
             target,
             AddressRegister::Source,
-            PlaceCopySide::TargetIndex,
+            (PlaceCopySide::TargetIndex, PlaceCopySide::TargetIndex2),
         )?;
         let target_displacement =
             walk_hopping_side(&mut bytes, target, HopDirection::BaseR14TargetHops)?;
@@ -390,6 +680,7 @@ fn walk_hopping_side(
         HopDirection::BaseR14TargetHops => AddressRegister::Target,
     };
     let mut displacement = 0usize;
+    let mut index_ordinal = 0usize;
     for step in steps {
         match step {
             PlaceStep::ConstOffset(offset) => displacement += offset,
@@ -404,7 +695,10 @@ fn walk_hopping_side(
                 }
                 displacement = 0;
             }
-            PlaceStep::ScaledIndex { .. } => append_scaled_index_add(bytes, own_register),
+            PlaceStep::ScaledIndex { .. } => {
+                append_scaled_index_add(bytes, own_register, index_ordinal);
+                index_ordinal += 1;
+            }
         }
     }
     Ok(displacement)
@@ -418,6 +712,7 @@ fn walk_base_side(
     register: AddressRegister,
 ) -> Result<usize, Diagnostic> {
     let mut displacement = 0usize;
+    let mut index_ordinal = 0usize;
     for step in place.steps() {
         match step {
             PlaceStep::ConstOffset(offset) => displacement += offset,
@@ -432,7 +727,10 @@ fn walk_base_side(
                 }
                 displacement = 0;
             }
-            PlaceStep::ScaledIndex { .. } => append_scaled_index_add(bytes, register),
+            PlaceStep::ScaledIndex { .. } => {
+                append_scaled_index_add(bytes, register, index_ordinal);
+                index_ordinal += 1;
+            }
         }
     }
     Ok(displacement)
@@ -716,7 +1014,8 @@ mod tests {
                 })
                 .unwrap()
         };
-        // Two indices on one place (two-base path).
+        // Two indices on one place: LEGAL since the double-index rung (r10
+        // is the second scratch); three refuse (triple_index_refuses).
         let double = indexed(0)
             .with_step(PlaceStep::ScaledIndex {
                 index_region: RuntimeStorageRegion::RuntimeFrame,
@@ -725,7 +1024,7 @@ mod tests {
             })
             .unwrap();
         let plain = Place::at(RuntimeStorageRegion::Machine, 64);
-        assert!(encode_place_copy(&double, &plain, 4).is_err());
+        assert!(encode_place_copy(&double, &plain, 4).is_ok());
         // Both sides indexed (shared base).
         assert!(encode_place_copy_shared_base(&indexed(0), &indexed(32), 4).is_err());
         // Index on a DIRECT side (shared base): would mutate the shared base.
@@ -737,5 +1036,167 @@ mod tests {
             })
             .unwrap();
         assert!(encode_place_copy_shared_base(&direct_indexed, &indexed(32), 4).is_err());
+    }
+
+    /// The double-index rung: a machine-style no-deref place with TWO
+    /// same-region ScaledIndex steps -- both indices pre-load (r11 first,
+    /// r10 second) while the base register still equals the region base;
+    /// the walk consumes them in step order.
+    #[test]
+    fn double_index_same_region_layout() {
+        let source = Place::at(RuntimeStorageRegion::Machine, 32)
+            .with_step(PlaceStep::ScaledIndex {
+                index_region: RuntimeStorageRegion::Machine,
+                index_offset: 8,
+                element_byte_size: 16,
+            })
+            .unwrap()
+            .with_step(PlaceStep::ConstOffset(4))
+            .unwrap()
+            .with_step(PlaceStep::ScaledIndex {
+                index_region: RuntimeStorageRegion::Machine,
+                index_offset: 12,
+                element_byte_size: 4,
+            })
+            .unwrap();
+        let target = Place::at(RuntimeStorageRegion::RuntimeFrame, 64);
+        let (bytes, sites) = encode_copy_places(&source, &target, 4).expect("encodes");
+
+        let mut expected = Vec::new();
+        super::super::append_mov_r14_imm64(&mut expected, 0);
+        super::super::append_load_r11_from_r14(&mut expected, 8).expect("first index");
+        super::super::append_imul_r11_imm32(&mut expected, 16);
+        super::super::append_load_index_r10_from_r14(&mut expected, 12).expect("second index");
+        super::super::append_imul_r10_imm32(&mut expected, 4);
+        super::super::append_add_r14_r11(&mut expected);
+        super::super::append_add_r14_r10(&mut expected);
+        super::super::append_mov_r15_imm64(&mut expected, 0);
+        super::super::for_each_runtime_copy_chunk(36, 64, 4, |offset, chunk_size| {
+            super::super::append_load_rax_from_r14(&mut expected, 36 + offset, chunk_size)?;
+            super::super::append_store_rax_to_r15(&mut expected, 64 + offset, chunk_size)?;
+            Ok(())
+        })
+        .expect("chunks");
+        assert_eq!(bytes, expected);
+        // Two base sites only: same-region indices record no index site.
+        let sides: Vec<PlaceCopySide> = sites.iter().map(|(_, side)| side).collect();
+        assert_eq!(sides, vec![PlaceCopySide::Source, PlaceCopySide::Target]);
+    }
+
+    /// Cross-region DOUBLE index: both index slots live in the FRAME while
+    /// the place bases in the machine region -- each index materializes its
+    /// own region base (r11 then r10) as a recorded site (SourceIndex then
+    /// SourceIndex2) and loads through itself.
+    #[test]
+    fn double_index_cross_region_records_both_sites() {
+        let source = Place::at(RuntimeStorageRegion::Machine, 32)
+            .with_step(PlaceStep::ScaledIndex {
+                index_region: RuntimeStorageRegion::RuntimeFrame,
+                index_offset: 8,
+                element_byte_size: 16,
+            })
+            .unwrap()
+            .with_step(PlaceStep::ScaledIndex {
+                index_region: RuntimeStorageRegion::RuntimeFrame,
+                index_offset: 12,
+                element_byte_size: 4,
+            })
+            .unwrap();
+        let target = Place::at(RuntimeStorageRegion::RuntimeFrame, 64);
+        let (bytes, sites) = encode_copy_places(&source, &target, 4).expect("encodes");
+
+        let mut expected = Vec::new();
+        super::super::append_mov_r14_imm64(&mut expected, 0);
+        super::super::append_mov_r11_imm64(&mut expected, 0);
+        super::super::append_load_r11_from_r11(&mut expected, 8).expect("first index");
+        super::super::append_imul_r11_imm32(&mut expected, 16);
+        super::super::append_mov_r10_imm64(&mut expected, 0);
+        super::super::append_load_index_r10_from_r10(&mut expected, 12).expect("second index");
+        super::super::append_imul_r10_imm32(&mut expected, 4);
+        super::super::append_add_r14_r11(&mut expected);
+        super::super::append_add_r14_r10(&mut expected);
+        super::super::append_mov_r15_imm64(&mut expected, 0);
+        super::super::for_each_runtime_copy_chunk(32, 64, 4, |offset, chunk_size| {
+            super::super::append_load_rax_from_r14(&mut expected, 32 + offset, chunk_size)?;
+            super::super::append_store_rax_to_r15(&mut expected, 64 + offset, chunk_size)?;
+            Ok(())
+        })
+        .expect("chunks");
+        assert_eq!(bytes, expected);
+        let sides: Vec<PlaceCopySide> = sites.iter().map(|(_, side)| side).collect();
+        assert_eq!(
+            sides,
+            vec![
+                PlaceCopySide::Source,
+                PlaceCopySide::SourceIndex,
+                PlaceCopySide::SourceIndex2,
+                PlaceCopySide::Target,
+            ]
+        );
+    }
+
+    /// Three runtime indices refuse loudly: r11 and r10 are the only index
+    /// scratches.
+    #[test]
+    fn triple_index_refuses() {
+        let mut source = Place::at(RuntimeStorageRegion::Machine, 32);
+        for offset in [8usize, 12, 16] {
+            source = source
+                .with_step(PlaceStep::ScaledIndex {
+                    index_region: RuntimeStorageRegion::Machine,
+                    index_offset: offset,
+                    element_byte_size: 4,
+                })
+                .unwrap();
+        }
+        let target = Place::at(RuntimeStorageRegion::RuntimeFrame, 64);
+        let error = encode_copy_places(&source, &target, 4).expect_err("refuses");
+        assert!(
+            error
+                .to_string()
+                .contains("at most two runtime scaled indices")
+        );
+    }
+
+    /// Write rung 1a: a DIRECT place target is byte-for-byte the retired
+    /// integer-write layout (mov r15,imm64; mov rax,imm64; width store).
+    #[test]
+    fn place_integer_write_direct_matches_the_retired_layout() {
+        let target = Place::at(RuntimeStorageRegion::Machine, 24);
+        let (bytes, sites) = encode_place_integer_write(&target, 70, 4).expect("encodes");
+
+        let mut expected = Vec::new();
+        super::super::append_mov_r15_imm64(&mut expected, 0);
+        super::super::append_mov_rax_imm64(&mut expected, 70);
+        super::super::append_store_rax_to_r15(&mut expected, 24, 4).expect("store");
+        assert_eq!(bytes, expected);
+        let sides: Vec<PlaceCopySide> = sites.iter().map(|(_, side)| side).collect();
+        assert_eq!(sides, vec![PlaceCopySide::Target]);
+    }
+
+    /// An INDEXED target rides the same index discipline: the index preloads
+    /// into r11 while r15 still equals the region base, the add fires at the
+    /// step position, the residual const folds into the store displacement.
+    #[test]
+    fn place_integer_write_indexed_layout() {
+        let target = Place::at(RuntimeStorageRegion::Machine, 32)
+            .with_step(PlaceStep::ScaledIndex {
+                index_region: RuntimeStorageRegion::Machine,
+                index_offset: 8,
+                element_byte_size: 4,
+            })
+            .unwrap()
+            .with_step(PlaceStep::ConstOffset(2))
+            .unwrap();
+        let (bytes, _) = encode_place_integer_write(&target, 9, 1).expect("encodes");
+
+        let mut expected = Vec::new();
+        super::super::append_mov_r15_imm64(&mut expected, 0);
+        super::super::append_load_index_r11_from_r15(&mut expected, 8).expect("index");
+        super::super::append_imul_r11_imm32(&mut expected, 4);
+        super::super::append_add_r15_r11(&mut expected);
+        super::super::append_mov_rax_imm64(&mut expected, 9);
+        super::super::append_store_rax_to_r15(&mut expected, 34, 1).expect("store");
+        assert_eq!(bytes, expected);
     }
 }

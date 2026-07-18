@@ -1,0 +1,17 @@
+// The typo fence: the pattern names `w`, which `Point` does not declare.
+// Waiving (`as _`) does not exempt the name from existing.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Point {
+    x: i32 [0..=100];
+    y: i32 [0..=100];
+    z: i32 [0..=100];
+}
+data Main { console: Console; point: Point; }
+machine Main::main(&mut self) {
+    self.point = Point { x: 30, y: 40, z: 5 };
+    let { x, y as vertical, z as _, w as _ } = self.point;
+    let total: i32 = x + vertical;
+    transition total == 70 { true -> good() _ -> bad() }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(1); }
+}

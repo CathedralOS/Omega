@@ -26,6 +26,7 @@ use crate::facts::{
 };
 use crate::ownership::{
     remap_drop_event_owned, remap_drop_events, remap_move_event_owned, remap_move_events,
+    remap_permission_event_owned, remap_permission_events,
 };
 use crate::values::{remap_value_owned, remap_values};
 
@@ -139,6 +140,7 @@ fn remap_ownership_roots(state_graph: &StateGraph) -> ControlFlowOwnershipRoots 
         state_graph.semantics.ownership.segments.clone(),
         remap_move_events(state_graph),
         remap_drop_events(state_graph),
+        remap_permission_events(state_graph),
     )
 }
 
@@ -147,5 +149,6 @@ fn remap_ownership_roots_owned(ownership: SourceOwnershipRoots) -> ControlFlowOw
         ownership.segments,
         ownership.moves.map(remap_move_event_owned),
         ownership.drops.map(remap_drop_event_owned),
+        ownership.permissions.map(remap_permission_event_owned),
     )
 }

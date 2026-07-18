@@ -26,7 +26,7 @@ machine Main::main(&mut self) {
         self.i = 7;
         self.f64v = self.i as f64;
         self.f64v = self.f64v * 2.0;
-        self.r = self.f64v as i32 in Saturating;
+        self.r = self.f64v as i32 in Saturating; // F4: no modular reading of a float
         transition self.r == 14 { true -> ok() _ -> bad() }
     }
     state ok(&mut self) { self.console.exit_process(70); }

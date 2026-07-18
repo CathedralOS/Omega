@@ -63,6 +63,14 @@ impl ExpressionTable {
         self.identifier_path_members.append(member)
     }
 
+    pub fn append_identifier_path_member_to_span(
+        &mut self,
+        span: &mut HandleSpan<Identifier>,
+        member: Identifier,
+    ) {
+        self.identifier_path_members.append_to_span(span, member);
+    }
+
     pub fn copy_identifier_path_prefix(
         &mut self,
         span: HandleSpan<Identifier>,
@@ -174,6 +182,11 @@ pub struct TableCastExpression {
     /// Arithmetic domain cast (`x as u8 in Saturating`), decision 17 S2. `Exact`
     /// when the cast has no `in <Domain>` suffix.
     pub domain: omega_core::arithmetic::ArithmeticDomain,
+    /// A NON-policy `in <Name>` suffix (`x as i64 in Km`) -- a semantic-
+    /// domain qualification spelling (decision 19). Carried for the checked
+    /// layers to judge; EMPTY for policy/no-suffix casts (the target_type
+    /// span pattern keeps the node Copy).
+    pub semantic_domain: HandleSpan<Identifier>,
     /// Value conversion vs §5b borrow recast (`&x as &T`).
     pub form: omega_core::cast_form::CastForm,
 }
@@ -213,7 +226,15 @@ pub struct TableMemberExpression {
 pub struct TableCallExpression {
     pub receiver: ExpressionHandle,
     pub target: Identifier,
+    /// Compile-time machine-symbol selections (`map<Card::power>(items)`).
+    /// These are declaration identities, never runtime expression values.
+    pub machine_arguments: Box<[StaticMachineArgument]>,
     pub arguments: HandleSpan<ExpressionHandle>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StaticMachineArgument {
+    pub path: Box<[Identifier]>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

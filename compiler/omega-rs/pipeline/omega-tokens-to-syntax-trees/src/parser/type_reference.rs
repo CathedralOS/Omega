@@ -175,16 +175,15 @@ fn parse_type_reference_handle_inner<'tokens, 'source>(
         } else {
             HandleSpan::from_parts(argument_start, argument_count)
         };
-        // CONCURRENCY STAGE 1: `Join<T>` ERASES TO `T` here in the parser,
-        // mirroring the synchronous-spawn desugar (`expression/spawn.rs`):
-        // the spawned call completes at the spawn site, so the handle is
-        // structurally the completed result. `Join` is a reserved data-type
-        // name (rejected at `data` definitions), so the fold is never
-        // ambiguous with user generics. When a real scheduler lands, this
-        // fold is replaced by a synthesized container definition (the
-        // `Versioned<T>` precedent in omega-core/src/versioning.rs).
+        // TASK RUNTIME TR1: reject the erased stage-1 handle explicitly.
+        // `Task<T>` becomes a real linear core type in TR2; silently folding a
+        // lifecycle claim into its result would recreate the bug this pass
+        // removes.
         if base_name.as_str() == "Join" && argument_count == 1 {
-            first_argument
+            return Err(input.error_here(
+                "`Join<T>` is retired: task activation returns a linear `Task<T>`; \
+                 settle it with `finish()` or transfer it to another owner",
+            ));
         } else if base_name.as_str() == "Slice" && argument_count == 1 {
             // `Slice<T>` is the canonical slice type; `[T]` is its alias. Both fold
             // to the same `Slice` node, so the spellings are interchangeable
@@ -222,8 +221,7 @@ fn parse_type_reference_handle_inner<'tokens, 'source>(
     Ok((type_reference, input))
 }
 
-/// Apply an optional `in <Domain> [& <Domain> ...]` suffix to a just-parsed
-/// type reference.
+/// Apply an optional `in <Domain>` suffix to a just-parsed type reference.
 ///
 /// The name is an arithmetic overflow domain (`Wrapping`/`Saturating`/`Trapping`;
 /// frozen decision 17) when it matches one -- opting a primitive into defined
@@ -246,96 +244,77 @@ fn apply_in_domain_suffix<'tokens, 'source>(
     if !input.at_contextual("in") {
         return Ok((type_reference, input));
     }
-    let mut input = input.take_contextual("in")?;
-    let mut constraint_start = Handle::invalid();
-    let mut constraint_count = 0u32;
-
-    loop {
-        let (domain_name, rest) = input.take_identifier()?;
-        // A PARAMETERIZED domain name (`in OmegaLayout<Save>`, ch20 "grammars
-        // are layout policies") flattens to one instance name. Arguments are
-        // plain identifiers (a schema name + optionally a grammar).
-        let (domain_name, rest) = if rest.at_punctuation(PunctuationKind::Less) {
-            let mut flat = String::from(domain_name.as_str());
-            flat.push('<');
-            let mut cursor = rest.take_punctuation(PunctuationKind::Less, "<")?;
-            loop {
-                let (argument, next) = cursor.take_identifier()?;
-                flat.push_str(argument.as_str());
-                if next.at_punctuation(PunctuationKind::Comma) {
-                    flat.push_str(", ");
-                    cursor = next.take_punctuation(PunctuationKind::Comma, ",")?;
-                    continue;
-                }
-                cursor = next.take_punctuation(PunctuationKind::Greater, ">")?;
-                break;
+    let after_in = input.take_contextual("in")?;
+    let (domain_name, rest) = after_in.take_identifier()?;
+    // A PARAMETERIZED domain name (`in OmegaLayout<Save>`, ch20 "grammars are
+    // layout policies") flattens to a single instance name -- the same
+    // monomorphization-by-instantiation shape as generic data: no unification,
+    // no bounds, just a name resolved to a flat derived domain instance.
+    // Arguments are plain identifiers (a schema name + optionally a grammar).
+    let (domain_name, rest) = if rest.at_punctuation(PunctuationKind::Less) {
+        let mut flat = String::from(domain_name.as_str());
+        flat.push('<');
+        let mut cursor = rest.take_punctuation(PunctuationKind::Less, "<")?;
+        loop {
+            let (argument, next) = cursor.take_identifier()?;
+            flat.push_str(argument.as_str());
+            if next.at_punctuation(PunctuationKind::Comma) {
+                flat.push_str(", ");
+                cursor = next.take_punctuation(PunctuationKind::Comma, ",")?;
+                continue;
             }
-            flat.push('>');
-            (Identifier::generated(flat), cursor)
-        } else {
-            (domain_name, rest)
-        };
-        let constraint = if let Some(domain) =
-            omega_core::arithmetic::ArithmeticDomain::from_name(domain_name.as_str())
-        {
-            TypeConstraintNode::ArithmeticDomain(domain)
-        } else if let Some(domain) =
-            omega_core::value_domain::ValueDomain::from_name(domain_name.as_str())
-        {
-            TypeConstraintNode::ValueDomain(domain)
-        } else {
-            TypeConstraintNode::Domain(domain_name)
-        };
-        let handle = syntax_trees.type_references.append_constraint(constraint);
-        if constraint_count == 0 {
-            constraint_start = handle;
-        }
-        constraint_count = constraint_count
-            .checked_add(1)
-            .expect("domain-chain constraint count overflow");
-        input = rest;
-
-        if !input.at_punctuation(PunctuationKind::Ampersand) {
+            cursor = next.take_punctuation(PunctuationKind::Greater, ">")?;
             break;
         }
-        input = input.take_punctuation(PunctuationKind::Ampersand, "&")?;
-    }
-
+        flat.push('>');
+        (Identifier::generated(flat), cursor)
+    } else {
+        (domain_name, rest)
+    };
+    let constraint =
+        match omega_core::arithmetic::ArithmeticDomain::from_name(domain_name.as_str()) {
+            Some(domain) => TypeConstraintNode::ArithmeticDomain(domain),
+            None => TypeConstraintNode::Domain(domain_name),
+        };
+    let constraint = syntax_trees.type_references.append_constraint(constraint);
     let type_reference = syntax_trees
         .type_references
         .insert(TypeReferenceNode::Constrained {
             base_type: type_reference,
-            constraints: HandleSpan::from_parts(constraint_start, constraint_count),
+            constraints: HandleSpan::from_parts(constraint, 1),
         });
-    Ok((type_reference, input))
+    Ok((type_reference, rest))
 }
 
 pub(super) fn parse_type_reference_handle_allowing_borrow<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, TypeReferenceHandle> {
-    let (is_reference, lifetime, is_mutable, input) = if input
-        .at_punctuation(PunctuationKind::Ampersand)
-    {
-        let input = input.take_punctuation(PunctuationKind::Ampersand, "&")?;
-        // Explicit lifetime (`&'buf T`, `&'buf mut T`); frozen decision 15
-        // stage 2. The tick precedes `mut`, mirroring Rust's
-        // `&'a mut T`. A bare `&T` keeps the elided (`None`) form.
-        let (lifetime, input) = parse_optional_lifetime(input)?;
-        let (is_mutable, input) = if input.at_contextual("mut") {
-            (true, input.take_contextual("mut")?)
-        } else {
-            (false, input)
-        };
-        if input.at_contextual("relaxed") {
-            return Err(input.error_here(
-                    "the `relaxed` reference qualifier is retired; exclusive writes use inferred invariant windows",
+    let (is_reference, lifetime, is_mutable, input) =
+        if input.at_punctuation(PunctuationKind::Ampersand) {
+            let input = input.take_punctuation(PunctuationKind::Ampersand, "&")?;
+            // Explicit lifetime (`&'buf T`, `&'buf mut T`); frozen decision 15
+            // stage 2. The tick precedes `mut`/`relaxed`, mirroring Rust's
+            // `&'a mut T`. A bare `&T` keeps the elided (`None`) form.
+            let (lifetime, input) = parse_optional_lifetime(input)?;
+            let (is_mutable, input) = if input.at_contextual("mut") {
+                (true, input.take_contextual("mut")?)
+            } else {
+                (false, input)
+            };
+            // `relaxed` references RETIRED with the relax surface (owner,
+            // 2026-07-17): ch11 windows carry the momentary-violation
+            // semantics; the reference marker has no meaning left.
+            if input.at_contextual("relaxed") {
+                return Err(input.error_here(
+                    "`&relaxed` is retired: invariant windows (ch11) supersede the \
+                     relax surface -- take the ordinary reference",
                 ));
-        }
-        (true, lifetime, is_mutable, input)
-    } else {
-        (false, None, false, input)
-    };
+            }
+            (true, lifetime, is_mutable, input)
+        } else {
+            (false, None, false, input)
+        };
 
     let (type_reference, input) = parse_type_reference_handle(syntax_trees, input)?;
     let type_reference = if is_reference {

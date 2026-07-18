@@ -1,0 +1,19 @@
+// A conditional linear sum can represent `Empty`, but implicit zero-filled
+// storage is not an established `Empty` value. Moving it must fail before the
+// permission checker treats payload-debt=false as evidence of establishment.
+data Receipt [linear] { code: i32; }
+
+data ReceiptState {
+    case Empty;
+    case Live(receipt: Receipt);
+}
+
+machine ReceiptState::settle(self) {}
+
+data Main {}
+
+machine Main::run() -> i32 {
+    let state: ReceiptState;
+    ReceiptState::settle(state);
+    0
+}

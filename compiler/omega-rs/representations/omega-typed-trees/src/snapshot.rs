@@ -6,7 +6,6 @@ use crate::invariant::InvariantDefinition;
 use crate::machine::{Machine, OwnedData};
 use crate::name::Identifier;
 use crate::operator::OperatorDefinition;
-use crate::platform::Platform;
 use crate::signature::{StateParameter, StateSignature};
 use crate::state::State;
 use crate::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
@@ -52,11 +51,6 @@ impl TypedTreesSnapshot {
                     .iter()
                     .map(|operator| operator_snapshot(program, operator))
                     .collect(),
-                platforms: program
-                    .platforms()
-                    .iter()
-                    .map(|platform| platform_snapshot(program, platform))
-                    .collect(),
                 traits: program
                     .traits()
                     .iter()
@@ -80,8 +74,6 @@ impl TypedTreesSnapshot {
                 machine_owned_data_count: program.machine_owned_data.len(),
                 machine_state_count: program.machine_states.len(),
                 state_parameter_count: program.state_parameters.len(),
-                platform_count: program.platforms.len(),
-                platform_state_signature_count: program.platform_state_signatures.len(),
                 trait_count: program.traits.len(),
                 trait_requirement_count: program.trait_requirements.len(),
                 trait_machine_signature_count: program.trait_machine_signatures.len(),
@@ -111,7 +103,6 @@ pub struct TypedRootsSnapshot {
     pub invariant_definitions: Vec<InvariantDefinitionSnapshot>,
     pub machines: Vec<MachineSnapshot>,
     pub operators: Vec<OperatorDefinitionSnapshot>,
-    pub platforms: Vec<PlatformSnapshot>,
     pub traits: Vec<TraitSnapshot>,
     pub wire_schemas: Vec<WireSchemaSnapshot>,
 }
@@ -154,8 +145,6 @@ pub struct TypedTableSnapshot {
     pub machine_owned_data_count: usize,
     pub machine_state_count: usize,
     pub state_parameter_count: usize,
-    pub platform_count: usize,
-    pub platform_state_signature_count: usize,
     pub trait_count: usize,
     pub trait_requirement_count: usize,
     pub trait_machine_signature_count: usize,
@@ -216,7 +205,6 @@ fn operator_snapshot(
 pub struct DataDefinitionSnapshot {
     pub name: String,
     pub type_parameters: Vec<String>,
-    pub default_domain: Vec<ProofFactSnapshot>,
     pub members: Vec<DataMemberSnapshot>,
 }
 
@@ -226,7 +214,6 @@ pub enum DataMemberSnapshot {
     Field {
         name: String,
         type_reference: TypeReferenceSnapshot,
-        initial_value: Option<ExpressionSnapshot>,
     },
     Variant {
         name: String,
@@ -274,28 +261,14 @@ pub struct MachineSnapshot {
     pub name: String,
     pub attached_data: Option<String>,
     pub type_parameters: Vec<String>,
-    pub termination_guarantee: &'static str,
-    pub ranking_witness: Option<RankingWitnessSnapshot>,
+    pub terminates: bool,
+    pub decreases: Vec<ExpressionSnapshot>,
+    pub decrease_order: Vec<String>,
     pub effects: Vec<String>,
     pub contracts: Vec<SignatureContractSnapshot>,
     pub contains: Vec<ContainedObjectSnapshot>,
     pub owned_data: Vec<OwnedDataSnapshot>,
     pub states: Vec<StateSnapshot>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-pub struct RankingWitnessSnapshot {
-    pub subjects: Vec<ExpressionSnapshot>,
-    pub view: Vec<String>,
-    pub view_arguments: Vec<ExpressionSnapshot>,
-    pub range: Option<RankingRangeSnapshot>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-pub struct RankingRangeSnapshot {
-    pub start: ExpressionSnapshot,
-    pub end: ExpressionSnapshot,
-    pub end_inclusive: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -309,12 +282,6 @@ pub struct OwnedDataSnapshot {
     pub name: String,
     pub type_reference: TypeReferenceSnapshot,
     pub initial_value: Option<ExpressionSnapshot>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-pub struct PlatformSnapshot {
-    pub name: String,
-    pub states: Vec<StateSignatureSnapshot>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -341,8 +308,6 @@ pub struct StateSignatureSnapshot {
     pub is_default: bool,
     pub parameters: Vec<StateParameterSnapshot>,
     pub return_type: Option<TypeReferenceSnapshot>,
-    pub termination_guarantee: &'static str,
-    pub ranking_witness: Option<RankingWitnessSnapshot>,
     pub effects: Vec<String>,
     pub contracts: Vec<SignatureContractSnapshot>,
 }
@@ -373,6 +338,7 @@ pub enum StatementSnapshot {
     Call {
         receiver: Option<Vec<String>>,
         target: String,
+        machine_arguments: Vec<Vec<String>>,
         arguments: Vec<ExpressionSnapshot>,
     },
     Expression {
@@ -439,6 +405,7 @@ pub enum ExpressionSnapshot {
     Call {
         receiver: Option<Box<ExpressionSnapshot>>,
         target: String,
+        machine_arguments: Vec<Vec<String>>,
         arguments: Vec<ExpressionSnapshot>,
     },
     Float {
@@ -537,9 +504,6 @@ pub enum TypeConstraintSnapshot {
     ArithmeticDomain {
         domain: String,
     },
-    ValueDomain {
-        domain: String,
-    },
 }
 
 fn data_definition_snapshot(program: &TypedTrees, data: &DataDefinition) -> DataDefinitionSnapshot {
@@ -550,7 +514,6 @@ fn data_definition_snapshot(program: &TypedTrees, data: &DataDefinition) -> Data
             .iter()
             .map(|parameter| parameter.name.to_string())
             .collect(),
-        default_domain: contract_fact_snapshots(program, data.default_domain),
         members: program
             .data_members(data)
             .iter()
@@ -564,7 +527,6 @@ fn data_member_snapshot(program: &TypedTrees, member: &DataMember) -> DataMember
         DataMember::Field(field) => DataMemberSnapshot::Field {
             name: field.name.to_string(),
             type_reference: type_reference_snapshot(program, field.type_reference),
-            initial_value: expression_snapshot_option(program, field.initial_value),
         },
         DataMember::Variant(variant) => DataMemberSnapshot::Variant {
             name: variant.name.to_string(),
@@ -649,8 +611,18 @@ fn machine_snapshot(program: &TypedTrees, machine: &Machine) -> MachineSnapshot 
             .iter()
             .map(|parameter| parameter.name.to_string())
             .collect(),
-        termination_guarantee: termination_guarantee_snapshot(machine.termination_guarantee),
-        ranking_witness: ranking_witness_snapshot(program, machine.ranking_witness),
+        terminates: machine.terminates,
+        decreases: program
+            .expression_table
+            .expression_handles(machine.decreases)
+            .iter()
+            .map(|handle| expression_snapshot(program, *handle))
+            .collect(),
+        decrease_order: program
+            .machine_decrease_order(machine.decrease_order)
+            .iter()
+            .map(ToString::to_string)
+            .collect(),
         effects: program
             .machine_effects(machine)
             .iter()
@@ -687,17 +659,6 @@ fn owned_data_snapshot(program: &TypedTrees, owned: &OwnedData) -> OwnedDataSnap
         name: owned.name.to_string(),
         type_reference: type_reference_snapshot(program, owned.type_reference),
         initial_value: expression_snapshot_option(program, owned.initial_value),
-    }
-}
-
-fn platform_snapshot(program: &TypedTrees, platform: &Platform) -> PlatformSnapshot {
-    PlatformSnapshot {
-        name: platform.name.to_string(),
-        states: program
-            .platform_state_signatures(platform)
-            .iter()
-            .map(|signature| state_signature_snapshot(program, signature))
-            .collect(),
     }
 }
 
@@ -758,8 +719,6 @@ fn state_signature_snapshot(
             .map(|parameter| state_parameter_snapshot(program, parameter))
             .collect(),
         return_type: type_reference_snapshot_option(program, signature.return_type),
-        termination_guarantee: termination_guarantee_snapshot(signature.termination_guarantee),
-        ranking_witness: ranking_witness_snapshot(program, signature.ranking_witness),
         effects: program
             .state_signature_effects(signature)
             .iter()
@@ -771,45 +730,6 @@ fn state_signature_snapshot(
             .map(|contract| signature_contract_snapshot(program, contract))
             .collect(),
     }
-}
-
-fn termination_guarantee_snapshot(
-    guarantee: omega_core::termination::TerminationGuarantee,
-) -> &'static str {
-    match guarantee {
-        omega_core::termination::TerminationGuarantee::None => "none",
-        omega_core::termination::TerminationGuarantee::EventualTerminal => "eventual_terminal",
-    }
-}
-
-fn ranking_witness_snapshot(
-    program: &TypedTrees,
-    witness: crate::machine::RankingWitness,
-) -> Option<RankingWitnessSnapshot> {
-    witness.is_present().then(|| RankingWitnessSnapshot {
-        subjects: program
-            .expression_table
-            .expression_handles(witness.subjects)
-            .iter()
-            .map(|handle| expression_snapshot(program, *handle))
-            .collect(),
-        view: program
-            .machine_decrease_order(witness.view)
-            .iter()
-            .map(ToString::to_string)
-            .collect(),
-        view_arguments: program
-            .expression_table
-            .expression_handles(witness.view_arguments)
-            .iter()
-            .map(|handle| expression_snapshot(program, *handle))
-            .collect(),
-        range: witness.range.is_present().then(|| RankingRangeSnapshot {
-            start: expression_snapshot(program, witness.range.start),
-            end: expression_snapshot(program, witness.range.end),
-            end_inclusive: witness.range.end_inclusive,
-        }),
-    })
 }
 
 fn signature_contract_snapshot(
@@ -875,6 +795,11 @@ fn statement_snapshot(program: &TypedTrees, statement: &StatementNode) -> Statem
             receiver: (!call.receiver.is_empty())
                 .then(|| path_snapshot(program.statement_table.name_path_members(call.receiver))),
             target: call.target.to_string(),
+            machine_arguments: call
+                .machine_arguments
+                .iter()
+                .map(|argument| path_snapshot(&argument.path))
+                .collect(),
             arguments: statement_expression_span_snapshot(program, call.arguments),
         },
         StatementNode::Expression(expression) => StatementSnapshot::Expression {
@@ -969,6 +894,11 @@ fn expression_snapshot(program: &TypedTrees, expression: ExpressionHandle) -> Ex
                 .is_valid()
                 .then(|| Box::new(expression_snapshot(program, call.receiver))),
             target: call.target.to_string(),
+            machine_arguments: call
+                .machine_arguments
+                .iter()
+                .map(|argument| path_snapshot(&argument.path))
+                .collect(),
             arguments: expression_span_snapshot(program, call.arguments),
         },
         ExpressionNode::Float(value) => ExpressionSnapshot::Float {
@@ -1177,9 +1107,6 @@ fn type_constraint_snapshot(
             maximum: expression_snapshot(program, *maximum),
         },
         TypeConstraintNode::ArithmeticDomain(domain) => TypeConstraintSnapshot::ArithmeticDomain {
-            domain: domain.name().to_owned(),
-        },
-        TypeConstraintNode::ValueDomain(domain) => TypeConstraintSnapshot::ValueDomain {
             domain: domain.name().to_owned(),
         },
     }

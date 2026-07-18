@@ -3,7 +3,6 @@ use crate::domain::lower_domain_definition;
 use crate::invariant::lower_invariant_definition;
 use crate::machine::lower_machine;
 use crate::operator::lower_operator_definition;
-use crate::platform::lower_platform;
 use crate::trait_definition::lower_trait_definition;
 use omega_core::diagnostics::Diagnostic;
 use omega_symbol_resolved_trees::SymbolResolvedTrees;
@@ -32,6 +31,10 @@ pub fn lower_symbol_resolved_trees(
         source_trees: symbol_resolved_trees,
         equality_scope: None,
     };
+    // STR4: the effect-row interner copies verbatim so the machines'
+    // `effect_row` ids stay valid in the typed trees.
+    lowerer.typed_trees.effect_rows = symbol_resolved_trees.effect_rows.clone();
+    lowerer.typed_trees.semantic_domains = symbol_resolved_trees.semantic_domains.clone();
 
     for invariant_definition in &symbol_resolved_trees.invariant_definitions {
         let invariant_definition = lower_invariant_definition(&mut lowerer, invariant_definition)?;
@@ -65,11 +68,6 @@ pub fn lower_symbol_resolved_trees(
     for operator in &symbol_resolved_trees.operators {
         let operator = lower_operator_definition(&mut lowerer, operator)?;
         lowerer.typed_trees.push_operator(operator);
-    }
-
-    for platform in &symbol_resolved_trees.platforms {
-        let platform = lower_platform(&mut lowerer, platform)?;
-        lowerer.typed_trees.push_platform(platform);
     }
 
     for trait_definition in &symbol_resolved_trees.traits {
@@ -116,12 +114,19 @@ impl Lowerer<'_> {
             roots,
             tables,
             symbols,
+            effect_rows,
+            semantic_domains,
             plan_laid_layouts: _,
             wire_placements: _,
             wire_schema_plans: _,
+            machine_specializations: _,
         } = self.typed_trees;
 
-        Ok(TypedTrees::with_roots(roots, tables, symbols))
+        let mut trees = TypedTrees::with_roots(roots, tables, symbols);
+        // STR4: the copied interners survive the rebuild.
+        trees.effect_rows = effect_rows;
+        trees.semantic_domains = semantic_domains;
+        Ok(trees)
     }
 }
 

@@ -131,22 +131,12 @@ fn receiver_surface_name(program: &CheckedTrees, symbol: SymbolHandle) -> Option
         .filter(|trait_definition| trait_definition.is_boundary)
         .find(|trait_definition| trait_definition.symbol == symbol)
         .map(|trait_definition| trait_definition.name.as_str())
-        .or_else(|| {
-            program
-                .platforms()
-                .iter()
-                .find(|platform| platform.symbol == symbol)
-                .map(|platform| platform.name.as_str())
-        })
 }
 
-/// The platform (boundary) type name behind an EXPRESSION call -- the
+/// The boundary type name behind an EXPRESSION call -- the
 /// assignment-RHS host-call shape `self.t = self.clock.tick_count()`.
-/// Resolved through the boundary-trait fallback (the call's resolved target
-/// symbol is a signature of exactly one boundary trait) OR through a
-/// `platform` block's entry signatures (`let r = self.console.read_byte()`
-/// -- value-returning platform entries; without this arm the call silently
-/// missed the host-call plan and the local stayed ZII, caught 2026-07-17).
+/// Resolved through the boundary-trait fallback: the call's resolved target
+/// symbol is a signature of exactly one boundary trait.
 pub(crate) fn expression_platform_receiver_type<'program>(
     program: &'program CheckedTrees,
     target_symbol: omega_core::symbols::SymbolHandle,
@@ -169,16 +159,7 @@ pub(crate) fn expression_platform_receiver_type<'program>(
         return receiver_surface_name(program, trait_symbol);
     }
 
-    program
-        .platforms()
-        .iter()
-        .find(|platform| {
-            program
-                .platform_state_signatures(platform)
-                .iter()
-                .any(|signature| signature.symbol == target_symbol)
-        })
-        .map(|platform| platform.name.as_str())
+    None
 }
 
 /// Like `find_platform_call_lowering`, keyed directly on the callee target
@@ -215,9 +196,12 @@ fn find_lowering_prefer_exact<'abi>(
             lowering.platform.as_ref() == platform_name && lowering.state.as_ref() == state_name
         })
         .or_else(|| {
-            host_abi.platform_call_lowerings.iter().find(|(_, lowering)| {
-                lowering.platform.as_ref() == "*" && lowering.state.as_ref() == state_name
-            })
+            host_abi
+                .platform_call_lowerings
+                .iter()
+                .find(|(_, lowering)| {
+                    lowering.platform.as_ref() == "*" && lowering.state.as_ref() == state_name
+                })
         })
         .map(|(handle, lowering)| (handle, lowering))
 }
@@ -279,7 +263,6 @@ pub(crate) fn platform_call_name(program: &CheckedTrees, call: &TableCall) -> St
 
     display
 }
-
 
 pub(crate) fn lower_host_call_argument(
     program: &CheckedTrees,

@@ -12,6 +12,10 @@ pub struct DomainDefinition {
     pub facts: HandleSpan<ProofFact>,
     pub operators: HandleSpan<crate::operator::OperatorDefinition>,
     pub body_token_count: usize,
+    /// STR4 checked plans, slice 1: the normalized semantic identity from
+    /// the program's SemanticDomainTable (populated ONCE at
+    /// syntax->resolved, copied downstream; NULL only pre-lowering).
+    pub semantic_id: omega_core::semantics::SemanticDomainId,
 }
 
 impl Default for DomainDefinition {
@@ -24,6 +28,7 @@ impl Default for DomainDefinition {
             facts: HandleSpan::empty(),
             operators: HandleSpan::empty(),
             body_token_count: 0,
+            semantic_id: omega_core::semantics::SemanticDomainId::NULL,
         }
     }
 }

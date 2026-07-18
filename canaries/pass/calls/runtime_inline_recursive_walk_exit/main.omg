@@ -7,7 +7,6 @@
 boundary trait Console { machine exit_process(return_code: i32); }
 data Main { console: Console; n: i32 in Wrapping; }
 machine Main::walk(&mut self, path: &[u8], i: u64, acc: i32)
-terminates;
 terminates by (i, path.len) -> Nat::BoundedDistance;
 -> i32
 {

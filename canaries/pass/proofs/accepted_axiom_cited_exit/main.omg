@@ -1,0 +1,27 @@
+use omega::language::core::nat;
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+
+// An axiom about an UNPROVEN shape, cited by a lemma: the citation
+// delivers the accepted fact into the lemma's hypothesis base.
+boundary machine mul_comm_axiom(a: Nat, b: Nat) -> Nat
+ensures
+    (mul(a, b)) == (mul(b, a));
+
+machine uses_axiom(a: Nat, b: Nat) -> Nat
+ensures
+    (mul(a, b)) == (mul(b, a))
+{
+    transition {
+        _ -> body(a, b)
+    }
+
+    state body(a: Nat, b: Nat) -> Nat {
+        mul_comm_axiom(a, b);
+        transition { _ -> Nat::Zero }
+    }
+}
+
+machine Main::main(&mut self) {
+    self.console.exit_process(70);
+}

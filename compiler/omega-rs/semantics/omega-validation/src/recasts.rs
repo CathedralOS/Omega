@@ -39,10 +39,22 @@ pub(crate) fn validate_recasts(program: &TypedTrees, diagnostics: &mut Vec<Diagn
     // (mirrors the D14 literal gate's shape -- collect the legal roots,
     // then sweep the whole expression table for strays).
     let mut blessed: Vec<ExpressionHandle> = Vec::new();
+    // Qualification casts judged WITH machine/state context (the declared-
+    // range discharge needs the value's declared type); the positional
+    // sweep below only judges strays (literal-only).
+    let mut judged_qualifications: Vec<ExpressionHandle> = Vec::new();
 
     for machine in program.machines() {
         for state in program.machine_states(machine) {
             for statement in program.statement_table.statements(state.statement_nodes) {
+                judge_statement_qualification_casts(
+                    program,
+                    machine,
+                    state,
+                    statement,
+                    &mut judged_qualifications,
+                    diagnostics,
+                );
                 let StatementNode::LocalData(local) = statement else {
                     continue;
                 };
@@ -104,7 +116,216 @@ pub(crate) fn validate_recasts(program: &TypedTrees, diagnostics: &mut Vec<Diagn
                     .to_string(),
             ));
         }
+        // STR4 checked plans, slice 3 (decision 19): a NON-policy `in <Name>`
+        // cast suffix is the semantic-domain QUALIFICATION spelling. It is
+        // recognized here but its MINT rung (introduction authority +
+        // predicate discharge) has not landed -- the staged fence names the
+        // declared domain; an unmatched name gets the honest unknown error
+        // the parser used to give (now with the declaration check the parser
+        // could not perform).
+        if let ExpressionNode::Cast(cast) = node
+            && cast.semantic_domain.count() > 0
+            && !judged_qualifications.contains(&handle)
+        {
+            judge_qualification_cast(program, None, cast, diagnostics);
+        }
     }
+}
+
+/// GR2 (the MintAuthority half, chapter-10 carrier): the grant table an
+/// in-program validation run consults. Every domain DECLARED in this
+/// compilation unit is own-package and therefore DEV-ACTIVE (grant
+/// locality: own-package claims carry standing authority until packages
+/// exist; a package's domains will arrive INERT and only the root grant --
+/// GR3's `accept_boundary` -- activates them). Built once per run; the
+/// consult point below is where package-inert refusal and root grants
+/// land without touching the predicate machinery.
+fn in_program_trust_table(program: &TypedTrees) -> omega_core::trust::TrustGrantTable {
+    let mut table = omega_core::trust::TrustGrantTable::default();
+    for domain in program.domain_definitions() {
+        if domain.semantic_id.is_valid() {
+            table.grant(omega_core::trust::TrustGrant {
+                commitment: omega_core::trust::TrustCommitment::SemanticDomainIntroduction(
+                    domain.semantic_id,
+                ),
+                provenance: omega_core::trust::TrustProvenance::OwnPackageDev,
+            });
+        }
+    }
+    table
+}
+
+/// Judge one qualification cast (`x as T in <DeclaredDomain>`, decision 19).
+/// INTRODUCTION AUTHORITY consults the chapter-10 carrier first (GR2): the
+/// domain's commitment must be granted here -- own-package declarations are
+/// dev-active, so every in-program mint passes today; the consult is the
+/// seam where package inertness and root grants bite. The PREDICATE
+/// obligation then discharges by (a) folding every domain fact at a LITERAL
+/// value, or (b) with machine/state context, entailing every fact from the
+/// value's DECLARED RANGE (flow-integration v1); anything else keeps the
+/// staged refusal.
+fn judge_qualification_cast(
+    program: &TypedTrees,
+    context: Option<(
+        &omega_typed_trees::machine::Machine,
+        &omega_typed_trees::state::State,
+    )>,
+    cast: &TableCastExpression,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let members = program
+        .expression_table
+        .name_path_members(cast.semantic_domain);
+    let name = members
+        .first()
+        .map(|member| member.as_str().to_owned())
+        .unwrap_or_default();
+    let declared = program.domain_definitions().iter().find(|domain| {
+        domain.name.as_str() == name || domain.name.as_str().ends_with(&format!("::{name}"))
+    });
+    match declared {
+        Some(domain) => {
+            let trust = in_program_trust_table(program);
+            if trust
+                .authority(
+                    &omega_core::trust::TrustCommitment::SemanticDomainIntroduction(
+                        domain.semantic_id,
+                    ),
+                )
+                .is_none()
+            {
+                diagnostics.push(Diagnostic::error(format!(
+                    "sealed domain `{name}` has no introduction authority here: \
+                     own-package declarations are dev-active; a package's domain \
+                     is inert until the final build grants it \
+                     (`b.accept_boundary<..>();`)",
+                )));
+                return;
+            }
+            let mut judgment = literal_mint_discharges(program, domain, cast.value);
+            if matches!(judgment, MintJudgment::NotLiteral)
+                && let Some((machine, state)) = context
+                && let Some(judged) =
+                    range_mint_discharges(program, machine, state, domain, cast.value)
+            {
+                judgment = judged;
+            }
+            // The GUARD chain's landing: the machine's own REQUIRES facts
+            // about the cast value bound it one-sidedly; callers prove the
+            // requires at their call sites (incoming guards already serve
+            // there), so `transition raw >= 0 { true -> use(raw) }` +
+            // `machine use(..) requires raw >= 0` mints inside `use`.
+            if matches!(judgment, MintJudgment::NotLiteral)
+                && let Some((machine, _)) = context
+                && let Some(judged) =
+                    requires_mint_discharges(program, machine, domain, cast.value)
+            {
+                judgment = judged;
+            }
+            match judgment {
+                MintJudgment::Discharged => {}
+                MintJudgment::FactFalse => {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "`as ... in {name}` cannot mint: a `{name}` domain fact is \
+                         FALSE at this value -- the predicate obligation is owed \
+                         (decision 19's \"predicate obligation not discharged\" \
+                         class)",
+                    )));
+                }
+                MintJudgment::NotLiteral => {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "`as ... in {name}` mints LITERAL values, or names whose \
+                         DECLARED RANGE entails the domain facts, in this rung; \
+                         other values route through a validating call or guard \
+                         until full flow integration lands",
+                    )));
+                }
+            }
+        }
+        None => {
+            diagnostics.push(Diagnostic::error(format!(
+                "unknown cast domain `{name}`: the arithmetic policies are \
+                 `Wrapping`, `Saturating`, and `Trapping`, and no domain \
+                 declaration names `{name}`",
+            )));
+        }
+    }
+}
+
+/// Flow-integration v1: when the cast VALUE is a Name whose declared type
+/// carries a range constraint, every domain fact must hold over the WHOLE
+/// interval (`self >= K` iff low >= K; `self <= K` iff high <= K; strict/
+/// equality forms accordingly). `None` when the value has no usable range
+/// (the caller falls back to the staged refusal).
+fn range_mint_discharges(
+    program: &TypedTrees,
+    machine: &omega_typed_trees::machine::Machine,
+    state: &omega_typed_trees::state::State,
+    domain: &omega_typed_trees::domain::DomainDefinition,
+    value: ExpressionHandle,
+) -> Option<MintJudgment> {
+    // The RAW declared type keeps the Constrained shell the range lives in
+    // (declared_place_type strips it -- the R2 slice-9 gotcha).
+    let declared =
+        crate::places::declared_place_type_raw(program, machine, Some(state), value)?;
+    let interval = crate::arithmetic_domains::range_constraint_interval(program, declared)?;
+    let (low, high) = (interval.low?, interval.high?);
+    for fact in program.proof_facts.span_or_empty(domain.facts) {
+        let omega_typed_trees::domain::ProofFact::Expression(expression) = fact else {
+            continue;
+        };
+        let ExpressionNode::Binary(binary) = program.expression_table.expression(*expression)
+        else {
+            continue;
+        };
+        // Normalize to `self OP literal`.
+        let is_self = |handle: ExpressionHandle| {
+            matches!(
+                program.expression_table.expression(handle),
+                ExpressionNode::Name(path)
+                    if matches!(
+                        program.expression_table.name_path_members(path.members),
+                        [only] if only.as_str() == "self"
+                    )
+            )
+        };
+        let literal_of = |handle: ExpressionHandle| -> Option<i64> {
+            match program.expression_table.expression(handle) {
+                ExpressionNode::Integer(value) => value.text().parse::<i64>().ok(),
+                _ => None,
+            }
+        };
+        use omega_typed_trees::expression::BinaryOperator;
+        let (operator, bound) = if is_self(binary.left) {
+            (binary.operator, literal_of(binary.right)?)
+        } else if is_self(binary.right) {
+            let flipped = match binary.operator {
+                BinaryOperator::Less => BinaryOperator::Greater,
+                BinaryOperator::LessOrEqual => BinaryOperator::GreaterOrEqual,
+                BinaryOperator::Greater => BinaryOperator::Less,
+                BinaryOperator::GreaterOrEqual => BinaryOperator::LessOrEqual,
+                other => other,
+            };
+            (flipped, literal_of(binary.left)?)
+        } else {
+            return None;
+        };
+        let holds = match operator {
+            BinaryOperator::GreaterOrEqual => low >= bound,
+            BinaryOperator::Greater => low > bound,
+            BinaryOperator::LessOrEqual => high <= bound,
+            BinaryOperator::Less => high < bound,
+            BinaryOperator::Equal => low == bound && high == bound,
+            BinaryOperator::NotEqual => high < bound || low > bound,
+            _ => return None,
+        };
+        if !holds {
+            // The interval does not ENTAIL the fact -- it may still hold at
+            // runtime, so this is the undischarged (not FALSE) class.
+            return Some(MintJudgment::NotLiteral);
+        }
+    }
+    Some(MintJudgment::Discharged)
 }
 
 /// The rung-A judgment for one blessed `&x as &T` (§5b rules 1-4 over the
@@ -937,4 +1158,349 @@ fn guard_lower_bound_for(
         }
         _ => None,
     }
+}
+
+
+/// Walk one statement's expressions for qualification casts and judge each
+/// WITH machine/state context: the literal fold first, then the value's
+/// DECLARED RANGE (flow-integration v1 -- a Name whose declared type
+/// carries `[lo..=hi]` discharges facts the whole interval satisfies).
+fn judge_statement_qualification_casts(
+    program: &TypedTrees,
+    machine: &omega_typed_trees::machine::Machine,
+    state: &omega_typed_trees::state::State,
+    statement: &StatementNode,
+    judged: &mut Vec<ExpressionHandle>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let mut roots: Vec<ExpressionHandle> = Vec::new();
+    match statement {
+        StatementNode::Assignment(assignment) => {
+            roots.push(assignment.target);
+            roots.push(assignment.value);
+        }
+        StatementNode::Expression(expression) => roots.push(*expression),
+        StatementNode::LocalData(local) => roots.push(local.initial_value),
+        StatementNode::Call(call) => roots.extend(
+            program
+                .statement_table
+                .expression_handles(call.arguments)
+                .iter()
+                .copied(),
+        ),
+        StatementNode::Transition(transition) => {
+            if let omega_typed_trees::statement::TransitionGuardNode::When(guard) =
+                &transition.guard
+            {
+                roots.push(*guard);
+            }
+            for target in [transition.target, transition.continuation] {
+                if !target.is_valid() {
+                    continue;
+                }
+                match program.statement_table.transition_target(target) {
+                    omega_typed_trees::statement::TransitionTargetNode::Value(value) => {
+                        roots.push(*value);
+                    }
+                    omega_typed_trees::statement::TransitionTargetNode::Named {
+                        arguments,
+                        ..
+                    } => {
+                        roots.extend(
+                            program
+                                .statement_table
+                                .expression_handles(*arguments)
+                                .iter()
+                                .copied(),
+                        );
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+    for root in roots {
+        judge_expression_qualification_casts(program, machine, state, root, judged, diagnostics);
+    }
+}
+
+fn judge_expression_qualification_casts(
+    program: &TypedTrees,
+    machine: &omega_typed_trees::machine::Machine,
+    state: &omega_typed_trees::state::State,
+    expression: ExpressionHandle,
+    judged: &mut Vec<ExpressionHandle>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if !expression.is_valid() {
+        return;
+    }
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Cast(cast) => {
+            if cast.semantic_domain.count() > 0 {
+                judged.push(expression);
+                judge_qualification_cast(program, Some((machine, state)), cast, diagnostics);
+            }
+            judge_expression_qualification_casts(
+                program,
+                machine,
+                state,
+                cast.value,
+                judged,
+                diagnostics,
+            );
+        }
+        ExpressionNode::Binary(binary) => {
+            judge_expression_qualification_casts(
+                program, machine, state, binary.left, judged, diagnostics,
+            );
+            judge_expression_qualification_casts(
+                program, machine, state, binary.right, judged, diagnostics,
+            );
+        }
+        ExpressionNode::Unary(unary) => {
+            judge_expression_qualification_casts(
+                program,
+                machine,
+                state,
+                unary.operand,
+                judged,
+                diagnostics,
+            );
+        }
+        ExpressionNode::Mutable(inner) => {
+            judge_expression_qualification_casts(
+                program, machine, state, *inner, judged, diagnostics,
+            );
+        }
+        ExpressionNode::Call(call) => {
+            for argument in program.expression_table.expression_handles(call.arguments) {
+                judge_expression_qualification_casts(
+                    program, machine, state, *argument, judged, diagnostics,
+                );
+            }
+        }
+        _ => {}
+    }
+}
+
+/// The mint's tri-state judgment for one qualification cast.
+enum MintJudgment {
+    Discharged,
+    FactFalse,
+    NotLiteral,
+}
+
+/// Fold every domain fact at the cast's literal value (`self := literal`).
+/// Only integer literals and `self <op> literal` / `literal <op> self`
+/// comparison facts fold; anything else is conservatively NotLiteral.
+/// `introduction`-clause pseudo-facts (non-Binary) are skipped -- they are
+/// policy, not predicate.
+fn literal_mint_discharges(
+    program: &TypedTrees,
+    domain: &omega_typed_trees::domain::DomainDefinition,
+    value: ExpressionHandle,
+) -> MintJudgment {
+    let ExpressionNode::Integer(literal) = program.expression_table.expression(value) else {
+        return MintJudgment::NotLiteral;
+    };
+    let Ok(minted) = literal.text().parse::<i128>() else {
+        return MintJudgment::NotLiteral;
+    };
+    for fact in program.proof_facts.span_or_empty(domain.facts) {
+        let omega_typed_trees::domain::ProofFact::Expression(expression) = fact else {
+            continue;
+        };
+        let ExpressionNode::Binary(binary) = program.expression_table.expression(*expression)
+        else {
+            continue;
+        };
+        let side_value = |handle: ExpressionHandle| -> Option<i128> {
+            match program.expression_table.expression(handle) {
+                ExpressionNode::Name(path)
+                    if matches!(
+                        program.expression_table.name_path_members(path.members),
+                        [only] if only.as_str() == "self"
+                    ) =>
+                {
+                    Some(minted)
+                }
+                ExpressionNode::Integer(value) => value.text().parse::<i128>().ok(),
+                _ => None,
+            }
+        };
+        let (Some(left), Some(right)) = (side_value(binary.left), side_value(binary.right))
+        else {
+            return MintJudgment::NotLiteral;
+        };
+        use omega_typed_trees::expression::BinaryOperator;
+        let holds = match binary.operator {
+            BinaryOperator::Less => left < right,
+            BinaryOperator::LessOrEqual => left <= right,
+            BinaryOperator::Greater => left > right,
+            BinaryOperator::GreaterOrEqual => left >= right,
+            BinaryOperator::Equal => left == right,
+            BinaryOperator::NotEqual => left != right,
+            _ => return MintJudgment::NotLiteral,
+        };
+        if !holds {
+            return MintJudgment::FactFalse;
+        }
+    }
+    MintJudgment::Discharged
+}
+
+
+/// Requires-route discharge: the machine's REQUIRES facts about the cast
+/// value's NAME accumulate one-sided bounds (`raw >= 0` -> low = 0); the
+/// domain facts must be entailed by those bounds. `None` when the value is
+/// not a bare name or no requires fact speaks about it.
+fn requires_mint_discharges(
+    program: &TypedTrees,
+    machine: &omega_typed_trees::machine::Machine,
+    domain: &omega_typed_trees::domain::DomainDefinition,
+    value: ExpressionHandle,
+) -> Option<MintJudgment> {
+    use omega_typed_trees::expression::BinaryOperator;
+    use omega_typed_trees::signature::SignatureContractKind;
+
+    let ExpressionNode::Name(path) = program.expression_table.expression(value) else {
+        return None;
+    };
+    let [value_name] = program.expression_table.name_path_members(path.members) else {
+        return None;
+    };
+
+    let mut low: Option<i64> = None;
+    let mut high: Option<i64> = None;
+    let mut spoke = false;
+    for contract in program.machine_contracts(machine) {
+        if contract.kind != SignatureContractKind::Requires {
+            continue;
+        }
+        for fact in program.proof_facts.span_or_empty(contract.facts) {
+            let omega_typed_trees::domain::ProofFact::Expression(expression) = fact else {
+                continue;
+            };
+            let ExpressionNode::Binary(binary) =
+                program.expression_table.expression(*expression)
+            else {
+                continue;
+            };
+            let names_value = |handle: ExpressionHandle| {
+                matches!(
+                    program.expression_table.expression(handle),
+                    ExpressionNode::Name(fact_path)
+                        if matches!(
+                            program.expression_table.name_path_members(fact_path.members),
+                            [only] if only.as_str() == value_name.as_str()
+                        )
+                )
+            };
+            let literal_of = |handle: ExpressionHandle| -> Option<i64> {
+                match program.expression_table.expression(handle) {
+                    ExpressionNode::Integer(value) => value.text().parse::<i64>().ok(),
+                    _ => None,
+                }
+            };
+            let (operator, bound) = if names_value(binary.left) {
+                let Some(bound) = literal_of(binary.right) else {
+                    continue;
+                };
+                (binary.operator, bound)
+            } else if names_value(binary.right) {
+                let Some(bound) = literal_of(binary.left) else {
+                    continue;
+                };
+                let flipped = match binary.operator {
+                    BinaryOperator::Less => BinaryOperator::Greater,
+                    BinaryOperator::LessOrEqual => BinaryOperator::GreaterOrEqual,
+                    BinaryOperator::Greater => BinaryOperator::Less,
+                    BinaryOperator::GreaterOrEqual => BinaryOperator::LessOrEqual,
+                    other => other,
+                };
+                (flipped, bound)
+            } else {
+                continue;
+            };
+            spoke = true;
+            match operator {
+                BinaryOperator::GreaterOrEqual => low = Some(low.map_or(bound, |l| l.max(bound))),
+                BinaryOperator::Greater => {
+                    let floor = bound.saturating_add(1);
+                    low = Some(low.map_or(floor, |l| l.max(floor)));
+                }
+                BinaryOperator::LessOrEqual => high = Some(high.map_or(bound, |h| h.min(bound))),
+                BinaryOperator::Less => {
+                    let ceiling = bound.saturating_sub(1);
+                    high = Some(high.map_or(ceiling, |h| h.min(ceiling)));
+                }
+                BinaryOperator::Equal => {
+                    low = Some(low.map_or(bound, |l| l.max(bound)));
+                    high = Some(high.map_or(bound, |h| h.min(bound)));
+                }
+                _ => {}
+            }
+        }
+    }
+    if !spoke {
+        return None;
+    }
+
+    for fact in program.proof_facts.span_or_empty(domain.facts) {
+        let omega_typed_trees::domain::ProofFact::Expression(expression) = fact else {
+            continue;
+        };
+        let ExpressionNode::Binary(binary) = program.expression_table.expression(*expression)
+        else {
+            continue;
+        };
+        let is_self = |handle: ExpressionHandle| {
+            matches!(
+                program.expression_table.expression(handle),
+                ExpressionNode::Name(fact_path)
+                    if matches!(
+                        program.expression_table.name_path_members(fact_path.members),
+                        [only] if only.as_str() == "self"
+                    )
+            )
+        };
+        let literal_of = |handle: ExpressionHandle| -> Option<i64> {
+            match program.expression_table.expression(handle) {
+                ExpressionNode::Integer(value) => value.text().parse::<i64>().ok(),
+                _ => None,
+            }
+        };
+        let (operator, bound) = if is_self(binary.left) {
+            (binary.operator, literal_of(binary.right)?)
+        } else if is_self(binary.right) {
+            let flipped = match binary.operator {
+                BinaryOperator::Less => BinaryOperator::Greater,
+                BinaryOperator::LessOrEqual => BinaryOperator::GreaterOrEqual,
+                BinaryOperator::Greater => BinaryOperator::Less,
+                BinaryOperator::GreaterOrEqual => BinaryOperator::LessOrEqual,
+                other => other,
+            };
+            (flipped, literal_of(binary.left)?)
+        } else {
+            return None;
+        };
+        let holds = match operator {
+            BinaryOperator::GreaterOrEqual => low.is_some_and(|l| l >= bound),
+            BinaryOperator::Greater => low.is_some_and(|l| l > bound),
+            BinaryOperator::LessOrEqual => high.is_some_and(|h| h <= bound),
+            BinaryOperator::Less => high.is_some_and(|h| h < bound),
+            BinaryOperator::Equal => {
+                low.is_some_and(|l| l == bound) && high.is_some_and(|h| h == bound)
+            }
+            BinaryOperator::NotEqual => {
+                high.is_some_and(|h| h < bound) || low.is_some_and(|l| l > bound)
+            }
+            _ => return None,
+        };
+        if !holds {
+            return Some(MintJudgment::NotLiteral);
+        }
+    }
+    Some(MintJudgment::Discharged)
 }

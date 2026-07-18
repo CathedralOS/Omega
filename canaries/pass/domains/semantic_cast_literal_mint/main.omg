@@ -1,0 +1,16 @@
+// THE MINT (decision 19, v1): `5 as i64 in Km` qualifies a LITERAL into a
+// declared semantic domain -- in-program authority is the owning package's,
+// and the predicate obligation (self >= 0) folds TRUE at the literal.
+// Zero-cost: the representation is unchanged and the value flows on.
+// RUNS exit 70.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+domain i64::Km {
+    self >= 0;
+}
+machine Main::main(&mut self) {
+    let distance: i64 = 5 as i64 in Km;
+    transition distance == 5 { true -> good() _ -> bad() }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(1); }
+}

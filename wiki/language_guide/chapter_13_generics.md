@@ -120,23 +120,45 @@ Working rules:
 
 ## Machine Parameters
 
-A generic parameter may be a machine (drafted 2026-07-18, direction):
+Settled 2026-07-20. A generic parameter may name a machine symbol:
 
 ```omega
 machine Deck::best<machine Key>(&self) -> u64
 where machine Key(card: &Card) -> u64
 {
-    // Key(&self.cards[i]) — a direct static call after monomorphization
+    let score: u64 = Key(&self.cards[0]);
+    score
 }
 // spelled at the call site: deck.best<Card::power_key>()
 ```
 
-Working rules:
+`Key` is not a hidden runtime argument. Monomorphization substitutes the
+selected symbol at every use; the example above emits a direct
+`Card::power_key(&self.cards[0])` call in that specialization.
+
+Rules:
 
 - `<machine M>` binds a machine **symbol** at the spelling site, checked
   against its `where machine` signature and monomorphized per instance like
   every generic. After substitution, each use of `M` is a direct static
   call. No runtime value exists — the parameter is gone by codegen.
+- Every machine parameter must have an authored `where machine M(...)`
+  contract at its declaration. The compiler never infers that abstraction
+  from `M(...)` uses or from the machines currently supplied by consumers,
+  even in a whole-program build with only one instantiation. Missing the
+  contract is a declaration-site error; a declared but unused parameter gets
+  the ordinary unused-parameter warning. If exactly one implementation is
+  intended, call that concrete machine instead of declaring a generic.
+- Type and result parameters may be inferred from the selected machine and
+  ordinary arguments. For example, `map<Card::power>(cards)` specializes
+  `map<T, U, machine F>` with `T = Card`, `U = u64`, and every `F(value)` call
+  becomes `Card::power(value)`.
+- Generic bodies are checked modularly against the authored `where machine`
+  contract: they prove the parameter machine's `requires`, assume its
+  `ensures`, and include its published effects and other contract axes. At an
+  instantiation, the selected machine must refine that requirement. The
+  checker does not infer a stronger generic API from whichever implementation
+  happens to be selected.
 - The receiver mode in the required signature is the calling discipline:
   `&self` is freely repeatable, `&mut self` is a stateful callback (spell it
   as a type parameter whose machine is required, as below); a consuming
@@ -144,9 +166,15 @@ Working rules:
 - There are **no runtime machine values and no capture inference**. A
   stateful callback is a machine *instance* — its fields are its declared
   captures, construction is the capture clause, and borrow modes are field
-  types. A type-erased callable is a `dyn` trait (chapter 14). Spawning
-  moves the instance, and the `send` property (chapter 7) gates what may
-  cross a spawn boundary.
+  types. A type-erased callable is a `dyn` trait (chapter 14). Concurrent task
+  start moves the instance, and the `send` property (chapter 7) gates what may
+  cross an activation boundary.
+- Accepted generic axioms are granted once at the normalized template
+  statement, including its machine-parameter contract. Each instantiation
+  records that template receipt and the selected machine-contract identities
+  for audit and cache invalidation, but spends no second grant. A project that
+  trusts only particular instances must expose and grant non-generic accepted
+  facts instead of granting the universal template.
 
 ## Where Clauses
 

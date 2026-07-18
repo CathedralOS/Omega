@@ -2,6 +2,7 @@ use crate::parser::context::StateKind;
 use crate::parser::input::{Input, ParseResult};
 use crate::parser::statement::{
     parse_statement_handle, try_parse_atomic_compare_exchange_let, try_parse_atomic_fetch_add_let,
+    try_parse_destructure_let,
 };
 use crate::parser::transition::parse_transition_block_handles;
 use crate::parser::type_reference::parse_type_reference_handle_allowing_borrow;
@@ -12,27 +13,11 @@ use omega_syntax_trees::item::{State, StateParameterHandle, StateSignature};
 use omega_syntax_trees::types::TypeReferenceHandle;
 use omega_tokens::{KeywordKind, PunctuationKind};
 
-/// CONCURRENCY STAGE 1: `join` is reserved as a state / trait-signature name
-/// so the parser's `handle.join()` identity rewrite (expression/postfix.rs)
-/// can never shadow user code.
-fn reject_reserved_join_name(
-    name: &Identifier,
-    input: &Input<'_, '_>,
-) -> Result<(), crate::parse_error::ParseError> {
-    if name.as_str() == "join" {
-        return Err(input.error_here(
-            "state name `join` is reserved: `handle.join()` joins a spawned task (chapter 17)",
-        ));
-    }
-    Ok(())
-}
-
 pub(super) fn parse_state_signature<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, StateSignature> {
     let (name, input) = input.take_identifier()?;
-    reject_reserved_join_name(&name, &input)?;
     let (parameters, input) = parse_optional_state_parameters(syntax_trees, input)?;
     let (return_type, input) = parse_optional_return_type(syntax_trees, input)?;
 
@@ -42,10 +27,9 @@ pub(super) fn parse_state_signature<'tokens, 'source>(
             is_default: false,
             parameters,
             return_type,
-            termination_guarantee: false,
-            ranking_witness: omega_syntax_trees::item::RankingWitnessSyntax::default(),
             effects: HandleSpan::empty(),
             contracts: HandleSpan::empty(),
+            terminates_guarantee: false,
         },
         input,
     ))
@@ -62,7 +46,6 @@ pub(super) fn parse_state<'tokens, 'source>(
         } else {
             input.take_identifier()?
         };
-    reject_reserved_join_name(&name, &input)?;
 
     let (parameters, input) = parse_optional_state_parameters(syntax_trees, input)?;
     let (return_type, mut input) = parse_optional_return_type(syntax_trees, input)?;
@@ -94,6 +77,19 @@ pub(super) fn parse_state<'tokens, 'source>(
             input = rest;
         // ATOMICS STAGE 1 (ch17, M3): `let name: T = place.fetch_add(n, ord);`
         // expands to two statements (capture prior + increment).
+        // RECORD PATTERNS IN LET POSITION (owner spec 2026-07-18):
+        // `let { x, y as h, z as _ } = place;` expands to the marker +
+        // per-field lets.
+        } else if let Some((new_statements, rest)) =
+            try_parse_destructure_let(syntax_trees, input)
+        {
+            if statement_count == 0 {
+                statement_start = new_statements.start();
+            }
+            statement_count = statement_count
+                .checked_add(new_statements.count())
+                .expect("state statement span count overflow");
+            input = rest;
         } else if let Some((new_statements, rest)) =
             try_parse_atomic_fetch_add_let(syntax_trees, input)
         {

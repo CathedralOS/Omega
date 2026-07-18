@@ -18,58 +18,26 @@ impl OperationSemanticQuery for AbstractOperationKind {
             Self::EvaluateDispatchGuard { .. }
             | Self::CompareRuntimeTextLiteral { .. }
             | Self::CompareRuntimeTextStorage { .. }
-            | Self::CompareRuntimeStorage { .. }
-            | Self::CompareRuntimeStorageValue { .. }
-            | Self::CompareRuntimeValues { .. } => AbstractOperationDomain::GuardEvaluation,
+            | Self::CompareRuntimeValues { .. }
+            | Self::ComparePlaces { .. }
+            | Self::ComparePlaceValue { .. } => AbstractOperationDomain::GuardEvaluation,
 
             Self::WriteRuntimeTextLiteral { .. }
             | Self::WriteRuntimeTextLiteralSegment { .. }
             | Self::AppendRuntimeTextStoredSuffix { .. }
-            | Self::MaterializeRuntimeTextBuffer { .. }
-            | Self::MaterializeRuntimeTextBufferToRuntimePointee { .. }
-            | Self::MaterializeRuntimeTextBufferToRuntimeFrameIndexed { .. }
-            | Self::AppendRuntimeTextStoredPlace { .. }
-            | Self::AppendRuntimeTextStoredPlaceToRuntimePointee { .. }
-            | Self::AppendRuntimeTextStoredPlaceToRuntimeFrameIndexed { .. }
-            | Self::AppendRuntimeTextLiteral { .. }
-            | Self::AppendRuntimeTextLiteralToRuntimePointee { .. }
-            | Self::AppendRuntimeTextLiteralToRuntimeFrameIndexed { .. } => {
+            | Self::MaterializeTextBufferToPlace { .. }
+            | Self::AppendTextStoredToPlace { .. }
+            | Self::AppendTextLiteralToPlace { .. } => {
                 AbstractOperationDomain::RuntimeTextAssembly
             }
 
             Self::AtomicFetchAdd { .. }
             | Self::AtomicCompareExchange { .. }
-            | Self::WriteRuntimeMachineInteger { .. }
-            | Self::WriteRuntimeStorageInteger { .. }
             | Self::WriteEntryArgumentRegister { .. }
             | Self::WriteEntryArgumentsSliceDescriptor { .. }
-            | Self::WriteRuntimePointeeInteger { .. }
-            | Self::WriteRuntimeStorageBinary { .. }
             | Self::WriteRuntimeStorageConvert { .. }
-            | Self::WriteRuntimePointeeBinary { .. }
-            | Self::WriteRuntimeFrameIndexedInteger { .. }
-            | Self::WriteRuntimeFrameBaseIndexedInteger { .. }
-            | Self::WriteRuntimeMachineIndexedInteger { .. }
-            | Self::WriteRuntimeMachineDoubleIndexedInteger { .. }
-            | Self::WriteRuntimeFrameIndexedBinary { .. }
-            | Self::WriteRuntimeFrameBaseIndexedBinary { .. }
-            | Self::WriteRuntimeMachineIndexedBinary { .. }
-            | Self::WriteRuntimeMachineDoubleIndexedBinary { .. }
-            | Self::WriteRuntimeMachineString { .. }
-            | Self::WriteRuntimeMachineBoundedBuffer { .. }
             | Self::AppendRuntimeMachineBoundedBufferSource { .. }
             | Self::AppendRuntimeMachineBoundedBufferLiteral { .. }
-            | Self::WriteRuntimeFrameString { .. }
-            | Self::WriteRuntimePointeeString { .. }
-            | Self::WriteRuntimePointeeBoundedBuffer { .. }
-            | Self::WriteRuntimeFrameIndexedString { .. }
-            | Self::WriteRuntimeMachineIndexedString { .. }
-            | Self::WriteRuntimeStorageAddressToRuntimeFrame { .. }
-            | Self::WriteRuntimePointeeAddressToRuntimeFrame { .. }
-            | Self::WriteRuntimeFrameIndexedAddressToRuntimeFrame { .. }
-            | Self::WriteRuntimeFrameFixedIndexedAddressToRuntimeFrame { .. }
-            | Self::WriteRuntimeFrameBaseIndexedAddressToRuntimeFrame { .. }
-            | Self::WriteRuntimeMachineIndexedAddressToRuntimeFrame { .. }
             | Self::AppendWireLiteralByte { .. }
             | Self::AppendWireScalarVarint { .. }
             | Self::AppendWireTextBytes { .. }
@@ -83,11 +51,14 @@ impl OperationSemanticQuery for AbstractOperationKind {
             | Self::WriteReturnRegisterInteger { .. }
             | Self::CopyRuntimeStorageToReturnRegister { .. } => AbstractOperationDomain::RuntimeWrite,
 
-            Self::CopyPlaces { .. }
-            | Self::CopyRuntimeMachineDoubleIndexedToRuntimeStorage { .. }
-            | Self::CopyRuntimeFrameBaseDoubleIndexedToRuntimeStorage { .. }
-            | Self::CopyRuntimeStorageToRuntimeMachineDoubleIndexed { .. }
-            | Self::CopyRuntimeMachineIndexedToRuntimeMachineIndexed { .. } => AbstractOperationDomain::RuntimeCopy,
+            Self::CopyPlaces { .. } => AbstractOperationDomain::RuntimeCopy,
+
+            Self::WritePlaceInteger { .. } => AbstractOperationDomain::RuntimeWrite,
+
+            Self::WritePlaceBinary { .. } => AbstractOperationDomain::RuntimeWrite,
+            Self::WritePlaceString { .. } => AbstractOperationDomain::RuntimeWrite,
+            Self::WritePlaceBoundedBuffer { .. } => AbstractOperationDomain::RuntimeWrite,
+            Self::WritePlaceAddress { .. } => AbstractOperationDomain::RuntimeWrite,
 
             Self::ReadRuntimeTextLine { .. }
             | Self::ReadRuntimeByte { .. }

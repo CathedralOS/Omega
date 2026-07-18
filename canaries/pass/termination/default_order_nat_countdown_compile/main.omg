@@ -5,7 +5,6 @@ machine Main::main(&mut self) {
 }
 
 machine Main::countdown(&mut self, remaining: u64)
-terminates;
 terminates by remaining;
 -> u64
 {

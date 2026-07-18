@@ -1372,41 +1372,41 @@ fn runtime_storage_guard(
             return None;
         }
 
-        return Some(SelectedInstructionKind::CompareRuntimeStorage {
-            left_region: left.region,
-            left_offset: left.byte_offset,
-            right_region: right.region,
-            right_offset: right.byte_offset,
-            byte_size: left.byte_count,
+        return Some(crate::selection::runtime_dispatch::compare_places_direct(
+            left.region,
+            left.byte_offset,
+            right.region,
+            right.byte_offset,
+            left.byte_count,
             operator,
-            is_float: false,
-        });
+            false,
+        ));
     }
 
     if let Some(place) = left
         && let Some(expected_value) = enum_variant_value(&input.layouts, &binary.right)
             .or_else(|| static_guard_value(&binary.right))
     {
-        return Some(SelectedInstructionKind::CompareRuntimeStorageValue {
-            region: place.region,
-            byte_offset: place.byte_offset,
-            byte_size: place.byte_count,
+        return Some(crate::selection::runtime_dispatch::compare_place_value_direct(
+            place.region,
+            place.byte_offset,
+            place.byte_count,
             expected_value,
             operator,
-        });
+        ));
     }
 
     if let Some(place) = right
         && let Some(expected_value) = enum_variant_value(&input.layouts, &binary.left)
             .or_else(|| static_guard_value(&binary.left))
     {
-        return Some(SelectedInstructionKind::CompareRuntimeStorageValue {
-            region: place.region,
-            byte_offset: place.byte_offset,
-            byte_size: place.byte_count,
+        return Some(crate::selection::runtime_dispatch::compare_place_value_direct(
+            place.region,
+            place.byte_offset,
+            place.byte_count,
             expected_value,
             operator,
-        });
+        ));
     }
 
     None
@@ -1467,15 +1467,15 @@ pub(super) fn runtime_storage_guard_in_table(
             return None;
         }
 
-        return Some(SelectedInstructionKind::CompareRuntimeStorage {
-            left_region: left.region,
-            left_offset: left.byte_offset,
-            right_region: right.region,
-            right_offset: right.byte_offset,
-            byte_size: left.byte_count,
+        return Some(crate::selection::runtime_dispatch::compare_places_direct(
+            left.region,
+            left.byte_offset,
+            right.region,
+            right.byte_offset,
+            left.byte_count,
             operator,
-            is_float: false,
-        });
+            false,
+        ));
     }
 
     // A FLOAT-literal side compares as its IEEE-754 bit pattern under the
@@ -1524,13 +1524,13 @@ pub(super) fn runtime_storage_guard_in_table(
             enum_variant_value_in_table(&input.layouts, expressions, binary.right)
                 .or_else(|| static_guard_value_in_table(expressions, binary.right))
     {
-        return Some(SelectedInstructionKind::CompareRuntimeStorageValue {
-            region: place.region,
-            byte_offset: place.byte_offset,
-            byte_size: place.byte_count,
+        return Some(crate::selection::runtime_dispatch::compare_place_value_direct(
+            place.region,
+            place.byte_offset,
+            place.byte_count,
             expected_value,
             operator,
-        });
+        ));
     }
 
     if let Some(place) = right
@@ -1538,13 +1538,13 @@ pub(super) fn runtime_storage_guard_in_table(
             enum_variant_value_in_table(&input.layouts, expressions, binary.left)
                 .or_else(|| static_guard_value_in_table(expressions, binary.left))
     {
-        return Some(SelectedInstructionKind::CompareRuntimeStorageValue {
-            region: place.region,
-            byte_offset: place.byte_offset,
-            byte_size: place.byte_count,
+        return Some(crate::selection::runtime_dispatch::compare_place_value_direct(
+            place.region,
+            place.byte_offset,
+            place.byte_count,
             expected_value,
             operator,
-        });
+        ));
     }
 
     None
@@ -1824,39 +1824,17 @@ fn resolve_runtime_value_operand_in_table(
             binary.left,
             binary.right,
         );
-        let operand_primitives = [binary.left, binary.right].map(|operand| {
-            classify_scalar_value_type_in_table(
-                input,
-                dispatch_index,
-                source_key,
-                expressions,
-                operand,
-            )
-        });
-        let is_float = operand_primitives
-            .iter()
-            .flatten()
-            .any(|primitive| matches!(primitive, PrimitiveType::F32 | PrimitiveType::F64));
-        let float_byte_width = if operand_primitives
-            .iter()
-            .flatten()
-            .any(|primitive| *primitive == PrimitiveType::F64)
-        {
-            8
-        } else {
-            4
-        };
         return Some(runtime_value_operands.insert(RuntimeValueOperand::Binary {
             left,
             operator,
             right,
-            is_float,
+            // Guard comparison operands; float comparisons lower via ucomisd
+            // elsewhere, so the integer value-operand path stays as-is here.
+            is_float: false,
             // The plain integer arm ignores the width (default 8 matches prior
             // behavior); a non-Exact operand instead needs its REAL
             // operand width for the width-correct op + clamp bounds.
-            byte_width: if is_float {
-                float_byte_width
-            } else if domain_signedness.0 != omega_core::arithmetic::ArithmeticDomain::Exact {
+            byte_width: if domain_signedness.0 != omega_core::arithmetic::ArithmeticDomain::Exact {
                 runtime_value_compare_byte_size(runtime_value_operands, left, right)
             } else {
                 8
@@ -1905,8 +1883,14 @@ fn resolve_runtime_value_operand_in_table(
             source_is_float: source_primitive.accepts_float_literal(),
             target_is_float: target_primitive.accepts_float_literal(),
             source_signed: source_primitive.is_signed_integer(),
-            arithmetic_domain: cast.domain,
             target_signed: target_primitive.is_signed_integer(),
+            // F4: a Trapping float->int cast carries its trap guard.
+            trapping: cast.domain == omega_core::arithmetic::ArithmeticDomain::Trapping
+                && source_primitive.accepts_float_literal()
+                && !target_primitive.accepts_float_literal(),
+            saturating: cast.domain == omega_core::arithmetic::ArithmeticDomain::Saturating
+                && source_primitive.accepts_float_literal()
+                && !target_primitive.accepts_float_literal(),
         }));
     }
 

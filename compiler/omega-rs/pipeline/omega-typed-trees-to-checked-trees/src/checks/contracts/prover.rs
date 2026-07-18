@@ -26,7 +26,8 @@ pub(super) fn call_entry_contexts_prove_boolean_contract_expression(
     ) else {
         return false;
     };
-    let Some(target_state) = crate::find_state(program, call_flow.target_symbol) else {
+    let Some(target_parameters) = crate::call_target_parameters(program, call_flow.target_symbol)
+    else {
         return false;
     };
 
@@ -39,7 +40,7 @@ pub(super) fn call_entry_contexts_prove_boolean_contract_expression(
             state_flow.state_symbol,
             call_flow.statement_index,
             &call_site,
-            target_state,
+            target_parameters,
             expression,
         )
     }) || call_site_proves_boolean_contract_expression(
@@ -47,7 +48,8 @@ pub(super) fn call_entry_contexts_prove_boolean_contract_expression(
         state_flow,
         call_flow,
         &call_site,
-        target_state,
+        call_flow.target_symbol,
+        target_parameters,
         expression,
     )
 }

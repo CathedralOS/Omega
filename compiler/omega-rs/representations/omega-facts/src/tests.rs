@@ -39,6 +39,7 @@ fn builds_definition_fact_plan_for_domains_and_invariants() {
         name: Identifier::generated("Player::Alive"),
         target_type: TypeReferenceHandle::invalid(),
         classifier: omega_typed_trees::expression::ExpressionHandle::invalid(),
+        semantic_id: omega_core::semantics::SemanticDomainId::NULL,
         facts: HandleSpan::from_parts(fact, 2),
         operators: HandleSpan::empty(),
         body_token_count: 2,
@@ -48,6 +49,7 @@ fn builds_definition_fact_plan_for_domains_and_invariants() {
         name: Identifier::generated("Player::Valid"),
         target_type: TypeReferenceHandle::invalid(),
         classifier: omega_typed_trees::expression::ExpressionHandle::invalid(),
+        semantic_id: omega_core::semantics::SemanticDomainId::NULL,
         facts: HandleSpan::empty(),
         operators: HandleSpan::empty(),
         body_token_count: 0,
@@ -124,6 +126,7 @@ fn domain_membership_queries_follow_domain_imports() {
         name: Identifier::generated("Player::Alive"),
         target_type: TypeReferenceHandle::invalid(),
         classifier: omega_typed_trees::expression::ExpressionHandle::invalid(),
+        semantic_id: omega_core::semantics::SemanticDomainId::NULL,
         facts: HandleSpan::from_parts(membership, 1),
         operators: HandleSpan::empty(),
         body_token_count: 1,
@@ -133,6 +136,7 @@ fn domain_membership_queries_follow_domain_imports() {
         name: Identifier::generated("Player::Valid"),
         target_type: TypeReferenceHandle::invalid(),
         classifier: omega_typed_trees::expression::ExpressionHandle::invalid(),
+        semantic_id: omega_core::semantics::SemanticDomainId::NULL,
         facts: HandleSpan::empty(),
         operators: HandleSpan::empty(),
         body_token_count: 0,
@@ -188,9 +192,7 @@ fn expression_places_preserve_roots_and_segments() {
             head_symbol: root_symbol,
             symbol: field_symbol,
         }));
-    let index = program.expression_table.insert(ExpressionNode::Integer(
-        omega_core::literals::IntegerLiteral::from_value(0),
-    ));
+    let index = program.expression_table.insert(ExpressionNode::Integer(omega_core::literals::IntegerLiteral::from_value(0)));
     let indexed =
         program
             .expression_table
@@ -288,6 +290,8 @@ fn expression_places_resolve_attached_data_members() {
         name: Identifier::generated("Player"),
         type_parameters: HandleSpan::empty(),
         properties: omega_typed_trees::data::DataProperties::default(),
+        where_facts: Default::default(),
+        zero_gated: false,
         members: HandleSpan::empty(),
     });
     let mut main_data = omega_typed_trees::data::DataDefinition {
@@ -295,6 +299,8 @@ fn expression_places_resolve_attached_data_members() {
         name: Identifier::generated("Main"),
         type_parameters: HandleSpan::empty(),
         properties: omega_typed_trees::data::DataProperties::default(),
+        where_facts: Default::default(),
+        zero_gated: false,
         members: HandleSpan::empty(),
     };
     program.push_data_member(
@@ -303,7 +309,6 @@ fn expression_places_resolve_attached_data_members() {
             symbol: player_field_symbol,
             name: Identifier::generated("player"),
             type_reference: TypeReferenceHandle::invalid(),
-            initial_value: omega_typed_trees::expression::ExpressionHandle::invalid(),
         }),
     );
     program.push_data_definition(main_data);
@@ -312,13 +317,19 @@ fn expression_places_resolve_attached_data_members() {
         symbol: machine_symbol,
         name: Identifier::generated("Main::main"),
         boundary: false,
+        supply_mode: Default::default(),
+        termination_plan: Default::default(),
+        effect_row: Default::default(),
         type_parameters: HandleSpan::empty(),
         attached_data: Some(Identifier::generated("Main")),
         contains: HandleSpan::empty(),
         owned_data: HandleSpan::empty(),
         satisfies: HandleSpan::empty(),
-        termination_guarantee: omega_core::termination::TerminationGuarantee::None,
-        ranking_witness: Default::default(),
+        terminates: false,
+        decreases: HandleSpan::empty(),
+        decrease_order: HandleSpan::empty(),
+        decrease_view_arguments: HandleSpan::empty(),
+        decrease_range: Default::default(),
         effects: HandleSpan::empty(),
         contracts: HandleSpan::empty(),
         states: HandleSpan::empty(),

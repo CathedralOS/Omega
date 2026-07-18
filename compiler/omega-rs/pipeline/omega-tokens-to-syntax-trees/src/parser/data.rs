@@ -1,6 +1,4 @@
-use crate::parser::expression::parse_expression_handle;
 use crate::parser::input::{Input, ParseResult};
-use crate::parser::proof_fact::parse_proof_facts_until;
 use crate::parser::type_reference::{
     parse_type_reference_handle, parse_type_reference_handle_allowing_borrow,
 };
@@ -26,14 +24,6 @@ pub(super) fn parse_data_definition<'tokens, 'source>(
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, ParsedDataDefinition> {
     let (name, mut input) = input.take_identifier()?;
-    // CONCURRENCY STAGE 1: `Join` is reserved as a data-type name so the
-    // parser's `Join<T>` -> `T` erasure (type_reference.rs) can never collide
-    // with a user generic.
-    if name.as_str() == "Join" {
-        return Err(input.error_here(
-            "data name `Join` is reserved: `Join<T>` is the spawn handle type (chapter 17)",
-        ));
-    }
     // `Slice` is reserved as a data-type name so the parser's `Slice<T>` -> slice
     // fold (type_reference.rs) never collides with a user generic; `Slice<T>` is
     // the canonical spelling of the `[T]` slice type.
@@ -46,20 +36,20 @@ pub(super) fn parse_data_definition<'tokens, 'source>(
     input = next;
     let (properties, next) = parse_property_brackets(input)?;
     input = next;
-    let default_domain = if input.at_contextual("where") {
+    // R2 rung 1 (ch12 "Dependent Data"): the DEFAULT-DOMAIN facts --
+    // `data M where count * stride <= len, { ... }` -- bare field names,
+    // comma-separated, ending at the body brace (trailing comma tolerated
+    // by the fact parser).
+    let mut where_facts = HandleSpan::empty();
+    if input.at_contextual("where") {
         input = input.take_contextual("where")?;
-        let ((facts, _token_count), next) =
-            parse_proof_facts_until(syntax_trees, input, |cursor| {
-                cursor.at_punctuation(PunctuationKind::LeftBrace)
+        let ((facts, _token_count), rest) =
+            crate::parser::proof_fact::parse_proof_facts_until(syntax_trees, input, |input| {
+                input.at_punctuation(PunctuationKind::LeftBrace) || input.tokens.is_empty()
             })?;
-        input = next;
-        if facts.is_empty() {
-            return Err(input.error_here("data `where` clause requires at least one fact"));
-        }
-        facts
-    } else {
-        HandleSpan::empty()
-    };
+        where_facts = facts;
+        input = rest;
+    }
     input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
 
     // An IDENTITY-NUMBERED data (ch20): the first member starting with an
@@ -74,11 +64,7 @@ pub(super) fn parse_data_definition<'tokens, 'source>(
             .take_contextual("version")
             .ok()
             .and_then(|after| after.take_identifier().ok())
-            .and_then(|(_, after)| {
-                after
-                    .take_punctuation(PunctuationKind::LeftBrace, "{")
-                    .ok()
-            })
+            .and_then(|(_, after)| after.take_punctuation(PunctuationKind::LeftBrace, "{").ok())
             .is_some_and(|inner| inner.at_integer() || inner.at_contextual("retired"));
     if input.at_integer() || input.at_contextual("retired") || leading_version_is_numbered {
         if !type_parameters.is_empty() {
@@ -88,14 +74,9 @@ pub(super) fn parse_data_definition<'tokens, 'source>(
             ));
         }
         if properties != DataProperties::default() {
-            return Err(input.error_here(
-                "identity-numbered data does not take declared properties yet",
-            ));
-        }
-        if !default_domain.is_empty() {
-            return Err(input.error_here(
-                "identity-numbered data does not take a default-domain `where` clause yet",
-            ));
+            return Err(
+                input.error_here("identity-numbered data does not take declared properties yet")
+            );
         }
         let (definition, input) =
             crate::parser::item::parse_identity_data_body(syntax_trees, name, input)?;
@@ -110,7 +91,7 @@ pub(super) fn parse_data_definition<'tokens, 'source>(
             name,
             type_parameters,
             properties,
-            default_domain,
+            where_facts,
             members,
         }),
         input,
@@ -127,6 +108,7 @@ fn parse_property_brackets<'tokens, 'source>(
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, DataProperties> {
     let mut properties = DataProperties::default();
+    let mut declared_multiplicity: Option<&'static str> = None;
     if !input.at_punctuation(PunctuationKind::LeftBracket) {
         return Ok((properties, input));
     }
@@ -135,7 +117,37 @@ fn parse_property_brackets<'tokens, 'source>(
     loop {
         let (name, next) = input.take_identifier()?;
         let flag = match name.as_str() {
-            "copy" => &mut properties.copy,
+            "copy" | "linear" => {
+                let spelling = if name.as_str() == "copy" {
+                    "copy"
+                } else {
+                    "linear"
+                };
+                if let Some(previous) = declared_multiplicity {
+                    let message = if previous == spelling {
+                        format!("duplicate type property `{spelling}`")
+                    } else {
+                        format!(
+                            "type properties `[copy]` and `[linear]` are mutually exclusive; \
+                             `{previous}` was already declared"
+                        )
+                    };
+                    return Err(next.error_here(message));
+                }
+                declared_multiplicity = Some(spelling);
+                properties.multiplicity = if spelling == "copy" {
+                    omega_core::semantics::Multiplicity::Unrestricted
+                } else {
+                    omega_core::semantics::Multiplicity::Linear
+                };
+                input = next;
+
+                if input.at_punctuation(PunctuationKind::Comma) {
+                    input = input.take_punctuation(PunctuationKind::Comma, ",")?;
+                    continue;
+                }
+                break;
+            }
             "zero_init" => &mut properties.zero_init,
             "send" => &mut properties.send,
             "sized" => {
@@ -145,15 +157,12 @@ fn parse_property_brackets<'tokens, 'source>(
             }
             other => {
                 return Err(next.error_here(format!(
-                    "unknown type property `{other}`; declared properties are `copy`, `zero_init`, `send`"
+                    "unknown type property `{other}`; declared properties are `copy`, `linear`, `zero_init`, `send`"
                 )));
             }
         };
         if *flag {
-            return Err(next.error_here(format!(
-                "duplicate type property `{}`",
-                name.as_str()
-            )));
+            return Err(next.error_here(format!("duplicate type property `{}`", name.as_str())));
         }
         *flag = true;
         input = next;
@@ -232,26 +241,30 @@ fn parse_data_member<'tokens, 'source>(
         let (type_reference, next) =
             parse_type_reference_handle_allowing_borrow(syntax_trees, input)?;
         input = next;
-        let (initial_value, next) = if input.at_punctuation(PunctuationKind::Equal) {
-            let input = input.take_punctuation(PunctuationKind::Equal, "=")?;
-            let (expression, input) = parse_expression_handle(syntax_trees, input)?;
-            (expression, input)
+        // Field defaults are RETIRED (owner ruling 2026-07-17): data
+        // declarations carry no initializers -- ZII zero-initializes every
+        // field, and constructed defaults belong in an ordinary constructor
+        // machine. The spelling refuses LOUDLY here so an initializer can
+        // never parse and then silently disappear (the old aggregate-literal
+        // default bug class).
+        if input.at_punctuation(PunctuationKind::Equal) {
+            return Err(input.error_here(format!(
+                "data field `{}` declares a default initializer -- field defaults \
+                 are retired: every field is zero-initialized (ZII), and a \
+                 constructed default belongs in an ordinary constructor machine \
+                 that writes the field",
+                field_name.as_str()
+            )));
+        }
+        input = if input.at_punctuation(PunctuationKind::Semicolon) {
+            input.take_punctuation(PunctuationKind::Semicolon, ";")?
         } else {
-            (
-                omega_syntax_trees::expression::ExpressionHandle::invalid(),
-                input,
-            )
-        };
-        input = if next.at_punctuation(PunctuationKind::Semicolon) {
-            next.take_punctuation(PunctuationKind::Semicolon, ";")?
-        } else {
-            next
+            input
         };
         return Ok((
             DataMember::Field(DataField {
                 name: field_name,
                 type_reference,
-                initial_value,
             }),
             input,
         ));
@@ -317,7 +330,6 @@ fn parse_case_payload_fields<'tokens, 'source>(
         let handle = syntax_trees.items.append_data_payload_field(DataField {
             name: field_name,
             type_reference,
-            initial_value: omega_syntax_trees::expression::ExpressionHandle::invalid(),
         });
         if payload_count == 0 {
             payload_start = handle;
@@ -344,7 +356,22 @@ fn parse_case_payload_fields<'tokens, 'source>(
 
 pub(super) fn parse_type_parameters<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, HandleSpan<TypeParameter>> {
+    parse_type_parameters_in(syntax_trees, input, false)
+}
+
+pub(super) fn parse_machine_type_parameters<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, HandleSpan<TypeParameter>> {
+    parse_type_parameters_in(syntax_trees, input, true)
+}
+
+fn parse_type_parameters_in<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
     mut input: Input<'tokens, 'source>,
+    allow_machine_parameters: bool,
 ) -> ParseResult<'tokens, 'source, HandleSpan<TypeParameter>> {
     if !input.at_punctuation(PunctuationKind::Less) {
         return Ok((HandleSpan::empty(), input));
@@ -393,6 +420,15 @@ pub(super) fn parse_type_parameters<'tokens, 'source>(
             let input = input.take_punctuation(PunctuationKind::Colon, ":")?;
             let (type_reference, input) = parse_type_reference_handle(syntax_trees, input)?;
             (name, TypeParameterKind::Const { type_reference }, input)
+        } else if input.at_keyword(omega_tokens::KeywordKind::Machine) {
+            if !allow_machine_parameters {
+                return Err(input.error_here(
+                    "`<machine M>` is a static machine parameter and is only legal on a machine declaration",
+                ));
+            }
+            let input = input.take_keyword(omega_tokens::KeywordKind::Machine, "machine")?;
+            let (name, input) = input.take_identifier()?;
+            (name, TypeParameterKind::Machine { contract: None }, input)
         } else {
             let (name, input) = input.take_identifier()?;
             (name, TypeParameterKind::Type, input)
@@ -401,9 +437,7 @@ pub(super) fn parse_type_parameters<'tokens, 'source>(
 
         // Rust-style `<T: copy>` is rejected with the bracket spelling
         // suggested: a colon bound would split the property spelling system.
-        if matches!(kind, TypeParameterKind::Type)
-            && input.at_punctuation(PunctuationKind::Colon)
-        {
+        if matches!(kind, TypeParameterKind::Type) && input.at_punctuation(PunctuationKind::Colon) {
             let after_colon = input.take_punctuation(PunctuationKind::Colon, ":")?;
             let parameter = name.as_str();
             let bound = after_colon
@@ -417,6 +451,13 @@ pub(super) fn parse_type_parameters<'tokens, 'source>(
 
         // Brackets after a const parameter never reach here: they attach to
         // the const's TYPE as a constraint list (`const N: usize [range ...]`).
+        if matches!(kind, TypeParameterKind::Machine { .. })
+            && input.at_punctuation(PunctuationKind::LeftBracket)
+        {
+            return Err(input.error_here(
+                "a machine parameter takes its callable contract in a mandatory `where machine M(...) -> Result` clause, not property brackets",
+            ));
+        }
         let bounds = if input.at_punctuation(PunctuationKind::LeftBracket) {
             let (bounds, next) = parse_property_brackets(input)?;
             input = next;

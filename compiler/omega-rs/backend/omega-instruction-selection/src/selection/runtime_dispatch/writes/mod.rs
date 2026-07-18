@@ -931,12 +931,12 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_case_tag_write_in_t
     // target previously folded to (e.g. a prior bare-case assignment) is stale.
     invalidate_runtime_static_value_in_table(static_values, expressions, target);
     selected_instructions.push(SelectedInstruction {
-        kind: SelectedInstructionKind::WriteRuntimeStorageInteger {
-            target_region: place.region,
-            byte_offset: place.byte_offset,
-            byte_size: ENUM_TAG_BYTES,
-            value: tag,
-        },
+        kind: crate::selection::runtime_dispatch::write_place_integer_direct(
+            place.region,
+            place.byte_offset,
+            tag,
+            ENUM_TAG_BYTES,
+        ),
         source_key: operation_source_key,
         source_statement: statement_index,
     });

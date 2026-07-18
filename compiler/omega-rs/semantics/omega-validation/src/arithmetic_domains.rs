@@ -68,159 +68,6 @@ pub(crate) fn requires_value_env(program: &TypedTrees, machine: &Machine) -> Val
     env
 }
 
-/// Standing single-field bounds contributed by a zero-valid attached data
-/// default domain. Gated machine storage is deliberately excluded: until an
-/// establishment tracker lands, its zeroed bytes cannot soundly contribute the
-/// facts that zero itself violates.
-pub(crate) fn attached_data_default_domain_value_env(
-    program: &TypedTrees,
-    machine: &Machine,
-) -> ValueEnv {
-    let Some(attached_name) = machine.attached_data.as_ref() else {
-        return ValueEnv::new();
-    };
-    let Some(data_definition) = program
-        .data_definitions()
-        .iter()
-        .find(|data| data.name.as_str() == attached_name.as_str())
-    else {
-        return ValueEnv::new();
-    };
-    let mut env = ValueEnv::new();
-    seed_data_default_domain_bounds(program, data_definition, "self", &mut env, &mut Vec::new());
-    env
-}
-
-fn seed_data_default_domain_bounds(
-    program: &TypedTrees,
-    data_definition: &omega_typed_trees::data::DataDefinition,
-    base: &str,
-    env: &mut ValueEnv,
-    visiting: &mut Vec<String>,
-) {
-    if !crate::data::default_domain_zero_is_valid(program, data_definition)
-        || visiting
-            .iter()
-            .any(|name| name == data_definition.name.as_str())
-    {
-        return;
-    }
-    visiting.push(data_definition.name.as_str().to_owned());
-    let mut bounds: BTreeMap<String, (Option<i64>, Option<i64>)> = BTreeMap::new();
-    for fact in program
-        .proof_facts
-        .span_or_empty(data_definition.default_domain)
-    {
-        let ProofFact::Expression(expression) = fact else {
-            continue;
-        };
-        let Some((name, low, high)) = comparison_bound(program, *expression) else {
-            continue;
-        };
-        let entry = bounds.entry(name).or_insert((None, None));
-        if let Some(low) = low {
-            entry.0 = Some(entry.0.map_or(low, |existing| existing.max(low)));
-        }
-        if let Some(high) = high {
-            entry.1 = Some(entry.1.map_or(high, |existing| existing.min(high)));
-        }
-    }
-
-    for (name, (low, high)) in bounds {
-        let Some(field_type) = program
-            .data_members(data_definition)
-            .iter()
-            .find_map(|member| match member {
-                omega_typed_trees::data::DataMember::Field(field)
-                    if field.name.as_str() == name =>
-                {
-                    Some(field.type_reference)
-                }
-                _ => None,
-            })
-        else {
-            continue;
-        };
-        let mut interval = Interval { low, high };
-        if let Some(type_interval) = program
-            .primitive_type_reference(field_type)
-            .and_then(primitive_range)
-        {
-            interval = interval.intersect(type_interval);
-        }
-        if let Some(declared_range) = range_constraint_interval(program, field_type) {
-            interval = interval.intersect(declared_range);
-        }
-        env.set(format!("{base}.{name}"), interval);
-    }
-    for fact in program
-        .proof_facts
-        .span_or_empty(data_definition.default_domain)
-    {
-        let ProofFact::Membership(membership) = fact else {
-            continue;
-        };
-        let Some(field) = default_domain_field_name(program, membership.value) else {
-            continue;
-        };
-        let path = format!("{base}.{field}");
-        let mut memberships = env.domain_memberships.remove(&path).unwrap_or_default();
-        if !memberships.contains(&membership.domain_symbol) {
-            memberships.push(membership.domain_symbol);
-        }
-        env.set_domain_memberships(path, memberships);
-    }
-    for member in program.data_members(data_definition) {
-        let omega_typed_trees::data::DataMember::Field(field) = member else {
-            continue;
-        };
-        if let Some((nested, length)) = fixed_array_data_definition(program, field.type_reference) {
-            for index in 0..length {
-                seed_data_default_domain_bounds(
-                    program,
-                    nested,
-                    &format!("{base}.{}[{index}]", field.name.as_str()),
-                    env,
-                    visiting,
-                );
-            }
-            continue;
-        }
-        let Some(nested) =
-            crate::data::named_data_definition_for_type(program, field.type_reference)
-        else {
-            continue;
-        };
-        seed_data_default_domain_bounds(
-            program,
-            nested,
-            &format!("{base}.{}", field.name.as_str()),
-            env,
-            visiting,
-        );
-    }
-    visiting.pop();
-}
-
-fn fixed_array_data_definition<'program>(
-    program: &'program TypedTrees,
-    type_reference: TypeReferenceHandle,
-) -> Option<(&'program omega_typed_trees::data::DataDefinition, usize)> {
-    match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Constrained { base_type, .. } => {
-            fixed_array_data_definition(program, *base_type)
-        }
-        TypeReferenceNode::FixedArray {
-            element_type,
-            length: omega_typed_trees::types::FixedArrayLength::Literal(length),
-        } => Some((
-            crate::data::named_data_definition_for_type(program, *element_type)?,
-            *length,
-        )),
-        _ => None,
-    }
-}
-
 /// Read a `requires` comparison as `(param_name, lower, upper)` -- one of the
 /// bounds is `None` (open). `None` when the fact is not a simple
 /// `name <OP> literal` / `literal <OP> name` integer comparison.
@@ -497,10 +344,7 @@ pub(crate) fn seed_out_param_ensures(
         .iter()
         .filter(|parameter| !parameter.is_self)
         .collect();
-    for contract in program
-        .signature_contracts
-        .span_or_empty(signature.contracts)
-    {
+    for contract in program.signature_contracts.span_or_empty(signature.contracts) {
         if !matches!(contract.kind, SignatureContractKind::Ensures) {
             continue;
         }
@@ -508,15 +352,7 @@ pub(crate) fn seed_out_param_ensures(
             let ProofFact::Expression(expression) = fact else {
                 continue;
             };
-            seed_ensures_conjunct(
-                program,
-                machine,
-                state,
-                &parameters,
-                arguments,
-                *expression,
-                env,
-            );
+            seed_ensures_conjunct(program, machine, state, &parameters, arguments, *expression, env);
         }
     }
 }
@@ -759,7 +595,9 @@ fn expression_calls_state(
             expression_calls_state(program, left, state_name)
                 || expression_calls_state(program, right, state_name)
         }
-        ExpressionNode::Unary(unary) => expression_calls_state(program, unary.operand, state_name),
+        ExpressionNode::Unary(unary) => {
+            expression_calls_state(program, unary.operand, state_name)
+        }
         ExpressionNode::Member(member) => {
             expression_calls_state(program, member.receiver, state_name)
         }
@@ -806,9 +644,6 @@ fn expression_calls_state(
 #[derive(Debug, Default, Clone)]
 pub(crate) struct ValueEnv {
     intervals: BTreeMap<String, Interval>,
-    domain_memberships: BTreeMap<String, Vec<omega_core::symbols::SymbolHandle>>,
-    symbolic_values: BTreeMap<String, String>,
-    place_versions: BTreeMap<String, u64>,
 }
 
 impl ValueEnv {
@@ -820,9 +655,6 @@ impl ValueEnv {
     /// mutate fields through `&mut`, or when leaving the linear prefix).
     pub(crate) fn clear(&mut self) {
         self.intervals.clear();
-        self.domain_memberships.clear();
-        self.symbolic_values.clear();
-        self.place_versions.clear();
     }
 
     fn get(&self, path: &str) -> Option<Interval> {
@@ -831,71 +663,6 @@ impl ValueEnv {
 
     fn set(&mut self, path: String, interval: Interval) {
         self.intervals.insert(path, interval);
-    }
-
-    fn remove(&mut self, path: &str) {
-        self.intervals.remove(path);
-        self.domain_memberships.remove(path);
-        self.symbolic_values.remove(path);
-    }
-
-    fn set_domain_memberships(
-        &mut self,
-        path: String,
-        memberships: Vec<omega_core::symbols::SymbolHandle>,
-    ) {
-        if memberships.is_empty() {
-            self.domain_memberships.remove(&path);
-        } else {
-            self.domain_memberships.insert(path, memberships);
-        }
-    }
-
-    fn symbolic_value(&self, path: &str) -> String {
-        self.symbolic_values.get(path).cloned().unwrap_or_else(|| {
-            let version = self.place_versions.get(path).copied().unwrap_or(0);
-            format!("place:{path}#{version}")
-        })
-    }
-
-    fn assign_symbolic_value(&mut self, path: String, value: Option<String>) {
-        let version = self.place_versions.entry(path.clone()).or_default();
-        *version = version.saturating_add(1);
-        match value {
-            Some(value) => {
-                self.symbolic_values.insert(path, value);
-            }
-            None => {
-                self.symbolic_values.remove(&path);
-            }
-        }
-    }
-
-    fn seed_symbolic_value(&mut self, path: String, value: Option<String>) {
-        match value {
-            Some(value) => {
-                self.symbolic_values.insert(path, value);
-            }
-            None => {
-                self.symbolic_values.remove(&path);
-            }
-        }
-    }
-
-    fn proves_domain(
-        &self,
-        program: &TypedTrees,
-        path: &str,
-        wanted: omega_core::symbols::SymbolHandle,
-    ) -> bool {
-        self.domain_memberships
-            .get(path)
-            .is_some_and(|memberships| {
-                memberships
-                    .iter()
-                    .copied()
-                    .any(|actual| domain_implies(program, actual, wanted, &mut Vec::new()))
-            })
     }
 
     /// Intersect a place's tracked interval with `interval` (tightening it).
@@ -907,12 +674,6 @@ impl ValueEnv {
             None => interval,
         };
         self.intervals.insert(path, merged);
-    }
-
-    pub(crate) fn narrow_with(&mut self, other: &ValueEnv) {
-        for (path, interval) in &other.intervals {
-            self.narrow(path.clone(), *interval);
-        }
     }
 
     /// The JOIN of two envs at a control-flow merge: only places tracked in
@@ -928,526 +689,7 @@ impl ValueEnv {
                     .insert(path.clone(), interval.union(*other_interval));
             }
         }
-        for (path, memberships) in &self.domain_memberships {
-            let Some(other_memberships) = other.domain_memberships.get(path) else {
-                continue;
-            };
-            let common = memberships
-                .iter()
-                .copied()
-                .filter(|membership| other_memberships.contains(membership))
-                .collect::<Vec<_>>();
-            if !common.is_empty() {
-                joined.domain_memberships.insert(path.clone(), common);
-            }
-        }
-        for (path, value) in &self.symbolic_values {
-            if other.symbolic_values.get(path) == Some(value) {
-                joined.symbolic_values.insert(path.clone(), value.clone());
-            }
-        }
-        for path in self
-            .place_versions
-            .keys()
-            .chain(other.place_versions.keys())
-        {
-            let version = self
-                .place_versions
-                .get(path)
-                .copied()
-                .unwrap_or(0)
-                .max(other.place_versions.get(path).copied().unwrap_or(0));
-            joined.place_versions.insert(path.clone(), version);
-        }
         joined
-    }
-}
-
-fn domain_implies(
-    program: &TypedTrees,
-    actual: omega_core::symbols::SymbolHandle,
-    wanted: omega_core::symbols::SymbolHandle,
-    visiting: &mut Vec<omega_core::symbols::SymbolHandle>,
-) -> bool {
-    if actual == wanted {
-        return true;
-    }
-    if !actual.is_valid() || visiting.contains(&actual) {
-        return false;
-    }
-    let Some(domain) = program
-        .domain_definitions()
-        .iter()
-        .find(|domain| domain.symbol == actual)
-    else {
-        return false;
-    };
-    visiting.push(actual);
-    let implies = program.proof_facts(domain).iter().any(|fact| match fact {
-        ProofFact::Membership(membership) => {
-            domain_implies(program, membership.domain_symbol, wanted, visiting)
-        }
-        ProofFact::Expression(_) => false,
-    });
-    visiting.pop();
-    implies
-}
-
-fn literal_domain_memberships(
-    program: &TypedTrees,
-    expression: ExpressionHandle,
-) -> Vec<omega_core::symbols::SymbolHandle> {
-    let expression = match program.expression_table.expression(expression) {
-        ExpressionNode::Mutable(inner) => *inner,
-        _ => expression,
-    };
-    let ExpressionNode::String(literal) = program.expression_table.expression(expression) else {
-        return Vec::new();
-    };
-    domain_memberships_for_bytes(program, literal.as_bytes())
-}
-
-fn domain_memberships_for_bytes(
-    program: &TypedTrees,
-    bytes: &[u8],
-) -> Vec<omega_core::symbols::SymbolHandle> {
-    program
-        .domain_definitions()
-        .iter()
-        .filter_map(|domain| {
-            if !domain_has_byte_sequence_carrier(program, domain.target_type) {
-                return None;
-            }
-            omega_typed_trees::byte_predicates::domain_classifier_byte_predicate(
-                program,
-                domain.symbol,
-            )
-            .filter(|predicate| predicate.holds_for(bytes))
-            .map(|_| domain.symbol)
-        })
-        .collect()
-}
-
-fn domain_has_byte_sequence_carrier(
-    program: &TypedTrees,
-    type_reference: TypeReferenceHandle,
-) -> bool {
-    match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Constrained { base_type, .. }
-        | TypeReferenceNode::Reference {
-            referee: base_type, ..
-        } => domain_has_byte_sequence_carrier(program, *base_type),
-        TypeReferenceNode::Slice { element_type }
-        | TypeReferenceNode::FixedArray { element_type, .. } => {
-            program.primitive_type_reference(*element_type) == Some(PrimitiveType::U8)
-        }
-        TypeReferenceNode::Named { name, .. } => name.as_str() == "String",
-        _ => false,
-    }
-}
-
-pub(crate) fn data_default_domain_is_proven(
-    program: &TypedTrees,
-    data_name: &str,
-    base: &str,
-    env: &ValueEnv,
-) -> bool {
-    let Some(data_definition) = program
-        .data_definitions()
-        .iter()
-        .find(|data| data.name.as_str() == data_name)
-    else {
-        return true;
-    };
-    let facts_hold = program
-        .proof_facts
-        .span_or_empty(data_definition.default_domain)
-        .iter()
-        .all(|fact| match fact {
-            ProofFact::Expression(expression) => {
-                default_domain_boolean_is_proven(program, *expression, base, env)
-            }
-            ProofFact::Membership(membership) => {
-                let Some(field) = default_domain_field_name(program, membership.value) else {
-                    return false;
-                };
-                env.proves_domain(
-                    program,
-                    &format!("{base}.{field}"),
-                    membership.domain_symbol,
-                )
-            }
-        });
-    facts_hold
-        && program.data_members(data_definition).iter().all(|member| {
-            let omega_typed_trees::data::DataMember::Field(field) = member else {
-                return true;
-            };
-            let path = format!("{base}.{}", field.name.as_str());
-            if !crate::data::data_field_type_zero_is_valid(program, field.type_reference)
-                && env.get(&path).is_none()
-            {
-                return false;
-            }
-            let Some(required) = range_constraint_interval(program, field.type_reference) else {
-                return true;
-            };
-            let Some(actual) = env.get(&path) else {
-                return required.low.is_none_or(|low| low <= 0)
-                    && required.high.is_none_or(|high| high >= 0);
-            };
-            required
-                .low
-                .is_none_or(|low| actual.low.is_some_and(|value| value >= low))
-                && required
-                    .high
-                    .is_none_or(|high| actual.high.is_some_and(|value| value <= high))
-        })
-}
-
-pub(crate) fn struct_literal_default_domain_is_proven(
-    program: &TypedTrees,
-    machine: &Machine,
-    state: &State,
-    literal: &omega_typed_trees::expression::TableStructLiteral,
-    source_env: &ValueEnv,
-) -> bool {
-    let Some(data_definition) = program
-        .data_definitions()
-        .iter()
-        .find(|data| data.name.as_str() == literal.type_name.as_str())
-    else {
-        return true;
-    };
-    if data_definition.type_parameters.count() > 0 {
-        return true;
-    }
-    let base = format!("__construct_{}", data_definition.name.as_str());
-    let mut env = source_env.clone();
-    for member in program.data_members(data_definition) {
-        let omega_typed_trees::data::DataMember::Field(field) = member else {
-            continue;
-        };
-        let explicit = program
-            .expression_table
-            .struct_fields(literal.fields)
-            .iter()
-            .find(|initializer| initializer.name.as_str() == field.name.as_str());
-        let interval = if let Some(initializer) = explicit {
-            let mut throwaway = Vec::new();
-            validate_arithmetic_domains(
-                program,
-                machine,
-                Some(state),
-                initializer.value,
-                source_env,
-                program.primitive_type_reference(field.type_reference),
-                program.arithmetic_domain_for_type_reference(field.type_reference),
-                "default-domain construction proof",
-                &mut throwaway,
-            )
-        } else {
-            Interval::constant(0)
-        };
-        let path = format!("{base}.{}", field.name.as_str());
-        env.set(path.clone(), interval);
-        let symbolic = explicit.map_or_else(
-            || Some("integer:0".to_owned()),
-            |initializer| symbolic_expression_value(program, initializer.value, source_env),
-        );
-        env.seed_symbolic_value(path.clone(), symbolic);
-        for measure in ["len", "capacity"] {
-            let measure_path = format!("{path}.{measure}");
-            let measure_fact = explicit
-                .and_then(|initializer| {
-                    expression_measure_fact(program, initializer.value, source_env, measure)
-                })
-                .or_else(|| {
-                    if explicit.is_some() {
-                        return None;
-                    }
-                    let value = match measure {
-                        "len" => {
-                            crate::data::type_reference_zero_length(program, field.type_reference)?
-                        }
-                        "capacity" => crate::data::type_reference_zero_capacity(
-                            program,
-                            field.type_reference,
-                        )?,
-                        _ => return None,
-                    };
-                    Some((Interval::constant(value), format!("integer:{value}")))
-                });
-            match measure_fact {
-                Some((interval, symbolic)) => {
-                    env.set(measure_path.clone(), interval);
-                    env.seed_symbolic_value(measure_path, Some(symbolic));
-                }
-                None => env.remove(&measure_path),
-            }
-        }
-        let memberships = explicit.map_or_else(
-            || domain_memberships_for_bytes(program, &[]),
-            |initializer| literal_domain_memberships(program, initializer.value),
-        );
-        env.set_domain_memberships(path, memberships);
-    }
-    data_default_domain_is_proven(program, data_definition.name.as_str(), &base, &env)
-}
-
-fn default_domain_field_name(program: &TypedTrees, expression: ExpressionHandle) -> Option<&str> {
-    let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
-        return None;
-    };
-    let members = program.expression_table.name_path_members(path.members);
-    match members {
-        [field] => Some(field.as_str()),
-        _ => None,
-    }
-}
-
-fn default_domain_boolean_is_proven(
-    program: &TypedTrees,
-    expression: ExpressionHandle,
-    base: &str,
-    env: &ValueEnv,
-) -> bool {
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Boolean(value) => *value,
-        ExpressionNode::Mutable(inner) => {
-            default_domain_boolean_is_proven(program, *inner, base, env)
-        }
-        ExpressionNode::Binary(binary) if binary.operator == BinaryOperator::And => {
-            default_domain_boolean_is_proven(program, binary.left, base, env)
-                && default_domain_boolean_is_proven(program, binary.right, base, env)
-        }
-        ExpressionNode::Binary(binary) if binary.operator == BinaryOperator::Or => {
-            default_domain_boolean_is_proven(program, binary.left, base, env)
-                || default_domain_boolean_is_proven(program, binary.right, base, env)
-        }
-        ExpressionNode::Binary(binary) => {
-            let same_symbolic_value =
-                default_domain_symbolic_value(program, binary.left, base, env)
-                    .zip(default_domain_symbolic_value(
-                        program,
-                        binary.right,
-                        base,
-                        env,
-                    ))
-                    .is_some_and(|(left, right)| left == right);
-            if same_symbolic_value {
-                return matches!(
-                    binary.operator,
-                    BinaryOperator::Equal
-                        | BinaryOperator::LessOrEqual
-                        | BinaryOperator::GreaterOrEqual
-                );
-            }
-            let Some(left) = default_domain_interval(program, binary.left, base, env) else {
-                return false;
-            };
-            let Some(right) = default_domain_interval(program, binary.right, base, env) else {
-                return false;
-            };
-            match binary.operator {
-                BinaryOperator::Less => left.high.zip(right.low).is_some_and(|(l, r)| l < r),
-                BinaryOperator::LessOrEqual => {
-                    left.high.zip(right.low).is_some_and(|(l, r)| l <= r)
-                }
-                BinaryOperator::Greater => left.low.zip(right.high).is_some_and(|(l, r)| l > r),
-                BinaryOperator::GreaterOrEqual => {
-                    left.low.zip(right.high).is_some_and(|(l, r)| l >= r)
-                }
-                BinaryOperator::Equal => {
-                    left.low == left.high
-                        && right.low == right.high
-                        && left.low.is_some()
-                        && left.low == right.low
-                }
-                BinaryOperator::NotEqual => {
-                    left.high.zip(right.low).is_some_and(|(l, r)| l < r)
-                        || right.high.zip(left.low).is_some_and(|(r, l)| r < l)
-                }
-                _ => false,
-            }
-        }
-        _ => false,
-    }
-}
-
-fn default_domain_symbolic_value(
-    program: &TypedTrees,
-    expression: ExpressionHandle,
-    base: &str,
-    env: &ValueEnv,
-) -> Option<String> {
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Name(path) => {
-            let [field] = program.expression_table.name_path_members(path.members) else {
-                return None;
-            };
-            Some(env.symbolic_value(&format!("{base}.{}", field.as_str())))
-        }
-        ExpressionNode::Member(member) if matches!(member.member.as_str(), "len" | "capacity") => {
-            let ExpressionNode::Name(path) = program.expression_table.expression(member.receiver)
-            else {
-                return None;
-            };
-            let [field] = program.expression_table.name_path_members(path.members) else {
-                return None;
-            };
-            Some(env.symbolic_value(&format!(
-                "{base}.{}.{}",
-                field.as_str(),
-                member.member.as_str(),
-            )))
-        }
-        ExpressionNode::Mutable(inner) => default_domain_symbolic_value(program, *inner, base, env),
-        ExpressionNode::Unary(unary) => Some(format!(
-            "unary:{:?}({})",
-            unary.operator,
-            default_domain_symbolic_value(program, unary.operand, base, env)?
-        )),
-        ExpressionNode::Binary(binary) => Some(symbolic_binary_expression(
-            binary.operator,
-            default_domain_symbolic_value(program, binary.left, base, env)?,
-            default_domain_symbolic_value(program, binary.right, base, env)?,
-        )),
-        _ => symbolic_expression_value(program, expression, env),
-    }
-}
-
-fn symbolic_expression_value(
-    program: &TypedTrees,
-    expression: ExpressionHandle,
-    env: &ValueEnv,
-) -> Option<String> {
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
-            place_path(program, expression).map(|path| env.symbolic_value(&path))
-        }
-        ExpressionNode::Integer(literal) => Some(format!("integer:{}", literal.text())),
-        ExpressionNode::Boolean(value) => Some(format!("boolean:{value}")),
-        ExpressionNode::String(value) => Some(format!("string:{value:?}")),
-        ExpressionNode::Mutable(inner) => symbolic_expression_value(program, *inner, env),
-        ExpressionNode::Unary(unary) => Some(format!(
-            "unary:{:?}({})",
-            unary.operator,
-            symbolic_expression_value(program, unary.operand, env)?
-        )),
-        ExpressionNode::Binary(binary) => Some(symbolic_binary_expression(
-            binary.operator,
-            symbolic_expression_value(program, binary.left, env)?,
-            symbolic_expression_value(program, binary.right, env)?,
-        )),
-        ExpressionNode::Cast(cast) => Some(format!(
-            "cast:{}({})",
-            program
-                .expression_table
-                .name_path_members(cast.target_type)
-                .iter()
-                .map(|member| member.as_str())
-                .collect::<Vec<_>>()
-                .join("::"),
-            symbolic_expression_value(program, cast.value, env)?,
-        )),
-        ExpressionNode::ArrayLiteral(_)
-        | ExpressionNode::Call(_)
-        | ExpressionNode::Float(_)
-        | ExpressionNode::Range(_)
-        | ExpressionNode::StructLiteral(_) => None,
-    }
-}
-
-/// Canonical symbolic key for the operator laws that are exact at the value
-/// level. This is deliberately smaller than algebraic normalization: operand
-/// sorting proves commutativity without assuming associativity (which would be
-/// unsound for Saturating arithmetic and for IEEE floats).
-fn symbolic_binary_expression(
-    operator: BinaryOperator,
-    mut left: String,
-    mut right: String,
-) -> String {
-    if matches!(
-        operator,
-        BinaryOperator::Add
-            | BinaryOperator::Multiply
-            | BinaryOperator::BitwiseAnd
-            | BinaryOperator::BitwiseOr
-            | BinaryOperator::BitwiseXor
-    ) && right < left
-    {
-        std::mem::swap(&mut left, &mut right);
-    }
-    format!("binary:{operator:?}({left},{right})")
-}
-
-fn expression_measure_fact(
-    program: &TypedTrees,
-    expression: ExpressionHandle,
-    env: &ValueEnv,
-    measure: &str,
-) -> Option<(Interval, String)> {
-    match program.expression_table.expression(expression) {
-        ExpressionNode::String(value) if matches!(measure, "len" | "capacity") => {
-            let length = i64::try_from(value.as_bytes().len()).ok()?;
-            Some((Interval::constant(length), format!("integer:{length}")))
-        }
-        ExpressionNode::ArrayLiteral(values) if measure == "len" => {
-            let length = i64::from(values.count());
-            Some((Interval::constant(length), format!("integer:{length}")))
-        }
-        ExpressionNode::Mutable(inner) => expression_measure_fact(program, *inner, env, measure),
-        ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
-            let path = format!("{}.{measure}", place_path(program, expression)?);
-            Some((env.get(&path)?, env.symbolic_value(&path)))
-        }
-        _ => None,
-    }
-}
-
-fn default_domain_interval(
-    program: &TypedTrees,
-    expression: ExpressionHandle,
-    base: &str,
-    env: &ValueEnv,
-) -> Option<Interval> {
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Integer(literal) => literal.value_i64().map(Interval::constant),
-        ExpressionNode::Name(path) => {
-            let members = program.expression_table.name_path_members(path.members);
-            (members.len() == 1)
-                .then(|| env.get(&format!("{base}.{}", members[0].as_str())))
-                .flatten()
-        }
-        ExpressionNode::Mutable(inner) => default_domain_interval(program, *inner, base, env),
-        ExpressionNode::Member(member) if matches!(member.member.as_str(), "len" | "capacity") => {
-            let ExpressionNode::Name(path) = program.expression_table.expression(member.receiver)
-            else {
-                return None;
-            };
-            let [field] = program.expression_table.name_path_members(path.members) else {
-                return None;
-            };
-            env.get(&format!(
-                "{base}.{}.{}",
-                field.as_str(),
-                member.member.as_str(),
-            ))
-        }
-        ExpressionNode::Binary(binary) => {
-            let left = default_domain_interval(program, binary.left, base, env)?;
-            let right = default_domain_interval(program, binary.right, base, env)?;
-            Some(match binary.operator {
-                BinaryOperator::Add => left.add(right),
-                BinaryOperator::Subtract => left.subtract(right),
-                BinaryOperator::Multiply => left.multiply(right),
-                BinaryOperator::Divide => left.divide(right),
-                BinaryOperator::Modulo => left.modulo(right),
-                _ => return None,
-            })
-        }
-        _ => None,
     }
 }
 
@@ -1548,11 +790,6 @@ pub(crate) fn place_path(program: &TypedTrees, expression: ExpressionHandle) -> 
             let receiver = place_path(program, member.receiver)?;
             Some(format!("{receiver}.{}", member.member.as_str()))
         }
-        ExpressionNode::Indexed(indexed) => {
-            let collection = place_path(program, indexed.collection)?;
-            let index = program.expression_table.display_name(indexed.index);
-            Some(format!("{collection}[{index}]"))
-        }
         _ => None,
     }
 }
@@ -1566,41 +803,17 @@ pub(crate) fn place_path(program: &TypedTrees, expression: ExpressionHandle) -> 
 /// landmine as the guard-seeding one (`let __hoist: i32 [0..=9] = cells[k].v`
 /// recorded unbounded and `__hoist + 5` "may overflow").
 pub(crate) fn record_assignment(
-    program: &TypedTrees,
     env: &mut ValueEnv,
     path: Option<String>,
     interval: Interval,
     declared_range: Option<Interval>,
-    value: ExpressionHandle,
 ) {
     if let Some(path) = path {
-        let symbolic_value = symbolic_expression_value(program, value, env);
-        let measure_facts = ["len", "capacity"].map(|measure| {
-            (
-                measure,
-                expression_measure_fact(program, value, env, measure),
-            )
-        });
         let interval = match declared_range {
             Some(declared) => interval.intersect(declared),
             None => interval,
         };
-        env.set(path.clone(), interval);
-        env.set_domain_memberships(path.clone(), literal_domain_memberships(program, value));
-        env.assign_symbolic_value(path.clone(), symbolic_value);
-        for (measure, fact) in measure_facts {
-            let measure_path = format!("{path}.{measure}");
-            match fact {
-                Some((interval, symbolic)) => {
-                    env.set(measure_path.clone(), interval);
-                    env.assign_symbolic_value(measure_path, Some(symbolic));
-                }
-                None => {
-                    env.remove(&measure_path);
-                    env.assign_symbolic_value(measure_path, None);
-                }
-            }
-        }
+        env.set(path, interval);
     }
 }
 
@@ -1627,8 +840,8 @@ pub(crate) fn enforced_declared_range(
 /// the containment test and so is reported as a possible overflow.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct Interval {
-    low: Option<i64>,
-    high: Option<i64>,
+    pub(crate) low: Option<i64>,
+    pub(crate) high: Option<i64>,
 }
 
 impl Interval {
@@ -2015,6 +1228,37 @@ fn primitive_range(primitive: PrimitiveType) -> Option<Interval> {
     Some(Interval { low, high })
 }
 
+/// The bit width of an integer primitive (the F8 shift-count bound), or `None`
+/// for non-integer types. `Addr` is excluded deliberately: shifting an address
+/// is already rejected by the address-arithmetic model above.
+fn integer_bit_width(primitive: PrimitiveType) -> Option<i64> {
+    match primitive {
+        PrimitiveType::I8 | PrimitiveType::U8 => Some(8),
+        PrimitiveType::I16 | PrimitiveType::U16 => Some(16),
+        PrimitiveType::I32 | PrimitiveType::U32 => Some(32),
+        PrimitiveType::I64 | PrimitiveType::U64 => Some(64),
+        PrimitiveType::Addr
+        | PrimitiveType::Bool
+        | PrimitiveType::F32
+        | PrimitiveType::F64
+        | PrimitiveType::String => None,
+    }
+}
+
+/// The float value of a literal operand (through a `Mutable` wrapper), read at
+/// its landed format, or `None` when the operand is not a plain float literal.
+/// The F4 Exact cast obligation's fold-visible proof source.
+fn float_literal_value(program: &TypedTrees, value: ExpressionHandle) -> Option<f64> {
+    let mut node = program.expression_table.expression(value);
+    while let ExpressionNode::Mutable(inner) = node {
+        node = program.expression_table.expression(*inner);
+    }
+    match node {
+        ExpressionNode::Float(literal) => Some(literal.landed_f64()),
+        _ => None,
+    }
+}
+
 /// The integer value of a literal operand (through a `Mutable` wrapper), or `None`
 /// when the operand is not a plain integer literal.
 fn integer_literal_value(program: &TypedTrees, value: ExpressionHandle) -> Option<i64> {
@@ -2331,13 +1575,13 @@ fn analyze(
                 left.domain
             } else {
                 match (left.domain, right.domain) {
-                    (Some(left_domain), Some(right_domain)) => {
-                        Some(if left_domain == ArithmeticDomain::Exact {
-                            right_domain
-                        } else {
-                            left_domain
-                        })
-                    }
+                    (Some(left_domain), Some(right_domain)) => Some(if left_domain
+                        == ArithmeticDomain::Exact
+                    {
+                        right_domain
+                    } else {
+                        left_domain
+                    }),
                     (Some(domain), None) | (None, Some(domain)) => Some(domain),
                     (None, None) => None,
                 }
@@ -2394,33 +1638,6 @@ fn analyze(
 
             // S3: an EXACT (undomained) `+`/`-`/`*` must be provably in range.
             let effective_domain = domain.unwrap_or(ArithmeticDomain::Exact);
-            if matches!(
-                operator,
-                BinaryOperator::ShiftLeft | BinaryOperator::ShiftRight
-            ) && matches!(
-                effective_domain,
-                ArithmeticDomain::Exact | ArithmeticDomain::Saturating
-            ) && let Some(width) = left
-                .primitive
-                .or(target_primitive)
-                .or(primitive)
-                .and_then(integer_primitive_bit_width)
-            {
-                let count_is_proven = right.interval.low.is_some_and(|low| low >= 0)
-                    && right
-                        .interval
-                        .high
-                        .is_some_and(|high| high < i64::from(width));
-                if !count_is_proven {
-                    let policy = effective_domain.name();
-                    diagnostics.push(Diagnostic::error(format!(
-                        "{policy} shift in {owner} requires the count to be provably in \
-                         `0..{width}`; constrain the count with a range or dominating guard, \
-                         use a `Wrapping` left operand to mask it, or use `Trapping` for a \
-                         runtime count check"
-                    )));
-                }
-            }
             // Abort-as-effect follow-up (owner 2026-07-18): a TRAPPING op
             // whose result interval is provably DISJOINT from its type's
             // range ALWAYS traps at runtime -- legal (the trap is the
@@ -2464,7 +1681,9 @@ fn analyze(
                 // range" is unactionable at the call site -- the fix is to annotate
                 // the CALLEE's return type. Name it so the user knows where to look.
                 let call_hint = overflow_operand_value_call_target(program, machine, binary.left)
-                    .or_else(|| overflow_operand_value_call_target(program, machine, binary.right))
+                    .or_else(|| {
+                        overflow_operand_value_call_target(program, machine, binary.right)
+                    })
                     .map(|target| {
                         format!(
                             " Here the operand `{target}(..)` is a value-machine call whose \
@@ -2503,6 +1722,56 @@ fn analyze(
                 )));
             }
 
+            // F8 -- the shift-COUNT ruling (ch5, settled 2026-07-18): the count is
+            // proof-or-policy. Under Exact the count must be PROVABLY in
+            // [0, width); Saturating governs value overflow, not operand
+            // validity, so its count obligation is Exact's. Wrapping MASKS the
+            // count (`k & (width - 1)`) and Trapping TRAPS on an out-of-range
+            // count -- both defined, no obligation. The width is the SHIFTED
+            // operand's (decision 17 stays operand-driven: an anonymous lhs
+            // falls back to the destination primitive, but the lhs DOMAIN
+            // governs and a target `in Wrapping` never re-domains the count).
+            // The ISA's silent count-masking under Exact is an invented number
+            // and never adopted.
+            if shift_count_rhs
+                && matches!(
+                    effective_domain,
+                    ArithmeticDomain::Exact | ArithmeticDomain::Saturating
+                )
+                && let Some(shift_primitive) = left.primitive.or(target_primitive)
+                && let Some(width) = integer_bit_width(shift_primitive)
+            {
+                let provably_in_range = matches!(right.interval.low, Some(low) if low >= 0)
+                    && matches!(right.interval.high, Some(high) if high < width);
+                if !provably_in_range {
+                    // A count that can NEVER be legal (a spelled `1 << 40` on
+                    // u32) reads differently from an unproven one.
+                    let always_out = matches!(right.interval.low, Some(low) if low >= width)
+                        || matches!(right.interval.high, Some(high) if high < 0);
+                    let verdict = if always_out {
+                        "is provably out of range and can never execute"
+                    } else {
+                        "is not provably below the operand width"
+                    };
+                    let saturating_hint = if effective_domain == ArithmeticDomain::Saturating {
+                        " (`Saturating` governs value overflow, not count validity -- its count \
+                         obligation is Exact's)"
+                    } else {
+                        ""
+                    };
+                    diagnostics.push(Diagnostic::error(format!(
+                        "shift count in {owner} {verdict} for `{prim}`{saturating_hint}: exact \
+                         shifts prove `count < {width}` (ch5 shift-count ruling -- \
+                         proof-or-policy). Constrain the count's range (a ranged type, a \
+                         `requires` clause, or a dominating guard), or pick a defined-count \
+                         policy on the SHIFTED operand (`{prim} in Wrapping` masks the count \
+                         to `count & {mask}`; `in Trapping` traps at runtime).",
+                        prim = primitive_name(shift_primitive),
+                        mask = width - 1,
+                    )));
+                }
+            }
+
             Analysis {
                 domain,
                 interval,
@@ -2511,7 +1780,7 @@ fn analyze(
         }
         ExpressionNode::Cast(cast) => {
             // A cast re-types its operand, so the outer target does not flow in.
-            let _ = analyze(
+            let source = analyze(
                 program,
                 machine,
                 state,
@@ -2527,6 +1796,72 @@ fn analyze(
                 .name_path_members(cast.target_type)
                 .last()
                 .and_then(|name| PrimitiveType::from_name(name.as_str()));
+            // F4 (the float->int cast ruling): there is NO MODULAR READING
+            // of a float, so `f as iN in Wrapping` is a compile error (ch5;
+            // the ruling's precedent generalized to the float domain list).
+            // Saturating (NaN -> 0, clamp to the target range) and Trapping
+            // (trap on NaN/out-of-range) are the defined policies; a bare
+            // Exact cast keeps the transitional truncation until float
+            // constant tracking can carry the value obligation.
+            if cast.domain == ArithmeticDomain::Wrapping
+                && matches!(
+                    source.primitive,
+                    Some(PrimitiveType::F32 | PrimitiveType::F64)
+                )
+                && primitive.is_some_and(|target| integer_bit_width(target).is_some())
+            {
+                diagnostics.push(Diagnostic::error(format!(
+                    "float-to-int cast `in Wrapping` in {owner}: there is no modular reading \
+                     of a float (ch5 cast ruling). Use `in Saturating` (NaN -> 0, clamp to \
+                     the target range) or `in Trapping` (trap on NaN/out-of-range) instead.",
+                )));
+            }
+            // F4 Exact obligation (the cast ruling's proof side): a BARE
+            // float->int cast requires the value provably in the target's
+            // range. What validation can prove today: a float LITERAL source
+            // (through Mutable) whose truncation fits -- the two-phase law's
+            // fold-visible face; runtime sources need a policy. (Mirrors the
+            // F8a shift-count obligation's shape: proof where visible,
+            // policy otherwise, never a silent target-defined number -- the
+            // out-of-range bare cast was a pinned THREE-WAY native
+            // divergence, x86 integer-indefinite vs aarch64/interp
+            // saturation.)
+            if cast.domain == ArithmeticDomain::Exact
+                && matches!(
+                    source.primitive,
+                    Some(PrimitiveType::F32 | PrimitiveType::F64)
+                )
+                && let Some(target) = primitive
+                && integer_bit_width(target).is_some()
+            {
+                let provable = float_literal_value(program, cast.value).is_some_and(|value| {
+                    !value.is_nan()
+                        && primitive_range(target).is_some_and(|range| {
+                            let truncated = value.trunc();
+                            // The u64-classed row has no i64 upper bound; its
+                            // range check is the exact [0, 2^64) window.
+                            match (range.low, range.high) {
+                                (Some(low), Some(high)) => {
+                                    truncated >= low as f64 && truncated <= high as f64
+                                }
+                                (Some(low), None) => {
+                                    truncated >= low as f64
+                                        && truncated < 18446744073709551616.0
+                                }
+                                _ => false,
+                            }
+                        })
+                });
+                if !provable {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "float-to-int cast in {owner} is not provably in `{}`'s range \
+                         (ch5 cast ruling -- proof-or-policy; only a float-LITERAL source \
+                         proves today). Use `in Saturating` (NaN -> 0, clamp to the target \
+                         range) or `in Trapping` (trap on NaN/out-of-range).",
+                        primitive_name(target),
+                    )));
+                }
+            }
             // The cast bounds the value to the target type's range (and re-tags its
             // domain), so it is a widening/narrowing escape from an overflow.
             let interval = primitive
@@ -2557,26 +1892,12 @@ fn analyze(
             {
                 let mut throwaway = Vec::new();
                 let left = analyze(
-                    program,
-                    machine,
-                    state,
-                    *left_arg,
-                    env,
-                    target_primitive,
-                    target_domain,
-                    owner,
-                    &mut throwaway,
+                    program, machine, state, *left_arg, env, target_primitive, target_domain,
+                    owner, &mut throwaway,
                 );
                 let right = analyze(
-                    program,
-                    machine,
-                    state,
-                    *right_arg,
-                    env,
-                    target_primitive,
-                    target_domain,
-                    owner,
-                    &mut throwaway,
+                    program, machine, state, *right_arg, env, target_primitive, target_domain,
+                    owner, &mut throwaway,
                 );
                 if throwaway.is_empty() {
                     let interval = if call.target.as_str() == "max" {
@@ -2622,13 +1943,11 @@ fn analyze(
             }
             // ch15 stage 2 (modular return-range inference): no DECLARED range, so
             // infer the callee's return interval from its body (sound, permissive).
-            match resolve_unique_self_call_state(program, machine, call).and_then(
-                |(callee, state)| {
-                    let primitive = program.primitive_type_reference(state.return_type);
-                    infer_return_interval(program, callee, state, primitive)
-                        .map(|interval| (primitive, interval))
-                },
-            ) {
+            match resolve_unique_self_call_state(program, machine, call).and_then(|(callee, state)| {
+                let primitive = program.primitive_type_reference(state.return_type);
+                infer_return_interval(program, callee, state, primitive)
+                    .map(|interval| (primitive, interval))
+            }) {
                 Some((primitive, interval)) => Analysis {
                     domain: None,
                     interval,
@@ -2681,6 +2000,17 @@ fn analyze(
                     .or_else(|| range_constraint_interval(program, handle))
                     .map(|proven| proven.intersect(type_range))
                     .unwrap_or(type_range);
+                // R2 rung 3 slice 7 (READER HYPOTHESES): a domain-carrying
+                // place's standing where facts refine the read -- sound
+                // because the write net is TOTAL and gated reads are
+                // access-gated, so the facts hold at every legal
+                // observation.
+                let interval = match crate::default_domains::where_fact_interval(
+                    program, machine, state, expression,
+                ) {
+                    Some(facts) => interval.intersect(facts),
+                    None => interval,
+                };
                 // Atomic integer types (AtomicU32, ...) have hardware wrap-around
                 // semantics, so their arithmetic is Wrapping, not Exact -- a
                 // `fetch_add` never raises an overflow proof obligation.
@@ -2697,18 +2027,6 @@ fn analyze(
             }
             None => NEUTRAL,
         },
-    }
-}
-
-fn integer_primitive_bit_width(primitive: PrimitiveType) -> Option<u32> {
-    match primitive {
-        PrimitiveType::I8 | PrimitiveType::U8 => Some(8),
-        PrimitiveType::I16 | PrimitiveType::U16 => Some(16),
-        PrimitiveType::I32 | PrimitiveType::U32 => Some(32),
-        PrimitiveType::I64 | PrimitiveType::U64 | PrimitiveType::Addr => Some(64),
-        PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64 | PrimitiveType::String => {
-            None
-        }
     }
 }
 
@@ -2741,7 +2059,9 @@ pub(crate) fn check_range_under_non_exact_domain(
         handle: omega_typed_trees::types::TypeReferenceHandle,
     ) -> bool {
         match program.type_reference_table.type_reference(handle) {
-            TypeReferenceNode::Reference { referee, .. } => has_range_constraint(program, *referee),
+            TypeReferenceNode::Reference { referee, .. } => {
+                has_range_constraint(program, *referee)
+            }
             TypeReferenceNode::Constrained {
                 base_type,
                 constraints,
@@ -2750,7 +2070,9 @@ pub(crate) fn check_range_under_non_exact_domain(
                     .type_reference_table
                     .constraints(*constraints)
                     .iter()
-                    .any(|constraint| matches!(constraint, TypeConstraintNode::Range { .. }))
+                    .any(|constraint| {
+                        matches!(constraint, TypeConstraintNode::Range { .. })
+                    })
                     || has_range_constraint(program, *base_type)
             }
             _ => false,
@@ -2773,9 +2095,7 @@ pub(crate) fn range_constraint_interval(
     handle: TypeReferenceHandle,
 ) -> Option<Interval> {
     match program.type_reference_table.type_reference(handle) {
-        TypeReferenceNode::Reference { referee, .. } => {
-            range_constraint_interval(program, *referee)
-        }
+        TypeReferenceNode::Reference { referee, .. } => range_constraint_interval(program, *referee),
         TypeReferenceNode::Constrained { constraints, .. } => program
             .type_reference_table
             .constraints(*constraints)
@@ -2784,8 +2104,9 @@ pub(crate) fn range_constraint_interval(
                 TypeConstraintNode::Range { minimum, maximum } => Some(Interval {
                     low: Some(literal_i64(program, *minimum)?),
                     high: Some(
-                        literal_i64(program, *maximum)
-                            .or_else(|| dependent_maximum_substituted(program, *maximum))?,
+                        literal_i64(program, *maximum).or_else(|| {
+                            dependent_maximum_substituted(program, *maximum)
+                        })?,
                     ),
                 }),
                 _ => None,
@@ -2816,7 +2137,8 @@ fn dependent_maximum_substituted(
             let omega_typed_trees::data::DataMember::Field(field) = member else {
                 continue;
             };
-            if field.name.as_str() != symbolic.field.as_str() || !field.type_reference.is_valid() {
+            if field.name.as_str() != symbolic.field.as_str() || !field.type_reference.is_valid()
+            {
                 continue;
             }
             let high = range_constraint_interval(program, field.type_reference)
@@ -2977,9 +2299,7 @@ fn infer_return_interval(
     if INFERRING_RETURN.with(std::cell::Cell::get) {
         return None;
     }
-    let statements = program
-        .statement_table
-        .statements(callee_state.statement_nodes);
+    let statements = program.statement_table.statements(callee_state.statement_nodes);
 
     // Collect every return expression, bailing if any exit could escape to an
     // uncaptured state. A terminal expression is the last statement; transition
@@ -3230,17 +2550,11 @@ mod tests {
     fn min_max_clamp_against_unbounded() {
         assert_eq!(
             Interval::UNBOUNDED.max_with(iv(0, 0)),
-            Interval {
-                low: Some(0),
-                high: None
-            }
+            Interval { low: Some(0), high: None }
         );
         assert_eq!(
             Interval::UNBOUNDED.min_with(iv(100, 100)),
-            Interval {
-                low: None,
-                high: Some(100)
-            }
+            Interval { low: None, high: Some(100) }
         );
         assert_eq!(iv(0, 50).max_with(iv(10, 10)), iv(10, 50));
         assert_eq!(iv(0, 50).min_with(iv(10, 10)), iv(0, 10));
@@ -3310,9 +2624,10 @@ fn refine_dependent_subtract(
         return naive;
     };
     // Left: `self.F` or `self.F + m` for the SAME field.
-    let Some(left_bound) =
-        omega_typed_trees::dependent_ranges::symbolic_max_bound(&program.expression_table, left)
-    else {
+    let Some(left_bound) = omega_typed_trees::dependent_ranges::symbolic_max_bound(
+        &program.expression_table,
+        left,
+    ) else {
         return naive;
     };
     if left_bound.field.as_str() != right_field.as_str() {
@@ -3482,7 +2797,9 @@ fn requires_orders_operands(
             let omega_typed_trees::domain::ProofFact::Expression(expression) = fact else {
                 continue;
             };
-            if let Some(found) = conjunct_orders(program, *expression, &left_label, &right_label) {
+            if let Some(found) =
+                conjunct_orders(program, *expression, &left_label, &right_label)
+            {
                 floor = Some(floor.map_or(found, |existing: i64| existing.max(found)));
             }
         }
@@ -3515,22 +2832,14 @@ fn conjunct_orders(
             let lo = program.expression_table.display_name(binary.left);
             let hi = program.expression_table.display_name(binary.right);
             (lo == right_label && hi == left_label).then(|| {
-                if binary.operator == BinaryOperator::Less {
-                    1
-                } else {
-                    0
-                }
+                if binary.operator == BinaryOperator::Less { 1 } else { 0 }
             })
         }
         BinaryOperator::GreaterOrEqual | BinaryOperator::Greater => {
             let hi = program.expression_table.display_name(binary.left);
             let lo = program.expression_table.display_name(binary.right);
             (lo == right_label && hi == left_label).then(|| {
-                if binary.operator == BinaryOperator::Greater {
-                    1
-                } else {
-                    0
-                }
+                if binary.operator == BinaryOperator::Greater { 1 } else { 0 }
             })
         }
         _ => None,
@@ -3618,11 +2927,12 @@ fn refine_dependent_product(
             (product.left, product.right)
         }
     };
-    let Some(fb) =
-        omega_typed_trees::dependent_ranges::symbolic_max_bound(&program.expression_table, fb_expr)
-            .filter(|bound| bound.offset == 0)
-            .map(|bound| bound.field)
-    else {
+    let Some(fb) = omega_typed_trees::dependent_ranges::symbolic_max_bound(
+        &program.expression_table,
+        fb_expr,
+    )
+    .filter(|bound| bound.offset == 0)
+    .map(|bound| bound.field) else {
         return naive;
     };
     // a's STRICT dependent atom names Fa; c's STRICT atom names Fb (the
@@ -3691,7 +3001,9 @@ fn requires_product_coupling(
             let omega_typed_trees::domain::ProofFact::Expression(expression) = fact else {
                 continue;
             };
-            if let Some(k) = product_coupling_conjunct(program, *expression, &fa_label, &fb_label) {
+            if let Some(k) =
+                product_coupling_conjunct(program, *expression, &fa_label, &fb_label)
+            {
                 return Some(k);
             }
         }
@@ -3709,10 +3021,14 @@ fn product_coupling_conjunct(
         return None;
     };
     match binary.operator {
-        BinaryOperator::And => product_coupling_conjunct(program, binary.left, fa_label, fb_label)
-            .or_else(|| product_coupling_conjunct(program, binary.right, fa_label, fb_label)),
+        BinaryOperator::And => {
+            product_coupling_conjunct(program, binary.left, fa_label, fb_label).or_else(|| {
+                product_coupling_conjunct(program, binary.right, fa_label, fb_label)
+            })
+        }
         BinaryOperator::LessOrEqual | BinaryOperator::Less => {
-            let ExpressionNode::Binary(product) = program.expression_table.expression(binary.left)
+            let ExpressionNode::Binary(product) =
+                program.expression_table.expression(binary.left)
             else {
                 return None;
             };
@@ -3721,8 +3037,8 @@ fn product_coupling_conjunct(
             }
             let lhs = program.expression_table.display_name(product.left);
             let rhs = program.expression_table.display_name(product.right);
-            let matches =
-                (lhs == fa_label && rhs == fb_label) || (lhs == fb_label && rhs == fa_label);
+            let matches = (lhs == fa_label && rhs == fb_label)
+                || (lhs == fb_label && rhs == fa_label);
             if !matches {
                 return None;
             }
@@ -3758,17 +3074,14 @@ fn refine_dependent_product_factor(
             left,
         )
         .is_some_and(|bound| bound.offset == 0);
-        if left_is_field {
-            (right, left)
-        } else {
-            (left, right)
-        }
+        if left_is_field { (right, left) } else { (left, right) }
     };
-    let Some(fb) =
-        omega_typed_trees::dependent_ranges::symbolic_max_bound(&program.expression_table, fb_expr)
-            .filter(|bound| bound.offset == 0)
-            .map(|bound| bound.field)
-    else {
+    let Some(fb) = omega_typed_trees::dependent_ranges::symbolic_max_bound(
+        &program.expression_table,
+        fb_expr,
+    )
+    .filter(|bound| bound.offset == 0)
+    .map(|bound| bound.field) else {
         return naive;
     };
     let Some(fa) = strict_dependent_atom_field(program, machine, state, a_expr) else {

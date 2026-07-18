@@ -1,0 +1,31 @@
+// RUN CANARY (exit 70) + interpreter differential. Saturating `<<` with a
+// PROVEN count (31 < 32 -- F8 legal; the count rides a FIELD so the static
+// tracker folds it to [31,31] -- a domain-cast LOCAL initializer does not
+// feed the count interval yet, a noted proof-surface gap) still clamps when
+// the TRUE value x * 2^n leaves the type's range: 3u32 << 31 = 6442450944 >
+// u32::MAX clamps to 4294967295. Replaces the count face of the retired
+// runtime_shl_saturating_atwidth_exit (an at-width COUNT is now a compile
+// error -- fail/arithmetic/shift_count_saturating_oor_rejected); the
+// VALUE-overflow clamp machinery (wide compute + range-check tail on both
+// ISAs, i128 on the interp) keeps 32-bit coverage here.
+// exits: 71 = wrapped to 2147483648 (plain-shl truncation); 72 = neither.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; a: u32 in Saturating; c: u32 in Saturating; r: u32 in Saturating; }
+machine Main::main(&mut self) {
+    self.a = 3;
+    self.c = 31;
+    self.r = self.a << self.c;
+    transition self.r == 4294967295 {
+        true  -> clamped()
+        false -> chk_wrap()
+    }
+    state chk_wrap(&mut self) {
+        transition self.r == 2147483648 {
+            true  -> wrapped()
+            false -> bad()
+        }
+    }
+    state clamped(&mut self) { self.console.exit_process(70); }
+    state wrapped(&mut self) { self.console.exit_process(71); }
+    state bad(&mut self)     { self.console.exit_process(72); }
+}

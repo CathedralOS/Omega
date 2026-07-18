@@ -24,10 +24,16 @@ pub(crate) fn estimated_contract_fact_capacity(program: &omega_typed_trees::Type
                 })
                 .sum::<usize>()
         }))
-        .chain(program.platforms().iter().map(|platform| {
+        .chain(program.machines().iter().map(|machine| {
             program
-                .platform_state_signatures(platform)
+                .machine_type_parameters(machine)
                 .iter()
+                .filter_map(|parameter| match &parameter.kind {
+                    omega_typed_trees::data::TypeParameterKind::Machine { contract } => {
+                        Some(contract)
+                    }
+                    _ => None,
+                })
                 .map(|signature| {
                     program
                         .state_signature_contracts(signature)

@@ -1,6 +1,6 @@
 use crate::{
     BorrowFacts, CheckedOperatorFacts, CheckedValueFacts, DomainFacts, FlowFacts, InvariantFacts,
-    ProofFacts,
+    EffectRowFacts, MachineContractPlans, ProofFacts, QualificationFacts, TerminationFacts,
 };
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -15,6 +15,18 @@ pub struct CheckFacts {
     pub effects: omega_effects::EffectPlan,
     pub capabilities: omega_effects::CapabilityFlowPlan,
     pub flow: FlowFacts,
+    /// TPR3 slice 4 (decision 23): the checker-established termination
+    /// summaries + completed witness elaborations.
+    pub termination: TerminationFacts,
+    /// STR4 slice 2 (decision 22): kinded effect rows -- published ceiling
+    /// vs inferred direct/transitive summaries.
+    pub effect_rows: EffectRowFacts,
+    /// STR4 checked plans, slice 2 (decision 19): the semantic-domain
+    /// commitments each machine's body makes (arithmetic-policy casts v1).
+    pub qualifications: QualificationFacts,
+    /// STR4 checked plans (machine_taxonomy.md): the normalized machine
+    /// semantic contracts -- published halves + deterministic fingerprint.
+    pub contract_plans: MachineContractPlans,
 }
 
 impl CheckFacts {
@@ -29,6 +41,10 @@ impl CheckFacts {
         effects: omega_effects::EffectPlan,
         capabilities: omega_effects::CapabilityFlowPlan,
         flow: FlowFacts,
+        termination: TerminationFacts,
+        effect_rows: EffectRowFacts,
+        qualifications: QualificationFacts,
+        contract_plans: MachineContractPlans,
     ) -> Self {
         Self {
             semantic,
@@ -41,6 +57,10 @@ impl CheckFacts {
             effects,
             capabilities,
             flow,
+            termination,
+            effect_rows,
+            qualifications,
+            contract_plans,
         }
     }
 }
@@ -49,56 +69,11 @@ impl CheckFacts {
 pub struct CheckedTrees {
     pub typed: omega_typed_trees::TypedTrees,
     pub facts: CheckFacts,
-    /// Exact completion summary derived for local checked consumers. This is
-    /// deliberately separate from `Machine::termination_guarantee`, which is
-    /// the authored or inherited published interface.
-    pub termination_summaries: Vec<MachineTerminationSummary>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct MachineTerminationSummary {
-    pub machine: omega_core::symbols::SymbolHandle,
-    pub guarantee: omega_core::termination::TerminationGuarantee,
 }
 
 impl CheckedTrees {
     pub fn with_roots(typed: omega_typed_trees::TypedTrees, facts: CheckFacts) -> Self {
-        let termination_summaries = typed
-            .machines()
-            .iter()
-            .map(|machine| MachineTerminationSummary {
-                machine: machine.symbol,
-                guarantee: machine.termination_guarantee,
-            })
-            .collect();
-        Self {
-            typed,
-            facts,
-            termination_summaries,
-        }
-    }
-
-    pub fn with_termination_summaries(
-        typed: omega_typed_trees::TypedTrees,
-        facts: CheckFacts,
-        termination_summaries: Vec<MachineTerminationSummary>,
-    ) -> Self {
-        Self {
-            typed,
-            facts,
-            termination_summaries,
-        }
-    }
-
-    pub fn machine_termination_summary(
-        &self,
-        machine: omega_core::symbols::SymbolHandle,
-    ) -> omega_core::termination::TerminationGuarantee {
-        self.termination_summaries
-            .iter()
-            .find(|summary| summary.machine == machine)
-            .map(|summary| summary.guarantee)
-            .unwrap_or(omega_core::termination::TerminationGuarantee::None)
+        Self { typed, facts }
     }
 }
 

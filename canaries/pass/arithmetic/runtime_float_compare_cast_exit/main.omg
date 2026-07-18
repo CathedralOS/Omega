@@ -58,7 +58,7 @@ machine Main::main(&mut self) {
     }
     state float_to_int(&mut self) {
         self.a = 3.75;
-        self.ri = self.a as i32 in Saturating;
+        self.ri = self.a as i32 in Saturating; // F4: float casts have no Wrapping reading
         transition self.ri == 3 { true -> nested_dot() _ -> bad() }
     }
     state nested_dot(&mut self) {

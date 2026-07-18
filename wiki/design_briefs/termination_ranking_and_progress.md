@@ -85,6 +85,32 @@ measure is never selected merely because it is the only visible candidate;
 adding another declaration must not change existing meaning. The compiler
 never invents ranking subjects or heuristically chooses a noncanonical view.
 
+Implementation status (TPR3, 2026-07-17): checker legality resolves subjects
+and argumented-view bounds from the normalized `RankingWitness`, and consumes
+its view/range identity directly. The typed machine's older decreases/order/
+argument/range spans are compatibility output only; clearing them does not
+change the termination judgment.
+
+The diagnostic firewall follows the same rule: checked-stage messages use the
+current `terminates by` spelling exclusively, and even the directed rejection
+of a retired subtraction subject is reconstructed from the normalized witness,
+not from compatibility spans.
+
+Checked-artifact status (2026-07-17): every acyclic body records a local
+`EventualTerminal` summary, including an unannotated private body. The
+normalized machine contract independently records only the authored promise;
+omission therefore remains published `NoGuarantee`. One regression test pins
+both halves so body inference cannot silently become interface authorship.
+
+Visual artifact status (2026-07-17): `05_machine_contracts.json` serializes
+that split explicitly. Each machine has an authored `contract` object
+(fingerprint, supply, published effect row, published termination) and a sibling
+`implementation` object (checked summary and private normalized ranking
+witness). Import-slot and component tooling can pin the former without parsing
+or accidentally incorporating proof-local material from the latter. Proof-cache
+storage and complete Merkle-key mechanics remain deferred to the dedicated
+theoretical proof-caching brief.
+
 Mutually recursive or mutually cyclic machines use one joint ranking for the
 strongly connected component, and every cyclic edge must decrease it. The
 exact source spelling for differently shaped participants remains deferred;
@@ -101,6 +127,14 @@ legality; tail position permits constant-stack lowering. A measured non-tail
 recursive call is valid in the proof/compile-time stratum and rejected when a
 runtime lowering is requested. This is one machine taxonomy with
 context-derived eligibility, not a separate proof language.
+
+Structural-subterm descent is an automation tier, not the semantic limit of
+proof recursion. For a recursive edge whose next subject is computed (for
+example `sub(a, b)`), the selected ranking view emits its ordinary strict
+decrease obligation. The normal entailment engine may discharge that
+obligation from contracts or explicitly cited lemmas such as `sub_lt`; no new
+ranking-citation syntax is introduced. Proof-stratum machines use this same
+measured-recursion rule without the runtime tail-position lowering fence.
 
 Productive machines may deliberately run forever. A transition loop that does
 not promise termination therefore owes no ranking witness.
@@ -130,9 +164,17 @@ An effect row says which events may occur. It does not identify the premise
 under which a suspended operation makes progress. Pinned operation and
 provider contracts supply those premises and guarantees.
 
-V1 progress profiles are named, opaque semantic commitments on boundary
-traits, providers, and slots. They are sealed by default and use the existing
-boundary grant machinery:
+V1 progress profiles are named, opaque semantic domains over boundary-provider
+capability values. They use ordinary domain declaration syntax, for example:
+
+```omega
+domain Scheduler::WeakFair { introduction sealed; }
+```
+
+The qualification is a commitment, not an inferable predicate: it supplies no
+operators, never flow-narrows into existence, and does not entail another
+profile in v1. Profiles are sealed by default and use the existing boundary
+grant machinery:
 
 - only the profile owner or explicit acceptance authority may authorize a
   claim;

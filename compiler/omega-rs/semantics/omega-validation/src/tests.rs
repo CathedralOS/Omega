@@ -4,6 +4,145 @@ use omega_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use omega_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
 use omega_tokens_to_syntax_trees::parse_syntax_trees;
 
+fn typed_program_from_source(source: &str) -> omega_typed_trees::TypedTrees {
+    let source = format!("data Main {{}} machine Main::run(&mut self) {{}} {source}");
+    let tokens = Lexer::new(&source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve should succeed");
+    lower_symbol_resolved_trees(&resolved).expect("typed lowering should succeed")
+}
+
+#[test]
+fn static_machine_argument_refines_authored_generic_contract() {
+    let typed = typed_program_from_source(
+        r#"
+        data Card {}
+        machine Card::power(value: &Card) {}
+
+        machine map<T, machine F>(value: &T)
+        where machine F(value: &T)
+        {}
+
+        machine caller(card: &Card) {
+            map<Card::power>(card);
+        }
+        "#,
+    );
+    validate_program(&typed).expect("matching static machine contract should validate");
+}
+
+#[test]
+fn static_machine_argument_rejects_callable_shape_mismatch() {
+    let typed = typed_program_from_source(
+        r#"
+        data Card {}
+        machine Card::power(value: u64) {}
+
+        machine map<T, machine F>(value: &T)
+        where machine F(value: &T)
+        {}
+
+        machine caller(card: &Card) {
+            map<Card::power>(card);
+        }
+        "#,
+    );
+    let diagnostics = validate_program(&typed).expect_err("shape mismatch must fail");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("parameter 0 expects `&T`, got `u64`")
+    }));
+}
+
+#[test]
+fn generic_call_rejects_missing_static_machine_argument() {
+    let typed = typed_program_from_source(
+        r#"
+        data Card {}
+
+        machine map<T, machine F>(value: &T)
+        where machine F(value: &T)
+        {}
+
+        machine caller(card: &Card) {
+            map(card);
+        }
+        "#,
+    );
+    let diagnostics = validate_program(&typed).expect_err("missing selection must fail");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("requires 1 static machine argument(s), got 0")
+    }));
+}
+
+#[test]
+fn static_machine_argument_rejects_stronger_precondition() {
+    let typed = typed_program_from_source(
+        r#"
+        data Card {}
+        machine Card::power(value: &Card)
+        requires value == value
+        {}
+
+        machine map<T, machine F>(value: &T)
+        where machine F(value: &T)
+        {}
+
+        machine caller(card: &Card) {
+            map<Card::power>(card);
+        }
+        "#,
+    );
+    let diagnostics = validate_program(&typed).expect_err("stronger precondition must fail");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("requires facts are not a conservative refinement")
+    }));
+}
+
+#[test]
+fn generic_body_call_is_checked_against_machine_parameter_contract() {
+    let typed = typed_program_from_source(
+        r#"
+        data Card {}
+
+        machine apply<T, machine F>(value: &T)
+        where machine F(item: &T)
+        {
+            F(value);
+        }
+        "#,
+    );
+    validate_program(&typed).expect("generic body should use the authored callable contract");
+}
+
+#[test]
+fn generic_body_call_rejects_argument_outside_machine_parameter_contract() {
+    let typed = typed_program_from_source(
+        r#"
+        data Card {}
+
+        machine apply<T, machine F>(value: &T)
+        where machine F(item: &T)
+        {
+            F(7);
+        }
+        "#,
+    );
+    let diagnostics =
+        validate_program(&typed).expect_err("generic body call shape must be checked");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic.message.contains("argument `item`")
+            && diagnostic.message.contains("expects `&T`")
+    }));
+}
+
 #[test]
 fn validates_main_entry_surface_from_source_pipeline() {
     let source = r#"
@@ -733,7 +872,6 @@ fn proves_inductive_theorem_via_recursive_contract_and_decrease() {
     }
 
     machine Main::gauss_sum(&mut self, n: u64, acc: u64) -> u64
-    terminates;
     terminates by n;
     ensures
         result * 2 == acc * 2 + n * (n + 1)
@@ -762,7 +900,6 @@ fn refutes_inductive_false_twin_on_the_base_arm() {
     }
 
     machine Main::gauss_sum(&mut self, n: u64, acc: u64) -> u64
-    terminates;
     terminates by n;
     ensures
         result * 2 == acc * 2 + n * (n + 1) + 1
@@ -798,7 +935,6 @@ fn rejects_inductive_step_false_twin_on_the_recursive_arm() {
     }
 
     machine Main::gauss_sum(&mut self, n: u64, acc: u64) -> u64
-    terminates;
     terminates by n;
     ensures
         result * 2 == acc * 2 + n * (n + 3)
@@ -852,7 +988,7 @@ fn no_induction_hypothesis_without_a_decreases_claim() {
 
 #[test]
 fn no_induction_hypothesis_when_the_call_site_decrease_is_undischarged() {
-    // The ranking witness names `n`, but the recursive call passes `n`
+    // The decreases clause names `n`, but the recursive call passes `n`
     // unchanged: the strict decrease fails at that exact call site, so no
     // hypothesis enters and the arm cannot drive a rejection. (The
     // machine-level termination pass independently rejects this program; the
@@ -867,7 +1003,6 @@ fn no_induction_hypothesis_when_the_call_site_decrease_is_undischarged() {
     }
 
     machine Main::gauss_sum(&mut self, n: u64, acc: u64) -> u64
-    terminates;
     terminates by n;
     ensures
         result * 2 == acc * 2 + n * (n + 1)
@@ -1535,7 +1670,7 @@ mod structural_entailment {
             "data Nat {{ case Zero; case Succ(prev: Nat); }}\n\
              data Main {{}}\n\
              machine Main::main(&mut self) {{}}\n\
-             machine add(a: Nat, b: Nat) -> Nat terminates; terminates by a; {{\n\
+             machine add(a: Nat, b: Nat) -> Nat terminates by a; {{\n\
              transition a {{ Nat::Zero -> (b) Nat::Succ {{ prev }} -> Nat::Succ {{ prev: add(prev, b) }} }}\n\
              }}\n\
              {body}\n"
@@ -1606,7 +1741,7 @@ mod structural_entailment {
     #[test]
     fn structural_induction_proves() {
         validate(
-            "machine right_id(a: Nat) -> Nat terminates; terminates by a; \
+            "machine right_id(a: Nat) -> Nat terminates by a; \
              ensures result == a { \
              transition a { Nat::Zero -> Nat::Zero \
              Nat::Succ { prev } -> Nat::Succ { prev: right_id(prev) } } }",
@@ -1617,7 +1752,7 @@ mod structural_entailment {
     #[test]
     fn false_inductive_claim_refutes() {
         let error = validate(
-            "machine bad(a: Nat) -> Nat terminates; terminates by a; \
+            "machine bad(a: Nat) -> Nat terminates by a; \
              ensures result == Nat::Zero { \
              transition a { Nat::Zero -> Nat::Zero \
              Nat::Succ { prev } -> Nat::Succ { prev: bad(prev) } } }",
@@ -1632,7 +1767,7 @@ mod structural_entailment {
     #[test]
     fn application_equation_law_proves() {
         validate(
-            "machine succ_law(a: Nat, b: Nat) -> Nat terminates; terminates by a; \
+            "machine succ_law(a: Nat, b: Nat) -> Nat terminates by a; \
              ensures (add(a, Nat::Succ { prev: b })) == (Nat::Succ { prev: add(a, b) }) { \
              transition a { Nat::Zero -> Nat::Zero \
              Nat::Succ { prev } -> Nat::Succ { prev: succ_law(prev, b) } } }",
@@ -1647,7 +1782,7 @@ mod structural_entailment {
         // unfold, the tail's length staying symbolic on both sides.
         validate(
             "data Seq { case Empty; case Cons(head: Nat, tail: Seq); } \
-             machine length(s: Seq) -> Nat terminates; terminates by s; { \
+             machine length(s: Seq) -> Nat terminates by s; { \
              transition s { Seq::Empty -> Nat::Zero \
              Seq::Cons { head, tail } -> Nat::Succ { prev: length(tail) } } } \
              machine length_cons(x: Nat, s: Seq) \
@@ -1662,7 +1797,7 @@ mod structural_entailment {
         // right_id proves `result == a`; a caller cites it (its inductive
         // body never finitely unfolds for a symbolic argument).
         validate(
-            "machine right_id(a: Nat) -> Nat terminates; terminates by a; \
+            "machine right_id(a: Nat) -> Nat terminates by a; \
              ensures result == a { \
              transition a { Nat::Zero -> Nat::Zero \
              Nat::Succ { prev } -> Nat::Succ { prev: right_id(prev) } } } \
@@ -1676,7 +1811,6 @@ mod structural_entailment {
     /// `result == a` (functional) plus `add(a, Zero) == a` (the LAW an
     /// explicit citation delivers), both by one induction.
     const RIGHT_ID_LAW: &str = "machine right_id(a: Nat) -> Nat \
-         terminates;
          terminates by a; \
          ensures result == a; (add(a, Nat::Zero)) == a; { \
          transition a { Nat::Zero -> Nat::Zero \
@@ -1722,23 +1856,38 @@ mod structural_entailment {
 
     #[test]
     fn requires_bearing_citation_rejected() {
-        // v1 boundary: site discharge of the callee's requires has not
-        // landed, so citing a conditional lemma errors loudly.
+        // SITE DISCHARGE negative: the citer has no hypothesis establishing
+        // the callee's instantiated requires, so the citation refuses and
+        // names the undischarged fact.
         let error = validate(
             "machine sym(a: Nat, b: Nat) requires a == b; ensures b == a; {} \
              machine conditional_cite(x: Nat, y: Nat) ensures y == x { \
              sym(x, y); }",
         )
-        .expect_err("citing a requires-bearing lemma should reject");
-        assert!(
-            error.contains("requires contract is not discharged at citation sites yet"),
-            "expected the citation v1 boundary error, got: {error}"
+        .expect_err(
+            "citing a requires-bearing lemma without establishing its requires should reject",
         );
+        assert!(
+            error.contains("is not established at this citation site"),
+            "expected the site-discharge refusal, got: {error}"
+        );
+    }
+
+    #[test]
+    fn requires_bearing_citation_discharged() {
+        // SITE DISCHARGE positive: the citer's own requires establish the
+        // callee's instantiated requires, so the citation injects the
+        // conditional ensures and the goal proves.
+        validate(
+            "machine sym(a: Nat, b: Nat) requires a == b; ensures b == a; {} \
+             machine conditional_cite(x: Nat, y: Nat) requires x == y; \
+             ensures y == x { sym(x, y); }",
+        )
+        .expect("a citation whose requires are established at the site should prove");
     }
 
     /// The successor-shift law, the step case's citation material.
     const SUCC_LAW: &str = "machine add_succ_law(a: Nat, b: Nat) -> Nat \
-         terminates;
          terminates by a; \
          ensures (add(a, Nat::Succ { prev: b })) == (Nat::Succ { prev: add(a, b) }) { \
          transition a { Nat::Zero -> Nat::Zero \
@@ -1749,7 +1898,6 @@ mod structural_entailment {
     /// cites add_succ_law AT THE CASE PAYLOAD (only reachable from a
     /// sub-state's frame) and takes the IH from its self-application.
     const ADD_COMM: &str = "machine add_comm(a: Nat, b: Nat) -> Nat \
-         terminates;
          terminates by a; \
          ensures (add(a, b)) == (add(b, a)) { \
          transition a { Nat::Zero -> base_case(b) \
@@ -1809,7 +1957,6 @@ mod structural_entailment {
                 + " "
                 + SUCC_LAW
                 + " machine bad_comm(a: Nat, b: Nat) -> Nat \
-                   terminates;
                    terminates by a; \
                    ensures (add(a, b)) == (add(b, b)) { \
                    transition a { Nat::Zero -> base_case(b) \
@@ -1835,7 +1982,6 @@ mod structural_entailment {
         // measure), so the self-call through it must reject.
         let error = validate(
             "machine bad(a: Nat, b: Nat) -> Nat \
-             terminates;
              terminates by a; \
              ensures (add(a, b)) == (add(a, b)) { \
              transition a { Nat::Zero -> done(b) \
@@ -1847,14 +1993,13 @@ mod structural_entailment {
         )
         .expect_err("recursion through a non-descending sub-state parameter should reject");
         assert!(
-            error.contains("does not make ranking subject `a` descend structurally"),
+            error.contains("cannot prove the measure"),
             "expected the descent error, got: {error}"
         );
     }
 
     /// Multiplication (the harness prelude only carries `add`).
     const MUL: &str = "machine mul(a: Nat, b: Nat) -> Nat \
-         terminates;
          terminates by a; { \
          transition a { Nat::Zero -> Nat::Zero \
          Nat::Succ { prev } -> (add(b, mul(prev, b))) } }";
@@ -1862,14 +2007,12 @@ mod structural_entailment {
     /// Associativity: pure induction, no citations -- both sides normalize
     /// by unfolding plus the IH rewrite.
     const ADD_ASSOC: &str = "machine add_assoc(a: Nat, b: Nat, c: Nat) -> Nat \
-         terminates;
          terminates by a; \
          ensures (add(add(a, b), c)) == (add(a, add(b, c))) { \
          transition a { Nat::Zero -> Nat::Zero \
          Nat::Succ { prev } -> Nat::Succ { prev: add_assoc(prev, b, c) } } }";
 
     const MUL_ZERO_RIGHT: &str = "machine mul_zero_right(a: Nat) -> Nat \
-         terminates;
          terminates by a; \
          ensures (mul(a, Nat::Zero)) == Nat::Zero { \
          transition a { Nat::Zero -> Nat::Zero \
@@ -1880,7 +2023,6 @@ mod structural_entailment {
     /// normalize `add(b, add(prev, m))` onto the goal's other side --
     /// explicit Dafny-style proof text, no search.
     const MUL_SUCC_RIGHT: &str = "machine mul_succ_right(a: Nat, b: Nat) -> Nat \
-         terminates;
          terminates by a; \
          ensures (mul(a, Nat::Succ { prev: b })) == (add(a, mul(a, b))) { \
          transition a { Nat::Zero -> Nat::Zero \
@@ -1894,7 +2036,6 @@ mod structural_entailment {
     /// Multiplication commutes: base cites mul_zero_right, step cites
     /// mul_succ_right at (b, prev) plus the IH.
     const MUL_COMM: &str = "machine mul_comm(a: Nat, b: Nat) -> Nat \
-         terminates;
          terminates by a; \
          ensures (mul(a, b)) == (mul(b, a)) { \
          transition a { Nat::Zero -> base_mc(b) \
@@ -1983,14 +2124,14 @@ mod structural_entailment {
         // inductions on the first sequence, no citations.
         validate(
             "data Seq { case Empty; case Cons(head: Nat, tail: Seq); } \
-             machine append(s: Seq, t: Seq) -> Seq terminates; terminates by s; { \
+             machine append(s: Seq, t: Seq) -> Seq terminates by s; { \
              transition s { Seq::Empty -> (t) \
              Seq::Cons { head, tail } -> Seq::Cons { head: head, tail: append(tail, t) } } } \
-             machine append_empty_right(s: Seq) -> Seq terminates; terminates by s; \
+             machine append_empty_right(s: Seq) -> Seq terminates by s; \
              ensures (append(s, Seq::Empty)) == s { \
              transition s { Seq::Empty -> Seq::Empty \
              Seq::Cons { head, tail } -> Seq::Cons { head: head, tail: append_empty_right(tail) } } } \
-             machine append_assoc(s: Seq, t: Seq, u: Seq) -> Seq terminates; terminates by s; \
+             machine append_assoc(s: Seq, t: Seq, u: Seq) -> Seq terminates by s; \
              ensures (append(append(s, t), u)) == (append(s, append(t, u))) { \
              transition s { Seq::Empty -> Seq::Empty \
              Seq::Cons { head, tail } -> Seq::Cons { head: head, tail: append_assoc(tail, t, u) } } }",
@@ -2006,13 +2147,13 @@ mod structural_entailment {
         // IH as a rewrite. No citations needed: both sides normalize.
         validate(
             "data Seq { case Empty; case Cons(head: Nat, tail: Seq); } \
-             machine length(s: Seq) -> Nat terminates; terminates by s; { \
+             machine length(s: Seq) -> Nat terminates by s; { \
              transition s { Seq::Empty -> Nat::Zero \
              Seq::Cons { head, tail } -> Nat::Succ { prev: length(tail) } } } \
-             machine append(s: Seq, t: Seq) -> Seq terminates; terminates by s; { \
+             machine append(s: Seq, t: Seq) -> Seq terminates by s; { \
              transition s { Seq::Empty -> (t) \
              Seq::Cons { head, tail } -> Seq::Cons { head: head, tail: append(tail, t) } } } \
-             machine length_append(s: Seq, t: Seq) -> Nat terminates; terminates by s; \
+             machine length_append(s: Seq, t: Seq) -> Nat terminates by s; \
              ensures (length(append(s, t))) == (add(length(s), length(t))) { \
              transition s { Seq::Empty -> Nat::Zero \
              Seq::Cons { head, tail } -> Nat::Succ { prev: length_append(tail, t) } } }",
@@ -2037,6 +2178,88 @@ mod structural_entailment {
         assert!(
             error.contains("no entailment tier judges yet"),
             "expected the N3 fence, got: {error}"
+        );
+    }
+}
+
+mod provider_plan {
+    use omega_effects::provider_plan::{
+        ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceSchema,
+    };
+    use omega_source_files_to_tokens::Lexer;
+    use omega_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
+    use omega_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
+    use omega_tokens_to_syntax_trees::parse_syntax_trees;
+
+    fn typed(source: &str) -> omega_typed_trees::TypedTrees {
+        let tokens = Lexer::new(source).tokenize().expect("tokenize");
+        let syntax = parse_syntax_trees(&tokens).expect("parse");
+        let resolved = lower_syntax_trees(&syntax).expect("resolve");
+        lower_symbol_resolved_trees(&resolved).expect("typed lowering")
+    }
+
+    #[test]
+    fn service_schema_reifies_a_boundary_trait() {
+        // PRV2: the schema derives from the typed boundary TraitDefinition
+        // -- names, parameter counts (receiver excluded), result presence,
+        // and declared effects.
+        let program = typed(
+            "boundary trait Console {\n\
+             machine write_line(text: &[u8])\n\
+             effects\n\
+                 stdout_io;\n\
+             machine exit_process(return_code: i32);\n\
+             }\n\
+             data Main { console: Console; }\n\
+             machine Main::main(&mut self) {}\n",
+        );
+        let console = program
+            .traits()
+            .iter()
+            .find(|definition| definition.name.as_str() == "Console")
+            .expect("Console trait");
+        let schema =
+            ServiceSchema::from_typed(&program, console).expect("boundary trait has a schema");
+        assert_eq!(schema.trait_name, "Console");
+        assert_eq!(schema.methods.len(), 2);
+        assert_eq!(schema.methods[0].name, "write_line");
+        assert_eq!(schema.methods[0].parameter_count, 1);
+        assert!(!schema.methods[0].has_result);
+        assert_eq!(schema.methods[0].effects, vec!["stdout_io".to_owned()]);
+        assert_eq!(schema.methods[1].name, "exit_process");
+    }
+
+    #[test]
+    fn fingerprint_is_presentation_invariant() {
+        // PRV2: identity excludes presentation -- reordering rows keeps the
+        // fingerprint; changing a binding changes it.
+        let schema = ServiceSchema {
+            trait_name: "Console".to_owned(),
+            methods: Vec::new(),
+        };
+        let row = |method: &str, value: i64| ProviderPlanRow {
+            method: method.to_owned(),
+            binding: ProviderBinding::Value { value },
+            call_shape: None,
+        };
+        let plan = |rows: Vec<ProviderPlanRow>| ProviderPlan {
+            name: "p".to_owned(),
+            target: "t".to_owned(),
+            schema: schema.clone(),
+            rows,
+            effect_set: omega_effects::EffectSet::empty(),
+            origin_package: "omega::language::std".to_owned(),
+        };
+        let forward = plan(vec![row("a", 1), row("b", 2)]);
+        let reversed = plan(vec![row("b", 2), row("a", 1)]);
+        assert_eq!(
+            forward.identity_fingerprint(),
+            reversed.identity_fingerprint()
+        );
+        let changed = plan(vec![row("a", 9), row("b", 2)]);
+        assert_ne!(
+            forward.identity_fingerprint(),
+            changed.identity_fingerprint()
         );
     }
 }
