@@ -9,7 +9,7 @@ pub(crate) mod termination;
 use omega_core::diagnostics::Diagnostic;
 
 #[cfg(test)]
-pub(crate) use multiplicity::validate_linear_permission_events;
+pub(crate) use multiplicity::{record_permission_events, validate_linear_permission_events};
 
 pub(crate) fn check_checked_facts(
     program: &omega_typed_trees::TypedTrees,

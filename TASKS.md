@@ -4588,7 +4588,12 @@ with a real app-window story.
   consume sibling obligations before the per-field resource algebra exists.
   Pinned by the pipeline event sequence/origin test and
   pass/ownership/conditional_linear_payload_extraction (native exit 70).
-  **CML3 next:** replace the producer's remaining legacy move/drop projection.
+  **CML3 SLICE 8 LANDED 2026-07-20:** affine cleanup events are now
+  discovered directly from typed state ownership (locals in reverse
+  declaration order, then owned by-value parameters), independent of the
+  compatibility `drops` arena; a producer-level test clears that arena before
+  rebuilding permissions and pins identical cleanup roots/order. **CML3 next:**
+  replace the producer's remaining legacy move projection.
   Terminal consumption needs no annotation: an ordinary
   `move self` call consumes when no returned outcome carries the obligation,
   while a `try_*` incomplete outcome must return the live token. Pin create ->

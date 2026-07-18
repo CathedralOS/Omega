@@ -131,9 +131,10 @@ Implementation status (CML3, 2026-07-17): these events now survive the full
 semantic pipeline with multiplicity, access, and transfer-stable provenance.
 Existing shared/exclusive borrow loans enter the same permission context at
 activation and leave it at weakening; their mature legality checks are not
-reimplemented. The linear judgment reads this context exclusively. Legacy
-move/drop summaries remain only as transitional producer input until ownership
-discovery emits the semantic events directly.
+reimplemented. The linear judgment reads this context exclusively. Affine
+cleanup is discovered directly from typed state ownership; the legacy drop
+summary is no longer producer input. Legacy move summaries remain transitional
+producer input until move discovery emits semantic transfers directly.
 
 Consuming calls are classified from result flow: if a by-value `self` call
 returns a type carrying the obligation, it transfers rather than terminally
