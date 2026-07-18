@@ -1,187 +1,139 @@
-# Chapter 23: Inline Assembly
+# Inline Assembly
 
-Inline assembly is not an escape hatch from Omega's proof model.
+Inline assembly is the checked low-level operation surface for OS and driver
+work. It is not an opaque text or byte escape from Omega's control-flow,
+ownership, effects, authority, or machine-state rules.
 
-Omega may eventually allow assembly inside states, but assembly must participate in the same control-flow, ownership, aliasing, and invariant rules as ordinary Omega code. The right mental model is:
+The full parsed surface is designed but not implemented. The existing
+`asm { jmp state(...) }` experiment is only the first narrow slice.
 
-- Parsed assembly instructions have contracts.
-- The compiler checks those contracts.
-- If the contracts cannot be satisfied, the program fails to compile.
-- Boundary is explicit when the compiler cannot prove an assembly contract from Omega facts.
+## Parsed instructions with contracts
 
-This keeps inline assembly useful for low-level work without letting it become a hole in the language.
+`asm { ... }` is parsed for the selected target. Every accepted instruction has
+a compiler-owned contract that can contribute:
 
-## Contract-Emitting Assembly
+- operand type/width and target-feature requirements;
+- address provenance, bounds, alignment, initialization, and permission;
+- boundary-service reach and required authority;
+- register, flag, memory, and machine-state changes;
+- ordering, atomicity, and cache/TLB effects;
+- required and established machine regime; and
+- all possible control exits.
 
-An assembly block should be parsed as target assembly under Omega's stricter accepted subset, not treated as an opaque text blob.
-
-Known instructions can have compiler-defined contracts. For example, a structured load instruction can declare requirements about alignment, initialized memory, and read permission, then guarantee that a destination register is initialized. A structured store instruction can require writable memory and guarantee initialized destination bytes.
-
-Manual contracts are still useful, but they should fill gaps rather than be the only model. The ideal default is:
-
-- Parse the assembly.
-- Convert instructions into structured low-level operations.
-- Emit requirements, guarantees, clobbers, and control-flow exits from known instruction contracts.
-- Ask the user for explicit contracts only when the instruction or behavior is outside the known accepted subset.
-
-An assembly block should still be able to describe what it reads, writes, clobbers, requires, ensures, and how control can leave the block.
-
-Sketch:
+The surrounding Omega facts discharge those obligations exactly as they do for
+ordinary operations. An instruction with an unsatisfied contract rejects. A
+package cannot silence the obligation by moving the instruction into a helper.
 
 ```omega
-machine Driver::step(&mut self) {
-    transition {
-        _ -> my_state_with_asm()
-    }
-
-    state my_state(&mut self) {
-    }
-
-    state my_state_with_asm(&mut self) {
-        transition self.value > 0 {
-            true -> some_other_state()
-            false -> my_state()
-        }
-
-        asm {
-            jmp my_state()
-        }
-    }
-}
-```
-
-This may be valid if the assembly jump satisfies Omega's normal transition criteria.
-
-The compiler must be able to prove that:
-
-- `my_state` is a valid transition target.
-- The target state accepts the current machine invariant state.
-- Any required return-value or continuation compatibility is satisfied.
-- The assembly block does not create an unmodeled branch.
-- Any registers, memory, or machine state modified by the block are declared and allowed.
-
-In other words, `jmp my_state()` is not magic. It is a low-level spelling of a transition the compiler still understands.
-
-## Control Flow Is Still Omega Control Flow
-
-Omega is intentionally strict about control flow. Inline assembly should not silently create arbitrary hidden loops or labels.
-
-This kind of block is suspect:
-
-```omega
-asm {
-label:
-    // ...
-    jmp label
-    // ...
-}
-```
-
-It may be invalid because it creates a control-flow loop that does not correspond to Omega states and transitions.
-
-There are two possible future policies:
-
-- Reject arbitrary assembly labels and jumps unless they map to declared Omega state transitions.
-- Allow them only when the assembly block emits a complete proof contract for termination, invariants, clobbers, and reachable exits.
-
-The first policy is simpler and safer. The second policy is more powerful, but it puts heavy proof burden on the author.
-
-## Assembly Obligations
-
-Different instructions emit different obligations.
-
-Examples:
-
-- A direct jump emits a control-flow obligation.
-- A memory load emits initialization, bounds, alignment, provenance, and aliasing obligations.
-- A memory store emits mutability, ownership, bounds, alignment, and invariant-preservation obligations.
-- A SIMD load may require source data alignment, element count, initialized bytes, non-overlap, and target feature availability.
-- A special CPU instruction may require target feature flags or host boundary contracts.
-- A register clobber requires the compiler to know which values are destroyed.
-
-For example, a SIMD block might require facts like:
-
-```omega
-requires src.initialized
-requires src.aligned<16>
-requires src.len >= 16
-requires dst.unique_mut
-requires target_feature<sse2>
-ensures dst[0..16].initialized
-```
-
-The exact syntax is not settled. The important rule is that assembly does not get to mutate reality without telling the compiler what reality changed.
-
-This is not fundamentally different from normal Omega code. Values carry facts; operations have contracts; contracts create obligations. Assembly is special only because it lives closer to the machine, so the contracts are lower-level and often more numerous.
-
-## Boundary Levels
-
-Inline assembly can produce facts at the same three boundary levels used elsewhere:
-
-- Proven: Omega proves the assembly contract from surrounding code and target rules.
-- Checked: Omega inserts or requires a runtime check before continuing.
-- Boundary: A human or host/runtime contract asserts the fact.
-
-Unchecked assembly should be loud in build artifacts.
-
-Example artifact shape:
-
-```text
-unchecked assembly obligations:
-  physics.omg:42 requires src.aligned<16>
-  crypto.omg:91 boundaries target_feature<aes>
-```
-
-This matches the broader boundary model: "boundary me" is allowed only when it is explicit, scoped, and auditable.
-
-## Syntax Direction
-
-Inline assembly likely needs three forms.
-
-Structured parsed assembly:
-
-```omega
-asm {
-    ldr x0, [src]
-    str x0, [dst]
-}
-```
-
-The compiler accepts this only if `ldr` and `str` are part of the known accepted subset for the target and their emitted contracts can be discharged.
-
-Compact control-flow assembly:
-
-```omega
-asm {
-    jmp my_state()
-}
-```
-
-This can be accepted when `my_state` resolves to an Omega state transition and all transition obligations are satisfied.
-
-Contract-heavy assembly:
-
-```omega
-asm where
-    requires src.initialized
-    requires src.aligned<16>
-    requires dst.unique_mut
-    ensures dst.initialized
+machine Interrupts::save_and_mask(
+    authority: &mut InterruptControl,
+) -> InterruptMask
 {
-    // target-specific instructions
+    asm {
+        pushfq
+        cli
+    }
 }
 ```
 
-The `where` spelling is provisional. It lines up with the idea that assembly blocks are executable code plus proof conditions.
+This sketch does not make `cli` safe by spelling it. Its contract requires the
+appropriate authority, contributes the normalized interrupt-control reach,
+records flag/state changes, and participates in construction of the linear
+restore token.
 
-## Working Rules
+## No quiet spelling
 
-- Inline assembly must not bypass the state-transition model.
-- Hidden exits, hidden loops, and undeclared clobbers are invalid.
-- Assembly memory effects must be described in terms Omega can reason about.
-- Target-specific instructions may require target-feature contracts.
-- Assembly should be unavailable in safe/proven builds unless all obligations are discharged or explicitly boundary.
-- The compiler should prefer parsed, restricted, contract-emitting assembly over arbitrary textual assembly.
-- Manual contracts are for unknown instructions, target-specific primitive operations, or proof gaps, not a replacement for compiler-known instruction contracts.
+Direct assembly and an abstract boundary operation for the same mechanism must
+contribute the same normalized reach and authority requirement. `asm { wrmsr }`
+cannot bypass a package policy that rejects `MachineControl` merely because the
+author avoided a wrapper trait.
 
-Omega can still emit machine bytes directly. Inline assembly is about letting users request specific low-level operations while preserving the compiler's ability to reason about the program.
+Containing assembly does not automatically make a machine a provider. If all
+instruction obligations are discharged from checked Omega facts and held
+capabilities, the machine remains checked. Claims that cannot be proved cross
+the ordinary provider-admission spine and appear in receipts/reports.
+
+Unknown instructions and raw emitted bytes are rejected. An admitted prebuilt
+blob is a foreign provider artifact, not inline assembly.
+
+## Control flow remains Omega control flow
+
+Known jumps and branches map to declared Omega states/transitions. Hidden labels,
+loops, returns, unwinds, and control transfers are invalid. For example:
+
+```omega
+asm {
+    jmp next_state()
+}
+```
+
+is a low-level spelling of an ordinary transition whose target, arguments,
+invariants, and live obligations remain checked.
+
+The instruction catalog records an availability class:
+
+- **user checked**: an author may spell the instruction when its complete
+  contract can be discharged; or
+- **deriver only**: generated entry/exit machinery may use it, but ordinary
+  assembly may not.
+
+Return-from-interrupt and similar operations are deriver-only because allowing a
+handler to spell them would create an unmodeled exit around its entry contract.
+
+## Machine-state regimes
+
+Regime-changing instructions state transitions directly. A far jump or control
+register write may require one mode and establish another. Calling policies
+describe stable entry regimes; they do not pretend a real-to-protected-to-long
+transition is one exotic ABI.
+
+The complete boundary entry policy also carries a `StatePlan` describing
+interrupted state, save/restore behavior, and the register/machine-state classes
+the transitive handler may use. Source syntax cannot prove that a handler is
+SIMD-free: optimization, register allocation, and callees may introduce SIMD.
+The backend therefore emits an actual footprint certificate and final-artifact
+validation checks it against the state ceiling.
+
+## Memory and hardware instructions
+
+Assembly loads/stores do not manufacture authority from an integer address.
+Their contracts require an authorized extent/view or another specific provider
+grant. MMIO field access normally uses plan-derived operations rather than
+hand-written loads, but the underlying instruction is checked by the same rules.
+
+Cache maintenance, executable publication, TLB invalidation/shootdown, DMA
+completion, and cross-core instruction-fetch visibility are target-specific
+contracted sequences. Public APIs should expose the semantic operation; checked
+provider implementations own the instruction sequence.
+
+## Required initial catalogs
+
+The freestanding x86 vertical slice needs contracts for:
+
+- `cli`, `sti`, `hlt`, flags save/restore;
+- `in`/`out` port I/O;
+- `lidt`/`lgdt`, control-register and MSR access;
+- atomics and fences;
+- cache/TLB maintenance and invalidation;
+- mode-transition operations; and
+- generated interrupt/syscall entry and return sequences.
+
+The AArch64 slice must include the corresponding system-register, barrier,
+cache-maintenance, exception-entry, and regime-transition operations. This is
+incremental catalog engineering over one model, not a new feature for every
+instruction family.
+
+## Working rules
+
+- Assembly is parsed and target-checked; it is never an opaque byte block.
+- Every accepted instruction emits a complete normalized contract.
+- Effects, authority, and trust cannot be laundered through assembly helpers.
+- Hidden control flow and user-authored entry/exit protocol bypasses are invalid.
+- Memory operations preserve Omega provenance, permission, and invariant rules.
+- Machine-state footprints are validated against the complete boundary
+  `StatePlan` after final code realization.
+- `Binding::Instruction` retires as the checked catalog covers its customers.
+
+See
+[`OS Memory And Hardware Foundation`](../design_briefs/os_memory_and_hardware_foundation.md)
+and [`Calling And Machine-State Plans`](../design_briefs/calling_plans.md).

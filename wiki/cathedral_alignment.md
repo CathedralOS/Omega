@@ -101,32 +101,20 @@ implementation work. Each one gets more expensive to retrofit every month.
    the words everything parks on, so C4/C5 gate IPC, the scheduler, and
    task-runtime implementation.
 
-7. **Freestanding target + hardware access vocabulary** (ABSENT/narrow).
-   Boot needs: a target with *no* host bindings and a custom entry (the
-   current target model assumes stdout/stdin/process capabilities), linker/
-   section/physical-address control for the image writers, **volatile/MMIO
-   access semantics** (absent from chapter 20), and inline asm grown beyond
-   `asm { jmp state(...) }` (CR3/MSR/port-IO instruction contracts — the
-   appendix already lists the open questions; they need answers). The direct
-   image emission bet is aligned with this; the gap is the freestanding
-   flavor of it. The current freestanding model is recorded in
-   `design_briefs/freestanding_boot_and_hardware_facts.md`: a typed entry
-   provider, linear firmware/memory-map handoff, explicit region authority,
-   capability-gated MMIO, and restricted interrupt entries. Boot needs no new
-   `unsafe` or fact category: machine-state claims use evidence tokens
-   (`IrqGuard`, `FinalMemoryMap`), value invariants, owned per-CPU state, or an
-   audited target/provider assumption. Foreign structs ride the layout-policy machinery
-   (`programmable_layouts.md`); foreign *pointers* use the extern brief's
-   “Foreign pointer cases”
-   taxonomy (borrows for call-scoped args, gated tokens / owned mints for
-   returned pointers, and explicit `satisfies ... via <Binding>` leaves —
-   `Syscall(n)` / `DllImport(m, s)` / `VtableSlot(i)` — from which the
-   toolchain derives `ProviderPlan` call-target mappings). Remaining asks:
-   no-host target + entry spelling, lowering-contract vocabulary (volatile
-   `exactly_once`, `clobbers tlb`), and the **entry-stub lowering** — one
-   design for interrupt entry, the firmware seam's UEFI export table, and
-   outbound callbacks (foreign-initiated activation; shape recorded in
-   `extern_boundary_and_format_domains.md`, frame provenance open).
+7. **Freestanding target + OS memory/hardware foundation** (BOOT CORE PARTIAL;
+   reusable primitives designed, engineering incomplete). Cathedral M1/M2 and
+   M3 serial prove typed UEFI entry, firmware-table calls, the runtime-stride
+   memory-map walk, `ExitBootServices`, first Region mint, port I/O, and `hlt`.
+   The remaining foundation is now factored generically in
+   `design_briefs/os_memory_and_hardware_foundation.md`: inert `addr` values;
+   concrete-range `Extent` authority distinct from allocator `Region`;
+   `LayoutPlan` geometry plus separate `AccessPlan`; sealed placed views;
+   parsed checked asm; independent `CallPlan + StatePlan`; symbolic
+   materialization; external-root reporting; DMA external loans; and carry /
+   runtime admission. No interrupt DSL, volatile qualifier, raw instruction
+   binding, or parallel trust system. The next vertical slice is the x86 IDT
+   and timer; placed views, page tables, DMA, hostile IPC, and AP bringup form
+   the wider gauntlet.
 
 8. **Case members (sum/mixed data shapes)** — SUM SHAPES IMPLEMENTED
    (2026-06-10): `case` members with named payloads parse, validate,
@@ -137,49 +125,34 @@ implementation work. Each one gets more expensive to retrofit every month.
    (interim: `==` against a payload-bearing case is a compile error). See
    chapter 1 + TASKS.md frozen decisions 7/8.
 
-## The first-boot ladder — UEFI/QEMU (2026-07-02)
+## The boot ladder — UEFI/QEMU (status 2026-07-18)
 
-The near-term goal: an Omega-emitted UEFI application booting under
-QEMU/OVMF, once the layouts arc (L0–L3, landing now) grows its deriver
-pieces. Harness is trivial (`qemu-system-x86_64 -bios OVMF.fd -drive
+The Omega-emitted UEFI application now boots under QEMU/OVMF, owns the final
+memory map, exits firmware, mints its first Region, writes through its own
+16550 serial path, and idles with `hlt`. Harness:
+`qemu-system-x86_64 -bios OVMF.fd -drive
 format=raw,file=fat:rw:dir` — OVMF loads `\EFI\BOOT\BOOTX64.EFI` and calls
 its PE entry as an ordinary MS-x64 function: ImageHandle in RCX, SystemTable
-in RDX; no reset-vector anything). Cathedral-side design blocks nothing; the
-gate is three small Omega items, all milestone 1:
+in RDX; no reset-vector path is involved.
 
-**Milestone 1 — "Hello from Omega" (print via `ConOut->OutputString`, exit):**
-1. *Layouts + mints over the UEFI structs* — IN FLIGHT (L0–L3 landed; the
-   deriver's validate/materialize/projection remainder is the same arc).
-2. *No-host target + EFI entry* — NOT STARTED. A target with an empty
-   host-provider set (current targets assume stdout/stdin/process caps) whose
-   `main` has the EFI signature. The bounded-trivial case of the entry-stub
-   problem: one entry, two args, no re-entrancy.
-3. *PE32+ `EFI_APPLICATION` emission* — MOSTLY EXISTS. `omega-image-pe` needs
-   the subsystem value (10), an empty import table (EFI apps import nothing —
-   services arrive via the SystemTable argument), and — **verify early** —
-   base relocations / a `.reloc` section: OVMF loads at an arbitrary base; a
-   fixed-base assumption is a silent blocker.
-4. *Runtime-pointer call* — NOT STARTED. The existing MS-x64 encoder's
-   `call rax` variant (target from a projected value instead of the import
-   table). On the critical path even for hello-world
-   (`SystemTable → ConOut → OutputString`).
+**Milestone 1 — Hello from Omega:** COMPLETE. UEFI structs, no-host entry,
+PE32+ EFI application emission, and runtime table-function calls serve.
 
 **Milestone 2 — own the machine** (`GetMemoryMap` → `ExitBootServices` →
-first `Region` mint): **zero new language asks** — buffer dance, MapKey
-retry, runtime-stride walk, token mint are all expressible with milestone-1
-machinery per the boot brief.
+first `Region` mint): COMPLETE with positive firmware-return evidence and a
+98-descriptor runtime-stride walk.
 
-**Milestone 3 — alive after firmware dies** (timer tick, serial, idle):
-inline asm beyond `asm { jmp state(...) }` (`cli`/`hlt`/port-IO — serial is
-port IO, i.e. instruction contracts, not MMIO) + the real interrupt entry
-stub; then atomics/scheduler (C4/C5) for a kernel proper.
+**Milestone 3 — alive after firmware dies:** serial + idle COMPLETE; timer tick
+REMAINS. Its dependencies are parsed checked asm, generic `Calling<C>` trait
+composition, `CallPlan + StatePlan` entry derivation/final footprint validation,
+fragmented IDT materialization, and the external-root ledger. TASKS.md records
+the agent-ready order.
 
-**Calling plans** (`design_briefs/calling_plans.md`, direction settled
-2026-07-02): conventions = stated layouts over the register file
-(policy → validated CallPlan → call encoder + entry stub from one plan;
-internal convention stays compiler-sovereign; Binding kind implies the edge's
-plan). Explicitly NOT a milestone-1 blocker — the refactor target is when
-entry stubs or the second stated convention land.
+**Boundary entry plans** (`design_briefs/calling_plans.md`): ordinary ABI
+placement (`CallPlan`) and interrupted-machine-state preservation (`StatePlan`)
+are independent facets of one evaluated requirement policy. The published plan
+identity is firewalled from per-provider emitted footprint evidence, which is
+validated at final realization.
 
 ## IPC + scheduler alignment (2026-06-13)
 
@@ -203,20 +176,20 @@ CRITICAL-PATH SHARPENING:
   mailbox's claim protocol is encodable today. load/store are plain aligned
   movs — atomic on x86; the producer's release-store on the index is covered.
 
-NEW GAPS these docs surface (design TBDs, no clear implementation action yet):
+CURRENT GAPS these docs surface:
 - **Wake-reason sum.** Park must return `Signaled | PeerDied | Revoked |
   Timeout`, not just ready-or-cancelled. ch18's cancellation-as-value is a
   SUBSET; it must generalize to a wake-reason sum, with `PeerDied`/`Revoked`
   sourced from the OS grant arena (the one liveness fact only the kernel
   has). Fold into ch18's cancellation section when the scheduler arc starts.
-- **`SharedRegion<Untrusted>` — a THIRD memory category** ch19 does not name:
-  adversarially-mutable (neither proved nor boundary-accepted), reads return
-  raw/unproven values, snapshot-then-validate to close the TOCTOU hole
-  (a shared-mutable re-read after a check is unsound). ch19 currently knows
-  only proved and boundary-accepted memory.
-- **`protocol <Name> version vN { call ...; stream ...; }`** — a typed RPC
-  surface over `wire data` (the IPC doc's typed-layer example). No language
-  construct yet; rides the wire-stage-2 + capabilities-as-values work.
+- **Hostile shared-page discipline.** This is not a third memory species.
+  Ordinary data/layouts ride an authorized extent, but protocol leases establish
+  stability only among compliant peers. Against a peer retaining writable
+  mapping, Cathedral must copy then validate or revoke/remap and complete
+  cross-core invalidation before zero-copy validation.
+- **Typed RPC package.** Protocol declarations are ordinary data schemas,
+  layout/codec policies, boundary traits, and endpoint capabilities. Build the
+  serious package before proposing any `protocol` grammar.
 
 ## Tier 2 — note now, design later (TBD register)
 
@@ -225,7 +198,8 @@ None block current compiler development; all should stay visible.
 
 - **TBD: serialized capability representation** preserving attenuation +
   revocability across IPC/reboot/network (Cathedral's #1 flagged gap).
-  Depends on `wire data` + the capability runtime story.
+  Depends on ordinary numbered schemas/layout policies + the capability runtime
+  story; there is no `wire data` declaration species.
 - **TBD: quiescence proofs** under interrupts, timers, async work, hardware
   (the hot-swap precondition). Depends on the concurrency model.
 - **TBD: borrows as swap back-pressure** — borrow checker refusing to let a
@@ -236,15 +210,18 @@ None block current compiler development; all should stay visible.
 - **TBD: operation-capabilities for secrets** (`Capability<SignWithKey(K)>`)
   and **purpose-tagged authority** (`Capability<Read<X>, Purpose<Y>>`) —
   likely generics + domains, may need no new core feature; prove it.
-- **TBD: interrupt-handler entry convention** — how hardware enters the state
-  graph (a machine entry with a target-specific calling convention?).
+- **DECIDED, engineering pending: interrupt entry** — an ordinary boundary
+  machine satisfies a target requirement carrying evaluated `CallPlan +
+  StatePlan`; build/provider selection retains sealed entry identity;
+  materialization fills the IDT; installation records an external root.
 - **TBD: allocator story** — `Vec` has no runtime. Decision 22 rejects ambient
   legacy `alloc` as the resource model: a kernel wants explicit allocator/arena
   capabilities and dependent bounds. Decide the resource algebra before
   implementing `Vec` lowering, not after.
-- **TBD: repr control for hardware structures** — packed, explicit
-  offsets/alignment, untagged unions (page-table entries, descriptor tables,
-  device registers). Chapter 20 has `repr native` only.
+- **DECIDED, engineering pending: hardware representation** — programmable
+  `LayoutPlan` geometry, name-keyed fragments, separate `AccessPlan`, extent
+  authority, and plan-derived field access. Exact carriers remain in
+  OWNER_QUESTIONS #1.
 - **TBD: function pointers / first-class machine references** — driver
   dispatch tables; partially covered by `dyn Trait` (single-impl works,
   multi-impl backend pending).

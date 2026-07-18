@@ -653,25 +653,31 @@ hardware-fact declarations in small form.
 A freestanding target also needs an entry contract: who calls the entry, in
 what machine state (which firmware handoff, what is mapped, what is zeroed).
 The entry is an ordinary **exported callable** --
-`boundary machine Main::run(&self, handoff: EfiHandoff) -> EfiStatus`. A
+`boundary machine Main::run(handoff: EfiHandoff) -> EfiStatus`. A
 `boundary machine` declares "we export this as a callable surface": its
 parameter list is the shape imposed over the platform's arrival bytes (the
 boundary performs the recast; a raw `&[u8]` parameter stays first-class for
-programs that want unclaimed bytes), `&self` binds the machine's statics, and
-its calling plan is inferred from the image's subsystem -- stated explicitly as
-`boundary(<Plan>)` only when a callable's convention differs from the image
-default (interrupt handlers). "No host" is `b.freestanding = true` in
+programs that want unclaimed bytes). The satisfied target requirement pins a
+normalized calling policy through ordinary `Calling<C>` trait composition.
+The evaluated `CallPlan + StatePlan` belongs to requirement identity;
+`boundary(<Plan>)` is retired because it fused trust treatment with deployment
+policy. "No host" is `b.freestanding = true` in
 `build.omg` (an orthogonal `Build` field; see
 `design_briefs/build_and_package_model.md`). The machine-state
-guarantees remain an audited axiom list surfaced by the build artifact, not
-typed clauses.[^freestanding-open]
+guarantees are normalized provider/entry-plan facts surfaced by the build
+artifact and checked or accepted through the ordinary admission spine.
 
-[^freestanding-open]: Still open: how hardware facts compose with domains (is
-"paging enabled" a fact a provider establishes and later providers require?);
-interrupt-handler entry into a machine graph (what `&mut self` means when
-hardware preempts -- the `boundary(InterruptFrame)` calling plan names the
-convention; the preemption/borrow interaction is the open part); and how image
-emission grows section/physical-address placement control for boot layouts.
+Hardware entry points with no Omega caller are external artifact roots. Their
+effects, trust receipts, state footprints, stack domains, nesting relations,
+and version pins must enter whole-artifact analysis at installation; otherwise
+an interrupt or callback could launder behavior by sitting outside the ordinary
+call graph.
+
+The reusable extent, placed-view, checked-assembly, materialization, and root
+ledger model is specified in
+[`os_memory_and_hardware_foundation.md`](../design_briefs/os_memory_and_hardware_foundation.md).
+Exact carrier APIs and validators remain open there; no separate interrupt or
+MMIO grammar is implied.
 
 ## Invariant Parameters
 

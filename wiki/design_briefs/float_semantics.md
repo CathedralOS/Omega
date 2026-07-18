@@ -14,8 +14,8 @@ special-values policy, rounding rule}. Omega adopts that shape outright,
 because the pieces already exist: exact arithmetic is the N2 bignum
 engine, finite-floats-embed-exactly-in-Rat is the settled roster fact, and
 per-target binding tables are the landed compatibility mechanism being
-migrated to explicit conformances and `via` instruction leaves from which the
-toolchain derives typed `ProviderPlan` artifacts.
+migrated to explicit conformances from which the toolchain derives typed
+`ProviderPlan` artifacts.
 
 The model has three layers:
 
@@ -26,19 +26,19 @@ The model has three layers:
   IEEE specials, round-to-nearest-even) are target-independent semantic
   data living in omega::core beside Nat/Rat; the engine's round(format)
   and the proof stratum's decode->Rat consume them.
-- **Targets**: checked software machines and irreducible bindings (`f32.add`
-  -> the FPU instruction) live in target packages as explicit conformances.
-  Instruction leaves use `via Binding::Instruction { ... }`; the toolchain
-  derives the selected `ProviderPlan`. Hardware bindings are ACCEPTED-tier
+- **Targets**: checked software machines and checked target instructions
+  (`f32.add` -> the FPU operation) live in target packages as explicit
+  conformances. Irreducible target operations use parsed, contract-emitting
+  `asm { ... }`; the toolchain derives the selected `ProviderPlan`. Hardware bindings are ACCEPTED-tier
   (the settled "FPU rounds correctly" permanent boundary); software
   implementations are PROVEN-tier; the trust report shows which.
 
 Rows SELECT among compiler-known lowerings and declare contracts + trust;
 they never TEACH the backend encodings (an .omg that emits arbitrary bytes
-is an assembler in a costume — the parked inline-asm arc is the honest
-surface for that). Today's hardcoded IEEE instruction selection IS the
-built-in binding; formalizing it as rows (and the new `Instruction` arm of
-the Binding sum) is F7, non-blocking.
+is an assembler in a costume — parsed checked assembly is the honest surface).
+Today's hardcoded IEEE instruction selection is the bootstrap binding. F7
+migrates it to target conformances plus the checked instruction catalog; the
+transitional `Binding::Instruction` carrier then retires.
 
 **Names mean formats, permanently.** `f32` = IEEE binary32 on every target
 that provides it, forever; `p32` = posit32 if it ever ships. A

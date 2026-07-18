@@ -187,9 +187,13 @@ convention is a **layout over the register file + stack frame** and gets the
 layout treatment — a per-ABI policy (stated or computed, audited against the
 psABI document) produces a validated **CallPlan** from a signature: per-param
 placements (`InReg`/`OnStack`/`ByPointer`), return placement, clobber set,
-shadow space, stack alignment. One plan feeds both derivers — the outbound
-call encoder and the inbound entry stub — so caller and callee agree by
-construction. In practice no code names a convention: the `Binding` kind in
+shadow space, stack alignment. Inbound entries additionally carry an independent
+**StatePlan**: initial machine regime, interrupted state, save/restore policy,
+and permitted transitive machine-state use. One evaluated boundary-entry plan
+feeds both derivers — the outbound call encoder and the inbound entry stub —
+so caller and callee agree by construction without confusing ABI placement with
+interrupted-state preservation. In practice no code names a convention: the
+`Binding` kind and satisfied requirement in
 the selected `ProviderPlan` implies it (`Syscall(n)` → the target's syscall plan,
 `DllImport`/`VtableSlot` → its C plan). A calling plan is auditable policy
 data, never an unchecked ABI string.
@@ -197,42 +201,36 @@ data, never an unchecked ABI string.
 The plan must cover argument placement, return placement, clobbers, stack
 alignment, and failure behavior — validated before any deriver trusts it.
 
-## Volatile And Device Memory
+## Placed And Externally Mutable Memory
 
 Ordinary Omega reads and writes may be reordered, coalesced, or elided by the
-compiler. Device-visible memory (MMIO registers, DMA descriptors, hardware
-tables) must not go through ordinary accesses.
+compiler. Device-visible memory must not go through ordinary accesses. Shared
+IPC and DMA also require explicit ownership and observation disciplines, but
+they are not synonyms for MMIO.
 
-The direction: device memory is reached through BOUNDARY OPERATORS with
-volatile contracts, not through a type qualifier on ordinary fields. A volatile
-contract states that each source-level access happens exactly once, at the
-declared width, in program order relative to other volatile accesses on the
-same region. The boundary provider names the region and carries the
-the relevant boundary-service reach (for example `DeviceIo` or `MemoryMap`),
-so hardware access is auditable the same
-way host calls are (see
-[Capabilities, Effects, And Boundaries](chapter_19_capabilities_effects_boundaries.md)).[^volatile-open]
+The normalized composition is an authority-bearing `Extent`, a validated
+`LayoutPlan`, and a separate validated `AccessPlan`. Layout chooses physical
+geometry. Access chooses exact transfer width, read/write/atomic permission,
+stable versus externally-changing observation, generic RMW permission, and the
+statically pinned boundary-service reach. Combining these plans would pollute
+wire formats with device semantics and hardware layouts with codec semantics.
 
-Hardware-shaped structures (page-table entries, descriptor tables, device
-register blocks) additionally need exact layout: explicit field offsets,
-packing, and no compiler reordering. That is a stronger form of the stable
-representation declaration above; its spelling is undesigned.[^repr-hardware]
+The compiler derives sealed field-access values. Pure projection narrows the
+extent to a field without performing I/O; a field operation performs the exact
+declared access. There is no public arbitrary-offset `volatile_read` escape and
+no `volatile` field qualifier. A volatile access occurs exactly once at its
+declared width. It does not imply device ordering; fences and device contracts
+remain separate.
 
-[^volatile-open]: Open details: the exact operator surface (per-register
-operators vs a generic `volatile_read<T>(region, offset)` pair), whether
-volatile accesses also imply hardware ordering (they should not -- ordering
-against the device is the boundary contract's job, fences are separate), and
-how a region capability is constructed at boot.
+Hardware-shaped structures use the same programmable layout mechanism as
+Omega-native and protocol formats. Name-keyed fragmented bit placements are
+needed for structures such as x86 IDT gates. Device behaviors such as W1C or
+read-to-clear remain target-package machines over private primitive access; they
+do not become layout cases.
 
-[^repr-hardware]: Direction settled 2026-07-02
-(`design_briefs/programmable_layouts.md`): hardware-shaped structures are
-**stated layout plans** — a policy returning literal placements (`At` offsets,
-`Bits(container, lsb, width)` slots, per-register access classes) validated
-against overlap/straddle/range rules, with field access, RMW gating, and
-snapshot-then-project MMIO discipline *derived* from the plan. No bit-width
-value types (range facts on plain integers carry the surface). Still open:
-untagged unions for hardware views, and whether such types are restricted to
-boundary-adjacent packages.
+See [`Programmable Layouts`](../design_briefs/programmable_layouts.md) and the
+[`OS Memory And Hardware Foundation`](../design_briefs/os_memory_and_hardware_foundation.md)
+for the settled separation and remaining API/validator questions.
 
 ## Endianness
 

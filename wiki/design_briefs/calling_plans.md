@@ -1,155 +1,189 @@
-# Design Brief — Calling Plans (conventions as stated layouts over registers)
+# Design Brief: Calling And Machine-State Plans
 
-> **Status:** Settled design; engineering incomplete. **Driver:** the UEFI/QEMU
-> first-boot ladder needs a
-> runtime-pointer call *now* and entry stubs *soon*; Linux syscalls and
-> kernel32 calls already exist as hardcoded conventions in the backend; COM,
-> AAPCS, and the interrupt frame are queued behind them. · **Sibling of:**
-> [`programmable_layouts.md`](programmable_layouts.md) — same mechanism, a
-> different carrier. · **Sequencing:** explicitly NOT a first-boot blocker
-> (see §6).
+Current as of 2026-07-18. Boundary conventions are normalized policy artifacts;
+Omega's internal calling convention remains compiler-sovereign. This brief now
+includes inbound machine-state preservation, which ordinary calls do not expose.
+Engineering is incomplete.
 
-## 1. Bottom line up front
+## One boundary entry plan, two independent facets
 
-**A calling convention is a layout over the register file + stack frame**
-instead of a byte buffer: per-parameter placements, a return placement,
-alignment, padding (shadow space *is* padding), and a clobber set. So it gets
-the layout treatment: a **policy** (per-ABI, stated or computed, audited
-against the psABI doc) produces a **validated plan** from a **signature**, and
-compiler-owned derivers walk the plan. Omega's *internal* convention is never
-stated and never expressible — conventions exist **only at boundaries**,
-defaulted by the `Binding` kind so the common case names nothing.
-
-## 2. The vocabulary
+An ordinary ABI is a layout over registers and a stack. It does not, by itself,
+describe hardware entering while another activation is live.
 
 ```omega
-data Placement {
-    case InReg(reg: Reg);            // rcx, xmm0, x0… — the placement vocabulary
-    case OnStack(offset: count);     //   is PER-ARCHITECTURE, like byte offsets
-    case ByPointer(reg: Reg);        // large aggregates pass by hidden pointer —
-}                                    //   MS and SysV do this DIFFERENTLY (why this is data)
-
 data CallPlan {
     params: [Placement];
-    ret: Placement;
-    clobbers: [Reg];                 // the volatile set — what a callee may destroy
-    shadow: count;                   // MS-x64: 32; SysV: 0
-    stack_align: count;              // 16 at the call site on both
+    result: Placement;
+    ordinary_clobbers: RegisterSet;
+    stack_align: count;
+    shadow_bytes: count;
+    entry_control: EntryControl;
 }
 
-trait CallingConvention {
-    machine plan(signature: Signature) -> CallPlan;   // effect-free; build-time
+data StatePlan {
+    initial_regime: MachineRegime;
+    interrupted_state: MachineStateSet;
+    saved_state: MachineStateSet;
+    restored_state: MachineStateSet;
+    permitted_transitive_use: MachineStateSet;
+}
+
+data BoundaryEntryPlan {
+    call: CallPlan;
+    state: StatePlan;
 }
 ```
 
-`Signature` reflection (param/return types + sizes) is the same reflection
-surface the layout work already needs (L0 `Schema` machinery, one more
-consumer). Policies are ordinary data satisfying the trait — `MsX64`, `SysV`,
-`LinuxSyscall` (≈ SysV with args in `R10` not `RCX` — a one-line diff between
-two stated plans, versus a subtle hardcoded special case), `Aapcs64` when ARM
-arrives, and `InterruptFrame` (the "convention" the CPU itself uses pushing a
-trap frame — the boot brief's sample-6 stub is this plan's inbound direction).
-SysV's recursive argument-classification algorithm is the *strongest* case for
-policy-as-code: ~80 legible lines audited against the psABI beat the same
-logic buried in instruction selection.
+`CallPlan` owns parameter/result placement and ordinary ABI behavior.
+`StatePlan` owns the state that already belonged to an interrupted activation,
+the state an entry stub preserves, and the state the handler and its callees may
+use. Their projections coincide for many ordinary calls; that is not a reason to
+fuse their identities.
 
-## 3. One plan, two derivers, agreement by construction
+## Policies are ordinary trait relationships
 
-The same theorem shape as encode/materialize:
-
-```text
-convention.plan(signature) ──► validated CallPlan ──┬──► call encoder   (outbound: arrange
-                                                    │     the world their way, `call rax`)
-                                                    └──► entry stub     (inbound: unmarshal
-                                                          their registers into machine args)
-```
-
-A caller and a callee derived from one stated plan cannot disagree about where
-argument 2 lives. Since entry stubs are needed regardless (interrupt entry,
-the UEFI export table, outbound callbacks — one foreign-initiated-activation
-design, `extern_boundary_and_format_domains.md`), the plan is the artifact
-that keeps both directions honest.
-
-**Validation** (before any deriver trusts a plan): no register
-double-assignment, every parameter placed, placements type-compatible
-(float→vector reg class), clobber set sane, stack offsets non-overlapping.
-Same discipline as byte-plan validation, different invariants.
-
-## 4. The sovereignty split — the exact mirror of data layouts
-
-| | compiler-sovereign (never stated) | stated at edges |
-|---|---|---|
-| **data** | in-memory layout | serialized layout (policies) |
-| **calls** | Omega↔Omega convention | boundary conventions (calling plans) |
-
-Omega's internal convention may change any release; no user code can state,
-observe, or depend on it. Calling plans attach **only** to boundary machines —
-and are **defaulted by the `Binding` kind** (`Syscall(n)` implies the target's
-syscall plan; `DllImport`/`VtableSlot` imply its C plan; an entry/export table
-names its plan once), so in practice nobody writes a convention name at all.
-This replaces ch20's provisional `abi "aarch64-darwin"` string-attribute
-sketch — a string names nothing checkable; a policy is auditable data.
-
-## 5. What stays compiler-owned
-
-The derivers. Walking a plan means emitting per-arch instructions (moves into
-registers, stack adjustment, the `call`/`ret`/`iretq`), exactly as byte-plan
-lowering owns what `At`/`Bits` mean in loads and stores. Policies choose
-placements; derivers own the machinery. Closed-vocabulary discipline
-throughout.
-
-## 6. Sequencing — explicitly not a first-boot blocker
-
-Milestone 1 of the UEFI ladder ships on the **existing hardcoded MS-x64
-encoder** (the five kernel32 ops) plus its `call rax` variant — no plan
-mechanism required. The refactor target is the natural moment the mechanism
-starts paying: when **entry stubs** land (second direction — agreement starts
-mattering) or the **second convention** is touched (Linux syscalls are already
-implicitly hardcoded; making both plans stated kills the special-casing).
-Differential validation comes free at that point: call known-good libc/kernel
-functions from plan-derived adapters and compare against clang-compiled
-callers — the house oracle style, applied to ABI conformance.
-
-## 7. Programmable plans; inferred selection
-
-The augmentation boundary is meaning, not values. The placement vocabulary and
-the derivers are compiler-owned (closed; a new placement kind or a new
-architecture = a compiler release);
-the PLANS are policy-authored data over that vocabulary. The acceptance test
-is the UEFI counterfactual: a platform the compiler never heard of, on a known
-architecture, must be reachable with zero compiler changes — a stated
-`CallPlan` policy + external `via` bindings + layout policies + `build.omg`
-provider selection. The toolchain derives the normalized `ProviderPlan` from
-those declarations and their explicit conformance closure; user code does not
-assemble plan rows.
-Only new KINDS of thing (ISA, placement species, call mechanism, object
-format) may require the compiler.
-
-**The spelling.** Conventions exist only at boundaries (§4), so the plan
-parameterizes the boundary marker itself — no clause keyword, no `abi` string:
+A boundary requirement pins a target policy through ordinary trait composition:
 
 ```omega
-boundary machine Main::run(&self, h: EfiHandoff) -> EfiStatus { ... }        // inferred (the norm)
-boundary(InterruptFrame) machine on_timer(&self, frame: TrapFrame) { ... }   // stated: overrides
-boundary(MsX64) machine wnd_proc(&self, msg: WindowMessage) -> i64 { ... }   // per-callable; one image
-                                                                              //   may export MANY surfaces
+trait Calling<C>;
+
+boundary trait TimerInterrupt:
+    Calling<X86InterruptConvention>
+{
+    machine handle(frame: &mut X86InterruptFrame, ack: LapicAck);
+}
 ```
 
-Inference: a bare `boundary machine`'s plan follows from the image's
-subsystem/format (`build.omg`); the explicit form exists for callables whose
-convention differs from the image default (the interrupt frame is the first
-real customer). `requires`/`ensures` stay reserved for value contracts.
+`C` is a calling-policy type, not the frame data type. Evaluating it against the
+requirement signature produces the complete normalized `BoundaryEntryPlan`.
+The evaluated result, not merely the policy symbol, enters the public contract
+identity. A target-specific requirement may layer over a portable semantic
+service trait; Omega does not need an entry-slot refinement mechanism merely to
+reuse the semantic API across targets.
 
-**`boundary machine` itself is the EXPORTED-CALLABLE construct** (settled in
-the same chat): "we are exporting this as a callable surface — here is how you
-call me." Its parameter list IS the boundary-trusted shape imposed over the
-raw arrival bytes (the recast happens at the declared surface, never as a cast
-expression in code; a raw `&[u8]` parameter remains first-class for programs
-that want unclaimed bytes). `&self` binds the machine's statics. The entry is
-simply the exported callable the platform calls — not a special form.
+Boundary-trait parents and policy parents have different established meanings:
+boundary service parents contribute service reach; ordinary core policy parents
+contribute contract identity and no reach.
 
-**Maturation path** (the twice-proven playbook — wire codec rungs 2a/2b):
-hardcoded MS-x64 encoder → `MsX64` as a STATED plan validated byte-for-byte
-against the hardcoded encoder (the agreement oracle) → policy-authored plans
-via build-time evaluation. §6's start-moment condition ("when entry stubs
-land") was met 2026-07-03: the entry-argument unmarshal is boot-verified.
+The exported machine remains ordinary and keeps `boundary` bare:
+
+```omega
+boundary machine Kernel::on_timer(
+    frame: &mut X86InterruptFrame,
+    ack: LapicAck,
+) satisfies TimerInterrupt::handle {
+    ...
+}
+```
+
+The old `boundary(InterruptFrame)` / `boundary(MsX64)` modifier spelling is
+retired. It fused the boundary marker with deployment policy and duplicated the
+requirement's identity.
+
+## Plan derivation and validation
+
+One evaluated plan drives both directions:
+
+```text
+calling policy + signature
+          |
+          v
+validated BoundaryEntryPlan
+       /             \
+outbound encoder   inbound entry/exit stub
+```
+
+Plan validation checks, at minimum:
+
+- every parameter and result is placed exactly once and compatibly;
+- stack ranges, alignment, shadow space, and register classes are coherent;
+- ordinary clobbers match the stable ABI regime;
+- saved/restored state covers the `StatePlan` commitment;
+- entry/exit control is valid for the initial regime; and
+- target and provider applicability match the requirement.
+
+Regime-changing instructions do not turn one calling plan into a multi-mode
+blob. Checked instruction contracts require regime R and establish R'. Stable
+regions on either side use their own plans.
+
+## Contract identity versus implementation evidence
+
+The authored, evaluated `CallPlan + StatePlan` is published contract identity.
+The emitted register/machine-state footprint is provider evidence.
+
+The backend must honor a state ceiling while selecting instructions and
+allocating registers, then emit checkable footprint evidence. The final
+realized artifact is independently validated after inlining, specialization,
+link relaxation, veneers/thunks, generated stubs, and admitted indirect leaves:
+
+```text
+actual_transitive_footprint subset_of permitted_transitive_use
+actual_clobbers intersect unsaved_interrupted_state = empty
+```
+
+A legal change in register allocation or implementation evidence does not alter
+caller contract identity. It revalidates the provider artifact only.
+
+Checked Omega leaves produce derived footprint evidence. Raw/admitted leaves
+carry accepted footprint claims under receipt. The trust report must distinguish
+the two.
+
+A no-SIMD interrupt root may require a callee clone compiled under a no-SIMD
+state ceiling. This is contextual codegen specialization, not generic type
+monomorphization, although both may share backend cloning and cache machinery.
+
+## Selection and bindings
+
+Plans exist only at boundaries. Most callers do not name one: an external
+`Binding` and satisfied requirement determine the pinned policy. Explicit policy
+identity is authored on the requirement, never inferred from a DLL name,
+syscall number, or friendly target string.
+
+Provider plans remain derived from explicit `satisfies` declarations and `via`
+leaves. Admission proves or accepts that a realization refines the complete
+boundary plan. See
+[`extern_boundary_and_format_domains.md`](extern_boundary_and_format_domains.md).
+
+## External roots
+
+An inbound stub installed for hardware or foreign callbacks is an external root
+because it has no Omega caller. The artifact root ledger records its evaluated
+boundary plan, provider/artifact/receipt identities, service reach, stack
+domain, nesting/preemption relation, and liveness/version pins.
+
+This ledger is also where WCSU composes same-stack interrupt demand and where a
+dynamic installation is checked against the artifact-wide bound. Per-machine
+validation alone cannot answer those questions.
+
+## Compiler-owned pieces
+
+Policies choose from closed placement and machine-state vocabularies. Compiler
+derivers own instruction emission, entry/exit stubs, contextual specialization,
+footprint production, and final-artifact validation. Omega's internal convention
+is not expressible and may change between releases.
+
+## Engineering order
+
+1. Implement generic trait-parent composition used by `Calling<C>`.
+2. Normalize existing MS-x64, syscall, and firmware conventions as evaluated
+   `CallPlan` artifacts and validate them against current hardcoded lowering.
+3. Add `StatePlan` and complete boundary-entry identity.
+4. Derive outbound encoders and inbound stubs from the same plan.
+5. Add state-ceiling-aware instruction selection/register allocation and
+   contextual specialization.
+6. Emit object-level footprint evidence and validate the final artifact.
+7. Add external-root reporting and the x86 interrupt vertical slice.
+
+## Still open
+
+- exact source and core-data spelling for `Calling<C>` and policy evaluation;
+- the normalized register/machine-state vocabulary per architecture;
+- object-certificate composition and final-image validation format;
+- admitted indirect-call footprint contracts;
+- unwind/non-local-exit representation; and
+- the concrete x86 interrupt `StatePlan`, stack classes, and acknowledgement
+  requirement used by Cathedral's timer slice.
+
+These are plan/checker/backend questions. They do not justify reviving
+`boundary(<Plan>)`, adding an interrupt machine species, or exposing code
+addresses as integers.

@@ -5,7 +5,7 @@ belongs in the relevant chapter or frozen design brief, not here. Immediate
 owner decisions belong in the repository-root `OWNER_QUESTIONS.md`;
 engineering work belongs in `TASKS.md`.
 
-Last pruned: 2026-07-20.
+Last pruned: 2026-07-18.
 
 ## Effects, resources, and progress
 
@@ -34,12 +34,17 @@ Last pruned: 2026-07-20.
   for lock-free structures before requiring a mediated or accepted boundary.
 - Complete standalone fences, `compare_exchange` failure ordering, and the
   treatment of relaxed visibility in concurrency proofs.
-- Settle the source and ordering surface for volatile/MMIO memory, packed and
-  explicit-offset hardware layouts, and untagged unions.
-- Define freestanding target declarations, firmware entry contracts,
-  interrupt-to-machine entry, and section/physical-address placement.
-- Full asynchronous preemption remains outside the current safe-point model and
-  needs a separate register/stack-context design if hard real-time requires it.
+- Settle the exact opaque `Extent` carrier/lifetime/revocation API and the
+  separate `AccessPlan` vocabulary/public field-access values. The authority /
+  geometry / access split and absence of a volatile qualifier are fixed.
+- Settle source spelling for independent carry demands (suspension, CPU/thread
+  affinity, address stability) and runtime behavior. Safe-point scheduling is a
+  strict reference profile, not a universal language restriction.
+- Define first-publication evidence for executable memory and validation across
+  static, dynamic, and runtime-generated artifacts. Live replacement remains a
+  separate component-versioning operation.
+- Finish constraint-bearing placement, fragmented symbolic materialization, and
+  the concrete x86 interrupt `CallPlan + StatePlan`/root-ledger records.
 
 ## Domains, proofs, and arithmetic
 
@@ -82,9 +87,10 @@ Last pruned: 2026-07-20.
 
 ## Boundaries, assembly, and components
 
-- Define inline-assembly local-control-flow limits, clobber/memory/feature
-  contracts, the first accepted instruction subsets, and whether supplemental
-  manual contracts can ever be trusted.
+- Implement parsed checked assembly, define the first per-target instruction
+  catalogs and user/deriver-only availability, and specify final emitted
+  machine-state footprint evidence. Opaque/manual raw assembly is not an
+  alternative.
 - Specify the separately compiled component artifact and ABI, including
   bounded multi-version coexistence, pinned import slots, version budgets,
   outbound calls from old continuations, and eventual continuation migration.
