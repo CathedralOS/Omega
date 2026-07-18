@@ -1,0 +1,18 @@
+// PRV4: a CHECKED ADAPTER -- an ordinary machine with a body and a
+// requirement-named satisfies edge -- joins the plan derivation as a
+// CheckedAdapter row (coverage counts it; its transitive effects refine
+// the requirement's declared ceiling: an effect-free body under an
+// effect-free requirement here).
+boundary trait Console { machine exit_process(return_code: i32); }
+boundary trait Echo {
+    machine echo(x: i32) -> i32;
+}
+
+machine echo_adapter(x: i32) -> i32 satisfies Echo::echo {
+    transition { _ -> (x) }
+}
+
+data Main { console: Console; }
+machine Main::main(&mut self) {
+    self.console.exit_process(70);
+}

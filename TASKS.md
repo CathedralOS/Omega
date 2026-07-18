@@ -742,10 +742,17 @@ rejects — an INTEGER ruling, engineering rides this ladder as F8).
   collides). Target INERTNESS preserved: non-selected targets' plans
   never participate (the fail-canary host-portability convention).
   Pinned: fail/providers/slot_plan_ambiguous (an authored block +
-  a portable leaf covering one slot). STEP (2) REMAINDER: dependency
-  closure joins when checked ADAPTER machines enter the derivation;
-  the build.omg per-slot override spelling rides the target-package
-  surface (step 4). IMPORT-ARGUMENT GAP FIXED
+  a portable leaf covering one slot). ADAPTERS JOINED 2026-07-20 -- STEP (2)
+  COMPLETE: a checked machine with a requirement-named satisfies
+  edge (no via) derives a CheckedAdapter plan row over a BOUNDARY
+  trait (plain traits stay the existing conformance machinery's
+  business -- the decision-20 fixtures pin that split), and
+  ADMISSION-AS-REFINEMENT enforces the effect ceiling: the adapter's
+  TRANSITIVE effects must fit inside the satisfied requirement's
+  declared effects, else a loud hidden-effect refusal (pins:
+  pass/providers/adapter_satisfies_compile,
+  fail/providers/adapter_hidden_effect). The build.omg per-slot
+  override spelling rides the target-package surface (step 4). IMPORT-ARGUMENT GAP FIXED
   2026-07-20 (was pending/providers/import_call_argument_lost, the
   step-3 blocker): authored/leaf imports on hosted aarch64 routed by
   the capability-keyed returns_value() catalog to the NON-returning

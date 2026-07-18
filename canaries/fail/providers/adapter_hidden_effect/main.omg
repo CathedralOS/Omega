@@ -1,0 +1,24 @@
+// PRV4 adapter admission: an adapter whose BODY reaches an effect outside
+// the satisfied requirement's declared ceiling refuses -- the requirement
+// is the public contract (decision 20's hidden-effect rule at plan
+// derivation).
+boundary trait Console {
+    machine write_line(text: &[u8])
+    effects
+        stdout_io;
+    machine exit_process(return_code: i32);
+}
+boundary trait Quiet {
+    machine note(x: i32) -> i32;
+}
+
+data Noisy { console: Console; }
+machine Noisy::note_adapter(&mut self, x: i32) -> i32 satisfies Quiet::note {
+    self.console.write_line("noisy");
+    transition { _ -> (x) }
+}
+
+data Main { console: Console; }
+machine Main::main(&mut self) {
+    self.console.exit_process(70);
+}

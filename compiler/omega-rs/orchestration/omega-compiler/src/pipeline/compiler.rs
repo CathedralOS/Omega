@@ -344,9 +344,12 @@ impl Compiler {
             self.options.target_name.as_deref(),
         )
         .unwrap_or_else(|_| omega_target::NativeTarget::host());
-        let selection_diagnostics = crate::pipeline::provider_plans::validate_slot_selection(
+        let mut selection_diagnostics = crate::pipeline::provider_plans::validate_slot_selection(
             &provider_plans,
             selected_native_target,
+        );
+        selection_diagnostics.extend(
+            crate::pipeline::provider_plans::validate_adapter_refinement(&typed, &provider_plans),
         );
         if !selection_diagnostics.is_empty() {
             return Err(selection_diagnostics);

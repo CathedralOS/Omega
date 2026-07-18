@@ -121,15 +121,45 @@ pub(crate) fn derive_satisfies_plans(
         let omega_syntax_trees::item::Item::Machine(machine) = item else {
             continue;
         };
-        if !machine.bodyless || machine.boundary {
+        if machine.boundary {
             continue;
         }
         for clause in syntax_trees.items.satisfies_clauses(machine.satisfies) {
-            let (Some(binding), Some(requirement)) =
-                (clause.via.as_ref(), clause.requirement.as_ref())
-            else {
+            // A bodyless leaf carries `via`; a CHECKED ADAPTER is an
+            // ordinary machine with a body and a requirement-named
+            // satisfies edge (no via). Both contribute rows; whole-trait
+            // conformances (no requirement) are the trait system's
+            // ordinary business and derive nothing here.
+            let Some(requirement) = clause.requirement.as_ref() else {
                 continue;
             };
+            let binding_kind = match (&clause.via, machine.bodyless) {
+                (Some(binding), true) => Some(binding.clone()),
+                (None, false) => {
+                    // A CHECKED ADAPTER derives a plan row only over a
+                    // BOUNDARY trait (a service schema). A plain trait's
+                    // conformance -- including its effect ceiling -- is the
+                    // existing trait machinery's business (the decision-20
+                    // admission fixtures pin it) and derives nothing here.
+                    let is_boundary_trait = typed.traits().iter().any(|definition| {
+                        definition.is_boundary
+                            && (definition.name.as_str() == clause.trait_name.as_str()
+                                || definition
+                                    .name
+                                    .as_str()
+                                    .rsplit("::")
+                                    .next()
+                                    .is_some_and(|leaf| leaf == clause.trait_name.as_str()))
+                    });
+                    if !is_boundary_trait {
+                        continue;
+                    }
+                    None
+                }
+                _ => continue, // refused elsewhere (via rungs)
+            };
+            let binding = binding_kind.as_ref();
+            let _ = &binding;
             let target = machine
                 .target
                 .as_ref()
@@ -175,6 +205,10 @@ pub(crate) fn derive_satisfies_plans(
             let plan = &mut plans[position];
             use omega_syntax_trees::item::HostProviderMappingKind;
             let row_binding = match binding {
+                None => ProviderBinding::CheckedAdapter {
+                    machine: machine.name.as_str().to_owned(),
+                },
+                Some(binding) => match binding {
                 HostProviderMappingKind::Syscall { number } => ProviderBinding::Syscall {
                     number: u32::try_from(*number).unwrap_or_default(),
                 },
@@ -200,6 +234,7 @@ pub(crate) fn derive_satisfies_plans(
                 HostProviderMappingKind::Value { value } => {
                     ProviderBinding::Value { value: *value }
                 }
+                },
             };
             plan.rows.push(ProviderPlanRow {
                 method: requirement.as_str().to_owned(),
@@ -223,6 +258,64 @@ pub(crate) fn derive_satisfies_plans(
         }
     }
     plans
+}
+
+/// PRV4 adapter ADMISSION (the refinement half): a checked adapter's
+/// TRANSITIVE effects must fit inside the satisfied requirement's declared
+/// ceiling -- the requirement is the public contract; a hidden effect in
+/// the body refuses loudly (the decision-20 provider-admission rule, now
+/// enforced at plan derivation).
+pub(crate) fn validate_adapter_refinement(
+    typed: &TypedTrees,
+    plans: &[omega_effects::provider_plan::ProviderPlan],
+) -> Vec<omega_core::diagnostics::Diagnostic> {
+    let mut diagnostics = Vec::new();
+    let effect_plan = omega_effects::infer_effects(typed);
+    for plan in plans {
+        for row in &plan.rows {
+            let ProviderBinding::CheckedAdapter { machine } = &row.binding else {
+                continue;
+            };
+            let Some(adapter) = typed
+                .machines()
+                .iter()
+                .find(|candidate| candidate.name.as_str() == machine.as_str())
+            else {
+                continue;
+            };
+            let transitive = effect_plan
+                .machines()
+                .iter()
+                .find(|entry| entry.symbol == adapter.symbol)
+                .map(|entry| entry.transitive)
+                .unwrap_or_else(omega_effects::EffectSet::empty);
+            let ceiling: Vec<&str> = plan
+                .schema
+                .methods
+                .iter()
+                .find(|method| method.name == row.method)
+                .map(|method| method.effects.iter().map(String::as_str).collect())
+                .unwrap_or_default();
+            let hidden: Vec<&str> = transitive
+                .names()
+                .filter(|name| !ceiling.contains(name))
+                .collect();
+            if !hidden.is_empty() {
+                diagnostics.push(omega_core::diagnostics::Diagnostic::error(format!(
+                    "adapter `{}` does not refine `{}::{}`: its body reaches effect(s) \
+                     [{}] outside the requirement's declared ceiling [{}] -- the \
+                     satisfied requirement is the public contract; widen it or drop \
+                     the effect",
+                    machine,
+                    plan.schema.trait_name,
+                    row.method,
+                    hidden.join(", "),
+                    ceiling.join(", "),
+                )));
+            }
+        }
+    }
+    diagnostics
 }
 
 /// PRV4 step (2) selection v1: a SLOT -- a (boundary trait, target) pair --
