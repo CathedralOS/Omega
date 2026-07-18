@@ -195,6 +195,12 @@ pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
                 // ensures, admitted through the trust carrier, never
                 // produced by execution.
                 && machine.supply_mode != omega_core::semantics::MachineSupplyMode::Accepted
+                // PRV4: an EXTERNAL LEAF's body IS its binding -- the
+                // realization produces the value at the seam.
+                && !matches!(
+                    machine.supply_mode,
+                    omega_core::semantics::MachineSupplyMode::ExternalRealization { .. }
+                )
                 && program
                     .statement_table
                     .statements(state.statement_nodes)

@@ -132,6 +132,65 @@ fn extract_provides_rows(
             });
         }
     }
+
+    // PRV4 step 1c: EXTERNAL LEAVES feed the same row stream. A bodyless
+    // `satisfies Trait::method via <Binding>;` machine contributes one row
+    // for the satisfied requirement; a `<target>`-scoped leaf rides its own
+    // marker, an unscoped leaf rides the portable name (resolves to the
+    // host target). Table-addressed mechanisms (VtableField/TableFunction)
+    // wait for the leaf `over`-struct surface and are skipped here -- the
+    // via validation rung keeps them from silently dropping.
+    for item in syntax_trees.root_items() {
+        let omega_syntax_trees::item::Item::Machine(machine) = item else {
+            continue;
+        };
+        if !machine.bodyless || machine.boundary {
+            continue;
+        }
+        for clause in syntax_trees.items.satisfies_clauses(machine.satisfies) {
+            let (Some(binding), Some(requirement)) =
+                (clause.via.as_ref(), clause.requirement.as_ref())
+            else {
+                continue;
+            };
+            use omega_syntax_trees::item::HostProviderMappingKind;
+            let binding = match binding {
+                HostProviderMappingKind::Syscall { number } => {
+                    ProvidesBindingKind::Syscall { number: *number }
+                }
+                HostProviderMappingKind::DllImport { module, symbol } => {
+                    ProvidesBindingKind::DllImport {
+                        module: module.clone(),
+                        symbol: symbol.clone(),
+                    }
+                }
+                HostProviderMappingKind::VtableSlot { index } => {
+                    ProvidesBindingKind::VtableSlot { index: *index }
+                }
+                HostProviderMappingKind::Value { value } => {
+                    ProvidesBindingKind::Value { value: *value }
+                }
+                HostProviderMappingKind::VtableField { .. }
+                | HostProviderMappingKind::TableFunction { .. } => continue,
+            };
+            rows.push(ProvidesRow {
+                target_name: machine
+                    .target
+                    .as_ref()
+                    .map(|target| target.as_str().to_owned())
+                    .unwrap_or_else(|| "cross_platform_cli".to_owned()),
+                trait_name: clause.trait_name.as_str().to_owned(),
+                method: requirement.as_str().to_owned(),
+                vtable_struct: String::new(),
+                parameter_count: boundary_trait_method_parameter_count(
+                    syntax_trees,
+                    clause.trait_name.as_str(),
+                    requirement.as_str(),
+                ),
+                binding,
+            });
+        }
+    }
     rows
 }
 
