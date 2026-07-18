@@ -99,7 +99,7 @@ impl RankingOrder {
         program: &omega_typed_trees::TypedTrees,
         state: &omega_typed_trees::state::State,
         subjects: &[ExpressionHandle],
-        order: &[omega_typed_trees::name::Identifier],
+        order: &[&str],
         view_arguments: &[ExpressionHandle],
     ) -> OrderResolution {
         // TPR3: the argumented-view surface resolves (or rejects) FIRST --
@@ -128,7 +128,7 @@ impl RankingOrder {
         if !view_arguments.is_empty() {
             let path = order
                 .iter()
-                .map(|member| member.as_str())
+                .copied()
                 .collect::<Vec<_>>()
                 .join("::");
             return OrderResolution::Rejected {
@@ -163,7 +163,7 @@ impl RankingOrder {
         program: &omega_typed_trees::TypedTrees,
         state: &omega_typed_trees::state::State,
         decreases: ExpressionHandle,
-        order: &[omega_typed_trees::name::Identifier],
+        order: &[&str],
     ) -> Option<Self> {
         if path_matches(order, &["Nat", "Descending"]) {
             return Some(Self::NatDescending);
@@ -300,6 +300,7 @@ pub(super) fn decreasing_value_text(
     expression: ExpressionHandle,
 ) -> String {
     match program.expression_table.expression(expression) {
+        ExpressionNode::Integer(literal) => literal.text().to_string(),
         ExpressionNode::Name(path) => program
             .expression_table
             .name_path_members(path.members)
@@ -499,12 +500,19 @@ fn lexicographic_component_fields(
 
 fn find_declared_measure<'program>(
     program: &'program omega_typed_trees::TypedTrees,
-    order: &[omega_typed_trees::name::Identifier],
+    order: &[&str],
 ) -> Option<&'program MeasureDefinition> {
     program
         .measures()
         .iter()
-        .find(|measure| path_matches_path(program.measure_path_members(measure.name), order))
+        .find(|measure| {
+            let actual = program.measure_path_members(measure.name);
+            actual.len() == order.len()
+                && actual
+                    .iter()
+                    .zip(order.iter())
+                    .all(|(actual, expected)| actual.as_str() == *expected)
+        })
 }
 
 /// `usize` is retired (parse-rejected); `u64` is the natural-measure name,
@@ -605,21 +613,10 @@ fn state_parameter_type_name(
         })
 }
 
-fn path_matches_path(
-    actual: &[omega_typed_trees::name::Identifier],
-    expected: &[omega_typed_trees::name::Identifier],
-) -> bool {
-    actual.len() == expected.len()
-        && actual
-            .iter()
-            .zip(expected.iter())
-            .all(|(actual, expected)| actual == expected)
-}
-
-fn path_matches(order: &[omega_typed_trees::name::Identifier], expected: &[&str]) -> bool {
+fn path_matches(order: &[&str], expected: &[&str]) -> bool {
     order.len() == expected.len()
         && order
             .iter()
             .zip(expected.iter())
-            .all(|(actual, expected)| actual.as_str() == *expected)
+            .all(|(actual, expected)| actual == expected)
 }
