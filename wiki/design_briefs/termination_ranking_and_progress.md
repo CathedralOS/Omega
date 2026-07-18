@@ -85,6 +85,12 @@ measure is never selected merely because it is the only visible candidate;
 adding another declaration must not change existing meaning. The compiler
 never invents ranking subjects or heuristically chooses a noncanonical view.
 
+Implementation status (TPR3, 2026-07-17): checker legality resolves subjects
+and argumented-view bounds from the normalized `RankingWitness`, and consumes
+its view/range identity directly. The typed machine's older decreases/order/
+argument/range spans are compatibility output only; clearing them does not
+change the termination judgment.
+
 Mutually recursive or mutually cyclic machines use one joint ranking for the
 strongly connected component, and every cyclic edge must decrease it. The
 exact source spelling for differently shaped participants remains deferred;

@@ -172,6 +172,12 @@ proof-cache identity, diagnostics, and provider-local revalidation. Stable
 canonical defaults elaborate immediately to an explicit `ranking_view_id`;
 the checker never selects a noncanonical view heuristically.
 
+Implementation status (TPR3, 2026-07-17): termination legality and checked
+view facts resolve ranked subjects and argumented-view bounds from the
+normalized `RankingWitness`; view and rank-range identity come from the same
+witness. The legacy typed-machine decreases/order/argument/range spans are
+compatibility output only and may be cleared without changing the judgment.
+
 Boundary progress profiles referenced by premises are sealed semantic
 commitments with grant/receipt identity. They participate in provider
 admission but remain outside the ordinary proof-fact catalog in v1.

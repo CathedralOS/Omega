@@ -70,25 +70,40 @@ pub(super) fn machine_decrease_outcome(
     program: &omega_typed_trees::TypedTrees,
     machine: &omega_typed_trees::machine::Machine,
 ) -> DecreaseOutcome {
-    let subjects = program
-        .expression_table
-        .expression_handles(machine.decreases);
     let states = program.machine_states(machine);
     // The decreases clause is declared on the machine signature, so its names
     // resolve against the machine's root (entry) state.
     let Some(root_state) = states.first() else {
         return DecreaseOutcome::Proven;
     };
-    let decrease_order = program.machine_decrease_order(machine.decrease_order);
-    let view_arguments = program
-        .expression_table
-        .expression_handles(machine.decrease_view_arguments);
+    let Some(witness) = machine.termination_plan.implementation_witness.as_ref() else {
+        return DecreaseOutcome::Unproven;
+    };
+    let Some(subjects) = resolve_witness_expressions(program, root_state, &witness.subjects) else {
+        return DecreaseOutcome::Rejected(
+            "internal: normalized ranking-witness subjects did not resolve in the root state"
+                .to_string(),
+        );
+    };
+    let Some(view_arguments) =
+        resolve_witness_expressions(program, root_state, &witness.view_arguments)
+    else {
+        return DecreaseOutcome::Rejected(
+            "internal: normalized ranking-view arguments did not resolve in the root state"
+                .to_string(),
+        );
+    };
+    let decrease_order = witness
+        .view_path
+        .split("::")
+        .filter(|member| !member.is_empty())
+        .collect::<Vec<_>>();
     let order = match RankingOrder::resolve(
         program,
         root_state,
-        subjects,
-        decrease_order,
-        view_arguments,
+        &subjects,
+        &decrease_order,
+        &view_arguments,
     ) {
         OrderResolution::Resolved(order) => order,
         OrderResolution::AmbiguousDefault(ambiguity) => {
@@ -102,7 +117,7 @@ pub(super) fn machine_decrease_outcome(
     // ranks its single subject by the distance up to the named bound (the
     // bounded-distance machinery with a view-fixed orientation); everything
     // else ranks the subjects directly.
-    let measure = match (&order, subjects) {
+    let measure = match (&order, subjects.as_slice()) {
         (RankingOrder::IncreasingTo(limit), [single]) => DecreaseMeasure::Distance {
             lower: *single,
             upper: *limit,
@@ -123,13 +138,13 @@ pub(super) fn machine_decrease_outcome(
     // resolve from the same authored path the plan recorded (agreement by
     // construction), and a PENDING plan view (empty path) constrains
     // nothing.
-    if let Some(witness) = machine.termination_plan.implementation_witness.as_ref()
-        && !witness.view_path.is_empty()
+    if witness.ranking_view.is_valid()
+        && let Some(recorded_path) = witness.ranking_view.canonical_path()
         && let Some(resolved_path) = canonical_order_path(&order)
-        && witness.view_path != resolved_path
+        && recorded_path != resolved_path
     {
         return DecreaseOutcome::PlanViewDivergence {
-            recorded: witness.view_path.clone(),
+            recorded: recorded_path.to_string(),
             resolved: resolved_path.to_string(),
         };
     }
@@ -137,8 +152,8 @@ pub(super) fn machine_decrease_outcome(
     // TPR3 slice 3: the `in <range>` rank constraint is CONSUMED here. V1
     // verifies the structurally-true shape and rejects everything else with
     // a directed message -- never a silent drop, never an unproven fact.
-    if machine.decrease_range.is_valid()
-        && let Some(message) = rank_range_violation(program, machine, &order)
+    if let Some(range) = witness.rank_range.as_ref()
+        && let Some(message) = rank_range_violation(program, range, &order)
     {
         return DecreaseOutcome::Rejected(message);
     }
@@ -202,22 +217,10 @@ pub(super) fn machine_decrease_outcome(
 /// message.
 fn rank_range_violation(
     program: &omega_typed_trees::TypedTrees,
-    machine: &omega_typed_trees::machine::Machine,
+    range: &omega_core::semantics::RankRange,
     order: &RankingOrder,
 ) -> Option<String> {
-    use omega_typed_trees::expression::ExpressionNode;
-
-    let ExpressionNode::Range(range) = program.expression_table.expression(machine.decrease_range)
-    else {
-        return Some(
-            "internal: the rank-range constraint did not lower to a Range expression".to_string(),
-        );
-    };
-    let floor_is_zero = matches!(
-        program.expression_table.expression(range.start),
-        ExpressionNode::Integer(literal) if literal.text() == "0"
-    );
-    if !floor_is_zero {
+    if range.floor != "0" {
         return Some(
             "a rank floor above the natural floor `0` is not consumed yet (decision 23 \
              TPR3): every builtin view produces a natural rank -- spell `in 0..=<bound>` \
@@ -228,18 +231,18 @@ fn rank_range_violation(
     match order {
         RankingOrder::IncreasingTo(limit) => {
             let bound = decreasing_value_text(program, *limit);
-            if !range.end_inclusive {
+            if !range.ceiling_inclusive {
                 return Some(format!(
                     "the rank of `Nat::IncreasingTo({bound})` reaches `{bound}` itself -- \
                      spell the ceiling inclusively (`in 0..={bound}`)"
                 ));
             }
-            let ceiling = decreasing_value_text(program, range.end);
-            (ceiling != bound).then(|| {
+            (range.ceiling != bound).then(|| {
                 format!(
-                    "the rank ceiling `{ceiling}` is not the view's own bound `{bound}`: \
+                    "the rank ceiling `{}` is not the view's own bound `{bound}`: \
                      only `in 0..={bound}` verifies structurally on \
-                     `Nat::IncreasingTo({bound})` today (decision 23 TPR3)"
+                     `Nat::IncreasingTo({bound})` today (decision 23 TPR3)",
+                    range.ceiling
                 )
             })
         }
@@ -260,25 +263,31 @@ pub(in crate::checks::termination) fn machine_resolved_view_path(
     program: &omega_typed_trees::TypedTrees,
     machine: &omega_typed_trees::machine::Machine,
 ) -> String {
-    let subjects = program
-        .expression_table
-        .expression_handles(machine.decreases);
-    if subjects.is_empty() {
+    let Some(witness) = machine.termination_plan.implementation_witness.as_ref() else {
         return String::new();
-    }
+    };
     let Some(root_state) = program.machine_states(machine).first() else {
         return String::new();
     };
-    let decrease_order = program.machine_decrease_order(machine.decrease_order);
-    let view_arguments = program
-        .expression_table
-        .expression_handles(machine.decrease_view_arguments);
+    let Some(subjects) = resolve_witness_expressions(program, root_state, &witness.subjects) else {
+        return String::new();
+    };
+    let Some(view_arguments) =
+        resolve_witness_expressions(program, root_state, &witness.view_arguments)
+    else {
+        return String::new();
+    };
+    let decrease_order = witness
+        .view_path
+        .split("::")
+        .filter(|member| !member.is_empty())
+        .collect::<Vec<_>>();
     match RankingOrder::resolve(
         program,
         root_state,
-        subjects,
-        decrease_order,
-        view_arguments,
+        &subjects,
+        &decrease_order,
+        &view_arguments,
     ) {
         OrderResolution::Resolved(order) => canonical_order_path(&order)
             .map(str::to_string)
@@ -291,6 +300,69 @@ pub(in crate::checks::termination) fn machine_resolved_view_path(
                     .unwrap_or_default()
             }),
         _ => String::new(),
+    }
+}
+
+/// Resolve the normalized witness's source-like subject names back to the
+/// typed expression nodes already retained in the expression arena. This is
+/// deliberately independent of `Machine::{decreases,decrease_order,...}`:
+/// those spans are compatibility output, while the witness is the semantic
+/// producer consumed by the checker.
+fn resolve_witness_expressions(
+    program: &omega_typed_trees::TypedTrees,
+    state: &omega_typed_trees::state::State,
+    rendered: &[String],
+) -> Option<Vec<ExpressionHandle>> {
+    rendered
+        .iter()
+        .map(|expected| {
+            if expected == "value" {
+                return None;
+            }
+            program
+                .expression_table
+                .iter_expressions()
+                .filter(|(handle, _)| decreasing_value_text(program, *handle) == *expected)
+                .find_map(|(handle, _)| {
+                    expression_belongs_to_state(program, state, handle).then_some(handle)
+                })
+                .or_else(|| {
+                    // Literal view arguments/range bounds have no place root.
+                    program
+                        .expression_table
+                        .iter_expressions()
+                        .find_map(|(handle, _)| {
+                            (decreasing_value_text(program, handle) == *expected).then_some(handle)
+                        })
+                })
+        })
+        .collect()
+}
+
+fn expression_belongs_to_state(
+    program: &omega_typed_trees::TypedTrees,
+    state: &omega_typed_trees::state::State,
+    expression: ExpressionHandle,
+) -> bool {
+    let Some(root) = ranked_expression_root(program, expression) else {
+        return false;
+    };
+    program
+        .state_parameters(state)
+        .iter()
+        .any(|parameter| parameter.symbol == root)
+}
+
+fn ranked_expression_root(
+    program: &omega_typed_trees::TypedTrees,
+    expression: ExpressionHandle,
+) -> Option<omega_core::symbols::SymbolHandle> {
+    use omega_typed_trees::expression::ExpressionNode;
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Name(path) => Some(path.symbol),
+        ExpressionNode::Member(member) => ranked_expression_root(program, member.receiver),
+        ExpressionNode::Cast(cast) => ranked_expression_root(program, cast.value),
+        _ => None,
     }
 }
 

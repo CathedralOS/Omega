@@ -125,8 +125,14 @@ source-banned with a directed fold-into-one-machine diagnostic
 predictable)"), and within-machine multi-state SCCs already use ONE
 joint witness (nonstrict-edge-acyclicity checker, pinned by the
 mutually-recursive-states tests) -- the brief's deferred item is only
-the cross-shape source SPELLING. Remaining TPR3: subject resolution
-FROM the witness (retiring the compat spans -- TPR6-adjacent). TPR4
+the cross-shape source SPELLING. TPR3 SUBJECT MIGRATION LANDED 2026-07-17:
+checker legality and checked-view facts resolve subject/view-argument
+expressions from the normalized `RankingWitness`, read view identity and
+rank-range facts from that witness, and never consult the typed machine's
+compatibility `decreases`, order, view-argument, or range spans. A test clears
+every compatibility field before proving the bounded increasing cursor. The
+spans remain serialization/snapshot compatibility output until TPR6 deletes
+them. TPR4
 SLICE 1 LANDED 2026-07-16 -- trait requirements PARSE the guarantee:
 the bodyless-signature clause parser's skip-any-token fallback was
 SILENTLY EATING `terminates;` on trait requirements (decision 23's

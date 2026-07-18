@@ -944,11 +944,9 @@ fn termination_plan_records_authored_views_verbatim() {
     assert_eq!(weaken.view_path, "Card::PowerOrder");
 }
 
-/// TPR3 slice 1 (decision 23 firewall): a recorded witness view that
-/// DIVERGES from the checker's independently resolved order is an internal
-/// invariant violation surfaced loudly -- never a silent preference for
-/// either side. (Constructed by mutating the plan post-typing; the real
-/// lowering mirrors the checker's inference exactly.)
+/// TPR3/TPR6 firewall: the witness's normalized builtin identity and its
+/// explicit path must agree. Constructed by mutating the path post-typing;
+/// real lowering stamps both together.
 #[test]
 fn recorded_view_divergence_is_loud() {
     let source = r#"
@@ -987,14 +985,13 @@ fn recorded_view_divergence_is_loud() {
         .expect("countdown witness");
     assert_eq!(witness.view_path, "Nat::Descending");
     witness.view_path = "Slice::Length".to_string();
-    witness.ranking_view = omega_core::semantics::RankingViewId::SLICE_LENGTH;
 
     let diagnostics =
         lower_typed_trees(typed).expect_err("a diverging recorded view must be loud");
     assert!(
         diagnostics.iter().any(|diagnostic| {
-            diagnostic.message.contains("recorded ranking view `Slice::Length`")
-                && diagnostic.message.contains("resolved view `Nat::Descending`")
+            diagnostic.message.contains("recorded ranking view `Nat::Descending`")
+                && diagnostic.message.contains("resolved view `Slice::Length`")
         }),
         "expected the divergence invariant diagnostic, got: {:?}",
         diagnostics
@@ -1203,6 +1200,51 @@ fn rank_range_on_increasing_to_is_consumed_and_recorded() {
     assert!(range.ceiling_inclusive);
 
     lower_typed_trees(typed).expect("the structurally-true rank range should verify");
+}
+
+/// TPR3 completion: checker legality resolves subjects, view arguments, view
+/// identity, and rank range from the normalized witness. The old typed-machine
+/// spans are compatibility output only and can be cleared without changing the
+/// judgment.
+#[test]
+fn termination_checker_uses_witness_not_compatibility_spans() {
+    let source = r#"
+    data Main {}
+
+    machine Main::main(&mut self) {
+        let value: u64 = self.climb(4, 0);
+    }
+
+    machine Main::climb(&mut self, limit: u64, index: u64)
+    terminates by index -> Nat::IncreasingTo(limit) in 0..=limit;
+    -> u64
+    {
+        transition index < limit {
+            true -> self.climb(limit, index + 1)
+            false -> index
+        }
+    }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let mut typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+
+    let machine = typed
+        .machines_mut()
+        .iter_mut()
+        .find(|machine| machine.name.as_str() == "Main::climb")
+        .expect("climb machine");
+    machine.decreases = Default::default();
+    machine.decrease_order = Default::default();
+    machine.decrease_view_arguments = Default::default();
+    machine.decrease_range = omega_typed_trees::expression::ExpressionHandle::invalid();
+
+    lower_typed_trees(typed)
+        .expect("normalized witness should independently prove the bounded climb");
 }
 
 /// TPR3 slice 3: the range shapes v1 cannot verify are rejected with
