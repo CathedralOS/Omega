@@ -1,0 +1,21 @@
+// PASS canary (decision 21): an affine sum carries a path-sensitive
+// obligation only in its Live case. Empty drops normally; Live transfers the
+// contained receipt through the whole sum and is explicitly settled.
+data Receipt [linear] { code: i32; }
+
+data ReceiptState {
+    case Empty;
+    case Live(receipt: Receipt);
+}
+
+machine ReceiptState::settle(self) {}
+
+data Main {}
+
+machine Main::run() -> i32 {
+    let empty: ReceiptState = ReceiptState::Empty;
+    let receipt: Receipt = Receipt { code: 7 };
+    let live: ReceiptState = ReceiptState::Live { receipt: receipt };
+    ReceiptState::settle(live);
+    0
+}

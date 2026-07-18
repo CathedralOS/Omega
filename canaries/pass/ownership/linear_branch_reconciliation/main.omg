@@ -1,0 +1,24 @@
+// PASS canary (decision 21): transition arms are alternatives, not sequential
+// copies. Both paths transfer the same obligation into a consuming state.
+data Receipt [linear] { code: i32; }
+machine Receipt::ack(self) {}
+
+data Main { choose_first: bool; }
+
+machine Main::run(&mut self) -> i32 {
+    let receipt: Receipt = Receipt { code: 7 };
+    transition self.choose_first {
+        true -> consume_first(receipt)
+        _ -> consume_second(receipt)
+    }
+
+    state consume_first(&mut self, receipt: Receipt) -> i32 {
+        Receipt::ack(receipt);
+        0
+    }
+
+    state consume_second(&mut self, receipt: Receipt) -> i32 {
+        Receipt::ack(receipt);
+        0
+    }
+}

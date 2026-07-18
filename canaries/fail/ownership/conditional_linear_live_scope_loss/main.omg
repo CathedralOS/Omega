@@ -1,0 +1,16 @@
+// FAIL canary (decision 21): the outer sum is affine, but its active Live case
+// owns a linear receipt and therefore cannot disappear at scope exit.
+data Receipt [linear] { code: i32; }
+
+data ReceiptState {
+    case Empty;
+    case Live(receipt: Receipt);
+}
+
+data Main {}
+
+machine Main::run() -> i32 {
+    let receipt: Receipt = Receipt { code: 7 };
+    let state: ReceiptState = ReceiptState::Live { receipt: receipt };
+    0
+}

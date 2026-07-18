@@ -1,0 +1,10 @@
+// FAIL canary (decision 21): assigning over a live linear place would erase
+// its current obligation even if the replacement is itself linear.
+data Receipt [linear] { code: i32; }
+data Main {}
+
+machine Main::run() -> i32 {
+    let mut receipt: Receipt = Receipt { code: 1 };
+    receipt = Receipt { code: 2 };
+    0
+}

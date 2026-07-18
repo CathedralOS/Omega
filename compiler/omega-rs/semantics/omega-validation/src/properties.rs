@@ -56,6 +56,13 @@ fn validate_no_linear_erasure(
 ) {
     let type_parameters = program.data_type_parameters(data_definition);
     for_each_stored_field(program, data_definition, &mut |field, case: Option<&str>| {
+        // A case payload is path-sensitive storage: `Empty | Live(Token)` is
+        // allowed to remain an affine outer sum, with the linear obligation
+        // present only while `Live` is active. Common/record fields have no
+        // inactive case and therefore require unconditional propagation.
+        if case.is_some() {
+            return;
+        }
         if !type_satisfies_structural_property(
             program,
             symbols,
