@@ -31541,6 +31541,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "ownership/linear_assignment_establishes",
     "ownership/conditional_linear_sum",
     "ownership/linear_transfer_and_consume",
+    "ownership/linear_returned_obligation",
     "ownership/linear_zero_storage_unestablished",
     "arithmetic/bare_name_scopes",
     "arithmetic/shift_amount_over_width_compiles",

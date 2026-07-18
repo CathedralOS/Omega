@@ -184,3 +184,44 @@ fn linear_judgment_reads_permission_events_not_legacy_move_drop_arenas() {
     crate::checks::validate_linear_permission_events(&checked.typed, &facts)
         .expect("semantic permission events are sufficient for the judgment");
 }
+
+#[test]
+fn consuming_call_that_returns_an_obligation_transfers_its_origin() {
+    let checked = checked(
+        r#"
+        data Receipt [linear] { code: i32; }
+        machine Receipt::forward(self) -> Receipt { self }
+        machine Receipt::ack(self) {}
+        data Main {}
+        machine Main::run() -> i32 {
+            let issued: Receipt = Receipt { code: 7 };
+            let returned: Receipt = Receipt::forward(issued);
+            Receipt::ack(returned);
+            0
+        }
+        "#,
+    );
+
+    use omega_core::semantics::{PermissionAccess, PermissionEventKind};
+    let events = checked
+        .facts
+        .flow
+        .ownership
+        .permissions
+        .iter()
+        .map(|(_, event)| event)
+        .filter(|event| event.access == PermissionAccess::Owned)
+        .collect::<Vec<_>>();
+    assert_eq!(
+        events.iter().map(|event| event.kind).collect::<Vec<_>>(),
+        [
+            PermissionEventKind::Establish,
+            PermissionEventKind::Transfer,
+            PermissionEventKind::Establish,
+            PermissionEventKind::Consume,
+        ]
+    );
+    assert!(events
+        .iter()
+        .all(|event| event.provenance == events[0].provenance));
+}

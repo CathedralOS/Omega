@@ -687,7 +687,11 @@ fn permission_kind_for_move(
             continue;
         };
         if place.root == event.root && place.segments.as_slice() == event_segments {
-            return PermissionEventKind::Consume;
+            return if type_carries_linear_obligation(program, target_state.return_type) {
+                PermissionEventKind::Transfer
+            } else {
+                PermissionEventKind::Consume
+            };
         }
     }
     PermissionEventKind::Transfer
@@ -766,6 +770,39 @@ fn expression_permission_provenance(
     expression: omega_typed_trees::expression::ExpressionHandle,
     places: &[LinearPlace],
 ) -> Option<PermissionProvenance> {
+    if let omega_typed_trees::expression::ExpressionNode::Call(call) =
+        program.expression_table.expression(expression)
+    {
+        let mut candidates = Vec::new();
+        if call.receiver.is_valid() {
+            candidates.push(call.receiver);
+        }
+        candidates.extend_from_slice(program.expression_table.expression_handles(call.arguments));
+        let origins = candidates
+            .into_iter()
+            .filter_map(|candidate| {
+                let place = crate::flow::canonical_place_from_expression_in_state(
+                    program,
+                    state_symbol,
+                    statement_index,
+                    candidate,
+                )?;
+                if !place.segments.is_empty() {
+                    return None;
+                }
+                let omega_facts::PlaceRoot::Symbol(symbol) = place.root else {
+                    return None;
+                };
+                places
+                    .iter()
+                    .find(|place| place.symbol == symbol && place.live)
+                    .and_then(|place| place.provenance)
+            })
+            .collect::<Vec<_>>();
+        let first = origins.first().copied()?;
+        return origins.iter().all(|origin| *origin == first).then_some(first);
+    }
+
     let source = crate::flow::canonical_place_from_expression_in_state(
         program,
         state_symbol,
@@ -782,6 +819,14 @@ fn expression_permission_provenance(
         .iter()
         .find(|place| place.symbol == symbol)
         .and_then(|place| place.provenance)
+}
+
+fn type_carries_linear_obligation(
+    program: &omega_typed_trees::TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> bool {
+    type_multiplicity(program, type_reference) == Multiplicity::Linear
+        || type_has_conditional_linear_payload(program, type_reference)
 }
 
 fn expression_establishes_obligation(
