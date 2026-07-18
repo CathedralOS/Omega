@@ -61,6 +61,13 @@ pub enum ProviderBinding {
     /// backend emits directly -- the float-operation shape. Carried as the
     /// operation's name until the instruction-plan machinery lands.
     Instruction { operation: String },
+    /// An ORDINARY CHECKED MACHINE realizing the requirement (the ruling's
+    /// composite form: lowering sequences and argument adaptation are
+    /// checked Omega code with an explicit satisfies edge, never authored
+    /// rows). Admission checks the adapter as a REFINEMENT: its transitive
+    /// effects must fit inside the satisfied requirement's declared
+    /// ceiling.
+    CheckedAdapter { machine: String },
     /// A PLATFORM-LOWERING sequence (the populate tables' shape, P4a): the
     /// method lowers as an ordered chain of HOST OPERATIONS
     /// (`Stdout::get_std_handle`, `Stdout::write_file`), each resolving to
