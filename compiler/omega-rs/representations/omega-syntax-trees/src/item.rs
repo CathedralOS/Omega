@@ -97,6 +97,33 @@ impl HostProviderMappingKind {
     /// PRV4: the NORMALIZED rendering -- the compile-time-evaluable binding
     /// expression's canonical text, the ExternalRealization identity the
     /// interner keys on. Exactly one spelling per binding value.
+    /// The exact inverse of `normalized_rendering` (round-trip pinned):
+    /// the merge seam re-materializes a leaf's structured binding from the
+    /// interned rendering. `None` = unrecognized (refuses at extraction).
+    pub fn from_normalized_rendering(rendering: &str) -> Option<Self> {
+        let (case, rest) = rendering.split_once('(')?;
+        let payload = rest.strip_suffix(')')?;
+        match case {
+            "Syscall" => payload.parse().ok().map(|number| Self::Syscall { number }),
+            "VtableSlot" => payload.parse().ok().map(|index| Self::VtableSlot { index }),
+            "Value" => payload.parse().ok().map(|value| Self::Value { value }),
+            "DllImport" => {
+                let (module, symbol) = payload.split_once(',')?;
+                Some(Self::DllImport {
+                    module: module.into(),
+                    symbol: symbol.into(),
+                })
+            }
+            "VtableField" => Some(Self::VtableField {
+                field: Identifier::generated(payload.to_owned()),
+            }),
+            "TableFunction" => Some(Self::TableFunction {
+                field: Identifier::generated(payload.to_owned()),
+            }),
+            _ => None,
+        }
+    }
+
     pub fn normalized_rendering(&self) -> String {
         match self {
             Self::Syscall { number } => format!("Syscall({number})"),

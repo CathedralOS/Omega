@@ -710,9 +710,25 @@ rejects — an INTEGER ruling, engineering rides this ladder as F8).
   REFUSAL RUNGS LANDED 2026-07-20: a via clause that is not exactly
   the external-leaf shape refuses (via+body, via+axiom, multi-via --
   never a silent drop; pins providers/via_with_body_rejected +
-  via_on_axiom_rejected). REMAINING (1): feed the leaves into the
-  ABI-plan merge (derive ProvidesRow-equivalents from
-  ExternalRealization machines); (2) derive plan
+  via_on_axiom_rejected). STEP (1) COMPLETE 2026-07-20 -- MERGE FEED
+  LANDED: external leaves derive ProvidesRow-equivalents in
+  extract_provides_rows (requirement-named satisfies + the structured
+  via binding; a <target>-scoped leaf rides its marker, unscoped
+  rides the portable name; VtableField/TableFunction leaves wait for
+  the leaf over-struct surface); from_normalized_rendering is
+  normalized_rendering's exact inverse; the empty-body check exempts
+  leaves (the binding IS the body); leaf rows hit the SAME collision
+  rule as authored rows (extend, never override -- the via_compile
+  canary decollided onto a custom capability and RUNS exit 70).
+  PARITY PROVEN: a leaf DllImport row lowers identically to an
+  authored provides row (external_leaf_dllimport_compile).
+  SURFACED PRE-EXISTING GAP: the hosted general-import call path
+  loses its ARGUMENT (exit(70) reaches libSystem as 0) for authored
+  rows and leaves alike -- filed as
+  pending/providers/import_call_argument_lost; runtime exit pins
+  land with that fix. NEXT: order step (2) -- derive plan
+  coverage/signatures/effects/dependency closure from satisfies
+  edges + target-default and type-per-slot selection; (2) derive plan
   coverage/signatures/effects/dependency closure from satisfies edges +
   target-default and type-per-slot selection; (3) replace Console
   HostOperations/call-shape rows with checked Omega adapters under the

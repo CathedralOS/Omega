@@ -5,11 +5,11 @@
 // its identity). Inert here (never called); the merge-time consumption is
 // the next rung.
 boundary trait Console { machine exit_process(return_code: i32); }
-boundary trait Process {
-    machine exit(code: i32);
+boundary trait Shutdown {
+    machine halt(code: i32);
 }
 
-machine exit_leaf(code: i32) satisfies Process::exit via DllImport("kernel32.dll", "ExitProcess");
+machine halt_leaf(code: i32) satisfies Shutdown::halt via DllImport("kernel32.dll", "ExitProcess");
 
 data Main { console: Console; }
 machine Main::main(&mut self) {

@@ -32099,6 +32099,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "arithmetic/const_fold_wrapping_narrow_exit",
     "calls/mutual_cycle_tail_admitted_exit",
     "providers/external_leaf_via_compile",
+    "providers/external_leaf_dllimport_compile",
     "arithmetic/const_fold_unsigned_shift_right_arg_exit",
     "arithmetic/const_fold_unsigned_divide_arg_exit",
     "arithmetic/unsigned_min_max_wrapping_local_exit",
@@ -32869,6 +32870,10 @@ struct PendingCanary {
 // divergences (those stay documented in the headers and the periodic
 // omega-run --both sweep), but it pins accepts-vs-rejects drift for free.
 const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
+    PendingCanary {
+        path: "providers/import_call_argument_lost",
+        expectation: PendingCanaryExpectation::CurrentlyAccepts,
+    },
     PendingCanary {
         path: "generics/runtime_generic_param_position_inference_exit",
         expectation: PendingCanaryExpectation::CurrentlyRejects {
