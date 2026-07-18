@@ -132,6 +132,12 @@ Completeness is relative to checked bodies and pinned/accepted contracts. A
 boundary provider may lie about its implementation; that is a trust failure
 recorded by provider receipts, not evidence that row inference was incomplete.
 
+Carry policy is not an effect member. Effects describe the events and service
+reach a machine may expose. Carry policy constrains whether a particular call,
+suspension, migration, or relocation is locally legal while specific values
+are live. Such a constraint may reject a call whose static effect row contains
+`Suspend`; it never masks, subtracts, or rewrites that published row.
+
 ## Published identity and proof gating
 
 The normalized authored row is part of an exported machine's semantic

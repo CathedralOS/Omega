@@ -402,6 +402,34 @@ Values/resources state independent demands:
 - same host thread required or not; and
 - stable address required or not.
 
+The settled type-wide source is one compiler-built-in property over the full
+product:
+
+```omega
+boundary data PerCpuLease [
+    linear,
+    carry(
+        suspension: allowed,
+        cpu: same,
+        thread: any,
+        address: movable,
+    ),
+];
+```
+
+The property lowers directly to normalized compiler IR. It is not ordinary
+`omega::core` data, a trait, or the output of a policy machine: the vocabulary
+is closed because the compiler must interpret every axis. Transparent data
+derives structurally; opaque data with no declaration is maximally strict. An
+opaque declaration is only a claim and remains inert until proved or accepted
+under admission receipt. Constructor `ensures` may establish sealed per-mint
+carry domains, monotonically adding permissions above the type-wide floor.
+
+The old `[send]` placeholder is retired. Cross-activation exclusive transfer is
+ordinary ownership plus carry/runtime compatibility; crossing shared references
+also requires a sanctioned shared-access contract. Carry and sharing are not
+marker traits and do not follow from copyability.
+
 Runtime providers state independent behavior:
 
 - safe-point or asynchronous preemption;
@@ -413,18 +441,23 @@ Admission joins demand and behavior. The effect row stays static: a live mask
 or affinity token may make a particular call locally inadmissible without
 editing or masking the machine's published effects.
 
-Plain transparent data derives permissive carry structurally. Aggregates join
-field restrictions. Opacity stops derivation, and opaque/provider-minted
-resources are born strict until their constructor/provider contract proves or
-accepts a looser policy. Interrupt masking and scheduler-switch suppression are
-different linear tokens: the former defers delivery; the latter prevents an
-Omega activation switch but cannot prevent a host kernel from preempting its
-thread.
+Structural composition selects the most restrictive live-field demand on each
+axis; the axes share traversal, not an algebra. Interrupt masking and
+scheduler-switch suppression are different linear tokens: the former defers
+delivery; the latter prevents an Omega activation switch but cannot prevent a
+host kernel from preempting its thread.
 
 The Cathedral reference profile should begin with safe-point scheduling and
 stable continuation storage. The language representation keeps the axes
 independent so a stricter admitted asynchronous runtime does not require a
 redesign.
+
+Local checking, runtime admission, and future temporal verification are three
+consumers of the same facts. Local checking combines canonical liveness with
+carry policy at each transition. Admission joins accumulated demands with the
+selected runtime. A future TLA-style layer adds interleavings, protocol state,
+and liveness hypotheses; it consumes normalized policy and provenance rather
+than re-reading source attributes.
 
 ## Implementation order
 
@@ -470,8 +503,8 @@ origins and reject ordinary non-atomic writes through two shared projections.
 These are the remaining design questions, not permission to invent local
 syntax while implementing:
 
-- the exact source-property vocabulary for carry/affinity/address-stability
-  contracts and opaque-type defaults;
+- the provider-side source/artifact supply for normalized runtime behavior
+  (value-side carry spelling and defaults are settled);
 - the first-publication evidence/state types and how target boot protocols
   consume them;
 - the final artifact-footprint certificate format and validation boundary for

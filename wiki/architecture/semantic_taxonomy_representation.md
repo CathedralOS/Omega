@@ -106,6 +106,29 @@ hybrids are first-class. Checked types/bindings carry a normalized
 normalizer owns semantic interface identity. Layout continues to use the
 carrier ABI.
 
+### Carry policy
+
+Retire the provisional `send: bool` projection. Carry is a normalized
+compiler-semantic product, propagated through every tree/plan layer without
+re-derivation:
+
+```text
+CarryPolicy {
+    suspension: Forbidden | Allowed,
+    cpu: Origin | Any,
+    host_thread: Origin | Any,
+    address: Stable | Movable,
+}
+```
+
+This is not ordinary `omega::core` data. Source `[carry(...)]`, transparent
+structural derivation, and sealed per-mint domain facts all lower into this one
+representation. Opaque omission produces the strict policy; opaque authored
+relaxation remains an inert claim until validation/admission grants it.
+Permission entries retain any provenance anchor needed to interpret `Origin`
+or `Stable`. Aggregates share a field traversal with other properties but each
+axis owns its composition algebra.
+
 ### Machine semantic contract
 
 Introduce a normalized `MachineSemanticContract` (name provisional) containing
@@ -236,9 +259,10 @@ OwnershipEvent = Establish | Transfer | Consume | AffineDrop
 ```
 
 `[copy]` maps to `Unrestricted`; ordinary data defaults to `Affine`;
-`[linear]` maps to `Linear`. Keep `zero_init` and `send` orthogonal. Flow joins
-operate over permission entries with path-sensitive sum state. Borrow events
-remain permission operations, not linear obligations by fiat.
+`[linear]` maps to `Linear`. Keep `zero_init` and the four-axis carry policy
+orthogonal to multiplicity. Flow joins operate over permission entries with
+path-sensitive sum state. Borrow events remain permission operations, not
+linear obligations by fiat.
 
 Implementation status (CML3, 2026-07-17): checked flow retains normalized
 `Establish | Transfer | Consume | AffineDrop` events, including whether a
@@ -279,10 +303,11 @@ ceases to be the semantic source of truth.
 ## Staged migration
 
 1. **Inventory and invariants.** Add compile-time tests/snapshots showing where
-   domain facet, supply mode, multiplicity, and contract identity must survive.
+   domain facet, supply mode, multiplicity, carry policy, and contract identity
+   must survive.
 2. **Core semantic enums/IDs.** Land facet pair, introduction policy,
-   multiplicity, supply mode, termination guarantee/witness, progress-profile
-   ID, effect-member kind/ID, normalized effect-row ID, and other identity
+   multiplicity, carry policy, supply mode, termination guarantee/witness,
+   progress-profile ID, effect-member kind/ID, normalized effect-row ID, and other identity
    handles in the lowest dependency-safe crates. No
    behavior change.
 3. **Tree propagation.** Carry the representations through symbol-resolved and
@@ -292,8 +317,9 @@ ceases to be the semantic source of truth.
    the place-keyed permission plan, kinded effect plan, termination plan, and
    normalized machine contracts.
 5. **Validation and resolution.** Enforce facet activation, introduction,
-   operator selection, multiplicity conservation, row inclusion/propagation,
-   and supply/admission rules.
+   operator selection, multiplicity conservation, carry derivation/local
+   transition legality/runtime refinement, row inclusion/propagation, and
+   supply/admission rules.
 6. **Lowering boundary.** Lower only from checked selections/plans. Preserve
    semantic contract IDs in proof/component/debug artifacts while erasing
    proof-only material from executable operations.

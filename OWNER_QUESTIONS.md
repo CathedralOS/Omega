@@ -6,23 +6,28 @@ and deliberately deferred research live in `TASKS.md`.
 
 Last pruned: 2026-07-18.
 
-## 1. Carry and runtime contract spelling
+## 1. Runtime-provider behavior contract supply
 
-The normalized model keeps suspension, CPU affinity, host-thread affinity, and
-address stability independent. Runtime providers separately state preemption,
-migration, affinity support, and continuation-storage behavior; admission joins
-the two.
+Value-side carry spelling is settled: compiler-built-in `[carry(...)]` records
+type-wide guarantees over four independent axes; transparent data derives;
+opaque data is born strict; sealed `ensures` domains establish per-mint
+relaxations. The normalized policy is compiler IR, not ordinary `omega::core`
+data, a trait, or a machine-produced plan.
 
-The remaining owner decision is declaration vocabulary and defaulting:
+The remaining owner decision is only how a `TaskRuntime` provider authors or
+supplies its behavior counterpart:
 
-- Which restrictions use the existing declaration-property surface?
-- Which are constructor/provider result contracts because they vary per mint?
-- How are opaque resources born strict without making transparent ordinary data
-  noisy?
+- Where do safe-point/asynchronous preemption, migration, affinity support,
+  host-thread behavior, and continuation-storage stability enter the derived
+  provider plan?
+- Which claims are proved from a checked provider and which are accepted under
+  admission receipt for an opaque/host runtime?
+- How does a dynamically admitted runtime supply the same normalized contract
+  without creating a second admission path?
 
-Recommendation: structural permissive derivation for transparent data; opaque
-resources born strict; declaration properties only for type-wide facts and
-constructor contracts for mint-dependent facts. Do not add use-site keywords.
+Recommendation: add one normalized runtime-behavior contract to the existing
+provider-plan/admission spine; derive checked claims, receipt-gate accepted
+claims, and add no runtime type property or new declaration clause.
 
 ## 2. Executable publication evidence and lifecycle
 

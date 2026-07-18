@@ -114,7 +114,10 @@ implementation work. Each one gets more expensive to retrofit every month.
    runtime admission. No interrupt DSL, volatile qualifier, raw instruction
    binding, or parallel trust system. The next vertical slice is the x86 IDT
    and timer; placed views, page tables, DMA, hostile IPC, and AP bringup form
-   the wider gauntlet.
+   the wider gauntlet. Value-side carry is settled as a compiler-built-in
+   four-axis product with structural derivation and sealed per-mint facts; only
+   the provider-side supply of normalized runtime behavior remains an owner
+   spelling question.
 
 8. **Case members (sum/mixed data shapes)** — SUM SHAPES IMPLEMENTED
    (2026-06-10): `case` members with named payloads parse, validate,

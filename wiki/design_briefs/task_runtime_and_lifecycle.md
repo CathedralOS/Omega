@@ -176,7 +176,8 @@ and return an already-complete, still-unsettled `Task<T>`.
 For local machines the compiler derives the activation requirement. The
 provider validates that requirement against its storage plan. Frame size is a
 necessary input, not the whole admission law: alignment, address stability,
-continuation representation, and provider contract also participate.
+the four-axis carry demand of values live at crossings, continuation
+representation, and provider contract also participate.
 
 ### Arena-backed reference model
 
@@ -227,6 +228,14 @@ storage lifetime and pinning, aliasing, cancellation paths, and address
 stability are independently required. Borrow/wait-cycle detection is a
 valuable later theorem but not a prerequisite for the conservative task v1.
 
+Carry policy itself is settled independently of that loan subset. Transparent
+data derives a compiler-normalized four-axis policy; opaque data defaults
+strict; type-wide `[carry(...)]` claims require proof/admission; and sealed
+constructor domains may add per-mint permissions. At each crossing, canonical
+place liveness determines which policies constrain the transition. This
+replaces the provisional `[send]` property and any Rust-style `Send`/`Share`
+marker model.
+
 ## Acceptance register
 
 1. Direct `Worker::run(job)` is an ordinary call; only
@@ -243,6 +252,10 @@ valuable later theorem but not a prerequisite for the conservative task v1.
    without sharing one physical storage representation.
 10. No user program requires `spawn`, `await`, implicit detach, or a privileged
     task-group construct.
+11. A provider is rejected when its migration/thread/storage behavior cannot
+    preserve every carry demand in the derived activation plan.
+12. A local suspension or migration point rejects when any live value forbids
+    it, even if a more capable runtime exists elsewhere.
 
 ## Engineering sequence
 
@@ -253,15 +266,16 @@ valuable later theorem but not a prerequisite for the conservative task v1.
    on all control-flow paths. `Returned(LinearT)` and
    `Rejected(LinearArguments)` must never erase the substituted payload debt.
 3. Extend compile-time machine-symbol parameters into task-target elaboration
-   and emit the normalized activation-plan artifact.
+   and emit the normalized activation-plan artifact, including carry demands
+   derived from canonical liveness.
 4. Add the `TaskRuntime` boundary requirement, provider admission, and
    transactional start ownership.
 5. Implement provider provenance/child-lease accounting and prevent premature
    close/reclaim.
 6. Implement continuation/frame lowering and a first provider; an inline
    provider is valid only where the pinned contract permits inline completion.
-7. Add conservative suspension-safe-loan checking, then expand it without
-   weakening the storage/alias/cancellation theorem.
+7. Add local carry checking and the conservative suspension-safe-loan subset,
+   then expand it without weakening the storage/alias/cancellation theorem.
 8. Build `ArenaTaskPool`, bounded mailbox, and supervisor reference packages;
    promote no additional language construct unless a package finds something
    semantically inexpressible.

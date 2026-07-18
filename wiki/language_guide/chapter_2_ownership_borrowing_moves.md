@@ -74,6 +74,13 @@ multiplicity, access (`owned`, `shared`, `exclusive`), and provenance with
 their own path-join rules. One CFG walk may carry both, but a fact catalog must
 never silently forget a resource obligation.
 
+Carry policy is another independent consumer of canonical place liveness. It
+does not change ownership: an exclusive move transfers ownership, while the
+value's carry policy and selected runtime decide whether the destination
+activation/CPU/thread/storage transition is legal. Shared references also need
+an access contract that sanctions concurrent use. The compiler shares the CFG
+traversal; ownership, carry, and proposition facts retain separate algebras.
+
 ## Shared Borrows
 
 Shared borrows allow read-only access.

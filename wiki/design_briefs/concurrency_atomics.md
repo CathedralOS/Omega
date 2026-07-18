@@ -70,17 +70,22 @@ The “one substrate” direction is an engineering constraint, not permission t
 hide truly different host mechanisms behind a false contract. Opaque waits are
 accepted boundary behavior and must remain visible in trust/progress reports.
 
-## Sharing and the memory model
+## Carry, sharing, and the memory model
 
 Ownership is the default race-prevention mechanism. Concurrent graphs do not
 share mutable ordinary data unless a type's contract provides a sanctioned
 shared-access operation.
 
-- `Send`: a value may move to another concurrent graph.
-- `Share`: shared references may cross concurrent graphs under the type's
-  contract.
-- Ordinary data defaults to neither merely because it is copyable; these are
-  distinct properties.
+- Type-wide carry guarantees use the compiler-built-in four-axis
+  `[carry(...)]` property; transparent data derives and opaque data defaults
+  strict. Sealed domains may establish additional per-mint permissions.
+- Moving an exclusively owned value to another concurrent graph is checked
+  from ownership plus the destination runtime's carry behavior. It needs no
+  separate `Send` marker.
+- A shared reference may cross only when its referent's borrow/access contract
+  sanctions concurrent sharing (for example atomics or a mediated protocol)
+  and its carry demands are compatible. It needs no separate `Share` marker.
+- Copyability proves neither transfer placement nor shared mutation safety.
 - Atomics are dedicated core types, never an implicit mode on ordinary
   integers.
 
@@ -94,7 +99,7 @@ Still required:
 - the full load/store/swap/fetch/compare-exchange surface;
 - separate success/failure ordering validation;
 - standalone fences and target lowering proofs;
-- `Send`/`Share` enforcement independent of `[copy]`;
+- cross-activation ownership/borrow/access enforcement independent of `[copy]`;
 - volatile/MMIO types and ordering contracts;
 - the proof model for relaxed visibility.
 
@@ -152,6 +157,8 @@ hard-real-time requirements force it.
 9. Arena-, OS-, remote-, and inline-backed runtimes refine the same task
    requirement without sharing one storage representation.
 10. A pool/runtime cannot close while dependent task claims or leases remain.
+11. A suspension or migration rejects when any canonically live value's carry
+    policy forbids it, regardless of whether that value is copyable.
 
 ## Implementation and deferred design work
 
@@ -163,7 +170,8 @@ hard-real-time requirements force it.
 - Scheduler contracts using decision 23's sealed progress profiles; general
   trace propositions and profile entailment remain deferred.
 - Scheduler operation details and provider admission tests.
-- Full `Send`/`Share` checker.
+- Four-axis carry policy, structural derivation, per-mint sealed facts, local
+  live-set checking, and runtime admission.
 - Atomic remainder and formally checked target lowerings.
 - Lock-free reclamation/resource algebra frontier.
 - MMIO/volatile and interrupt-entry source surfaces.

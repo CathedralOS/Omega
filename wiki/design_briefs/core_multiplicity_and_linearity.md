@@ -173,8 +173,9 @@ The current move/drop-only summaries are not sufficient; see
 - The general resource algebra for owned splitting, merging, attenuation, and
   quantitative resources.
 - Dependent-linear buffer ergonomics after the core checker exists.
-- Interaction with suspension-safe loans, which depends on the effects and
-  suspension settlement.
+- The first conservative cross-suspension loan subset. Four-axis carry policy
+  is settled independently; this item is the remaining borrow-rule and
+  implementation work for values live at suspension points.
 
 The first general resource-algebra customer is Extent split/merge: splitting
 consumes one parent range authority and returns disjoint child authorities;

@@ -34,9 +34,10 @@ Last pruned: 2026-07-18.
   for lock-free structures before requiring a mediated or accepted boundary.
 - Complete standalone fences, `compare_exchange` failure ordering, and the
   treatment of relaxed visibility in concurrency proofs.
-- Settle source spelling for independent carry demands (suspension, CPU/thread
-  affinity, address stability) and runtime behavior. Safe-point scheduling is a
-  strict reference profile, not a universal language restriction.
+- Finish the provider-side supply spelling for normalized runtime behavior;
+  value-side `[carry(...)]`, structural derivation, strict opaque defaults, and
+  sealed per-mint carry domains are settled. Safe-point scheduling is a strict
+  reference profile, not a universal language restriction.
 - Define first-publication evidence for executable memory and validation across
   static, dynamic, and runtime-generated artifacts. Live replacement remains a
   separate component-versioning operation.
@@ -77,8 +78,9 @@ Last pruned: 2026-07-18.
   authority-report representation.
 - Decide the zero-excluding-invariant lint and whether non-linear types need an
   explicit constructed-only establishment policy.
-- Settle generic type-property bounds and whether any core properties beyond
-  `copy`, `linear`, `zero_init`, `send`, and `sized` earn inclusion.
+- Implement generic bounds for `copy`, `linear`, `zero_init`, `sized`, and the
+  parameterized carry policy, then decide whether any further core properties
+  earn inclusion.
 - Finish conformance-item parsing, both-foreign orphan rules, and
   partially-satisfied diagnostics.
 
