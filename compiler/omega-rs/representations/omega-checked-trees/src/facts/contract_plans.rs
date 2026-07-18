@@ -65,7 +65,15 @@ pub fn contract_fingerprint(
         MachineSupplyMode::Requirement => 2,
         MachineSupplyMode::Boundary => 3,
         MachineSupplyMode::Accepted => 4,
+        // PRV4: the leaf's supply tag; the binding identity folds separately
+        // below so two leaves with different bindings differ.
+        MachineSupplyMode::ExternalRealization { .. } => 5,
     });
+    if let MachineSupplyMode::ExternalRealization { binding } = supply_mode {
+        for byte in binding.0.to_le_bytes() {
+            fold(byte);
+        }
+    }
     // The row's MEMBERS, not its table index -- table indices are
     // program-local; member ids are catalog-fixed.
     let _ = published_effect_row;

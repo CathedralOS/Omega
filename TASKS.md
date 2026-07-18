@@ -697,7 +697,19 @@ rejects — an INTEGER ruling, engineering rides this ladder as F8).
   defaults or override a slot by type. No plan-builder API, call-shape
   DSL, authored effect_set, or structurally inferred conformance.
   IMPLEMENTATION ORDER: (1) `via` parser/tree + ExternalRealization
-  supply variant feeding the existing lowering; (2) derive plan
+  supply variant feeding the existing lowering — SURFACE LANDED
+  2026-07-20: `satisfies Requirement via <Binding>` parses (the
+  provides RHS grammar reused verbatim), threads syntax→resolved→
+  typed (TraitConformance.via = the NORMALIZED rendering;
+  HostProviderMappingKind::normalized_rendering is the one spelling
+  per value), and a bodyless non-boundary machine with a via clause
+  populates MachineSupplyMode::ExternalRealization { binding } (the
+  ExternalBindingTable interner in omega-core; contract-plan
+  fingerprints fold the binding id). The item parser admits exactly
+  this bodyless shape (pin: pass/providers/external_leaf_via_compile).
+  REMAINING (1): feed the leaves into the ABI-plan merge (derive
+  ProvidesRow-equivalents from ExternalRealization machines);
+  validation rungs (via+body / via+boundary / multi-via refusals); (2) derive plan
   coverage/signatures/effects/dependency closure from satisfies edges +
   target-default and type-per-slot selection; (3) replace Console
   HostOperations/call-shape rows with checked Omega adapters under the

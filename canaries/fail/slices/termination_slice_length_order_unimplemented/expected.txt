@@ -1,1 +1,1 @@
-cannot prove decreases clause
+cannot prove the `terminates by` ranking

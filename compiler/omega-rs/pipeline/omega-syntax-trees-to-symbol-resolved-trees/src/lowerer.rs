@@ -140,6 +140,7 @@ impl Lowerer {
             symbols,
             effect_rows,
             semantic_domains,
+            external_bindings,
         } = self.symbol_resolved_trees;
 
         let mut trees = SymbolResolvedTrees::with_roots(roots, tables, symbols);
@@ -147,6 +148,7 @@ impl Lowerer {
         // rebuild.
         trees.effect_rows = effect_rows;
         trees.semantic_domains = semantic_domains;
+        trees.external_bindings = external_bindings;
         Ok(trees)
     }
 }

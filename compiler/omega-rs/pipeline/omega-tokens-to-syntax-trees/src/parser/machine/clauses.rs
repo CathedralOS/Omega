@@ -435,11 +435,22 @@ pub(super) fn parse_satisfies_traits<'tokens, 'source>(
             alias = Some(name);
             rest = next;
         }
+        // PRV4 step 1: the external-leaf suffix. `via <Binding>` reuses the
+        // provides grammar's closed binding sum verbatim.
+        let mut via = None;
+        if rest.at_contextual("via") {
+            let next = rest.take_contextual("via")?;
+            let (binding, next) =
+                crate::parser::item::parse_host_provider_binding(next)?;
+            via = Some(binding);
+            rest = next;
+        }
 
         let handle = syntax_trees.items.append_satisfies_clause(SatisfiesClause {
             trait_name,
             requirement,
             alias,
+            via,
         });
         if clause_count == 0 {
             clause_start = handle;
