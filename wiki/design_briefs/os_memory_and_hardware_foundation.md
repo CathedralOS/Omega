@@ -55,20 +55,86 @@ under capacity and lifetime rules. A placed view needs authority over an
 already-existing range that was not allocated by the program, such as a UART
 register block. That is an `Extent`.
 
-An extent records at least:
+The public carrier is one opaque linear declaration with no public constructor:
+
+```omega
+data Extent [linear] {
+    // Provider-owned representation.
+}
+```
+
+Address space, rights, provenance, and mapping era are sealed domain facts on
+that carrier, not nominal carrier types or generic parameters. Physical,
+virtual, I/O-port, and provider-defined spaces share the same range algebra.
+An operation requiring `Physical` statically rejects an extent carrying only
+`Virtual`; unproven facts gate rather than cast. Rights such as `Readable` and
+`Writable` are grant-established facts: provider evidence or a conservative
+derivation may establish them, but address bits and structural observation
+never do.
+
+An extent records privately at least:
 
 - base and length;
 - address-space identity (physical, virtual, I/O, or provider-defined);
 - read/write/execute or more specific rights;
-- minting provenance and parent grant;
+- minting provenance, parent grant, and authority-origin/split ancestry;
 - lifetime or mapping era; and
 - ownership sufficient to split, attenuate, borrow, release, or revoke it.
 
-Suppliers mint extents: boot handoff, an address-space mapper, a parent
-allocator's backing store, or an admitted device provider. Bare `addr` values
-never do. Splitting conserves the original range and authority; attenuation may
-only remove rights. V1 revocation requires exclusive ownership back so no
-in-language view can dangle.
+Admitted suppliers mint root extents: boot handoff, an address-space mapper, a
+parent allocator's backing store, or a device provider. Ordinary checked code
+may derive children but never mint fresh authority. Bare `addr` values never do.
+
+Splitting consumes one owned extent and returns disjoint owned children whose
+ranges exactly cover it. Attenuation may only remove rights. Merge consumes
+contiguous compatible descendants of the same authority origin; numeric
+adjacency alone is insufficient because adjacent ranges may have different
+grants, rights, provenance, or eras. The ordinary case is rejoining what one
+split separated. Combining unrelated adjacent grants, if needed, is an explicit
+provider operation that establishes the combined authority.
+
+Subrange loans are borrow-carrying values. Their polarity follows the parent
+borrow: shared loans permit only shared operations; exclusive loans permit
+ordinary mutation. Loans are not linear cleanup obligations. The owned extent,
+DMA tokens, shootdown tokens, and similar authority/debt values remain linear.
+
+### Mapping and reclamation
+
+Mapping requires authority on both sides. A requested `addr` may be a placement
+hint, but it never authorizes occupation of a virtual range. Fixed placement
+therefore consumes an owned extent in the virtual space. Automatic placement
+draws that destination from a caller-supplied virtual allocator/Region.
+
+The source relationship is independent: a mapping may consume an owned physical
+extent or borrow one. A mapped virtual extent retains that relationship, so a
+borrowed source cannot be reclaimed while the mapping lives. Conceptually:
+
+```omega
+machine map_owned(source: Extent, destination: Extent) -> Extent
+    requires source in Extent::Physical
+    requires destination in Extent::Virtual
+    ensures result in Extent::Virtual
+    ensures result in Extent::Mapped;
+
+machine map_borrowed(source: &Extent, destination: Extent) -> Extent
+    requires source in Extent::Physical
+    requires destination in Extent::Virtual
+    ensures result in Extent::Virtual
+    ensures result in Extent::Mapped;
+```
+
+The exact overload spelling is engineering; the ownership distinction is law.
+Unmapping consumes the mapped extent, returns the reusable destination range,
+and either returns an owned source or ends its source loan. On targets requiring
+cross-core invalidation, reuse remains gated by a linear shootdown/quiescence
+token. Its completion operation carries the provider's ordinary `Suspend` or
+`Block` ceiling, so an interrupt root cannot hide an illegal wait.
+
+V1 has no per-access generation probe. Reclamation requires exclusive ownership
+back and therefore no live in-language views. Forced asynchronous revocation of
+unreclaimed loans is deferred to provider quiescence/lifecycle machinery when a
+customer requires it; page-table edits, shootdowns, and process teardown remain
+ordinary runtime provider work.
 
 Zero-filled storage does not establish a linear extent and creates no
 must-consume obligation. A zero-usable pool uses the ordinary debt-free sum:
@@ -106,14 +172,27 @@ The access vocabulary stays small and compiler-owned:
 - provider-private versus exported access; and
 - the statically pinned boundary-trait reach of the accessor.
 
-Device behaviors such as write-one-to-clear, read-to-clear, FIFO pop, and
-self-clearing commands are ordinary target-package machines over private
-primitive field access. They do not become `AccessPlan` cases.
-
 The raw primitive is not a public `volatile_read(extent, arbitrary_offset)`
-escape hatch. A validated plan derives sealed field-access values. Pure
-projection narrows authority without performing I/O; calling the field's
-operation performs exactly the declared transfer:
+escape hatch. A provider validates extent provenance, `LayoutPlan`, and
+`AccessPlan`, then derives an opaque placed view. Its public primitive surface
+is projection plus only the operations authorized for that field:
+
+- `read()` performs one exact-width access and returns a snapshot;
+- `write(value)` performs one whole-container write; and
+- explicitly atomic fields expose the ordinary checked atomic API (`load`,
+  `store`, `compare_exchange`, and authorized atomic RMW operations).
+
+Pure projection narrows authority without performing I/O. Projected field
+accessors are ordinary passable borrow-carrying values and cannot outlive the
+mapped extent. Whole-view methods may coexist as ergonomic forwarding machines;
+projection is the least-authority surface for helpers that need only one field.
+
+Borrow polarity remains authoritative: a shared projection permits reads;
+ordinary writes require an exclusive borrow; mutation through a shared borrow
+is legal only through an explicitly atomic or protocol-safe field. Placed views
+must not smuggle aliased unsynchronized mutation around the ownership checker.
+
+For example:
 
 ```omega
 let status_register = uart.status;
@@ -123,6 +202,11 @@ let status = status_register.read();
 One container-width read produces one snapshot. Bit projections from that
 snapshot are pure. Flow facts attach to the snapshot value, never to storage
 that hardware or a peer may change.
+
+Generic RMW is never derived for an ordinary MMIO field. Device behaviors such
+as W1C, read-to-clear, FIFO pop, and doorbells remain package machines over
+provider-private primitive access. This does not forbid atomic RMW on an
+explicitly atomic shared-memory field; those are different access classes.
 
 The extent's provenance gates construction of an access capability. The
 accessor's normalized contract statically pins service reach. Runtime
@@ -342,10 +426,10 @@ redesign.
 2. Implement ordinary generic trait-parent composition needed by `Calling<C>`.
 3. Extend programmable layouts to name-keyed fragmented placements and exact
    tiling validation.
-4. Define and implement the `Extent` carrier, conservation rules, and mapping
-   provenance.
-5. Define `AccessPlan`, validation against `LayoutPlan`, sealed field-access
-   derivation, and exact volatile/atomic primitives.
+4. Implement the settled `Extent` carrier, conservation rules, source-loan /
+   destination-authority mapping, and authority-origin validation.
+5. Implement `AccessPlan`, validation against `LayoutPlan`, sealed field-access
+   derivation, borrow-polarity checks, and exact volatile/atomic primitives.
 6. Split boundary entry planning into `CallPlan + StatePlan`; constrain codegen,
    emit footprint evidence, and validate final artifacts.
 7. Add symbolic relocation sources, phase/constraint-aware materialization, and
@@ -370,17 +454,15 @@ Required negative tests include hidden reach through direct assembly, forged
 addresses without authority, stale hostile-peer validation, CPU access during
 an external loan, a split relocation consumed too early, and a final-image
 veneer/thunk that introduces a register class forbidden by the root's
-`StatePlan` despite all earlier per-function checks passing.
+`StatePlan` despite all earlier per-function checks passing. Extent/access tests
+must also reject merging numerically adjacent ranges from different authority
+origins and reject ordinary non-atomic writes through two shared projections.
 
 ## Open decisions
 
 These are the remaining design questions, not permission to invent local
 syntax while implementing:
 
-- the exact opaque `Extent` API, address-space representation, parent/child
-  lifetime law, and v1 mapping-revocation protocol;
-- the minimal normalized `AccessPlan` vocabulary and public field-access value
-  shapes;
 - the exact source-property vocabulary for carry/affinity/address-stability
   contracts and opaque-type defaults;
 - the first-publication evidence/state types and how target boot protocols

@@ -6,25 +6,7 @@ and deliberately deferred research live in `TASKS.md`.
 
 Last pruned: 2026-07-18.
 
-## 1. Extent and placed-view public model
-
-The architecture is settled: bare addresses carry no authority; `Extent` owns
-authority over a concrete range; `LayoutPlan` owns geometry; `AccessPlan` owns
-primitive access; validated plans derive sealed field access.
-
-The remaining owner decision is the exact public carrier boundary:
-
-- Is one opaque linear `Extent` with contract/domain facts sufficient, or do
-  physical, virtual, I/O, and mapped extents require distinct nominal carriers?
-- What parent/child lifetime and revocation rule ships in v1?
-- What is the smallest public field-access API that remains passable and
-  attenuable without exposing arbitrary-offset volatile access?
-
-Recommendation: one opaque carrier with explicit facts and conservative
-exclusive revocation; distinct nominal types only where confusing address spaces
-would otherwise type-check. Settle before implementing placed views or DMA.
-
-## 2. Carry and runtime contract spelling
+## 1. Carry and runtime contract spelling
 
 The normalized model keeps suspension, CPU affinity, host-thread affinity, and
 address stability independent. Runtime providers separately state preemption,
@@ -42,7 +24,7 @@ Recommendation: structural permissive derivation for transparent data; opaque
 resources born strict; declaration properties only for type-wide facts and
 constructor contracts for mint-dependent facts. Do not add use-site keywords.
 
-## 3. Executable publication evidence and lifecycle
+## 2. Executable publication evidence and lifecycle
 
 The architecture distinguishes first publication of writable/unpublished bytes
 from replacement of already-executable code. The first is a target provider

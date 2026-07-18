@@ -189,7 +189,9 @@ cache is a different policy choice made at that boundary.
 - final `Schema` reflection and `Plan` source types;
 - exact source types for name-keyed fragments, unions, and runtime strides;
 - symbolic relocation-source and phase/placement-constraint records;
-- the separate `AccessPlan` vocabulary and placed-view pairing validator;
+- concrete `AccessPlan` record/source spelling and placed-view validator
+  diagnostics (its semantics and public access discipline are settled in the
+  OS-foundation brief);
 - recast syntax and diagnostics;
 - schema-evolution law traits beyond strict roundtrip;
 - policy selection through generics; and
