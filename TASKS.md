@@ -178,8 +178,13 @@ after every legacy typed-machine compatibility span is cleared. TPR6's
 LOCAL/PUBLISHED SUMMARY FIREWALL LANDED 2026-07-17: every acyclic checked body
 now records a local `EventualTerminal` summary without annotation, while an
 omitted authored clause still normalizes to published `NoGuarantee` in the
-machine contract plan (pinned together in one test). External artifact/cache
-serialization + the remaining acceptance tests remain; of the ten, 1/2/3/4/5/6/7/
+machine contract plan (pinned together in one test). TPR6 ARTIFACT SLICE
+LANDED 2026-07-17: visual builds emit `05_machine_contracts.json`; each row
+nests the authored contract fingerprint/supply/effect ceiling/published
+termination separately from the local checked summary and private normalized
+ranking witness. A unit test proves witness subjects never enter the contract
+object. Proof-cache storage/key mechanics remain deliberately governed by the
+theoretical proof-caching brief rather than invented here. Of the ten, 1/2/3/4/5/6/7/
 10 are already pinned by the TPR2-TPR4 test batteries -- outstanding:
 8/9 (need sealed progress profiles + grants, TPR4's remaining big half).
 
