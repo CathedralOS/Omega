@@ -225,6 +225,8 @@ pub(crate) fn check_linear_obligations(
         }
     }
 
+    append_borrow_permission_events(facts, &mut permission_events);
+
     facts.flow.ownership.permissions = omega_core::arena::Arena::default();
     facts
         .flow
@@ -236,6 +238,134 @@ pub(crate) fn check_linear_obligations(
         Ok(())
     } else {
         Err(diagnostics)
+    }
+}
+
+fn append_borrow_permission_events(
+    facts: &mut CheckFacts,
+    permission_events: &mut Vec<FlowPermissionEventFact>,
+) {
+    // Clone only the small state/span index so the ownership-segment arena can
+    // be extended while the already-built borrow facts remain immutable.
+    let states = facts
+        .flow
+        .control
+        .states
+        .iter()
+        .map(|(_, state)| {
+            (
+                state.machine_symbol,
+                state.state_symbol,
+                state.borrow_activations,
+                state.borrow_weakenings,
+            )
+        })
+        .collect::<Vec<_>>();
+
+    for (machine_symbol, state_symbol, activations, weakenings) in states {
+        for activation in facts
+            .flow
+            .borrow_lifetimes
+            .activations
+            .span_or_empty(activations)
+            .to_vec()
+        {
+            append_borrow_permission_event(
+                facts,
+                permission_events,
+                machine_symbol,
+                state_symbol,
+                activation.loan,
+                permission_source_from_invalidation(activation.source),
+                PermissionEventKind::Establish,
+            );
+        }
+        for weakening in facts
+            .flow
+            .borrow_lifetimes
+            .weakenings
+            .span_or_empty(weakenings)
+            .to_vec()
+        {
+            let source = if weakening.reason
+                == omega_checked_trees::FlowBorrowWeakeningReason::StateExit
+            {
+                PermissionEventSource::StateExit
+            } else {
+                permission_source_from_invalidation(weakening.source)
+            };
+            append_borrow_permission_event(
+                facts,
+                permission_events,
+                machine_symbol,
+                state_symbol,
+                weakening.loan,
+                source,
+                PermissionEventKind::Consume,
+            );
+        }
+    }
+}
+
+fn append_borrow_permission_event(
+    facts: &mut CheckFacts,
+    permission_events: &mut Vec<FlowPermissionEventFact>,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    loan_handle: omega_core::arena::Handle<omega_checked_trees::BorrowLoanFact>,
+    source: PermissionEventSource,
+    kind: PermissionEventKind,
+) {
+    let loan = facts.borrow.loans.get(loan_handle).clone();
+    let segments = facts
+        .flow
+        .ownership
+        .segments
+        .insert_many(facts.borrow.loan_segments(&loan).iter().copied());
+    let (multiplicity, access) = match loan.kind {
+        omega_checked_trees::BorrowAccessKind::Read => {
+            (Multiplicity::Unrestricted, PermissionAccess::Shared)
+        }
+        omega_checked_trees::BorrowAccessKind::Mutable => {
+            (Multiplicity::Affine, PermissionAccess::Exclusive)
+        }
+    };
+    permission_events.push(FlowPermissionEventFact {
+        machine_symbol,
+        state_symbol,
+        source,
+        kind,
+        multiplicity,
+        access,
+        provenance: established_provenance(
+            machine_symbol,
+            state_symbol,
+            PermissionEventSource::Statement {
+                statement_index: loan.statement_index,
+            },
+        ),
+        root: omega_facts::PlaceRoot::Symbol(loan.root_symbol),
+        segments,
+        obligation_live: false,
+    });
+}
+
+fn permission_source_from_invalidation(
+    source: omega_checked_trees::FlowInvalidationSource,
+) -> PermissionEventSource {
+    match source {
+        omega_checked_trees::FlowInvalidationSource::Statement { statement_index } => {
+            PermissionEventSource::Statement { statement_index }
+        }
+        omega_checked_trees::FlowInvalidationSource::Call {
+            statement_index,
+            call_ordinal,
+            target_symbol,
+        } => PermissionEventSource::Call {
+            statement_index,
+            call_ordinal,
+            target_symbol,
+        },
     }
 }
 

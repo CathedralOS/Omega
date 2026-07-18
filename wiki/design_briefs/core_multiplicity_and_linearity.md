@@ -127,6 +127,13 @@ through checked control flow. The IR needs:
 - path-sensitive resource state for sums; and
 - explicit create, transfer, consume, and affine-drop events.
 
+Implementation status (CML3, 2026-07-17): these events now survive the full
+semantic pipeline with multiplicity, access, and transfer-stable provenance.
+Existing shared/exclusive borrow loans enter the same permission context at
+activation and leave it at weakening; their mature legality checks are not
+reimplemented. Legacy move/drop summaries remain only as transitional input
+until the ownership producers emit the semantic events directly.
+
 A backend may erase multiplicity after it has received a checked ownership and
 cleanup plan, but proof/debug artifacts must retain the conservation witness.
 The current move/drop-only summaries are not sufficient; see

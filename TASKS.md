@@ -4554,9 +4554,13 @@ with a real app-window story.
   transfer-stable establishment provenance. The straight-line linear checker
   preserves one origin through multiple bindings; legacy-derived affine drops
   stay explicitly `Unknown` rather than fabricating evidence, and backend
-  reports expose all three axes. **CML3 next:** feed shared/exclusive borrow
-  loans into the permission context, then flip the checker fully off move/drop
-  input; cover returned-obligation outcomes and nested
+  reports expose all three axes. **CML3 SLICE 4 LANDED 2026-07-17:** existing
+  borrow activations and weakenings now emit permission-context entries over
+  the borrowed place: shared loans are `Unrestricted + Shared`, exclusive
+  loans are `Affine + Exclusive`, and both retain one establishment origin
+  through release. Borrow legality remains in the established checker; this
+  rung removes the representational split without changing it. **CML3 next:**
+  flip the checker fully off move/drop input; cover returned-obligation outcomes and nested
   conditional payload extraction along that migration. Terminal consumption needs no annotation: an ordinary
   `move self` call consumes when no returned outcome carries the obligation,
   while a `try_*` incomplete outcome must return the live token. Pin create ->

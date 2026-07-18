@@ -96,3 +96,69 @@ fn empty_conditional_sum_records_establishment_without_payload_debt() {
         .expect("conditional establishment event");
     assert!(!event.obligation_live);
 }
+
+#[test]
+fn borrow_loans_share_the_permission_context_with_access_and_origin() {
+    let checked = checked(
+        r#"
+        data Main { items: [i32; 2]; }
+
+        machine observe(items: &[i32]) {}
+        machine mutate(items: &mut [i32]) {}
+        machine Main::run() -> i32 { 0 }
+
+        machine Main::read(&self) {
+            let view: &[i32] = self.items.as_slice();
+            observe(view);
+        }
+
+        machine Main::write(&mut self) {
+            let view: &mut [i32] = self.items.as_mut_slice();
+            mutate(view);
+        }
+        "#,
+    );
+
+    use omega_core::semantics::{
+        Multiplicity, PermissionAccess, PermissionEventKind, PermissionProvenance,
+    };
+    let events = checked
+        .facts
+        .flow
+        .ownership
+        .permissions
+        .iter()
+        .map(|(_, event)| event)
+        .filter(|event| event.access != PermissionAccess::Owned)
+        .collect::<Vec<_>>();
+    assert_eq!(events.len(), 4, "each loan has a begin and release event");
+
+    for access in [PermissionAccess::Shared, PermissionAccess::Exclusive] {
+        let pair = events
+            .iter()
+            .copied()
+            .filter(|event| event.access == access)
+            .collect::<Vec<_>>();
+        assert_eq!(pair.len(), 2);
+        assert_eq!(pair[0].kind, PermissionEventKind::Establish);
+        assert_eq!(pair[1].kind, PermissionEventKind::Consume);
+        assert_eq!(pair[0].provenance, pair[1].provenance);
+        assert_ne!(pair[0].provenance, PermissionProvenance::Unknown);
+    }
+    assert_eq!(
+        events
+            .iter()
+            .find(|event| event.access == PermissionAccess::Shared)
+            .expect("shared loan")
+            .multiplicity,
+        Multiplicity::Unrestricted
+    );
+    assert_eq!(
+        events
+            .iter()
+            .find(|event| event.access == PermissionAccess::Exclusive)
+            .expect("exclusive loan")
+            .multiplicity,
+        Multiplicity::Affine
+    );
+}
