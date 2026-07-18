@@ -1,4 +1,8 @@
-use omega_checked_trees::{CheckFacts, FlowOwnershipEventSource};
+use omega_checked_trees::{
+    CheckFacts, FlowOwnershipEventSource, FlowPermissionEventFact, FlowPermissionEventKind,
+    FlowPermissionEventSource,
+};
+use omega_core::arena::HandleSpan;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::semantics::Multiplicity;
 use omega_core::symbols::SymbolHandle;
@@ -27,9 +31,10 @@ struct WrittenLinearTarget {
 
 pub(crate) fn check_linear_obligations(
     program: &omega_typed_trees::TypedTrees,
-    facts: &CheckFacts,
+    facts: &mut CheckFacts,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
+    let mut permission_events = Vec::new();
 
     for (_, state_flow) in facts.flow.control.states.iter() {
         let Some(state) = crate::find_state(program, state_flow.state_symbol) else {
@@ -48,6 +53,15 @@ pub(crate) fn check_linear_obligations(
             let multiplicity = type_multiplicity(program, parameter.type_reference);
             let conditional = type_has_conditional_linear_payload(program, parameter.type_reference);
             if multiplicity == Multiplicity::Linear || conditional {
+                permission_events.push(FlowPermissionEventFact {
+                    machine_symbol: state_flow.machine_symbol,
+                    state_symbol: state.symbol,
+                    source: FlowPermissionEventSource::StateEntry,
+                    kind: FlowPermissionEventKind::Establish,
+                    root: omega_facts::PlaceRoot::Symbol(parameter.symbol),
+                    segments: HandleSpan::empty(),
+                    obligation_live: true,
+                });
                 places.push(LinearPlace {
                     symbol: parameter.symbol,
                     name: parameter.name.as_str().to_owned(),
@@ -76,10 +90,6 @@ pub(crate) fn check_linear_obligations(
             }
         }
 
-        if places.is_empty() {
-            continue;
-        }
-
         let moves = facts.flow.ownership.moves.span_or_empty(state_flow.moves);
         let first_transition = statements
             .iter()
@@ -89,12 +99,14 @@ pub(crate) fn check_linear_obligations(
             apply_statement_permission_flow(
                 program,
                 facts,
+                state_flow.machine_symbol,
                 state.symbol,
                 moves,
                 statement_index,
                 statement,
                 &mut places,
                 &mut diagnostics,
+                &mut permission_events,
             );
         }
 
@@ -110,12 +122,14 @@ pub(crate) fn check_linear_obligations(
                 apply_statement_permission_flow(
                     program,
                     facts,
+                    state_flow.machine_symbol,
                     state.symbol,
                     moves,
                     statement_index,
                     &statements[statement_index],
                     &mut outcome,
                     &mut diagnostics,
+                    &mut permission_events,
                 );
                 outcomes.push(outcome);
             }
@@ -169,7 +183,33 @@ pub(crate) fn check_linear_obligations(
                 place.name
             )));
         }
+
+        // Once linear/conditional roots are removed, the old state-exit drops
+        // are precisely the affine cleanup events. Preserve them explicitly so
+        // later consumers never have to infer semantic kind from `drops`.
+        for drop in facts.flow.ownership.drops.span_or_empty(state_flow.drops) {
+            let tracked_linear = matches!(drop.root, omega_facts::PlaceRoot::Symbol(symbol) if places.iter().any(|place| place.symbol == symbol));
+            if tracked_linear {
+                continue;
+            }
+            permission_events.push(FlowPermissionEventFact {
+                machine_symbol: state_flow.machine_symbol,
+                state_symbol: state.symbol,
+                source: FlowPermissionEventSource::StateExit,
+                kind: FlowPermissionEventKind::AffineDrop,
+                root: drop.root,
+                segments: drop.segments,
+                obligation_live: false,
+            });
+        }
     }
+
+    facts.flow.ownership.permissions = omega_core::arena::Arena::default();
+    facts
+        .flow
+        .ownership
+        .permissions
+        .insert_many(permission_events);
 
     if diagnostics.is_empty() {
         Ok(())
@@ -182,12 +222,14 @@ pub(crate) fn check_linear_obligations(
 fn apply_statement_permission_flow(
     program: &omega_typed_trees::TypedTrees,
     facts: &CheckFacts,
+    machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     moves: &[omega_checked_trees::FlowMoveEventFact],
     statement_index: usize,
     statement: &StatementNode,
     places: &mut [LinearPlace],
     diagnostics: &mut Vec<Diagnostic>,
+    permission_events: &mut Vec<FlowPermissionEventFact>,
 ) {
     // Destructure coverage markers are proof-only reads synthesized by the
     // parser; they neither transfer a value nor establish user storage.
@@ -224,6 +266,16 @@ fn apply_statement_permission_flow(
         let Some(place) = places.iter_mut().find(|place| place.symbol == symbol) else {
             continue;
         };
+        let obligation_live = place.live;
+        permission_events.push(FlowPermissionEventFact {
+            machine_symbol,
+            state_symbol,
+            source: permission_source(event.source),
+            kind: permission_kind_for_move(program, facts, machine_symbol, state_symbol, event),
+            root: event.root,
+            segments: event.segments,
+            obligation_live,
+        });
         if !place.live && !place.conditional {
             let reason = if place.ever_established {
                 "was already transferred or consumed"
@@ -256,6 +308,15 @@ fn apply_statement_permission_flow(
         }
         place.live = obligation_live;
         place.ever_established = true;
+        permission_events.push(FlowPermissionEventFact {
+            machine_symbol,
+            state_symbol,
+            source: FlowPermissionEventSource::Statement { statement_index },
+            kind: FlowPermissionEventKind::Establish,
+            root: omega_facts::PlaceRoot::Symbol(symbol),
+            segments: HandleSpan::empty(),
+            obligation_live,
+        });
     }
 }
 
@@ -267,6 +328,80 @@ fn event_statement_index(source: FlowOwnershipEventSource) -> Option<usize> {
         } => Some(statement_index),
         FlowOwnershipEventSource::StateExit => None,
     }
+}
+
+fn permission_source(source: FlowOwnershipEventSource) -> FlowPermissionEventSource {
+    match source {
+        FlowOwnershipEventSource::Statement { statement_index } => {
+            FlowPermissionEventSource::Statement { statement_index }
+        }
+        FlowOwnershipEventSource::Call {
+            statement_index,
+            call_ordinal,
+            target_symbol,
+        } => FlowPermissionEventSource::Call {
+            statement_index,
+            call_ordinal,
+            target_symbol,
+        },
+        FlowOwnershipEventSource::StateExit => FlowPermissionEventSource::StateExit,
+    }
+}
+
+fn permission_kind_for_move(
+    program: &omega_typed_trees::TypedTrees,
+    facts: &CheckFacts,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    event: &omega_checked_trees::FlowMoveEventFact,
+) -> FlowPermissionEventKind {
+    let FlowOwnershipEventSource::Call {
+        statement_index,
+        call_ordinal,
+        target_symbol,
+    } = event.source
+    else {
+        return FlowPermissionEventKind::Transfer;
+    };
+    let Some(call_site) = crate::find_call_site(
+        program,
+        machine_symbol,
+        state_symbol,
+        statement_index,
+        call_ordinal,
+    ) else {
+        return FlowPermissionEventKind::Transfer;
+    };
+    let Some(target_state) = crate::find_state(program, target_symbol) else {
+        return FlowPermissionEventKind::Transfer;
+    };
+    let arguments = crate::call_site_argument_expressions(program, &call_site);
+    let parameters = program.state_parameters(target_state);
+    if arguments.len() != parameters.len() {
+        return FlowPermissionEventKind::Transfer;
+    }
+    let event_segments = facts
+        .flow
+        .ownership
+        .segments
+        .span_or_empty(event.segments);
+    for (parameter, argument) in parameters.iter().zip(arguments) {
+        if !parameter.is_self {
+            continue;
+        }
+        let Some(place) = crate::flow::canonical_place_from_expression_in_state(
+            program,
+            state_symbol,
+            statement_index,
+            *argument,
+        ) else {
+            continue;
+        };
+        if place.root == event.root && place.segments.as_slice() == event_segments {
+            return FlowPermissionEventKind::Consume;
+        }
+    }
+    FlowPermissionEventKind::Transfer
 }
 
 fn written_whole_linear_target(

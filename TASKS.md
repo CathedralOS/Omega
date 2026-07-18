@@ -4538,10 +4538,17 @@ with a real app-window story.
   conditional obligations in only those cases whose payload is linear:
   `Empty` drops normally, `Live(Receipt)` must transfer/consume, and moving the
   whole live sum conserves the payload claim. Pass/fail canaries pin all three
-  faces. **CML3 next:** materialize create/transfer/consume/affine-drop as
-  explicit permission facts in checked IR (retiring the move/drop summary as
-  the checker's source), then cover returned-obligation outcomes and nested
-  conditional payload extraction. Terminal consumption needs no annotation: an ordinary
+  faces. **CML3 SLICE 1 LANDED 2026-07-17:** checked flow now retains
+  first-class `Establish | Transfer | Consume | AffineDrop` permission events
+  with machine/state/source/place identity and the conditional payload-debt
+  bit. The compiler-recording check path writes the artifact once; unit tests
+  pin create -> transfer -> create -> consume plus affine cleanup, and `Empty`
+  establishment with no debt. Legacy move/drop arenas remain temporarily for
+  downstream compatibility, not as the semantic event taxonomy. **CML3 next:**
+  propagate permission events through state-graph/control-flow/backend semantic
+  summaries, add access/provenance to permission entries, then flip the checker
+  fully off move/drop input; cover returned-obligation outcomes and nested
+  conditional payload extraction along that migration. Terminal consumption needs no annotation: an ordinary
   `move self` call consumes when no returned outcome carries the obligation,
   while a `try_*` incomplete outcome must return the live token. Pin create ->
   multi-binding transfer -> consume as one obligation; reject scope loss,

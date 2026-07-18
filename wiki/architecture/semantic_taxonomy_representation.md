@@ -211,6 +211,13 @@ OwnershipEvent = Establish | Transfer | Consume | AffineDrop
 operate over permission entries with path-sensitive sum state. Borrow events
 remain permission operations, not linear obligations by fiat.
 
+Implementation status (CML3, 2026-07-17): checked flow retains normalized
+`Establish | Transfer | Consume | AffineDrop` events, including whether a
+conditional sum event carries live payload debt. The older move/drop arenas
+remain as compatibility input while downstream state-graph/control-flow
+summaries migrate; no downstream consumer may reconstruct permission kind from
+that lossy pair.
+
 ### Effects and observation
 
 Represent the qualitative effect row as symbol-resolved, kinded identities:

@@ -3,7 +3,7 @@ use omega_core::arena::Arena;
 use super::{
     FlowBorrowActivationFact, FlowBorrowWeakeningFact, FlowBoundaryEdgeFact, FlowCallFact,
     FlowConstraintRef, FlowDropEventFact, FlowExitFact, FlowInvalidationFact, FlowMoveEventFact,
-    FlowSemanticContextRef, FlowStateFact, FlowStatementFact,
+    FlowPermissionEventFact, FlowSemanticContextRef, FlowStateFact, FlowStatementFact,
 };
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -62,6 +62,7 @@ pub struct FlowOwnershipFacts {
     pub segments: Arena<omega_facts::PlaceSegment>,
     pub moves: Arena<FlowMoveEventFact>,
     pub drops: Arena<FlowDropEventFact>,
+    pub permissions: Arena<FlowPermissionEventFact>,
 }
 
 impl FlowOwnershipFacts {
@@ -69,11 +70,13 @@ impl FlowOwnershipFacts {
         segments: Arena<omega_facts::PlaceSegment>,
         moves: Arena<FlowMoveEventFact>,
         drops: Arena<FlowDropEventFact>,
+        permissions: Arena<FlowPermissionEventFact>,
     ) -> Self {
         Self {
             segments,
             moves,
             drops,
+            permissions,
         }
     }
 }

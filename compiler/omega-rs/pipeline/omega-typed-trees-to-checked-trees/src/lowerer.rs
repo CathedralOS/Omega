@@ -22,9 +22,9 @@ pub(crate) fn lower_typed_trees(
     // and interpreter) then rounds once from the spelling.
     omega_validation::land_float_literal_destinations(&mut program);
     let validated = validate_typed_program(&program)?;
-    let facts = build_check_facts(&program, &validated.proof_plan, validated.effects);
+    let mut facts = build_check_facts(&program, &validated.proof_plan, validated.effects);
 
-    checks::check_checked_facts(&program, &facts)?;
+    checks::check_checked_facts_recording(&program, &mut facts)?;
 
     Ok(CheckedTrees::with_roots(program, facts))
 }
