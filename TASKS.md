@@ -778,12 +778,23 @@ rejects — an INTEGER ruling, engineering rides this ladder as F8).
   must bottom out in ops BOTH engines serve -- a RAW-STDIO std
   boundary trait whose methods are SEMANTIC operations (the existing
   byte-io composites natively; the existing console serving in the
-  interpreter), NOT authored import leaves. Rung order: (3a) the
-  raw-stdio boundary trait (write_bytes/read_byte) served
-  dual-engine by the EXISTING mechanisms; (3b) Console's
-  write_line/write/write_byte as std checked adapters over it (the
-  newline append becomes adapter body code); (3c) oracle-compare +
-  flip the built-in Console rows out. The import-argument fix
+  interpreter), NOT authored import leaves. ADAPTER DISPATCH LANDED
+  2026-07-20 (the consumption rung 3a rides on): a call through a
+  field whose declared type is a BOUNDARY trait rewrites -- in BOTH
+  engine pipelines, before checking (pipeline/adapter_dispatch.rs,
+  the const-lengths/MP4 rewrite family) -- to a direct call to the
+  UNIQUE checked adapter satisfying that requirement (statement AND
+  value calls; two adapters for one requirement refuse; no adapter =
+  the host route untouched; v1 adapters are FREE machines, the field
+  is dispatch-only). Pinned DUAL-ENGINE:
+  runtime_adapter_dispatch_exit (interpreter + native both exit 70
+  through the adapter). Rung order forward: (3a) Console's byte ops
+  ARE the raw-stdio surface (write_byte/read_byte already serve
+  dual-engine -- no new trait needed); (3b) Console's write_line/
+  write as std checked adapters over write_byte (the newline append
+  becomes adapter body code) -- the adapter-dispatch rewrite now
+  routes them; (3c) oracle-compare + retire the built-in
+  write_line/write rows from tables + interpreter serving. The import-argument fix
   unblocked authored-import adapter leaves generally (fs-style
   seams), but Console's own path rides semantics, not imports; (4) move foreign offsets/bit constants out of
   Binding::Value into programmable layout/format declarations, migrate

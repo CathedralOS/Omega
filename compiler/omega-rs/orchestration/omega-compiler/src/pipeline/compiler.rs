@@ -314,6 +314,9 @@ impl Compiler {
         // placement plan; the wire codec selection consumes it (tag + framing
         // from the plan, asserted against its own walk).
         crate::pipeline::wire_plans::compute_wire_plans(&mut typed)?;
+    // PRV4 adapter dispatch (both engines, before checking): boundary-trait
+    // calls with a unique satisfying adapter rewrite to direct calls.
+    crate::pipeline::adapter_dispatch::rewrite_adapter_calls(&mut typed)?;
         // BUILD CONFIG (build_and_package_model.md): image facts from
         // build.omg's augmenting `build(b: &mut Build)` machine, evaluated at
         // build time. When present it is AUTHORITATIVE; the legacy in-source
