@@ -227,6 +227,44 @@ fn consuming_call_that_returns_an_obligation_transfers_its_origin() {
 }
 
 #[test]
+fn permission_producer_discovers_transfers_without_legacy_moves() {
+    let checked = checked(
+        r#"
+        data Receipt [linear] { code: i32; }
+        machine Receipt::ack(self) {}
+        data Main {}
+        machine Main::run() -> i32 {
+            let issued: Receipt = Receipt { code: 7 };
+            let forwarded: Receipt = issued;
+            Receipt::ack(forwarded);
+            0
+        }
+        "#,
+    );
+    let expected = checked
+        .facts
+        .flow
+        .ownership
+        .permissions
+        .iter()
+        .map(|(_, event)| event.clone())
+        .collect::<Vec<_>>();
+
+    let mut facts = checked.facts.clone();
+    facts.flow.ownership.moves = Default::default();
+    facts.flow.ownership.permissions = Default::default();
+    crate::checks::record_permission_events(&checked.typed, &mut facts);
+    let actual = facts
+        .flow
+        .ownership
+        .permissions
+        .iter()
+        .map(|(_, event)| event.clone())
+        .collect::<Vec<_>>();
+    assert_eq!(actual, expected);
+}
+
+#[test]
 fn permission_producer_discovers_affine_cleanup_without_legacy_drops() {
     let checked = checked(
         r#"

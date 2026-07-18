@@ -2,7 +2,7 @@ use super::*;
 
 pub(in crate::flow) fn append_call_ownership_events(
     program: &omega_typed_trees::TypedTrees,
-    ctx: &mut FlowBuildContext,
+    sink: &mut impl MoveEventSink,
     machine: &omega_typed_trees::machine::Machine,
     state: &omega_typed_trees::state::State,
     borrow_call: &BorrowCallFact,
@@ -40,7 +40,7 @@ pub(in crate::flow) fn append_call_ownership_events(
 
         moves::append_move_events_for_expression(
             program,
-            ctx,
+            sink,
             state.symbol,
             borrow_call.statement_index,
             *argument,

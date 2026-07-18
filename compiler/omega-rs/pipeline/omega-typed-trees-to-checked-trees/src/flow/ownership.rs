@@ -9,7 +9,11 @@ mod type_references;
 
 pub(super) use calls::append_call_ownership_events;
 pub(super) use drops::append_state_exit_drop_events;
-use events::{append_drop_event_for_place, append_move_event_for_place};
+use events::{
+    DirectMoveEventSink, MoveEventSink, append_drop_event_for_place,
+    append_move_event_for_place,
+};
+pub(crate) use events::DiscoveredMoveEvent;
 use moves::{
     append_move_events_for_expression, append_move_events_for_operator_statement_call,
     initializer_produces_owned_value,
@@ -18,7 +22,7 @@ use type_references::type_requires_ownership;
 
 pub(super) fn append_statement_ownership_events(
     program: &omega_typed_trees::TypedTrees,
-    ctx: &mut FlowBuildContext,
+    sink: &mut impl MoveEventSink,
     state_symbol: SymbolHandle,
     statement_index: usize,
     statement: &StatementNode,
@@ -28,7 +32,7 @@ pub(super) fn append_statement_ownership_events(
             let source = FlowOwnershipEventSource::Statement { statement_index };
             append_move_events_for_expression(
                 program,
-                ctx,
+                sink,
                 state_symbol,
                 statement_index,
                 assignment.value,
@@ -47,7 +51,7 @@ pub(super) fn append_statement_ownership_events(
                     statement_index,
                     assignment.target,
                 ) {
-                    append_move_event_for_place(program, ctx, place, source);
+                    append_move_event_for_place(program, sink, place, source);
                 }
             }
         }
@@ -56,7 +60,7 @@ pub(super) fn append_statement_ownership_events(
                 let source = FlowOwnershipEventSource::Statement { statement_index };
                 append_move_events_for_expression(
                     program,
-                    ctx,
+                    sink,
                     state_symbol,
                     statement_index,
                     local_data.initial_value,
@@ -72,7 +76,7 @@ pub(super) fn append_statement_ownership_events(
                 // slice/string operator-result extension of ownership events.
                 if initializer_produces_owned_value(program, local_data.initial_value) {
                     if let Some(place) = canonical_place_from_symbol(local_data.symbol) {
-                        append_move_event_for_place(program, ctx, place, source);
+                        append_move_event_for_place(program, sink, place, source);
                     }
                 }
             }
@@ -101,7 +105,7 @@ pub(super) fn append_statement_ownership_events(
                 {
                     append_move_events_for_expression(
                         program,
-                        ctx,
+                        sink,
                         state_symbol,
                         statement_index,
                         *value,
@@ -117,7 +121,7 @@ pub(super) fn append_statement_ownership_events(
         // owned by-value argument transfers are recorded here instead.
         StatementNode::Call(call) => append_move_events_for_operator_statement_call(
             program,
-            ctx,
+            sink,
             state_symbol,
             statement_index,
             call,
@@ -130,11 +134,53 @@ pub(super) fn append_statement_ownership_events(
         // the call-flow pass keeps sole ownership of their argument events.
         StatementNode::Expression(expression) => append_move_events_for_expression(
             program,
-            ctx,
+            sink,
             state_symbol,
             statement_index,
             *expression,
             FlowOwnershipEventSource::Statement { statement_index },
         ),
     }
+}
+
+/// Run the ownership discovery rules directly into a semantic producer sink.
+/// This deliberately shares the expression/call traversal with compatibility
+/// move emission while returning an independent event vocabulary, so the
+/// permission checker never reads the legacy move arena.
+pub(crate) fn discover_state_move_events(
+    program: &omega_typed_trees::TypedTrees,
+    borrow: &BorrowFacts,
+    machine: &omega_typed_trees::machine::Machine,
+    state: &omega_typed_trees::state::State,
+    segments: &mut omega_core::arena::Arena<omega_facts::PlaceSegment>,
+) -> Vec<DiscoveredMoveEvent> {
+    let mut sink = DirectMoveEventSink::new(segments);
+    let borrow_calls = borrow_state_fact(borrow, machine.symbol, state.symbol)
+        .map(|(_, state)| borrow.calls.span_or_empty(state.calls))
+        .unwrap_or_default();
+    let mut call_index = 0usize;
+
+    for (statement_index, statement) in program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .enumerate()
+    {
+        append_statement_ownership_events(
+            program,
+            &mut sink,
+            state.symbol,
+            statement_index,
+            statement,
+        );
+        while let Some(call) = borrow_calls.get(call_index) {
+            if call.statement_index != statement_index {
+                break;
+            }
+            call_index += 1;
+            append_call_ownership_events(program, &mut sink, machine, state, call);
+        }
+    }
+
+    sink.finish()
 }

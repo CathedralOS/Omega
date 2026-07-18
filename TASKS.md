@@ -4592,8 +4592,13 @@ with a real app-window story.
   discovered directly from typed state ownership (locals in reverse
   declaration order, then owned by-value parameters), independent of the
   compatibility `drops` arena; a producer-level test clears that arena before
-  rebuilding permissions and pins identical cleanup roots/order. **CML3 next:**
-  replace the producer's remaining legacy move projection.
+  rebuilding permissions and pins identical cleanup roots/order. **CML3 SLICE
+  9 LANDED 2026-07-20:** semantic transfers and consumes now run the canonical
+  typed move-discovery traversal through their own event sink instead of
+  projecting the compatibility `moves` arena. A producer-level test clears
+  that arena and rebuilds the identical permission sequence. CML3's producer
+  migration is complete: legacy move/drop arenas remain compatibility output
+  for downstream migration only, never semantic producer input.
   Terminal consumption needs no annotation: an ordinary
   `move self` call consumes when no returned outcome carries the obligation,
   while a `try_*` incomplete outcome must return the live token. Pin create ->

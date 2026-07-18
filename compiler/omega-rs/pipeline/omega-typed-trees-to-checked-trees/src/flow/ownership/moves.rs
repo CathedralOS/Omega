@@ -3,7 +3,7 @@ use super::*;
 
 pub(super) fn append_move_events_for_expression(
     program: &omega_typed_trees::TypedTrees,
-    ctx: &mut FlowBuildContext,
+    sink: &mut impl MoveEventSink,
     state_symbol: SymbolHandle,
     statement_index: usize,
     expression: ExpressionHandle,
@@ -21,7 +21,7 @@ pub(super) fn append_move_events_for_expression(
             statement_index,
             expression,
         ) {
-            append_move_event_for_place(program, ctx, place, source);
+            append_move_event_for_place(program, sink, place, source);
         }
         return;
     }
@@ -31,7 +31,7 @@ pub(super) fn append_move_events_for_expression(
             for value in program.expression_table.expression_handles(*values) {
                 append_move_events_for_expression(
                     program,
-                    ctx,
+                    sink,
                     state_symbol,
                     statement_index,
                     *value,
@@ -42,7 +42,7 @@ pub(super) fn append_move_events_for_expression(
         ExpressionNode::Binary(binary) => {
             append_move_events_for_expression(
                 program,
-                ctx,
+                sink,
                 state_symbol,
                 statement_index,
                 binary.left,
@@ -50,7 +50,7 @@ pub(super) fn append_move_events_for_expression(
             );
             append_move_events_for_expression(
                 program,
-                ctx,
+                sink,
                 state_symbol,
                 statement_index,
                 binary.right,
@@ -59,7 +59,7 @@ pub(super) fn append_move_events_for_expression(
         }
         ExpressionNode::Cast(cast) => append_move_events_for_expression(
             program,
-            ctx,
+            sink,
             state_symbol,
             statement_index,
             cast.value,
@@ -67,7 +67,7 @@ pub(super) fn append_move_events_for_expression(
         ),
         ExpressionNode::Unary(unary) => append_move_events_for_expression(
             program,
-            ctx,
+            sink,
             state_symbol,
             statement_index,
             unary.operand,
@@ -80,7 +80,7 @@ pub(super) fn append_move_events_for_expression(
             {
                 append_move_events_for_expression(
                     program,
-                    ctx,
+                    sink,
                     state_symbol,
                     statement_index,
                     field.value,
@@ -92,7 +92,7 @@ pub(super) fn append_move_events_for_expression(
             if range.start.is_valid() {
                 append_move_events_for_expression(
                     program,
-                    ctx,
+                    sink,
                     state_symbol,
                     statement_index,
                     range.start,
@@ -102,7 +102,7 @@ pub(super) fn append_move_events_for_expression(
             if range.end.is_valid() {
                 append_move_events_for_expression(
                     program,
-                    ctx,
+                    sink,
                     state_symbol,
                     statement_index,
                     range.end,
@@ -127,7 +127,7 @@ pub(super) fn append_move_events_for_expression(
         ExpressionNode::Call(call) => {
             append_move_events_for_call_arguments(
                 program,
-                ctx,
+                sink,
                 state_symbol,
                 statement_index,
                 call,
@@ -162,7 +162,7 @@ pub(super) fn append_move_events_for_expression(
 /// the receiver descent regardless of the callee.
 fn append_move_events_for_call_arguments(
     program: &omega_typed_trees::TypedTrees,
-    ctx: &mut FlowBuildContext,
+    sink: &mut impl MoveEventSink,
     state_symbol: SymbolHandle,
     statement_index: usize,
     call: &omega_typed_trees::expression::TableCallExpression,
@@ -193,7 +193,7 @@ fn append_move_events_for_call_arguments(
     if call.receiver.is_valid() && !receiver_is_static_path && policy.receiver_transfers() {
         append_move_events_for_expression(
             program,
-            ctx,
+            sink,
             state_symbol,
             statement_index,
             call.receiver,
@@ -210,7 +210,7 @@ fn append_move_events_for_call_arguments(
 
         append_move_events_for_expression(
             program,
-            ctx,
+            sink,
             state_symbol,
             statement_index,
             *argument,
@@ -234,7 +234,7 @@ fn append_move_events_for_call_arguments(
 /// borrowed receiver (`&self`/`&mut self`) transfers nothing.
 pub(in crate::flow::ownership) fn append_move_events_for_operator_statement_call(
     program: &omega_typed_trees::TypedTrees,
-    ctx: &mut FlowBuildContext,
+    sink: &mut impl MoveEventSink,
     state_symbol: SymbolHandle,
     statement_index: usize,
     call: &omega_typed_trees::statement::TableCall,
@@ -276,7 +276,7 @@ pub(in crate::flow::ownership) fn append_move_events_for_operator_statement_call
 
     if receiver_is_value && policy.receiver_transfers() {
         if let Some(place) = canonical_place_from_symbol(call.receiver_symbol) {
-            append_move_event_for_place(program, ctx, place, source);
+            append_move_event_for_place(program, sink, place, source);
         }
     }
 
@@ -287,7 +287,7 @@ pub(in crate::flow::ownership) fn append_move_events_for_operator_statement_call
 
         append_move_events_for_expression(
             program,
-            ctx,
+            sink,
             state_symbol,
             statement_index,
             *argument,

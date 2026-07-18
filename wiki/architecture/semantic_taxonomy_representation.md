@@ -63,9 +63,11 @@ Borrow activations/weakenings now feed the same context as
 `Unrestricted + Shared` and `Affine + Exclusive` entries, respectively. The
 linearity judgment now consumes only the qualified permission events. Affine
 cleanup derives directly from typed state ownership, so the legacy drop arena
-is compatibility output only; legacy moves remain transitional producer input.
-The remaining migration is to emit transfers directly at discovery and finish
-the deliberately deferred multi-resource/nested obligation algebra.
+is compatibility output only. Semantic transfers and consumes run canonical
+typed move discovery through an independent event sink, so the legacy move
+arena is also compatibility output only. The deliberately deferred work is the
+multi-resource/nested obligation algebra, not reconstruction from lossy
+move/drop summaries.
 
 ### Effects
 
@@ -222,8 +224,9 @@ Implementation status (CML3, 2026-07-17): checked flow retains normalized
 conditional sum event carries live payload debt. CML3's second slice propagates
 the same typed events through state graph, control flow, abstract/target/
 assigned operations, machine instructions/program/bytes, and the backend
-report. The older move/drop arenas remain compatibility input only; no consumer
-may reconstruct permission kind from that lossy pair.
+report. The older move/drop arenas remain compatibility output only; no
+semantic producer or consumer may reconstruct permission kind from that lossy
+pair.
 
 ### Effects and observation
 
