@@ -32410,6 +32410,8 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "build/build_machine_wrong_arity",
     "build/accept_boundary_outside_build",
     "platform/platform_block_retired",
+    "providers/via_with_body_rejected",
+    "providers/via_on_axiom_rejected",
     "host/terminal_host_call_value",
     "calls/guarded_value_call_terminal_rejected",
     "proofs/core_nat_runtime_consumption_rejected",

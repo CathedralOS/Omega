@@ -140,6 +140,38 @@ pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
         validate_machine_contract_entailment(program, machine, &mut diagnostics);
         validate_machine_trait_conformances(program, machine, &mut diagnostics);
 
+        // PRV4 step 1: a `via <Binding>` clause is the EXTERNAL LEAF's
+        // realization -- it must never parse and then silently drop. Exactly
+        // one via clause, on a bodyless non-boundary machine, populates
+        // ExternalRealization; every other carrier refuses here.
+        {
+            let via_count = program
+                .machine_trait_conformances(machine)
+                .iter()
+                .filter(|conformance| conformance.via.is_some())
+                .count();
+            let is_external = matches!(
+                machine.supply_mode,
+                omega_core::semantics::MachineSupplyMode::ExternalRealization { .. }
+            );
+            if via_count > 1 {
+                diagnostics.push(Diagnostic::error(format!(
+                    "machine `{}` carries {via_count} `via` bindings; an external \
+                     leaf has exactly one realization",
+                    machine.name,
+                )));
+            } else if via_count == 1 && !is_external {
+                diagnostics.push(Diagnostic::error(format!(
+                    "machine `{}` carries a `via` binding but is not an external \
+                     leaf: `satisfies Requirement via <Binding>;` belongs on a \
+                     BODYLESS non-boundary machine (a composite lowering is an \
+                     ordinary checked body; an accepted axiom carries no \
+                     realization)",
+                    machine.name,
+                )));
+            }
+        }
+
         for (state_index, state) in program.machine_states(machine).iter().enumerate() {
             // A state that DECLARES a return type but has an EMPTY body can
             // never produce the value -- callers would silently bind 0 (ZII),
