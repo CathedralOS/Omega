@@ -12,6 +12,17 @@ pub(crate) fn check_checked_facts(
     program: &omega_typed_trees::TypedTrees,
     facts: &omega_checked_trees::CheckFacts,
 ) -> Result<(), Vec<Diagnostic>> {
+    // Unit tests that assemble facts directly do not need the retained
+    // permission artifact; run the same checks against a clone. The compiler
+    // path below records into the owned checked tree.
+    let mut scratch = facts.clone();
+    check_checked_facts_recording(program, &mut scratch)
+}
+
+pub(crate) fn check_checked_facts_recording(
+    program: &omega_typed_trees::TypedTrees,
+    facts: &mut omega_checked_trees::CheckFacts,
+) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
 
     if let Err(mut borrow_diagnostics) = borrows::check_flow_call_borrows(program, facts) {

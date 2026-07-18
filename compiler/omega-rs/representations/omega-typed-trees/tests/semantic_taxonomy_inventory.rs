@@ -170,12 +170,14 @@ fn effect_set_is_still_a_flat_bitset() {
 }
 
 /// LOSS 5 (record §Multiplicity, ownership summaries): control-flow
-/// ownership summaries record MOVE and DROP events only -- no Establish /
-/// Transfer / Consume / AffineDrop distinction, no permission entry with
-/// access + provenance. Linear `Join`, transactions, and dependent-linear
-/// buffers must not grow on this shape (the record's ordering constraint).
+/// PARTIALLY RE-PINNED (CML3, 2026-07-17): checked flow now retains
+/// Establish / Transfer / Consume / AffineDrop permission events (including
+/// conditional-payload debt). The downstream control-flow summary below still
+/// records MOVE and DROP only, with no permission access/provenance; lowering
+/// migration must consume the checked permission artifact rather than infer it
+/// back from this compatibility pair.
 #[test]
-fn ownership_summary_is_still_move_and_drop_only() {
+fn downstream_ownership_summary_is_still_move_and_drop_only() {
     use omega_control_flow::StateOwnershipSummary;
     let StateOwnershipSummary {
         moves: _,

@@ -38,6 +38,7 @@ impl FlowBuildContext {
                 omega_core::arena::Arena::default(),
                 omega_core::arena::Arena::default(),
                 omega_core::arena::Arena::default(),
+                omega_core::arena::Arena::default(),
             ),
             boundaries: FlowBoundaryFacts::with_roots(omega_core::arena::Arena::with_capacity(
                 borrow.calls.len(),
