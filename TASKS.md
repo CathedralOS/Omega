@@ -707,9 +707,12 @@ rejects — an INTEGER ruling, engineering rides this ladder as F8).
   ExternalBindingTable interner in omega-core; contract-plan
   fingerprints fold the binding id). The item parser admits exactly
   this bodyless shape (pin: pass/providers/external_leaf_via_compile).
-  REMAINING (1): feed the leaves into the ABI-plan merge (derive
-  ProvidesRow-equivalents from ExternalRealization machines);
-  validation rungs (via+body / via+boundary / multi-via refusals); (2) derive plan
+  REFUSAL RUNGS LANDED 2026-07-20: a via clause that is not exactly
+  the external-leaf shape refuses (via+body, via+axiom, multi-via --
+  never a silent drop; pins providers/via_with_body_rejected +
+  via_on_axiom_rejected). REMAINING (1): feed the leaves into the
+  ABI-plan merge (derive ProvidesRow-equivalents from
+  ExternalRealization machines); (2) derive plan
   coverage/signatures/effects/dependency closure from satisfies edges +
   target-default and type-per-slot selection; (3) replace Console
   HostOperations/call-shape rows with checked Omega adapters under the
