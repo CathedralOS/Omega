@@ -225,6 +225,55 @@ pub(crate) fn derive_satisfies_plans(
     plans
 }
 
+/// PRV4 step (2) selection v1: a SLOT -- a (boundary trait, target) pair --
+/// selects its provider implicitly when exactly one FULLY COVERING plan
+/// exists; two covering plans are AMBIGUOUS and refuse loudly, naming both
+/// (the build.omg per-slot override spelling rides the target-package
+/// surface and will resolve such ties explicitly). Partially covering
+/// plans never select and never collide -- the trust report's coverage
+/// column is their surface.
+pub(crate) fn validate_slot_selection(
+    plans: &[omega_effects::provider_plan::ProviderPlan],
+    selected_target: omega_target::NativeTarget,
+) -> Vec<omega_core::diagnostics::Diagnostic> {
+    // Target inertness (the fail-canary host-portability convention): a
+    // plan scoped to a NON-selected target is inert and never collides --
+    // only plans that RESOLVE to the selected target participate.
+    let applies = |target: &str| -> bool {
+        if target.is_empty() {
+            return true; // portable: every target
+        }
+        omega_target::NativeTarget::from_omega_target_name(Some(target))
+            .is_ok_and(|resolved| resolved == selected_target)
+    };
+    let mut diagnostics = Vec::new();
+    for (index, plan) in plans.iter().enumerate() {
+        if plan.schema.methods.is_empty() || !plan.covers_schema() || !applies(&plan.target) {
+            continue;
+        }
+        for other in plans.iter().skip(index + 1) {
+            if other.schema.trait_name == plan.schema.trait_name
+                && applies(&other.target)
+                && other.covers_schema()
+                && !other.schema.methods.is_empty()
+            {
+                diagnostics.push(omega_core::diagnostics::Diagnostic::error(format!(
+                    "slot `{}` (target `{}`) has two covering provider plans: `{}` \
+                     [{:016x}] and `{}` [{:016x}] -- selection is implicit only when \
+                     unique; retire one or scope them to different targets",
+                    plan.schema.trait_name,
+                    if plan.target.is_empty() { "portable" } else { &plan.target },
+                    plan.name,
+                    plan.identity_fingerprint(),
+                    other.name,
+                    other.identity_fingerprint(),
+                )));
+            }
+        }
+    }
+    diagnostics
+}
+
 /// P4a: the CONSOLE methods the platform block declares -- the vertical's
 /// scope fence.
 pub(crate) const CONSOLE_METHODS: &[&str] = &[

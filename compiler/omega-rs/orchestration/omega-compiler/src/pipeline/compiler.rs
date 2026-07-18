@@ -340,6 +340,17 @@ impl Compiler {
             &syntax_trees,
             &typed,
         ));
+        let selected_native_target = omega_target::NativeTarget::from_omega_target_name(
+            self.options.target_name.as_deref(),
+        )
+        .unwrap_or_else(|_| omega_target::NativeTarget::host());
+        let selection_diagnostics = crate::pipeline::provider_plans::validate_slot_selection(
+            &provider_plans,
+            selected_native_target,
+        );
+        if !selection_diagnostics.is_empty() {
+            return Err(selection_diagnostics);
+        }
         crate::pipeline::trust_lockfile::enforce_trust_lockfile(
             &self.options,
             &typed,

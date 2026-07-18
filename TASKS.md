@@ -735,12 +735,17 @@ rejects — an INTEGER ruling, engineering rides this ladder as F8).
   trust rows now show COVERAGE n/m against the schema (pinned:
   satisfies_leaves_derive_a_covered_plan -- one of two requirements
   covered reads 1/2). Signature refinement was already enforced
-  per-edge by the conformance checker. STEP (2) REMAINDER:
-  dependency closure joins when checked ADAPTER machines (composite
-  lowerings with satisfies) enter the derivation; target-default +
-  type-per-slot SELECTION consumes fully-covering plans (v1
-  implicit-unique + loud ambiguity; the build.omg override spelling
-  rides the target-package surface). SURFACED en route: authored/leaf
+  per-edge by the conformance checker. SELECTION V1 LANDED
+  2026-07-20: validate_slot_selection refuses two FULLY COVERING
+  plans on the SELECTED target (implicit selection is only ever
+  unique; both plans named with fingerprints; partial coverage never
+  collides). Target INERTNESS preserved: non-selected targets' plans
+  never participate (the fail-canary host-portability convention).
+  Pinned: fail/providers/slot_plan_ambiguous (an authored block +
+  a portable leaf covering one slot). STEP (2) REMAINDER: dependency
+  closure joins when checked ADAPTER machines enter the derivation;
+  the build.omg per-slot override spelling rides the target-package
+  surface (step 4). SURFACED en route: authored/leaf
   Syscall rows refuse at merge ("not wired yet" -- pre-existing,
   documented refusal); (2) derive plan
   coverage/signatures/effects/dependency closure from satisfies edges +
