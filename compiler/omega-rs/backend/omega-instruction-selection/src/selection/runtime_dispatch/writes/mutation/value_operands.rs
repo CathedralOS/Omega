@@ -696,7 +696,6 @@ pub(super) fn resolve_runtime_value_operand(
             &binary.left,
             &binary.right,
             operator,
-            None,
         );
         let left = resolve_runtime_value_operand(
             input,
@@ -790,7 +789,6 @@ pub(super) fn resolve_runtime_value_operand(
             left,
             right,
             operator,
-            None,
         );
         let left = resolve_runtime_value_operand(
             input,
