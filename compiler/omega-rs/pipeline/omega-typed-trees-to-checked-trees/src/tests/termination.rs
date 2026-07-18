@@ -1333,10 +1333,9 @@ fn rank_range_unverifiable_shapes_are_rejected_with_directed_messages() {
 }
 
 /// TPR3 slice 4: the checked termination facts -- the `checked_summary`'s
-/// producer. An acyclic claimant derives EventualTerminal without a
+/// producer. Every acyclic checked body derives EventualTerminal without a
 /// witness; a proven witness establishes it WITH the resolved explicit
-/// view; a machine claiming nothing gets NO fact (its termination story is
-/// nobody's to assume).
+/// view. The local summary remains separate from the authored public promise.
 #[test]
 fn termination_facts_record_checked_summaries_and_resolved_views() {
     use omega_core::semantics::TerminationGuarantee;
@@ -1400,8 +1399,79 @@ fn termination_facts_record_checked_summaries_and_resolved_views() {
     );
     assert_eq!(countdown.resolved_view_path, "Nat::Descending");
 
-    // A machine claiming nothing carries NO fact.
-    assert!(facts.for_machine(machine_symbol("Main::main")).is_none());
+    let inferred = facts
+        .for_machine(machine_symbol("Main::main"))
+        .expect("unannotated acyclic body still gets a local summary");
+    assert_eq!(
+        inferred.checked_summary,
+        TerminationGuarantee::EventualTerminal {
+            premises: Vec::new()
+        }
+    );
+    assert!(inferred.resolved_view_path.is_empty());
+}
+
+#[test]
+fn inferred_completion_never_publishes_a_promise() {
+    use omega_core::semantics::TerminationGuarantee;
+
+    let source = r#"
+    data Main {}
+    machine Main::run(&mut self) -> u64 { self.inferred() }
+    machine Main::inferred(&mut self) -> u64 { 1 }
+    machine Main::promised(&mut self) -> u64 terminates; { 1 }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let symbol_of = |name: &str| {
+        typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == name)
+            .unwrap_or_else(|| panic!("machine {name}"))
+            .symbol
+    };
+    let inferred = symbol_of("Main::inferred");
+    let promised = symbol_of("Main::promised");
+    let checked = lower_typed_trees(typed).expect("checked lowering should succeed");
+
+    assert_eq!(
+        checked
+            .facts
+            .termination
+            .for_machine(inferred)
+            .expect("inferred local summary")
+            .checked_summary,
+        TerminationGuarantee::EventualTerminal {
+            premises: Vec::new()
+        }
+    );
+    assert_eq!(
+        checked
+            .facts
+            .contract_plans
+            .for_machine(inferred)
+            .expect("inferred contract plan")
+            .published_termination,
+        TerminationGuarantee::NoGuarantee,
+        "body inference must never redefine the published contract"
+    );
+    assert_eq!(
+        checked
+            .facts
+            .contract_plans
+            .for_machine(promised)
+            .expect("promised contract plan")
+            .published_termination,
+        TerminationGuarantee::EventualTerminal {
+            premises: Vec::new()
+        }
+    );
 }
 
 /// TPR4 slice 2: the requirement's authored guarantee PROPAGATES into the
