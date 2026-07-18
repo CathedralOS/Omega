@@ -4576,8 +4576,15 @@ with a real app-window story.
   linear/conditional obligation is a transfer, not a terminal consume; a
   single unambiguous moved input preserves its origin into the result binding.
   The direct `Receipt -> Receipt` customer and canary pin this before task
-  outcomes depend on it. **CML3 next:** replace the producer's legacy
-  projection and carry origins through nested conditional payload extraction.
+  outcomes depend on it. **CML3 SLICE 7 LANDED 2026-07-20:** moving the live
+  payload out of an affine `Empty | Live(Token)` sum now records the nested
+  transfer, settles the sum's one conditional debt, and preserves the original
+  provenance through both sum construction and payload extraction. Ordinary
+  linear aggregates stay conservative: nested extraction does not pretend to
+  consume sibling obligations before the per-field resource algebra exists.
+  Pinned by the pipeline event sequence/origin test and
+  pass/ownership/conditional_linear_payload_extraction (native exit 70).
+  **CML3 next:** replace the producer's remaining legacy move/drop projection.
   Terminal consumption needs no annotation: an ordinary
   `move self` call consumes when no returned outcome carries the obligation,
   while a `try_*` incomplete outcome must return the live token. Pin create ->

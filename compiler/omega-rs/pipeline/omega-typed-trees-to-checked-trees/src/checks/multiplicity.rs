@@ -531,12 +531,6 @@ fn apply_statement_permission_production(
     // compatibility event here rather than mistaking creation for use.
     for event in moves.iter().filter(|event| {
         event_statement_index(event.source) == Some(statement_index)
-            && facts
-                .flow
-                .ownership
-                .segments
-                .span_or_empty(event.segments)
-                .is_empty()
             && written_target.map(|target| target.root) != Some(event.root)
     }) {
         let omega_facts::PlaceRoot::Symbol(symbol) = event.root else {
@@ -545,6 +539,15 @@ fn apply_statement_permission_production(
         let Some(place) = places.iter_mut().find(|place| place.symbol == symbol) else {
             continue;
         };
+        let segments = facts.flow.ownership.segments.span_or_empty(event.segments);
+        // Whole-place tracking can soundly settle a nested move only for a
+        // conditional sum: its live case carries the single payload debt, so
+        // extracting that payload transfers the root's obligation. Ordinary
+        // linear aggregates need a future per-field resource algebra rather
+        // than pretending one field move consumed every sibling.
+        if !segments.is_empty() && (!place.conditional || written_target.is_none()) {
+            continue;
+        }
         let obligation_live = place.live;
         permission_events.push(FlowPermissionEventFact {
             machine_symbol,
@@ -770,37 +773,42 @@ fn expression_permission_provenance(
     expression: omega_typed_trees::expression::ExpressionHandle,
     places: &[LinearPlace],
 ) -> Option<PermissionProvenance> {
-    if let omega_typed_trees::expression::ExpressionNode::Call(call) =
-        program.expression_table.expression(expression)
-    {
-        let mut candidates = Vec::new();
-        if call.receiver.is_valid() {
-            candidates.push(call.receiver);
-        }
-        candidates.extend_from_slice(program.expression_table.expression_handles(call.arguments));
-        let origins = candidates
-            .into_iter()
-            .filter_map(|candidate| {
-                let place = crate::flow::canonical_place_from_expression_in_state(
+    match program.expression_table.expression(expression) {
+        omega_typed_trees::expression::ExpressionNode::Call(call) => {
+            let mut candidates = Vec::new();
+            if call.receiver.is_valid() {
+                candidates.push(call.receiver);
+            }
+            candidates
+                .extend_from_slice(program.expression_table.expression_handles(call.arguments));
+            let origins = candidates.into_iter().filter_map(|candidate| {
+                expression_permission_provenance(
                     program,
                     state_symbol,
                     statement_index,
                     candidate,
-                )?;
-                if !place.segments.is_empty() {
-                    return None;
-                }
-                let omega_facts::PlaceRoot::Symbol(symbol) = place.root else {
-                    return None;
-                };
-                places
-                    .iter()
-                    .find(|place| place.symbol == symbol && place.live)
-                    .and_then(|place| place.provenance)
-            })
-            .collect::<Vec<_>>();
-        let first = origins.first().copied()?;
-        return origins.iter().all(|origin| *origin == first).then_some(first);
+                    places,
+                )
+            });
+            return common_permission_provenance(origins);
+        }
+        omega_typed_trees::expression::ExpressionNode::StructLiteral(literal) => {
+            let origins = program
+                .expression_table
+                .struct_fields(literal.fields)
+                .iter()
+                .filter_map(|field| {
+                    expression_permission_provenance(
+                        program,
+                        state_symbol,
+                        statement_index,
+                        field.value,
+                        places,
+                    )
+                });
+            return common_permission_provenance(origins);
+        }
+        _ => {}
     }
 
     let source = crate::flow::canonical_place_from_expression_in_state(
@@ -809,16 +817,20 @@ fn expression_permission_provenance(
         statement_index,
         expression,
     )?;
-    if !source.segments.is_empty() {
-        return None;
-    }
     let omega_facts::PlaceRoot::Symbol(symbol) = source.root else {
         return None;
     };
     places
         .iter()
-        .find(|place| place.symbol == symbol)
+        .find(|place| place.symbol == symbol && (source.segments.is_empty() || place.conditional))
         .and_then(|place| place.provenance)
+}
+
+fn common_permission_provenance(
+    mut origins: impl Iterator<Item = PermissionProvenance>,
+) -> Option<PermissionProvenance> {
+    let first = origins.next()?;
+    origins.all(|origin| origin == first).then_some(first)
 }
 
 fn type_carries_linear_obligation(
