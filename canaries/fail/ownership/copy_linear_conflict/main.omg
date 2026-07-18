@@ -1,0 +1,3 @@
+// FAIL canary (decision 21): unrestricted `[copy]` and exact-use `[linear]`
+// select different multiplicities and cannot describe one declaration.
+data Impossible [copy, linear] {}

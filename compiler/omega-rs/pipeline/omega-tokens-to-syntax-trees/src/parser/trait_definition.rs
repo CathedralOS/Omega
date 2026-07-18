@@ -1,6 +1,5 @@
 use crate::parser::data::parse_type_parameters;
 use crate::parser::input::{Input, ParseResult};
-use crate::parser::machine::{ParsedTerminationClause, parse_termination_clause};
 use crate::parser::proof_fact::parse_proof_facts_until;
 use crate::parser::state::{parse_optional_return_type, parse_optional_state_parameters};
 use crate::parser::statement::parse_statement_handle;
@@ -58,21 +57,25 @@ pub(super) fn parse_trait_definition<'tokens, 'source>(
             continue;
         }
 
+        // The `default` KEYWORD IS KILLED (owner, 2026-07-18): a trait
+        // machine WITH A BODY is the default -- body presence is the
+        // marker. The old spelling refuses with direction.
         if input.at_contextual("default") {
             return Err(input.error_here(
-                "the trait `default` keyword is retired; a trait machine body is the default implementation",
+                "the `default` keyword is retired: a trait machine with a body IS \
+                 the default -- drop the keyword and keep the body",
             ));
         }
         input = input.take_keyword(KeywordKind::Machine, "machine")?;
         let (mut signature, rest) = parse_trait_machine_signature(syntax_trees, input)?;
-        let ((termination_guarantee, ranking_witness, effects, contracts), rest) =
+        let ((effects, contracts, terminates_guarantee), rest) =
             parse_signature_clauses(syntax_trees, rest)?;
-        let has_body = rest.at_punctuation(PunctuationKind::LeftBrace);
-        signature.is_default = has_body;
-        signature.termination_guarantee = termination_guarantee;
-        signature.ranking_witness = ranking_witness;
+        // Body presence = the default marker.
+        let is_default = rest.at_punctuation(PunctuationKind::LeftBrace);
+        signature.is_default = is_default;
         signature.effects = effects;
         signature.contracts = contracts;
+        signature.terminates_guarantee = terminates_guarantee;
         let handle = syntax_trees.items.insert_state_signature(&signature);
         let handle = syntax_trees.items.append_state_signature_handle(handle);
         if machine_count == 0 {
@@ -81,8 +84,8 @@ pub(super) fn parse_trait_definition<'tokens, 'source>(
         machine_count = machine_count
             .checked_add(1)
             .expect("trait machine signature span count overflow");
-        input = if has_body {
-            parse_trait_machine_body(syntax_trees, rest)?
+        input = if is_default {
+            parse_trait_default_machine_body(syntax_trees, rest)?
         } else {
             rest.take_punctuation(PunctuationKind::Semicolon, ";")?
         };
@@ -126,10 +129,9 @@ fn parse_trait_machine_signature<'tokens, 'source>(
             is_default: false,
             parameters,
             return_type,
-            termination_guarantee: false,
-            ranking_witness: omega_syntax_trees::item::RankingWitnessSyntax::default(),
             effects: HandleSpan::empty(),
             contracts: HandleSpan::empty(),
+            terminates_guarantee: false,
         },
         input,
     ))
@@ -155,7 +157,7 @@ fn parse_trait_machine_name<'tokens, 'source>(
     Ok((name, input))
 }
 
-fn parse_trait_machine_body<'tokens, 'source>(
+fn parse_trait_default_machine_body<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> Result<Input<'tokens, 'source>, crate::parse_error::ParseError> {
@@ -186,10 +188,11 @@ pub(super) fn parse_signature_clauses<'tokens, 'source>(
 ) -> Result<
     (
         (
-            bool,
-            omega_syntax_trees::item::RankingWitnessSyntax,
             HandleSpan<omega_syntax_trees::identifier::Identifier>,
             HandleSpan<CapabilityContract>,
+            // TPR4 (decision 23): authored bare `terminates` -- the bodyless
+            // requirement's PUBLIC guarantee.
+            bool,
         ),
         Input<'tokens, 'source>,
     ),
@@ -199,40 +202,19 @@ pub(super) fn parse_signature_clauses<'tokens, 'source>(
     let mut effect_count = 0u32;
     let mut contract_start = Handle::invalid();
     let mut contract_count = 0u32;
-    let mut termination_guarantee = false;
-    let mut ranking_witness = omega_syntax_trees::item::RankingWitnessSyntax::default();
+    let mut terminates_guarantee = false;
 
     while !input.at_punctuation(PunctuationKind::Semicolon)
         && !input.at_punctuation(PunctuationKind::LeftBrace)
     {
+        // Repeated machine-parameter requirements use one `where machine`
+        // clause per symbol. Leave the next `where` to the owning machine
+        // parser rather than swallowing it as signature trivia.
+        if input.at_contextual("where") {
+            break;
+        }
         if input.at_punctuation(PunctuationKind::RightBrace) {
             return Err(input.expected_one_of_here(&["`;`", "`{`"]));
-        }
-
-        if input.at_contextual("terminates") {
-            let (clause, rest) = parse_termination_clause(syntax_trees, input)?;
-            input = rest;
-            match clause {
-                ParsedTerminationClause::Guarantee => {
-                    if termination_guarantee {
-                        return Err(input.error_here("duplicate `terminates;` guarantee"));
-                    }
-                    termination_guarantee = true;
-                }
-                ParsedTerminationClause::Ranking(witness) => {
-                    if ranking_witness.is_present() {
-                        return Err(input.error_here("duplicate `terminates by` ranking witness"));
-                    }
-                    ranking_witness = witness;
-                }
-            }
-            continue;
-        }
-
-        if input.at_contextual("decreases") || input.at_contextual("increases") {
-            return Err(input.error_here(
-                "standalone `decreases`/`increases` clauses are retired; use `terminates by subjects -> View;`",
-            ));
         }
 
         if input.at_contextual("effects") {
@@ -242,7 +224,6 @@ pub(super) fn parse_signature_clauses<'tokens, 'source>(
                 && !input.at_contextual("requires")
                 && !input.at_contextual("ensures")
                 && !input.at_contextual("where")
-                && !input.at_contextual("terminates")
             {
                 let (effect, rest) = input.take_identifier()?;
                 let handle = syntax_trees.items.append_identifier_path_member(effect);
@@ -277,7 +258,6 @@ pub(super) fn parse_signature_clauses<'tokens, 'source>(
                         || input.at_contextual("ensures")
                         || input.at_contextual("effects")
                         || input.at_contextual("where")
-                        || input.at_contextual("terminates")
                         || input.tokens.is_empty()
                 })?;
             let handle = syntax_trees
@@ -297,6 +277,24 @@ pub(super) fn parse_signature_clauses<'tokens, 'source>(
             continue;
         }
 
+        if input.at_contextual("terminates") {
+            input = input.take_contextual("terminates")?;
+            // Decision 23 (TPR4): a bodyless requirement authors the PUBLIC
+            // guarantee with bare `terminates` (the signature's own `;`
+            // terminates it) -- its implementations inherit the claim. The
+            // witness belongs to implementations, never the requirement.
+            if input.at_contextual("by") {
+                return Err(input.error_here(
+                    "a ranking witness (`terminates by ...`) does not belong on a \
+                     bodyless requirement (decision 23): the requirement authors the \
+                     guarantee with bare `terminates`; the implementation supplies \
+                     the witness that discharges it",
+                ));
+            }
+            terminates_guarantee = true;
+            continue;
+        }
+
         let (_, rest) = input.expect_token()?;
         input = rest;
     }
@@ -311,10 +309,7 @@ pub(super) fn parse_signature_clauses<'tokens, 'source>(
     } else {
         HandleSpan::from_parts(contract_start, contract_count)
     };
-    Ok((
-        (termination_guarantee, ranking_witness, effects, contracts),
-        input,
-    ))
+    Ok(((effects, contracts, terminates_guarantee), input))
 }
 
 fn extend_contiguous_span<T>(target: &mut HandleSpan<T>, source: HandleSpan<T>) {

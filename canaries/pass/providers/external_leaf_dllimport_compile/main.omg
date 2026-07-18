@@ -1,0 +1,19 @@
+// PRV4 step 1c: an EXTERNAL LEAF feeds the host-ABI merge -- the row
+// derived from `satisfies ... via` reaches the SAME general-import lowering
+// as an authored provides row (verified: both compile to the identical call
+// shape; Mach-O symbols are the _-prefixed spellings). COMPILE-scoped: the
+// general import path has a PRE-EXISTING argument-marshaling gap (the
+// authored-row twin also loses the argument -- see
+// pending/providers/import_call_argument_lost), so the runtime exit pins
+// land with that fix, not here.
+boundary trait Leaf {
+    machine exit(code: i32) -> i32;
+}
+
+machine leaf_exit(code: i32) -> i32 satisfies Leaf::exit via DllImport("libSystem.B.dylib", "_exit");
+
+data Main { p: Leaf; }
+machine Main::main(&mut self) {
+    let rc: i32 = self.p.exit(70);
+    let keep: i32 = rc;
+}

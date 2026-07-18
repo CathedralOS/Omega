@@ -1,0 +1,7 @@
+// FAIL canary (task-runtime TR1): the fake synchronous spawn and implicit
+// detach spellings are retired. Activation is an ordinary provider call:
+// runtime.start<Worker::run>(...) returns a linear Task<T>.
+machine Worker::run() {}
+machine main() {
+    spawn { Worker::run(); }
+}

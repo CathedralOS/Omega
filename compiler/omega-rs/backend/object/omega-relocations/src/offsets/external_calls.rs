@@ -8,6 +8,7 @@ pub(crate) fn external_call_relocation_offset<T: InstructionOperandLike>(
     operation_key: HostOperationKey,
     selected_text_offset: usize,
     operands: &[T],
+    authored_import: bool,
 ) -> usize {
     if architecture == Architecture::X86_64
         && let Some(site) =
@@ -22,7 +23,13 @@ pub(crate) fn external_call_relocation_offset<T: InstructionOperandLike>(
     // (`open_create`) inserts `sub sp` + `str [sp]` (8 bytes) between the register
     // args and the `BL` (the `add sp` is AFTER the BL, so it does not shift it),
     // beyond counting the mode immediate as a register arg.
-    if architecture == Architecture::Aarch64 && operation_key.returns_value() {
+    // An AUTHORED import (provides row / via leaf, custom capability) always
+    // rides the value-returning layout -- the blocker enforces the
+    // result-binding shape and the encoder routes it there; the catalog
+    // cannot know authored operations.
+    if architecture == Architecture::Aarch64
+        && (operation_key.returns_value() || authored_import)
+    {
         let stack_mode_bytes = if operation_key.passes_trailing_mode_on_stack() {
             8
         } else {

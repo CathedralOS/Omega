@@ -7,7 +7,7 @@ data Main { console: Console; a: f64; b: f64; ra: i32; rb: i32; }
 machine Main::main(&mut self) {
     self.a = 0.0 - 3.7;
     self.b = 0.0 - 100.0;
-    self.ra = self.a as i32 in Saturating;
+    self.ra = self.a as i32 in Saturating; // F4: proof-or-policy (in-range value; Saturating = same result)
     self.rb = self.b as i32 in Saturating;
     transition self.ra == (0 - 3) {
         true -> check_b()

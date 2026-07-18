@@ -1,0 +1,1 @@
+carries a `via` binding but is not an external leaf

@@ -14,7 +14,6 @@ mod library;
 mod machine;
 mod measure;
 mod operator;
-mod platform;
 mod proof_fact;
 mod state;
 mod statement;

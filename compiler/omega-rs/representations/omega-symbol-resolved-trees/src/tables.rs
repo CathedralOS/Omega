@@ -44,7 +44,6 @@ impl SymbolResolvedTreeTables {
             machine_owned_data,
             machine_state_handles,
             machine_states,
-            platform_state_signatures,
             trait_machine_signatures,
             operator_definitions,
             state_parameters,
@@ -80,16 +79,6 @@ impl SymbolResolvedTreeTables {
                     source_expressions,
                 );
             }
-        }
-
-        for platform in &roots.platforms {
-            tables.insert_platform(
-                platform_state_signatures.span_or_empty(platform.states),
-                state_parameters,
-                child_type_references,
-                type_constraints,
-                source_expressions,
-            );
         }
 
         for trait_definition in &roots.traits {
@@ -427,13 +416,19 @@ mod tests {
             name: DiagnosticName::generated("main"),
             attached_data: None,
             boundary: false,
+            supply_mode: Default::default(),
+            termination_plan: Default::default(),
+            effect_row: Default::default(),
             storage: MachineStorage {
                 type_parameters: HandleSpan::empty(),
                 contains: HandleSpan::empty(),
                 owned_data: HandleSpan::empty(),
                 satisfies: HandleSpan::empty(),
-                termination_guarantee: omega_core::termination::TerminationGuarantee::None,
-                ranking_witness: crate::machine::RankingWitness::default(),
+                terminates: false,
+                decreases: HandleSpan::empty(),
+                decrease_order: HandleSpan::empty(),
+                decrease_view_arguments: HandleSpan::empty(),
+                decrease_range: Default::default(),
                 effects: HandleSpan::empty(),
                 contracts: HandleSpan::empty(),
                 states,

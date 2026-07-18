@@ -23,7 +23,7 @@ machine Main::main(&mut self) {
     self.console.write_line("temperature_convert: 20 C to Fahrenheit with f64 arithmetic");
     self.celsius = 20.0;
     self.fahrenheit = self.celsius * 1.8 + 32.0;
-    self.result = self.fahrenheit as i32;
+    self.result = self.fahrenheit as i32 in Saturating; // F4: proof-or-policy (in-range value; Saturating = same result)
 
     transition { _ -> done() }
 

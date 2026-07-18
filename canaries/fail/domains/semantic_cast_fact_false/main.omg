@@ -1,0 +1,14 @@
+// The mint's PREDICATE face: `5 as i64 in Km` with `self >= 10` is a
+// FALSE fact at the literal -- decision 19's "predicate obligation not
+// discharged" refusal class.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+domain i64::Km {
+    self >= 10;
+}
+machine Main::main(&mut self) {
+    let distance: i64 = 5 as i64 in Km;
+    transition distance == 5 { true -> good() _ -> bad() }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(1); }
+}

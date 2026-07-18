@@ -64,7 +64,20 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("arithmetic/runtime_sat_unsigned_onedirection_exit", 70),
     ("arithmetic/runtime_sat_min_idiom_exit", 70),
     ("arithmetic/runtime_shl_saturating_exit", 70),
-    ("arithmetic/runtime_trapping_shift_count_exit", 70),
+    ("arithmetic/runtime_shl_saturating_value_overflow_exit", 70),
+    ("arithmetic/runtime_shift_count_proven_range_exit", 70),
+    ("arithmetic/runtime_shift_subword_masked_count_exit", 70),
+    ("arithmetic/u64_magnitude_transition_arg_exit", 70),
+    ("arithmetic/float_literal_cast_proves_exit", 70),
+    // F4 Saturating float->int (NaN -> 0, OOR clamp): aarch64 FCVTZS is
+    // natively these semantics; x86 supplies the cvttsd2si policy fixup.
+    ("arithmetic/float_to_int_saturating_exit", 70),
+    ("arithmetic/float_to_int_unsigned_narrow_saturating_exit", 70),
+    // F5 Saturating float arithmetic is native on both backends.
+    ("arithmetic/float_saturating_overflow_exit", 70),
+    ("providers/runtime_adapter_dispatch_exit", 70),
+    ("providers/runtime_adapter_forwarding_exit", 70),
+    ("host/runtime_console_byte_literal_exit", 70),
     ("proofs/runtime_decreases_u64_measure_exit", 70),
     ("arithmetic/runtime_wrapping_operand_truncation_exit", 70),
     ("text/case_literal_texteq_field_store_exit", 70),
@@ -125,12 +138,17 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("arithmetic/runtime_signed_division_exit", 70),
     ("arithmetic/runtime_shift_right_signedness", 70),
     ("arithmetic/const_fold_unsigned_landed_ops_exit", 70),
+    ("arithmetic/const_fold_saturating_narrow_exit", 70),
+    ("arithmetic/const_fold_wrapping_narrow_exit", 70),
+    ("calls/mutual_cycle_tail_admitted_exit", 70),
     ("arithmetic/const_fold_unsigned_shift_right_arg_exit", 70),
     ("arithmetic/const_fold_unsigned_divide_arg_exit", 70),
     ("arithmetic/unsigned_min_max_wrapping_local_exit", 77),
     ("storage/runtime_slice_indexed_binary_rmw_exit", 70),
-    ("storage/runtime_local_slice_forward_exit", 70),
     ("calls/runtime_mut_ref_forward_exit", 70),
+    ("storage/runtime_local_slice_forward_exit", 70),
+    ("float/f32_guard_const_arith_landed_exit", 70),
+    ("float/f32_arg_const_arith_landed_exit", 70),
     ("arithmetic/const_fold_cast_signedness", 70),
     ("arithmetic/wrapping_signed_divide_min_by_neg_one", 70),
     ("arithmetic/saturating_signed_divide_min_by_neg_one", 70),
@@ -389,6 +407,8 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("calls/runtime_value_call_terminal_exit", 70),
     ("constants/runtime_free_const_exit", 70),
     ("proofs/runtime_core_nat_declared_exit", 70),
+    ("proofs/runtime_core_rat_declared_exit", 70),
+    ("proofs/accepted_axiom_cited_exit", 70),
     ("proofs/runtime_nat_structural_recursion_exit", 70),
     ("proofs/runtime_core_roster_ops_exit", 70),
     ("build/runtime_depend_mapping_exit", 70),
@@ -409,7 +429,6 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("generics/runtime_generic_enum_payload_exit", 70),
     ("generics/runtime_generic_value_call_exit", 70),
     ("generics/runtime_generic_value_call_agreeing_exit", 70),
-    ("generics/runtime_generic_param_position_inference_exit", 70),
     ("host/runtime_tick_count_monotonic_exit", 70),
     ("host/runtime_user32_key_state_exit", 70),
     ("host/runtime_tick_paced_marquee_exit", 0),
@@ -483,9 +502,6 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("comptime/runtime_const_array_length_bare_call_arm_exit", 70),
     ("borrow/runtime_view_of_view_chain_exit", 70),
     ("borrow/runtime_method_view_write_after_last_use_exit", 70),
-    ("concurrency/runtime_spawn_interleaved_join_exit", 70),
-    ("concurrency/runtime_spawn_join_moved_arg_exit", 70),
-    ("concurrency/runtime_spawn_struct_result_exit", 70),
     ("control_flow/fixed_array_element_guard", 0),
     ("control_flow/runtime_boolean_or_guard_exit", 71),
     ("control_flow/runtime_case_member_dispatch_exit", 70),
@@ -614,7 +630,6 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("expressions/runtime_f32_arithmetic_exit", 70),
     ("expressions/runtime_f32_local_arithmetic_exit", 70),
     ("expressions/runtime_f64_state_arg_exit", 70),
-    ("expressions/runtime_field_default_exit", 70),
     ("expressions/runtime_fixed_array_field_guard_exit", 70),
     ("expressions/runtime_fixed_array_field_value_exit", 70),
     ("expressions/runtime_float_arithmetic_exit", 70),
@@ -1038,6 +1053,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("calls/float_value_call_return_exit", 70),
     ("calls/float_value_call_runtime_arg_exit", 70),
     ("float/runtime_std_is_finite_exit", 70),
+    ("float/f32_chain_per_op_rounding_exit", 70),
     ("calls/struct_literal_transition_arg_exit", 70),
     ("slices/runtime_indexed_element_copy_write_exit", 70),
     ("filesystem/windows_wrapper_breadth_exit", 70),
@@ -1072,6 +1088,12 @@ const RUN_CANARIES: &[(&str, i32)] = &[
 /// `(relative path under canaries/pass, reason for exclusion)`.
 const EXCLUDED_RUN_CANARIES: &[(&str, &str)] = &[
     (
+        "providers/runtime_import_call_argument_exit",
+        "NATIVE-ONLY: an authored provides DllImport call (libSystem exit) -- \
+         the interpreter has no provider for authored bindings yet (same open \
+         item as windows_provides_import_exit)",
+    ),
+    (
         "capabilities/windows_provides_import_exit",
         "NATIVE-ONLY (windows-gated run test): an AUTHORED provides import (msvcrt abs through the program's own DllImport row) -- the interpreter has no provider for authored bindings yet (open item, TASKS_FS provides thread)",
     ),
@@ -1080,12 +1102,44 @@ const EXCLUDED_RUN_CANARIES: &[(&str, &str)] = &[
         "windows-gated dual test (interp oracle + native run, both 70, asserted in its canary_suite test): the find-enumeration trio (fs rung 3a) has NO posix lowering BY DESIGN (posix impls walk dirent records), so a darwin-host differential compile would fail at host lowering",
     ),
     (
+        "filesystem/windows_read_dir_nth_exit",
+        "windows-gated dual test (interp oracle + native run, both 70, asserted in its canary_suite test): pins the WINDOWS read_dir_nth wrapper composition (the kind-latch witness) riding the find seam; the posix wrapper path is covered by the macos-gated native fs battery",
+    ),
+    (
+        "filesystem/windows_positioned_io_exit",
+        "windows-gated dual test (interp oracle + native run, both 70, asserted in its canary_suite test): pins the WINDOWS positioned-io composition (seek/op/restore over msvcrt rows, cursor contract); the posix atomic pread/pwrite path is covered by the macos-gated native fs battery",
+    ),
+    (
+        "filesystem/windows_hard_link_exit",
+        "windows-gated dual test (interp oracle + native run, both 70, asserted in its canary_suite test): pins the WINDOWS hard-link impl (CreateHardLinkA) including GetLastError(ERROR_ALREADY_EXISTS) classification; the posix link(2) path is covered by the macos-gated native fs battery",
+    ),
+    (
+        "filesystem/windows_canonicalize_exit",
+        "windows-gated dual test (interp oracle + native run, both 70, asserted in its canary_suite test): pins the WINDOWS canonicalize composition (the handle bridge -- _get_osfhandle + GetFinalPathNameByHandleA); the posix realpath path is covered by native_canonicalize and the macos battery",
+    ),
+    (
+        "filesystem/windows_set_file_time_exit",
+        "windows-gated dual test (interp oracle + native run, both 70, asserted in its canary_suite test): pins the RAW set_file_time seam op (kernel32 SetFileTime over the handle bridge, stat round-trip); raw windows ops have no posix lowering BY DESIGN",
+    ),
+    (
+        "filesystem/windows_wrapper_set_times_exit",
+        "windows-gated dual test (interp oracle + native run, both 70, asserted in its canary_suite test): pins the Windows Filesystem::set_times FILETIME composition and the required read/write-handle authority; non-Windows target bodies are frontend-checked separately because Linux host lowering is intentionally absent",
+    ),
+    (
+        "filesystem/windows_wrapper_lock_exit",
+        "windows-gated dual test (interp oracle + native run, both 70, asserted in its canary_suite test): pins LockFileEx/UnlockFile/GetLastError over the CRT handle bridge and exclusive/shared contention; non-Windows flock bodies are frontend-checked separately",
+    ),
+    (
         "time/runtime_time_host_native_exit",
         "NATIVE-ONLY (windows-gated run test): asserts the WINDOWS calibration constants (10^7 / 11_644_473_600) and real-clock inequalities; the interpreter's virtual clock reports 1000/0 and exits 3 by design (its exact values are pinned by time/runtime_time_host_virtual_exit)",
     ),
     (
         "time/runtime_fs_mtime_system_time_interop_exit",
-        "macos-gated dual test (interp oracle + native run, both 70, asserted in its canary_suite test): the mtime decode reads DARWIN stat offsets, so a windows-host differential run would decode garbage; the windows leg waits on fs open-work #2's stat rows",
+        "macos-gated dual test (interp oracle + native run, both 70, asserted in its canary_suite test): the mtime decode reads DARWIN stat offsets, so a windows-host differential run would decode garbage; the windows leg is runtime_fs_mtime_interop_windows_exit",
+    ),
+    (
+        "time/runtime_fs_mtime_interop_windows_exit",
+        "windows-gated dual test (interp oracle + native run, both 70, asserted in its canary_suite test): the mtime decode reads the WINDOWS `_stat64` offset (st_mtime @40), so a darwin-host differential run would decode garbage; the darwin leg is runtime_fs_mtime_system_time_interop_exit",
     ),
     (
         "time/runtime_time_host_native_darwin_exit",
@@ -1975,34 +2029,29 @@ enum PendingInterpOutcome {
 /// omega-run sweep. Entries mirror canaries/pending/*/ headers -- update BOTH
 /// when a divergence's documented behavior changes.
 const PENDING_RUNTIME_DIVERGENCES: &[(&str, i32, PendingInterpOutcome)] = &[
-    (
-        "arithmetic/array_field_default_silent",
-        0,
-        PendingInterpOutcome::Exit(1),
-    ),
-    (
-        "calls/texteq_local_guard_read_divergence",
-        71,
-        PendingInterpOutcome::Exit(70),
-    ),
-    (
-        "calls/texteq_local_arg_forward_divergence",
-        71,
-        PendingInterpOutcome::Exit(70),
-    ),
-    (
-        "calls/trailing_state_mut_param_phase_divergence",
-        71,
-        PendingInterpOutcome::Exit(70),
-    ),
+    ("calls/texteq_local_guard_read_divergence", 71, PendingInterpOutcome::Exit(70)),
+    ("calls/texteq_local_arg_forward_divergence", 71, PendingInterpOutcome::Exit(70)),
+    ("calls/trailing_state_mut_param_phase_divergence", 71, PendingInterpOutcome::Exit(70)),
+    // Host-correct legs (this gate runs native on the HOST), ARCH-AWARE:
+    // x86 truncation (cvttsd2si integer-indefinite -> 0) yields 70; aarch64
+    // FCVTZS SATURATES (like the interp's i64 saturation) and yields 99 --
+    // the canary header documents both faces. F4 (proof-or-policy) retires
+    // this row entirely.
+    // float_to_int_overflow_divergence RETIRED (F4 Exact cast obligation:
+    // the bare out-of-range cast no longer compiles; policies pinned by the
+    // arch-gated Saturating/Trapping canaries).
     // 72/72: the two legs AGREE on this host (aarch64 LSLV masks the count
     // at 64 like the interp); the parked divergence is vs x86's 32-bit mask.
     // unsigned_min_max_operand_position_divergence PROMOTED 2026-07-18 to
     // pass/arithmetic/unsigned_min_max_operand_position_exit (carrier CR3:
     // binding-capture stamping + operand-derived anonymous-destination folds
     // carry the landing to the signedness probe; both engines exit 77).
-    // local_slice_forward_segfault PROMOTED to
-    // pass/storage/runtime_local_slice_forward_exit (native/interp 70).
+    // local_slice_forward_segfault PROMOTED 2026-07-18 to
+    // pass/storage/runtime_local_slice_forward_exit: the struct-literal
+    // local backing the slice view was invisible to the state-storage
+    // liveness scan (its only reference rode a later `let` value), so its
+    // frame slot was elided and the forwarded descriptor stayed ZII; the
+    // slice-view carve-out in state-storage collection.rs keeps the slot.
 ];
 
 /// COLLECT-ALL runtime drift-check over the parked divergences above.

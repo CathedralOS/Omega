@@ -290,41 +290,24 @@ fn parameter_slot_write_is_planned(
 /// argument materialization emits. Returns `None` for non-frame writes.
 fn instruction_frame_write_range(kind: &SelectedInstructionKind) -> Option<(usize, usize)> {
     match kind {
-        SelectedInstructionKind::WriteRuntimeStorageInteger {
-            target_region: RuntimeStorageRegion::RuntimeFrame,
-            byte_offset,
-            byte_size,
-            ..
-        } => Some((*byte_offset, *byte_size)),
-        SelectedInstructionKind::WriteRuntimeStorageBinary {
-            target_region: RuntimeStorageRegion::RuntimeFrame,
-            target_offset,
-            byte_size,
-            ..
-        } => Some((*target_offset, *byte_size)),
+        SelectedInstructionKind::WritePlaceInteger {
+            target, byte_size, ..
+        } if target.region == RuntimeStorageRegion::RuntimeFrame => {
+            target.const_offset().map(|offset| (offset, *byte_size))
+        }
+        SelectedInstructionKind::WritePlaceBinary {
+            target, byte_size, ..
+        } if target.region == RuntimeStorageRegion::RuntimeFrame => {
+            target.const_offset().map(|offset| (offset, *byte_size))
+        }
         SelectedInstructionKind::CopyPlaces {
             target, byte_count, ..
         } if target.region == RuntimeStorageRegion::RuntimeFrame => target
             .const_offset()
             .map(|target_offset| (target_offset, *byte_count)),
-        SelectedInstructionKind::WriteRuntimeStorageAddressToRuntimeFrame {
-            target_offset, ..
+        SelectedInstructionKind::WritePlaceAddress { target_offset, .. } => {
+            Some((*target_offset, 8))
         }
-        | SelectedInstructionKind::WriteRuntimePointeeAddressToRuntimeFrame {
-            target_offset, ..
-        }
-        | SelectedInstructionKind::WriteRuntimeFrameIndexedAddressToRuntimeFrame {
-            target_offset,
-            ..
-        }
-        | SelectedInstructionKind::WriteRuntimeFrameFixedIndexedAddressToRuntimeFrame {
-            target_offset,
-            ..
-        }
-        | SelectedInstructionKind::WriteRuntimeFrameBaseIndexedAddressToRuntimeFrame {
-            target_offset,
-            ..
-        } => Some((*target_offset, 8)),
         _ => None,
     }
 }

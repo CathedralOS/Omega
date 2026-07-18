@@ -1,12 +1,15 @@
-// RUN CANARY (exit 70) + interpreter differential. Wrapping `>>` masks the
-// count by the language operand width. These write and nested-operand legs
-// distinguish the rule from the superseded zero/sign-fill behavior and from
-// accidentally using the host register width for u32/i32 operations.
-//
-// The i64 leg uses -(2^62), where the count-masked shift (>> 6 = -(2^56))
-// differs from the sign-fill (-1) -- small negatives like -7 mask to -1 by
-// coincidence and hide the bug. Operand-position legs nest `(n >> c) + 5`
-// so the shift runs on the operand path (node-width op + fix + extension).
+// RUN CANARY (exit 70) + interpreter differential. Wrapping `>>` by a count
+// at/above the operand width MASKS the count to `k & (width - 1)` (F8b, ch5
+// shift-count ruling 2026-07-18) -- exactly what the hardware `sar`/`shr`
+// forms compute at 32/64-bit; sub-word operands take an explicit AND. This
+// supersedes the retired floor-semantics fixes (sign-fill/zero at-width).
+// Legs: 3000000000u32 >> 40 masks to >> 8 = 11718750; -2i32 >> 40 masks to
+// >> 8 = -1 (the same value the old sign-fill gave -- kept as the
+// small-negative coincidence witness); 2i32 >> 40 = 2 >> 8 = 0;
+// -(2^62)i64 >> 70 masks to >> 6 = -(2^56) (the leg that DIFFERS from the
+// retired sign-fill -1); 12345678901u64 >> 70 = >> 6 = 192901232.
+// Operand-position legs nest `(n >> c) + 5` so the shift runs on the
+// operand path (node-width op + mask + extension).
 // exits: 71 = u32 write; 72 = i32 negative write; 73 = i32 positive write;
 // 74 = i64 negative write; 75 = u64 write; 76 = u32 operand; 77 = i32
 // negative operand.
@@ -17,7 +20,7 @@ machine Main::main(&mut self) {
     let a: u32 in Wrapping = (3000000000 as u32 in Wrapping);
     let c: u32 in Wrapping = (40 as u32 in Wrapping);
     let r: u32 in Wrapping = a >> c;
-        transition r == 11718750 {
+    transition r == 11718750 {
         true  -> neg32()
         false -> bad_u32_write()
     }

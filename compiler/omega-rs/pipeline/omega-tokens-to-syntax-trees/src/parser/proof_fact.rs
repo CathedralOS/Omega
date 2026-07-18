@@ -47,7 +47,21 @@ fn copy_item_path_to_expression_path(
 pub(super) fn parse_proof_facts_until<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
+    is_terminator: impl FnMut(Input<'tokens, 'source>) -> bool,
+) -> Result<((HandleSpan<ProofFact>, usize), Input<'tokens, 'source>), ParseError> {
+    parse_proof_facts_until_with_machine_semicolon(syntax_trees, input, is_terminator, false)
+}
+
+/// The machine-contract variant: `machine_final_semicolon` leaves a `;`
+/// UNCONSUMED when a non-brace terminator follows it -- the CH10 bodyless
+/// `boundary machine .. ensures <fact>;` form, where the semicolon belongs
+/// to the MACHINE. Every other fact-list context keeps plain separator
+/// semantics.
+pub(super) fn parse_proof_facts_until_with_machine_semicolon<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
     mut is_terminator: impl FnMut(Input<'tokens, 'source>) -> bool,
+    machine_final_semicolon: bool,
 ) -> Result<((HandleSpan<ProofFact>, usize), Input<'tokens, 'source>), ParseError> {
     let mut input = input;
     let body_start_tokens = input.tokens.len();
@@ -185,6 +199,7 @@ pub(super) fn parse_proof_facts_until<'tokens, 'source>(
                     .insert(ExpressionNode::Call(TableCallExpression {
                         receiver: value,
                         target: predicate,
+                        machine_arguments: Box::default(),
                         arguments: HandleSpan::empty(),
                     }))
             } else {
@@ -204,7 +219,24 @@ pub(super) fn parse_proof_facts_until<'tokens, 'source>(
         if is_terminator(input) {
             continue;
         } else if input.at_punctuation(PunctuationKind::Semicolon) {
-            input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
+            let after = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
+            // A machine-final `;` (the CH10 bodyless `boundary machine ..
+            // ensures <fact>;` form) belongs to the MACHINE, not the fact
+            // list: when a HARD ITEM boundary follows -- the next item's
+            // keyword or end of input, never a clause keyword (`requires
+            // F; ensures ..` continues the signature) and never the body
+            // brace (`ensures F; {` keeps its body) -- leave the semicolon
+            // unconsumed for parse_machine's bodyless path. Only the
+            // machine-contract call site opts in.
+            if machine_final_semicolon
+                && (after.at_keyword(omega_tokens::KeywordKind::Machine)
+                    || after.at_keyword(omega_tokens::KeywordKind::Data)
+                    || after.at_keyword(omega_tokens::KeywordKind::Use)
+                    || after.tokens.is_empty())
+            {
+                break;
+            }
+            input = after;
         } else if input.at_punctuation(PunctuationKind::Comma) {
             input = input.take_punctuation(PunctuationKind::Comma, ",")?;
         } else if fact_input.has_newline_before(input) {

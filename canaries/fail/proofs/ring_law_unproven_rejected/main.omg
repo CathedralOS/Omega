@@ -8,7 +8,6 @@ trait RingOps2 {
 }
 machine plus(a: Peano, b: Peano) -> Peano
 satisfies RingOps2::add
-terminates;
 terminates by a;
 {
     transition a {
@@ -18,7 +17,6 @@ terminates by a;
 }
 machine lawless(a: Peano, b: Peano, c: Peano) -> Peano
 satisfies RingOps2::add_assoc
-terminates;
 terminates by a;
 {
     transition a {

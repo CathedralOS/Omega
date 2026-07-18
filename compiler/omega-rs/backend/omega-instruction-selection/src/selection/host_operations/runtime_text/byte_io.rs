@@ -1,7 +1,6 @@
 use crate::InstructionSelectionInput;
 use omega_abstract_operations::SelectedInstructionKind;
 use omega_calling_conventions::PlatformCallData;
-use omega_checked_trees::expression::ExpressionNode;
 use omega_layout::DataShape;
 use omega_platform_interface::{HostCall, HostCallArgumentKind};
 
@@ -65,14 +64,11 @@ pub(in crate::selection::host_operations) fn runtime_byte_write(
 
     let arguments = input.host_calls.arguments.span(host_call.arguments)?;
     let first_argument = arguments.first()?;
-    let HostCallArgumentKind::Expression(expression) = &first_argument.kind else {
-        return None;
-    };
 
-    if matches!(
-        input.host_calls.expressions.expression(*expression),
-        ExpressionNode::Integer(_)
-    ) {
+    // Integer literals arrive PRE-RESOLVED as the Integer argument kind (the
+    // host-call lowering folds them before any plan sees the call); the
+    // staged 1-byte data object carries the value.
+    if matches!(first_argument.kind, HostCallArgumentKind::Integer(_)) {
         let (literal, _) = input.data.objects.iter().find(|(_, data_object)| {
             data_object.source_key == host_call.source_key
                 && data_object.source_statement == host_call.statement_index
@@ -84,6 +80,10 @@ pub(in crate::selection::host_operations) fn runtime_byte_write(
             source_is_place: false,
         });
     }
+
+    let HostCallArgumentKind::Expression(expression) = &first_argument.kind else {
+        return None;
+    };
 
     let place = resolve_runtime_storage_place_in_table(
         input,

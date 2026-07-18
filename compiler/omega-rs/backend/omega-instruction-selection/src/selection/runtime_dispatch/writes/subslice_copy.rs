@@ -63,21 +63,21 @@ pub(in crate::selection::runtime_dispatch) fn runtime_fixed_array_subslice_descr
     // ptr = address of the (windowed) source array start, into the descriptor's
     // pointer slot; len = the subslice element count, into its length slot.
     selected_instructions.push(SelectedInstruction {
-        kind: SelectedInstructionKind::WriteRuntimeStorageAddressToRuntimeFrame {
-            source_region: source.place.region,
-            source_offset: source.place.byte_offset,
-            target_offset: target_place.byte_offset,
-        },
+        kind: crate::selection::runtime_dispatch::write_place_address_direct(
+            source.place.region,
+            source.place.byte_offset,
+            target_place.byte_offset,
+        ),
         source_key: operation_source_key,
         source_statement: statement_index,
     });
     selected_instructions.push(SelectedInstruction {
-        kind: SelectedInstructionKind::WriteRuntimeStorageInteger {
-            target_region: RuntimeStorageRegion::RuntimeFrame,
-            byte_offset: target_place.byte_offset + descriptor.len_offset(),
-            byte_size: descriptor.len_size(),
-            value: source.length as i64,
-        },
+        kind: crate::selection::runtime_dispatch::write_place_integer_direct(
+            RuntimeStorageRegion::RuntimeFrame,
+            target_place.byte_offset + descriptor.len_offset(),
+            source.length as i64,
+            descriptor.len_size(),
+        ),
         source_key: operation_source_key,
         source_statement: statement_index,
     });

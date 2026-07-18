@@ -11,7 +11,6 @@
 boundary trait Console { machine exit_process(return_code: i32); }
 data Main { console: Console; }
 machine Main::countdown(&mut self, remaining: u64) -> u64
-terminates;
 terminates by remaining;
 {
     transition remaining > 0 {

@@ -1,0 +1,19 @@
+// Record patterns are exhaustive BY LAW: `Point` declares x/y/z but the
+// pattern spells only x/y -- adding a field to a data definition must
+// break every destructuring site until each decides bind-or-waive. The
+// refusal names the missing field.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Point {
+    x: i32 [0..=100];
+    y: i32 [0..=100];
+    z: i32 [0..=100];
+}
+data Main { console: Console; point: Point; }
+machine Main::main(&mut self) {
+    self.point = Point { x: 30, y: 40, z: 5 };
+    let { x, y as vertical } = self.point;
+    let total: i32 = x + vertical;
+    transition total == 70 { true -> good() _ -> bad() }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(1); }
+}

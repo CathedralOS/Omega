@@ -10,10 +10,13 @@ pub struct StateSignature {
     pub is_default: bool,
     pub parameters: HandleSpan<StateParameter>,
     pub return_type: TypeReferenceHandle,
-    pub termination_guarantee: omega_core::termination::TerminationGuarantee,
-    pub ranking_witness: crate::machine::RankingWitness,
     pub effects: HandleSpan<Identifier>,
     pub contracts: HandleSpan<SignatureContract>,
+    /// TPR4 (decision 23): the bodyless requirement's authored PUBLIC
+    /// guarantee (bare `terminates;`); the conformance check propagates it
+    /// to implementations by INHERITANCE. Copied from the resolved record,
+    /// never re-derived.
+    pub terminates_guarantee: bool,
 }
 
 impl Default for StateSignature {
@@ -24,10 +27,9 @@ impl Default for StateSignature {
             is_default: false,
             parameters: HandleSpan::empty(),
             return_type: TypeReferenceHandle::invalid(),
-            termination_guarantee: omega_core::termination::TerminationGuarantee::None,
-            ranking_witness: crate::machine::RankingWitness::default(),
             effects: HandleSpan::empty(),
             contracts: HandleSpan::empty(),
+            terminates_guarantee: false,
         }
     }
 }

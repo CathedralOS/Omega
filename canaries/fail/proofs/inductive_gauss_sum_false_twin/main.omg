@@ -14,7 +14,6 @@ machine Main::main(&mut self) {
 }
 
 machine Main::gauss_sum(&mut self, n: u64, acc: u64) -> u64
-terminates;
 terminates by n;
 ensures
     result * 2 == acc * 2 + n * (n + 1) + 1

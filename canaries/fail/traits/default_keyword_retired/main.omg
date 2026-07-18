@@ -1,15 +1,8 @@
-// FAIL CANARY. A trait machine body is its fallback implementation; the
-// redundant `default` marker is retired.
-trait ResettableCounter {
-    machine set(&mut self, value: i32);
-
-    default machine reset(&mut self) {
-        self.set(0);
-    }
+// The `default` keyword is KILLED (owner, 2026-07-18): a trait machine
+// with a body IS the default -- body presence is the marker. The old
+// spelling refuses with direction.
+trait T {
+    default machine reset(&mut self) { }
 }
-
-data Main {
-}
-
-machine Main::main(&mut self) {
-}
+data Main {}
+machine Main::main(&mut self) { }

@@ -983,6 +983,7 @@ fn resolve_leaf_caller_local_initializer_names(
                     value,
                     target_type: cast.target_type,
                     domain: cast.domain,
+                    semantic_domain: cast.semantic_domain,
                     form: cast.form,
                 },
             ))
@@ -1025,6 +1026,7 @@ fn resolve_leaf_caller_local_initializer_names(
                     receiver,
                     target_symbol: call.target_symbol,
                     target: call.target.clone(),
+                    machine_arguments: call.machine_arguments.clone(),
                     arguments: copied_arguments,
                 },
             ))
@@ -1247,13 +1249,7 @@ fn select_runtime_leaf_assignment_value_target_copy(
         && source_slot.byte_size > 0
     {
         selected_instructions.push(SelectedInstruction {
-            kind: crate::selection::runtime_dispatch::copy_places_to_pointee(
-                RuntimeStorageRegion::RuntimeFrame,
-                source_slot.byte_offset,
-                pointer_target.pointer_byte_offset,
-                pointer_target.field_byte_offset,
-                source_slot.byte_size,
-            ),
+            kind: crate::selection::runtime_dispatch::copy_places_to_pointee(RuntimeStorageRegion::RuntimeFrame, source_slot.byte_offset, pointer_target.pointer_byte_offset, pointer_target.field_byte_offset, source_slot.byte_size),
             source_key: expansion.source_key,
             source_statement: expansion.statement_index,
         });
@@ -1273,13 +1269,7 @@ fn select_runtime_leaf_assignment_value_target_copy(
     }
 
     selected_instructions.push(SelectedInstruction {
-        kind: crate::selection::runtime_dispatch::copy_places_direct(
-            RuntimeStorageRegion::RuntimeFrame,
-            source_slot.byte_offset,
-            target_place.region,
-            target_place.byte_offset,
-            source_slot.byte_size,
-        ),
+        kind: crate::selection::runtime_dispatch::copy_places_direct(RuntimeStorageRegion::RuntimeFrame, source_slot.byte_offset, target_place.region, target_place.byte_offset, source_slot.byte_size),
         source_key: expansion.source_key,
         source_statement: expansion.statement_index,
     });
@@ -1335,9 +1325,7 @@ fn select_runtime_leaf_local_initializer_writes(
         if std::env::var_os("OMEGA_DEBUG_CALL_RESULT").is_some() {
             eprintln!(
                 "LEAFINIT:   slot? {}",
-                slot_lookup
-                    .map(|slot| slot.byte_offset as i64)
-                    .unwrap_or(-1),
+                slot_lookup.map(|slot| slot.byte_offset as i64).unwrap_or(-1),
             );
         }
         let Some(slot) = slot_lookup else {
@@ -1508,11 +1496,12 @@ fn select_runtime_leaf_branch_mutation_writes(
             resolved_value,
         ) {
             selected_instructions.push(SelectedInstruction {
-                kind: SelectedInstructionKind::WriteRuntimeMachineInteger {
+                kind: crate::selection::runtime_dispatch::write_place_integer_direct(
+                    omega_target_operations::RuntimeStorageRegion::Machine,
                     byte_offset,
-                    byte_size,
                     value,
-                },
+                    byte_size,
+                ),
                 source_key: operation.source_key,
                 source_statement: operation.statement_index,
             });
@@ -1573,11 +1562,12 @@ fn select_runtime_leaf_branch_mutation_writes(
             runtime_leaf_machine_integer_write(input, expansion, &resolved_target, &resolved_value)
         {
             selected_instructions.push(SelectedInstruction {
-                kind: SelectedInstructionKind::WriteRuntimeMachineInteger {
+                kind: crate::selection::runtime_dispatch::write_place_integer_direct(
+                    omega_target_operations::RuntimeStorageRegion::Machine,
                     byte_offset,
-                    byte_size,
                     value,
-                },
+                    byte_size,
+                ),
                 source_key: operation.source_key,
                 source_statement: operation.statement_index,
             });

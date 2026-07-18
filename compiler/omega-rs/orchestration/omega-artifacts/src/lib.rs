@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use omega_checked_trees::{CheckedTrees, machine::Machine, platform::Platform};
+use omega_checked_trees::{CheckedTrees, machine::Machine};
 use omega_core::allocations::AllocationDelta;
 use omega_core::arena::Arena;
 use omega_core::diagnostics::Diagnostic;
@@ -12,8 +12,8 @@ use omega_target::NativeTarget;
 // backend report passes can depend on them downward. Re-exported here so existing
 // `omega_artifacts::{EmissionPlan, BackendSurfaceReport, ...}` paths keep working.
 pub use omega_backend_report_types::{
-    BackendEntryPoint, BackendMachineSurface, BackendPlatformSurface, BackendSurfaceReport,
-    EmissionBlocker, EmissionPlan, emission_blocker,
+    BackendEntryPoint, BackendMachineSurface, BackendSurfaceReport, EmissionBlocker, EmissionPlan,
+    emission_blocker,
 };
 
 pub struct ArtifactWriter {
@@ -481,7 +481,10 @@ impl ArtifactWriter {
         let mut output = String::new();
 
         output.push_str("# Omega Wire Protocols\n\n");
-        output.push_str(&format!("wire data schemas: {}\n", wire_report.schemas.len()));
+        output.push_str(&format!(
+            "wire data schemas: {}\n",
+            wire_report.schemas.len()
+        ));
 
         for schema in &wire_report.schemas {
             output.push_str(&format!("\n## wire data {}\n", schema.name));
@@ -547,6 +550,26 @@ impl ArtifactWriter {
         }
 
         self.write_text("04_wire_protocols.txt", &output)
+    }
+
+    /// GR5: the chapter-10 trust report -- the proof-tier surface the
+    /// boundary report does not carry. Written even when empty (an empty
+    /// report is the honest "no semantic commitments admitted" statement).
+    pub fn write_trust_report(&self, trust_report: &TrustReport) -> Result<(), Diagnostic> {
+        let mut output = String::new();
+        output.push_str("# Omega Trust\n\n");
+        output.push_str(&format!(
+            "admitted commitments: {}\n\n",
+            trust_report.rows.len()
+        ));
+        for row in &trust_report.rows {
+            output.push_str(&format!("- {} -- {}", row.commitment, row.provenance));
+            if row.standing_warning {
+                output.push_str(" [STANDING WARNING: dev-active until the final build grants it (`b.accept_boundary<..>();`)]");
+            }
+            output.push('\n');
+        }
+        self.write_text("trust_report.md", &output)
     }
 
     pub fn write_boundary_report(
@@ -621,15 +644,10 @@ impl ArtifactWriter {
         } else {
             for (_, contract) in boundary_report.contracts.iter() {
                 output.push_str(&format!(
-                    "- {}.{} boundary `{}` termination `{}` requires {} ensures {}\n",
+                    "- {}.{} boundary `{}` requires {} ensures {}\n",
                     contract.capability,
                     contract.state,
                     contract.boundary,
-                    if contract.eventual_terminal {
-                        "eventual_terminal"
-                    } else {
-                        "none"
-                    },
                     contract.requires_count,
                     contract.ensures_count
                 ));
@@ -1088,6 +1106,26 @@ pub struct WireCompatibilityVerdicts {
     pub incompatible: Vec<String>,
 }
 
+/// The chapter-10 TRUST REPORT (GR5): one row per admitted semantic
+/// commitment, carrying its provenance tier. Dev-active rows (own-package
+/// claims, not yet root-granted) carry the STANDING WARNING the grant
+/// locality rule promises; root-granted rows name the grant. "The report
+/// sees every grant, private or public."
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TrustReportRow {
+    /// The commitment, consumer-rendered (`domain introduction: Meters`).
+    pub commitment: String,
+    /// `own-package (dev-active)` or `root grant`.
+    pub provenance: String,
+    /// Dev-active rows warn until the root grants them.
+    pub standing_warning: bool,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct TrustReport {
+    pub rows: Vec<TrustReportRow>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct BoundaryReport {
     pub targets: Arena<BoundaryTarget>,
@@ -1146,9 +1184,6 @@ pub struct BoundaryContract {
     pub capability: String,
     pub state: String,
     pub boundary: String,
-    /// Published interface promise only. Private ranking evidence is excluded
-    /// from the boundary artifact and its identity surface.
-    pub eventual_terminal: bool,
     pub requires_count: usize,
     pub ensures_count: usize,
 }
@@ -1164,10 +1199,6 @@ pub fn build_backend_surface_report(program: &CheckedTrees) -> BackendSurfaceRep
 
     for machine in program.machines() {
         collect_machine(&mut report, program, machine);
-    }
-
-    for platform in program.platforms() {
-        collect_platform(&mut report, program, platform);
     }
 
     report
@@ -1202,17 +1233,6 @@ fn collect_machine(report: &mut BackendSurfaceReport, program: &CheckedTrees, ma
             state: "entry".to_owned(),
         });
     }
-}
-
-fn collect_platform(
-    report: &mut BackendSurfaceReport,
-    program: &CheckedTrees,
-    platform: &Platform,
-) {
-    report.platforms.insert(BackendPlatformSurface {
-        name: platform.name.to_string(),
-        states: program.platform_state_signatures(platform).len(),
-    });
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1279,39 +1299,17 @@ fn mark_executable_if_needed(_path: &Path) -> Result<(), Diagnostic> {
 
 #[cfg(test)]
 mod tests {
-    use std::fs;
-    use std::time::{SystemTime, UNIX_EPOCH};
-
     use omega_checked_trees::CheckedTrees;
     use omega_checked_trees::machine::Machine;
     use omega_checked_trees::name::Identifier;
-    use omega_checked_trees::platform::Platform;
-    use omega_checked_trees::signature::StateSignature;
     use omega_checked_trees::state::State;
     use omega_core::symbols::SymbolHandle;
 
-    use super::{ArtifactWriter, BoundaryContract, BoundaryReport, build_backend_surface_report};
+    use super::build_backend_surface_report;
 
     #[test]
-    fn collects_entry_machine_and_platforms() {
+    fn collects_entry_machine() {
         let mut program = CheckedTrees::default();
-        let mut platform = Platform {
-            symbol: SymbolHandle::default(),
-            name: Identifier::generated("Console"),
-            states: Default::default(),
-        };
-        program.typed.push_platform_state_signature(
-            &mut platform,
-            StateSignature {
-                symbol: SymbolHandle::default(),
-                name: Identifier::generated("write_line"),
-                is_default: false,
-                parameters: Default::default(),
-                return_type: Default::default(),
-                ..Default::default()
-            },
-        );
-        program.typed.push_platform(platform);
         let mut machine = Machine {
             symbol: SymbolHandle::default(),
             name: Identifier::generated("main"),
@@ -1337,41 +1335,6 @@ mod tests {
         let report = build_backend_surface_report(&program);
 
         assert_eq!(report.entry_points.len(), 1);
-        assert_eq!(report.platforms.len(), 1);
         assert_eq!(report.machines.len(), 1);
-    }
-
-    #[test]
-    fn boundary_artifact_emits_only_the_public_termination_guarantee() {
-        let unique = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .expect("system clock should follow the Unix epoch")
-            .as_nanos();
-        let output_dir = std::env::temp_dir().join(format!(
-            "omega-boundary-artifact-{}-{unique}",
-            std::process::id()
-        ));
-        let writer = ArtifactWriter::new(&output_dir).expect("create artifact writer");
-        let mut report = BoundaryReport::default();
-        report.contracts.insert(BoundaryContract {
-            capability: "Clock".to_owned(),
-            state: "wait".to_owned(),
-            boundary: "host".to_owned(),
-            eventual_terminal: true,
-            requires_count: 1,
-            ensures_count: 1,
-        });
-
-        writer
-            .write_boundary_report(&report)
-            .expect("write boundary report");
-        let artifact = fs::read_to_string(output_dir.join("10_boundary.html"))
-            .expect("read boundary report");
-
-        assert!(artifact.contains("termination `eventual_terminal`"));
-        assert!(!artifact.contains("ranking"));
-        assert!(!artifact.contains("witness"));
-
-        fs::remove_dir_all(&output_dir).expect("remove test artifact directory");
     }
 }

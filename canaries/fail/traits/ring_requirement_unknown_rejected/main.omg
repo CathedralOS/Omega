@@ -8,7 +8,6 @@ trait RingOps {
 }
 machine nopath(a: Peano, b: Peano) -> Peano
 satisfies RingOps::nope
-terminates;
 terminates by a;
 {
     transition a {

@@ -52,6 +52,9 @@ pub fn compile_to_checked(
     // WIRE PLANS (mint arc rung 2a): mirror the full pipeline so tests see
     // the same derived plans the codec selection consumes.
     crate::pipeline::wire_plans::compute_wire_plans(&mut typed)?;
+    // PRV4 adapter dispatch (both engines, before checking): boundary-trait
+    // calls with a unique satisfying adapter rewrite to direct calls.
+    crate::pipeline::adapter_dispatch::rewrite_adapter_calls(&mut typed)?;
     let checked = typed_trees_to_checked_trees(typed, &mut timings)?;
 
     // `typed_trees_to_checked_trees` wraps the program in an `Arc`; unwrap it for the

@@ -77,6 +77,31 @@ pub const WINDOWS_IMPORT_ROWS: &[(&str, &str, &str, &str)] = &[
     ("Filesystem", "find_first", "Kernel32.dll", "FindFirstFileA"),
     ("Filesystem", "find_next", "Kernel32.dll", "FindNextFileA"),
     ("Filesystem", "find_close", "Kernel32.dll", "FindClose"),
+    // The hard-link primitive (session slice 3): msvcrt has no `link`;
+    // CreateHardLinkA takes (NEW link, existing, NULL security attrs) --
+    // the designed seam op mirrors that exact shape (BOOL return) and the
+    // windows Filesystem::hard_link impl swaps the portable arg order.
+    ("Filesystem", "create_hard_link", "Kernel32.dll", "CreateHardLinkA"),
+    // Direct kernel HANDLE open/close. Unlike msvcrt `_open`, CreateFileA
+    // with FILE_FLAG_BACKUP_SEMANTICS can open directories for metadata and
+    // final-path queries.
+    ("Filesystem", "open_path_handle", "Kernel32.dll", "CreateFileA"),
+    ("Filesystem", "close_handle", "Kernel32.dll", "CloseHandle"),
+    // The handle bridge (session slice 4a): _get_osfhandle surfaces the OS
+    // HANDLE behind a CRT fd; GetFinalPathNameByHandleA resolves an open
+    // handle to its final DOS path (the honest windows canonicalize --
+    // GetFullPathNameA is lexical-only and never left the ledger).
+    ("Filesystem", "get_osfhandle", "msvcrt.dll", "_get_osfhandle"),
+    ("Filesystem", "final_path_name_by_handle", "Kernel32.dll", "GetFinalPathNameByHandleA"),
+    // The set_times leg over the bridge (slice 4b): stamp an open handle's
+    // access/write times from wrapper-composed FILETIME buffers.
+    ("Filesystem", "set_file_time", "Kernel32.dll", "SetFileTime"),
+    // Whole-file advisory locks (session slice 4c). The wrapper supplies a
+    // zero-offset OVERLAPPED and u64::MAX length; GetLastError is captured
+    // immediately after non-blocking contention.
+    ("Filesystem", "lock_file_ex", "Kernel32.dll", "LockFileEx"),
+    ("Filesystem", "unlock_file", "Kernel32.dll", "UnlockFile"),
+    ("Filesystem", "get_last_error", "Kernel32.dll", "GetLastError"),
     // set_len -> `_chsize_s(fd, __int64 size)` (ftruncate's msvcrt analogue). The
     // 64-bit variant so the i64 length is not truncated to `_chsize`'s 32-bit
     // `long`; returns 0 on success like ftruncate (the wrapper checks rc == 0 and
@@ -444,6 +469,75 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
             "FilesystemHost",
             "find_close",
             [host_operation("Filesystem", "find_close")],
+            PlatformCallData::None,
+        );
+        // The windows hard-link primitive -- kernel32 CreateHardLinkA; the
+        // per-target Filesystem::hard_link impl calls it with the Win32 arg
+        // order (link, existing, 0). Posix targets bind `hard_link` instead.
+        insert_platform_lowering(
+            plan,
+            "FilesystemHost",
+            "create_hard_link",
+            [host_operation("Filesystem", "create_hard_link")],
+            PlatformCallData::None,
+        );
+        // The handle bridge (session slice 4a): fd -> HANDLE, then the
+        // HANDLE-keyed final-path resolution (the windows canonicalize
+        // composition open/bridge/resolve/close in the per-target impl).
+        insert_platform_lowering(
+            plan,
+            "FilesystemHost",
+            "get_osfhandle",
+            [host_operation("Filesystem", "get_osfhandle")],
+            PlatformCallData::None,
+        );
+        insert_platform_lowering(
+            plan,
+            "FilesystemHost",
+            "final_path_name_by_handle",
+            [host_operation("Filesystem", "final_path_name_by_handle")],
+            PlatformCallData::None,
+        );
+        insert_platform_lowering(
+            plan,
+            "FilesystemHost",
+            "set_file_time",
+            [host_operation("Filesystem", "set_file_time")],
+            PlatformCallData::None,
+        );
+        insert_platform_lowering(
+            plan,
+            "FilesystemHost",
+            "open_path_handle",
+            [host_operation("Filesystem", "open_path_handle")],
+            PlatformCallData::None,
+        );
+        insert_platform_lowering(
+            plan,
+            "FilesystemHost",
+            "close_handle",
+            [host_operation("Filesystem", "close_handle")],
+            PlatformCallData::None,
+        );
+        insert_platform_lowering(
+            plan,
+            "FilesystemHost",
+            "lock_file_ex",
+            [host_operation("Filesystem", "lock_file_ex")],
+            PlatformCallData::None,
+        );
+        insert_platform_lowering(
+            plan,
+            "FilesystemHost",
+            "unlock_file",
+            [host_operation("Filesystem", "unlock_file")],
+            PlatformCallData::None,
+        );
+        insert_platform_lowering(
+            plan,
+            "FilesystemHost",
+            "get_last_error",
+            [host_operation("Filesystem", "get_last_error")],
             PlatformCallData::None,
         );
         insert_platform_lowering(

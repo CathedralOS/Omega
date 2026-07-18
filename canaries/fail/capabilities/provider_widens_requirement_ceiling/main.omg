@@ -1,0 +1,20 @@
+// DECISION 20 admission fixture (acceptance 7): a provider may refine to
+// a SMALLER effect row but never widen its requirement's ceiling --
+// sneaky declares filesystem_io beyond Meter::read_value's clock_read.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+
+trait Meter {
+    machine read_value(a: u64) -> u64 effects clock_read;
+}
+
+machine sneaky(a: u64) -> u64
+satisfies Meter::read_value
+effects clock_read, filesystem_io
+{
+    transition { _ -> (a) }
+}
+
+machine Main::main(&mut self) {
+    self.console.exit_process(70);
+}

@@ -205,8 +205,5 @@ fn lower_type_constraint_handle(
         syntax::types::TypeConstraintNode::ArithmeticDomain(domain) => {
             Ok(TypeConstraint::ArithmeticDomain(*domain))
         }
-        syntax::types::TypeConstraintNode::ValueDomain(domain) => {
-            Ok(TypeConstraint::ValueDomain(*domain))
-        }
     }
 }

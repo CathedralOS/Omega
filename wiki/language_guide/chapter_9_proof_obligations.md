@@ -56,7 +56,8 @@ Likely obligations:
 - Every float invariant is checked as a semantic fact, not treated as an optimization permission.
 - Every owned value that dies on a transition edge is cleaned up before the
   jump, and cleanup guarantees are added to the target facts.
-- Every spawned graph captures only moved, copied, or concurrency-safe values.
+- Every concurrently activated machine receives only moved, copied, or
+  concurrency-safe values, and a rejected start returns all moved ownership.
 - Every blocking operation exposes a waitable contract or crosses an explicit
   boundary.
 - Every machine that claims termination proves progress for every recursive or

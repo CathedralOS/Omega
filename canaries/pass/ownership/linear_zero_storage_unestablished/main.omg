@@ -1,0 +1,12 @@
+// PASS canary (decision 21): ZII initializes storage bits but does not mint a
+// linear obligation. This declaration is construction-gated until assigned.
+data Receipt [linear] {
+    code: i32;
+}
+
+data Main {}
+
+machine Main::run() -> i32 {
+    let receipt: Receipt;
+    0
+}

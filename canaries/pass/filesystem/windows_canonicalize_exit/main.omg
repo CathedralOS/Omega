@@ -1,0 +1,79 @@
+// RUN CANARY (exit 70, WINDOWS-HOST ONLY) -- the WRAPPER canonicalize
+// contract on windows (windows session slices 4a/4d): msvcrt has no realpath,
+// so the windows_x64 impl composes CreateFileA(FILE_FLAG_BACKUP_SEMANTICS),
+// GetFinalPathNameByHandleA (flags 0 = the \\?\-prefixed DOS path, exactly
+// Rust's windows canonicalize spelling), CloseHandle. This supports files AND
+// directories. Dual-engine with
+// per-model first-byte discrimination: NATIVE resolves to "\\?\C:\..."
+// (first byte '\\', 92); the HERMETIC model's canonical path IS the
+// descriptor's stored key (first byte 'o' of the relative probe name,
+// 111) -- the transition accepts exactly these two, so a garbage or
+// unwritten buffer fails BOTH engines. The missing-path leg pins
+// NotFound on both (the open leg fails with real msvcrt/virtual ENOENT
+// before path resolution).
+// exits: 70 good; 71 seed write failed; 72 canonicalize refused; 73 the
+// resolved buffer starts with neither model's spelling; 74 the
+// missing-path leg did not refuse; 75 the refusal kind was not NotFound;
+// 76 directory creation failed; 77 directory canonicalize refused; 78 the
+// resolved directory buffer starts with neither model's spelling.
+
+use omega::language::std::filesystem;
+
+boundary trait Console { machine exit_process(return_code: i32); }
+
+data Main {
+    console: Console;
+    fs: Filesystem;
+    unit_result: UnitResult;
+    canon: [u8; 1024];
+}
+
+machine Main::main(&mut self) {
+    self.unit_result = self.fs.write_all("omega_wcanon_probe.txt", "canon");
+    transition self.unit_result { UnitResult::Ok -> resolve() _ -> bad(71) }
+    state resolve(&mut self) {
+        self.unit_result = self.fs.canonicalize("omega_wcanon_probe.txt", &mut self.canon);
+        transition self.unit_result { UnitResult::Ok -> spelled() _ -> bad(72) }
+    }
+    state spelled(&mut self) {
+        // Native: '\\' (92, the \\?\ prefix). Hermetic: 'o' (111, the key
+        // verbatim). Anything else = the resolve never wrote the buffer.
+        transition self.canon[0] == 92 { true -> missing() _ -> spelled_virtual() }
+    }
+    state spelled_virtual(&mut self) {
+        transition self.canon[0] == 111 { true -> make_dir() _ -> bad(73) }
+    }
+    state make_dir(&mut self) {
+        self.unit_result = self.fs.create_dir("omega_wcanon_dir");
+        transition self.unit_result { UnitResult::Ok -> resolve_dir() _ -> bad(76) }
+    }
+    state resolve_dir(&mut self) {
+        self.unit_result = self.fs.canonicalize("omega_wcanon_dir", &mut self.canon);
+        transition self.unit_result { UnitResult::Ok -> spelled_dir() _ -> bad(77) }
+    }
+    state spelled_dir(&mut self) {
+        transition self.canon[0] == 92 { true -> missing() _ -> spelled_dir_virtual() }
+    }
+    state spelled_dir_virtual(&mut self) {
+        transition self.canon[0] == 111 { true -> missing() _ -> bad(78) }
+    }
+    state missing(&mut self) {
+        self.unit_result = self.fs.canonicalize("omega_wcanon_missing.txt", &mut self.canon);
+        transition self.unit_result { UnitResult::Error { kind } -> kindcheck(kind) _ -> bad(74) }
+    }
+    state kindcheck(&mut self, kind: ErrorKind) {
+        // The OPEN leg fails first on both engines (real msvcrt errno /
+        // virtual ENOENT), so the kind is honest here.
+        transition kind { ErrorKind::NotFound -> cleanup() _ -> bad(75) }
+    }
+    state cleanup(&mut self) {
+        self.unit_result = self.fs.remove("omega_wcanon_probe.txt");
+        transition { _ -> cleanup_dir() }
+    }
+    state cleanup_dir(&mut self) {
+        self.unit_result = self.fs.remove_dir("omega_wcanon_dir");
+        transition { _ -> good() }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self, code: i32) { self.console.exit_process(code); }
+}

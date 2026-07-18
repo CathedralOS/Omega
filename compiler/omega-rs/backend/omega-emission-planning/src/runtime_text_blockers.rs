@@ -122,38 +122,13 @@ fn state_value_has_planned_storage_write(
                         | SelectedInstructionKind::ReadRuntimeByte { .. }
                         | SelectedInstructionKind::WriteRuntimeByte { .. }
                         | SelectedInstructionKind::AtomicCompareExchange { .. }
-                        | SelectedInstructionKind::WriteRuntimeMachineInteger { .. }
-                        | SelectedInstructionKind::WriteRuntimeStorageInteger { .. }
-                        | SelectedInstructionKind::WriteRuntimePointeeInteger { .. }
-                        | SelectedInstructionKind::WriteRuntimeStorageBinary { .. }
+                        | SelectedInstructionKind::WritePlaceInteger { .. }
+                        | SelectedInstructionKind::WritePlaceBinary { .. }
+                        | SelectedInstructionKind::WritePlaceString { .. }
+                        | SelectedInstructionKind::WritePlaceBoundedBuffer { .. }
+                        | SelectedInstructionKind::WritePlaceAddress { .. }
                         | SelectedInstructionKind::WriteRuntimeStorageConvert { .. }
-                        | SelectedInstructionKind::WriteRuntimePointeeBinary { .. }
-                        | SelectedInstructionKind::WriteRuntimeFrameIndexedInteger { .. }
-                        | SelectedInstructionKind::WriteRuntimeFrameBaseIndexedInteger { .. }
-                        | SelectedInstructionKind::WriteRuntimeMachineIndexedInteger { .. }
-                        | SelectedInstructionKind::WriteRuntimeFrameIndexedBinary { .. }
-                        | SelectedInstructionKind::WriteRuntimeFrameBaseIndexedBinary { .. }
-                        | SelectedInstructionKind::WriteRuntimeMachineIndexedBinary { .. }
-                        | SelectedInstructionKind::WriteRuntimeMachineDoubleIndexedBinary { .. }
-                        | SelectedInstructionKind::WriteRuntimeMachineString { .. }
-                        | SelectedInstructionKind::WriteRuntimeMachineBoundedBuffer { .. }
-                        | SelectedInstructionKind::WriteRuntimeFrameString { .. }
-                        | SelectedInstructionKind::WriteRuntimePointeeString { .. }
-                        | SelectedInstructionKind::WriteRuntimePointeeBoundedBuffer { .. }
-                        | SelectedInstructionKind::WriteRuntimeFrameIndexedString { .. }
-                        | SelectedInstructionKind::WriteRuntimeMachineIndexedString { .. }
-                        | SelectedInstructionKind::WriteRuntimeStorageAddressToRuntimeFrame { .. }
-                        | SelectedInstructionKind::WriteRuntimePointeeAddressToRuntimeFrame { .. }
-                        | SelectedInstructionKind::WriteRuntimeFrameIndexedAddressToRuntimeFrame { .. }
-                        | SelectedInstructionKind::WriteRuntimeFrameFixedIndexedAddressToRuntimeFrame { .. }
-                        | SelectedInstructionKind::WriteRuntimeFrameBaseIndexedAddressToRuntimeFrame { .. }
-                        | SelectedInstructionKind::WriteRuntimeMachineIndexedAddressToRuntimeFrame { .. }
                         | SelectedInstructionKind::CopyPlaces { .. }
-                        | SelectedInstructionKind::CopyRuntimeMachineDoubleIndexedToRuntimeStorage { .. }
-                        | SelectedInstructionKind::CopyRuntimeFrameBaseDoubleIndexedToRuntimeStorage { .. }
-                        | SelectedInstructionKind::CopyRuntimeStorageToRuntimeMachineDoubleIndexed { .. }
-                        | SelectedInstructionKind::WriteRuntimeMachineDoubleIndexedInteger { .. }
-                        | SelectedInstructionKind::CopyRuntimeMachineIndexedToRuntimeMachineIndexed { .. }
                         // `asm { in <local>, <port> }`: the PortRead writes the
                         // byte into the local's place, covering the assignment
                         // value (a local-dest port read; a field dest never
@@ -337,36 +312,16 @@ fn runtime_text_write_has_selected_instruction(
                 && instruction.source_statement == text_write.statement_index
                 && matches!(
                     instruction.kind,
-                    SelectedInstructionKind::WriteRuntimeMachineString { .. }
-                        | SelectedInstructionKind::WriteRuntimeMachineBoundedBuffer { .. }
-                        | SelectedInstructionKind::WriteRuntimeFrameString { .. }
-                        | SelectedInstructionKind::WriteRuntimePointeeString { .. }
-                        | SelectedInstructionKind::WriteRuntimePointeeBoundedBuffer { .. }
-                        | SelectedInstructionKind::WriteRuntimeFrameIndexedString { .. }
-                        | SelectedInstructionKind::WriteRuntimeStorageAddressToRuntimeFrame { .. }
-                        | SelectedInstructionKind::WriteRuntimePointeeAddressToRuntimeFrame { .. }
-                        | SelectedInstructionKind::WriteRuntimeFrameIndexedAddressToRuntimeFrame { .. }
-                        | SelectedInstructionKind::WriteRuntimeFrameFixedIndexedAddressToRuntimeFrame { .. }
-                        | SelectedInstructionKind::WriteRuntimeFrameBaseIndexedAddressToRuntimeFrame { .. }
-                        | SelectedInstructionKind::WriteRuntimeMachineIndexedAddressToRuntimeFrame { .. }
+                    SelectedInstructionKind::WritePlaceString { .. }
+                        | SelectedInstructionKind::WritePlaceBoundedBuffer { .. }
+                        | SelectedInstructionKind::WritePlaceAddress { .. }
                         | SelectedInstructionKind::WriteRuntimeTextLiteral { .. }
                         | SelectedInstructionKind::WriteRuntimeTextLiteralSegment { .. }
                         | SelectedInstructionKind::AppendRuntimeTextStoredSuffix { .. }
-                        | SelectedInstructionKind::MaterializeRuntimeTextBuffer { .. }
-                        | SelectedInstructionKind::MaterializeRuntimeTextBufferToRuntimePointee { .. }
-                        | SelectedInstructionKind::MaterializeRuntimeTextBufferToRuntimeFrameIndexed { .. }
-                        | SelectedInstructionKind::AppendRuntimeTextStoredPlace { .. }
-                        | SelectedInstructionKind::AppendRuntimeTextStoredPlaceToRuntimePointee { .. }
-                        | SelectedInstructionKind::AppendRuntimeTextStoredPlaceToRuntimeFrameIndexed { .. }
-                        | SelectedInstructionKind::AppendRuntimeTextLiteral { .. }
-                        | SelectedInstructionKind::AppendRuntimeTextLiteralToRuntimePointee { .. }
-                        | SelectedInstructionKind::AppendRuntimeTextLiteralToRuntimeFrameIndexed { .. }
+                        | SelectedInstructionKind::MaterializeTextBufferToPlace { .. }
+                        | SelectedInstructionKind::AppendTextStoredToPlace { .. }
+                        | SelectedInstructionKind::AppendTextLiteralToPlace { .. }
                         | SelectedInstructionKind::CopyPlaces { .. }
-                        | SelectedInstructionKind::CopyRuntimeMachineDoubleIndexedToRuntimeStorage { .. }
-                        | SelectedInstructionKind::CopyRuntimeFrameBaseDoubleIndexedToRuntimeStorage { .. }
-                        | SelectedInstructionKind::CopyRuntimeStorageToRuntimeMachineDoubleIndexed { .. }
-                        | SelectedInstructionKind::WriteRuntimeMachineDoubleIndexedInteger { .. }
-                        | SelectedInstructionKind::CopyRuntimeMachineIndexedToRuntimeMachineIndexed { .. }
                         // `asm { in <local>, <port> }`: the PortRead writes the
                         // byte into the local's place, covering the assignment
                         // value (a local-dest port read; a field dest never

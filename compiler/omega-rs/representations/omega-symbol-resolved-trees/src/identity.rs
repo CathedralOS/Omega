@@ -68,9 +68,6 @@ pub fn count_identity_storage(program: &SymbolResolvedTrees) -> IdentityStorageC
 
     for data_definition in &program.data_definitions {
         count_declaration_name(&data_definition.name, &mut counts);
-        for fact in program.proof_facts(data_definition.default_domain) {
-            count_proof_fact(program, fact, expression_table, &mut counts);
-        }
         for member in program.data_members(data_definition.members) {
             match member {
                 DataMember::Field(field) => {
@@ -81,33 +78,8 @@ pub fn count_identity_storage(program: &SymbolResolvedTrees) -> IdentityStorageC
                         expression_table,
                         &mut counts,
                     );
-                    if field.initial_value.is_valid() {
-                        count_expression_handle(expression_table, field.initial_value, &mut counts);
-                    }
                 }
                 DataMember::Variant(variant) => count_declaration_name(&variant.name, &mut counts),
-            }
-        }
-    }
-
-    for platform in &program.platforms {
-        count_declaration_name(&platform.name, &mut counts);
-        for signature in program.platform_state_signatures(platform.states) {
-            count_declaration_name(&signature.name, &mut counts);
-            count_optional_type_reference(
-                signature.return_type.as_ref(),
-                child_type_references,
-                expression_table,
-                &mut counts,
-            );
-            for parameter in program.state_parameters(signature.parameters) {
-                count_declaration_name(&parameter.name, &mut counts);
-                count_type_reference(
-                    &parameter.type_reference,
-                    child_type_references,
-                    expression_table,
-                    &mut counts,
-                );
             }
         }
     }
@@ -144,6 +116,24 @@ pub fn count_identity_storage(program: &SymbolResolvedTrees) -> IdentityStorageC
         count_declaration_name(&machine.name, &mut counts);
         for parameter in program.machine_type_parameters(machine) {
             count_declaration_name(&parameter.name, &mut counts);
+            if let crate::data::TypeParameterKind::Machine { contract } = &parameter.kind {
+                count_declaration_name(&contract.name, &mut counts);
+                count_optional_type_reference(
+                    contract.return_type.as_ref(),
+                    child_type_references,
+                    expression_table,
+                    &mut counts,
+                );
+                for contract_parameter in program.state_parameters(contract.parameters) {
+                    count_declaration_name(&contract_parameter.name, &mut counts);
+                    count_type_reference(
+                        &contract_parameter.type_reference,
+                        child_type_references,
+                        expression_table,
+                        &mut counts,
+                    );
+                }
+            }
         }
         for contained in program.machine_contained_objects(machine.contains) {
             count_declaration_name(&contained.name, &mut counts);
@@ -303,6 +293,11 @@ fn count_statement_node(
         }
         StatementNode::Call(call) => {
             count_call_name(&call.target, counts);
+            for argument in &call.machine_arguments {
+                for member in &argument.path {
+                    count_call_name(member, counts);
+                }
+            }
             for receiver in statements.name_path_members(call.receiver) {
                 count_call_name(receiver, counts);
             }
@@ -446,6 +441,11 @@ fn count_expression_node(
         }
         ExpressionNode::Call(call) => {
             count_call_name(&call.target, counts);
+            for argument in &call.machine_arguments {
+                for member in &argument.path {
+                    count_call_name(member, counts);
+                }
+            }
             if call.receiver.is_valid() {
                 count_expression_handle(table, call.receiver, counts);
             }
@@ -569,7 +569,7 @@ fn count_type_constraint(
             count_expression_handle(expression_table, *minimum, counts);
             count_expression_handle(expression_table, *maximum, counts);
         }
-        TypeConstraint::ArithmeticDomain(_) | TypeConstraint::ValueDomain(_) => {}
+        TypeConstraint::ArithmeticDomain(_) => {}
     }
 }
 

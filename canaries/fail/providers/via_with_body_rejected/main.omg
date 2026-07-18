@@ -1,0 +1,13 @@
+// PRV4: a `via` binding on a machine WITH a body must refuse -- a composite
+// lowering is an ordinary checked machine; only a bodyless leaf carries a
+// realization. Silent drop is the bug class this pin fences.
+boundary trait Process {
+    machine exit(code: i32);
+}
+
+machine exit_composite(code: i32) satisfies Process::exit via Syscall(60) {
+}
+
+data Main { }
+machine Main::main(&mut self) {
+}

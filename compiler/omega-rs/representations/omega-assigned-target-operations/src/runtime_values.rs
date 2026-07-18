@@ -200,11 +200,7 @@ impl omega_target_operations::RuntimeValueOperandSource for AssignedTargetOperat
     fn text_equals_literal(
         &self,
         handle: omega_target_operations::RuntimeValueOperandHandle,
-    ) -> Option<(
-        omega_target_operations::RuntimeValueOperandHandle,
-        String,
-        bool,
-    )> {
+    ) -> Option<(omega_target_operations::RuntimeValueOperandHandle, String, bool)> {
         match &AssignedTargetOperationPlan::runtime_value_operand(self, handle)?.kind {
             AssignedValueOperandKind::TextEqualsLiteral {
                 place,
@@ -225,8 +221,6 @@ impl omega_target_operations::RuntimeValueOperandSource for AssignedTargetOperat
         bool,
         bool,
         bool,
-        omega_core::arithmetic::ArithmeticDomain,
-        bool,
     )> {
         match &AssignedTargetOperationPlan::runtime_value_operand(self, handle)?.kind {
             AssignedValueOperandKind::Convert {
@@ -236,8 +230,7 @@ impl omega_target_operations::RuntimeValueOperandSource for AssignedTargetOperat
                 source_is_float,
                 target_is_float,
                 source_signed,
-                arithmetic_domain,
-                target_signed,
+                ..
             } => Some((
                 *source,
                 *source_byte_size,
@@ -245,10 +238,44 @@ impl omega_target_operations::RuntimeValueOperandSource for AssignedTargetOperat
                 *source_is_float,
                 *target_is_float,
                 *source_signed,
-                *arithmetic_domain,
-                *target_signed,
             )),
             _ => None,
         }
+    }
+
+    fn convert_trapping(
+        &self,
+        handle: omega_target_operations::RuntimeValueOperandHandle,
+    ) -> bool {
+        matches!(
+            AssignedTargetOperationPlan::runtime_value_operand(self, handle).map(|op| &op.kind),
+            Some(AssignedValueOperandKind::Convert { trapping: true, .. })
+        )
+    }
+
+    fn convert_saturating(
+        &self,
+        handle: omega_target_operations::RuntimeValueOperandHandle,
+    ) -> bool {
+        matches!(
+            AssignedTargetOperationPlan::runtime_value_operand(self, handle).map(|op| &op.kind),
+            Some(AssignedValueOperandKind::Convert {
+                saturating: true,
+                ..
+            })
+        )
+    }
+
+    fn convert_target_signed(
+        &self,
+        handle: omega_target_operations::RuntimeValueOperandHandle,
+    ) -> bool {
+        matches!(
+            AssignedTargetOperationPlan::runtime_value_operand(self, handle).map(|op| &op.kind),
+            Some(AssignedValueOperandKind::Convert {
+                target_signed: true,
+                ..
+            })
+        )
     }
 }

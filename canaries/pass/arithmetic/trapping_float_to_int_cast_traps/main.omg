@@ -1,0 +1,24 @@
+// PASS canary (F4, the float->int cast ruling), native + interpreter: a
+// TRAPPING float->int cast traps on an out-of-range value BEFORE converting
+// (FCVTZS would silently saturate -- that is the Saturating policy, not
+// Trapping's). The aarch64 guard: fcmp v0,v0 (NaN) + two exclusive-bound
+// float compares + brk; the interp traps in eval_cast. The NaN face
+// (0.0/0.0 as i32 in Trapping) was probe-verified with the same guard --
+// one canary can only die once, so the canonical 1e20 OOR face is the pin.
+// The in-range face computes exactly first (7.9 -> 7).
+// exits: 71 = in-range Trapping cast wrong; 7 = SAILED PAST the trap (the
+// failure the suite asserts against). x86 performs the same value guard
+// before cvttsd2si can produce its ambiguous integer-indefinite result.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; f: f64; r: i32; }
+machine Main::main(&mut self) {
+    self.f = 7.9;
+    self.r = self.f as i32 in Trapping;
+    transition self.r == 7 { true -> oor() _ -> bad() }
+    state oor(&mut self) {
+        self.f = 100000000000000000000.0;
+        self.r = self.f as i32 in Trapping; // 1e20 does not fit i32: must TRAP
+        self.console.exit_process(7);
+    }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

@@ -634,6 +634,7 @@ fn fold_straight_line_prior_local_names(
                     value,
                     target_type: cast.target_type,
                     domain: cast.domain,
+                    semantic_domain: cast.semantic_domain,
                     form: cast.form,
                 },
             ))
@@ -1521,6 +1522,7 @@ fn resolve_leaf_call_expression_handle(
                     value,
                     target_type: cast.target_type,
                     domain: cast.domain,
+                    semantic_domain: cast.semantic_domain,
                     form: cast.form,
                 },
             ))
@@ -1556,6 +1558,7 @@ fn resolve_leaf_call_expression_handle(
                     receiver: receiver.unwrap_or_else(ExpressionHandle::invalid),
                     target_symbol: call.target_symbol,
                     target: call.target,
+                    machine_arguments: call.machine_arguments,
                     arguments: copied_arguments,
                 },
             ))

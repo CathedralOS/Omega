@@ -1,0 +1,12 @@
+// `relax` is RETIRED (owner, 2026-07-17): invariant windows (ch11)
+// supersede it -- a plain write that momentarily violates a `where` fact
+// opens a window the consumption points police.
+data Main {
+    health: i32;
+}
+
+machine Main::main(&mut self) {
+    relax self.health {
+        self.health = 5;
+    }
+}

@@ -101,6 +101,15 @@ fn lower_statement_node(
                 storage: CallStorage {
                     receiver,
                     receiver_starts_at_self: call.receiver_starts_at_self,
+                    machine_arguments: call
+                        .machine_arguments
+                        .iter()
+                        .map(|argument| omega_symbol_resolved_trees::expression::StaticMachineArgument {
+                            path: argument.path.iter().map(crate::name::lower_name).collect::<Vec<_>>().into_boxed_slice(),
+                            symbol: SymbolHandle::invalid(),
+                        })
+                        .collect::<Vec<_>>()
+                        .into_boxed_slice(),
                     arguments,
                     discards_result: call.discards_result,
                 },
@@ -129,8 +138,14 @@ fn lower_statement_node(
             Ok(hoisted)
         }
         syntax::statement::StatementNode::LocalData(local_data) => {
-            let type_reference =
-                lower_type_reference_handle(lowerer, syntax_trees, local_data.type_reference)?;
+            // Parse-time desugars (destructure lets) mint TYPELESS locals;
+            // the Unit sentinel defers typing to the initializer (the
+            // hoist rule the resolved->typed layer already serves).
+            let type_reference = if local_data.type_reference.is_valid() {
+                lower_type_reference_handle(lowerer, syntax_trees, local_data.type_reference)?
+            } else {
+                TypeReference::Unit
+            };
             let initial_value = if local_data.initial_value.is_valid() {
                 lower_statement_expression(lowerer, syntax_trees, local_data.initial_value)?
             } else {
@@ -176,14 +191,27 @@ fn lower_statement_node(
                 if rewritten != expression {
                     target = TransitionTarget::Value(rewritten);
                 }
+            } else {
+                // GUARDED-ARM DEEP FIX (task #45): a guarded arm's value call
+                // cannot hoist above the transition (the callee would run when
+                // the arm is not taken), so rewrite `cond -> (call(a, b))`
+                // into `cond -> __arm_k_N(a, b)` plus a synthesized
+                // continuation state whose Always terminal hoists the call --
+                // the mul_comm/mc_step shape the language already serves,
+                // automated. V1 gates the arguments to enclosing-parameter
+                // NAMES (the synthesized state's parameter types copy over).
+                target = rewrite_guarded_call_arm(lowerer, target);
             }
             let continuation = if transition.continuation.is_valid() {
-                Some(lower_transition_target_node(
+                // A continuation arm is conditional by construction (it runs
+                // only when the guard fails) -- same rewrite, never a hoist.
+                let lowered = lower_transition_target_node(
                     lowerer,
                     syntax_trees,
                     transition.continuation,
                     &mut hoisted,
-                )?)
+                )?;
+                Some(rewrite_guarded_call_arm(lowerer, lowered))
             } else {
                 None
             };
@@ -348,6 +376,7 @@ fn rewrite_children(
                     value,
                     target_type: cast.target_type,
                     domain: cast.domain,
+                    semantic_domain: cast.semantic_domain,
                     form: cast.form,
                 }),
             );
@@ -494,13 +523,11 @@ fn index_is_hoistable_computed(lowerer: &Lowerer, index: ExpressionHandle) -> bo
         match expressions.expression(operand) {
             ExpressionNode::Integer(_) => false,
             ExpressionNode::Binary(inner) => {
-                !matches!(
-                    expressions.expression(inner.left),
-                    ExpressionNode::Integer(_)
-                ) || !matches!(
-                    expressions.expression(inner.right),
-                    ExpressionNode::Integer(_)
-                )
+                !matches!(expressions.expression(inner.left), ExpressionNode::Integer(_))
+                    || !matches!(
+                        expressions.expression(inner.right),
+                        ExpressionNode::Integer(_)
+                    )
             }
             _ => true,
         }
@@ -695,11 +722,7 @@ fn hoist_scalar_value_call_comparison(
     if !call_is_left && !call_is_right {
         return;
     }
-    let call_side = if call_is_left {
-        binary.left
-    } else {
-        binary.right
-    };
+    let call_side = if call_is_left { binary.left } else { binary.right };
 
     // The memo key is the CALL's SYNTAX handle: a match over a call subject
     // (`transition self.roll(t) { 1 -> .. 2 -> .. }`) lowers one comparison
@@ -824,6 +847,95 @@ fn hoist_terminal_value_machine_call(
     }))
 }
 
+/// GUARDED-ARM VALUE-CALL REWRITE (task #45): when a guarded (or
+/// continuation) arm's target is a free user value-machine call whose every
+/// argument is a bare NAME of an enclosing state parameter, rewrite the arm
+/// to a Named target on a synthesized continuation state (recorded on the
+/// lowerer; the machine lowering appends it after the authored states). The
+/// synthesized state re-declares the SAME-named parameters, so the original
+/// call expression's Names resolve against them verbatim. Anything outside
+/// the gate returns unchanged and keeps the honest backend fence.
+fn rewrite_guarded_call_arm(lowerer: &mut Lowerer, target: TransitionTarget) -> TransitionTarget {
+    let TransitionTarget::Value(expression) = target else {
+        return target;
+    };
+    let expressions = &lowerer.symbol_resolved_trees.tables.bodies.expressions;
+    let ExpressionNode::Call(call) = expressions.expression(expression) else {
+        return TransitionTarget::Value(expression);
+    };
+    if call.receiver.is_valid() || matches!(call.target.as_str(), "min" | "max" | "sqrt") {
+        return TransitionTarget::Value(expression);
+    }
+    let argument_handles = expressions.expression_handles(call.arguments).to_vec();
+    let mut parameters: Vec<(String, TypeReference)> = Vec::new();
+    for argument in &argument_handles {
+        let ExpressionNode::Name(path) = expressions.expression(*argument) else {
+            return TransitionTarget::Value(expression);
+        };
+        let members = expressions.name_path_members(path.members);
+        let [single] = members else {
+            return TransitionTarget::Value(expression);
+        };
+        let Some((name, type_reference)) = lowerer
+            .current_state_parameters
+            .iter()
+            .find(|(name, _)| name == single.as_str())
+        else {
+            return TransitionTarget::Value(expression);
+        };
+        // Dedup: `call(x, x)` declares ONE parameter x; both body Names
+        // resolve to it, and the target passes it once.
+        if !parameters.iter().any(|(existing, _)| existing == name) {
+            parameters.push((name.clone(), type_reference.clone()));
+        }
+    }
+    let Some(return_type) = lowerer.current_state_return_type.clone() else {
+        return TransitionTarget::Value(expression);
+    };
+    let state_name = lowerer.next_arm_state_name();
+    lowerer
+        .pending_synthesized_states
+        .push(crate::lowerer::SynthesizedArmState {
+            name: state_name.clone(),
+            parameters: parameters.clone(),
+            return_type,
+            call: expression,
+        });
+    let mut path = HandleSpan::empty();
+    lowerer
+        .symbol_resolved_trees
+        .tables
+        .declarations
+        .statement_path_members
+        .append_to_span(&mut path, DiagnosticName::generated(state_name));
+    // FRESH Name nodes for the target's arguments: the original handles
+    // stay inside the synthesized state's call (where they resolve against
+    // ITS parameters); sharing one node across two scopes would let the
+    // second resolution overwrite the first's symbol.
+    let expressions = &mut lowerer.symbol_resolved_trees.tables.bodies.expressions;
+    let mut arguments = HandleSpan::empty();
+    for (name, _) in &parameters {
+        let mut members = HandleSpan::empty();
+        expressions.push_name_path_member(&mut members, DiagnosticName::generated(name.clone()));
+        let fresh = expressions.insert(ExpressionNode::Name(TableNamePath {
+            members,
+            is_self_value: false,
+            head_symbol: SymbolHandle::invalid(),
+            symbol: SymbolHandle::invalid(),
+        }));
+        expressions.push_expression_handle(&mut arguments, fresh);
+    }
+    TransitionTarget::Named(NamedTransitionTarget {
+        head_symbol: SymbolHandle::invalid(),
+        symbol: SymbolHandle::invalid(),
+        storage: NamedTransitionTargetStorage {
+            path,
+            path_starts_at_self: false,
+            arguments,
+        },
+    })
+}
+
 /// Whether `expression` is a pure-builtin call (`min`/`max`/`sqrt`; `abs`/`clamp`
 /// are already desugared to these) that Phase-1 guard hoisting materializes: a
 /// free call (no receiver) whose FIRST argument is a `self.<field>` place, so the
@@ -938,7 +1050,7 @@ fn hoist_into_temp(
             type_reference: TypeReference::Unit,
             initial_value: indexed_value,
             is_mutable: false,
-        },
+                },
     }));
 
     let mut members = HandleSpan::empty();
@@ -961,7 +1073,11 @@ fn hoist_into_temp(
         }))
 }
 
-fn set_expression(lowerer: &mut Lowerer, handle: ExpressionHandle, node: ExpressionNode) {
+fn set_expression(
+    lowerer: &mut Lowerer,
+    handle: ExpressionHandle,
+    node: ExpressionNode,
+) {
     *lowerer
         .symbol_resolved_trees
         .tables
@@ -969,6 +1085,7 @@ fn set_expression(lowerer: &mut Lowerer, handle: ExpressionHandle, node: Express
         .expressions
         .expression_mut(handle) = node;
 }
+
 
 fn lower_statement_expression(
     lowerer: &mut Lowerer,
@@ -1059,8 +1176,9 @@ fn hoist_membership_match_subject(
     let syntax::statement::TransitionGuardNode::When(syntax_expression) = syntax_guard else {
         return;
     };
-    let syntax::expression::ExpressionNode::Membership(syntax_membership) =
-        syntax_trees.expressions.expression(syntax_expression)
+    let syntax::expression::ExpressionNode::Membership(syntax_membership) = syntax_trees
+        .expressions
+        .expression(syntax_expression)
     else {
         return;
     };
@@ -1416,7 +1534,8 @@ fn lower_transition_target_node(
                     .bodies
                     .expressions
                     .expression_handles(arguments)[offset as usize];
-                let rewritten = hoist_operand_indexed_reads(lowerer, argument, hoisted, false);
+                let rewritten =
+                    hoist_operand_indexed_reads(lowerer, argument, hoisted, false);
                 if rewritten != argument {
                     lowerer
                         .symbol_resolved_trees

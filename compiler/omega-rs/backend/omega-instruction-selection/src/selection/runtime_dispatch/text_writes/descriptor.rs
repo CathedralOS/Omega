@@ -35,14 +35,14 @@ pub(in crate::selection) fn select_runtime_string_descriptor_write(
     ) && indexed_target.byte_count == input.runtime_abi.string_descriptor_size()
     {
         selected_instructions.push(SelectedInstruction {
-            kind: SelectedInstructionKind::WriteRuntimeFrameIndexedString {
-                descriptor_offset: indexed_target.descriptor_offset,
-                index_offset: indexed_target.index_offset,
-                element_byte_size: indexed_target.element_byte_size,
-                field_byte_offset: indexed_target.field_byte_offset,
+            kind: crate::selection::runtime_dispatch::write_place_string_frame_indexed(
+                indexed_target.descriptor_offset,
+                indexed_target.index_offset,
+                indexed_target.element_byte_size,
+                indexed_target.field_byte_offset,
                 data,
-                byte_length: value.len(),
-            },
+                value.len(),
+            ),
             source_key: literal_source_key,
             source_statement: statement_index,
         });
@@ -61,14 +61,14 @@ pub(in crate::selection) fn select_runtime_string_descriptor_write(
     ) && indexed_target.byte_count == input.runtime_abi.string_descriptor_size()
     {
         selected_instructions.push(SelectedInstruction {
-            kind: SelectedInstructionKind::WriteRuntimeMachineIndexedString {
-                base_byte_offset: indexed_target.base_byte_offset,
-                index_offset: indexed_target.index_offset,
-                element_byte_size: indexed_target.element_byte_size,
-                field_byte_offset: indexed_target.field_byte_offset,
+            kind: crate::selection::runtime_dispatch::write_place_string_machine_indexed(
+                indexed_target.base_byte_offset,
+                indexed_target.index_offset,
+                indexed_target.element_byte_size,
+                indexed_target.field_byte_offset,
                 data,
-                byte_length: value.len(),
-            },
+                value.len(),
+            ),
             source_key: literal_source_key,
             source_statement: statement_index,
         });
@@ -108,11 +108,15 @@ pub(in crate::selection) fn select_runtime_string_descriptor_write(
             omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame
         );
         selected_instructions.push(SelectedInstruction {
-            kind: SelectedInstructionKind::WriteRuntimeMachineBoundedBuffer {
-                byte_offset: target_place.byte_offset,
-                literal: std::sync::Arc::from(value),
-                target_in_frame,
-            },
+            kind: crate::selection::runtime_dispatch::write_place_bounded_buffer_direct(
+                if target_in_frame {
+                    omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame
+                } else {
+                    omega_abstract_operations::RuntimeStorageRegion::Machine
+                },
+                target_place.byte_offset,
+                std::sync::Arc::from(value),
+            ),
             source_key: literal_source_key,
             source_statement: statement_index,
         });
@@ -128,18 +132,20 @@ pub(in crate::selection) fn select_runtime_string_descriptor_write(
     // same numeric offset (which would alias the machine-storage region base).
     let kind = match target_place.region {
         omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame => {
-            SelectedInstructionKind::WriteRuntimeFrameString {
-                byte_offset: target_place.byte_offset,
+            crate::selection::runtime_dispatch::write_place_string_direct(
+                omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame,
+                target_place.byte_offset,
                 data,
-                byte_length: value.len(),
-            }
+                value.len(),
+            )
         }
         omega_abstract_operations::RuntimeStorageRegion::Machine => {
-            SelectedInstructionKind::WriteRuntimeMachineString {
-                byte_offset: target_place.byte_offset,
+            crate::selection::runtime_dispatch::write_place_string_direct(
+                omega_abstract_operations::RuntimeStorageRegion::Machine,
+                target_place.byte_offset,
                 data,
-                byte_length: value.len(),
-            }
+                value.len(),
+            )
         }
     };
     selected_instructions.push(SelectedInstruction {

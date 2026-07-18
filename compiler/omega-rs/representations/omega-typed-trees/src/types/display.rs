@@ -139,7 +139,6 @@ impl TypeConstraintNode {
                 )
             }
             TypeConstraintNode::ArithmeticDomain(domain) => format!("in {}", domain.name()),
-            TypeConstraintNode::ValueDomain(domain) => format!("in {}", domain.name()),
         }
     }
 }

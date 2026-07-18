@@ -22,7 +22,6 @@ data Main {
 }
 
 machine Summer::sum(&mut self, s: &[i32 in Wrapping], acc: i32 in Wrapping) -> i32
-terminates;
 terminates by s -> Slice::Length;
 {
     transition s.len > 0 {

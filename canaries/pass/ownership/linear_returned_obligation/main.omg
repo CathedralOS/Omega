@@ -1,0 +1,15 @@
+// A consuming call that returns the linear claim transfers it; it does not
+// discharge the old claim and mint an unrelated one.
+data Receipt [linear] { code: i32; }
+
+machine Receipt::forward(self) -> Receipt { self }
+machine Receipt::ack(self) {}
+
+data Main {}
+
+machine Main::run() -> i32 {
+    let issued: Receipt = Receipt { code: 7 };
+    let returned: Receipt = Receipt::forward(issued);
+    Receipt::ack(returned);
+    0
+}

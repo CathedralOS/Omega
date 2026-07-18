@@ -12,12 +12,34 @@ pub struct Machine {
     pub name: Identifier,
     pub attached_data: Option<Identifier>,
     pub boundary: bool,
+    /// STR3: the first-class supply mode (`boundary: bool` is the
+    /// compatibility flag until STR7 retires it). Populated at the
+    /// syntax->resolved lowering, copied -- never re-derived -- downstream.
+    /// Requirement/Accepted gain their own sources when their spellings
+    /// reach this record.
+    pub supply_mode: omega_core::semantics::MachineSupplyMode,
+    /// TPR2 (decision 23): the normalized termination plan (published
+    /// guarantee vs private ranking witness), populated ONCE at the
+    /// syntax->resolved lowering and COPIED here -- never re-derived. The
+    /// `terminates`/`decreases`/`decrease_order` fields below remain the
+    /// compatibility shape the current cycle checker consumes until TPR3
+    /// migrates it onto this plan.
+    pub termination_plan: omega_core::semantics::MachineTerminationPlan,
+    /// STR4 (decision 22): the normalized effect-row identity (copied,
+    /// never re-derived; indexes the tree's `effect_rows` table).
+    pub effect_row: omega_core::semantics::EffectRowId,
     pub type_parameters: HandleSpan<crate::data::TypeParameter>,
     pub contains: HandleSpan<ContainedObject>,
     pub owned_data: HandleSpan<OwnedData>,
     pub satisfies: HandleSpan<TraitConformance>,
-    pub termination_guarantee: omega_core::termination::TerminationGuarantee,
-    pub ranking_witness: RankingWitness,
+    pub terminates: bool,
+    pub decreases: HandleSpan<ExpressionHandle>,
+    pub decrease_order: HandleSpan<Identifier>,
+    /// TPR3: argumented-view arguments (`-> Nat::IncreasingTo(limit)`).
+    pub decrease_view_arguments: HandleSpan<ExpressionHandle>,
+    /// TPR3: the optional `in <range>` rank constraint (a Range expression;
+    /// invalid = absent). The checker verifies it structurally.
+    pub decrease_range: ExpressionHandle,
     pub effects: HandleSpan<Identifier>,
     pub contracts: HandleSpan<SignatureContract>,
     pub states: HandleSpan<State>,
@@ -30,45 +52,22 @@ impl Default for Machine {
             name: Identifier::default(),
             attached_data: None,
             boundary: false,
+            supply_mode: omega_core::semantics::MachineSupplyMode::CheckedBody,
+            termination_plan: omega_core::semantics::MachineTerminationPlan::default(),
+            effect_row: omega_core::semantics::EffectRowId::NULL,
             type_parameters: HandleSpan::empty(),
             contains: HandleSpan::empty(),
             owned_data: HandleSpan::empty(),
             satisfies: HandleSpan::empty(),
-            termination_guarantee: omega_core::termination::TerminationGuarantee::None,
-            ranking_witness: RankingWitness::default(),
+            terminates: false,
+            decreases: HandleSpan::empty(),
+            decrease_order: HandleSpan::empty(),
+            decrease_view_arguments: HandleSpan::empty(),
+            decrease_range: ExpressionHandle::invalid(),
             effects: HandleSpan::empty(),
             contracts: HandleSpan::empty(),
             states: HandleSpan::empty(),
         }
-    }
-}
-
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub struct RankingWitness {
-    pub subjects: HandleSpan<ExpressionHandle>,
-    /// Always explicit after canonical-default elaboration in the checked-tree
-    /// entry pipeline. User measures are never selected implicitly.
-    pub view: HandleSpan<Identifier>,
-    pub view_arguments: HandleSpan<ExpressionHandle>,
-    pub range: RankingRange,
-}
-
-impl RankingWitness {
-    pub fn is_present(self) -> bool {
-        !self.subjects.is_empty()
-    }
-}
-
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub struct RankingRange {
-    pub start: ExpressionHandle,
-    pub end: ExpressionHandle,
-    pub end_inclusive: bool,
-}
-
-impl RankingRange {
-    pub fn is_present(self) -> bool {
-        self.start.is_valid() && self.end.is_valid()
     }
 }
 
@@ -109,6 +108,8 @@ pub struct TraitConformance {
     /// (`as Name`) for plural algebras / signature collisions.
     pub requirement: Option<Identifier>,
     pub alias: Option<Identifier>,
+    /// PRV4: the external leaf's NORMALIZED binding rendering (`via`).
+    pub via: Option<String>,
 }
 
 impl Default for TraitConformance {
@@ -118,6 +119,7 @@ impl Default for TraitConformance {
             name: Identifier::default(),
             requirement: None,
             alias: None,
+            via: None,
         }
     }
 }

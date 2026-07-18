@@ -24,7 +24,8 @@ fn compile_run(canary: &str) -> (Option<i32>, String) {
         .join("canaries/pass/filesystem")
         .join(canary)
         .join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!("omega-fscanary-{}-{}", canary, std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-fscanary-{}-{}", canary, std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
     compile(CompileOptions {
         root_path: main_path,
@@ -32,12 +33,17 @@ fn compile_run(canary: &str) -> (Option<i32>, String) {
         target_name: None,
         write_output: true,
     })
-    .unwrap_or_else(|d| panic!("{canary} should still compile via imported FilesystemHost:\n{d:#?}"));
+    .unwrap_or_else(|d| {
+        panic!("{canary} should still compile via imported FilesystemHost:\n{d:#?}")
+    });
     let out = Command::new(build_dir.join("omega-program"))
         .output()
         .expect("run");
     let _ = std::fs::remove_dir_all(&build_dir);
-    (out.status.code(), String::from_utf8_lossy(&out.stdout).into_owned())
+    (
+        out.status.code(),
+        String::from_utf8_lossy(&out.stdout).into_owned(),
+    )
 }
 
 fn assert_pass(canary: &str) {
@@ -58,15 +64,25 @@ fn native_close_still_compiles_and_runs() {
 }
 
 #[test]
-fn native_stat_still_passes() { assert_pass("native_stat"); }
+fn native_stat_still_passes() {
+    assert_pass("native_stat");
+}
 #[test]
-fn native_crud_still_passes() { assert_pass("native_crud"); }
+fn native_crud_still_passes() {
+    assert_pass("native_crud");
+}
 #[test]
-fn native_dirs_still_passes() { assert_pass("native_dirs"); }
+fn native_dirs_still_passes() {
+    assert_pass("native_dirs");
+}
 #[test]
-fn native_read_dir_iter_still_passes() { assert_pass("native_read_dir_iter"); }
+fn native_read_dir_iter_still_passes() {
+    assert_pass("native_read_dir_iter");
+}
 #[test]
-fn native_flock_still_passes() { assert_pass("native_flock"); }
+fn native_flock_still_passes() {
+    assert_pass("native_flock");
+}
 // The WRAPPER lock family (lock/lock_shared/try_lock/try_lock_shared/unlock,
 // Rust File::lock parity) + metadata(File) (the fstat wrapper) -- first
 // runtime coverage (both were zero-caller). flock has no msvcrt equivalent,
@@ -103,9 +119,13 @@ fn dir_walk_wrappers_exit_runs() {
     assert_eq!(code, Some(70), "native dir-walk family should exit 70");
 }
 #[test]
-fn native_at_ops_passes() { assert_pass("native_at_ops"); }
+fn native_at_ops_passes() {
+    assert_pass("native_at_ops");
+}
 #[test]
-fn native_at_runtime_name_passes() { assert_pass("native_at_runtime_name"); }
+fn native_at_runtime_name_passes() {
+    assert_pass("native_at_runtime_name");
+}
 
 // --- Promoted coverage -------------------------------------------------------
 // These canaries were built + run BY HAND in earlier fires and never wired into
@@ -116,138 +136,232 @@ fn native_at_runtime_name_passes() { assert_pass("native_at_runtime_name"); }
 
 // Core byte I/O + open modes
 #[test]
-fn native_append_passes() { assert_pass("native_append"); }
+fn native_append_passes() {
+    assert_pass("native_append");
+}
 #[test]
-fn native_open_rw_passes() { assert_pass("native_open_rw"); }
+fn native_open_rw_passes() {
+    assert_pass("native_open_rw");
+}
 #[test]
-fn native_open_create_passes() { assert_pass("native_open_create"); }
+fn native_open_create_passes() {
+    assert_pass("native_open_create");
+}
 #[test]
-fn native_seek_passes() { assert_pass("native_seek"); }
+fn native_seek_passes() {
+    assert_pass("native_seek");
+}
 #[test]
-fn native_positioned_io_passes() { assert_pass("native_positioned_io"); }
+fn native_positioned_io_passes() {
+    assert_pass("native_positioned_io");
+}
 #[test]
-fn native_errno_passes() { assert_pass("native_errno"); }
+fn native_errno_passes() {
+    assert_pass("native_errno");
+}
 #[test]
-fn native_fs_workflow_passes() { assert_pass("native_fs_workflow"); }
+fn native_fs_workflow_passes() {
+    assert_pass("native_fs_workflow");
+}
 
 // Value-call literal forwarding (aliased-literal operand resolution, step 14 fix #1)
 #[test]
-fn native_value_call_literal_passes() { assert_pass("native_value_call_literal"); }
+fn native_value_call_literal_passes() {
+    assert_pass("native_value_call_literal");
+}
 #[test]
-fn native_value_call_path_passes() { assert_pass("native_value_call_path"); }
+fn native_value_call_path_passes() {
+    assert_pass("native_value_call_path");
+}
 // `let`-bound host call forwarded through a same-machine value-call (step 14
 // layers 2+3: LocalData collection + LocalStorage emission) — the ergonomic
 // wrapper's shape, for a SAME-data-type callee.
 #[test]
-fn native_value_call_local_passes() { assert_pass("native_value_call_local"); }
+fn native_value_call_local_passes() {
+    assert_pass("native_value_call_local");
+}
 
 // Copy / buffer marshalling
 #[test]
-fn native_buffer_copy_passes() { assert_pass("native_buffer_copy"); }
+fn native_buffer_copy_passes() {
+    assert_pass("native_buffer_copy");
+}
 #[test]
-fn native_subslice_copy_passes() { assert_pass("native_subslice_copy"); }
+fn native_subslice_copy_passes() {
+    assert_pass("native_subslice_copy");
+}
 #[test]
-fn native_copy_preserve_passes() { assert_pass("native_copy_preserve"); }
+fn native_copy_preserve_passes() {
+    assert_pass("native_copy_preserve");
+}
 #[test]
-fn native_forwarded_slice_literal_passes() { assert_pass("native_forwarded_slice_literal"); }
+fn native_forwarded_slice_literal_passes() {
+    assert_pass("native_forwarded_slice_literal");
+}
 
 // Links, rename, truncation, permissions
 #[test]
-fn native_rename_passes() { assert_pass("native_rename"); }
+fn native_rename_passes() {
+    assert_pass("native_rename");
+}
 #[test]
-fn native_hard_link_passes() { assert_pass("native_hard_link"); }
+fn native_hard_link_passes() {
+    assert_pass("native_hard_link");
+}
 #[test]
-fn native_symlink_passes() { assert_pass("native_symlink"); }
+fn native_symlink_passes() {
+    assert_pass("native_symlink");
+}
 #[test]
-fn native_set_len_passes() { assert_pass("native_set_len"); }
+fn native_set_len_passes() {
+    assert_pass("native_set_len");
+}
 #[test]
-fn native_permissions_passes() { assert_pass("native_permissions"); }
+fn native_permissions_passes() {
+    assert_pass("native_permissions");
+}
 #[test]
-fn native_fchmod_passes() { assert_pass("native_fchmod"); }
+fn native_fchmod_passes() {
+    assert_pass("native_fchmod");
+}
 // Ownership: expects a NON-root user (a real chown to root -> EPERM). Would fail
 // only if the suite were ever run as root, which the dev/CI macOS box is not.
 #[test]
-fn native_chown_passes() { assert_pass("native_chown"); }
+fn native_chown_passes() {
+    assert_pass("native_chown");
+}
 
 // Existence / classification / path resolution
 #[test]
-fn native_exists_passes() { assert_pass("native_exists"); }
+fn native_exists_passes() {
+    assert_pass("native_exists");
+}
 #[test]
-fn native_try_exists_passes() { assert_pass("native_try_exists"); }
+fn native_try_exists_passes() {
+    assert_pass("native_try_exists");
+}
 #[test]
-fn native_filetype_passes() { assert_pass("native_filetype"); }
+fn native_filetype_passes() {
+    assert_pass("native_filetype");
+}
 #[test]
-fn native_canonicalize_passes() { assert_pass("native_canonicalize"); }
+fn native_canonicalize_passes() {
+    assert_pass("native_canonicalize");
+}
 #[test]
-fn native_try_clone_passes() { assert_pass("native_try_clone"); }
+fn native_try_clone_passes() {
+    assert_pass("native_try_clone");
+}
 #[test]
-fn native_read_dir_passes() { assert_pass("native_read_dir"); }
+fn native_read_dir_passes() {
+    assert_pass("native_read_dir");
+}
 
 // Durability
 #[test]
-fn native_sync_passes() { assert_pass("native_sync"); }
+fn native_sync_passes() {
+    assert_pass("native_sync");
+}
 #[test]
-fn native_sync_data_passes() { assert_pass("native_sync_data"); }
+fn native_sync_data_passes() {
+    assert_pass("native_sync_data");
+}
 #[test]
-fn native_set_times_passes() { assert_pass("native_set_times"); }
+fn native_set_times_passes() {
+    assert_pass("native_set_times");
+}
 
 // Metadata decode (struct stat byte-assembly)
 #[test]
-fn native_fstat_passes() { assert_pass("native_fstat"); }
+fn native_fstat_passes() {
+    assert_pass("native_fstat");
+}
 #[test]
-fn native_symlink_metadata_passes() { assert_pass("native_symlink_metadata"); }
+fn native_symlink_metadata_passes() {
+    assert_pass("native_symlink_metadata");
+}
 #[test]
-fn native_metadata_nlink_passes() { assert_pass("native_metadata_nlink"); }
+fn native_metadata_nlink_passes() {
+    assert_pass("native_metadata_nlink");
+}
 #[test]
-fn native_metadata_ino_passes() { assert_pass("native_metadata_ino"); }
+fn native_metadata_ino_passes() {
+    assert_pass("native_metadata_ino");
+}
 #[test]
-fn native_metadata_ctime_dev_passes() { assert_pass("native_metadata_ctime_dev"); }
+fn native_metadata_ctime_dev_passes() {
+    assert_pass("native_metadata_ctime_dev");
+}
 #[test]
-fn native_metadata_blocks_passes() { assert_pass("native_metadata_blocks"); }
+fn native_metadata_blocks_passes() {
+    assert_pass("native_metadata_blocks");
+}
 #[test]
-fn native_metadata_modified_passes() { assert_pass("native_metadata_modified"); }
+fn native_metadata_modified_passes() {
+    assert_pass("native_metadata_modified");
+}
 #[test]
-fn native_metadata_times_passes() { assert_pass("native_metadata_times"); }
+fn native_metadata_times_passes() {
+    assert_pass("native_metadata_times");
+}
 #[test]
-fn native_metadata_readonly_passes() { assert_pass("native_metadata_readonly"); }
+fn native_metadata_readonly_passes() {
+    assert_pass("native_metadata_readonly");
+}
 
 #[test]
-fn native_value_call_let_chain_passes() { assert_pass("native_value_call_let_chain"); }
+fn native_value_call_let_chain_passes() {
+    assert_pass("native_value_call_let_chain");
+}
 // The SHIPPED ergonomic Filesystem wrapper natively (step 14 COMPLETE, all 5 layers)
 #[test]
-fn native_wrapper_write_all_passes() { assert_pass("native_wrapper_write_all"); }
+fn native_wrapper_write_all_passes() {
+    assert_pass("native_wrapper_write_all");
+}
 // STAT wrapper `Filesystem::exists` natively via TERMINAL-VALUE COMPLETION —
 // the no-transition workaround for the value-call guard-ordering bug.
 #[test]
-fn native_wrapper_exists_passes() { assert_pass("native_wrapper_exists"); }
+fn native_wrapper_exists_passes() {
+    assert_pass("native_wrapper_exists");
+}
 // The value-call transition-guard DEEP BUG, now FIXED (both halves): a callee that
 // branches on a host-call result in an internal transition, whose bool result is
 // assigned to a field. Guards the ordering fix + the field-mutation constant-fold fix.
 #[test]
-fn native_value_call_guard_passes() { assert_pass("native_value_call_guard"); }
+fn native_value_call_guard_passes() {
+    assert_pass("native_value_call_guard");
+}
 // ENUM-transition-leaf delivery: a value-call whose callee transitions to enum
 // leaves (Err / Ok{pair}) delivers the correct arm's tag+payload to a field. Guards
 // the nullary-enum-variant frame-slot tag write (mutation/frame_slots.rs).
 #[test]
-fn native_enum_result_passes() { assert_pass("native_enum_result"); }
+fn native_enum_result_passes() {
+    assert_pass("native_enum_result");
+}
 // The PAYLOAD-CARRYING ergonomic wrapper result natively (unblocked by the deep
 // fix): `Filesystem::write_all -> UnitResult` reports Error for a bad path and Ok
 // for a good one — the RESULT, not just the side effect, is now correct.
 #[test]
-fn native_wrapper_write_all_result_passes() { assert_pass("native_wrapper_write_all_result"); }
+fn native_wrapper_write_all_result_passes() {
+    assert_pass("native_wrapper_write_all_result");
+}
 // `Filesystem::try_exists -> ExistsResult` Yes/No natively: the faithful 3-way now
 // captures errno into a field in the entry (before branching) so the No-vs-Error
 // split guards on a stored field, not a nested host-call-in-guard the deep fix
 // doesn't reach at that nesting.
 #[test]
-fn native_wrapper_try_exists_passes() { assert_pass("native_wrapper_try_exists"); }
+fn native_wrapper_try_exists_passes() {
+    assert_pass("native_wrapper_try_exists");
+}
 // `Filesystem::metadata_path -> MetadataResult::Ok { meta }` with the PAYLOAD
 // destructured and USED (`meta.len == 5`). Promoted 2026-07-08 from
 // canaries/run/filesystem/wrapper_metadata_repro after the awaited real
 // macOS/aarch64 run confirmed PASS — pins the two 2026-07-06 selection fixes
 // (straight-line-defers-with-leaf; cast-field convert arm) natively on darwin.
 #[test]
-fn native_wrapper_metadata_passes() { assert_pass("native_wrapper_metadata"); }
+fn native_wrapper_metadata_passes() {
+    assert_pass("native_wrapper_metadata");
+}
 
 // The `file_journal` CLI SAMPLE (samples/cli/systems/file_journal) — a real
 // end-to-end raw-seam workflow (mkdir -> create+write -> stat -> reopen+read ->
@@ -268,9 +382,15 @@ fn sample_file_journal_exits_7() {
         write_output: true,
     })
     .unwrap_or_else(|d| panic!("file_journal sample should compile:\n{d:#?}"));
-    let out = Command::new(build_dir.join("omega-program")).output().expect("run");
+    let out = Command::new(build_dir.join("omega-program"))
+        .output()
+        .expect("run");
     let _ = std::fs::remove_dir_all(&build_dir);
-    assert_eq!(out.status.code(), Some(7), "file_journal should verify all 7 steps and exit 7");
+    assert_eq!(
+        out.status.code(),
+        Some(7),
+        "file_journal should verify all 7 steps and exit 7"
+    );
 }
 
 // The `note_vault` CLI SAMPLE (samples/cli/systems/note_vault) -- file_journal's
@@ -299,7 +419,11 @@ fn sample_note_vault_exits_14() {
         .output()
         .expect("run");
     let _ = std::fs::remove_dir_all(&build_dir);
-    assert_eq!(out.status.code(), Some(14), "note_vault should verify all 14 steps and exit 14");
+    assert_eq!(
+        out.status.code(),
+        Some(14),
+        "note_vault should verify all 14 steps and exit 14"
+    );
 }
 
 // The arm64 FLOAT-ARGUMENT calling convention: Math::round_nearest(x: f64) -> i64
@@ -310,11 +434,22 @@ fn native_float_arg_exits_4() {
     let main_path = repo_root().join("canaries/pass/float/native_float_arg/main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-floatarg-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
-    compile(CompileOptions { root_path: main_path, build_dir: Some(build_dir.clone()), target_name: None, write_output: true })
-        .unwrap_or_else(|d| panic!("native_float_arg should compile:\n{d:#?}"));
-    let out = Command::new(build_dir.join("omega-program")).output().expect("run");
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .unwrap_or_else(|d| panic!("native_float_arg should compile:\n{d:#?}"));
+    let out = Command::new(build_dir.join("omega-program"))
+        .output()
+        .expect("run");
     let _ = std::fs::remove_dir_all(&build_dir);
-    assert_eq!(out.status.code(), Some(4), "round_nearest(3.7) should be 4 (float arg in v0)");
+    assert_eq!(
+        out.status.code(),
+        Some(4),
+        "round_nearest(3.7) should be 4 (float arg in v0)"
+    );
 }
 
 // The arm64 FLOAT-RETURN calling convention: Math::square_root(x: f64) -> f64 via
@@ -326,11 +461,22 @@ fn native_float_return_exits_4() {
     let main_path = repo_root().join("canaries/pass/float/native_float_return/main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-floatret-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
-    compile(CompileOptions { root_path: main_path, build_dir: Some(build_dir.clone()), target_name: None, write_output: true })
-        .unwrap_or_else(|d| panic!("native_float_return should compile:\n{d:#?}"));
-    let out = Command::new(build_dir.join("omega-program")).output().expect("run");
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .unwrap_or_else(|d| panic!("native_float_return should compile:\n{d:#?}"));
+    let out = Command::new(build_dir.join("omega-program"))
+        .output()
+        .expect("run");
     let _ = std::fs::remove_dir_all(&build_dir);
-    assert_eq!(out.status.code(), Some(4), "sqrt(16.0) round-tripped should be 4 (float return in d0)");
+    assert_eq!(
+        out.status.code(),
+        Some(4),
+        "sqrt(16.0) round-tripped should be 4 (float return in d0)"
+    );
 }
 
 // Two f64 ARGUMENTS in consecutive float registers (v0, v1) alongside a float
@@ -341,11 +487,22 @@ fn native_float_two_args_exits_5() {
     let main_path = repo_root().join("canaries/pass/float/native_float_two_args/main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-float2-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
-    compile(CompileOptions { root_path: main_path, build_dir: Some(build_dir.clone()), target_name: None, write_output: true })
-        .unwrap_or_else(|d| panic!("native_float_two_args should compile:\n{d:#?}"));
-    let out = Command::new(build_dir.join("omega-program")).output().expect("run");
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .unwrap_or_else(|d| panic!("native_float_two_args should compile:\n{d:#?}"));
+    let out = Command::new(build_dir.join("omega-program"))
+        .output()
+        .expect("run");
     let _ = std::fs::remove_dir_all(&build_dir);
-    assert_eq!(out.status.code(), Some(5), "hypot(3,4) round-tripped should be 5 (args in v0,v1)");
+    assert_eq!(
+        out.status.code(),
+        Some(5),
+        "hypot(3,4) round-tripped should be 5 (args in v0,v1)"
+    );
 }
 
 // Three f64 args reaching v2 (the HFA ABI proof): Math::fused_multiply_add(x,y,z)
@@ -357,11 +514,22 @@ fn native_float_three_args_exits_10() {
     let main_path = repo_root().join("canaries/pass/float/native_float_three_args/main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-float3-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
-    compile(CompileOptions { root_path: main_path, build_dir: Some(build_dir.clone()), target_name: None, write_output: true })
-        .unwrap_or_else(|d| panic!("native_float_three_args should compile:\n{d:#?}"));
-    let out = Command::new(build_dir.join("omega-program")).output().expect("run");
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .unwrap_or_else(|d| panic!("native_float_three_args should compile:\n{d:#?}"));
+    let out = Command::new(build_dir.join("omega-program"))
+        .output()
+        .expect("run");
     let _ = std::fs::remove_dir_all(&build_dir);
-    assert_eq!(out.status.code(), Some(10), "fma(2,3,4) round-tripped should be 10 (args in v0,v1,v2)");
+    assert_eq!(
+        out.status.code(),
+        Some(10),
+        "fma(2,3,4) round-tripped should be 10 (args in v0,v1,v2)"
+    );
 }
 
 // Multi-dylib linking: the first call into a SECOND dylib. objc_getClass lives in
@@ -374,11 +542,22 @@ fn objc_get_class_exits_7() {
     let main_path = repo_root().join("canaries/pass/objc/objc_get_class/main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-objcclass-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
-    compile(CompileOptions { root_path: main_path, build_dir: Some(build_dir.clone()), target_name: None, write_output: true })
-        .unwrap_or_else(|d| panic!("objc_get_class should compile:\n{d:#?}"));
-    let out = Command::new(build_dir.join("omega-program")).output().expect("run");
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .unwrap_or_else(|d| panic!("objc_get_class should compile:\n{d:#?}"));
+    let out = Command::new(build_dir.join("omega-program"))
+        .output()
+        .expect("run");
     let _ = std::fs::remove_dir_all(&build_dir);
-    assert_eq!(out.status.code(), Some(7), "objc_getClass(NSObject) should be non-null (2nd dylib libobjc bound)");
+    assert_eq!(
+        out.status.code(),
+        Some(7),
+        "objc_getClass(NSObject) should be non-null (2nd dylib libobjc bound)"
+    );
 }
 
 // sel_registerName + 2-arg objc_msgSend: [[NSObject class] alloc] returns a
@@ -388,11 +567,22 @@ fn objc_alloc_exits_7() {
     let main_path = repo_root().join("canaries/pass/objc/objc_alloc/main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-objcalloc-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
-    compile(CompileOptions { root_path: main_path, build_dir: Some(build_dir.clone()), target_name: None, write_output: true })
-        .unwrap_or_else(|d| panic!("objc_alloc should compile:\n{d:#?}"));
-    let out = Command::new(build_dir.join("omega-program")).output().expect("run");
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .unwrap_or_else(|d| panic!("objc_alloc should compile:\n{d:#?}"));
+    let out = Command::new(build_dir.join("omega-program"))
+        .output()
+        .expect("run");
     let _ = std::fs::remove_dir_all(&build_dir);
-    assert_eq!(out.status.code(), Some(7), "[[NSObject class] alloc] should be non-null (2-arg objc_msgSend)");
+    assert_eq!(
+        out.status.code(),
+        Some(7),
+        "[[NSObject class] alloc] should be non-null (2-arg objc_msgSend)"
+    );
 }
 
 // 3-arg objc_msgSend with a SCALAR arg + determinate integer return:
@@ -404,11 +594,22 @@ fn objc_msgsend_scalar_exits_8() {
     let main_path = repo_root().join("canaries/pass/objc/objc_msgsend_scalar/main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-objcscalar-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
-    compile(CompileOptions { root_path: main_path, build_dir: Some(build_dir.clone()), target_name: None, write_output: true })
-        .unwrap_or_else(|d| panic!("objc_msgsend_scalar should compile:\n{d:#?}"));
-    let out = Command::new(build_dir.join("omega-program")).output().expect("run");
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .unwrap_or_else(|d| panic!("objc_msgsend_scalar should compile:\n{d:#?}"));
+    let out = Command::new(build_dir.join("omega-program"))
+        .output()
+        .expect("run");
     let _ = std::fs::remove_dir_all(&build_dir);
-    assert_eq!(out.status.code(), Some(8), "[NSObject respondsToSelector:@selector(alloc)] should be 1 (3-arg scalar msgSend)");
+    assert_eq!(
+        out.status.code(),
+        Some(8),
+        "[NSObject respondsToSelector:@selector(alloc)] should be 1 (3-arg scalar msgSend)"
+    );
 }
 
 // Framework auto-loading: a program touching the objc runtime now loads
@@ -420,11 +621,22 @@ fn framework_classes_exits_9() {
     let main_path = repo_root().join("canaries/pass/objc/framework_classes/main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-fwclasses-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
-    compile(CompileOptions { root_path: main_path, build_dir: Some(build_dir.clone()), target_name: None, write_output: true })
-        .unwrap_or_else(|d| panic!("framework_classes should compile:\n{d:#?}"));
-    let out = Command::new(build_dir.join("omega-program")).output().expect("run");
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .unwrap_or_else(|d| panic!("framework_classes should compile:\n{d:#?}"));
+    let out = Command::new(build_dir.join("omega-program"))
+        .output()
+        .expect("run");
     let _ = std::fs::remove_dir_all(&build_dir);
-    assert_eq!(out.status.code(), Some(9), "NSString/NSApplication/NSWindow should all resolve (Foundation+AppKit loaded)");
+    assert_eq!(
+        out.status.code(),
+        Some(9),
+        "NSString/NSApplication/NSWindow should all resolve (Foundation+AppKit loaded)"
+    );
 }
 
 // objc_msgSend with a C-string arg + integer return VALUE, now that Foundation
@@ -434,11 +646,22 @@ fn nsstring_length_exits_5() {
     let main_path = repo_root().join("canaries/pass/objc/nsstring_length/main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-nsstrlen-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
-    compile(CompileOptions { root_path: main_path, build_dir: Some(build_dir.clone()), target_name: None, write_output: true })
-        .unwrap_or_else(|d| panic!("nsstring_length should compile:\n{d:#?}"));
-    let out = Command::new(build_dir.join("omega-program")).output().expect("run");
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .unwrap_or_else(|d| panic!("nsstring_length should compile:\n{d:#?}"));
+    let out = Command::new(build_dir.join("omega-program"))
+        .output()
+        .expect("run");
     let _ = std::fs::remove_dir_all(&build_dir);
-    assert_eq!(out.status.code(), Some(5), "[[NSString alloc] initWithUTF8String:\"hello\"] length should be 5");
+    assert_eq!(
+        out.status.code(),
+        Some(5),
+        "[[NSString alloc] initWithUTF8String:\"hello\"] length should be 5"
+    );
 }
 
 // The arm64 HFA calling convention: a CGRect (4 doubles) passed BY VALUE lands in
@@ -450,11 +673,22 @@ fn cgrect_hfa_exits_6() {
     let main_path = repo_root().join("canaries/pass/objc/cgrect_hfa/main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-cgrect-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
-    compile(CompileOptions { root_path: main_path, build_dir: Some(build_dir.clone()), target_name: None, write_output: true })
-        .unwrap_or_else(|d| panic!("cgrect_hfa should compile:\n{d:#?}"));
-    let out = Command::new(build_dir.join("omega-program")).output().expect("run");
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .unwrap_or_else(|d| panic!("cgrect_hfa should compile:\n{d:#?}"));
+    let out = Command::new(build_dir.join("omega-program"))
+        .output()
+        .expect("run");
     let _ = std::fs::remove_dir_all(&build_dir);
-    assert_eq!(out.status.code(), Some(6), "CGRectGetMaxX/Y of {{10,20,30,40}} should be 40/60 (HFA in v0-v3)");
+    assert_eq!(
+        out.status.code(),
+        Some(6),
+        "CGRectGetMaxX/Y of {{10,20,30,40}} should be 40/60 (HFA in v0-v3)"
+    );
 }
 
 // The MIXED HFA-plus-scalar objc_msgSend — a real NSWindow built by hand via
@@ -467,11 +701,22 @@ fn nswindow_init_exits_3() {
     let main_path = repo_root().join("canaries/pass/objc/nswindow_init/main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-nswin-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
-    compile(CompileOptions { root_path: main_path, build_dir: Some(build_dir.clone()), target_name: None, write_output: true })
-        .unwrap_or_else(|d| panic!("nswindow_init should compile:\n{d:#?}"));
-    let out = Command::new(build_dir.join("omega-program")).output().expect("run");
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .unwrap_or_else(|d| panic!("nswindow_init should compile:\n{d:#?}"));
+    let out = Command::new(build_dir.join("omega-program"))
+        .output()
+        .expect("run");
     let _ = std::fs::remove_dir_all(&build_dir);
-    assert_eq!(out.status.code(), Some(3), "NSWindow initWithContentRect:...styleMask:15 should build + report styleMask 15 (HFA v0-v3 + x2-x4)");
+    assert_eq!(
+        out.status.code(),
+        Some(3),
+        "NSWindow initWithContentRect:...styleMask:15 should build + report styleMask 15 (HFA v0-v3 + x2-x4)"
+    );
 }
 
 // The framebuffer -> CGImage blit path: CGColorSpaceCreateDeviceRGB (0 args) +
@@ -483,11 +728,22 @@ fn cgimage_blit_exits_4() {
     let main_path = repo_root().join("canaries/pass/objc/cgimage_blit/main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-blit-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
-    compile(CompileOptions { root_path: main_path, build_dir: Some(build_dir.clone()), target_name: None, write_output: true })
-        .unwrap_or_else(|d| panic!("cgimage_blit should compile:\n{d:#?}"));
-    let out = Command::new(build_dir.join("omega-program")).output().expect("run");
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .unwrap_or_else(|d| panic!("cgimage_blit should compile:\n{d:#?}"));
+    let out = Command::new(build_dir.join("omega-program"))
+        .output()
+        .expect("run");
     let _ = std::fs::remove_dir_all(&build_dir);
-    assert_eq!(out.status.code(), Some(4), "CGBitmapContext -> CGImage of a 4x4 buffer should report width 4");
+    assert_eq!(
+        out.status.code(),
+        Some(4),
+        "CGBitmapContext -> CGImage of a 4x4 buffer should report width 4"
+    );
 }
 
 // The full frame-presentation object graph: framebuffer -> CGImage -> NSImage
@@ -500,11 +756,22 @@ fn present_frame_exits_5() {
     let main_path = repo_root().join("canaries/pass/objc/present_frame/main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-present-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
-    compile(CompileOptions { root_path: main_path, build_dir: Some(build_dir.clone()), target_name: None, write_output: true })
-        .unwrap_or_else(|d| panic!("present_frame should compile:\n{d:#?}"));
-    let out = Command::new(build_dir.join("omega-program")).output().expect("run");
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .unwrap_or_else(|d| panic!("present_frame should compile:\n{d:#?}"));
+    let out = Command::new(build_dir.join("omega-program"))
+        .output()
+        .expect("run");
     let _ = std::fs::remove_dir_all(&build_dir);
-    assert_eq!(out.status.code(), Some(5), "present_frame should attach the CGImage-backed NSImage to the view");
+    assert_eq!(
+        out.status.code(),
+        Some(5),
+        "present_frame should attach the CGImage-backed NSImage to the view"
+    );
 }
 
 // The NON-BLOCKING event pump: 3x [NSApp nextEventMatchingMask:0xffffffff
@@ -517,9 +784,16 @@ fn event_pump_exits_6() {
     let main_path = repo_root().join("canaries/pass/objc/event_pump/main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-pump-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
-    compile(CompileOptions { root_path: main_path, build_dir: Some(build_dir.clone()), target_name: None, write_output: true })
-        .unwrap_or_else(|d| panic!("event_pump should compile:\n{d:#?}"));
-    let mut child = Command::new(build_dir.join("omega-program")).spawn().expect("spawn");
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .unwrap_or_else(|d| panic!("event_pump should compile:\n{d:#?}"));
+    let mut child = Command::new(build_dir.join("omega-program"))
+        .spawn()
+        .expect("spawn");
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(20);
     let code = loop {
         if let Some(status) = child.try_wait().expect("wait") {
@@ -533,7 +807,11 @@ fn event_pump_exits_6() {
         std::thread::sleep(std::time::Duration::from_millis(50));
     };
     let _ = std::fs::remove_dir_all(&build_dir);
-    assert_eq!(code, Some(6), "event_pump should complete 3 non-blocking pumps and exit 6");
+    assert_eq!(
+        code,
+        Some(6),
+        "event_pump should complete 3 non-blocking pumps and exit 6"
+    );
 }
 
 // The macOS Gui-backend building block: an Omega machine that composes the objc
@@ -546,11 +824,22 @@ fn gui_backend_valuecall_exits_7() {
     let main_path = repo_root().join("canaries/pass/objc/gui_backend_valuecall/main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-vcgui-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
-    compile(CompileOptions { root_path: main_path, build_dir: Some(build_dir.clone()), target_name: None, write_output: true })
-        .unwrap_or_else(|d| panic!("gui_backend_valuecall should compile:\n{d:#?}"));
-    let out = Command::new(build_dir.join("omega-program")).output().expect("run");
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .unwrap_or_else(|d| panic!("gui_backend_valuecall should compile:\n{d:#?}"));
+    let out = Command::new(build_dir.join("omega-program"))
+        .output()
+        .expect("run");
     let _ = std::fs::remove_dir_all(&build_dir);
-    assert_eq!(out.status.code(), Some(7), "a value-called Omega machine should compose objc into a non-null NSWindow");
+    assert_eq!(
+        out.status.code(),
+        Some(7),
+        "a value-called Omega machine should compose objc into a non-null NSWindow"
+    );
 }
 
 // The samples' WHOLE behavior, composed from the proven objc/CG primitives: open
@@ -564,9 +853,16 @@ fn native_gui_loop_exits_4() {
     let main_path = repo_root().join("canaries/pass/objc/native_gui_loop/main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-guiloop-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
-    compile(CompileOptions { root_path: main_path, build_dir: Some(build_dir.clone()), target_name: None, write_output: true })
-        .unwrap_or_else(|d| panic!("native_gui_loop should compile:\n{d:#?}"));
-    let mut child = Command::new(build_dir.join("omega-program")).spawn().expect("spawn");
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .unwrap_or_else(|d| panic!("native_gui_loop should compile:\n{d:#?}"));
+    let mut child = Command::new(build_dir.join("omega-program"))
+        .spawn()
+        .expect("spawn");
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(20);
     let code = loop {
         if let Some(status) = child.try_wait().expect("wait") {
@@ -580,7 +876,11 @@ fn native_gui_loop_exits_4() {
         std::thread::sleep(std::time::Duration::from_millis(50));
     };
     let _ = std::fs::remove_dir_all(&build_dir);
-    assert_eq!(code, Some(4), "native_gui_loop should run the full window+blit+pump loop and exit 4");
+    assert_eq!(
+        code,
+        Some(4),
+        "native_gui_loop should run the full window+blit+pump loop and exit 4"
+    );
 }
 
 // The macOS Gui backend SHAPE: a separate GuiImpl data type (objc handle + scratch
@@ -594,11 +894,22 @@ fn gui_impl_through_field_exits_7() {
     let main_path = repo_root().join("canaries/pass/objc/gui_impl_through_field/main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-tfgui-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
-    compile(CompileOptions { root_path: main_path, build_dir: Some(build_dir.clone()), target_name: None, write_output: true })
-        .unwrap_or_else(|d| panic!("gui_impl_through_field should compile:\n{d:#?}"));
-    let out = Command::new(build_dir.join("omega-program")).output().expect("run");
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .unwrap_or_else(|d| panic!("gui_impl_through_field should compile:\n{d:#?}"));
+    let out = Command::new(build_dir.join("omega-program"))
+        .output()
+        .expect("run");
     let _ = std::fs::remove_dir_all(&build_dir);
-    assert_eq!(out.status.code(), Some(7), "a through-field GuiImpl wrapper should compose objc into a non-null NSWindow");
+    assert_eq!(
+        out.status.code(),
+        Some(7),
+        "a through-field GuiImpl wrapper should compose objc into a non-null NSWindow"
+    );
 }
 
 // The sample-shaped window_create: a GuiImpl wrapper op taking i32 x/y/w/h args
@@ -611,11 +922,22 @@ fn gui_window_i32_args_exits_8() {
     let main_path = repo_root().join("canaries/pass/objc/gui_window_i32_args/main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-i32gui-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
-    compile(CompileOptions { root_path: main_path, build_dir: Some(build_dir.clone()), target_name: None, write_output: true })
-        .unwrap_or_else(|d| panic!("gui_window_i32_args should compile:\n{d:#?}"));
-    let out = Command::new(build_dir.join("omega-program")).output().expect("run");
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .unwrap_or_else(|d| panic!("gui_window_i32_args should compile:\n{d:#?}"));
+    let out = Command::new(build_dir.join("omega-program"))
+        .output()
+        .expect("run");
     let _ = std::fs::remove_dir_all(&build_dir);
-    assert_eq!(out.status.code(), Some(8), "i32-arg window_create should convert to an f64 rect and build a non-null NSWindow");
+    assert_eq!(
+        out.status.code(),
+        Some(8),
+        "i32-arg window_create should convert to an f64 rect and build a non-null NSWindow"
+    );
 }
 
 // The shipped macOS Gui backend module (omega::language::std::macos_gui) driving
@@ -634,9 +956,16 @@ fn macos_gui_module_exits_3() {
     let main_path = repo_root().join("canaries/pass/objc/macos_gui_module/main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-macgui-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
-    compile(CompileOptions { root_path: main_path, build_dir: Some(build_dir.clone()), target_name: None, write_output: true })
-        .unwrap_or_else(|d| panic!("macos_gui_module should compile:\n{d:#?}"));
-    let mut child = Command::new(build_dir.join("omega-program")).spawn().expect("spawn");
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .unwrap_or_else(|d| panic!("macos_gui_module should compile:\n{d:#?}"));
+    let mut child = Command::new(build_dir.join("omega-program"))
+        .spawn()
+        .expect("spawn");
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(20);
     let code = loop {
         if let Some(status) = child.try_wait().expect("try_wait") {
@@ -650,7 +979,11 @@ fn macos_gui_module_exits_3() {
         std::thread::sleep(std::time::Duration::from_millis(50));
     };
     let _ = std::fs::remove_dir_all(&build_dir);
-    assert_eq!(code, Some(3), "full window_demo behavior through MacosGui (all 7 Gui ops in loop) should exit 3");
+    assert_eq!(
+        code,
+        Some(3),
+        "full window_demo behavior through MacosGui (all 7 Gui ops in loop) should exit 3"
+    );
 }
 
 // The macOS `Clock.sleep` native lowering: `self.clock.sleep(ms)` through the
@@ -665,15 +998,27 @@ fn clock_sleep_poll_milliseconds_exits_6() {
     let main_path = repo_root().join("canaries/pass/objc/clock_sleep/main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-clocksleep-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
-    compile(CompileOptions { root_path: main_path, build_dir: Some(build_dir.clone()), target_name: None, write_output: true })
-        .unwrap_or_else(|d| panic!("clock_sleep should compile:\n{d:#?}"));
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .unwrap_or_else(|d| panic!("clock_sleep should compile:\n{d:#?}"));
     let start = std::time::Instant::now();
-    let out = Command::new(build_dir.join("omega-program")).output().expect("run");
+    let out = Command::new(build_dir.join("omega-program"))
+        .output()
+        .expect("run");
     let elapsed = start.elapsed();
     let _ = std::fs::remove_dir_all(&build_dir);
-    assert_eq!(out.status.code(), Some(6), "clock_sleep should run the 3x sleep loop and exit 6");
+    assert_eq!(
+        out.status.code(),
+        Some(6),
+        "clock_sleep should run the 3x sleep loop and exit 6"
+    );
     assert!(
-        elapsed >= std::time::Duration::from_millis(250) && elapsed < std::time::Duration::from_secs(5),
+        elapsed >= std::time::Duration::from_millis(250)
+            && elapsed < std::time::Duration::from_secs(5),
         "3x150ms poll-sleep should take ~450ms (millisecond units); took {elapsed:?}"
     );
 }
@@ -691,9 +1036,20 @@ fn gui_provider_substitution_exits_7() {
     let main_path = repo_root().join("canaries/pass/objc/gui_provider_substitution/main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-guisubst-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
-    compile(CompileOptions { root_path: main_path, build_dir: Some(build_dir.clone()), target_name: None, write_output: true })
-        .unwrap_or_else(|d| panic!("gui_provider_substitution should compile via the injected MacosGui provider:\n{d:#?}"));
-    let mut child = Command::new(build_dir.join("omega-program")).spawn().expect("spawn");
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .unwrap_or_else(|d| {
+        panic!(
+            "gui_provider_substitution should compile via the injected MacosGui provider:\n{d:#?}"
+        )
+    });
+    let mut child = Command::new(build_dir.join("omega-program"))
+        .spawn()
+        .expect("spawn");
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(20);
     let code = loop {
         if let Some(status) = child.try_wait().expect("try_wait") {
@@ -707,7 +1063,11 @@ fn gui_provider_substitution_exits_7() {
         std::thread::sleep(std::time::Duration::from_millis(50));
     };
     let _ = std::fs::remove_dir_all(&build_dir);
-    assert_eq!(code, Some(7), "gui: Gui boundary field should be substituted to the MacosGui provider and exit 7");
+    assert_eq!(
+        code,
+        Some(7),
+        "gui: Gui boundary field should be substituted to the MacosGui provider and exit 7"
+    );
 }
 
 // THE MILESTONE: the UNTOUCHED samples/gui/window_demo runs natively end-to-end on
@@ -724,8 +1084,15 @@ fn sample_window_demo_runs_natively_exits_0() {
     let main_path = repo_root().join("samples/gui/window_demo/main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-window-demo-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
-    compile(CompileOptions { root_path: main_path, build_dir: Some(build_dir.clone()), target_name: None, write_output: true })
-        .unwrap_or_else(|d| panic!("the untouched samples/gui/window_demo should compile to a native mach-o:\n{d:#?}"));
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .unwrap_or_else(|d| {
+        panic!("the untouched samples/gui/window_demo should compile to a native mach-o:\n{d:#?}")
+    });
     let mut child = Command::new(build_dir.join("omega-program"))
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::piped())
@@ -744,7 +1111,11 @@ fn sample_window_demo_runs_natively_exits_0() {
         std::thread::sleep(std::time::Duration::from_millis(100));
     };
     let _ = std::fs::remove_dir_all(&build_dir);
-    assert_eq!(code, Some(0), "the untouched window_demo should render 60 frames natively and exit 0");
+    assert_eq!(
+        code,
+        Some(0),
+        "the untouched window_demo should render 60 frames natively and exit 0"
+    );
 }
 
 // The darwin INPUT-provider substitution (task #60): a program declaring the UNCHANGED
@@ -761,9 +1132,15 @@ fn input_provider_substitution_exits_4() {
     let _ = std::fs::remove_dir_all(&build_dir);
     compile(CompileOptions { root_path: main_path, build_dir: Some(build_dir.clone()), target_name: None, write_output: true })
         .unwrap_or_else(|d| panic!("input_provider_substitution should compile via the injected MacosInput provider:\n{d:#?}"));
-    let out = Command::new(build_dir.join("omega-program")).output().expect("run");
+    let out = Command::new(build_dir.join("omega-program"))
+        .output()
+        .expect("run");
     let _ = std::fs::remove_dir_all(&build_dir);
-    assert_eq!(out.status.code(), Some(4), "input: Input should be substituted to MacosInput; ESC not held -> exit 4");
+    assert_eq!(
+        out.status.code(),
+        Some(4),
+        "input: Input should be substituted to MacosInput; ESC not held -> exit 4"
+    );
 }
 
 // The UNTOUCHED samples/gui/window_app runs natively: like window_demo but a STANDALONE
@@ -777,8 +1154,15 @@ fn sample_window_app_renders_natively() {
     let main_path = repo_root().join("samples/gui/window_app/main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-window-app-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
-    compile(CompileOptions { root_path: main_path, build_dir: Some(build_dir.clone()), target_name: None, write_output: true })
-        .unwrap_or_else(|d| panic!("the untouched samples/gui/window_app should compile to a native mach-o:\n{d:#?}"));
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .unwrap_or_else(|d| {
+        panic!("the untouched samples/gui/window_app should compile to a native mach-o:\n{d:#?}")
+    });
     let mut child = Command::new(build_dir.join("omega-program"))
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::null())
@@ -801,7 +1185,11 @@ fn sample_window_app_renders_natively() {
     if let Some(status) = early {
         // It exited on its own within 2s -- only a clean exit 0 is acceptable (ESC
         // detection or window close); any other code is a crash/assertion failure.
-        assert_eq!(status.code(), Some(0), "window_app exited early with a non-zero code (crash) instead of rendering");
+        assert_eq!(
+            status.code(),
+            Some(0),
+            "window_app exited early with a non-zero code (crash) instead of rendering"
+        );
     }
     // Still running after 2s => rendering the infinite loop fine; killed above.
 }
@@ -816,11 +1204,22 @@ fn saturating_divide_native_exits_7() {
     let main_path = repo_root().join("canaries/pass/arithmetic/saturating_divide_native/main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-satdiv-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
-    compile(CompileOptions { root_path: main_path, build_dir: Some(build_dir.clone()), target_name: None, write_output: true })
-        .unwrap_or_else(|d| panic!("saturating_divide_native should compile:\n{d:#?}"));
-    let out = Command::new(build_dir.join("omega-program")).output().expect("run");
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .unwrap_or_else(|d| panic!("saturating_divide_native should compile:\n{d:#?}"));
+    let out = Command::new(build_dir.join("omega-program"))
+        .output()
+        .expect("run");
     let _ = std::fs::remove_dir_all(&build_dir);
-    assert_eq!(out.status.code(), Some(7), "saturating signed div/mod (incl. i32::MIN/-1 -> i32::MAX) should exit 7");
+    assert_eq!(
+        out.status.code(),
+        Some(7),
+        "saturating signed div/mod (incl. i32::MIN/-1 -> i32::MAX) should exit 7"
+    );
 }
 
 // The UNTOUCHED samples/gui/windowed_calculator runs natively: a persistent calculator
@@ -855,22 +1254,13 @@ fn sample_windowed_calculator_renders_natively() {
     let _ = child.wait();
     let _ = std::fs::remove_dir_all(&build_dir);
     if let Some(status) = early {
-        assert_eq!(status.code(), Some(0), "windowed_calculator exited early with a non-zero code (crash) instead of rendering");
+        assert_eq!(
+            status.code(),
+            Some(0),
+            "windowed_calculator exited early with a non-zero code (crash) instead of rendering"
+        );
     }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 // The UNTOUCHED samples/gui/image_viewer runs natively: it loads img{0,1,2}.bmp from
 // disk (the fs raw seam), decodes each 24bpp BMP into a top-down 32bpp framebuffer, and
@@ -886,8 +1276,15 @@ fn sample_image_viewer_renders_natively() {
     let main_path = sample_dir.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-image-viewer-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
-    compile(CompileOptions { root_path: main_path, build_dir: Some(build_dir.clone()), target_name: None, write_output: true })
-        .unwrap_or_else(|d| panic!("the untouched samples/gui/image_viewer should compile to a native mach-o:\n{d:#?}"));
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .unwrap_or_else(|d| {
+        panic!("the untouched samples/gui/image_viewer should compile to a native mach-o:\n{d:#?}")
+    });
     let mut child = Command::new(build_dir.join("omega-program"))
         .current_dir(&sample_dir)
         .stdin(std::process::Stdio::null())
@@ -908,6 +1305,10 @@ fn sample_image_viewer_renders_natively() {
     let _ = child.wait();
     let _ = std::fs::remove_dir_all(&build_dir);
     if let Some(status) = early {
-        assert_eq!(status.code(), Some(0), "image_viewer exited early with a non-zero code (crash) instead of rendering");
+        assert_eq!(
+            status.code(),
+            Some(0),
+            "image_viewer exited early with a non-zero code (crash) instead of rendering"
+        );
     }
 }

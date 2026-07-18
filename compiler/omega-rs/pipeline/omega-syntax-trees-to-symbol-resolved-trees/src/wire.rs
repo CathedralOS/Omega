@@ -49,7 +49,6 @@ pub(crate) fn data_definition_from_wire_schema(
                 symbol: SymbolHandle::invalid(),
                 name: field.name.clone(),
                 type_reference: field.type_reference.clone(),
-                initial_value: omega_symbol_resolved_trees::expression::ExpressionHandle::invalid(),
             }),
             _ => None,
         })
@@ -68,8 +67,9 @@ pub(crate) fn data_definition_from_wire_schema(
         name: schema.name.clone(),
         storage: DataDefinitionStorage {
             type_parameters: omega_core::arena::HandleSpan::empty(),
+            where_facts: omega_core::arena::HandleSpan::empty(),
+                zero_gated: false,
             properties: DataProperties::default(),
-            default_domain: omega_core::arena::HandleSpan::empty(),
             members,
         },
     }

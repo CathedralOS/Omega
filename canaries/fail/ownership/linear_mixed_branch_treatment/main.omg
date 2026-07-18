@@ -1,0 +1,21 @@
+// FAIL canary (decision 21): one path transfers the receipt while the other
+// retains it at state exit. Resource joins reconcile exactly.
+data Receipt [linear] { code: i32; }
+machine Receipt::ack(self) {}
+
+data Main { choose_first: bool; }
+
+machine Main::run(&mut self) -> i32 {
+    let receipt: Receipt = Receipt { code: 7 };
+    transition self.choose_first {
+        true -> consume(receipt)
+        _ -> leave_live()
+    }
+
+    state consume(&mut self, receipt: Receipt) -> i32 {
+        Receipt::ack(receipt);
+        0
+    }
+
+    state leave_live(&mut self) -> i32 { 0 }
+}

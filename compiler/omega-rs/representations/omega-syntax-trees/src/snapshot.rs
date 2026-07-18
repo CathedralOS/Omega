@@ -61,7 +61,6 @@ pub enum ItemSnapshot {
     Data {
         name: IdentifierSnapshot,
         type_parameters: Vec<TypeParameterSnapshot>,
-        default_domain: Vec<ProofFactSnapshot>,
         members: Vec<DataMemberSnapshot>,
     },
     Domain {
@@ -119,8 +118,9 @@ pub enum ItemSnapshot {
         name: IdentifierSnapshot,
         attached_data: Option<IdentifierSnapshot>,
         type_parameters: Vec<TypeParameterSnapshot>,
-        termination_guarantee: bool,
-        ranking_witness: Option<RankingWitnessSnapshot>,
+        terminates: bool,
+        decreases: Vec<ExpressionSnapshot>,
+        decrease_order: Vec<IdentifierSnapshot>,
         effects: Vec<IdentifierSnapshot>,
         contracts: Vec<CapabilityContractSnapshot>,
         states: Vec<StateSnapshot>,
@@ -154,6 +154,8 @@ pub struct TypeParameterSnapshot {
     pub name: IdentifierSnapshot,
     pub kind: &'static str,
     pub const_type: Option<TypeReferenceSnapshot>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub machine_contract: Option<StateSignatureSnapshot>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -175,7 +177,6 @@ pub enum DataMemberSnapshot {
     Field {
         name: IdentifierSnapshot,
         type_reference: TypeReferenceSnapshot,
-        initial_value: ExpressionSnapshot,
     },
     Variant {
         name: IdentifierSnapshot,
@@ -314,25 +315,8 @@ pub struct StateSignatureSnapshot {
     pub is_default: bool,
     pub parameters: Vec<StateParameterSnapshot>,
     pub return_type: TypeReferenceSnapshot,
-    pub termination_guarantee: bool,
-    pub ranking_witness: Option<RankingWitnessSnapshot>,
     pub effects: Vec<IdentifierSnapshot>,
     pub contracts: Vec<CapabilityContractSnapshot>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-pub struct RankingWitnessSnapshot {
-    pub subjects: Vec<ExpressionSnapshot>,
-    pub view: Vec<IdentifierSnapshot>,
-    pub view_arguments: Vec<ExpressionSnapshot>,
-    pub range: Option<RankingRangeSnapshot>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-pub struct RankingRangeSnapshot {
-    pub start: ExpressionSnapshot,
-    pub end: ExpressionSnapshot,
-    pub end_inclusive: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -354,6 +338,7 @@ pub enum StatementSnapshot {
     Call {
         receiver: Vec<IdentifierSnapshot>,
         target: IdentifierSnapshot,
+        machine_arguments: Vec<Vec<IdentifierSnapshot>>,
         arguments: Vec<ExpressionSnapshot>,
     },
     Expression {
@@ -446,9 +431,6 @@ pub enum TypeConstraintSnapshot {
     ArithmeticDomain {
         domain: String,
     },
-    ValueDomain {
-        domain: String,
-    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -472,6 +454,7 @@ pub enum ExpressionSnapshot {
     Call {
         receiver: Option<Box<ExpressionSnapshot>>,
         target: IdentifierSnapshot,
+        machine_arguments: Vec<Vec<IdentifierSnapshot>>,
         arguments: Vec<ExpressionSnapshot>,
     },
     Float {
@@ -583,7 +566,6 @@ fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnapshot {
                 .iter()
                 .map(|parameter| snapshot_type_parameter(syntax_trees, parameter))
                 .collect(),
-            default_domain: snapshot_proof_facts(syntax_trees, value.default_domain),
             members: syntax_trees
                 .items
                 .data_members(value.members)
@@ -714,8 +696,18 @@ fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnapshot {
                 .iter()
                 .map(|parameter| snapshot_type_parameter(syntax_trees, parameter))
                 .collect(),
-            termination_guarantee: value.termination_guarantee,
-            ranking_witness: snapshot_ranking_witness(syntax_trees, value.ranking_witness),
+            terminates: value.terminates,
+            decreases: syntax_trees
+                .expressions
+                .expression_handles(value.decreases)
+                .iter()
+                .map(|handle| snapshot_expression_handle(syntax_trees, *handle))
+                .collect(),
+            decrease_order: snapshot_identifier_slice(
+                syntax_trees
+                    .items
+                    .identifier_path_members(value.decrease_order),
+            ),
             effects: snapshot_identifier_slice(
                 syntax_trees.items.identifier_path_members(value.effects),
             ),
@@ -725,20 +717,6 @@ fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnapshot {
                 .state_handles(value.states)
                 .iter()
                 .map(|handle| snapshot_state_node(syntax_trees, syntax_trees.items.state(*handle)))
-                .collect(),
-        },
-        Item::Platform(value) => ItemSnapshot::Platform {
-            name: snapshot_identifier(&value.name),
-            states: syntax_trees
-                .items
-                .state_signatures(value.states)
-                .iter()
-                .map(|handle| {
-                    snapshot_state_signature_node(
-                        syntax_trees,
-                        syntax_trees.items.state_signature(*handle),
-                    )
-                })
                 .collect(),
         },
         Item::Trait(value) => ItemSnapshot::Trait {
@@ -883,6 +861,7 @@ fn snapshot_type_parameter(
             name: snapshot_identifier(&parameter.name),
             kind: "type",
             const_type: None,
+            machine_contract: None,
         },
         crate::item::TypeParameterKind::Const { type_reference } => TypeParameterSnapshot {
             name: snapshot_identifier(&parameter.name),
@@ -891,6 +870,15 @@ fn snapshot_type_parameter(
                 syntax_trees,
                 *type_reference,
             )),
+            machine_contract: None,
+        },
+        crate::item::TypeParameterKind::Machine { contract } => TypeParameterSnapshot {
+            name: snapshot_identifier(&parameter.name),
+            kind: "machine",
+            const_type: None,
+            machine_contract: contract
+                .as_ref()
+                .map(|contract| snapshot_state_signature(syntax_trees, contract)),
         },
     }
 }
@@ -973,7 +961,6 @@ fn snapshot_data_member(syntax_trees: &SyntaxTrees, member: &DataMember) -> Data
         DataMember::Field(field) => DataMemberSnapshot::Field {
             name: snapshot_identifier(&field.name),
             type_reference: snapshot_type_reference_handle(syntax_trees, field.type_reference),
-            initial_value: snapshot_expression_handle(syntax_trees, field.initial_value),
         },
         DataMember::Variant(variant) => DataMemberSnapshot::Variant {
             name: snapshot_identifier(&variant.name),
@@ -1061,8 +1048,6 @@ fn snapshot_state_signature(
             })
             .collect(),
         return_type: snapshot_type_reference_handle(syntax_trees, signature.return_type),
-        termination_guarantee: signature.termination_guarantee,
-        ranking_witness: snapshot_ranking_witness(syntax_trees, signature.ranking_witness),
         effects: snapshot_identifier_slice(
             syntax_trees
                 .items
@@ -1088,8 +1073,6 @@ fn snapshot_state_signature_node(
             })
             .collect(),
         return_type: snapshot_type_reference_handle(syntax_trees, signature.return_type),
-        termination_guarantee: signature.termination_guarantee,
-        ranking_witness: snapshot_ranking_witness(syntax_trees, signature.ranking_witness),
         effects: snapshot_identifier_slice(
             syntax_trees
                 .items
@@ -1097,32 +1080,6 @@ fn snapshot_state_signature_node(
         ),
         contracts: snapshot_capability_contracts(syntax_trees, signature.contracts),
     }
-}
-
-fn snapshot_ranking_witness(
-    syntax_trees: &SyntaxTrees,
-    witness: crate::item::RankingWitnessSyntax,
-) -> Option<RankingWitnessSnapshot> {
-    witness.is_present().then(|| RankingWitnessSnapshot {
-        subjects: syntax_trees
-            .expressions
-            .expression_handles(witness.subjects)
-            .iter()
-            .map(|handle| snapshot_expression_handle(syntax_trees, *handle))
-            .collect(),
-        view: snapshot_identifier_slice(syntax_trees.items.identifier_path_members(witness.view)),
-        view_arguments: syntax_trees
-            .expressions
-            .expression_handles(witness.view_arguments)
-            .iter()
-            .map(|handle| snapshot_expression_handle(syntax_trees, *handle))
-            .collect(),
-        range: witness.range.is_present().then(|| RankingRangeSnapshot {
-            start: snapshot_expression_handle(syntax_trees, witness.range.start),
-            end: snapshot_expression_handle(syntax_trees, witness.range.end),
-            end_inclusive: witness.range.end_inclusive,
-        }),
-    })
 }
 
 fn snapshot_state_parameter(
@@ -1151,6 +1108,11 @@ fn snapshot_statement(syntax_trees: &SyntaxTrees, statement: &StatementNode) -> 
                     .identifier_path_members(call.receiver),
             ),
             target: snapshot_identifier(&call.target),
+            machine_arguments: call
+                .machine_arguments
+                .iter()
+                .map(|argument| snapshot_identifier_slice(&argument.path))
+                .collect(),
             arguments: syntax_trees
                 .statements
                 .expression_handles(call.arguments)
@@ -1305,9 +1267,6 @@ fn snapshot_type_constraint(
         TypeConstraintNode::ArithmeticDomain(domain) => TypeConstraintSnapshot::ArithmeticDomain {
             domain: domain.name().to_owned(),
         },
-        TypeConstraintNode::ValueDomain(domain) => TypeConstraintSnapshot::ValueDomain {
-            domain: domain.name().to_owned(),
-        },
     }
 }
 
@@ -1414,6 +1373,11 @@ fn snapshot_call_expression(
             .is_valid()
             .then(|| Box::new(snapshot_expression_handle(syntax_trees, call.receiver))),
         target: snapshot_identifier(&call.target),
+        machine_arguments: call
+            .machine_arguments
+            .iter()
+            .map(|argument| snapshot_identifier_slice(&argument.path))
+            .collect(),
         arguments: syntax_trees
             .expressions
             .expression_handles(call.arguments)

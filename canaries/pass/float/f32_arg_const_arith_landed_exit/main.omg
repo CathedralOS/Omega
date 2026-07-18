@@ -1,0 +1,19 @@
+// F2c ARG face: a constant float tree in TRANSITION-ARGUMENT position lands at
+// the parameter's declared width and evaluates per-op there, not in the f64
+// window. x = 2^-24 + 2^-48 EXACTLY (the f32 tie above 2^-24; ties-to-even
+// lands x at 2^-24). Per-op f32: 1.0 + 2^-24 ties DOWN to 1.0. The f64 window
+// would compute 1 + x ABOVE the tie and store-round UP to 1 + 2^-23 — a
+// different f32. Law: `got: f32` means the argument tree is f32 arithmetic, so
+// got == 1.0 -> 70. Guards the validation arg-stamping (transition-target
+// params zip with spelled args) and the backend's landed literal narrowing.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; expected: f32; }
+machine Main::main(&mut self) {
+    self.expected = 1.0;
+    transition { _ -> check(1.0 + 0.0000000596046483281043038005) }
+    state check(&mut self, got: f32) {
+        transition got == self.expected { true -> good() _ -> bad() }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self)  { self.console.exit_process(71); }
+}

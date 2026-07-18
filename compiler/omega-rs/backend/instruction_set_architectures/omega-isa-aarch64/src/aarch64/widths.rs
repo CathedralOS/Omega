@@ -48,10 +48,7 @@ pub fn return_register_integer_write_width() -> usize {
     4
 }
 
-pub fn runtime_storage_copy_to_return_register_width(
-    byte_offset: usize,
-    byte_size: usize,
-) -> usize {
+pub fn runtime_storage_copy_to_return_register_width(byte_offset: usize, byte_size: usize) -> usize {
     // adrp+add (8) + scalar load into w0/x0 + sign extension for narrow operands
     // (SXTB/SXTH, 4) so a negative i8/i16 terminal survives the widening read.
     let extend_width = if matches!(byte_size, 1 | 2) { 4 } else { 0 };
@@ -279,8 +276,9 @@ pub fn runtime_storage_convert_width(
     source_is_float: bool,
     target_is_float: bool,
     source_signed: bool,
-    domain: omega_core::arithmetic::ArithmeticDomain,
     target_signed: bool,
+    trapping: bool,
+    saturating: bool,
 ) -> usize {
     // `adrp x16 + add x16` (8) — target base, held across source evaluation —
     // then load the source into x17, convert it in place, and store the result.
@@ -291,8 +289,9 @@ pub fn runtime_storage_convert_width(
             source_is_float,
             target_is_float,
             source_signed,
-            domain,
             target_signed,
+            trapping,
+            saturating,
         )
         + runtime_result_write_width(target_offset, target_byte_size)
 }
@@ -306,28 +305,29 @@ fn runtime_convert_operation_width(
     source_is_float: bool,
     target_is_float: bool,
     source_signed: bool,
-    domain: omega_core::arithmetic::ArithmeticDomain,
-    _target_signed: bool,
+    target_signed: bool,
+    trapping: bool,
+    saturating: bool,
 ) -> usize {
     match (source_is_float, target_is_float) {
         // int -> float: SCVTF (4) + FMOV result back to GPR (4).
         (false, true) => 8,
-        // float -> int: FMOV bits into FP bank (4) + FCVTZS (4).
-        (true, false) if domain == omega_core::arithmetic::ArithmeticDomain::Trapping => {
-            if source_byte_size > 4 {
-                80
+        // float -> int: FMOV bits into FP bank (4) + [F4 Trapping value
+        // guard] + FCVTZS (4).
+        (true, false) => {
+            8 + if trapping {
+                super::runtime_storage::FLOAT_TO_INT_TRAP_GUARD_WIDTH
             } else {
-                64
+                0
+            } + if saturating {
+                super::runtime_storage::float_to_narrow_int_saturating_width(
+                    target_byte_size,
+                    target_signed,
+                )
+            } else {
+                0
             }
         }
-        (true, false) if domain == omega_core::arithmetic::ArithmeticDomain::Saturating => {
-            if source_byte_size > 4 {
-                120
-            } else {
-                104
-            }
-        }
-        (true, false) => 8,
         (true, true) => {
             if source_byte_size == target_byte_size {
                 0 // same precision: bits already in x17.
@@ -340,7 +340,8 @@ fn runtime_convert_operation_width(
             // Every narrow source extends when widening (one SXT/UXT); a
             // 4-byte source extends only when signed.
             if target_byte_size > source_byte_size
-                && (matches!(source_byte_size, 1 | 2) || (source_byte_size == 4 && source_signed))
+                && (matches!(source_byte_size, 1 | 2)
+                    || (source_byte_size == 4 && source_signed))
             {
                 4
             } else {
@@ -385,7 +386,17 @@ pub fn runtime_storage_binary_write_width(
             StateGuardOperator::Divide | StateGuardOperator::Modulo
         );
     let operation_width = if is_float {
-        runtime_float_binary_operation_with_domain_width(operator, domain)
+        runtime_float_binary_operation_width_with_domain(
+            operator,
+            super::runtime_storage::runtime_binary_operation_byte_size(
+                runtime_value_operands,
+                operator,
+                left,
+                right,
+                byte_size,
+            ),
+            domain,
+        )
     } else if saturating_or_trapping
         && matches!(
             operator,
@@ -409,27 +420,17 @@ pub fn runtime_storage_binary_write_width(
             matches!(operator, StateGuardOperator::Modulo),
         )
     } else {
-        let operation_byte_size = if matches!(
+        runtime_binary_operation_width_with_domain(
             operator,
-            StateGuardOperator::ShiftLeft
-                | StateGuardOperator::ShiftRight
-                | StateGuardOperator::ShiftRightLogical
-        ) && matches!(
-            domain,
-            omega_core::arithmetic::ArithmeticDomain::Wrapping
-                | omega_core::arithmetic::ArithmeticDomain::Trapping
-        ) {
-            byte_size
-        } else {
             super::runtime_storage::runtime_binary_operation_byte_size(
                 runtime_value_operands,
                 operator,
                 left,
                 right,
                 byte_size,
-            )
-        };
-        runtime_binary_operation_width_with_domain(operator, operation_byte_size, domain)
+            ),
+            domain,
+        )
     };
 
     8 + runtime_value_operand_width(runtime_value_operands, left)
@@ -450,12 +451,6 @@ fn saturating_trapping_arithmetic_width(
     right_is_wide_immediate: bool,
 ) -> usize {
     use omega_core::arithmetic::ArithmeticDomain;
-    let count_guard =
-        if operator == StateGuardOperator::ShiftLeft && domain == ArithmeticDomain::Trapping {
-            12
-        } else {
-            0
-        };
     if byte_size == 8 {
         // 64-bit shl: the recovery witness -- mov save (4) [+ movz/movk MIN
         // (8) for saturating-signed] + lslv (4) + asrv/lsrv (4) + cmp (4)
@@ -463,12 +458,13 @@ fn saturating_trapping_arithmetic_width(
         // + fixup (sat-signed cmp+csinv 8; sat-unsigned padded MAX 16;
         // trapping brk 4).
         if operator == StateGuardOperator::ShiftLeft {
-            return count_guard
-                + match (domain, target_signed) {
-                    (ArithmeticDomain::Saturating, true) => 36 + 8 + 8,
-                    (ArithmeticDomain::Saturating, false) => 36 + 16,
-                    _ => 36 + 4,
-                };
+            // F8c: Trapping prepends the count trap guard (cmp + b.lo + brk
+            // = 12) before the recovery witness.
+            return match (domain, target_signed) {
+                (ArithmeticDomain::Saturating, true) => 36 + 8 + 8,
+                (ArithmeticDomain::Saturating, false) => 36 + 16,
+                _ => 12 + 36 + 4,
+            };
         }
         // 64-bit multiply: the MULH high-half witness.
         if matches!(operator, StateGuardOperator::Multiply) {
@@ -496,28 +492,22 @@ fn saturating_trapping_arithmetic_width(
         // harmless placeholder for the pre-error `Vec::with_capacity`.
         return 4;
     }
-    // Narrow shl: [SXT dest (4, signed)] + count cap (padded w 16 + cmp 4
-    // + csel 4) + lslv (4) + the bound checks (28 each: padded bound 16 +
-    // cmp 4 + b.cond 4 + mov/brk 4) -- both bounds for signed, the single
-    // unsigned upper bound otherwise.
+    // Narrow shl: [F8c Trapping count trap guard (12)] + [SXT dest (4,
+    // signed)] + count cap (padded w 16 + cmp 4 + csel 4) + lslv (4) + the
+    // bound checks (28 each: padded bound 16 + cmp 4 + b.cond 4 + mov/brk 4)
+    // -- both bounds for signed, the single unsigned upper bound otherwise.
     if operator == StateGuardOperator::ShiftLeft {
-        let value_extend = if target_signed && !left_is_wide_immediate {
-            4
-        } else {
-            0
-        };
+        let count_guard = if domain == ArithmeticDomain::Trapping { 12 } else { 0 };
+        let value_extend = if target_signed && !left_is_wide_immediate { 4 } else { 0 };
         return count_guard
-            + if target_signed {
-                value_extend + 28 + 56
-            } else {
-                28 + 28
-            };
+            + if target_signed { value_extend + 28 + 56 } else { 28 + 28 };
     }
     // One SXTB/SXTH/SXTW sign-extend (4 bytes) per SIGNED NON-IMMEDIATE
     // operand -- immediates are already their true wide value and skipping
     // keeps them uncorrupted (MUST mirror the emission's per-side skip).
     let sign_extend = if target_signed {
-        (if left_is_wide_immediate { 0 } else { 4 }) + (if right_is_wide_immediate { 0 } else { 4 })
+        (if left_is_wide_immediate { 0 } else { 4 })
+            + (if right_is_wide_immediate { 0 } else { 4 })
     } else {
         0
     };
@@ -556,28 +546,71 @@ fn saturating_signed_divide_modulo_width(byte_size: usize, want_remainder: bool)
 /// FCMP+FCSEL (8) + `FMOV` back (4); COMPARISONS FCMP + MOVZ + B.cond + MOVZ
 /// (16) with NO trailing FMOV (the 0/1 result is already in the GPR). MUST
 /// stay in lockstep with `append_runtime_float_binary_operation`.
-/// Width twin of `append_runtime_binary_operation_with_domain`: Wrapping adds
-/// one count-mask instruction; Trapping adds CMP + B.LO + BRK.
+/// Width twin of `append_runtime_binary_operation_with_domain`: the plain op
+/// width plus the domain shift fix -- F8b WRAPPING masks the COUNT (the
+/// sub-word AND, 4; widths 4/8 ride the W/X forms' native masking, 0; the
+/// Wrapping `<<` W/X emission is one instruction, the same 4 as the plain
+/// arm), while Saturating/Trapping `>>`/`>>>` keep the floor-semantics count
+/// fixes (CMP #width + CSINV/CSEL = 8) until F8c. MUST stay in lockstep.
 pub(in crate::aarch64) fn runtime_binary_operation_width_with_domain(
     operator: StateGuardOperator,
     byte_size: usize,
     domain: omega_core::arithmetic::ArithmeticDomain,
 ) -> usize {
-    let shift = matches!(
-        operator,
-        StateGuardOperator::ShiftLeft
-            | StateGuardOperator::ShiftRight
-            | StateGuardOperator::ShiftRightLogical
-    );
+    let wrapping = domain == omega_core::arithmetic::ArithmeticDomain::Wrapping;
+    let trapping = domain == omega_core::arithmetic::ArithmeticDomain::Trapping;
+    let non_exact = domain != omega_core::arithmetic::ArithmeticDomain::Exact;
     runtime_binary_operation_width(operator, byte_size)
-        + match domain {
-            omega_core::arithmetic::ArithmeticDomain::Wrapping if shift => 4,
-            omega_core::arithmetic::ArithmeticDomain::Trapping if shift => 12,
-            _ => 0,
+        + if wrapping
+            && matches!(
+                operator,
+                StateGuardOperator::ShiftLeft
+                    | StateGuardOperator::ShiftRight
+                    | StateGuardOperator::ShiftRightLogical
+            )
+        {
+            if matches!(byte_size, 1 | 2) { 4 } else { 0 }
+        } else if trapping
+            && matches!(
+                operator,
+                StateGuardOperator::ShiftRight | StateGuardOperator::ShiftRightLogical
+            )
+        {
+            // F8c: the count trap guard (cmp + b.lo + brk).
+            super::runtime_storage::SHIFT_COUNT_TRAP_GUARD_WIDTH
+        } else if non_exact
+            && matches!(
+                operator,
+                StateGuardOperator::ShiftRight | StateGuardOperator::ShiftRightLogical
+            )
+        {
+            8
+        } else {
+            0
         }
 }
 
 fn runtime_float_binary_operation_width(operator: StateGuardOperator) -> usize {
+    runtime_float_binary_operation_width_with_domain(
+        operator,
+        8,
+        omega_core::arithmetic::ArithmeticDomain::Exact,
+    )
+}
+
+/// F5 twin: the plain float op width plus the policy guard's bytes. The
+/// guard length comes from the EMITTER itself (fixed-register call +
+/// `.len()` -- the place-copy rung-2a one-source-of-truth discipline).
+fn runtime_float_binary_operation_width_with_domain(
+    operator: StateGuardOperator,
+    byte_size: usize,
+    domain: omega_core::arithmetic::ArithmeticDomain,
+) -> usize {
+    let guard = super::runtime_storage::float_policy_guard_width(operator, byte_size, domain);
+    guard + runtime_float_binary_operation_width_base(operator)
+}
+
+fn runtime_float_binary_operation_width_base(operator: StateGuardOperator) -> usize {
     8 + match operator {
         StateGuardOperator::Max | StateGuardOperator::Min => 8 + 4,
         StateGuardOperator::Equal
@@ -591,45 +624,6 @@ fn runtime_float_binary_operation_width(operator: StateGuardOperator) -> usize {
         | StateGuardOperator::LessUnsigned
         | StateGuardOperator::LessOrEqualUnsigned => 16,
         _ => 4 + 4,
-    }
-}
-
-fn runtime_float_binary_operation_with_domain_width(
-    operator: StateGuardOperator,
-    domain: omega_core::arithmetic::ArithmeticDomain,
-) -> usize {
-    use omega_core::arithmetic::ArithmeticDomain;
-    let base = runtime_float_binary_operation_width(operator);
-    match domain {
-        ArithmeticDomain::Trapping
-            if matches!(
-                operator,
-                StateGuardOperator::Add
-                    | StateGuardOperator::Subtract
-                    | StateGuardOperator::Multiply
-                    | StateGuardOperator::Divide
-                    | StateGuardOperator::Sqrt
-            ) =>
-        {
-            base + 32
-        }
-        ArithmeticDomain::Saturating
-            if matches!(
-                operator,
-                StateGuardOperator::Add
-                    | StateGuardOperator::Subtract
-                    | StateGuardOperator::Multiply
-                    | StateGuardOperator::Divide
-            ) =>
-        {
-            base + 96
-                + if operator == StateGuardOperator::Divide {
-                    24
-                } else {
-                    0
-                }
-        }
-        _ => base,
     }
 }
 
@@ -1062,48 +1056,6 @@ pub fn runtime_frame_base_indexed_address_to_runtime_frame_write_width(
         + store_x_offset_width(target_offset)
 }
 
-pub fn runtime_machine_indexed_address_to_runtime_frame_write_width(
-    base_byte_offset: usize,
-    index_region: omega_target_operations::RuntimeStorageRegion,
-    index_offset: usize,
-    element_byte_size: usize,
-    field_byte_offset: usize,
-    target_offset: usize,
-) -> usize {
-    runtime_machine_indexed_address_target_frame_offset(
-        base_byte_offset,
-        index_region,
-        index_offset,
-        element_byte_size,
-        field_byte_offset,
-    ) + 8
-        + store_x_offset_width(target_offset)
-}
-
-pub fn runtime_machine_indexed_address_index_base_offset(
-    base_byte_offset: usize,
-    index_region: omega_target_operations::RuntimeStorageRegion,
-) -> Option<usize> {
-    (index_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame)
-        .then(|| 12 + add_constant_width(base_byte_offset))
-}
-
-pub fn runtime_machine_indexed_address_target_frame_offset(
-    base_byte_offset: usize,
-    index_region: omega_target_operations::RuntimeStorageRegion,
-    index_offset: usize,
-    element_byte_size: usize,
-    field_byte_offset: usize,
-) -> usize {
-    runtime_storage_copy_from_runtime_machine_indexed_target_address_offset(
-        base_byte_offset,
-        index_region,
-        index_offset,
-        element_byte_size,
-        field_byte_offset,
-    )
-}
-
 /// Extra bytes the line-read's result-descriptor store spends when the String field's
 /// offset is too large for the STR scaled immediate: the two stores (ptr@target_offset,
 /// len@target_offset+8) go DIRECT when both fit (offset in the immediate = free);
@@ -1178,8 +1130,9 @@ pub fn runtime_storage_copy_to_runtime_machine_double_indexed_from_runtime_stora
     inner_index_region: omega_target_operations::RuntimeStorageRegion,
 ) -> usize {
     let frame = omega_target_operations::RuntimeStorageRegion::RuntimeFrame;
-    let any_frame =
-        source_region == frame || outer_index_region == frame || inner_index_region == frame;
+    let any_frame = source_region == frame
+        || outer_index_region == frame
+        || inner_index_region == frame;
     8 + if any_frame { 8 } else { 0 } + 4 + 36 + 4
 }
 
@@ -1587,6 +1540,30 @@ pub fn runtime_storage_copy_to_runtime_machine_indexed_from_runtime_storage_widt
 /// The byte offset of the SOURCE adrp (`adrp x20`) within the store — same
 /// position as the read's target adrp, region-aware. Used by the relocation
 /// planner to relocate the source page-pair to the machine symbol.
+/// Width of the machine-indexed ADDRESS write (`&self.buf[k] as &Wide` -- the
+/// element ADDRESS into a frame slot): the machine-indexed address computation
+/// (identical layout to the copy family's prefix, so its relocation positions
+/// reuse those offset fns) + the target frame page pair (8) + the 8-byte
+/// address store (materializing a large target offset). MUST stay in lockstep
+/// with `encode_runtime_machine_indexed_address_to_runtime_frame_write`.
+pub fn runtime_machine_indexed_address_to_runtime_frame_write_width(
+    base_byte_offset: usize,
+    index_region: omega_target_operations::RuntimeStorageRegion,
+    index_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    target_offset: usize,
+) -> usize {
+    runtime_storage_copy_to_runtime_machine_indexed_source_address_offset(
+        base_byte_offset,
+        index_region,
+        index_offset,
+        element_byte_size,
+        field_byte_offset,
+    ) + 8
+        + store_data_offset_width(target_offset, 8)
+}
+
 pub fn runtime_storage_copy_to_runtime_machine_indexed_source_address_offset(
     base_byte_offset: usize,
     index_region: omega_target_operations::RuntimeStorageRegion,
@@ -1787,7 +1764,8 @@ pub fn runtime_text_equals_literal_operand_width(
     place: RuntimeValueOperandHandle,
     literal: &str,
 ) -> usize {
-    let place_setup_width = if let Some((_, byte_offset, _)) = runtime_value_operands.storage(place)
+    let place_setup_width = if let Some((_, byte_offset, _)) =
+        runtime_value_operands.storage(place)
     {
         8 + add_constant_width(byte_offset)
     } else if let Some((pointer_byte_offset, field_byte_offset, _)) =
@@ -1800,8 +1778,13 @@ pub fn runtime_text_equals_literal_operand_width(
         runtime_value_operands.frame_indexed(place)
     {
         runtime_frame_index_setup_width(element_byte_size, field_byte_offset)
-    } else if let Some((base_byte_offset, index_offset, element_byte_size, field_byte_offset, _)) =
-        runtime_value_operands.frame_base_indexed(place)
+    } else if let Some((
+        base_byte_offset,
+        index_offset,
+        element_byte_size,
+        field_byte_offset,
+        _,
+    )) = runtime_value_operands.frame_base_indexed(place)
     {
         runtime_frame_base_index_setup_width(
             base_byte_offset,
@@ -1897,12 +1880,13 @@ pub fn runtime_value_operand_width(
         // MUST mirror the machine-indexed operand arm exactly: machine pair
         // (8) + conditional frame pair (8) + 4-byte index load + scale +
         // address add (4) + combined base+field constant + element load (4).
-        let frame_pair =
-            if index_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame {
-                8
-            } else {
-                0
-            };
+        let frame_pair = if index_region
+            == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
+        {
+            8
+        } else {
+            0
+        };
         let _ = byte_size;
         8 + frame_pair
             + load_data_offset_width(index_offset, 4)
@@ -1946,8 +1930,23 @@ pub fn runtime_value_operand_width(
                     )
             });
         let operation_width = if runtime_value_operands.binary_is_float(operand) {
-            runtime_float_binary_operation_with_domain_width(
+            runtime_float_binary_operation_width_with_domain(
                 operator,
+                runtime_value_operands
+                    .binary_byte_width(operand)
+                    .or_else(|| {
+                        super::runtime_storage::runtime_value_operand_value_byte_size(
+                            runtime_value_operands,
+                            left,
+                        )
+                    })
+                    .or_else(|| {
+                        super::runtime_storage::runtime_value_operand_value_byte_size(
+                            runtime_value_operands,
+                            right,
+                        )
+                    })
+                    .unwrap_or(8),
                 runtime_value_operands
                     .binary_arithmetic_domain(operand)
                     .map(|(domain, _)| domain)
@@ -1959,9 +1958,7 @@ pub fn runtime_value_operand_width(
             saturating_trapping_arithmetic_width(
                 domain,
                 operator,
-                runtime_value_operands
-                    .binary_byte_width(operand)
-                    .unwrap_or(8),
+                runtime_value_operands.binary_byte_width(operand).unwrap_or(8),
                 operands_signed,
                 runtime_value_operands.immediate_integer(left).is_some(),
                 runtime_value_operands.immediate_integer(right).is_some(),
@@ -1969,9 +1966,7 @@ pub fn runtime_value_operand_width(
         } else if saturating_signed_div_mod {
             // Signed Saturating div/mod operand arm: the TYPE_MIN/-1 fixup.
             saturating_signed_divide_modulo_width(
-                runtime_value_operands
-                    .binary_byte_width(operand)
-                    .unwrap_or(8),
+                runtime_value_operands.binary_byte_width(operand).unwrap_or(8),
                 operator == StateGuardOperator::Modulo,
             )
         } else {
@@ -2015,8 +2010,6 @@ pub fn runtime_value_operand_width(
         source_is_float,
         target_is_float,
         source_signed,
-        domain,
-        target_signed,
     )) = runtime_value_operands.convert(operand)
     {
         runtime_value_operand_width(runtime_value_operands, source)
@@ -2026,8 +2019,9 @@ pub fn runtime_value_operand_width(
                 source_is_float,
                 target_is_float,
                 source_signed,
-                domain,
-                target_signed,
+                runtime_value_operands.convert_target_signed(operand),
+                runtime_value_operands.convert_trapping(operand),
+                runtime_value_operands.convert_saturating(operand),
             )
     } else {
         0
@@ -2039,8 +2033,15 @@ fn runtime_binary_operation_width(operator: StateGuardOperator, byte_size: usize
     // narrow signed shift-right extends the shifted value (+4). See
     // append_narrow_signed_division_operand_extension / the ShiftRight arm.
     let narrow_signed_extension = match operator {
-        StateGuardOperator::Divide | StateGuardOperator::Modulo if matches!(byte_size, 1 | 2) => 8,
+        StateGuardOperator::Divide | StateGuardOperator::Modulo
+            if matches!(byte_size, 1 | 2) =>
+        {
+            8
+        }
         StateGuardOperator::ShiftRight if matches!(byte_size, 1 | 2) => 4,
+        // A narrow logical `>>` zero-extends the shifted value the same way
+        // (see the ShiftRightLogical arm's uxtb/uxth); width 4 uses the W form
+        // with no extension.
         StateGuardOperator::ShiftRightLogical if matches!(byte_size, 1 | 2) => 4,
         _ => 0,
     };
@@ -2196,11 +2197,7 @@ pub fn append_wire_scalar_varint_width(
     wire_append_prologue_width(out_offset, written_offset)
         + 8
         + load_data_offset_width(source_offset, byte_size)
-        + if zigzag {
-            wire_zigzag_width(byte_size)
-        } else {
-            0
-        }
+        + if zigzag { wire_zigzag_width(byte_size) } else { 0 }
         + wire_varint_emit_loop_width()
         + store_data_offset_width(written_offset, 8)
 }
@@ -2449,11 +2446,7 @@ pub fn append_wire_repeated_scalar_varint_width(
         + 8
         + 8
         + load_data_offset_width(source_offset, byte_size)
-        + if zigzag {
-            wire_zigzag_width(byte_size)
-        } else {
-            0
-        }
+        + if zigzag { wire_zigzag_width(byte_size) } else { 0 }
         + wire_varint_emit_loop_width()
         + store_data_offset_width(written_offset, 8)
 }

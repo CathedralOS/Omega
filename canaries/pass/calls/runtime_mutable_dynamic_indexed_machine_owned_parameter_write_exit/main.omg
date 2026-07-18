@@ -9,8 +9,8 @@ data Item {
 
 data Main {
     console: Console;
-    items: [Item; 2] = [Item { value: 1, tag: 1 }, Item { value: 2, tag: 2 }];
-    index: u64 = 0;
+    items: [Item; 2];
+    index: u64 [0..=1];
 }
 
 machine Main::touch_tag(&mut self, item: &mut Item) {
@@ -18,6 +18,8 @@ machine Main::touch_tag(&mut self, item: &mut Item) {
 }
 
 machine Main::main(&mut self) {
+    self.items[0].tag = 1;
+    self.items[1].tag = 2;
     self.touch_tag(&mut self.items[self.index]);
 
     transition self.items[0].tag == 0 {

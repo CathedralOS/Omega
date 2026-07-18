@@ -203,22 +203,6 @@ fn symbol_label(program: &TypedTrees, symbol: SymbolHandle) -> String {
         }
     }
 
-    for platform in program.platforms() {
-        if platform.symbol == symbol {
-            return platform.name.as_str().to_owned();
-        }
-        for state_signature in program.platform_state_signatures(platform) {
-            if state_signature.symbol == symbol {
-                return state_signature.name.as_str().to_owned();
-            }
-            for parameter in program.state_signature_parameters(state_signature) {
-                if parameter.symbol == symbol {
-                    return parameter.name.as_str().to_owned();
-                }
-            }
-        }
-    }
-
     format!("symbol#{}", symbol.arena_index())
 }
 

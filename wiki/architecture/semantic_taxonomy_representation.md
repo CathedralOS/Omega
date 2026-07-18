@@ -56,13 +56,21 @@ identity.
 
 ### Multiplicity and permissions
 
-`DataProperties` carries three booleans (`copy`, `zero_init`, `send`). There is
-no first-class multiplicity. Control-flow and abstract-operation ownership
-summaries record move and drop events only. They do not distinguish
-establishment, transfer, linear consumption, affine drop, or a permission
-entry's access/provenance. `CheckFacts` stores borrow and semantic facts in
-separate fields, which is a sound starting point, but there is no unified
-place-keyed permission context with per-entry algebra.
+`Multiplicity` is first-class from source properties through typed trees.
+Checked flow records `Establish`, `Transfer`, `Consume`, and `AffineDrop`, and
+those events survive through machine bytes and backend reports with
+multiplicity, explicit `Owned | Shared | Exclusive` access, transfer-stable
+establishment provenance, and conditional-payload debt. Legacy-derived affine
+cleanup is deliberately `Unknown` provenance rather than fabricated evidence.
+Borrow activations/weakenings now feed the same context as
+`Unrestricted + Shared` and `Affine + Exclusive` entries, respectively. The
+linearity judgment now consumes only the qualified permission events. Affine
+cleanup derives directly from typed state ownership, so the legacy drop arena
+is compatibility output only. Semantic transfers and consumes run canonical
+typed move discovery through an independent event sink, so the legacy move
+arena is also compatibility output only. The deliberately deferred work is the
+multi-resource/nested obligation algebra, not reconstruction from lossy
+move/drop summaries.
 
 ### Effects
 
@@ -103,12 +111,36 @@ carrier ABI.
 Introduce a normalized `MachineSemanticContract` (name provisional) containing
 the complete substitutable contract plus an explicit `MachineSupplyMode`.
 Syntax trees may retain source spelling, but provider admission, proof
-artifacts, component manifests, compile-time evaluation, spawn checking, and
-lowering must consume this normalized object rather than re-derive it from
-`boundary`, bodies, and effect names.
+artifacts, component manifests, compile-time evaluation, task-activation
+checking, and lowering must consume this normalized object rather than
+re-derive it from `boundary`, bodies, and effect names.
 
 Consumption eligibility should normally be derived views/queries over the
 contract, not stored independent booleans that can drift.
+
+The supply representation must preserve the four settled variants directly:
+
+```text
+MachineSupplyMode =
+    CheckedBody
+  | RequiredBody
+  | ExternalRealization { binding: NormalizedBindingId }
+  | AcceptedDeclaration
+```
+
+`ExternalRealization` is sourced by `satisfies ... via <Binding>`. The binding
+expression is compile-time evaluated and normalized before checked-plan
+construction. It is not an executable body, and it does not author a trust
+class or a second effects row. The satisfied requirement supplies the public
+contract/ceiling; validation and admission check the binding/provider behavior
+as a refinement and produce any trust receipt. `ProviderPlan` is then derived
+from explicit conformance closure rather than authored rows.
+
+Source `boundary` remains insufficient to reconstruct this enum: a checked
+exported callable and an accepted bodyless declaration both mention the word
+but have different supply modes. Likewise, body absence distinguishes a trait
+requirement only in its declaration context. Populate the enum once during
+semantic lowering and carry it thereafter.
 
 Termination needs an explicit interface/implementation split:
 
@@ -143,9 +175,55 @@ proof-cache identity, diagnostics, and provider-local revalidation. Stable
 canonical defaults elaborate immediately to an explicit `ranking_view_id`;
 the checker never selects a noncanonical view heuristically.
 
+Implementation status (TPR3, 2026-07-17): termination legality and checked
+view facts resolve ranked subjects and argumented-view bounds from the
+normalized `RankingWitness`; view and rank-range identity come from the same
+witness. The legacy typed-machine decreases/order/argument/range spans are
+compatibility output only and may be cleared without changing the judgment.
+
+Artifact status (2026-07-17): visual builds emit
+`05_machine_contracts.json`, with authored contract identity and private
+implementation evidence in separate nested objects. The contract object never
+contains ranking subjects, view, range, or other witness material.
+
 Boundary progress profiles referenced by premises are sealed semantic
 commitments with grant/receipt identity. They participate in provider
 admission but remain outside the ordinary proof-fact catalog in v1.
+
+Task consumption needs a derived artifact rather than syntax booleans. TR1
+retired the former synchronous-spawn desugar and parser-erased `Join<T>`:
+
+```text
+TaskActivationPlan {
+    machine_contract_id,
+    entry_plan_id,
+    argument_layout,
+    terminal_outcome_layout,
+    continuation_requirement,
+    cancellation_and_effect_contract,
+}
+
+TaskClaimState {
+    provider_provenance,
+    activation_identity,
+    optional_storage_lease,
+    lifecycle: Live | TerminallySettled,
+}
+```
+
+The activation plan is deterministically derived from the normalized machine
+contract and selected target/calling plan. Provider admission consumes it;
+proof/debug artifacts retain it. `Task<T>` permission state carries claim and
+lease provenance until settlement or transfer. Provider-specific handles and
+physical frame locations are lowering details and must not be confused with
+machine-contract or result-type identity.
+
+Implementation status (TR2A, 2026-07-17): core owns the source-visible
+`[linear] Task<T>` claim carrier, and task-specific canaries pin transfer,
+conditional payload extraction, terminal by-value-self consumption, and scope
+loss. Generic terminal/start outcome sums remain gated on qualifier-aware
+payload propagation so substituted linear results and rejected argument
+bundles cannot lose their debts.
 
 ### Multiplicity and permission context
 
@@ -161,6 +239,15 @@ OwnershipEvent = Establish | Transfer | Consume | AffineDrop
 `[linear]` maps to `Linear`. Keep `zero_init` and `send` orthogonal. Flow joins
 operate over permission entries with path-sensitive sum state. Borrow events
 remain permission operations, not linear obligations by fiat.
+
+Implementation status (CML3, 2026-07-17): checked flow retains normalized
+`Establish | Transfer | Consume | AffineDrop` events, including whether a
+conditional sum event carries live payload debt. CML3's second slice propagates
+the same typed events through state graph, control flow, abstract/target/
+assigned operations, machine instructions/program/bytes, and the backend
+report. The older move/drop arenas remain compatibility output only; no
+semantic producer or consumer may reconstruct permission kind from that lossy
+pair.
 
 ### Effects and observation
 
@@ -218,7 +305,7 @@ ceases to be the semantic source of truth.
 
 - Domain mint/operator-family work must not grow on the undifferentiated
   `DomainDefinition` shape.
-- Linear `Join`, transactions, or dependent-linear buffers must not grow on
+- Linear `Task<T>`, transactions, or dependent-linear buffers must not grow on
   move/drop-only ownership summaries.
 - Component import slots and hot-swap manifests must not pin a body hash or
   flat effect row in place of normalized machine contract identity.

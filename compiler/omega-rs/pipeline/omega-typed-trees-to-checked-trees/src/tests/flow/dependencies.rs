@@ -1,6 +1,52 @@
 use super::*;
 
 #[test]
+fn semantic_domain_ids_mint_and_propagate() {
+    // STR4 checked plans, slice 1: every declared domain carries a VALID
+    // normalized identity minted ONCE at syntax->resolved (declaration
+    // order) and copied verbatim to the typed layer, where the table
+    // resolves it back to the declared name. Distinct declarations get
+    // distinct ids.
+    let source = r#"
+        data Player {
+            health: i32;
+            mana: i32;
+        }
+
+        domain Player::Valid {
+            self.health >= 0;
+        }
+
+        domain Player::Ready {
+            self.mana >= 0;
+        }
+    "#;
+
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+
+    let ids: Vec<_> = typed
+        .domain_definitions()
+        .iter()
+        .map(|domain| (domain.name.as_str().to_owned(), domain.semantic_id))
+        .collect();
+    assert_eq!(ids.len(), 2, "both domains lowered");
+    for (name, id) in &ids {
+        assert!(id.is_valid(), "domain `{name}` minted a valid id");
+        assert_eq!(
+            typed.semantic_domains.name(*id),
+            Some(name.as_str()),
+            "the typed table resolves `{name}`'s id back to its name"
+        );
+        // The resolved-layer table agrees (copied verbatim).
+        assert_eq!(resolved.semantic_domains.lookup(name), Some(*id));
+    }
+    assert_ne!(ids[0].1, ids[1].1, "distinct declarations, distinct ids");
+}
+
+#[test]
 fn materializes_domain_dependency_facts() {
     let source = r#"
         data Player {

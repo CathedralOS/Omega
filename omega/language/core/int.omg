@@ -1,0 +1,243 @@
+// Core IntPair -- the DIFFERENCE-PAIR construction (no kernel change): an
+// integer is a pair of Nats read as `pos - neg`; equality is the
+// cross-sum equivalence (a.pos + b.neg == b.pos + a.neg), and the ring
+// operations are componentwise Nat arithmetic. The N-ladder's Int
+// introduction rule holds: ORDER HAS NO FLOOR here, so measures stay
+// Nat-valued (IntPair never ranks a termination witness).
+//
+// NOT named `Int`: that is a BUILTIN type name (the polynomial engine's
+// unbounded proof integer), and a data definition shadowing a builtin is
+// fenced -- references would bind to the builtin and orphan the definition.
+// IntPair is the CONSTRUCTED integer (Nat -> Z, the ladder exercise);
+// builtin `Int` is the ambient one.
+//
+// Proof shape: every lemma discharges by RECORD-FIELD CONGRUENCE over
+// cited Nat lemmas -- add_int_comm is two add_comm citations, add_int_assoc
+// is two add_assoc citations; the judge unfolds add_int to its record
+// literal, decomposes field-by-field, and the citations (or Nat's earned
+// ring license) settle each Nat component.
+
+use omega::language::core::nat;
+
+data IntPair {
+    neg: Nat;
+    pos: Nat;
+}
+
+// Componentwise addition: (p1 - n1) + (p2 - n2) = (p1 + p2) - (n1 + n2).
+machine add_int(a: IntPair, b: IntPair) -> IntPair
+satisfies CommutativeSemiring::add
+{
+    transition { _ -> (IntPair { neg: add(a.neg, b.neg), pos: add(a.pos, b.pos) }) }
+}
+
+// The semiring constants: 0 = (0 - 0), 1 = (1 - 0).
+machine zero_int() -> IntPair
+satisfies CommutativeSemiring::zero
+{
+    transition { _ -> (IntPair { neg: Nat::Zero {}, pos: Nat::Zero {} }) }
+}
+
+machine one_int() -> IntPair
+satisfies CommutativeSemiring::one
+{
+    transition { _ -> (IntPair { neg: Nat::Zero {}, pos: Nat::Succ { prev: Nat::Zero {} } }) }
+}
+
+// Negation is the pair swap: -(p - n) = n - p. Total, no floor needed.
+machine neg_int(a: IntPair) -> IntPair {
+    transition { _ -> (IntPair { neg: a.pos, pos: a.neg }) }
+}
+
+// Commutativity: componentwise from Nat's add_comm (two citations).
+machine add_int_comm(a: IntPair, b: IntPair) -> IntPair
+satisfies CommutativeSemiring::add_comm
+ensures
+    (add_int(a, b)) == (add_int(b, a))
+{
+    add_comm(a.neg, b.neg);
+    add_comm(a.pos, b.pos);
+    transition { _ -> (add_int(a, b)) }
+}
+
+// Associativity: componentwise from Nat's add_assoc (two citations).
+machine add_int_assoc(a: IntPair, b: IntPair, c: IntPair) -> IntPair
+satisfies CommutativeSemiring::add_assoc
+ensures
+    (add_int(add_int(a, b), c)) == (add_int(a, add_int(b, c)))
+{
+    add_assoc(a.neg, b.neg, c.neg);
+    add_assoc(a.pos, b.pos, c.pos);
+    transition { _ -> (add_int(a, b)) }
+}
+
+// The symmetric pair (n+p, p+n) -- the difference-pair ZERO CLASS shape a
+// cancelled sum lands in (kept as an application so the ensures below
+// compares application-to-application; a record-LITERAL comparand routes
+// through runtime Equatable synthesis, which recursive Nat cannot join).
+machine cross_sum(a: IntPair) -> IntPair {
+    transition { _ -> (IntPair { neg: add(a.neg, a.pos), pos: add(a.pos, a.neg) }) }
+}
+
+// Negation cancels into the zero class: a + (-a) computes componentwise to
+// exactly cross_sum's body -- pure unfolding, no citations.
+machine add_int_neg(a: IntPair) -> IntPair
+ensures
+    (add_int(a, neg_int(a))) == (cross_sum(a))
+{
+    let negated: IntPair = neg_int(a);
+    transition { _ -> (add_int(a, negated)) }
+}
+
+// Multiplication: (p1 - n1)(p2 - n2) = (p1 p2 + n1 n2) - (p1 n2 + n1 p2).
+machine mul_int(a: IntPair, b: IntPair) -> IntPair
+satisfies CommutativeSemiring::mul
+{
+    transition { _ -> (IntPair {
+        neg: add(mul(a.pos, b.neg), mul(a.neg, b.pos)),
+        pos: add(mul(a.pos, b.pos), mul(a.neg, b.neg)),
+    }) }
+}
+
+// Commutativity: mul_comm rewrites each product; the pos field then matches
+// outright, and the neg field's swapped ADDEND order settles under Nat's
+// earned add ring license (multiset flattening).
+machine mul_int_comm(a: IntPair, b: IntPair) -> IntPair
+satisfies CommutativeSemiring::mul_comm
+ensures
+    (mul_int(a, b)) == (mul_int(b, a))
+{
+    mul_comm(a.pos, b.neg);
+    mul_comm(a.neg, b.pos);
+    mul_comm(a.pos, b.pos);
+    mul_comm(a.neg, b.neg);
+    transition { _ -> (mul_int(a, b)) }
+}
+
+// Associativity: both sides unfold to two-level products of the six Nat
+// components; each field equation is a polynomial identity the SEMIRING
+// license (Nat's conformed add+mul with distributivity) normalizes
+// citation-free -- the tier-2 monomial multiset settles it.
+machine mul_int_assoc(a: IntPair, b: IntPair, c: IntPair) -> IntPair
+satisfies CommutativeSemiring::mul_assoc
+ensures
+    (mul_int(mul_int(a, b), c)) == (mul_int(a, mul_int(b, c)))
+{
+    transition { _ -> (mul_int(a, b)) }
+}
+
+// Distributivity over add_int: componentwise polynomial identity, same
+// citation-free tier-2 discharge.
+machine mul_int_distributes(a: IntPair, b: IntPair, c: IntPair) -> IntPair
+satisfies CommutativeSemiring::mul_distributes
+ensures
+    (mul_int(a, add_int(b, c))) == (add_int(mul_int(a, b), mul_int(a, c)))
+{
+    transition { _ -> (mul_int(a, b)) }
+}
+
+// THE QUOTIENT (cross-sum equivalence): a ~ a2 iff a.pos + a2.neg ==
+// a2.pos + a.neg. add_int RESPECTS it -- if a ~ a2 then a + b ~ a2 + b,
+// spelled in unfolded Nat component form (the fact grammar has no member-
+// of-call, so the ensures states the components add_int computes). The
+// requires hypothesis exchanges inside the goal's addend multiset under
+// the add ring license (hypothesis-exchange tier).
+machine add_int_respects_eq(a: IntPair, a2: IntPair, b: IntPair) -> IntPair
+requires
+    (add(a.pos, a2.neg)) == (add(a2.pos, a.neg))
+ensures
+    (add(add(a.pos, b.pos), add(a2.neg, b.neg))) == (add(add(a2.pos, b.pos), add(a.neg, b.neg)))
+{
+    transition { _ -> (add_int(a, b)) }
+}
+
+// ~ is symmetric: the hypothesis read right-to-left.
+machine int_eq_symmetric(a: IntPair, b: IntPair) -> IntPair
+requires
+    (add(a.pos, b.neg)) == (add(b.pos, a.neg))
+ensures
+    (add(b.pos, a.neg)) == (add(a.pos, b.neg))
+{
+    transition { _ -> (add_int(a, b)) }
+}
+
+// mul_int RESPECTS ~ (the multiplicative congruence): if a ~ a2 then
+// mul_int(a, b) ~ mul_int(a2, b), spelled over the product components.
+// The cross-sum hypothesis SCALED by b.pos and by b.neg equalizes the
+// monomial multisets in two exchanges (tier-2 scaled-hypothesis exchange;
+// distributivity is Nat's conformed license).
+machine mul_int_respects_eq(a: IntPair, a2: IntPair, b: IntPair) -> IntPair
+requires
+    (add(a.pos, a2.neg)) == (add(a2.pos, a.neg))
+ensures
+    (add(add(mul(a.pos, b.pos), mul(a.neg, b.neg)), add(mul(a2.pos, b.neg), mul(a2.neg, b.pos))))
+        == (add(add(mul(a2.pos, b.pos), mul(a2.neg, b.neg)), add(mul(a.pos, b.neg), mul(a.neg, b.pos))))
+{
+    transition { _ -> (mul_int(a, b)) }
+}
+
+// ~ is transitive -- THE CANCELLATION STEP: from a ~ b and b ~ c, the
+// padded sums (b.neg + b.pos) + (a.pos + c.neg) and (b.neg + b.pos) +
+// (c.pos + a.neg) equalize by TWO hypothesis exchanges, and citing
+// add_cancel (requires-bearing induction) strips the pad. The citation's
+// own requires discharges at the site through the depth-2 exchange.
+machine int_eq_transitive(a: IntPair, b: IntPair, c: IntPair) -> IntPair
+requires
+    (add(a.pos, b.neg)) == (add(b.pos, a.neg));
+    (add(b.pos, c.neg)) == (add(c.pos, b.neg))
+ensures
+    (add(a.pos, c.neg)) == (add(c.pos, a.neg))
+{
+    _ = add_cancel(add(b.neg, b.pos), add(a.pos, c.neg), add(c.pos, a.neg));
+    transition { _ -> (add_int(a, c)) }
+}
+
+// The identity laws: componentwise Nat identities under record ETA (the
+// rebuilt record IS the variable). zero folds via add_zero_right /
+// add_zero_left; one folds via mul_one_right / mul_zero_right.
+machine add_int_identity(a: IntPair) -> IntPair
+satisfies CommutativeSemiring::add_identity
+ensures
+    (add_int(a, zero_int())) == (a)
+{
+    add_zero_right(a.neg);
+    add_zero_right(a.pos);
+    let z: IntPair = zero_int();
+    transition { _ -> (add_int(a, z)) }
+}
+
+machine mul_int_identity(a: IntPair) -> IntPair
+satisfies CommutativeSemiring::mul_identity
+ensures
+    (mul_int(a, one_int())) == (a)
+{
+    mul_zero_right(a.pos);
+    mul_zero_right(a.neg);
+    mul_one_right(a.neg);
+    mul_one_right(a.pos);
+    add_zero_left(a.neg);
+    add_zero_right(a.pos);
+    let unit: IntPair = one_int();
+    transition { _ -> (mul_int(a, unit)) }
+}
+
+// Negation is an involution: two pair swaps rebuild every field of `a`
+// from `a` itself -- pure unfolding closed by record ETA, no citations.
+machine neg_int_involution(a: IntPair) -> IntPair
+ensures
+    (neg_int(neg_int(a))) == (a)
+{
+    let flipped: IntPair = neg_int(a);
+    transition { _ -> (neg_int(flipped)) }
+}
+
+// neg_int RESPECTS ~: swapping both pairs mirrors the cross-sum equation
+// -- the hypothesis read through one addend exchange.
+machine neg_int_respects_eq(a: IntPair, a2: IntPair) -> IntPair
+requires
+    (add(a.pos, a2.neg)) == (add(a2.pos, a.neg))
+ensures
+    (add(a.neg, a2.pos)) == (add(a2.neg, a.pos))
+{
+    transition { _ -> (neg_int(a)) }
+}

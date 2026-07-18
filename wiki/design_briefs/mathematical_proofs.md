@@ -26,6 +26,10 @@ emits no runtime work.
 ## Quantification and proof data
 
 - Universal claims use machine parameters checked symbolically.
+- A generic accepted axiom over `<machine M>` spends one grant on the
+  normalized template statement and its required machine contract. Instances
+  record the selected machine-contract identity but do not spend another
+  grant; narrowly trusted instances use non-generic accepted facts.
 - Element-wise claims use element domains/types.
 - Prefix/window claims use bounded views such as `items[0..loaded]`.
 - Relational sequence claims use predicate machines plus extraction lemmas.
@@ -107,8 +111,9 @@ polynomials, identity bridging, and additional carriers such as `Int`/`Rat`.
 
 Omega has no `assume` or scattered `unsafe` block. Unproved claims enter through
 accepted boundary contracts and root grants, producing explicit trust receipts.
-The exact source spelling for an accepted theorem is still open, but the
-semantic supply mode is fixed by decision 20.
+An accepted theorem is a bodyless `boundary machine`, as already specified by
+chapter 10. There is no parallel `boundary fact` spelling. Decision 20's
+accepted supply mode remains explicit in the semantic artifact.
 
 A deferral is different from accepted truth:
 
@@ -155,7 +160,6 @@ The useful staging is:
 
 ## Still open
 
-- accepted theorem and accepted proof-data spelling;
 - derivation-record and small-kernel formats;
 - whether reified goal values ever earn a tactic-machine API;
 - binder sugar for one-off relational predicates;

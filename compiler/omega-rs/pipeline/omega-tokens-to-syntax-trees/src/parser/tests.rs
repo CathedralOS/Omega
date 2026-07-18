@@ -49,48 +49,6 @@ fn parses_dungeon_state_flow() {
 }
 
 #[test]
-fn parses_data_default_domain_where_facts() {
-    let source = r#"
-        data MemoryMap
-        where
-            count * stride <= len,
-            stride >= 40,
-        {
-            len: u32;
-            stride: u32;
-            count: u32;
-        }
-        "#;
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let parsed = parse_syntax_trees(&tokens).expect("data where clause should parse");
-    let data = parsed
-        .root_items()
-        .find_map(|item| match item {
-            omega_syntax_trees::item::Item::Data(data) => Some(data),
-            _ => None,
-        })
-        .expect("data root item");
-    let facts = parsed.items.proof_facts(data.default_domain);
-    assert_eq!(facts.len(), 2);
-    assert!(facts.iter().all(|fact| matches!(
-        fact,
-        omega_syntax_trees::item::ProofFact::Expression(_)
-    )));
-}
-
-#[test]
-fn rejects_empty_data_where_clause() {
-    let source = "data Empty where { value: u32; }";
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let error = parse_syntax_trees(&tokens).expect_err("empty where clause must reject");
-    assert!(error.message.contains("requires at least one fact"));
-}
-
-#[test]
 fn parses_attached_main_state_name_as_main() {
     let source = r#"
         data Main {
@@ -118,6 +76,92 @@ fn parses_attached_main_state_name_as_main() {
         .expect("entry state");
     let state = parsed.items.state(state_handle);
     assert_eq!(state.name.as_str(), "main");
+}
+
+#[test]
+fn retired_spawn_forms_name_the_task_runtime_migration() {
+    for source in [
+        "machine run() { spawn { Worker::run(); } }",
+        "machine run() { let task: i32 = spawn { Worker::run() }; }",
+    ] {
+        let tokens = Lexer::new(source)
+            .tokenize()
+            .expect("tokenize should succeed");
+        let error = parse_syntax_trees(&tokens).expect_err("spawn must be retired");
+        let rendered = error.message;
+        assert!(rendered.contains("spawn { ... }") && rendered.contains("Task<T>"));
+    }
+}
+
+#[test]
+fn erased_join_type_is_rejected_but_join_names_are_ordinary() {
+    let retired = "machine run(task: Join<i32>) {}";
+    let tokens = Lexer::new(retired)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let error = parse_syntax_trees(&tokens).expect_err("Join<T> must be retired");
+    let rendered = error.message;
+    assert!(rendered.contains("Join<T>") && rendered.contains("finish()"));
+
+    let ordinary = r#"
+        data Join { value: i32; }
+        machine Join::join(&self) -> i32 {
+            transition { _ -> self.value }
+        }
+    "#;
+    let tokens = Lexer::new(ordinary)
+        .tokenize()
+        .expect("tokenize should succeed");
+    parse_syntax_trees(&tokens).expect("Join/join are ordinary names after TR1");
+}
+
+#[test]
+fn linear_property_is_first_class_on_data_and_type_parameters() {
+    let source = r#"
+        data Receipt [linear] {}
+        data Envelope<T [linear]> [linear] { value: T; }
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let parsed = parse_syntax_trees(&tokens).expect("linear properties should parse");
+    let data: Vec<_> = parsed
+        .root_items()
+        .filter_map(|item| match item {
+            omega_syntax_trees::item::Item::Data(data) => Some(data),
+            _ => None,
+        })
+        .collect();
+
+    assert_eq!(data.len(), 2);
+    assert_eq!(
+        data[0].properties.multiplicity,
+        omega_core::semantics::Multiplicity::Linear
+    );
+    assert_eq!(
+        data[1].properties.multiplicity,
+        omega_core::semantics::Multiplicity::Linear
+    );
+    let parameter = &parsed.items.type_parameters(data[1].type_parameters)[0];
+    assert_eq!(
+        parameter.bounds.multiplicity,
+        omega_core::semantics::Multiplicity::Linear
+    );
+}
+
+#[test]
+fn copy_and_linear_properties_are_mutually_exclusive() {
+    for source in [
+        "data Bad [copy, linear] {}",
+        "data Bad [linear, copy] {}",
+    ] {
+        let tokens = Lexer::new(source)
+            .tokenize()
+            .expect("tokenize should succeed");
+        let error = parse_syntax_trees(&tokens)
+            .expect_err("copy and linear must not coexist on one declaration");
+        assert!(error.message.contains("mutually exclusive"));
+    }
 }
 
 #[test]
@@ -204,7 +248,6 @@ fn parses_machine_contract_clauses() {
 fn parses_machine_termination_clauses() {
     let source = r#"
         machine walk(items: &[Item], remaining: usize)
-        terminates;
         terminates by remaining -> Nat::Descending;
         {
         }
@@ -222,18 +265,18 @@ fn parses_machine_termination_clauses() {
         })
         .expect("machine root item");
 
-    assert!(machine.termination_guarantee);
+    assert!(machine.terminates);
     assert_eq!(
         parsed
             .expressions
-            .expression_handles(machine.ranking_witness.subjects)
+            .expression_handles(machine.decreases)
             .len(),
         1
     );
     assert_eq!(
         parsed
             .items
-            .identifier_path_members(machine.ranking_witness.view)
+            .identifier_path_members(machine.decrease_order)
             .len(),
         2
     );
@@ -245,7 +288,7 @@ fn parses_machine_termination_tuple_subjects() {
     // ranked-subject tuple, bound in order to the named view's parameters.
     let source = r#"
         machine walk(limit: usize, index: usize)
-        terminates by (index, limit) -> Nat::IncreasingTo(limit) in 0..=limit;
+        terminates by (index, limit) -> Nat::BoundedDistance;
         {
         }
         "#;
@@ -262,37 +305,31 @@ fn parses_machine_termination_tuple_subjects() {
         })
         .expect("machine root item");
 
-    assert!(!machine.termination_guarantee);
+    assert!(machine.terminates);
     assert_eq!(
         parsed
             .expressions
-            .expression_handles(machine.ranking_witness.subjects)
+            .expression_handles(machine.decreases)
             .len(),
         2
     );
     assert_eq!(
         parsed
             .items
-            .identifier_path_members(machine.ranking_witness.view)
+            .identifier_path_members(machine.decrease_order)
             .len(),
         2
     );
-    assert_eq!(
-        parsed
-            .expressions
-            .expression_handles(machine.ranking_witness.view_arguments)
-            .len(),
-        1
-    );
-    assert!(machine.ranking_witness.range.is_present());
-    assert!(machine.ranking_witness.range.end_inclusive);
 }
 
 #[test]
-fn rejects_retired_block_termination_syntax() {
+fn parses_machine_termination_argumented_view() {
+    // TPR3: an ARGUMENTED view names its bound as an argument
+    // (`Nat::IncreasingTo(limit)`) -- the bound is part of the view; the
+    // subject stays alone on the arrow's left.
     let source = r#"
-        machine walk(remaining: usize)
-        terminates { decreases remaining; }
+        machine walk(limit: usize, index: usize)
+        terminates by index -> Nat::IncreasingTo(limit);
         {
         }
         "#;
@@ -300,16 +337,50 @@ fn rejects_retired_block_termination_syntax() {
     let tokens = Lexer::new(source)
         .tokenize()
         .expect("tokenize should succeed");
-    let error = parse_syntax_trees(&tokens)
-        .expect_err("parser should reject retired block-form termination syntax");
-    assert!(error.message.contains("block-form"), "{}", error.message);
+    let parsed = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let machine = parsed
+        .root_items()
+        .find_map(|item| match item {
+            omega_syntax_trees::item::Item::Machine(machine) => Some(machine),
+            _ => None,
+        })
+        .expect("machine root item");
+
+    assert!(machine.terminates);
+    // The by-form supplies only the witness -- never the public guarantee.
+    assert!(!machine.terminates_guarantee);
+    assert_eq!(
+        parsed
+            .expressions
+            .expression_handles(machine.decreases)
+            .len(),
+        1
+    );
+    assert_eq!(
+        parsed
+            .items
+            .identifier_path_members(machine.decrease_order)
+            .len(),
+        2
+    );
+    assert_eq!(
+        parsed
+            .expressions
+            .expression_handles(machine.decrease_view_arguments)
+            .len(),
+        1
+    );
 }
 
 #[test]
-fn parses_bodyless_termination_guarantee() {
+fn parses_trait_requirement_termination_guarantee() {
+    // TPR4 (decision 23): a bodyless requirement authors the PUBLIC
+    // guarantee with bare `terminates` -- previously the signature clause
+    // parser's skip-any-token fallback ATE it silently.
     let source = r#"
-        boundary trait FiniteReader {
-            machine read_all(&mut self) terminates;
+        trait Worker {
+            machine run(&mut self, n: u64) -> u64 terminates;
+            machine peek(&self) -> u64;
         }
         "#;
 
@@ -317,19 +388,82 @@ fn parses_bodyless_termination_guarantee() {
         .tokenize()
         .expect("tokenize should succeed");
     let parsed = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let signature = parsed
+    let trait_definition = parsed
         .root_items()
         .find_map(|item| match item {
-            omega_syntax_trees::item::Item::Trait(definition) => parsed
-                .items
-                .state_signatures(definition.machines)
-                .first()
-                .map(|handle| parsed.items.state_signature(*handle)),
+            omega_syntax_trees::item::Item::Trait(definition) => Some(definition),
             _ => None,
         })
-        .expect("trait machine signature");
-    assert!(signature.termination_guarantee);
-    assert!(!signature.ranking_witness.is_present());
+        .expect("trait root item");
+
+    let signatures: Vec<_> = parsed
+        .items
+        .state_signatures(trait_definition.machines)
+        .iter()
+        .map(|handle| parsed.items.state_signature(*handle))
+        .collect();
+    assert_eq!(signatures.len(), 2);
+    assert!(
+        signatures[0].terminates_guarantee,
+        "run authored `terminates`"
+    );
+    assert!(!signatures[1].terminates_guarantee, "peek promised nothing");
+}
+
+#[test]
+fn rejects_ranking_witness_on_trait_requirement() {
+    // The witness belongs to implementations: a bodyless requirement has no
+    // body to prove.
+    let source = r#"
+        trait Worker {
+            machine run(&mut self, n: u64) -> u64 terminates by n;
+        }
+        "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let error = parse_syntax_trees(&tokens).expect_err("the witness must be rejected");
+    assert!(
+        error
+            .message
+            .contains("does not belong on a bodyless requirement"),
+        "got: {}",
+        error.message
+    );
+}
+
+#[test]
+fn parses_data_default_domain_where_clause() {
+    // R2 rung 1 (ch12 "Dependent Data"): the where clause between the data
+    // signature and the body -- bare field names, comma-separated facts,
+    // trailing comma tolerated.
+    let source = r#"
+        data MemoryMap
+        where
+            count <= len,
+            stride >= 40,
+        {
+            len: u32;
+            stride: u32;
+            count: u32;
+        }
+        "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let parsed = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let data = parsed
+        .root_items()
+        .find_map(|item| match item {
+            omega_syntax_trees::item::Item::Data(data) => Some(data),
+            _ => None,
+        })
+        .expect("data root item");
+
+    assert_eq!(parsed.items.proof_facts(data.where_facts).len(), 2);
+    assert_eq!(parsed.items.data_members(data.members).len(), 3);
 }
 
 #[test]
@@ -554,11 +688,21 @@ fn parses_data_destructure_transition_guard_as_subject_member_guard() {
         .copied()
         .expect("entry state");
     let state = parsed.items.state(entry);
+    // The destructure arm ALSO mints an exhaustiveness-marker let
+    // (`__arm_destructure#...`) ahead of the transition statements; index
+    // among the TRANSITIONS only.
     let statement = parsed
         .items
         .statements(state.statements)
-        .get(1)
+        .iter()
         .copied()
+        .filter(|handle| {
+            matches!(
+                parsed.statements.statement(*handle),
+                StatementNode::Transition(_)
+            )
+        })
+        .nth(1)
         .expect("data-pattern transition");
     let StatementNode::Transition(transition) = parsed.statements.statement(statement) else {
         panic!("second arm should be a transition")
@@ -1068,4 +1212,177 @@ fn rejects_self_as_ordinary_declaration_name() {
         .tokenize()
         .expect("tokenize should succeed");
     assert!(parse_syntax_trees(&tokens).is_err());
+}
+
+#[test]
+fn parses_machine_parameter_with_mandatory_contract() {
+    let source = r#"
+        data Card {}
+        data Deck {}
+
+        machine Deck::best<machine Key>(&self, card: &Card) -> u64
+        where machine Key(value: &Card) -> u64
+        effects Console
+        requires value in Card::Scorable
+        {
+            0
+        }
+        "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let parsed = parse_syntax_trees(&tokens).expect("machine parameter should parse");
+    let machine = parsed
+        .root_items()
+        .find_map(|item| match item {
+            omega_syntax_trees::item::Item::Machine(machine) => Some(machine),
+            _ => None,
+        })
+        .expect("generic machine");
+    let parameters = parsed.items.type_parameters(machine.type_parameters);
+    assert_eq!(parameters.len(), 1);
+    assert_eq!(parameters[0].name.as_str(), "Key");
+    let omega_syntax_trees::item::TypeParameterKind::Machine {
+        contract: Some(contract),
+    } = &parameters[0].kind
+    else {
+        panic!("Key should carry its authored machine contract");
+    };
+    assert_eq!(contract.name.as_str(), "Key");
+    assert_eq!(parsed.items.state_parameters(contract.parameters).len(), 1);
+    assert!(contract.return_type.is_valid());
+    assert_eq!(
+        parsed.items.identifier_path_members(contract.effects).len(),
+        1
+    );
+    assert_eq!(
+        parsed.items.capability_contracts(contract.contracts).len(),
+        1
+    );
+}
+
+#[test]
+fn rejects_machine_parameter_without_authored_contract() {
+    let source = r#"
+        machine map<machine F>() -> u64 {
+            0
+        }
+        "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let error = parse_syntax_trees(&tokens).expect_err("missing contract must fail");
+    assert!(
+        error
+            .message
+            .contains("requires an authored declaration-site contract"),
+        "got: {}",
+        error.message
+    );
+}
+
+#[test]
+fn rejects_machine_parameter_on_non_machine_declaration() {
+    let source = "data Invalid<machine F> {}";
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let error = parse_syntax_trees(&tokens).expect_err("data machine parameter must fail");
+    assert!(
+        error
+            .message
+            .contains("only legal on a machine declaration"),
+        "got: {}",
+        error.message
+    );
+}
+
+#[test]
+fn parses_static_machine_symbol_call_argument() {
+    let source = r#"
+        data Card {}
+
+        machine map<T, machine F>(value: &T)
+        where machine F(value: &T)
+        {
+        }
+
+        machine caller(card: &Card) {
+            map<Card::power>(card);
+        }
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let parsed = parse_syntax_trees(&tokens).expect("static machine argument should parse");
+    let (_, call) = parsed
+        .expressions
+        .iter_expressions()
+        .find_map(|(handle, expression)| match expression {
+            omega_syntax_trees::expression::ExpressionNode::Call(call)
+                if !call.machine_arguments.is_empty() =>
+            {
+                Some((handle, call))
+            }
+            _ => None,
+        })
+        .expect("generic call expression");
+    assert_eq!(call.machine_arguments.len(), 1);
+    assert_eq!(
+        call.machine_arguments[0]
+            .path
+            .iter()
+            .map(|member| member.as_str())
+            .collect::<Vec<_>>(),
+        vec!["Card", "power"]
+    );
+}
+
+#[test]
+fn destructure_marker_preserves_double_underscore_field_as_one_component() {
+    let source = r#"
+        data Pair { left__value: i32; right: i32; }
+        machine inspect(pair: Pair) {
+            let { left__value, right as _ } = pair;
+        }
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let parsed = parse_syntax_trees(&tokens).expect("destructure should parse");
+    let machine = parsed
+        .root_items()
+        .find_map(|item| match item {
+            omega_syntax_trees::item::Item::Machine(machine) => Some(machine),
+            _ => None,
+        })
+        .expect("machine root item");
+    let state = parsed.items.state(
+        parsed
+            .items
+            .state_handles(machine.states)
+            .first()
+            .copied()
+            .expect("entry state"),
+    );
+    let marker = parsed
+        .items
+        .statements(state.statements)
+        .iter()
+        .find_map(|handle| match parsed.statements.statement(*handle) {
+            StatementNode::LocalData(local)
+                if local.name.as_str().starts_with("__destructure#") =>
+            {
+                Some(local)
+            }
+            _ => None,
+        })
+        .expect("destructure marker local");
+
+    assert_eq!(
+        marker.name.as_str(),
+        "__destructure#left__value#right",
+        "the internal delimiter must not split repeated underscores"
+    );
 }

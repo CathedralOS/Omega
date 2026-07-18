@@ -49,6 +49,7 @@ pub(crate) use mutation::{
 use ownership::{
     append_call_ownership_events, append_state_exit_drop_events, append_statement_ownership_events,
 };
+pub(crate) use ownership::{DiscoveredMoveEvent, discover_state_move_events};
 #[allow(unused_imports)]
 pub(crate) use place::{
     CanonicalPlace, canonical_place_from_expression, canonical_place_from_expression_in_state,

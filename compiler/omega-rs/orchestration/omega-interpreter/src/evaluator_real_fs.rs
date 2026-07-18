@@ -275,9 +275,34 @@ impl<'program> super::Evaluator<'program> {
                 match self.authorized_path(&path, wants_write) {
                     Some(path) => {
                         let options = open_options_for(flags, mode, method == "open_create");
-                        self.real_result_fd(options.open(&path), path)
+                        self.real_result_fd(open_real(&options, &path, wants_write), path)
                     }
                     None => -1,
+                }
+            }
+            "open_path_handle" => {
+                // Real-mode model of CreateFileA's metadata/query use. The
+                // shared helper adds FILE_FLAG_BACKUP_SEMANTICS for a directory
+                // on Windows, so the same synthetic handle table serves files
+                // and directories.
+                let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
+                match self.authorized_path(&path, false) {
+                    Some(path) => {
+                        let mut options = std::fs::OpenOptions::new();
+                        options.read(true);
+                        match open_real(&options, &path, false) {
+                            Ok(file) => self.real_fs_mut().insert(file, path),
+                            Err(error) => {
+                                self.real_fs_mut().errno = win32_error_code(&error);
+                                -1
+                            }
+                        }
+                    }
+                    None => {
+                        let real = self.real_fs_mut();
+                        real.errno = if real.errno == ENOENT { 2 } else { 5 };
+                        -1
+                    }
                 }
             }
             "read" => {
@@ -361,6 +386,16 @@ impl<'program> super::Evaluator<'program> {
                 } else {
                     real.errno = EBADF;
                     -1
+                }
+            }
+            "close_handle" => {
+                let handle = self.eval_fs_fd(arguments.first().copied(), frame)?;
+                let real = self.real_fs_mut();
+                if real.files.remove(&handle).is_some() {
+                    1 // Win32 BOOL success; dropping File closes the handle.
+                } else {
+                    real.errno = 6; // ERROR_INVALID_HANDLE
+                    0
                 }
             }
             "duplicate" => {
@@ -689,6 +724,118 @@ impl<'program> super::Evaluator<'program> {
                     _ => -1,
                 }
             }
+            "create_hard_link" => {
+                // `CreateHardLinkA(link, existing, security)` -- the windows
+                // primitive's arg order (NEW link first) and BOOL result
+                // (1 success / 0 failure). Served portably via std like
+                // `hard_link` above; errno doubles as this provider's modeled
+                // GetLastError slot and therefore stores Win32 codes here.
+                let link = self.eval_fs_bytes(arguments.first().copied(), frame)?;
+                let existing = self.eval_fs_bytes(arguments.get(1).copied(), frame)?;
+                match (
+                    self.authorized_path(&existing, false),
+                    self.authorized_path(&link, true),
+                ) {
+                    (Some(existing), Some(link)) => {
+                        match std::fs::hard_link(existing, link) {
+                            Ok(()) => 1,
+                            Err(error) => {
+                                self.real_fs_mut().errno = win32_error_code(&error);
+                                0
+                            }
+                        }
+                    }
+                    _ => 0,
+                }
+            }
+            "get_osfhandle" => {
+                // The fd -> HANDLE bridge (session slice 4a). The real
+                // provider's files ride std::fs behind SYNTHETIC fds by
+                // design (no raw handles), so its handles are the fds
+                // themselves -- identity, like the hermetic model; -2 for an
+                // unknown fd (msvcrt's bad-fd spelling).
+                let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
+                if self.real_fs_mut().files.contains_key(&fd) {
+                    i64::from(fd)
+                } else {
+                    -2
+                }
+            }
+            "final_path_name_by_handle" => {
+                // Resolve an open handle (= synthetic fd) to its final path:
+                // std::fs::canonicalize of the entry's stored path (on a
+                // windows host that IS the \\?\-prefixed final path, matching
+                // native GetFinalPathNameByHandleA). Win32 return contract:
+                // length without the NUL when it fits, required size with the
+                // NUL when too small, 0 on failure; errno is this provider's
+                // modeled GetLastError slot.
+                let handle = self.eval_fs_scalar(arguments.first().copied(), frame)?;
+                let capacity = self.eval_fs_scalar(arguments.get(2).copied(), frame)? as usize;
+                let path = self
+                    .real_fs_mut()
+                    .files
+                    .get(&(handle as i32))
+                    .map(|entry| entry.path.clone());
+                match path {
+                    Some(path) => match std::fs::canonicalize(path) {
+                        Ok(path) => {
+                            let path = path.display().to_string().into_bytes();
+                            if path.len() + 1 <= capacity {
+                                let mut bytes = path.clone();
+                                bytes.push(0);
+                                self.write_fs_buffer(arguments.get(1).copied(), frame, &bytes);
+                                path.len() as i64
+                            } else {
+                                (path.len() + 1) as i64
+                            }
+                        }
+                        Err(error) => {
+                            self.real_fs_mut().errno = win32_error_code(&error);
+                            0
+                        }
+                    },
+                    None => {
+                        self.real_fs_mut().errno = 6; // ERROR_INVALID_HANDLE
+                        0
+                    }
+                }
+            }
+            "set_file_time" => {
+                // `SetFileTime(handle, creation, access_ft, write_ft)` (session
+                // slice 4b): apply the WRITE time from its FILETIME buffer via
+                // std's set_modified, like `set_file_times` above. BOOL result;
+                // 0 for a bad handle or a failed stamp; errno models
+                // GetLastError for the wrapper's immediate capture.
+                let handle = self.eval_fs_scalar(arguments.first().copied(), frame)?;
+                let write_ft = self.eval_fs_bytes(arguments.get(3).copied(), frame)?;
+                let filetime = write_ft
+                    .get(0..8)
+                    .and_then(|s| <[u8; 8]>::try_from(s).ok())
+                    .map(i64::from_le_bytes)
+                    .unwrap_or(0);
+                let secs = filetime / 10_000_000 - 11_644_473_600;
+                let real = self.real_fs_mut();
+                match real.files.get_mut(&(handle as i32)) {
+                    Some(entry) => {
+                        let stamp = if secs >= 0 {
+                            std::time::UNIX_EPOCH + std::time::Duration::from_secs(secs as u64)
+                        } else {
+                            std::time::UNIX_EPOCH
+                        };
+                        match entry.file.set_modified(stamp) {
+                            Ok(()) => 1,
+                            Err(error) => {
+                                real.errno = win32_error_code(&error);
+                                0
+                            }
+                        }
+                    }
+                    None => {
+                        real.errno = 6; // ERROR_INVALID_HANDLE
+                        0
+                    }
+                }
+            }
             "symlink" => {
                 // `symlink(target, linkpath)`: the TARGET is stored verbatim
                 // (never dereferenced here), so only the link path needs write
@@ -841,6 +988,39 @@ impl<'program> super::Evaluator<'program> {
                     }
                 }
             }
+            "lock_file_ex" => {
+                // Win32 LockFileEx semantics over the provider's synthetic
+                // handle. The exact byte range is intentionally ignored here:
+                // the std wrapper always supplies offset zero + u64::MAX.
+                let fd = self.eval_fs_scalar(arguments.first().copied(), frame)? as i32;
+                let flags = self.eval_fs_scalar(arguments.get(1).copied(), frame)? as i32;
+                let real = self.real_fs_mut();
+                match real.files.get(&fd) {
+                    Some(entry) => real_lock_win32(&entry.file, flags, &mut real.errno),
+                    None => {
+                        real.errno = 6; // ERROR_INVALID_HANDLE
+                        0
+                    }
+                }
+            }
+            "unlock_file" => {
+                let fd = self.eval_fs_scalar(arguments.first().copied(), frame)? as i32;
+                let real = self.real_fs_mut();
+                match real.files.get(&fd) {
+                    Some(entry) => match entry.file.unlock() {
+                        Ok(()) => 1,
+                        Err(error) => {
+                            real.errno = error.raw_os_error().unwrap_or(158);
+                            0
+                        }
+                    },
+                    None => {
+                        real.errno = 6; // ERROR_INVALID_HANDLE
+                        0
+                    }
+                }
+            }
+            "get_last_error" => i64::from(self.real_fs_mut().errno),
             "change_owner" | "change_owner_no_follow" => {
                 // `chown`/`lchown(path, uid, gid)`: -1 leaves the component
                 // alone (None). Metadata mutation = write authority.
@@ -957,7 +1137,7 @@ impl<'program> super::Evaluator<'program> {
                 match self.authorized_path(&joined_bytes, wants_write) {
                     Some(path) => {
                         let options = open_options_for(flags, 0, false);
-                        self.real_result_fd(options.open(&path), path)
+                        self.real_result_fd(open_real(&options, &path, wants_write), path)
                     }
                     None => -1,
                 }
@@ -1081,6 +1261,31 @@ impl<'program> super::Evaluator<'program> {
     }
 }
 
+/// Open through `options`, serving DIRECTORIES too: a read-only open of a
+/// directory (the `open_at`/`unlink_at`/`read_dir` dirfd mint) needs
+/// FILE_FLAG_BACKUP_SEMANTICS on windows -- std's plain OpenOptions refuses
+/// directory handles there, while unix serves `open(dir, O_RDONLY)` natively.
+/// Write-intent opens are NOT redirected, so a write-open of a directory
+/// fails on windows exactly like unix's EISDIR.
+fn open_real(
+    options: &std::fs::OpenOptions,
+    path: &Path,
+    wants_write: bool,
+) -> std::io::Result<std::fs::File> {
+    #[cfg(windows)]
+    if !wants_write && path.is_dir() {
+        use std::os::windows::fs::OpenOptionsExt;
+        const FILE_FLAG_BACKUP_SEMANTICS: u32 = 0x0200_0000;
+        return std::fs::OpenOptions::new()
+            .read(true)
+            .custom_flags(FILE_FLAG_BACKUP_SEMANTICS)
+            .open(path);
+    }
+    #[cfg(not(windows))]
+    let _ = wants_write;
+    options.open(path)
+}
+
 /// The shared OpenOptions decode for `open`/`open_create`/`open_at`: access
 /// mode from the low bits, flag bits via the host mirror, and (unix,
 /// open_create only) the creation mode.
@@ -1148,5 +1353,53 @@ fn real_lock(file: &std::fs::File, operation: i32, errno: &mut i32) -> i64 {
             *errno = io_errno(&error);
             -1
         }
+    }
+}
+
+/// Win32 LockFileEx flags over std's portable file-lock API. Returns BOOL and
+/// records Win32 ERROR_LOCK_VIOLATION (33) for a non-blocking contention miss.
+fn real_lock_win32(file: &std::fs::File, flags: i32, last_error: &mut i32) -> i64 {
+    let immediate = flags & 1 != 0;
+    let exclusive = flags & 2 != 0;
+    if immediate {
+        let outcome = if exclusive {
+            file.try_lock()
+        } else {
+            file.try_lock_shared()
+        };
+        return match outcome {
+            Ok(()) => 1,
+            Err(std::fs::TryLockError::WouldBlock) => {
+                *last_error = 33;
+                0
+            }
+            Err(std::fs::TryLockError::Error(error)) => {
+                *last_error = error.raw_os_error().unwrap_or(1);
+                0
+            }
+        };
+    }
+    let outcome = if exclusive {
+        file.lock()
+    } else {
+        file.lock_shared()
+    };
+    match outcome {
+        Ok(()) => 1,
+        Err(error) => {
+            *last_error = error.raw_os_error().unwrap_or(1);
+            0
+        }
+    }
+}
+
+fn win32_error_code(error: &std::io::Error) -> i32 {
+    use std::io::ErrorKind;
+    match error.kind() {
+        ErrorKind::NotFound => 2,
+        ErrorKind::PermissionDenied => 5,
+        ErrorKind::AlreadyExists => 183,
+        ErrorKind::WouldBlock => 33,
+        _ => error.raw_os_error().unwrap_or(1),
     }
 }

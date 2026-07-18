@@ -65,6 +65,31 @@ pub(crate) struct Lowerer {
     /// (`statement::hoist_membership_match_subject`). Keyed by the subject
     /// syntax handle's arena index (`Handle` is not `Hash`).
     match_subject_temps: std::collections::HashMap<u32, String>,
+    /// The CURRENT state's parameters (name + resolved type) -- the
+    /// guarded-arm value-call rewrite copies parameter records into its
+    /// synthesized continuation state. Overwritten at each state.
+    pub(crate) current_state_parameters:
+        Vec<(String, omega_symbol_resolved_trees::types::TypeReference)>,
+    /// The CURRENT state's declared return type -- the synthesized
+    /// continuation state returns the same type. Overwritten at each state.
+    pub(crate) current_state_return_type:
+        Option<omega_symbol_resolved_trees::types::TypeReference>,
+    /// Continuation states synthesized by the guarded-arm value-call rewrite
+    /// (`cond -> (call(a, b))` becomes `cond -> __arm_k_N(a, b)` plus a
+    /// state whose Always terminal hoists the call). Drained by the machine
+    /// lowering after the authored states.
+    pub(crate) pending_synthesized_states: Vec<SynthesizedArmState>,
+    arm_state_counter: u32,
+}
+
+/// One continuation state the guarded-arm value-call rewrite synthesizes.
+pub(crate) struct SynthesizedArmState {
+    pub(crate) name: String,
+    pub(crate) parameters: Vec<(String, omega_symbol_resolved_trees::types::TypeReference)>,
+    pub(crate) return_type: omega_symbol_resolved_trees::types::TypeReference,
+    /// The original call expression -- its Name arguments resolve against
+    /// the synthesized state's SAME-named parameters.
+    pub(crate) call: omega_symbol_resolved_trees::expression::ExpressionHandle,
 }
 
 impl Lowerer {
@@ -77,7 +102,17 @@ impl Lowerer {
             current_state_parameter_names: Vec::new(),
             current_machine_is_boundary: false,
             match_subject_temps: std::collections::HashMap::new(),
+            current_state_parameters: Vec::new(),
+            current_state_return_type: None,
+            pending_synthesized_states: Vec::new(),
+            arm_state_counter: 0,
         }
+    }
+
+    pub(crate) fn next_arm_state_name(&mut self) -> String {
+        let name = format!("__arm_k_{}", self.arm_state_counter);
+        self.arm_state_counter += 1;
+        name
     }
 
     /// The shared hoist-temp name for a match subject syntax handle, if the first arm already
@@ -103,9 +138,18 @@ impl Lowerer {
             roots,
             tables,
             symbols,
+            effect_rows,
+            semantic_domains,
+            external_bindings,
         } = self.symbol_resolved_trees;
 
-        Ok(SymbolResolvedTrees::with_roots(roots, tables, symbols))
+        let mut trees = SymbolResolvedTrees::with_roots(roots, tables, symbols);
+        // STR4: the interned rows/domains built during lowering survive the
+        // rebuild.
+        trees.effect_rows = effect_rows;
+        trees.semantic_domains = semantic_domains;
+        trees.external_bindings = external_bindings;
+        Ok(trees)
     }
 }
 

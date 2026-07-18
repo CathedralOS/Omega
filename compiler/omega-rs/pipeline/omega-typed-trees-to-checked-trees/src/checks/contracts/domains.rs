@@ -1,7 +1,10 @@
 use omega_core::symbols::SymbolHandle;
 use omega_facts::{FactPayload, FactPlace};
 
-use super::labels::{domain_proves_expression_label, instantiate_call_contract_expression_label};
+use super::labels::{
+    ContractTargetParameters, domain_proves_expression_label,
+    instantiate_call_contract_expression_label,
+};
 use crate::labels::canonical_place_label;
 
 pub(super) fn prove_boolean_expression_via_context_domain_membership(
@@ -55,7 +58,7 @@ pub(super) fn prove_instantiated_boolean_expression_via_context_domain_membershi
     caller_state_symbol: SymbolHandle,
     statement_index: usize,
     call_site: &crate::CallSite<'_>,
-    target_state: &omega_typed_trees::state::State,
+    target_state: &(impl ContractTargetParameters + ?Sized),
     expression: omega_typed_trees::expression::ExpressionHandle,
 ) -> bool {
     let candidate_label = instantiate_call_contract_expression_label(

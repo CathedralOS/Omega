@@ -140,9 +140,7 @@ pub enum FixedArrayLength {
     },
     /// A zero-argument machine call in length position (`[u8; table_size()]`),
     /// const-evaluated before layout (comptime stage 1).
-    ConstCall {
-        name: DiagnosticName,
-    },
+    ConstCall { name: DiagnosticName },
 }
 
 impl Default for FixedArrayLength {
@@ -582,7 +580,6 @@ pub enum TypeConstraint {
         maximum: crate::expression::ExpressionHandle,
     },
     ArithmeticDomain(omega_core::arithmetic::ArithmeticDomain),
-    ValueDomain(omega_core::value_domain::ValueDomain),
     /// A declared domain on a carrier (`[u8] in Utf8`); ch8.
     Domain(DiagnosticName),
 }
@@ -595,7 +592,6 @@ pub enum TypeConstraintNode {
         maximum: crate::expression::ExpressionHandle,
     },
     ArithmeticDomain(omega_core::arithmetic::ArithmeticDomain),
-    ValueDomain(omega_core::value_domain::ValueDomain),
     /// A declared domain on a carrier (`[u8] in Utf8`); ch8.
     Domain(DiagnosticName),
 }
@@ -613,7 +609,6 @@ impl TypeConstraintNode {
                 maximum: expressions.copy_from(source_expressions, *maximum),
             },
             TypeConstraint::ArithmeticDomain(domain) => Self::ArithmeticDomain(*domain),
-            TypeConstraint::ValueDomain(domain) => Self::ValueDomain(*domain),
             TypeConstraint::Domain(name) => Self::Domain(name.clone()),
         }
     }

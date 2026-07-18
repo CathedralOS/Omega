@@ -1,6 +1,6 @@
 use crate::{
-    data, domain, expression, invariant, machine, measure, platform, signature, snapshot,
-    trait_definition, types, wire,
+    data, domain, expression, invariant, machine, measure, signature, snapshot, trait_definition,
+    types, wire,
 };
 use omega_core::arena::{Arena, HandleSpan};
 use omega_core::diagnostics::PhaseSnapshot;
@@ -12,6 +12,12 @@ pub struct TypedTrees {
     pub roots: TypedTreeRoots,
     pub tables: TypedTreeTables,
     pub symbols: SymbolTable,
+    /// STR4 (decision 22): the effect-row interner, copied verbatim from
+    /// the resolved trees (machines' `effect_row` ids index it).
+    pub effect_rows: omega_core::semantics::EffectRowTable,
+    /// STR4 checked plans, slice 1: the semantic-domain interner, copied
+    /// verbatim from the resolved trees.
+    pub semantic_domains: omega_core::semantics::SemanticDomainTable,
     /// Validated layout plans for PLAN-LAID VALUE TYPES (`gdt: CLayout<Gdt>`
     /// in type position; programmable-layouts L4). Populated by the compiler
     /// pipeline AFTER build-time plan evaluation + validation; the native
@@ -24,6 +30,21 @@ pub struct TypedTrees {
     /// arena-backed storage, HandleSpan ownership.
     pub wire_placements: Arena<wire::WirePlacement>,
     pub wire_schema_plans: Vec<wire::WireSchemaPlan>,
+    /// MP4: deterministic records of generic-machine specializations applied
+    /// before checked lowering. The template keeps its declaration symbol;
+    /// this record is the cache/audit identity of the concrete argument tuple.
+    pub machine_specializations: Vec<MachineSpecialization>,
+}
+
+/// One compile-time machine specialization. Static machine arguments are
+/// symbols, never runtime callable values; `fingerprint` is normalized from
+/// declaration/type/path spellings rather than arena addresses.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct MachineSpecialization {
+    pub template: omega_core::symbols::SymbolHandle,
+    pub type_arguments: Vec<String>,
+    pub machine_arguments: Vec<omega_core::symbols::SymbolHandle>,
+    pub fingerprint: u64,
 }
 
 /// One validated, FULLY-STATIC layout plan applied to a synthesized data
@@ -61,8 +82,6 @@ pub struct TypedTreeTables {
     pub machine_trait_conformances: Arena<machine::TraitConformance>,
     pub machine_states: Arena<crate::state::State>,
     pub state_parameters: Arena<signature::StateParameter>,
-    pub platforms: Arena<platform::Platform>,
-    pub platform_state_signatures: Arena<signature::StateSignature>,
     pub traits: Arena<trait_definition::TraitDefinition>,
     pub data_conformances: Arena<trait_definition::DataConformance>,
     pub trait_requirements: Arena<trait_definition::TraitRequirement>,
@@ -84,7 +103,6 @@ pub struct TypedTreeRoots {
     pub machines: HandleSpan<machine::Machine>,
     pub measures: HandleSpan<measure::MeasureDefinition>,
     pub operators: HandleSpan<crate::operator::OperatorDefinition>,
-    pub platforms: HandleSpan<platform::Platform>,
     pub traits: HandleSpan<trait_definition::TraitDefinition>,
     pub data_conformances: HandleSpan<trait_definition::DataConformance>,
     pub wire_schemas: HandleSpan<wire::WireSchema>,
@@ -97,7 +115,6 @@ impl TypedTreeRoots {
         invariant_definitions: HandleSpan<invariant::InvariantDefinition>,
         machines: HandleSpan<machine::Machine>,
         operators: HandleSpan<crate::operator::OperatorDefinition>,
-        platforms: HandleSpan<platform::Platform>,
         traits: HandleSpan<trait_definition::TraitDefinition>,
     ) -> Self {
         Self {
@@ -107,7 +124,6 @@ impl TypedTreeRoots {
             machines,
             measures: HandleSpan::default(),
             operators,
-            platforms,
             traits,
             data_conformances: HandleSpan::default(),
             wire_schemas: HandleSpan::default(),
@@ -125,9 +141,12 @@ impl TypedTrees {
             roots,
             tables,
             symbols,
+            effect_rows: omega_core::semantics::EffectRowTable::default(),
+            semantic_domains: omega_core::semantics::SemanticDomainTable::default(),
             plan_laid_layouts: Vec::new(),
             wire_placements: Arena::new(),
             wire_schema_plans: Vec::new(),
+            machine_specializations: Vec::new(),
         }
     }
 
@@ -266,12 +285,6 @@ impl TypedTrees {
             .span_or_empty(self.roots.invariant_definitions)
     }
 
-    pub fn push_platform(&mut self, platform: platform::Platform) {
-        self.tables
-            .platforms
-            .append_to_span(&mut self.roots.platforms, platform);
-    }
-
     pub fn push_measure(&mut self, measure: measure::MeasureDefinition) {
         self.tables
             .measures
@@ -373,10 +386,6 @@ impl TypedTrees {
         self.operator_path_members.span_or_empty(span)
     }
 
-    pub fn platforms(&self) -> &[platform::Platform] {
-        self.tables.platforms.span_or_empty(self.roots.platforms)
-    }
-
     pub fn push_wire_schema(&mut self, wire_schema: wire::WireSchema) {
         self.tables
             .wire_schemas
@@ -471,10 +480,7 @@ impl TypedTrees {
     /// The sibling wire schema a wire field's type references (a NESTED
     /// MESSAGE field, chapter 20), unwrapped through reference and constraint
     /// shells. `None` for primitives and ordinary program types.
-    pub fn wire_field_nested_schema(
-        &self,
-        field: &wire::WireField,
-    ) -> Option<&wire::WireSchema> {
+    pub fn wire_field_nested_schema(&self, field: &wire::WireField) -> Option<&wire::WireSchema> {
         let name = self.named_type_reference_name(field.type_reference)?;
         self.wire_schemas()
             .iter()
@@ -573,10 +579,7 @@ impl TypedTrees {
     /// field is a plain stage 2 scalar: a String body is runtime-unbounded
     /// and a doubly-nested body is a deeper composition, so both make the
     /// caller reject with its own diagnostic.
-    pub fn wire_schema_scalar_body_worst_case(
-        &self,
-        schema: &wire::WireSchema,
-    ) -> Option<usize> {
+    pub fn wire_schema_scalar_body_worst_case(&self, schema: &wire::WireSchema) -> Option<usize> {
         let mut worst_case_bytes = 0usize;
         for member in self.wire_members(schema.members) {
             let wire::WireMember::Field(field) = member else {
@@ -588,8 +591,8 @@ impl TypedTrees {
             let scalar = self
                 .primitive_type_reference(field.type_reference)
                 .and_then(wire::WireScalarEncoding::for_primitive)?;
-            worst_case_bytes += wire::wire_varint_bytes(field.number as u64).len()
-                + scalar.max_varint_length();
+            worst_case_bytes +=
+                wire::wire_varint_bytes(field.number as u64).len() + scalar.max_varint_length();
         }
         Some(worst_case_bytes)
     }
@@ -693,23 +696,6 @@ impl TypedTrees {
             .span_or_empty(trait_definition.machines)
     }
 
-    pub fn push_platform_state_signature(
-        &mut self,
-        platform: &mut platform::Platform,
-        signature: signature::StateSignature,
-    ) {
-        self.platform_state_signatures
-            .append_to_span(&mut platform.states, signature);
-    }
-
-    pub fn platform_state_signatures(
-        &self,
-        platform: &platform::Platform,
-    ) -> &[signature::StateSignature] {
-        self.platform_state_signatures
-            .span_or_empty(platform.states)
-    }
-
     pub fn push_machine(&mut self, machine: machine::Machine) {
         self.tables
             .machines
@@ -736,6 +722,39 @@ impl TypedTrees {
     pub fn machine_type_parameters(&self, machine: &machine::Machine) -> &[data::TypeParameter] {
         self.data_type_parameters
             .span_or_empty(machine.type_parameters)
+    }
+
+    /// The authored callable contract of a compile-time machine parameter in
+    /// `machine`. The parameter symbol is also the contract's call-target
+    /// identity until specialization replaces it with a concrete state.
+    pub fn machine_parameter_signature_in(
+        &self,
+        machine: &machine::Machine,
+        symbol: omega_core::symbols::SymbolHandle,
+    ) -> Option<&signature::StateSignature> {
+        self.machine_type_parameters(machine)
+            .iter()
+            .find_map(|parameter| match &parameter.kind {
+                data::TypeParameterKind::Machine { contract }
+                    if parameter.symbol == symbol || contract.symbol == symbol =>
+                {
+                    Some(contract)
+                }
+                _ => None,
+            })
+    }
+
+    /// Find a machine-parameter contract and its declaring machine by its
+    /// normalized symbol. Used by effect/proof consumers that see only a call
+    /// target, not the lexical generic scope.
+    pub fn machine_parameter_signature(
+        &self,
+        symbol: omega_core::symbols::SymbolHandle,
+    ) -> Option<(&machine::Machine, &signature::StateSignature)> {
+        self.machines().iter().find_map(|machine| {
+            self.machine_parameter_signature_in(machine, symbol)
+                .map(|signature| (machine, signature))
+        })
     }
 
     pub fn push_machine_contained_object(
@@ -814,8 +833,7 @@ impl TypedTrees {
         if !trait_symbol.is_valid() {
             return Vec::new();
         }
-        let Some(trait_definition) = self.traits().iter().find(|t| t.symbol == trait_symbol)
-        else {
+        let Some(trait_definition) = self.traits().iter().find(|t| t.symbol == trait_symbol) else {
             return Vec::new();
         };
         if trait_definition.is_boundary {
@@ -977,7 +995,8 @@ impl TypedTrees {
     /// opposed to an owned `[u8; N]` repeated field. Replaces the retired
     /// `&string` for borrowed wire text.
     pub fn is_borrowed_byte_slice(&self, type_reference: types::TypeReferenceHandle) -> bool {
-        self.type_reference_table.is_borrowed_byte_slice(type_reference)
+        self.type_reference_table
+            .is_borrowed_byte_slice(type_reference)
     }
 
     /// The arithmetic domain (`T in Wrapping/Saturating/Trapping`, decision 17)
@@ -1035,7 +1054,7 @@ impl DerefMut for TypedTrees {
 mod tests {
     use crate::{
         TypedTreeRoots, TypedTreeTables, TypedTrees, data, domain, invariant, machine, operator,
-        platform, trait_definition,
+        trait_definition,
     };
     use omega_core::arena::HandleSpan;
     use omega_core::symbols::SymbolTable;
@@ -1047,7 +1066,6 @@ mod tests {
         let invariant_definitions = HandleSpan::<invariant::InvariantDefinition>::default();
         let machines = HandleSpan::<machine::Machine>::default();
         let operators = HandleSpan::<operator::OperatorDefinition>::default();
-        let platforms = HandleSpan::<platform::Platform>::default();
         let traits = HandleSpan::<trait_definition::TraitDefinition>::default();
 
         let roots = TypedTreeRoots::with_roots(
@@ -1056,7 +1074,6 @@ mod tests {
             invariant_definitions,
             machines,
             operators,
-            platforms,
             traits,
         );
 
@@ -1065,7 +1082,6 @@ mod tests {
         assert_eq!(roots.invariant_definitions, invariant_definitions);
         assert_eq!(roots.machines, machines);
         assert_eq!(roots.operators, operators);
-        assert_eq!(roots.platforms, platforms);
         assert_eq!(roots.traits, traits);
     }
 

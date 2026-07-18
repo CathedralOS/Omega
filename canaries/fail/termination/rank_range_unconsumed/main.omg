@@ -1,0 +1,20 @@
+// TPR3 slice 3 consumes the witness's `in <range>` rank constraint -- but
+// V1 verifies only the shape that is true by the view's definition
+// (`in 0..=bound` on the argumented `Nat::IncreasingTo(bound)`). A ceiling
+// on a plain descending view would need an invariant proof that does not
+// exist yet, so it is rejected with a directed message -- never silently
+// recorded as an unproven fact.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine Main::countdown(&mut self, n: u64) -> u64
+terminates by n in 0..=100;
+{
+    transition n > 0 {
+        true -> self.countdown(n - 1)
+        false -> 0
+    }
+}
+machine Main::main(&mut self) {
+    let value: u64 = self.countdown(3);
+    self.console.exit_process(70);
+}

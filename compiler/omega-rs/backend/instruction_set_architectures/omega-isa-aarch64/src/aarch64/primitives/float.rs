@@ -288,7 +288,7 @@ pub(in crate::aarch64) fn encode_float_to_signed_int(
 }
 
 /// `FCVTZU Rd, Vn` — convert a float to an unsigned integer, rounding toward
-/// zero. Operand widths mirror [`encode_float_to_signed_int`].
+/// zero. Width selection mirrors [`encode_float_to_signed_int`].
 pub(in crate::aarch64) fn encode_float_to_unsigned_int(
     float_byte_size: usize,
     int_byte_size: usize,
@@ -332,15 +332,9 @@ mod tests {
         // FADD s0, s1, s2
         assert_eq!(word(encode_float_add(4, 0, 1, 2).unwrap()), 0x1e22_2820);
         // FSUB s0, s1, s2
-        assert_eq!(
-            word(encode_float_subtract(4, 0, 1, 2).unwrap()),
-            0x1e22_3820
-        );
+        assert_eq!(word(encode_float_subtract(4, 0, 1, 2).unwrap()), 0x1e22_3820);
         // FMUL s0, s1, s2
-        assert_eq!(
-            word(encode_float_multiply(4, 0, 1, 2).unwrap()),
-            0x1e22_0820
-        );
+        assert_eq!(word(encode_float_multiply(4, 0, 1, 2).unwrap()), 0x1e22_0820);
         // FDIV s0, s1, s2
         assert_eq!(word(encode_float_divide(4, 0, 1, 2).unwrap()), 0x1e22_1820);
     }
@@ -364,75 +358,37 @@ mod tests {
     #[test]
     fn fmov_between_banks_matches_arm_arm() {
         // FMOV s0, w0  /  FMOV w0, s0
-        assert_eq!(
-            word(encode_float_move_from_gpr(4, 0, 0).unwrap()),
-            0x1e27_0000
-        );
-        assert_eq!(
-            word(encode_float_move_to_gpr(4, 0, 0).unwrap()),
-            0x1e26_0000
-        );
+        assert_eq!(word(encode_float_move_from_gpr(4, 0, 0).unwrap()), 0x1e27_0000);
+        assert_eq!(word(encode_float_move_to_gpr(4, 0, 0).unwrap()), 0x1e26_0000);
         // FMOV d0, x0  /  FMOV x0, d0
-        assert_eq!(
-            word(encode_float_move_from_gpr(8, 0, 0).unwrap()),
-            0x9e67_0000
-        );
-        assert_eq!(
-            word(encode_float_move_to_gpr(8, 0, 0).unwrap()),
-            0x9e66_0000
-        );
+        assert_eq!(word(encode_float_move_from_gpr(8, 0, 0).unwrap()), 0x9e67_0000);
+        assert_eq!(word(encode_float_move_to_gpr(8, 0, 0).unwrap()), 0x9e66_0000);
     }
 
     #[test]
     fn fcvt_precision_changes_match_arm_arm() {
         // FCVT d0, s0  (single -> double)
-        assert_eq!(
-            word(encode_float_convert_single_to_double(0, 0)),
-            0x1e22_c000
-        );
+        assert_eq!(word(encode_float_convert_single_to_double(0, 0)), 0x1e22_c000);
         // FCVT s0, d0  (double -> single)
-        assert_eq!(
-            word(encode_float_convert_double_to_single(0, 0)),
-            0x1e62_4000
-        );
+        assert_eq!(word(encode_float_convert_double_to_single(0, 0)), 0x1e62_4000);
     }
 
     #[test]
     fn int_to_float_matches_arm_arm() {
         // SCVTF s0, w0  (32-bit int -> single)
-        assert_eq!(
-            word(encode_signed_int_to_float(4, 4, 0, 0).unwrap()),
-            0x1e22_0000
-        );
+        assert_eq!(word(encode_signed_int_to_float(4, 4, 0, 0).unwrap()), 0x1e22_0000);
         // SCVTF d0, x0  (64-bit int -> double)
-        assert_eq!(
-            word(encode_signed_int_to_float(8, 8, 0, 0).unwrap()),
-            0x9e62_0000
-        );
+        assert_eq!(word(encode_signed_int_to_float(8, 8, 0, 0).unwrap()), 0x9e62_0000);
     }
 
     #[test]
     fn float_to_int_matches_arm_arm() {
         // FCVTZS w0, s0  (single -> 32-bit int)
-        assert_eq!(
-            word(encode_float_to_signed_int(4, 4, 0, 0).unwrap()),
-            0x1e38_0000
-        );
+        assert_eq!(word(encode_float_to_signed_int(4, 4, 0, 0).unwrap()), 0x1e38_0000);
         // FCVTZS x0, d0  (double -> 64-bit int)
-        assert_eq!(
-            word(encode_float_to_signed_int(8, 8, 0, 0).unwrap()),
-            0x9e78_0000
-        );
-        // FCVTZU w0, s0  (single -> 32-bit unsigned int)
-        assert_eq!(
-            word(encode_float_to_unsigned_int(4, 4, 0, 0).unwrap()),
-            0x1e39_0000
-        );
-        // FCVTZU x0, d0  (double -> 64-bit unsigned int)
-        assert_eq!(
-            word(encode_float_to_unsigned_int(8, 8, 0, 0).unwrap()),
-            0x9e79_0000
-        );
+        assert_eq!(word(encode_float_to_signed_int(8, 8, 0, 0).unwrap()), 0x9e78_0000);
+        assert_eq!(word(encode_float_to_unsigned_int(4, 4, 0, 0).unwrap()), 0x1e39_0000);
+        assert_eq!(word(encode_float_to_unsigned_int(8, 8, 0, 0).unwrap()), 0x9e79_0000);
     }
 
     #[test]

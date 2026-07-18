@@ -42,6 +42,11 @@ fn collect_host_operation_call_relocation(
     let HostBindingMechanism::Import { symbol, .. } = &binding.mechanism else {
         return;
     };
+    let authored_import = matches!(
+        operation_key.capability,
+        omega_calling_conventions::HostCapability::Custom(_)
+            | omega_calling_conventions::HostCapability::Unknown
+    );
 
     context
         .relocation_plan
@@ -59,6 +64,7 @@ fn collect_host_operation_call_relocation(
                     .assigned_target_operations
                     .instruction_operands(operands)
                     .unwrap_or(&[]),
+                authored_import,
             ),
             byte_width: external_call_relocation_width(context.input.target.architecture),
             symbol_handle: object_symbol_handle_by_name(&context.input.object, symbol.as_ref()),

@@ -523,6 +523,37 @@ fn does_not_materialize_by_value_call_argument_moves_for_copy_scalar_parameters(
     );
 }
 
+#[test]
+fn materializes_explicit_static_by_value_self_transfer() {
+    let source = r#"
+        data Item { value: i32; }
+        data Main {}
+
+        machine Item::consume(self) {}
+
+        machine Main::main(&mut self, item: Item) {
+            Item::consume(item);
+        }
+    "#;
+
+    let (typed, flow) = checked_flow(source);
+    let state_flow = main_state_flow(&typed, &flow);
+    let moves = flow.ownership.moves.span_or_empty(state_flow.moves);
+    assert_eq!(moves.len(), 1);
+    let main = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Main::main")
+        .expect("main machine");
+    let state = &typed.machine_states(main)[0];
+    let item = typed
+        .state_parameters(state)
+        .iter()
+        .find(|parameter| parameter.name.as_str() == "item")
+        .expect("item parameter");
+    assert_eq!(moves[0].root, omega_facts::PlaceRoot::Symbol(item.symbol));
+}
+
 fn checked_flow(
     source: &str,
 ) -> (

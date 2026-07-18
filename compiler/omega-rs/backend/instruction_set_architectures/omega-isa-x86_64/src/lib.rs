@@ -1,7 +1,10 @@
 mod place_copy;
 pub use place_copy::{
-    PLACE_COPY_MAX_SITES, PlaceCopySide, PlaceCopySites, encode_copy_places, encode_place_copy,
-    encode_place_copy_shared_base,
+    PLACE_COPY_MAX_SITES, PlaceCopySide, PlaceCopySites, encode_copy_places,
+    encode_place_address_write, encode_place_binary_write, encode_place_bounded_buffer_write,
+    encode_place_compare, encode_place_copy, encode_place_copy_shared_base,
+    encode_place_integer_write, encode_place_string_write, encode_place_value_compare,
+    place_binary_index_base_positions, place_binary_operand_start_width,
 };
 
 use omega_calling_conventions::{HostCapability, HostOperation, HostOperationKey};
@@ -136,29 +139,10 @@ pub fn runtime_storage_copy_to_return_register_width(
     10 + load_width
 }
 
-pub fn runtime_frame_base_indexed_address_to_runtime_frame_write_width() -> usize {
-    // mov r14,imm64(frame) (10) + mov r11,[r14+idx] (7) + imul r11,r11,elem (7)
-    // + add r14,r11 (3) + add r14,base+field (7) + mov r15,imm64(frame) (10)
-    // + mov [r15+target],r14 (7)
-    51
-}
-
 /// Byte offset where the INDEX-region base's `mov r15, imm64` begins inside
 /// `encode_runtime_machine_indexed_address_to_runtime_frame_write` (the
 /// relocation machinery adds the +2 to reach its immediate).
 pub const MACHINE_INDEXED_ADDRESS_INDEX_BASE_IMM_OFFSET: usize = 10;
-/// Byte offset where the TARGET frame slot's `mov r15, imm64` begins in the
-/// same sequence.
-pub const MACHINE_INDEXED_ADDRESS_TARGET_FRAME_IMM_OFFSET: usize = 44;
-
-pub fn runtime_machine_indexed_address_to_runtime_frame_write_width() -> usize {
-    // mov r14,imm64(machine) (10) + mov r15,imm64(index region) (10)
-    // + mov r11d,[r15+idx] (7) + imul r11,r11,elem (7) + add r14,r11 (3)
-    // + add r14,base+field (7) + mov r15,imm64(frame) (10)
-    // + mov [r15+target],r14 (7)
-    61
-}
-
 pub fn entry_argument_register_write_width() -> usize {
     // mov r15,imm64(frame base, relocated at +2) (10) + mov [r15+disp32],reg (7).
     17
@@ -229,40 +213,6 @@ pub fn encode_entry_arguments_slice_descriptor_write_bytes(
 /// Relocation imm offset (pre-`+2`) of the frame base loaded for the target slot
 /// store in `encode_runtime_frame_base_indexed_address_to_runtime_frame_write`.
 pub const FRAME_BASE_INDEXED_ADDRESS_TARGET_FRAME_IMM_OFFSET: usize = 34;
-
-pub fn runtime_pointee_string_write_width(_field_byte_offset: usize, _byte_length: usize) -> usize {
-    // mov r14,imm64(literal) (10) + mov r15,imm64(frame) (10)
-    // + mov r15,[r15+ptr] (7) + mov [r15+field],r14 (7)
-    // + mov r14,len (10) + mov [r15+field+8],r14 (7)
-    51
-}
-
-/// Writes a `{ptr,len}` string descriptor through a pointer stored in the frame:
-/// `*(frame[pointer_byte_offset]) + field_byte_offset = { literal, byte_length }`.
-/// The literal `mov` is emitted first so its relocation lands at the instruction
-/// start (matching the shared relocation contract); the frame base relocation
-/// follows at offset 10.
-pub fn encode_runtime_pointee_string_write(
-    pointer_byte_offset: usize,
-    field_byte_offset: usize,
-    byte_length: usize,
-) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = Vec::with_capacity(runtime_pointee_string_write_width(
-        field_byte_offset,
-        byte_length,
-    ));
-    append_mov_r14_imm64(&mut bytes, 0); // string literal pointer (reloc @ +2)
-    append_mov_r15_imm64(&mut bytes, 0); // frame base (reloc @ +12)
-    append_load_r15_from_r15(&mut bytes, pointer_byte_offset)?; // r15 = stored pointer
-    append_store_r14_to_r15(&mut bytes, field_byte_offset)?; // descriptor.ptr = literal
-    append_mov_r14_imm64(&mut bytes, byte_length as u64);
-    append_store_r14_to_r15(&mut bytes, field_byte_offset + 8)?; // descriptor.len
-    debug_assert_eq!(
-        bytes.len(),
-        runtime_pointee_string_write_width(field_byte_offset, byte_length)
-    );
-    Ok(bytes)
-}
 
 pub const RUNTIME_TEXT_STORED_PLACE_APPEND_TARGET_IMM_OFFSET: usize = 10;
 pub const RUNTIME_TEXT_STORED_PLACE_APPEND_SOURCE_IMM_OFFSET: usize = 33;
@@ -399,69 +349,6 @@ pub fn encode_runtime_text_stored_suffix_append(
     Ok(bytes)
 }
 
-pub fn runtime_frame_fixed_indexed_address_to_runtime_frame_write_width() -> usize {
-    // mov r14,imm64(frame) (10) + mov r15,[r14+desc] (7) + add r15,const (7)
-    // + mov [r14+target],r15 (7)
-    31
-}
-
-/// Computes the address of a descriptor-based element at a constant index
-/// (`*(frame[descriptor]) + element_index*elem + field`) and stores that pointer
-/// into the runtime-frame slot at `target_offset`. The frame base is loaded once
-/// (r14) and reused for the store, so a single `mov r14,imm64` relocation suffices.
-/// Computes the address of a field reached through a RUNTIME pointer stored in the
-/// frame (`*(frame[pointer_byte_offset]) + field_byte_offset`) and stores that
-/// pointer into the runtime-frame slot at `target_offset` -- the lowering of
-/// `ptr.field.as_[mut_]slice()`'s descriptor pointer where `ptr` is a `&mut`
-/// reference parameter. Same shape as the fixed-indexed-address write but the
-/// displacement is just the field offset (no element index*size).
-pub fn runtime_pointee_address_to_runtime_frame_write_width() -> usize {
-    // mov r14,imm64(frame) (10) + mov r15,[r14+ptr] (7) + add r15,const (7)
-    // + mov [r14+target],r15 (7)
-    31
-}
-
-pub fn encode_runtime_pointee_address_to_runtime_frame_write(
-    pointer_byte_offset: usize,
-    field_byte_offset: usize,
-    target_offset: usize,
-) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = Vec::with_capacity(runtime_pointee_address_to_runtime_frame_write_width());
-    append_mov_r14_imm64(&mut bytes, 0); // frame base (reloc @ +2)
-    append_load_r15_from_r14(&mut bytes, pointer_byte_offset)?; // r15 = runtime pointer value
-    append_add_r15_imm32(&mut bytes, field_byte_offset)?; // r15 = pointer + field
-    append_store_r15_to_r14(&mut bytes, target_offset)?; // frame[target] = address
-    debug_assert_eq!(
-        bytes.len(),
-        runtime_pointee_address_to_runtime_frame_write_width()
-    );
-    Ok(bytes)
-}
-
-pub fn encode_runtime_frame_fixed_indexed_address_to_runtime_frame_write(
-    descriptor_offset: usize,
-    element_index: usize,
-    element_byte_size: usize,
-    field_byte_offset: usize,
-    target_offset: usize,
-) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes =
-        Vec::with_capacity(runtime_frame_fixed_indexed_address_to_runtime_frame_write_width());
-    append_mov_r14_imm64(&mut bytes, 0); // frame base (reloc @ +2)
-    append_load_r15_from_r14(&mut bytes, descriptor_offset)?; // r15 = data pointer
-    let displacement = element_index
-        .checked_mul(element_byte_size)
-        .and_then(|scaled| scaled.checked_add(field_byte_offset))
-        .ok_or_else(|| Diagnostic::error("X86_64 fixed indexed address offset overflow"))?;
-    append_add_r15_imm32(&mut bytes, displacement)?; // r15 = element address
-    append_store_r15_to_r14(&mut bytes, target_offset)?; // frame[target] = address
-    debug_assert_eq!(
-        bytes.len(),
-        runtime_frame_fixed_indexed_address_to_runtime_frame_write_width()
-    );
-    Ok(bytes)
-}
-
 /// Relocation imm offset (pre-`+2`) of the TARGET region base `mov` in the
 /// fixed-indexed slice-element copy (the materializer's canonical shape:
 /// source base mov (10) + descriptor deref (7)).
@@ -472,156 +359,6 @@ pub const FRAME_FIXED_INDEXED_COPY_TARGET_IMM_OFFSET: usize = 17;
 /// frame base (10) + index load (7) + imul (7) + descriptor deref (7) +
 /// add (3)).
 pub const FRAME_INDEXED_COPY_TARGET_IMM_OFFSET: usize = 34;
-
-/// Width of [`encode_runtime_frame_indexed_deref_address_to_runtime_frame_write`].
-/// MUST equal the emitter exactly. Frame index: two frame relocations (@+2 and
-/// the target mov at +41+2). Machine index: a machine relocation at +10+2 is
-/// inserted between them (target mov at +51+2).
-pub fn runtime_frame_indexed_deref_address_to_runtime_frame_write_width(
-    index_region: omega_target_operations::RuntimeStorageRegion,
-) -> usize {
-    match index_region {
-        // mov r14,imm64(frame) (10) + mov r10,imm64(machine) (10)
-        // + mov r11d,[r10+idx] (7) + imul r11,elem (7) + mov r14,[r14+desc] (7)
-        // + add r14,r11 (3) + add r14,field (7) + mov r15,imm64(frame) (10)
-        // + mov [r15+target],r14 (7).
-        omega_target_operations::RuntimeStorageRegion::Machine => 68,
-        // mov r14,imm64(frame) (10) + mov r11d,[r14+idx] (7) + imul r11,elem (7)
-        // + mov r14,[r14+desc] (7) + add r14,r11 (3) + add r14,field (7)
-        // + mov r15,imm64(frame) (10) + mov [r15+target],r14 (7).
-        _ => 58,
-    }
-}
-
-/// Relocation imm offset (pre-`+2`) of the TARGET frame-base `mov` in the
-/// descriptor-deref indexed address write, by index region.
-pub fn runtime_frame_indexed_deref_address_target_frame_offset(
-    index_region: omega_target_operations::RuntimeStorageRegion,
-) -> usize {
-    match index_region {
-        omega_target_operations::RuntimeStorageRegion::Machine => 51,
-        _ => 41,
-    }
-}
-
-/// Computes `*(frame[descriptor]) + index*elem + field` -- the address of a
-/// runtime-START subslice element through the SEEDED descriptor pointer -- and
-/// stores it into the frame slot at `target_offset`. The index reads from the
-/// frame (a param/local bound) or from the machine region (`self.lo`, its own
-/// relocation). This op used to be width-0 on x86_64: the ptr write silently
-/// dropped and a runtime-START subslice descriptor kept the whole-array base.
-pub fn encode_runtime_frame_indexed_deref_address_to_runtime_frame_write(
-    descriptor_offset: usize,
-    index_offset: usize,
-    index_region: omega_target_operations::RuntimeStorageRegion,
-    element_byte_size: usize,
-    field_byte_offset: usize,
-    target_offset: usize,
-) -> Result<Vec<u8>, Diagnostic> {
-    if !matches!(
-        index_region,
-        omega_target_operations::RuntimeStorageRegion::RuntimeFrame
-            | omega_target_operations::RuntimeStorageRegion::Machine
-    ) {
-        return Err(Diagnostic::error(
-            "X86_64 MVP encoder cannot read a subslice START index from this region yet",
-        ));
-    }
-    let mut bytes = Vec::with_capacity(
-        runtime_frame_indexed_deref_address_to_runtime_frame_write_width(index_region),
-    );
-    append_mov_r14_imm64(&mut bytes, 0); // frame base (reloc @ +2)
-    if index_region == omega_target_operations::RuntimeStorageRegion::Machine {
-        append_mov_r10_imm64(&mut bytes, 0); // machine base (reloc @ +10+2)
-        // r11d = index, 32-bit zero-extended off the machine base.
-        bytes.extend([0x45, 0x8b, 0x9a]); // mov r11d, [r10+disp32]
-        bytes.extend(disp32(index_offset)?.to_le_bytes());
-    } else {
-        append_load_r11_from_r14(&mut bytes, index_offset)?; // r11 = index (32-bit ZX)
-    }
-    append_imul_r11_imm32(&mut bytes, element_scale(element_byte_size)?);
-    // r14 = *(frame + descriptor) -- the seeded window pointer.
-    bytes.extend([0x4d, 0x8b, 0xb6]); // mov r14, [r14+disp32]
-    bytes.extend(disp32(descriptor_offset)?.to_le_bytes());
-    append_add_r14_r11(&mut bytes); // r14 = ptr + index*elem
-    append_add_r14_imm32(&mut bytes, field_byte_offset)?; // + literal bias
-    debug_assert_eq!(
-        bytes.len(),
-        runtime_frame_indexed_deref_address_target_frame_offset(index_region)
-    );
-    append_mov_r15_imm64(&mut bytes, 0); // frame base for the target slot (reloc @ +2)
-    append_store_r14_to_r15(&mut bytes, target_offset)?; // frame[target] = element address
-    debug_assert_eq!(
-        bytes.len(),
-        runtime_frame_indexed_deref_address_to_runtime_frame_write_width(index_region)
-    );
-    Ok(bytes)
-}
-
-/// Computes the address of an inline frame-base-indexed element
-/// (`frame + base + index*elem + field`) and stores that pointer into the
-/// runtime-frame slot at `target_offset` -- the lowering of `arr.as_slice()` /
-/// `as_mut_slice()` into a `{ptr,len}` descriptor's pointer field. The frame
-/// base is loaded twice (source address in r14, target base in r15); both
-/// `mov r*,imm64` immediates are relocated to the runtime-frame symbol.
-pub fn encode_runtime_frame_base_indexed_address_to_runtime_frame_write(
-    base_byte_offset: usize,
-    index_offset: usize,
-    element_byte_size: usize,
-    field_byte_offset: usize,
-    target_offset: usize,
-) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes =
-        Vec::with_capacity(runtime_frame_base_indexed_address_to_runtime_frame_write_width());
-    append_mov_r14_imm64(&mut bytes, 0); // frame base (reloc @ +2)
-    append_load_r11_from_r14(&mut bytes, index_offset)?; // r11 = index
-    append_imul_r11_imm32(&mut bytes, element_scale(element_byte_size)?);
-    append_add_r14_r11(&mut bytes); // r14 = frame + index*elem
-    append_add_r14_imm32(&mut bytes, base_byte_offset + field_byte_offset)?; // + base + field
-    debug_assert_eq!(
-        bytes.len(),
-        FRAME_BASE_INDEXED_ADDRESS_TARGET_FRAME_IMM_OFFSET
-    );
-    append_mov_r15_imm64(&mut bytes, 0); // frame base for the target slot (reloc @ +2)
-    append_store_r14_to_r15(&mut bytes, target_offset)?; // frame[target] = element address
-    debug_assert_eq!(
-        bytes.len(),
-        runtime_frame_base_indexed_address_to_runtime_frame_write_width()
-    );
-    Ok(bytes)
-}
-
-/// The MACHINE-base element-address write (the wide-referee borrow-recast let
-/// `let d = &self.buf[k] as &Descriptor`): frame[target] = machine_base +
-/// base_byte_offset + index*element + field. The machine base and the index
-/// region each relocate independently (the index may live in the frame or in
-/// machine storage); the slot receives a REAL POINTER — reads deref it.
-pub fn encode_runtime_machine_indexed_address_to_runtime_frame_write(
-    base_byte_offset: usize,
-    index_offset: usize,
-    element_byte_size: usize,
-    field_byte_offset: usize,
-    target_offset: usize,
-) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes =
-        Vec::with_capacity(runtime_machine_indexed_address_to_runtime_frame_write_width());
-    append_mov_r14_imm64(&mut bytes, 0); // machine base (reloc @ +2)
-    append_mov_r15_imm64(&mut bytes, 0); // index region base (reloc @ +12)
-    // 32-bit index load, zero-extended (see append_load_r11_from_r14's note).
-    bytes.extend([0x45, 0x8b, 0x9f]); // mov r11d, [r15 + disp32]
-    bytes.extend(disp32(index_offset)?.to_le_bytes());
-    append_imul_r11_imm32(&mut bytes, element_scale(element_byte_size)?);
-    append_add_r14_r11(&mut bytes); // r14 = machine + index*elem
-    append_add_r14_imm32(&mut bytes, base_byte_offset + field_byte_offset)?;
-    debug_assert_eq!(bytes.len(), MACHINE_INDEXED_ADDRESS_TARGET_FRAME_IMM_OFFSET);
-    append_mov_r15_imm64(&mut bytes, 0); // frame base for the target slot (reloc @ +2)
-    append_store_r14_to_r15(&mut bytes, target_offset)?; // frame[target] = element address
-    debug_assert_eq!(
-        bytes.len(),
-        runtime_machine_indexed_address_to_runtime_frame_write_width()
-    );
-    Ok(bytes)
-}
 
 pub fn encode_return_register_integer_write_bytes(
     byte_size: usize,
@@ -2761,45 +2498,6 @@ fn append_frame_indexed_element_address_into_rax(
     Ok(())
 }
 
-pub fn runtime_frame_indexed_string_write_width(
-    _element_byte_size: usize,
-    _field_byte_offset: usize,
-    _byte_length: usize,
-) -> usize {
-    // prefix (34) + mov r15,imm64 (10) + store r15 (7) + mov r11,imm64 (10) + store r11 (7)
-    FRAME_INDEXED_STRING_PREFIX_WIDTH + 34
-}
-
-pub fn encode_runtime_frame_indexed_string_write(
-    descriptor_offset: usize,
-    index_offset: usize,
-    element_byte_size: usize,
-    field_byte_offset: usize,
-    byte_length: usize,
-) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = Vec::with_capacity(runtime_frame_indexed_string_write_width(
-        element_byte_size,
-        field_byte_offset,
-        byte_length,
-    ));
-    append_frame_indexed_element_address_into_rax(
-        &mut bytes,
-        descriptor_offset,
-        index_offset,
-        element_byte_size,
-    )?;
-    // r15 = string literal data ptr (reloc @ prefix+2); store {ptr, len}.
-    append_mov_r15_imm64(&mut bytes, 0);
-    append_store_r15_to_rax(&mut bytes, field_byte_offset)?;
-    append_mov_reg_imm64(&mut bytes, Reg64::R11, byte_length as u64);
-    append_store_r11_to_rax(&mut bytes, field_byte_offset + 8)?;
-    debug_assert_eq!(
-        bytes.len(),
-        runtime_frame_indexed_string_write_width(element_byte_size, field_byte_offset, byte_length)
-    );
-    Ok(bytes)
-}
-
 pub fn runtime_text_literal_append_to_runtime_frame_indexed_width(
     _element_byte_size: usize,
     _field_byte_offset: usize,
@@ -2865,56 +2563,6 @@ const MACHINE_INDEXED_STRING_PREFIX_WIDTH: usize = 37;
 pub const MACHINE_INDEXED_STRING_FRAME_IMM_OFFSET: usize = 10;
 pub const MACHINE_INDEXED_STRING_DATA_IMM_OFFSET: usize = MACHINE_INDEXED_STRING_PREFIX_WIDTH;
 
-pub fn runtime_machine_indexed_string_write_width(
-    _base_byte_offset: usize,
-    _element_byte_size: usize,
-    _field_byte_offset: usize,
-    _byte_length: usize,
-) -> usize {
-    // prefix (37) + mov r14,imm64 literal (10) + store r14 (7)
-    // + mov r14,imm64 len (10) + store r14 (7)
-    MACHINE_INDEXED_STRING_PREFIX_WIDTH + 34
-}
-
-pub fn encode_runtime_machine_indexed_string_write(
-    base_byte_offset: usize,
-    index_offset: usize,
-    element_byte_size: usize,
-    field_byte_offset: usize,
-    byte_length: usize,
-) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = Vec::with_capacity(runtime_machine_indexed_string_write_width(
-        base_byte_offset,
-        element_byte_size,
-        field_byte_offset,
-        byte_length,
-    ));
-    // r15 = machine base (reloc @ +2); r14 = frame base (reloc @ +12).
-    append_mov_r15_imm64(&mut bytes, 0);
-    append_mov_r14_imm64(&mut bytes, 0);
-    append_load_r11_from_r14(&mut bytes, index_offset)?; // r11 = index
-    append_imul_r11_imm32(&mut bytes, element_scale(element_byte_size)?);
-    append_add_r15_r11(&mut bytes); // r15 = machine_base + index*elem
-    debug_assert_eq!(bytes.len(), MACHINE_INDEXED_STRING_PREFIX_WIDTH);
-    let store_offset = base_byte_offset + field_byte_offset;
-    // descriptor.ptr = string literal (r14, reloc @ prefix+2).
-    append_mov_r14_imm64(&mut bytes, 0);
-    append_store_r14_to_r15(&mut bytes, store_offset)?;
-    // descriptor.len = byte_length.
-    append_mov_r14_imm64(&mut bytes, byte_length as u64);
-    append_store_r14_to_r15(&mut bytes, store_offset + 8)?;
-    debug_assert_eq!(
-        bytes.len(),
-        runtime_machine_indexed_string_write_width(
-            base_byte_offset,
-            element_byte_size,
-            field_byte_offset,
-            byte_length
-        )
-    );
-    Ok(bytes)
-}
-
 pub fn runtime_value_compare_width(
     runtime_value_operands: &impl RuntimeValueOperandSource,
     byte_size: usize,
@@ -2954,89 +2602,6 @@ pub fn encode_runtime_value_compare(
     Ok(bytes)
 }
 
-pub fn runtime_storage_compare_width(
-    _left_offset: usize,
-    _right_offset: usize,
-    byte_size: usize,
-    is_float: bool,
-) -> usize {
-    // mov r15,imm64(left base) + load r10,[r15+left] + mov r15,imm64(right base)
-    // + load r11,[r15+right] + compare + jcc rel32. Integer compare = cmp (3;
-    // 4 with the 0x66 prefix for 2-byte operands, whose loads are also 8 not 7);
-    // float = movq/movd+movq/movd+ucomisd/ucomiss.
-    let load_width = if !is_float && byte_size == 2 { 8 } else { 7 };
-    // Floats prepend a 6-byte `jp` parity branch before the failure jcc (NaN routing).
-    let float_parity_branch = if is_float { 6 } else { 0 };
-    10 + load_width
-        + 10
-        + load_width
-        + runtime_float_or_integer_compare_width(is_float, byte_size)
-        + 6
-        + float_parity_branch
-}
-
-pub fn encode_runtime_storage_compare_bytes(
-    left_offset: usize,
-    right_offset: usize,
-    byte_size: usize,
-    failure_branch_distance: isize,
-    operator: StateGuardOperator,
-    is_float: bool,
-) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = Vec::with_capacity(runtime_storage_compare_width(
-        left_offset,
-        right_offset,
-        byte_size,
-        is_float,
-    ));
-    append_mov_r15_imm64(&mut bytes, 0);
-    append_load_reg_from_r15(&mut bytes, Reg64::R10, left_offset, byte_size)?;
-    append_mov_r15_imm64(&mut bytes, 0);
-    append_load_reg_from_r15(&mut bytes, Reg64::R11, right_offset, byte_size)?;
-    if is_float {
-        append_float_compare_r10_r11(&mut bytes, byte_size);
-    } else {
-        append_cmp_r10_r11(&mut bytes, byte_size)?;
-    }
-    append_failure_branch(&mut bytes, operator, failure_branch_distance - 4, is_float)?;
-    debug_assert_eq!(
-        bytes.len(),
-        runtime_storage_compare_width(left_offset, right_offset, byte_size, is_float)
-    );
-    Ok(bytes)
-}
-
-pub fn runtime_storage_value_compare_width(_byte_offset: usize, byte_size: usize) -> usize {
-    // mov r15,imm64(storage base) + load r10,[r15+offset] + mov r11,imm64
-    // + cmp r10,r11 + jcc rel32. 2-byte operands add the 0x66 prefix to the
-    // load (8) and the compare (4).
-    if byte_size == 2 {
-        10 + 8 + 10 + 4 + 6
-    } else {
-        10 + 7 + 10 + 3 + 6
-    }
-}
-
-pub fn encode_runtime_storage_value_compare_bytes(
-    byte_offset: usize,
-    byte_size: usize,
-    expected_value: i64,
-    failure_branch_distance: isize,
-    operator: StateGuardOperator,
-) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = Vec::with_capacity(runtime_storage_value_compare_width(byte_offset, byte_size));
-    append_mov_r15_imm64(&mut bytes, 0);
-    append_load_reg_from_r15(&mut bytes, Reg64::R10, byte_offset, byte_size)?;
-    append_mov_reg_imm64(&mut bytes, Reg64::R11, expected_value as u64);
-    append_cmp_r10_r11(&mut bytes, byte_size)?;
-    append_failure_branch(&mut bytes, operator, failure_branch_distance - 4, false)?;
-    debug_assert_eq!(
-        bytes.len(),
-        runtime_storage_value_compare_width(byte_offset, byte_size)
-    );
-    Ok(bytes)
-}
-
 pub fn runtime_machine_integer_write_width(_byte_offset: usize, byte_size: usize) -> usize {
     // mov r15,imm64 (10) + mov rax,imm64 (10) + store [r15+disp32] (7; 8 with
     // the 0x66 prefix for a 2-byte store).
@@ -3048,11 +2613,15 @@ pub fn encode_runtime_machine_integer_write(
     byte_size: usize,
     value: i64,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = Vec::with_capacity(runtime_machine_integer_write_width(byte_offset, byte_size));
-    append_mov_r15_imm64(&mut bytes, 0);
-    append_mov_rax_imm64(&mut bytes, value as u64);
-    append_store_rax_to_r15(&mut bytes, byte_offset, byte_size)?;
-    Ok(bytes)
+    // Write rung 1b: DELEGATES byte-for-byte to the place materializer
+    // (unit-pinned identity). The region on the transitional place is
+    // documentation only -- a direct place's bytes never consult it; the
+    // walker patches the base from the instruction's own region.
+    let target =
+        place_copy::transitional_place(omega_target_operations::RuntimeStorageRegion::Machine)
+            .with_step(omega_target_operations::PlaceStep::ConstOffset(byte_offset))
+            .expect("a direct place is two steps, within PLACE_MAX_STEPS");
+    place_copy::encode_place_integer_write(&target, value, byte_size).map(|(bytes, _)| bytes)
 }
 
 pub fn runtime_machine_indexed_integer_write_width(
@@ -3095,31 +2664,32 @@ pub fn encode_runtime_machine_indexed_integer_write(
             "X86_64 MVP encoder cannot scale machine index by element size `{element_byte_size}`"
         ))
     })?;
-    let store_displacement = base_byte_offset + field_byte_offset;
-    let mut bytes = Vec::with_capacity(runtime_machine_indexed_integer_write_width(
-        index_region,
-        element_byte_size,
-        byte_size,
-    ));
-    // r15 = machine storage base (imm64 at +2 relocated to the machine symbol).
-    append_mov_r15_imm64(&mut bytes, 0);
-    // rax = index, loaded from the runtime frame or from machine storage.
-    match index_region {
-        omega_target_operations::RuntimeStorageRegion::RuntimeFrame => {
-            // r10 = runtime-frame base (imm64 at +12 relocated to the frame symbol).
-            append_mov_r10_imm64(&mut bytes, 0);
-            append_load_index_eax_from_r10(&mut bytes, index_offset)?;
-        }
-        omega_target_operations::RuntimeStorageRegion::Machine => {
-            append_load_index_eax_from_r15(&mut bytes, index_offset)?;
-        }
-    }
-    // rax = index * element_byte_size; r15 = machine base + scaled index.
-    append_imul_rax_imm32(&mut bytes, element_scale);
-    append_add_r15_rax(&mut bytes);
-    // Store the value at [r15 + base + field]. rax is free again after the add.
-    append_mov_rax_imm64(&mut bytes, value as u64);
-    append_store_rax_to_r15(&mut bytes, store_displacement, byte_size)?;
+    let _ = element_scale;
+    // Write rung 1c: DELEGATES to the place materializer -- a REGISTER
+    // RENAME canonicalization (the retired layout staged the index through
+    // RAX and a frame-resident index base through r10; the materializer
+    // uses the r11 discipline). Same instruction WIDTHS at every position,
+    // so the walker's +10 frame-base offset and the width fn hold as-is;
+    // the differential legs oracle the byte change.
+    let target =
+        place_copy::transitional_place(omega_target_operations::RuntimeStorageRegion::Machine)
+            .with_step(omega_target_operations::PlaceStep::ConstOffset(
+                base_byte_offset,
+            ))
+            .and_then(|place| {
+                place.with_step(omega_target_operations::PlaceStep::ScaledIndex {
+                    index_region,
+                    index_offset,
+                    element_byte_size,
+                })
+            })
+            .and_then(|place| {
+                place.with_step(omega_target_operations::PlaceStep::ConstOffset(
+                    field_byte_offset,
+                ))
+            })
+            .expect("a machine-indexed place is four steps, within PLACE_MAX_STEPS");
+    let (bytes, _) = place_copy::encode_place_integer_write(&target, value, byte_size)?;
     debug_assert_eq!(
         bytes.len(),
         runtime_machine_indexed_integer_write_width(index_region, element_byte_size, byte_size)
@@ -3181,108 +2751,6 @@ pub fn runtime_storage_copy_machine_indexed_read_part_width(
     }
 }
 
-/// The DUAL-indexed copy `arr[i] = arr[j]` (task #38): read a machine-owned
-/// runtime-indexed SOURCE element, store it into a machine-owned runtime-indexed
-/// TARGET element. Byte-for-byte composition of the two proven halves -- the
-/// read front of
-/// [`encode_runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage`]
-/// (eax = source index, scale, add, load rax) and the write tail of
-/// [`encode_runtime_storage_copy_to_runtime_machine_indexed_from_runtime_storage`]
-/// (r10d = target index, scale, add, store rax). The value rides in rax across
-/// the re-load of the machine base into r15, and the two index computations use
-/// distinct registers (rax before the load vs r10), so nothing clobbers. Both
-/// indices must be machine-resident (the same gate as the halves).
-pub fn encode_runtime_storage_copy_machine_indexed_to_machine_indexed(
-    source_base_byte_offset: usize,
-    source_index_offset: usize,
-    source_index_region: omega_target_operations::RuntimeStorageRegion,
-    source_element_byte_size: usize,
-    source_field_byte_offset: usize,
-    target_base_byte_offset: usize,
-    target_index_offset: usize,
-    target_index_region: omega_target_operations::RuntimeStorageRegion,
-    target_element_byte_size: usize,
-    target_field_byte_offset: usize,
-    byte_count: usize,
-) -> Result<Vec<u8>, Diagnostic> {
-    if !matches!(byte_count, 1 | 4 | 8) {
-        return Err(Diagnostic::error(format!(
-            "X86_64 MVP encoder cannot copy {byte_count}-byte machine indexed values yet"
-        )));
-    }
-    let source_scale = i32::try_from(source_element_byte_size).map_err(|_| {
-        Diagnostic::error(format!(
-            "X86_64 MVP encoder cannot scale machine index by element size `{source_element_byte_size}`"
-        ))
-    })?;
-    let target_scale = i32::try_from(target_element_byte_size).map_err(|_| {
-        Diagnostic::error(format!(
-            "X86_64 MVP encoder cannot scale machine index by element size `{target_element_byte_size}`"
-        ))
-    })?;
-    let source_index_displacement = disp32(source_index_offset)?;
-    let target_index_displacement = disp32(target_index_offset)?;
-    let mut bytes = Vec::with_capacity(
-        runtime_storage_copy_machine_indexed_to_machine_indexed_width(
-            source_index_region,
-            target_index_region,
-        ),
-    );
-    // READ PART. r15 = machine base (imm64 at +2 relocated to the machine
-    // symbol); eax = source index (32-bit, zero-extended -- off the machine
-    // base, or off a frame base in r10 with its own relocation when the index
-    // is frame-resident); scale; walk r15 to the source element; rax = the
-    // element.
-    append_mov_r15_imm64(&mut bytes, 0);
-    if source_index_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame {
-        append_mov_r10_imm64(&mut bytes, 0); // frame base (reloc @ +10+2)
-        bytes.extend([0x41, 0x8b, 0x82]); // mov eax, [r10+disp32]
-        bytes.extend(source_index_displacement.to_le_bytes());
-    } else {
-        bytes.extend([0x41, 0x8b, 0x87]); // mov eax, [r15+disp32]
-        bytes.extend(source_index_displacement.to_le_bytes());
-    }
-    append_imul_rax_imm32(&mut bytes, source_scale);
-    append_add_r15_rax(&mut bytes);
-    append_load_rax_from_r15(
-        &mut bytes,
-        source_base_byte_offset + source_field_byte_offset,
-    )?;
-    debug_assert_eq!(
-        bytes.len(),
-        runtime_storage_copy_machine_indexed_read_part_width(source_index_region)
-    );
-    // WRITE PART. r15 = machine base again (the second machine relocation);
-    // r10d = target index (machine base, or a frame base in r10 overwritten by
-    // its own load); scale; walk r15 to the target element; store the low
-    // byte_count bytes of rax.
-    append_mov_r15_imm64(&mut bytes, 0);
-    if target_index_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame {
-        append_mov_r10_imm64(&mut bytes, 0); // frame base (reloc @ read_part+10+2)
-        bytes.extend([0x45, 0x8b, 0x92]); // mov r10d, [r10+disp32]
-        bytes.extend(target_index_displacement.to_le_bytes());
-    } else {
-        bytes.extend([0x45, 0x8b, 0x97]); // mov r10d, [r15+disp32]
-        bytes.extend(target_index_displacement.to_le_bytes());
-    }
-    bytes.extend([0x4d, 0x69, 0xd2]); // imul r10, r10, imm32
-    bytes.extend(target_scale.to_le_bytes());
-    bytes.extend([0x4d, 0x01, 0xd7]); // add r15, r10
-    append_store_rax_to_r15(
-        &mut bytes,
-        target_base_byte_offset + target_field_byte_offset,
-        byte_count,
-    )?;
-    debug_assert_eq!(
-        bytes.len(),
-        runtime_storage_copy_machine_indexed_to_machine_indexed_width(
-            source_index_region,
-            target_index_region,
-        )
-    );
-    Ok(bytes)
-}
-
 /// Width of [`encode_runtime_storage_copy_from_runtime_machine_double_indexed_to_runtime_storage`].
 /// MUST equal the emitter exactly. Any frame-resident index adds one r10
 /// frame-base load (mov r10,imm64 at +10).
@@ -3312,6 +2780,27 @@ fn double_indexed_any_frame(
 
 /// Start of the `mov r10,imm64` frame-base load inside the double-indexed
 /// read (pre-`+2`; present only when an index is frame-resident).
+/// Write rung 1c (the canonicalized double-indexed WRITE): the OUTER
+/// frame-resident index base (`mov r11,imm64`) begins right after the opening
+/// machine mov.
+pub fn runtime_machine_double_indexed_integer_write_outer_frame_offset() -> usize {
+    10
+}
+
+/// The INNER frame-resident index base (`mov r10,imm64`): after the opening
+/// mov + the outer index sequence (17 cross-region / 7 same-region) + its imul.
+pub fn runtime_machine_double_indexed_integer_write_inner_frame_offset(
+    outer_index_region: omega_target_operations::RuntimeStorageRegion,
+) -> usize {
+    let outer = if outer_index_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
+    {
+        17
+    } else {
+        7
+    };
+    10 + outer + 7
+}
+
 pub fn runtime_storage_copy_from_runtime_machine_double_indexed_frame_base_offset() -> usize {
     10
 }
@@ -3326,100 +2815,6 @@ pub fn runtime_storage_copy_from_runtime_machine_double_indexed_target_base_offs
         outer_index_region,
         inner_index_region,
     ) - 17
-}
-
-/// The BOTH-RUNTIME nested read `grid[i][j]`: rax = outer index, r11 = inner
-/// index (each loaded from its own region -- machine base r15 or frame base
-/// r10), each scaled by its stride (outer = ROW byte size, inner = element
-/// byte size), both added to the machine base, then a width-correct load of
-/// the element and a store to the runtime-storage target. The two index
-/// computations use distinct registers, so neither clobbers the other; the
-/// frame base r10 is loaded once and serves both frame-resident indices.
-pub fn encode_runtime_storage_copy_from_runtime_machine_double_indexed_to_runtime_storage(
-    base_byte_offset: usize,
-    outer_index_offset: usize,
-    outer_index_region: omega_target_operations::RuntimeStorageRegion,
-    outer_stride: usize,
-    inner_index_offset: usize,
-    inner_index_region: omega_target_operations::RuntimeStorageRegion,
-    inner_stride: usize,
-    field_byte_offset: usize,
-    target_offset: usize,
-    byte_count: usize,
-) -> Result<Vec<u8>, Diagnostic> {
-    if !matches!(byte_count, 1 | 4 | 8) {
-        return Err(Diagnostic::error(format!(
-            "X86_64 MVP encoder cannot read {byte_count}-byte double-indexed values yet"
-        )));
-    }
-    for region in [outer_index_region, inner_index_region] {
-        if !matches!(
-            region,
-            omega_target_operations::RuntimeStorageRegion::Machine
-                | omega_target_operations::RuntimeStorageRegion::RuntimeFrame
-        ) {
-            return Err(Diagnostic::error(
-                "X86_64 MVP encoder cannot read a double-indexed value with this index region yet",
-            ));
-        }
-    }
-    let outer_scale = i32::try_from(outer_stride).map_err(|_| {
-        Diagnostic::error(format!(
-            "X86_64 MVP encoder cannot scale a double index by stride `{outer_stride}`"
-        ))
-    })?;
-    let inner_scale = i32::try_from(inner_stride).map_err(|_| {
-        Diagnostic::error(format!(
-            "X86_64 MVP encoder cannot scale a double index by stride `{inner_stride}`"
-        ))
-    })?;
-    let outer_displacement = disp32(outer_index_offset)?;
-    let inner_displacement = disp32(inner_index_offset)?;
-    let mut bytes = Vec::with_capacity(
-        runtime_storage_copy_from_runtime_machine_double_indexed_to_runtime_storage_width(
-            outer_index_region,
-            inner_index_region,
-        ),
-    );
-    // r15 = machine source base (imm64 at +2 relocated to the machine symbol).
-    append_mov_r15_imm64(&mut bytes, 0);
-    if double_indexed_any_frame(outer_index_region, inner_index_region) {
-        // r10 = runtime-frame base (imm64 at +12), shared by both frame loads.
-        append_mov_r10_imm64(&mut bytes, 0);
-    }
-    // eax = outer index (32-bit, zero-extended) from its region's base.
-    if outer_index_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame {
-        bytes.extend([0x41, 0x8b, 0x82]); // mov eax, [r10+disp32]
-    } else {
-        bytes.extend([0x41, 0x8b, 0x87]); // mov eax, [r15+disp32]
-    }
-    bytes.extend(outer_displacement.to_le_bytes());
-    // r11d = inner index (32-bit, zero-extended) from its region's base.
-    if inner_index_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame {
-        bytes.extend([0x45, 0x8b, 0x9a]); // mov r11d, [r10+disp32]
-    } else {
-        bytes.extend([0x45, 0x8b, 0x9f]); // mov r11d, [r15+disp32]
-    }
-    bytes.extend(inner_displacement.to_le_bytes());
-    // Scale both indices, then walk r15 to the element.
-    append_imul_rax_imm32(&mut bytes, outer_scale);
-    bytes.extend([0x4d, 0x69, 0xdb]); // imul r11, r11, imm32
-    bytes.extend(inner_scale.to_le_bytes());
-    append_add_r15_rax(&mut bytes);
-    bytes.extend([0x4d, 0x01, 0xdf]); // add r15, r11
-    // rax = the element at [r15 + base + field].
-    append_load_rax_from_r15(&mut bytes, base_byte_offset + field_byte_offset)?;
-    // r15 = target base (imm64 relocated to the target region symbol); store.
-    append_mov_r15_imm64(&mut bytes, 0);
-    append_store_rax_to_r15(&mut bytes, target_offset, byte_count)?;
-    debug_assert_eq!(
-        bytes.len(),
-        runtime_storage_copy_from_runtime_machine_double_indexed_to_runtime_storage_width(
-            outer_index_region,
-            inner_index_region,
-        )
-    );
-    Ok(bytes)
 }
 
 /// Width of [`encode_runtime_storage_copy_to_runtime_machine_double_indexed_from_runtime_storage`].
@@ -3454,121 +2849,14 @@ pub fn runtime_machine_double_indexed_integer_write_width(
     outer_index_region: omega_target_operations::RuntimeStorageRegion,
     inner_index_region: omega_target_operations::RuntimeStorageRegion,
 ) -> usize {
-    // mov r15,imm64 (10) [+ mov r10,imm64 (10) if any frame index]
-    // + mov eax,[..+outer] (7) + mov r11d,[..+inner] (7) + imul rax (7)
-    // + imul r11 (7) + add r15,rax (3) + add r15,r11 (3)
-    // + mov rax,imm64 (10) + store [r15+disp] (7)
-    if double_indexed_any_frame(outer_index_region, inner_index_region) {
-        71
-    } else {
-        61
-    }
-}
-
-/// Write twin of the double-indexed read: `grid[i][j] = self.v`. The VALUE is
-/// loaded into r14 FIRST (from its region base, while r15 is still the
-/// unbiased machine base), then the address computation mirrors the read
-/// (rax = outer, r11 = inner, both scaled and added to r15), then a
-/// width-correct store of r14.
-pub fn encode_runtime_storage_copy_to_runtime_machine_double_indexed_from_runtime_storage(
-    source_region: omega_target_operations::RuntimeStorageRegion,
-    source_offset: usize,
-    base_byte_offset: usize,
-    outer_index_offset: usize,
-    outer_index_region: omega_target_operations::RuntimeStorageRegion,
-    outer_stride: usize,
-    inner_index_offset: usize,
-    inner_index_region: omega_target_operations::RuntimeStorageRegion,
-    inner_stride: usize,
-    field_byte_offset: usize,
-    byte_count: usize,
-) -> Result<Vec<u8>, Diagnostic> {
-    if !matches!(byte_count, 1 | 4 | 8) {
-        return Err(Diagnostic::error(format!(
-            "X86_64 MVP encoder cannot write {byte_count}-byte double-indexed values yet"
-        )));
-    }
-    for region in [source_region, outer_index_region, inner_index_region] {
-        if !matches!(
-            region,
-            omega_target_operations::RuntimeStorageRegion::Machine
-                | omega_target_operations::RuntimeStorageRegion::RuntimeFrame
-        ) {
-            return Err(Diagnostic::error(
-                "X86_64 MVP encoder cannot write a double-indexed value with this region yet",
-            ));
-        }
-    }
-    let outer_scale = i32::try_from(outer_stride).map_err(|_| {
-        Diagnostic::error(format!(
-            "X86_64 MVP encoder cannot scale a double index by stride `{outer_stride}`"
-        ))
-    })?;
-    let inner_scale = i32::try_from(inner_stride).map_err(|_| {
-        Diagnostic::error(format!(
-            "X86_64 MVP encoder cannot scale a double index by stride `{inner_stride}`"
-        ))
-    })?;
-    let source_displacement = disp32(source_offset)?;
-    let outer_displacement = disp32(outer_index_offset)?;
-    let inner_displacement = disp32(inner_index_offset)?;
+    // Canonicalized by the place materializer (Write rung 1c): mov r15,imm64
+    // (10) + per-index [cross-region: mov reg,imm64 (10) + load (7) | same-
+    // region: load (7)] + imul (7) each + add r15,r11 (3) + add r15,r10 (3)
+    // + mov rax,imm64 (10) + store (7). Each FRAME index adds its OWN base
+    // (r11 for the outer, r10 for the inner) -- no shared r10 anymore.
     let frame = omega_target_operations::RuntimeStorageRegion::RuntimeFrame;
-    let mut bytes = Vec::with_capacity(
-        runtime_storage_copy_to_runtime_machine_double_indexed_from_runtime_storage_width(
-            source_region,
-            outer_index_region,
-            inner_index_region,
-        ),
-    );
-    // r15 = machine base (imm64 at +2 relocated to the machine symbol).
-    append_mov_r15_imm64(&mut bytes, 0);
-    if double_indexed_write_any_frame(source_region, outer_index_region, inner_index_region) {
-        // r10 = runtime-frame base (imm64 at +12), shared by all frame reads.
-        append_mov_r10_imm64(&mut bytes, 0);
-    }
-    // r14 = the source value (full 8-byte load; the store below writes the
-    // low byte_count bytes), read BEFORE r15 is biased.
-    if source_region == frame {
-        bytes.extend([0x4d, 0x8b, 0xb2]); // mov r14, [r10+disp32]
-    } else {
-        bytes.extend([0x4d, 0x8b, 0xb7]); // mov r14, [r15+disp32]
-    }
-    bytes.extend(source_displacement.to_le_bytes());
-    // eax = outer index; r11d = inner index (32-bit, zero-extended).
-    if outer_index_region == frame {
-        bytes.extend([0x41, 0x8b, 0x82]); // mov eax, [r10+disp32]
-    } else {
-        bytes.extend([0x41, 0x8b, 0x87]); // mov eax, [r15+disp32]
-    }
-    bytes.extend(outer_displacement.to_le_bytes());
-    if inner_index_region == frame {
-        bytes.extend([0x45, 0x8b, 0x9a]); // mov r11d, [r10+disp32]
-    } else {
-        bytes.extend([0x45, 0x8b, 0x9f]); // mov r11d, [r15+disp32]
-    }
-    bytes.extend(inner_displacement.to_le_bytes());
-    // Scale both indices, walk r15 to the element, store r14.
-    append_imul_rax_imm32(&mut bytes, outer_scale);
-    bytes.extend([0x4d, 0x69, 0xdb]); // imul r11, r11, imm32
-    bytes.extend(inner_scale.to_le_bytes());
-    append_add_r15_rax(&mut bytes);
-    bytes.extend([0x4d, 0x01, 0xdf]); // add r15, r11
-    let store_displacement = disp32(base_byte_offset + field_byte_offset)?;
-    match byte_count {
-        1 => bytes.extend([0x45, 0x88, 0xb7]), // mov [r15+disp32], r14b
-        4 => bytes.extend([0x45, 0x89, 0xb7]), // mov [r15+disp32], r14d
-        _ => bytes.extend([0x4d, 0x89, 0xb7]), // mov [r15+disp32], r14
-    }
-    bytes.extend(store_displacement.to_le_bytes());
-    debug_assert_eq!(
-        bytes.len(),
-        runtime_storage_copy_to_runtime_machine_double_indexed_from_runtime_storage_width(
-            source_region,
-            outer_index_region,
-            inner_index_region,
-        )
-    );
-    Ok(bytes)
+    61 + if outer_index_region == frame { 10 } else { 0 }
+        + if inner_index_region == frame { 10 } else { 0 }
 }
 
 /// Const-value write into a both-runtime nested element (`grid[i][j] = 70`):
@@ -3602,46 +2890,38 @@ pub fn encode_runtime_machine_double_indexed_integer_write(
             ));
         }
     }
-    let outer_scale = i32::try_from(outer_stride).map_err(|_| {
-        Diagnostic::error(format!(
-            "X86_64 MVP encoder cannot scale a double index by stride `{outer_stride}`"
-        ))
-    })?;
-    let inner_scale = i32::try_from(inner_stride).map_err(|_| {
-        Diagnostic::error(format!(
-            "X86_64 MVP encoder cannot scale a double index by stride `{inner_stride}`"
-        ))
-    })?;
-    let outer_displacement = disp32(outer_index_offset)?;
-    let inner_displacement = disp32(inner_index_offset)?;
-    let frame = omega_target_operations::RuntimeStorageRegion::RuntimeFrame;
-    let mut bytes = Vec::with_capacity(runtime_machine_double_indexed_integer_write_width(
-        outer_index_region,
-        inner_index_region,
-    ));
-    append_mov_r15_imm64(&mut bytes, 0);
-    if double_indexed_any_frame(outer_index_region, inner_index_region) {
-        append_mov_r10_imm64(&mut bytes, 0);
-    }
-    if outer_index_region == frame {
-        bytes.extend([0x41, 0x8b, 0x82]); // mov eax, [r10+disp32]
-    } else {
-        bytes.extend([0x41, 0x8b, 0x87]); // mov eax, [r15+disp32]
-    }
-    bytes.extend(outer_displacement.to_le_bytes());
-    if inner_index_region == frame {
-        bytes.extend([0x45, 0x8b, 0x9a]); // mov r11d, [r10+disp32]
-    } else {
-        bytes.extend([0x45, 0x8b, 0x9f]); // mov r11d, [r15+disp32]
-    }
-    bytes.extend(inner_displacement.to_le_bytes());
-    append_imul_rax_imm32(&mut bytes, outer_scale);
-    bytes.extend([0x4d, 0x69, 0xdb]); // imul r11, r11, imm32
-    bytes.extend(inner_scale.to_le_bytes());
-    append_add_r15_rax(&mut bytes);
-    bytes.extend([0x4d, 0x01, 0xdf]); // add r15, r11
-    append_mov_rax_imm64(&mut bytes, value as u64);
-    append_store_rax_to_r15(&mut bytes, base_byte_offset + field_byte_offset, byte_size)?;
+    // Write rung 1c: DELEGATES to the place materializer -- CANONICALIZED:
+    // the retired layout materialized ONE shared r10 frame base for BOTH
+    // frame-resident indices and staged the outer index in RAX; the
+    // materializer materializes each cross-region index base separately
+    // (r11 then r10). Widths and frame-base reloc positions move -- the
+    // width fn and the walker's per-index arm move in lockstep.
+    let target =
+        place_copy::transitional_place(omega_target_operations::RuntimeStorageRegion::Machine)
+            .with_step(omega_target_operations::PlaceStep::ConstOffset(
+                base_byte_offset,
+            ))
+            .and_then(|place| {
+                place.with_step(omega_target_operations::PlaceStep::ScaledIndex {
+                    index_region: outer_index_region,
+                    index_offset: outer_index_offset,
+                    element_byte_size: outer_stride,
+                })
+            })
+            .and_then(|place| {
+                place.with_step(omega_target_operations::PlaceStep::ScaledIndex {
+                    index_region: inner_index_region,
+                    index_offset: inner_index_offset,
+                    element_byte_size: inner_stride,
+                })
+            })
+            .and_then(|place| {
+                place.with_step(omega_target_operations::PlaceStep::ConstOffset(
+                    field_byte_offset,
+                ))
+            })
+            .expect("a double-indexed place is five steps, within PLACE_MAX_STEPS");
+    let (bytes, _) = place_copy::encode_place_integer_write(&target, value, byte_size)?;
     debug_assert_eq!(
         bytes.len(),
         runtime_machine_double_indexed_integer_write_width(outer_index_region, inner_index_region,)
@@ -3665,16 +2945,21 @@ pub fn encode_runtime_pointee_integer_write(
             "X86_64 MVP encoder cannot store {byte_size}-byte pointee integers yet"
         )));
     }
-    let mut bytes = Vec::with_capacity(runtime_pointee_integer_write_width(
-        field_byte_offset,
-        byte_size,
-    ));
-    // r15 = frame base (imm64 at +2 relocated to the frame symbol); then load the
-    // stored pointer in place and store the value through it.
-    append_mov_r15_imm64(&mut bytes, 0);
-    append_load_r15_from_r15(&mut bytes, pointer_byte_offset)?;
-    append_mov_rax_imm64(&mut bytes, value as u64);
-    append_store_rax_to_r15(&mut bytes, field_byte_offset, byte_size)?;
+    // Write rung 1b: DELEGATES byte-for-byte to the place materializer
+    // ([Const(ptr), Deref, Const(field)]; unit-pinned identity).
+    let target =
+        place_copy::transitional_place(omega_target_operations::RuntimeStorageRegion::RuntimeFrame)
+            .with_step(omega_target_operations::PlaceStep::ConstOffset(
+                pointer_byte_offset,
+            ))
+            .and_then(|place| place.with_step(omega_target_operations::PlaceStep::Deref))
+            .and_then(|place| {
+                place.with_step(omega_target_operations::PlaceStep::ConstOffset(
+                    field_byte_offset,
+                ))
+            })
+            .expect("a pointee place is four steps, within PLACE_MAX_STEPS");
+    let (bytes, _) = place_copy::encode_place_integer_write(&target, value, byte_size)?;
     debug_assert_eq!(
         bytes.len(),
         runtime_pointee_integer_write_width(field_byte_offset, byte_size)
@@ -3705,20 +2990,32 @@ pub fn encode_runtime_frame_indexed_integer_write(
             "X86_64 MVP encoder cannot store {byte_size}-byte frame indexed integers yet"
         )));
     }
-    let mut bytes = Vec::with_capacity(runtime_frame_indexed_integer_write_width(
-        element_byte_size,
-        field_byte_offset,
-        byte_size,
-    ));
-    // r14 = frame base (imm64 at +2 relocated to the frame symbol). The descriptor
-    // holds the slice data pointer; r15 = data ptr + index*element.
-    append_mov_r14_imm64(&mut bytes, 0);
-    append_load_r15_from_r14(&mut bytes, descriptor_offset)?;
-    append_load_r11_from_r14(&mut bytes, index_offset)?;
-    append_imul_r11_imm32(&mut bytes, element_scale(element_byte_size)?);
-    append_add_r15_r11(&mut bytes);
-    append_mov_rax_imm64(&mut bytes, value as u64);
-    append_store_rax_to_r15(&mut bytes, field_byte_offset, byte_size)?;
+    // Write rung 1c: DELEGATES to the place materializer -- the SAME
+    // instruction multiset REORDERED (the index pre-loads into r11 while
+    // r15 still equals the frame base, BEFORE the descriptor deref consumes
+    // it; the retired layout loaded the descriptor first through a separate
+    // r14 base). Same width, one start relocation -- the Copy rung-1c-i
+    // reorder precedent.
+    let target =
+        place_copy::transitional_place(omega_target_operations::RuntimeStorageRegion::RuntimeFrame)
+            .with_step(omega_target_operations::PlaceStep::ConstOffset(
+                descriptor_offset,
+            ))
+            .and_then(|place| place.with_step(omega_target_operations::PlaceStep::Deref))
+            .and_then(|place| {
+                place.with_step(omega_target_operations::PlaceStep::ScaledIndex {
+                    index_region: omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+                    index_offset,
+                    element_byte_size,
+                })
+            })
+            .and_then(|place| {
+                place.with_step(omega_target_operations::PlaceStep::ConstOffset(
+                    field_byte_offset,
+                ))
+            })
+            .expect("a frame-indexed place is five steps, within PLACE_MAX_STEPS");
+    let (bytes, _) = place_copy::encode_place_integer_write(&target, value, byte_size)?;
     debug_assert_eq!(
         bytes.len(),
         runtime_frame_indexed_integer_write_width(element_byte_size, field_byte_offset, byte_size)
@@ -3732,9 +3029,11 @@ pub fn runtime_frame_base_indexed_integer_write_width(
     _field_byte_offset: usize,
     _byte_size: usize,
 ) -> usize {
-    // mov r14,imm64 (10) + mov r11,[r14+idx] (7) + imul r11,r11,elem (7)
-    // + mov r15,r14 (3) + add r15,r11 (3) + mov rax,imm64 (10) + store [r15+base+field] (7)
-    47
+    // Canonicalized by the place materializer (Write rung 1c): mov r15,imm64
+    // (10) + mov r11d,[r15+idx] (7) + imul r11,r11,elem (7) + add r15,r11 (3)
+    // + mov rax,imm64 (10) + store [r15+base+field] (7). The retired layout's
+    // redundant `mov r15,r14` is gone.
+    44
 }
 
 pub fn encode_runtime_frame_base_indexed_integer_write(
@@ -3750,22 +3049,30 @@ pub fn encode_runtime_frame_base_indexed_integer_write(
             "X86_64 MVP encoder cannot store {byte_size}-byte frame base-indexed integers yet"
         )));
     }
-    let store_displacement = base_byte_offset + field_byte_offset;
-    let mut bytes = Vec::with_capacity(runtime_frame_base_indexed_integer_write_width(
-        base_byte_offset,
-        element_byte_size,
-        field_byte_offset,
-        byte_size,
-    ));
-    // r14 = frame base (imm64 at +2 relocated to the frame symbol). The array base
-    // lives inline in the frame at base_byte_offset; r15 = frame base + index*element.
-    append_mov_r14_imm64(&mut bytes, 0);
-    append_load_r11_from_r14(&mut bytes, index_offset)?;
-    append_imul_r11_imm32(&mut bytes, element_scale(element_byte_size)?);
-    append_mov_r15_r14(&mut bytes);
-    append_add_r15_r11(&mut bytes);
-    append_mov_rax_imm64(&mut bytes, value as u64);
-    append_store_rax_to_r15(&mut bytes, store_displacement, byte_size)?;
+    // Write rung 1c: DELEGATES to the place materializer -- CANONICALIZED
+    // 47 -> 44 bytes (the retired layout staged the base in r14 and copied
+    // it to r15 with a redundant `mov r15,r14`; the materializer opens in
+    // r15 directly). The one frame-base relocation stays at instruction
+    // start; the width fn shrinks in lockstep.
+    let target =
+        place_copy::transitional_place(omega_target_operations::RuntimeStorageRegion::RuntimeFrame)
+            .with_step(omega_target_operations::PlaceStep::ConstOffset(
+                base_byte_offset,
+            ))
+            .and_then(|place| {
+                place.with_step(omega_target_operations::PlaceStep::ScaledIndex {
+                    index_region: omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+                    index_offset,
+                    element_byte_size,
+                })
+            })
+            .and_then(|place| {
+                place.with_step(omega_target_operations::PlaceStep::ConstOffset(
+                    field_byte_offset,
+                ))
+            })
+            .expect("a frame-base-indexed place is four steps, within PLACE_MAX_STEPS");
+    let (bytes, _) = place_copy::encode_place_integer_write(&target, value, byte_size)?;
     debug_assert_eq!(
         bytes.len(),
         runtime_frame_base_indexed_integer_write_width(
@@ -5666,95 +4973,6 @@ pub fn wire_decode_repeated_count_page_offset(
         + 7
 }
 
-pub fn runtime_machine_string_write_width(_byte_length: usize) -> usize {
-    44
-}
-
-pub fn runtime_frame_string_write_width(byte_length: usize) -> usize {
-    runtime_machine_string_write_width(byte_length)
-}
-
-pub fn encode_runtime_machine_string_write(
-    byte_offset: usize,
-    byte_length: usize,
-) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = Vec::with_capacity(runtime_machine_string_write_width(byte_length));
-    append_mov_r14_imm64(&mut bytes, 0);
-    append_mov_r15_imm64(&mut bytes, 0);
-    append_store_r14_to_r15(&mut bytes, byte_offset)?;
-    append_mov_rax_imm64(&mut bytes, byte_length as u64);
-    append_store_rax_to_r15(&mut bytes, byte_offset + 8, 8)?;
-    Ok(bytes)
-}
-
-// Write a string literal into an owned `[u8; N]` bounded byte carrier at machine
-// storage (`{len, bytes}` inline). r15 = machine storage base (reloc @ +2); store
-// `len` (the literal length) as the leading 8-byte word at [r15 + byte_offset],
-// then copy each literal byte inline at [r15 + byte_offset + 8 + i] as an
-// immediate. The carrier OWNS its bytes (a value), unlike the String descriptor
-// which stores a {ptr -> rodata, len}. Content is immediate, so the ONLY
-// relocation is the base address (the leading `mov r15, imm64`).
-pub fn runtime_machine_bounded_buffer_write_width(literal: &str) -> usize {
-    // mov r15,imm64 (10) + mov rax,imm64 (10) + store rax->[r15+off] 8B (7) = 27,
-    // then per content byte: mov byte [r15 + disp32], imm8 (8).
-    27 + literal.len() * 8
-}
-
-// Write a string literal into an owned `[u8; N]` carrier reached THROUGH a stored
-// pointer (`rooms[0].label = "Gate"`): load the pointer from `frame[ptr]` into r15,
-// then store `len` + the literal bytes inline at `*ptr + field`. Content is
-// immediate, so the ONLY relocation is the base (the leading `mov r15, imm64`).
-pub fn runtime_pointee_bounded_buffer_write_width(literal: &str) -> usize {
-    // mov r15,imm64 (10) + mov r15,[r15+ptr] (7) + mov rax,imm64 (10)
-    // + store rax->[r15+field] 8B (7), then per content byte:
-    // mov byte [r15 + disp32], imm8 (8) = 34 + 8*len
-    34 + literal.len() * 8
-}
-
-pub fn encode_runtime_pointee_bounded_buffer_write(
-    pointer_byte_offset: usize,
-    field_byte_offset: usize,
-    literal: &str,
-) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = Vec::with_capacity(runtime_pointee_bounded_buffer_write_width(literal));
-    append_mov_r15_imm64(&mut bytes, 0); // frame/machine base (reloc @ +2)
-    append_load_r15_from_r15(&mut bytes, pointer_byte_offset)?; // r15 = stored pointer
-    append_mov_rax_imm64(&mut bytes, literal.len() as u64);
-    append_store_rax_to_r15(&mut bytes, field_byte_offset, 8)?; // [*ptr + field] = len word
-    for (index, byte) in literal.as_bytes().iter().enumerate() {
-        let displacement = disp32(field_byte_offset + 8 + index)?;
-        bytes.extend([0x41, 0xc6, 0x87]); // mov byte [r15 + disp32], imm8
-        bytes.extend(displacement.to_le_bytes());
-        bytes.push(*byte);
-    }
-    debug_assert_eq!(
-        bytes.len(),
-        runtime_pointee_bounded_buffer_write_width(literal)
-    );
-    Ok(bytes)
-}
-
-pub fn encode_runtime_machine_bounded_buffer_write(
-    byte_offset: usize,
-    literal: &str,
-) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = Vec::with_capacity(runtime_machine_bounded_buffer_write_width(literal));
-    append_mov_r15_imm64(&mut bytes, 0); // machine storage base (reloc @ +2)
-    append_mov_rax_imm64(&mut bytes, literal.len() as u64);
-    append_store_rax_to_r15(&mut bytes, byte_offset, 8)?; // [base + off] = len word
-    for (index, byte) in literal.as_bytes().iter().enumerate() {
-        let displacement = disp32(byte_offset + 8 + index)?;
-        bytes.extend([0x41, 0xc6, 0x87]); // mov byte [r15 + disp32], imm8
-        bytes.extend(displacement.to_le_bytes());
-        bytes.push(*byte);
-    }
-    debug_assert_eq!(
-        bytes.len(),
-        runtime_machine_bounded_buffer_write_width(literal)
-    );
-    Ok(bytes)
-}
-
 // Append a source carrier's content onto a target carrier (concat builder source
 // segment, after the first literal initialized the target). r15 = machine
 // storage base (reloc @ +2). rax = target running len; rcx = source len (rep
@@ -5866,35 +5084,6 @@ pub fn encode_runtime_machine_bounded_buffer_literal_append(
     Ok(bytes)
 }
 
-pub fn encode_runtime_frame_string_write(
-    byte_offset: usize,
-    byte_length: usize,
-) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = Vec::with_capacity(runtime_frame_string_write_width(byte_length));
-    append_mov_r14_imm64(&mut bytes, 0);
-    append_mov_r15_imm64(&mut bytes, 0);
-    append_store_r14_to_r15(&mut bytes, byte_offset)?;
-    append_mov_rax_imm64(&mut bytes, byte_length as u64);
-    append_store_rax_to_r15(&mut bytes, byte_offset + 8, 8)?;
-    Ok(bytes)
-}
-
-pub fn runtime_storage_address_to_runtime_frame_write_width() -> usize {
-    34
-}
-
-pub fn encode_runtime_storage_address_to_runtime_frame_write(
-    source_offset: usize,
-    target_offset: usize,
-) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = Vec::with_capacity(runtime_storage_address_to_runtime_frame_write_width());
-    append_mov_r14_imm64(&mut bytes, 0);
-    append_add_r14_imm32(&mut bytes, source_offset)?;
-    append_mov_r15_imm64(&mut bytes, 0);
-    append_store_r14_to_r15(&mut bytes, target_offset)?;
-    Ok(bytes)
-}
-
 /// Bytes inserted between the left and right operand evaluations of a binary
 /// write on x86_64: a single `push r10` that preserves the left result while the
 /// right operand is evaluated (both accumulate in r10). Relocation planning adds
@@ -5943,8 +5132,7 @@ pub fn runtime_storage_binary_write_width(
             runtime_value_operands.immediate_integer(left).is_some(),
             runtime_value_operands.immediate_integer(right).is_some(),
         )
-    } else if !is_float
-        && domain == ArithmeticDomain::Saturating
+    } else if domain == ArithmeticDomain::Saturating
         && matches!(
             operator,
             StateGuardOperator::Divide | StateGuardOperator::Modulo
@@ -5953,8 +5141,7 @@ pub fn runtime_storage_binary_write_width(
         // Saturating SIGNED divide/modulo wraps the normal idiv in a TYPE_MIN/-1
         // guard (see append_saturating_signed_divide_modulo).
         saturating_signed_divide_modulo_width(byte_size, operator == StateGuardOperator::Modulo)
-    } else if !is_float
-        && domain == ArithmeticDomain::Wrapping
+    } else if domain == ArithmeticDomain::Wrapping
         && matches!(
             operator,
             StateGuardOperator::Divide | StateGuardOperator::Modulo
@@ -5964,26 +5151,36 @@ pub fn runtime_storage_binary_write_width(
         // (see append_wrapping_signed_divide_modulo). Unsigned uses the *Unsigned
         // operators and cannot overflow, so it falls through.
         wrapping_signed_divide_modulo_width(byte_size, operator == StateGuardOperator::Modulo)
-    } else if !is_float
-        && domain == ArithmeticDomain::Wrapping
-        && matches!(
-            operator,
-            StateGuardOperator::ShiftLeft
-                | StateGuardOperator::ShiftRight
-                | StateGuardOperator::ShiftRightLogical
-        )
+    } else if (domain == ArithmeticDomain::Wrapping && operator == StateGuardOperator::ShiftLeft)
+        || (domain != ArithmeticDomain::Exact
+            && matches!(
+                operator,
+                StateGuardOperator::ShiftRight | StateGuardOperator::ShiftRightLogical
+            ))
     {
-        runtime_binary_operation_width(operator, byte_size) + WRAPPING_SHIFT_COUNT_MASK_WIDTH
-    } else if !is_float
-        && domain == ArithmeticDomain::Trapping
-        && matches!(
+        // Domain-governed shifts: F8b WRAPPING masks the COUNT (sub-word AND
+        // only; the hardware mask IS the ruling at widths 4/8), while
+        // Saturating/Trapping `>>` keep the floor-semantics count fixes
+        // until F8c. Same operand-derived byte size as the emission arm.
+        let operation_byte_size = runtime_binary_operation_byte_size(
+            runtime_value_operands,
             operator,
-            StateGuardOperator::ShiftRight | StateGuardOperator::ShiftRightLogical
-        )
-    {
-        runtime_binary_operation_width(operator, byte_size) + TRAPPING_SHIFT_COUNT_GUARD_WIDTH
+            left,
+            right,
+            byte_size,
+        );
+        let fix = if domain == ArithmeticDomain::Wrapping {
+            wrapping_shift_count_mask_width(operation_byte_size)
+        } else if domain == ArithmeticDomain::Trapping {
+            SHIFT_COUNT_TRAP_GUARD_WIDTH
+        } else if operator == StateGuardOperator::ShiftRight {
+            WRAPPING_SHIFT_RIGHT_COUNT_SATURATE_WIDTH
+        } else {
+            WRAPPING_SHIFT_ZERO_CLAMP_WIDTH
+        };
+        runtime_binary_operation_width(operator, operation_byte_size) + fix
     } else if is_float {
-        runtime_float_binary_operation_with_domain_width(operator, byte_size, domain)
+        runtime_float_binary_operation_width_with_domain(operator, byte_size, domain)
     } else {
         // Trapping div/mod (idiv traps == Trapping semantics), Exact (proven
         // non-overflowing), and unsigned div/mod (cannot overflow) use the normal
@@ -6063,9 +5260,11 @@ fn wrapping_signed_divide_modulo_width(byte_size: usize, want_remainder: bool) -
 /// Saturating take the TYPE_MIN/-1 clamp fixup and under Wrapping the idiv
 /// #DE guard (unsigned div/mod use the *Unsigned operators, never overflow,
 /// and fall through; Trapping div/mod fall through -- `idiv` traps on
-/// overflow and /0, which IS Trapping semantics). F8 Wrapping shifts mask the
-/// count by the language operand width; Trapping shifts check it before the
-/// ISA can apply its own hardware mask.
+/// overflow and /0, which IS Trapping semantics). Wrapping SHIFTS take the
+/// at-width count fix (shift-domain ruling: shifts are value operations --
+/// x * 2^n mod 2^w and floor(x / 2^n) -- but the hardware masks the count
+/// instead): `<<` and logical `>>` clamp the result to zero, arithmetic `>>`
+/// saturates the count to width-1 (= the sign-fill shift).
 enum OperandDomainOperation {
     AddSub {
         domain: ArithmeticDomain,
@@ -6081,10 +5280,11 @@ enum OperandDomainOperation {
     WrappingSignedDivMod {
         want_remainder: bool,
     },
-    WrappingShift {
-        operands_signed: bool,
-    },
-    TrappingShiftRight {
+    // Carries the domain: Wrapping masks the COUNT (F8b), while
+    // Saturating/Trapping `>>` keep the floor-semantics count fixes (F8c
+    // pending) -- one variant, domain-dispatched at emission.
+    DomainShift {
+        domain: ArithmeticDomain,
         operands_signed: bool,
     },
     SaturatingTrappingShiftLeft {
@@ -6128,12 +5328,12 @@ fn operand_position_domain_operation(
                 want_remainder: operator == StateGuardOperator::Modulo,
             })
         }
-        (
-            StateGuardOperator::ShiftLeft
-            | StateGuardOperator::ShiftRight
-            | StateGuardOperator::ShiftRightLogical,
-            ArithmeticDomain::Wrapping,
-        ) => Some(OperandDomainOperation::WrappingShift { operands_signed }),
+        (StateGuardOperator::ShiftLeft, ArithmeticDomain::Wrapping) => {
+            Some(OperandDomainOperation::DomainShift {
+                domain,
+                operands_signed,
+            })
+        }
         (
             StateGuardOperator::ShiftLeft,
             ArithmeticDomain::Saturating | ArithmeticDomain::Trapping,
@@ -6141,10 +5341,16 @@ fn operand_position_domain_operation(
             domain,
             operands_signed,
         }),
+        // `>>` cannot overflow: Wrapping masks the count (F8b); the
+        // floor-semantics count fix survives under Saturating/Trapping
+        // until F8c. Both dispatch on the carried domain at emission.
         (
             StateGuardOperator::ShiftRight | StateGuardOperator::ShiftRightLogical,
-            ArithmeticDomain::Trapping,
-        ) => Some(OperandDomainOperation::TrappingShiftRight { operands_signed }),
+            ArithmeticDomain::Wrapping | ArithmeticDomain::Saturating | ArithmeticDomain::Trapping,
+        ) => Some(OperandDomainOperation::DomainShift {
+            domain,
+            operands_signed,
+        }),
         _ => None,
     }
 }
@@ -6184,13 +5390,52 @@ pub fn encode_runtime_storage_binary_write(
     // `mov r14, imm64` and `mov r15, imm64` are both 10 bytes with the relocated
     // immediate at +2, so the target relocation offset is unchanged.
     append_mov_r14_imm64(&mut bytes, 0);
+    append_binary_operands_op_and_store(
+        runtime_value_operands,
+        &mut bytes,
+        target_offset,
+        byte_size,
+        left,
+        operator,
+        right,
+        is_float,
+        domain,
+        target_signed,
+    )?;
+    Ok(bytes)
+}
+
+/// The target-address-AGNOSTIC half of every binary write: evaluate the
+/// operand pair (r10 accumulator, left stashed across the right eval),
+/// apply the operator under the arithmetic domain (floats, Saturating/
+/// Trapping, shift-count policies), and store r10 to [r14 + target_offset].
+/// The caller owns getting the target address into r14 (the retired
+/// encoders' `mov r14,imm64`; the place materializer's walk + `mov r14,r15`).
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn append_binary_operands_op_and_store(
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    bytes: &mut Vec<u8>,
+    target_offset: usize,
+    byte_size: usize,
+    left: RuntimeValueOperandHandle,
+    operator: StateGuardOperator,
+    right: RuntimeValueOperandHandle,
+    is_float: bool,
+    domain: ArithmeticDomain,
+    target_signed: bool,
+) -> Result<(), Diagnostic> {
+    let saturating_or_trapping = !is_float
+        && matches!(
+            domain,
+            ArithmeticDomain::Saturating | ArithmeticDomain::Trapping
+        );
     // Each operand's evaluation accumulates in r10, so the right operand would
     // clobber the left result. Stash left on the stack across the right eval.
-    append_runtime_value_operand(runtime_value_operands, &mut bytes, Reg64::R10, left)?;
-    append_push_r10(&mut bytes);
-    append_runtime_value_operand(runtime_value_operands, &mut bytes, Reg64::R10, right)?;
-    append_mov_reg_reg(&mut bytes, Reg64::R11, Reg64::R10); // right -> r11
-    append_pop_r10(&mut bytes); // restore left -> r10
+    append_runtime_value_operand(runtime_value_operands, bytes, Reg64::R10, left)?;
+    append_push_r10(bytes);
+    append_runtime_value_operand(runtime_value_operands, bytes, Reg64::R10, right)?;
+    append_mov_reg_reg(bytes, Reg64::R11, Reg64::R10); // right -> r11
+    append_pop_r10(bytes); // restore left -> r10
     let saturating_or_trapping = !is_float
         && matches!(
             domain,
@@ -6200,8 +5445,8 @@ pub fn encode_runtime_storage_binary_write(
         // Comparisons run at the OPERAND width (a bool target is 1 byte, but
         // the xmm moves + ucomis need the f32/f64 width); arithmetic keeps the
         // target width, which equals the operand width for float targets.
-        append_runtime_float_binary_operation_with_domain(
-            &mut bytes,
+        append_runtime_float_binary_operation(
+            bytes,
             operator,
             runtime_binary_operation_byte_size(
                 runtime_value_operands,
@@ -6217,7 +5462,7 @@ pub fn encode_runtime_storage_binary_write(
         // for <=32-bit operands (it cannot exceed 64 bits), so compare the full
         // product against the target type's range and clamp / trap.
         append_saturating_trapping_multiply(
-            &mut bytes,
+            bytes,
             domain,
             byte_size,
             target_signed,
@@ -6227,7 +5472,7 @@ pub fn encode_runtime_storage_binary_write(
     } else if saturating_or_trapping && operator == StateGuardOperator::ShiftLeft {
         // Saturating/Trapping `<<`: clamp/trap when the TRUE value x * 2^n
         // leaves the target range (shift slice C; mirrors aarch64).
-        append_saturating_trapping_shift_left(&mut bytes, domain, byte_size, target_signed)?;
+        append_saturating_trapping_shift_left(bytes, domain, byte_size, target_signed)?;
     } else if saturating_or_trapping
         && matches!(
             operator,
@@ -6238,7 +5483,7 @@ pub fn encode_runtime_storage_binary_write(
         // wide literal operands -- the MIN-idiom fix); 64-bit keeps the
         // flag-driven clamp inside the helper.
         append_saturating_trapping_add_sub(
-            &mut bytes,
+            bytes,
             domain,
             operator,
             byte_size,
@@ -6258,7 +5503,7 @@ pub fn encode_runtime_storage_binary_write(
         // normal path below. (Trapping div/mod also falls through, where `idiv`
         // traps on overflow and divide-by-zero -- exactly Trapping semantics.)
         append_saturating_signed_divide_modulo(
-            &mut bytes,
+            bytes,
             byte_size,
             operator == StateGuardOperator::Modulo,
         )?;
@@ -6273,36 +5518,51 @@ pub fn encode_runtime_storage_binary_write(
         // Unsigned div/mod uses the *Unsigned operators (cannot overflow) and
         // falls through to the normal path below.
         append_wrapping_signed_divide_modulo(
-            &mut bytes,
+            bytes,
             byte_size,
             operator == StateGuardOperator::Modulo,
         )?;
-    } else if domain == ArithmeticDomain::Wrapping
-        && matches!(
-            operator,
-            StateGuardOperator::ShiftLeft
-                | StateGuardOperator::ShiftRight
-                | StateGuardOperator::ShiftRightLogical
-        )
+    } else if (domain == ArithmeticDomain::Wrapping && operator == StateGuardOperator::ShiftLeft)
+        || (domain != ArithmeticDomain::Exact
+            && matches!(
+                operator,
+                StateGuardOperator::ShiftRight | StateGuardOperator::ShiftRightLogical
+            ))
     {
-        // A shift's language width is its result/landing width. In the
-        // erased-constant transition-arg shape the operands are typeless i64
-        // literals, so re-deriving from them would accidentally select 64-bit.
-        let operation_byte_size = byte_size;
-        append_wrapping_shift_count_mask(&mut bytes, operation_byte_size);
-        append_runtime_binary_operation(&mut bytes, operator, operation_byte_size)?;
-    } else if domain == ArithmeticDomain::Trapping
-        && matches!(
+        // Domain-governed shifts: F8b (ch5 shift-count ruling) WRAPPING masks
+        // the COUNT to the operand width -- the hardware `shl`/`shr`/`sar`
+        // mask mod 32/64 already (the ruling at widths 4/8), sub-word widths
+        // take the explicit AND. Saturating/Trapping `>>` keep the floor
+        // fixes (arithmetic >> saturates the count to width-1 BEFORE the
+        // sar; logical >> zero-clamps after) until F8c lands the count trap.
+        // Matches interp + aarch64. The store's truncation remains the
+        // in-range wrap.
+        let operation_byte_size = runtime_binary_operation_byte_size(
+            runtime_value_operands,
             operator,
-            StateGuardOperator::ShiftRight | StateGuardOperator::ShiftRightLogical
-        )
-    {
-        let operation_byte_size = byte_size;
-        append_trapping_shift_count_guard(&mut bytes, operation_byte_size);
-        append_runtime_binary_operation(&mut bytes, operator, operation_byte_size)?;
+            left,
+            right,
+            byte_size,
+        );
+        if domain == ArithmeticDomain::Wrapping {
+            append_wrapping_shift_count_mask(bytes, operation_byte_size);
+            append_runtime_binary_operation(bytes, operator, operation_byte_size)?;
+        } else if domain == ArithmeticDomain::Trapping {
+            // F8c: an out-of-range count traps before the shift, value-blind.
+            append_shift_count_trap_guard(bytes, operation_byte_size);
+            append_runtime_binary_operation(bytes, operator, operation_byte_size)?;
+        } else {
+            if operator == StateGuardOperator::ShiftRight {
+                append_wrapping_shift_right_count_saturate(bytes, operation_byte_size);
+            }
+            append_runtime_binary_operation(bytes, operator, operation_byte_size)?;
+            if operator != StateGuardOperator::ShiftRight {
+                append_wrapping_shift_zero_clamp(bytes, operation_byte_size);
+            }
+        }
     } else {
         append_runtime_binary_operation(
-            &mut bytes,
+            bytes,
             operator,
             runtime_binary_operation_byte_size(
                 runtime_value_operands,
@@ -6313,8 +5573,8 @@ pub fn encode_runtime_storage_binary_write(
             ),
         )?;
     }
-    append_store_r10_to_r14(&mut bytes, target_offset, byte_size)?;
-    Ok(bytes)
+    append_store_r10_to_r14(bytes, target_offset, byte_size)?;
+    Ok(())
 }
 
 /// Bytes of [`append_saturating_trapping_multiply`], for the relocation layout.
@@ -6462,6 +5722,9 @@ fn append_saturating_trapping_multiply(
         }
     }
     bytes.extend([0x4d, 0x0f, 0xaf, 0xd3]); // imul r10, r11 (64-bit)
+    let unsigned_max: u64 = (1u64 << (8 * byte_size)) - 1;
+    let signed_min = (-(1i128 << (8 * byte_size - 1))) as i64 as u64;
+    let signed_max = ((1i128 << (8 * byte_size - 1)) - 1) as u64;
     append_narrow_range_clamp_or_trap(
         bytes,
         domain,
@@ -6654,8 +5917,11 @@ fn append_saturating_trapping_shift_left(
     byte_size: usize,
     target_signed: bool,
 ) -> Result<(), Diagnostic> {
+    // F8c: a TRAPPING out-of-range COUNT traps before the value math (the
+    // count is invalid, not the result -- `0 << 40` traps). Saturating
+    // cannot reach one post-F8a; its count cap below stays for robustness.
     if domain == ArithmeticDomain::Trapping {
-        append_trapping_shift_count_guard(bytes, byte_size);
+        append_shift_count_trap_guard(bytes, byte_size);
     }
     if byte_size == 8 {
         let fixup: u8 = match (domain, target_signed) {
@@ -6734,8 +6000,9 @@ fn saturating_trapping_shift_left_width(
     byte_size: usize,
     target_signed: bool,
 ) -> usize {
+    // F8c: Trapping prepends the count trap guard (cmp + jb + ud2 = 8).
     let count_guard = if domain == ArithmeticDomain::Trapping {
-        TRAPPING_SHIFT_COUNT_GUARD_WIDTH
+        SHIFT_COUNT_TRAP_GUARD_WIDTH
     } else {
         0
     };
@@ -6888,19 +6155,24 @@ fn runtime_convert_operation_width(
     source_is_float: bool,
     target_is_float: bool,
     source_signed: bool,
-    domain: ArithmeticDomain,
     target_signed: bool,
+    trapping: bool,
+    saturating: bool,
 ) -> usize {
     match (source_is_float, target_is_float) {
-        // movq/movd xmm0,r10 (5) + cvttsd2si/cvttss2si r10,xmm0 (5)
-        (true, false) if domain != ArithmeticDomain::Exact => float_to_int_policy_operation_bytes(
-            source_byte_size,
-            target_byte_size,
-            domain,
-            target_signed,
-        )
-        .len(),
-        (true, false) => 10,
+        // movq/movd xmm0,r10 (5), then either the bare conversion (Exact) or
+        // an x86 policy fixup around cvttsd2si/cvttss2si. Unlike aarch64,
+        // x86 returns one ambiguous integer-indefinite value for NaN and every
+        // overflow, so Saturating and Trapping must classify the FP value.
+        (true, false) => {
+            5 + if trapping {
+                float_to_int_trap_width(source_byte_size, target_byte_size, target_signed)
+            } else if saturating {
+                float_to_int_saturating_width(source_byte_size, target_byte_size, target_signed)
+            } else {
+                float_to_int_convert_width(source_byte_size, target_byte_size, target_signed)
+            }
+        }
         // cvtsi2sd/ss xmm0,r10 (5) + movq/movd r10,xmm0 (5)
         (false, true) => 10,
         (true, true) => {
@@ -6938,26 +6210,34 @@ fn append_runtime_convert_operation(
     source_is_float: bool,
     target_is_float: bool,
     source_signed: bool,
-    domain: ArithmeticDomain,
     target_signed: bool,
+    trapping: bool,
+    saturating: bool,
 ) {
     match (source_is_float, target_is_float) {
-        (true, false) if domain != ArithmeticDomain::Exact => {
-            bytes.extend(float_to_int_policy_operation_bytes(
-                source_byte_size,
-                target_byte_size,
-                domain,
-                target_signed,
-            ));
-        }
         (true, false) => {
             // float -> int: move bits into xmm0, truncating-convert to r10.
             if source_byte_size > 4 {
                 bytes.extend([0x66, 0x49, 0x0f, 0x6e, 0xc2]); // movq xmm0, r10
-                bytes.extend([0xf2, 0x4c, 0x0f, 0x2c, 0xd0]); // cvttsd2si r10, xmm0
             } else {
                 bytes.extend([0x66, 0x41, 0x0f, 0x6e, 0xc2]); // movd xmm0, r10d
-                bytes.extend([0xf3, 0x4c, 0x0f, 0x2c, 0xd0]); // cvttss2si r10, xmm0
+            }
+            if trapping {
+                append_float_to_int_trap(bytes, source_byte_size, target_byte_size, target_signed);
+            } else if saturating {
+                append_float_to_int_saturating(
+                    bytes,
+                    source_byte_size,
+                    target_byte_size,
+                    target_signed,
+                );
+            } else {
+                append_float_to_int_convert(
+                    bytes,
+                    source_byte_size,
+                    target_byte_size,
+                    target_signed,
+                );
             }
         }
         (false, true) => {
@@ -7010,174 +6290,234 @@ fn append_runtime_convert_operation(
     }
 }
 
-/// Defined float-to-integer policy conversion. `r10` starts with the float bit
-/// pattern and ends with the integer result. Ordered comparisons fence NaN and
-/// the target's half-open conversion interval before CVTT executes, avoiding
-/// x86's architecture-specific "integer indefinite" result. Saturating maps
-/// NaN/negative-unsigned to zero and clamps either edge; Trapping reaches UD2.
-fn float_to_int_policy_operation_bytes(
+fn float_compare_xmm0_width(source_byte_size: usize) -> usize {
+    if source_byte_size > 4 { 4 } else { 3 }
+}
+
+fn append_float_compare_xmm0(bytes: &mut Vec<u8>, source_byte_size: usize, rhs: u8) {
+    let modrm = 0xc0 | rhs;
+    if source_byte_size > 4 {
+        bytes.extend([0x66, 0x0f, 0x2e, modrm]); // ucomisd xmm0, xmm{rhs}
+    } else {
+        bytes.extend([0x0f, 0x2e, modrm]); // ucomiss xmm0, xmm{rhs}
+    }
+}
+
+fn append_float_bound_xmm1(bytes: &mut Vec<u8>, source_byte_size: usize, bits: u64) {
+    append_mov_reg_imm64(bytes, Reg64::R11, bits);
+    if source_byte_size > 4 {
+        bytes.extend([0x66, 0x49, 0x0f, 0x6e, 0xcb]); // movq xmm1, r11
+    } else {
+        bytes.extend([0x66, 0x41, 0x0f, 0x6e, 0xcb]); // movd xmm1, r11d
+    }
+}
+
+fn append_signed_float_to_int_convert(bytes: &mut Vec<u8>, source_byte_size: usize) {
+    if source_byte_size > 4 {
+        bytes.extend([0xf2, 0x4c, 0x0f, 0x2c, 0xd0]); // cvttsd2si r10, xmm0
+    } else {
+        bytes.extend([0xf3, 0x4c, 0x0f, 0x2c, 0xd0]); // cvttss2si r10, xmm0
+    }
+}
+
+/// Bounds for truncating a source float into a signed target. `upper` is
+/// exclusive. `lower` is either the exclusive `MIN - 1` threshold (when the
+/// source format can represent it) or the inclusive `MIN` threshold.
+fn float_to_int_bounds(
     source_byte_size: usize,
     target_byte_size: usize,
-    domain: ArithmeticDomain,
     target_signed: bool,
-) -> Vec<u8> {
-    debug_assert!(matches!(
-        domain,
-        ArithmeticDomain::Saturating | ArithmeticDomain::Trapping
-    ));
-    let mut bytes = Vec::new();
-    append_float_bits_r10_to_xmm0(&mut bytes, source_byte_size);
-
-    // NaN check (`ucomis xmm0,xmm0`; parity means unordered).
-    append_ucomi_xmm0(&mut bytes, source_byte_size, 0);
-    let nan_branch = append_jcc_rel32_placeholder(&mut bytes, 0x8a); // jp
-
-    let bits = (target_byte_size * 8) as i32;
-    let lower = if target_signed {
-        -2.0_f64.powi(bits - 1)
-    } else {
-        0.0
-    };
-    let upper = if target_signed {
-        2.0_f64.powi(bits - 1)
-    } else {
-        2.0_f64.powi(bits)
-    };
-
-    append_float_constant_xmm1(&mut bytes, source_byte_size, lower);
-    append_ucomi_xmm0(&mut bytes, source_byte_size, 1);
-    let low_branch = append_jcc_rel32_placeholder(&mut bytes, 0x82); // jb
-    append_float_constant_xmm1(&mut bytes, source_byte_size, upper);
-    append_ucomi_xmm0(&mut bytes, source_byte_size, 1);
-    let high_branch = append_jcc_rel32_placeholder(&mut bytes, 0x83); // jae
-
-    let mut done_branches = Vec::new();
-    if !target_signed && target_byte_size == 8 {
-        // CVTT's integer destination is signed. Split the valid u64 interval at
-        // 2^63: convert the upper half after subtracting 2^63, then restore the
-        // high bit. Both sentinels are exact powers of two in f32/f64.
-        append_float_constant_xmm1(&mut bytes, source_byte_size, 2.0_f64.powi(63));
-        append_ucomi_xmm0(&mut bytes, source_byte_size, 1);
-        let large_branch = append_jcc_rel32_placeholder(&mut bytes, 0x83); // jae
-        append_cvtt_xmm0_to_r10(&mut bytes, source_byte_size);
-        done_branches.push(append_jmp_rel32_placeholder(&mut bytes));
-        let large = bytes.len();
-        patch_rel32(&mut bytes, large_branch, large);
-        if source_byte_size > 4 {
-            bytes.extend([0xf2, 0x0f, 0x5c, 0xc1]); // subsd xmm0,xmm1
+) -> (u64, u64, bool) {
+    let target_bits = (target_byte_size * 8) as i32;
+    let upper = 2.0_f64.powi(target_bits - i32::from(target_signed));
+    if !target_signed {
+        return if source_byte_size > 4 {
+            (upper.to_bits(), (-1.0_f64).to_bits(), false)
         } else {
-            bytes.extend([0xf3, 0x0f, 0x5c, 0xc1]); // subss xmm0,xmm1
-        }
-        append_cvtt_xmm0_to_r10(&mut bytes, source_byte_size);
-        bytes.extend([0x49, 0x0f, 0xba, 0xea, 0x3f]); // bts r10,63
-        done_branches.push(append_jmp_rel32_placeholder(&mut bytes));
-    } else {
-        append_cvtt_xmm0_to_r10(&mut bytes, source_byte_size);
-        done_branches.push(append_jmp_rel32_placeholder(&mut bytes));
+            (
+                u64::from((upper as f32).to_bits()),
+                u64::from((-1.0_f32).to_bits()),
+                false,
+            )
+        };
     }
-
-    match domain {
-        ArithmeticDomain::Trapping => {
-            let trap = bytes.len();
-            patch_rel32(&mut bytes, nan_branch, trap);
-            patch_rel32(&mut bytes, low_branch, trap);
-            patch_rel32(&mut bytes, high_branch, trap);
-            bytes.extend([0x0f, 0x0b]); // ud2
-        }
-        ArithmeticDomain::Saturating => {
-            let nan = bytes.len();
-            patch_rel32(&mut bytes, nan_branch, nan);
-            bytes.extend([0x45, 0x31, 0xd2]); // xor r10d,r10d
-            done_branches.push(append_jmp_rel32_placeholder(&mut bytes));
-
-            let low = bytes.len();
-            patch_rel32(&mut bytes, low_branch, low);
-            let low_value = if target_signed {
-                1u64 << (target_byte_size * 8 - 1)
+    let minimum = -upper;
+    if source_byte_size > 4 {
+        let lower_candidate = minimum - 1.0;
+        let lower_inclusive = lower_candidate == minimum;
+        (
+            upper.to_bits(),
+            (if lower_inclusive {
+                minimum
             } else {
-                0
-            };
-            append_mov_r10_imm64(&mut bytes, low_value);
-            done_branches.push(append_jmp_rel32_placeholder(&mut bytes));
+                lower_candidate
+            })
+            .to_bits(),
+            lower_inclusive,
+        )
+    } else {
+        let minimum = minimum as f32;
+        let lower_candidate = minimum - 1.0;
+        let lower_inclusive = lower_candidate == minimum;
+        (
+            u64::from((upper as f32).to_bits()),
+            u64::from(
+                (if lower_inclusive {
+                    minimum
+                } else {
+                    lower_candidate
+                })
+                .to_bits(),
+            ),
+            lower_inclusive,
+        )
+    }
+}
 
-            let high = bytes.len();
-            patch_rel32(&mut bytes, high_branch, high);
-            let high_value = if target_signed {
-                (1u64 << (target_byte_size * 8 - 1)) - 1
-            } else if target_byte_size == 8 {
+fn integer_clamps(target_byte_size: usize, target_signed: bool) -> (u64, u64) {
+    let bits = target_byte_size * 8;
+    if target_signed {
+        let sign_bit = 1_u64 << (bits - 1);
+        (sign_bit - 1, sign_bit)
+    } else {
+        (
+            if bits == 64 {
                 u64::MAX
             } else {
-                (1u64 << (target_byte_size * 8)) - 1
-            };
-            append_mov_r10_imm64(&mut bytes, high_value);
-        }
-        _ => unreachable!("only defined policies reach the policy conversion"),
+                (1_u64 << bits) - 1
+            },
+            0,
+        )
     }
-
-    let done = bytes.len();
-    for branch in done_branches {
-        patch_rel32(&mut bytes, branch, done);
-    }
-    bytes
 }
 
-fn append_float_bits_r10_to_xmm0(bytes: &mut Vec<u8>, source_byte_size: usize) {
-    if source_byte_size > 4 {
-        bytes.extend([0x66, 0x49, 0x0f, 0x6e, 0xc2]); // movq xmm0,r10
+fn float_to_int_convert_width(
+    source_byte_size: usize,
+    target_byte_size: usize,
+    target_signed: bool,
+) -> usize {
+    if target_signed || target_byte_size < 8 {
+        5
     } else {
-        bytes.extend([0x66, 0x41, 0x0f, 0x6e, 0xc2]); // movd xmm0,r10d
+        // 2^63 materialization + compare + branch + subtract + two cvtt arms
+        // + bts sign-bit reconstruction + two jumps.
+        38 + float_compare_xmm0_width(source_byte_size)
     }
 }
 
-fn append_cvtt_xmm0_to_r10(bytes: &mut Vec<u8>, source_byte_size: usize) {
-    if source_byte_size > 4 {
-        bytes.extend([0xf2, 0x4c, 0x0f, 0x2c, 0xd0]);
+fn append_float_to_int_convert(
+    bytes: &mut Vec<u8>,
+    source_byte_size: usize,
+    target_byte_size: usize,
+    target_signed: bool,
+) {
+    if target_signed || target_byte_size < 8 {
+        append_signed_float_to_int_convert(bytes, source_byte_size);
+        return;
+    }
+
+    let split = if source_byte_size > 4 {
+        (9223372036854775808.0_f64).to_bits()
     } else {
-        bytes.extend([0xf3, 0x4c, 0x0f, 0x2c, 0xd0]);
-    }
+        u64::from((9223372036854775808.0_f32).to_bits())
+    };
+    append_float_bound_xmm1(bytes, source_byte_size, split);
+    append_float_compare_xmm0(bytes, source_byte_size, 1);
+    bytes.extend([0x72, 0x10]); // jb low-half
+    bytes.extend([
+        if source_byte_size > 4 { 0xf2 } else { 0xf3 },
+        0x0f,
+        0x5c,
+        0xc1,
+    ]); // subsd/subss xmm0, xmm1
+    append_signed_float_to_int_convert(bytes, source_byte_size);
+    bytes.extend([0x49, 0x0f, 0xba, 0xea, 0x3f]); // bts r10, 63
+    bytes.extend([0xeb, 0x05]); // jmp done
+    append_signed_float_to_int_convert(bytes, source_byte_size); // low-half
 }
 
-fn append_float_constant_xmm1(bytes: &mut Vec<u8>, source_byte_size: usize, value: f64) {
-    if source_byte_size > 4 {
-        bytes.extend([0x49, 0xbb]); // mov r11,imm64
-        bytes.extend(value.to_bits().to_le_bytes());
-        bytes.extend([0x66, 0x49, 0x0f, 0x6e, 0xcb]); // movq xmm1,r11
-    } else {
-        bytes.extend([0x41, 0xbb]); // mov r11d,imm32
-        bytes.extend((value as f32).to_bits().to_le_bytes());
-        bytes.extend([0x66, 0x41, 0x0f, 0x6e, 0xcb]); // movd xmm1,r11d
-    }
+fn float_to_int_trap_width(
+    source_byte_size: usize,
+    target_byte_size: usize,
+    target_signed: bool,
+) -> usize {
+    // Three compares + two bound materializations + four short branches +
+    // cvtt + ud2. The final jump hops over the shared trap site.
+    3 * float_compare_xmm0_width(source_byte_size)
+        + 40
+        + float_to_int_convert_width(source_byte_size, target_byte_size, target_signed)
 }
 
-fn append_ucomi_xmm0(bytes: &mut Vec<u8>, source_byte_size: usize, rhs: u8) {
-    let modrm = 0xc0 | (rhs & 7);
-    if source_byte_size > 4 {
-        bytes.extend([0x66, 0x0f, 0x2e, modrm]);
-    } else {
-        bytes.extend([0x0f, 0x2e, modrm]);
-    }
+fn append_float_to_int_trap(
+    bytes: &mut Vec<u8>,
+    source_byte_size: usize,
+    target_byte_size: usize,
+    target_signed: bool,
+) {
+    let compare_width = float_compare_xmm0_width(source_byte_size);
+    let (upper, lower, lower_inclusive) =
+        float_to_int_bounds(source_byte_size, target_byte_size, target_signed);
+    let convert_width =
+        float_to_int_convert_width(source_byte_size, target_byte_size, target_signed);
+
+    append_float_compare_xmm0(bytes, source_byte_size, 0);
+    bytes.extend([0x7a, (36 + 2 * compare_width + convert_width) as u8]); // jp trap
+    append_float_bound_xmm1(bytes, source_byte_size, upper);
+    append_float_compare_xmm0(bytes, source_byte_size, 1);
+    bytes.extend([0x73, (19 + compare_width + convert_width) as u8]); // jae trap
+    append_float_bound_xmm1(bytes, source_byte_size, lower);
+    append_float_compare_xmm0(bytes, source_byte_size, 1);
+    bytes.extend([
+        if lower_inclusive { 0x72 } else { 0x76 },
+        (convert_width + 2) as u8,
+    ]); // jb/jbe trap
+    append_float_to_int_convert(bytes, source_byte_size, target_byte_size, target_signed);
+    bytes.extend([0xeb, 0x02]); // jmp done
+    bytes.extend([0x0f, 0x0b]); // trap: ud2
 }
 
-/// Append `0f <opcode> rel32` and return the displacement field's offset.
-fn append_jcc_rel32_placeholder(bytes: &mut Vec<u8>, opcode: u8) -> usize {
-    bytes.extend([0x0f, opcode]);
-    let position = bytes.len();
-    bytes.extend(0i32.to_le_bytes());
-    position
+fn float_to_int_saturating_width(
+    source_byte_size: usize,
+    target_byte_size: usize,
+    target_signed: bool,
+) -> usize {
+    // Three compares + two bound materializations + policy result arms.
+    3 * float_compare_xmm0_width(source_byte_size)
+        + 65
+        + float_to_int_convert_width(source_byte_size, target_byte_size, target_signed)
 }
 
-fn append_jmp_rel32_placeholder(bytes: &mut Vec<u8>) -> usize {
-    bytes.push(0xe9);
-    let position = bytes.len();
-    bytes.extend(0i32.to_le_bytes());
-    position
-}
+fn append_float_to_int_saturating(
+    bytes: &mut Vec<u8>,
+    source_byte_size: usize,
+    target_byte_size: usize,
+    target_signed: bool,
+) {
+    let compare_width = float_compare_xmm0_width(source_byte_size);
+    let (upper, lower, lower_inclusive) =
+        float_to_int_bounds(source_byte_size, target_byte_size, target_signed);
+    let (maximum, minimum) = integer_clamps(target_byte_size, target_signed);
+    let convert_width =
+        float_to_int_convert_width(source_byte_size, target_byte_size, target_signed);
 
-fn patch_rel32(bytes: &mut [u8], displacement_position: usize, target: usize) {
-    let after = displacement_position + 4;
-    let displacement = i32::try_from(target as isize - after as isize)
-        .expect("float conversion branch exceeds rel32 range");
-    bytes[displacement_position..after].copy_from_slice(&displacement.to_le_bytes());
+    append_float_compare_xmm0(bytes, source_byte_size, 0);
+    bytes.extend([0x7a, (36 + 2 * compare_width + convert_width) as u8]); // jp nan
+    append_float_bound_xmm1(bytes, source_byte_size, upper);
+    append_float_compare_xmm0(bytes, source_byte_size, 1);
+    bytes.extend([0x73, (24 + compare_width + convert_width) as u8]); // jae high
+    append_float_bound_xmm1(bytes, source_byte_size, lower);
+    append_float_compare_xmm0(bytes, source_byte_size, 1);
+    bytes.extend([
+        if lower_inclusive { 0x72 } else { 0x76 },
+        (19 + convert_width) as u8,
+    ]); // jb/jbe low
+    append_float_to_int_convert(bytes, source_byte_size, target_byte_size, target_signed);
+    bytes.extend([0xeb, 0x1b]); // jmp done
+    bytes.extend([0x45, 0x31, 0xd2]); // nan: xor r10d, r10d
+    bytes.extend([0xeb, 0x16]); // jmp done
+    append_mov_reg_imm64(bytes, Reg64::R10, maximum); // high
+    bytes.extend([0xeb, 0x0a]); // jmp done
+    append_mov_reg_imm64(bytes, Reg64::R10, minimum); // low
 }
 
 pub fn runtime_atomic_fetch_add_width(
@@ -7283,8 +6623,9 @@ pub fn runtime_storage_convert_width(
     source_is_float: bool,
     target_is_float: bool,
     source_signed: bool,
-    domain: ArithmeticDomain,
     target_signed: bool,
+    trapping: bool,
+    saturating: bool,
 ) -> usize {
     // mov r14,imm64(target base) (10) + source operand load + convert + store.
     10 + runtime_value_operand_width(runtime_value_operands, source)
@@ -7294,8 +6635,9 @@ pub fn runtime_storage_convert_width(
             source_is_float,
             target_is_float,
             source_signed,
-            domain,
             target_signed,
+            trapping,
+            saturating,
         )
         + store_width(target_byte_size)
 }
@@ -7313,8 +6655,9 @@ pub fn encode_runtime_storage_convert(
     source_is_float: bool,
     target_is_float: bool,
     source_signed: bool,
-    domain: ArithmeticDomain,
     target_signed: bool,
+    trapping: bool,
+    saturating: bool,
 ) -> Result<Vec<u8>, Diagnostic> {
     let mut bytes = Vec::with_capacity(runtime_storage_convert_width(
         runtime_value_operands,
@@ -7324,8 +6667,9 @@ pub fn encode_runtime_storage_convert(
         source_is_float,
         target_is_float,
         source_signed,
-        domain,
         target_signed,
+        trapping,
+        saturating,
     ));
     append_mov_r14_imm64(&mut bytes, 0); // target base (imm64 @ +2 relocated)
     append_runtime_value_operand(runtime_value_operands, &mut bytes, Reg64::R10, source)?;
@@ -7336,18 +6680,21 @@ pub fn encode_runtime_storage_convert(
         source_is_float,
         target_is_float,
         source_signed,
-        domain,
         target_signed,
+        trapping,
+        saturating,
     );
     append_store_r10_to_r14(&mut bytes, target_offset, target_byte_size)?;
     Ok(bytes)
 }
 
 /// Address-computation prefix before the value operands in a pointee binary
-/// write: `mov r14,imm64(frame)` (10) + `mov r14,[r14+ptr]` (7) -- r14 then holds
-/// the dereferenced runtime pointer (the target base) across operand evaluation.
+/// write -- CANONICALIZED by the place materializer (Binary rung 1b):
+/// `mov r15,imm64(frame)` (10) + `mov r15,[r15+ptr]` (7) + `mov r14,r15` (3)
+/// -- r14 then holds the dereferenced runtime pointer (the target base)
+/// across operand evaluation, exactly as before.
 pub fn runtime_pointee_binary_operand_start_width() -> usize {
-    17
+    20
 }
 
 pub fn runtime_pointee_binary_write_width(
@@ -7381,51 +6728,53 @@ pub fn encode_runtime_pointee_binary_write(
     operator: StateGuardOperator,
     right: RuntimeValueOperandHandle,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = Vec::with_capacity(runtime_pointee_binary_write_width(
+    // Binary delegations (rung 1b): the place walk (mov r15,imm64; deref)
+    // + the r14 hop -- the operand-start prefix grows 17 -> 20 and the
+    // offset fn moves in lockstep. Exact-domain tail preserved via the
+    // shared helper (Exact never enters the domain arms).
+    let target =
+        place_copy::transitional_place(omega_target_operations::RuntimeStorageRegion::RuntimeFrame)
+            .with_step(omega_target_operations::PlaceStep::ConstOffset(
+                pointer_byte_offset,
+            ))
+            .and_then(|place| place.with_step(omega_target_operations::PlaceStep::Deref))
+            .and_then(|place| {
+                place.with_step(omega_target_operations::PlaceStep::ConstOffset(
+                    field_byte_offset,
+                ))
+            })
+            .expect("a pointee place is four steps, within PLACE_MAX_STEPS");
+    let (bytes, _) = place_copy::encode_place_binary_write(
         runtime_value_operands,
+        &target,
         byte_size,
         left,
         operator,
         right,
-    ));
-    append_mov_r14_imm64(&mut bytes, 0); // frame base (imm64 @ +2 relocated)
-    append_load_r14_from_r14(&mut bytes, pointer_byte_offset)?; // r14 = runtime pointer (target base)
-    debug_assert_eq!(bytes.len(), runtime_pointee_binary_operand_start_width());
-    append_runtime_value_operand(runtime_value_operands, &mut bytes, Reg64::R10, left)?;
-    append_push_r10(&mut bytes);
-    append_runtime_value_operand(runtime_value_operands, &mut bytes, Reg64::R10, right)?;
-    append_mov_reg_reg(&mut bytes, Reg64::R11, Reg64::R10); // right -> r11
-    append_pop_r10(&mut bytes); // restore left -> r10
-    append_runtime_binary_operation(
-        &mut bytes,
-        operator,
-        runtime_binary_operation_byte_size(
-            runtime_value_operands,
-            operator,
-            left,
-            right,
-            byte_size,
-        ),
+        false,
+        ArithmeticDomain::Exact,
+        false,
     )?;
-    append_store_r10_to_r14(&mut bytes, field_byte_offset, byte_size)?;
     Ok(bytes)
 }
 
-/// Length of the address-computation prefix that precedes the value operands in
-/// a frame-base-indexed binary write: `mov r14,imm64(frame)` (10) +
-/// `mov r15,[r14+idx]` (7) + `imul r15,r15,elem` (7) + `add r14,r15` (3).
+/// Length of the address-computation prefix that precedes the value operands
+/// in a frame-base-indexed binary write -- CANONICALIZED by the place
+/// materializer (Binary rung 1b): `mov r15,imm64(frame)` (10) +
+/// `mov r11d,[r15+idx]` (7, 32-bit ZX) + `imul r11,r11,elem` (7) +
+/// `add r15,r11` (3) + `mov r14,r15` (3).
 pub fn runtime_frame_base_indexed_binary_left_operand_offset() -> usize {
-    27
+    30
 }
 
 /// Length of the address-computation prefix that precedes the value operands
-/// in a frame-INDEXED (slice-descriptor) binary write -- the same prefix the
-/// frame-indexed element COPY uses: `mov r14,imm64(frame)` (10) +
-/// `mov r11d,[r14+idx]` (7) + `imul r11,r11,elem` (7) + `mov r14,[r14+desc]`
-/// (7) + `add r14,r11` (3). The element address ends in r14, which operand
-/// evaluation never clobbers.
+/// in a frame-INDEXED (slice-descriptor) binary write -- CANONICALIZED by
+/// the place materializer (Binary rung 1b): `mov r15,imm64(frame)` (10) +
+/// `mov r11d,[r15+idx]` (7) + `imul r11,r11,elem` (7) + `mov r15,[r15+desc]`
+/// (7) + `add r15,r11` (3) + `mov r14,r15` (3). The element address ends in
+/// r14, which operand evaluation never clobbers.
 pub fn runtime_frame_indexed_binary_left_operand_offset() -> usize {
-    34
+    37
 }
 
 pub fn runtime_frame_indexed_binary_write_width(
@@ -7461,44 +6810,49 @@ pub fn encode_runtime_frame_indexed_binary_write(
     operator: StateGuardOperator,
     right: RuntimeValueOperandHandle,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = Vec::with_capacity(runtime_frame_indexed_binary_write_width(
+    // Binary rung 1b: DELEGATES through the place materializer -- prefix
+    // 34 -> 37 (the same multiset reordered + the r14 hop; the index still
+    // 32-bit ZX in r11, the descriptor deref hops r15 in place).
+    let target =
+        place_copy::transitional_place(omega_target_operations::RuntimeStorageRegion::RuntimeFrame)
+            .with_step(omega_target_operations::PlaceStep::ConstOffset(
+                descriptor_offset,
+            ))
+            .and_then(|place| place.with_step(omega_target_operations::PlaceStep::Deref))
+            .and_then(|place| {
+                place.with_step(omega_target_operations::PlaceStep::ScaledIndex {
+                    index_region: omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+                    index_offset,
+                    element_byte_size,
+                })
+            })
+            .and_then(|place| {
+                place.with_step(omega_target_operations::PlaceStep::ConstOffset(
+                    field_byte_offset,
+                ))
+            })
+            .expect("a frame-indexed place is five steps, within PLACE_MAX_STEPS");
+    let (bytes, _) = place_copy::encode_place_binary_write(
         runtime_value_operands,
+        &target,
         byte_size,
         left,
         operator,
         right,
-    ));
-    // r14 = *(frame[descriptor]) + index*element (target address held across
-    // operand evaluation, which freely clobbers r15/r10/r11 but never r14).
-    append_mov_r14_imm64(&mut bytes, 0); // imm64 at +2 relocated to the frame symbol
-    append_load_r11_from_r14(&mut bytes, index_offset)?; // r11 = index (32-bit ZX)
-    append_imul_r11_imm32(&mut bytes, element_scale(element_byte_size)?);
-    bytes.extend([0x4d, 0x8b, 0xb6]); // mov r14, [r14+desc] -- the slice data ptr
-    bytes.extend(disp32(descriptor_offset)?.to_le_bytes());
-    append_add_r14_r11(&mut bytes); // r14 = ptr + index*elem
+        false,
+        ArithmeticDomain::Exact,
+        false,
+    )?;
     debug_assert_eq!(
         bytes.len(),
-        runtime_frame_indexed_binary_left_operand_offset()
-    );
-    // Stash the left result across the right operand's evaluation (both
-    // accumulate in r10); r14 survives.
-    append_runtime_value_operand(runtime_value_operands, &mut bytes, Reg64::R10, left)?;
-    append_push_r10(&mut bytes);
-    append_runtime_value_operand(runtime_value_operands, &mut bytes, Reg64::R10, right)?;
-    append_mov_reg_reg(&mut bytes, Reg64::R11, Reg64::R10); // right -> r11
-    append_pop_r10(&mut bytes); // restore left -> r10
-    append_runtime_binary_operation(
-        &mut bytes,
-        operator,
-        runtime_binary_operation_byte_size(
+        runtime_frame_indexed_binary_write_width(
             runtime_value_operands,
-            operator,
-            left,
-            right,
             byte_size,
-        ),
-    )?;
-    append_store_r10_to_r14(&mut bytes, field_byte_offset, byte_size)?;
+            left,
+            operator,
+            right,
+        )
+    );
     Ok(bytes)
 }
 
@@ -7531,43 +6885,50 @@ pub fn encode_runtime_frame_base_indexed_binary_write(
     operator: StateGuardOperator,
     right: RuntimeValueOperandHandle,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let store_displacement = base_byte_offset + field_byte_offset;
-    let mut bytes = Vec::with_capacity(runtime_frame_base_indexed_binary_write_width(
+    // Binary rung 1b: DELEGATES through the place materializer -- prefix
+    // 27 -> 30 (the r14 hop), and the index load CANONICALIZES to the
+    // 32-bit zero-extended discipline (the retired 64-bit index load could
+    // splice a neighboring slot's bytes into the high half; the
+    // materializer's ZX read is the correct one).
+    let target =
+        place_copy::transitional_place(omega_target_operations::RuntimeStorageRegion::RuntimeFrame)
+            .with_step(omega_target_operations::PlaceStep::ConstOffset(
+                base_byte_offset,
+            ))
+            .and_then(|place| {
+                place.with_step(omega_target_operations::PlaceStep::ScaledIndex {
+                    index_region: omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+                    index_offset,
+                    element_byte_size,
+                })
+            })
+            .and_then(|place| {
+                place.with_step(omega_target_operations::PlaceStep::ConstOffset(
+                    field_byte_offset,
+                ))
+            })
+            .expect("a frame-base-indexed place is four steps, within PLACE_MAX_STEPS");
+    let (bytes, _) = place_copy::encode_place_binary_write(
         runtime_value_operands,
+        &target,
         byte_size,
         left,
         operator,
         right,
-    ));
-    // r14 = frame base + index*element (target address held across operand
-    // evaluation, which freely clobbers r15/r10/r11 but never r14).
-    append_mov_r14_imm64(&mut bytes, 0); // imm64 at +2 relocated to the frame symbol
-    append_load_r15_from_r14(&mut bytes, index_offset)?;
-    append_imul_r15_imm32(&mut bytes, element_scale(element_byte_size)?);
-    append_add_r14_r15(&mut bytes);
+        false,
+        ArithmeticDomain::Exact,
+        false,
+    )?;
     debug_assert_eq!(
         bytes.len(),
-        runtime_frame_base_indexed_binary_left_operand_offset()
-    );
-    // Stash the left result across the right operand's evaluation (both accumulate
-    // in r10). r14 (target address) survives push/pop and operand evaluation.
-    append_runtime_value_operand(runtime_value_operands, &mut bytes, Reg64::R10, left)?;
-    append_push_r10(&mut bytes);
-    append_runtime_value_operand(runtime_value_operands, &mut bytes, Reg64::R10, right)?;
-    append_mov_reg_reg(&mut bytes, Reg64::R11, Reg64::R10); // right -> r11
-    append_pop_r10(&mut bytes); // restore left -> r10
-    append_runtime_binary_operation(
-        &mut bytes,
-        operator,
-        runtime_binary_operation_byte_size(
+        runtime_frame_base_indexed_binary_write_width(
             runtime_value_operands,
-            operator,
-            left,
-            right,
             byte_size,
-        ),
-    )?;
-    append_store_r10_to_r14(&mut bytes, store_displacement, byte_size)?;
+            left,
+            operator,
+            right,
+        )
+    );
     Ok(bytes)
 }
 
@@ -7611,65 +6972,52 @@ pub fn encode_runtime_machine_indexed_binary_write(
     operator: StateGuardOperator,
     right: RuntimeValueOperandHandle,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let store_displacement = base_byte_offset + field_byte_offset;
-    let mut bytes = Vec::with_capacity(runtime_machine_indexed_binary_write_width(
+    // Binary rung 1b: DELEGATES through the place materializer -- the
+    // machine-region-index prefix moves 27 -> 30, the frame-region 37 -> 40
+    // (the r14 hop); the frame-index base stays a `mov r11,imm64` at +10
+    // (the retired `mov r15,imm64` position -- the walker's frame reloc and
+    // +10 operand shift hold as-is), realigning the encoder with the shared
+    // frame-base offset fn the walker consumes.
+    let target =
+        place_copy::transitional_place(omega_target_operations::RuntimeStorageRegion::Machine)
+            .with_step(omega_target_operations::PlaceStep::ConstOffset(
+                base_byte_offset,
+            ))
+            .and_then(|place| {
+                place.with_step(omega_target_operations::PlaceStep::ScaledIndex {
+                    index_region,
+                    index_offset,
+                    element_byte_size,
+                })
+            })
+            .and_then(|place| {
+                place.with_step(omega_target_operations::PlaceStep::ConstOffset(
+                    field_byte_offset,
+                ))
+            })
+            .expect("a machine-indexed place is four steps, within PLACE_MAX_STEPS");
+    let (bytes, _) = place_copy::encode_place_binary_write(
         runtime_value_operands,
-        index_region,
+        &target,
         byte_size,
         left,
         operator,
         right,
-    ));
-    // r14 = machine storage base + index*element (target address held across
-    // operand evaluation, which freely clobbers r15/r10/r11 but never r14). The
-    // imm64 at +2 is relocated to the MACHINE symbol (relocations crate), unlike
-    // the frame-base sibling that relocates to the frame symbol.
-    append_mov_r14_imm64(&mut bytes, 0);
-    // Load the index: a machine-resident index reads off the machine base
-    // already in r14; a frame-resident index (`self.arr[k]`, k a param/local
-    // slot) loads the frame base into r15 (its own relocation at +10+2) and
-    // reads the 32-bit zero-extended index off it (the load overwrites the
-    // base after it completes).
-    match index_region {
-        omega_target_operations::RuntimeStorageRegion::Machine => {
-            append_load_index_r15d_from_r14(&mut bytes, index_offset)?;
-        }
-        omega_target_operations::RuntimeStorageRegion::RuntimeFrame => {
-            append_mov_r15_imm64(&mut bytes, 0);
-            bytes.extend([0x45, 0x8b, 0xbf]); // mov r15d, [r15 + disp32]
-            bytes.extend(disp32(index_offset)?.to_le_bytes());
-        }
-    }
-    append_imul_r15_imm32(&mut bytes, element_scale(element_byte_size)?);
-    append_add_r14_r15(&mut bytes);
+        false,
+        ArithmeticDomain::Exact,
+        false,
+    )?;
     debug_assert_eq!(
         bytes.len(),
-        runtime_frame_base_indexed_binary_left_operand_offset()
-            + if index_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame {
-                10
-            } else {
-                0
-            }
-    );
-    // Stash the left result across the right operand's evaluation (both accumulate
-    // in r10). r14 (target address) survives push/pop and operand evaluation.
-    append_runtime_value_operand(runtime_value_operands, &mut bytes, Reg64::R10, left)?;
-    append_push_r10(&mut bytes);
-    append_runtime_value_operand(runtime_value_operands, &mut bytes, Reg64::R10, right)?;
-    append_mov_reg_reg(&mut bytes, Reg64::R11, Reg64::R10); // right -> r11
-    append_pop_r10(&mut bytes); // restore left -> r10
-    append_runtime_binary_operation(
-        &mut bytes,
-        operator,
-        runtime_binary_operation_byte_size(
+        runtime_machine_indexed_binary_write_width(
             runtime_value_operands,
-            operator,
-            left,
-            right,
+            index_region,
             byte_size,
-        ),
-    )?;
-    append_store_r10_to_r14(&mut bytes, store_displacement, byte_size)?;
+            left,
+            operator,
+            right,
+        )
+    );
     Ok(bytes)
 }
 
@@ -7681,11 +7029,13 @@ pub fn runtime_machine_double_indexed_binary_left_operand_offset(
     outer_index_region: omega_target_operations::RuntimeStorageRegion,
     inner_index_region: omega_target_operations::RuntimeStorageRegion,
 ) -> usize {
-    if double_indexed_any_frame(outer_index_region, inner_index_region) {
-        54
-    } else {
-        44
-    }
+    // Canonicalized by the place materializer (Binary rung 1b): mov r15,
+    // imm64 (10) + per-index [cross-region mov+load (17) | same-region
+    // load (7)] + imul (7) each + add r15,r11 (3) + add r15,r10 (3) +
+    // mov r14,r15 (3). Each frame index adds its OWN base.
+    let frame = omega_target_operations::RuntimeStorageRegion::RuntimeFrame;
+    47 + if outer_index_region == frame { 10 } else { 0 }
+        + if inner_index_region == frame { 10 } else { 0 }
 }
 
 pub fn runtime_machine_double_indexed_binary_write_width(
@@ -7741,69 +7091,60 @@ pub fn encode_runtime_machine_double_indexed_binary_write(
             ));
         }
     }
-    let outer_displacement = disp32(outer_index_offset)?;
-    let inner_displacement = disp32(inner_index_offset)?;
-    let frame = omega_target_operations::RuntimeStorageRegion::RuntimeFrame;
-    let mut bytes = Vec::with_capacity(runtime_machine_double_indexed_binary_write_width(
+    // Binary rung 1b: DELEGATES through the place materializer -- each
+    // frame-resident index materializes its OWN base (r11 outer, r10 inner;
+    // the retired layout shared one r10 mov); prefixes move 44 -> 47
+    // (both machine), 54 -> 57 (one frame), 54 -> 67 (both frame); the
+    // offset fn becomes per-region sums and the walker arm splits per-index
+    // relocs, all in the SAME commit (the shared-constant lesson).
+    let target =
+        place_copy::transitional_place(omega_target_operations::RuntimeStorageRegion::Machine)
+            .with_step(omega_target_operations::PlaceStep::ConstOffset(
+                base_byte_offset,
+            ))
+            .and_then(|place| {
+                place.with_step(omega_target_operations::PlaceStep::ScaledIndex {
+                    index_region: outer_index_region,
+                    index_offset: outer_index_offset,
+                    element_byte_size: outer_stride,
+                })
+            })
+            .and_then(|place| {
+                place.with_step(omega_target_operations::PlaceStep::ScaledIndex {
+                    index_region: inner_index_region,
+                    index_offset: inner_index_offset,
+                    element_byte_size: inner_stride,
+                })
+            })
+            .and_then(|place| {
+                place.with_step(omega_target_operations::PlaceStep::ConstOffset(
+                    field_byte_offset,
+                ))
+            })
+            .expect("a double-indexed place is five steps, within PLACE_MAX_STEPS");
+    let (bytes, _) = place_copy::encode_place_binary_write(
         runtime_value_operands,
-        outer_index_region,
-        inner_index_region,
+        &target,
         byte_size,
         left,
         operator,
         right,
-    ));
-    // r14 = machine base (imm64 at +2, relocated to the machine symbol).
-    append_mov_r14_imm64(&mut bytes, 0);
-    if double_indexed_any_frame(outer_index_region, inner_index_region) {
-        // r10 = frame base (imm64 at +12), shared by both frame index loads;
-        // r10 is operand-evaluation scratch, free until then.
-        append_mov_r10_imm64(&mut bytes, 0);
-    }
-    // r15d = outer index; r11d = inner index -- BOTH loaded while r14 is
-    // still the unbiased machine base.
-    if outer_index_region == frame {
-        bytes.extend([0x45, 0x8b, 0xba]); // mov r15d, [r10+disp32]
-    } else {
-        bytes.extend([0x45, 0x8b, 0xbe]); // mov r15d, [r14+disp32]
-    }
-    bytes.extend(outer_displacement.to_le_bytes());
-    if inner_index_region == frame {
-        bytes.extend([0x45, 0x8b, 0x9a]); // mov r11d, [r10+disp32]
-    } else {
-        bytes.extend([0x45, 0x8b, 0x9e]); // mov r11d, [r14+disp32]
-    }
-    bytes.extend(inner_displacement.to_le_bytes());
-    append_imul_r15_imm32(&mut bytes, element_scale(outer_stride)?);
-    bytes.extend([0x4d, 0x69, 0xdb]); // imul r11, r11, imm32
-    bytes.extend(element_scale(inner_stride)?.to_le_bytes());
-    append_add_r14_r15(&mut bytes);
-    append_add_r14_r11(&mut bytes);
+        false,
+        ArithmeticDomain::Exact,
+        false,
+    )?;
     debug_assert_eq!(
         bytes.len(),
-        runtime_machine_double_indexed_binary_left_operand_offset(
+        runtime_machine_double_indexed_binary_write_width(
+            runtime_value_operands,
             outer_index_region,
             inner_index_region,
+            byte_size,
+            left,
+            operator,
+            right,
         )
     );
-    // Operand evaluation + op + store: identical to the single-index tail.
-    append_runtime_value_operand(runtime_value_operands, &mut bytes, Reg64::R10, left)?;
-    append_push_r10(&mut bytes);
-    append_runtime_value_operand(runtime_value_operands, &mut bytes, Reg64::R10, right)?;
-    append_mov_reg_reg(&mut bytes, Reg64::R11, Reg64::R10); // right -> r11
-    append_pop_r10(&mut bytes); // restore left -> r10
-    append_runtime_binary_operation(
-        &mut bytes,
-        operator,
-        runtime_binary_operation_byte_size(
-            runtime_value_operands,
-            operator,
-            left,
-            right,
-            byte_size,
-        ),
-    )?;
-    append_store_r10_to_r14(&mut bytes, base_byte_offset + field_byte_offset, byte_size)?;
     Ok(bytes)
 }
 
@@ -7820,58 +7161,6 @@ pub fn runtime_storage_copy_from_runtime_frame_base_double_indexed_to_runtime_st
 /// pre-`+2`) inside the frame-base double-indexed read.
 pub fn runtime_storage_copy_from_runtime_frame_base_double_indexed_target_base_offset() -> usize {
     68 - 17
-}
-
-/// The BOTH-RUNTIME nested read of a FRAME-resident inline 2D array
-/// (`g[i][j]`, `g` a by-value param or local): rax = outer index, r11 = inner
-/// index (both loaded off the ONE frame base in r14 BEFORE it is biased --
-/// the r14-before-bias key), each scaled by its stride, both added to r14,
-/// then a load of the element and a store to the runtime-storage target.
-pub fn encode_runtime_storage_copy_from_runtime_frame_base_double_indexed_to_runtime_storage(
-    base_byte_offset: usize,
-    outer_index_offset: usize,
-    outer_stride: usize,
-    inner_index_offset: usize,
-    inner_stride: usize,
-    field_byte_offset: usize,
-    target_offset: usize,
-    byte_count: usize,
-) -> Result<Vec<u8>, Diagnostic> {
-    if !matches!(byte_count, 1 | 4 | 8) {
-        return Err(Diagnostic::error(format!(
-            "X86_64 MVP encoder cannot read {byte_count}-byte frame double-indexed values yet"
-        )));
-    }
-    let outer_scale = element_scale(outer_stride)?;
-    let inner_scale = element_scale(inner_stride)?;
-    let outer_displacement = disp32(outer_index_offset)?;
-    let inner_displacement = disp32(inner_index_offset)?;
-    let mut bytes = Vec::with_capacity(
-        runtime_storage_copy_from_runtime_frame_base_double_indexed_to_runtime_storage_width(),
-    );
-    // r14 = frame base (imm64 at +2 relocated to the frame symbol).
-    append_mov_r14_imm64(&mut bytes, 0);
-    // eax = outer index; r11d = inner index (32-bit, zero-extended), both off
-    // the unbiased frame base.
-    bytes.extend([0x41, 0x8b, 0x86]); // mov eax, [r14+disp32]
-    bytes.extend(outer_displacement.to_le_bytes());
-    bytes.extend([0x45, 0x8b, 0x9e]); // mov r11d, [r14+disp32]
-    bytes.extend(inner_displacement.to_le_bytes());
-    append_imul_rax_imm32(&mut bytes, outer_scale);
-    bytes.extend([0x4d, 0x69, 0xdb]); // imul r11, r11, imm32
-    bytes.extend(inner_scale.to_le_bytes());
-    bytes.extend([0x49, 0x01, 0xc6]); // add r14, rax
-    append_add_r14_r11(&mut bytes);
-    // rax = the element at [r14 + base + field].
-    append_load_rax_from_r14(&mut bytes, base_byte_offset + field_byte_offset, byte_count)?;
-    // r15 = target base (imm64 relocated to the target region symbol); store.
-    append_mov_r15_imm64(&mut bytes, 0);
-    append_store_rax_to_r15(&mut bytes, target_offset, byte_count)?;
-    debug_assert_eq!(
-        bytes.len(),
-        runtime_storage_copy_from_runtime_frame_base_double_indexed_to_runtime_storage_width()
-    );
-    Ok(bytes)
 }
 
 /// Fixed width of a value-position text-equals operand (the `TextEquals` arm
@@ -7986,16 +7275,14 @@ pub fn runtime_value_operand_width(
             // materialize 0/1) but f32/f64-identical at each operator. MUST match
             // the emission below or the recorded relocation offsets drift (silent
             // runtime segfault).
-            runtime_float_binary_operation_with_domain_width(
-                operator,
-                runtime_value_operands
-                    .binary_byte_width(operand)
-                    .unwrap_or(8),
-                runtime_value_operands
-                    .binary_arithmetic_domain(operand)
-                    .map(|(domain, _)| domain)
-                    .unwrap_or(ArithmeticDomain::Exact),
-            )
+            let byte_width = runtime_value_operands
+                .binary_byte_width(operand)
+                .unwrap_or(8);
+            let domain = runtime_value_operands
+                .binary_arithmetic_domain(operand)
+                .map(|(domain, _)| domain)
+                .unwrap_or(ArithmeticDomain::Exact);
+            runtime_float_binary_operation_width_with_domain(operator, byte_width, domain)
         } else if let Some(domain_operation) =
             operand_position_domain_operation(runtime_value_operands, operand, operator)
         {
@@ -8032,14 +7319,19 @@ pub fn runtime_value_operand_width(
                 OperandDomainOperation::WrappingSignedDivMod { want_remainder } => {
                     wrapping_signed_divide_modulo_width(byte_width, want_remainder)
                 }
-                OperandDomainOperation::WrappingShift { .. } => {
+                OperandDomainOperation::DomainShift { domain, .. } => {
+                    let fix = if domain == ArithmeticDomain::Wrapping {
+                        wrapping_shift_count_mask_width(byte_width)
+                    } else if domain == ArithmeticDomain::Trapping {
+                        SHIFT_COUNT_TRAP_GUARD_WIDTH
+                    } else if operator == StateGuardOperator::ShiftRight {
+                        WRAPPING_SHIFT_RIGHT_COUNT_SATURATE_WIDTH
+                    } else {
+                        WRAPPING_SHIFT_ZERO_CLAMP_WIDTH
+                    };
                     runtime_binary_operation_width(operator, byte_width)
-                        + WRAPPING_SHIFT_COUNT_MASK_WIDTH
+                        + fix
                         + wrapping_node_width_extension_width(byte_width)
-                }
-                OperandDomainOperation::TrappingShiftRight { .. } => {
-                    TRAPPING_SHIFT_COUNT_GUARD_WIDTH
-                        + runtime_binary_operation_width(operator, byte_width)
                 }
                 OperandDomainOperation::SaturatingTrappingShiftLeft {
                     domain,
@@ -8081,16 +7373,8 @@ pub fn runtime_value_operand_width(
             + operation_width
             // push r10 (2) + mov r11,r10 (3) + pop r10 (2) + mov dest,r10 (3)
             + 10
-    } else if let Some((
-        source,
-        src_bytes,
-        tgt_bytes,
-        src_float,
-        tgt_float,
-        src_signed,
-        domain,
-        target_signed,
-    )) = runtime_value_operands.convert(operand)
+    } else if let Some((source, src_bytes, tgt_bytes, src_float, tgt_float, src_signed)) =
+        runtime_value_operands.convert(operand)
     {
         // Load source into r10, convert it in place, then mov dest,r10 (3). MUST
         // match the emission below or relocation offsets drift (runtime segfault).
@@ -8101,8 +7385,9 @@ pub fn runtime_value_operand_width(
                 src_float,
                 tgt_float,
                 src_signed,
-                domain,
-                target_signed,
+                runtime_value_operands.convert_target_signed(operand),
+                runtime_value_operands.convert_trapping(operand),
+                runtime_value_operands.convert_saturating(operand),
             )
             + 3
     } else {
@@ -8255,20 +7540,16 @@ fn append_runtime_value_operand(
             // is threaded from build time (set once from the operands' scalar type),
             // so f32 picks `addss`/`movss` (4) and f64 picks `addsd`/`movsd` (8) —
             // no longer hardcoded. The encoded length is identical for both widths
-            // (runtime_float_binary_operation_width() == 19), so relocation offsets
-            // are unaffected.
+            // at a given policy; the width twin emits the same policy guard to keep
+            // relocation offsets in lockstep.
             let byte_width = runtime_value_operands
                 .binary_byte_width(operand)
                 .unwrap_or(8);
-            append_runtime_float_binary_operation_with_domain(
-                bytes,
-                operator,
-                byte_width,
-                runtime_value_operands
-                    .binary_arithmetic_domain(operand)
-                    .map(|(domain, _)| domain)
-                    .unwrap_or(ArithmeticDomain::Exact),
-            )?;
+            let domain = runtime_value_operands
+                .binary_arithmetic_domain(operand)
+                .map(|(domain, _)| domain)
+                .unwrap_or(ArithmeticDomain::Exact);
+            append_runtime_float_binary_operation(bytes, operator, byte_width, domain)?;
         } else if let Some(domain_operation) =
             operand_position_domain_operation(runtime_value_operands, operand, operator)
         {
@@ -8320,15 +7601,32 @@ fn append_runtime_value_operand(
                 OperandDomainOperation::WrappingSignedDivMod { want_remainder } => {
                     append_wrapping_signed_divide_modulo(bytes, byte_width, want_remainder)?;
                 }
-                OperandDomainOperation::WrappingShift { operands_signed } => {
-                    append_wrapping_shift_count_mask(bytes, byte_width);
-                    append_runtime_binary_operation(bytes, operator, byte_width)?;
+                OperandDomainOperation::DomainShift {
+                    domain,
+                    operands_signed,
+                } => {
+                    // Width-correct shift + the domain count fix (F8b:
+                    // Wrapping masks the count -- sub-word AND only, the
+                    // hardware mask IS the ruling at widths 4/8; Sat/Trap
+                    // `>>` keep the floor fixes until F8c) + the node-width
+                    // extension the parent contract requires.
+                    if domain == ArithmeticDomain::Wrapping {
+                        append_wrapping_shift_count_mask(bytes, byte_width);
+                        append_runtime_binary_operation(bytes, operator, byte_width)?;
+                    } else if domain == ArithmeticDomain::Trapping {
+                        // F8c: an out-of-range count traps before the shift.
+                        append_shift_count_trap_guard(bytes, byte_width);
+                        append_runtime_binary_operation(bytes, operator, byte_width)?;
+                    } else {
+                        if operator == StateGuardOperator::ShiftRight {
+                            append_wrapping_shift_right_count_saturate(bytes, byte_width);
+                        }
+                        append_runtime_binary_operation(bytes, operator, byte_width)?;
+                        if operator != StateGuardOperator::ShiftRight {
+                            append_wrapping_shift_zero_clamp(bytes, byte_width);
+                        }
+                    }
                     append_wrapping_node_width_extension(bytes, byte_width, operands_signed);
-                }
-                OperandDomainOperation::TrappingShiftRight { operands_signed } => {
-                    let _ = operands_signed;
-                    append_trapping_shift_count_guard(bytes, byte_width);
-                    append_runtime_binary_operation(bytes, operator, byte_width)?;
                 }
                 OperandDomainOperation::SaturatingTrappingShiftLeft {
                     domain,
@@ -8380,16 +7678,8 @@ fn append_runtime_value_operand(
         }
         append_mov_reg_reg(bytes, destination, Reg64::R10);
         Ok(())
-    } else if let Some((
-        source,
-        src_bytes,
-        tgt_bytes,
-        src_float,
-        tgt_float,
-        src_signed,
-        domain,
-        target_signed,
-    )) = runtime_value_operands.convert(operand)
+    } else if let Some((source, src_bytes, tgt_bytes, src_float, tgt_float, src_signed)) =
+        runtime_value_operands.convert(operand)
     {
         // Load the cast's source into r10, convert it in place (cvttsd2si /
         // cvtsi2sd / cvtsd2ss / movsxd), then move the result to `destination`.
@@ -8401,8 +7691,9 @@ fn append_runtime_value_operand(
             src_float,
             tgt_float,
             src_signed,
-            domain,
-            target_signed,
+            runtime_value_operands.convert_target_signed(operand),
+            runtime_value_operands.convert_trapping(operand),
+            runtime_value_operands.convert_saturating(operand),
         );
         append_mov_reg_reg(bytes, destination, Reg64::R10);
         Ok(())
@@ -8664,7 +7955,7 @@ fn runtime_value_operand_value_byte_size(
         return runtime_value_operand_value_byte_size(operands, left)
             .or_else(|| runtime_value_operand_value_byte_size(operands, right));
     }
-    if let Some((_, _, target_byte_size, _, _, _, _, _)) = operands.convert(operand) {
+    if let Some((_, _, target_byte_size, _, _, _)) = operands.convert(operand) {
         return Some(target_byte_size);
     }
     if operands.text_equals(operand).is_some() || operands.text_equals_literal(operand).is_some() {
@@ -9042,23 +8333,76 @@ fn append_runtime_binary_operation(
     Ok(())
 }
 
-/// F8 Wrapping count rule: mask by the LANGUAGE operand width before the ISA
-/// sees the shift. This matters for i8/i16, whose x86 operation rides a wider
-/// register form with a different hardware mask.
-fn append_wrapping_shift_count_mask(bytes: &mut Vec<u8>, byte_size: usize) {
-    bytes.extend([0x49, 0x83, 0xe3, (byte_size * 8 - 1) as u8]); // and r11,width-1
+/// Saturating/Trapping logical `>>` zero clamp (floor semantics, until F8c):
+/// floor(x / 2^n) with a count at/above the TYPE width yields 0, but the
+/// hardware `shr` masks the count to the op width instead (40 & 31 = 8). The
+/// FULL count survives in r11 (the shift arm only copies it to cl), so
+/// compare it UNSIGNED against the bit width and cmov zero over the shifted
+/// result -- a negative signed count is huge unsigned and clamps. rax is
+/// scratch mid-operation, as in the div/setcc arms. WRAPPING shifts no
+/// longer take this fix: F8b masks their count instead (ch5 ruling).
+fn append_wrapping_shift_zero_clamp(bytes: &mut Vec<u8>, byte_size: usize) {
+    bytes.extend([0x31, 0xc0]); // xor eax, eax
+    bytes.extend([0x49, 0x83, 0xfb, (byte_size * 8) as u8]); // cmp r11, width_bits
+    bytes.extend([0x4c, 0x0f, 0x43, 0xd0]); // cmovae r10, rax
 }
 
-const WRAPPING_SHIFT_COUNT_MASK_WIDTH: usize = 4;
+/// Bytes of [`append_wrapping_shift_zero_clamp`]: xor (2) + cmp (4) + cmov (4).
+const WRAPPING_SHIFT_ZERO_CLAMP_WIDTH: usize = 10;
 
-/// F8 Trapping count rule: an unsigned comparison also rejects negative counts.
-fn append_trapping_shift_count_guard(bytes: &mut Vec<u8>, byte_size: usize) {
-    bytes.extend([0x49, 0x83, 0xfb, (byte_size * 8) as u8]); // cmp r11,width
-    bytes.extend([0x72, 0x02]); // jb +2
+/// Saturating/Trapping arithmetic `>>` count saturation (floor semantics,
+/// until F8c): floor(x / 2^n) SIGN-FILLS for an at/above-width count, and a
+/// post-fix cannot recover the sign once the hardware-masked `sar` has
+/// consumed the value -- so saturate the COUNT to width-1 first (`sar` by
+/// width-1 IS the sign-fill). Runs BEFORE the plain shift arm, which copies
+/// the (now saturated) r11 into cl. rax is scratch. WRAPPING `>>` no longer
+/// takes this fix: F8b masks its count instead (ch5 ruling).
+fn append_wrapping_shift_right_count_saturate(bytes: &mut Vec<u8>, byte_size: usize) {
+    let width_bits = (byte_size * 8) as u8;
+    bytes.push(0xb8); // mov eax, imm32
+    bytes.extend(u32::from(width_bits - 1).to_le_bytes());
+    bytes.extend([0x49, 0x83, 0xfb, width_bits]); // cmp r11, width_bits
+    bytes.extend([0x4c, 0x0f, 0x43, 0xd8]); // cmovae r11, rax
+}
+
+/// Bytes of [`append_wrapping_shift_right_count_saturate`]: mov (5) + cmp (4)
+/// + cmov (4).
+const WRAPPING_SHIFT_RIGHT_COUNT_SATURATE_WIDTH: usize = 13;
+
+/// F8b (ch5 shift-count ruling): a WRAPPING shift masks the COUNT to the
+/// operand width (`k & (width - 1)`). The hardware `shl`/`shr`/`sar` already
+/// mask mod the OP width (32/64) -- exactly the ruling at widths 4/8 -- so
+/// only sub-word operands need the explicit mask. Runs BEFORE the plain
+/// shift arm (which copies r11 into cl); masks r11 in place.
+fn append_wrapping_shift_count_mask(bytes: &mut Vec<u8>, byte_size: usize) {
+    if matches!(byte_size, 1 | 2) {
+        let mask = (byte_size * 8 - 1) as u8;
+        bytes.extend([0x41, 0x83, 0xe3, mask]); // and r11d, mask
+    }
+}
+
+/// Bytes of [`append_wrapping_shift_count_mask`]: and r11d, imm8 (4) for
+/// sub-word operands; 0 at widths 4/8 (the hardware mask IS the ruling).
+const fn wrapping_shift_count_mask_width(byte_size: usize) -> usize {
+    match byte_size {
+        1 | 2 => 4,
+        _ => 0,
+    }
+}
+
+/// F8c count guard: `cmp r11, width ; jb +2 ; ud2` -- a TRAPPING shift's
+/// out-of-range count traps BEFORE the shift runs, regardless of the shifted
+/// value (`0 << 40` traps; the count is invalid, not the result). The full
+/// count survives in r11 (the shift arm only copies it to cl), and reads
+/// UNSIGNED so a negative signed count is huge and traps.
+fn append_shift_count_trap_guard(bytes: &mut Vec<u8>, byte_size: usize) {
+    bytes.extend([0x49, 0x83, 0xfb, (byte_size * 8) as u8]); // cmp r11, width_bits
+    bytes.extend([0x72, 0x02]); // jb +2 (an in-range count hops the ud2)
     bytes.extend([0x0f, 0x0b]); // ud2
 }
 
-const TRAPPING_SHIFT_COUNT_GUARD_WIDTH: usize = 8;
+/// Bytes of [`append_shift_count_trap_guard`]: cmp (4) + jb (2) + ud2 (2).
+const SHIFT_COUNT_TRAP_GUARD_WIDTH: usize = 8;
 
 /// A nested WRAPPING binary hands its PARENT the width-wrapped VALUE in r10
 /// (the interpreter wraps AT THE NODE, decision 17; the store-truncation
@@ -9090,18 +8434,181 @@ fn wrapping_node_width_extension_width(byte_width: usize) -> usize {
     }
 }
 
+fn float_policy_applies(operator: StateGuardOperator, domain: ArithmeticDomain) -> bool {
+    matches!(
+        domain,
+        ArithmeticDomain::Saturating | ArithmeticDomain::Trapping
+    ) && matches!(
+        operator,
+        StateGuardOperator::Add
+            | StateGuardOperator::Subtract
+            | StateGuardOperator::Multiply
+            | StateGuardOperator::Divide
+    )
+}
+
+#[derive(Clone, Copy)]
+enum FloatPolicySource {
+    Result,
+    Left,
+    Right,
+}
+
+/// Copy one raw f32/f64 bit pattern to rax and clear its sign bit. The F5
+/// policy guard classifies floats entirely as unsigned integers: below/equal/
+/// above the positive-infinity pattern means finite/infinite/NaN.
+fn append_float_abs_to_rax(bytes: &mut Vec<u8>, source: FloatPolicySource, byte_size: usize) {
+    match source {
+        FloatPolicySource::Result => bytes.extend([0x4c, 0x89, 0xd0]), // mov rax,r10
+        FloatPolicySource::Left => bytes.extend([0x4c, 0x89, 0xc0]),   // mov rax,r8
+        FloatPolicySource::Right => bytes.extend([0x4c, 0x89, 0xd8]),  // mov rax,r11
+    }
+    if byte_size > 4 {
+        bytes.extend([0x48, 0x0f, 0xba, 0xf0, 0x3f]); // btr rax,63
+    } else {
+        bytes.push(0x25); // and eax,0x7fff_ffff
+        bytes.extend(0x7fff_ffff_u32.to_le_bytes());
+    }
+}
+
+fn append_cmp_rax_r9(bytes: &mut Vec<u8>) {
+    bytes.extend([0x4c, 0x39, 0xc8]); // cmp rax,r9
+}
+
+fn append_policy_branch_placeholder(bytes: &mut Vec<u8>, opcode: u8) -> usize {
+    let start = bytes.len();
+    bytes.extend([0x0f, opcode, 0, 0, 0, 0]);
+    start
+}
+
+fn patch_policy_branch(
+    bytes: &mut [u8],
+    branch_start: usize,
+    target: usize,
+) -> Result<(), Diagnostic> {
+    let displacement = target as isize - (branch_start + 6) as isize;
+    let displacement = rel32(displacement)?;
+    bytes[branch_start + 2..branch_start + 6].copy_from_slice(&displacement.to_le_bytes());
+    Ok(())
+}
+
+/// F5 float-arithmetic policy guard. Entry: r10=result bits, r8=preserved
+/// left bits, r11=right bits. Exit: r10 is unchanged or clamped; r8/r9/r11
+/// and rax are scratch. The branch targets are patched from the emitted byte
+/// stream, so the width twin can use this function's actual length.
+fn float_policy_guard_bytes(
+    domain: ArithmeticDomain,
+    operator: StateGuardOperator,
+    byte_size: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    if !float_policy_applies(operator, domain) {
+        return Ok(Vec::new());
+    }
+
+    let (inf_bits, max_bits, sign_bits) = if byte_size > 4 {
+        (
+            0x7ff0_0000_0000_0000_u64,
+            0x7fef_ffff_ffff_ffff_u64,
+            0x8000_0000_0000_0000_u64,
+        )
+    } else {
+        (0x7f80_0000_u64, 0x7f7f_ffff_u64, 0x8000_0000_u64)
+    };
+    let mut bytes = Vec::new();
+    bytes.extend([0x49, 0xb9]); // mov r9,imm64 (positive infinity bits)
+    bytes.extend(inf_bits.to_le_bytes());
+    append_float_abs_to_rax(&mut bytes, FloatPolicySource::Result, byte_size);
+    append_cmp_rax_r9(&mut bytes);
+
+    match domain {
+        ArithmeticDomain::Saturating => {
+            let mut end_branches = Vec::new();
+            // Only an exactly infinite result is magnitude overflow. Finite
+            // results and NaNs pass through (invalid remains a Finite duty).
+            end_branches.push(append_policy_branch_placeholder(&mut bytes, 0x85)); // jne end
+
+            append_float_abs_to_rax(&mut bytes, FloatPolicySource::Right, byte_size);
+            if operator == StateGuardOperator::Divide {
+                bytes.extend([0x48, 0x83, 0xf8, 0x00]); // cmp rax,0
+                // Division by +/-0 keeps IEEE infinity; it is not overflow.
+                end_branches.push(append_policy_branch_placeholder(&mut bytes, 0x84)); // je end
+            }
+            append_cmp_rax_r9(&mut bytes);
+            end_branches.push(append_policy_branch_placeholder(&mut bytes, 0x83)); // jae end
+
+            append_float_abs_to_rax(&mut bytes, FloatPolicySource::Left, byte_size);
+            append_cmp_rax_r9(&mut bytes);
+            end_branches.push(append_policy_branch_placeholder(&mut bytes, 0x83)); // jae end
+
+            // Clamp to MAX_FINITE with the result's sign.
+            bytes.extend([0x49, 0xb9]);
+            bytes.extend(sign_bits.to_le_bytes());
+            bytes.extend([0x4d, 0x21, 0xca]); // and r10,r9
+            bytes.extend([0x49, 0xb9]);
+            bytes.extend(max_bits.to_le_bytes());
+            bytes.extend([0x4d, 0x09, 0xca]); // or r10,r9
+
+            let end = bytes.len();
+            for branch in end_branches {
+                patch_policy_branch(&mut bytes, branch, end)?;
+            }
+        }
+        ArithmeticDomain::Trapping => {
+            let mut end_branches = Vec::new();
+            // Finite result: done. NaN jumps over the infinity case.
+            end_branches.push(append_policy_branch_placeholder(&mut bytes, 0x82)); // jb end
+            let nan_branch = append_policy_branch_placeholder(&mut bytes, 0x87); // ja nan
+
+            // Infinite result is legal only when an input was already Inf/NaN.
+            append_float_abs_to_rax(&mut bytes, FloatPolicySource::Left, byte_size);
+            append_cmp_rax_r9(&mut bytes);
+            end_branches.push(append_policy_branch_placeholder(&mut bytes, 0x83)); // jae end
+            append_float_abs_to_rax(&mut bytes, FloatPolicySource::Right, byte_size);
+            append_cmp_rax_r9(&mut bytes);
+            end_branches.push(append_policy_branch_placeholder(&mut bytes, 0x83)); // jae end
+            bytes.extend([0x0f, 0x0b]); // ud2: overflow or divide-by-zero
+
+            let nan = bytes.len();
+            patch_policy_branch(&mut bytes, nan_branch, nan)?;
+            // NaN propagation is legal only when an input was already NaN.
+            append_float_abs_to_rax(&mut bytes, FloatPolicySource::Left, byte_size);
+            append_cmp_rax_r9(&mut bytes);
+            end_branches.push(append_policy_branch_placeholder(&mut bytes, 0x87)); // ja end
+            append_float_abs_to_rax(&mut bytes, FloatPolicySource::Right, byte_size);
+            append_cmp_rax_r9(&mut bytes);
+            end_branches.push(append_policy_branch_placeholder(&mut bytes, 0x87)); // ja end
+            bytes.extend([0x0f, 0x0b]); // ud2: invalid operation
+
+            let end = bytes.len();
+            for branch in end_branches {
+                patch_policy_branch(&mut bytes, branch, end)?;
+            }
+        }
+        _ => unreachable!("policy applicability gated above"),
+    }
+    Ok(bytes)
+}
+
 /// Floating-point binary op (f64/f32) that reuses the integer operand pipeline:
 /// the operand bit patterns are already loaded in r10 (left) and r11 (right).
 /// Move them into xmm0/xmm1, run the SSE arithmetic op, then move the result
 /// bits back to r10 so the shared store path writes them out. `byte_size > 4`
 /// selects f64 (`movq` + `*sd`); otherwise f32 (`movd` + `*ss`). Always the
-/// per-operator `runtime_float_binary_operation_width(operator)` bytes.
+/// base per-operator width plus any emitted policy guard; the domain-aware
+/// width twin calls the same guard emitter.
 fn append_runtime_float_binary_operation(
     bytes: &mut Vec<u8>,
     operator: StateGuardOperator,
     byte_size: usize,
+    domain: ArithmeticDomain,
 ) -> Result<(), Diagnostic> {
     let wide = byte_size > 4;
+    let guarded = float_policy_applies(operator, domain);
+    if guarded {
+        // The result overwrites r10. Keep the raw left operand for the policy
+        // guard; r11 already keeps the raw right operand.
+        bytes.extend([0x4d, 0x89, 0xd0]); // mov r8,r10
+    }
     if wide {
         bytes.extend([0x66, 0x49, 0x0f, 0x6e, 0xc2]); // movq xmm0, r10
         bytes.extend([0x66, 0x49, 0x0f, 0x6e, 0xcb]); // movq xmm1, r11
@@ -9203,142 +8710,10 @@ fn append_runtime_float_binary_operation(
     } else {
         bytes.extend([0x66, 0x41, 0x0f, 0x7e, 0xc2]); // movd r10d, xmm0
     }
-    Ok(())
-}
-
-fn float_arithmetic_policy_applies(operator: StateGuardOperator, domain: ArithmeticDomain) -> bool {
-    match domain {
-        ArithmeticDomain::Trapping => matches!(
-            operator,
-            StateGuardOperator::Add
-                | StateGuardOperator::Subtract
-                | StateGuardOperator::Multiply
-                | StateGuardOperator::Divide
-                | StateGuardOperator::Sqrt
-        ),
-        ArithmeticDomain::Saturating => matches!(
-            operator,
-            StateGuardOperator::Add
-                | StateGuardOperator::Subtract
-                | StateGuardOperator::Multiply
-                | StateGuardOperator::Divide
-        ),
-        ArithmeticDomain::Exact | ArithmeticDomain::Wrapping => false,
-    }
-}
-
-/// Float arithmetic with the declared policy applied to the rounded f32/f64
-/// result. Trapping rejects every NaN/infinity. Saturating clamps only overflow:
-/// both inputs must be finite and division must have a nonzero divisor, so
-/// invalid operations and divide-by-zero retain their ordinary IEEE result.
-fn append_runtime_float_binary_operation_with_domain(
-    bytes: &mut Vec<u8>,
-    operator: StateGuardOperator,
-    byte_size: usize,
-    domain: ArithmeticDomain,
-) -> Result<(), Diagnostic> {
-    if !float_arithmetic_policy_applies(operator, domain) {
-        return append_runtime_float_binary_operation(bytes, operator, byte_size);
-    }
-
-    if domain == ArithmeticDomain::Saturating {
-        bytes.extend([0x4d, 0x89, 0xd0]); // mov r8,r10 (preserve raw left input)
-    }
-    append_runtime_float_binary_operation(bytes, operator, byte_size)?;
-
-    let exponent_shift = if byte_size > 4 { 52 } else { 23 };
-    let exponent_mask = if byte_size > 4 { 0x7ff } else { 0xff };
-    let append_exponent_compare = |bytes: &mut Vec<u8>, source: u8| {
-        let mov_modrm = match source {
-            8 => 0xc1,
-            10 => 0xd1,
-            11 => 0xd9,
-            _ => unreachable!("float policy only inspects r8/r10/r11"),
-        };
-        bytes.extend([0x4d, 0x89, mov_modrm]); // mov r9,source
-        bytes.extend([0x49, 0xc1, 0xe9, exponent_shift]); // shr r9,shift
-        bytes.extend([0x41, 0x81, 0xe1]); // and r9d,exponent_mask
-        bytes.extend((exponent_mask as u32).to_le_bytes());
-        bytes.extend([0x41, 0x81, 0xf9]); // cmp r9d,exponent_mask
-        bytes.extend((exponent_mask as u32).to_le_bytes());
-    };
-
-    match domain {
-        ArithmeticDomain::Trapping => {
-            append_exponent_compare(bytes, 10);
-            let finite = append_jcc_rel32_placeholder(bytes, 0x85); // jne done
-            bytes.extend([0x0f, 0x0b]); // ud2
-            let done = bytes.len();
-            patch_rel32(bytes, finite, done);
-        }
-        ArithmeticDomain::Saturating => {
-            let mut done_branches = Vec::new();
-            append_exponent_compare(bytes, 10);
-            done_branches.push(append_jcc_rel32_placeholder(bytes, 0x85)); // finite result
-            append_exponent_compare(bytes, 8);
-            done_branches.push(append_jcc_rel32_placeholder(bytes, 0x84)); // nonfinite left
-            append_exponent_compare(bytes, 11);
-            done_branches.push(append_jcc_rel32_placeholder(bytes, 0x84)); // nonfinite right
-
-            if operator == StateGuardOperator::Divide {
-                bytes.extend([0x4d, 0x89, 0xd9]); // mov r9,r11
-                if byte_size > 4 {
-                    bytes.extend([0x49, 0xd1, 0xe1]); // shl r9,1 (discard f64 sign)
-                } else {
-                    bytes.extend([0x41, 0xd1, 0xe1]); // shl r9d,1 (discard f32 sign)
-                }
-                bytes.extend([0x4d, 0x85, 0xc9]); // test r9,r9
-                done_branches.push(append_jcc_rel32_placeholder(bytes, 0x84)); // zero divisor
-            }
-
-            let (sign_mask, maximum_finite): (u64, u64) = if byte_size > 4 {
-                (0x8000_0000_0000_0000, 0x7fef_ffff_ffff_ffff)
-            } else {
-                (0x8000_0000, 0x7f7f_ffff)
-            };
-            bytes.extend([0x49, 0xb9]); // mov r9,sign_mask
-            bytes.extend(sign_mask.to_le_bytes());
-            bytes.extend([0x4d, 0x21, 0xca]); // and r10,r9
-            bytes.extend([0x49, 0xb9]); // mov r9,MAX_FINITE
-            bytes.extend(maximum_finite.to_le_bytes());
-            bytes.extend([0x4d, 0x09, 0xca]); // or r10,r9
-
-            let done = bytes.len();
-            for branch in done_branches {
-                patch_rel32(bytes, branch, done);
-            }
-        }
-        ArithmeticDomain::Exact | ArithmeticDomain::Wrapping => unreachable!(),
+    if guarded {
+        bytes.extend(float_policy_guard_bytes(domain, operator, byte_size)?);
     }
     Ok(())
-}
-
-fn runtime_float_binary_operation_with_domain_width(
-    operator: StateGuardOperator,
-    _byte_size: usize,
-    domain: ArithmeticDomain,
-) -> usize {
-    let base = runtime_float_binary_operation_width(operator);
-    if !float_arithmetic_policy_applies(operator, domain) {
-        return base;
-    }
-    match domain {
-        // exponent extraction/compare (21), JNE rel32 (6), UD2 (2)
-        ArithmeticDomain::Trapping => base + 29,
-        // preserved left (3), three exponent checks (27 each), optional
-        // zero-divisor check (15), and sign-preserving MAX_FINITE clamp (26).
-        ArithmeticDomain::Saturating => {
-            base + 3
-                + 81
-                + 26
-                + if operator == StateGuardOperator::Divide {
-                    15
-                } else {
-                    0
-                }
-        }
-        ArithmeticDomain::Exact | ArithmeticDomain::Wrapping => unreachable!(),
-    }
 }
 
 /// Width of [`append_runtime_float_binary_operation`]: two operand moves
@@ -9348,6 +8723,25 @@ fn runtime_float_binary_operation_with_domain_width(
 /// f32 and f64 at every operator (the relocation-offset invariant). MUST
 /// stay in lockstep with the emission.
 fn runtime_float_binary_operation_width(operator: StateGuardOperator) -> usize {
+    runtime_float_binary_operation_width_with_domain(operator, 8, ArithmeticDomain::Exact)
+}
+
+fn runtime_float_binary_operation_width_with_domain(
+    operator: StateGuardOperator,
+    byte_size: usize,
+    domain: ArithmeticDomain,
+) -> usize {
+    let policy_width = if float_policy_applies(operator, domain) {
+        3 + float_policy_guard_bytes(domain, operator, byte_size)
+            .map(|bytes| bytes.len())
+            .unwrap_or(0)
+    } else {
+        0
+    };
+    policy_width + runtime_float_binary_operation_width_base(operator)
+}
+
+fn runtime_float_binary_operation_width_base(operator: StateGuardOperator) -> usize {
     match operator {
         StateGuardOperator::Equal | StateGuardOperator::NotEqual => 10 + 4 + 8 + 4,
         StateGuardOperator::Greater
@@ -9667,17 +9061,6 @@ fn append_cmp_r12d_imm32(bytes: &mut Vec<u8>, value: u32) -> Result<(), Diagnost
     Ok(())
 }
 
-fn append_add_r14_imm32(bytes: &mut Vec<u8>, value: usize) -> Result<(), Diagnostic> {
-    let value = i32::try_from(value).map_err(|_| {
-        Diagnostic::error(format!(
-            "X86_64 MVP encoder cannot add offset `{value}` to r14"
-        ))
-    })?;
-    bytes.extend([0x49, 0x81, 0xc6]);
-    bytes.extend(value.to_le_bytes());
-    Ok(())
-}
-
 fn append_add_r14_r11(bytes: &mut Vec<u8>) {
     bytes.extend([0x4d, 0x01, 0xde]); // add r14, r11
 }
@@ -9742,8 +9125,8 @@ fn append_load_r11_from_r14(bytes: &mut Vec<u8>, byte_offset: usize) -> Result<(
     Ok(())
 }
 
-fn append_mov_r15_r14(bytes: &mut Vec<u8>) {
-    bytes.extend([0x4d, 0x89, 0xf7]); // mov r15, r14
+fn append_mov_r14_r15(bytes: &mut Vec<u8>) {
+    bytes.extend([0x4d, 0x89, 0xfe]); // mov r14, r15
 }
 
 fn append_add_r15_r11(bytes: &mut Vec<u8>) {
@@ -9778,47 +9161,6 @@ fn append_load_rax_from_r15(bytes: &mut Vec<u8>, byte_offset: usize) -> Result<(
     Ok(())
 }
 
-/// 32-bit zero-extending load of an array INDEX. A 64-bit `mov rax` reads 8 bytes,
-/// which for a 4-byte index field (i32/u32) pulls in the ADJACENT field's bytes as
-/// the high dword -> a garbage index and an OOB store (segfault). Every valid array
-/// index fits in 32 bits, so load `eax` (which zero-extends into rax); matches the
-/// machine-indexed COPY encoder.
-fn append_load_index_eax_from_r10(
-    bytes: &mut Vec<u8>,
-    byte_offset: usize,
-) -> Result<(), Diagnostic> {
-    let displacement = disp32(byte_offset)?;
-    bytes.extend([0x41, 0x8b, 0x82]); // mov eax, [r10 + disp32]
-    bytes.extend(displacement.to_le_bytes());
-    Ok(())
-}
-
-/// See [`append_load_index_eax_from_r10`].
-fn append_load_index_eax_from_r15(
-    bytes: &mut Vec<u8>,
-    byte_offset: usize,
-) -> Result<(), Diagnostic> {
-    let displacement = disp32(byte_offset)?;
-    bytes.extend([0x41, 0x8b, 0x87]); // mov eax, [r15 + disp32]
-    bytes.extend(displacement.to_le_bytes());
-    Ok(())
-}
-
-/// Load a 4-byte runtime index into r15, ZERO-EXTENDING into the upper 32 bits (`mov r15d`).
-/// A 64-bit load here would pull the 4 bytes ADJACENT to a 4-byte index field into the high
-/// dword, producing a garbage index and an out-of-bounds store when that neighbour is non-zero
-/// (the same class of bug fixed for the integer indexed write). Byte-count-identical to the
-/// 64-bit `append_load_r15_from_r14`, so instruction widths are unchanged.
-fn append_load_index_r15d_from_r14(
-    bytes: &mut Vec<u8>,
-    byte_offset: usize,
-) -> Result<(), Diagnostic> {
-    let displacement = disp32(byte_offset)?;
-    bytes.extend([0x45, 0x8b, 0xbe]); // mov r15d, [r14 + disp32] (32-bit, zero-extends into r15)
-    bytes.extend(displacement.to_le_bytes());
-    Ok(())
-}
-
 fn append_load_rcx_from_r15(bytes: &mut Vec<u8>, byte_offset: usize) -> Result<(), Diagnostic> {
     let displacement = disp32(byte_offset)?;
     bytes.extend([0x49, 0x8b, 0x8f]); // mov rcx, [r15 + disp32]
@@ -9840,29 +9182,56 @@ fn append_load_r14_from_r14(bytes: &mut Vec<u8>, byte_offset: usize) -> Result<(
     Ok(())
 }
 
-fn append_imul_rax_imm32(bytes: &mut Vec<u8>, value: i32) {
-    bytes.extend([0x48, 0x69, 0xc0]); // imul rax, rax, imm32
-    bytes.extend(value.to_le_bytes());
-}
-
 fn append_imul_r11_imm32(bytes: &mut Vec<u8>, value: i32) {
     bytes.extend([0x4d, 0x69, 0xdb]); // imul r11, r11, imm32
     bytes.extend(value.to_le_bytes());
 }
 
-fn append_imul_r15_imm32(bytes: &mut Vec<u8>, value: i32) {
-    bytes.extend([0x4d, 0x69, 0xff]); // imul r15, r15, imm32
+// r10 = the SECOND index scratch (the double-index rung): same 32-bit
+// zero-extended load + scale discipline as r11's family.
+// (append_mov_r10_imm64 already exists above.)
+
+fn append_load_index_r10_from_r14(
+    bytes: &mut Vec<u8>,
+    byte_offset: usize,
+) -> Result<(), Diagnostic> {
+    let displacement = disp32(byte_offset)?;
+    bytes.extend([0x45, 0x8b, 0x96]); // mov r10d, [r14 + disp32]
+    bytes.extend(displacement.to_le_bytes());
+    Ok(())
+}
+
+fn append_load_index_r10_from_r15(
+    bytes: &mut Vec<u8>,
+    byte_offset: usize,
+) -> Result<(), Diagnostic> {
+    let displacement = disp32(byte_offset)?;
+    bytes.extend([0x45, 0x8b, 0x97]); // mov r10d, [r15 + disp32]
+    bytes.extend(displacement.to_le_bytes());
+    Ok(())
+}
+
+fn append_load_index_r10_from_r10(
+    bytes: &mut Vec<u8>,
+    byte_offset: usize,
+) -> Result<(), Diagnostic> {
+    let displacement = disp32(byte_offset)?;
+    bytes.extend([0x45, 0x8b, 0x92]); // mov r10d, [r10 + disp32]
+    bytes.extend(displacement.to_le_bytes());
+    Ok(())
+}
+
+fn append_imul_r10_imm32(bytes: &mut Vec<u8>, value: i32) {
+    bytes.extend([0x4d, 0x69, 0xd2]); // imul r10, r10, imm32
     bytes.extend(value.to_le_bytes());
 }
 
-fn append_add_r14_r15(bytes: &mut Vec<u8>) {
-    // add r14, r15 -- REX.W+REX.R(r15)+REX.B(r14)=0x4d, opcode 01, ModRM 11 reg=r15(111) rm=r14(110)=0xfe
-    bytes.extend([0x4d, 0x01, 0xfe]);
+fn append_add_r14_r10(bytes: &mut Vec<u8>) {
+    bytes.extend([0x4d, 0x01, 0xd6]); // add r14, r10
 }
 
-fn append_add_r15_rax(bytes: &mut Vec<u8>) {
-    // add r15, rax -- REX.W+REX.B (0x49), opcode 0x01, ModRM 11 reg=rax(000) rm=r15(111) = 0xc7
-    bytes.extend([0x49, 0x01, 0xc7]);
+fn append_add_r15_r10(bytes: &mut Vec<u8>) {
+    bytes.extend([0x4d, 0x01, 0xd7]); // add r15, r10
 }
 
 fn append_add_rax_r11(bytes: &mut Vec<u8>) {
@@ -9974,6 +9343,35 @@ fn append_load_reg_from_r15(
         (Reg64::R11, 2) => bytes.extend([0x66, 0x45, 0x8b, 0x9f]),
         (Reg64::R11, 4) => bytes.extend([0x45, 0x8b, 0x9f]),
         (Reg64::R11, 8) => bytes.extend([0x4d, 0x8b, 0x9f]),
+        _ => {
+            return Err(Diagnostic::error(format!(
+                "X86_64 MVP encoder cannot load {byte_size}-byte runtime operands yet"
+            )));
+        }
+    }
+    bytes.extend(displacement.to_le_bytes());
+    Ok(())
+}
+
+/// The r14-base twin of `append_load_reg_from_r15` (ModRM r/m = r14): the
+/// place-compare materializer walks its LEFT operand's address in r14 (the
+/// CopyPlaces source discipline) and loads the operand through it.
+fn append_load_reg_from_r14(
+    bytes: &mut Vec<u8>,
+    destination: Reg64,
+    byte_offset: usize,
+    byte_size: usize,
+) -> Result<(), Diagnostic> {
+    let displacement = disp32(byte_offset)?;
+    match (destination, byte_size) {
+        (Reg64::R10, 1) => bytes.extend([0x45, 0x8a, 0x96]),
+        (Reg64::R10, 2) => bytes.extend([0x66, 0x45, 0x8b, 0x96]),
+        (Reg64::R10, 4) => bytes.extend([0x45, 0x8b, 0x96]),
+        (Reg64::R10, 8) => bytes.extend([0x4d, 0x8b, 0x96]),
+        (Reg64::R11, 1) => bytes.extend([0x45, 0x8a, 0x9e]),
+        (Reg64::R11, 2) => bytes.extend([0x66, 0x45, 0x8b, 0x9e]),
+        (Reg64::R11, 4) => bytes.extend([0x45, 0x8b, 0x9e]),
+        (Reg64::R11, 8) => bytes.extend([0x4d, 0x8b, 0x9e]),
         _ => {
             return Err(Diagnostic::error(format!(
                 "X86_64 MVP encoder cannot load {byte_size}-byte runtime operands yet"
@@ -10227,6 +9625,178 @@ fn append_lock_cmpxchg_r10_to_r14(
 /// Same layout as `lock_xadd_r10_to_r14_width` (only the opcode byte differs).
 fn lock_cmpxchg_r10_to_r14_width(byte_size: usize) -> usize {
     lock_xadd_r10_to_r14_width(byte_size)
+}
+
+#[cfg(test)]
+mod float_to_integer_policy_tests {
+    use super::*;
+
+    #[test]
+    fn policy_sequences_stay_in_width_lockstep() {
+        for source_byte_size in [4usize, 8] {
+            for target_byte_size in [1usize, 2, 4, 8] {
+                for target_signed in [false, true] {
+                    let mut trapping = Vec::new();
+                    append_float_to_int_trap(
+                        &mut trapping,
+                        source_byte_size,
+                        target_byte_size,
+                        target_signed,
+                    );
+                    assert_eq!(
+                        trapping.len(),
+                        float_to_int_trap_width(source_byte_size, target_byte_size, target_signed,),
+                        "Trapping f{source_byte_size}->int{target_byte_size} signed={target_signed} width"
+                    );
+
+                    let mut saturating = Vec::new();
+                    append_float_to_int_saturating(
+                        &mut saturating,
+                        source_byte_size,
+                        target_byte_size,
+                        target_signed,
+                    );
+                    assert_eq!(
+                        saturating.len(),
+                        float_to_int_saturating_width(
+                            source_byte_size,
+                            target_byte_size,
+                            target_signed,
+                        ),
+                        "Saturating f{source_byte_size}->int{target_byte_size} signed={target_signed} width"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn exact_conversion_keeps_the_zero_guard_cost() {
+        assert_eq!(
+            runtime_convert_operation_width(8, 4, true, false, false, true, false, false),
+            10,
+        );
+        assert_eq!(
+            runtime_convert_operation_width(8, 4, true, false, false, true, true, false),
+            5 + float_to_int_trap_width(8, 4, true),
+        );
+        assert_eq!(
+            runtime_convert_operation_width(8, 4, true, false, false, true, false, true),
+            5 + float_to_int_saturating_width(8, 4, true),
+        );
+    }
+
+    #[test]
+    fn bounds_describe_truncation_not_only_integer_membership() {
+        let (upper, lower, lower_inclusive) = float_to_int_bounds(8, 4, true);
+        assert_eq!(f64::from_bits(upper), 2147483648.0);
+        assert_eq!(f64::from_bits(lower), -2147483649.0);
+        assert!(!lower_inclusive, "-2147483648.5 truncates into i32");
+
+        let (upper, lower, lower_inclusive) = float_to_int_bounds(4, 4, true);
+        assert_eq!(f32::from_bits(upper as u32), 2147483648.0);
+        assert_eq!(f32::from_bits(lower as u32), -2147483648.0);
+        assert!(lower_inclusive, "f32 cannot represent i32::MIN - 1");
+
+        let (upper, lower, lower_inclusive) = float_to_int_bounds(8, 4, false);
+        assert_eq!(f64::from_bits(upper), 4294967296.0);
+        assert_eq!(f64::from_bits(lower), -1.0);
+        assert!(!lower_inclusive, "-0.5 truncates into u32");
+    }
+}
+
+#[cfg(test)]
+mod float_arithmetic_policy_tests {
+    use super::*;
+
+    #[test]
+    fn policy_sequences_stay_in_width_lockstep() {
+        for byte_size in [4usize, 8] {
+            for operator in [
+                StateGuardOperator::Add,
+                StateGuardOperator::Subtract,
+                StateGuardOperator::Multiply,
+                StateGuardOperator::Divide,
+            ] {
+                for domain in [
+                    ArithmeticDomain::Exact,
+                    ArithmeticDomain::Saturating,
+                    ArithmeticDomain::Trapping,
+                ] {
+                    let mut bytes = Vec::new();
+                    append_runtime_float_binary_operation(&mut bytes, operator, byte_size, domain)
+                        .expect("encode float operation");
+                    assert_eq!(
+                        bytes.len(),
+                        runtime_float_binary_operation_width_with_domain(
+                            operator, byte_size, domain,
+                        ),
+                        "f{} {operator:?} {domain:?} width",
+                        byte_size * 8,
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn policy_branches_target_emitted_labels() {
+        for byte_size in [4usize, 8] {
+            for operator in [
+                StateGuardOperator::Add,
+                StateGuardOperator::Subtract,
+                StateGuardOperator::Multiply,
+                StateGuardOperator::Divide,
+            ] {
+                for domain in [ArithmeticDomain::Saturating, ArithmeticDomain::Trapping] {
+                    let bytes = float_policy_guard_bytes(domain, operator, byte_size)
+                        .expect("encode policy guard");
+                    let mut branches = 0;
+                    for start in 0..bytes.len().saturating_sub(5) {
+                        if bytes[start] == 0x0f
+                            && matches!(bytes[start + 1], 0x82 | 0x83 | 0x84 | 0x85 | 0x87)
+                        {
+                            let displacement = i32::from_le_bytes(
+                                bytes[start + 2..start + 6].try_into().expect("rel32 bytes"),
+                            );
+                            let target = (start + 6) as isize + displacement as isize;
+                            assert!(
+                                target >= 0 && target as usize <= bytes.len(),
+                                "branch at {start} targets {target}, outside {} bytes",
+                                bytes.len(),
+                            );
+                            branches += 1;
+                        }
+                    }
+                    assert!(
+                        branches >= 3,
+                        "policy guard must contain its decision branches"
+                    );
+                    assert_eq!(
+                        bytes.windows(2).any(|window| window == [0x0f, 0x0b]),
+                        domain == ArithmeticDomain::Trapping,
+                        "only Trapping emits ud2",
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn non_arithmetic_float_operations_never_gain_policy_bytes() {
+        for operator in [
+            StateGuardOperator::Equal,
+            StateGuardOperator::Min,
+            StateGuardOperator::Max,
+            StateGuardOperator::Sqrt,
+        ] {
+            assert!(
+                float_policy_guard_bytes(ArithmeticDomain::Trapping, operator, 8)
+                    .expect("gated guard")
+                    .is_empty()
+            );
+        }
+    }
 }
 
 #[cfg(test)]
@@ -10550,36 +10120,6 @@ mod machine_control_tests {
         assert_eq!(encode_machine_halt_bytes().len(), machine_halt_width());
     }
 
-    #[test]
-    fn float_policy_binary_write_width_matches_emission() {
-        let operands = ImmediateOperands(vec![1.0f64.to_bits() as i64, 2.0f64.to_bits() as i64]);
-        let left = RuntimeValueOperandHandle::from_parts(0, 1);
-        let right = RuntimeValueOperandHandle::from_parts(1, 1);
-        for domain in [ArithmeticDomain::Saturating, ArithmeticDomain::Trapping] {
-            for operator in [
-                StateGuardOperator::Add,
-                StateGuardOperator::Subtract,
-                StateGuardOperator::Multiply,
-                StateGuardOperator::Divide,
-            ] {
-                for byte_size in [4usize, 8] {
-                    let bytes = encode_runtime_storage_binary_write(
-                        &operands, 0x10, byte_size, left, operator, right, true, domain, false,
-                    )
-                    .unwrap();
-                    let width = runtime_storage_binary_write_width(
-                        &operands, byte_size, left, operator, right, true, domain, false,
-                    );
-                    assert_eq!(bytes.len(), width, "{domain:?} {operator:?} f{byte_size}");
-                    assert_eq!(
-                        bytes.windows(2).any(|window| window == [0x0f, 0x0b]),
-                        domain == ArithmeticDomain::Trapping
-                    );
-                }
-            }
-        }
-    }
-
     /// A RuntimeValueOperandSource where every handle is an immediate integer
     /// (handle arena index -> value). Immediates emit no relocation, so the
     /// port-encoder byte layout is fully deterministic.
@@ -10647,17 +10187,17 @@ mod machine_control_tests {
         fn convert(
             &self,
             _: RuntimeValueOperandHandle,
-        ) -> Option<(
-            RuntimeValueOperandHandle,
-            usize,
-            usize,
-            bool,
-            bool,
-            bool,
-            omega_core::arithmetic::ArithmeticDomain,
-            bool,
-        )> {
+        ) -> Option<(RuntimeValueOperandHandle, usize, usize, bool, bool, bool)> {
             None
+        }
+        fn convert_trapping(&self, _: RuntimeValueOperandHandle) -> bool {
+            false
+        }
+        fn convert_saturating(&self, _: RuntimeValueOperandHandle) -> bool {
+            false
+        }
+        fn convert_target_signed(&self, _: RuntimeValueOperandHandle) -> bool {
+            false
         }
         fn text_equals(
             &self,
@@ -10778,68 +10318,95 @@ mod atomic_tests {
 }
 
 #[cfg(test)]
-mod shift_count_policy_tests {
+mod wrapping_shift_clamp_tests {
     use super::*;
 
     #[test]
-    fn wrapping_mask_uses_the_language_width() {
+    fn clamp_compares_the_full_count_and_cmovs_zero() {
         for &byte_size in &[1usize, 2, 4, 8] {
             let mut bytes = Vec::new();
-            append_wrapping_shift_count_mask(&mut bytes, byte_size);
+            append_wrapping_shift_zero_clamp(&mut bytes, byte_size);
             assert_eq!(
                 bytes.len(),
-                WRAPPING_SHIFT_COUNT_MASK_WIDTH,
-                "width mismatch for the {byte_size}-byte mask"
+                WRAPPING_SHIFT_ZERO_CLAMP_WIDTH,
+                "width mismatch for the {byte_size}-byte clamp"
             );
-            assert_eq!(&bytes[0..3], &[0x49, 0x83, 0xe3], "and r11, imm8");
-            assert_eq!(
-                bytes[3] as usize,
-                byte_size * 8 - 1,
-                "language-width mask immediate"
-            );
+            assert_eq!(&bytes[0..2], &[0x31, 0xc0], "xor eax, eax");
+            // The FULL count in r11 (not the cl copy): a count with set high
+            // bits (i64 2^32+1, or a negative signed count) must still clamp.
+            assert_eq!(&bytes[2..5], &[0x49, 0x83, 0xfb], "cmp r11, imm8");
+            assert_eq!(bytes[5] as usize, byte_size * 8, "width_bits immediate");
+            assert_eq!(&bytes[6..10], &[0x4c, 0x0f, 0x43, 0xd0], "cmovae r10, rax");
         }
     }
 
     #[test]
-    fn wrapping_shl_masks_before_the_shift() {
+    fn wrapping_count_mask_masks_subword_only() {
+        // F8b: the Wrapping count mask is an explicit AND at sub-word widths
+        // (`and r11d, 7/15`) and ABSENT at 4/8 -- the hardware `shl`/`sar`
+        // mask mod 32/64 there, which IS the ch5 masked-count ruling.
+        for &(byte_size, expect) in &[(1usize, Some(7u8)), (2, Some(15)), (4, None), (8, None)] {
+            let mut bytes = Vec::new();
+            append_wrapping_shift_count_mask(&mut bytes, byte_size);
+            assert_eq!(
+                bytes.len(),
+                wrapping_shift_count_mask_width(byte_size),
+                "emission and width accounting must agree at {byte_size} bytes"
+            );
+            match expect {
+                Some(mask) => assert_eq!(bytes, vec![0x41, 0x83, 0xe3, mask], "and r11d, mask"),
+                None => assert!(bytes.is_empty(), "no mask at width {byte_size}"),
+            }
+        }
+    }
+
+    #[test]
+    fn wrapping_shl_sequence_shifts_then_clamps_without_touching_the_count() {
+        // The write-path pair: width-correct shl (hardware masks the count
+        // mod 32) followed by the modular clamp reading the intact r11.
         let mut bytes = Vec::new();
-        append_wrapping_shift_count_mask(&mut bytes, 4);
         append_runtime_binary_operation(&mut bytes, StateGuardOperator::ShiftLeft, 4).expect("shl");
+        append_wrapping_shift_zero_clamp(&mut bytes, 4);
         assert_eq!(
             bytes,
             vec![
-                0x49, 0x83, 0xe3, 31, // and r11, 31
                 0x44, 0x89, 0xd9, // mov ecx, r11d (count copy; r11 stays intact)
                 0x41, 0xd3, 0xe2, // shl r10d, cl
+                0x31, 0xc0, // xor eax, eax
+                0x49, 0x83, 0xfb, 32, // cmp r11, 32
+                0x4c, 0x0f, 0x43, 0xd0, // cmovae r10, rax
             ]
         );
         assert_eq!(
             bytes.len(),
-            WRAPPING_SHIFT_COUNT_MASK_WIDTH
-                + runtime_binary_operation_width(StateGuardOperator::ShiftLeft, 4),
+            runtime_binary_operation_width(StateGuardOperator::ShiftLeft, 4)
+                + WRAPPING_SHIFT_ZERO_CLAMP_WIDTH,
             "emission and width accounting must agree"
         );
     }
 
     #[test]
-    fn trapping_guard_checks_before_the_shift() {
+    fn arithmetic_shr_saturates_the_count_before_the_sar() {
+        // The pre-fix: at/above-width counts become width-1, so the sar
+        // itself produces the sign-fill. cmovae writes r11 (the count),
+        // NOT r10 (the value).
         let mut bytes = Vec::new();
-        append_trapping_shift_count_guard(&mut bytes, 4);
+        append_wrapping_shift_right_count_saturate(&mut bytes, 4);
         append_runtime_binary_operation(&mut bytes, StateGuardOperator::ShiftRight, 4)
             .expect("sar");
         assert_eq!(
             bytes,
             vec![
+                0xb8, 31, 0, 0, 0, // mov eax, 31 (width-1)
                 0x49, 0x83, 0xfb, 32, // cmp r11, 32
-                0x72, 0x02, // jb over trap
-                0x0f, 0x0b, // ud2
-                0x44, 0x89, 0xd9, // mov ecx, r11d
+                0x4c, 0x0f, 0x43, 0xd8, // cmovae r11, rax (count, not value)
+                0x44, 0x89, 0xd9, // mov ecx, r11d (saturated count copy)
                 0x41, 0xd3, 0xfa, // sar r10d, cl
             ]
         );
         assert_eq!(
             bytes.len(),
-            TRAPPING_SHIFT_COUNT_GUARD_WIDTH
+            WRAPPING_SHIFT_RIGHT_COUNT_SATURATE_WIDTH
                 + runtime_binary_operation_width(StateGuardOperator::ShiftRight, 4),
             "emission and width accounting must agree"
         );

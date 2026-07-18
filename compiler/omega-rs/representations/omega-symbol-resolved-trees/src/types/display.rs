@@ -93,7 +93,6 @@ impl TypeConstraint {
                 "expression..=expression".to_owned()
             }
             TypeConstraint::ArithmeticDomain(domain) => format!("in {}", domain.name()),
-            TypeConstraint::ValueDomain(domain) => format!("in {}", domain.name()),
         }
     }
 }

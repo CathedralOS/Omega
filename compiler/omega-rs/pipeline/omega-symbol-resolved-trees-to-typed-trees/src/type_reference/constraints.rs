@@ -43,9 +43,6 @@ pub(super) fn lower_type_constraint_node_span_from_table(
             resolved::types::TypeConstraintNode::ArithmeticDomain(domain) => {
                 typed::types::TypeConstraintNode::ArithmeticDomain(*domain)
             }
-            resolved::types::TypeConstraintNode::ValueDomain(domain) => {
-                typed::types::TypeConstraintNode::ValueDomain(*domain)
-            }
         };
         typed_trees
             .type_reference_table
@@ -168,9 +165,6 @@ fn lower_type_constraint_node_with_context(
         }
         resolved::types::TypeConstraint::ArithmeticDomain(domain) => {
             Ok(typed::types::TypeConstraintNode::ArithmeticDomain(*domain))
-        }
-        resolved::types::TypeConstraint::ValueDomain(domain) => {
-            Ok(typed::types::TypeConstraintNode::ValueDomain(*domain))
         }
     }
 }

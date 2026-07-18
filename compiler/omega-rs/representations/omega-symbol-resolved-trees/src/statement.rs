@@ -78,6 +78,7 @@ pub struct Call {
 pub struct CallStorage {
     pub receiver: HandleSpan<DiagnosticName>,
     pub receiver_starts_at_self: bool,
+    pub machine_arguments: Box<[crate::expression::StaticMachineArgument]>,
     pub arguments: HandleSpan<crate::expression::ExpressionHandle>,
     /// `_ = call();` -- the caller explicitly discards a non-unit result.
     pub discards_result: bool,
@@ -283,6 +284,7 @@ impl StatementTable {
                     receiver,
                     receiver_starts_at_self: call.receiver_starts_at_self,
                     target: call.target.clone(),
+                    machine_arguments: call.machine_arguments.clone(),
                     arguments,
                     discards_result: call.discards_result,
                 }))
@@ -493,6 +495,7 @@ pub struct TableCall {
     pub receiver: HandleSpan<DiagnosticName>,
     pub receiver_starts_at_self: bool,
     pub target: DiagnosticName,
+    pub machine_arguments: Box<[crate::expression::StaticMachineArgument]>,
     pub arguments: HandleSpan<crate::expression::ExpressionHandle>,
     /// `_ = call();` -- the caller explicitly discards a non-unit result.
     pub discards_result: bool,
@@ -506,6 +509,7 @@ impl Default for TableCall {
             receiver: HandleSpan::empty(),
             receiver_starts_at_self: false,
             target: DiagnosticName::default(),
+            machine_arguments: Box::default(),
             arguments: HandleSpan::empty(),
             discards_result: false,
         }

@@ -72,11 +72,19 @@ fn lower_expression_node_into_table(
             {
                 expressions.push_name_path_member(&mut target_type, lower_name(member));
             }
+            let mut semantic_domain = HandleSpan::empty();
+            for member in syntax_trees
+                .expressions
+                .identifier_path_members(cast.semantic_domain)
+            {
+                expressions.push_name_path_member(&mut semantic_domain, lower_name(member));
+            }
             Ok(
                 expressions.insert(ExpressionNode::Cast(TableCastExpression {
                     value,
                     target_type,
                     domain: cast.domain,
+                    semantic_domain,
                     form: cast.form,
                 })),
             )
@@ -122,6 +130,7 @@ fn lower_expression_node_into_table(
                     receiver: ExpressionHandle::invalid(),
                     target_symbol: SymbolHandle::invalid(),
                     target: DiagnosticName::new("max", call.target.source_span()),
+                    machine_arguments: Box::default(),
                     arguments,
                 })));
             }
@@ -150,6 +159,7 @@ fn lower_expression_node_into_table(
                     receiver: ExpressionHandle::invalid(),
                     target_symbol: SymbolHandle::invalid(),
                     target: DiagnosticName::new("max", call.target.source_span()),
+                    machine_arguments: Box::default(),
                     arguments: max_arguments,
                 }));
                 let min_arguments = expressions.reserve_expression_handles(2);
@@ -159,6 +169,7 @@ fn lower_expression_node_into_table(
                     receiver: ExpressionHandle::invalid(),
                     target_symbol: SymbolHandle::invalid(),
                     target: DiagnosticName::new("min", call.target.source_span()),
+                    machine_arguments: Box::default(),
                     arguments: min_arguments,
                 })));
             }
@@ -189,6 +200,15 @@ fn lower_expression_node_into_table(
                     receiver,
                     target_symbol: SymbolHandle::invalid(),
                     target: lower_name(&call.target),
+                    machine_arguments: call
+                        .machine_arguments
+                        .iter()
+                        .map(|argument| omega_symbol_resolved_trees::expression::StaticMachineArgument {
+                            path: argument.path.iter().map(lower_name).collect::<Vec<_>>().into_boxed_slice(),
+                            symbol: SymbolHandle::invalid(),
+                        })
+                        .collect::<Vec<_>>()
+                        .into_boxed_slice(),
                     arguments,
                 })),
             )

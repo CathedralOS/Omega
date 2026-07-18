@@ -31,7 +31,6 @@ data Main {
 
 // Looping value-returning machine: acc + s[0] at each step, recurse on s[1..].
 machine Adder::walk(&mut self, s: &[i32 in Wrapping], acc: i32 in Wrapping) -> i32
-terminates;
 terminates by s -> Slice::Length;
 {
     transition s.len > 0 {

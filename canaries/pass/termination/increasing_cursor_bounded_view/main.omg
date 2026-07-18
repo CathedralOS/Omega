@@ -1,0 +1,25 @@
+// TPR3 (decision 23's acceptance test 5): an INCREASING cursor is accepted
+// through the bounded ARGUMENTED view `Nat::IncreasingTo(limit)` without an
+// authored subtraction -- the bound is part of the view (the single subject
+// ranks by its distance up to it), so the use site reads as a ranking
+// selection rather than ad-hoc proof arithmetic. The unbounded
+// `Nat::Increasing` is not a valid ranking (pinned:
+// fail/termination/increasing_unbounded_rejected).
+
+data Main {}
+
+machine Main::main(&mut self) -> u64 {
+    transition {
+        _ -> self.climb(4, 0)
+    }
+}
+
+machine Main::climb(&mut self, limit: u64, index: u64)
+terminates by index -> Nat::IncreasingTo(limit);
+-> u64
+{
+    transition index < limit {
+        true -> climb(limit, index + 1)
+        false -> index
+    }
+}

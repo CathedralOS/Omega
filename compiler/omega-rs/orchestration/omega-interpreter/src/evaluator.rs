@@ -897,19 +897,8 @@ impl<'program> Evaluator<'program> {
                 continue;
             };
             let name = field.name.as_str().to_owned();
-
-            let value = if field.initial_value.is_valid() {
-                let frame = Frame {
-                    locals: RefCell::new(BTreeMap::new()),
-                    self_cell: Value::Unit.cell(),
-                    machine_symbol: SymbolHandle::invalid(),
-                    scalar_locals: RefCell::new(BTreeMap::new()),
-                    guard_call_results: RefCell::new(Vec::new()),
-                };
-                self.eval_expression(field.initial_value, &frame)?
-            } else {
-                self.default_value_for_type(field.type_reference)?
-            };
+            // Field defaults are retired: every field ZII zero-initializes.
+            let value = self.default_value_for_type(field.type_reference)?;
             fields.insert(name, value.cell());
         }
         Ok(())
@@ -1125,6 +1114,12 @@ impl<'program> Evaluator<'program> {
         instance: Cell,
         args: Vec<Cell>,
     ) -> EvalResult<Option<Value>> {
+        // MR4 admission: the cross-machine tail transition REBINDS these and
+        // continues the loop (a jump, mirroring the native dispatch-loop
+        // lowering) instead of recursing -- an admitted measured mutual
+        // cycle must not consume interpreter call depth.
+        let mut machine = machine.clone();
+        let mut instance = instance;
         let mut current_state = state_name.to_owned();
         let mut current_args = args;
         // Locals accumulated across SAME-machine sibling transitions: the backend models a
@@ -1136,7 +1131,7 @@ impl<'program> Evaluator<'program> {
         loop {
             self.tick()?;
             let state = self
-                .find_state(machine, &current_state)
+                .find_state(&machine, &current_state)
                 .ok_or_else(|| Halt::Unsupported(format!("unknown state `{current_state}`")))?
                 .clone();
 
@@ -1200,14 +1195,18 @@ impl<'program> Evaluator<'program> {
                         current_args = args;
                         continue;
                     }
-                    // Cross-machine named transition: run it to completion, then we are
-                    // done (the entry sub-state machine model is single-threaded).
-                    return self.run_state_collect(
-                        &target_machine,
-                        &state_name,
-                        target_instance,
-                        args,
-                    );
+                    // Cross-machine named transition: a TAIL JUMP into the
+                    // target machine (the arm target is the arm's last
+                    // action; whichever machine terminates delivers the
+                    // value). Rebind the loop -- constant depth, matching
+                    // the native SetDispatchState lowering. The carried
+                    // locals clear: the callee binds a fresh frame.
+                    machine = target_machine;
+                    instance = target_instance;
+                    current_state = state_name;
+                    current_args = args;
+                    carried = BTreeMap::new();
+                    continue;
                 }
             }
         }
@@ -1563,6 +1562,13 @@ impl<'program> Evaluator<'program> {
         // (`asm#port_out`) has real device effects the interpreter cannot
         // reproduce and stays unsupported until it is modeled.
         if call.target.as_str() == "asm#hlt" {
+            return Ok(Value::Unit);
+        }
+        // CH10 root grant (GR3): `b.accept_boundary<path>();` desugars to
+        // the `accept_boundary#<path>` marker call. Grants are DECLARATIONS
+        // harvested statically by the build-config pass; evaluation serves
+        // the marker as a no-op so the build machine runs through it.
+        if call.target.as_str().starts_with("accept_boundary#") {
             return Ok(Value::Unit);
         }
 
@@ -2769,6 +2775,23 @@ impl<'program> Evaluator<'program> {
                 let flags = self.eval_fs_scalar(arguments.get(1).copied(), frame)? as i32;
                 self.virtual_open_flags(path, flags) as i64
             }
+            "open_path_handle" => {
+                // Hermetic CreateFileA model for metadata/query handles. The
+                // wrapper supplies access=0 + OPEN_EXISTING; the virtual fd
+                // table already models both files and read-only directories.
+                let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
+                let fd = self.virtual_open_flags(path, 0);
+                if fd < 0 {
+                    // `GetLastError`, not CRT errno, is the native error source.
+                    self.virtual_errno = match self.virtual_errno {
+                        13 => 5,   // EACCES -> ERROR_ACCESS_DENIED
+                        9 => 6,    // EBADF -> ERROR_INVALID_HANDLE
+                        17 => 183, // EEXIST -> ERROR_ALREADY_EXISTS
+                        _ => 2,    // ERROR_FILE_NOT_FOUND
+                    };
+                }
+                fd as i64
+            }
             "open_create" => {
                 // `open(path, flags, mode)` with O_CREAT (Rust `File::create_new`,
                 // `OpenOptions.create`/`.create_new`). Flag bits are the HOST's
@@ -2866,6 +2889,16 @@ impl<'program> Evaluator<'program> {
                     -1
                 }
             }
+            "close_handle" => {
+                let handle = self.eval_fs_fd(arguments.first().copied(), frame)?;
+                if self.virtual_fds.remove(&handle).is_some() {
+                    self.virtual_flocks.retain(|_, owner| *owner != handle);
+                    1 // Win32 BOOL success
+                } else {
+                    self.virtual_errno = 6; // ERROR_INVALID_HANDLE
+                    0
+                }
+            }
             "duplicate" => {
                 // `dup(fd)`: mint a fresh descriptor over the same open file (Rust
                 // `File::try_clone`). Native dup SHARES the underlying file offset;
@@ -2932,6 +2965,59 @@ impl<'program> Evaluator<'program> {
                     }
                 }
             }
+            "lock_file_ex" => {
+                // Win32 LockFileEx over the synthetic fd/HANDLE. flags:
+                // EXCLUSIVE=2, FAIL_IMMEDIATELY=1. The range/OVERLAPPED
+                // arguments are ABI-shape inputs; the std wrapper always asks
+                // for offset zero and the whole file.
+                let fd = self.eval_fs_scalar(arguments.first().copied(), frame)? as i32;
+                let flags = self.eval_fs_scalar(arguments.get(1).copied(), frame)? as i32;
+                let path = self
+                    .virtual_fds
+                    .get(&fd)
+                    .map(|descriptor| descriptor.path.clone());
+                match path {
+                    None => {
+                        self.virtual_errno = 6; // ERROR_INVALID_HANDLE
+                        0
+                    }
+                    Some(path) => {
+                        let held_by_other = matches!(
+                            self.virtual_flocks.get(&path),
+                            Some(owner) if *owner != fd
+                        );
+                        if held_by_other && flags & 1 != 0 {
+                            self.virtual_errno = 33; // ERROR_LOCK_VIOLATION
+                            0
+                        } else {
+                            self.virtual_flocks.insert(path, fd);
+                            1
+                        }
+                    }
+                }
+            }
+            "unlock_file" => {
+                let fd = self.eval_fs_scalar(arguments.first().copied(), frame)? as i32;
+                let path = self
+                    .virtual_fds
+                    .get(&fd)
+                    .map(|descriptor| descriptor.path.clone());
+                match path {
+                    None => {
+                        self.virtual_errno = 6; // ERROR_INVALID_HANDLE
+                        0
+                    }
+                    Some(path) if self.virtual_flocks.get(&path) == Some(&fd) => {
+                        self.virtual_flocks.remove(&path);
+                        1
+                    }
+                    Some(_) => {
+                        self.virtual_errno = 158; // ERROR_NOT_LOCKED
+                        0
+                    }
+                }
+            }
+            "get_last_error" => i64::from(self.virtual_errno),
             // `remove_name` is the TRUSTED plain-path twin (D-at trust class,
             // the create_dir_name precedent): the arg bytes ARE the path, so
             // both spellings share one model.
@@ -3166,6 +3252,98 @@ impl<'program> Evaluator<'program> {
                 } else {
                     self.virtual_errno = 2; // ENOENT
                     -1
+                }
+            }
+            "create_hard_link" => {
+                // `CreateHardLinkA(link, existing, security)` -- the WINDOWS
+                // hard-link primitive (session slice 3): the ARG ORDER is
+                // (new link, existing), REVERSED from `hard_link`, and the
+                // result is BOOL (1 success / 0 failure). Same hermetic
+                // copy-the-bytes model as `hard_link` above. virtual_errno is
+                // also the provider's Win32 last-error slot for GetLastError.
+                let link = self.eval_fs_bytes(arguments.first().copied(), frame)?;
+                let existing = self.eval_fs_bytes(arguments.get(1).copied(), frame)?;
+                if self.virtual_files.contains_key(&link) || self.virtual_dirs.contains(&link) {
+                    self.virtual_errno = 183; // ERROR_ALREADY_EXISTS
+                    0
+                } else if let Some(content) = self.virtual_files.get(&existing).cloned() {
+                    self.virtual_files.insert(link, content);
+                    1
+                } else {
+                    self.virtual_errno = 2; // ERROR_FILE_NOT_FOUND
+                    0
+                }
+            }
+            "get_osfhandle" => {
+                // `_get_osfhandle(fd)` -- the fd -> HANDLE bridge (session
+                // slice 4a). The hermetic model's handles ARE its fds
+                // (identity), so consumers key the same descriptor table;
+                // -2 (msvcrt's bad-fd spelling) for an unknown fd.
+                let fd = self.eval_fs_scalar(arguments.first().copied(), frame)? as i32;
+                if self.virtual_fds.contains_key(&fd) {
+                    i64::from(fd)
+                } else {
+                    -2
+                }
+            }
+            "final_path_name_by_handle" => {
+                // `GetFinalPathNameByHandleA(handle, buffer, capacity, flags)`:
+                // resolve an OPEN handle to its final path. The hermetic
+                // model's canonical path IS the descriptor's stored key
+                // (already absolute for its namespace; no drive letters or
+                // \\?\ prefixes to synthesize), NUL-terminated into the
+                // buffer. Win32 return contract: the length WITHOUT the NUL
+                // when it fits, the REQUIRED size INCLUDING the NUL when the
+                // capacity is too small, 0 for a bad handle (GetLastError
+                // semantics -- no errno touched).
+                let handle = self.eval_fs_scalar(arguments.first().copied(), frame)?;
+                let capacity = self.eval_fs_scalar(arguments.get(2).copied(), frame)? as usize;
+                let path = self
+                    .virtual_fds
+                    .get(&(handle as i32))
+                    .map(|descriptor| descriptor.path.clone());
+                match path {
+                    Some(path) => {
+                        if path.len() + 1 <= capacity {
+                            let mut bytes = path.clone();
+                            bytes.push(0);
+                            self.write_fs_buffer(arguments.get(1).copied(), frame, &bytes);
+                            path.len() as i64
+                        } else {
+                            (path.len() + 1) as i64
+                        }
+                    }
+                    None => {
+                        self.virtual_errno = 6; // ERROR_INVALID_HANDLE
+                        0
+                    }
+                }
+            }
+            "set_file_time" => {
+                // `SetFileTime(handle, creation, access_ft, write_ft)` (session
+                // slice 4b): stamp the handle's path with the WRITE time from
+                // its 8-byte FILETIME buffer (100ns units since 1601 -> unix
+                // seconds via the calibration constants), the same
+                // virtual_times store `set_file_times` uses. BOOL result;
+                // 0 for a bad handle (GetLastError semantics -- no errno).
+                let handle = self.eval_fs_scalar(arguments.first().copied(), frame)?;
+                let write_ft = self.eval_fs_bytes(arguments.get(3).copied(), frame)?;
+                match self.virtual_fds.get(&(handle as i32)) {
+                    Some(descriptor) => {
+                        let path = descriptor.path.clone();
+                        let filetime = write_ft
+                            .get(0..8)
+                            .and_then(|s| <[u8; 8]>::try_from(s).ok())
+                            .map(i64::from_le_bytes)
+                            .unwrap_or(0);
+                        let secs = filetime / 10_000_000 - 11_644_473_600;
+                        self.virtual_times.insert(path, secs);
+                        1
+                    }
+                    None => {
+                        self.virtual_errno = 6; // ERROR_INVALID_HANDLE
+                        0
+                    }
                 }
             }
             "symlink" => {
@@ -3601,7 +3779,10 @@ impl<'program> Evaluator<'program> {
     /// The find-enumeration twin of `build_dirent_records` (fs rung 3a): the
     /// same entry set (".", "..", then the immediate children of `dir_path`)
     /// as (name, is_dir) pairs for a `find_first` cursor snapshot.
-    fn build_find_entries(&self, dir_path: &[u8]) -> std::collections::VecDeque<(Vec<u8>, bool)> {
+    fn build_find_entries(
+        &self,
+        dir_path: &[u8],
+    ) -> std::collections::VecDeque<(Vec<u8>, bool)> {
         let mut entries: std::collections::VecDeque<(Vec<u8>, bool)> =
             std::collections::VecDeque::from([(b".".to_vec(), true), (b"..".to_vec(), true)]);
         let mut prefix = dir_path.to_vec();
@@ -3825,6 +4006,17 @@ impl<'program> Evaluator<'program> {
     /// `open(path, flags)`: model the O_CREAT/O_TRUNC/O_APPEND/access bits.
     /// Returns a fresh fd, or -1 if the path is absent and O_CREAT is not set.
     fn virtual_open_flags(&mut self, path: Vec<u8>, flags: i32) -> i32 {
+        // Follow one symlink level (the canonicalize/read_link model): native
+        // open on BOTH families resolves symlinks, and the hermetic open never
+        // did -- surfaced when the windows canonicalize composition made open
+        // its entry point. The descriptor stores the RESOLVED path, so
+        // handle-keyed consumers (final_path_name_by_handle) report the final
+        // target exactly like Win32.
+        let path = self
+            .virtual_symlinks
+            .get(&path)
+            .cloned()
+            .unwrap_or(path);
         let exists = self.virtual_files.contains_key(&path);
         let o_creat = host_open_flags::o_creat(flags);
         let o_trunc = host_open_flags::o_trunc(flags);
@@ -4187,9 +4379,9 @@ impl<'program> Evaluator<'program> {
                 // Non-Exact ADD/SUB/MUL apply their domain at the OPERATION
                 // node (native emits the clamping/trapping/wrapping-width
                 // sequence itself), signed DIV/MOD resolve the MIN/-1
-                // corner there, and Wrapping SHIFTS need the type WIDTH to
-                // mask the count by the language operand width, so resolve
-                // the expression's declared scalar
+                // corner there, and Wrapping SHIFTS need the type WIDTH for
+                // their at/above-width count semantics (modular zero /
+                // sign-fill), so resolve the expression's declared scalar
                 // type for the operators the domains cover.
                 let scalar_type = if matches!(
                     binary.operator,
@@ -4286,6 +4478,10 @@ impl<'program> Evaluator<'program> {
     ) -> EvalResult<Value> {
         // Builtins: max / min over two integer/float operands.
         let target = call.target.as_str();
+        // CH10 root grant marker (see the statement-call twin): a no-op.
+        if target.starts_with("accept_boundary#") {
+            return Ok(Value::Unit);
+        }
         if matches!(target, "max" | "min") {
             let args = self
                 .program
@@ -4313,28 +4509,8 @@ impl<'program> Evaluator<'program> {
                 .expression_handles(call.arguments)
                 .to_vec();
             if args.len() == 1 {
-                let scalar_type = self.expression_scalar_type(args[0], frame);
                 return match self.eval_expression(args[0], frame)? {
-                    Value::Float(value) => {
-                        let result = if scalar_type
-                            .is_some_and(|(primitive, _)| primitive == PrimitiveType::F32)
-                        {
-                            f64::from((value as f32).sqrt())
-                        } else {
-                            value.sqrt()
-                        };
-                        if scalar_type
-                            .is_some_and(|(_, domain)| domain == ArithmeticDomain::Trapping)
-                            && !result.is_finite()
-                        {
-                            trap("non-finite result in Trapping float arithmetic")
-                        } else {
-                            // Saturating is overflow-only. `sqrt` cannot overflow;
-                            // its negative-input NaN is an invalid operation and is
-                            // deliberately left for a composed `Finite` obligation.
-                            Ok(Value::Float(result))
-                        }
-                    }
+                    Value::Float(value) => Ok(Value::Float(value.sqrt())),
                     other => Err(Halt::Trap(format!(
                         "sqrt expects a float argument, got {other:?}"
                     ))),
@@ -5290,7 +5466,7 @@ impl<'program> Evaluator<'program> {
         &self,
         value: Value,
         target: Option<PrimitiveType>,
-        domain: omega_core::arithmetic::ArithmeticDomain,
+        domain: ArithmeticDomain,
     ) -> EvalResult<Value> {
         let Some(target) = target else {
             // A cast to a non-primitive (e.g. a trait object) is a no-op identity here.
@@ -5312,25 +5488,35 @@ impl<'program> Evaluator<'program> {
             PrimitiveType::Bool => Ok(Value::Bool(value.as_bool().unwrap_or(false))),
             PrimitiveType::String => Ok(value),
             integer => {
-                // Float -> int truncates toward zero; int -> int reinterprets at the target
-                // width. The result keeps the target's width tag so later ops/casts wrap.
+                // Int -> int reinterprets at the target width; the result
+                // keeps the target's width tag so later ops/casts wrap.
                 let raw = match value {
-                    Value::Float(f) => {
-                        if domain == omega_core::arithmetic::ArithmeticDomain::Wrapping {
-                            return Err(Halt::Trap(
-                                "float-to-integer casts have no wrapping semantics".to_owned(),
-                            ));
+                    // FLOAT -> int is domain-governed (F4, the float->int
+                    // proof-or-policy ruling):
+                    // - Saturating: NaN -> 0 (cast-specific, per the brief),
+                    //   otherwise truncate toward zero and CLAMP to the
+                    //   target's range (aarch64 FCVTZS's native semantics).
+                    // - Trapping: NaN or a truncated value outside the
+                    //   target's range traps.
+                    // - Exact: transitional truncation until the value
+                    //   obligation lands with float constant tracking
+                    //   (Wrapping float sources are rejected at validation:
+                    //   no modular reading of a float).
+                    Value::Float(f) => match domain {
+                        ArithmeticDomain::Saturating => {
+                            return Ok(Value::Int(saturate_float_to_integer(f, integer)));
                         }
-                        if domain == omega_core::arithmetic::ArithmeticDomain::Trapping
-                            && !float_fits_integer_target(f, integer)
-                        {
-                            return Err(Halt::Trap(format!(
-                                "float-to-{} cast is non-finite or out of range",
-                                integer.name()
-                            )));
+                        ArithmeticDomain::Trapping => {
+                            if f.is_nan() || !float_fits_integer(f, integer) {
+                                return trap(format!(
+                                    "float-to-int cast out of range in Trapping domain: the \
+                                     value does not fit {integer:?}"
+                                ));
+                            }
+                            truncate_float_to_integer(f, integer)
                         }
-                        float_to_integer_target(f, integer)
-                    }
+                        _ => truncate_float_to_integer(f, integer),
+                    },
                     other => other
                         .as_int()
                         .ok_or_else(|| Halt::Trap("cast to integer of non-numeric".to_owned()))?,
@@ -5366,7 +5552,9 @@ impl<'program> Evaluator<'program> {
         // position the view starts at.
         let offset_value = match self.program.expression_table.expression(indexed.index) {
             ExpressionNode::Integer(literal) => literal.value_i64(),
-            _ => self.eval_expression(indexed.index, frame)?.as_int(),
+            _ => self
+                .eval_expression(indexed.index, frame)?
+                .as_int(),
         };
         let Some(offset) = offset_value.and_then(|value| usize::try_from(value).ok()) else {
             return Ok(None);
@@ -5428,7 +5616,9 @@ impl<'program> Evaluator<'program> {
             let omega_typed_trees::data::DataMember::Field(field) = member else {
                 return Ok(None);
             };
-            let Some(primitive) = self.program.primitive_type_reference(field.type_reference)
+            let Some(primitive) = self
+                .program
+                .primitive_type_reference(field.type_reference)
             else {
                 return Ok(None);
             };
@@ -5485,20 +5675,22 @@ impl<'program> Evaluator<'program> {
             PrimitiveType::F32 => {
                 let bits = match value {
                     Value::Float(f) => (f as f32).to_bits(),
-                    other => other
-                        .as_int()
-                        .ok_or_else(|| Halt::Trap("recast to f32 of non-scalar".to_owned()))?
-                        as u32,
+                    other => {
+                        other.as_int().ok_or_else(|| {
+                            Halt::Trap("recast to f32 of non-scalar".to_owned())
+                        })? as u32
+                    }
                 };
                 Ok(Value::Float(f32::from_bits(bits) as f64))
             }
             PrimitiveType::F64 => {
                 let bits = match value {
                     Value::Float(f) => f.to_bits(),
-                    other => other
-                        .as_int()
-                        .ok_or_else(|| Halt::Trap("recast to f64 of non-scalar".to_owned()))?
-                        as u64,
+                    other => {
+                        other.as_int().ok_or_else(|| {
+                            Halt::Trap("recast to f64 of non-scalar".to_owned())
+                        })? as u64
+                    }
                 };
                 Ok(Value::Float(f64::from_bits(bits)))
             }
@@ -5511,9 +5703,9 @@ impl<'program> Evaluator<'program> {
                         Some(4) => (f as f32).to_bits() as i64,
                         _ => f.to_bits() as i64,
                     },
-                    other => other
-                        .as_int()
-                        .ok_or_else(|| Halt::Trap("recast to integer of non-scalar".to_owned()))?,
+                    other => other.as_int().ok_or_else(|| {
+                        Halt::Trap("recast to integer of non-scalar".to_owned())
+                    })?,
                 };
                 // Equal-width int<->int reinterpretation is exactly the
                 // width-wrap (`u32` 0xFFFF_FFFF re-viewed as `i32` = -1).
@@ -5573,11 +5765,17 @@ impl<'program> Evaluator<'program> {
             // (`(a as u8 in Saturating) + b` in a GUARD has no landing seam);
             // hardcoding Exact here let the wide 300 through while native's
             // witness read the retag and clamped.
-            ExpressionNode::Cast(cast) => {
-                Some((self.cast_target_primitive(cast.target_type)?, cast.domain))
-            }
+            ExpressionNode::Cast(cast) => Some((
+                self.cast_target_primitive(cast.target_type)?,
+                cast.domain,
+            )),
             ExpressionNode::Mutable(inner) => self.expression_scalar_type(*inner, frame),
             ExpressionNode::Unary(unary) => self.expression_scalar_type(unary.operand, frame),
+            // A LANDED float literal witnesses its format (the F2a suffix /
+            // F2b destination / F2c comparison stamps): an anonymous constant
+            // guard tree (`16777216.0 + 1.0` against an f32 place) has no
+            // declared destination, so the stamped literal is the node-width
+            // witness that drives per-op f32 rounding in eval_float_binary.
             ExpressionNode::Float(literal) => literal.landing().map(|format| {
                 (
                     match format {
@@ -5599,11 +5797,13 @@ impl<'program> Evaluator<'program> {
                 let right = self.expression_scalar_type(binary.right, frame);
                 match (left, right) {
                     (Some(left), Some(right)) => {
-                        let left_width = arithmetic_primitive_byte_width(left.0).unwrap_or(8);
-                        let right_width = arithmetic_primitive_byte_width(right.0).unwrap_or(8);
+                        let left_width = integer_primitive_byte_width(left.0).unwrap_or(8);
+                        let right_width = integer_primitive_byte_width(right.0).unwrap_or(8);
                         Some(if right_width > left_width {
                             right
-                        } else if left_width > right_width || left.1 != ArithmeticDomain::Exact {
+                        } else if left_width > right_width
+                            || left.1 != ArithmeticDomain::Exact
+                        {
                             left
                         } else {
                             // Equal widths, left Exact: prefer the side that
@@ -5774,7 +5974,8 @@ impl<'program> Evaluator<'program> {
                 ty @ (PrimitiveType::I8
                 | PrimitiveType::I16
                 | PrimitiveType::I32
-                | PrimitiveType::I64),
+                | PrimitiveType::I64
+               ),
                 domain @ (ArithmeticDomain::Wrapping
                 | ArithmeticDomain::Saturating
                 | ArithmeticDomain::Trapping),
@@ -5798,7 +5999,9 @@ impl<'program> Evaluator<'program> {
                     ArithmeticDomain::Saturating => {
                         Ok(Value::Int(wide.clamp(min as i128, max as i128) as i64))
                     }
-                    ArithmeticDomain::Trapping if wide < min as i128 || wide > max as i128 => {
+                    ArithmeticDomain::Trapping
+                        if wide < min as i128 || wide > max as i128 =>
+                    {
                         trap(format!(
                             "arithmetic overflow in Trapping domain: {wide} is out of range for {ty:?}"
                         ))
@@ -5819,18 +6022,25 @@ impl<'program> Evaluator<'program> {
                     Add => l.wrapping_add(r),
                     Subtract => l.wrapping_sub(r),
                     Multiply => l.wrapping_mul(r),
-                    // F8: Wrapping masks the count by the LANGUAGE operand
-                    // width, including narrow types whose ISA operation uses a
-                    // wider register form.
+                    // MASKED COUNT at the operand width (F8, ch5 shift-count
+                    // ruling, settled 2026-07-18: Wrapping masks the count to
+                    // `k & (width - 1)` -- the genuinely modular reading, and
+                    // what the hardware computes anyway). This SUPERSEDES the
+                    // 2026-07-13 modular-VALUE semantics (at-width counts no
+                    // longer collapse to 0/sign-fill; they shift by the
+                    // masked count). Bit-masking the two's-complement count
+                    // is well-defined for negative counts too, exactly like
+                    // the register-form shifts on both ISAs.
                     ShiftLeft => {
-                        l.wrapping_shl(((r as u64) & (primitive_bit_width(ty) - 1)) as u32)
+                        let masked = ((r as u64) & (primitive_bit_width(ty) - 1)) as u32;
+                        l.wrapping_shl(masked)
                     }
                     ShiftRight => {
-                        let count = ((r as u64) & (primitive_bit_width(ty) - 1)) as u32;
+                        let masked = ((r as u64) & (primitive_bit_width(ty) - 1)) as u32;
                         if unsigned_operands {
-                            ((l as u64).wrapping_shr(count)) as i64
+                            ((l as u64).wrapping_shr(masked)) as i64
                         } else {
-                            l.wrapping_shr(count)
+                            l.wrapping_shr(masked)
                         }
                     }
                     _ => unreachable!(),
@@ -5841,18 +6051,28 @@ impl<'program> Evaluator<'program> {
         if let Some((ty, domain @ (ArithmeticDomain::Saturating | ArithmeticDomain::Trapping))) =
             scalar_type
         {
-            // F8: Trapping checks the count dynamically; Saturating carries
-            // Exact's compile-time count obligation (an out-of-range value here
-            // is therefore only a defensive trap). Saturating still governs
-            // the shifted VALUE's overflow for `<<`.
+            // Domain-governed SHIFTS. F8c (ch5 shift-count ruling): under
+            // TRAPPING an out-of-range count TRAPS -- regardless of the
+            // shifted VALUE (`0 << 40` traps; the count is invalid, not the
+            // result). Saturating cannot reach an out-of-range count (the
+            // F8a validation obligation rejects it), so its floor/clamp arms
+            // below only ever see in-range counts.
+            if domain == ArithmeticDomain::Trapping
+                && (r as u64) >= primitive_bit_width(ty)
+            {
+                return trap(format!(
+                    "shift count out of range in Trapping domain: the count is not below \
+                     the operand width for {ty:?}"
+                ));
+            }
+            // `>>` is floor(x / 2^n) and cannot overflow; the Saturating
+            // floor semantics for an (unreachable) at/above-width count stay
+            // for robustness.
             if operator == ShiftRight {
-                if (r as u64) >= primitive_bit_width(ty) {
-                    return trap(format!(
-                        "shift count is out of range for {ty:?} in {domain:?} domain"
-                    ));
-                }
                 return Ok(Value::Int(wrap_to_width(
-                    if unsigned_operands {
+                    if (r as u64) >= primitive_bit_width(ty) {
+                        if unsigned_operands || l >= 0 { 0 } else { -1 }
+                    } else if unsigned_operands {
                         ((l as u64).wrapping_shr(r as u32)) as i64
                     } else {
                         l.wrapping_shr(r as u32)
@@ -5860,19 +6080,29 @@ impl<'program> Evaluator<'program> {
                     ty,
                 )));
             }
+            // `<<` is x * 2^n: Saturating clamps and Trapping traps when the
+            // TRUE value leaves the type's range (in-range counts only here
+            // -- the count trap above owns the out-of-range face).
             if operator == ShiftLeft {
-                if (r as u64) >= primitive_bit_width(ty) {
-                    return trap(format!(
-                        "shift count is out of range for {ty:?} in {domain:?} domain"
-                    ));
-                }
                 let (minimum, maximum, value) = if primitive_is_unsigned64(Some(ty)) {
                     (0i128, u64::MAX as i128, l as u64 as i128)
                 } else {
                     let (minimum, maximum) = integer_bounds(ty).unwrap_or((i64::MIN, i64::MAX));
                     (minimum as i128, maximum as i128, l as i128)
                 };
-                let wide = value << (r as u32);
+                let wide = if (r as u64) >= primitive_bit_width(ty) {
+                    // Saturating only (Trapping trapped above): any nonzero x
+                    // overflows once the count reaches the width; drive the
+                    // clamp below with a synthetic out-of-range value on x's
+                    // side of the range.
+                    match value.signum() {
+                        0 => 0,
+                        1 => maximum + 1,
+                        _ => minimum - 1,
+                    }
+                } else {
+                    value << (r as u32)
+                };
                 return match domain {
                     ArithmeticDomain::Saturating => {
                         Ok(Value::Int(wide.clamp(minimum, maximum) as i64))
@@ -5908,10 +6138,14 @@ impl<'program> Evaluator<'program> {
                 };
                 if let Some((min, max, wide)) = bounds_and_wide {
                     return match domain {
-                        ArithmeticDomain::Saturating => Ok(Value::Int(wide.clamp(min, max) as i64)),
-                        ArithmeticDomain::Trapping if wide < min || wide > max => trap(format!(
-                            "arithmetic overflow in Trapping domain: {wide} is out of range for {ty:?}"
-                        )),
+                        ArithmeticDomain::Saturating => {
+                            Ok(Value::Int(wide.clamp(min, max) as i64))
+                        }
+                        ArithmeticDomain::Trapping if wide < min || wide > max => {
+                            trap(format!(
+                                "arithmetic overflow in Trapping domain: {wide} is out of range for {ty:?}"
+                            ))
+                        }
                         _ => Ok(Value::Int(wide as i64)),
                     };
                 }
@@ -6000,55 +6234,84 @@ impl<'program> Evaluator<'program> {
         scalar_type: Option<(PrimitiveType, ArithmeticDomain)>,
     ) -> EvalResult<Value> {
         use BinaryOperator::*;
-        let primitive = scalar_type.map(|(primitive, _)| primitive);
-        let domain = scalar_type
-            .map(|(_, domain)| domain)
-            .unwrap_or(ArithmeticDomain::Exact);
-        let result = if primitive == Some(PrimitiveType::F32)
-            && matches!(operator, Add | Subtract | Multiply | Divide)
-        {
-            let (l, r) = (l as f32, r as f32);
-            f64::from(match operator {
-                Add => l + r,
-                Subtract => l - r,
-                Multiply => l * r,
-                Divide => l / r,
-                _ => unreachable!(),
-            })
-        } else {
-            match operator {
-                Add => l + r,
-                Subtract => l - r,
-                Multiply => l * r,
-                Divide => l / r,
-                Less => return Ok(Value::Bool(l < r)),
-                LessOrEqual => return Ok(Value::Bool(l <= r)),
-                Greater => return Ok(Value::Bool(l > r)),
-                GreaterOrEqual => return Ok(Value::Bool(l >= r)),
-                Modulo | ShiftLeft | ShiftRight | BitwiseAnd | BitwiseOr | BitwiseXor => {
-                    return unsupported("float modulo/shift/bitwise not supported");
-                }
-                Equal | NotEqual | And | Or => unreachable!("handled earlier"),
+        // PER-OP rounding at the LANDED width (ch5 / float ladder F2c): an
+        // F32-typed operation rounds its result to f32 at the NODE, exactly as
+        // native f32 hardware ops do (addss/fadd s). Values ride f64 in the
+        // interpreter, but an f32 node's result must be the f32-rounded value
+        // widened exactly -- computing the whole chain at f64 and rounding only
+        // at the store double-rounds (the 2^24 + 1.0 guard face: f32 per-op
+        // says equal, the f64 window says not). Comparisons take the raw
+        // operands (they produce bool, and both sides are already landed).
+        let land = |value: f64| -> f64 {
+            if matches!(scalar_type, Some((PrimitiveType::F32, _))) {
+                value as f32 as f64
+            } else {
+                value
             }
         };
-
-        if domain == ArithmeticDomain::Trapping && !result.is_finite() {
-            return trap("non-finite result in Trapping float arithmetic");
-        }
-        if domain == ArithmeticDomain::Saturating
-            && result.is_infinite()
-            && l.is_finite()
-            && r.is_finite()
-            && (operator != Divide || r != 0.0)
-        {
-            let maximum = if primitive == Some(PrimitiveType::F32) {
-                f64::from(f32::MAX)
-            } else {
-                f64::MAX
-            };
-            return Ok(Value::Float(result.signum() * maximum));
-        }
-        Ok(Value::Float(result))
+        // F5 policies (float brief §8): SATURATING clamps MAGNITUDE OVERFLOW
+        // only -- finite operands whose landed result is infinite clamp to
+        // +-MAX_FINITE at the width; division by zero and invalid ops keep
+        // their non-finites (0/0 has no defensible clamp; wellness stays a
+        // Finite obligation). TRAPPING traps on invalid (NaN from non-NaN
+        // operands), overflow, and division by zero alike.
+        let domain = scalar_type.map(|(_, domain)| domain);
+        let max_finite = if matches!(scalar_type, Some((PrimitiveType::F32, _))) {
+            f32::MAX as f64
+        } else {
+            f64::MAX
+        };
+        let arith = |raw: f64| -> EvalResult<Value> {
+            let landed = land(raw);
+            match domain {
+                Some(ArithmeticDomain::Saturating)
+                    if landed.is_infinite() && l.is_finite() && r.is_finite() =>
+                {
+                    // Overflow face only: both operands finite, the LANDED
+                    // result left the format (an f32 node can overflow at the
+                    // landing even when the raw f64 stays finite). The
+                    // finite/0.0 divide is fenced by the caller arm below.
+                    let _ = raw;
+                    Ok(Value::Float(max_finite.copysign(landed)))
+                }
+                Some(ArithmeticDomain::Trapping)
+                    if landed.is_nan() && !l.is_nan() && !r.is_nan() =>
+                {
+                    trap("invalid float operation in Trapping domain".to_owned())
+                }
+                Some(ArithmeticDomain::Trapping)
+                    if landed.is_infinite() && l.is_finite() && r.is_finite() =>
+                {
+                    trap(
+                        "float overflow (or division by zero) in Trapping domain".to_owned(),
+                    )
+                }
+                _ => Ok(Value::Float(landed)),
+            }
+        };
+        Ok(match operator {
+            Add => return arith(l + r),
+            Subtract => return arith(l - r),
+            Multiply => return arith(l * r),
+            Divide => {
+                if matches!(domain, Some(ArithmeticDomain::Saturating))
+                    && r == 0.0
+                {
+                    // Division by zero does NOT clamp (the brief's ruling);
+                    // the IEEE non-finite passes through.
+                    return Ok(Value::Float(land(l / r)));
+                }
+                return arith(l / r);
+            }
+            Less => Value::Bool(l < r),
+            LessOrEqual => Value::Bool(l <= r),
+            Greater => Value::Bool(l > r),
+            GreaterOrEqual => Value::Bool(l >= r),
+            Modulo | ShiftLeft | ShiftRight | BitwiseAnd | BitwiseOr | BitwiseXor => {
+                return unsupported("float modulo/shift/bitwise not supported");
+            }
+            Equal | NotEqual | And | Or => unreachable!("handled earlier"),
+        })
     }
 
     fn eval_min_max(
@@ -6386,6 +6649,54 @@ fn integer_bounds(ty: PrimitiveType) -> Option<(i64, i64)> {
     }
 }
 
+/// F4 Saturating float->int cast: NaN -> 0 (cast-specific, per the float
+/// brief), otherwise truncate toward zero and clamp to the TARGET's range --
+/// exactly aarch64 FCVTZS's native semantics (and Rust's `as`). The u64
+/// target saturates on the u64 range and returns the BIT pattern on the i64
+/// carrier (`u64::MAX` rides as -1), like every other u64-classed value.
+fn saturate_float_to_integer(f: f64, ty: PrimitiveType) -> i64 {
+    if f.is_nan() {
+        return 0;
+    }
+    if matches!(ty, PrimitiveType::U64 | PrimitiveType::Addr) {
+        return (f as u64) as i64; // Rust `as` saturates to [0, u64::MAX]
+    }
+    match integer_bounds(ty) {
+        Some((min, max)) => (f as i64).clamp(min, max),
+        None => f.trunc() as i64,
+    }
+}
+
+fn truncate_float_to_integer(f: f64, ty: PrimitiveType) -> i64 {
+    if matches!(ty, PrimitiveType::U64 | PrimitiveType::Addr) {
+        (f.trunc() as u64) as i64
+    } else {
+        f.trunc() as i64
+    }
+}
+
+/// F4 Trapping float->int cast fit check: NaN callers check separately; here
+/// a finite value fits when its TRUNCATION lies in the target's range. The
+/// exclusive-bound float compares are exact (powers of two are representable).
+fn float_fits_integer(f: f64, ty: PrimitiveType) -> bool {
+    if matches!(ty, PrimitiveType::U64 | PrimitiveType::Addr) {
+        // [0, 2^64): -1 < f < 2^64 covers every truncation that fits.
+        return f > -1.0 && f < 18446744073709551616.0;
+    }
+    if ty == PrimitiveType::I64 {
+        // i64::MIN - 1 is not representable in f64 (the subtraction rounds
+        // back to -2^63), so the lower bound is INCLUSIVE: -2^63 itself is
+        // exact and fits.
+        return f >= -9223372036854775808.0 && f < 9223372036854775808.0;
+    }
+    match integer_bounds(ty) {
+        // trunc(f) in [min, max] iff min - 1 < f < max + 1; the +-1 bounds
+        // are exact in f64 for every width up to 32 bits.
+        Some((min, max)) => f > (min as f64) - 1.0 && f < (max as f64) + 1.0,
+        None => true,
+    }
+}
+
 /// Apply a write target's arithmetic domain (decision 17) to a raw i64 result,
 /// mirroring the native backend so the differential oracle agrees:
 /// Exact/Wrapping truncate to width; Saturating clamps to [min, max]; Trapping
@@ -6431,46 +6742,13 @@ fn wrap_to_width(raw: i64, ty: PrimitiveType) -> i64 {
         PrimitiveType::U32 => raw as u32 as i64,
         // 64-bit and pointer-width types keep the full value (unsigned reinterpretation of a
         // u64 is still represented by the same bit pattern in i64).
-        PrimitiveType::I64 | PrimitiveType::U64 | PrimitiveType::Addr => raw,
+        PrimitiveType::I64
+        | PrimitiveType::U64
+        | PrimitiveType::Addr => raw,
         // Non-integer primitives do not reach this path.
         PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64 | PrimitiveType::String => {
             raw
         }
-    }
-}
-
-/// Rust's direct float casts already implement Omega's Saturating conversion:
-/// truncate toward zero, clamp at the TARGET width, and map NaN to zero. Keep
-/// the conversion target-specific instead of routing through i64 first -- that
-/// intermediate loses the correct u64 and narrow-target bounds.
-fn float_to_integer_target(value: f64, target: PrimitiveType) -> i64 {
-    match target {
-        PrimitiveType::I8 => value as i8 as i64,
-        PrimitiveType::U8 => value as u8 as i64,
-        PrimitiveType::I16 => value as i16 as i64,
-        PrimitiveType::U16 => value as u16 as i64,
-        PrimitiveType::I32 => value as i32 as i64,
-        PrimitiveType::U32 => value as u32 as i64,
-        PrimitiveType::I64 => value as i64,
-        PrimitiveType::U64 | PrimitiveType::Addr => value as u64 as i64,
-        _ => value as i64,
-    }
-}
-
-/// A finite float converts without overflow exactly when it lies in the
-/// half-open interval accepted by truncation: signed `[MIN, MAX + 1)` and
-/// unsigned `[0, MAX + 1)`. Powers of two are exactly representable in f64,
-/// including the i64/u64 upper sentinels.
-fn float_fits_integer_target(value: f64, target: PrimitiveType) -> bool {
-    if !value.is_finite() {
-        return false;
-    }
-    let bits = primitive_bit_width(target) as i32;
-    if target.is_signed_integer() {
-        let limit = 2.0_f64.powi(bits - 1);
-        value >= -limit && value < limit
-    } else {
-        value >= 0.0 && value < 2.0_f64.powi(bits)
     }
 }
 
@@ -6489,22 +6767,27 @@ enum TransitionDecision {
 
 // `Frame::locals` needs interior mutability so `let` bindings can be added while the
 // frame is shared by `&`. Wrap the map in a RefCell.
-/// Byte width of an arithmetic primitive -- the promotion rank a mixed-width
-/// binary node computes in.
-fn arithmetic_primitive_byte_width(ty: PrimitiveType) -> Option<usize> {
+/// Byte width of an integer primitive -- the PROMOTION rank a mixed-width
+/// binary node computes in. `None` for non-integer primitives.
+fn integer_primitive_byte_width(ty: PrimitiveType) -> Option<usize> {
     match ty {
         PrimitiveType::I8 | PrimitiveType::U8 => Some(1),
         PrimitiveType::I16 | PrimitiveType::U16 => Some(2),
-        PrimitiveType::I32 | PrimitiveType::U32 | PrimitiveType::F32 => Some(4),
-        PrimitiveType::I64 | PrimitiveType::U64 | PrimitiveType::Addr | PrimitiveType::F64 => {
-            Some(8)
+        PrimitiveType::I32 | PrimitiveType::U32 => Some(4),
+        PrimitiveType::I64
+        | PrimitiveType::U64
+        | PrimitiveType::Addr => Some(8),
+        PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64 | PrimitiveType::String => {
+            None
         }
-        PrimitiveType::Bool | PrimitiveType::String => None,
     }
 }
 
 fn primitive_is_unsigned64(primitive: Option<PrimitiveType>) -> bool {
-    matches!(primitive, Some(PrimitiveType::U64 | PrimitiveType::Addr))
+    matches!(
+        primitive,
+        Some(PrimitiveType::U64 | PrimitiveType::Addr)
+    )
 }
 
 impl Frame {

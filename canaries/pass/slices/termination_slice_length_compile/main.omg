@@ -15,7 +15,6 @@ machine Main::main(&mut self) -> u64 {
 }
 
 machine Main::walk(&mut self, entries: &[Entry])
-terminates;
 terminates by entries -> Slice::Length;
 -> u64
 {

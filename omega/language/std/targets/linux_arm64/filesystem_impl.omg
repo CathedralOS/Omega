@@ -405,7 +405,6 @@ linux_arm64 machine Filesystem::remove_dir_all(&mut self, path: &[u8] in Path) -
 // a statement call from a dispatched state, verdict read from a field).
 // Returns 0 on success, -1 on error/fuel-exhaustion/depth overflow (> 16).
 linux_arm64 machine Filesystem::rda_drain(&mut self, fuel: u64)
-terminates;
 terminates by fuel;
 -> i32
 {
@@ -521,4 +520,119 @@ linux_arm64 machine Filesystem::rda_step(&mut self, step: u64) {
 
     state rds_continue(&mut self) { self.rda_verdict = 1; }
     state rds_fail(&mut self) { self.rda_verdict = 0 - 1; }
+}
+
+// POSITIONED IO (the portable positioned-io contract, windows session
+// slice 2): posix binds the ATOMIC pread/pwrite raw ops directly -- the
+// kernel reads/writes at the offset without touching the fd's cursor.
+// (The windows twin composes seek/op/restore; see its impl file.)
+linux_arm64 machine Filesystem::read_at(&mut self, file: File, buffer: &mut [u8], count: u64, offset: i64) -> IoResult {
+    self.file_fd = file.fd;
+    let n: i64 = self.host.read_at(self.file_fd, buffer, count, offset);
+    transition n >= 0 { true -> ok(n) _ -> err() }
+    state ok(&mut self, n: i64) -> IoResult { IoResult::Ok { count: n as u64 } }
+    state err(&mut self) -> IoResult { let kind: ErrorKind = self.last_error(); IoResult::Error { kind: kind } }
+}
+
+linux_arm64 machine Filesystem::write_at(&mut self, file: File, bytes: &[u8], offset: i64) -> IoResult {
+    self.file_fd = file.fd;
+    let n: i64 = self.host.write_at(self.file_fd, bytes, offset);
+    transition n >= 0 { true -> ok(n) _ -> err() }
+    state ok(&mut self, n: i64) -> IoResult { IoResult::Ok { count: n as u64 } }
+    state err(&mut self) -> IoResult { let kind: ErrorKind = self.last_error(); IoResult::Error { kind: kind } }
+}
+
+// HARD LINK (the portable hard-link contract, windows session slice 3):
+// posix binds link(2) directly -- errno carries the failure kind
+// (AlreadyExists / NotFound). (The windows twin rides the designed
+// create_hard_link seam op; see its impl file.)
+linux_arm64 machine Filesystem::hard_link(&mut self, original: &[u8] in Path, link: &[u8] in Path) -> UnitResult {
+    let rc: i32 = self.host.hard_link(original, link);
+    transition rc == 0 { true -> ok() _ -> err() }
+    state ok(&mut self) -> UnitResult { UnitResult::Ok }
+    state err(&mut self) -> UnitResult { let kind: ErrorKind = self.last_error(); UnitResult::Error { kind: kind } }
+}
+
+// Set an open file's access + modification times. Compose two native timespec
+// records (atime @0, mtime @16; each {tv_sec i64, tv_nsec i64}) and futimens.
+linux_arm64 machine Filesystem::set_times(&mut self, file: File, accessed: i64, modified: i64) -> UnitResult {
+    self.times_buf[0] = accessed as u8 in Wrapping;
+    self.times_buf[1] = (accessed >> 8) as u8 in Wrapping;
+    self.times_buf[2] = (accessed >> 16) as u8 in Wrapping;
+    self.times_buf[3] = (accessed >> 24) as u8 in Wrapping;
+    self.times_buf[4] = (accessed >> 32) as u8 in Wrapping;
+    self.times_buf[5] = (accessed >> 40) as u8 in Wrapping;
+    self.times_buf[6] = (accessed >> 48) as u8 in Wrapping;
+    self.times_buf[7] = (accessed >> 56) as u8 in Wrapping;
+    self.times_buf[16] = modified as u8 in Wrapping;
+    self.times_buf[17] = (modified >> 8) as u8 in Wrapping;
+    self.times_buf[18] = (modified >> 16) as u8 in Wrapping;
+    self.times_buf[19] = (modified >> 24) as u8 in Wrapping;
+    self.times_buf[20] = (modified >> 32) as u8 in Wrapping;
+    self.times_buf[21] = (modified >> 40) as u8 in Wrapping;
+    self.times_buf[22] = (modified >> 48) as u8 in Wrapping;
+    self.times_buf[23] = (modified >> 56) as u8 in Wrapping;
+    self.file_fd = file.fd;
+    let rc: i32 = self.host.set_file_times(self.file_fd, &mut self.times_buf);
+    transition rc == 0 { true -> ok() _ -> err() }
+    state ok(&mut self) -> UnitResult { UnitResult::Ok }
+    state err(&mut self) -> UnitResult { let kind: ErrorKind = self.last_error(); UnitResult::Error { kind: kind } }
+}
+
+// CANONICALIZE (the portable canonicalize contract, windows session slice
+// 4a): posix binds realpath(3) directly -- symlink-resolving,
+// existence-checked, writes the NUL-terminated absolute path into the
+// caller's >= 1024-byte buffer. (The windows twin composes the handle
+// bridge; see its impl file.)
+linux_arm64 machine Filesystem::canonicalize(&mut self, path: &[u8] in Path, buffer: &mut [u8]) -> UnitResult {
+    let rc: i64 = self.host.canonicalize(path, buffer);
+    transition rc != 0 { true -> ok() _ -> err() }
+    state ok(&mut self) -> UnitResult { UnitResult::Ok }
+    state err(&mut self) -> UnitResult { let kind: ErrorKind = self.last_error(); UnitResult::Error { kind: kind } }
+}
+
+linux_arm64 machine Filesystem::lock(&mut self, file: File) -> UnitResult {
+    self.file_fd = file.fd;
+    let rc: i32 = self.host.lock_file(self.file_fd, 2);
+    transition rc == 0 { true -> ok() _ -> err() }
+    state ok(&mut self) -> UnitResult { UnitResult::Ok }
+    state err(&mut self) -> UnitResult { let kind: ErrorKind = self.last_error(); UnitResult::Error { kind: kind } }
+}
+
+linux_arm64 machine Filesystem::lock_shared(&mut self, file: File) -> UnitResult {
+    self.file_fd = file.fd;
+    let rc: i32 = self.host.lock_file(self.file_fd, 1);
+    transition rc == 0 { true -> ok() _ -> err() }
+    state ok(&mut self) -> UnitResult { UnitResult::Ok }
+    state err(&mut self) -> UnitResult { let kind: ErrorKind = self.last_error(); UnitResult::Error { kind: kind } }
+}
+
+linux_arm64 machine Filesystem::try_lock(&mut self, file: File) -> TryLockResult {
+    self.file_fd = file.fd;
+    let rc: i32 = self.host.lock_file(self.file_fd, 6);
+    self.lock_errno = self.host.errno();
+    transition rc == 0 { true -> acquired() _ -> contended() }
+    state acquired(&mut self) -> TryLockResult { TryLockResult::Acquired }
+    state contended(&mut self) -> TryLockResult { transition self.lock_errno == 35 { true -> would_block() _ -> failed() } }
+    state would_block(&mut self) -> TryLockResult { TryLockResult::WouldBlock }
+    state failed(&mut self) -> TryLockResult { let kind: ErrorKind = self.last_error(); TryLockResult::Error { kind: kind } }
+}
+
+linux_arm64 machine Filesystem::try_lock_shared(&mut self, file: File) -> TryLockResult {
+    self.file_fd = file.fd;
+    let rc: i32 = self.host.lock_file(self.file_fd, 5);
+    self.lock_errno = self.host.errno();
+    transition rc == 0 { true -> acquired() _ -> contended() }
+    state acquired(&mut self) -> TryLockResult { TryLockResult::Acquired }
+    state contended(&mut self) -> TryLockResult { transition self.lock_errno == 35 { true -> would_block() _ -> failed() } }
+    state would_block(&mut self) -> TryLockResult { TryLockResult::WouldBlock }
+    state failed(&mut self) -> TryLockResult { let kind: ErrorKind = self.last_error(); TryLockResult::Error { kind: kind } }
+}
+
+linux_arm64 machine Filesystem::unlock(&mut self, file: File) -> UnitResult {
+    self.file_fd = file.fd;
+    let rc: i32 = self.host.lock_file(self.file_fd, 8);
+    transition rc == 0 { true -> ok() _ -> err() }
+    state ok(&mut self) -> UnitResult { UnitResult::Ok }
+    state err(&mut self) -> UnitResult { let kind: ErrorKind = self.last_error(); UnitResult::Error { kind: kind } }
 }

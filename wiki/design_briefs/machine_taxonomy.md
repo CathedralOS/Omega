@@ -16,9 +16,10 @@ a terminal outcome. A productive machine is allowed to run forever, so
 not the definition.
 
 The same machine can be called at runtime, evaluated during compilation,
-cited as a proof, spawned as a task, used to satisfy a trait requirement, or
-provided across a boundary. These are not different machine kinds. They are
-different ways to supply or consume the same contracted transition system.
+cited as a proof, started through a task-runtime provider, used to satisfy a
+trait requirement, or provided across a boundary. These are not different
+machine kinds. They are different ways to supply or consume the same
+contracted transition system.
 
 Proof-time use and runtime use therefore compose naturally. A machine whose
 body and contract are eligible for compile-time evaluation can establish a
@@ -68,6 +69,47 @@ These modes must be explicit in checked artifacts. A boolean such as
 whether the artifact requires, provides, checks, generates, or merely trusts
 the machine.
 
+The source forms are deliberately distinct:
+
+| Supply mode | Source form |
+|---|---|
+| Checked body | An ordinary machine with a `{ ... }` body |
+| Required body | A bodyless machine declaration inside a trait |
+| External provider | A machine that `satisfies` a requirement `via` a compile-time `Binding` value |
+| Accepted declaration | A bodyless `boundary machine ... ensures ...;` declaration |
+
+There are no expression-bodied machines. `{ ... }` is the sole executable
+machine-body syntax; even a one-expression predicate uses braces. `via` is not
+an expression-body operator. It selects the external-provider supply variant:
+
+```omega
+machine Kernel32::write_file(handle: WinHandle, bytes: &[u8]) -> WriteResult
+    satisfies Kernel32Requirements::write_file
+    via Binding::DllImport {
+        library: kernel32_lib,
+        symbol: write_file_symbol,
+        plan: MsX64,
+    };
+```
+
+The expression after `via` must be compile-time evaluable to a normalized
+`Binding` value. Its normalized identity enters the derived provider plan;
+plan derivation validates it structurally, and admission assigns trust from
+the binding kind and evidence. Merely writing `via` asserts no trust class.
+
+`satisfies` identifies the requirement and inherits its contract. The
+requirement's effect row is the public ceiling. The realization's checked
+provider behavior is derived from its binding/provider contract and must
+refine that ceiling during validation and admission; a `via` declaration does
+not author a second `effects` row.
+
+Checked adapters remain ordinary machines. A Console operation that obtains a
+handle and performs two writes is authored as an Omega body satisfying the
+Console requirement; only its irreducible DLL/syscall/instruction leaves use
+`via`. The toolchain derives `ProviderPlan` coverage, dependency closure,
+effects, identity, and admission inputs from the explicitly selected
+conformance closure. Programs never assemble plan rows imperatively.
+
 ## Consumption modes
 
 Consumption answers **how a valid machine is used**:
@@ -75,7 +117,7 @@ Consumption answers **how a valid machine is used**:
 - runtime call;
 - compile-time evaluation;
 - proof citation;
-- concurrent spawn;
+- concurrent activation through a task-runtime provider;
 - trait conformance;
 - boundary import or export.
 
@@ -83,14 +125,17 @@ Eligibility is derived from the complete contract and the consuming context,
 not declared through parallel species such as `async machine`, `proof
 machine`, or `const machine`. For example, compile-time evaluation rejects
 effects or unbounded work that its context forbids; an interrupt context
-rejects a machine whose effect/resource ceiling exceeds its own; spawning
-adds ownership and capacity obligations.
+rejects a machine whose effect/resource ceiling exceeds its own; concurrent
+activation adds ownership, provider-admission, lifecycle, and capacity
+obligations.
 
 Imports and exports are artifact-relative. A `boundary trait` describes a
 requirement; a provider/implementation satisfies it; a body-bearing exported
-machine is a provision. The accepted-proof spelling (`boundary machine`
-versus a possible `boundary fact`) remains a surface decision, but its supply
-mode does not.
+machine is a provision. Accepted theorems use the existing bodyless
+`boundary machine` surface; there is no `boundary fact` construct. The checked
+artifact distinguishes an accepted proof claim from an executable external
+provider through supply/eligibility and its normalized contract, not a second
+declaration species.
 
 ## Observation and internal transitions
 
@@ -142,7 +187,7 @@ effects happen to be implemented. See
    abstraction.
 6. Trait requirement, checked implementation, external provider, and accepted
    declaration remain distinguishable in the checked artifact.
-7. Runtime call, compile-time evaluation, proof citation, and spawn consult
+7. Runtime call, compile-time evaluation, proof citation, and task start consult
    the same normalized machine contract.
 8. A transition remains internal to its machine; a call enters a different
    machine contract.
@@ -155,7 +200,9 @@ effects happen to be implemented. See
   see [Effects, Authority, And Observation](effects_authority_and_observation.md).
   Its compiler representation remains engineering work.
 - Continuation lowering and suspension-safe loans.
-- Accepted-proof surface spelling.
+- Task-runtime activation planning, linear lifecycle claims, provider
+  provenance, and transactional start; see
+  [Task Runtime And Lifecycle](task_runtime_and_lifecycle.md).
 - Component coexistence, import-slot refinement, and continuation migration.
 
 Termination and progress are now settled by frozen decision 23; see

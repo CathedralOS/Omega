@@ -45,28 +45,33 @@ pub enum AbstractOperationKind {
         source_offset: usize,
         operator: StateGuardOperator,
     },
-    CompareRuntimeStorage {
-        left_region: RuntimeStorageRegion,
-        left_offset: usize,
-        right_region: RuntimeStorageRegion,
-        right_offset: usize,
-        byte_size: usize,
-        operator: StateGuardOperator,
-        /// Both operands are f64 and the compare uses `ucomisd` (whose CF/ZF
-        /// mirror an unsigned `cmp`, so the unsigned failure conditions apply).
-        is_float: bool,
-    },
-    CompareRuntimeStorageValue {
-        region: RuntimeStorageRegion,
-        byte_offset: usize,
-        byte_size: usize,
-        expected_value: i64,
-        operator: StateGuardOperator,
-    },
     CompareRuntimeValues {
         left: AbstractValueOperandHandle,
         right: AbstractValueOperandHandle,
         byte_size: usize,
+        operator: StateGuardOperator,
+    },
+
+    /// Task #131 (guards consume Places): compare two place-shaped storage
+    /// operands. Direct places are the retired storage compare; indexed /
+    /// deref places ride the materializer walk (a two-index RIGHT place
+    /// refuses at encoding -- the register fence).
+    ComparePlaces {
+        left: Place,
+        right: Place,
+        byte_size: usize,
+        operator: StateGuardOperator,
+        /// Both operands are f64 and the compare uses `ucomisd` (whose
+        /// CF/ZF mirror an unsigned `cmp`).
+        is_float: bool,
+    },
+
+    /// Task #131: compare a place-shaped storage operand against an
+    /// immediate.
+    ComparePlaceValue {
+        place: Place,
+        byte_size: usize,
+        expected_value: i64,
         operator: StateGuardOperator,
     },
     WriteRuntimeTextLiteral {
@@ -87,64 +92,32 @@ pub enum AbstractOperationKind {
         target_offset: usize,
         length_delta: usize,
     },
-    MaterializeRuntimeTextBuffer {
+
+    /// Task #132 (op-set shrink): materialize a text-buffer descriptor into
+    /// a place-shaped target -- the Materialize x {direct, pointee,
+    /// frame-indexed} crossing collapses onto this one. Encoding decomposes
+    /// by place shape to the retained encoders on BOTH architectures.
+    MaterializeTextBufferToPlace {
         buffer: AbstractDataObjectHandle,
-        target_region: RuntimeStorageRegion,
-        target_offset: usize,
+        target: Place,
     },
-    MaterializeRuntimeTextBufferToRuntimePointee {
-        buffer: AbstractDataObjectHandle,
-        pointer_byte_offset: usize,
-        field_byte_offset: usize,
-    },
-    MaterializeRuntimeTextBufferToRuntimeFrameIndexed {
-        buffer: AbstractDataObjectHandle,
-        descriptor_offset: usize,
-        index_offset: usize,
-        element_byte_size: usize,
-        field_byte_offset: usize,
-    },
-    AppendRuntimeTextStoredPlace {
+
+    /// Task #132: append a stored text value onto the builder buffer and
+    /// store the descriptor into a place-shaped target (the AppendStored
+    /// crossing's survivor).
+    AppendTextStoredToPlace {
         buffer: AbstractDataObjectHandle,
         source_region: RuntimeStorageRegion,
         source_offset: usize,
-        target_region: RuntimeStorageRegion,
-        target_offset: usize,
+        target: Place,
     },
-    AppendRuntimeTextStoredPlaceToRuntimePointee {
+
+    /// Task #132: append a literal onto the builder buffer and store the
+    /// descriptor into a place-shaped target (the AppendLiteral crossing's
+    /// survivor).
+    AppendTextLiteralToPlace {
         buffer: AbstractDataObjectHandle,
-        source_region: RuntimeStorageRegion,
-        source_offset: usize,
-        pointer_byte_offset: usize,
-        field_byte_offset: usize,
-    },
-    AppendRuntimeTextStoredPlaceToRuntimeFrameIndexed {
-        buffer: AbstractDataObjectHandle,
-        source_region: RuntimeStorageRegion,
-        source_offset: usize,
-        descriptor_offset: usize,
-        index_offset: usize,
-        element_byte_size: usize,
-        field_byte_offset: usize,
-    },
-    AppendRuntimeTextLiteral {
-        buffer: AbstractDataObjectHandle,
-        target_region: RuntimeStorageRegion,
-        target_offset: usize,
-        literal: Arc<str>,
-    },
-    AppendRuntimeTextLiteralToRuntimePointee {
-        buffer: AbstractDataObjectHandle,
-        pointer_byte_offset: usize,
-        field_byte_offset: usize,
-        literal: Arc<str>,
-    },
-    AppendRuntimeTextLiteralToRuntimeFrameIndexed {
-        buffer: AbstractDataObjectHandle,
-        descriptor_offset: usize,
-        index_offset: usize,
-        element_byte_size: usize,
-        field_byte_offset: usize,
+        target: Place,
         literal: Arc<str>,
     },
     /// compact_binary v0 wire framing (chapter 20): store one COMPILE-TIME
@@ -349,17 +322,6 @@ pub enum AbstractOperationKind {
         /// Signed targets un-zigzag after the read.
         zigzag: bool,
     },
-    WriteRuntimeMachineInteger {
-        byte_offset: usize,
-        byte_size: usize,
-        value: i64,
-    },
-    WriteRuntimeStorageInteger {
-        target_region: RuntimeStorageRegion,
-        byte_offset: usize,
-        byte_size: usize,
-        value: i64,
-    },
     /// The ENTRY PROLOGUE's inbound calling plan: store the platform's incoming
     /// argument register (MS-x64: 0=RCX 1=RDX 2=R8 3=R9) into the entry state's
     /// parameter frame slot at `byte_offset`. Emitted once per declared entry
@@ -378,12 +340,6 @@ pub enum AbstractOperationKind {
         descriptor_offset: usize,
         spill_offset: usize,
         byte_length: usize,
-    },
-    WriteRuntimePointeeInteger {
-        pointer_byte_offset: usize,
-        field_byte_offset: usize,
-        byte_size: usize,
-        value: i64,
     },
     /// An atomic `fetch_add`: atomically add `delta` to the storage place via a
     /// single `LOCK xadd`. The prior value is read separately (by the desugar's
@@ -408,28 +364,6 @@ pub enum AbstractOperationKind {
         expected: AbstractValueOperandHandle,
         new_value: AbstractValueOperandHandle,
     },
-    WriteRuntimeStorageBinary {
-        target_region: RuntimeStorageRegion,
-        target_offset: usize,
-        byte_size: usize,
-        left: AbstractValueOperandHandle,
-        operator: StateGuardOperator,
-        right: AbstractValueOperandHandle,
-        /// When set, the operands carry IEEE-754 bit patterns and the operation
-        /// is performed on the SSE/XMM unit (`movq`+`addsd`/...) instead of the
-        /// integer ALU.
-        is_float: bool,
-        /// Arithmetic domain of the WRITE's target type (`T in <Domain>`), frozen
-        /// decision 17. `Exact`/`Wrapping` use the plain width-correct op (x86
-        /// add/sub/mul already wrap modulo 2^width); `Saturating` clamps to the
-        /// target min/max on overflow; `Trapping` aborts on overflow. Set from
-        /// the target's declared type at selection.
-        domain: omega_core::arithmetic::ArithmeticDomain,
-        /// Whether the target integer type is signed. Selects OF (signed) vs CF
-        /// (unsigned) overflow detection and the saturating clamp bounds.
-        /// Irrelevant for `Exact`/`Wrapping`.
-        target_signed: bool,
-    },
     /// A numeric `as` cast: load `source` into a register, convert it between
     /// integer and floating-point representations (`cvttsd2si`/`cvtsi2sd`/
     /// `cvtsd2ss`/`cvtss2sd`, or a sized integer move), then store the result.
@@ -444,115 +378,18 @@ pub enum AbstractOperationKind {
         /// Whether the integer source is signed (drives sign- vs zero-extension
         /// of a narrow source and the signedness of an int->float conversion).
         source_signed: bool,
-        /// Cast-node policy for float-to-integer conversion.
-        domain: omega_core::arithmetic::ArithmeticDomain,
-        /// Whether the integer target is signed.
+        /// Whether the integer target is signed. Float->int policy bounds and
+        /// the selected conversion instruction depend on this independently
+        /// of the source's signedness.
         target_signed: bool,
-    },
-    WriteRuntimePointeeBinary {
-        pointer_byte_offset: usize,
-        field_byte_offset: usize,
-        byte_size: usize,
-        left: AbstractValueOperandHandle,
-        operator: StateGuardOperator,
-        right: AbstractValueOperandHandle,
-    },
-    WriteRuntimeFrameIndexedInteger {
-        descriptor_offset: usize,
-        index_offset: usize,
-        element_byte_size: usize,
-        field_byte_offset: usize,
-        byte_size: usize,
-        value: i64,
-    },
-    WriteRuntimeFrameBaseIndexedInteger {
-        base_byte_offset: usize,
-        index_offset: usize,
-        element_byte_size: usize,
-        field_byte_offset: usize,
-        byte_size: usize,
-        value: i64,
-    },
-    WriteRuntimeMachineIndexedInteger {
-        base_byte_offset: usize,
-        index_region: RuntimeStorageRegion,
-        index_offset: usize,
-        element_byte_size: usize,
-        field_byte_offset: usize,
-        byte_size: usize,
-        value: i64,
-    },
-    WriteRuntimeFrameIndexedBinary {
-        descriptor_offset: usize,
-        index_offset: usize,
-        element_byte_size: usize,
-        field_byte_offset: usize,
-        byte_size: usize,
-        left: AbstractValueOperandHandle,
-        operator: StateGuardOperator,
-        right: AbstractValueOperandHandle,
-    },
-    WriteRuntimeFrameBaseIndexedBinary {
-        base_byte_offset: usize,
-        index_offset: usize,
-        element_byte_size: usize,
-        field_byte_offset: usize,
-        byte_size: usize,
-        left: AbstractValueOperandHandle,
-        operator: StateGuardOperator,
-        right: AbstractValueOperandHandle,
-    },
-    /// Write a computed binary value into a MACHINE-owned runtime-indexed array
-    /// element (`self.arr[self.i] = a OP b`). The machine-region sibling of
-    /// `WriteRuntimeFrameBaseIndexedBinary`: the base relocates against the
-    /// machine-storage symbol (not the frame), and `index_region` names where the
-    /// index operand lives (mirrors `WriteRuntimeMachineIndexedInteger`).
-    WriteRuntimeMachineIndexedBinary {
-        base_byte_offset: usize,
-        index_region: RuntimeStorageRegion,
-        index_offset: usize,
-        element_byte_size: usize,
-        field_byte_offset: usize,
-        byte_size: usize,
-        left: AbstractValueOperandHandle,
-        operator: StateGuardOperator,
-        right: AbstractValueOperandHandle,
-    },
-    /// Binary value into a BOTH-RUNTIME nested target (`grid[i][j] = a OP b`,
-    /// the direct-RMW face after the assignment-value hoist slots the read):
-    /// the double-indexed sibling of `WriteRuntimeMachineIndexedBinary`.
-    WriteRuntimeMachineDoubleIndexedBinary {
-        base_byte_offset: usize,
-        outer_index_offset: usize,
-        outer_index_region: RuntimeStorageRegion,
-        outer_stride: usize,
-        inner_index_offset: usize,
-        inner_index_region: RuntimeStorageRegion,
-        inner_stride: usize,
-        field_byte_offset: usize,
-        byte_size: usize,
-        left: AbstractValueOperandHandle,
-        operator: StateGuardOperator,
-        right: AbstractValueOperandHandle,
-    },
-    WriteRuntimeMachineString {
-        byte_offset: usize,
-        data: AbstractDataObjectHandle,
-        byte_length: usize,
-    },
-    /// Write a string literal into an owned `[u8; N]` bounded byte carrier
-    /// (`BoundedByteBuffer`, `{len, bytes}` inline) at machine storage. Unlike
-    /// `WriteRuntimeMachineString` -- which stores a `{ptr -> rodata, len}`
-    /// descriptor that ALIASES the literal -- the carrier OWNS its bytes: store
-    /// `len` (the literal length) at the leading word, then copy the literal's
-    /// bytes inline after it. The content is emitted as immediates, so no data
-    /// relocation is needed (only the storage base). The target is machine-resident
-    /// UNLESS `target_in_frame` (a `let`-local struct's carrier field such as a
-    /// local `room.label`), in which case it is written off the runtime frame base.
-    WriteRuntimeMachineBoundedBuffer {
-        byte_offset: usize,
-        literal: Arc<str>,
-        target_in_frame: bool,
+        /// F4: a TRAPPING float->int cast traps on NaN or an out-of-range
+        /// value BEFORE converting (the encoders emit the FP bound guard).
+        /// False for every other cast.
+        trapping: bool,
+        /// F4: a SATURATING float->int cast maps NaN to zero and clamps an
+        /// out-of-range value to the target bounds. Exact casts leave
+        /// this false because their range obligation was already discharged.
+        saturating: bool,
     },
     /// Append another owned `[u8; N]` carrier's content onto a target carrier at
     /// machine storage (the concat-builder's source segment after the first
@@ -578,93 +415,6 @@ pub enum AbstractOperationKind {
     AppendRuntimeMachineBoundedBufferLiteral {
         target_byte_offset: usize,
         literal: Arc<str>,
-    },
-    WriteRuntimeFrameString {
-        byte_offset: usize,
-        data: AbstractDataObjectHandle,
-        byte_length: usize,
-    },
-    WriteRuntimePointeeString {
-        pointer_byte_offset: usize,
-        field_byte_offset: usize,
-        data: AbstractDataObjectHandle,
-        byte_length: usize,
-    },
-    /// Write a string LITERAL into an owned `[u8; N]` carrier reached THROUGH a
-    /// stored pointer (`rooms[0].label = "Gate"`, a slice element's carrier field):
-    /// load the pointer from `frame[pointer_byte_offset]`, then store `len` + the
-    /// literal bytes inline at `*ptr + field_byte_offset`. No `{ptr, len}`
-    /// descriptor; the bytes are immediates.
-    WriteRuntimePointeeBoundedBuffer {
-        pointer_byte_offset: usize,
-        field_byte_offset: usize,
-        literal: Arc<str>,
-    },
-    WriteRuntimeFrameIndexedString {
-        descriptor_offset: usize,
-        index_offset: usize,
-        element_byte_size: usize,
-        field_byte_offset: usize,
-        data: AbstractDataObjectHandle,
-        byte_length: usize,
-    },
-    WriteRuntimeMachineIndexedString {
-        base_byte_offset: usize,
-        index_offset: usize,
-        element_byte_size: usize,
-        field_byte_offset: usize,
-        data: AbstractDataObjectHandle,
-        byte_length: usize,
-    },
-    WriteRuntimeStorageAddressToRuntimeFrame {
-        source_region: RuntimeStorageRegion,
-        source_offset: usize,
-        target_offset: usize,
-    },
-    WriteRuntimePointeeAddressToRuntimeFrame {
-        pointer_byte_offset: usize,
-        field_byte_offset: usize,
-        target_offset: usize,
-    },
-    WriteRuntimeFrameIndexedAddressToRuntimeFrame {
-        descriptor_offset: usize,
-        index_offset: usize,
-        /// The region the runtime START index reads from -- a frame slot
-        /// (param/local) or a machine field (`self.arr[self.lo..]`).
-        index_region: RuntimeStorageRegion,
-        element_byte_size: usize,
-        field_byte_offset: usize,
-        target_offset: usize,
-    },
-    WriteRuntimeFrameFixedIndexedAddressToRuntimeFrame {
-        descriptor_offset: usize,
-        element_index: usize,
-        element_byte_size: usize,
-        field_byte_offset: usize,
-        target_offset: usize,
-    },
-    WriteRuntimeFrameBaseIndexedAddressToRuntimeFrame {
-        base_byte_offset: usize,
-        index_offset: usize,
-        element_byte_size: usize,
-        field_byte_offset: usize,
-        target_offset: usize,
-    },
-    /// The MACHINE-base sibling of
-    /// `WriteRuntimeFrameBaseIndexedAddressToRuntimeFrame`: store the ADDRESS
-    /// of a machine-owned inline-array element (`&self.buf[k]`, base at
-    /// machine[base_byte_offset], runtime index at index_region[index_offset])
-    /// into a frame slot. This is the §5b borrow-recast let whose STATED
-    /// referee is wider than a pointer (`&self.map_buf[k] as &Descriptor`):
-    /// the slot must hold a REAL POINTER — reads deref it (the referee-size
-    /// rule) — never a content spill.
-    WriteRuntimeMachineIndexedAddressToRuntimeFrame {
-        base_byte_offset: usize,
-        index_offset: usize,
-        index_region: RuntimeStorageRegion,
-        element_byte_size: usize,
-        field_byte_offset: usize,
-        target_offset: usize,
     },
     ReadRuntimeTextLine {
         buffer: AbstractDataObjectHandle,
@@ -713,114 +463,58 @@ pub enum AbstractOperationKind {
         target: Place,
         byte_count: usize,
     },
-    /// Copy a runtime-frame slice element field (`*(frame[descriptor]) +
-    /// index*elem + source_field`, index read from `frame[index_offset]`) through
-    /// a `&mut` reference into its pointee field (`*(frame[pointer]) +
-    /// target_field`). The runtime-index sibling of
-    /// `CopyRuntimeFrameFixedIndexedToRuntimePointee` -- the `out.f = items[i].f`
-    /// shape where `out` is a reference parameter.
-    /// The BOTH-RUNTIME nested read `grid[i][j]` (both indices runtime): the
-    /// element address is base + outer*outer_stride + inner*inner_stride +
-    /// field, with each index loaded from its own region. The single-index op
-    /// carries one (index, stride) pair; this carries two -- the outer stride
-    /// is the ROW byte size, the inner the element byte size. Read-only (the
-    /// write face keeps its loud blocker until a write twin exists).
-    CopyRuntimeMachineDoubleIndexedToRuntimeStorage {
-        base_byte_offset: usize,
-        outer_index_offset: usize,
-        outer_index_region: RuntimeStorageRegion,
-        outer_stride: usize,
-        inner_index_offset: usize,
-        inner_index_region: RuntimeStorageRegion,
-        inner_stride: usize,
-        field_byte_offset: usize,
-        target_region: RuntimeStorageRegion,
-        target_offset: usize,
-        byte_count: usize,
-    },
-    /// Write twin of `CopyRuntimeMachineDoubleIndexedToRuntimeStorage`:
-    /// `grid[i][j] = self.v` -- a both-runtime nested write sourced from a
-    /// runtime storage place. The target is machine-owned by definition (the
-    /// resolver guarantees it), so there is no target_region.
-    CopyRuntimeStorageToRuntimeMachineDoubleIndexed {
-        source_region: RuntimeStorageRegion,
-        source_offset: usize,
-        base_byte_offset: usize,
-        outer_index_offset: usize,
-        outer_index_region: RuntimeStorageRegion,
-        outer_stride: usize,
-        inner_index_offset: usize,
-        inner_index_region: RuntimeStorageRegion,
-        inner_stride: usize,
-        field_byte_offset: usize,
-        byte_count: usize,
-    },
-    /// Const-value write into a both-runtime nested element
-    /// (`grid[i][j] = 70`) -- the double-indexed sibling of
-    /// `WriteRuntimeMachineIndexedInteger`.
-    WriteRuntimeMachineDoubleIndexedInteger {
-        base_byte_offset: usize,
-        outer_index_offset: usize,
-        outer_index_region: RuntimeStorageRegion,
-        outer_stride: usize,
-        inner_index_offset: usize,
-        inner_index_region: RuntimeStorageRegion,
-        inner_stride: usize,
-        field_byte_offset: usize,
-        byte_size: usize,
+
+    /// Write rung 2a: store an immediate integer at `byte_size` into a
+    /// place-shaped target -- the integer-write family's collapse (the
+    /// seven Write*Integer variants migrate onto this one).
+    WritePlaceInteger {
+        target: Place,
         value: i64,
+        byte_size: usize,
     },
-    /// Read `collection[index]` from a FRAME-resident inline array (a by-value
-    /// param or local `[T; N]` living at `frame[base_byte_offset]`, no
-    /// descriptor) at a runtime index (`frame[index_offset]`) and copy the
-    /// element (or its `field_byte_offset` member) into another frame slot.
-    /// The frame-base sibling of `CopyRuntimeMachineIndexedToRuntimeStorage`
-    /// and the LOAD counterpart of the address computation in
-    /// `WriteRuntimeFrameBaseIndexedAddressToRuntimeFrame` -- `let v = arr[k]`
-    /// where `arr` is frame-resident.
-    /// The BOTH-RUNTIME nested read of a FRAME-resident inline 2D array
-    /// (`g[i][j]` where `g` is a by-value param or local `[[T; C]; R]`, no
-    /// descriptor): frame_base + base + outer*outer_stride +
-    /// inner*inner_stride + field. Everything -- array and both indices --
-    /// lives off the ONE frame base, so a single relocation serves the whole
-    /// address computation; the frame sibling of
-    /// `CopyRuntimeMachineDoubleIndexedToRuntimeStorage`.
-    CopyRuntimeFrameBaseDoubleIndexedToRuntimeStorage {
-        base_byte_offset: usize,
-        outer_index_offset: usize,
-        outer_stride: usize,
-        inner_index_offset: usize,
-        inner_stride: usize,
-        field_byte_offset: usize,
-        target_region: RuntimeStorageRegion,
+
+    /// Binary rung 2a: `place = left OP right` -- the six Write*Binary
+    /// variants collapse onto this one. Field semantics mirror the retired
+    /// storage-binary write (is_float = SSE unit; domain = the target
+    /// type's arithmetic domain, decision 17; target_signed = OF-vs-CF
+    /// overflow detection + saturating clamp bounds).
+    WritePlaceBinary {
+        target: Place,
+        byte_size: usize,
+        left: AbstractValueOperandHandle,
+        operator: StateGuardOperator,
+        right: AbstractValueOperandHandle,
+        is_float: bool,
+        domain: omega_core::arithmetic::ArithmeticDomain,
+        target_signed: bool,
+    },
+
+    /// Text rung 2a: store a string DESCRIPTOR ({ptr -> rodata, len}) into a
+    /// place-shaped target -- the five Write*String variants collapse onto
+    /// this one. The data pointer's relocation rides the leading
+    /// materialization (instruction start on x86_64).
+    WritePlaceString {
+        target: Place,
+        data: AbstractDataObjectHandle,
+        byte_length: usize,
+    },
+
+    /// Text rung 2a: write a string literal into an owned `[u8; N]` bounded
+    /// byte carrier ({len, bytes} inline) at a place-shaped target -- the
+    /// two *BoundedBuffer write variants collapse onto this one. The content
+    /// is immediate, so the walk's base relocation(s) are the only sites.
+    WritePlaceBoundedBuffer {
+        target: Place,
+        literal: Arc<str>,
+    },
+
+    /// Task #131: store the ADDRESS of a place-shaped source into the
+    /// runtime-frame slot at `target_offset` -- the six
+    /// Write*AddressToRuntimeFrame variants collapse onto this one. The
+    /// slot receives a REAL POINTER; reads deref it.
+    WritePlaceAddress {
+        source: Place,
         target_offset: usize,
-        byte_count: usize,
-    },
-    /// Write-side mirror of `CopyRuntimeMachineIndexedToRuntimeStorage`:
-    /// `self.nums[self.j] = self.b` -- a runtime-indexed write into a
-    /// machine-owned inline array, sourced from a runtime storage place.
-    /// The target is machine-owned by definition, so there is no
-    /// `target_region`.
-    /// The DUAL-indexed copy `arr[i] = arr[j]` (task #38): both the source and
-    /// the target are runtime-indexed elements of machine-owned inline arrays.
-    /// Composes the two halves above -- read the source element exactly as
-    /// `CopyRuntimeMachineIndexedToRuntimeStorage` does, then store it exactly
-    /// as `CopyRuntimeStorageToRuntimeMachineIndexed` does. Source and target
-    /// may be DIFFERENT arrays (`a[i] = b[j]`); both live off the one machine
-    /// base symbol. Only machine-resident indices are encodable today (the
-    /// same gate as the halves).
-    CopyRuntimeMachineIndexedToRuntimeMachineIndexed {
-        source_base_byte_offset: usize,
-        source_index_offset: usize,
-        source_index_region: RuntimeStorageRegion,
-        source_element_byte_size: usize,
-        source_field_byte_offset: usize,
-        target_base_byte_offset: usize,
-        target_index_offset: usize,
-        target_index_region: RuntimeStorageRegion,
-        target_element_byte_size: usize,
-        target_field_byte_offset: usize,
-        byte_count: usize,
     },
     SetDispatchState {
         dispatch_index: u32,

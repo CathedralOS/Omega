@@ -113,12 +113,12 @@ pub(crate) fn collect_call_result_return_blockers(
 fn instruction_write_target(kind: &SelectedInstructionKind) -> Option<(bool, usize, usize)> {
     use omega_target_operations::RuntimeStorageRegion;
     let (region, offset, size) = match kind {
-        SelectedInstructionKind::WriteRuntimeStorageInteger {
-            target_region,
-            byte_offset,
-            byte_size,
-            ..
-        } => (*target_region, *byte_offset, *byte_size),
+        SelectedInstructionKind::WritePlaceInteger {
+            target, byte_size, ..
+        } => match target.const_offset() {
+            Some(target_offset) => (target.region, target_offset, *byte_size),
+            None => return None,
+        },
         // A direct (const-path) place target serves like the retired plain
         // copy; a deref/indexed place has no flat byte range to claim.
         SelectedInstructionKind::CopyPlaces {
@@ -127,12 +127,12 @@ fn instruction_write_target(kind: &SelectedInstructionKind) -> Option<(bool, usi
             Some(target_offset) => (target.region, target_offset, *byte_count),
             None => return None,
         },
-        SelectedInstructionKind::WriteRuntimeStorageBinary {
-            target_region,
-            target_offset,
-            byte_size,
-            ..
-        } => (*target_region, *target_offset, *byte_size),
+        SelectedInstructionKind::WritePlaceBinary {
+            target, byte_size, ..
+        } => match target.const_offset() {
+            Some(target_offset) => (target.region, target_offset, *byte_size),
+            None => return None,
+        },
         _ => return None,
     };
     Some((

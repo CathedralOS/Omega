@@ -1,0 +1,29 @@
+// R2 multi-state callee summaries: recruit is a MULTI-STATE machine (an
+// entry arm dispatching to two sub-states) and EVERY exit establishes
+// self.champion, so its summary joins main's tracking at the call site
+// and the read after the call passes the access gate. RUNS exit 70.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Player
+where
+    health >= 1,
+{
+    health: i32;
+}
+data Main { console: Console; champion: Player; }
+machine Main::recruit(&mut self, veteran: bool) {
+    transition {
+        veteran == true -> strong()
+        _ -> fresh()
+    }
+    state strong(&mut self) {
+        self.champion = Player { health: 90 };
+    }
+    state fresh(&mut self) {
+        self.champion = Player { health: 10 };
+    }
+}
+machine Main::main(&mut self) {
+    self.recruit(true);
+    let power: i32 = self.champion.health;
+    self.console.exit_process(70);
+}

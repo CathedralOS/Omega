@@ -3,6 +3,7 @@ use omega_checked_trees::expression::{
     Expression, ExpressionHandle, ExpressionNode, ExpressionTable,
 };
 use omega_control_flow::StateKey;
+use omega_core::literals::{IntegerLanding, IntegerLiteral};
 
 use super::super::super::bindings::{
     RuntimeAliasBinding, resolve_runtime_alias_expression, strip_mutable_expression,
@@ -12,11 +13,48 @@ use omega_platform_interface::PlaceKey;
 
 const INLINE_RUNTIME_STATIC_VALUE_COUNT: usize = 8;
 
+/// Exact bits plus the phase-B landing that gives those bits width,
+/// signedness, and arithmetic policy. The former bare-i64 table silently
+/// erased this interpretation whenever a folded constant crossed a place.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) struct RuntimeStaticInteger {
+    bits: i64,
+    landing: Option<IntegerLanding>,
+}
+
+impl RuntimeStaticInteger {
+    pub(super) fn anonymous(bits: i64) -> Self {
+        Self {
+            bits,
+            landing: None,
+        }
+    }
+
+    fn from_literal(literal: &IntegerLiteral) -> Option<Self> {
+        Some(Self {
+            bits: literal.bits_u64()? as i64,
+            landing: literal.landing(),
+        })
+    }
+
+    pub(super) fn bits(self) -> i64 {
+        self.bits
+    }
+
+    pub(super) fn landing(self) -> Option<IntegerLanding> {
+        self.landing
+    }
+
+    pub(super) fn with_bits(self, bits: i64) -> Self {
+        Self { bits, ..self }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct RuntimeStaticValues {
-    inline: [Option<(PlaceKey, i64)>; INLINE_RUNTIME_STATIC_VALUE_COUNT],
+    inline: [Option<(PlaceKey, RuntimeStaticInteger)>; INLINE_RUNTIME_STATIC_VALUE_COUNT],
     len: usize,
-    overflow: Vec<(PlaceKey, i64)>,
+    overflow: Vec<(PlaceKey, RuntimeStaticInteger)>,
 }
 
 impl RuntimeStaticValues {
@@ -44,7 +82,7 @@ impl RuntimeStaticValues {
         self.overflow.clear();
     }
 
-    fn get(&self, target: &PlaceKey) -> Option<i64> {
+    fn get(&self, target: &PlaceKey) -> Option<RuntimeStaticInteger> {
         self.iter()
             .find(|(existing_target, _)| existing_target == target)
             .map(|(_, value)| *value)
@@ -87,7 +125,7 @@ impl RuntimeStaticValues {
             .retain(|(existing, _)| !existing.starts_with(prefix));
     }
 
-    fn set(&mut self, target: PlaceKey, value: i64) {
+    fn set(&mut self, target: PlaceKey, value: RuntimeStaticInteger) {
         if let Some((_, existing_value)) = self
             .iter_mut()
             .find(|(existing_target, _)| existing_target == &target)
@@ -105,7 +143,7 @@ impl RuntimeStaticValues {
         self.len += 1;
     }
 
-    fn iter(&self) -> impl Iterator<Item = &(PlaceKey, i64)> {
+    fn iter(&self) -> impl Iterator<Item = &(PlaceKey, RuntimeStaticInteger)> {
         self.inline
             .iter()
             .take(self.len.min(INLINE_RUNTIME_STATIC_VALUE_COUNT))
@@ -113,7 +151,7 @@ impl RuntimeStaticValues {
             .chain(self.overflow.iter())
     }
 
-    fn iter_mut(&mut self) -> impl Iterator<Item = &mut (PlaceKey, i64)> {
+    fn iter_mut(&mut self) -> impl Iterator<Item = &mut (PlaceKey, RuntimeStaticInteger)> {
         self.inline
             .iter_mut()
             .take(self.len.min(INLINE_RUNTIME_STATIC_VALUE_COUNT))
@@ -136,25 +174,46 @@ pub(super) fn resolve_runtime_static_integer_value(
     alias_expressions: &ExpressionTable,
     static_values: &RuntimeStaticValues,
 ) -> Option<i64> {
+    resolve_runtime_static_integer(
+        input,
+        source_key,
+        expression,
+        aliases,
+        alias_expressions,
+        static_values,
+    )
+    .map(RuntimeStaticInteger::bits)
+}
+
+pub(super) fn resolve_runtime_static_integer(
+    input: &InstructionSelectionInput<'_>,
+    source_key: StateKey,
+    expression: &Expression,
+    aliases: &[RuntimeAliasBinding],
+    alias_expressions: &ExpressionTable,
+    static_values: &RuntimeStaticValues,
+) -> Option<RuntimeStaticInteger> {
     match expression {
         // Full 8-byte pattern: the literal-width gate guarantees an oversize
         // literal only reaches u64-classed (8-byte) targets, where these bits
         // ARE the value.
-        Expression::Integer(value) => value.bits_u64().map(|bits| bits as i64),
-        Expression::Name(_) => enum_variant_value(&input.layouts, expression).or_else(|| {
-            resolve_runtime_resolved_static_integer_value(
-                input,
-                resolve_runtime_alias_expression(
-                    expression,
-                    source_key,
-                    aliases,
-                    alias_expressions,
-                ),
-                static_values,
-            )
-        }),
+        Expression::Integer(value) => RuntimeStaticInteger::from_literal(value),
+        Expression::Name(_) => enum_variant_value(&input.layouts, expression)
+            .map(RuntimeStaticInteger::anonymous)
+            .or_else(|| {
+                resolve_runtime_resolved_static_integer(
+                    input,
+                    resolve_runtime_alias_expression(
+                        expression,
+                        source_key,
+                        aliases,
+                        alias_expressions,
+                    ),
+                    static_values,
+                )
+            }),
         Expression::Indexed(_) | Expression::Member(_) | Expression::Mutable(_) => {
-            resolve_runtime_resolved_static_integer_value(
+            resolve_runtime_resolved_static_integer(
                 input,
                 resolve_runtime_alias_expression(
                     expression,
@@ -167,7 +226,7 @@ pub(super) fn resolve_runtime_static_integer_value(
         }
         Expression::Range(_) => None,
         Expression::Unary(unary) => {
-            let value = resolve_runtime_static_integer_value(
+            let value = resolve_runtime_static_integer(
                 input,
                 source_key,
                 &unary.operand,
@@ -175,9 +234,11 @@ pub(super) fn resolve_runtime_static_integer_value(
                 alias_expressions,
                 static_values,
             )?;
-            Some(i64::from(value == 0))
+            Some(RuntimeStaticInteger::anonymous(i64::from(
+                value.bits() == 0,
+            )))
         }
-        Expression::Boolean(value) => Some(i64::from(*value)),
+        Expression::Boolean(value) => Some(RuntimeStaticInteger::anonymous(i64::from(*value))),
         Expression::ArrayLiteral(_)
         | Expression::Binary(_)
         | Expression::Call(_)
@@ -194,14 +255,26 @@ pub(super) fn resolve_runtime_static_integer_value_in_table(
     expression: ExpressionHandle,
     static_values: &RuntimeStaticValues,
 ) -> Option<i64> {
+    resolve_runtime_static_integer_in_table(input, expressions, expression, static_values)
+        .map(RuntimeStaticInteger::bits)
+}
+
+pub(super) fn resolve_runtime_static_integer_in_table(
+    input: &InstructionSelectionInput<'_>,
+    expressions: &ExpressionTable,
+    expression: ExpressionHandle,
+    static_values: &RuntimeStaticValues,
+) -> Option<RuntimeStaticInteger> {
     match expressions.expression(expression) {
-        ExpressionNode::Integer(value) => value.bits_u64().map(|bits| bits as i64),
-        ExpressionNode::Boolean(value) => Some(i64::from(*value)),
+        ExpressionNode::Integer(value) => RuntimeStaticInteger::from_literal(value),
+        ExpressionNode::Boolean(value) => Some(RuntimeStaticInteger::anonymous(i64::from(*value))),
         ExpressionNode::Name(_) => {
-            enum_variant_value_in_table(&input.layouts, expressions, expression).or_else(|| {
-                let key = PlaceKey::from_expression_handle(expressions, expression)?;
-                static_values.get(&key)
-            })
+            enum_variant_value_in_table(&input.layouts, expressions, expression)
+                .map(RuntimeStaticInteger::anonymous)
+                .or_else(|| {
+                    let key = PlaceKey::from_expression_handle(expressions, expression)?;
+                    static_values.get(&key)
+                })
         }
         ExpressionNode::Member(member) => {
             // `<string-literal>.len`: a string literal flowing into a `&[u8] in
@@ -214,7 +287,9 @@ pub(super) fn resolve_runtime_static_integer_value_in_table(
             if member.member.as_str() == "len"
                 && let Some(literal) = expressions.string_literal_value(member.receiver)
             {
-                return i64::try_from(literal.len()).ok();
+                return i64::try_from(literal.len())
+                    .ok()
+                    .map(RuntimeStaticInteger::anonymous);
             }
             let key = PlaceKey::from_expression_handle(expressions, expression)?;
             static_values.get(&key)
@@ -224,13 +299,15 @@ pub(super) fn resolve_runtime_static_integer_value_in_table(
             static_values.get(&key)
         }
         ExpressionNode::Unary(unary) => {
-            let value = resolve_runtime_static_integer_value_in_table(
+            let value = resolve_runtime_static_integer_in_table(
                 input,
                 expressions,
                 unary.operand,
                 static_values,
             )?;
-            Some(i64::from(value == 0))
+            Some(RuntimeStaticInteger::anonymous(i64::from(
+                value.bits() == 0,
+            )))
         }
         ExpressionNode::Range(_) => None,
         ExpressionNode::ArrayLiteral(_)
@@ -240,6 +317,33 @@ pub(super) fn resolve_runtime_static_integer_value_in_table(
         | ExpressionNode::Float(_)
         | ExpressionNode::String(_)
         | ExpressionNode::StructLiteral(_) => None,
+    }
+}
+
+pub(super) fn resolve_runtime_static_integer_landing_in_table(
+    expressions: &ExpressionTable,
+    expression: ExpressionHandle,
+    static_values: &RuntimeStaticValues,
+) -> Option<IntegerLanding> {
+    match expressions.expression(expression) {
+        ExpressionNode::Integer(literal) => literal.landing(),
+        ExpressionNode::Binary(binary) => {
+            resolve_runtime_static_integer_landing_in_table(expressions, binary.left, static_values)
+                .or_else(|| {
+                    resolve_runtime_static_integer_landing_in_table(
+                        expressions,
+                        binary.right,
+                        static_values,
+                    )
+                })
+        }
+        ExpressionNode::Mutable(inner) => {
+            resolve_runtime_static_integer_landing_in_table(expressions, *inner, static_values)
+        }
+        _ => {
+            let key = PlaceKey::from_expression_handle(expressions, expression)?;
+            static_values.get(&key)?.landing()
+        }
     }
 }
 
@@ -256,28 +360,32 @@ pub(super) fn resolve_runtime_static_float_value_in_table(
     }
 }
 
-fn resolve_runtime_resolved_static_integer_value(
+fn resolve_runtime_resolved_static_integer(
     input: &InstructionSelectionInput<'_>,
     expression: Expression,
     static_values: &RuntimeStaticValues,
-) -> Option<i64> {
+) -> Option<RuntimeStaticInteger> {
     let expression = strip_mutable_expression(expression);
     match expression {
         // Full 8-byte pattern: the literal-width gate guarantees an oversize
         // literal only reaches u64-classed (8-byte) targets, where these bits
         // ARE the value.
-        Expression::Integer(value) => value.bits_u64().map(|bits| bits as i64),
-        Expression::Boolean(value) => Some(i64::from(value)),
+        Expression::Integer(value) => RuntimeStaticInteger::from_literal(&value),
+        Expression::Boolean(value) => Some(RuntimeStaticInteger::anonymous(i64::from(value))),
         Expression::Name(_) | Expression::Indexed(_) | Expression::Member(_) => {
-            enum_variant_value(&input.layouts, &expression).or_else(|| {
-                let key = PlaceKey::from_expression(&expression)?;
-                static_values.get(&key)
-            })
+            enum_variant_value(&input.layouts, &expression)
+                .map(RuntimeStaticInteger::anonymous)
+                .or_else(|| {
+                    let key = PlaceKey::from_expression(&expression)?;
+                    static_values.get(&key)
+                })
         }
         Expression::Unary(unary) => {
             let value =
-                resolve_runtime_resolved_static_integer_value(input, unary.operand, static_values)?;
-            Some(i64::from(value == 0))
+                resolve_runtime_resolved_static_integer(input, unary.operand, static_values)?;
+            Some(RuntimeStaticInteger::anonymous(i64::from(
+                value.bits() == 0,
+            )))
         }
         Expression::Range(_) => None,
         Expression::Mutable(_)
@@ -439,7 +547,7 @@ fn place_chain_has_runtime_index_in_table(
 pub(super) fn set_runtime_static_value(
     static_values: &mut RuntimeStaticValues,
     target: Expression,
-    value: i64,
+    value: RuntimeStaticInteger,
 ) {
     // A runtime-indexed write records no precise constant; it instead voids the
     // whole collection (it changed an unknown element).
@@ -459,7 +567,7 @@ pub(super) fn set_runtime_static_value_in_table(
     static_values: &mut RuntimeStaticValues,
     expressions: &ExpressionTable,
     target: ExpressionHandle,
-    value: i64,
+    value: RuntimeStaticInteger,
 ) {
     if let Some(collection) = runtime_indexed_write_collection_in_table(expressions, target) {
         static_values.invalidate_prefix(&collection);
@@ -507,5 +615,38 @@ pub(super) fn invalidate_runtime_static_collection_for_indexed_write(
 ) {
     if let Some(collection) = runtime_indexed_write_collection(target) {
         static_values.invalidate_prefix(&collection);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use omega_core::{
+        arithmetic::ArithmeticDomain,
+        literals::{IntegerLanding, LandedIntegerType},
+    };
+
+    use super::{RuntimeStaticInteger, RuntimeStaticValues};
+    use omega_platform_interface::PlaceKey;
+
+    #[test]
+    fn static_value_round_trip_preserves_integer_landing() {
+        let landing = IntegerLanding {
+            landed_type: LandedIntegerType::U32,
+            domain: ArithmeticDomain::Wrapping,
+        };
+        let value = RuntimeStaticInteger {
+            bits: u32::MAX.into(),
+            landing: Some(landing),
+        };
+        let target = PlaceKey::default();
+        let mut static_values = RuntimeStaticValues::new();
+
+        static_values.set(target.clone(), value);
+
+        assert_eq!(static_values.get(&target), Some(value));
+        assert_eq!(
+            static_values.get(&target).and_then(|value| value.landing()),
+            Some(landing)
+        );
     }
 }

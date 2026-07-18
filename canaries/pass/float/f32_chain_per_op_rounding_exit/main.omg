@@ -1,0 +1,20 @@
+// F2c width witness (2026-07-16): an f32 arithmetic CHAIN rounds at f32
+// per OP, natively and in the interpreter alike. 2^24 is the f32
+// precision cliff: per-op f32 rounding collapses each +1.0 back to
+// 16777216.0, while a double-width (f64) intermediate keeps 16777218.0 --
+// representable in f32, so the final store cannot repair it. Before the
+// fix, the scalar classifier typed every float literal F64 regardless of
+// its LANDED format, so the chain's NESTED binary operand planned the
+// 8-byte op (`addsd`) over f32 bit patterns: native diverged from the
+// interpreter (71 vs 70). The classifier now reads the literal's landing;
+// the whole chain plans `addss`. Exit 71 = a double-width intermediate
+// (or a width-mismatched nested op) crept back into an f32 chain.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine Main::main(&mut self) {
+    let big: f32 = 16777216.0;
+    let bumped: f32 = big + 1.0 + 1.0;
+    transition bumped == 16777216.0 { true -> per_op() _ -> window() }
+    state per_op(&self) { self.console.exit_process(70); }
+    state window(&self) { self.console.exit_process(71); }
+}

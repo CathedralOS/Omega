@@ -19,7 +19,6 @@ data Main { console: Console; }
 data Cnt { n: u64; }
 measure Cnt::Order(n: u64) -> u64 { n }
 machine Main::countdown(&mut self, c: Cnt)
-terminates;
 terminates by c.n -> Cnt::Order;
 -> u64
 {

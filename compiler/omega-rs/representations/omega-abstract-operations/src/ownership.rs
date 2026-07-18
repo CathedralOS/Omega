@@ -38,10 +38,24 @@ pub struct AbstractDropEvent {
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct AbstractPermissionEvent {
+    pub source_key: StateKey,
+    pub source: omega_core::semantics::PermissionEventSource,
+    pub kind: omega_core::semantics::PermissionEventKind,
+    pub multiplicity: omega_core::semantics::Multiplicity,
+    pub access: omega_core::semantics::PermissionAccess,
+    pub provenance: omega_core::semantics::PermissionProvenance,
+    pub root: omega_facts::PlaceRoot,
+    pub segments: HandleSpan<omega_facts::PlaceSegment>,
+    pub obligation_live: bool,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct AbstractOwnershipSummary {
     pub segments: Arena<omega_facts::PlaceSegment>,
     pub moves: Arena<AbstractMoveEvent>,
     pub drops: Arena<AbstractDropEvent>,
+    pub permissions: Arena<AbstractPermissionEvent>,
 }
 
 impl AbstractOwnershipSummary {
@@ -49,11 +63,13 @@ impl AbstractOwnershipSummary {
         segment_capacity: usize,
         move_capacity: usize,
         drop_capacity: usize,
+        permission_capacity: usize,
     ) -> Self {
         Self {
             segments: Arena::with_capacity(segment_capacity),
             moves: Arena::with_capacity(move_capacity),
             drops: Arena::with_capacity(drop_capacity),
+            permissions: Arena::with_capacity(permission_capacity),
         }
     }
 }

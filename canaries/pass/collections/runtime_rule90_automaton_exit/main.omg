@@ -94,6 +94,9 @@ machine Main::main(&mut self) {
         transition self.op >= 0 && self.op < 8 { true -> scan_do() _ -> scan_advance() }
     }
     state scan_do(&mut self) {
+        // F8 (ch5 shift-count ruling): the rule constant rides the window's
+        // Trapping domain -- the count is defined (traps if ever >= 32; the
+        // `& 7` construction keeps it in [0,7] so the trap never fires).
         self.nv = ((90 as i32 in Trapping) >> self.window) & 1;
         self.next[self.op] = self.nv;
         transition { _ -> scan_advance() }

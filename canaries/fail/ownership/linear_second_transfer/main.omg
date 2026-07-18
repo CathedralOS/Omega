@@ -1,0 +1,16 @@
+// FAIL canary (decision 21): transfer is conservation, not copying. A place
+// cannot supply the same linear obligation twice.
+data Receipt [linear] {
+    code: i32;
+}
+
+machine Receipt::ack(self) {}
+
+data Main {}
+
+machine Main::run() -> i32 {
+    let receipt: Receipt = Receipt { code: 7 };
+    Receipt::ack(receipt);
+    Receipt::ack(receipt);
+    0
+}

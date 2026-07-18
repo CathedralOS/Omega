@@ -2,26 +2,30 @@ use omega_typed_trees::data::DataMember;
 use omega_typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use omega_typed_trees::measure::MeasureDefinition;
 
-/// The well-founded ordering selected for a `terminates by value -> Order` witness.
+/// The well-founded ordering selected for a `terminates by value -> Order` clause.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) enum RankingOrder {
     /// Built-in descending naturals (also used for a simple `usize`-valued measure
     /// whose body forwards the parameter directly).
     NatDescending,
-    /// Built-in ascending progress toward a fixed natural upper bound. The
-    /// bound is an argument of the view (`Nat::IncreasingTo(limit)`), not a
-    /// second authored ranking subject; semantically the produced rank is the
-    /// remaining bounded distance.
-    NatIncreasingTo(ExpressionHandle),
     /// Built-in `Nat::BoundedDistance`: the named bounded-distance ranking over
     /// a two-subject tuple. `terminates by (index, limit) -> Nat::BoundedDistance`
     /// binds the subjects in order to the view's `(lower, upper)` parameters
     /// and ranks the pair by the natural-number distance from `lower` up to
     /// `upper`, which descends as the lower value climbs toward the fixed
-    /// upper bound. It must be selected explicitly as `-> Nat::BoundedDistance`.
+    /// upper bound. Inferred for a plain two-subject tuple (the only builtin
+    /// two-subject view) and selectable explicitly as `-> Nat::BoundedDistance`.
     BoundedDistance,
     /// Built-in `Slice::Length`.
     SliceLength,
+    /// Built-in argumented `Nat::IncreasingTo(limit)` (TPR3, decision 23's
+    /// acceptance test 5): one climbing subject ranked by its distance UP TO
+    /// the bound the view names -- well-founded BECAUSE the bound is part of
+    /// the view; authors never write the `limit - subject` subtraction. The
+    /// stored handle is the bound argument; the provers run it through the
+    /// bounded-distance machinery with `(subject, limit)` as `(lower,
+    /// upper)`.
+    IncreasingTo(ExpressionHandle),
     /// A declared `measure` whose body forwards the (already numeric) parameter.
     CustomNatDescending,
     /// A declared `measure` whose body projects a field of a struct parameter,
@@ -33,22 +37,26 @@ pub(super) enum RankingOrder {
     Lexicographic(Vec<omega_typed_trees::name::Identifier>),
 }
 
-/// The result of resolving the ordering for a ranking witness: either a
+/// The result of resolving the ordering for a `terminates by` clause: either a
 /// concrete [`RankingOrder`], or a reason it could not be resolved that lets the
 /// caller emit a precise diagnostic.
 pub(super) enum OrderResolution {
     /// A well-founded order was selected.
     Resolved(RankingOrder),
-    /// The witness omitted `-> View` and the subject has no single
+    /// The clause omitted `-> View` and the decreasing value has no single
     /// builtin well-founded interpretation, so an explicit ranking view is
     /// required. Carries the details the caller renders into the diagnostic.
     AmbiguousDefault(AmbiguousDefault),
     /// An explicit `-> Order` was supplied but does not name a supported or
     /// declared, well-formed measure.
     Unsupported,
+    /// A DIRECTED rejection (TPR3): the spelling is recognizably wrong in a
+    /// specific way (an unbounded increasing view, an argument-arity
+    /// mismatch, arguments on a plain view) and the message names the fix.
+    Rejected { message: String },
 }
 
-/// Why a plain `terminates by value` witness could not infer a default ranking, plus
+/// Why a plain `terminates by value` clause could not infer a default ranking, plus
 /// everything the diagnostic needs to suggest the explicit `-> View` form.
 pub(super) struct AmbiguousDefault {
     /// The decreasing value rendered as source-like text, e.g. `self.health`.
@@ -59,7 +67,7 @@ pub(super) struct AmbiguousDefault {
     /// decreasing value's type, rendered as `Type::Name` selection paths. These
     /// are suggestions only: a declared measure is NEVER selected implicitly,
     /// even when it is the only one, so that declaring a second measure later
-    /// cannot silently change or break distant ranking witnesses.
+    /// cannot silently change or break distant `terminates by` clauses.
     pub(super) declared_measures: Vec<String>,
 }
 
@@ -77,33 +85,62 @@ pub(super) enum AmbiguityReason {
 }
 
 impl RankingOrder {
-    /// Resolve the ordering for a `terminates by subjects -> order` witness. A
+    /// Resolve the ordering for a `terminates by subjects -> order` clause. A
     /// single subject with an empty `order` (plain `terminates by value`) infers
     /// from the value's type when that interpretation is unambiguous;
     /// otherwise an [`OrderResolution::AmbiguousDefault`] is returned so the
     /// caller can ask for the explicit form. The explicit
     /// `terminates by value -> Type::Name` path is unchanged. A two-subject tuple
-    /// has no canonical default and must explicitly select its joint view.
+    /// `terminates by (lower, upper)` is the argumented bounded distance: the
+    /// subjects bind in order to `Nat::BoundedDistance`'s `(lower, upper)`
+    /// parameters, and the view is inferred when omitted because it is the
+    /// only builtin two-subject ranking.
     pub(super) fn resolve(
         program: &omega_typed_trees::TypedTrees,
         state: &omega_typed_trees::state::State,
         subjects: &[ExpressionHandle],
-        order: &[omega_typed_trees::name::Identifier],
+        order: &[&str],
         view_arguments: &[ExpressionHandle],
     ) -> OrderResolution {
+        // TPR3: the argumented-view surface resolves (or rejects) FIRST --
+        // its spellings are specific enough for directed diagnostics.
+        if path_matches(order, &["Nat", "Increasing"]) {
+            return OrderResolution::Rejected {
+                message: "unbounded `Nat::Increasing` is not a well-founded ranking --                           the bound is part of the view: name it with                           `-> Nat::IncreasingTo(limit)`"
+                    .to_string(),
+            };
+        }
+        if path_matches(order, &["Nat", "IncreasingTo"]) {
+            if subjects.len() != 1 {
+                return OrderResolution::Rejected {
+                    message: "`Nat::IncreasingTo(limit)` ranks exactly ONE climbing                               subject -- the bound is the view's argument, not a second                               subject"
+                        .to_string(),
+                };
+            }
+            let [limit] = view_arguments else {
+                return OrderResolution::Rejected {
+                    message: "`Nat::IncreasingTo` names exactly one bound argument --                               spell `-> Nat::IncreasingTo(limit)`"
+                        .to_string(),
+                };
+            };
+            return OrderResolution::Resolved(Self::IncreasingTo(*limit));
+        }
+        if !view_arguments.is_empty() {
+            let path = order
+                .iter()
+                .copied()
+                .collect::<Vec<_>>()
+                .join("::");
+            return OrderResolution::Rejected {
+                message: format!(
+                    "view arguments are only meaningful on an argumented view                      (`Nat::IncreasingTo(limit)`); `{path}` takes none"
+                ),
+            };
+        }
         match subjects {
             [single] => {
                 if order.is_empty() {
                     return infer_default_order(program, state, *single);
-                }
-                if path_matches(order, &["Nat", "IncreasingTo"]) {
-                    return match view_arguments {
-                        [limit] => OrderResolution::Resolved(Self::NatIncreasingTo(*limit)),
-                        _ => OrderResolution::Unsupported,
-                    };
-                }
-                if !view_arguments.is_empty() {
-                    return OrderResolution::Unsupported;
                 }
                 match Self::from_path(program, state, *single, order) {
                     Some(resolved) => OrderResolution::Resolved(resolved),
@@ -111,12 +148,10 @@ impl RankingOrder {
                 }
             }
             [_lower, _upper] => {
-                if path_matches(order, &["Nat", "BoundedDistance"]) && view_arguments.is_empty() {
+                if order.is_empty() || path_matches(order, &["Nat", "BoundedDistance"]) {
                     OrderResolution::Resolved(Self::BoundedDistance)
                 } else {
-                    // Tuple subjects have no carrier-owned canonical default.
-                    // The historical implicit BoundedDistance choice is
-                    // retired: authors select the joint view explicitly.
+                    // No other builtin or declared view takes two subjects.
                     OrderResolution::Unsupported
                 }
             }
@@ -128,7 +163,7 @@ impl RankingOrder {
         program: &omega_typed_trees::TypedTrees,
         state: &omega_typed_trees::state::State,
         decreases: ExpressionHandle,
-        order: &[omega_typed_trees::name::Identifier],
+        order: &[&str],
     ) -> Option<Self> {
         if path_matches(order, &["Nat", "Descending"]) {
             return Some(Self::NatDescending);
@@ -186,7 +221,7 @@ impl RankingOrder {
     }
 }
 
-/// Infer the well-founded order for a plain `terminates by value` witness (no
+/// Infer the well-founded order for a plain `terminates by value` clause (no
 /// explicit `-> Order`) from the shape and type of the decreasing value.
 ///
 /// Inference only succeeds when the value has a single obvious well-founded
@@ -195,9 +230,9 @@ impl RankingOrder {
 ///     naturals;
 ///   * a slice parameter decreases by its length.
 ///
-/// (The two-subject bounded distance must be written explicitly as
-/// `terminates by (index, limit) -> Nat::BoundedDistance`; the retired
-/// expression-shaped spelling is rejected before inference runs.)
+/// (The two-subject bounded distance `terminates by (index, limit)` is inferred
+/// upstream in [`RankingOrder::resolve`]; the retired use-site subtraction
+/// `terminates by upper - lower` is rejected before inference runs.)
 ///
 /// Anything else (an unrecognized expression, or a value whose type offers no
 /// obvious interpretation) is reported as ambiguous so the caller can require
@@ -265,6 +300,7 @@ pub(super) fn decreasing_value_text(
     expression: ExpressionHandle,
 ) -> String {
     match program.expression_table.expression(expression) {
+        ExpressionNode::Integer(literal) => literal.text().to_string(),
         ExpressionNode::Name(path) => program
             .expression_table
             .name_path_members(path.members)
@@ -284,7 +320,6 @@ pub(super) fn decreasing_value_text(
                 decreasing_value_text(program, binary.right)
             )
         }
-        ExpressionNode::Integer(literal) => literal.text().to_owned(),
         _ => "value".to_string(),
     }
 }
@@ -465,12 +500,19 @@ fn lexicographic_component_fields(
 
 fn find_declared_measure<'program>(
     program: &'program omega_typed_trees::TypedTrees,
-    order: &[omega_typed_trees::name::Identifier],
+    order: &[&str],
 ) -> Option<&'program MeasureDefinition> {
     program
         .measures()
         .iter()
-        .find(|measure| path_matches_path(program.measure_path_members(measure.name), order))
+        .find(|measure| {
+            let actual = program.measure_path_members(measure.name);
+            actual.len() == order.len()
+                && actual
+                    .iter()
+                    .zip(order.iter())
+                    .all(|(actual, expected)| actual.as_str() == *expected)
+        })
 }
 
 /// `usize` is retired (parse-rejected); `u64` is the natural-measure name,
@@ -571,21 +613,10 @@ fn state_parameter_type_name(
         })
 }
 
-fn path_matches_path(
-    actual: &[omega_typed_trees::name::Identifier],
-    expected: &[omega_typed_trees::name::Identifier],
-) -> bool {
-    actual.len() == expected.len()
-        && actual
-            .iter()
-            .zip(expected.iter())
-            .all(|(actual, expected)| actual == expected)
-}
-
-fn path_matches(order: &[omega_typed_trees::name::Identifier], expected: &[&str]) -> bool {
+fn path_matches(order: &[&str], expected: &[&str]) -> bool {
     order.len() == expected.len()
         && order
             .iter()
             .zip(expected.iter())
-            .all(|(actual, expected)| actual.as_str() == *expected)
+            .all(|(actual, expected)| actual == expected)
 }

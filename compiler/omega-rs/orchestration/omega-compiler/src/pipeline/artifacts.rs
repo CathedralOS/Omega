@@ -183,6 +183,11 @@ pub(super) fn write_checked_snapshot(
         options,
         "05_capability_manifest.json",
         &omega_visualizations::capability_manifest_json(checked),
+    )?;
+    write_phase_json(
+        options,
+        "05_machine_contracts.json",
+        &omega_visualizations::machine_contract_manifest_json(checked),
     )
 }
 

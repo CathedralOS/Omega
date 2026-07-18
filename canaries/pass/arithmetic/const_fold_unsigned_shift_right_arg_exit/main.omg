@@ -7,12 +7,10 @@
 // pinned same-state by arithmetic/const_fold_unsigned_landed_ops_exit).
 //
 // FACE 2 (arg delivery): `report(y)` re-derives y's value from substituted
-// locals as a TYPELESS nested runtime binary (`(0 - 2) >> 1` -- the constant
-// local `a` has no slot, so no operand carries a type). The write's
-// signedness now falls back to the WRITE TARGET's primitive (the callee
-// param's u32) when no operand resolves --
-// select_runtime_storage_binary_write_in_table's target_primitive fallback --
-// so the shift emits logical `shr`.
+// locals as a nested runtime binary (`(0 - 2) >> 1`). Typed argument
+// materialization lands that anonymous constant value spine at the declared
+// u32/Wrapping parameter site, so operand-driven selection emits logical `shr`
+// without consulting the destination storage slot.
 //
 // exit 71 = either face regressed (an arithmetic `sar` produced 0xFFFFFFFF).
 

@@ -47,16 +47,6 @@ pub(crate) fn runtime_frame_base_indexed_binary_left_operand_offset(
     )
 }
 
-pub(crate) fn runtime_machine_indexed_integer_runtime_frame_address_offset(
-    architecture: Architecture,
-    base_byte_offset: usize,
-) -> usize {
-    omega_instruction_selection::runtime_machine_indexed_integer_runtime_frame_address_offset(
-        architecture,
-        base_byte_offset,
-    )
-}
-
 #[cfg(test)]
 mod tests {
     use super::{
@@ -75,11 +65,12 @@ mod tests {
             runtime_storage_binary_left_operand_offset(Architecture::X86_64),
             10
         );
-        // x86_64 computes the indexed target address into r14 before the value
-        // operands: mov r14,imm64 (10) + mov r15,[r14+idx] (7) + imul (7) + add (3).
+        // Binary rung 1b (the place materializer's canonicalized prefix):
+        // mov r15,imm64 (10) + mov r11d,[r15+idx] (7, 32-bit ZX) + imul (7)
+        // + add r15,r11 (3) + mov r14,r15 (3).
         assert_eq!(
             runtime_frame_base_indexed_binary_left_operand_offset(Architecture::X86_64, 4, 8, 12, 0),
-            27
+            30
         );
     }
 }

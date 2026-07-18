@@ -1,0 +1,22 @@
+// N4 TIER-2 (full polynomial): the binomial expansion discharges with ZERO
+// citations -- the SEMIRING license (add+mul comm/assoc + the conformed
+// DISTRIBUTIVITY law, all machine-checked on core Nat) normalizes both
+// sides into monomial multisets: mul distributes through add, factors and
+// monomials sort, and (a+b)(c+d) = ac+ad+bc+bd is one normal form on
+// every inductive arm.
+use omega::language::core::nat;
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine Main::main(&mut self) { self.console.exit_process(70); }
+
+machine binomial_expand(a: Nat, b: Nat, c: Nat, d: Nat) -> Nat
+terminates by a;
+ensures
+    (mul(add(a, b), add(c, d)))
+        == (add(add(mul(a, c), mul(a, d)), add(mul(b, c), mul(b, d))))
+{
+    transition a {
+        Nat::Zero -> Nat::Zero
+        Nat::Succ { prev } -> Nat::Succ { prev: binomial_expand(prev, b, c, d) }
+    }
+}

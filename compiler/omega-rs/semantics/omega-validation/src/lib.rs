@@ -3,6 +3,7 @@ mod call_cycles;
 mod calls;
 mod contract_entailment;
 mod data;
+mod destructure;
 mod domains;
 mod effects;
 mod entry_point;
@@ -11,13 +12,15 @@ mod invariants;
 mod literals;
 mod locals;
 mod machine_data;
+mod machine_parameters;
 mod operators;
 mod places;
 mod proof_facts;
+mod recasts;
 mod proof_only_faces;
 mod properties;
-mod recasts;
 mod state_signatures;
+mod default_domains;
 mod struct_literals;
 mod symbols;
 #[cfg(test)]
@@ -28,8 +31,8 @@ mod type_references;
 mod wire;
 
 use crate::calls::{
-    validate_call_node, validate_proof_machine_recursion, validate_self_recursive_call_positions,
-    validate_value_position_calls,
+    validate_call_node, validate_proof_machine_recursion,
+    validate_self_recursive_call_positions, validate_value_position_calls,
 };
 use crate::contract_entailment::validate_machine_contract_entailment;
 use crate::data::validate_data_field_types;
@@ -54,13 +57,14 @@ use crate::traits::{
 use crate::transitions::validate_transition_target_node;
 use crate::type_references::{TypeReferenceOwner, validate_type_reference_handle};
 pub use effects::{validate_asm_discharge, validate_effect_plan};
+use omega_core::diagnostics::Diagnostic;
+use omega_typed_trees::TypedTrees;
+use omega_typed_trees::statement::{StatementNode, TransitionTargetNode};
 /// The declared type of a simple place argument (bare name / `self.field`,
 /// through the `&mut` marker), WITH its Constrained shells -- exposed for the
 /// typed-trees machine-monomorphization pass's param-position inference.
 pub use literals::land_float_literal_destinations;
-use omega_core::diagnostics::Diagnostic;
-use omega_typed_trees::TypedTrees;
-use omega_typed_trees::statement::{StatementNode, TransitionTargetNode};
+pub use machine_parameters::validate_static_machine_selections;
 pub use places::declared_place_type_raw;
 pub use places::unwrapped_type_reference;
 pub use properties::{declared_property_names, type_satisfies_declared_property};
@@ -79,14 +83,12 @@ pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
     validate_trait_requirements(program, &mut diagnostics);
     validate_data_conformances(program, &symbols, &mut diagnostics);
     validate_data_field_types(program, &symbols, &mut diagnostics);
-    data::validate_data_default_domains(program, &mut diagnostics);
     // Math roster N1: recursive data is legal and PROOF-ONLY (computed, never
     // spelled); every runtime consumption face refuses with the
     // classification named.
     let proof_only = omega_typed_trees::proof_only::classify(program);
     proof_only_faces::validate_proof_only_consumption(program, &proof_only, &mut diagnostics);
-    // Decision 23: unranked machine call cycles are rejected here; ranked
-    // same-shaped SCCs proceed to the joint termination checker.
+    // Q6 ruling: machine call cycles are banned regardless of boundedness.
     call_cycles::validate_machine_call_cycles(program, &symbols, &mut diagnostics);
     data::validate_zero_reachable_field_ranges(program, &mut diagnostics);
     properties::validate_data_properties(program, &symbols, &mut diagnostics);
@@ -94,10 +96,17 @@ pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
     // before membership lowering synthesizes its internal tag compares; see
     // omega-symbol-resolved-trees-to-typed-trees/src/equality.rs.
     struct_literals::validate_struct_literal_fields(program, &mut diagnostics);
+    // Record patterns in LET (owner spec 2026-07-18): the exhaustiveness
+    // law on the parse-minted `__destructure#*` marker.
+    destructure::validate_destructure_exhaustiveness(program, &mut diagnostics);
+    // R2 rung 3 slice 1: the default-domain write obligation (strict
+    // store-time semantics; obligations before hypotheses).
+    default_domains::validate_default_domain_writes(program, &mut diagnostics);
     recasts::validate_recasts(program, &mut diagnostics);
     wire::validate_wire_schemas(program, &symbols, &mut diagnostics);
     operators::validate_operator_declarations(program, &mut diagnostics);
     validate_entry_point(program, &mut diagnostics);
+    machine_parameters::validate_static_machine_arguments(program, &mut diagnostics);
 
     for machine in program.machines() {
         let machine_symbols = MachineSymbols::build(program, machine, &mut diagnostics);
@@ -131,6 +140,38 @@ pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
         validate_machine_contract_entailment(program, machine, &mut diagnostics);
         validate_machine_trait_conformances(program, machine, &mut diagnostics);
 
+        // PRV4 step 1: a `via <Binding>` clause is the EXTERNAL LEAF's
+        // realization -- it must never parse and then silently drop. Exactly
+        // one via clause, on a bodyless non-boundary machine, populates
+        // ExternalRealization; every other carrier refuses here.
+        {
+            let via_count = program
+                .machine_trait_conformances(machine)
+                .iter()
+                .filter(|conformance| conformance.via.is_some())
+                .count();
+            let is_external = matches!(
+                machine.supply_mode,
+                omega_core::semantics::MachineSupplyMode::ExternalRealization { .. }
+            );
+            if via_count > 1 {
+                diagnostics.push(Diagnostic::error(format!(
+                    "machine `{}` carries {via_count} `via` bindings; an external \
+                     leaf has exactly one realization",
+                    machine.name,
+                )));
+            } else if via_count == 1 && !is_external {
+                diagnostics.push(Diagnostic::error(format!(
+                    "machine `{}` carries a `via` binding but is not an external \
+                     leaf: `satisfies Requirement via <Binding>;` belongs on a \
+                     BODYLESS non-boundary machine (a composite lowering is an \
+                     ordinary checked body; an accepted axiom carries no \
+                     realization)",
+                    machine.name,
+                )));
+            }
+        }
+
         for (state_index, state) in program.machine_states(machine).iter().enumerate() {
             // A state that DECLARES a return type but has an EMPTY body can
             // never produce the value -- callers would silently bind 0 (ZII),
@@ -141,6 +182,25 @@ pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
             // (fence_generic_value_callee).
             if state.return_type.is_valid()
                 && program.machine_type_parameters(machine).is_empty()
+                // A SPECIALIZED generic keeps its declaration symbol while
+                // MP4 substitution consumes its type parameters in place --
+                // it inherits the generic exemption (the core container
+                // surface is type-check-only; value calls stay fenced).
+                && !program
+                    .machine_specializations
+                    .iter()
+                    .any(|specialization| specialization.template == machine.symbol)
+                // CH10 ACCEPTED machines (bodyless `boundary machine`
+                // axioms) have no body BY DESIGN: their meaning is their
+                // ensures, admitted through the trust carrier, never
+                // produced by execution.
+                && machine.supply_mode != omega_core::semantics::MachineSupplyMode::Accepted
+                // PRV4: an EXTERNAL LEAF's body IS its binding -- the
+                // realization produces the value at the seam.
+                && !matches!(
+                    machine.supply_mode,
+                    omega_core::semantics::MachineSupplyMode::ExternalRealization { .. }
+                )
                 && program
                     .statement_table
                     .statements(state.statement_nodes)
@@ -185,65 +245,7 @@ pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
                 // 1 { true -> store() }` seeds `store` with dir in [0, 1]).
                 arithmetic_domains::sole_incoming_guard_env(program, machine, state)
             };
-            value_env.narrow_with(&arithmetic_domains::attached_data_default_domain_value_env(
-                program, machine,
-            ));
-            // A zero-invalid attached type enters its first state as raw gated
-            // storage. Later states are reached only through consumption-point
-            // transitions, which close the debt before the edge is accepted.
-            let mut default_domain_windows = Vec::<(String, String)>::new();
-            if state_index == 0
-                && !data::attached_default_domain_zero_is_valid(program, machine)
-                && let Some(attached_name) = machine.attached_data.as_ref()
-            {
-                default_domain_windows.push(("self".to_owned(), attached_name.as_str().to_owned()));
-            }
             for statement in program.statement_table.statements(state.statement_nodes) {
-                let consumption = matches!(
-                    statement,
-                    StatementNode::Call(_)
-                        | StatementNode::Transition(_)
-                        | StatementNode::Expression(_)
-                ) || matches!(statement, StatementNode::LocalData(local)
-                    if type_reference_is_borrow(program, local.type_reference));
-                if !default_domain_windows.is_empty() && consumption {
-                    close_default_domain_windows(
-                        program,
-                        machine,
-                        state.name.as_str(),
-                        &value_env,
-                        &default_domain_windows,
-                        "consumption point",
-                        &mut diagnostics,
-                    );
-                    default_domain_windows.clear();
-                } else if !default_domain_windows.is_empty() {
-                    let consumed_windows = default_domain_windows
-                        .iter()
-                        .filter(|(base, _)| statement_reads_whole_place(program, statement, base))
-                        .cloned()
-                        .collect::<Vec<_>>();
-                    if !consumed_windows.is_empty() {
-                        close_default_domain_windows(
-                            program,
-                            machine,
-                            state.name.as_str(),
-                            &value_env,
-                            &consumed_windows,
-                            "whole-value read",
-                            &mut diagnostics,
-                        );
-                        default_domain_windows.retain(|window| !consumed_windows.contains(window));
-                    }
-                }
-                struct_literals::validate_statement_default_domain_constructions(
-                    program,
-                    machine,
-                    state,
-                    statement,
-                    &value_env,
-                    &mut diagnostics,
-                );
                 // VALUE-position calls inside this statement's expression trees
                 // (LocalData initializers, transition arguments, guard subjects,
                 // etc.) are not reached by `validate_state_statement_node`; run
@@ -271,7 +273,13 @@ pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
                 // the measure itself: every self-call must structurally
                 // descend (N2d gateway).
                 if proof_only.is_proof_machine(program, machine) {
-                    validate_proof_machine_recursion(program, machine, statement, &mut diagnostics);
+                    validate_proof_machine_recursion(
+                        program,
+                        machine,
+                        state,
+                        statement,
+                        &mut diagnostics,
+                    );
                 } else {
                     validate_self_recursive_call_positions(
                         program,
@@ -292,24 +300,6 @@ pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
                     &mut value_env,
                     &mut diagnostics,
                 );
-                if let StatementNode::Assignment(assignment) = statement
-                    && let Some(window) =
-                        data::assignment_default_domain_window(program, machine, assignment.target)
-                    && !default_domain_windows.contains(&window)
-                {
-                    default_domain_windows.push(window);
-                }
-            }
-            if !default_domain_windows.is_empty() {
-                close_default_domain_windows(
-                    program,
-                    machine,
-                    state.name.as_str(),
-                    &value_env,
-                    &default_domain_windows,
-                    "state return or scope expiration",
-                    &mut diagnostics,
-                );
             }
         }
     }
@@ -317,121 +307,13 @@ pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
     finish_diagnostics(diagnostics)
 }
 
-fn type_reference_is_borrow(
-    program: &TypedTrees,
-    type_reference: omega_typed_trees::types::TypeReferenceHandle,
-) -> bool {
-    if !type_reference.is_valid() {
-        return false;
-    }
-    match program.type_reference_table.type_reference(type_reference) {
-        omega_typed_trees::types::TypeReferenceNode::Reference { .. } => true,
-        omega_typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
-            type_reference_is_borrow(program, *base_type)
-        }
-        _ => false,
-    }
-}
-
-fn statement_reads_whole_place(
-    program: &TypedTrees,
-    statement: &StatementNode,
-    wanted: &str,
-) -> bool {
-    match statement {
-        StatementNode::LocalData(local) => {
-            expression_reads_whole_place(program, local.initial_value, wanted)
-        }
-        StatementNode::Assignment(assignment) => {
-            expression_reads_whole_place(program, assignment.value, wanted)
-        }
-        // Calls, transitions, and expression statements already close every
-        // window conservatively before this precision path runs.
-        StatementNode::Call(_) | StatementNode::Transition(_) | StatementNode::Expression(_) => {
-            false
-        }
-    }
-}
-
-fn expression_reads_whole_place(
-    program: &TypedTrees,
-    expression: omega_typed_trees::expression::ExpressionHandle,
-    wanted: &str,
-) -> bool {
-    use omega_typed_trees::expression::ExpressionNode;
-    if !expression.is_valid() {
-        return false;
-    }
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
-            // A narrower projection (`self.map.end`) does not consume the
-            // whole `self.map` coupling. Exact-place reads do.
-            arithmetic_domains::place_path(program, expression).as_deref() == Some(wanted)
-        }
-        ExpressionNode::Mutable(inner) => expression_reads_whole_place(program, *inner, wanted),
-        ExpressionNode::Unary(unary) => {
-            expression_reads_whole_place(program, unary.operand, wanted)
-        }
-        ExpressionNode::Binary(binary) => {
-            expression_reads_whole_place(program, binary.left, wanted)
-                || expression_reads_whole_place(program, binary.right, wanted)
-        }
-        ExpressionNode::Cast(cast) => expression_reads_whole_place(program, cast.value, wanted),
-        ExpressionNode::Range(range) => {
-            expression_reads_whole_place(program, range.start, wanted)
-                || expression_reads_whole_place(program, range.end, wanted)
-        }
-        ExpressionNode::ArrayLiteral(values) => program
-            .expression_table
-            .expression_handles(*values)
-            .iter()
-            .any(|value| expression_reads_whole_place(program, *value, wanted)),
-        ExpressionNode::StructLiteral(literal) => program
-            .expression_table
-            .struct_fields(literal.fields)
-            .iter()
-            .any(|field| expression_reads_whole_place(program, field.value, wanted)),
-        ExpressionNode::Call(call) => {
-            (call.receiver.is_valid()
-                && expression_reads_whole_place(program, call.receiver, wanted))
-                || program
-                    .expression_table
-                    .expression_handles(call.arguments)
-                    .iter()
-                    .any(|argument| expression_reads_whole_place(program, *argument, wanted))
-        }
-        ExpressionNode::Boolean(_)
-        | ExpressionNode::Float(_)
-        | ExpressionNode::Integer(_)
-        | ExpressionNode::String(_) => false,
-    }
-}
-
-fn close_default_domain_windows(
-    program: &TypedTrees,
-    machine: &omega_typed_trees::machine::Machine,
-    state_name: &str,
-    value_env: &arithmetic_domains::ValueEnv,
-    windows: &[(String, String)],
-    consumption: &str,
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    for (base, data_name) in windows {
-        if arithmetic_domains::data_default_domain_is_proven(program, data_name, base, value_env) {
-            continue;
-        }
-        diagnostics.push(Diagnostic::error(format!(
-            "machine `{}` state `{state_name}` has an open default-domain invariant window for `{base}` (from gated zero storage or a field write), but `{data_name}`'s facts cannot be re-proven at the next {consumption}",
-            machine.name,
-        )));
-    }
-}
-
 /// Errors fail the build; a WARNING-only batch surfaces on stderr and
 /// passes (the Decision-12 relaxation: uniform compilation, deadness
 /// outside proofs warns). stderr is the v1 warning channel -- report
 /// integration is recorded in TASKS.md.
-pub(crate) fn finish_diagnostics(diagnostics: Vec<Diagnostic>) -> Result<(), Vec<Diagnostic>> {
+pub(crate) fn finish_diagnostics(
+    diagnostics: Vec<Diagnostic>,
+) -> Result<(), Vec<Diagnostic>> {
     if diagnostics.iter().any(Diagnostic::is_error) {
         return Err(diagnostics);
     }
@@ -614,16 +496,11 @@ fn validate_state_statement_node(
                 // the proof plan).
                 if let Some(handle) = assignment_target_type {
                     arithmetic_domains::check_range_containment(
-                        program,
-                        handle,
-                        interval,
-                        &owner,
-                        diagnostics,
+                        program, handle, interval, &owner, diagnostics,
                     );
                 }
             }
             arithmetic_domains::record_assignment(
-                program,
                 value_env,
                 arithmetic_domains::place_path(program, assignment.target),
                 interval,
@@ -633,8 +510,9 @@ fn validate_state_statement_node(
                     machine_symbols.state(state_name),
                     assignment.target,
                 )
-                .and_then(|handle| arithmetic_domains::enforced_declared_range(program, handle)),
-                assignment.value,
+                .and_then(|handle| {
+                    arithmetic_domains::enforced_declared_range(program, handle)
+                }),
             );
         }
         StatementNode::Call(call) => {
@@ -657,9 +535,12 @@ fn validate_state_statement_node(
             // `&mut` out-arguments' places (the boundary model's citable
             // fact) -- `fw.get_size(&mut self.n)` with `ensures size <= 8`
             // leaves `self.n` in [type_low, 8].
-            if let Some(signature) =
-                crate::calls::boundary_trait_signature(program, machine_symbols, symbols, call)
-            {
+            if let Some(signature) = crate::calls::boundary_trait_signature(
+                program,
+                machine_symbols,
+                symbols,
+                call,
+            ) {
                 arithmetic_domains::seed_out_param_ensures(
                     program,
                     machine,
@@ -927,7 +808,6 @@ fn validate_state_statement_node(
             }
             if local_data.initial_value.is_valid() {
                 arithmetic_domains::record_assignment(
-                    program,
                     value_env,
                     Some(local_data.name.as_str().to_owned()),
                     interval,
@@ -941,7 +821,6 @@ fn validate_state_statement_node(
                             )
                         })
                         .flatten(),
-                    local_data.initial_value,
                 );
             }
         }

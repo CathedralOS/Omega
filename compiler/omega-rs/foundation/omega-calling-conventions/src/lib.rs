@@ -306,6 +306,11 @@ pub enum HostOperation {
     Creat,
     /// `close(fd)` -- release a file descriptor.
     Close,
+    /// `CreateFileA(path, access, share, security, disposition, flags,
+    /// template)` -- open a Win32 path as a kernel HANDLE. Windows-only.
+    CreateFile,
+    /// `CloseHandle(handle)` -- release a Win32 kernel HANDLE. Windows-only.
+    CloseHandle,
     /// `unlink`/`remove` -- delete a path.
     Unlink,
     /// `lseek(fd, offset, whence)` -- reposition the descriptor, returning the
@@ -360,6 +365,38 @@ pub enum HostOperation {
     FindNext,
     /// `FindClose(handle)` -- release a find handle (BOOL).
     FindClose,
+    /// `CreateHardLinkA(link, existing, security_attributes)` -- the windows
+    /// hard-link primitive (session slice 3). Arg order is (NEW link,
+    /// existing) -- reversed from posix `link(existing, new)` -- with a
+    /// trailing security-attributes pointer the API requires as NULL (the
+    /// designed op passes 0). Returns BOOL (non-zero success); failure
+    /// reasons live in GetLastError, not msvcrt errno. Posix targets never
+    /// lower it (they bind `Link`).
+    CreateHardLink,
+    /// `_get_osfhandle(fd)` -- the msvcrt fd -> Win32 HANDLE bridge (session
+    /// slice 4a): the OS HANDLE behind an open CRT descriptor (i64; -2 for a
+    /// bad fd). Unlocks the HANDLE-keyed kernel32 surface. Windows-only.
+    GetOsfHandle,
+    /// `GetFinalPathNameByHandleA(handle, buffer, capacity, flags)` --
+    /// resolve an open handle to its final DOS path (windows canonicalize).
+    /// Returns the length written (no NUL), the required capacity (with NUL)
+    /// when too small, or 0 on failure. Windows-only.
+    FinalPathNameByHandle,
+    /// `SetFileTime(handle, creation, last_access, last_write)` -- stamp an
+    /// open handle's times from FILETIME buffers (the windows set_times leg;
+    /// session slice 4b). `creation` rides as a NULL-able scalar (0 = leave
+    /// alone); BOOL result. Windows-only.
+    SetFileTime,
+    /// `LockFileEx(handle, flags, reserved, length_low, length_high,
+    /// overlapped)` -- acquire a Win32 byte-range lock. The std wrapper uses
+    /// offset zero and the full u64 length to provide whole-file locking.
+    LockFileEx,
+    /// `UnlockFile(handle, offset_low, offset_high, length_low, length_high)` --
+    /// release a Win32 byte-range lock. Windows-only.
+    UnlockFile,
+    /// `GetLastError()` -- read the calling thread's Win32 last-error value.
+    /// Unlike `ReadErrno`, this returns the value directly (no dereference).
+    GetLastError,
     /// `stat(path, buf)` -- fill a `struct stat` buffer for a PATH (Rust
     /// `fs::metadata`). A path pointer + a buffer pointer (the kernel writes the
     /// 144-byte darwin stat record through it); the Omega layer reads `st_size`
@@ -613,8 +650,10 @@ impl HostOperation {
             "pread" => Self::PRead,
             "pwrite" => Self::PWrite,
             "open" => Self::Open,
+            "open_path_handle" => Self::CreateFile,
             "creat" => Self::Creat,
             "close" => Self::Close,
+            "close_handle" => Self::CloseHandle,
             "unlink" => Self::Unlink,
             "lseek" => Self::Seek,
             "mkdir" => Self::MakeDir,
@@ -631,6 +670,13 @@ impl HostOperation {
             "find_first" => Self::FindFirst,
             "find_next" => Self::FindNext,
             "find_close" => Self::FindClose,
+            "create_hard_link" => Self::CreateHardLink,
+            "get_osfhandle" => Self::GetOsfHandle,
+            "final_path_name_by_handle" => Self::FinalPathNameByHandle,
+            "set_file_time" => Self::SetFileTime,
+            "lock_file_ex" => Self::LockFileEx,
+            "unlock_file" => Self::UnlockFile,
+            "get_last_error" => Self::GetLastError,
             "stat" => Self::Stat,
             "fstat" => Self::FStat,
             "lstat" => Self::LStat,
@@ -708,8 +754,10 @@ impl HostOperation {
             Self::PRead => "pread",
             Self::PWrite => "pwrite",
             Self::Open => "open",
+            Self::CreateFile => "open_path_handle",
             Self::Creat => "creat",
             Self::Close => "close",
+            Self::CloseHandle => "close_handle",
             Self::Unlink => "unlink",
             Self::Seek => "lseek",
             Self::MakeDir => "mkdir",
@@ -726,6 +774,13 @@ impl HostOperation {
             Self::FindFirst => "find_first",
             Self::FindNext => "find_next",
             Self::FindClose => "find_close",
+            Self::CreateHardLink => "create_hard_link",
+            Self::GetOsfHandle => "get_osfhandle",
+            Self::FinalPathNameByHandle => "final_path_name_by_handle",
+            Self::SetFileTime => "set_file_time",
+            Self::LockFileEx => "lock_file_ex",
+            Self::UnlockFile => "unlock_file",
+            Self::GetLastError => "get_last_error",
             Self::Stat => "stat",
             Self::FStat => "fstat",
             Self::LStat => "lstat",
@@ -925,6 +980,72 @@ pub enum PlatformCallData {
     ConstantArgument {
         value: i64,
     },
+}
+
+impl PlatformCallData {
+    /// PRV2: the RENDERED call-shape spelling a ProviderPlan row carries
+    /// (`first_text_argument+newline`, `constant_result:1000000000`);
+    /// `None` for the plain-call shape. The parse below is its exact
+    /// inverse -- the pair is the plan/table seam, so the two sums never
+    /// drift silently.
+    pub fn render_call_shape(&self) -> Option<String> {
+        match self {
+            Self::None => None,
+            Self::FirstTextArgument { append_newline } => Some(if *append_newline {
+                "first_text_argument+newline".to_owned()
+            } else {
+                "first_text_argument".to_owned()
+            }),
+            Self::MutableOutputBuffer { byte_capacity } => {
+                Some(format!("mutable_output_buffer:{byte_capacity}"))
+            }
+            Self::SingleByteRead => Some("single_byte_read".to_owned()),
+            Self::SingleByteWrite => Some("single_byte_write".to_owned()),
+            Self::ConstantResult { value } => Some(format!("constant_result:{value}")),
+            Self::ConstantArgument { value } => Some(format!("constant_argument:{value}")),
+        }
+    }
+
+    /// PRV2: parse a plan row's rendered call shape. `None` input is the
+    /// plain call; an unrecognized spelling returns `Err` with the
+    /// spelling named (validation surfaces it).
+    pub fn parse_call_shape(rendered: Option<&str>) -> Result<Self, String> {
+        let Some(rendered) = rendered else {
+            return Ok(Self::None);
+        };
+        if rendered == "first_text_argument" {
+            return Ok(Self::FirstTextArgument {
+                append_newline: false,
+            });
+        }
+        if rendered == "first_text_argument+newline" {
+            return Ok(Self::FirstTextArgument {
+                append_newline: true,
+            });
+        }
+        if rendered == "single_byte_read" {
+            return Ok(Self::SingleByteRead);
+        }
+        if rendered == "single_byte_write" {
+            return Ok(Self::SingleByteWrite);
+        }
+        if let Some(capacity) = rendered.strip_prefix("mutable_output_buffer:") {
+            if let Ok(byte_capacity) = capacity.parse() {
+                return Ok(Self::MutableOutputBuffer { byte_capacity });
+            }
+        }
+        if let Some(value) = rendered.strip_prefix("constant_result:") {
+            if let Ok(value) = value.parse() {
+                return Ok(Self::ConstantResult { value });
+            }
+        }
+        if let Some(value) = rendered.strip_prefix("constant_argument:") {
+            if let Ok(value) = value.parse() {
+                return Ok(Self::ConstantArgument { value });
+            }
+        }
+        Err(format!("unrecognized call shape `{rendered}`"))
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1186,5 +1307,40 @@ pub fn host_operation_fixed_leading_immediate(
         (ObjectFormat::Coff, HostCapability::Stdin, HostOperation::GetStdHandle) => Some(-10),
         (ObjectFormat::Coff, HostCapability::Stderr, HostOperation::GetStdHandle) => Some(-12),
         _ => None,
+    }
+}
+
+#[cfg(test)]
+mod call_shape_tests {
+    use super::PlatformCallData;
+
+    #[test]
+    fn call_shape_round_trips() {
+        // PRV2: the render/parse pair is exact -- the plan/table seam
+        // never drifts silently.
+        let shapes = [
+            PlatformCallData::None,
+            PlatformCallData::FirstTextArgument {
+                append_newline: true,
+            },
+            PlatformCallData::FirstTextArgument {
+                append_newline: false,
+            },
+            PlatformCallData::MutableOutputBuffer { byte_capacity: 256 },
+            PlatformCallData::SingleByteRead,
+            PlatformCallData::SingleByteWrite,
+            PlatformCallData::ConstantResult { value: 1_000_000_000 },
+            PlatformCallData::ConstantArgument { value: 4 },
+        ];
+        for shape in shapes {
+            let rendered = shape.render_call_shape();
+            let parsed = PlatformCallData::parse_call_shape(rendered.as_deref())
+                .expect("rendered shapes parse");
+            assert_eq!(parsed, shape, "round trip for {rendered:?}");
+        }
+        assert!(
+            PlatformCallData::parse_call_shape(Some("mystery")).is_err(),
+            "unknown spellings surface as errors"
+        );
     }
 }

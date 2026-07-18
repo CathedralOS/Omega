@@ -1,7 +1,7 @@
 use omega_typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use omega_typed_trees::name::Identifier;
 
-use super::{EdgeClass, patterns};
+use super::patterns;
 
 /// Proves a self-loop terminates under a lexicographic `measure`, comparing the
 /// ordered projection components left-to-right: the first component that strictly
@@ -32,58 +32,20 @@ pub(super) fn state_has_proven_self_loop(
             let Some(argument) = self_loop.arguments.get(argument_index).copied() else {
                 return false;
             };
-            matches!(
-                argument_lexicographic_comparison(program, argument, parameter, fields),
-                Some(Comparison::StrictlyDecreasing)
-            )
+            argument_decreases_lexicographically(program, argument, parameter, fields)
         })
 }
 
-pub(super) fn classify_cross_machine_edge(
-    program: &omega_typed_trees::TypedTrees,
-    source: &omega_typed_trees::state::State,
-    target: &omega_typed_trees::state::State,
-    arguments: &[ExpressionHandle],
-    decreases: ExpressionHandle,
-    fields: &[Identifier],
-) -> EdgeClass {
-    let Some((parameter, _)) =
-        patterns::parameter_and_argument_index_matched_by_expression(program, source, decreases)
-    else {
-        return EdgeClass::Unknown;
-    };
-    let Some(argument_index) = program
-        .state_parameters(target)
-        .iter()
-        .filter(|candidate| !candidate.is_self)
-        .position(|candidate| candidate.name == parameter.name)
-    else {
-        return EdgeClass::Unknown;
-    };
-    let Some(argument) = arguments.get(argument_index).copied() else {
-        return EdgeClass::Unknown;
-    };
-
-    if patterns::expression_is_parameter(program, argument, parameter) {
-        return EdgeClass::NonIncreasing;
-    }
-    match argument_lexicographic_comparison(program, argument, parameter, fields) {
-        Some(Comparison::StrictlyDecreasing) => EdgeClass::Strict,
-        Some(Comparison::NonIncreasing) => EdgeClass::NonIncreasing,
-        None => EdgeClass::Unknown,
-    }
-}
-
-fn argument_lexicographic_comparison(
+fn argument_decreases_lexicographically(
     program: &omega_typed_trees::TypedTrees,
     argument: ExpressionHandle,
     parameter: &omega_typed_trees::signature::StateParameter,
     fields: &[Identifier],
-) -> Option<Comparison> {
+) -> bool {
     let ExpressionNode::StructLiteral(struct_literal) =
         program.expression_table.expression(argument)
     else {
-        return None;
+        return false;
     };
     let literal_fields = program
         .expression_table
@@ -95,19 +57,17 @@ fn argument_lexicographic_comparison(
             .find(|literal_field| literal_field.name.as_str() == field.as_str())
             .map(|literal_field| literal_field.value)
         else {
-            return None;
+            return false;
         };
 
         match component_comparison(program, value, parameter, field) {
-            Some(Comparison::StrictlyDecreasing) => {
-                return Some(Comparison::StrictlyDecreasing);
-            }
+            Some(Comparison::StrictlyDecreasing) => return true,
             Some(Comparison::NonIncreasing) => continue,
-            None => return None,
+            None => return false,
         }
     }
 
-    Some(Comparison::NonIncreasing)
+    false
 }
 
 enum Comparison {

@@ -95,6 +95,9 @@ pub(crate) fn resolve_state_call_target(
         if local.is_valid() {
             return local;
         }
+        if machine_parameter_signature_symbol(program, machine, target_symbol).is_valid() {
+            return target_symbol;
+        }
         // A receiverless call to a FREE top-level machine: symbol resolution
         // points target_symbol at the free machine's entry state, which lives
         // outside the caller machine.
@@ -156,11 +159,22 @@ pub(crate) fn resolve_state_call_target(
         return target_symbol;
     }
 
-    // A call through a PLATFORM-typed receiver (`self.console.write_line(text)`
-    // where `console: Console` and Console is a `platform` item): the resolved
-    // target is the platform's state signature, the third signature-owned
-    // contract shape the caller must discharge.
-    if platform_state_signature_symbol(program, target_symbol).is_valid() {
+    SymbolHandle::invalid()
+}
+
+/// `target_symbol` when it denotes a compile-time machine parameter declared
+/// by `machine`, or invalid. Such a target is a callable signature during
+/// modular checking and becomes a concrete state only during specialization.
+pub(crate) fn machine_parameter_signature_symbol(
+    program: &omega_typed_trees::TypedTrees,
+    machine: &omega_typed_trees::machine::Machine,
+    target_symbol: SymbolHandle,
+) -> SymbolHandle {
+    if target_symbol.is_valid()
+        && program
+            .machine_parameter_signature_in(machine, target_symbol)
+            .is_some()
+    {
         return target_symbol;
     }
 
@@ -197,25 +211,6 @@ pub(crate) fn trait_machine_signature_symbol(
             .traits()
             .iter()
             .flat_map(|trait_definition| program.trait_machine_signatures(trait_definition).iter())
-            .any(|signature| signature.symbol == target_symbol)
-    {
-        return target_symbol;
-    }
-
-    SymbolHandle::invalid()
-}
-
-/// `target_symbol` when it is a state signature of ANY platform in the program
-/// (the resolved target of a call through a platform-typed receiver), or invalid.
-pub(crate) fn platform_state_signature_symbol(
-    program: &omega_typed_trees::TypedTrees,
-    target_symbol: SymbolHandle,
-) -> SymbolHandle {
-    if target_symbol.is_valid()
-        && program
-            .platforms()
-            .iter()
-            .flat_map(|platform| program.platform_state_signatures(platform).iter())
             .any(|signature| signature.symbol == target_symbol)
     {
         return target_symbol;

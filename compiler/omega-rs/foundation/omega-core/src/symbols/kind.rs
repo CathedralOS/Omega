@@ -18,8 +18,11 @@ pub enum SymbolKind {
     WireSchema,
     Parameter,
     TypeParameter,
+    /// A compile-time machine-symbol parameter. Unlike a type parameter this
+    /// symbol is callable inside its generic machine through its authored
+    /// signature contract.
+    MachineParameter,
     Local,
-    Platform,
     HostCapability,
     Object,
     Function,

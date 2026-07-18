@@ -1,9 +1,11 @@
 data Main {
-    left: i32 = 1;
-    right: i32 = 2;
+    left: i32;
+    right: i32;
 }
 
 machine Main::main(&mut self) {
+    self.left = 1;
+    self.right = 2;
     copy(mut self.left, self.right);
 
 

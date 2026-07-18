@@ -1,0 +1,14 @@
+// Field defaults are RETIRED (owner ruling 2026-07-17): data declarations
+// carry no initializers -- ZII zero-initializes every field, and constructed
+// defaults belong in an ordinary constructor machine. The spelling refuses at
+// parse so an initializer can never parse and then silently disappear (the
+// old bug class this pin replaces: scalar defaults emitted, inline
+// aggregate-literal defaults silently dropped -- see the retired pending
+// canary arithmetic/array_field_default_silent).
+
+data Main {
+    xs: [i32; 3] = [1, 2, 3];
+}
+
+machine Main::main(&mut self) {
+}

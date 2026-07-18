@@ -4,8 +4,8 @@ use crate::parser::input::{Input, ParseResult, parse_path_handle_span};
 use omega_core::arena::HandleSpan;
 use omega_syntax_trees::SyntaxTrees;
 use omega_syntax_trees::expression::{
-    ExpressionHandle, ExpressionNode, TableCallExpression, TableCastExpression,
-    TableIndexedExpression, TableMemberExpression, TableRangeExpression,
+    ExpressionHandle, ExpressionNode, StaticMachineArgument, TableCallExpression,
+    TableCastExpression, TableIndexedExpression, TableMemberExpression, TableRangeExpression,
 };
 use omega_tokens::{KeywordKind, PunctuationKind};
 
@@ -52,12 +52,34 @@ pub(super) fn parse_postfix_expression_handle<'tokens, 'source>(
         parse_primary_expression_handle(syntax_trees, input, context)?;
 
     loop {
+        if input.at_punctuation(PunctuationKind::Less)
+            && let Some((machine_arguments, rest)) =
+                try_parse_static_machine_arguments(input)?
+        {
+            let after_open = rest.take_punctuation(PunctuationKind::LeftParen, "(")?;
+            let (arguments, rest) =
+                parse_argument_list_after_open_paren_handle(syntax_trees, after_open)?;
+            input = rest;
+            expression = build_call_expression_handle(
+                syntax_trees,
+                expression,
+                machine_arguments,
+                arguments,
+            )?;
+            continue;
+        }
+
         if input.at_punctuation(PunctuationKind::LeftParen) {
             input = input.take_punctuation(PunctuationKind::LeftParen, "(")?;
             let (arguments, rest) =
                 parse_argument_list_after_open_paren_handle(syntax_trees, input)?;
             input = rest;
-            expression = build_call_expression_handle(syntax_trees, expression, arguments)?;
+            expression = build_call_expression_handle(
+                syntax_trees,
+                expression,
+                Box::default(),
+                arguments,
+            )?;
             continue;
         }
 
@@ -79,23 +101,55 @@ pub(super) fn parse_postfix_expression_handle<'tokens, 'source>(
             let after_dot = input.take_punctuation(PunctuationKind::Dot, ".")?;
             let (member, rest) = after_dot.take_identifier()?;
 
-            // CONCURRENCY STAGE 1: `handle.join()` is the IDENTITY on the
-            // handle. Under the synchronous-spawn desugar (see
-            // `expression/spawn.rs`) the spawned call already ran to
-            // completion at the spawn site and `Join<T>` erased to `T`, so
-            // the handle IS the result. `join` is a reserved machine/state
-            // name (rejected at definition sites), so this rewrite can never
-            // capture a user method. Only the exact zero-argument call form
-            // rewrites; `x.join` stays an ordinary member read.
-            if member.as_str() == "join" && rest.at_punctuation(PunctuationKind::LeftParen) {
-                let after_open = rest.take_punctuation(PunctuationKind::LeftParen, "(")?;
-                if after_open.at_punctuation(PunctuationKind::RightParen) {
-                    input = after_open.take_punctuation(PunctuationKind::RightParen, ")")?;
-                    continue;
+            // CH10 ROOT GRANT (GR3): `b.accept_boundary<pkg::symbol>();` --
+            // the final build's grant spelling. The angle-bracket symbol is
+            // a compile-time parameter (ch13); no general angle-bracket call
+            // surface exists, so this carve recognizes the exact form and
+            // desugars to a MARKER-NAMED zero-argument member call
+            // (`accept_boundary#<path>` -- the asm#hlt / __destructure#
+            // marker convention; `#` cannot appear in identifiers, so the
+            // encoding is unambiguous). The build-config evaluation serves
+            // the marker and records the grant; outside a build machine the
+            // marker name fails resolution loudly rather than silently.
+            if member.as_str() == "accept_boundary"
+                && rest.at_punctuation(PunctuationKind::Less)
+            {
+                let mut path_input = rest.take_punctuation(PunctuationKind::Less, "<")?;
+                let mut rendered = String::new();
+                loop {
+                    let (segment, next) = path_input.take_identifier()?;
+                    if !rendered.is_empty() {
+                        rendered.push_str("::");
+                    }
+                    rendered.push_str(segment.as_str());
+                    if next.at_punctuation(PunctuationKind::ColonColon) {
+                        path_input = next.take_punctuation(PunctuationKind::ColonColon, "::")?;
+                        continue;
+                    }
+                    path_input = next.take_punctuation(PunctuationKind::Greater, ">")?;
+                    break;
                 }
-                return Err(after_open.error_here(
-                    "`join` takes no arguments: it returns the spawned call's completed result",
-                ));
+                let after_open =
+                    path_input.take_punctuation(PunctuationKind::LeftParen, "(")?;
+                if !after_open.at_punctuation(PunctuationKind::RightParen) {
+                    return Err(after_open.error_here(
+                        "`accept_boundary` takes its symbol in angle brackets and no \
+                         value arguments: `b.accept_boundary<pkg::symbol>();`",
+                    ));
+                }
+                input = after_open.take_punctuation(PunctuationKind::RightParen, ")")?;
+                expression =
+                    syntax_trees
+                        .expressions
+                        .insert(ExpressionNode::Call(TableCallExpression {
+                            receiver: expression,
+                            target: omega_syntax_trees::identifier::Identifier::generated(
+                                format!("accept_boundary#{rendered}"),
+                            ),
+                            machine_arguments: Box::default(),
+                            arguments: HandleSpan::empty(),
+                        }));
+                continue;
             }
 
             // ATOMICS STAGE 1 (ch17, M2): `atomic_place.load(ordering)` is the
@@ -176,6 +230,7 @@ pub(super) fn parse_postfix_expression_handle<'tokens, 'source>(
             // legally take part in domained arithmetic (the escape hatch for the
             // mixed-domain rejection). `in` is the contextual membership keyword.
             let mut domain = omega_core::arithmetic::ArithmeticDomain::Exact;
+            let mut semantic_domain = omega_core::arena::HandleSpan::empty();
             if input.at_contextual("in") {
                 if form.is_recast() {
                     return Err(input.error_here(
@@ -184,14 +239,21 @@ pub(super) fn parse_postfix_expression_handle<'tokens, 'source>(
                 }
                 let after_in = input.take_contextual("in")?;
                 let (domain_name, rest) = after_in.take_identifier()?;
-                let Some(parsed) =
-                    omega_core::arithmetic::ArithmeticDomain::from_name(domain_name.as_str())
-                else {
-                    return Err(rest.error_here(
-                        "unknown arithmetic domain; expected `Wrapping`, `Saturating`, or `Trapping`",
-                    ));
-                };
-                domain = parsed;
+                match omega_core::arithmetic::ArithmeticDomain::from_name(domain_name.as_str()) {
+                    Some(parsed) => domain = parsed,
+                    // A non-policy name is the semantic-domain qualification
+                    // spelling (decision 19) -- carried whole; validation
+                    // judges it against the program's DECLARED domains (the
+                    // parser cannot see other items).
+                    None => {
+                        syntax_trees
+                            .expressions
+                            .append_identifier_path_member_to_span(
+                                &mut semantic_domain,
+                                domain_name.clone(),
+                            );
+                    }
+                }
                 input = rest;
             }
             expression =
@@ -201,6 +263,7 @@ pub(super) fn parse_postfix_expression_handle<'tokens, 'source>(
                         value: expression,
                         target_type,
                         domain,
+                        semantic_domain,
                         form,
                     }));
             continue;
@@ -303,6 +366,7 @@ fn take_range_separator<'tokens, 'source>(
 fn build_call_expression_handle(
     syntax_trees: &mut SyntaxTrees,
     expression: ExpressionHandle,
+    machine_arguments: Box<[StaticMachineArgument]>,
     arguments: HandleSpan<ExpressionHandle>,
 ) -> Result<ExpressionHandle, ParseError> {
     let expression = syntax_trees.expressions.expression(expression).clone();
@@ -336,6 +400,7 @@ fn build_call_expression_handle(
                 .insert(ExpressionNode::Call(TableCallExpression {
                     receiver,
                     target,
+                    machine_arguments,
                     arguments,
                 })))
         }
@@ -345,11 +410,58 @@ fn build_call_expression_handle(
                 .insert(ExpressionNode::Call(TableCallExpression {
                     receiver: member.receiver,
                     target: member.member,
+                    machine_arguments,
                     arguments,
                 })))
         }
         _ => Err(ParseError::new(
             "call target must be a path or member access",
         )),
+    }
+}
+
+/// Recognize the unambiguous postfix shape `<Machine::symbol, ...>(` without
+/// stealing ordinary comparison expressions (`a < b`). The paths remain
+/// static declaration arguments; value arguments are parsed separately after
+/// the opening parenthesis.
+fn try_parse_static_machine_arguments<'tokens, 'source>(
+    input: Input<'tokens, 'source>,
+) -> Result<Option<(Box<[StaticMachineArgument]>, Input<'tokens, 'source>)>, ParseError> {
+    if !input.at_punctuation(PunctuationKind::Less) {
+        return Ok(None);
+    }
+
+    let mut cursor = input.take_punctuation(PunctuationKind::Less, "<")?;
+    let mut arguments = Vec::new();
+    loop {
+        let Ok((first, rest)) = cursor.take_identifier() else {
+            return Ok(None);
+        };
+        cursor = rest;
+        let mut path = vec![first];
+        while cursor.at_punctuation(PunctuationKind::ColonColon) {
+            let after_separator = cursor.take_punctuation(PunctuationKind::ColonColon, "::")?;
+            let Ok((member, rest)) = after_separator.take_identifier() else {
+                return Ok(None);
+            };
+            path.push(member);
+            cursor = rest;
+        }
+        arguments.push(StaticMachineArgument {
+            path: path.into_boxed_slice(),
+        });
+
+        if cursor.at_punctuation(PunctuationKind::Comma) {
+            cursor = cursor.take_punctuation(PunctuationKind::Comma, ",")?;
+            continue;
+        }
+        if !cursor.at_punctuation(PunctuationKind::Greater) {
+            return Ok(None);
+        }
+        cursor = cursor.take_punctuation(PunctuationKind::Greater, ">")?;
+        if !cursor.at_punctuation(PunctuationKind::LeftParen) {
+            return Ok(None);
+        }
+        return Ok(Some((arguments.into_boxed_slice(), cursor)));
     }
 }

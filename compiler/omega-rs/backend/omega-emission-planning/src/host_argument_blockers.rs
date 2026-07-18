@@ -364,27 +364,12 @@ fn selected_instruction_writes_runtime_text_buffer(
         SelectedInstructionKind::WriteRuntimeTextLiteral { buffer, .. }
         | SelectedInstructionKind::WriteRuntimeTextLiteralSegment { buffer, .. }
         | SelectedInstructionKind::AppendRuntimeTextStoredSuffix { buffer, .. }
-        | SelectedInstructionKind::MaterializeRuntimeTextBuffer { buffer, .. }
-        | SelectedInstructionKind::MaterializeRuntimeTextBufferToRuntimePointee {
-            buffer, ..
+        | SelectedInstructionKind::MaterializeTextBufferToPlace { buffer, .. }
+        | SelectedInstructionKind::AppendTextStoredToPlace { buffer, .. }
+        | SelectedInstructionKind::AppendTextLiteralToPlace { buffer, .. } => {
+            *buffer == data_handle
         }
-        | SelectedInstructionKind::MaterializeRuntimeTextBufferToRuntimeFrameIndexed {
-            buffer,
-            ..
-        }
-        | SelectedInstructionKind::AppendRuntimeTextStoredPlace { buffer, .. }
-        | SelectedInstructionKind::AppendRuntimeTextStoredPlaceToRuntimePointee {
-            buffer, ..
-        }
-        | SelectedInstructionKind::AppendRuntimeTextStoredPlaceToRuntimeFrameIndexed {
-            buffer,
-            ..
-        }
-        | SelectedInstructionKind::AppendRuntimeTextLiteral { buffer, .. }
-        | SelectedInstructionKind::AppendRuntimeTextLiteralToRuntimePointee { buffer, .. }
-        | SelectedInstructionKind::AppendRuntimeTextLiteralToRuntimeFrameIndexed {
-            buffer, ..
-        } => *buffer == data_handle,
+
         _ => host_operation(kind)
             .filter(|(operation_key, _)| {
                 operation_key.capability == HostCapability::Stdin

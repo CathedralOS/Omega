@@ -12,175 +12,12 @@ use omega_core::diagnostics::Diagnostic;
 use omega_typed_trees::TypedTrees;
 use omega_typed_trees::data::{DataDefinition, DataMember};
 use omega_typed_trees::expression::{ExpressionHandle, ExpressionNode, TableStructLiteral};
-use omega_typed_trees::machine::Machine;
-use omega_typed_trees::state::State;
-use omega_typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
-
-pub(crate) fn validate_statement_default_domain_constructions(
-    program: &TypedTrees,
-    machine: &Machine,
-    state: &State,
-    statement: &StatementNode,
-    env: &ValueEnv,
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    match statement {
-        StatementNode::Assignment(assignment) => {
-            scan_flow_construction(program, machine, state, assignment.target, env, diagnostics);
-            scan_flow_construction(program, machine, state, assignment.value, env, diagnostics);
-        }
-        StatementNode::Call(call) => {
-            for argument in program.statement_table.expression_handles(call.arguments) {
-                scan_flow_construction(program, machine, state, *argument, env, diagnostics);
-            }
-        }
-        StatementNode::Expression(expression) => {
-            scan_flow_construction(program, machine, state, *expression, env, diagnostics);
-        }
-        StatementNode::LocalData(local) => {
-            scan_flow_construction(
-                program,
-                machine,
-                state,
-                local.initial_value,
-                env,
-                diagnostics,
-            );
-        }
-        StatementNode::Transition(transition) => {
-            if let TransitionGuardNode::When(guard) = transition.guard {
-                scan_flow_construction(program, machine, state, guard, env, diagnostics);
-            }
-            for target in [transition.target, transition.continuation] {
-                if !target.is_valid() {
-                    continue;
-                }
-                match program.statement_table.transition_target(target) {
-                    TransitionTargetNode::Named { arguments, .. } => {
-                        for argument in program.statement_table.expression_handles(*arguments) {
-                            scan_flow_construction(
-                                program,
-                                machine,
-                                state,
-                                *argument,
-                                env,
-                                diagnostics,
-                            );
-                        }
-                    }
-                    TransitionTargetNode::Value(expression) => scan_flow_construction(
-                        program,
-                        machine,
-                        state,
-                        *expression,
-                        env,
-                        diagnostics,
-                    ),
-                    TransitionTargetNode::SelfTarget | TransitionTargetNode::Terminal => {}
-                }
-            }
-        }
-    }
-}
-
-fn scan_flow_construction(
-    program: &TypedTrees,
-    machine: &Machine,
-    state: &State,
-    expression: ExpressionHandle,
-    env: &ValueEnv,
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    if !expression.is_valid() {
-        return;
-    }
-    match program.expression_table.expression(expression) {
-        ExpressionNode::StructLiteral(literal) => {
-            if !crate::arithmetic_domains::struct_literal_default_domain_is_proven(
-                program, machine, state, literal, env,
-            ) {
-                let fact = program
-                    .data_definitions()
-                    .iter()
-                    .find(|data| data.name.as_str() == literal.type_name.as_str())
-                    .and_then(|data| {
-                        program
-                            .proof_facts
-                            .span_or_empty(data.default_domain)
-                            .first()
-                    })
-                    .map(|fact| match fact {
-                        omega_typed_trees::domain::ProofFact::Expression(expression) => {
-                            program.expression_table.display_name(*expression)
-                        }
-                        omega_typed_trees::domain::ProofFact::Membership(_) => {
-                            "<domain membership>".to_owned()
-                        }
-                    })
-                    .unwrap_or_else(|| "<field range or nested gate>".to_owned());
-                diagnostics.push(Diagnostic::error(format!(
-                    "construction of `{}` cannot prove default-domain fact `{fact}` from the current flow facts and field initializers",
-                    literal.type_name.as_str(),
-                )));
-            }
-            for field in program.expression_table.struct_fields(literal.fields) {
-                scan_flow_construction(program, machine, state, field.value, env, diagnostics);
-            }
-        }
-        ExpressionNode::ArrayLiteral(values) => {
-            for value in program.expression_table.expression_handles(*values) {
-                scan_flow_construction(program, machine, state, *value, env, diagnostics);
-            }
-        }
-        ExpressionNode::Binary(binary) => {
-            scan_flow_construction(program, machine, state, binary.left, env, diagnostics);
-            scan_flow_construction(program, machine, state, binary.right, env, diagnostics);
-        }
-        ExpressionNode::Call(call) => {
-            if call.receiver.is_valid() {
-                scan_flow_construction(program, machine, state, call.receiver, env, diagnostics);
-            }
-            for argument in program.expression_table.expression_handles(call.arguments) {
-                scan_flow_construction(program, machine, state, *argument, env, diagnostics);
-            }
-        }
-        ExpressionNode::Cast(cast) => {
-            scan_flow_construction(program, machine, state, cast.value, env, diagnostics);
-        }
-        ExpressionNode::Indexed(indexed) => {
-            scan_flow_construction(
-                program,
-                machine,
-                state,
-                indexed.collection,
-                env,
-                diagnostics,
-            );
-            scan_flow_construction(program, machine, state, indexed.index, env, diagnostics);
-        }
-        ExpressionNode::Member(member) => {
-            scan_flow_construction(program, machine, state, member.receiver, env, diagnostics);
-        }
-        ExpressionNode::Mutable(inner) => {
-            scan_flow_construction(program, machine, state, *inner, env, diagnostics);
-        }
-        ExpressionNode::Range(range) => {
-            scan_flow_construction(program, machine, state, range.start, env, diagnostics);
-            scan_flow_construction(program, machine, state, range.end, env, diagnostics);
-        }
-        ExpressionNode::Unary(unary) => {
-            scan_flow_construction(program, machine, state, unary.operand, env, diagnostics);
-        }
-        ExpressionNode::Boolean(_)
-        | ExpressionNode::Float(_)
-        | ExpressionNode::Integer(_)
-        | ExpressionNode::Name(_)
-        | ExpressionNode::String(_) => {}
-    }
-}
 use omega_typed_trees::types::{
     FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode,
 };
+use omega_typed_trees::machine::Machine;
+use omega_typed_trees::state::State;
+use omega_typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 
 pub(crate) fn validate_struct_literal_fields(
     program: &TypedTrees,
@@ -191,29 +28,23 @@ pub(crate) fn validate_struct_literal_fields(
             for statement in program.statement_table.statements(state.statement_nodes) {
                 match statement {
                     StatementNode::Assignment(assignment) => {
-                        scan_expression(program, machine, state, assignment.target, diagnostics);
-                        scan_expression(program, machine, state, assignment.value, diagnostics);
+                        scan_expression(program, machine, state,assignment.target, diagnostics);
+                        scan_expression(program, machine, state,assignment.value, diagnostics);
                     }
                     StatementNode::Call(call) => {
                         for argument in program.statement_table.expression_handles(call.arguments) {
-                            scan_expression(program, machine, state, *argument, diagnostics);
+                            scan_expression(program, machine, state,*argument, diagnostics);
                         }
                     }
                     StatementNode::Expression(expression) => {
-                        scan_expression(program, machine, state, *expression, diagnostics);
+                        scan_expression(program, machine, state,*expression, diagnostics);
                     }
                     StatementNode::LocalData(local_data) => {
-                        scan_expression(
-                            program,
-                            machine,
-                            state,
-                            local_data.initial_value,
-                            diagnostics,
-                        );
+                        scan_expression(program, machine, state,local_data.initial_value, diagnostics);
                     }
                     StatementNode::Transition(transition) => {
                         if let TransitionGuardNode::When(guard) = &transition.guard {
-                            scan_expression(program, machine, state, *guard, diagnostics);
+                            scan_expression(program, machine, state,*guard, diagnostics);
                         }
                         for target in [transition.target, transition.continuation] {
                             if !target.is_valid() {
@@ -244,11 +75,11 @@ fn scan_transition_target(
     match target {
         TransitionTargetNode::Named { arguments, .. } => {
             for argument in program.statement_table.expression_handles(*arguments) {
-                scan_expression(program, machine, state, *argument, diagnostics);
+                scan_expression(program, machine, state,*argument, diagnostics);
             }
         }
         TransitionTargetNode::Value(expression) => {
-            scan_expression(program, machine, state, *expression, diagnostics);
+            scan_expression(program, machine, state,*expression, diagnostics);
         }
         TransitionTargetNode::SelfTarget | TransitionTargetNode::Terminal => {}
     }
@@ -267,47 +98,39 @@ fn scan_expression(
 
     match program.expression_table.expression(expression) {
         ExpressionNode::StructLiteral(literal) => {
-            validate_literal_field_names(program, &literal, diagnostics);
+            validate_literal_field_names(program, machine, state, &literal, diagnostics);
             enforce_construction_field_obligations(program, machine, state, &literal, diagnostics);
             for field in program.expression_table.struct_fields(literal.fields) {
-                scan_expression(program, machine, state, field.value, diagnostics);
+                scan_expression(program, machine, state,field.value, diagnostics);
             }
         }
         ExpressionNode::ArrayLiteral(elements) => {
             for element in program.expression_table.expression_handles(*elements) {
-                scan_expression(program, machine, state, *element, diagnostics);
+                scan_expression(program, machine, state,*element, diagnostics);
             }
         }
         ExpressionNode::Binary(binary) => {
-            scan_expression(program, machine, state, binary.left, diagnostics);
-            scan_expression(program, machine, state, binary.right, diagnostics);
+            scan_expression(program, machine, state,binary.left, diagnostics);
+            scan_expression(program, machine, state,binary.right, diagnostics);
         }
-        ExpressionNode::Cast(cast) => {
-            scan_expression(program, machine, state, cast.value, diagnostics)
-        }
+        ExpressionNode::Cast(cast) => scan_expression(program, machine, state,cast.value, diagnostics),
         ExpressionNode::Call(call) => {
-            scan_expression(program, machine, state, call.receiver, diagnostics);
+            scan_expression(program, machine, state,call.receiver, diagnostics);
             for argument in program.expression_table.expression_handles(call.arguments) {
-                scan_expression(program, machine, state, *argument, diagnostics);
+                scan_expression(program, machine, state,*argument, diagnostics);
             }
         }
         ExpressionNode::Indexed(indexed) => {
-            scan_expression(program, machine, state, indexed.collection, diagnostics);
-            scan_expression(program, machine, state, indexed.index, diagnostics);
+            scan_expression(program, machine, state,indexed.collection, diagnostics);
+            scan_expression(program, machine, state,indexed.index, diagnostics);
         }
-        ExpressionNode::Member(member) => {
-            scan_expression(program, machine, state, member.receiver, diagnostics)
-        }
-        ExpressionNode::Mutable(inner) => {
-            scan_expression(program, machine, state, *inner, diagnostics)
-        }
+        ExpressionNode::Member(member) => scan_expression(program, machine, state,member.receiver, diagnostics),
+        ExpressionNode::Mutable(inner) => scan_expression(program, machine, state,*inner, diagnostics),
         ExpressionNode::Range(range) => {
-            scan_expression(program, machine, state, range.start, diagnostics);
-            scan_expression(program, machine, state, range.end, diagnostics);
+            scan_expression(program, machine, state,range.start, diagnostics);
+            scan_expression(program, machine, state,range.end, diagnostics);
         }
-        ExpressionNode::Unary(unary) => {
-            scan_expression(program, machine, state, unary.operand, diagnostics)
-        }
+        ExpressionNode::Unary(unary) => scan_expression(program, machine, state,unary.operand, diagnostics),
         ExpressionNode::Boolean(_)
         | ExpressionNode::Float(_)
         | ExpressionNode::Integer(_)
@@ -321,6 +144,8 @@ fn scan_expression(
 /// members; case literals construct the named variant's PAYLOAD fields.
 fn validate_literal_field_names(
     program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
     literal: &TableStructLiteral,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -368,6 +193,14 @@ fn validate_literal_field_names(
     if data_definition.type_parameters.count() > 0 {
         return;
     }
+
+    // R2 rung 2b + slice 9 (ch12 "Construction is the gate"): a literal of
+    // a domain-carrying type must PROVE the default domain -- every `where`
+    // fact folds over the field-value INTERVALS (integer literals as
+    // points; ranged places by their DECLARED intervals; omitted fields
+    // read 0). Definitely-false refuses as a violation; unprovable refuses
+    // with direction.
+    validate_literal_default_domain(program, machine, state, literal, data_definition, diagnostics);
 
     match &literal.case_name {
         None => {
@@ -466,7 +299,8 @@ fn enforce_construction_field_obligations(
         return;
     }
 
-    enforce_gated_field_presence(program, data_definition, literal, diagnostics);
+    // Slice 9: the case-payload path proves the domain over intervals too.
+    validate_literal_default_domain(program, machine, state, literal, data_definition, diagnostics);
 
     for field in program.expression_table.struct_fields(literal.fields) {
         let Some(field_type) = construction_field_type(
@@ -480,23 +314,13 @@ fn enforce_construction_field_obligations(
         // An array-literal field value (`Holder { arr: [300, ..] }`) is checked
         // element-wise against the field's `[T; N]` element type. The scalar guards
         // below no-op on a non-primitive (array) field, so this is the complement.
-        validate_array_literal_elements(
-            program,
-            machine,
-            state,
-            field.value,
-            field_type,
-            diagnostics,
-        );
+        validate_array_literal_elements(program, machine, state, field.value, field_type, diagnostics);
         // Cross-class guard: a `bool`/text value stored into a numeric field (or
         // vice versa) at construction is a silent miscompile, exactly as at the
         // assignment / call-argument positions. Reject it before the range check
         // (which only applies to `[a..=b]`-constrained fields), so every primitive
         // field -- range-constrained or not -- is class-checked.
-        let slot_context = format!(
-            "construction of `{type_name}` field `{}`",
-            field.name.as_str()
-        );
+        let slot_context = format!("construction of `{type_name}` field `{}`", field.name.as_str());
         // Shape guard: `P { x: self.xs }` puts an array into a scalar field (or a
         // scalar into an array field). Runs for EVERY field -- the scalar class
         // guard and the data nominal guard below both no-op on an array value.
@@ -582,10 +406,7 @@ fn enforce_construction_field_obligations(
         let bounds = format!(
             "{}..={}",
             range.low().map(|low| low.to_string()).unwrap_or_default(),
-            range
-                .high()
-                .map(|high| high.to_string())
-                .unwrap_or_default(),
+            range.high().map(|high| high.to_string()).unwrap_or_default(),
         );
         match construction_field_literal(program, field.value) {
             Some(value) => {
@@ -623,9 +444,9 @@ fn enforce_construction_field_obligations(
                 let provably_in_range = range
                     .low()
                     .is_none_or(|low| interval.low().is_some_and(|value_low| value_low >= low))
-                    && range.high().is_none_or(|high| {
-                        interval.high().is_some_and(|value_high| value_high <= high)
-                    });
+                    && range
+                        .high()
+                        .is_none_or(|high| interval.high().is_some_and(|value_high| value_high <= high));
                 if !provably_in_range {
                     diagnostics.push(Diagnostic::error(format!(
                         "construction of `{type_name}` field `{}` cannot be proven within its declared range `{bounds}`; constrain the value, construct with a literal in range, or widen the field",
@@ -633,32 +454,6 @@ fn enforce_construction_field_obligations(
                     )));
                 }
             }
-        }
-    }
-}
-
-fn enforce_gated_field_presence(
-    program: &TypedTrees,
-    data_definition: &DataDefinition,
-    literal: &TableStructLiteral,
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    for member in program.data_members(data_definition) {
-        let DataMember::Field(field) = member else {
-            continue;
-        };
-        let omitted = !program
-            .expression_table
-            .struct_fields(literal.fields)
-            .iter()
-            .any(|initializer| initializer.name.as_str() == field.name.as_str());
-        let gated = !crate::data::data_field_type_zero_is_valid(program, field.type_reference);
-        if omitted && gated {
-            diagnostics.push(Diagnostic::error(format!(
-                "construction of `{}` omits gated field `{}`; its zero value does not satisfy the field type's default domain, so the field is mandatory",
-                data_definition.name.as_str(),
-                field.name.as_str(),
-            )));
         }
     }
 }
@@ -715,10 +510,7 @@ pub(crate) fn validate_array_literal_elements(
     match program.primitive_type_reference(element_type) {
         // SCALAR element type: cross-class + narrowing per element.
         Some(element_primitive) => {
-            let owner = format!(
-                "array literal element of type `{}`",
-                element_primitive.name()
-            );
+            let owner = format!("array literal element of type `{}`", element_primitive.name());
             for element in element_handles {
                 // Class check first; a cross-class element is not also narrowing-checked.
                 if crate::expression_types::report_cross_class_store(
@@ -808,13 +600,16 @@ pub(crate) fn construction_field_type(
     field_name: &str,
 ) -> Option<omega_typed_trees::types::TypeReferenceHandle> {
     if let Some(case_name) = case_name
-        && let Some(variant) = program
-            .data_members(data_definition)
-            .iter()
-            .find_map(|member| match member {
-                DataMember::Variant(variant) if variant.name.as_str() == case_name => Some(variant),
-                _ => None,
-            })
+        && let Some(variant) =
+            program
+                .data_members(data_definition)
+                .iter()
+                .find_map(|member| match member {
+                    DataMember::Variant(variant) if variant.name.as_str() == case_name => {
+                        Some(variant)
+                    }
+                    _ => None,
+                })
     {
         for payload_field in program.data_payload_fields(variant) {
             if payload_field.name.as_str() == field_name {
@@ -844,5 +639,275 @@ fn construction_field_literal(program: &TypedTrees, value: ExpressionHandle) -> 
     match program.expression_table.expression(value) {
         ExpressionNode::Integer(literal) => literal.value_i64(),
         _ => None,
+    }
+}
+
+/// R2 rung 2b: fold every default-domain fact at the LITERAL's field
+/// valuation. Field names read the literal's integer value (omitted -> 0);
+/// literals, `+ - *`, comparisons, and `&&`/`||` fold. A fact that fails
+/// refuses naming it; a fact that cannot fold (a runtime-valued field)
+/// refuses as unverifiable.
+fn validate_literal_default_domain(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    literal: &TableStructLiteral,
+    data_definition: &DataDefinition,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if data_definition.where_facts.is_empty() {
+        return;
+    }
+    let type_name = literal.type_name.as_str();
+    // Slice 9: each field's value resolves to an INTERVAL -- an integer
+    // literal is a point; a place with a declared `[a..=b]` range (a ranged
+    // parameter, a range-refined field) contributes its DECLARED interval
+    // (declared ranges always hold); anything else is unknown.
+    let mut valuation: Vec<(&str, Bounds)> = Vec::new();
+    for field in program.expression_table.struct_fields(literal.fields) {
+        let value = value_bounds(program, machine, state, field.value);
+        valuation.push((field.name.as_str(), value));
+    }
+    for fact in program.proof_facts.span_or_empty(data_definition.where_facts) {
+        let omega_typed_trees::domain::ProofFact::Expression(expression) = fact else {
+            continue;
+        };
+        match bounds_fold(program, &valuation, *expression) {
+            Truth::True => {}
+            Truth::False => diagnostics.push(Diagnostic::error(format!(
+                "data `{type_name}` literal violates the default domain: a `where` \
+                 fact evaluates FALSE at this construction (ch12: construction is \
+                 the gate)"
+            ))),
+            Truth::Unknown => diagnostics.push(Diagnostic::error(format!(
+                "data `{type_name}` literal cannot PROVE the default domain: a \
+                 `where`-mentioned field's value is neither a literal nor a \
+                 declared-range place whose interval decides the fact -- spell a \
+                 literal, or constrain the value's declared range"
+            ))),
+        }
+    }
+}
+
+/// A conservative value interval (both ends optional).
+#[derive(Clone, Copy)]
+struct Bounds {
+    low: Option<i64>,
+    high: Option<i64>,
+}
+
+impl Bounds {
+    const UNKNOWN: Bounds = Bounds {
+        low: None,
+        high: None,
+    };
+    fn point(value: i64) -> Bounds {
+        Bounds {
+            low: Some(value),
+            high: Some(value),
+        }
+    }
+}
+
+enum Truth {
+    True,
+    False,
+    Unknown,
+}
+
+/// Slice 9: a literal field VALUE's sound interval -- an integer literal is
+/// a point; a Name/Member place with a declared range contributes that
+/// range intersected with its primitive width; anything else is unknown.
+fn value_bounds(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    expression: ExpressionHandle,
+) -> Bounds {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Integer(value) => value
+            .text()
+            .parse::<i64>()
+            .map(Bounds::point)
+            .unwrap_or(Bounds::UNKNOWN),
+        ExpressionNode::Mutable(inner) => value_bounds(program, machine, state, *inner),
+        ExpressionNode::Name(_) | ExpressionNode::Member(_) => {
+            // RAW keeps the Constrained shell that carries the declared
+            // range (the unwrapping variant strips it).
+            let Some(handle) = crate::places::declared_place_type_raw(
+                program,
+                machine,
+                Some(state),
+                expression,
+            ) else {
+                return Bounds::UNKNOWN;
+            };
+            match crate::arithmetic_domains::range_constraint_interval(program, handle) {
+                Some(interval) => Bounds {
+                    low: interval.low,
+                    high: interval.high,
+                },
+                None => Bounds::UNKNOWN,
+            }
+        }
+        _ => Bounds::UNKNOWN,
+    }
+}
+
+/// Fold a `where` fact over the field-value intervals. Comparisons yield a
+/// TRI-STATE truth encoded as bounds ([1,1] true / [0,0] false / [0,1]
+/// unknown) so `&&`/`||` compose; arithmetic uses saturating interval ops.
+fn bounds_fold(
+    program: &TypedTrees,
+    valuation: &[(&str, Bounds)],
+    expression: ExpressionHandle,
+) -> Truth {
+    let bounds = bounds_eval(program, valuation, expression);
+    match (bounds.low, bounds.high) {
+        (Some(low), _) if low >= 1 => Truth::True,
+        (_, Some(high)) if high <= 0 => Truth::False,
+        _ => Truth::Unknown,
+    }
+}
+
+fn bounds_eval(
+    program: &TypedTrees,
+    valuation: &[(&str, Bounds)],
+    expression: ExpressionHandle,
+) -> Bounds {
+    use omega_typed_trees::expression::BinaryOperator;
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Name(path) => {
+            let Some(last) = program
+                .expression_table
+                .name_path_members(path.members)
+                .last()
+            else {
+                return Bounds::UNKNOWN;
+            };
+            valuation
+                .iter()
+                .find(|(name, _)| *name == last.as_str())
+                .map(|(_, bounds)| *bounds)
+                // Omitted fields read the ZII zero at construction.
+                .unwrap_or(Bounds::point(0))
+        }
+        ExpressionNode::Integer(value) => value
+            .text()
+            .parse::<i64>()
+            .map(Bounds::point)
+            .unwrap_or(Bounds::UNKNOWN),
+        ExpressionNode::Binary(binary) => {
+            let left = bounds_eval(program, valuation, binary.left);
+            let right = bounds_eval(program, valuation, binary.right);
+            match binary.operator {
+                BinaryOperator::Add => Bounds {
+                    low: left.low.zip(right.low).map(|(a, b)| a.saturating_add(b)),
+                    high: left.high.zip(right.high).map(|(a, b)| a.saturating_add(b)),
+                },
+                BinaryOperator::Subtract => Bounds {
+                    low: left.low.zip(right.high).map(|(a, b)| a.saturating_sub(b)),
+                    high: left.high.zip(right.low).map(|(a, b)| a.saturating_sub(b)),
+                },
+                BinaryOperator::Multiply => {
+                    match (left.low, left.high, right.low, right.high) {
+                        (Some(a), Some(b), Some(c), Some(d)) => {
+                            let products = [
+                                a.saturating_mul(c),
+                                a.saturating_mul(d),
+                                b.saturating_mul(c),
+                                b.saturating_mul(d),
+                            ];
+                            Bounds {
+                                low: products.iter().min().copied(),
+                                high: products.iter().max().copied(),
+                            }
+                        }
+                        _ => Bounds::UNKNOWN,
+                    }
+                }
+                BinaryOperator::LessOrEqual => tri(compare(left, right, |a, b| a <= b)),
+                BinaryOperator::Less => tri(compare(left, right, |a, b| a < b)),
+                BinaryOperator::GreaterOrEqual => tri(compare(right, left, |a, b| a <= b)),
+                BinaryOperator::Greater => tri(compare(right, left, |a, b| a < b)),
+                BinaryOperator::Equal => tri(equality(left, right, true)),
+                BinaryOperator::NotEqual => tri(equality(left, right, false)),
+                BinaryOperator::And => tri(truth_and(
+                    to_truth(left),
+                    to_truth(right),
+                )),
+                BinaryOperator::Or => tri(truth_or(to_truth(left), to_truth(right))),
+                _ => Bounds::UNKNOWN,
+            }
+        }
+        ExpressionNode::Mutable(inner) => bounds_eval(program, valuation, *inner),
+        _ => Bounds::UNKNOWN,
+    }
+}
+
+/// `left OP right` decided from interval ends: definitely true when every
+/// left value relates to every right value; definitely false when none do.
+fn compare(left: Bounds, right: Bounds, relates: fn(i64, i64) -> bool) -> Truth {
+    if let (Some(left_high), Some(right_low)) = (left.high, right.low)
+        && relates(left_high, right_low)
+    {
+        return Truth::True;
+    }
+    if let (Some(left_low), Some(right_high)) = (left.low, right.high)
+        && !relates(left_low, right_high)
+    {
+        return Truth::False;
+    }
+    Truth::Unknown
+}
+
+fn equality(left: Bounds, right: Bounds, wants_equal: bool) -> Truth {
+    // Equal iff both are the SAME point; definitely unequal iff the
+    // intervals are disjoint.
+    let same_point = left.low == left.high
+        && right.low == right.high
+        && left.low.is_some()
+        && left.low == right.low;
+    let disjoint = matches!((left.high, right.low), (Some(a), Some(b)) if a < b)
+        || matches!((right.high, left.low), (Some(a), Some(b)) if a < b);
+    match (same_point, disjoint, wants_equal) {
+        (true, _, true) | (_, true, false) => Truth::True,
+        (true, _, false) | (_, true, true) => Truth::False,
+        _ => Truth::Unknown,
+    }
+}
+
+fn to_truth(bounds: Bounds) -> Truth {
+    match (bounds.low, bounds.high) {
+        (Some(low), _) if low >= 1 => Truth::True,
+        (_, Some(high)) if high <= 0 => Truth::False,
+        _ => Truth::Unknown,
+    }
+}
+
+fn truth_and(left: Truth, right: Truth) -> Truth {
+    match (left, right) {
+        (Truth::False, _) | (_, Truth::False) => Truth::False,
+        (Truth::True, Truth::True) => Truth::True,
+        _ => Truth::Unknown,
+    }
+}
+
+fn truth_or(left: Truth, right: Truth) -> Truth {
+    match (left, right) {
+        (Truth::True, _) | (_, Truth::True) => Truth::True,
+        (Truth::False, Truth::False) => Truth::False,
+        _ => Truth::Unknown,
+    }
+}
+
+fn tri(truth: Truth) -> Bounds {
+    match truth {
+        Truth::True => Bounds::point(1),
+        Truth::False => Bounds::point(0),
+        Truth::Unknown => Bounds {
+            low: Some(0),
+            high: Some(1),
+        },
     }
 }

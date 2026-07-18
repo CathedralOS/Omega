@@ -287,3 +287,33 @@ fn lowers_statement_argument_spans_from_statement_table() {
 
     assert_eq!(argument_names, ["level", "cell", "line"]);
 }
+
+#[test]
+fn preserves_linear_multiplicity_through_typed_lowering() {
+    let source = r#"
+        data Token [linear] {}
+        data Holder<T [linear]> [linear] { token: T; }
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved_program = lower_syntax_trees(&syntax_trees).expect("resolution should succeed");
+    let typed_trees =
+        lower_symbol_resolved_trees(&resolved_program).expect("lowering should succeed");
+
+    for definition in typed_trees.data_definitions() {
+        assert_eq!(
+            definition.properties.multiplicity,
+            omega_core::semantics::Multiplicity::Linear
+        );
+        assert!(!definition.properties.copy);
+    }
+    let holder = &typed_trees.data_definitions()[1];
+    assert_eq!(
+        typed_trees.data_type_parameters(holder)[0]
+            .bounds
+            .multiplicity,
+        omega_core::semantics::Multiplicity::Linear
+    );
+}

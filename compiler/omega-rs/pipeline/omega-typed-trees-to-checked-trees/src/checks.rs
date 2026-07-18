@@ -1,15 +1,30 @@
 mod borrows;
 mod capabilities;
 mod contracts;
+mod multiplicity;
 mod operators;
 mod ranges;
 pub(crate) mod termination;
 
 use omega_core::diagnostics::Diagnostic;
 
+#[cfg(test)]
+pub(crate) use multiplicity::{record_permission_events, validate_linear_permission_events};
+
 pub(crate) fn check_checked_facts(
     program: &omega_typed_trees::TypedTrees,
     facts: &omega_checked_trees::CheckFacts,
+) -> Result<(), Vec<Diagnostic>> {
+    // Unit tests that assemble facts directly do not need the retained
+    // permission artifact; run the same checks against a clone. The compiler
+    // path below records into the owned checked tree.
+    let mut scratch = facts.clone();
+    check_checked_facts_recording(program, &mut scratch)
+}
+
+pub(crate) fn check_checked_facts_recording(
+    program: &omega_typed_trees::TypedTrees,
+    facts: &mut omega_checked_trees::CheckFacts,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
 
@@ -19,6 +34,12 @@ pub(crate) fn check_checked_facts(
 
     if let Err(mut contract_diagnostics) = contracts::check_flow_call_contracts(program, facts) {
         diagnostics.append(&mut contract_diagnostics);
+    }
+
+    if let Err(mut multiplicity_diagnostics) =
+        multiplicity::check_linear_obligations(program, facts)
+    {
+        diagnostics.append(&mut multiplicity_diagnostics);
     }
 
     if let Err(mut operator_diagnostics) = operators::check_operator_resolution(program, facts) {

@@ -1,0 +1,20 @@
+// TRANSITIVE field-vs-field reader hypotheses: count <= mid and
+// mid <= capacity[0..=100] CHAIN through the unranged middle field, so a
+// read of count fits u32 [0..=100] (bound_source_interval falls back to
+// the co-field's own where-fact interval, depth-capped). RUNS exit 70.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Tally
+where
+    count <= mid,
+    mid <= capacity,
+{
+    count: u32;
+    mid: u32;
+    capacity: u32 [0..=100];
+}
+data Main { console: Console; }
+machine Main::main(&mut self) {
+    let t: Tally = Tally { count: 5, mid: 20, capacity: 50 };
+    let bounded: u32 [0..=100] = t.count;
+    self.console.exit_process(70);
+}

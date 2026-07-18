@@ -1,0 +1,73 @@
+// RUN CANARY (exit 70, WINDOWS-HOST ONLY) -- the WRAPPER positioned-io
+// contract on windows (windows session slice 2): msvcrt fds have no
+// pread/pwrite, so the windows_x64 impl COMPOSES save-cursor / seek / op /
+// restore-cursor over the wired _lseeki64/_read/_write rows (posix targets
+// bind the atomic raw ops; darwin's raw-seam twin is
+// native_positioned_io). Writes "0123456789", reopens read+write, then
+// write_at("XY", 2) -> "01XY456789", read_at(4 @ 1) reads "1XY4" -- and
+// the CURSOR CONTRACT is pinned directly: after both positioned ops a
+// plain read still starts at byte 0 ('0'), proving the composition
+// restored the cursor both times.
+// exits: 70 good; 71 write_all failed; 72 rw open failed; 73 write_at
+// wrong count; 74 read_at wrong count; 75/76 wrong bytes read back; 77
+// the cursor MOVED (a positioned op leaked its seek -- the restore leg
+// regressed).
+
+use omega::language::std::filesystem;
+
+boundary trait Console { machine exit_process(return_code: i32); }
+
+data Main {
+    console: Console;
+    fs: Filesystem;
+    unit_result: UnitResult;
+    open_result: OpenResult;
+    io_result: IoResult;
+    file_fd: i32;
+    close_rc: i32;
+    buffer: [u8; 16];
+    front: [u8; 4];
+}
+
+machine Main::main(&mut self) {
+    self.unit_result = self.fs.write_all("omega_wpio_probe.txt", "0123456789");
+    transition self.unit_result { UnitResult::Ok -> reopen() _ -> bad(71) }
+    state reopen(&mut self) {
+        let opts_rw: OpenOptions = OpenOptions { read: true, write: true };
+        self.open_result = self.fs.open_with("omega_wpio_probe.txt", opts_rw);
+        transition self.open_result { OpenResult::Ok { file } -> pwrite(file) _ -> bad(72) }
+    }
+    state pwrite(&mut self, file: File) {
+        self.file_fd = file.fd;
+        // overwrite bytes 2..4 with "XY" -> "01XY456789"
+        self.io_result = self.fs.write_at(file, "XY", 2);
+        transition self.io_result { IoResult::Ok { count } -> pwrote(count) _ -> bad(73) }
+    }
+    state pwrote(&mut self, count: u64) {
+        transition count == 2 { true -> pread() _ -> bad(73) }
+    }
+    state pread(&mut self) {
+        // read 4 bytes at offset 1 -> "1XY4"
+        self.io_result = self.fs.read_at(File { fd: self.file_fd }, &mut self.buffer, 4, 1);
+        transition self.io_result { IoResult::Ok { count } -> preadn(count) _ -> bad(74) }
+    }
+    state preadn(&mut self, count: u64) {
+        transition count == 4 { true -> checkb0() _ -> bad(74) }
+    }
+    state checkb0(&mut self) {
+        transition self.buffer[0] == 49 { true -> checkb1() _ -> bad(75) }
+    }
+    state checkb1(&mut self) {
+        transition self.buffer[1] == 88 { true -> cursor() _ -> bad(76) }
+    }
+    state cursor(&mut self) {
+        // The cursor contract: both positioned ops restored the cursor, so a
+        // PLAIN read starts at byte 0 ('0', 48).
+        self.io_result = self.fs.read(File { fd: self.file_fd }, &mut self.front, 1);
+        self.close_rc = self.fs.close(File { fd: self.file_fd });
+        self.unit_result = self.fs.remove("omega_wpio_probe.txt");
+        transition self.front[0] == 48 { true -> good() _ -> bad(77) }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self, code: i32) { self.console.exit_process(code); }
+}

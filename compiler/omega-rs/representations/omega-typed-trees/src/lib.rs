@@ -10,7 +10,6 @@ pub mod machine;
 pub mod measure;
 pub mod name;
 pub mod operator;
-pub mod platform;
 pub mod proof_only;
 pub mod signature;
 pub mod snapshot;

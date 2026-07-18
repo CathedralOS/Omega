@@ -31,6 +31,7 @@ pub fn simplify_expression(
     expression: &Expression,
 ) -> Expression {
     let bindings: &[Binding] = &[];
+    refill_helper_expansion_fuel();
     simplify_expression_with_bindings(program, machine, expression, bindings, false, 0, None)
 }
 
@@ -71,6 +72,7 @@ pub fn simplify_state_expression_for_role(
     // the dispatched carve_room `max(.., self.cell_index(cell) + 1)` failure.)
     let preserve_call_locals = true;
     let landing = statement_destination_landing(program, machine, state, statement_index, role);
+    refill_helper_expansion_fuel();
     simplify_expression_with_bindings(
         program,
         machine,
@@ -123,6 +125,37 @@ fn statement_destination_landing(
 /// unsound, merely unfolded). Mirrors instruction selection's
 /// MAX_BINDING_SUBSTITUTION_DEPTH.
 const REENTRANT_SIMPLIFY_DEPTH_LIMIT: usize = 32;
+
+/// One shared WORK budget per top-level simplify entry (the hang half of the
+/// pending length_reverse repro): the re-entrant helper expansion is
+/// depth-capped above, but it BRANCHES at every level -- exponential TIME on
+/// adversarial shapes even though each path terminates. Every
+/// `helper_state_model` build spends one unit; at zero every further
+/// expansion declines (`None`), which callers already treat as "no fold"
+/// (never unsound, merely unfolded). The entry points refill; a
+/// thread_local keeps the many interior call sites signature-stable (plan
+/// workers are per-thread, and every entry refills, so no cross-expression
+/// bleed).
+const HELPER_EXPANSION_FUEL_BUDGET: u64 = 20_000;
+
+thread_local! {
+    static HELPER_EXPANSION_FUEL: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+}
+
+fn refill_helper_expansion_fuel() {
+    HELPER_EXPANSION_FUEL.with(|fuel| fuel.set(HELPER_EXPANSION_FUEL_BUDGET));
+}
+
+fn spend_helper_expansion_fuel() -> bool {
+    HELPER_EXPANSION_FUEL.with(|fuel| {
+        let remaining = fuel.get();
+        if remaining == 0 {
+            return false;
+        }
+        fuel.set(remaining - 1);
+        true
+    })
+}
 
 fn simplify_expression_with_bindings(
     program: &CheckedTrees,
@@ -942,6 +975,11 @@ fn helper_state_model(
     // argument bindings.
     let depth = depth + 1;
     if depth >= REENTRANT_SIMPLIFY_DEPTH_LIMIT {
+        return None;
+    }
+    // The shared per-entry WORK budget (see HELPER_EXPANSION_FUEL_BUDGET):
+    // depth bounds each path, fuel bounds the exponential branching.
+    if !spend_helper_expansion_fuel() {
         return None;
     }
     let statements = program.statement_table.statements(state.statement_nodes);

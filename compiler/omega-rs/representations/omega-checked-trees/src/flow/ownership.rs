@@ -33,3 +33,22 @@ pub struct FlowDropEventFact {
     pub root: omega_facts::PlaceRoot,
     pub segments: HandleSpan<omega_facts::PlaceSegment>,
 }
+
+/// The permission/resource algebra established by the multiplicity checker.
+/// Unlike the legacy move/drop summary, this records the semantic role of an
+/// event and is suitable as the source for later checked-IR consumers.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct FlowPermissionEventFact {
+    pub machine_symbol: SymbolHandle,
+    pub state_symbol: SymbolHandle,
+    pub source: omega_core::semantics::PermissionEventSource,
+    pub kind: omega_core::semantics::PermissionEventKind,
+    pub multiplicity: omega_core::semantics::Multiplicity,
+    pub access: omega_core::semantics::PermissionAccess,
+    pub provenance: omega_core::semantics::PermissionProvenance,
+    pub root: omega_facts::PlaceRoot,
+    pub segments: HandleSpan<omega_facts::PlaceSegment>,
+    /// `Empty` conditional sums establish/transfer a value while carrying no
+    /// payload debt. Keep the event and record whether an obligation existed.
+    pub obligation_live: bool,
+}

@@ -78,10 +78,7 @@ pub(in crate::symbols) fn resolve_call_target_symbol(
                 return target_symbol;
             }
         }
-        if matches!(
-            receiver_kind,
-            SymbolKind::Machine | SymbolKind::Platform | SymbolKind::Trait
-        ) {
+        if matches!(receiver_kind, SymbolKind::Machine | SymbolKind::Trait) {
             if receiver_symbol == machine.symbol
                 && let Some(attached_data) = machine.attached_data
             {
@@ -109,6 +106,20 @@ pub(in crate::symbols) fn resolve_call_target_symbol(
     );
     if machine_state.is_valid() {
         return machine_state;
+    }
+
+    // A receiverless call to a static machine parameter (`F(value)`) denotes
+    // the authored callable requirement stored on that parameter. Its symbol
+    // remains the signature identity until specialization substitutes a
+    // concrete entry state.
+    let machine_parameter = child_symbol_by_kinds(
+        symbols,
+        machine.symbol,
+        &[SymbolKind::MachineParameter],
+        target.as_str(),
+    );
+    if machine_parameter.is_valid() {
+        return machine_parameter;
     }
 
     let builtin =
@@ -140,4 +151,26 @@ fn free_machine_entry_state_symbol(symbols: &SymbolTable, target: &str) -> Symbo
     }
 
     child_symbol_by_kinds(symbols, machine_symbol, &[SymbolKind::State], "entry")
+}
+
+/// Resolve a compile-time machine-symbol argument to its concrete entry state.
+/// A free machine is spelled `work`; an attached machine is spelled
+/// `Card::power`. The argument denotes no runtime value.
+pub(in crate::symbols) fn resolve_static_machine_argument_symbol(
+    symbols: &SymbolTable,
+    path: &[omega_symbol_resolved_trees::name::DiagnosticName],
+) -> SymbolHandle {
+    let Some((target, owner)) = path.split_last() else {
+        return SymbolHandle::invalid();
+    };
+    if owner.is_empty() {
+        return free_machine_entry_state_symbol(symbols, target.as_str());
+    }
+
+    let owner = owner
+        .iter()
+        .map(|member| member.as_str())
+        .collect::<Vec<_>>()
+        .join("::");
+    call_target_for_attached_data(symbols, &owner, target.as_str())
 }

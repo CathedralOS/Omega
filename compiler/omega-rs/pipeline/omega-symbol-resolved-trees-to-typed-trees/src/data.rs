@@ -1,5 +1,3 @@
-use crate::domain::lower_proof_facts;
-use crate::expression::lower_expression_handle;
 use crate::lowerer::Lowerer;
 use crate::type_reference::lower_type_reference_into_table;
 use omega_core::diagnostics::Diagnostic;
@@ -18,8 +16,12 @@ pub(crate) fn lower_data_definition(
             copy: data_definition.properties.copy,
             zero_init: data_definition.properties.zero_init,
             send: data_definition.properties.send,
+            multiplicity: data_definition.properties.multiplicity,
         },
-        default_domain: lower_proof_facts(lowerer, data_definition.default_domain)?,
+        // R2 rung 2 slice 2: copied (re-lowered) from the resolved record;
+        // inert until rung 3's atomic consumer.
+        where_facts: crate::domain::lower_proof_facts(lowerer, data_definition.where_facts)?,
+        zero_gated: data_definition.zero_gated,
         members: omega_core::arena::HandleSpan::empty(),
     };
 
@@ -55,6 +57,7 @@ pub(crate) fn lower_type_parameter(
             copy: parameter.bounds.copy,
             zero_init: parameter.bounds.zero_init,
             send: parameter.bounds.send,
+            multiplicity: parameter.bounds.multiplicity,
         },
     })
 }
@@ -70,6 +73,11 @@ pub(crate) fn lower_type_parameter_kind(
                 type_reference: lower_type_reference_into_table(lowerer, type_reference)?,
             })
         }
+        resolved::data::TypeParameterKind::Machine { contract } => {
+            Ok(typed::data::TypeParameterKind::Machine {
+                contract: crate::state::lower_state_signature(lowerer, contract)?,
+            })
+        }
     }
 }
 
@@ -83,12 +91,6 @@ fn lower_data_member(
                 symbol: field.symbol,
                 name: crate::name::lower_name(&field.name),
                 type_reference: lower_type_reference_into_table(lowerer, &field.type_reference)?,
-                initial_value: field
-                    .initial_value
-                    .is_valid()
-                    .then(|| lower_expression_handle(lowerer, field.initial_value))
-                    .transpose()?
-                    .unwrap_or_else(typed::expression::ExpressionHandle::invalid),
             }))
         }
         resolved::data::DataMember::Variant(variant) => {
@@ -109,7 +111,6 @@ fn lower_data_member(
                         lowerer,
                         &field.type_reference,
                     )?,
-                    initial_value: typed::expression::ExpressionHandle::invalid(),
                 };
                 lowerer
                     .typed_trees

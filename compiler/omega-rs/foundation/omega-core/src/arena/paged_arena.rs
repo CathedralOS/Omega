@@ -68,6 +68,19 @@ impl<T: Default> PagedArena<T> {
             .unwrap_or_else(|| self.dummy())
     }
 
+    /// Mutable access to an existing item. Invalid handles are a programmer
+    /// error here: unlike read access, a write cannot safely target the
+    /// arena's shared dummy value.
+    pub fn get_mut(&mut self, handle: Handle<T>) -> &mut T {
+        let (page_index, slot_index) = self
+            .valid_position(handle)
+            .expect("paged arena mutable handle must be valid");
+        self.pages
+            .get_mut(page_index)
+            .and_then(|page| page.get_mut(slot_index))
+            .expect("validated paged arena position must exist")
+    }
+
     pub fn span(&self, span: HandleSpan<T>) -> Option<&[T]> {
         if span.is_empty() {
             return Some(&[]);

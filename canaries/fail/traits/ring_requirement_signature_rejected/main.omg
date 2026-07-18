@@ -10,7 +10,6 @@ trait RingOps {
 }
 machine badsig(a: Peano, b: i32) -> Peano
 satisfies RingOps::add
-terminates;
 terminates by a;
 {
     transition a {

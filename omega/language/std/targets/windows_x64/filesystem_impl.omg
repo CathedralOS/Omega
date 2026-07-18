@@ -127,6 +127,7 @@ windows_x64 machine Filesystem::read_dir_nth(&mut self, path: &[u8] in Path, n: 
     self.w_scan_files = 0;
     self.w_scan_target = n as u64 in Wrapping;
     self.w_scan_hit = 0;
+    self.w_hit_kind = 0;
     self.w_scan_done = 0;
     self.w_scan_pending = 0;
     self.w_path_copy(path, 0);
@@ -150,7 +151,11 @@ windows_x64 machine Filesystem::read_dir_nth(&mut self, path: &[u8] in Path, n: 
         transition self.w_scan_hit == 1 { true -> rdn_kind(path) _ -> rdn_end(path) }
     }
     state rdn_kind(&mut self, path: &[u8] in Path) -> DirEntryResult {
-        transition self.w_scan_kind == 1 { true -> rdn_ok_dir(path) _ -> rdn_ok_file(path) }
+        // The LATCHED kind, not the running w_scan_kind: the drain kept
+        // classifying records after the hit, so the running field holds the
+        // LAST record's kind (a trailing dir made every file child report
+        // is_dir here).
+        transition self.w_hit_kind == 1 { true -> rdn_ok_dir(path) _ -> rdn_ok_file(path) }
     }
     state rdn_ok_dir(&mut self, path: &[u8] in Path) -> DirEntryResult {
         DirEntryResult::Ok { entry: DirEntry {
@@ -238,7 +243,6 @@ windows_x64 machine Filesystem::remove_dir_all(&mut self, path: &[u8] in Path) -
 // documented provable trade). Returns 0 on success, -1 on
 // error/fuel-exhaustion/depth overflow (> 16).
 windows_x64 machine Filesystem::rda_drain(&mut self, fuel: u64)
-terminates;
 terminates by fuel;
 -> i32
 {
@@ -462,7 +466,6 @@ windows_x64 machine Filesystem::rda_step(&mut self, step: u64) {
 // effects live in guarded arm states, which the value-call fence rejects --
 // the fence's own prescription is statement call + field result.
 windows_x64 machine Filesystem::w_path_copy(&mut self, path: &[u8] in Path, i: u64)
-terminates;
 terminates by (i, path.len) -> Nat::BoundedDistance;
 {
     self.w_path_put(path, i);
@@ -600,7 +603,6 @@ windows_x64 machine Filesystem::w_capture_name(&mut self, step: u64) {
 // The fueled scan loop -- rda_drain's exact shape over w_scan_step (full
 // fuel, no-op once done; verdict protocol). Returns 0 clean / -1 error.
 windows_x64 machine Filesystem::w_scan_drain(&mut self, fuel: u64)
-terminates;
 terminates by fuel;
 -> i32
 {
@@ -674,7 +676,315 @@ windows_x64 machine Filesystem::w_scan_step(&mut self, step: u64) {
     state ws_hit(&mut self) {
         self.w_capture_name(0);
         self.w_scan_hit = 1;
+        // Latch the kind with the name: the drain keeps classifying the
+        // remaining records, so w_scan_kind moves on after this hit.
+        self.w_hit_kind = self.w_scan_kind;
         transition { _ -> ws_cont() }
     }
     state ws_cont(&mut self) { self.w_scan_verdict = 1; }
+}
+
+// POSITIONED IO (the portable positioned-io contract, windows session
+// slice 2): msvcrt fds have NO pread/pwrite, so windows COMPOSES
+// save-cursor / seek(SET) / op / restore-cursor over the wired
+// _lseeki64/_read/_write rows. All four host calls run in the ENTRY body
+// (the value-call fence: side-effecting ARM states re-emit per arm), each
+// let-bound, with ONE verdict conjunction at the end -- the restore runs
+// UNCONDITIONALLY, so a failed op never leaves the cursor moved; on a bad
+// fd every leg fails and errno reads the last EBADF, same class the posix
+// raw op reports. A failed positioning leg routes Error even when the
+// misplaced op "succeeded", so the caller never trusts the buffer.
+// HONEST CAVEAT (recorded in the contract block): unlike posix pread, the
+// composition is not atomic against concurrent access to the same fd --
+// single-threaded programs (all of Omega today) never observe the
+// difference.
+windows_x64 machine Filesystem::read_at(&mut self, file: File, buffer: &mut [u8], count: u64, offset: i64) -> IoResult {
+    self.file_fd = file.fd;
+    // SEEK_CUR (1) at 0 = report the cursor; SEEK_SET (0) = position.
+    let saved: i64 = self.host.seek(self.file_fd, 0, 1);
+    let moved: i64 = self.host.seek(self.file_fd, offset, 0);
+    let n: i64 = self.host.read(self.file_fd, buffer, count);
+    let back: i64 = self.host.seek(self.file_fd, saved, 0);
+    // Verdict legs are PURE chained states (value-call arm bodies re-emit,
+    // so only the entry may effect); each check threads the rest through
+    // state params.
+    transition saved >= 0 { true -> ra_moved(moved, n, back) _ -> err() }
+    state ra_moved(&mut self, moved: i64, n: i64, back: i64) -> IoResult {
+        transition moved >= 0 { true -> ra_n(n, back) _ -> err() }
+    }
+    state ra_n(&mut self, n: i64, back: i64) -> IoResult {
+        transition n >= 0 { true -> ra_back(n, back) _ -> err() }
+    }
+    state ra_back(&mut self, n: i64, back: i64) -> IoResult {
+        transition back >= 0 { true -> ok(n) _ -> err() }
+    }
+    state ok(&mut self, n: i64) -> IoResult { IoResult::Ok { count: n as u64 } }
+    state err(&mut self) -> IoResult { let kind: ErrorKind = self.last_error(); IoResult::Error { kind: kind } }
+}
+
+// CANONICALIZE (the portable canonicalize contract, windows session slice
+// 4a/4d): msvcrt has no realpath, so windows opens a kernel HANDLE directly
+// with CreateFileA (access 0, share read/write/delete, OPEN_EXISTING,
+// FILE_FLAG_BACKUP_SEMANTICS), then resolves it to its final DOS path
+// (GetFinalPathNameByHandleA, flags 0 =
+// VOLUME_NAME_DOS, the \\?\-prefixed spelling Rust's windows canonicalize
+// returns), and closes it with CloseHandle. All host calls live in the ENTRY
+// (the value-call fence), followed by chained pure verdicts; capacity is the
+// contract's 1024 floor
+// (the posix realpath writes up to PATH_MAX=1024 with no cap arg at all).
+// A too-small buffer returns the REQUIRED size (>= 1024 fails the fit
+// check). Both failure legs capture and classify GetLastError before close.
+// FILE_FLAG_BACKUP_SEMANTICS makes files and directories equally valid inputs.
+windows_x64 machine Filesystem::canonicalize(&mut self, path: &[u8] in Path, buffer: &mut [u8]) -> UnitResult {
+    let handle: i64 = self.host.open_path_handle(path, 0, 7, 0, 3, 33554432, 0);
+    // Capture the OPEN leg's GetLastError IMMEDIATELY: any trailing Win32
+    // call may overwrite the thread-local value.
+    let open_error: i32 = self.host.get_last_error();
+    let len: i64 = self.host.final_path_name_by_handle(handle, buffer, 1024, 0);
+    let resolve_error: i32 = self.host.get_last_error();
+    let closed: i32 = self.host.close_handle(handle);
+    // Map both captured Win32 values in the ENTRY (the value-call fence bans
+    // arm-state mutations, and field-store-then-match is the required desugar
+    // idiom) -- harmless on the success path.
+    self.err_kind = match open_error {
+        2 -> ErrorKind::NotFound,
+        3 -> ErrorKind::NotFound,
+        5 -> ErrorKind::PermissionDenied,
+        6 -> ErrorKind::BadDescriptor,
+        32 -> ErrorKind::WouldBlock,
+        33 -> ErrorKind::WouldBlock,
+        80 -> ErrorKind::AlreadyExists,
+        183 -> ErrorKind::AlreadyExists,
+        _ -> ErrorKind::Other
+    };
+    self.win32_error_kind = match resolve_error {
+        2 -> ErrorKind::NotFound,
+        3 -> ErrorKind::NotFound,
+        5 -> ErrorKind::PermissionDenied,
+        6 -> ErrorKind::BadDescriptor,
+        32 -> ErrorKind::WouldBlock,
+        33 -> ErrorKind::WouldBlock,
+        80 -> ErrorKind::AlreadyExists,
+        183 -> ErrorKind::AlreadyExists,
+        _ -> ErrorKind::Other
+    };
+    transition handle >= 0 { true -> wc_len(len) _ -> err_open() }
+    state wc_len(&mut self, len: i64) -> UnitResult {
+        transition len > 0 { true -> wc_fit(len) _ -> err_resolve() }
+    }
+    state wc_fit(&mut self, len: i64) -> UnitResult {
+        transition len < 1024 { true -> ok() _ -> err_resolve() }
+    }
+    state ok(&mut self) -> UnitResult { UnitResult::Ok }
+    state err_open(&mut self) -> UnitResult {
+        // The entry-mapped kind from the open leg's captured GetLastError.
+        UnitResult::Error { kind: self.err_kind }
+    }
+    state err_resolve(&mut self) -> UnitResult {
+        UnitResult::Error { kind: self.win32_error_kind }
+    }
+}
+
+// HARD LINK (the portable hard-link contract, windows session slice 3):
+// kernel32 CreateHardLinkA via the designed create_hard_link seam op --
+// the Win32 arg order is (NEW link, existing), REVERSED from the portable
+// (original, link), with the security-attributes arg the API requires as
+// NULL (0). BOOL result: non-zero success. GetLastError is captured before
+// branching, so common failure kinds remain portable.
+windows_x64 machine Filesystem::hard_link(&mut self, original: &[u8] in Path, link: &[u8] in Path) -> UnitResult {
+    let rc: i32 = self.host.create_hard_link(link, original, 0);
+    let code: i32 = self.host.get_last_error();
+    self.win32_error_kind = match code {
+        2 -> ErrorKind::NotFound,
+        3 -> ErrorKind::NotFound,
+        5 -> ErrorKind::PermissionDenied,
+        6 -> ErrorKind::BadDescriptor,
+        32 -> ErrorKind::WouldBlock,
+        33 -> ErrorKind::WouldBlock,
+        80 -> ErrorKind::AlreadyExists,
+        183 -> ErrorKind::AlreadyExists,
+        _ -> ErrorKind::Other
+    };
+    transition rc != 0 { true -> ok() _ -> err() }
+    state ok(&mut self) -> UnitResult { UnitResult::Ok }
+    state err(&mut self) -> UnitResult { UnitResult::Error { kind: self.win32_error_kind } }
+}
+
+// FILE TIMES (windows session slice 4b wrapper): convert Unix whole seconds
+// to the Win32 FILETIME epoch/tick representation, then stamp the open CRT
+// descriptor through its OS-handle bridge. The two 8-byte FILETIMEs use
+// independent scratch arrays because host-call pointers must be simple places.
+// Arithmetic is explicitly wrapping because the public carrier is the full
+// i64 Unix-seconds domain;
+// SetFileTime remains the authority on whether a resulting timestamp is valid.
+windows_x64 machine Filesystem::set_times(&mut self, file: File, accessed: i64, modified: i64) -> UnitResult {
+    let accessed_epoch: u64 in Wrapping = (accessed as u64 in Wrapping) + 11644473600;
+    let accessed_ticks: u64 in Wrapping = accessed_epoch * 10000000;
+    let modified_epoch: u64 in Wrapping = (modified as u64 in Wrapping) + 11644473600;
+    let modified_ticks: u64 in Wrapping = modified_epoch * 10000000;
+    self.access_filetime[0] = accessed_ticks as u8 in Wrapping;
+    self.access_filetime[1] = (accessed_ticks >> 8) as u8 in Wrapping;
+    self.access_filetime[2] = (accessed_ticks >> 16) as u8 in Wrapping;
+    self.access_filetime[3] = (accessed_ticks >> 24) as u8 in Wrapping;
+    self.access_filetime[4] = (accessed_ticks >> 32) as u8 in Wrapping;
+    self.access_filetime[5] = (accessed_ticks >> 40) as u8 in Wrapping;
+    self.access_filetime[6] = (accessed_ticks >> 48) as u8 in Wrapping;
+    self.access_filetime[7] = (accessed_ticks >> 56) as u8 in Wrapping;
+    self.modified_filetime[0] = modified_ticks as u8 in Wrapping;
+    self.modified_filetime[1] = (modified_ticks >> 8) as u8 in Wrapping;
+    self.modified_filetime[2] = (modified_ticks >> 16) as u8 in Wrapping;
+    self.modified_filetime[3] = (modified_ticks >> 24) as u8 in Wrapping;
+    self.modified_filetime[4] = (modified_ticks >> 32) as u8 in Wrapping;
+    self.modified_filetime[5] = (modified_ticks >> 40) as u8 in Wrapping;
+    self.modified_filetime[6] = (modified_ticks >> 48) as u8 in Wrapping;
+    self.modified_filetime[7] = (modified_ticks >> 56) as u8 in Wrapping;
+    self.file_fd = file.fd;
+    let handle: i64 = self.host.get_osfhandle(self.file_fd);
+    let rc: i32 = self.host.set_file_time(handle, 0, &self.access_filetime, &self.modified_filetime);
+    let code: i32 = self.host.get_last_error();
+    self.win32_error_kind = match code {
+        2 -> ErrorKind::NotFound,
+        3 -> ErrorKind::NotFound,
+        5 -> ErrorKind::PermissionDenied,
+        6 -> ErrorKind::BadDescriptor,
+        32 -> ErrorKind::WouldBlock,
+        33 -> ErrorKind::WouldBlock,
+        80 -> ErrorKind::AlreadyExists,
+        183 -> ErrorKind::AlreadyExists,
+        _ -> ErrorKind::Other
+    };
+    transition rc != 0 { true -> ok() _ -> err() }
+    state ok(&mut self) -> UnitResult { UnitResult::Ok }
+    state err(&mut self) -> UnitResult {
+        UnitResult::Error { kind: self.win32_error_kind }
+    }
+}
+
+windows_x64 machine Filesystem::write_at(&mut self, file: File, bytes: &[u8], offset: i64) -> IoResult {
+    self.file_fd = file.fd;
+    let saved: i64 = self.host.seek(self.file_fd, 0, 1);
+    let moved: i64 = self.host.seek(self.file_fd, offset, 0);
+    let n: i64 = self.host.write(self.file_fd, bytes);
+    let back: i64 = self.host.seek(self.file_fd, saved, 0);
+    transition saved >= 0 { true -> wa_moved(moved, n, back) _ -> err() }
+    state wa_moved(&mut self, moved: i64, n: i64, back: i64) -> IoResult {
+        transition moved >= 0 { true -> wa_n(n, back) _ -> err() }
+    }
+    state wa_n(&mut self, n: i64, back: i64) -> IoResult {
+        transition n >= 0 { true -> wa_back(n, back) _ -> err() }
+    }
+    state wa_back(&mut self, n: i64, back: i64) -> IoResult {
+        transition back >= 0 { true -> ok(n) _ -> err() }
+    }
+    state ok(&mut self, n: i64) -> IoResult { IoResult::Ok { count: n as u64 } }
+    state err(&mut self) -> IoResult { let kind: ErrorKind = self.last_error(); IoResult::Error { kind: kind } }
+}
+
+// Whole-file advisory locks over the CRT-fd -> HANDLE bridge. LockFileEx sees
+// offset 0 in the zeroed OVERLAPPED and length 2^64-1. `_open` creates
+// synchronous handles, so blocking acquisitions complete before the call
+// returns; providers with overlapped handles owe their own wait composition.
+windows_x64 machine Filesystem::lock(&mut self, file: File) -> UnitResult {
+    self.file_fd = file.fd;
+    let handle: i64 = self.host.get_osfhandle(self.file_fd);
+    let rc: i32 = self.host.lock_file_ex(handle, 2, 0, 4294967295, 4294967295, &mut self.lock_overlapped);
+    let code: i32 = self.host.get_last_error();
+    self.win32_error_kind = match code {
+        2 -> ErrorKind::NotFound,
+        3 -> ErrorKind::NotFound,
+        5 -> ErrorKind::PermissionDenied,
+        6 -> ErrorKind::BadDescriptor,
+        32 -> ErrorKind::WouldBlock,
+        33 -> ErrorKind::WouldBlock,
+        80 -> ErrorKind::AlreadyExists,
+        183 -> ErrorKind::AlreadyExists,
+        _ -> ErrorKind::Other
+    };
+    transition rc != 0 { true -> ok() _ -> err() }
+    state ok(&mut self) -> UnitResult { UnitResult::Ok }
+    state err(&mut self) -> UnitResult { UnitResult::Error { kind: self.win32_error_kind } }
+}
+
+windows_x64 machine Filesystem::lock_shared(&mut self, file: File) -> UnitResult {
+    self.file_fd = file.fd;
+    let handle: i64 = self.host.get_osfhandle(self.file_fd);
+    let rc: i32 = self.host.lock_file_ex(handle, 0, 0, 4294967295, 4294967295, &mut self.lock_overlapped);
+    let code: i32 = self.host.get_last_error();
+    self.win32_error_kind = match code {
+        2 -> ErrorKind::NotFound,
+        3 -> ErrorKind::NotFound,
+        5 -> ErrorKind::PermissionDenied,
+        6 -> ErrorKind::BadDescriptor,
+        32 -> ErrorKind::WouldBlock,
+        33 -> ErrorKind::WouldBlock,
+        80 -> ErrorKind::AlreadyExists,
+        183 -> ErrorKind::AlreadyExists,
+        _ -> ErrorKind::Other
+    };
+    transition rc != 0 { true -> ok() _ -> err() }
+    state ok(&mut self) -> UnitResult { UnitResult::Ok }
+    state err(&mut self) -> UnitResult { UnitResult::Error { kind: self.win32_error_kind } }
+}
+
+windows_x64 machine Filesystem::try_lock(&mut self, file: File) -> TryLockResult {
+    self.file_fd = file.fd;
+    let handle: i64 = self.host.get_osfhandle(self.file_fd);
+    let rc: i32 = self.host.lock_file_ex(handle, 3, 0, 4294967295, 4294967295, &mut self.lock_overlapped);
+    self.lock_errno = self.host.get_last_error();
+    self.win32_error_kind = match self.lock_errno {
+        2 -> ErrorKind::NotFound,
+        3 -> ErrorKind::NotFound,
+        5 -> ErrorKind::PermissionDenied,
+        6 -> ErrorKind::BadDescriptor,
+        32 -> ErrorKind::WouldBlock,
+        33 -> ErrorKind::WouldBlock,
+        80 -> ErrorKind::AlreadyExists,
+        183 -> ErrorKind::AlreadyExists,
+        _ -> ErrorKind::Other
+    };
+    transition rc != 0 { true -> acquired() _ -> contended() }
+    state acquired(&mut self) -> TryLockResult { TryLockResult::Acquired }
+    state contended(&mut self) -> TryLockResult { transition self.lock_errno == 33 { true -> would_block() _ -> failed() } }
+    state would_block(&mut self) -> TryLockResult { TryLockResult::WouldBlock }
+    state failed(&mut self) -> TryLockResult { TryLockResult::Error { kind: self.win32_error_kind } }
+}
+
+windows_x64 machine Filesystem::try_lock_shared(&mut self, file: File) -> TryLockResult {
+    self.file_fd = file.fd;
+    let handle: i64 = self.host.get_osfhandle(self.file_fd);
+    let rc: i32 = self.host.lock_file_ex(handle, 1, 0, 4294967295, 4294967295, &mut self.lock_overlapped);
+    self.lock_errno = self.host.get_last_error();
+    self.win32_error_kind = match self.lock_errno {
+        2 -> ErrorKind::NotFound,
+        3 -> ErrorKind::NotFound,
+        5 -> ErrorKind::PermissionDenied,
+        6 -> ErrorKind::BadDescriptor,
+        32 -> ErrorKind::WouldBlock,
+        33 -> ErrorKind::WouldBlock,
+        80 -> ErrorKind::AlreadyExists,
+        183 -> ErrorKind::AlreadyExists,
+        _ -> ErrorKind::Other
+    };
+    transition rc != 0 { true -> acquired() _ -> contended() }
+    state acquired(&mut self) -> TryLockResult { TryLockResult::Acquired }
+    state contended(&mut self) -> TryLockResult { transition self.lock_errno == 33 { true -> would_block() _ -> failed() } }
+    state would_block(&mut self) -> TryLockResult { TryLockResult::WouldBlock }
+    state failed(&mut self) -> TryLockResult { TryLockResult::Error { kind: self.win32_error_kind } }
+}
+
+windows_x64 machine Filesystem::unlock(&mut self, file: File) -> UnitResult {
+    self.file_fd = file.fd;
+    let handle: i64 = self.host.get_osfhandle(self.file_fd);
+    let first: i32 = self.host.unlock_file(handle, 0, 0, 4294967295, 4294967295);
+    let second: i32 = self.host.unlock_file(handle, 0, 0, 4294967295, 4294967295);
+    self.lock_errno = self.host.get_last_error();
+    transition first != 0 { true -> second_result(second) _ -> err() }
+    state second_result(&mut self, second: i32) -> UnitResult {
+        transition second != 0 { true -> ok() _ -> second_failed() }
+    }
+    state second_failed(&mut self) -> UnitResult {
+        transition self.lock_errno == 158 { true -> ok() _ -> err() }
+    }
+    state ok(&mut self) -> UnitResult { UnitResult::Ok }
+    state err(&mut self) -> UnitResult { let kind: ErrorKind = ErrorKind::Other; UnitResult::Error { kind: kind } }
 }

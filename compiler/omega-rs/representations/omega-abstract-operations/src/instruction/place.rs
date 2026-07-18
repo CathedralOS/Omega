@@ -115,6 +115,16 @@ impl Place {
         })
     }
 
+    /// EVERY ScaledIndex step's index region, in walk order -- the
+    /// double-index rung's walker feed (`scaled_index_region` keeps
+    /// returning the first).
+    pub fn scaled_index_regions(&self) -> impl Iterator<Item = RuntimeStorageRegion> + '_ {
+        self.steps().iter().filter_map(|step| match step {
+            PlaceStep::ScaledIndex { index_region, .. } => Some(*index_region),
+            _ => None,
+        })
+    }
+
     /// The place's constant byte offset when the whole path is const -- the
     /// direct-operand fast path (and the shape the plain Copy encoders
     /// expect). `None` if any step derefs or indexes.

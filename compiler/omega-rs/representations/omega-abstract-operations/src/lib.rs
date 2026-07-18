@@ -25,6 +25,7 @@ pub use instruction::{
 };
 pub use ownership::{
     AbstractDropEvent, AbstractMoveEvent, AbstractOwnershipEventSource, AbstractOwnershipSummary,
+    AbstractPermissionEvent,
 };
 pub use plan::{AbstractOperationCode, AbstractOperationPlan};
 pub use semantics::AbstractSemanticSummary;

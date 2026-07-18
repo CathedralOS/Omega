@@ -1,1 +1,1 @@
-cannot infer a ranking view for `terminates by remaining;` in machine Main::countdown: signed values have no default well-founded order -- select one with `terminates by remaining -> View;`
+cannot infer a ranking for `terminates by remaining` in machine Main::countdown: signed values have no default well-founded order -- select one with `terminates by remaining -> View`

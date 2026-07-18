@@ -91,6 +91,57 @@ boundary trait FilesystemHost {
     machine find_first(pattern: &[u8], data: &mut [u8]) -> i64 effects filesystem_io;
     machine find_next(handle: i64, data: &mut [u8]) -> i32 effects filesystem_io;
     machine find_close(handle: i64) -> i32 effects filesystem_io;
+    // The windows hard-link primitive (windows session slice 3), mirroring
+    // `CreateHardLinkA(lpFileName, lpExistingFileName, lpSecurityAttributes)`
+    // EXACTLY (the seam law: designed signatures) -- note the Win32 arg order
+    // is (new link, existing) -- REVERSED from posix `link(existing, new)` --
+    // and the trailing security-attributes pointer MUST be passed as 0 (the
+    // API requires NULL; win64 would otherwise read a garbage register).
+    // Returns BOOL: non-zero success, 0 failure (GetLastError holds the
+    // reason -- NOT msvcrt errno; kind mapping waits on a win32 last-error
+    // surface). Posix targets never call this (their impls bind `hard_link`);
+    // the per-target impl split keeps the asymmetry honest.
+    machine create_hard_link(link: &[u8] in Path, existing: &[u8] in Path, security_attributes: i64) -> i32 effects filesystem_io;
+    // Direct Win32 path-handle seam used where the CRT descriptor surface is
+    // too narrow (notably directory canonicalization). Mirrors
+    // `CreateFileA(path, desired_access, share_mode, security_attributes,
+    // creation_disposition, flags_and_attributes, template_file)` exactly.
+    // Returns a HANDLE as i64, or INVALID_HANDLE_VALUE (-1). Windows-only;
+    // posix target implementations never call it.
+    machine open_path_handle(path: &[u8] in Path, desired_access: u32, share_mode: u32, security_attributes: i64, creation_disposition: u32, flags_and_attributes: u32, template_file: i64) -> i64 effects filesystem_io;
+    // `CloseHandle(handle)` -- BOOL result. Kept distinct from CRT `close(fd)`:
+    // descriptors and kernel handles are different resources on Windows.
+    machine close_handle(handle: i64) -> i32 effects filesystem_io;
+    // The msvcrt fd -> Win32 HANDLE bridge (windows session slice 4a),
+    // mirroring `_get_osfhandle(fd)`: the OS HANDLE behind an open CRT
+    // descriptor as i64, or -2 (msvcrt's INVALID_HANDLE_VALUE spelling) for
+    // a bad fd -- consumers treat any negative as failure. Unlocks the
+    // HANDLE-keyed kernel32 surface (GetFinalPathNameByHandleA here;
+    // SetFileTime/LockFileEx ride the same bridge).
+    machine get_osfhandle(fd: i32) -> i64 effects filesystem_io;
+    // `GetFinalPathNameByHandleA(handle, buffer, capacity, flags)` -- resolve
+    // an OPEN handle to its final path (flags 0 = VOLUME_NAME_DOS, a
+    // `\\?\C:\...` spelling), NUL-terminated into `buffer`. Returns the path
+    // LENGTH (without the NUL) on success, the REQUIRED capacity (including
+    // the NUL) when `capacity` is too small, or 0 on failure (GetLastError
+    // holds the reason -- not msvcrt errno).
+    machine final_path_name_by_handle(handle: i64, buffer: &mut [u8], capacity: u64, flags: u32) -> i64 effects filesystem_io;
+    // `SetFileTime(handle, lpCreationTime, lpLastAccessTime, lpLastWriteTime)`
+    // (windows session slice 4b): stamp an OPEN handle's times from 8-byte
+    // FILETIME buffers (100ns units since 1601; the wrapper composes them
+    // from unix seconds with the calibration constants). `creation` is the
+    // NULL-able pointer the API allows -- pass 0 to leave creation time
+    // alone. Returns BOOL (non-zero success); failures live in GetLastError,
+    // not msvcrt errno.
+    machine set_file_time(handle: i64, creation: i64, last_access: &[u8], last_write: &[u8]) -> i32 effects filesystem_io;
+    // Win32 whole-file locking. These mirror the kernel32 signatures exactly:
+    // LockFileEx(handle, flags, reserved, length_low, length_high, overlapped)
+    // and UnlockFile(handle, offset_low, offset_high, length_low, length_high).
+    // The wrapper uses offset 0 and length 2^64-1. BOOL results; failure detail
+    // is captured immediately through get_last_error.
+    machine lock_file_ex(handle: i64, flags: u32, reserved: u32, length_low: u32, length_high: u32, overlapped: &mut [u8]) -> i32 effects filesystem_io;
+    machine unlock_file(handle: i64, offset_low: u32, offset_high: u32, length_low: u32, length_high: u32) -> i32 effects filesystem_io;
+    machine get_last_error() -> i32 effects filesystem_io;
     // Remove a FILE / an empty DIRECTORY by a TRUSTED plain `&[u8]` path -- the
     // D-at trust class twins of `remove` / `remove_dir` (same native rows, the
     // `create_dir_name` precedent): a path JOINED inside a dir-walk from

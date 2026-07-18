@@ -1,4 +1,4 @@
-use crate::parser::expression::{parse_expression_handle, parse_spawn_block_call_handle};
+use crate::parser::expression::parse_expression_handle;
 use crate::parser::input::{Input, ParseResult};
 use crate::parser::transition::parse_transition_block_target_handle;
 use crate::parser::type_reference::parse_type_reference_handle_allowing_borrow;
@@ -28,9 +28,14 @@ pub(super) fn parse_statement_handle<'tokens, 'source>(
         return parse_if_transition_statement_handle(syntax_trees, input);
     }
 
+    // `relax` RETIRED (owner, 2026-07-17): superseded by invariant windows
+    // (ch11) -- a write that momentarily violates a `where` fact OPENS a
+    // window the consumption points police; no scope spelling needed.
     if input.at_contextual("relax") {
         return Err(input.error_here(
-            "the `relax` statement is retired; ordinary exclusive writes open and close invariant windows automatically",
+            "`relax` is retired: invariant windows (ch11) supersede it -- write \
+             plainly; a momentary violation opens a window that must close before \
+             any read, call, or terminal exit",
         ));
     }
 
@@ -38,16 +43,17 @@ pub(super) fn parse_statement_handle<'tokens, 'source>(
         return parse_asm_statement_handle(syntax_trees, input);
     }
 
-    // CONCURRENCY STAGE 1: a statement-position `spawn { call; }` is the
-    // fire-and-forget form. Under the synchronous-spawn desugar (see
-    // `expression/spawn.rs`) the call simply RUNS HERE as an ordinary call
-    // statement; frozen decision 9's strict-result rule still governs a
-    // discarded non-unit result. `spawn` stays contextual: without a `{` it
-    // falls through and parses as a plain identifier.
+    // TASK RUNTIME TR1: implicit fire-and-forget and the synchronous spawn
+    // desugar are retired. `spawn` remains a legal ordinary identifier when
+    // it is not followed by the former block syntax.
     if input.at_contextual("spawn") {
         let after_spawn = input.take_contextual("spawn")?;
         if after_spawn.at_punctuation(PunctuationKind::LeftBrace) {
-            return parse_spawn_statement_handle(syntax_trees, after_spawn);
+            return Err(input.error_here(
+                "statement `spawn { ... }` is retired: task activation requires an \
+                 explicit runtime capability and returns a linear `Task<T>` that must \
+                 be settled or transferred; implicit detach is not supported",
+            ));
         }
     }
 
@@ -175,35 +181,6 @@ pub(super) fn parse_statement_handle<'tokens, 'source>(
     }
 }
 
-/// CONCURRENCY STAGE 1 fire-and-forget: `spawn { call(); }` as a statement
-/// desugars to the call statement itself (synchronous execution -- see
-/// `expression/spawn.rs` for the full desugar contract). The optional
-/// trailing `;` after the closing brace is accepted but not required,
-/// matching the chapter-17 spelling.
-fn parse_spawn_statement_handle<'tokens, 'source>(
-    syntax_trees: &mut SyntaxTrees,
-    input: Input<'tokens, 'source>,
-) -> ParseResult<'tokens, 'source, StatementHandle> {
-    let (expression, input) = parse_spawn_block_call_handle(syntax_trees, input)?;
-    let input = if input.at_punctuation(PunctuationKind::Semicolon) {
-        input.take_punctuation(PunctuationKind::Semicolon, ";")?
-    } else {
-        input
-    };
-
-    // The spawn body is guaranteed to be a call expression; statement-call
-    // conversion only fails for call shapes (e.g. indexed receivers) that the
-    // ordinary call-statement path also leaves as expression statements.
-    let statement =
-        if let Some(call) = expression_handle_to_statement_call(syntax_trees, expression) {
-            StatementNode::Call(call)
-        } else {
-            StatementNode::Expression(expression)
-        };
-
-    Ok((syntax_trees.statements.insert(statement), input))
-}
-
 /// `_ = call();` -- an explicit-discard statement. The call executes and its
 /// non-unit result is intentionally dropped (frozen decision 9: discarding a
 /// non-unit result silently is a compile error; `_ =` is the spelling for an
@@ -282,6 +259,7 @@ fn parse_asm_statement_handle<'tokens, 'source>(
                         receiver: HandleSpan::empty(),
                         receiver_starts_at_self: false,
                         target: Identifier::new("asm#hlt", mnemonic.source_span()),
+                        machine_arguments: Box::default(),
                         arguments: HandleSpan::empty(),
                         discards_result: false,
                     })),
@@ -306,6 +284,7 @@ fn parse_asm_statement_handle<'tokens, 'source>(
                         receiver: HandleSpan::empty(),
                         receiver_starts_at_self: false,
                         target: Identifier::new("asm#port_out", mnemonic.source_span()),
+                        machine_arguments: Box::default(),
                         arguments,
                         discards_result: false,
                     })),
@@ -317,17 +296,15 @@ fn parse_asm_statement_handle<'tokens, 'source>(
             let input = input.take_punctuation(PunctuationKind::Comma, ",")?;
             let (port, input) = parse_expression_handle(syntax_trees, input)?;
             let input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
-            let arguments = syntax_trees
+            let arguments = syntax_trees.expressions.insert_expression_handles(vec![port]);
+            let value = syntax_trees
                 .expressions
-                .insert_expression_handles(vec![port]);
-            let value =
-                syntax_trees
-                    .expressions
-                    .insert(ExpressionNode::Call(TableCallExpression {
-                        receiver: ExpressionHandle::invalid(),
-                        target: Identifier::new("asm#port_in", mnemonic.source_span()),
-                        arguments,
-                    }));
+                .insert(ExpressionNode::Call(TableCallExpression {
+                    receiver: ExpressionHandle::invalid(),
+                    target: Identifier::new("asm#port_in", mnemonic.source_span()),
+                    machine_arguments: Box::default(),
+                    arguments,
+                }));
             Ok((
                 syntax_trees
                     .statements
@@ -505,10 +482,8 @@ fn parse_local_data_statement_handle<'tokens, 'source>(
 pub(super) fn try_parse_atomic_compare_exchange_let<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
-) -> Option<(
-    HandleSpan<omega_syntax_trees::statement::StatementHandle>,
-    Input<'tokens, 'source>,
-)> {
+) -> Option<(HandleSpan<omega_syntax_trees::statement::StatementHandle>, Input<'tokens, 'source>)>
+{
     // Must start with `let`.
     if !input.at_keyword(KeywordKind::Let) {
         return None;
@@ -628,13 +603,148 @@ pub(super) fn try_parse_atomic_compare_exchange_let<'tokens, 'source>(
     Some((span, after_semi))
 }
 
+/// RECORD PATTERNS IN LET POSITION (owner spec 2026-07-18, ch6 growth):
+/// `let { x, y as horizontal, z as _ } = point;` -- exhaustive by law
+/// (validation compares the spelled set against the definition), `as`
+/// renames, `as _` waives, colon and arrow rejected. Desugars to one
+/// MARKER let carrying the spelled field set in its generated name
+/// (`__destructure#x#y#z`, the exhaustiveness carrier) plus one
+/// Unit-sentinel let per BOUND field reading the place's member. V1 gates
+/// the value to a PLACE (Name/member chain) so the shared receiver
+/// evaluates as pure reads. Returns None when the shape is not
+/// `let {` -- ordinary lets flow to the plain parser.
+pub(super) fn try_parse_destructure_let<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
+) -> Option<(HandleSpan<omega_syntax_trees::statement::StatementHandle>, Input<'tokens, 'source>)>
+{
+    use omega_syntax_trees::expression::{ExpressionNode, TableMemberExpression};
+
+    if !input.at_keyword(KeywordKind::Let) {
+        return None;
+    }
+    let after_let = input.take_keyword(KeywordKind::Let, "let").ok()?;
+    if !after_let.at_punctuation(PunctuationKind::LeftBrace) {
+        return None;
+    }
+    let mut rest = after_let
+        .take_punctuation(PunctuationKind::LeftBrace, "{")
+        .ok()?;
+    // (field, binding-or-None-for-waived)
+    let mut fields: Vec<(omega_syntax_trees::identifier::Identifier, Option<omega_syntax_trees::identifier::Identifier>)> =
+        Vec::new();
+    loop {
+        if rest.at_punctuation(PunctuationKind::RightBrace) {
+            rest = rest
+                .take_punctuation(PunctuationKind::RightBrace, "}")
+                .ok()?;
+            break;
+        }
+        let (field, after_field) = rest.take_identifier().ok()?;
+        // Colon and arrow are REJECTED spellings (the law: bind by NAME;
+        // `as` renames). Surfacing them as a hard parse error would need a
+        // Result path; the try-parse contract returns None and the plain
+        // let parser produces its own colon-shaped error -- acceptable v1.
+        let mut binding = Some(field.clone());
+        let mut after_binding = after_field;
+        if after_binding.at_keyword(KeywordKind::As) {
+            let after_as = after_binding.take_keyword(KeywordKind::As, "as").ok()?;
+            if after_as.at_contextual("_") {
+                binding = None;
+                after_binding = after_as.take_contextual("_").ok()?;
+            } else {
+                let (renamed, after_renamed) = after_as.take_identifier().ok()?;
+                if renamed.as_str() == "_" {
+                    binding = None;
+                } else {
+                    binding = Some(renamed);
+                }
+                after_binding = after_renamed;
+            }
+        }
+        fields.push((field, binding));
+        if after_binding.at_punctuation(PunctuationKind::Comma) {
+            rest = after_binding
+                .take_punctuation(PunctuationKind::Comma, ",")
+                .ok()?;
+        } else {
+            rest = after_binding;
+        }
+    }
+    if fields.is_empty() {
+        return None;
+    }
+    let rest = rest.take_punctuation(PunctuationKind::Equal, "=").ok()?;
+    let (value, rest) = parse_expression_handle(syntax_trees, rest).ok()?;
+    let rest = rest
+        .take_punctuation(PunctuationKind::Semicolon, ";")
+        .ok()?;
+    // V1 place gate: the destructured value must be a Name or member chain
+    // (pure re-readable place; calls would double-evaluate).
+    fn is_place(syntax_trees: &SyntaxTrees, expression: omega_syntax_trees::expression::ExpressionHandle) -> bool {
+        match syntax_trees.expressions.expression(expression) {
+            ExpressionNode::Name(_) | ExpressionNode::SelfValue => true,
+            ExpressionNode::Member(member) => is_place(syntax_trees, member.receiver),
+            _ => false,
+        }
+    }
+    if !is_place(syntax_trees, value) {
+        return None;
+    }
+
+    // The MARKER let: name encodes the spelled field set (bound AND
+    // waived) -- validation's exhaustiveness carrier; its initializer is
+    // the place itself (types the marker; names the receiver).
+    // `#` cannot occur in an authored identifier, so even fields containing
+    // repeated underscores retain one unambiguous marker component. This is
+    // the same delimiter as the arm-pattern marker family.
+    let mut marker_name = String::from("__destructure");
+    for (field, _) in &fields {
+        marker_name.push('#');
+        marker_name.push_str(field.as_str());
+    }
+    let marker = syntax_trees
+        .statements
+        .insert(StatementNode::LocalData(TableLocalData {
+            name: omega_syntax_trees::identifier::Identifier::generated(marker_name),
+            type_reference: omega_syntax_trees::types::TypeReferenceHandle::invalid(),
+            initial_value: value,
+            is_mutable: false,
+        }));
+    let marker = syntax_trees.items.append_statement_handle(marker);
+    let mut count: u32 = 1;
+
+    for (field, binding) in fields {
+        let Some(binding) = binding else {
+            continue; // waived: spelled in the marker, no binding minted
+        };
+        let member = syntax_trees
+            .expressions
+            .insert(ExpressionNode::Member(TableMemberExpression {
+                receiver: value,
+                member: field,
+                case_variant: None,
+            }));
+        let statement = syntax_trees
+            .statements
+            .insert(StatementNode::LocalData(TableLocalData {
+                name: binding,
+                type_reference: omega_syntax_trees::types::TypeReferenceHandle::invalid(),
+                initial_value: member,
+                is_mutable: false,
+            }));
+        let _ = syntax_trees.items.append_statement_handle(statement);
+        count = count.checked_add(1).expect("destructure count overflow");
+    }
+
+    Some((HandleSpan::from_parts(marker, count), rest))
+}
+
 pub(super) fn try_parse_atomic_fetch_add_let<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
-) -> Option<(
-    HandleSpan<omega_syntax_trees::statement::StatementHandle>,
-    Input<'tokens, 'source>,
-)> {
+) -> Option<(HandleSpan<omega_syntax_trees::statement::StatementHandle>, Input<'tokens, 'source>)>
+{
     // Must start with `let`.
     if !input.at_keyword(KeywordKind::Let) {
         return None;
@@ -806,6 +916,7 @@ fn expression_handle_to_statement_call(
         receiver: receiver.members,
         receiver_starts_at_self: receiver.starts_at_self,
         target,
+        machine_arguments: call.machine_arguments,
         arguments: copy_expression_handles_to_statement_table(syntax_trees, call.arguments),
         discards_result: false,
     })

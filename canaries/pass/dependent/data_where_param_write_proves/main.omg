@@ -1,0 +1,18 @@
+// R2 rung 3 slice 6: a parameter write whose fact mentions ONLY the
+// written field proves without co-field knowledge -- count = 3 folds
+// `count <= 4096` regardless of the parameter's unknown arrival values.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Meter
+where
+    count <= 4096,
+{
+    count: u32;
+}
+data Main { console: Console; meter: Meter; }
+machine Main::bump(&mut self, target: &mut Meter) {
+    target.count = 3;
+}
+machine Main::main(&mut self) {
+    self.bump(&mut self.meter);
+    self.console.exit_process(70);
+}

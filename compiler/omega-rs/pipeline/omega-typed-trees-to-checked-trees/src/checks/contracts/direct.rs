@@ -1,7 +1,7 @@
 use omega_core::symbols::SymbolHandle;
 use omega_facts::{FactPayload, FactPlace};
 
-use super::labels::instantiate_call_contract_expression_label;
+use super::labels::{ContractTargetParameters, instantiate_call_contract_expression_label};
 use super::places::{expression_is_boolean_place_like, expression_place_matches};
 use crate::labels::canonical_place_label;
 
@@ -38,7 +38,7 @@ pub(super) fn direct_context_proves_instantiated_boolean_expression(
     caller_state_symbol: SymbolHandle,
     statement_index: usize,
     call_site: &crate::CallSite<'_>,
-    target_state: &omega_typed_trees::state::State,
+    target_state: &(impl ContractTargetParameters + ?Sized),
     expression: omega_typed_trees::expression::ExpressionHandle,
 ) -> bool {
     let required_label = instantiate_call_contract_expression_label(

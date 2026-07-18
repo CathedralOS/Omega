@@ -22,7 +22,6 @@
 boundary trait Console { machine exit_process(return_code: i32); }
 data Main { console: Console; hits: i32 in Wrapping; total: i32 in Wrapping; }
 machine Main::count(&mut self, i: u64, j: u64)
-terminates;
 terminates by (j, i) -> Nat::BoundedDistance;
 -> i32
 {

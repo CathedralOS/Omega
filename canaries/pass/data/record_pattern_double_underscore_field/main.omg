@@ -1,0 +1,17 @@
+// Internal destructure-marker delimiters must not split a legal field name
+// containing repeated underscores. Exhaustiveness sees exactly the two
+// authored fields; the bound value remains 70.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Pair {
+    left__value: i32;
+    right: i32;
+}
+data Main { console: Console; pair: Pair; }
+machine Main::main(&mut self) {
+    self.pair = Pair { left__value: 70, right: 1 };
+    let { left__value, right as _ } = self.pair;
+    let code: i32 = left__value + 0;
+    transition code == 70 { true -> good() _ -> bad() }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(1); }
+}
