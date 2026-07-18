@@ -1,7 +1,11 @@
 use crate::InstructionSelectionInput;
-use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
+use omega_checked_trees::expression::{
+    ExpressionHandle, ExpressionNode, ExpressionTable, TableBinaryExpression,
+};
 use omega_checked_trees::statement::StatementNode;
+use omega_checked_trees::types::{PrimitiveType, TypeReferenceHandle};
 use omega_control_flow::StateKey;
+use omega_core::literals::{IntegerLanding, LandedIntegerType};
 use omega_core::symbols::SymbolHandle;
 use omega_runtime_bodies::{RuntimeDispatchBodyOperation, RuntimeDispatchBodyOperationKind};
 use omega_state_calls::StateCallRole;
@@ -101,6 +105,15 @@ pub(super) fn bind_runtime_operation_aliases(
         );
         let expression =
             strip_mutable_expression_handle(alias_expressions, resolved_expression.expression);
+        let expression = state_parameter_integer_landing(
+            input,
+            state_call.target_key,
+            argument.parameter_symbol,
+        )
+        .map(|landing| {
+            stamp_anonymous_integer_landing_on_value_spine(alias_expressions, expression, landing)
+        })
+        .unwrap_or(expression);
         aliases.set_alias(RuntimeAliasBinding {
             source_key: state_call.target_key,
             parameter_symbol: argument.parameter_symbol,
@@ -178,13 +191,114 @@ fn bind_prior_local_aliases(
             aliases.bindings(),
             alias_expressions,
         );
+        let expression = integer_landing_for_type_reference(input, local_data.type_reference)
+            .map(|landing| {
+                stamp_anonymous_integer_landing_on_value_spine(
+                    alias_expressions,
+                    resolved_initializer.expression,
+                    landing,
+                )
+            })
+            .unwrap_or(resolved_initializer.expression);
         aliases.set_alias(RuntimeAliasBinding {
             source_key: operation.source_key,
             parameter_symbol: local_data.symbol,
             parameter_name: local_data.name.clone(),
             expression_source_key: resolved_initializer.source_key,
-            expression: resolved_initializer.expression,
+            expression,
         });
+    }
+}
+
+fn state_parameter_integer_landing(
+    input: &InstructionSelectionInput<'_>,
+    source_key: StateKey,
+    parameter_symbol: SymbolHandle,
+) -> Option<IntegerLanding> {
+    let machine = input
+        .program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == source_key.machine)?;
+    let state = input
+        .program
+        .machine_states(machine)
+        .iter()
+        .find(|state| state.symbol == source_key.state)?;
+    let parameter = input
+        .program
+        .state_parameters(state)
+        .iter()
+        .find(|parameter| parameter.symbol == parameter_symbol)?;
+    integer_landing_for_type_reference(input, parameter.type_reference)
+}
+
+pub(super) fn integer_landing_for_type_reference(
+    input: &InstructionSelectionInput<'_>,
+    type_reference: TypeReferenceHandle,
+) -> Option<IntegerLanding> {
+    let landed_type = match input.program.primitive_type_reference(type_reference)? {
+        PrimitiveType::I8 => LandedIntegerType::I8,
+        PrimitiveType::I16 => LandedIntegerType::I16,
+        PrimitiveType::I32 => LandedIntegerType::I32,
+        PrimitiveType::I64 => LandedIntegerType::I64,
+        PrimitiveType::U8 => LandedIntegerType::U8,
+        PrimitiveType::U16 => LandedIntegerType::U16,
+        PrimitiveType::U32 => LandedIntegerType::U32,
+        PrimitiveType::U64 => LandedIntegerType::U64,
+        PrimitiveType::Addr => LandedIntegerType::Addr,
+        PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64 | PrimitiveType::String => {
+            return None;
+        }
+    };
+    Some(IntegerLanding {
+        landed_type,
+        domain: input
+            .program
+            .type_reference_table
+            .arithmetic_domain(type_reference),
+    })
+}
+
+/// Alias materialization must retain the type at which a local initializer
+/// landed. Stamp only the same-typed value spine: a binary's operands and
+/// Mutable wrappers inherit the destination landing, while indices, call
+/// arguments, and aggregate fields remain independent typing sites. An
+/// explicitly landed literal (for example, a suffixed operand) is authoritative.
+pub(super) fn stamp_anonymous_integer_landing_on_value_spine(
+    expressions: &mut ExpressionTable,
+    expression: ExpressionHandle,
+    landing: IntegerLanding,
+) -> ExpressionHandle {
+    match expressions.expression(expression).clone() {
+        ExpressionNode::Integer(literal) if literal.landing().is_none() => {
+            expressions.insert(ExpressionNode::Integer(literal.with_landing(landing)))
+        }
+        ExpressionNode::Binary(binary) => {
+            let left =
+                stamp_anonymous_integer_landing_on_value_spine(expressions, binary.left, landing);
+            let right =
+                stamp_anonymous_integer_landing_on_value_spine(expressions, binary.right, landing);
+            if left == binary.left && right == binary.right {
+                expression
+            } else {
+                expressions.insert(ExpressionNode::Binary(TableBinaryExpression {
+                    left,
+                    operator: binary.operator,
+                    right,
+                }))
+            }
+        }
+        ExpressionNode::Mutable(inner) => {
+            let landed =
+                stamp_anonymous_integer_landing_on_value_spine(expressions, inner, landing);
+            if landed == inner {
+                expression
+            } else {
+                expressions.insert(ExpressionNode::Mutable(landed))
+            }
+        }
+        _ => expression,
     }
 }
 
