@@ -225,3 +225,84 @@ fn consuming_call_that_returns_an_obligation_transfers_its_origin() {
         .iter()
         .all(|event| event.provenance == events[0].provenance));
 }
+
+#[test]
+fn nested_conditional_payload_extraction_preserves_its_origin() {
+    let checked = checked(
+        r#"
+        data Receipt [linear] { code: i32; }
+        machine Receipt::ack(self) {}
+        data ReceiptState {
+            case Empty;
+            case Live(receipt: Receipt);
+        }
+        data Main {}
+        machine Main::run() -> i32 {
+            let issued: Receipt = Receipt { code: 7 };
+            let state: ReceiptState = ReceiptState::Live { receipt: issued };
+            let extracted: Receipt = state.receipt;
+            Receipt::ack(extracted);
+            0
+        }
+        "#,
+    );
+
+    use omega_core::semantics::{PermissionAccess, PermissionEventKind};
+    let events = checked
+        .facts
+        .flow
+        .ownership
+        .permissions
+        .iter()
+        .map(|(_, event)| event)
+        .filter(|event| event.access == PermissionAccess::Owned)
+        .collect::<Vec<_>>();
+    assert_eq!(
+        events.iter().map(|event| event.kind).collect::<Vec<_>>(),
+        [
+            PermissionEventKind::Establish,
+            PermissionEventKind::Transfer,
+            PermissionEventKind::Establish,
+            PermissionEventKind::Transfer,
+            PermissionEventKind::Establish,
+            PermissionEventKind::Consume,
+        ]
+    );
+    assert!(
+        events
+            .iter()
+            .all(|event| event.provenance == events[0].provenance),
+        "nested transfers must conserve one origin: {events:#?}"
+    );
+}
+
+#[test]
+fn nested_linear_record_extraction_stays_conservative_without_field_algebra() {
+    let source = r#"
+        data Receipt [linear] { code: i32; }
+        machine Receipt::ack(self) {}
+        data Pair [linear] {
+            left: Receipt;
+            right: Receipt;
+        }
+        data Main {}
+        machine Main::run() -> i32 {
+            let left: Receipt = Receipt { code: 1 };
+            let right: Receipt = Receipt { code: 2 };
+            let pair: Pair = Pair { left: left, right: right };
+            let extracted: Receipt = pair.left;
+            Receipt::ack(extracted);
+            0
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let diagnostics = lower_typed_trees(typed)
+        .expect_err("partial linear-record extraction needs per-field resource accounting");
+
+    assert!(diagnostics
+        .iter()
+        .any(|diagnostic| diagnostic.message.contains("linear value `pair` reaches scope exit")));
+}

@@ -31540,6 +31540,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "ownership/linear_branch_reconciliation",
     "ownership/linear_assignment_establishes",
     "ownership/conditional_linear_sum",
+    "ownership/conditional_linear_payload_extraction",
     "ownership/linear_transfer_and_consume",
     "ownership/linear_returned_obligation",
     "ownership/linear_zero_storage_unestablished",
