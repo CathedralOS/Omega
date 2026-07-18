@@ -238,6 +238,15 @@ fn parse_machine_parameter_contracts<'tokens, 'source>(
         let after_machine = after_where.take_keyword(KeywordKind::Machine, "machine")?;
         let (name, after_name) = after_machine.take_identifier()?;
 
+        // The ch13 ONE-OFF METHOD REQUIREMENT on a TYPE parameter
+        // (`where machine T::increment(&mut self)`) is a different clause:
+        // the `::` after the name discriminates it from an MP1 machine-
+        // parameter contract (`where machine M(args) -> R`). Leave it for
+        // the general where-clause parser.
+        if after_name.at_punctuation(PunctuationKind::ColonColon) {
+            break;
+        }
+
         let parameter_index = syntax_trees
             .items
             .type_parameters(type_parameters)

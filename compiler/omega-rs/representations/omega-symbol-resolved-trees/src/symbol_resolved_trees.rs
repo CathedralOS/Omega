@@ -19,6 +19,8 @@ pub struct SymbolResolvedTrees {
     /// STR4 checked plans, slice 1: the deterministic semantic-domain
     /// interner (declared-name identity, declaration order).
     pub semantic_domains: omega_core::semantics::SemanticDomainTable,
+    /// PRV4: normalized `via` bindings, interned once at lowering.
+    pub external_bindings: omega_core::semantics::ExternalBindingTable,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -113,6 +115,7 @@ impl SymbolResolvedTrees {
             symbols,
             effect_rows: omega_core::semantics::EffectRowTable::default(),
             semantic_domains: omega_core::semantics::SemanticDomainTable::default(),
+            external_bindings: omega_core::semantics::ExternalBindingTable::default(),
         }
     }
 

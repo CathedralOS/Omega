@@ -85,11 +85,32 @@ pub struct HostProviderDefinition {
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
+
 pub struct HostProviderMapping {
     /// The boundary-trait method this arm binds (the `output_string` in
     /// `output_string -> VtableSlot(1)`).
     pub machine: Identifier,
     pub binding: HostProviderMappingKind,
+}
+
+impl HostProviderMappingKind {
+    /// PRV4: the NORMALIZED rendering -- the compile-time-evaluable binding
+    /// expression's canonical text, the ExternalRealization identity the
+    /// interner keys on. Exactly one spelling per binding value.
+    pub fn normalized_rendering(&self) -> String {
+        match self {
+            Self::Syscall { number } => format!("Syscall({number})"),
+            Self::DllImport { module, symbol } => {
+                format!("DllImport({module},{symbol})")
+            }
+            Self::VtableSlot { index } => format!("VtableSlot({index})"),
+            Self::VtableField { field } => format!("VtableField({})", field.as_str()),
+            Self::TableFunction { field } => {
+                format!("TableFunction({})", field.as_str())
+            }
+            Self::Value { value } => format!("Value({value})"),
+        }
+    }
 }
 
 /// The compiler-known, CLOSED `Binding` sum (extern brief §12.1): each provides
@@ -622,6 +643,12 @@ pub struct SatisfiesClause {
     pub trait_name: Identifier,
     pub requirement: Option<Identifier>,
     pub alias: Option<Identifier>,
+    /// PRV4 step 1: `satisfies Requirement via <Binding>` -- the irreducible
+    /// EXTERNAL LEAF. The binding expression is the closed compile-time sum
+    /// (the provides grammar's RHS); its normalized rendering becomes the
+    /// machine's ExternalRealization supply identity. Only legal on a
+    /// BODYLESS machine (a composite lowering is an ordinary checked body).
+    pub via: Option<HostProviderMappingKind>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

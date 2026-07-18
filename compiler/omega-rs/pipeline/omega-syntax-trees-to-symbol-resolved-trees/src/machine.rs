@@ -59,21 +59,40 @@ pub(crate) fn lower_machine_into(
     let attached_data = machine.attached_data.as_ref().map(crate::name::lower_name);
     let termination_plan = build_termination_plan(lowerer, syntax_trees, machine, states);
 
+    // STR3: the supply mode's ONE population site. Requirement gains its
+    // source when trait requirements reach this record; Accepted is the
+    // bodyless `boundary machine` proof form (CH10 GR6d); a bodyless
+    // NON-boundary machine with a `via` clause is PRV4's external leaf (the
+    // item parser refuses every other bodyless shape). Computed before the
+    // push so the interner borrow does not overlap the machines borrow.
+    let supply_mode = {
+        let via_rendering = syntax_trees
+            .items
+            .satisfies_clauses(machine.satisfies)
+            .iter()
+            .find_map(|clause| clause.via.as_ref())
+            .map(|binding| binding.normalized_rendering());
+        if machine.bodyless && machine.boundary {
+            omega_core::semantics::MachineSupplyMode::Accepted
+        } else if let (true, Some(rendering)) = (machine.bodyless, &via_rendering) {
+            omega_core::semantics::MachineSupplyMode::ExternalRealization {
+                binding: lowerer
+                    .symbol_resolved_trees
+                    .external_bindings
+                    .intern(rendering),
+            }
+        } else if machine.boundary {
+            omega_core::semantics::MachineSupplyMode::Boundary
+        } else {
+            omega_core::semantics::MachineSupplyMode::CheckedBody
+        }
+    };
     lowerer.symbol_resolved_trees.machines.push(Machine {
         symbol: SymbolHandle::invalid(),
         name: machine_name,
         attached_data,
         boundary: machine.boundary,
-        // STR3: the supply mode's ONE population site. Requirement gains
-        // its source when trait requirements reach this record; Accepted is
-        // the bodyless `boundary machine` proof form (CH10 GR6d).
-        supply_mode: if machine.bodyless {
-            omega_core::semantics::MachineSupplyMode::Accepted
-        } else if machine.boundary {
-            omega_core::semantics::MachineSupplyMode::Boundary
-        } else {
-            omega_core::semantics::MachineSupplyMode::CheckedBody
-        },
+        supply_mode,
         // TPR2: the termination plan's ONE population site (see
         // build_termination_plan below).
         termination_plan,
@@ -393,6 +412,10 @@ fn lower_machine_trait_conformances(
                     name: crate::name::lower_name(&clause.trait_name),
                     requirement: clause.requirement.as_ref().map(crate::name::lower_name),
                     alias: clause.alias.as_ref().map(crate::name::lower_name),
+                    via: clause
+                        .via
+                        .as_ref()
+                        .map(|binding| binding.normalized_rendering()),
                 },
             );
     }

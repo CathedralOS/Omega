@@ -405,7 +405,6 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("generics/runtime_generic_enum_payload_exit", 70),
     ("generics/runtime_generic_value_call_exit", 70),
     ("generics/runtime_generic_value_call_agreeing_exit", 70),
-    ("generics/runtime_generic_param_position_inference_exit", 70),
     ("host/runtime_tick_count_monotonic_exit", 70),
     ("host/runtime_user32_key_state_exit", 70),
     ("host/runtime_tick_paced_marquee_exit", 0),

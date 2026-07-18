@@ -107,6 +107,12 @@ pub enum MachineSupplyMode {
     /// An accepted (axiom-tier) declaration: trusted without proof, shown
     /// in the trust report.
     Accepted,
+    /// PRV4: an irreducible external leaf -- `satisfies Requirement via
+    /// <Binding>;` on a bodyless machine. The satisfied requirement supplies
+    /// the public contract/effect ceiling; the normalized binding is the
+    /// realization the lowering consumes. Composite lowerings are ordinary
+    /// CheckedBody machines and never carry a binding.
+    ExternalRealization { binding: ExternalBindingId },
 }
 
 /// Decision 23's PUBLIC half: the eventual-terminal guarantee that
@@ -233,6 +239,13 @@ semantic_id!(
     /// participates in provider admission, outside the ordinary proof-fact
     /// catalog in v1.
     ProgressProfileId
+);
+semantic_id!(
+    /// A normalized EXTERNAL-BINDING identity (PRV4 step 1): the rendered,
+    /// compile-time-evaluable `via <Binding>` expression of an
+    /// ExternalRealization leaf, interned so supply modes stay Copy and two
+    /// spellings of one binding share one identity.
+    ExternalBindingId
 );
 semantic_id!(
     /// A canonical ranking view (e.g. `Nat::Descending`); the witness names
@@ -367,6 +380,34 @@ impl EffectRowTable {
             .and_then(|index| self.rows.get(index as usize))
             .map(Vec::as_slice)
             .unwrap_or(&[])
+    }
+}
+
+/// PRV4 step 1: the deterministic EXTERNAL-BINDING interner -- normalized
+/// rendered `via` bindings, minted in declaration order. `NULL`/0 stays
+/// "not computed"; ids start at 1.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ExternalBindingTable {
+    renderings: Vec<String>,
+}
+
+impl ExternalBindingTable {
+    pub fn intern(&mut self, rendering: &str) -> ExternalBindingId {
+        if let Some(index) = self
+            .renderings
+            .iter()
+            .position(|existing| existing == rendering)
+        {
+            return ExternalBindingId(index as u32 + 1);
+        }
+        self.renderings.push(rendering.to_owned());
+        ExternalBindingId(self.renderings.len() as u32)
+    }
+
+    pub fn rendering(&self, id: ExternalBindingId) -> Option<&str> {
+        id.0.checked_sub(1)
+            .and_then(|index| self.renderings.get(index as usize))
+            .map(String::as_str)
     }
 }
 

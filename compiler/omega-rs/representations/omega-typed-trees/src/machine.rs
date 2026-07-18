@@ -108,6 +108,8 @@ pub struct TraitConformance {
     /// (`as Name`) for plural algebras / signature collisions.
     pub requirement: Option<Identifier>,
     pub alias: Option<Identifier>,
+    /// PRV4: the external leaf's NORMALIZED binding rendering (`via`).
+    pub via: Option<String>,
 }
 
 impl Default for TraitConformance {
@@ -117,6 +119,7 @@ impl Default for TraitConformance {
             name: Identifier::default(),
             requirement: None,
             alias: None,
+            via: None,
         }
     }
 }

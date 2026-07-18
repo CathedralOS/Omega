@@ -197,6 +197,7 @@ fn supply_mode_name(mode: omega_core::semantics::MachineSupplyMode) -> &'static 
         MachineSupplyMode::Requirement => "requirement",
         MachineSupplyMode::Boundary => "boundary",
         MachineSupplyMode::Accepted => "accepted",
+        MachineSupplyMode::ExternalRealization { .. } => "external-realization",
     }
 }
 

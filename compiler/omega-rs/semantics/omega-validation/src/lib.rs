@@ -150,6 +150,14 @@ pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
             // (fence_generic_value_callee).
             if state.return_type.is_valid()
                 && program.machine_type_parameters(machine).is_empty()
+                // A SPECIALIZED generic keeps its declaration symbol while
+                // MP4 substitution consumes its type parameters in place --
+                // it inherits the generic exemption (the core container
+                // surface is type-check-only; value calls stay fenced).
+                && !program
+                    .machine_specializations
+                    .iter()
+                    .any(|specialization| specialization.template == machine.symbol)
                 // CH10 ACCEPTED machines (bodyless `boundary machine`
                 // axioms) have no body BY DESIGN: their meaning is their
                 // ensures, admitted through the trust carrier, never

@@ -130,11 +130,21 @@ pub(super) fn parse_item<'tokens, 'source>(
     if input.at_keyword(KeywordKind::Machine) {
         let input = input.take_keyword(KeywordKind::Machine, "machine")?;
         let (item, rest) = parse_machine(syntax_trees, input)?;
-        if item.bodyless {
+        // PRV4 step 1: a bodyless machine is legal when it is an EXTERNAL
+        // LEAF -- `satisfies Requirement via <Binding>;` -- whose realization
+        // is the binding. Every other bodyless machine remains the accepted
+        // boundary form.
+        let has_via = syntax_trees
+            .items
+            .satisfies_clauses(item.satisfies)
+            .iter()
+            .any(|clause| clause.via.is_some());
+        if item.bodyless && !has_via {
             return Err(rest.error_here(
                 "a machine without a body is the ACCEPTED boundary form -- spell it \
                  `boundary machine ...;` (chapter 10: bodyless contracts are trust \
-                 rows, not ordinary machines)",
+                 rows, not ordinary machines) -- or an EXTERNAL LEAF \
+                 (`satisfies Requirement via <Binding>;`)",
             ));
         }
         return Ok((Item::Machine(item), rest));
@@ -476,7 +486,7 @@ fn parse_host_provider_definition<'tokens, 'source>(
 /// `DllImport("module", "symbol")`, or `VtableSlot(n)`. Parsed directly (the
 /// sum is closed, so the case names are compiler-known, not user identifiers to
 /// resolve later); an unknown case is a guided error.
-fn parse_host_provider_binding<'tokens, 'source>(
+pub(crate) fn parse_host_provider_binding<'tokens, 'source>(
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, HostProviderMappingKind> {
     // An INTEGER-led RHS is a per-target VALUE row (`O_CREATE -> 32768`),
