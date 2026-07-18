@@ -1,7 +1,10 @@
 use omega_checked_trees::{CheckFacts, FlowOwnershipEventSource, FlowPermissionEventFact};
 use omega_core::arena::HandleSpan;
 use omega_core::diagnostics::Diagnostic;
-use omega_core::semantics::{Multiplicity, PermissionEventKind, PermissionEventSource};
+use omega_core::semantics::{
+    Multiplicity, PermissionAccess, PermissionEventKind, PermissionEventSource,
+    PermissionProvenance,
+};
 use omega_core::symbols::SymbolHandle;
 use omega_typed_trees::statement::StatementNode;
 use omega_typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
@@ -10,6 +13,8 @@ use omega_typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 struct LinearPlace {
     symbol: SymbolHandle,
     name: String,
+    multiplicity: Multiplicity,
+    provenance: Option<PermissionProvenance>,
     live: bool,
     /// Parameters are established on entry. A local is established only by an
     /// explicit initializer/assignment; implicit zero-fill creates no debt.
@@ -24,6 +29,7 @@ struct LinearPlace {
 struct WrittenLinearTarget {
     root: omega_facts::PlaceRoot,
     obligation_live: bool,
+    provenance: Option<PermissionProvenance>,
 }
 
 pub(crate) fn check_linear_obligations(
@@ -55,6 +61,13 @@ pub(crate) fn check_linear_obligations(
                     state_symbol: state.symbol,
                     source: PermissionEventSource::StateEntry,
                     kind: PermissionEventKind::Establish,
+                    multiplicity,
+                    access: PermissionAccess::Owned,
+                    provenance: established_provenance(
+                        state_flow.machine_symbol,
+                        state.symbol,
+                        PermissionEventSource::StateEntry,
+                    ),
                     root: omega_facts::PlaceRoot::Symbol(parameter.symbol),
                     segments: HandleSpan::empty(),
                     obligation_live: true,
@@ -62,6 +75,12 @@ pub(crate) fn check_linear_obligations(
                 places.push(LinearPlace {
                     symbol: parameter.symbol,
                     name: parameter.name.as_str().to_owned(),
+                    multiplicity,
+                    provenance: Some(established_provenance(
+                        state_flow.machine_symbol,
+                        state.symbol,
+                        PermissionEventSource::StateEntry,
+                    )),
                     live: true,
                     ever_established: true,
                     conditional,
@@ -79,6 +98,8 @@ pub(crate) fn check_linear_obligations(
                     places.push(LinearPlace {
                         symbol: local.symbol,
                         name: local.name.as_str().to_owned(),
+                        multiplicity,
+                        provenance: None,
                         live: false,
                         ever_established: false,
                         conditional,
@@ -194,6 +215,9 @@ pub(crate) fn check_linear_obligations(
                 state_symbol: state.symbol,
                 source: PermissionEventSource::StateExit,
                 kind: PermissionEventKind::AffineDrop,
+                multiplicity: Multiplicity::Affine,
+                access: PermissionAccess::Owned,
+                provenance: PermissionProvenance::Unknown,
                 root: drop.root,
                 segments: drop.segments,
                 obligation_live: false,
@@ -269,6 +293,9 @@ fn apply_statement_permission_flow(
             state_symbol,
             source: permission_source(event.source),
             kind: permission_kind_for_move(program, facts, machine_symbol, state_symbol, event),
+            multiplicity: place.multiplicity,
+            access: PermissionAccess::Owned,
+            provenance: place.provenance.unwrap_or(PermissionProvenance::Unknown),
             root: event.root,
             segments: event.segments,
             obligation_live,
@@ -291,6 +318,7 @@ fn apply_statement_permission_flow(
     if let Some(WrittenLinearTarget {
         root: omega_facts::PlaceRoot::Symbol(symbol),
         obligation_live,
+        provenance,
     }) = written_target
     {
         let place = places
@@ -305,15 +333,39 @@ fn apply_statement_permission_flow(
         }
         place.live = obligation_live;
         place.ever_established = true;
+        place.provenance = Some(provenance.unwrap_or_else(|| {
+            established_provenance(
+                machine_symbol,
+                state_symbol,
+                PermissionEventSource::Statement { statement_index },
+            )
+        }));
         permission_events.push(FlowPermissionEventFact {
             machine_symbol,
             state_symbol,
             source: PermissionEventSource::Statement { statement_index },
             kind: PermissionEventKind::Establish,
+            multiplicity: place.multiplicity,
+            access: PermissionAccess::Owned,
+            provenance: place
+                .provenance
+                .expect("an established place has explicit provenance"),
             root: omega_facts::PlaceRoot::Symbol(symbol),
             segments: HandleSpan::empty(),
             obligation_live,
         });
+    }
+}
+
+fn established_provenance(
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    source: PermissionEventSource,
+) -> PermissionProvenance {
+    PermissionProvenance::Established {
+        machine_symbol,
+        state_symbol,
+        source,
     }
 }
 
@@ -421,6 +473,13 @@ fn written_whole_linear_target(
                     tracked.conditional,
                     places,
                 ),
+                provenance: expression_permission_provenance(
+                    program,
+                    state_symbol,
+                    statement_index,
+                    local.initial_value,
+                    places,
+                ),
             })
         }
         StatementNode::Assignment(assignment) => {
@@ -447,10 +506,42 @@ fn written_whole_linear_target(
                     tracked.conditional,
                     places,
                 ),
+                provenance: expression_permission_provenance(
+                    program,
+                    state_symbol,
+                    statement_index,
+                    assignment.value,
+                    places,
+                ),
             })
         }
         _ => None,
     }
+}
+
+fn expression_permission_provenance(
+    program: &omega_typed_trees::TypedTrees,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    expression: omega_typed_trees::expression::ExpressionHandle,
+    places: &[LinearPlace],
+) -> Option<PermissionProvenance> {
+    let source = crate::flow::canonical_place_from_expression_in_state(
+        program,
+        state_symbol,
+        statement_index,
+        expression,
+    )?;
+    if !source.segments.is_empty() {
+        return None;
+    }
+    let omega_facts::PlaceRoot::Symbol(symbol) = source.root else {
+        return None;
+    };
+    places
+        .iter()
+        .find(|place| place.symbol == symbol)
+        .and_then(|place| place.provenance)
 }
 
 fn expression_establishes_obligation(

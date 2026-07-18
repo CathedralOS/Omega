@@ -173,15 +173,23 @@ fn effect_set_is_still_a_flat_bitset() {
 /// RE-PINNED (CML3, 2026-07-17): checked flow and every downstream semantic
 /// spine now retain Establish / Transfer / Consume / AffineDrop permission
 /// events (including conditional-payload debt). MOVE/DROP remain compatibility
-/// fields, not the source taxonomy. Still open: permission entries need
-/// explicit access + provenance rather than only event/place identity.
+/// fields, not the source taxonomy. CML3 slice 3 added multiplicity, explicit
+/// owned/shared/exclusive access, and transfer-stable origin provenance; the
+/// remaining gap is feeding shared/exclusive borrow loans into this context.
 #[test]
-fn downstream_ownership_summary_carries_permission_events() {
-    use omega_control_flow::StateOwnershipSummary;
+fn downstream_ownership_summary_carries_qualified_permission_events() {
+    use omega_control_flow::{StateOwnershipSummary, StatePermissionEvent};
+    use omega_core::semantics::{
+        Multiplicity, PermissionAccess, PermissionProvenance,
+    };
     let StateOwnershipSummary {
         moves: _,
         drops: _,
         permissions: _,
         ..
     } = StateOwnershipSummary::default();
+    let event = StatePermissionEvent::default();
+    assert_eq!(event.multiplicity, Multiplicity::Affine);
+    assert_eq!(event.access, PermissionAccess::Owned);
+    assert_eq!(event.provenance, PermissionProvenance::Unknown);
 }

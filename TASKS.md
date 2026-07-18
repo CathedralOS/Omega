@@ -4549,8 +4549,14 @@ with a real app-window story.
   typed events now survive state graph -> control flow -> abstract/target/
   assigned operations -> machine program/instructions/bytes; exact capacities,
   machine-graph merge/remap, tests, the audit pin, and backend report all carry
-  them. **CML3 next:** add access/provenance to permission entries, then flip the checker
-  fully off move/drop input; cover returned-obligation outcomes and nested
+  them. **CML3 SLICE 3 LANDED 2026-07-17:** permission events now carry the
+  full entry axes -- multiplicity, `Owned | Shared | Exclusive` access, and
+  transfer-stable establishment provenance. The straight-line linear checker
+  preserves one origin through multiple bindings; legacy-derived affine drops
+  stay explicitly `Unknown` rather than fabricating evidence, and backend
+  reports expose all three axes. **CML3 next:** feed shared/exclusive borrow
+  loans into the permission context, then flip the checker fully off move/drop
+  input; cover returned-obligation outcomes and nested
   conditional payload extraction along that migration. Terminal consumption needs no annotation: an ordinary
   `move self` call consumes when no returned outcome carries the obligation,
   while a `try_*` incomplete outcome must return the live token. Pin create ->

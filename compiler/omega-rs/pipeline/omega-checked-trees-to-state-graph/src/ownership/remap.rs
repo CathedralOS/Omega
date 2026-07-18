@@ -42,6 +42,9 @@ fn append_remapped_permission_events(
                 StatePermissionEvent {
                     source: event.source,
                     kind: event.kind,
+                    multiplicity: event.multiplicity,
+                    access: event.access,
+                    provenance: event.provenance,
                     root: event.root,
                     segments: target.semantics.ownership.segments.insert_many(
                         source
