@@ -46,7 +46,21 @@ pub(crate) fn record_permission_events(
 ) {
     let mut permission_events = Vec::new();
 
-    for (_, state_flow) in facts.flow.control.states.iter() {
+    let state_flows = facts
+        .flow
+        .control
+        .states
+        .iter()
+        .map(|(_, state)| state.clone())
+        .collect::<Vec<_>>();
+    for state_flow in state_flows {
+        let Some(machine) = program
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == state_flow.machine_symbol)
+        else {
+            continue;
+        };
         let Some(state) = crate::find_state(program, state_flow.state_symbol) else {
             continue;
         };
@@ -73,7 +87,13 @@ pub(crate) fn record_permission_events(
                 });
         }
 
-        let moves = facts.flow.ownership.moves.span_or_empty(state_flow.moves);
+        let moves = crate::flow::discover_state_move_events(
+            program,
+            &facts.borrow,
+            machine,
+            state,
+            &mut facts.flow.ownership.segments,
+        );
         let first_transition = statements
             .iter()
             .position(|statement| matches!(statement, StatementNode::Transition(_)));
@@ -84,7 +104,7 @@ pub(crate) fn record_permission_events(
                 facts,
                 state_flow.machine_symbol,
                 state.symbol,
-                moves,
+                &moves,
                 statement_index,
                 statement,
                 &mut places,
@@ -104,7 +124,7 @@ pub(crate) fn record_permission_events(
                     facts,
                     state_flow.machine_symbol,
                     state.symbol,
-                    moves,
+                    &moves,
                     statement_index,
                     &statements[statement_index],
                     &mut outcome,
@@ -490,7 +510,7 @@ fn apply_statement_permission_production(
     facts: &CheckFacts,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
-    moves: &[omega_checked_trees::FlowMoveEventFact],
+    moves: &[crate::flow::DiscoveredMoveEvent],
     statement_index: usize,
     statement: &StatementNode,
     places: &mut [LinearPlace],
@@ -631,7 +651,7 @@ fn permission_kind_for_move(
     facts: &CheckFacts,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
-    event: &omega_checked_trees::FlowMoveEventFact,
+    event: &crate::flow::DiscoveredMoveEvent,
 ) -> PermissionEventKind {
     let FlowOwnershipEventSource::Call {
         statement_index,
