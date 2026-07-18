@@ -519,21 +519,9 @@ pub(in crate::selection) fn select_runtime_frame_slot_value_write_in_table_with_
         return Some(kind);
     }
 
-    // Decision 17 (operand-driven): the write resolves its arithmetic domain from
-    // the OPERANDS' types internally, not from the destination slot. The slot's
-    // PRIMITIVE rides along only as the signedness fallback of last resort --
-    // when every operand folded to a typeless constant (the erased-const-local
-    // shape, e.g. a transition arg re-derived from substituted locals), the
-    // slot's declared type is the one truth-holder left.
-    let mut slot_scratch = ExpressionTable::default();
-    let slot_target = runtime_frame_slot_target_expression(&mut slot_scratch, slot);
-    let slot_primitive = resolve_runtime_storage_primitive_type_in_table(
-        input,
-        dispatch_index,
-        value_source_key,
-        &slot_scratch,
-        slot_target,
-    );
+    // Decision 17 (operand-driven): arithmetic domain and signedness come from
+    // the operands. Typed local-alias capture retains constant landings through
+    // transition-argument materialization, so no destination fallback is needed.
     super::select_runtime_storage_binary_write_in_table(
         input,
         dispatch_index,
@@ -546,7 +534,6 @@ pub(in crate::selection) fn select_runtime_frame_slot_value_write_in_table_with_
         value,
         static_values,
         runtime_value_operands,
-        slot_primitive,
     )
 }
 

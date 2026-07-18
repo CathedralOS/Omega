@@ -329,15 +329,16 @@ sealed progress profiles + grants, TPR4's remaining big half).
    destination fallback. The non-table tree write TARGET fallback is
    retired; signedness_adjusted_operator_for_tree_operands is now
    operand-only, pinned by unsigned_min_max_{wrapping_local,
-   operand_position}_exit. ONE RESIDUAL IS DELIBERATE: transition-arg
-   frame materialization still reconstructs a slot-backed initializer
-   as an anonymous nested expression, so its table write keeps the
-   frame-slot target primitive as a last resort (pinned by
-   const_fold_unsigned_shift_right_arg_exit). Next CM2 slice: carry the
-   captured landing through that alias-flow, then remove
-   select_runtime_storage_binary_write_in_table's target_primitive and
-   its frame_slots caller. Float-format carrier work remains with the
-   float ladder. CM3 DIFFERENTIAL LEGS LANDED
+   operand_position}_exit. FINAL INTEGER ALIAS-FLOW RESIDUAL CLOSED
+   2026-07-20: local alias capture and state-argument materialization
+   now stamp anonymous integer literals along the same-typed
+   Binary/Mutable value spine from their declared type (never through
+   indices, nested call arguments, or aggregate fields, and never over
+   an explicit suffix landing). The table binary write is operand-only;
+   `target_primitive` and the frame-slot destination fallback are gone.
+   Shift/divide/modulo transition-argument canaries pin the seam. CM2's
+   integer carrier and consumer migration is complete. Float-format
+   carrier work remains with the float ladder. CM3 DIFFERENTIAL LEGS LANDED
    2026-07-20: const_fold_saturating_narrow_exit (fold_landed's
    Saturating CLAMP at i8 127/-128 + u8 255 + unsigned u8 division;
    composed guards discriminate the bare-i64 window) +

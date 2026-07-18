@@ -1,3 +1,6 @@
+use super::operation_aliases::{
+    integer_landing_for_type_reference, stamp_anonymous_integer_landing_on_value_spine,
+};
 use super::writes::{
     emit_runtime_frame_slot_slice_descriptor_write_in_table,
     select_runtime_frame_slot_value_write_in_table_with_source_anchor,
@@ -168,6 +171,20 @@ pub(super) fn select_runtime_dispatch_argument_materialization(
             &mut resolved_argument_expressions,
             resolved_argument.expression,
         );
+        // A state parameter is a first typed landing site. Prior-local folding
+        // can reconstruct its argument from anonymous literal syntax, so stamp
+        // the same-typed binary value spine from the declared parameter before
+        // operator selection. This is parameter-contract metadata, not a write-
+        // destination fallback.
+        let argument = integer_landing_for_type_reference(input, parameter.type_reference)
+            .map(|landing| {
+                stamp_anonymous_integer_landing_on_value_spine(
+                    &mut resolved_argument_expressions,
+                    argument,
+                    landing,
+                )
+            })
+            .unwrap_or(argument);
         let expressions = &resolved_argument_expressions;
 
         // A NO-PAYLOAD case variant used as a value (`AlarmEvent::Trigger`) is a

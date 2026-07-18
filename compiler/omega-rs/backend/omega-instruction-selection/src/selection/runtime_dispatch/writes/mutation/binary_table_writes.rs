@@ -684,9 +684,6 @@ pub(in crate::selection::runtime_dispatch) fn signedness_adjusted_operator_for_t
     if unsigned_operator_form(operator).is_none() {
         return operator;
     }
-    if std::env::var_os("OMEGA_DEBUG_RECEIVER").is_some() {
-        eprintln!("BTW tree-operand probe: left {left_expression:?} right {right_expression:?}");
-    }
     let mut delegated_expressions = ExpressionTable::default();
     let left = delegated_expressions.insert_tree(left_expression);
     let right = delegated_expressions.insert_tree(right_expression);
@@ -714,22 +711,7 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_storage_binary_writ
     value: ExpressionHandle,
     static_values: &RuntimeStaticValues,
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
-    // The write TARGET's primitive, used ONLY as the signedness fallback of
-    // last resort when NEITHER operand resolves to a typed place (every
-    // operand folded to a typeless constant -- the erased-const-local shape).
-    // Validation guarantees the value lands at the target's declared type,
-    // so the target's signedness IS the operands' when nothing else survives.
-    target_primitive: Option<omega_checked_trees::types::PrimitiveType>,
 ) -> Option<SelectedInstructionKind> {
-    if std::env::var_os("OMEGA_DEBUG_RECEIVER").is_some() {
-        eprintln!(
-            "BTW select_runtime_storage_binary_write_in_table: dispatch {} source m{} s{} stmt {}",
-            dispatch_index,
-            source_key.machine.arena_index(),
-            source_key.state.arena_index(),
-            statement_index
-        );
-    }
     let (operator, comparison_operator, left_expression, right_expression) =
         match expressions.expression(value) {
             ExpressionNode::Binary(binary) => (
@@ -757,11 +739,10 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_storage_binary_writ
         };
 
     // Same signedness policy as the targeted-mutation path above; this entry has
-    // no target EXPRESSION (the place is pre-resolved), so probe the operands,
-    // falling back to the caller-supplied TARGET primitive when neither operand
-    // resolves (the sign-sensitive `>> / %` on fully-folded constants used to
-    // default SIGNED here -- the const-fold sign class's arg-delivery face).
-    let operand_signed = resolve_runtime_operand_signedness_in_table(
+    // no target EXPRESSION (the place is pre-resolved), so probe the operands.
+    // Typed alias materialization retains landed constants on this expression,
+    // so the destination never reinterprets an anonymous value as a fallback.
+    let resolved_signed = resolve_runtime_operand_signedness_in_table(
         input,
         dispatch_index,
         source_key,
@@ -779,19 +760,10 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_storage_binary_writ
             static_values,
         )
     });
-    let resolved_signed =
-        operand_signed.or_else(|| target_primitive.map(|primitive| primitive.is_signed_integer()));
     let operator = match (unsigned_operator_form(operator), resolved_signed) {
         (Some(unsigned), Some(false)) => unsigned,
         _ => operator,
     };
-    if std::env::var_os("OMEGA_DEBUG_RECEIVER").is_some() {
-        eprintln!(
-            "BTW signedness: operand={operand_signed:?} target={:?} -> {operator:?}",
-            target_primitive.map(|primitive| primitive.name()),
-        );
-    }
-
     let left = resolve_runtime_comparison_operand_in_table(
         input,
         dispatch_index,
