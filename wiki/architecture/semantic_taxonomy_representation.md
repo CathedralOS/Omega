@@ -178,6 +178,11 @@ normalized `RankingWitness`; view and rank-range identity come from the same
 witness. The legacy typed-machine decreases/order/argument/range spans are
 compatibility output only and may be cleared without changing the judgment.
 
+Artifact status (2026-07-17): visual builds emit
+`05_machine_contracts.json`, with authored contract identity and private
+implementation evidence in separate nested objects. The contract object never
+contains ranking subjects, view, range, or other witness material.
+
 Boundary progress profiles referenced by premises are sealed semantic
 commitments with grant/receipt identity. They participate in provider
 admission but remain outside the ordinary proof-fact catalog in v1.

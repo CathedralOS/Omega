@@ -120,6 +120,115 @@ pub fn capability_manifest_json(program: &CheckedTrees) -> String {
     json
 }
 
+/// Decision 20/23's externally inspectable machine-contract artifact. The
+/// object shape is the firewall: authored interface identity and checked
+/// implementation evidence are siblings, never one flattened bag. Consumers
+/// pin `contract.fingerprint`; proof/debug tooling may inspect
+/// `implementation` without changing that identity.
+pub fn machine_contract_manifest_json(program: &CheckedTrees) -> String {
+    let mut json = String::from("{\n  \"machines\": [");
+    for (index, machine) in program.machines().iter().enumerate() {
+        if index > 0 {
+            json.push(',');
+        }
+        json.push_str("\n    {\n      \"machine\": ");
+        push_json_string(&mut json, machine.name.as_str());
+
+        json.push_str(",\n      \"contract\": {");
+        if let Some(contract) = program.facts.contract_plans.for_machine(machine.symbol) {
+            json.push_str("\n        \"fingerprint\": \"0x");
+            json.push_str(&format!("{:016x}", contract.fingerprint));
+            json.push_str("\",\n        \"supply\": ");
+            push_json_string(&mut json, supply_mode_name(contract.supply_mode));
+            json.push_str(",\n        \"published_effect_row\": ");
+            json.push_str(&contract.published_effect_row.0.to_string());
+            json.push_str(",\n        \"published_termination\": ");
+            push_termination_json(&mut json, &contract.published_termination);
+            json.push_str("\n      }");
+        } else {
+            json.push_str("}");
+        }
+
+        json.push_str(",\n      \"implementation\": {");
+        let mut has_implementation_field = false;
+        if let Some(fact) = program.facts.termination.for_machine(machine.symbol) {
+            json.push_str("\n        \"checked_termination\": ");
+            push_termination_json(&mut json, &fact.checked_summary);
+            json.push_str(",\n        \"resolved_ranking_view\": ");
+            push_json_string(&mut json, &fact.resolved_view_path);
+            has_implementation_field = true;
+        }
+        if let Some(witness) = machine.termination_plan.implementation_witness.as_ref() {
+            if has_implementation_field {
+                json.push(',');
+            }
+            json.push_str("\n        \"ranking_witness\": {\n          \"subjects\": [");
+            push_json_strings(&mut json, &witness.subjects);
+            json.push_str("],\n          \"view\": ");
+            push_json_string(&mut json, &witness.view_path);
+            json.push_str(",\n          \"view_arguments\": [");
+            push_json_strings(&mut json, &witness.view_arguments);
+            json.push(']');
+            if let Some(range) = witness.rank_range.as_ref() {
+                json.push_str(",\n          \"rank_range\": {\"floor\": ");
+                push_json_string(&mut json, &range.floor);
+                json.push_str(", \"ceiling\": ");
+                push_json_string(&mut json, &range.ceiling);
+                json.push_str(", \"ceiling_inclusive\": ");
+                json.push_str(if range.ceiling_inclusive {
+                    "true"
+                } else {
+                    "false"
+                });
+                json.push('}');
+            }
+            json.push_str("\n        }");
+        }
+        json.push_str("\n      }\n    }");
+    }
+    json.push_str("\n  ]\n}\n");
+    json
+}
+
+fn supply_mode_name(mode: omega_core::semantics::MachineSupplyMode) -> &'static str {
+    use omega_core::semantics::MachineSupplyMode;
+    match mode {
+        MachineSupplyMode::CheckedBody => "checked_body",
+        MachineSupplyMode::Requirement => "requirement",
+        MachineSupplyMode::Boundary => "boundary",
+        MachineSupplyMode::Accepted => "accepted",
+    }
+}
+
+fn push_termination_json(
+    json: &mut String,
+    guarantee: &omega_core::semantics::TerminationGuarantee,
+) {
+    use omega_core::semantics::TerminationGuarantee;
+    match guarantee {
+        TerminationGuarantee::NoGuarantee => json.push_str("{\"kind\": \"no_guarantee\"}"),
+        TerminationGuarantee::EventualTerminal { premises } => {
+            json.push_str("{\"kind\": \"eventual_terminal\", \"premises\": [");
+            for (index, premise) in premises.iter().enumerate() {
+                if index > 0 {
+                    json.push_str(", ");
+                }
+                json.push_str(&premise.0.to_string());
+            }
+            json.push_str("]}");
+        }
+    }
+}
+
+fn push_json_strings(json: &mut String, values: &[String]) {
+    for (index, value) in values.iter().enumerate() {
+        if index > 0 {
+            json.push_str(", ");
+        }
+        push_json_string(json, value);
+    }
+}
+
 fn machine_label(program: &CheckedTrees, machine: &Machine) -> String {
     let attached_data = machine
         .attached_data
@@ -884,4 +993,74 @@ fn push_json_string(output: &mut String, value: &str) {
         }
     }
     output.push('"');
+}
+
+#[cfg(test)]
+mod tests {
+    use super::machine_contract_manifest_json;
+    use omega_checked_trees::{CheckedTrees, MachineContractPlan, MachineTerminationFact};
+    use omega_core::semantics::{
+        EffectRowId, MachineSupplyMode, MachineTerminationPlan, RankingViewId, RankingWitness,
+        TerminationGuarantee,
+    };
+    use omega_core::symbols::SymbolHandle;
+    use omega_typed_trees::machine::Machine;
+    use omega_typed_trees::name::Identifier;
+
+    #[test]
+    fn machine_contract_manifest_keeps_interface_and_witness_separate() {
+        let symbol = SymbolHandle::default();
+        let mut program = CheckedTrees::default();
+        program.typed.push_machine(Machine {
+            symbol,
+            name: Identifier::generated("Worker::run"),
+            termination_plan: MachineTerminationPlan {
+                implementation_witness: Some(RankingWitness {
+                    subjects: vec!["remaining".to_string()],
+                    ranking_view: RankingViewId::NAT_DESCENDING,
+                    view_path: "Nat::Descending".to_string(),
+                    view_arguments: Vec::new(),
+                    rank_range: None,
+                }),
+                ..Default::default()
+            },
+            ..Default::default()
+        });
+        program
+            .facts
+            .contract_plans
+            .machines
+            .push(MachineContractPlan {
+                machine: symbol,
+                supply_mode: MachineSupplyMode::CheckedBody,
+                published_effect_row: EffectRowId::NULL,
+                published_termination: TerminationGuarantee::NoGuarantee,
+                fingerprint: 0x1234,
+            });
+        program
+            .facts
+            .termination
+            .machines
+            .push(MachineTerminationFact {
+                machine: symbol,
+                checked_summary: TerminationGuarantee::EventualTerminal {
+                    premises: Vec::new(),
+                },
+                resolved_view_path: "Nat::Descending".to_string(),
+            });
+
+        let json = machine_contract_manifest_json(&program);
+        let contract_start = json.find("\"contract\"").expect("contract object");
+        let implementation_start = json
+            .find("\"implementation\"")
+            .expect("implementation object");
+        let contract = &json[contract_start..implementation_start];
+
+        assert!(contract.contains("\"fingerprint\": \"0x0000000000001234\""));
+        assert!(contract.contains("\"kind\": \"no_guarantee\""));
+        assert!(!contract.contains("remaining"));
+        assert!(json[implementation_start..].contains("\"kind\": \"eventual_terminal\""));
+        assert!(json[implementation_start..].contains("\"subjects\": [\"remaining\"]"));
+        assert!(json[implementation_start..].contains("\"view\": \"Nat::Descending\""));
+    }
 }
