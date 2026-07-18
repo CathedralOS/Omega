@@ -13365,6 +13365,37 @@ fn const_fold_wrapping_narrow_canary_runs() {
 }
 
 #[test]
+fn runtime_import_call_argument_exit_canary_runs() {
+    // The authored-import argument fix: exit(70) through a provides
+    // DllImport row reaches libSystem with its argument intact. NATIVE
+    // assert only -- the interpreter does not serve custom-capability
+    // imports (its own rung).
+    let canary = pass_canary("providers/runtime_import_call_argument_exit");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-import-arg-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("authored-import call canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("authored-import call canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "the import call's argument must reach the callee: {:?}",
+        output.status.code()
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn mutual_cycle_tail_admitted_canary_runs() {
     // MR4 admission: a measured all-tail mutual pair with proven per-edge
     // decrease compiles and runs on CONSTANT stack -- every cross-machine
@@ -32100,6 +32131,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "calls/mutual_cycle_tail_admitted_exit",
     "providers/external_leaf_via_compile",
     "providers/external_leaf_dllimport_compile",
+    "providers/runtime_import_call_argument_exit",
     "arithmetic/const_fold_unsigned_shift_right_arg_exit",
     "arithmetic/const_fold_unsigned_divide_arg_exit",
     "arithmetic/unsigned_min_max_wrapping_local_exit",
@@ -32871,10 +32903,6 @@ struct PendingCanary {
 // divergences (those stay documented in the headers and the periodic
 // omega-run --both sweep), but it pins accepts-vs-rejects drift for free.
 const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
-    PendingCanary {
-        path: "providers/import_call_argument_lost",
-        expectation: PendingCanaryExpectation::CurrentlyAccepts,
-    },
     PendingCanary {
         path: "generics/runtime_generic_param_position_inference_exit",
         expectation: PendingCanaryExpectation::CurrentlyRejects {

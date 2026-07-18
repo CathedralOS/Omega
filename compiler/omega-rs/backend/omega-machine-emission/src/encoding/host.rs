@@ -47,6 +47,19 @@ pub(super) fn encode_host_operation(
             *byte_offset,
             field_model_result_present(operands.len(), *parameter_count, "table-function")?,
         ),
+        Some(HostBindingMechanism::Import { .. })
+            if matches!(
+                operation_key.capability,
+                omega_calling_conventions::HostCapability::Custom(_)
+                    | omega_calling_conventions::HostCapability::Unknown
+            ) =>
+        {
+            architecture::encode_authored_import_call_sequence(
+                input.target.architecture,
+                operation_key,
+                operands,
+            )
+        }
         _ => architecture::encode_host_call_sequence(
             input.target.architecture,
             operation_key,

@@ -20,6 +20,7 @@ pub(crate) fn data_address_relocation_offset(
     operand_index: usize,
     is_syscall: bool,
     field_model_shape: Option<FieldModelCallShape>,
+    authored_import: bool,
 ) -> usize {
     // A field-model call marshals args like an import, then reads the callee
     // from the receiver (This-call) or from the dispatch-only table pointer
@@ -73,7 +74,11 @@ pub(crate) fn data_address_relocation_offset(
     // result is not marshalled up front).
     if architecture == Architecture::Aarch64
         && let Some(operation_key) = operation_key
-        && operation_key.returns_value()
+        && (operation_key.returns_value()
+            // Authored imports (custom capability) always ride the
+            // value-returning layout; the flag arrives from the record
+            // walker, which sees the binding mechanism.
+            || authored_import)
     {
         let arg_bytes = |range: std::ops::Range<usize>| {
             operands[range]
@@ -133,16 +138,16 @@ mod tests {
         ];
 
         assert_eq!(
-            data_address_relocation_offset(Architecture::Aarch64, None, &operands, 20, 1, false, None),
+            data_address_relocation_offset(Architecture::Aarch64, None, &operands, 20, 1, false, None, false),
             24
         );
         assert_eq!(
-            data_address_relocation_offset(Architecture::X86_64, None, &operands, 20, 1, false, None),
+            data_address_relocation_offset(Architecture::X86_64, None, &operands, 20, 1, false, None, false),
             28
         );
         // x86_64 Linux syscall layout: arg 1's data-address fixup is at 20 + 1*10 + 2.
         assert_eq!(
-            data_address_relocation_offset(Architecture::X86_64, None, &operands, 20, 1, true, None),
+            data_address_relocation_offset(Architecture::X86_64, None, &operands, 20, 1, true, None, false),
             32
         );
     }

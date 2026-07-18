@@ -1,0 +1,20 @@
+// FIXED 2026-07-20 (was pending/providers/import_call_argument_lost): a
+// call through a provides-authored (or via-leaf) DllImport row on the
+// hosted aarch64 path lost its argument -- the capability-keyed
+// returns_value() catalog routed authored imports to the NON-returning
+// sequence, so the prepended result place marshaled into x0 and every real
+// argument shifted. Authored imports now route to the value-returning
+// sequence, and BOTH relocation walkers (the BL offset and the operand
+// data-address fixups) shift the same way. exit(70) reaches libSystem as
+// 70: native exit 70.
+boundary trait Leaf {
+    machine exit(code: i32) -> i32;
+}
+cross_platform_cli provides Leaf {
+    exit -> DllImport("libSystem.B.dylib", "_exit")
+}
+data Main { p: Leaf; }
+machine Main::main(&mut self) {
+    let rc: i32 = self.p.exit(70);
+    let keep: i32 = rc;
+}
