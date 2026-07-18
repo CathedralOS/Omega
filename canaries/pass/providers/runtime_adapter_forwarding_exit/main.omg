@@ -1,0 +1,31 @@
+// PRV4 SELF-FORWARDING checked adapter: `write_line_plus` satisfies
+// Console::write_line while taking the trait ITSELF as one extra leading
+// parameter -- adapter dispatch forwards the call's receiver there, so the
+// body reaches the remaining Console primitives (write + write_byte)
+// through the SAME approved capability it adapts. The trailing "!" makes
+// routing OBSERVABLE: the built-in write_line row would print "Hi\n"; only
+// the adapter prints "Hi!\n". Runs on BOTH engines (differential row).
+//
+// The text rides a FIELD (not a literal): literal-to-String-param threading
+// into host text calls is a recorded native gap gating the (3c) row flip.
+use omega::language::std::console;
+
+data Main {
+    console: Console;
+    text: String;
+}
+
+machine write_line_plus(console: Console, text: String) satisfies Console::write_line
+effects
+    stdout_io
+{
+    console.write(text);
+    console.write_byte(33);
+    console.write_byte(10);
+}
+
+machine Main::main(&mut self) {
+    self.text = "Hi";
+    self.console.write_line(self.text);
+    self.console.exit_process(70);
+}

@@ -1,0 +1,23 @@
+// The self-forwarding admission is EXACT: the one extra leading parameter
+// must be the requirement's OWN trait. A leading parameter of any other
+// type keeps the strict positional match and refuses on parameter count --
+// no silent forwarding of a non-capability lead.
+use omega::language::std::console;
+
+data Main {
+    console: Console;
+    text: String;
+}
+
+machine write_line_bad(code: i32, text: String) satisfies Console::write_line
+effects
+    stdout_io
+{
+    let x: i32 = code;
+}
+
+machine Main::main(&mut self) {
+    self.text = "Hi";
+    self.console.write_line(self.text);
+    self.console.exit_process(70);
+}

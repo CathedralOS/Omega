@@ -6,26 +6,43 @@
 //! and native builds dispatch identically (the differential contract).
 //! Without a satisfying adapter the call keeps its host-lowering route
 //! (the built-in tables / provides rows serve it exactly as before).
-//! Receiver state never reaches an adapter: v1 adapters are FREE machines
-//! and the boundary field is dispatch-only.
+//!
+//! Adapters are FREE machines; receiver state never reaches one. Two shapes
+//! are admitted:
+//! * EXACT: the adapter's entry signature matches the requirement -- the
+//!   call rewrites to a bare call (the boundary field is dispatch-only).
+//! * SELF-FORWARDING: the adapter takes the requirement's OWN trait as one
+//!   extra LEADING parameter (`write_line_plus(console: Console, text)`
+//!   satisfying `Console::write_line`) -- the call's receiver place is
+//!   forwarded as the first argument, so the adapter body can reach the
+//!   trait's remaining primitives through it. This is how a std surface
+//!   method becomes proven Omega code over its own byte-level primitives.
 
 use omega_core::diagnostics::Diagnostic;
 use omega_typed_trees::TypedTrees;
 
+struct AdapterRow {
+    trait_leaf: String,
+    requirement: String,
+    adapter_leaf: String,
+    symbol: omega_core::symbols::SymbolHandle,
+    /// Self-forwarding shape: prepend the call's receiver as argument 0.
+    forward_receiver: bool,
+}
+
 pub(crate) fn rewrite_adapter_calls(typed: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
-    // (trait leaf, method) -> (adapter leaf name, adapter symbol), FREE
-    // machines with a body and a requirement-named satisfies edge (no via)
-    // over a BOUNDARY trait. Two adapters for one requirement refuse.
-    let mut adapters: Vec<(String, String, String, omega_core::symbols::SymbolHandle)> =
-        Vec::new();
+    // (trait leaf, method) -> adapter row, FREE machines with a body and a
+    // requirement-named satisfies edge (no via) over a BOUNDARY trait. Two
+    // adapters for one requirement refuse.
+    let mut adapters: Vec<AdapterRow> = Vec::new();
     let mut diagnostics = Vec::new();
     for machine in typed.machines() {
         if machine.attached_data.is_some() {
-            continue; // v1: free adapters only (the field is dispatch-only)
+            continue; // adapters are FREE machines (the field is dispatch-only)
         }
-        if typed.machine_states(machine).is_empty() {
+        let Some(entry_state) = typed.machine_states(machine).first() else {
             continue; // bodyless = a via leaf, not an adapter
-        }
+        };
         for conformance in typed.machine_trait_conformances(machine) {
             let Some(requirement) = conformance.requirement.as_ref() else {
                 continue;
@@ -34,7 +51,7 @@ pub(crate) fn rewrite_adapter_calls(typed: &mut TypedTrees) -> Result<(), Vec<Di
                 continue;
             }
             let trait_leaf = conformance.name.as_str().to_owned();
-            let is_boundary = typed.traits().iter().any(|definition| {
+            let Some(definition) = typed.traits().iter().find(|definition| {
                 definition.is_boundary
                     && definition
                         .name
@@ -42,10 +59,24 @@ pub(crate) fn rewrite_adapter_calls(typed: &mut TypedTrees) -> Result<(), Vec<Di
                         .rsplit("::")
                         .next()
                         .is_some_and(|leaf| leaf == trait_leaf)
-            });
-            if !is_boundary {
+            }) else {
                 continue;
-            }
+            };
+            // Self-forwarding: entry takes the trait itself first, then the
+            // requirement's parameters (the conformance validator admitted
+            // the shape; this re-derivation only picks the rewrite form).
+            let required_count = typed
+                .trait_machine_signatures(definition)
+                .iter()
+                .find(|signature| signature.name == *requirement)
+                .map(|signature| typed.state_signature_parameters(signature).len());
+            let actual_parameters = typed.state_parameters(entry_state);
+            let forward_receiver = required_count.is_some_and(|required| {
+                actual_parameters.len() == required + 1
+                    && actual_parameters.first().is_some_and(|parameter| {
+                        parameter_type_leaf(typed, parameter) == Some(trait_leaf.clone())
+                    })
+            });
             let leaf_name = machine
                 .name
                 .as_str()
@@ -53,24 +84,26 @@ pub(crate) fn rewrite_adapter_calls(typed: &mut TypedTrees) -> Result<(), Vec<Di
                 .next()
                 .unwrap_or(machine.name.as_str())
                 .to_owned();
-            if let Some((_, _, existing, _)) = adapters
+            if let Some(existing) = adapters
                 .iter()
-                .find(|(t, m, _, _)| *t == trait_leaf && m == requirement.as_str())
+                .find(|row| row.trait_leaf == trait_leaf && row.requirement == requirement.as_str())
             {
                 diagnostics.push(Diagnostic::error(format!(
                     "requirement `{trait_leaf}::{}` has two checked adapters \
-                     (`{existing}` and `{leaf_name}`) -- adapter dispatch is \
+                     (`{}` and `{leaf_name}`) -- adapter dispatch is \
                      implicit only when unique",
                     requirement.as_str(),
+                    existing.adapter_leaf,
                 )));
                 continue;
             }
-            adapters.push((
+            adapters.push(AdapterRow {
                 trait_leaf,
-                requirement.as_str().to_owned(),
-                leaf_name,
-                machine.symbol,
-            ));
+                requirement: requirement.as_str().to_owned(),
+                adapter_leaf: leaf_name,
+                symbol: machine.symbol,
+                forward_receiver,
+            });
         }
     }
     if !diagnostics.is_empty() {
@@ -99,7 +132,7 @@ pub(crate) fn rewrite_adapter_calls(typed: &mut TypedTrees) -> Result<(), Vec<Di
                 .next()
                 .unwrap_or(name.as_str())
                 .to_owned();
-            if adapters.iter().any(|(t, _, _, _)| *t == type_name) {
+            if adapters.iter().any(|row| row.trait_leaf == type_name) {
                 field_traits.push((
                     data.name.as_str().to_owned(),
                     field.name.as_str().to_owned(),
@@ -109,23 +142,6 @@ pub(crate) fn rewrite_adapter_calls(typed: &mut TypedTrees) -> Result<(), Vec<Di
         }
     }
 
-    // The rewrite: statement calls `self.<field>.<method>(..)` and value
-    // calls with a member receiver. Collected first (the borrow), applied
-    // second.
-    let mut statement_rewrites: Vec<(usize, (String, omega_core::symbols::SymbolHandle))> =
-        Vec::new();
-    let mut machine_data: Vec<(omega_core::symbols::SymbolHandle, Option<String>)> = Vec::new();
-    for machine in typed.machines() {
-        machine_data.push((
-            machine.symbol,
-            machine
-                .attached_data
-                .as_ref()
-                .map(|name| name.as_str().to_owned()),
-        ));
-    }
-    let _ = &machine_data;
-
     let trait_for_field = |attached: Option<&str>, field: &str| -> Option<String> {
         let attached = attached?;
         field_traits
@@ -134,7 +150,8 @@ pub(crate) fn rewrite_adapter_calls(typed: &mut TypedTrees) -> Result<(), Vec<Di
             .map(|(_, _, trait_leaf)| trait_leaf.clone())
     };
 
-    // Statement calls.
+    // Statement calls: `self.<field>.<method>(..)` or `<place>.<method>(..)`
+    // where the place's declared type is the boundary trait.
     let machines: Vec<_> = typed
         .machines()
         .iter()
@@ -152,7 +169,6 @@ pub(crate) fn rewrite_adapter_calls(typed: &mut TypedTrees) -> Result<(), Vec<Di
             )
         })
         .collect();
-    let _ = &statement_rewrites;
     for (attached, spans) in machines {
         for span in spans {
             let statements = typed.statement_table.statements(span).to_vec();
@@ -170,18 +186,39 @@ pub(crate) fn rewrite_adapter_calls(typed: &mut TypedTrees) -> Result<(), Vec<Di
                 let Some(trait_leaf) = trait_for_field(attached.as_deref(), &field) else {
                     continue;
                 };
-                let Some((_, _, adapter, symbol)) = adapters
+                let Some(row) = adapters
                     .iter()
-                    .find(|(t, m, _, _)| *t == trait_leaf && m == call.target.as_str())
+                    .find(|row| row.trait_leaf == trait_leaf && row.requirement == call.target.as_str())
                 else {
                     continue;
                 };
+                let receiver_members: Vec<omega_typed_trees::name::Identifier> = typed
+                    .statement_table
+                    .name_path_members(call.receiver)
+                    .to_vec();
                 let mut rewritten = call.clone();
+                if row.forward_receiver {
+                    // The receiver place becomes argument 0 -- synthesized as
+                    // the SAME expression tree the parser builds for
+                    // `self.<field>` / `<field>` argument spellings.
+                    let receiver_expression = synthesize_place_expression(
+                        &mut typed.expression_table,
+                        &receiver_members,
+                        call.receiver_symbol,
+                    );
+                    let old_arguments = typed
+                        .statement_table
+                        .expression_handles(call.arguments)
+                        .to_vec();
+                    rewritten.arguments = typed.statement_table.insert_expression_handles(
+                        std::iter::once(receiver_expression).chain(old_arguments),
+                    );
+                }
                 rewritten.receiver = omega_core::arena::HandleSpan::empty();
                 rewritten.receiver_symbol = omega_core::symbols::SymbolHandle::invalid();
                 rewritten.target =
-                    omega_typed_trees::name::Identifier::generated(adapter.clone());
-                rewritten.target_symbol = *symbol;
+                    omega_typed_trees::name::Identifier::generated(row.adapter_leaf.clone());
+                rewritten.target_symbol = row.symbol;
                 typed.statement_table.statements_mut(span)[index] =
                     omega_typed_trees::statement::StatementNode::Call(rewritten);
             }
@@ -189,7 +226,8 @@ pub(crate) fn rewrite_adapter_calls(typed: &mut TypedTrees) -> Result<(), Vec<Di
     }
 
     // Value calls: walk every expression node; a Call with a Member
-    // receiver (self.<field>) rewrites the same way.
+    // receiver (self.<field>) rewrites the same way. Forwarding prepends
+    // the EXISTING receiver expression handle -- no synthesis needed.
     let handles: Vec<_> = typed
         .expression_table
         .expression_entries()
@@ -221,26 +259,102 @@ pub(crate) fn rewrite_adapter_calls(typed: &mut TypedTrees) -> Result<(), Vec<Di
         // v1: the field's owner is resolved by NAME across all data --
         // ambiguity (same field name, different data, adapter trait) is
         // acceptable here because the adapter row already names the trait.
-        let Some((_, _, adapter, symbol)) = field_traits
+        let Some((row_symbol, row_leaf, row_forward)) = field_traits
             .iter()
             .find(|(_, name, _)| *name == field)
             .and_then(|(_, _, trait_leaf)| {
                 adapters
                     .iter()
-                    .find(|(t, m, _, _)| t == trait_leaf && m == call.target.as_str())
+                    .find(|row| row.trait_leaf == *trait_leaf && row.requirement == call.target.as_str())
             })
-            .map(|found| found.clone())
+            .map(|row| (row.symbol, row.adapter_leaf.clone(), row.forward_receiver))
         else {
             continue;
         };
+        let receiver = call.receiver;
+        let old_arguments = typed
+            .expression_table
+            .expression_handles(call.arguments)
+            .to_vec();
+        let forwarded_arguments = row_forward.then(|| {
+            typed
+                .expression_table
+                .insert_expression_handles(std::iter::once(receiver).chain(old_arguments))
+        });
         let omega_typed_trees::expression::ExpressionNode::Call(call) =
             typed.expression_table.expression_mut(handle)
         else {
             continue;
         };
         call.receiver = omega_typed_trees::expression::ExpressionHandle::invalid();
-        call.target = omega_typed_trees::name::Identifier::generated(adapter);
-        call.target_symbol = symbol;
+        call.target = omega_typed_trees::name::Identifier::generated(row_leaf);
+        call.target_symbol = row_symbol;
+        if let Some(arguments) = forwarded_arguments {
+            call.arguments = arguments;
+        }
     }
     Ok(())
+}
+
+/// Leaf name of a state parameter's declared type, when it is a plain named
+/// reference (`console: Console` -> `Console`).
+fn parameter_type_leaf(
+    typed: &TypedTrees,
+    parameter: &omega_typed_trees::signature::StateParameter,
+) -> Option<String> {
+    let omega_typed_trees::types::TypeReferenceNode::Named { name, .. } = typed
+        .type_reference_table
+        .type_reference(parameter.type_reference)
+    else {
+        return None;
+    };
+    Some(
+        name.as_str()
+            .rsplit("::")
+            .next()
+            .unwrap_or(name.as_str())
+            .to_owned(),
+    )
+}
+
+/// Build the argument expression for a forwarded receiver path: `[self, f]`
+/// becomes `Member(Name([self]), f)` and `[f]` becomes `Name([f])` -- the
+/// exact trees the parser produces for those argument spellings, so every
+/// downstream pass sees a shape it already serves.
+fn synthesize_place_expression(
+    expressions: &mut omega_typed_trees::expression::ExpressionTable,
+    members: &[omega_typed_trees::name::Identifier],
+    receiver_symbol: omega_core::symbols::SymbolHandle,
+) -> omega_typed_trees::expression::ExpressionHandle {
+    use omega_typed_trees::expression::{ExpressionNode, TableMemberExpression, TableNamePath};
+    match members {
+        [head, field] => {
+            let mut head_span = omega_core::arena::HandleSpan::empty();
+            expressions.push_name_path_member(&mut head_span, head.clone());
+            let head_expression = expressions.insert(ExpressionNode::Name(TableNamePath {
+                members: head_span,
+                member_symbols: omega_core::arena::HandleSpan::empty(),
+                head_symbol: omega_core::symbols::SymbolHandle::invalid(),
+                symbol: omega_core::symbols::SymbolHandle::invalid(),
+            }));
+            expressions.insert(ExpressionNode::Member(TableMemberExpression {
+                receiver: head_expression,
+                member_symbol: receiver_symbol,
+                member: field.clone(),
+                case_variant: None,
+            }))
+        }
+        _ => {
+            let mut span = omega_core::arena::HandleSpan::empty();
+            for member in members {
+                expressions.push_name_path_member(&mut span, member.clone());
+            }
+            expressions.insert(ExpressionNode::Name(TableNamePath {
+                members: span,
+                member_symbols: omega_core::arena::HandleSpan::empty(),
+                head_symbol: receiver_symbol,
+                symbol: receiver_symbol,
+            }))
+        }
+    }
 }

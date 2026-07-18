@@ -224,8 +224,30 @@ pub(super) fn validate_machine_state_satisfies_trait_signature(
     requirement: &StateSignature,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let actual_parameters = program.state_parameters(state);
+    let mut actual_parameters = program.state_parameters(state);
     let required_parameters = program.state_signature_parameters(requirement);
+    // PRV4 self-forwarding adapters: a FREE machine satisfying a BOUNDARY
+    // trait requirement may take the trait ITSELF as one extra LEADING
+    // parameter (adapter dispatch forwards the call's receiver there); the
+    // tail must match the requirement exactly. Attached machines and plain
+    // traits keep the strict positional match.
+    if trait_definition.is_boundary
+        && machine.attached_data.is_none()
+        && actual_parameters.len() == required_parameters.len() + 1
+        && actual_parameters.first().is_some_and(|parameter| {
+            let label = type_reference_label(program, parameter.type_reference);
+            let leaf = label.rsplit("::").next().unwrap_or(label.as_str()).to_owned();
+            let trait_leaf = trait_definition
+                .name
+                .as_str()
+                .rsplit("::")
+                .next()
+                .unwrap_or(trait_definition.name.as_str());
+            leaf == trait_leaf
+        })
+    {
+        actual_parameters = &actual_parameters[1..];
+    }
     if actual_parameters.len() != required_parameters.len() {
         diagnostics.push(Diagnostic::error(format!(
             "machine `{}` state `{}` does not satisfy trait `{}` machine `{}`: expected {} parameter(s), got {}",

@@ -13396,6 +13396,85 @@ fn runtime_adapter_dispatch_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_adapter_forwarding_exit_canary_runs() {
+    // PRV4 self-forwarding adapter: the receiver forwards as argument 0, so
+    // the adapter body reaches Console's remaining primitives through the
+    // capability it adapts. stdout "Hi!\n" PROVES adapter routing (the
+    // built-in row would print "Hi\n"). Both engines.
+    let canary = pass_canary("providers/runtime_adapter_forwarding_exit");
+    let main_path = canary.join("main.omg");
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("forwarding-adapter canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(outcome.error, None, "forwarding adapter should interpret cleanly");
+    assert_eq!(outcome.exit_code, 70, "interpreter routes through the adapter");
+    assert_eq!(
+        outcome.stdout,
+        b"Hi!\n".to_vec(),
+        "interpreter stdout must come from the ADAPTER body (the ! is the proof)"
+    );
+
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-adapter-forwarding-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("forwarding-adapter canary should compile natively");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("forwarding-adapter canary should run");
+    assert_eq!(output.status.code(), Some(70), "native routes through the adapter");
+    assert_eq!(
+        output.stdout,
+        b"Hi!\n".to_vec(),
+        "native stdout must come from the ADAPTER body"
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_console_byte_literal_exit_canary_runs() {
+    // write_byte(<integer literal>) -- the staged 1-byte data object path,
+    // dead from birth until the HostCallArgumentKind::Integer fix (literals
+    // fold to the Integer kind before any plan sees the call; the stager and
+    // the selection arm matched only Expression-wrapped nodes). "7\n" then
+    // exit 70, both engines.
+    let canary = pass_canary("host/runtime_console_byte_literal_exit");
+    let main_path = canary.join("main.omg");
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("byte-literal canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(outcome.error, None, "byte-literal writes should interpret cleanly");
+    assert_eq!(outcome.exit_code, 70);
+    assert_eq!(outcome.stdout, b"7\n".to_vec(), "interpreter literal bytes");
+
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-byte-literal-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("byte-literal canary should compile natively");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("byte-literal canary should run");
+    assert_eq!(output.status.code(), Some(70));
+    assert_eq!(output.stdout, b"7\n".to_vec(), "native literal bytes");
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_import_call_argument_exit_canary_runs() {
     // The authored-import argument fix: exit(70) through a provides
     // DllImport row reaches libSystem with its argument intact. NATIVE
@@ -32165,6 +32244,8 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "providers/external_leaf_dllimport_compile",
     "providers/runtime_import_call_argument_exit",
     "providers/runtime_adapter_dispatch_exit",
+    "providers/runtime_adapter_forwarding_exit",
+    "host/runtime_console_byte_literal_exit",
     "arithmetic/const_fold_unsigned_shift_right_arg_exit",
     "arithmetic/const_fold_unsigned_divide_arg_exit",
     "arithmetic/unsigned_min_max_wrapping_local_exit",
@@ -32479,6 +32560,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "providers/via_with_body_rejected",
     "providers/slot_plan_ambiguous",
     "providers/adapter_hidden_effect",
+    "providers/adapter_forwarding_bad_lead",
     "providers/via_on_axiom_rejected",
     "host/terminal_host_call_value",
     "calls/guarded_value_call_terminal_rejected",
