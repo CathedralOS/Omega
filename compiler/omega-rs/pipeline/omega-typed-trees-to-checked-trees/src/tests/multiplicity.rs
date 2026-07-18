@@ -28,14 +28,15 @@ fn retains_semantic_permission_events_beside_legacy_moves_and_drops() {
     );
 
     use omega_core::semantics::PermissionEventKind as Kind;
-    let kinds = checked
+    let events = checked
         .facts
         .flow
         .ownership
         .permissions
         .iter()
-        .map(|(_, event)| event.kind)
+        .map(|(_, event)| event)
         .collect::<Vec<_>>();
+    let kinds = events.iter().map(|event| event.kind).collect::<Vec<_>>();
     assert_eq!(
         kinds,
         [
@@ -49,6 +50,22 @@ fn retains_semantic_permission_events_beside_legacy_moves_and_drops() {
     assert!(
         !checked.facts.flow.ownership.moves.is_empty(),
         "legacy compatibility moves remain while downstream migration is staged"
+    );
+    assert!(events
+        .iter()
+        .all(|event| event.access == omega_core::semantics::PermissionAccess::Owned));
+    assert!(events[..4]
+        .iter()
+        .all(|event| event.multiplicity == omega_core::semantics::Multiplicity::Linear));
+    assert_eq!(events[4].multiplicity, omega_core::semantics::Multiplicity::Affine);
+    let origin = events[0].provenance;
+    assert_ne!(origin, omega_core::semantics::PermissionProvenance::Unknown);
+    assert!(events[..4].iter().all(|event| event.provenance == origin),
+        "transfers preserve one obligation origin rather than minting a new one per binding");
+    assert_eq!(
+        events[4].provenance,
+        omega_core::semantics::PermissionProvenance::Unknown,
+        "legacy-derived affine cleanup must not invent establishment provenance"
     );
 }
 

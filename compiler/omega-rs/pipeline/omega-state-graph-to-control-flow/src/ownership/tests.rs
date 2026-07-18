@@ -32,6 +32,9 @@ fn remap_ownership_summary_preserves_all_event_handles() {
         omega_state_graph::StatePermissionEvent {
             source: omega_core::semantics::PermissionEventSource::StateEntry,
             kind: omega_core::semantics::PermissionEventKind::Establish,
+            multiplicity: omega_core::semantics::Multiplicity::Linear,
+            access: omega_core::semantics::PermissionAccess::Owned,
+            provenance: omega_core::semantics::PermissionProvenance::Unknown,
             root: Default::default(),
             segments: Default::default(),
             obligation_live: true,

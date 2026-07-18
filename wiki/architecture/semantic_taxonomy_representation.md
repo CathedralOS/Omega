@@ -53,13 +53,14 @@ premises, or a witness change that leaves interface identity untouched.
 
 ### Multiplicity and permissions
 
-`DataProperties` carries three booleans (`copy`, `zero_init`, `send`). There is
-no first-class multiplicity. Control-flow and abstract-operation ownership
-summaries record move and drop events only. They do not distinguish
-establishment, transfer, linear consumption, affine drop, or a permission
-entry's access/provenance. `CheckFacts` stores borrow and semantic facts in
-separate fields, which is a sound starting point, but there is no unified
-place-keyed permission context with per-entry algebra.
+`Multiplicity` is first-class from source properties through typed trees.
+Checked flow records `Establish`, `Transfer`, `Consume`, and `AffineDrop`, and
+those events survive through machine bytes and backend reports with
+multiplicity, explicit `Owned | Shared | Exclusive` access, transfer-stable
+establishment provenance, and conditional-payload debt. Legacy-derived affine
+cleanup is deliberately `Unknown` provenance rather than fabricated evidence.
+The remaining migration is to feed borrow loans into the same place-keyed
+permission context and then retire move/drop summaries as checker input.
 
 ### Effects
 

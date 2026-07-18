@@ -43,6 +43,9 @@ pub struct FlowPermissionEventFact {
     pub state_symbol: SymbolHandle,
     pub source: omega_core::semantics::PermissionEventSource,
     pub kind: omega_core::semantics::PermissionEventKind,
+    pub multiplicity: omega_core::semantics::Multiplicity,
+    pub access: omega_core::semantics::PermissionAccess,
+    pub provenance: omega_core::semantics::PermissionProvenance,
     pub root: omega_facts::PlaceRoot,
     pub segments: HandleSpan<omega_facts::PlaceSegment>,
     /// `Empty` conditional sums establish/transfer a value while carrying no

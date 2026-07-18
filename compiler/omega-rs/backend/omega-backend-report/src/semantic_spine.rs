@@ -61,7 +61,7 @@ fn write_ownership_events(output: &mut String, backend_plan: &BackendReportInput
             .map(|(machine, state)| (machine.to_string(), state.to_string()))
             .unwrap_or_else(|| ("<unknown>".to_owned(), "<unknown>".to_owned()));
         output.push_str(&format!(
-            "- {kind:?} `{place}` in machine `{machine_name}` state `{state_name}` at {source} (obligation_live={live})\n",
+            "- {kind:?} `{place}` in machine `{machine_name}` state `{state_name}` at {source} (multiplicity={multiplicity:?}, access={access:?}, provenance={provenance}, obligation_live={live})\n",
             kind = event.kind,
             place = ownership_place_text(
                 backend_plan,
@@ -70,6 +70,9 @@ fn write_ownership_events(output: &mut String, backend_plan: &BackendReportInput
                 event.segments,
             ),
             source = permission_source_text(event.source),
+            multiplicity = event.multiplicity,
+            access = event.access,
+            provenance = permission_provenance_text(backend_plan, event.provenance),
             live = event.obligation_live,
         ));
     }
@@ -122,6 +125,29 @@ fn permission_source_text(source: omega_core::semantics::PermissionEventSource) 
             ..
         } => format!("call ordinal {call_ordinal} in statement {statement_index}"),
         omega_core::semantics::PermissionEventSource::StateExit => "state exit".to_owned(),
+    }
+}
+
+fn permission_provenance_text(
+    backend_plan: &BackendReportInput<'_>,
+    provenance: omega_core::semantics::PermissionProvenance,
+) -> String {
+    use omega_core::semantics::PermissionProvenance;
+    match provenance {
+        PermissionProvenance::Unknown => "unknown".to_owned(),
+        PermissionProvenance::Established {
+            machine_symbol,
+            state_symbol,
+            source,
+        } => {
+            let names = backend_plan
+                .control_flow
+                .state_key_by_symbols(machine_symbol, state_symbol)
+                .and_then(|key| backend_plan.control_flow.state_names_by_key(key))
+                .map(|(machine, state)| format!("{machine}::{state}"))
+                .unwrap_or_else(|| "<unknown>".to_owned());
+            format!("{names} at {}", permission_source_text(source))
+        }
     }
 }
 

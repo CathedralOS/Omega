@@ -46,6 +46,9 @@ pub(crate) fn remap_permission_event_owned(
     StatePermissionEvent {
         source: event.source,
         kind: event.kind,
+        multiplicity: event.multiplicity,
+        access: event.access,
+        provenance: event.provenance,
         root: event.root,
         segments: event.segments,
         obligation_live: event.obligation_live,

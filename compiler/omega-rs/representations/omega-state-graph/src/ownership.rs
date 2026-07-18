@@ -38,6 +38,9 @@ pub struct StateDropEvent {
 pub struct StatePermissionEvent {
     pub source: omega_core::semantics::PermissionEventSource,
     pub kind: omega_core::semantics::PermissionEventKind,
+    pub multiplicity: omega_core::semantics::Multiplicity,
+    pub access: omega_core::semantics::PermissionAccess,
+    pub provenance: omega_core::semantics::PermissionProvenance,
     pub root: omega_facts::PlaceRoot,
     pub segments: HandleSpan<omega_facts::PlaceSegment>,
     pub obligation_live: bool,

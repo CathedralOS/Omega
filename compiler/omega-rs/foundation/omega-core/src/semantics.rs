@@ -35,6 +35,18 @@ pub enum PermissionEventKind {
     AffineDrop,
 }
 
+/// Access carried by one permission-context entry. Ownership events use
+/// `Owned`; borrow loans use `Shared` or `Exclusive`. Keeping this axis
+/// separate from multiplicity prevents a shared loan from being mistaken for
+/// a copyable owned value (or an exclusive loan for a linear value).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum PermissionAccess {
+    #[default]
+    Owned,
+    Shared,
+    Exclusive,
+}
+
 impl Default for PermissionEventKind {
     fn default() -> Self {
         Self::Transfer
@@ -60,6 +72,21 @@ impl Default for PermissionEventSource {
     fn default() -> Self {
         Self::StateEntry
     }
+}
+
+/// Stable origin of the semantic value/obligation carried by a permission
+/// event. Transfers preserve this value; they do not mint a fresh origin.
+/// `Unknown` is retained only while a legacy compatibility producer cannot
+/// identify where an affine value was established.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum PermissionProvenance {
+    #[default]
+    Unknown,
+    Established {
+        machine_symbol: crate::symbols::SymbolHandle,
+        state_symbol: crate::symbols::SymbolHandle,
+        source: PermissionEventSource,
+    },
 }
 
 /// How a machine is supplied to its consumers (record §Machines). The old

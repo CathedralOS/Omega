@@ -47,6 +47,9 @@ pub(super) fn build_abstract_ownership_summary(
                 source_key: state.key,
                 source: event.source,
                 kind: event.kind,
+                multiplicity: event.multiplicity,
+                access: event.access,
+                provenance: event.provenance,
                 root: event.root,
                 segments: summary.segments.insert_many(
                     control_flow
