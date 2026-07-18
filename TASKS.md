@@ -745,9 +745,22 @@ rejects — an INTEGER ruling, engineering rides this ladder as F8).
   a portable leaf covering one slot). STEP (2) REMAINDER: dependency
   closure joins when checked ADAPTER machines enter the derivation;
   the build.omg per-slot override spelling rides the target-package
-  surface (step 4). SURFACED en route: authored/leaf
-  Syscall rows refuse at merge ("not wired yet" -- pre-existing,
-  documented refusal); (2) derive plan
+  surface (step 4). IMPORT-ARGUMENT GAP FIXED
+  2026-07-20 (was pending/providers/import_call_argument_lost, the
+  step-3 blocker): authored/leaf imports on hosted aarch64 routed by
+  the capability-keyed returns_value() catalog to the NON-returning
+  sequence -- the prepended result place marshaled into x0 and every
+  argument shifted. Authored imports (Custom/Unknown capability +
+  Import mechanism) now route to the VALUE-RETURNING sequence at the
+  mechanism-aware emission dispatch, and BOTH relocation walkers (the
+  BL offset in external_calls.rs and the operand data-address fixups
+  in data_addresses.rs) carry the same authored_import flag so the
+  layout and its fixups can never diverge. exit(70) reaches libSystem
+  as 70 -- promoted to pass/providers/runtime_import_call_argument_
+  exit (native-exit suite assert; interpreter serving of custom
+  imports is its own rung). STEP (3) UNBLOCKED. Still surfaced:
+  authored/leaf Syscall rows refuse at merge ("not wired yet" --
+  pre-existing, documented refusal); (2) derive plan
   coverage/signatures/effects/dependency closure from satisfies edges +
   target-default and type-per-slot selection; (3) replace Console
   HostOperations/call-shape rows with checked Omega adapters under the

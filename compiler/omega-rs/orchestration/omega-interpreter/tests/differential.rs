@@ -1046,6 +1046,12 @@ const RUN_CANARIES: &[(&str, i32)] = &[
 /// `(relative path under canaries/pass, reason for exclusion)`.
 const EXCLUDED_RUN_CANARIES: &[(&str, &str)] = &[
     (
+        "providers/runtime_import_call_argument_exit",
+        "NATIVE-ONLY: an authored provides DllImport call (libSystem exit) -- \
+         the interpreter has no provider for authored bindings yet (same open \
+         item as windows_provides_import_exit)",
+    ),
+    (
         "capabilities/windows_provides_import_exit",
         "NATIVE-ONLY (windows-gated run test): an AUTHORED provides import (msvcrt abs through the program's own DllImport row) -- the interpreter has no provider for authored bindings yet (open item, TASKS_FS provides thread)",
     ),

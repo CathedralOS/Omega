@@ -30,6 +30,17 @@ pub(super) fn collect_data_address_relocations(
     let is_syscall = operation_key
         .and_then(|key| find_host_binding(input, key))
         .is_some_and(|binding| matches!(binding.mechanism, HostBindingMechanism::Syscall { .. }));
+    // An AUTHORED import (custom capability + Import mechanism) always rides
+    // the value-returning layout on aarch64 -- the operand fixups shift the
+    // same way the BL does (see external_calls.rs).
+    let authored_import = operation_key.is_some_and(|key| {
+        matches!(
+            key.capability,
+            omega_calling_conventions::HostCapability::Custom(_)
+                | omega_calling_conventions::HostCapability::Unknown
+        ) && find_host_binding(input, key)
+            .is_some_and(|binding| matches!(binding.mechanism, HostBindingMechanism::Import { .. }))
+    });
     // A field-model call's fixup layout depends on the mechanism's shape:
     // whether the receiver is a wire argument (This-call vtable) or
     // dispatch-only (service table), and whether a result place leads the
@@ -78,6 +89,7 @@ pub(super) fn collect_data_address_relocations(
                     operand_index,
                     is_syscall,
                     field_model_shape,
+                    authored_import,
                 ),
                 symbol,
             );
@@ -122,6 +134,7 @@ pub(super) fn collect_data_address_relocations(
                     operand_index,
                     is_syscall,
                     field_model_shape,
+                    authored_import,
                 ),
                 symbol,
             );
