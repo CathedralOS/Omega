@@ -791,10 +791,20 @@ rejects — an INTEGER ruling, engineering rides this ladder as F8).
   through the adapter). Rung order forward: (3a) Console's byte ops
   ARE the raw-stdio surface (write_byte/read_byte already serve
   dual-engine -- no new trait needed); (3b) Console's write_line/
-  write as std checked adapters over write_byte (the newline append
-  becomes adapter body code) -- the adapter-dispatch rewrite now
-  routes them; (3c) oracle-compare + retire the built-in
-  write_line/write rows from tables + interpreter serving. The import-argument fix
+  write as std checked adapters over write_byte -- CONSTRAINT
+  (2026-07-20): a Console adapter must CALL write_byte, which is
+  only reachable through a Console-typed PLACE -- so the adapter
+  cannot be a v1 FREE machine (it needs a console capability field),
+  and adapter dispatch must extend to ATTACHED adapters with
+  receiver threading (construct/borrow the adapter's data around the
+  dispatch-only slot -- the composed-provider model). EXTEND
+  DISPATCH FIRST: attached adapters whose data holds exactly the
+  capability fields the body needs, the call rewriting to
+  attached-machine form with the caller's own capability fields
+  forwarded (Main's console forwards into the adapter's console) --
+  spec the forwarding rule before building; (3c) oracle-compare +
+  retire the built-in write_line/write rows from tables +
+  interpreter serving. The import-argument fix
   unblocked authored-import adapter leaves generally (fs-style
   seams), but Console's own path rides semantics, not imports; (4) move foreign offsets/bit constants out of
   Binding::Value into programmable layout/format declarations, migrate
