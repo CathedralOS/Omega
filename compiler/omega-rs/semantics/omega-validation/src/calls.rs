@@ -594,17 +594,35 @@ fn machine_state_by_symbol(
     })
 }
 
-/// Instantiate the direct may-write set of a resolved internal leaf call in
+/// Instantiate the conservative may-write set of a resolved internal call in
 /// the caller's place namespace. `None` means the summary is not complete and
-/// the caller must invalidate every flow fact. This intentionally stops at
-/// calls and transitions; transitive summaries and authored `stores` clauses
-/// are later R5 rungs.
-pub(crate) fn known_direct_call_written_paths(
+/// the caller must invalidate every flow fact. Internal acyclic calls compose;
+/// transitions, boundaries, machine parameters, and unresolved writes remain
+/// deliberately opaque until later R5 rungs add `stores` and state summaries.
+pub(crate) fn known_call_written_paths(
     program: &TypedTrees,
     call: &TableCall,
     current_machine: &Machine,
     machine_symbols: &MachineSymbols<'_>,
     symbols: &TopLevelSymbols<'_>,
+) -> Option<Vec<String>> {
+    known_call_written_paths_inner(
+        program,
+        call,
+        current_machine,
+        machine_symbols,
+        symbols,
+        &mut Vec::new(),
+    )
+}
+
+fn known_call_written_paths_inner(
+    program: &TypedTrees,
+    call: &TableCall,
+    current_machine: &Machine,
+    machine_symbols: &MachineSymbols<'_>,
+    symbols: &TopLevelSymbols<'_>,
+    active_states: &mut Vec<SymbolHandle>,
 ) -> Option<Vec<String>> {
     // A static machine parameter's selected target is a specialization input,
     // not an ordinary receiver binding. Until MP summaries instantiate that
@@ -652,6 +670,33 @@ pub(crate) fn known_direct_call_written_paths(
         (machine, state)
     };
 
+    if active_states.contains(&callee_state.symbol) {
+        return None;
+    }
+    active_states.push(callee_state.symbol);
+    let result = summarize_resolved_call(
+        program,
+        call,
+        callee_machine,
+        callee_state,
+        receiver_members,
+        symbols,
+        active_states,
+    );
+    active_states.pop();
+    result
+}
+
+#[allow(clippy::too_many_arguments)]
+fn summarize_resolved_call(
+    program: &TypedTrees,
+    call: &TableCall,
+    callee_machine: &Machine,
+    callee_state: &State,
+    receiver_members: &[Identifier],
+    symbols: &TopLevelSymbols<'_>,
+    active_states: &mut Vec<SymbolHandle>,
+) -> Option<Vec<String>> {
     let receiver_base = (!receiver_members.is_empty())
         .then(|| {
             receiver_members
@@ -665,6 +710,12 @@ pub(crate) fn known_direct_call_written_paths(
     let parameters = program.state_parameters(callee_state);
     let mut locals = Vec::new();
     let mut written = Vec::new();
+
+    let mut nested_diagnostics = Vec::new();
+    let callee_symbols = MachineSymbols::build(program, callee_machine, &mut nested_diagnostics);
+    if !nested_diagnostics.is_empty() {
+        return None;
+    }
 
     for statement in program
         .statement_table
@@ -683,30 +734,42 @@ pub(crate) fn known_direct_call_written_paths(
                     return None;
                 }
                 let relative = coarse_place_path(program, assignment.target)?;
-                let (root, suffix) = split_place_root(&relative);
-                let instantiated = if root == "self" {
-                    append_place_suffix(receiver_base.as_deref()?, suffix)
-                } else if let Some(argument_index) = parameters
-                    .iter()
-                    .filter(|parameter| !parameter.is_self)
-                    .position(|parameter| parameter.name.as_str() == root)
+                if let Some(instantiated) = instantiate_written_path(
+                    program,
+                    &relative,
+                    receiver_base.as_deref(),
+                    parameters,
+                    arguments,
+                    &locals,
+                )? && !written.contains(&instantiated)
                 {
-                    let argument = *arguments.get(argument_index)?;
-                    let base = coarse_place_path(program, argument)?;
-                    append_place_suffix(&base, suffix)
-                } else if locals.iter().any(|local: &String| local == root) {
-                    continue;
-                } else {
-                    // An assignment whose root is neither local nor a known
-                    // parameter is externally visible in a way this rung
-                    // cannot instantiate safely.
-                    return None;
-                };
-                if !written.contains(&instantiated) {
                     written.push(instantiated);
                 }
             }
-            StatementNode::Call(_) | StatementNode::Transition(_) => return None,
+            StatementNode::Call(nested_call) => {
+                let nested_writes = known_call_written_paths_inner(
+                    program,
+                    nested_call,
+                    callee_machine,
+                    &callee_symbols,
+                    symbols,
+                    active_states,
+                )?;
+                for relative in nested_writes {
+                    if let Some(instantiated) = instantiate_written_path(
+                        program,
+                        &relative,
+                        receiver_base.as_deref(),
+                        parameters,
+                        arguments,
+                        &locals,
+                    )? && !written.contains(&instantiated)
+                    {
+                        written.push(instantiated);
+                    }
+                }
+            }
+            StatementNode::Transition(_) => return None,
             StatementNode::Expression(expression) => {
                 if !expression_is_call_free(program, *expression) {
                     return None;
@@ -722,6 +785,35 @@ pub(crate) fn known_direct_call_written_paths(
     }
 
     Some(written)
+}
+
+fn instantiate_written_path(
+    program: &TypedTrees,
+    relative: &str,
+    receiver_base: Option<&str>,
+    parameters: &[StateParameter],
+    arguments: &[ExpressionHandle],
+    locals: &[String],
+) -> Option<Option<String>> {
+    let (root, suffix) = split_place_root(relative);
+    if root == "self" {
+        return Some(Some(append_place_suffix(receiver_base?, suffix)));
+    }
+    if let Some(argument_index) = parameters
+        .iter()
+        .filter(|parameter| !parameter.is_self)
+        .position(|parameter| parameter.name.as_str() == root)
+    {
+        let argument = *arguments.get(argument_index)?;
+        let base = coarse_place_path(program, argument)?;
+        return Some(Some(append_place_suffix(&base, suffix)));
+    }
+    if locals.iter().any(|local| local == root) {
+        return Some(None);
+    }
+    // A write whose root is neither local nor a known parameter is externally
+    // visible in a way this rung cannot instantiate safely.
+    None
 }
 
 fn split_place_root(path: &str) -> (&str, &str) {

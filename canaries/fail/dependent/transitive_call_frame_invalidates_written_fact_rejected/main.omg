@@ -1,0 +1,20 @@
+// FAIL CANARY. A transitive summary must carry an inner write back through
+// its sibling caller and invalidate the outer caller's pre-call fact.
+data Main {
+    stable: u32;
+    result: u32;
+}
+
+machine Main::main(&mut self) {
+    self.stable = 5;
+    self.middle();
+    self.result = self.stable + 1;
+}
+
+machine Main::middle(&mut self) {
+    self.touch();
+}
+
+machine Main::touch(&mut self) {
+    self.stable = 1;
+}

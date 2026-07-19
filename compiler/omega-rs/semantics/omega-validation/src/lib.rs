@@ -557,11 +557,11 @@ fn validate_state_statement_node(
                 value_env,
                 diagnostics,
             );
-            // R5 frame seed: a resolved INTERNAL LEAF call preserves facts for
-            // places outside its direct may-write set. Unknown, transitive,
-            // transitioning, and boundary calls still invalidate everything;
-            // later R5 rungs add transitive summaries and authored `stores`.
-            if let Some(written) = crate::calls::known_direct_call_written_paths(
+            // R5 frame seed: a resolved acyclic INTERNAL call preserves facts
+            // outside its conservatively instantiated may-write set. Unknown,
+            // transitioning, static-machine, cyclic, and boundary calls still
+            // invalidate everything; later R5 rungs add authored `stores`.
+            if let Some(written) = crate::calls::known_call_written_paths(
                 program,
                 call,
                 machine,
