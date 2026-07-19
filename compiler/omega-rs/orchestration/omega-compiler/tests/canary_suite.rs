@@ -12055,6 +12055,42 @@ fn arithmetic_domain_trapping_const_fold_overflow_aborts() {
 }
 
 #[test]
+fn constant_trapping_shift_value_overflow_aborts() {
+    // The landed folder must not turn `u8 in Trapping` 200 << 1 into the
+    // wrapped value 144. Native lowering must retain the overflow trap.
+    let canary = pass_canary("arithmetic/constant_trapping_shift_value_overflow_traps");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-constant-trapping-shift-value-overflow-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("constant trapping shift-overflow canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("constant trapping shift-overflow canary should run");
+    let code = output.status.code();
+    assert_ne!(
+        code,
+        Some(70),
+        "constant Trapping shift overflow silently wrapped instead of trapping"
+    );
+    assert!(
+        code.is_none() || code.is_some_and(|code| code < 0),
+        "expected a crash status from the Trapping overflow, got {code:?}"
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn dead_trapping_let_traps_aborts() {
     // Abort-as-effect first sentence (owner, 2026-07-18): a trap is an
     // EFFECT, so a DEAD trapping computation is not dead -- the storage layer
@@ -32755,6 +32791,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "arithmetic/runtime_shift_atwidth_signed_modular_exit",
     "arithmetic/runtime_shift_right_atwidth_exit",
     "arithmetic/runtime_shift_atwidth_indexed_targets_exit",
+    "arithmetic/constant_trapping_shift_value_overflow_traps",
     "arithmetic/runtime_sat_nested_operand_domain_exit",
     "arithmetic/runtime_sat_unsigned_onedirection_exit",
     "arithmetic/runtime_sat_min_idiom_exit",

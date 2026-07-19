@@ -247,14 +247,12 @@ fn fold_landed(
             }
             let count = b as u32;
             if matches!(operator, Op::ShiftLeft) {
-                // The value face of an overflowing shl under
-                // Saturating/Trapping is not ruled (F8 rules the count face);
-                // keep today's wrap-at-width for every domain until ruled.
-                let wrapped = IntegerLanding {
-                    domain: ArithmeticDomain::Wrapping,
-                    ..landing
-                };
-                land_result(left << count, wrapped)
+                // `x << n` is x * 2^n at the value face. Land the exact
+                // widened result under the selected policy: Wrapping wraps,
+                // Saturating clamps, and Trapping preserves the overflow for
+                // the static-store trap path. The count face was checked
+                // independently above.
+                land_result(left << count, landing)
             } else {
                 // Arithmetic i128 shift IS the landed shift: signed values
                 // are sign-extended (arithmetic), unsigned values are

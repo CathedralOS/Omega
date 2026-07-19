@@ -2180,6 +2180,28 @@ fn interpreter_traps_on_out_of_range_shift_count() {
 }
 
 #[test]
+fn interpreter_traps_on_constant_shifted_value_overflow() {
+    let main_path = repo_root()
+        .join("canaries/pass/arithmetic/constant_trapping_shift_value_overflow_traps")
+        .join("main.omg");
+    let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
+        panic!(
+            "constant Trapping shift-overflow repro should reach the interpreter:\n{}",
+            join_diagnostics(&diagnostics)
+        )
+    });
+    let outcome = interpret(&checked, b"");
+    let error = outcome
+        .error
+        .as_deref()
+        .expect("a constant shifted-value overflow in Trapping must trap");
+    assert!(
+        error.contains("shifted value") || error.contains("Trapping"),
+        "unexpected shifted-value trap: {error}"
+    );
+}
+
+#[test]
 fn interpreter_honors_float_arithmetic_policies() {
     let saturating = pass_canary("float/float_saturating_arithmetic_exit").join("main.omg");
     let checked = compile_to_checked(&saturating, None).unwrap_or_else(|diagnostics| {
