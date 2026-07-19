@@ -368,7 +368,7 @@ struct TrackedPlace<'program> {
     spelling: String,
     definition: &'program DataDefinition,
     fields: Vec<(String, Option<i128>)>,
-    symbols: Vec<(String, omega_core::symbols::SymbolHandle)>,
+    symbols: Vec<(String, SymbolicValue)>,
     measures: Vec<(String, Option<i128>, Option<i128>)>,
     /// R2 rung 3 slice 2: the ACCESS GATE. A `zero_gated` place starts
     /// UNESTABLISHED (its zero violates the domain); a proven whole-place
@@ -386,6 +386,15 @@ struct TrackedPlace<'program> {
     /// left the facts FALSE; every consumption point (a read of the place,
     /// a call, state exit) refuses until a later write folds them true.
     window_open: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum SymbolicValue {
+    Atom(omega_core::symbols::SymbolHandle),
+    Integer(i128),
+    Add(Vec<SymbolicValue>),
+    Multiply(Vec<SymbolicValue>),
+    Subtract(Box<SymbolicValue>, Box<SymbolicValue>),
 }
 
 /// Walk one state (write obligations + the access gate), seeded with the
@@ -706,7 +715,7 @@ fn handle_assignment<'program>(
             .struct_fields(literal.fields)
             .iter()
             .filter_map(|field| {
-                expression_symbol(program, field.value)
+                expression_symbolic_value(program, field.value)
                     .map(|symbol| (field.name.as_str().to_string(), symbol))
             })
             .collect();
@@ -798,7 +807,7 @@ fn handle_assignment<'program>(
     place.fields.retain(|(name, _)| *name != field_name);
     place.fields.push((field_name.clone(), written));
     place.symbols.retain(|(name, _)| *name != field_name);
-    if let Some(symbol) = expression_symbol(program, value) {
+    if let Some(symbol) = expression_symbolic_value(program, value) {
         place.symbols.push((field_name.clone(), symbol));
     }
     place.measures.retain(|(name, _, _)| *name != field_name);
@@ -1464,7 +1473,7 @@ fn integer_literal_value(program: &TypedTrees, expression: ExpressionHandle) -> 
 fn fold_with_valuation(
     program: &TypedTrees,
     valuation: &[(&str, Option<i128>)],
-    symbols: &[(String, omega_core::symbols::SymbolHandle)],
+    symbols: &[(String, SymbolicValue)],
     measures: &[(String, Option<i128>, Option<i128>)],
     born_zero: bool,
     expression: ExpressionHandle,
@@ -1562,23 +1571,119 @@ fn expression_symbol(
     path.symbol.is_valid().then_some(path.symbol)
 }
 
+fn expression_symbolic_value(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+) -> Option<SymbolicValue> {
+    use omega_typed_trees::expression::BinaryOperator;
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Name(path) if path.symbol.is_valid() => {
+            Some(SymbolicValue::Atom(path.symbol))
+        }
+        ExpressionNode::Integer(value) => value
+            .text()
+            .parse::<i128>()
+            .ok()
+            .map(SymbolicValue::Integer),
+        ExpressionNode::Binary(binary) => {
+            let left = expression_symbolic_value(program, binary.left)?;
+            let right = expression_symbolic_value(program, binary.right)?;
+            match binary.operator {
+                BinaryOperator::Add => Some(commutative_symbolic_value(true, left, right)),
+                BinaryOperator::Multiply => Some(commutative_symbolic_value(false, left, right)),
+                BinaryOperator::Subtract => {
+                    Some(SymbolicValue::Subtract(Box::new(left), Box::new(right)))
+                }
+                _ => None,
+            }
+        }
+        _ => None,
+    }
+}
+
+fn commutative_symbolic_value(
+    add: bool,
+    left: SymbolicValue,
+    right: SymbolicValue,
+) -> SymbolicValue {
+    // Canonicalize commutation only. Do not flatten/reassociate: signed
+    // saturating addition is commutative but not associative, and symbolic
+    // provenance must not silently strengthen the selected arithmetic theory.
+    let mut operands = vec![left, right];
+    operands.sort_by_key(symbolic_sort_key);
+    if add {
+        SymbolicValue::Add(operands)
+    } else {
+        SymbolicValue::Multiply(operands)
+    }
+}
+
+fn symbolic_sort_key(value: &SymbolicValue) -> String {
+    match value {
+        SymbolicValue::Atom(symbol) => {
+            format!("a:{}:{}", symbol.arena_index(), symbol.generation())
+        }
+        SymbolicValue::Integer(value) => format!("i:{value}"),
+        SymbolicValue::Add(values) => format!(
+            "+({})",
+            values
+                .iter()
+                .map(symbolic_sort_key)
+                .collect::<Vec<_>>()
+                .join(",")
+        ),
+        SymbolicValue::Multiply(values) => format!(
+            "*({})",
+            values
+                .iter()
+                .map(symbolic_sort_key)
+                .collect::<Vec<_>>()
+                .join(",")
+        ),
+        SymbolicValue::Subtract(left, right) => {
+            format!("-({},{})", symbolic_sort_key(left), symbolic_sort_key(right))
+        }
+    }
+}
+
 fn symbolic_operand(
     program: &TypedTrees,
-    symbols: &[(String, omega_core::symbols::SymbolHandle)],
+    symbols: &[(String, SymbolicValue)],
     expression: ExpressionHandle,
-) -> Option<omega_core::symbols::SymbolHandle> {
-    let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
-        return None;
-    };
-    let field = program
-        .expression_table
-        .name_path_members(path.members)
-        .last()?
-        .as_str();
-    symbols
-        .iter()
-        .find(|(name, _)| name == field)
-        .map(|(_, symbol)| *symbol)
+) -> Option<SymbolicValue> {
+    use omega_typed_trees::expression::BinaryOperator;
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Name(path) => {
+            let field = program
+                .expression_table
+                .name_path_members(path.members)
+                .last()?
+                .as_str();
+            symbols
+                .iter()
+                .find(|(name, _)| name == field)
+                .map(|(_, value)| value.clone())
+                .or_else(|| path.symbol.is_valid().then_some(SymbolicValue::Atom(path.symbol)))
+        }
+        ExpressionNode::Integer(value) => value
+            .text()
+            .parse::<i128>()
+            .ok()
+            .map(SymbolicValue::Integer),
+        ExpressionNode::Binary(binary) => {
+            let left = symbolic_operand(program, symbols, binary.left)?;
+            let right = symbolic_operand(program, symbols, binary.right)?;
+            match binary.operator {
+                BinaryOperator::Add => Some(commutative_symbolic_value(true, left, right)),
+                BinaryOperator::Multiply => Some(commutative_symbolic_value(false, left, right)),
+                BinaryOperator::Subtract => {
+                    Some(SymbolicValue::Subtract(Box::new(left), Box::new(right)))
+                }
+                _ => None,
+            }
+        }
+        _ => None,
+    }
 }
 
 fn expression_sequence_measures(

@@ -31276,6 +31276,40 @@ fn default_domain_product_hypothesis_canary() {
 }
 
 #[test]
+fn default_domain_symbolic_correlation_canaries() {
+    for name in [
+        "dependent/data_where_symbolic_affine_window_compile",
+        "dependent/data_where_commutative_correlation_compile",
+        "dependent/data_where_flow_proven_construction_compile",
+    ] {
+        let canary = pass_canary(name);
+        compile_canary_without_output(&canary).unwrap_or_else(|diagnostics| {
+            panic!(
+                "{} failed:\n{}",
+                canary.display(),
+                diagnostics
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            )
+        });
+    }
+
+    for name in [
+        "dependent/data_where_symbolic_correlation_stale_rejected",
+        "dependent/data_where_cross_state_unknown_refuses",
+    ] {
+        let canary = fail_canary(name);
+        assert!(
+            compile_canary_without_output(&canary).is_err(),
+            "{} unexpectedly compiled; symbolic correlations must remain state-local",
+            canary.display()
+        );
+    }
+}
+
+#[test]
 fn commutative_semiring_core_canaries() {
     for name in [
         "proofs/polynomial_expand_core_nat",

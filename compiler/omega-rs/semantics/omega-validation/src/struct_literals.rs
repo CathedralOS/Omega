@@ -901,9 +901,11 @@ fn value_bounds(
                 if let ExpressionNode::Name(path) = program.expression_table.expression(expression)
                 {
                     bounds.symbol = path.symbol;
-                    if let Some(sequence) = local_sequence_bounds(program, state, expression) {
-                        bounds.length = sequence.length;
-                        bounds.capacity = sequence.capacity;
+                    if let Some(local) = local_initializer_bounds(program, state, expression) {
+                        bounds.low = local.low;
+                        bounds.high = local.high;
+                        bounds.length = local.length;
+                        bounds.capacity = local.capacity;
                     }
                 }
                 return bounds;
@@ -918,9 +920,11 @@ fn value_bounds(
             };
             if let ExpressionNode::Name(path) = program.expression_table.expression(expression) {
                 bounds.symbol = path.symbol;
-                if let Some(sequence) = local_sequence_bounds(program, state, expression) {
-                    bounds.length = sequence.length;
-                    bounds.capacity = sequence.capacity;
+                if let Some(local) = local_initializer_bounds(program, state, expression) {
+                    bounds.low = local.low;
+                    bounds.high = local.high;
+                    bounds.length = local.length;
+                    bounds.capacity = local.capacity;
                 }
             }
             bounds
@@ -929,7 +933,7 @@ fn value_bounds(
     }
 }
 
-fn local_sequence_bounds(
+fn local_initializer_bounds(
     program: &TypedTrees,
     state: &State,
     expression: ExpressionHandle,
@@ -952,6 +956,9 @@ fn local_sequence_bounds(
                     || local.name.as_str() == name =>
             {
                 match program.expression_table.expression(local.initial_value) {
+                    ExpressionNode::Integer(value) => {
+                        value.text().parse::<i64>().ok().map(Bounds::point)
+                    }
                     ExpressionNode::String(literal) => {
                         Some(Bounds::sequence(literal.as_bytes().len()))
                     }
