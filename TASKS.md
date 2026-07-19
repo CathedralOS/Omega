@@ -25,34 +25,31 @@ chapter 23.
    `lidt`, fences, and the needed MSR/control operations. Direct assembly and
    abstract boundary services must contribute identical normalized
    reach/authority. Mark `iretq` and equivalent exits deriver-only.
-2. **ASM3 — retire the transitional instruction binding.** Replace every
-   `Binding::Instruction` customer with checked assembly, then delete the
-   binding variant and its compatibility paths.
-3. **ENT1 — trait-parent composition.** Implement ordinary parent resolution
+2. **ENT1 — trait-parent composition.** Implement ordinary parent resolution
    and validation needed by `Calling<C>` without confusing core policy parents
    with boundary service-reach composition.
-4. **ENT2 — paired entry plans.** Normalize `CallPlan` for ABI placement and
+3. **ENT2 — paired entry plans.** Normalize `CallPlan` for ABI placement and
    `StatePlan` for initial regime, interrupted register classes, save/restore,
    stack/preemption class, and permitted transitive machine-state use. Hash the
    evaluated plan into requirement identity while keeping emitted footprint
    evidence outside public contract identity.
-5. **ENT3 — constrained entry codegen.** Derive entry stubs, specialize/codegen
+4. **ENT3 — constrained entry codegen.** Derive entry stubs, specialize/codegen
    under the state ceiling, emit a checkable final footprint certificate, and
    validate after relaxation, veneers, thunks, and generated stubs.
-6. **IDT1 — fragmented layouts and symbolic materialization.** Move
+5. **IDT1 — fragmented layouts and symbolic materialization.** Move
    `LayoutPlan` to name-keyed fragmented placements, validate exact source and
    destination tiling, add sealed symbolic `Entry(EntryStubId)` relocation
    sources, and generate the post-load split-address writer.
-7. **IDT2 — installed-root ledger.** `lidt` installation consumes scoped IDT
+6. **IDT2 — installed-root ledger.** `lidt` installation consumes scoped IDT
    authority and records every installed entry as an external analysis root
    with effects, receipts, state plan, stack/IST class, nesting/WCSU, and
    component/version pins. The stack/IST policy is one fact consumed by both
    layout materialization and WCSU analysis.
-8. **IDT3 — linear interrupt obligations.** Implement saved-mask guards and EOI
+7. **IDT3 — linear interrupt obligations.** Implement saved-mask guards and EOI
    obligations as provider-minted linear values with explicit consuming
    restore/complete operations. Do not use drop cleanup or interrupt-specific
    linearity rules.
-9. **Cathedral timer acceptance.** Program PIT or LAPIC, install the IDT, post
+8. **Cathedral timer acceptance.** Program PIT or LAPIC, install the IDT, post
     a bounded tick event, report ticks over the owned serial line, and `hlt`
     between ticks under QEMU. Negative rails: direct assembly cannot launder
     reach; user `iretq` rejects; incomplete fragment tiling rejects; forbidden
@@ -204,7 +201,7 @@ before the fix.
   using sign-magnitude integer comparison once satisfier dispatch serves.
 - **F7 — float format providers.** Move IEEE format records into
   `omega::core` and express their lowering through checked provider plans and
-  checked assembly, not the retiring `Binding::Instruction` variant.
+  checked assembly; there is no instruction-binding compatibility path.
 
 ## Layout, memory, and artifact foundation
 

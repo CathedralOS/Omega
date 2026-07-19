@@ -37,8 +37,8 @@ Rows SELECT among compiler-known lowerings and declare contracts + trust;
 they never TEACH the backend encodings (an .omg that emits arbitrary bytes
 is an assembler in a costume — parsed checked assembly is the honest surface).
 Today's hardcoded IEEE instruction selection is the bootstrap binding. F7
-migrates it to target conformances plus the checked instruction catalog; the
-transitional `Binding::Instruction` carrier then retires.
+migrates it to target conformances plus the checked instruction catalog. The
+former `Binding::Instruction` compatibility carrier is already retired.
 
 **Names mean formats, permanently.** `f32` = IEEE binary32 on every target
 that provides it, forever; `p32` = posit32 if it ever ships. A

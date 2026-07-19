@@ -267,8 +267,8 @@ entry/exit instructions such as `iretq` or `sysret`; user code cannot manufactur
 an unmodeled control exit. Regime-changing instructions state their transition
 directly: require regime R, establish regime R'.
 
-`Binding::Instruction` is therefore transitional duplication and retires as
-the checked catalog reaches its customers.
+The former `Binding::Instruction` duplication is retired; parsed checked
+assembly is the only source-level instruction surface.
 
 ## Boundary entry plans
 
