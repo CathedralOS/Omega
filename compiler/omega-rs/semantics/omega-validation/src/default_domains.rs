@@ -419,8 +419,8 @@ fn walk_state(
     // case because it is globally monotone.
     let mut poisoned_all = false;
     let mut poisoned_paths: Vec<String> = Vec::new();
-    let mut call_symbols = None;
-    let mut call_symbols_initialized = false;
+    let mut call_frames = None;
+    let mut call_frames_initialized = false;
     // Slice 11: establishment ADDED by callee summaries at call sites.
     let mut call_established: Vec<String> = Vec::new();
     // WINDOW TRANSPORT: windows still open from predecessor states
@@ -472,46 +472,17 @@ fn walk_state(
             StatementNode::Call(call) => {
                 refuse_open_windows(&tracked, &inherited_windows, "a call", diagnostics);
                 preserve_proven_establishment(&tracked, &mut call_established);
-                if !call_symbols_initialized {
-                    let mut symbol_diagnostics = Vec::new();
-                    let symbols = crate::symbols::TopLevelSymbols::build(
-                        program,
-                        &mut symbol_diagnostics,
-                    );
-                    let machine_symbols = crate::symbols::MachineSymbols::build(
-                        program,
-                        machine,
-                        &mut symbol_diagnostics,
-                    );
-                    if symbol_diagnostics.is_empty() {
-                        call_symbols = Some((symbols, machine_symbols));
-                    }
-                    call_symbols_initialized = true;
+                if !call_frames_initialized {
+                    call_frames = crate::calls::CallFrameResolver::new(program);
+                    call_frames_initialized = true;
                 }
-                let written = call_symbols.as_ref().and_then(|(symbols, machine_symbols)| {
-                    crate::calls::known_call_written_paths(
-                        program,
-                        call,
-                        machine,
-                        machine_symbols,
-                        symbols,
-                    )
-                    .or_else(|| {
-                        crate::calls::known_boundary_call_written_paths(
-                            program,
-                            machine_symbols,
-                            symbols,
-                            call,
-                        )
-                    })
-                });
+                let written = call_frames
+                    .as_ref()
+                    .and_then(|frames| frames.may_write_paths(machine, call));
                 if let Some(written) = written {
                     tracked.retain(|place| {
                         !written.iter().any(|written| {
-                            crate::arithmetic_domains::place_paths_overlap(
-                                &place.spelling,
-                                written,
-                            )
+                            crate::calls::frame_paths_overlap(&place.spelling, written)
                         })
                     });
                     for written in written {
@@ -603,7 +574,7 @@ fn walk_state(
     if !poisoned_all {
         for (spelling, fields) in entry_valuations {
             let poisoned = poisoned_paths.iter().any(|written| {
-                crate::arithmetic_domains::place_paths_overlap(spelling, written)
+                crate::calls::frame_paths_overlap(spelling, written)
             });
             if !poisoned && !exit_valuations.iter().any(|(name, _)| name == spelling) {
                 exit_valuations.push((spelling.clone(), fields.clone()));
@@ -836,7 +807,7 @@ fn handle_assignment<'program>(
         // poisoned this place's view.
         let poisoned = poisoned_all
             || poisoned_paths.iter().any(|written| {
-                crate::arithmetic_domains::place_paths_overlap(&receiver_spelling, written)
+                crate::calls::frame_paths_overlap(&receiver_spelling, written)
             });
         let seeded_fields = if poisoned {
             Vec::new()

@@ -867,20 +867,15 @@ fn boundary_ensures_argument_bound(
     side: BoundSide,
 ) -> Option<i64> {
     use omega_typed_trees::statement::StatementNode;
-    let mut summary_diagnostics = Vec::new();
-    let symbols = crate::symbols::TopLevelSymbols::build(program, &mut summary_diagnostics);
-    let machine_symbols =
-        crate::symbols::MachineSymbols::build(program, machine, &mut summary_diagnostics);
-    let summaries_available = summary_diagnostics.is_empty();
+    let call_frames = crate::calls::CallFrameResolver::new(program);
     let mut witness: Option<i64> = None;
     for statement in &statements[..transition_index] {
         match statement {
             StatementNode::Call(call) => {
-                // A boundary call that explicitly mutably reaches this place
-                // invalidates an earlier witness, and may itself mint a new
-                // one. An unrelated boundary receiver/argument frame preserves
-                // it. Unknown and internal calls remain fail-closed here until
-                // the shared R5 summary feeds recast witnesses too.
+                // A resolved call whose may-write frame reaches this place
+                // invalidates an earlier witness; a boundary call may also
+                // mint a new one. Disjoint resolved calls preserve the
+                // witness, while unknown calls remain fail-closed.
                 let minted = boundary_call_ensures_bound(
                     program,
                     machine,
@@ -892,29 +887,13 @@ fn boundary_ensures_argument_bound(
                 if minted.is_some() {
                     witness = minted;
                 } else {
-                    let written = summaries_available
-                        .then(|| {
-                            crate::calls::known_call_written_paths(
-                                program,
-                                call,
-                                machine,
-                                &machine_symbols,
-                                &symbols,
-                            )
-                            .or_else(|| {
-                                crate::calls::known_boundary_call_written_paths(
-                                    program,
-                                    &machine_symbols,
-                                    &symbols,
-                                    call,
-                                )
-                            })
-                        })
-                        .flatten();
+                    let written = call_frames
+                        .as_ref()
+                        .and_then(|frames| frames.may_write_paths(machine, call));
                     if !written.is_some_and(|paths| {
                         paths
                             .iter()
-                            .all(|path| !recast_place_paths_overlap(path, argument_label))
+                            .all(|path| !crate::calls::frame_paths_overlap(path, argument_label))
                     }) {
                         witness = None;
                     }
@@ -929,16 +908,6 @@ fn boundary_ensures_argument_bound(
         }
     }
     witness
-}
-
-fn recast_place_paths_overlap(left: &str, right: &str) -> bool {
-    left == right
-        || left
-            .strip_prefix(right)
-            .is_some_and(|suffix| suffix.starts_with('.') || suffix.starts_with('['))
-        || right
-            .strip_prefix(left)
-            .is_some_and(|suffix| suffix.starts_with('.') || suffix.starts_with('['))
 }
 
 /// `call`'s `ensures <param> <= K`/`< K` INCLUSIVE bound for the `&mut`

@@ -832,13 +832,8 @@ impl ValueEnv {
     }
 }
 
-pub(crate) fn place_paths_overlap(left: &str, right: &str) -> bool {
-    left == right || place_path_is_descendant(left, right) || place_path_is_descendant(right, left)
-}
-
-fn place_path_is_descendant(path: &str, ancestor: &str) -> bool {
-    path.strip_prefix(ancestor)
-        .is_some_and(|suffix| suffix.starts_with('.') || suffix.starts_with('['))
+fn place_paths_overlap(left: &str, right: &str) -> bool {
+    crate::calls::frame_paths_overlap(left, right)
 }
 
 /// Walk a value expression, apply the domain + overflow rules to every nested
@@ -2978,8 +2973,8 @@ fn validation_state_preserves_field(
 ) -> bool {
     use omega_typed_trees::statement::StatementNode;
     let field_path = format!("self.{}", field.as_str());
-    let mut call_symbols = None;
-    let mut call_symbols_initialized = false;
+    let mut call_frames = None;
+    let mut call_frames_initialized = false;
 
     for statement in program.statement_table.statements(state.statement_nodes) {
         match statement {
@@ -2991,41 +2986,20 @@ fn validation_state_preserves_field(
                 }
             }
             StatementNode::Call(call) => {
-                if !call_symbols_initialized {
-                    let mut diagnostics = Vec::new();
-                    let symbols =
-                        crate::symbols::TopLevelSymbols::build(program, &mut diagnostics);
-                    let machine_symbols =
-                        crate::symbols::MachineSymbols::build(program, machine, &mut diagnostics);
-                    if diagnostics.is_empty() {
-                        call_symbols = Some((symbols, machine_symbols));
-                    }
-                    call_symbols_initialized = true;
+                if !call_frames_initialized {
+                    call_frames = crate::calls::CallFrameResolver::new(program);
+                    call_frames_initialized = true;
                 }
-                let Some((symbols, machine_symbols)) = call_symbols.as_ref() else {
+                let Some(call_frames) = call_frames.as_ref() else {
                     return false;
                 };
-                let written = crate::calls::known_call_written_paths(
-                    program,
-                    call,
-                    machine,
-                    machine_symbols,
-                    symbols,
-                )
-                .or_else(|| {
-                    crate::calls::known_boundary_call_written_paths(
-                        program,
-                        machine_symbols,
-                        symbols,
-                        call,
-                    )
-                });
+                let written = call_frames.may_write_paths(machine, call);
                 let Some(written) = written else {
                     return false;
                 };
                 if written
                     .iter()
-                    .any(|written| place_paths_overlap(&field_path, written))
+                    .any(|written| crate::calls::frame_paths_overlap(&field_path, written))
                 {
                     return false;
                 }

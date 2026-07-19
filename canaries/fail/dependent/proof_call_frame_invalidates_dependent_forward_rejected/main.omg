@@ -1,0 +1,23 @@
+// FAIL CANARY (R5 shared proof frame): the sibling call writes self.count, so
+// i's entry-time dependent atom cannot justify forwarding i afterward.
+data Main {
+    count: u32;
+    input: u32;
+}
+
+machine Main::run(&mut self) {
+    transition self.input <= self.count { true -> forward(self.input) _ -> done() }
+
+    state forward(&mut self, i: u32 [0..=self.count]) {
+        self.replace_count();
+        self.consume(i);
+    }
+
+    state done(&mut self) { }
+}
+
+machine Main::replace_count(&mut self) {
+    self.count = 0;
+}
+
+machine Main::consume(&mut self, value: u32 [0..=self.count]) { }

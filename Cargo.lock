@@ -659,6 +659,7 @@ dependencies = [
  "omega-core",
  "omega-syntax-trees",
  "omega-typed-trees",
+ "omega-validation",
 ]
 
 [[package]]
