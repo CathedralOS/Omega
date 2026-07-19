@@ -31333,6 +31333,34 @@ fn commutative_semiring_core_canaries() {
 }
 
 #[test]
+fn exact_float_to_int_proof_canaries() {
+    let canary = pass_canary("float/float_to_int_exact_proofs_exit");
+    compile_canary_without_output(&canary).unwrap_or_else(|diagnostics| {
+        panic!(
+            "{} failed:\n{}",
+            canary.display(),
+            diagnostics
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join("\n")
+        )
+    });
+
+    for name in [
+        "arithmetic/float_cast_unproven_rejected",
+        "arithmetic/float_to_int_exact_unproven",
+    ] {
+        let canary = fail_canary(name);
+        assert!(
+            compile_canary_without_output(&canary).is_err(),
+            "{} unexpectedly compiled; exact float-to-int needs non-NaN range evidence",
+            canary.display()
+        );
+    }
+}
+
+#[test]
 fn runtime_float_min_max_abs_clamp_exit_canary_runs() {
     // Float min/max on SSE (maxsd/minsd), plus abs/clamp over floats which
     // desugar to them: max(3,7)+min(3,7)+abs(-12)+clamp(300,0,200) = 222.
