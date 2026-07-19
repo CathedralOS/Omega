@@ -112,8 +112,8 @@ The authored, evaluated `CallPlan + StatePlan` is published contract identity.
 The emitted register/machine-state footprint is provider evidence.
 
 The backend must honor a state ceiling while selecting instructions and
-allocating registers, then emit checkable footprint evidence. The final
-realized artifact is independently validated after inlining, specialization,
+allocating registers, then emit checkable footprint evidence. The final placed
+artifact is independently validated after inlining, specialization,
 link relaxation, veneers/thunks, generated stubs, and admitted indirect leaves:
 
 ```text
