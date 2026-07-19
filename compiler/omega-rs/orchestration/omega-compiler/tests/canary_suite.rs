@@ -31151,6 +31151,40 @@ fn default_domain_membership_canaries_reject_invalid_claims() {
 }
 
 #[test]
+fn default_domain_standing_bound_canaries() {
+    let pass = pass_canary("dependent/data_where_standing_bound_exit");
+    compile_canary_without_output(&pass).unwrap_or_else(|diagnostics| {
+        panic!(
+            "{} failed:\n{}",
+            pass.display(),
+            diagnostics
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join("\n")
+        )
+    });
+
+    let fail = fail_canary("dependent/data_where_standing_bound_absent_rejected");
+    let expected = fs::read_to_string(fail.join("expected.txt"))
+        .expect("standing-bound fail canary should carry expected.txt");
+    let diagnostics = compile_canary_without_output(&fail)
+        .expect_err("arithmetic without the standing bound should reject");
+    let combined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains(expected.trim()),
+        "{} missing expected fragment {:?}:\n{}",
+        fail.display(),
+        expected.trim(),
+        combined
+    );
+}
+
+#[test]
 fn runtime_float_min_max_abs_clamp_exit_canary_runs() {
     // Float min/max on SSE (maxsd/minsd), plus abs/clamp over floats which
     // desugar to them: max(3,7)+min(3,7)+abs(-12)+clamp(300,0,200) = 222.
