@@ -126,17 +126,14 @@ slot owner may override by type. The migration order remains load-bearing.
 The source model is fixed: `<machine M>` requires an authored
 `where machine M(args) -> Result` contract; selection such as
 `map<Card::power>(items)` is compile-time symbol metadata, never a runtime
-argument or inferred contract.
+argument or inferred contract. MP4b now groups complete call-site tuples,
+deep-copies each additional template body with fresh lexical symbols, rewrites
+calls to their concrete states, and runs distinct type and static-machine
+specializations in both engines.
 
-1. **MP4b — full template specialization.** Single-tuple value calls now infer
-   type parameters through borrowed-place arguments and materialize their
-   specialized result in both engines; the former pending parameter-position
-   canary is active. Compose typed deep copy, one lexical-symbol remap, and
-   fresh symbols to clone a complete template; group/rewrite calls per selected
-   tuple; then remove the remaining multi-tuple fence.
-2. **MP5 — admitted templates.** Grant accepted templates once, preserve their
+1. **MP5 — admitted templates.** Grant accepted templates once, preserve their
    contract identity, and validate each instance against argument contract IDs.
-3. **MP6 — consuming slices.** Add `Seq` map/filter, nested proof schemas used
+2. **MP6 — consuming slices.** Add `Seq` map/filter, nested proof schemas used
    by N5/N6, task-runtime machine selection, and build-surface canaries. No
    runtime callable values, dictionaries, or capture inference.
 ## Correctness bugs and missing lowering
