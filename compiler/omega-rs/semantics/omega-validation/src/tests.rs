@@ -81,6 +81,46 @@ fn carry_bound_rejects_a_stricter_generic_argument() {
 }
 
 #[test]
+fn concrete_generic_carry_derives_from_substituted_arguments() {
+    let typed = typed_program_from_source(
+        r#"
+        data Envelope<T> { value: T; }
+        data Nested<T> { value: Envelope<T>; }
+        data Concrete [carry(
+            suspension: allowed,
+            cpu: any,
+            thread: any,
+            address: movable,
+        )] { value: Nested<i32>; }
+        "#,
+    );
+    validate_program(&typed)
+        .expect("a concrete transparent instantiation should derive from its argument");
+}
+
+#[test]
+fn concrete_generic_carry_keeps_restrictive_substituted_arguments() {
+    let typed = typed_program_from_source(
+        r#"
+        data Envelope<T> { value: T; }
+        data Borrowed { value: &i32; }
+        data Bad [carry(
+            suspension: allowed,
+            cpu: any,
+            thread: any,
+            address: movable,
+        )] { value: Envelope<Borrowed>; }
+        "#,
+    );
+    let diagnostics = validate_program(&typed)
+        .expect_err("a concrete borrowed argument must remain carry-restrictive");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic.message.contains("data `Bad` declares carry policy")
+            && diagnostic.message.contains("field `value`")
+    }));
+}
+
+#[test]
 fn static_machine_argument_refines_authored_generic_contract() {
     let typed = typed_program_from_source(
         r#"

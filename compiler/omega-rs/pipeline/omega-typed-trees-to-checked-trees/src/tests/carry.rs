@@ -13,6 +13,8 @@ fn checked_facts_store_declared_and_effective_carry_separately() {
             thread: any,
             address: movable,
         )] { inner: Inner; }
+        data Envelope<T> { value: T; }
+        data Concrete { value: Envelope<i32>; }
         data Conservative { borrowed: &i32; }
         data Main {}
         machine Main::run(&mut self) {}
@@ -35,6 +37,21 @@ fn checked_facts_store_declared_and_effective_carry_separately() {
     );
     assert_eq!(
         outer_fact.effective,
+        omega_core::semantics::CarryPolicy::PERMISSIVE
+    );
+
+    let concrete = checked
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.name.as_str() == "Concrete")
+        .expect("Concrete");
+    assert_eq!(
+        checked
+            .facts
+            .carry
+            .for_data(concrete.symbol)
+            .expect("carry fact")
+            .effective,
         omega_core::semantics::CarryPolicy::PERMISSIVE
     );
 

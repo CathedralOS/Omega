@@ -155,9 +155,10 @@ resolved, typed, and syntax snapshots. Checked trees own a `CarryFacts` plan
 that keeps the authored minimum separate from the effective derived policy.
 The parser requires a complete `[carry(...)]` product and rejects retired
 `[send]` with guidance. Transparent data and generic bounds use independent
-per-axis composition/comparison. Opaque admission, per-mint qualification,
-canonical place-liveness checks, runtime admission, and artifact/model export
-remain.
+per-axis composition/comparison; concrete generic instantiations substitute
+their actual arguments through nested transparent wrappers. Opaque admission,
+per-mint qualification, canonical place-liveness checks, runtime admission,
+and artifact/model export remain.
 
 Executable provenance and control-flow integrity must also remain separate.
 `Artifact::AdmittedExecutable` plus linear placement states prove which bytes
