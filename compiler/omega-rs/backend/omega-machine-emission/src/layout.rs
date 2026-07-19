@@ -7,8 +7,9 @@ use omega_assigned_target_operations::{
 use omega_calling_conventions::HostBindingMechanism;
 use omega_core::diagnostics::Diagnostic;
 use omega_instruction_selection::{
-    control_register_read_width, control_register_write_width, dispatch_case_enter_width, dispatch_case_leave_width, dispatch_guard_compare_static_width,
-    dispatch_loop_enter_width, dispatch_state_write_width, entry_argument_register_write_width,
+    control_register_read_width, control_register_write_width, dispatch_case_enter_width,
+    dispatch_case_leave_width, dispatch_guard_compare_static_width, dispatch_loop_enter_width,
+    dispatch_state_write_width, entry_argument_register_write_width,
     entry_arguments_slice_descriptor_write_width, flags_restore_width, flags_snapshot_width,
     function_enter_width, host_call_sequence_width, interrupt_control_width, machine_halt_width,
     memory_fence_width, msr_read_width, msr_write_width, port_read_width, port_write_width,

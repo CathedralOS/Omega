@@ -720,7 +720,10 @@ fn selected_instruction_name(
             register,
             dest_byte_offset,
             ..
-        } => format!("control-register read ({}) -> [{dest_byte_offset}]", register.read_mnemonic()),
+        } => format!(
+            "control-register read ({}) -> [{dest_byte_offset}]",
+            register.read_mnemonic()
+        ),
         SelectedInstructionKind::ControlRegisterWrite { register, .. } => format!(
             "control-register write ({})",
             register.write_mnemonic().expect("writable control register")
