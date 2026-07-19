@@ -1,0 +1,11 @@
+// An external realization fills one named requirement. `via` without that
+// identity would create an orphan binding whose contract and effect ceiling
+// cannot be derived.
+boundary trait Process {
+    machine exit(code: i32);
+}
+
+machine exit_leaf(code: i32) via Binding::Syscall(60);
+
+data Main { }
+machine Main::main(&mut self) { }

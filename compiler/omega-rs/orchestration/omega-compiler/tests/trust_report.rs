@@ -415,7 +415,7 @@ boundary trait Pair {
     machine second(code: i32) -> i32;
 }
 
-machine first_leaf(code: i32) -> i32 satisfies Pair::first via VtableSlot(1);
+machine first_leaf(code: i32) -> i32 satisfies Pair::first via Binding::VtableSlot(1);
 
 data Main { console: Console; }
 machine Main::main(&mut self) {

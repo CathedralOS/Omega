@@ -5,7 +5,7 @@ boundary trait Process {
     machine exit(code: i32);
 }
 
-machine exit_composite(code: i32) satisfies Process::exit via Syscall(60) {
+machine exit_composite(code: i32) satisfies Process::exit via Binding::Syscall(60) {
 }
 
 data Main { }

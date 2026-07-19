@@ -1,0 +1,10 @@
+// Binding a mechanism does not weaken conformance: the external leaf's public
+// signature must still equal the requirement it claims to realize.
+boundary trait Process {
+    machine exit(code: i32);
+}
+
+machine exit_leaf(code: u32) satisfies Process::exit via Binding::Syscall(60);
+
+data Main { }
+machine Main::main(&mut self) { }

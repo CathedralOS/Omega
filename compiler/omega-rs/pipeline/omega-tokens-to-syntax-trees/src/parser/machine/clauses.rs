@@ -105,6 +105,7 @@ pub(super) fn parse_machine_clauses<'tokens, 'source>(
         if input.at_contextual("effects") {
             input = input.take_contextual("effects")?;
             while !input.at_punctuation(PunctuationKind::LeftBrace)
+                && !input.at_punctuation(PunctuationKind::Semicolon)
                 && !input.at_contextual("requires")
                 && !input.at_contextual("ensures")
                 && !input.at_contextual("terminates")
@@ -441,7 +442,7 @@ pub(super) fn parse_satisfies_traits<'tokens, 'source>(
         if rest.at_contextual("via") {
             let next = rest.take_contextual("via")?;
             let (binding, next) =
-                crate::parser::item::parse_host_provider_binding(next)?;
+                crate::parser::item::parse_external_provider_binding(next)?;
             via = Some(binding);
             rest = next;
         }

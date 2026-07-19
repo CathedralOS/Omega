@@ -36,6 +36,12 @@ pub(super) fn parse_machine<'tokens, 'source>(
     let (machine_return_type, input) = parse_optional_return_type(syntax_trees, input)?;
     let ((), mut input) = parse_machine_parameter_contracts(syntax_trees, type_parameters, input)?;
     let (satisfies, next) = parse_satisfies_traits(syntax_trees, input)?;
+    if next.at_contextual("via") {
+        return Err(next.error_here(
+            "`via <Binding>` cannot supply a machine by itself; name the requirement first as \
+             `satisfies Trait::machine via Binding::Case(...)`",
+        ));
+    }
     let (
         (
             terminates,
