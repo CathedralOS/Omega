@@ -258,6 +258,9 @@ fn count_statement_node(
     counts: &mut IdentityStorageCounts,
 ) {
     match statement {
+        StatementNode::AssemblyFact(fact) => {
+            count_expression_handle(expressions, fact.expression, counts);
+        }
         StatementNode::Assignment(assignment) => {
             count_expression_handle(expressions, assignment.target, counts);
             count_expression_handle(expressions, assignment.value, counts);

@@ -96,7 +96,8 @@ pub(super) fn statement_borrow_loan(
                 },
             ))
         }
-        StatementNode::Assignment(_)
+        StatementNode::AssemblyFact(_)
+        | StatementNode::Assignment(_)
         | StatementNode::Call(_)
         | StatementNode::Expression(_)
         | StatementNode::Transition(_) => None,

@@ -13,6 +13,7 @@ pub(super) fn propagate_statement_transfers(
     active_constraints: &mut HandleSpan<FlowConstraintRef>,
 ) {
     let (target_place, source_expression, source_place) = match statement {
+        StatementNode::AssemblyFact(_) => return,
         StatementNode::LocalData(local_data) => (
             semantic.append_symbol_place(local_data.symbol),
             local_data.initial_value,

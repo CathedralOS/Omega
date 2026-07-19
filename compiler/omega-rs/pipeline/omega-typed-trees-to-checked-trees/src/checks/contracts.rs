@@ -1,3 +1,4 @@
+mod assembly;
 mod calls;
 mod direct;
 mod domains;
@@ -21,6 +22,8 @@ pub(crate) fn check_flow_call_contracts(
     facts: &CheckFacts,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
+
+    assembly::check_assembly_fact_contracts(program, facts, &mut diagnostics);
 
     // PROOF-machine calls are exempt from the runtime requires prover: a
     // proof machine emits no runtime code, and a call between proof

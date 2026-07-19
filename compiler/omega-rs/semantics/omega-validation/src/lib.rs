@@ -344,6 +344,25 @@ fn validate_state_statement_node(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     match statement {
+        StatementNode::AssemblyFact(fact) => {
+            let state = machine_symbols.state(state_name);
+            if !proof_facts::is_boolean_asm_fact_expression(
+                program,
+                machine,
+                state,
+                fact.expression,
+            ) {
+                let kind = match fact.kind {
+                    omega_typed_trees::statement::AssemblyFactKind::Requires => "requires",
+                    omega_typed_trees::statement::AssemblyFactKind::Ensures => "ensures",
+                };
+                diagnostics.push(Diagnostic::error(format!(
+                    "machine `{}` state `{state_name}` asm `{kind}` fact `{}` is not boolean-shaped",
+                    machine.name,
+                    program.expression_table.display_name(fact.expression),
+                )));
+            }
+        }
         StatementNode::Assignment(assignment) => {
             validate_assignment_target_handle(
                 program,

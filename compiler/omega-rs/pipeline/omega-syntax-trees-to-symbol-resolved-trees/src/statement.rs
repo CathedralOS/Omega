@@ -11,8 +11,9 @@ use omega_symbol_resolved_trees::expression::{
 };
 use omega_symbol_resolved_trees::name::DiagnosticName;
 use omega_symbol_resolved_trees::statement::{
-    Assignment, Call, CallStorage, LocalData, LocalDataStorage, NamedTransitionTarget,
-    NamedTransitionTargetStorage, Statement, Transition, TransitionGuard, TransitionTarget,
+    AssemblyFact, AssemblyFactKind, Assignment, Call, CallStorage, LocalData, LocalDataStorage,
+    NamedTransitionTarget, NamedTransitionTargetStorage, Statement, Transition, TransitionGuard,
+    TransitionTarget,
 };
 use omega_symbol_resolved_trees::types::TypeReference;
 use omega_syntax_trees::{self as syntax, SyntaxTrees};
@@ -46,6 +47,15 @@ fn lower_statement_node(
     statement: &syntax::statement::StatementNode,
 ) -> Result<Vec<Statement>, Diagnostic> {
     match statement {
+        syntax::statement::StatementNode::AssemblyFact(fact) => {
+            Ok(vec![Statement::AssemblyFact(AssemblyFact {
+                kind: match fact.kind {
+                    syntax::statement::AssemblyFactKind::Requires => AssemblyFactKind::Requires,
+                    syntax::statement::AssemblyFactKind::Ensures => AssemblyFactKind::Ensures,
+                },
+                expression: lower_statement_expression(lowerer, syntax_trees, fact.expression)?,
+            })])
+        }
         syntax::statement::StatementNode::Assignment(assignment) => {
             let target = lower_statement_expression(lowerer, syntax_trees, assignment.target)?;
             let value = lower_statement_expression(lowerer, syntax_trees, assignment.value)?;

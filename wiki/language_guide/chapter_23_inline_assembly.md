@@ -28,9 +28,26 @@ An author may restate a block's exact realized register footprint with
 of the compiler-owned instruction contracts: omitting a changed register and
 inventing an unchanged register both reject, while order and duplicates carry
 no meaning. A block with no general-purpose register changes spells
-`clobbers none`. `requires` and `ensures` clauses remain unavailable until the
-block facts have a lossless typed-stage carrier; they never admit an unknown
-instruction or override its compiler-owned contract.
+`clobbers none`.
+
+The same `where` surface accepts boolean `requires` and `ensures` facts:
+
+```omega
+asm where
+    requires self.ready
+    clobbers rax, rdx, r10, r11
+    ensures self.ready
+{
+    out self.port, self.value
+}
+```
+
+A `requires` clause is proved at block entry. An `ensures` clause is proved at
+the falling-through block exit after instruction writes have invalidated stale
+facts. These clauses are assertions only: neither mints a fact, admits an
+unknown instruction, nor overrides its compiler-owned contract. An `ensures`
+clause rejects on `hlt` and `jmp` blocks because those instructions have no
+local post-state.
 
 ## Parsed instructions with contracts
 

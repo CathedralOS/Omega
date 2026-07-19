@@ -983,6 +983,7 @@ fn statement_uses_symbol_as_index(
     local_name: &Identifier,
 ) -> bool {
     match statement {
+        StatementNode::AssemblyFact(_) => false,
         StatementNode::LocalData(local_data) => expression_uses_symbol_as_index(
             expressions,
             local_data.initial_value,
@@ -1463,6 +1464,7 @@ fn statement_takes_slice_view_of_symbol(
     local_name: &Identifier,
 ) -> bool {
     match statement {
+        StatementNode::AssemblyFact(_) => false,
         StatementNode::LocalData(local) => {
             local.initial_value.is_valid()
                 && expression_takes_slice_view_of_symbol(
@@ -1808,6 +1810,7 @@ fn statement_uses_symbol_as_arithmetic_operand(
     local_name: &Identifier,
 ) -> bool {
     match statement {
+        StatementNode::AssemblyFact(_) => false,
         StatementNode::LocalData(local_data) => expression_uses_symbol_as_arithmetic_operand(
             expressions,
             local_data.initial_value,
@@ -2120,6 +2123,7 @@ fn statement_uses_symbol_mutably(
     local_name: &Identifier,
 ) -> bool {
     match statement {
+        StatementNode::AssemblyFact(_) => false,
         StatementNode::Assignment(assignment) => {
             expression_uses_symbol_mutably(expressions, assignment.value, symbol, local_name)
         }

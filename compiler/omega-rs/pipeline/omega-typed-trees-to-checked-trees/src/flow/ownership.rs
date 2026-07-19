@@ -28,6 +28,7 @@ pub(super) fn append_statement_ownership_events(
     statement: &StatementNode,
 ) {
     match statement {
+        StatementNode::AssemblyFact(_) => {}
         StatementNode::Assignment(assignment) => {
             let source = FlowOwnershipEventSource::Statement { statement_index };
             append_move_events_for_expression(

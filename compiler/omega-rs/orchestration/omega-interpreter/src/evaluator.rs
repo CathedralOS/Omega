@@ -1284,6 +1284,9 @@ impl<'program> Evaluator<'program> {
     fn exec_statement(&mut self, statement: &StatementNode, frame: &Frame) -> EvalResult<()> {
         self.tick()?;
         match statement {
+            // Assembly facts are compile-time assertions and have no runtime
+            // evaluation in either interpreter or native execution.
+            StatementNode::AssemblyFact(_) => Ok(()),
             StatementNode::Assignment(assignment) => {
                 // A STRUCT, or a whole owned ARRAY, assignment is a VALUE copy: deep-clone so
                 // mutating the destination later does not alias the source (`self.f =

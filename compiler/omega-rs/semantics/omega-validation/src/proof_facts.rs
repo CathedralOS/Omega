@@ -141,6 +141,29 @@ fn is_boolean_fact_expression(program: &TypedTrees, expression: ExpressionHandle
     }
 }
 
+/// Statement-position assembly facts have machine/state type context, so a
+/// bare place must actually be declared `bool`; the older signature-fact
+/// shape check cannot resolve those scoped names. Computed predicates keep the
+/// same accepted proof-expression surface as ordinary contracts.
+pub(crate) fn is_boolean_asm_fact_expression(
+    program: &TypedTrees,
+    machine: &omega_typed_trees::machine::Machine,
+    state: Option<&omega_typed_trees::state::State>,
+    expression: ExpressionHandle,
+) -> bool {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
+            crate::places::declared_place_type_raw(program, machine, state, expression)
+                .and_then(|handle| program.primitive_type_reference(handle))
+                == Some(omega_typed_trees::types::PrimitiveType::Bool)
+        }
+        ExpressionNode::Mutable(inner) => {
+            is_boolean_asm_fact_expression(program, machine, state, *inner)
+        }
+        _ => is_boolean_fact_expression(program, expression),
+    }
+}
+
 fn domain_path_label(
     program: &TypedTrees,
     domain: omega_core::arena::HandleSpan<Identifier>,

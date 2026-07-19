@@ -1007,6 +1007,7 @@ fn helper_state_model(
         };
 
         match statement {
+            StatementNode::AssemblyFact(_) => {}
             StatementNode::LocalData(local) => {
                 if saw_terminal_expression {
                     return None;

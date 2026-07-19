@@ -32,6 +32,7 @@ pub(crate) fn collect_statement_borrow_calls(
     );
 
     match statement {
+        StatementNode::AssemblyFact(_) => {}
         StatementNode::Assignment(assignment) => {
             expression::collect_expression_borrow_calls(&mut collection, assignment.value)
         }

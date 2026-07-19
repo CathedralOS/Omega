@@ -1,1 +1,1 @@
-asm where `requires`/`ensures` fact contracts are not implemented yet
+asm `requires` fact `self.value` is not boolean-shaped

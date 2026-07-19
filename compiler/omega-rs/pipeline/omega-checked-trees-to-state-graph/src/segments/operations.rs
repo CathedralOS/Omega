@@ -11,6 +11,9 @@ pub(super) fn operation_kind(
     table_statement: &StatementNode,
 ) -> OperationKind {
     match table_statement {
+        StatementNode::AssemblyFact(_) => {
+            unreachable!("assembly facts are filtered before operation construction")
+        }
         StatementNode::Assignment(assignment) if is_static_assignment(program, *assignment) => {
             OperationKind::StaticAssignment
         }
@@ -43,6 +46,7 @@ pub(super) fn operation_expression_refs(
     statement_table: &omega_checked_trees::statement::StatementTable,
 ) -> OperationExpressionRefs {
     match statement {
+        StatementNode::AssemblyFact(_) => OperationExpressionRefs::None,
         StatementNode::Assignment(assignment) => OperationExpressionRefs::Assignment {
             target: state_graph
                 .expressions

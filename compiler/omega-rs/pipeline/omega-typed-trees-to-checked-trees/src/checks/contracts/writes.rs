@@ -136,6 +136,7 @@ fn statement_root_expressions(
     statement: &StatementNode,
 ) -> Vec<ExpressionHandle> {
     match statement {
+        StatementNode::AssemblyFact(_) => Vec::new(),
         StatementNode::Assignment(assignment) => vec![assignment.target, assignment.value],
         StatementNode::Call(call) => program
             .statement_table
@@ -665,4 +666,3 @@ fn program_domain_implies(
         omega_typed_trees::domain::ProofFact::Expression(_) => false,
     })
 }
-

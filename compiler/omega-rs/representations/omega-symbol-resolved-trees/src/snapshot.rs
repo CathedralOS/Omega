@@ -341,6 +341,10 @@ pub struct StateParameterSnapshot {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum StatementSnapshot {
+    AssemblyFact {
+        contract_kind: &'static str,
+        expression: ExpressionSnapshot,
+    },
     Assignment {
         target: ExpressionSnapshot,
         value: ExpressionSnapshot,
@@ -772,6 +776,13 @@ fn state_parameter_snapshot(
 
 fn statement_snapshot(program: &SymbolResolvedTrees, statement: &Statement) -> StatementSnapshot {
     match statement {
+        Statement::AssemblyFact(fact) => StatementSnapshot::AssemblyFact {
+            contract_kind: match fact.kind {
+                crate::statement::AssemblyFactKind::Requires => "requires",
+                crate::statement::AssemblyFactKind::Ensures => "ensures",
+            },
+            expression: statement_expression_snapshot(program, fact.expression),
+        },
         Statement::Assignment(assignment) => StatementSnapshot::Assignment {
             target: statement_expression_snapshot(program, assignment.target),
             value: statement_expression_snapshot(program, assignment.value),

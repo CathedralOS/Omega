@@ -7,7 +7,9 @@ use crate::item::{
     HostProviderMappingKind, Item, LibraryFunction, ProofFact, StateParameterNode, StateSignature,
     WireDataMember,
 };
-use crate::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
+use crate::statement::{
+    AssemblyFactKind, StatementNode, TransitionGuardNode, TransitionTargetNode,
+};
 use crate::syntax_trees::SyntaxTrees;
 use crate::types::{FixedArrayLength, TypeConstraintNode, TypeReferenceNode};
 use omega_core::diagnostics::PhaseSnapshot;
@@ -331,6 +333,10 @@ pub struct StateParameterSnapshot {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum StatementSnapshot {
+    AssemblyFact {
+        contract_kind: AssemblyFactKindSnapshot,
+        expression: ExpressionSnapshot,
+    },
     Assignment {
         target: ExpressionSnapshot,
         value: ExpressionSnapshot,
@@ -354,6 +360,13 @@ pub enum StatementSnapshot {
         continuation: Option<TransitionTargetSnapshot>,
         guard: TransitionGuardSnapshot,
     },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AssemblyFactKindSnapshot {
+    Requires,
+    Ensures,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -1097,6 +1110,13 @@ fn snapshot_state_parameter(
 
 fn snapshot_statement(syntax_trees: &SyntaxTrees, statement: &StatementNode) -> StatementSnapshot {
     match statement {
+        StatementNode::AssemblyFact(fact) => StatementSnapshot::AssemblyFact {
+            contract_kind: match fact.kind {
+                AssemblyFactKind::Requires => AssemblyFactKindSnapshot::Requires,
+                AssemblyFactKind::Ensures => AssemblyFactKindSnapshot::Ensures,
+            },
+            expression: snapshot_expression_handle(syntax_trees, fact.expression),
+        },
         StatementNode::Assignment(assignment) => StatementSnapshot::Assignment {
             target: snapshot_expression_handle(syntax_trees, assignment.target),
             value: snapshot_expression_handle(syntax_trees, assignment.value),

@@ -257,6 +257,9 @@ fn collect_statement_edges(
     out: &mut BTreeMap<usize, (bool, bool)>,
 ) {
     match statement {
+        // Proof obligations do not execute their expression calls and cannot
+        // introduce a runtime recursion edge.
+        StatementNode::AssemblyFact(_) => {}
         StatementNode::Call(call) => {
             let receiver_members = program.statement_table.name_path_members(call.receiver);
             if receiver_members.is_empty()

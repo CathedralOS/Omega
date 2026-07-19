@@ -8,11 +8,24 @@ pub type TransitionTargetHandle = Handle<TransitionTargetNode>;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Statement {
+    AssemblyFact(AssemblyFact),
     Assignment(Assignment),
     Call(Call),
     Expression(crate::expression::ExpressionHandle),
     LocalData(LocalData),
     Transition(Transition),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AssemblyFact {
+    pub kind: AssemblyFactKind,
+    pub expression: crate::expression::ExpressionHandle,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AssemblyFactKind {
+    Requires,
+    Ensures,
 }
 
 impl Default for Statement {
@@ -253,6 +266,18 @@ impl StatementTable {
         copy_expression_handles: bool,
     ) -> StatementHandle {
         match statement {
+            Statement::AssemblyFact(fact) => {
+                let expression = expression_handle_from_tree(
+                    source_expressions,
+                    expressions,
+                    fact.expression,
+                    copy_expression_handles,
+                );
+                self.insert(StatementNode::AssemblyFact(TableAssemblyFact {
+                    kind: fact.kind,
+                    expression,
+                }))
+            }
             Statement::Assignment(assignment) => {
                 let target = expression_handle_from_tree(
                     source_expressions,
@@ -469,11 +494,18 @@ impl Default for StatementTable {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StatementNode {
+    AssemblyFact(TableAssemblyFact),
     Assignment(TableAssignment),
     Call(TableCall),
     Expression(crate::expression::ExpressionHandle),
     LocalData(TableLocalData),
     Transition(TableTransition),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TableAssemblyFact {
+    pub kind: AssemblyFactKind,
+    pub expression: crate::expression::ExpressionHandle,
 }
 
 impl Default for StatementNode {

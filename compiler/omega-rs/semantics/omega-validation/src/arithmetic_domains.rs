@@ -571,6 +571,7 @@ fn statement_expressions_call_state(
     use omega_typed_trees::statement::StatementNode;
     let mut handles: Vec<ExpressionHandle> = Vec::new();
     match statement {
+        StatementNode::AssemblyFact(_) => {}
         StatementNode::LocalData(local) => handles.push(local.initial_value),
         StatementNode::Assignment(assignment) => {
             handles.push(assignment.target);
