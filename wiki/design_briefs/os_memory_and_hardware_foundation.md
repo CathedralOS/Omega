@@ -542,8 +542,12 @@ than re-reading source attributes.
 
 ## Implementation order
 
-Ordinary generic trait-parent composition for `Calling<C>` is implemented.
-Remaining order:
+Ordinary generic trait-parent composition for `Calling<C>` is implemented. The
+compiler also has the first normalized `CallPlan + StatePlan` model, built-in
+evaluators for the currently supported x86-64/AArch64 host and syscall
+policies, deterministic contract fingerprints, and a separate validated
+footprint-evidence carrier. Source-policy evaluation, authoritative lowering,
+and the concrete interrupt state policy remain. Remaining order:
 
 1. Complete the checked-assembly instruction-contract catalog needed by the
    entry provider. No raw-byte shortcut.
@@ -553,8 +557,9 @@ Remaining order:
    destination-authority mapping, and authority-origin validation.
 4. Implement `AccessPlan`, validation against `LayoutPlan`, sealed field-access
    derivation, borrow-polarity checks, and exact volatile/atomic primitives.
-5. Split boundary entry planning into `CallPlan + StatePlan`; constrain codegen,
-   emit footprint evidence, and validate final artifacts.
+5. Connect `Calling<C>` to evaluated boundary-plan identity, migrate lowering
+   to the normalized plans, constrain codegen, emit footprint evidence, and
+   validate final artifacts.
 6. Add symbolic relocation sources, phase/constraint-aware materialization,
    admitted-artifact validation, and scoped executable installation.
 7. Add the external-root ledger and IDT/timer vertical slice.

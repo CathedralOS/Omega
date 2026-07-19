@@ -109,7 +109,8 @@ implementation work. Each one gets more expensive to retrofit every month.
    `design_briefs/os_memory_and_hardware_foundation.md`: inert `addr` values;
    concrete-range `Extent` authority distinct from allocator `Arena`;
    `LayoutPlan` geometry plus separate `AccessPlan`; sealed placed views;
-   parsed checked asm; independent `CallPlan + StatePlan`; symbolic
+   parsed checked asm; independent `CallPlan + StatePlan` (normalized compiler
+   model and initial x86-64/AArch64 evaluators implemented); symbolic
    materialization; external-root reporting; DMA external loans; and carry /
    runtime admission. No interrupt DSL, volatile qualifier, raw instruction
    binding, or parallel trust system. The next vertical slice is the x86 IDT
