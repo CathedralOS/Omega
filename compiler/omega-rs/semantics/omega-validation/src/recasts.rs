@@ -968,14 +968,27 @@ fn boundary_call_ensures_bound(
             let ProofFact::Expression(expression) = fact else {
                 continue;
             };
-            // Ensures facts are literal-only here (depth 0): a symbolic RHS
-            // inside a callee contract names CALLEE scope, not ours.
+            // Resolve bounds in the callee signature's scope before mapping
+            // the selected parameter back to the caller argument. Equality
+            // between out-parameters may therefore carry a literal witness
+            // (`size == limit && limit <= 8`) without confusing either name
+            // with caller scope.
             let fact_bound = match side {
                 BoundSide::Upper => guard_upper_bound_for(
-                    program, machine, source, *expression, parameter.name.as_str(), 0,
+                    program,
+                    machine,
+                    source,
+                    *expression,
+                    parameter.name.as_str(),
+                    SYMBOLIC_BOUND_DEPTH,
                 ),
                 BoundSide::Lower => guard_lower_bound_for(
-                    program, machine, source, *expression, parameter.name.as_str(), 0,
+                    program,
+                    machine,
+                    source,
+                    *expression,
+                    parameter.name.as_str(),
+                    SYMBOLIC_BOUND_DEPTH,
                 ),
             };
             if let Some(fact_bound) = fact_bound {
@@ -1013,6 +1026,33 @@ fn guard_upper_bound_for(
                 .or_else(|| {
                     guard_upper_bound_for(program, machine, source, binary.right, label, depth)
                 })
+                .or_else(|| {
+                    let peer = (depth > 0)
+                        .then(|| equality_peer_for(program, guard, label))
+                        .flatten()?;
+                    let peer_label = program.expression_table.display_name(peer);
+                    if peer_label == label {
+                        return None;
+                    }
+                    symbolic_expression_bound(
+                        program,
+                        machine,
+                        source,
+                        peer,
+                        depth - 1,
+                        BoundSide::Upper,
+                    )
+                    .or_else(|| {
+                        guard_upper_bound_for(
+                            program,
+                            machine,
+                            source,
+                            guard,
+                            &peer_label,
+                            depth - 1,
+                        )
+                    })
+                })
         }
         BinaryOperator::Equal
             if matches!(
@@ -1021,6 +1061,17 @@ fn guard_upper_bound_for(
             ) =>
         {
             guard_upper_bound_for(program, machine, source, binary.left, label, depth)
+        }
+        BinaryOperator::Equal if depth > 0 => {
+            let peer = equality_peer_for(program, guard, label)?;
+            symbolic_expression_bound(
+                program,
+                machine,
+                source,
+                peer,
+                depth - 1,
+                BoundSide::Upper,
+            )
         }
         BinaryOperator::LessOrEqual | BinaryOperator::Less => {
             // The comparison's inclusive RHS bound: a literal, or (gap 4b)
@@ -1131,6 +1182,33 @@ fn guard_lower_bound_for(
                 .or_else(|| {
                     guard_lower_bound_for(program, machine, source, binary.right, label, depth)
                 })
+                .or_else(|| {
+                    let peer = (depth > 0)
+                        .then(|| equality_peer_for(program, guard, label))
+                        .flatten()?;
+                    let peer_label = program.expression_table.display_name(peer);
+                    if peer_label == label {
+                        return None;
+                    }
+                    symbolic_expression_bound(
+                        program,
+                        machine,
+                        source,
+                        peer,
+                        depth - 1,
+                        BoundSide::Lower,
+                    )
+                    .or_else(|| {
+                        guard_lower_bound_for(
+                            program,
+                            machine,
+                            source,
+                            guard,
+                            &peer_label,
+                            depth - 1,
+                        )
+                    })
+                })
         }
         BinaryOperator::Equal
             if matches!(
@@ -1139,6 +1217,17 @@ fn guard_lower_bound_for(
             ) =>
         {
             guard_lower_bound_for(program, machine, source, binary.left, label, depth)
+        }
+        BinaryOperator::Equal if depth > 0 => {
+            let peer = equality_peer_for(program, guard, label)?;
+            symbolic_expression_bound(
+                program,
+                machine,
+                source,
+                peer,
+                depth - 1,
+                BoundSide::Lower,
+            )
         }
         BinaryOperator::GreaterOrEqual | BinaryOperator::Greater => {
             if program.expression_table.display_name(binary.left) != label {
@@ -1160,6 +1249,65 @@ fn guard_lower_bound_for(
     }
 }
 
+/// The expression equated to `label` in a conjunction, if any. This returns
+/// only the peer expression; the caller decides which independent bound walk
+/// to apply. The recursion cap on that walk makes equality cycles incomplete
+/// rather than unsound.
+fn equality_peer_for(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    label: &str,
+) -> Option<ExpressionHandle> {
+    use omega_typed_trees::expression::BinaryOperator;
+    let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    match binary.operator {
+        BinaryOperator::And => equality_peer_for(program, binary.left, label)
+            .or_else(|| equality_peer_for(program, binary.right, label)),
+        BinaryOperator::Equal
+            if matches!(
+                program.expression_table.expression(binary.right),
+                ExpressionNode::Boolean(true)
+            ) =>
+        {
+            equality_peer_for(program, binary.left, label)
+        }
+        BinaryOperator::Equal => {
+            let left = program.expression_table.display_name(binary.left);
+            let right = program.expression_table.display_name(binary.right);
+            if left == label && right != label {
+                Some(binary.right)
+            } else if right == label && left != label {
+                Some(binary.left)
+            } else {
+                None
+            }
+        }
+        _ => None,
+    }
+}
+
+fn symbolic_expression_bound(
+    program: &TypedTrees,
+    machine: &omega_typed_trees::machine::Machine,
+    source: &omega_typed_trees::state::State,
+    expression: ExpressionHandle,
+    depth: u8,
+    side: BoundSide,
+) -> Option<i64> {
+    if let ExpressionNode::Integer(literal) = program.expression_table.expression(expression) {
+        return literal.value_i64();
+    }
+    match side {
+        BoundSide::Upper => {
+            symbolic_param_upper_bound(program, machine, source, expression, depth)
+        }
+        BoundSide::Lower => {
+            symbolic_param_lower_bound(program, machine, source, expression, depth)
+        }
+    }
+}
 
 /// Walk one statement's expressions for qualification casts and judge each
 /// WITH machine/state context: the literal fold first, then the value's

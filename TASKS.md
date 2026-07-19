@@ -119,9 +119,6 @@ before the fix.
 
 ### Dependent facts and frames
 
-- **R1/R4 — cross-machine equalities.** Transport value equality such as
-  `requires a.cols == b.rows` across machine boundaries and couple symbolic
-  upper/lower witnesses used by recast and matrix shapes.
 - **R3 — store-proof completion.** Replace permissive unbounded-store seeding
   with a sound post-entry fact plan without flipping valid corpus shapes.
 - **R5 — frames.** Implement preserve-unless-written facts, the `stores`
