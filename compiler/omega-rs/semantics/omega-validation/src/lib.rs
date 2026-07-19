@@ -561,13 +561,22 @@ fn validate_state_statement_node(
             // outside its conservatively instantiated may-write set. Unknown,
             // transitioning, static-machine, cyclic, and boundary calls still
             // invalidate everything; later R5 rungs add authored `stores`.
-            if let Some(written) = crate::calls::known_call_written_paths(
+            let written = crate::calls::known_call_written_paths(
                 program,
                 call,
                 machine,
                 machine_symbols,
                 symbols,
-            ) {
+            )
+            .or_else(|| {
+                crate::calls::known_boundary_call_written_paths(
+                    program,
+                    machine_symbols,
+                    symbols,
+                    call,
+                )
+            });
+            if let Some(written) = written {
                 value_env.invalidate_written_paths(&written);
             } else {
                 value_env.clear();

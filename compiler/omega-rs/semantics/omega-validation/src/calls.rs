@@ -558,6 +558,54 @@ pub(crate) fn boundary_trait_signature<'program>(
         .find(|signature| signature.name == call.target)
 }
 
+/// The program-place frame of a resolved boundary call before authored
+/// `stores` lands. Boundary code may mutate its receiver and every explicit
+/// exclusive argument; it cannot manufacture reach to unrelated caller
+/// fields. An exclusive parameter not represented by a direct `&mut place`
+/// remains opaque and returns `None`, preserving the fail-closed fallback.
+pub(crate) fn known_boundary_call_written_paths(
+    program: &TypedTrees,
+    machine_symbols: &MachineSymbols<'_>,
+    symbols: &TopLevelSymbols<'_>,
+    call: &TableCall,
+) -> Option<Vec<String>> {
+    let signature = boundary_trait_signature(program, machine_symbols, symbols, call)?;
+    let receiver = program.statement_table.name_path_members(call.receiver);
+    if receiver.is_empty() {
+        return None;
+    }
+    let mut written = vec![receiver
+        .iter()
+        .map(|member| member.as_str())
+        .collect::<Vec<_>>()
+        .join(".")];
+    let arguments = program.statement_table.expression_handles(call.arguments);
+    let parameters = program
+        .state_signature_parameters(signature)
+        .iter()
+        .filter(|parameter| !parameter.is_self);
+
+    for (parameter, argument) in parameters.zip(arguments) {
+        let TypeReferenceNode::Reference {
+            is_mutable: true, ..
+        } = program
+            .type_reference_table
+            .type_reference(parameter.type_reference)
+        else {
+            continue;
+        };
+        let ExpressionNode::Mutable(place) = program.expression_table.expression(*argument) else {
+            return None;
+        };
+        let path = coarse_place_path(program, *place)?;
+        if !written.contains(&path) {
+            written.push(path);
+        }
+    }
+
+    Some(written)
+}
+
 /// The FREE top-level machine named `target` and its entry state (`machine
 /// compute(item: &Item) -> i32 { ... }`), or None. The parser names a free
 /// machine's implicit entry state `entry`; explicit entry states matching the
