@@ -474,21 +474,20 @@ fn seed_ensures_conjunct(
     env.narrow(place, interval);
 }
 
-/// Seed a NON-ENTRY state's starting env from its SOLE incoming guarded
-/// transition: `transition dir >= 0 && dir <= 1 { true -> store() }` means
+/// Seed a NON-ENTRY state's starting env from its incoming guarded
+/// transitions: `transition dir >= 0 && dir <= 1 { true -> store() }` means
 /// `store`'s body may assume the guard -- the target-state twin of the
-/// same-state arm narrowing. Strictly conservative; returns an EMPTY env
-/// unless ALL of:
-/// - exactly ONE transition arm in the whole machine TARGETS the state
-///   (a second entry, from anywhere, disqualifies);
-/// - that arm is a guard-TRUE target from a DIFFERENT state (a continuation
+/// same-state arm narrowing. Multiple guarded predecessors join at the facts
+/// every edge establishes and the interval union for each common place.
+/// Strictly conservative; returns an EMPTY env unless ALL entries:
+/// - are guard-TRUE targets from a DIFFERENT state (a continuation
 ///   fires on guard-FALSE with its own polarity; a self-loop back edge is
 ///   loop-invariant territory, owned by loop_invariants.rs);
-/// - the state is never entered by a CALL (statement or value position) --
-///   calls carry no guard.
+/// - exclude every CALL entry (statement or value position), because calls
+///   carry no guard.
 /// Facts seeded here are body-scoped exactly like any env entry: a write to
 /// the guarded place inside the body replaces its interval.
-pub(crate) fn sole_incoming_guard_env(
+pub(crate) fn incoming_guard_env(
     program: &TypedTrees,
     machine: &Machine,
     state: &State,
