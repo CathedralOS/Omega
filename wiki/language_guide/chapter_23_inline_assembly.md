@@ -23,6 +23,15 @@ the registers clobbered by each realized sequence: the current `out` lowering
 uses `rax`, `rdx`, `r10`, and `r11`, while `in` uses `rax`, `rdx`, `r10`, and
 `r15`.
 
+An author may restate a block's exact realized register footprint with
+`asm where clobbers ... { ... }`. The declaration is checked against the union
+of the compiler-owned instruction contracts: omitting a changed register and
+inventing an unchanged register both reject, while order and duplicates carry
+no meaning. A block with no general-purpose register changes spells
+`clobbers none`. `requires` and `ensures` clauses remain unavailable until the
+block facts have a lossless typed-stage carrier; they never admit an unknown
+instruction or override its compiler-owned contract.
+
 ## Parsed instructions with contracts
 
 `asm { ... }` is parsed for the selected target. Every accepted instruction has

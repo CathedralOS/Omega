@@ -30807,6 +30807,7 @@ const WINDOWS_HOST_PASS_CANARIES: &[&str] = &[
 /// former windows-gating.
 const CROSS_TARGET_PASS_CANARIES: &[(&str, &str)] = &[
     ("inline_asm/asm_multi_instruction_block_compile", "uefi_x64"),
+    ("inline_asm/asm_where_exact_clobbers_compile", "uefi_x64"),
     ("targets/efi_vtable_call", "uefi_x64"),
     ("targets/efi_vtable_field_call", "uefi_x64"),
     ("targets/efi_out_param_call", "uefi_x64"),
@@ -34110,6 +34111,8 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "inline_asm/asm_port_in_wrong_destination_type",
     "inline_asm/asm_port_in_wrong_port_type",
     "inline_asm/asm_port_literal_out_of_range",
+    "inline_asm/asm_where_missing_clobber",
+    "inline_asm/asm_where_extra_clobber",
     "inline_asm/asm_where_contract",
     "control_flow/termination_countdown_stalled_decrease",
     "control_flow/termination_cycle_missing_decreases",

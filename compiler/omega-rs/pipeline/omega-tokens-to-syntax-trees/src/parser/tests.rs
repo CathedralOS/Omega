@@ -1044,6 +1044,57 @@ fn rejects_asm_availability_and_unmodeled_operation_classes() {
     }
 }
 
+#[test]
+fn parses_exact_asm_where_clobber_contracts() {
+    for block in [
+        "asm where clobbers none { hlt }",
+        "asm where clobbers r11, rax, rdx, r10 { out self.port, self.value }",
+    ] {
+        let source = format!(
+            r#"
+            data Main {{ port: u16; value: u8; }}
+            machine Main::main(&mut self) {{ {block} }}
+            "#
+        );
+        let tokens = Lexer::new(&source)
+            .tokenize()
+            .expect("tokenize should succeed");
+        parse_syntax_trees(&tokens).expect("exact asm clobber contract should parse");
+    }
+}
+
+#[test]
+fn rejects_inexact_asm_where_clobber_contracts() {
+    for (block, expected) in [
+        (
+            "asm where clobbers rax, rdx, r10 { out self.port, self.value }",
+            "missing `r11`",
+        ),
+        ("asm where clobbers rax { hlt }", "not clobbered `rax`"),
+        (
+            "asm where requires self.value { hlt }",
+            "`requires`/`ensures` fact contracts are not implemented yet",
+        ),
+        ("asm where clobbers { hlt }", "spell `clobbers none`"),
+    ] {
+        let source = format!(
+            r#"
+            data Main {{ port: u16; value: u8; }}
+            machine Main::main(&mut self) {{ {block} }}
+            "#
+        );
+        let tokens = Lexer::new(&source)
+            .tokenize()
+            .expect("tokenize should succeed");
+        let error = parse_syntax_trees(&tokens).expect_err("inexact asm contract should reject");
+        let rendered = format!("{error:?}");
+        assert!(
+            rendered.contains(expected),
+            "expected `{expected}` for `{block}`, got `{rendered}`"
+        );
+    }
+}
+
 /// Opaque asm forms have no attributable contract; only known-contract
 /// instructions compile (privileged_effects_and_binary_trust, LOCKED point 2).
 #[test]
