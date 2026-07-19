@@ -31185,6 +31185,68 @@ fn default_domain_standing_bound_canaries() {
 }
 
 #[test]
+fn default_domain_measure_and_symbolic_canaries() {
+    for name in [
+        "dependent/data_where_length_construction_compile",
+        "dependent/data_where_length_window_compile",
+        "dependent/data_where_length_zero_valid_compile",
+        "dependent/data_where_symbolic_equal_construction_compile",
+        "dependent/data_where_symbolic_equal_window_compile",
+        "dependent/data_where_capacity_measure_compile",
+    ] {
+        let canary = pass_canary(name);
+        compile_canary_without_output(&canary).unwrap_or_else(|diagnostics| {
+            panic!(
+                "{} failed:\n{}",
+                canary.display(),
+                diagnostics
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            )
+        });
+    }
+
+    for name in [
+        "dependent/data_where_length_mismatch_rejected",
+        "dependent/data_where_capacity_mismatch_rejected",
+    ] {
+        let canary = fail_canary(name);
+        let expected = fs::read_to_string(canary.join("expected.txt"))
+            .expect("default-domain fail canary should carry expected.txt");
+        let diagnostics = compile_canary_without_output(&canary)
+            .expect_err("invalid default-domain measure should reject");
+        let combined = diagnostics
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(
+            combined.contains(expected.trim()),
+            "{} missing expected fragment {:?}:\n{}",
+            canary.display(),
+            expected.trim(),
+            combined
+        );
+    }
+
+    for name in [
+        "dependent/data_where_param_write_unproven",
+        "dependent/data_where_cross_state_unknown_refuses",
+        "dependent/data_where_symbolic_correlation_stale_rejected",
+        "dependent/data_where_invariant_window_unclosed_rejected",
+    ] {
+        let canary = fail_canary(name);
+        assert!(
+            compile_canary_without_output(&canary).is_err(),
+            "{} unexpectedly compiled; symbolic facts must not survive unrelated writes or state boundaries",
+            canary.display()
+        );
+    }
+}
+
+#[test]
 fn runtime_float_min_max_abs_clamp_exit_canary_runs() {
     // Float min/max on SSE (maxsd/minsd), plus abs/clamp over floats which
     // desugar to them: max(3,7)+min(3,7)+abs(-12)+clamp(300,0,200) = 222.

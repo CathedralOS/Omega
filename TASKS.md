@@ -121,10 +121,9 @@ before the fix.
 
 - **Restore the pass-canary baseline.** The broad compile gate is currently red
   in independent clusters: `CommutativeSemiring::mul_identity` satisfier
-  ambiguity across the core Nat/Rat/rearrange corpus; default-domain length,
-  equality, and capacity facts; anonymous
-  exact-Rat arithmetic in runtime guards; and nonliteral exact float-to-int
-  proofs. The fail gate additionally exposes
+  ambiguity across the core Nat/Rat/rearrange corpus; anonymous exact-Rat
+  arithmetic in runtime guards; and nonliteral exact float-to-int proofs. The
+  fail gate additionally exposes
   unfinished arithmetic-measured `Nat` extraction/refutation; do not weaken
   those canaries to accept the earlier unsupported-tier rejection.
   Fix the implementation or migrate a stale canary only when the settled guide
