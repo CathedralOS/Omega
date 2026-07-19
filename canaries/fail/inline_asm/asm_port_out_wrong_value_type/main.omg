@@ -1,0 +1,6 @@
+// The implemented port write is byte-wide (`out dx, al`), so its value must
+// be an exact u8 place rather than a silently truncated u16.
+data Main { port: u16; value: u16; }
+machine Main::main(&mut self) effects device_io {
+    asm { out self.port, self.value }
+}

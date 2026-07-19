@@ -1,0 +1,6 @@
+// Anonymous integer literals may feed the fixed target registers only when
+// their values fit exactly. Neither the port nor byte operand silently wraps.
+data Main {}
+machine Main::main(&mut self) effects device_io {
+    asm { out 70000, 256 }
+}

@@ -1,12 +1,12 @@
-use crate::parser::asm_catalog::{
-    AsmCatalogEntry, AsmInstructionAvailability, AsmInstructionRefusal, AsmInstructionShape,
-    asm_catalog_entry,
-};
 use crate::parser::expression::parse_expression_handle;
 use crate::parser::input::{Input, ParseResult};
 use crate::parser::transition::parse_transition_block_target_handle;
 use crate::parser::type_reference::parse_type_reference_handle_allowing_borrow;
 use omega_core::arena::{Handle, HandleSpan};
+use omega_core::inline_assembly::{
+    AsmCatalogEntry, AsmInstructionAvailability, AsmInstructionRefusal, AsmInstructionShape,
+    asm_catalog_entry,
+};
 use omega_syntax_trees::SyntaxTrees;
 use omega_syntax_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, TableBinaryExpression, TableCallExpression,
@@ -391,6 +391,9 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
                     })),
                 input,
             ))
+        }
+        AsmInstructionShape::DerivedExit => {
+            unreachable!("deriver-only instructions refuse before source lowering")
         }
     }
 }

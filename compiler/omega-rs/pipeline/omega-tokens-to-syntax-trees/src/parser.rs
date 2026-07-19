@@ -1,4 +1,3 @@
-mod asm_catalog;
 mod capability;
 mod const_item;
 mod context;

@@ -12,6 +12,8 @@ machine Main::main(&mut self)
 {
     asm {
         out self.port, self.status;
-        in self.status, self.port
+        in self.status, self.port;
+        out 1016, 65;
+        in self.status, 1021
     }
 }

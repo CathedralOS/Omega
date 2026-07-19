@@ -14,6 +14,15 @@ through an unknown-mnemonic path. Returns, calls, and indirect branches refuse
 as hidden exits, while recognized load/store spellings refuse until they carry
 structured provenance and permission contracts.
 
+The port-I/O pilot already uses structured operand constraints. `out` accepts
+an exact `u16` port place (or a fitting literal) and an exact `u8` value place
+(or a fitting literal); `in` accepts an exact writable `u8` destination and the
+same `u16` port class. These constraints are target-register constraints, so a
+wider integer place never narrows implicitly. The shared catalog also records
+the registers clobbered by each realized sequence: the current `out` lowering
+uses `rax`, `rdx`, `r10`, and `r11`, while `in` uses `rax`, `rdx`, `r10`, and
+`r15`.
+
 ## Parsed instructions with contracts
 
 `asm { ... }` is parsed for the selected target. Every accepted instruction has
