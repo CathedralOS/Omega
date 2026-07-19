@@ -1,0 +1,21 @@
+// R5 transitive frame: may-write summaries compose through internal sibling
+// calls, preserving a caller fact when the entire call chain writes elsewhere.
+data Main {
+    stable: u32;
+    touched: u32;
+    result: u32;
+}
+
+machine Main::main(&mut self) {
+    self.stable = 5;
+    self.middle();
+    self.result = self.stable + 1;
+}
+
+machine Main::middle(&mut self) {
+    self.touch();
+}
+
+machine Main::touch(&mut self) {
+    self.touched = 1;
+}

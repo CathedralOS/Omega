@@ -119,11 +119,11 @@ before the fix.
 
 ### Dependent facts and frames
 
-- **R5 — frames.** Direct internal leaf calls now preserve arithmetic facts
-  outside their conservatively instantiated may-write paths (with unknown,
-  transitive, transitioning, and boundary calls still invalidating all facts).
-  Finish transitive summaries, the `stores` clause, state-arrival facts, and
-  Houdini-style inference for facts crossing sibling calls.
+- **R5 — frames.** Direct and acyclic transitive internal calls now preserve
+  arithmetic facts outside their conservatively instantiated may-write paths
+  (with unknown, transitioning, static-machine, cyclic, and boundary calls
+  still invalidating all facts). Finish the `stores` clause, state-arrival
+  facts, and Houdini-style inference for facts crossing sibling calls.
 
 ### Domain facets, effects, termination, and trust
 
