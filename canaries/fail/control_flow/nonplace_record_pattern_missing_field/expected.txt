@@ -1,0 +1,1 @@
+does not mention field `y` of `Point`

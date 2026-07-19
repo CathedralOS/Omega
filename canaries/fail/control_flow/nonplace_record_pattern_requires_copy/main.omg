@@ -1,0 +1,16 @@
+// A computed subject is captured once, but independent field projection is
+// currently admitted only for unrestricted data. Ordinary Point is affine,
+// so bind it to an authored typed place first or declare Point `[copy]`.
+data Point { x: i32; y: i32; }
+data Main { calls: u32 in Wrapping; }
+machine Main::make(&mut self) -> Point {
+    self.calls = self.calls + 1;
+    transition { _ -> Point { x: 30, y: 40 } }
+}
+machine Main::main(&mut self) {
+    transition self.make() {
+        Point { x, y } -> done(x, y)
+        _ -> {}
+    }
+    state done(&mut self, x: i32, y: i32) {}
+}

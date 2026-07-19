@@ -112,10 +112,6 @@ argument or inferred contract.
 These are unblocked and should gain a focused pass/fail or differential canary
 before the fix.
 
-- **Non-place record-pattern subjects.** Exhaustiveness validation currently
-  lacks a declared type for non-place subjects. Preserve single evaluation and
-  enforce the same missing/unknown-field law; add the copy-eligibility fence if
-  non-copy extraction is not yet sound.
 ## Type, proof, and semantic-model work
 
 ### Dependent facts and frames
