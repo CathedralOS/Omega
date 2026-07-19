@@ -13637,14 +13637,39 @@ fn runtime_adapter_dispatch_exit_canary_runs() {
 
 #[test]
 fn runtime_adapter_forwarding_exit_canary_runs() {
-    // PRV4 self-forwarding adapter: the receiver forwards as argument 0, so
-    // the adapter body reaches Console's remaining primitives through the
-    // capability it adapts. The field-backed and literal-backed calls both
-    // print through the adapter; each trailing `!` proves adapter routing.
+    // PRV4 standard self-forwarding adapter: the receiver forwards as argument
+    // 0, and std Console::write reaches the write_byte leaf through that same
+    // capability. Field-backed and literal-backed owned Strings both cross the
+    // honest borrowed byte-view path.
     let canary = pass_canary("providers/runtime_adapter_forwarding_exit");
     let main_path = canary.join("main.omg");
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("forwarding-adapter canary should compile to checked trees");
+    let main = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Main::main")
+        .expect("canary main machine");
+    let entry = checked
+        .machine_states(main)
+        .first()
+        .expect("canary main entry state");
+    let call_targets = checked
+        .statement_table
+        .statements(entry.statement_nodes)
+        .iter()
+        .filter_map(|statement| match statement {
+            omega_checked_trees::statement::StatementNode::Call(call) => {
+                Some(call.target.as_str())
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert!(
+        call_targets.contains(&"console_write")
+            && call_targets.contains(&"console_write_line"),
+        "std Console composite calls must rewrite to checked adapters: {call_targets:?}"
+    );
     let outcome = omega_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.error, None,
@@ -13656,8 +13681,8 @@ fn runtime_adapter_forwarding_exit_canary_runs() {
     );
     assert_eq!(
         outcome.stdout,
-        b"Field!\nLiteral!\n".to_vec(),
-        "interpreter stdout must come from the ADAPTER body (the ! is the proof)"
+        b"Field\nLiteral\n".to_vec(),
+        "interpreter stdout must come from the std write adapter"
     );
 
     let build_dir =
@@ -13680,8 +13705,8 @@ fn runtime_adapter_forwarding_exit_canary_runs() {
     );
     assert_eq!(
         output.stdout,
-        b"Field!\nLiteral!\n".to_vec(),
-        "native stdout must come from the ADAPTER body"
+        b"Field\nLiteral\n".to_vec(),
+        "native stdout must come from the std write adapter"
     );
     let _ = fs::remove_dir_all(&build_dir);
 }

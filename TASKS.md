@@ -67,13 +67,14 @@ Omega bodies; irreducible leaves use
 slot owner may override by type. The migration order remains load-bearing.
 
 1. **PRV4b — Console adapters.** The honest owned-`String` to
-   borrowed-byte-view runtime path (`as_view`/`bytes`) now runs in both engines:
-   the borrow checker ties the view to its owner and lowering preserves the
-   canonical descriptor instead of exploiting the loose named-argument shape
-   check to pass an owned `String` as `&[u8]`. Add the standard
-   `write_line`/`write` checked adapters over byte operations, compare them
-   against the lossless built-in oracle, make both interpreter and native
-   routes use them, and remove the built-in Console composite rows.
+   borrowed-byte-view runtime path (`as_view`/`bytes`) now runs in both engines,
+   and standard `Console::write` and `Console::write_line` are checked Omega
+   code: self-forwarding adapters walk that view with measured `Slice::Length`
+   state transitions and reach only `write_byte`. Field-backed, literal-backed,
+   and empty-line cases run differentially; the checked-tree canary pins both
+   calls to their adapters, and the lossless built-in plan oracle remains green.
+   Migrate the remaining inline Console declarations and remove the composite
+   compatibility rows under PRV4f.
 2. **PRV4c — target defaults and overrides.** Candidate plans are now keyed by
    provider type, unrelated conformance closures never combine, and only the
    selected covering candidate reaches adapter or leaf lowering. Explicit
