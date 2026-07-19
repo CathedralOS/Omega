@@ -457,6 +457,7 @@ fn walk_state(
             // open window must have closed.
             StatementNode::Call(call) => {
                 refuse_open_windows(&tracked, &inherited_windows, "a call", diagnostics);
+                preserve_proven_establishment(&tracked, &mut call_established);
                 tracked.clear();
                 poisoned = true;
                 // Slice 11: the callee's establishment summary joins
@@ -473,6 +474,7 @@ fn walk_state(
             StatementNode::Expression(expression) => {
                 if expression_contains_call(program, *expression) {
                     refuse_open_windows(&tracked, &inherited_windows, "a call", diagnostics);
+                    preserve_proven_establishment(&tracked, &mut call_established);
                     tracked.clear();
                     poisoned = true;
                     collect_call_summaries(program, *expression, summaries, &mut call_established);
@@ -483,6 +485,7 @@ fn walk_state(
                     && expression_contains_call(program, local.initial_value)
                 {
                     refuse_open_windows(&tracked, &inherited_windows, "a call", diagnostics);
+                    preserve_proven_establishment(&tracked, &mut call_established);
                     tracked.clear();
                     poisoned = true;
                     collect_call_summaries(
@@ -560,6 +563,22 @@ fn walk_state(
         }
     }
     (exit_established, exit_valuations, exit_windows)
+}
+
+/// A call invalidates exact field valuations through aliasing, but it cannot
+/// invalidate establishment: every accepted write in every checked callee must
+/// leave the default domain true. Preserve that monotone fact before clearing
+/// the more precise tracked valuation.
+fn preserve_proven_establishment(
+    tracked: &[TrackedPlace<'_>],
+    established: &mut Vec<String>,
+) {
+    established.extend(
+        tracked
+            .iter()
+            .filter(|place| place.established && is_self_rooted(&place.spelling))
+            .map(|place| place.spelling.clone()),
+    );
 }
 
 /// Slice 11: the machine owning a state symbol (call targets carry the
