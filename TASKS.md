@@ -201,7 +201,9 @@ before the fix.
   including nested wrappers. Continue with opaque/admitted and sealed per-mint
   facts; canonical live-set checks;
   activation-demand joins against pessimistic admitted runtime behavior; and
-  diagnostic/artifact/model-export facts.
+  diagnostic and model-export consumers. Checked builds now emit
+  `05_carry_manifest.json`, keeping authored minimums separate from effective
+  derived policies with all four axes structured.
 - **CML4 — finish multiplicity migration.** Remove downstream dependence on
   legacy move/drop arenas, cover remaining ownership forms and per-field debt,
   and lower semantic permission events into explicit backend transfers. Do not

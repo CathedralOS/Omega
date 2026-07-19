@@ -12,7 +12,7 @@ pub use backend::{
     machine_instructions_html, target_operations_html,
 };
 pub use checked_trees::{
-    capability_manifest_html, capability_manifest_json, checked_trees_html,
+    capability_manifest_html, capability_manifest_json, carry_manifest_json, checked_trees_html,
     machine_contract_manifest_json,
 };
 pub use control_flow::control_flow_html;
