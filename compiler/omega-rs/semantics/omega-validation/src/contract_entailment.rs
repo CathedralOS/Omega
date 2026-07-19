@@ -263,6 +263,7 @@ pub(crate) fn validate_machine_contract_entailment(
         None
     } else {
         recognize_structural_case_arms(program, machine, &structural, &proof_only, diagnostics)
+            .or_else(|| recognize_guarded_structural_value_arms(program, machine, &structural))
     };
     let judge_structural = |fact: ExpressionHandle| -> StructuralJudgment {
         if let Some(term) = &sole_arm_result {
@@ -3571,6 +3572,132 @@ struct StructuralCaseArm {
     value: StructuralTerm,
 }
 
+/// Recognize the integer-measured structural-induction bridge: a total
+/// two-way guarded value transition may build proof data in each branch even
+/// though the guard itself is an ordinary integer proposition (`n > 0`).
+/// Structural judging needs no interpretation of that proposition: it proves
+/// the contract for BOTH exhaustive values.  Self-applications in either
+/// value still become induction hypotheses only when the separate recursion
+/// validator proves their declared measure decreases, so recognizing this
+/// body shape cannot license an ungrounded induction.
+fn recognize_guarded_structural_value_arms(
+    program: &TypedTrees,
+    machine: &Machine,
+    judge: &StructuralJudge<'_>,
+) -> Option<Vec<StructuralCaseArm>> {
+    let [root] = program.machine_states(machine) else {
+        return None;
+    };
+    let statements: Vec<&StatementNode> = program
+        .statement_table
+        .statements(root.statement_nodes)
+        .iter()
+        .filter(|statement| !is_arm_pattern_marker(statement))
+        .collect();
+    let [first, second] = statements.as_slice() else {
+        return None;
+    };
+    let (StatementNode::Transition(first), StatementNode::Transition(second)) = (first, second)
+    else {
+        return None;
+    };
+    let branch = |transition: &omega_typed_trees::statement::TableTransition| {
+        if transition.continuation.is_valid() || !transition.target.is_valid() {
+            return None;
+        }
+        let TransitionGuardNode::When(guard) = transition.guard else {
+            return None;
+        };
+        let ExpressionNode::Binary(equality) = program.expression_table.expression(guard) else {
+            return None;
+        };
+        if equality.operator != BinaryOperator::Equal {
+            return None;
+        }
+        let ExpressionNode::Boolean(polarity) =
+            program.expression_table.expression(equality.right)
+        else {
+            return None;
+        };
+        Some((equality.left, *polarity, transition.target))
+    };
+    let (first_condition, first_polarity, first_target) = branch(first)?;
+    let (second_condition, second_polarity, second_target) = branch(second)?;
+    if first_polarity == second_polarity
+        || !guard_expressions_equal(program, first_condition, second_condition)
+    {
+        return None;
+    }
+
+    let parameter_names: Vec<String> = program
+        .state_parameters(root)
+        .iter()
+        .map(|parameter| parameter.name.as_str().to_owned())
+        .collect();
+    let environment: Vec<(String, StructuralTerm)> = parameter_names
+        .iter()
+        .map(|name| (name.clone(), StructuralTerm::Variable(name.clone())))
+        .collect();
+    let machine_name = machine
+        .name
+        .as_str()
+        .rsplit("::")
+        .next()
+        .unwrap_or(machine.name.as_str())
+        .to_owned();
+
+    [first_target, second_target]
+        .into_iter()
+        .map(|target| {
+            let TransitionTargetNode::Value(value) =
+                program.statement_table.transition_target(target)
+            else {
+                return None;
+            };
+            Some(StructuralCaseArm {
+                machine_name: machine_name.clone(),
+                parameter_names: parameter_names.clone(),
+                case_hypothesis: None,
+                case_equation: None,
+                citations: Vec::new(),
+                value: judge.callee_term(*value, &environment, 0)?,
+            })
+        })
+        .collect()
+}
+
+/// Equality for the duplicated condition trees produced by boolean-arm
+/// lowering.  This deliberately recognizes only the pure scalar grammar
+/// needed to prove that `condition == true` and `condition == false` are the
+/// two faces of ONE condition; unsupported trees simply refuse the
+/// structural-induction shortcut.
+fn guard_expressions_equal(
+    program: &TypedTrees,
+    left: ExpressionHandle,
+    right: ExpressionHandle,
+) -> bool {
+    match (
+        program.expression_table.expression(left),
+        program.expression_table.expression(right),
+    ) {
+        (ExpressionNode::Boolean(left), ExpressionNode::Boolean(right)) => left == right,
+        (ExpressionNode::Integer(left), ExpressionNode::Integer(right)) => {
+            left.value_i64() == right.value_i64()
+        }
+        (ExpressionNode::Name(left), ExpressionNode::Name(right)) => {
+            left.symbol == right.symbol
+                && program.expression_table.name_path_members(left.members)
+                    == program.expression_table.name_path_members(right.members)
+        }
+        (ExpressionNode::Binary(left), ExpressionNode::Binary(right)) => {
+            left.operator == right.operator
+                && guard_expressions_equal(program, left.left, right.left)
+                && guard_expressions_equal(program, left.right, right.right)
+        }
+        _ => false,
+    }
+}
+
 /// Recognize a single-state proof machine whose statements are case arms
 /// over its parameters (`transition a { Nat::Zero -> .. Nat::Succ { prev }
 /// -> .. }` desugars to per-arm transitions guarded by `a == Nat::Case`).
@@ -4500,6 +4627,15 @@ impl<'program> StructuralJudge<'program> {
                     arguments,
                 })
             }
+            // A structural theorem may recurse on an ordinary scalar
+            // measure (`build(n - 1)`) while its result lives in proof data.
+            // The structural judge does not interpret that scalar algebra;
+            // retain it as an opaque operand so the self-application has the
+            // correct arity and identity.  The separate arithmetic recursion
+            // validator is solely responsible for proving the edge decreases.
+            ExpressionNode::Binary(_) | ExpressionNode::Integer(_) => Some(
+                StructuralTerm::Opaque(program.expression_table.display_name(expression)),
+            ),
             _ => None,
         }
     }
