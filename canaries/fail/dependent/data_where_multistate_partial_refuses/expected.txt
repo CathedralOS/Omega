@@ -1,1 +1,1 @@
-before data `Player`'s default domain is established
+before data `Player` is established

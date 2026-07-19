@@ -1,1 +1,1 @@
-open default-domain invariant window
+data `EqualPair`'s default domain is still FALSE at state exit

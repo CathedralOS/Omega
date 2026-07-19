@@ -1,1 +1,1 @@
-open default-domain invariant window
+data `Main`'s default domain is still FALSE at a call
