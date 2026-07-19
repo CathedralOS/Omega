@@ -1,1 +1,1 @@
-does not prove the arithmetic predecessor of ranking subject `n`
+does not prove a strict predecessor of ranking subject `n`

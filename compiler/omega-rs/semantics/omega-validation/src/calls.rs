@@ -1601,6 +1601,115 @@ fn caller_expressions_equal(
     substituted_expression_equals(program, left, &[], right)
 }
 
+/// The arithmetic predecessor bridge for proof recursion over an integer
+/// measure.  A call nested in the TAKEN value of `transition n > 0` may pass
+/// `n - 1`: the guard proves subtraction cannot underflow and the result is
+/// strictly below `n`.  Keep this association syntactic and local -- an
+/// unrelated positive guard elsewhere in the state must not license the
+/// call.
+fn guarded_integer_predecessor_call(
+    program: &TypedTrees,
+    state: &omega_typed_trees::state::State,
+    entry_name: &str,
+    measure_position: usize,
+    argument: ExpressionHandle,
+    measure_symbol: omega_core::symbols::SymbolHandle,
+    measure_name: Option<&omega_typed_trees::name::Identifier>,
+) -> bool {
+    let ExpressionNode::Binary(predecessor) = program.expression_table.expression(argument) else {
+        return false;
+    };
+    if predecessor.operator != omega_typed_trees::expression::BinaryOperator::Subtract
+        || !expression_names_measure(
+            program,
+            predecessor.left,
+            measure_symbol,
+            measure_name,
+        )
+        || !matches!(
+            program.expression_table.expression(predecessor.right),
+            ExpressionNode::Integer(literal) if literal.value_i64() == Some(1)
+        )
+    {
+        return false;
+    }
+
+    program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .any(|statement| {
+            let StatementNode::Transition(transition) = statement else {
+                return false;
+            };
+            let TransitionGuardNode::When(guard) = transition.guard else {
+                return false;
+            };
+            let guard = match program.expression_table.expression(guard) {
+                ExpressionNode::Binary(wrapper)
+                    if wrapper.operator
+                        == omega_typed_trees::expression::BinaryOperator::Equal
+                        && matches!(
+                            program.expression_table.expression(wrapper.right),
+                            ExpressionNode::Boolean(true)
+                        ) => wrapper.left,
+                _ => guard,
+            };
+            let ExpressionNode::Binary(positive) = program.expression_table.expression(guard)
+            else {
+                return false;
+            };
+            if positive.operator != omega_typed_trees::expression::BinaryOperator::Greater
+                || !expression_names_measure(
+                    program,
+                    positive.left,
+                    measure_symbol,
+                    measure_name,
+                )
+                || !matches!(
+                    program.expression_table.expression(positive.right),
+                    ExpressionNode::Integer(literal) if literal.value_i64() == Some(0)
+                )
+            {
+                return false;
+            }
+
+            let TransitionTargetNode::Value(value) =
+                program.statement_table.transition_target(transition.target)
+            else {
+                return false;
+            };
+            let mut calls = Vec::new();
+            collect_self_entry_call_arguments(program, entry_name, *value, &mut calls);
+            calls.into_iter().any(|arguments| {
+                program
+                    .expression_table
+                    .expression_handles(arguments)
+                    .get(measure_position)
+                    .is_some_and(|candidate| *candidate == argument)
+            })
+        })
+}
+
+fn expression_names_measure(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    measure_symbol: omega_core::symbols::SymbolHandle,
+    measure_name: Option<&omega_typed_trees::name::Identifier>,
+) -> bool {
+    let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
+        return false;
+    };
+    path.symbol == measure_symbol
+        || measure_name.is_some_and(|name| {
+            program
+                .expression_table
+                .name_path_members(path.members)
+                .last()
+                .is_some_and(|member| member.as_str() == name.as_str())
+        })
+}
+
 pub(crate) fn validate_proof_machine_recursion(
     program: &TypedTrees,
     machine: &Machine,
@@ -1695,14 +1804,27 @@ pub(crate) fn validate_proof_machine_recursion(
                         name.as_str(),
                     )
                 })
+                || guarded_integer_predecessor_call(
+                    program,
+                    state,
+                    entry_name,
+                    measure_position,
+                    argument,
+                    measure_symbol,
+                    measure_name.as_ref(),
+                )
         });
         if !descends {
             diagnostics.push(Diagnostic::error(format!(
                 "`{entry_name}(..)` cannot prove the measure `{}` structurally \
-                 decreases at this self-call: the argument in the measure position \
-                 must be a case-payload subterm of the measure -- bind it in the arm \
-                 pattern (`Nat::Succ {{ prev }} -> .. {entry_name}(prev)`) so the \
-                 recursion consumes one constructor per step",
+                 decreases at this self-call: the call does not prove a strict \
+                 predecessor of ranking subject `{}`. Pass a case-payload subterm \
+                 (`Nat::Succ {{ prev }} -> .. {entry_name}(prev)`) or, for an integer \
+                 measure, `n - 1` in the taken value of its dominating `n > 0` arm",
+                measure_name
+                    .as_ref()
+                    .map(|name| name.as_str())
+                    .unwrap_or("<measure>"),
                 measure_name
                     .as_ref()
                     .map(|name| name.as_str())

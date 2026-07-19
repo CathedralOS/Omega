@@ -119,13 +119,6 @@ argument or inferred contract.
 These are unblocked and should gain a focused pass/fail or differential canary
 before the fix.
 
-- **Restore the pass-canary baseline.** The broad compile gate is currently red
-  on arithmetic-measured structural `Nat` induction. The fail gate
-  additionally exposes unfinished arithmetic-measured `Nat`
-  extraction/refutation; do not weaken those canaries to accept the earlier
-  unsupported-tier rejection.
-  Fix the implementation or migrate a stale canary only when the settled guide
-  proves the canary spelling wrong; do not normalize a red pass corpus.
 - **Constant-offset recast stale read.** A record view such as
   `&self.buf[K] as &Rec` can fold field reads against the zero-initialized
   static image after runtime writes. A small runtime-offset loop can likewise
