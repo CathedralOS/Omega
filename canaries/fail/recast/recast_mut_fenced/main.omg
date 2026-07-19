@@ -3,7 +3,7 @@
 // source valid at release) -- that judgment rides the byte-view rung.
 // Rung A serves shared re-views only; the writable spelling refuses
 // loudly instead of lowering unjudged.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main { console: Console; wide: u32; }
 machine Main::main(&mut self) {
     self.wide = 5;

@@ -73,8 +73,10 @@ slot owner may override by type. The migration order remains load-bearing.
    state transitions and reach only `write_byte`. Field-backed, literal-backed,
    and empty-line cases run differentially; the checked-tree canary pins both
    calls to their adapters, and the lossless built-in plan oracle remains green.
-   Migrate the remaining inline Console declarations and remove the composite
-   compatibility rows under PRV4f.
+   More than 1,300 exact duplicate Console declarations now import that package.
+   The remaining local declarations are intentionally different carrier,
+   effect, or proof fixtures; migrate those with their owning surfaces, then
+   remove the composite compatibility rows under PRV4f.
 2. **PRV4c — target defaults and overrides.** Candidate plans are now keyed by
    provider type, unrelated conformance closures never combine, and only the
    selected covering candidate reaches adapter or leaf lowering. Explicit

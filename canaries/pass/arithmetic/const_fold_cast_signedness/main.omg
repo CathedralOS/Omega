@@ -12,9 +12,7 @@
 //   (0u32 - 1) as i8     = -1    (0xFFFFFFFF -> low byte 0xFF -> i8 -1)
 // exit 70 = all three fold correctly; 71 = a fold dropped width/sign.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

@@ -6,9 +6,7 @@
 // runtime read-back through `self.bag.cells[2].value` proves the leaf write
 // reached the machine-owned array element (exit 70).
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Cell {
     value: i32;

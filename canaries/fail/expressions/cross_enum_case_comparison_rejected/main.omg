@@ -4,7 +4,7 @@
 // compared equal and took the TRUE arm (confirmed miscompile, exit 1). Rejected at
 // the classifier gate now (before the tag-compare lowering). Same-enum case
 // comparisons (`self.c == Color::Red`) stay valid.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Color { case Red; case Green; }
 data Direction { case North; case South; }
 data Main { console: Console; c: Color; }

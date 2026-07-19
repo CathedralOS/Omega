@@ -11,9 +11,7 @@
 // BARE-call arm spelling is covered separately by
 // pass/comptime/runtime_const_array_length_bare_call_arm_exit.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

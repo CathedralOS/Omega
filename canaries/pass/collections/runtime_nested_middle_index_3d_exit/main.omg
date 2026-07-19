@@ -4,9 +4,7 @@
 // the collection resolution. Read AND write faces, neighbor-validated.
 // (`cube[1][1][k]` -- TWO const levels BELOW the runtime index -- lowers via
 // const-prefix peeling; pinned by runtime_nested_deep_const_prefix_exit.)
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 data Main {
     console: Console;
     cube: [[[i32; 2]; 2]; 2];

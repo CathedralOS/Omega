@@ -7,9 +7,7 @@
 // class is NOT flagged here (`self.f = 5` is a coercion) -- that is the domain
 // of the narrowing checks. Complements unknown_field_{read,write}_rejected.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

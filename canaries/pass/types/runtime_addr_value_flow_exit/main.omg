@@ -7,7 +7,7 @@
 // deallocate(address: addr, ...) -- the usize-retirement follow-up that
 // moved the trait off "addresses as u64").
 // exits: 71 = bump result wrong.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main { console: Console; base: addr; }
 machine Main::bump(&mut self, a: addr, by: u64) -> addr { a + by }
 machine Main::main(&mut self) {

@@ -2,9 +2,7 @@
 // NON-GENERIC data definition that declares no `plan` machine is neither a
 // generic instantiation nor a layout-policy application. The diagnostic must
 // say both halves so the fix is obvious either way.
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data NotAPolicy {
     value: i32;

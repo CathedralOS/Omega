@@ -14,7 +14,7 @@
 //   35 + 50 - 65 + 1*40 + 10 - 20 + sales_count(3) + 17 = 70
 // Expected exit: 70.
 
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 
 data Change {
     quarters: i32 in Wrapping;

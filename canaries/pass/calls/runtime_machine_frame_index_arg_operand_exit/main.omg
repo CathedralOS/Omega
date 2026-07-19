@@ -1,9 +1,7 @@
 // Machine-array reads at FRAME indices as BINARY OPERANDS
 // (`self.arr[k] + self.cells[j].v` -- incl. a struct element FIELD) and as a
 // transition ARGUMENT (`self.report(self.arr[k])`). 9+30=39 -> report(9) -> 1.
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 data Cell {
     v: i32 [0..=50];
 }

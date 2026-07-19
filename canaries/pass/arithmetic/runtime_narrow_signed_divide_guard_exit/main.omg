@@ -8,9 +8,7 @@
 // Covers: i8 divide (-20/3 == -6), i8 modulo (-20%3 == -2), and i16 divide
 // (-1000/7 == -142), each in the guard. Exits 70.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

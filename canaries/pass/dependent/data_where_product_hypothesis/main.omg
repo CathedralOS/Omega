@@ -3,7 +3,7 @@
 // `len: u32 [0..=4096]` bounds count at 4096/40 = 102 at every legal
 // observation, so the callee's `target.count * 32` (max 3264) proves u32
 // Exact with NO flow knowledge and NO spelled requires.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data MemoryMap
 where
     count * stride <= len,

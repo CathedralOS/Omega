@@ -21,7 +21,7 @@
 // fail/dependent/dependent_forward_after_write_rejected pins the defeat.
 // exits: 71 = guard-route leg wrong; 72 = exclusive-sugar leg wrong;
 // 73 = forward leg wrong.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main {
     console: Console;
     items: [u8; 12];

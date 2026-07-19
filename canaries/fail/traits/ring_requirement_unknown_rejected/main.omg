@@ -1,7 +1,7 @@
 // `satisfies Trait::requirement` naming a requirement the trait does not
 // declare must be a targeted clean error (rearrange rung A) -- never a
 // silent no-op conformance.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Peano { case Zero; case Succ(pred: Peano); }
 trait RingOps {
     machine add(a: Self, b: Self) -> Self;

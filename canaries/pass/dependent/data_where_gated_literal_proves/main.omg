@@ -2,7 +2,7 @@
 // Player) constructs through a literal that PROVES the default domain --
 // health = 50 satisfies `health >= 1 && health <= 100`; construction is
 // the gate.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Player
 where
     health >= 1,

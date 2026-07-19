@@ -11,7 +11,7 @@
 // exit 70 = full payload; 71 = wrong tag; 72 = len lost; 73 = tail field lost;
 // 74 = the cast-valued mode field lost (the regression this canary pins).
 
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 
 data Big [copy, zero_init] {
     len: i64;

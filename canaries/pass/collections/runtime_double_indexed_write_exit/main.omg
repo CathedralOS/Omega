@@ -6,9 +6,7 @@
 // double-indexed read-back -- neighbor-clobber validated throughout.
 // Direct RMW (`grid[i][j] = grid[i][j] + 1`) stays a LOUD error (binary
 // value into a double-indexed target); the let-temp idiom works.
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 data Main {
     console: Console;
     grid: [[i32; 4]; 3];

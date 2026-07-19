@@ -6,7 +6,7 @@
 // pass/collections/runtime_nested_const_product_index_exit pins). Extending
 // depth = extend index_is_hoistable_computed AND operand_declared_interval
 // in lockstep, then flip this canary's spelling into the pass canary.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main { console: Console; vox: [u8; 24]; x: u32 [0..=3]; y: u32 [0..=2]; z: u32 [0..=1]; out: i32; }
 machine Main::main(&mut self) {
     self.x = 3; self.y = 2; self.z = 1;

@@ -14,7 +14,7 @@
 // the engines fork, so native and interpreter agree bit-for-bit.
 // exit 78/79/80 = the respective face still taking the old
 // f64-then-narrow route.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 
 data Sample [copy, zero_init] { x: f32; }
 

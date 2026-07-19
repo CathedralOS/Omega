@@ -9,7 +9,7 @@
 // adversarial class wrongly accepted.
 domain [u8]::Utf8 when valid_utf8(self) {
 }
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data LabelMessage {
     0: count: u32;
     1: label: &[u8] in Utf8;

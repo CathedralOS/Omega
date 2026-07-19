@@ -1,7 +1,7 @@
 // PASS canary: an f64 value that fits the wider conversion register but not
 // the actual u8 target must trap before the truncating store. Exit 7 means the
 // guard used u32/i32 bounds and sailed past; 71 means the in-range leg broke.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main { console: Console; f: f64; r: u8; }
 machine Main::main(&mut self) {
     self.f = 200.9;

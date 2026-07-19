@@ -6,7 +6,7 @@
 // fail/calls/terminal_tail_rewrite_obligation_frontier for the current
 // proving frontier). This canary pins the unmeasured refusal, naming
 // the measure and the bare-loop alternative.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main { console: Console; }
 machine Main::sum(&mut self, n: i32, acc: i32)
 -> i32

@@ -3,7 +3,7 @@
 // store is a proof obligation, like exact arithmetic). `3000000123` exceeds
 // i32::MAX, so storing it into an i32 field would truncate to a different value.
 // The fix is an explicit `as i32` cast (accepting the truncation) or a wider type.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main { console: Console; r: i32; }
 machine Main::main(&mut self) {
     self.r = 3000000123;

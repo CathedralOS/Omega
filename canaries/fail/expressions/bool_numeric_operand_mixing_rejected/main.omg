@@ -3,7 +3,7 @@
 // coercion (`true + 5` -> 6). Modern languages reject this magic coercion; Omega
 // now does too (settled 2026-07-05, Zach). A comparison RESULT into a numeric slot
 // (`let n: i32 = a < b`) is a DIFFERENT, intended coercion and stays valid.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main { console: Console; b: bool; }
 machine Main::main(&mut self) {
     self.b = true;

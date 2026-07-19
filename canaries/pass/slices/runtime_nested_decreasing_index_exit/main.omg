@@ -14,9 +14,7 @@
 //     4 * (nums[2]+nums[1]+nums[0]) = 4 * 6 = 24
 //   total = 10 + 24 = 34.  Exits 70.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

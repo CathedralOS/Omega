@@ -5,10 +5,7 @@
 // Fixed by honoring the resolved storage region (frame vs machine) in the
 // string-descriptor write selection.
 
-boundary trait Console {
-    machine write_line(text: String);
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Holder {
     stored: String;

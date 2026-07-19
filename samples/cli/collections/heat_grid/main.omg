@@ -15,9 +15,7 @@
 // seed 40 at (2,3) + (2+3) = 45.
 //
 // Expected exit: 45
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 data Main {
     console: Console;
     cells: [u8; 12];

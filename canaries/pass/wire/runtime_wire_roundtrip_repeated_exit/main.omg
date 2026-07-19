@@ -22,9 +22,7 @@
 // written = 10; the decoder consumes the same 10 bytes (read = 10,
 // ok = true), decodes both live elements, and writes samples_count = 2.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data SensorReadings {
     0: sensor_id: u32;

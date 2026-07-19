@@ -9,7 +9,7 @@
 // inner add would integer-op the IEEE bits and these legs go loud.
 // (Guard-position nested arithmetic fences on the conjunction rule -- not a
 // silent face.) exit 71 = nested write wrong; 73 = transition-arg wrong.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main { console: Console; a: f64; b: f64; c: f64; out: f64; }
 machine Main::main(&mut self) {
     self.a = 1.5;

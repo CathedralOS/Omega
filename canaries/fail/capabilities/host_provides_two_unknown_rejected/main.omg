@@ -7,7 +7,7 @@ boundary trait Beeper {
     machine beep(value: i32) -> i32;
     machine boop(value: i32) -> i32;
 }
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main { console: Console; beeper: Beeper; }
 local_unchecked provides Beeper {
     beep -> DllImport("msvcrt.dll", "abs");

@@ -3,9 +3,7 @@
 // resolves unambiguously to that single implementation. Here only Circle satisfies
 // Shape, so `s.code()` through `&mut dyn Shape` dispatches to Circle::code() == 99,
 // the guard takes `good`, and it exits 70. (Previously dyn dispatch returned 0.)
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 trait Shape {
     machine code(&mut self) -> i32;

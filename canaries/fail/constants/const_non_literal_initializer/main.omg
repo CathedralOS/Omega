@@ -1,7 +1,7 @@
 // FAIL canary (const-v0): initializers are LITERAL-ONLY -- scalars, negated
 // scalars (folded by the parser), and struct/array literals of those. An
 // arithmetic expression waits for the build-time-evaluation arc.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 
 data Limits { ceiling: i32; }
 

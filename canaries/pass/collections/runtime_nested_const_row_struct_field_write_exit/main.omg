@@ -4,9 +4,7 @@
 // AFTER the suffix walk at the LEAF's scale, so rows[2].data resolved to
 // rows+2*4 instead of rows+2*8). Validates the written element AND both
 // neighbors AND another row (adjacent-clobber check). Exit 1 on success.
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 data Row {
     data: [i32; 2];
 }

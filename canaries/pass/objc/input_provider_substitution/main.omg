@@ -6,7 +6,7 @@
 // asks CGEventSourceKeyState whether it is down. In headless CI ESC is not held, so
 // key_state returns 0 -> exit 4. Validates the substitution registry generalizes past
 // Gui to Input, and the CGEventSourceKeyState lowering runs end-to-end.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 boundary trait Input { machine key_state(virtual_key: u32) -> u64; }
 data Main {
     console: Console;

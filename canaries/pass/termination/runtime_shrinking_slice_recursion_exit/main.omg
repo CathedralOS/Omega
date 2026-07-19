@@ -13,9 +13,7 @@
 // this canary pins resolved it as a plain place over the descriptor slot,
 // handing `take` the data pointer's low bytes (exit saw 152 = (4*ptr+24) & 0xff).
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Entry {
     value: u32 in Wrapping;

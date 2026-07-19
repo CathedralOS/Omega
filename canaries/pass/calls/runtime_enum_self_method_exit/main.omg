@@ -8,7 +8,7 @@
 // cases DISCRIMINATE, including the non-ZII last tag; a bool designed-false
 // leg guards against always-first-arm coincidence.
 // exit 70 = all legs right; 71..74 name the leg.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Signal { case Red; case Amber; case Green; }
 machine Signal::go_value(&self) -> i32 {
     transition self {

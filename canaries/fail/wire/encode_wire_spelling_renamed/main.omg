@@ -1,8 +1,6 @@
 // The pre-rename codec spellings are retired (2026-07-02): the synthesized
 // entries are `Schema::encode` / `Schema::decode`.
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 data Msg {
     0: v: u32;
 }

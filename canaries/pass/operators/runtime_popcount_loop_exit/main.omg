@@ -4,9 +4,7 @@
 // either change the count or, on a high-bit word, never terminate -- so this
 // guards the loop form of the unsigned shift. popcount(0xDEADBEEF) == 24.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

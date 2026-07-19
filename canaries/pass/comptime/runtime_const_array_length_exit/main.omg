@@ -9,9 +9,7 @@
 // the substituted length really reached the range checker as 16, and the
 // values only survive if layout sized the field as 16 elements. Exits 70 only
 // when both elements hold their length-dependent values.
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

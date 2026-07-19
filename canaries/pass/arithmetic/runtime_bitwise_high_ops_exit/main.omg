@@ -7,9 +7,7 @@
 //
 // NOTE: `~` (unary bitwise NOT) is not a recognized operator ("unsupported punctuation"); the XOR
 // with an all-ones mask shown here is the equivalent and is what this canary uses.
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

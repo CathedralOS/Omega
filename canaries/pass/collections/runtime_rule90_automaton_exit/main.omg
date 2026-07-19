@@ -5,9 +5,7 @@
 // `(90 >> window) & 1`, plain-index array reads/writes, and the field-temp double buffer --
 // across native AND the interpreter oracle. The visual version is samples/cellular_automaton.
 // Exits 70.
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

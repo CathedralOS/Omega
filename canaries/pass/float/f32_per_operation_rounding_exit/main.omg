@@ -7,7 +7,7 @@
 // f32 format metadata through static-local substitution and nested native value
 // operands. The third uses a field-backed chain, pinning the interpreter's
 // expression-width propagation and per-op rounding against native runtime f32.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 
 data Main {
     console: Console;

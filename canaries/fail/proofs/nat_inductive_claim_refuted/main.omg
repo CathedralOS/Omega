@@ -3,7 +3,7 @@
 // the claimed Zero (N3 structural induction; a refuted arm refutes the
 // machine's ensures).
 use omega::language::core::nat;
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main { console: Console; }
 machine Main::main(&mut self) { self.console.exit_process(70); }
 machine bogus(a: Nat) -> Nat

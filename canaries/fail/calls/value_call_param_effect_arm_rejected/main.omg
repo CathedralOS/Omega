@@ -1,7 +1,7 @@
 // The param-arm face: a value call whose callee's ARM states mutate a &mut
 // PARAM (ParameterOrAlias kind, not MachineOwned). One call, one selected
 // arm -> tally.count should be 1. Exit = the raw count.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Tally { count: i32 in Wrapping; }
 data Main { console: Console; tally: Tally; v: i32; }
 machine Main::pick(&self, x: i32, tally: &mut Tally) -> i32 {

@@ -3,7 +3,7 @@
 // overflow / memory corruption with no error at any phase (verified: 4 elements into
 // `[i32; 2]` compiled + ran). A `[T; N]` literal must supply exactly N elements.
 
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 
 data Main { console: Console; xs: [i32; 2]; }
 

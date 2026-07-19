@@ -9,9 +9,7 @@
 // substitution doesn't reach the value-call guard subject). Dispatching on a self
 // FIELD (here) or on a PARAM both work; use one of those. Exits 70.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Shape {
     case Circle;

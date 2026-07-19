@@ -1,8 +1,6 @@
 // Test: v1 with more fields than current body
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Counter {
     version v1 {

@@ -2,6 +2,6 @@
 // 0/1 value), which can leave {0,1}: `true + true` is 2. Storing that into a
 // `bool` used to compile and silently produce a bool holding 2 (native exit 2).
 // It is now rejected as a cross-class store, like `let x: bool = 5`.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main { console: Console; }
 machine Main::main(&mut self) { let b: bool = true; let x: bool = b + b; let r: i32 = x as i32; self.console.exit_process(r); }

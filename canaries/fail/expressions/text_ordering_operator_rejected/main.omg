@@ -3,6 +3,6 @@
 // reach the backend as a 16-byte runtime compare, surfacing a cryptic "cannot
 // load 16-byte runtime operands" encoder error. Rejected at check now with a
 // precise message. (Lexicographic text ordering is a possible future feature.)
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main { console: Console; }
 machine Main::main(&mut self) { let a: String = "abc"; let b: String = "abd"; let less: bool = a < b; self.console.exit_process(0); }

@@ -1,9 +1,7 @@
 // The decode verdict is a dispatchable ENUM, not a forgettable flag (settled
 // 2026-07-02): the fourth argument must be `&mut WireVerdict`. The old
 // `&mut ok: bool` spelling gets this guided error.
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 data Msg {
     0: v: u32;
 }

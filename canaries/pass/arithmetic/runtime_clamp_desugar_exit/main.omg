@@ -2,9 +2,7 @@
 // reuse; each argument appears once, so no double-eval concern).
 // clamp(300,0,255)=255, clamp(-5,0,255)=0, clamp(128,0,255)=128;
 // exits 70 only when all three hold.
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 data Main {
     console: Console;
     a: i32;

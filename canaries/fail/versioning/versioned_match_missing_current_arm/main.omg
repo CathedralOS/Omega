@@ -6,9 +6,7 @@
 // uncovered and the error names it, mirroring how ordinary case matches
 // reject the analogous gap (fail/data/match_nonexhaustive_cases).
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Counter {
     version v1 {

@@ -10,7 +10,7 @@
 // flavor); only the equal-strings `!=` leg distinguishes them.
 // exits: 71 = store !=/unequal wrong; 72 = let !=/unequal (place) wrong;
 // 73 = equal-strings != read TRUE (the regression face); 74 = guard != wrong.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main { console: Console; shift: u64; name: String; other: String; okf: bool; }
 machine Main::main(&mut self) {
     self.name = "omega";

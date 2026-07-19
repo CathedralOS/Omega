@@ -16,9 +16,7 @@
 // i8 mul up (64*4 -> 127), 64-bit signed add up (i64::MAX-7 + 100 ->
 // i64::MAX -- the flag-based clamp), and an IN-RANGE add stays exact
 // (40+2 = 42, no clamp). Exit 70.
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

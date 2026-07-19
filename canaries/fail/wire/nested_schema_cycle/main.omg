@@ -3,9 +3,7 @@
 // encoding, so the cycle is rejected at the declaration -- loudly, not at
 // some later encode call site.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data PacketHeader {
     0: parent: Packet;

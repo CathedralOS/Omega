@@ -12,9 +12,7 @@
 //    each `ins[i]`/`inv[i]` read (the bubble_sort idiom);
 //  - a runtime-indexed ARRAY value can't be a guard SUBJECT directly (`used[s] == 1`),
 //    so the slot's `used`/`keys` are read into fields first, then guarded.
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

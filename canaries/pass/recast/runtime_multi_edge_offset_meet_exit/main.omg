@@ -4,7 +4,7 @@
 // recast offset bound is their MAX (6): every edge must prove, the
 // weakest bound wins, 6 + size(u32) <= 12 discharges. One edge widened
 // past the footprint refuses (fail/recast/multi_edge_offset_meet_rejected).
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main { console: Console; buf: [u8; 12]; k: u32; }
 machine Main::main(&mut self) {
     self.k = 4;

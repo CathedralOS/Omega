@@ -1,6 +1,6 @@
 // RUN CANARY (exit 70). A zero-valid nested record contributes its standing
 // bound at the qualified place, so exact arithmetic sees self.map.value <= 60.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Map
 where
     value <= 60,

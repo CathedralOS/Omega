@@ -1,7 +1,7 @@
 // Internal destructure-marker delimiters must not split a legal field name
 // containing repeated underscores. Exhaustiveness sees exactly the two
 // authored fields; the bound value remains 70.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Pair {
     left__value: i32;
     right: i32;

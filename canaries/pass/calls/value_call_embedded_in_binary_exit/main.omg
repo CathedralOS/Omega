@@ -12,7 +12,7 @@
 // the binding; an embedded call's scratch stays anonymous (__call_result).
 // See wiki/architecture/value_call_in_binary_slot_collision.md.
 
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 
 data Calc {}
 

@@ -10,9 +10,7 @@
 // Tallies counts[2] three times and counts[0] once, then checks via CONST-indexed
 // reads. All correct -> exit 70.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

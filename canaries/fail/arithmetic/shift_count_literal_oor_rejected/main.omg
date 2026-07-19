@@ -3,7 +3,7 @@
 // (`1 << 40` on u32) can never execute -- an immediate compile error. The
 // ISA's silent count-masking under Exact is an invented number and never
 // adopted.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main { console: Console; n: u32; }
 machine Main::main(&mut self) {
     self.n = 1 << 40;

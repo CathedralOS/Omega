@@ -2,9 +2,7 @@
 // folds to `[-1..=40]`, so `self.x = 100` must reject exactly like a literal
 // bound. Before the const-eval, the expression bound silently behaved
 // UNBOUNDED and this compiled.
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

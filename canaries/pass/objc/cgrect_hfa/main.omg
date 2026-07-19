@@ -11,9 +11,7 @@
 // n==40 AND m==60 -> exit 6; any miscompiled HFA slot -> exit 1. This also proves
 // CoreGraphics is bindable as a directly-called framework (2nd dylib, no objc).
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 boundary trait Math {
     machine round_nearest(value: f64) -> i64;

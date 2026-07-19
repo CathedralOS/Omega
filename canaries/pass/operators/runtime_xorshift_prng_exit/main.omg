@@ -3,9 +3,7 @@
 // signed-vs-logical `>>` divergence between backends would change the draw).
 // Seed 2463534242 -> one xorshift step -> low byte 99. Self-checks and exits 70.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

@@ -8,9 +8,7 @@
 // store and struct-construction obligations. In-range elements and explicit `as`
 // casts stay fine.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

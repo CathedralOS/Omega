@@ -6,7 +6,7 @@
 // IMIN/IMAX by the result's sign bit on overflow. The interpreter clamps to the
 // same range so the differential oracle agrees.
 
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 
 data Main {
     console: Console;

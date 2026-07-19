@@ -2,7 +2,7 @@
 // explicit `as` cast is a silent narrowing -- rejected under decision 17. `big`
 // is an i64 whose value is outside i32; assigning it to the i32 field would
 // truncate. Widening (i32 -> i64) stays implicit; only narrowing needs `as`.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main { console: Console; r: i32; }
 machine Main::main(&mut self) {
     let big: i64 = 3000000123;

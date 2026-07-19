@@ -4,9 +4,7 @@
 // ordering fix + suffix-walk boundary threading); the op carries the one
 // runtime index. Pins BOTH consumers: machine-field target (`self.got = ..`)
 // and frame LET target (`let picked = ..`). grid[1][2]=42, j=2 -> exit 1.
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 data Main {
     console: Console;
     grid: [[i32; 4]; 3];

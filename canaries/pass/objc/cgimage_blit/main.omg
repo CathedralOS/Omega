@@ -14,9 +14,7 @@
 // misplaced register) makes CGBitmapContextCreate return NULL, so the image is nil
 // and CGImageGetWidth(nil) == 0 -> exit 1.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 boundary trait CoreGraphics {
     machine color_space_rgb() -> u64;

@@ -5,7 +5,7 @@
 // the false ensures (x == Zero on the Succ arm) must refuse.
 use omega::language::core::nat;
 
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main { console: Console; }
 
 machine bogus_zero_of_le(x: Nat, a: Nat) -> Nat

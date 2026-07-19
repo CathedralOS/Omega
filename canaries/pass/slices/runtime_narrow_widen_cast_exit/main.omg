@@ -10,9 +10,7 @@
 //  signed:   i8 -5 read as i32 is -5 (sign-extend).
 // Both correct -> exit 70.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

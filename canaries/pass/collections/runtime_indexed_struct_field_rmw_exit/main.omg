@@ -4,9 +4,7 @@
 // into a field-typed temp ([0..=9] intact), the guard bounds it, and the
 // machine-indexed write stores `__hoist + 1` back through the element's field
 // offset. cells[2].v: 4 -> 5 -> exit 1.
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 data Cell {
     v: i32 [0..=9];
 }

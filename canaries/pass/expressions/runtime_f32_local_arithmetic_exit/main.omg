@@ -15,9 +15,7 @@
 // Every result is guarded against its exact value, so a double-precision mis-encode,
 // an integer op over the bits, or a missing narrow exits non-70.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

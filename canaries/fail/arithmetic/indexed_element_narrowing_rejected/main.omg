@@ -4,7 +4,7 @@
 // target resolved to no declared type. Resolving the element type wires the
 // narrowing check into indexed element stores too.
 
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 
 data Main { console: Console; xs: [i8; 4]; i: i32 [0..=3]; }
 

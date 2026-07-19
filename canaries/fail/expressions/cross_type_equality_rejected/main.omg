@@ -4,7 +4,7 @@
 // equality is synthesized from ONE resolved type name, so the mismatch is caught
 // at the expansion site now (before lowering). Same-type `==` stays valid.
 trait Equatable { machine equals(&self, other: &Self) -> bool; }
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data P { x: i32; y: i32; }
 data Q { a: i32; b: i32; }
 P satisfies Equatable;

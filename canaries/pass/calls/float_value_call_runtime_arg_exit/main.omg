@@ -12,7 +12,7 @@
 // early at the arm's ForwardBranchSkip jump (leaf-arm only, never a
 // dispatch-edge guard), landing failure exactly on the next arm's first
 // byte. Exit 71 here = a failed arm guard sailed past its no-arm again.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 machine is_zeroish(x: f64) -> bool {
     let d: f64 = x - x;
     transition d == 0.0 { true -> yes() _ -> no() }

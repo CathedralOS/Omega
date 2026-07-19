@@ -4,9 +4,7 @@
 // the first read `self.nums[9]` is out of bounds). The program is rejected --
 // an init that exceeds the array capacity stays unproven.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

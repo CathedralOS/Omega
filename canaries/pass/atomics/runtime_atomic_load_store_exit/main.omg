@@ -8,9 +8,7 @@
 // Guard ladder: load result matches stored value (exit 70), or exits 71
 // on mismatch (should never fire on a correct implementation).
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

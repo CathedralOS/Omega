@@ -6,9 +6,7 @@
 // chain reads the updated value at each step. Exits 70 to confirm the SSE
 // sequence executes without faulting and codegen is clean (no stub/NoOp).
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

@@ -20,10 +20,7 @@
 
 use omega::language::std::macos_gui;
 
-boundary trait Console {
-    machine write_line(text: String);
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 // FIELD ORDER: the loop counter `i` and the guard scalars are declared BEFORE the
 // large `pixels: [i32; 4096]` so their frame offsets stay inside the AArch64 LDR

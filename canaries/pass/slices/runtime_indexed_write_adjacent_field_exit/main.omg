@@ -9,9 +9,7 @@
 // bytes of a 64-bit index load would be 99. The write must still land at arr[2], and
 // neither the index nor the sentinel may be corrupted. All correct -> exit 70.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

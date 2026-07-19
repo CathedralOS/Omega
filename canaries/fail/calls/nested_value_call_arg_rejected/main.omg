@@ -3,9 +3,7 @@
 // guard-consumer shape used to compile and natively bind 0 (interp right).
 // Now rejected with the bind-to-a-local teaching. Builtin outers
 // (`max(self.range(..), floor)`) and statement-call args still compose.
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 data Main {
     console: Console;
 }

@@ -2,7 +2,7 @@
 // fits u8, so `u8 in Trapping` produces 100 and does NOT trap (exercises the
 // no-overflow path of the trapping-multiply check). c == 100 -> exit 70.
 
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 
 data Main {
     console: Console;

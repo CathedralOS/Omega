@@ -6,7 +6,7 @@
 // unfoldable via field reads). The leaf terminal-write resolves the deep
 // arg correctly on both engines; a name-fallback mismatch would deliver
 // the decoy's 3.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Holder { pad: i32 in Wrapping; }
 machine Holder::deep(&mut self) -> i32 in Wrapping {
     self.pad = 2;

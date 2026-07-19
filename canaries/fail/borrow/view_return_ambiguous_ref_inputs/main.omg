@@ -4,9 +4,7 @@
 // borrows, and explicit lifetime parameters (the tick spelling of frozen
 // decision 15) are not implemented yet. Rejected at the declaration.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Cell {
     value: i32;

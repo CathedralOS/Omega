@@ -9,9 +9,7 @@
 // Checks dividends that need the full 64 bits (a 32-bit core would give a wrong
 // quotient), both signs, and modulo (remainder takes the dividend's sign). exit 70.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

@@ -6,9 +6,7 @@
 // so the signed index has no `>= 0` proof and the access must be rejected.
 // (An unsigned index would be non-negative by type; a signed one must prove it.)
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

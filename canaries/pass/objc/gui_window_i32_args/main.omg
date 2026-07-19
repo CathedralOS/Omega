@@ -11,9 +11,7 @@
 domain [u8]::CString when no_nul(self) {
 }
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 boundary trait ObjectiveC {
     machine get_class(name: &[u8] in CString) -> u64;

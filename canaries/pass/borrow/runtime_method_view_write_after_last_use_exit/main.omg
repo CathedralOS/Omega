@@ -6,9 +6,7 @@
 // runtime assertion proves both writes landed: 7 through the view into
 // cells[2], then 63 directly into `other` (sum 70).
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Cell {
     value: i32;

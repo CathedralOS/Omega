@@ -15,9 +15,7 @@ domain [u8]::Utf8 when valid_utf8(self) {
 // `==` in guard position must then hit (rung 3, exit 73). Exits 70 only when
 // all three guard-position compares are right.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Pair {
     a: i32;

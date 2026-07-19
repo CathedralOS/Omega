@@ -5,9 +5,7 @@
 // reads a prefix of the fields, or compares storage width, takes the wrong
 // arm). Exits 70 only when both the equal and unequal compares are right.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 trait Equatable {
     machine equals(&self, other: &Self) -> bool;

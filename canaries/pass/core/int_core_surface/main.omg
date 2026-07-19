@@ -4,7 +4,7 @@
 // validation. RUNS exit 70. (NOT named `Int` -- that is a BUILTIN type name,
 // and a data definition shadowing it is fenced.)
 use omega::language::core::int;
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main { console: Console; }
 machine Main::main(&mut self) { self.console.exit_process(70); }
 

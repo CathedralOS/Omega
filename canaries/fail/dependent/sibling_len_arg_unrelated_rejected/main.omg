@@ -2,7 +2,7 @@
 // with no guard relating it to the SIBLING ARGUMENT's length refuses --
 // slice lengths have no static floor, so the co-located guard route is
 // the only discharge, and the message names the exact guard to write.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main { console: Console; buf: [u8; 8]; j: u64; out: i32; }
 machine Main::main(&mut self) {
     self.buf[5] = 7;

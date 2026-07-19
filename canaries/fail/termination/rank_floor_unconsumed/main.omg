@@ -2,7 +2,7 @@
 // proof that does not exist yet -- rejected with a directed message (every
 // builtin view produces a natural rank, so only floor `0` verifies
 // structurally today).
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main { console: Console; }
 machine Main::climb(&mut self, limit: u64, index: u64)
 terminates by index -> Nat::IncreasingTo(limit) in 1..=limit;

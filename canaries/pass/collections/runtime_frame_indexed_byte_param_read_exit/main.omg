@@ -1,8 +1,6 @@
 // 1-byte elements (i8) of a by-value param array at a runtime index --
 // byte_count 1 through the frame-base-indexed copy. small[3]=9, k=3 -> exit 1.
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 data Main {
     console: Console;
     small: [i8; 4];

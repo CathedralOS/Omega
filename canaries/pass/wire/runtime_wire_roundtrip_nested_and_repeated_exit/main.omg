@@ -22,9 +22,7 @@
 // written = 13; the decoder consumes the same 13 bytes (read = 13,
 // ok = true) and every decoded field equals the original.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data RoomHeader {
     0: room_id: u32;

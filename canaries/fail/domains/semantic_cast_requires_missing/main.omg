@@ -2,7 +2,7 @@
 // mint inside it has NO hypothesis bounding `raw` -- the staged fence
 // stays (the guard at the CALLER cannot reach inside the callee; the
 // requires is the sanctioned carrier).
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main { console: Console; }
 domain i64::Km {
     self >= 0;

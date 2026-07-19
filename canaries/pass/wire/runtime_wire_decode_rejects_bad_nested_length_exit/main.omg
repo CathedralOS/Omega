@@ -19,9 +19,7 @@
 //   depth    varint reads 0x7F        -> -64                (cursor 10)
 // read = 10, ok = false -- the canary takes the failure path and exits 70.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data RoomHeader {
     0: room_id: u32;

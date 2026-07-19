@@ -2,9 +2,7 @@
 // must provably cover every case. A lone `true ->` arm falls through when
 // the guard is false -- before the rule, the process exited with a leftover
 // register value (probed: garbage, value-dependent).
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 data Main {
     console: Console;
     x: i32;

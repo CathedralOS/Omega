@@ -2,9 +2,7 @@
 // (frozen decision 14). The tag is set only by the boundary machinery that
 // constructs the container; a source-level write is rejected.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Counter {
     version v1 {

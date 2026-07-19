@@ -1,6 +1,6 @@
 // COMPILE CANARY. Gating propagates through containment, and explicitly
 // constructing the nested gated value establishes the outer record.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Player { health: i32 [1..=100]; }
 data Team { captain: Player; score: i32; }
 data Main { console: Console; }

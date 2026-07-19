@@ -5,9 +5,7 @@
 // non-place receiver resolved as a place and hit the raw range; it now evaluates
 // the receiver as a value (the subslice view) and reads `.len` off it. Both engines
 // agree -> `n == 3` matches -> exit 3.
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

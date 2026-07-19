@@ -9,9 +9,7 @@
 // zeros from the padding gaps and the program exits 71. Exits 70 only when
 // every value written through the plan placement survives the copy and reads
 // back intact.
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data FieldKind { case Scalar; case Text; case Nested; case Repeated; }
 data SchemaField {

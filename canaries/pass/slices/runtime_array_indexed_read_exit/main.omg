@@ -4,9 +4,7 @@
 // written and kept its zero value. Now it loads the element correctly. Reads two
 // different runtime indices and self-checks. (Constant indices already worked.)
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

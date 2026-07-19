@@ -7,9 +7,7 @@
 // same-class numeric copies (`i32 = self.i8_field`) are left to the narrowing /
 // mutation-lowering checks, so this fires ONLY on genuine class conflicts.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

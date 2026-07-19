@@ -4,7 +4,7 @@
 // tail and pointing at the tail arm / explicit-storage restructurings.
 // (The owner amendment CUT non-tail runtime recursion; depth lives in
 // storage the author sizes.)
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main { console: Console; }
 machine Main::triple(&mut self, n: u64) -> u64
 terminates by n;

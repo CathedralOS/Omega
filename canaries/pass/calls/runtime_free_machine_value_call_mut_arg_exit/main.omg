@@ -2,9 +2,7 @@
 // returns a selected arm value AND increments the caller's tally through the
 // reference (a counting probe pinning call-count semantics: exactly one call).
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

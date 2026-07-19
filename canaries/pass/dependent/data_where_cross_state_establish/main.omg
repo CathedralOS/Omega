@@ -3,7 +3,7 @@
 // must-analysis fixpoint carries establishment across the transition
 // (established at entry of a state = established at exit of every
 // predecessor; monotone in the strict store-time model).
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Player
 where
     health >= 1,

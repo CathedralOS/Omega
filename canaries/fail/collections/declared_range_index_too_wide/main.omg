@@ -1,9 +1,7 @@
 // A declared range that does NOT fit the array: `i: u64 [0..=5]` indexing
 // `[i32; 5]` (high == length) must still reject -- the range only discharges
 // the upper bound when high < length.
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

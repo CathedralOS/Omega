@@ -11,9 +11,7 @@
 //   counter 7      -> 0x07
 // written = 3.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data VersionedMessage {
     version v1 {

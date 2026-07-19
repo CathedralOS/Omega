@@ -1,6 +1,6 @@
 // RUN CANARY (exit 70). A literal-indexed dependent element owns its own
 // window; writes to maps[0] restore that element before the call.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Map
 where
     start <= end,

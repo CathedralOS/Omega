@@ -3,9 +3,7 @@
 // ([0..=9]) then modulo ([0..=4]) -- the whole chain proves into `y: [0..=4]`
 // with no guard. Both `y = c/26` alone and the `% K` chain used to reject
 // ("cannot prove assignment value"). c=259 -> 259/26=9 -> 9%5=4 -> exit 4.
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

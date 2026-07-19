@@ -13,9 +13,7 @@
 //
 // Interpreter and native x64 both exit 70 (total == 5 after 5 increments).
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data S [copy, zero_init] {
     // Wrapping DECLARED: an unbounded counter increment is overflow-capable and

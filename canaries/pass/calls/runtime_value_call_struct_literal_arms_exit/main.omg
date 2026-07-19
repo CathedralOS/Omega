@@ -9,9 +9,7 @@
 // Covers: a plain struct literal arm (`-> Vec2 { .. }`, incl. negative fields) and an
 // enum CASE literal arm (`-> Token::Num { value: 9 }`). Exits 70.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Dir {
     case N;

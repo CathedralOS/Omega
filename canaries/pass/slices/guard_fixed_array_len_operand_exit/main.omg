@@ -5,9 +5,7 @@
 // emission ("operand did not resolve to storage"). The fold rewrites it to the
 // literal 5 -> a plain CompareStaticValue. hi=4 -> true arm -> exit 7. (The
 // false arm is exercised by the same shape with hi=9 in the probe family.)
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

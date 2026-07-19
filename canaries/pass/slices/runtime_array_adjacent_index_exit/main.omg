@@ -5,9 +5,7 @@
 // proven in-bounds. This pattern underlies sorts, sliding windows, and reversal.
 // [10,20,30,40,50] is sorted, so every adjacent pair is ordered -> exit 70.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

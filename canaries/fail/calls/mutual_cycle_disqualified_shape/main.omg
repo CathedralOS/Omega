@@ -1,7 +1,7 @@
 // The NOT-met verdict names each disqualifier: ping calls pong in VALUE
 // position (a frame-growing call, not a tail transition arm target) and
 // neither machine carries a termination witness.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main { console: Console; }
 machine Main::main(&mut self) {
     let r: u64 = self.ping(6);

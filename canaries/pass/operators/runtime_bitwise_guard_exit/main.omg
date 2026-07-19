@@ -7,9 +7,7 @@
 // Bitwise carry no signedness, so they lower safely in the guard-subject path
 // (unlike `>>`, which needs operand-signedness threading -- a follow-up).
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

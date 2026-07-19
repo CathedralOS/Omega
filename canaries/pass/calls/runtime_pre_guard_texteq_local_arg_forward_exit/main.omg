@@ -1,7 +1,7 @@
 // The branch prelude must materialize a call-free text-equality local before
 // transition argument capture. Forwarding `x` from the nested edge must see
 // the initialized slot rather than its zero-initialized value.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Store { name: String; }
 machine Store::check(&mut self, idx: i32) -> bool {
     transition idx == 0 {

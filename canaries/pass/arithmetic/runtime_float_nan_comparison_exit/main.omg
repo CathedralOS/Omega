@@ -2,7 +2,7 @@
 // Native `ucomis*` reports NaN via the parity flag; the guard's failure jcc must honor
 // it (a `jp` parity branch), else 4 of the 6 operators take the wrong arm. Each check
 // below advances only on the IEEE-correct outcome; any wrong arm falls to `bad` (71).
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main { console: Console; z: f64; nan: f64; g: f64; }
 machine Main::main(&mut self) {
     self.z = 0.0;

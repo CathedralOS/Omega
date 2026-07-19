@@ -5,7 +5,7 @@
 // PROVES fine; the discharged twin is pass/proofs/citation_requires_discharged.)
 use omega::language::core::nat;
 
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main { console: Console; }
 machine Main::main(&mut self) { self.console.exit_process(70); }
 

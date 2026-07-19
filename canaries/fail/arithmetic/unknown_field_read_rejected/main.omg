@@ -4,9 +4,7 @@
 // with an opaque backend error. Complements unknown_field_write_rejected (the write
 // side). Same scoping: direct `self.<field>` against top-level data fields.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

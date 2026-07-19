@@ -11,11 +11,7 @@
 // - callee body spliced into the caller AND emitted via the branch prelude
 //   (double execution per evaluation),
 // - one eager evaluation PER ARM (double execution for a two-arm subject).
-boundary trait Console {
-    machine exit_process(code: i32)
-    effects
-        process_exit;
-}
+use omega::language::std::console;
 
 data Tally {
     calls: u64;

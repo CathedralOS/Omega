@@ -3,7 +3,7 @@
 // the gated fact `health >= 1` by interval folding -- ch12's Player
 // constructs from runtime data with no spelled requires, and the access
 // gate opens in the constructing machine.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Player
 where
     health >= 1,

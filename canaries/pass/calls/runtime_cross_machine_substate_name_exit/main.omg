@@ -6,9 +6,7 @@
 //
 // pick(2) = 4 (key 2 != 0,1 -> pick's try1 `_` arm yields 4); read_at(4) = table[4] = 60. The
 // check discriminates: the bug returned 4 (pick's literal) for read_at, so v != 60. Exit 70.
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Picker {}
 

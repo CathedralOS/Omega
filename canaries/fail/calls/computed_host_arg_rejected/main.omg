@@ -7,9 +7,7 @@
 // Sibling of fail/calls/value_call_as_host_arg_rejected (a value-call arg). The same expression
 // IS materializable as a TRANSITION argument; only the host-call-argument path lacks it.
 // Remove when host-arg expression materialization lands (see memory host-arg-expression-materialization).
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

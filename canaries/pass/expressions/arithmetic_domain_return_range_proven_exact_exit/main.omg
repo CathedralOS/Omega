@@ -9,7 +9,7 @@
 // possible overflow. The companion ENFORCEMENT (a callee that returns outside its
 // declared range is a compile error) is what makes trusting the range sound.
 
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 
 data Main {
     console: Console;

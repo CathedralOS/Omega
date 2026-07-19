@@ -12,9 +12,7 @@
 // Constructs Event::Click with a Point payload and a scalar, matches it, and reads
 // the nested struct fields + the scalar. Exits 70.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Point {
     x: i32 in Trapping;

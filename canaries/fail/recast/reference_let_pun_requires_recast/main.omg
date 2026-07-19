@@ -6,7 +6,7 @@
 // revealing a place under a second shape is spelled `&x as &T` and passes
 // the static recast judgment; the bare mismatch refuses (recasts.rs's
 // companion rule).
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main {
     console: Console;
     x: i64;

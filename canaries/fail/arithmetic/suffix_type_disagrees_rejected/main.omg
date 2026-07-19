@@ -4,7 +4,7 @@
 // silently honoring it would steer signedness/width decisions against the
 // declared type. Domain is not part of the check (suffixes land the TYPE;
 // the destination's arithmetic domain stays contextual).
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main { console: Console; }
 machine Main::main(&mut self) {
     let x: u32 = 5i8;

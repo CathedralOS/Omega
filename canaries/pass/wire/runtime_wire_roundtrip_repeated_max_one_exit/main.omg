@@ -14,9 +14,7 @@
 // written = 6; the decoder consumes the same 6 bytes (read = 6, ok = true),
 // decodes the single element, and writes code_count = 1.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Ping {
     0: code: [u32; 1];

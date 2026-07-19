@@ -12,9 +12,7 @@
 // canary's subject is narrow SIGNEDNESS, not overflow domains, and every value
 // stays in range.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

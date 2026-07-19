@@ -1,6 +1,4 @@
-boundary trait Console {
-    machine write_line(text: String);
-}
+use omega::language::std::console;
 
 data RandomState {
     seed: u64;

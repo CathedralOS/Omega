@@ -1,8 +1,6 @@
 // Inline LOCAL array read at a runtime (param) index with 8-byte elements
 // (`let a: [i64; 3] = [...]; a[k]`). a=[11,22,33], k=2 -> 33 -> exit 1.
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 data Main {
     console: Console;
 }

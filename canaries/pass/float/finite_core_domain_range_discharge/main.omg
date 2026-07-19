@@ -1,7 +1,7 @@
 // F3a: `Finite` is a compiler-known core value domain, not a user-declared
 // carrier domain. A finite literal discharges it directly, while a float range
 // carries Finite implicitly into a bounded transition argument.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 
 data Main {
     console: Console;

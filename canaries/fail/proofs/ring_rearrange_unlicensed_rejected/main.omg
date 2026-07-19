@@ -4,7 +4,7 @@
 // rearrange tier has no license and the shuffle lemma must fence exactly as
 // before the tier existed. Whether a proof compiles must never depend on
 // what happens to be in scope (the Lean CommRing-instance precedent).
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 
 data Peano {
     case Zero;

@@ -7,7 +7,7 @@
 // (Contrast Utf8/NoNul/AsciiOnly, which admit the empty sequence and ARE
 // surfaced -- see pass canary utf8_field_read_carries_domain_exit.)
 
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 
 domain [u8]::NonEmpty when non_empty(self) {
 }

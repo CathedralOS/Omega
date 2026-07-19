@@ -7,7 +7,7 @@
 // provenance is `a`'s Succ payload.)
 use omega::language::core::nat;
 
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main { console: Console; }
 machine Main::main(&mut self) { self.console.exit_process(70); }
 

@@ -7,7 +7,7 @@
 // document this guard); (3) zii == zii (place==place TextEquals) must be
 // TRUE. A regression on leg 2 is a SIGSEGV, not a wrong exit -- the canary
 // still catches it as a non-70 outcome. exits: 71/72/73 per leg.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main { console: Console; never: String; also_never: String; okf: bool; }
 machine Main::main(&mut self) {
     self.build();

@@ -5,7 +5,7 @@
 // judgment now answers three ways, and the unproven-offset case names
 // the real failure and all three discharge routes (declared range,
 // dominating incoming guard, boundary-ensures witness).
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Desc { a: u32; b: u32; }
 data Main { console: Console; buf: [u8; 16]; }
 machine Main::main(&mut self) {

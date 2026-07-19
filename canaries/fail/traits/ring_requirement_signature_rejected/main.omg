@@ -3,7 +3,7 @@
 // so the `i32` at parameter `b` is a clean mismatch (the Self-binding half
 // of rearrange rung A: the carrier is INFERRED from the signature and must
 // be consistent across every Self position).
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Peano { case Zero; case Succ(pred: Peano); }
 trait RingOps {
     machine add(a: Self, b: Self) -> Self;

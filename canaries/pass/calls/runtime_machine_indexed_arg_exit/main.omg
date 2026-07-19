@@ -5,9 +5,7 @@
 // value-write resolver now lowers it via CopyRuntimeMachineIndexedToRuntime-
 // Storage into the parameter's frame slot -- the read-side twin of the
 // machine-indexed write machinery. arr[2]=9, k=2 -> v==9 -> exit 1.
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 data Main {
     console: Console;
     arr: [i32; 4];

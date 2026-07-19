@@ -3,7 +3,7 @@
 // NAME of an enclosing state parameter (the synthesized state's parameter
 // types copy over). A computed argument (`dbl(x + 1)`) is untypeable at
 // the lowering layer, so the honest backend fence stays.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main { console: Console; }
 machine dbl(x: i32 [0..=1000]) -> i32 {
     transition { _ -> (x + x) }

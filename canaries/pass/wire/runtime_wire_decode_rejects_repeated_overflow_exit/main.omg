@@ -17,9 +17,7 @@
 // Exit 70 only when BOTH decodes report failure AND the first decode's count
 // companion shows the maximum-capped element count (2, not 3).
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Burst {
     0: samples: [i32; 2];

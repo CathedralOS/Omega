@@ -1,9 +1,7 @@
 // Float coverage the existing f64-scalar canaries miss: an f32 ARRAY (the separate f32 codegen
 // path -- mulss/addss/ucomiss/cvtss) plus an int<->f64 round-trip cast. f32 sum 1.5+2.5+2.25 =
 // 6.25 (exactly representable), then 7 as f64 * 2.0 truncated back to i32 = 14. Exits 70.
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

@@ -1,8 +1,6 @@
 // A zero-excluding ELEMENT range gates the containing array and therefore the
 // machine data. Consuming Main before establishing its cells is rejected.
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

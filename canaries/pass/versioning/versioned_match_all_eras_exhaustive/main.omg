@@ -4,9 +4,7 @@
 // dispatch compiles WITHOUT `_` -- the version analogue of
 // pass/data/match_exhaustive_by_cases.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Counter {
     version v1 {

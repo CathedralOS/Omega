@@ -10,9 +10,7 @@
 // block it -- that is the soundness gate.) The same shape underlies the swap of
 // an in-place sort. data[1] = 99 is the one value > 50, so `big` re-reads 99.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

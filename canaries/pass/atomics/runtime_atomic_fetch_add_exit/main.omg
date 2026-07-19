@@ -11,9 +11,7 @@
 //   - counter == 23 (value after second fetch_add(8))            exit 74 on miss
 //   - exit 70 = all four assertions pass
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

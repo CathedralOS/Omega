@@ -2,7 +2,7 @@
 // that require target signedness and actual narrow bounds. Saturating maps
 // unsigned negatives to zero, clamps u8/i8 at their own bounds, and preserves
 // the full u64 high half instead of applying a signed-i64 conversion ceiling.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main {
     console: Console;
     f: f64;

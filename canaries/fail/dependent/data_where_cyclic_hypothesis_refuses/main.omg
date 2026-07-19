@@ -2,7 +2,7 @@
 // bound -- the transitive chain exhausts its depth cap and resolves to
 // None, so the narrowing store refuses. Over-refusal only, never a
 // fabricated bound.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Tally
 where
     count <= mid,

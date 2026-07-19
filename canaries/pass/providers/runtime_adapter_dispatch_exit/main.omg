@@ -3,7 +3,7 @@
 // before checking -- to a direct call to the unique checked adapter
 // satisfying that requirement, and runs as ordinary Omega. Without an
 // adapter the call keeps its host-lowering route.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 boundary trait Echo {
     machine echo(x: i32) -> i32;
 }

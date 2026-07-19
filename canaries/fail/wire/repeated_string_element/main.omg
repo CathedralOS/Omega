@@ -4,9 +4,7 @@
 // guarantee rests on would not exist -- so `[String; N]` rejects the encode
 // call loudly instead of half-supporting it.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data NameList {
     0: names: [String; 4];

@@ -6,9 +6,7 @@
 // value drives the exit: count becomes old.counter + 4 = 7 and timestamp 7,
 // so the guard `count * 10 + timestamp == 77` selects exit 70.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Counter {
     version v1 {

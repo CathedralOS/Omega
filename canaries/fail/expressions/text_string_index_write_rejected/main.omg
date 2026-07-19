@@ -4,7 +4,7 @@
 // WRITE complement of the read rejection (text_string_index_rejected). Rejected at
 // check now. Byte writes via a `[u8; N] in Utf8` array (a non-primitive type) stay
 // valid, as does `s.len` member access.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main { console: Console; s: String; }
 machine Main::main(&mut self) {
     self.s = "ABC";

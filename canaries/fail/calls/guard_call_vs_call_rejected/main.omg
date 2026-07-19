@@ -3,7 +3,7 @@
 // the guard-role callee bodies are never spliced and the comparison lowers to
 // NeedsRuntimeExpression with a real operator, which the emitter drops (arm
 // entered unconditionally). The emission blocker keeps rejecting them.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main { console: Console; }
 machine Main::dbl(&self, x: i32 in Wrapping) -> i32 in Wrapping {
     let r: i32 in Wrapping = x * 2;

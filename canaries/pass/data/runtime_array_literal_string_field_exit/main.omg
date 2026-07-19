@@ -17,9 +17,7 @@ domain [u8]::Utf8 when valid_utf8(self) {
 // as element 0's. A cross check (element 0 against element 1's literal) pins
 // that the compare is content-honest rather than vacuously true.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Room {
     number: u32;

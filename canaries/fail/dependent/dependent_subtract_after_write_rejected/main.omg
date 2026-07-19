@@ -4,7 +4,7 @@
 // `count - i` genuinely underflow, so the write DEFEATS the refinement
 // and exact u32 subtraction refuses with the standard decision-17
 // overflow obligation.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main { console: Console; count: u32 [0..=11]; j: u32; out: i32; }
 machine Main::main(&mut self) {
     self.count = 8;

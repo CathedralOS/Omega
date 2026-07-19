@@ -1,7 +1,7 @@
 // TPR1 (decision 23): the `terminates { decreases ...; }` block form is
 // RETIRED -- the ranking witness spells as `terminates by <subjects>
 // [-> View] [in <range>];`, the guarantee alone as bare `terminates;`.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main { console: Console; }
 machine countdown(n: u64) -> u64
 terminates {

@@ -11,7 +11,7 @@
 // `_canary_runs` so the differential drift guard skips it). Before the fix this
 // silently wrapped to 16 and exited 70.
 
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 
 data Main {
     console: Console;

@@ -5,9 +5,7 @@
 // i in 0..5 -- the index AND the value are both runtime fields -- then reads
 // nums[3] back to confirm it holds 103. Exits 70.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

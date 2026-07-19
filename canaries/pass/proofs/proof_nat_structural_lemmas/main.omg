@@ -7,7 +7,7 @@
 // position, proof-machine applications await unfolding) still fences
 // with the N3 pointer (fail/proofs/structural_ensures_unjudged_rejected).
 use omega::language::core::nat;
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main { console: Console; }
 machine Main::main(&mut self) { self.console.exit_process(70); }
 machine nat_refl(a: Nat)

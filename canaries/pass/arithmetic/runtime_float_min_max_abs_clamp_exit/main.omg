@@ -4,9 +4,7 @@
 // realize `if a > b { a } else { b }`, which the interpreter's float min/max
 // matches exactly. Checks max(3,7)=7, min(3,7)=3, abs(-12)=12,
 // clamp(300,0,200)=200; sum = 7+3+12+200 = 222; exits 70 when it holds.
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 data Main {
     console: Console;
     mx: f64;

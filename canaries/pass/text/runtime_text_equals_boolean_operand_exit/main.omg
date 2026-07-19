@@ -9,7 +9,7 @@
 // DRAWN FROM THE POOL as a fourth pick, making collision impossible by
 // construction. `shift` keeps the String off machine offset 0.
 // exits: 71 = field/left; 72 = let/right; 73 = field/right; 74 = let/left.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main { console: Console; shift: u64; name: String; flag: bool; okf: bool; }
 machine Main::main(&mut self) {
     self.name = "omega";

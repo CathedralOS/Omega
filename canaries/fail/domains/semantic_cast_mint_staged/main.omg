@@ -2,7 +2,7 @@
 // domain facts at LITERAL values only -- a RUNTIME value's qualification
 // keeps the staged fence pointing at validating calls/guards until the
 // flow-integration rung lands.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main { console: Console; }
 
 domain i64::Km {

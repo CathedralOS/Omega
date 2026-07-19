@@ -5,9 +5,7 @@
 // compare). The held value matches the SECOND union arm, so a lowering that
 // drops or reorders union arms exits 71.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Command {
     case None;

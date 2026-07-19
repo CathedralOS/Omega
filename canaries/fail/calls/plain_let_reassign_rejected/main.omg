@@ -4,7 +4,7 @@
 // (a silent fold divergence, interp disagreed). Member/index fills
 // (`q.x = 3`) and writes through `&mut`-typed views stay ungated (the
 // ZII fill idiom and pointee writes respectively).
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main { console: Console; out: i32; }
 machine Main::main(&mut self) {
     let x: u32 = 1;

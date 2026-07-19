@@ -1,7 +1,7 @@
 // The admission fixtures' positive twin: a provider declaring within its
 // requirement's ceiling (and reaching nothing beyond) conforms and the
 // program RUNS exit 70.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main { console: Console; }
 
 trait Meter {

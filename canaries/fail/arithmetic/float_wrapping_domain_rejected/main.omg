@@ -5,9 +5,7 @@
 // `f32 in Wrapping` type-checked and both engines ran plain IEEE, so the
 // declared policy was a lie. Saturating/Trapping are real float policies pinned
 // by the F5 pass canaries; integer `in Wrapping` stays legal (decision 17).
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 data Main {
     console: Console;
     speed: f32 in Wrapping;

@@ -9,7 +9,7 @@
 // exits: 71 = in-range Trapping cast wrong; 7 = SAILED PAST the trap (the
 // failure the suite asserts against). x86 performs the same value guard
 // before cvttsd2si can produce its ambiguous integer-indefinite result.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main { console: Console; f: f64; r: i32; }
 machine Main::main(&mut self) {
     self.f = 7.9;

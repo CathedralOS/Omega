@@ -13,7 +13,7 @@
 // compare face of the const-fold family). Runtime indexes keep the folder
 // out. Third direction: BOTH operands runtime-indexed (no sibling for the
 // witness fallback). Exit 70.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main { console: Console; sarr: [u8; 3] in Saturating; idx: u64; jdx: u64; }
 machine Main::main(&mut self) {
     self.sarr = [200, 100, 50];

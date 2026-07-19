@@ -1,9 +1,7 @@
 // A POSSIBLY-ZERO divisor must keep the divide unfolded: `d: [0..=26]`
 // includes 0, so `c / d` has no provable range and the ranged store rejects
 // (the fold requires a divisor interval that provably excludes zero).
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

@@ -1,15 +1,21 @@
 // The self-forwarding admission is EXACT: the one extra leading parameter
 // must be the requirement's OWN trait. A leading parameter of any other
 // type keeps the strict positional match and refuses on parameter count --
-// no silent forwarding of a non-capability lead.
-use omega::language::std::console;
+// no silent forwarding of a non-capability lead. This fixture owns a minimal
+// requirement so the standard Console adapter cannot mask the signature error
+// with a duplicate-adapter diagnostic.
+boundary trait TestConsole {
+    machine write_line(text: String)
+    effects
+        stdout_io;
+}
 
 data Main {
-    console: Console;
+    console: TestConsole;
     text: String;
 }
 
-machine write_line_bad(code: i32, text: String) satisfies Console::write_line
+machine write_line_bad(code: i32, text: String) satisfies TestConsole::write_line
 effects
     stdout_io
 {
@@ -19,5 +25,4 @@ effects
 machine Main::main(&mut self) {
     self.text = "Hi";
     self.console.write_line(self.text);
-    self.console.exit_process(70);
 }

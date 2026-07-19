@@ -8,7 +8,7 @@
 // symbol resolution binds the member to Transfer.amount (not Deposit.amount).
 // Before the fix native read amount==3 (=to) and exited 93.
 
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 
 data Tx {
     case Deposit(amount: i32);

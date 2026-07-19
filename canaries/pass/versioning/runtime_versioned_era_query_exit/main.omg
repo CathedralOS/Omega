@@ -6,9 +6,7 @@
 // numbering: declared version blocks count up from 0; current = block count).
 // The guard `e == 0` must select exit 70.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Counter {
     version v1 {

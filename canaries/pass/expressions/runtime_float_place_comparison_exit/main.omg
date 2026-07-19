@@ -4,9 +4,7 @@
 // negative operand where an integer bit-compare would order incorrectly. Exits
 // 70 only if every field-to-field comparison evaluates correctly.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

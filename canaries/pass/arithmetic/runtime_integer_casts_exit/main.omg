@@ -7,9 +7,7 @@
 //   - i16(-1) as u16 as u32 -> 65535  (reinterpret with the sign bit set, then widen)
 // Exits 70.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

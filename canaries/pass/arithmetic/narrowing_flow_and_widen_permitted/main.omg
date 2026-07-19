@@ -3,7 +3,7 @@
 // the intersection-with-source-range behaviour that keeps proven-small values
 // (and `in Wrapping` sums) permissive -- a future over-strict check that rejected
 // these would break real code. All three stores below are sound and must compile.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main { console: Console; a: i8; b: i64; r: i32; s: i8; }
 machine Main::main(&mut self) {
     self.a = 5;

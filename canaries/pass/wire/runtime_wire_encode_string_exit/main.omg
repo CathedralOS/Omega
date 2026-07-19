@@ -19,9 +19,7 @@ domain [u8]::Utf8 when valid_utf8(self) {
 //   'i'            -> 0x69 (105)
 // written = 7.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data LabelMessage {
     0: count: u32;

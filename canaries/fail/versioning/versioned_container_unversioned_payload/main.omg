@@ -2,9 +2,7 @@
 // types that declare `version vN { ... }` blocks -- an unversioned `Plain`
 // has a single (current) shape and no era chain to tag.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Plain {
     count: i32;

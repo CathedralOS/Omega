@@ -17,7 +17,7 @@
 // expected error: argument `c` for state `handle` is declared `&mut`
 // (`&mut Counter`), but the caller lends only immutable access
 
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 
 data Counter { n: i32 in Wrapping; }
 data Main { console: Console; c: Counter; }

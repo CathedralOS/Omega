@@ -8,7 +8,7 @@
 // depends on this. macOS-gated (read_dir has no msvcrt row).
 use omega::language::std::filesystem;
 use omega::language::std::filesystem_host;
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main { console: Console; fs: Filesystem; raw: FilesystemHost; unit_result: UnitResult; entry_result: DirEntryResult; dfd: i32; rc: i32; }
 machine Main::main(&mut self) {
     self.unit_result = self.fs.create_dir("omega_reread");

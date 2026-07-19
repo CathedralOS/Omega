@@ -38,7 +38,7 @@
 // canary (it still compiles). Exit codes are diagnostic only (73 = native's
 // wrapped 3, 74 = interpreter's full-width 4, 75 = neither).
 
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main { console: Console; a: i32; b: i32; }
 machine Main::main(&mut self) {
     self.a = 100000;

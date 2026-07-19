@@ -4,9 +4,7 @@
 //   200 as i8 then as i32 -> truncate to -56, sign-extend (200 doesn't fit i8; 0xC8 = -56)
 // A wrong extension (zero where sign is needed, or vice versa) would silently corrupt the value.
 // Each is chained; exits 70 iff all hold.
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

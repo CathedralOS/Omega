@@ -5,7 +5,7 @@
 // tick values are nondeterministic, so a value-based check would be meaningless; the interpreter
 // drives a deterministic virtual tick counter that advances on every read and sleep, so the same
 // monotonicity holds there. Exit 70. Differential (native must match the interpreter).
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 boundary trait Clock { machine sleep(milliseconds: u32); machine tick_count() -> u64; }
 data Main { console: Console; clock: Clock; t1: u64; t2: u64; }
 machine Main::main(&mut self) {

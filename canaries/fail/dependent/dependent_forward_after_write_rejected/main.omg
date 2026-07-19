@@ -5,7 +5,7 @@
 // (here `self.count = 3` after entering with i <= count == 8) makes the
 // bridge unsound, so the write DEFEATS the route and the transition
 // refuses (relate them with a fresh guard after the write instead).
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main { console: Console; items: [u8; 12]; count: u32 [0..=11]; j: u32; out: i32; }
 machine Main::main(&mut self) {
     self.count = 8;

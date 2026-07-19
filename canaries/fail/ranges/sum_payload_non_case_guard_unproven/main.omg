@@ -6,7 +6,7 @@
 // The payload range must NOT be admitted: `case_guard_proven_variant` finds no
 // `Equal(self.p, P::Case)` conjunct, so the argument stays unproven. MUST reject
 // with the expected fragment.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data P { case One(v: i32 [0..=50]); case Two(w: i32 [0..=1000]); }
 data Main { console: Console; flag: bool; p: P; }
 machine Main::main(&mut self) {

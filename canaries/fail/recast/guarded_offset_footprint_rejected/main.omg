@@ -3,7 +3,7 @@
 // bytes 9..13 of a 12-byte region -- the guard-derived bound is REAL
 // (not advisory), so the recast refuses exactly as a declared
 // `[0..=9]` interval would.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main { console: Console; buf: [u8; 12]; k: u32; out: i32; }
 machine Main::main(&mut self) {
     self.buf[4] = 1;

@@ -9,7 +9,7 @@
 // lets un-paired the arms into a phantom fall-through -- the run-splice in
 // lower_statement_into_pending). The guarded-arm flavor is exercised by
 // samples/cli/collections/matrix_multiply.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main {
     console: Console;
     arr: [i32 in Wrapping; 4];

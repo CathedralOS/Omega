@@ -2,7 +2,7 @@
 // silently, leaving the trailing slots reading uninitialized. A `[T; N]` literal
 // must supply exactly N elements (the counterpart of array_literal_too_many_rejected).
 
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 
 data Main { console: Console; xs: [i32; 4]; }
 

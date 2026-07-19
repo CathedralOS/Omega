@@ -1,9 +1,7 @@
 // A method value-call on a receiver whose type declares NO such machine used
 // to silently bind 0 (the dungeon's `existing_index.is_some()` never stacked
 // items). Now a compile error.
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 data Tally {
     count: i32;
 }

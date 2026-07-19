@@ -1,7 +1,7 @@
 // DECISION 20 admission fixture (acceptance 7): a provider may refine to
 // a SMALLER effect row but never widen its requirement's ceiling --
 // sneaky declares filesystem_io beyond Meter::read_value's clock_read.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main { console: Console; }
 
 trait Meter {

@@ -1,9 +1,7 @@
 // A value call whose target names NOTHING anywhere used to compile and
 // silently bind 0 (ZII) -- `let y: i32 = bogus_fn(1)` took whatever arm the
 // zero picked. Now a compile error from the complete value-call resolution.
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 data Main {
     console: Console;
 }

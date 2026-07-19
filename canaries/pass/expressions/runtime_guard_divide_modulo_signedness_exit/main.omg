@@ -10,7 +10,7 @@
 //
 // Every arm is reached only on a correct guard; a regression exits 71-74.
 
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 
 data State {
     neg: i32;

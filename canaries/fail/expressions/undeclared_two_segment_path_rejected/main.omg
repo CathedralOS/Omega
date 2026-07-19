@@ -9,7 +9,7 @@
 // `Signal::Blue` (a bogus case of a real enum) is the same shape and is
 // caught too; the positive twin (a REAL qualified case in value position)
 // is pinned by runtime_qualified_case_value_exit.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 boundary trait Beeper { machine noop(); }
 data Main { console: Console; }
 local_unchecked provides Beeper {

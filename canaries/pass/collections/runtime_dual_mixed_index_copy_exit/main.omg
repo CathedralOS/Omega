@@ -1,9 +1,7 @@
 // DUAL-indexed copies with MIXED index regions, both directions:
 // `arr[k] = arr[self.j]` (frame target idx / machine source idx) then
 // `arr[self.j] = arr[m]` (machine target idx / frame source idx). -> exit 1.
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 data Main {
     console: Console;
     arr: [i32; 4];

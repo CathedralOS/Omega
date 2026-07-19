@@ -7,7 +7,7 @@
 // value (a checked partial op: it traps at runtime). If the narrowing ever
 // leaks to direct access, `self.p.v` would falsely prove into `got: [0..=50]`.
 // MUST reject with the expected fragment.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data P { case One(v: i32 [0..=50]); case Two(w: i32 [0..=1000]); }
 data Main { console: Console; got: i32 [0..=50]; p: P; }
 machine Main::main(&mut self) {

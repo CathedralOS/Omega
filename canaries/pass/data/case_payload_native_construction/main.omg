@@ -5,9 +5,7 @@
 // binding reads the payload member back out as the target state's argument.
 // Exits 70 when construction, tag dispatch, and the payload read all work.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Command {
     case None;

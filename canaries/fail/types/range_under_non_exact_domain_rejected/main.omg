@@ -5,7 +5,7 @@
 // declaration lied. All three declaration sites reject: data field, state
 // param, and local. Keep the range (Exact enforces it) or keep the domain
 // (defined overflow, full type range), never both.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main { console: Console; i: u8 [0..=4] in Wrapping; }
 machine Main::main(&mut self) {
     self.i = 100;

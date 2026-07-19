@@ -10,9 +10,7 @@
 //
 // [1,2,3,4,5] reversed is [5,4,3,2,1]: nums[0]==5 and nums[4]==1 -> exit 70.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

@@ -3,7 +3,7 @@
 // dominating guard). The auto-hoist mints the temp, but the index prover has
 // no facts under either label -- and the diagnostic names the USER's spelling
 // (`self.k + 1`), not the synthesized temp.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main {
     console: Console;
     arr: [i32; 5] in Trapping;

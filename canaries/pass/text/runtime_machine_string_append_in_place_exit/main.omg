@@ -5,10 +5,7 @@
 // was never populated and the "prefix " content was lost ("<garbage>omega").
 // Now implemented (rep movsb copy of the descriptor's content into the buffer).
 
-boundary trait Console {
-    machine write_line(text: String);
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

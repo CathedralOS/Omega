@@ -3,6 +3,6 @@
 // sizes is a semantic disaster; index_count_and_address_model brief). Sizes,
 // counts, and indexes are u64; addresses are addr. The name no longer
 // resolves as a builtin type.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main { console: Console; n: usize; }
 machine Main::main(&mut self) { self.console.exit_process(70); }

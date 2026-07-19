@@ -5,9 +5,7 @@
 // arena paths that, mis-handled, panic on contiguity. Constructs it, reads back the
 // array element, the struct-array element's field, and a scalar field. Exits 70.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Point {
     x: i32 in Trapping;

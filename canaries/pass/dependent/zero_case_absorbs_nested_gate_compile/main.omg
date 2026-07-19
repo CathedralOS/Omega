@@ -1,6 +1,6 @@
 // COMPILE CANARY. The first sum case is the zero value. A payload-free Empty
 // therefore absorbs Player's gate, and an array of slots can zero-initialize.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Player { health: i32 [1..=100]; }
 data PlayerSlot {
     case Empty;

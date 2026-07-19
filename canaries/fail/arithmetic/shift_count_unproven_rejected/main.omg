@@ -6,7 +6,7 @@
 // defined-count policy on the shifted operand (Wrapping masks / Trapping
 // traps) -- see pass/arithmetic/runtime_shift_count_proven_range_exit for
 // the proven spelling.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main { console: Console; k: u32; sel: u32; n: u32; }
 machine Main::main(&mut self) {
     transition self.sel == 0 { true -> small() _ -> big() }

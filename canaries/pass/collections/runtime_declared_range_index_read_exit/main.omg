@@ -5,9 +5,7 @@
 // left "cannot prove index within length 5". Sound because an EXACT-domained
 // range is enforced at every store and ZII 0 must be in range. The read state
 // sees only the ZII i=0 -> arr[0]=30 -> exit 30.
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

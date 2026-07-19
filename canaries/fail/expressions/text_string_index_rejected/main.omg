@@ -3,7 +3,7 @@
 // implemented, so the backend produced 0 with no diagnostic. Rejected at check now.
 // Byte access via a `[u8; N] in Utf8` array (which resolves to a non-primitive type)
 // is the supported path and stays valid. (`s.len` MEMBER access stays valid too.)
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main { console: Console; s: String; }
 machine Main::main(&mut self) {
     self.s = "ABC";

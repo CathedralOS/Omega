@@ -4,9 +4,7 @@
 // "float host-call operand/return not supported" style error that pins the work.
 // sqrt(16.0) == 4.0 -> exit 4; else exit 1.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 boundary trait Libm {
     machine square_root(value: f64) -> f64;

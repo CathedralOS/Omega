@@ -1,7 +1,7 @@
 // R2 rung 3 slice 6: a parameter write whose fact mentions ONLY the
 // written field proves without co-field knowledge -- count = 3 folds
 // `count <= 4096` regardless of the parameter's unknown arrival values.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Meter
 where
     count <= 4096,

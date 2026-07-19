@@ -4,7 +4,7 @@
 // stands down and the structural fence fires. (The hypothesized version
 // proves in core int.omg's add_int_respects_eq.)
 use omega::language::core::nat;
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main { console: Console; }
 machine Main::main(&mut self) { self.console.exit_process(70); }
 

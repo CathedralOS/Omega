@@ -3,7 +3,7 @@
 // elapsed >= 30ms. exits: 70 ok; 1 = under 30ms / zeroed.
 use omega::language::std::time;
 
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 boundary trait Clock { machine sleep(milliseconds: u32); }
 
 data Main {

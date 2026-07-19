@@ -5,9 +5,7 @@
 // (px*px + py*py < 100*100) approximates pi/4. Fully deterministic from seed 1: exactly 53
 // of 64 land inside, so the estimate 400*inside/64 = 331 (i.e. pi ~= 3.31). Both the count
 // and the scaled estimate are checked -> exit 70.
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

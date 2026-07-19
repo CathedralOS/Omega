@@ -7,9 +7,7 @@
 // `[a..=b]`-refined fields. An explicit `as` cast or a provably-in-range value
 // stays fine.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Small {
     v: i8 in Wrapping;

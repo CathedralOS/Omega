@@ -6,10 +6,7 @@
 // zii_default_string_equality_exit) -- the descriptor here crosses the
 // boundary into host argument marshaling. A regression is a SIGSEGV or
 // garbage write before the exit call; any non-70 outcome catches it.
-boundary trait Console {
-    machine write_line(text: String);
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 data Main { console: Console; never: String; }
 machine Main::main(&mut self) {
     self.console.write_line(self.never);

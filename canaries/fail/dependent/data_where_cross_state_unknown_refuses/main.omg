@@ -3,7 +3,7 @@
 // (3 != 0). Slice 4 poisoned the fold; slice 5's valuation transport now
 // carries len = 3 across the transition, so the fold sees the REAL
 // violation (3 != 3 is FALSE) and refuses precisely.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Tally
 where
     count != len,

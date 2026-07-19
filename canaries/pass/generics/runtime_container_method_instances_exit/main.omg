@@ -7,7 +7,7 @@
 // runtime SILENT-0 (compiled, returned zero). Declaration-only container
 // surfaces (stdlib Vec<T>) stay type-check-only; generic TEMPLATE machines
 // are skipped by the layout builder.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Box<T> {
     value: T;
 }

@@ -3,7 +3,7 @@
 // declaration. (UNRANGED integer fields are legal since R3: the guard
 // route discharges them at call sites, and product couplings supply the
 // bounds the substitution cannot.)
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main { console: Console; items: [u8; 12]; count: u32; out: i32; }
 machine Main::main(&mut self) {
     self.count = 8;

@@ -10,7 +10,7 @@
 //   5. fixed-array element destinations request their element format,
 //   6. a wholly anonymous comparison evaluates in Rat, and
 //   7. exact division by zero produces the format's NaN special.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 
 data Main { console: Console; exact: f64; values: [f64; 1]; }
 

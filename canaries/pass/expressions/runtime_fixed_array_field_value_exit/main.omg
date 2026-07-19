@@ -12,9 +12,7 @@
 // (a non-first field) is read into a local and guarded against 33; a dropped
 // index reads element 0's `depth` (11) and exits 71.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Room {
     id: i32;

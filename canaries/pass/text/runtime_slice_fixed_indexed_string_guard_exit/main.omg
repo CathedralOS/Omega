@@ -12,9 +12,7 @@ domain [u8]::Utf8 when valid_utf8(self) {
 // guard shape selected NO compare at all and the first transition arm was
 // taken unconditionally -- an empty field "equalled" any literal. (The
 // runtime-index sibling is runtime_slice_indexed_string_guard_exit.)
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Room {
     label: &[u8] in Utf8;

@@ -8,9 +8,7 @@
 // The runtime assertion proves both writes landed: the write through the
 // linked view into `a` and the direct write into `b`.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Cell {
     value: i32;

@@ -10,9 +10,7 @@
 // seed ZII (0): min(0, 60) = 0, +70 -> 70 -> exit 70.  `in Wrapping` only so it
 // compiles without the (separate) S4 min/max narrowing.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

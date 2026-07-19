@@ -3,7 +3,7 @@
 // u32 256 became (256 & 0xFF) == 0 and `0 | 1` gave 1 not 257 -- a confirmed
 // miscompile. The bitwise sibling of the mismatched-width comparison hole (shift
 // is unaffected -- its right operand is a bit count). Rejected at check now.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main { console: Console; small: u8; big: u32; result: u32; }
 machine Main::main(&mut self) {
     self.small = 1;

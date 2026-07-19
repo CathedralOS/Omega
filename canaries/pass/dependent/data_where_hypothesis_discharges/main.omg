@@ -4,7 +4,7 @@
 // legal observation of count at 4096 (4096 * 16 fits u32). The default
 // domain does proof work at the consumption site with NO spelled requires
 // -- sound because the write net is total and gated reads are gated.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data MemoryMap
 where
     count <= len,
