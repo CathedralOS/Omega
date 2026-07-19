@@ -80,6 +80,9 @@ pub(super) fn select_runtime_dispatch_argument_materialization(
             let Some(slot) = runtime_parameter_slot(input, target_dispatch_index, parameter) else {
                 continue;
             };
+            if slot.byte_size == 0 && slot.is_static_boundary_capability {
+                continue;
+            }
             let target = (slot.byte_offset, slot.byte_offset + slot.byte_size);
             let sources = argument_source_frame_ranges(
                 input,
@@ -129,6 +132,13 @@ pub(super) fn select_runtime_dispatch_argument_materialization(
         let Some(slot) = runtime_parameter_slot(input, target_dispatch_index, parameter) else {
             continue;
         };
+        // Statically selected boundary capabilities are represented entirely by
+        // their type/provider identity. They have no runtime payload to stage or
+        // copy, and emitting a zero-byte place copy would manufacture meaningless
+        // base relocations (including an empty source symbol for a free call).
+        if slot.byte_size == 0 && slot.is_static_boundary_capability {
+            continue;
+        }
         let source_anchor_byte_offset = slot.byte_offset;
         let real_target_range = (slot.byte_offset, slot.byte_offset + slot.byte_size);
         // When staging, redirect this argument's write to a scratch slot (a clone of

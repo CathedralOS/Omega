@@ -68,10 +68,13 @@ Omega bodies; irreducible leaves use
 `satisfies Requirement via <Binding>;`. Target packages provide defaults and a
 slot owner may override by type. The migration order remains load-bearing.
 
-1. **PRV4b — Console adapters.** Add the standard `write_line`/`write` checked
-   adapters over byte operations, compare them against the lossless built-in
-   oracle, make both interpreter and native routes use them, then remove the
-   built-in Console composite rows.
+1. **PRV4b — Console adapters.** First land the honest owned-`String` to
+   borrowed-byte-view runtime path (`as_view`/`bytes`), or complete the planned
+   `String` retirement; do not exploit the current loose named-argument shape
+   check to pass an owned `String` as `&[u8]`. Then add the standard
+   `write_line`/`write` checked adapters over byte operations, compare them
+   against the lossless built-in oracle, make both interpreter and native
+   routes use them, and remove the built-in Console composite rows.
 2. **PRV4c — target defaults and overrides.** Add target-package default
    provider types plus explicit type-per-slot build selection. Validate full
    coverage, signatures, transitive effect refinement, dependency closure,

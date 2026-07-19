@@ -13616,6 +13616,37 @@ fn runtime_adapter_forwarding_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_boundary_capability_state_forwarding_exit_canary_runs() {
+    let canary = pass_canary("providers/runtime_boundary_capability_state_forwarding_exit");
+    let main_path = canary.join("main.omg");
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("boundary capability should forward through a state parameter");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(outcome.error, None);
+    assert_eq!(outcome.exit_code, 70);
+    assert_eq!(outcome.stdout, b"K".to_vec());
+
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-boundary-capability-state-forwarding-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("boundary capability should compile through native storage planning");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("boundary-capability forwarding canary should run");
+    assert_eq!(output.status.code(), Some(70));
+    assert_eq!(output.stdout, b"K".to_vec());
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_console_byte_literal_exit_canary_runs() {
     // write_byte(<integer literal>) -- the staged 1-byte data object path,
     // dead from birth until the HostCallArgumentKind::Integer fix (literals
@@ -33286,6 +33317,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "providers/runtime_import_call_argument_exit",
     "providers/runtime_adapter_dispatch_exit",
     "providers/runtime_adapter_forwarding_exit",
+    "providers/runtime_boundary_capability_state_forwarding_exit",
     "host/runtime_console_byte_literal_exit",
     "arithmetic/const_fold_unsigned_shift_right_arg_exit",
     "arithmetic/const_fold_unsigned_divide_arg_exit",
