@@ -1,0 +1,36 @@
+// An owned String exposes its bytes only through explicit borrowed views.
+// Both runtimes must preserve the `{ptr, len}` descriptor through
+// `String::as_view()` and `string::bytes()`; passing the owned String directly
+// as `&[u8]` would be an unsound argument-shape loophole.
+use omega::language::std::console;
+
+data Main {
+    console: Console;
+    text: String;
+}
+
+machine Main::main(&mut self) {
+    self.text = "A";
+    let text_view: &string = self.text.as_view();
+    let bytes: &[u8] = text_view.bytes();
+
+    transition bytes.len > 0 {
+        true -> check(bytes)
+        false -> bad()
+    }
+
+    state check(&mut self, bytes: &[u8]) {
+        transition bytes[0] == 65 {
+            true -> good()
+            false -> bad()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

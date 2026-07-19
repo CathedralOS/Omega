@@ -317,12 +317,15 @@ fn local_initial_value_is_call(
     let ExpressionNode::Call(call) = input.program.expression_table.expression(initial_value) else {
         return false;
     };
-    // Slice-VIEW calls (`as_slice`/`as_mut_slice`) are NOT result-producing value
-    // calls -- they materialize a slice descriptor from the alias and MUST stay
-    // aliased so the descriptor lowering can see the receiver. Only a real
-    // result-producing call (e.g. `self.idx(c)`, with its own call-result slot) is
-    // excluded from aliasing here.
-    !matches!(call.target.as_str(), "as_slice" | "as_mut_slice")
+    // Borrowed-VIEW calls are NOT result-producing machine calls. They
+    // materialize or preserve a descriptor from the receiver and MUST stay
+    // aliased so descriptor lowering can see that receiver. Only a real
+    // result-producing call (e.g. `self.idx(c)`, with its own call-result slot)
+    // is excluded from aliasing here.
+    !matches!(
+        call.target.as_str(),
+        "as_slice" | "as_mut_slice" | "as_view" | "bytes"
+    )
 }
 
 fn local_requires_runtime_storage(
