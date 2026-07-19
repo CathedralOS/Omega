@@ -1293,8 +1293,9 @@ impl HostAbiPlan {
     }
 
     /// ENT2 migration seam: evaluate the normalized calling plan for one
-    /// existing compatibility binding. Encoders still consume the old binding
-    /// fields, so this result is currently their independent semantic oracle.
+    /// existing compatibility binding. Generic syscall leaves now consume the
+    /// evaluated plan directly; composite runtime-text and C/import encoders
+    /// still use this result as their independent semantic oracle.
     pub fn evaluate_binding_call_plan(
         &self,
         mechanism: &HostBindingMechanism,

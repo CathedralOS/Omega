@@ -259,12 +259,14 @@ pub fn encode_host_call_sequence_value_returning_open_create_from_operands(
 pub fn encode_syscall_sequence(
     operands: &[Aarch64CallOperand],
     syscall_number: u32,
-    number_register: u8,
+    argument_registers: &[omega_calling_conventions::MachineRegister],
+    number_register: omega_calling_conventions::MachineRegister,
     supervisor_call: u16,
 ) -> Result<Vec<u8>, Diagnostic> {
     encode_syscall_sequence_from_operands(
         operands.iter().copied(),
         syscall_number,
+        argument_registers,
         number_register,
         supervisor_call,
     )
@@ -273,17 +275,154 @@ pub fn encode_syscall_sequence(
 pub fn encode_syscall_sequence_from_operands(
     operands: impl Iterator<Item = Aarch64CallOperand> + Clone,
     syscall_number: u32,
-    number_register: u8,
+    argument_registers: &[omega_calling_conventions::MachineRegister],
+    number_register: omega_calling_conventions::MachineRegister,
     supervisor_call: u16,
 ) -> Result<Vec<u8>, Diagnostic> {
     let mut bytes = Vec::with_capacity(syscall_sequence_width_from_operands(
         operands.clone(),
         syscall_number,
     ));
-    append_call_operands(&mut bytes, operands)?;
+    append_syscall_operands(&mut bytes, operands, argument_registers)?;
+    let omega_calling_conventions::MachineRegister::Aarch64X(number_register) = number_register
+    else {
+        return Err(Diagnostic::error(format!(
+            "AArch64 syscall plan selected non-GPR number register {number_register:?}"
+        )));
+    };
     append_unsigned_immediate(&mut bytes, number_register, u64::from(syscall_number));
     bytes.extend(encode_svc(supervisor_call));
     Ok(bytes)
+}
+
+fn append_syscall_operands(
+    bytes: &mut Vec<u8>,
+    operands: impl Iterator<Item = Aarch64CallOperand>,
+    argument_registers: &[omega_calling_conventions::MachineRegister],
+) -> Result<(), Diagnostic> {
+    let operands = operands.collect::<Vec<_>>();
+    if operands.len() != argument_registers.len() {
+        return Err(Diagnostic::error(format!(
+            "AArch64 syscall plan supplied {} argument registers for {} operands",
+            argument_registers.len(),
+            operands.len()
+        )));
+    }
+
+    for (operand, register) in operands
+        .into_iter()
+        .zip(argument_registers.iter().copied())
+    {
+        let omega_calling_conventions::MachineRegister::Aarch64X(register) = register else {
+            return Err(Diagnostic::error(format!(
+                "AArch64 syscall plan selected non-GPR argument register {register:?}"
+            )));
+        };
+        match operand {
+            ImmediateInteger(value) => append_immediate(bytes, register, value)?,
+            DataAddress { .. } => {
+                bytes.extend(encode_adrp_placeholder(register));
+                bytes.extend(encode_add_page_offset_placeholder(register));
+            }
+            RuntimeStringPointer {
+                byte_offset,
+                is_bounded_buffer,
+            } => {
+                bytes.extend(encode_adrp_placeholder(register));
+                bytes.extend(encode_add_page_offset_placeholder(register));
+                if is_bounded_buffer {
+                    bytes.extend(encode_add_x_immediate(
+                        register,
+                        register,
+                        byte_offset + 8,
+                    )?);
+                } else {
+                    bytes.extend(encode_load_x_from_x(
+                        register,
+                        register,
+                        byte_offset,
+                    )?);
+                }
+            }
+            RuntimeStringLength {
+                byte_offset,
+                is_bounded_buffer,
+            } => {
+                bytes.extend(encode_adrp_placeholder(register));
+                bytes.extend(encode_add_page_offset_placeholder(register));
+                bytes.extend(encode_load_x_from_x(
+                    register,
+                    register,
+                    if is_bounded_buffer {
+                        byte_offset
+                    } else {
+                        byte_offset + 8
+                    },
+                )?);
+            }
+            RuntimePointeeStringPointer { byte_offset } => {
+                bytes.extend(encode_adrp_placeholder(register));
+                bytes.extend(encode_add_page_offset_placeholder(register));
+                bytes.extend(encode_load_x_from_x(register, register, byte_offset)?);
+                bytes.extend(encode_load_x_from_x(register, register, 0)?);
+            }
+            RuntimePointeeStringLength { byte_offset } => {
+                bytes.extend(encode_adrp_placeholder(register));
+                bytes.extend(encode_add_page_offset_placeholder(register));
+                bytes.extend(encode_load_x_from_x(register, register, byte_offset)?);
+                bytes.extend(encode_load_x_from_x(register, register, 8)?);
+            }
+            RuntimeScalarInteger {
+                byte_offset,
+                byte_count,
+            } => {
+                bytes.extend(encode_adrp_placeholder(register));
+                bytes.extend(encode_add_page_offset_placeholder(register));
+                append_load_data_from_x_offset(
+                    bytes,
+                    register,
+                    register,
+                    byte_offset,
+                    byte_count,
+                    9,
+                )?;
+            }
+            RuntimeStorageAddress { byte_offset } => {
+                bytes.extend(encode_adrp_placeholder(register));
+                bytes.extend(encode_add_page_offset_placeholder(register));
+                append_add_x_constant(bytes, register, register, byte_offset, 9)?;
+            }
+            ByteLength(value) => append_unsigned_immediate(bytes, register, value as u64),
+            RuntimeScalarFloat { .. } => {
+                return Err(Diagnostic::error(
+                    "AArch64 Linux syscall plans do not admit float operands",
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod syscall_plan_register_tests {
+    use super::*;
+    use omega_calling_conventions::MachineRegister;
+
+    #[test]
+    fn syscall_arguments_and_control_use_the_plan_selected_registers() {
+        let bytes = encode_syscall_sequence(
+            &[Aarch64CallOperand::ImmediateInteger(7)],
+            64,
+            &[MachineRegister::Aarch64X(3)],
+            MachineRegister::Aarch64X(12),
+            5,
+        )
+        .expect("noncanonical syscall registers should encode");
+
+        assert_eq!(&bytes[0..4], &0xd280_00e3u32.to_le_bytes());
+        assert_eq!(&bytes[4..8], &0xd280_080cu32.to_le_bytes());
+        assert_eq!(&bytes[8..12], &0xd400_00a1u32.to_le_bytes());
+    }
 }
 
 /// Bytes reserved by the ordinary AArch64 function-enter prologue. Incoming

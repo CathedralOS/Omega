@@ -196,7 +196,14 @@ emission; ISA encoders no longer invent `rax` or `x0`. On AAPCS64, flat records
 of one to four contiguous, same-width `f32` or `f64` members classify as HFAs
 from the normalized data layout and arrive through the plan-selected vector
 register fragments. Nested and general aggregate entry classification, general
-outbound calls/results, and source-selected policies remain. Remaining order:
+outbound calls/results, and source-selected policies remain. Generic Linux
+syscall leaves are the first outbound path to make the normalized plan
+authoritative: emission evaluates the x86-64 or AArch64 syscall policy for the
+operand signature, then passes its exact parameter registers, number register,
+and supervisor-call immediate to the ISA encoder. The legacy binding's
+`number_register`/`supervisor_call` fields no longer select those facts on that
+path; composite runtime-text syscall encoders still await the same migration.
+Remaining order:
 
 1. Evaluate the policy selected by `Calling<C>` against the requirement
    signature and hash the evaluated pair into requirement identity.

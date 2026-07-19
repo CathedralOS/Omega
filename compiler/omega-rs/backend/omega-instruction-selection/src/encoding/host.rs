@@ -1,5 +1,8 @@
 use crate::aarch64_call_operand;
-use omega_calling_conventions::HostOperationKey;
+use omega_calling_conventions::{
+    CallSignature, CallingPolicy, EntryControl, HostOperationKey, ValueLocation, ValueShape,
+    evaluate_call_plan,
+};
 use omega_core::diagnostics::Diagnostic;
 use omega_isa_aarch64::aarch64;
 use omega_isa_x86_64 as x86_64;
@@ -143,22 +146,57 @@ pub fn encode_syscall_sequence<T: InstructionOperandLike>(
     architecture: Architecture,
     operands: &[T],
     syscall_number: u32,
-    number_register: u8,
-    supervisor_call: u16,
 ) -> Result<Vec<u8>, Diagnostic> {
+    let policy = match architecture {
+        Architecture::Aarch64 => CallingPolicy::LinuxSyscallAarch64,
+        Architecture::X86_64 => CallingPolicy::LinuxSyscallX86_64,
+    };
+    let signature = CallSignature {
+        parameters: vec![ValueShape::integer(8, 8); operands.len()],
+        result: None,
+    };
+    let plan = evaluate_call_plan(policy, &signature)
+        .map_err(|error| Diagnostic::error(format!("cannot evaluate syscall call plan: {error}")))?;
+    let argument_registers = plan
+        .parameters
+        .iter()
+        .enumerate()
+        .map(|(index, placement)| match placement.locations.as_slice() {
+            [ValueLocation::Register {
+                register,
+                value_byte_offset: 0,
+                byte_size: 8,
+            }] => Ok(*register),
+            locations => Err(Diagnostic::error(format!(
+                "normalized syscall parameter {index} did not resolve to one full-width register: {locations:?}"
+            ))),
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let EntryControl::SupervisorCall {
+        number_register,
+        immediate: supervisor_call,
+    } = plan.entry_control
+    else {
+        return Err(Diagnostic::error(
+            "normalized syscall plan did not select supervisor-call entry control",
+        ));
+    };
+
     match architecture {
         Architecture::Aarch64 => aarch64::encode_syscall_sequence_from_operands(
             operands.iter().map(aarch64_call_operand),
             syscall_number,
+            &argument_registers,
             number_register,
             supervisor_call,
         ),
-        // x86_64 Linux: number_register/supervisor_call are aarch64-shaped (X8/SVC);
-        // the System V syscall ABI fixes RAX + `syscall` (0F 05), so they are unused.
-        Architecture::X86_64 => {
-            let _ = (number_register, supervisor_call);
-            x86_64::encode_syscall_sequence(operands, syscall_number)
-        }
+        Architecture::X86_64 => x86_64::encode_syscall_sequence(
+            operands,
+            syscall_number,
+            &argument_registers,
+            number_register,
+            supervisor_call,
+        ),
     }
 }
 

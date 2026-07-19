@@ -40,8 +40,12 @@ now carry the plan-selected result register through both native encoders. Flat
 one-to-four-member AAPCS64 homogeneous floating-point aggregate entry
 parameters are classified from their normalized record layout and spread
 across the selected vector registers. Nested and general aggregate ABI
-classification, general outbound calls/results, and source-selected policies
-remain below.
+classification remains. Generic Linux syscall leaves now evaluate the
+normalized syscall policy at emission and pass its exact parameter registers,
+number register, and supervisor-call immediate into both ISA encoders; the
+legacy binding fields no longer choose those facts on that path. Composite
+runtime-text syscall encoders, general C/firmware outbound calls and results,
+and source-selected policies remain below.
 
 1. **ENT2b — source policy evaluation and identity.** Evaluate the policy type
    selected by `Calling<C>` against each requirement signature, validate the
@@ -51,8 +55,9 @@ remain below.
    existing MS-x64, SysV-x64, AAPCS64, Linux-syscall, and firmware lowering
    choices through the normalized plan; continue beyond the completed
    register- and stack-resident process-entry argument paths and integer entry
-   results to outbound calls/results and compatibility-binding differential checks,
-   then make the plan authoritative. Add the concrete x86 interrupt
+   results and generic Linux syscall leaves to composite syscall paths,
+   C/firmware outbound calls/results, and compatibility-binding differential
+   checks, then make the plan authoritative. Add the concrete x86 interrupt
    `StatePlan`, stack/IST, nesting, and acknowledgement policy used by Cathedral.
 3. **ENT3 — constrained entry codegen.** Derive entry stubs, specialize/codegen
    under the state ceiling, emit a checkable final footprint certificate, and
