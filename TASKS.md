@@ -22,7 +22,8 @@ the first timer tick. The design is recorded in
 chapter 23.
 
 1. **ASM2 — expand the x86 catalog.** Add save/restore flags, `cli`, `sti`,
-   `lidt`, fences, and the needed MSR/control operations. Direct assembly and
+   `lidt`, and the needed MSR/control operations. The `lfence`/`sfence`/`mfence`
+   ordering slice is complete. Direct assembly and
    abstract boundary services must contribute identical normalized
    reach/authority. Mark `iretq` and equivalent exits deriver-only.
 2. **ENT1 — trait-parent composition.** Implement ordinary parent resolution

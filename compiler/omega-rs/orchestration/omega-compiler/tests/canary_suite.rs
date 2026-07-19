@@ -30800,12 +30800,12 @@ const WINDOWS_HOST_PASS_CANARIES: &[&str] = &[
     "filesystem/windows_canonicalize_exit",
 ];
 
-/// Canaries compiled with an EXPLICIT cross target on EVERY host (the
-/// registered `uefi_x64` target, 2026-07-11u): the efi family's image
-/// facts are target-shaped (PE32+/subsystem 10 from build.omg), so with
-/// the name registered they pin cross-host -- the stronger form of the
-/// former windows-gating.
+/// Canaries compiled with an EXPLICIT cross target on EVERY host. Most are
+/// `uefi_x64` because the efi family's image facts are target-shaped
+/// (PE32+/subsystem 10 from build.omg); target-specific instruction canaries
+/// use the smallest registered architecture target that proves their gate.
 const CROSS_TARGET_PASS_CANARIES: &[(&str, &str)] = &[
+    ("inline_asm/asm_fences_compile", "linux_x64"),
     ("inline_asm/asm_multi_instruction_block_compile", "uefi_x64"),
     ("inline_asm/asm_where_exact_clobbers_compile", "uefi_x64"),
     ("targets/efi_vtable_call", "uefi_x64"),
@@ -30813,6 +30813,47 @@ const CROSS_TARGET_PASS_CANARIES: &[(&str, &str)] = &[
     ("targets/efi_out_param_call", "uefi_x64"),
     ("targets/efi_ref_param_call_arg", "uefi_x64"),
 ];
+
+#[test]
+fn x86_asm_fences_emit_exact_bytes_and_refuse_aarch64() {
+    let canary = pass_canary("inline_asm/asm_fences_compile");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-asm-fences-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: Some("linux_x64".into()),
+        write_output: true,
+    })
+    .expect("x86 memory fences should cross-compile");
+    let image = fs::read(build_dir.join("omega-program")).expect("read emitted x86 ELF");
+    let sequence = [
+        0x0f, 0xae, 0xe8, // lfence
+        0x0f, 0xae, 0xf8, // sfence
+        0x0f, 0xae, 0xf0, // mfence
+    ];
+    assert!(
+        image.windows(sequence.len()).any(|window| window == sequence),
+        "expected consecutive LFENCE/SFENCE/MFENCE bytes in the emitted image"
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+
+    let diagnostics = compile_canary_without_output_for_target(&canary, "linux_arm64")
+        .expect_err("x86 fence mnemonics must refuse an AArch64 target");
+    let rendered = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        rendered.contains("asm instruction `lfence` is x86_64-only"),
+        "expected an architecture-specific fence diagnostic, got:\n{rendered}"
+    );
+}
 
 #[test]
 fn pass_canaries_compile() {

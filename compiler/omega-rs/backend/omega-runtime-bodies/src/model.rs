@@ -57,6 +57,9 @@ pub enum RuntimeDispatchBodyOperationKind {
     /// transition or host call. See the privileged_effects_and_binary_trust
     /// brief and the parallel `HostCall` handling.
     MachineHalt,
+    /// An x86 memory-ordering fence. The shared kind survives until encoding
+    /// so target gating and opcode selection use the catalog distinction.
+    MemoryFence(omega_core::inline_assembly::AsmFenceKind),
     /// An `asm { out <port>, <value> }` statement (a Call to `asm#port_out`):
     /// a raw port write, operands resolved at selection.
     PortWrite,

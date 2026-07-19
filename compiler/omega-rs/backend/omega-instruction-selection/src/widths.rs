@@ -119,6 +119,13 @@ pub fn machine_halt_width(architecture: Architecture) -> usize {
     }
 }
 
+pub fn memory_fence_width(architecture: Architecture) -> Option<usize> {
+    match architecture {
+        Architecture::Aarch64 => None,
+        Architecture::X86_64 => Some(x86_64::memory_fence_width()),
+    }
+}
+
 /// Port I/O is x86_64-only (ARM has no port space -- MMIO instead), so these
 /// take no architecture: the layout/encoding sites reject a non-x86_64 target
 /// before calling them.

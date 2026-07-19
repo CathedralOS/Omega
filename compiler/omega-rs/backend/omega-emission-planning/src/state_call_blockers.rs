@@ -137,9 +137,8 @@ fn collect_unresolved_state_call_blockers(
     }
 }
 
-/// An `asm { hlt }` statement lowered into a raw MachineHalt instruction, not
-/// a state transition -- so its call record is legitimately unresolved. (The
-/// port I/O intrinsics join this check when they land.)
+/// An asm intrinsic lowered into a raw machine instruction, not a state
+/// transition, so its call record is legitimately unresolved.
 fn unresolved_call_is_asm_intrinsic(
     input: &EmissionPlanningInput<'_>,
     state_call: &StateCall,
@@ -153,6 +152,7 @@ fn unresolved_call_is_asm_intrinsic(
             matches!(
                 instruction.kind,
                 omega_target_operations::TargetOperationKind::MachineHalt
+                    | omega_target_operations::TargetOperationKind::MemoryFence(_)
                     | omega_target_operations::TargetOperationKind::PortWrite { .. }
                     | omega_target_operations::TargetOperationKind::PortRead { .. }
             ) && state_key_matches_statement_source(instruction.source_key, state_call.source_key)

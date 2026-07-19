@@ -929,6 +929,46 @@ fn parses_multiple_known_asm_instructions_in_one_block() {
 }
 
 #[test]
+fn parses_x86_memory_fences_as_zero_operand_intrinsics() {
+    let source = r#"
+        data Main {}
+
+        machine Main::main(&mut self) {
+            asm where clobbers none { lfence; sfence; mfence }
+        }
+        "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let parsed = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let machine = parsed
+        .root_items()
+        .find_map(|item| match item {
+            omega_syntax_trees::item::Item::Machine(machine) => Some(machine),
+            _ => None,
+        })
+        .expect("machine root item");
+    let entry = parsed.items.state_handles(machine.states)[0];
+    let statements = parsed
+        .items
+        .statements(parsed.items.state(entry).statements);
+
+    assert_eq!(statements.len(), 3);
+    for (statement, target) in statements
+        .iter()
+        .zip(["asm#lfence", "asm#sfence", "asm#mfence"])
+    {
+        let StatementNode::Call(call) = parsed.statements.statement(*statement) else {
+            panic!("fence should desugar to a call statement");
+        };
+        assert_eq!(call.target.as_str(), target);
+        assert!(call.receiver.is_empty());
+        assert_eq!(call.arguments.count(), 0);
+    }
+}
+
+#[test]
 fn parses_multi_instruction_asm_in_states_and_trait_defaults() {
     let source = r#"
         trait Idle {

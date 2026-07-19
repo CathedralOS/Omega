@@ -601,6 +601,9 @@ impl From<&omega_abstract_operations::AbstractOperationKind> for TargetOperation
                 panic!("logical abstract host operations must be lowered in omega-abstract-operations-to-target-operations")
             }
             omega_abstract_operations::AbstractOperationKind::MachineHalt => Self::MachineHalt,
+            omega_abstract_operations::AbstractOperationKind::MemoryFence(kind) => {
+                Self::MemoryFence(*kind)
+            }
             omega_abstract_operations::AbstractOperationKind::PortWrite { port, value } => {
                 Self::PortWrite {
                     port: remap_runtime_value_handle(*port),

@@ -18,7 +18,45 @@ pub enum AsmInstructionShape {
     Halt,
     PortOut,
     PortIn,
+    MemoryFence(AsmFenceKind),
     DerivedExit,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AsmFenceKind {
+    Load,
+    Store,
+    Full,
+}
+
+impl AsmFenceKind {
+    pub const fn mnemonic(self) -> &'static str {
+        match self {
+            Self::Load => "lfence",
+            Self::Store => "sfence",
+            Self::Full => "mfence",
+        }
+    }
+
+    pub const fn intrinsic_name(self) -> &'static str {
+        match self {
+            Self::Load => "asm#lfence",
+            Self::Store => "asm#sfence",
+            Self::Full => "asm#mfence",
+        }
+    }
+
+    pub fn from_intrinsic_name(name: &str) -> Option<Self> {
+        [Self::Load, Self::Store, Self::Full]
+            .into_iter()
+            .find(|kind| kind.intrinsic_name() == name)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AsmMemoryOrdering {
+    None,
+    Fence(AsmFenceKind),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -90,6 +128,9 @@ pub struct AsmInstructionContract {
     /// Source-order operands. These are target-register constraints, not
     /// permissive numeric coercions.
     pub operands: &'static [AsmOperandConstraint],
+    /// Ordering established by the instruction. Kept separate from service
+    /// reach: a CPU fence orders memory but does not contact a provider.
+    pub memory_ordering: AsmMemoryOrdering,
     /// Registers changed by the realized instruction sequence. This includes
     /// compiler scratch registers used to materialize structured operands.
     pub clobbers: &'static [&'static str],
@@ -126,32 +167,59 @@ pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
     use AsmCatalogEntry::{Contract, Refused};
     use AsmInstructionAvailability::{DeriverOnly, UserChecked};
     use AsmInstructionRefusal::{HiddenControlExit, UnmodeledMemoryAccess};
-    use AsmInstructionShape::{DerivedExit, Halt, JumpState, PortIn, PortOut};
+    use AsmFenceKind::{Full, Load, Store};
+    use AsmInstructionShape::{DerivedExit, Halt, JumpState, MemoryFence, PortIn, PortOut};
+    use AsmMemoryOrdering::{Fence, None as NoOrdering};
 
     let entry = match mnemonic {
         "jmp" => Contract(AsmInstructionContract {
             availability: UserChecked,
             shape: JumpState,
             operands: NO_OPERANDS,
+            memory_ordering: NoOrdering,
             clobbers: NO_CLOBBERS,
         }),
         "hlt" => Contract(AsmInstructionContract {
             availability: UserChecked,
             shape: Halt,
             operands: NO_OPERANDS,
+            memory_ordering: NoOrdering,
             clobbers: NO_CLOBBERS,
         }),
         "out" => Contract(AsmInstructionContract {
             availability: UserChecked,
             shape: PortOut,
             operands: PORT_OUT_OPERANDS,
+            memory_ordering: NoOrdering,
             clobbers: PORT_OUT_CLOBBERS,
         }),
         "in" => Contract(AsmInstructionContract {
             availability: UserChecked,
             shape: PortIn,
             operands: PORT_IN_OPERANDS,
+            memory_ordering: NoOrdering,
             clobbers: PORT_IN_CLOBBERS,
+        }),
+        "lfence" => Contract(AsmInstructionContract {
+            availability: UserChecked,
+            shape: MemoryFence(Load),
+            operands: NO_OPERANDS,
+            memory_ordering: Fence(Load),
+            clobbers: NO_CLOBBERS,
+        }),
+        "sfence" => Contract(AsmInstructionContract {
+            availability: UserChecked,
+            shape: MemoryFence(Store),
+            operands: NO_OPERANDS,
+            memory_ordering: Fence(Store),
+            clobbers: NO_CLOBBERS,
+        }),
+        "mfence" => Contract(AsmInstructionContract {
+            availability: UserChecked,
+            shape: MemoryFence(Full),
+            operands: NO_OPERANDS,
+            memory_ordering: Fence(Full),
+            clobbers: NO_CLOBBERS,
         }),
 
         // These are real catalog operations, but only derived entry/exit
@@ -160,6 +228,7 @@ pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
             availability: DeriverOnly,
             shape: DerivedExit,
             operands: NO_OPERANDS,
+            memory_ordering: NoOrdering,
             clobbers: NO_CLOBBERS,
         }),
 
@@ -184,8 +253,8 @@ pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
 #[cfg(test)]
 mod tests {
     use super::{
-        AsmCatalogEntry, AsmInstructionAvailability, AsmInstructionRefusal, AsmOperandAccess,
-        asm_catalog_entry,
+        AsmCatalogEntry, AsmFenceKind, AsmInstructionAvailability, AsmInstructionRefusal,
+        AsmMemoryOrdering, AsmOperandAccess, asm_catalog_entry,
     };
 
     #[test]
@@ -261,5 +330,23 @@ mod tests {
             ))
         );
         assert_eq!(asm_catalog_entry("db"), None);
+    }
+
+    #[test]
+    fn fence_contracts_pin_ordering_without_invented_clobbers() {
+        for (mnemonic, kind) in [
+            ("lfence", AsmFenceKind::Load),
+            ("sfence", AsmFenceKind::Store),
+            ("mfence", AsmFenceKind::Full),
+        ] {
+            let AsmCatalogEntry::Contract(contract) =
+                asm_catalog_entry(mnemonic).expect("fence contract")
+            else {
+                panic!("{mnemonic} must be contracted");
+            };
+            assert_eq!(contract.memory_ordering, AsmMemoryOrdering::Fence(kind));
+            assert!(contract.operands.is_empty());
+            assert!(contract.clobbers.is_empty());
+        }
     }
 }

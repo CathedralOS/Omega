@@ -23,6 +23,7 @@ pub(in crate::identity) fn count_runtime_body_strings(
         match &operation.kind {
             RuntimeDispatchBodyOperationKind::HostCall
             | RuntimeDispatchBodyOperationKind::MachineHalt
+            | RuntimeDispatchBodyOperationKind::MemoryFence(_)
             | RuntimeDispatchBodyOperationKind::PortWrite
             | RuntimeDispatchBodyOperationKind::PortRead => {}
             RuntimeDispatchBodyOperationKind::InlineLeafStateCall { .. }

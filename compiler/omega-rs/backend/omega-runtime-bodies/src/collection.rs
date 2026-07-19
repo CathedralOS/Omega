@@ -247,6 +247,22 @@ fn append_state_body_operations(
             ));
             continue;
         }
+        if let OperationKind::Call {
+            target,
+            has_receiver: false,
+            ..
+        } = &operation.kind
+            && let Some(kind) = omega_core::inline_assembly::AsmFenceKind::from_intrinsic_name(
+                target.as_str(),
+            )
+        {
+            operations.insert(body_operation(
+                state_key,
+                operation.statement_index,
+                RuntimeDispatchBodyOperationKind::MemoryFence(kind),
+            ));
+            continue;
+        }
         // `asm { out <port>, <value> }` -- a Call to `asm#port_out` -- lowers to
         // a raw port write, not a state call.
         if let OperationKind::Call {

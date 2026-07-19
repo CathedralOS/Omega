@@ -553,6 +553,9 @@ pub enum AbstractOperationKind {
     /// CPU until the next interrupt. Only reachable in a freestanding boundary
     /// root (v0 discharge). See privileged_effects_and_binary_trust brief.
     MachineHalt,
+    /// An x86 load/store/full memory-ordering fence. Zero operands and no
+    /// relocations; the kind selects the exact opcode at emission.
+    MemoryFence(omega_core::inline_assembly::AsmFenceKind),
     /// The x86 `out dx, al` port write (`asm { out <port>, <value> }`),
     /// emitting the `device_io` effect. `port` is a u16 operand, `value` a u8
     /// operand (each an immediate or a storage read; storage operands relocate

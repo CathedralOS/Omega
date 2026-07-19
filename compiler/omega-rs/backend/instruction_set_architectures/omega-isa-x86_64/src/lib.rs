@@ -47,6 +47,23 @@ pub fn encode_machine_halt_bytes() -> [u8; 1] {
     [0xf4]
 }
 
+pub const fn memory_fence_width() -> usize {
+    3
+}
+
+/// Exact x86 SSE2 fence encodings: `0f ae /5`, `/7`, and `/6` for load,
+/// store, and full ordering respectively.
+pub const fn encode_memory_fence_bytes(
+    kind: omega_core::inline_assembly::AsmFenceKind,
+) -> [u8; 3] {
+    use omega_core::inline_assembly::AsmFenceKind;
+    match kind {
+        AsmFenceKind::Load => [0x0f, 0xae, 0xe8],
+        AsmFenceKind::Store => [0x0f, 0xae, 0xf8],
+        AsmFenceKind::Full => [0x0f, 0xae, 0xf0],
+    }
+}
+
 // --- port I/O (`asm { out .. }` / `asm { in .. }`) --------------------------
 //
 // The port operand loads into DX and the byte operand into AL by REUSING the
@@ -10118,6 +10135,20 @@ mod machine_control_tests {
         assert_eq!(encode_machine_halt_bytes(), [0xf4]);
         assert_eq!(machine_halt_width(), 1);
         assert_eq!(encode_machine_halt_bytes().len(), machine_halt_width());
+    }
+
+    #[test]
+    fn memory_fences_have_exact_sse2_encodings() {
+        use omega_core::inline_assembly::AsmFenceKind;
+
+        for (kind, bytes) in [
+            (AsmFenceKind::Load, [0x0f, 0xae, 0xe8]),
+            (AsmFenceKind::Store, [0x0f, 0xae, 0xf8]),
+            (AsmFenceKind::Full, [0x0f, 0xae, 0xf0]),
+        ] {
+            assert_eq!(encode_memory_fence_bytes(kind), bytes);
+            assert_eq!(bytes.len(), memory_fence_width());
+        }
     }
 
     /// A RuntimeValueOperandSource where every handle is an immediate integer

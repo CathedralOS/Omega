@@ -57,8 +57,9 @@ pub fn validate_effect_plan(
 /// arc), discharge v0 is "permitted in the freestanding boundary root": the
 /// boot root trivially owns the machine, and a HOSTED build has no business
 /// executing `hlt` (ring-3 faults) or raw port I/O (unmapped I/O bitmap
-/// faults) -- so asm intrinsics in a non-freestanding build are a compile
-/// error, not a runtime fault.
+/// faults) -- so authority-bearing asm intrinsics in a non-freestanding build
+/// are a compile error, not a runtime fault. Effect-free instructions such as
+/// x86 memory fences do not require machine ownership.
 pub fn validate_asm_discharge(
     program: &TypedTrees,
     freestanding: bool,
@@ -71,9 +72,13 @@ pub fn validate_asm_discharge(
     for machine in program.machines() {
         for state in program.machine_states(machine) {
             for statement in program.statement_table.statements(state.statement_nodes) {
-                let Some((instruction, _)) = statement_asm_intrinsic(program, statement) else {
+                let Some((instruction, effects)) = statement_asm_intrinsic(program, statement)
+                else {
                     continue;
                 };
+                if effects.is_empty() {
+                    continue;
+                }
                 diagnostics.push(Diagnostic::error(format!(
                     "machine `{}` uses asm instruction `{}`, which requires a FREESTANDING \
                      boundary root (v0 discharge: only code that owns the machine may emit \
@@ -198,6 +203,9 @@ fn statement_asm_intrinsic(
         omega_core::symbols::BuiltinFunction::AsmHlt => "hlt",
         omega_core::symbols::BuiltinFunction::AsmPortOut => "out",
         omega_core::symbols::BuiltinFunction::AsmPortIn => "in",
+        omega_core::symbols::BuiltinFunction::AsmLoadFence => "lfence",
+        omega_core::symbols::BuiltinFunction::AsmStoreFence => "sfence",
+        omega_core::symbols::BuiltinFunction::AsmFullFence => "mfence",
         _ => return None,
     };
     Some((instruction, effects))
