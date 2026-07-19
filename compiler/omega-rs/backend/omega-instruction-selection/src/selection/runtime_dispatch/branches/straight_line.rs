@@ -825,6 +825,24 @@ fn select_runtime_straight_line_local_initializer_write(
         return;
     }
 
+    // A branch-local text equality (`let matches = self.name == "omega"`)
+    // cannot use the scalar value writer above. It must still be materialized
+    // here, in the straight-line branch prelude, because the nested
+    // transition's guard or forwarded argument can read the local before any
+    // terminal leaf expansion runs.
+    if crate::selection::runtime_dispatch::writes::emit_runtime_frame_slot_text_comparison_write_in_table(
+        input,
+        expansion.dispatch_index,
+        operation.source_key,
+        operation.statement_index,
+        expressions,
+        slot,
+        resolved_initializer,
+        selected_instructions,
+    ) {
+        return;
+    }
+
     let target = runtime_frame_slot_target_expression(expressions, slot);
     scratch.resolved_segment_expressions.clear();
     if runtime_text_builder_write_in_table_emit(
@@ -1749,4 +1767,3 @@ fn leaf_local_initializer_handle(
             .then(|| table.copy_from(&input.program.expression_table, local_data.initial_value))
     })
 }
-

@@ -1,0 +1,31 @@
+// A call-free branch-local initializer belongs to the branch's straight-line
+// prelude: it must write `x` after arm_a is selected and before arm_a's nested
+// guard reads it. Text equality needs the frame-slot comparison writer on that
+// pre-guard path; a terminal-leaf write is too late.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Store { name: String; }
+machine Store::check(&mut self, idx: i32) -> bool {
+    transition idx == 0 {
+        true -> arm_a()
+        _ -> arm_b()
+    }
+    state arm_a(&mut self) -> bool {
+        let x: bool = self.name == "omega";
+        transition x {
+            true -> (true)
+            _ -> (false)
+        }
+    }
+    state arm_b(&mut self) -> bool { transition { _ -> (false) } }
+}
+data Main { console: Console; s: Store; }
+machine Main::main(&mut self) {
+    self.s.name = "omega";
+    let r: bool = self.s.check(0);
+    transition r {
+        true -> good()
+        _ -> bad()
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self)  { self.console.exit_process(71); }
+}

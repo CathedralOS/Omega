@@ -1,9 +1,6 @@
-// PENDING (root-caused 2026-07-17 -- same chicken-and-egg as the
-// guard-read sibling, see texteq_local_guard_read_divergence for the full
-// analysis): a texteq ARM-LOCAL forwarded as a transition ARGUMENT
-// evaluates at edge-taking time, BEFORE any expansion's write region --
-// per-expansion initializer collection cannot feed it. Fix shape: the
-// per-branch-state PRE-GUARD region. Hold: (71, Exit(70)).
+// The branch prelude must materialize a call-free text-equality local before
+// transition argument capture. Forwarding `x` from the nested edge must see
+// the initialized slot rather than its zero-initialized value.
 boundary trait Console { machine exit_process(return_code: i32); }
 data Store { name: String; }
 machine Store::check(&mut self, idx: i32) -> bool {
