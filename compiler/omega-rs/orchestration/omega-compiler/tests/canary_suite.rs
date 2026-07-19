@@ -31332,6 +31332,22 @@ fn commutative_semiring_core_canaries() {
 }
 
 #[test]
+fn ring_identity_slot_bridge_canary_compiles() {
+    let canary = pass_canary("proofs/ring_identity_slot_bridge_compile");
+    compile_canary_without_output(&canary).unwrap_or_else(|diagnostics| {
+        panic!(
+            "{} failed:\n{}",
+            canary.display(),
+            diagnostics
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join("\n")
+        )
+    });
+}
+
+#[test]
 fn exact_float_to_int_proof_canaries() {
     let canary = pass_canary("float/float_to_int_exact_proofs_exit");
     compile_canary_without_output(&canary).unwrap_or_else(|diagnostics| {
