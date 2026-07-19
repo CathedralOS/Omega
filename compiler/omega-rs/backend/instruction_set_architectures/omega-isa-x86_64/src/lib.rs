@@ -1082,19 +1082,34 @@ pub fn syscall_sequence_width<T: InstructionOperandLike>(operands: &[T]) -> usiz
 pub fn encode_syscall_sequence<T: InstructionOperandLike>(
     operands: &[T],
     syscall_number: u32,
+    argument_registers: &[omega_calling_conventions::MachineRegister],
+    number_register: omega_calling_conventions::MachineRegister,
+    supervisor_call: u16,
 ) -> Result<Vec<u8>, Diagnostic> {
+    if operands.len() != argument_registers.len() {
+        return Err(Diagnostic::error(format!(
+            "X86_64 syscall plan supplied {} argument registers for {} operands",
+            argument_registers.len(),
+            operands.len()
+        )));
+    }
+    if supervisor_call != 0 {
+        return Err(Diagnostic::error(format!(
+            "X86_64 `syscall` has no supervisor-call immediate, but the normalized plan supplied {supervisor_call}"
+        )));
+    }
     let mut bytes = Vec::with_capacity(syscall_sequence_width(operands));
-    for (index, operand) in operands.iter().enumerate() {
+    for (operand, register) in operands.iter().zip(argument_registers.iter().copied()) {
         if let Some((_, byte_offset)) = operand.runtime_pointee_string_pointer() {
             append_mov_r15_imm64(&mut bytes, 0); // relocated region base
             append_load_r15_from_r15(&mut bytes, byte_offset)?; // r15 = &descriptor
             append_load_rax_from_r15(&mut bytes, 0)?; // rax = descriptor.pointer
-            append_mov_syscall_arg_from_rax(&mut bytes, index)?;
+            append_mov_syscall_arg_from_rax(&mut bytes, register)?;
         } else if let Some((_, byte_offset)) = operand.runtime_pointee_string_length() {
             append_mov_r15_imm64(&mut bytes, 0);
             append_load_r15_from_r15(&mut bytes, byte_offset)?;
             append_load_rax_from_r15(&mut bytes, 8)?; // rax = descriptor.length
-            append_mov_syscall_arg_from_rax(&mut bytes, index)?;
+            append_mov_syscall_arg_from_rax(&mut bytes, register)?;
         } else if let Some((_, byte_offset)) = operand.runtime_string_pointer() {
             append_mov_r15_imm64(&mut bytes, 0);
             if operand.runtime_string_is_bounded_buffer() {
@@ -1104,7 +1119,7 @@ pub fn encode_syscall_sequence<T: InstructionOperandLike>(
             } else {
                 append_load_rax_from_r15(&mut bytes, byte_offset)?; // rax = descriptor.pointer
             }
-            append_mov_syscall_arg_from_rax(&mut bytes, index)?;
+            append_mov_syscall_arg_from_rax(&mut bytes, register)?;
         } else if let Some((_, byte_offset)) = operand.runtime_string_length() {
             append_mov_r15_imm64(&mut bytes, 0);
             if operand.runtime_string_is_bounded_buffer() {
@@ -1112,13 +1127,13 @@ pub fn encode_syscall_sequence<T: InstructionOperandLike>(
             } else {
                 append_load_rax_from_r15(&mut bytes, byte_offset + 8)?; // rax = descriptor.length
             }
-            append_mov_syscall_arg_from_rax(&mut bytes, index)?;
+            append_mov_syscall_arg_from_rax(&mut bytes, register)?;
         } else if let Some((_, byte_offset, _)) = operand.runtime_scalar_integer() {
             append_mov_r15_imm64(&mut bytes, 0); // relocated region base
             append_load_rax_from_r15(&mut bytes, byte_offset)?; // rax = scalar value
-            append_mov_syscall_arg_from_rax(&mut bytes, index)?;
+            append_mov_syscall_arg_from_rax(&mut bytes, register)?;
         } else {
-            let opcode = syscall_arg_mov_imm64_opcode(index)?;
+            let opcode = syscall_arg_mov_imm64_opcode(register)?;
             let value = if let Some(value) = operand.immediate_integer() {
                 value as u64
             } else if let Some(value) = operand.byte_length() {
@@ -1135,47 +1150,93 @@ pub fn encode_syscall_sequence<T: InstructionOperandLike>(
             bytes.extend(value.to_le_bytes());
         }
     }
-    append_mov_rax_imm64(&mut bytes, u64::from(syscall_number));
+    append_mov_syscall_register_imm64(
+        &mut bytes,
+        number_register,
+        u64::from(syscall_number),
+    )?;
     bytes.extend([0x0f, 0x05]); // syscall
     debug_assert_eq!(bytes.len(), syscall_sequence_width(operands));
     Ok(bytes)
 }
 
-/// The `mov <syscall-arg-reg>, imm64` opcode prefix (REX.W + B8+rd) for syscall
-/// argument `index`, mapping to RDI, RSI, RDX, R10, R8, R9 in order.
-fn syscall_arg_mov_imm64_opcode(index: usize) -> Result<[u8; 2], Diagnostic> {
-    Ok(match index {
-        0 => [0x48, 0xbf], // mov rdi, imm64
-        1 => [0x48, 0xbe], // mov rsi, imm64
-        2 => [0x48, 0xba], // mov rdx, imm64
-        3 => [0x49, 0xba], // mov r10, imm64
-        4 => [0x49, 0xb8], // mov r8,  imm64
-        5 => [0x49, 0xb9], // mov r9,  imm64
-        _ => {
-            return Err(Diagnostic::error(
-                "X86_64 syscall encoder supports at most 6 arguments",
-            ));
+/// `mov <plan-selected-register>, imm64` (REX.W + B8+rd).
+fn syscall_arg_mov_imm64_opcode(
+    register: omega_calling_conventions::MachineRegister,
+) -> Result<[u8; 2], Diagnostic> {
+    use omega_calling_conventions::MachineRegister::*;
+    Ok(match register {
+        X86Rax => [0x48, 0xb8],
+        X86Rcx => [0x48, 0xb9],
+        X86Rdx => [0x48, 0xba],
+        X86Rbx => [0x48, 0xbb],
+        X86Rsp => [0x48, 0xbc],
+        X86Rbp => [0x48, 0xbd],
+        X86Rsi => [0x48, 0xbe],
+        X86Rdi => [0x48, 0xbf],
+        X86R8 => [0x49, 0xb8],
+        X86R9 => [0x49, 0xb9],
+        X86R10 => [0x49, 0xba],
+        X86R11 => [0x49, 0xbb],
+        X86R12 => [0x49, 0xbc],
+        X86R13 => [0x49, 0xbd],
+        X86R14 => [0x49, 0xbe],
+        X86R15 => [0x49, 0xbf],
+        other => {
+            return Err(Diagnostic::error(format!(
+                "X86_64 syscall plan selected non-GPR argument register {other:?}"
+            )));
         }
     })
 }
 
-/// `mov <syscall-arg-reg>, rax` (opcode 89 /r, source rax = reg field 0), for staging a
-/// runtime-storage value computed in rax into syscall argument `index`'s register.
-fn append_mov_syscall_arg_from_rax(bytes: &mut Vec<u8>, index: usize) -> Result<(), Diagnostic> {
-    bytes.extend(match index {
-        0 => [0x48, 0x89, 0xc7], // mov rdi, rax
-        1 => [0x48, 0x89, 0xc6], // mov rsi, rax
-        2 => [0x48, 0x89, 0xc2], // mov rdx, rax
-        3 => [0x49, 0x89, 0xc2], // mov r10, rax
-        4 => [0x49, 0x89, 0xc0], // mov r8,  rax
-        5 => [0x49, 0x89, 0xc1], // mov r9,  rax
-        _ => {
-            return Err(Diagnostic::error(
-                "X86_64 syscall encoder supports at most 6 arguments",
-            ));
-        }
-    });
+/// `mov <plan-selected-register>, rax` (opcode 89 /r, source rax = reg field 0).
+fn append_mov_syscall_arg_from_rax(
+    bytes: &mut Vec<u8>,
+    register: omega_calling_conventions::MachineRegister,
+) -> Result<(), Diagnostic> {
+    let [rex, opcode] = syscall_arg_mov_imm64_opcode(register)?;
+    let register_code = opcode - 0xb8;
+    bytes.extend([rex, 0x89, 0xc0 | register_code]);
     Ok(())
+}
+
+fn append_mov_syscall_register_imm64(
+    bytes: &mut Vec<u8>,
+    register: omega_calling_conventions::MachineRegister,
+    value: u64,
+) -> Result<(), Diagnostic> {
+    bytes.extend(syscall_arg_mov_imm64_opcode(register)?);
+    bytes.extend(value.to_le_bytes());
+    Ok(())
+}
+
+#[cfg(test)]
+mod syscall_plan_register_tests {
+    use super::*;
+    use omega_calling_conventions::MachineRegister;
+    use omega_target_operations::{InstructionOperandKind, TargetInstructionOperand};
+
+    #[test]
+    fn syscall_arguments_use_the_plan_selected_register() {
+        let operands = [TargetInstructionOperand {
+            kind: InstructionOperandKind::ImmediateInteger(7),
+        }];
+        let bytes = encode_syscall_sequence(
+            &operands,
+            60,
+            &[MachineRegister::X86R10],
+            MachineRegister::X86Rax,
+            0,
+        )
+        .expect("noncanonical syscall register should encode");
+
+        assert_eq!(&bytes[..2], &[0x49, 0xba], "argument must target r10");
+        assert_eq!(&bytes[2..10], &7u64.to_le_bytes());
+        assert_eq!(&bytes[10..12], &[0x48, 0xb8], "number must target rax");
+        assert_eq!(&bytes[12..20], &60u64.to_le_bytes());
+        assert_eq!(&bytes[20..], &[0x0f, 0x05]);
+    }
 }
 
 pub fn host_call_external_relocation_site<T: InstructionOperandLike>(

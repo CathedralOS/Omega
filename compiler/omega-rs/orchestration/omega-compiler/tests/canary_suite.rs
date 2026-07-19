@@ -538,6 +538,14 @@ fn external_leaf_syscall_reaches_linux_x64_backend() {
     let exit_sequence = [
         0x48, 0xb8, 0x3c, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0f, 0x05,
     ];
+    let exit_argument = [
+        0x48, 0xbf, 0x46, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    ];
+    assert!(
+        elf.windows(exit_argument.len())
+            .any(|window| window == exit_argument),
+        "normalized x86-64 syscall plan must place code 70 in rdi"
+    );
     assert!(
         elf.windows(exit_sequence.len())
             .any(|window| window == exit_sequence),
@@ -567,6 +575,13 @@ fn external_leaf_syscall_reaches_linux_x64_backend() {
     let arm_elf =
         fs::read(arm_out.join("omega-program")).expect("external-leaf arm syscall ELF emitted");
     let arm_exit_sequence = [0xa8, 0x0b, 0x80, 0xd2, 0x01, 0x00, 0x00, 0xd4];
+    let arm_exit_argument = 0xd280_08c0u32.to_le_bytes();
+    assert!(
+        arm_elf
+            .windows(arm_exit_argument.len())
+            .any(|window| window == arm_exit_argument),
+        "normalized AArch64 syscall plan must place code 70 in x0"
+    );
     assert!(
         arm_elf
             .windows(arm_exit_sequence.len())
