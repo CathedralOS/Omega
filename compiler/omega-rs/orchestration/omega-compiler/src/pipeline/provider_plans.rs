@@ -115,6 +115,7 @@ pub(super) fn derive_provider_plans(
 pub(crate) fn derive_satisfies_plans(
     syntax_trees: &omega_syntax_trees::SyntaxTrees,
     typed: &TypedTrees,
+    selected_target: Option<&str>,
 ) -> Vec<ProviderPlan> {
     let mut plans: Vec<ProviderPlan> = Vec::new();
     for item in syntax_trees.root_items() {
@@ -160,11 +161,15 @@ pub(crate) fn derive_satisfies_plans(
             };
             let binding = binding_kind.as_ref();
             let _ = &binding;
-            let target = machine
-                .target
-                .as_ref()
-                .map(|target| target.as_str().to_owned())
-                .unwrap_or_default();
+            // The selected target-machine marker is cleared before lowering
+            // so the machine behaves ordinarily. Recover the deployment
+            // dimension from compile selection for plan identity/selection;
+            // otherwise a target-scoped leaf silently becomes a universal
+            // provider after it is selected.
+            let target = machine.target.as_ref().map_or_else(
+                || selected_target.unwrap_or_default().to_owned(),
+                |target| target.as_str().to_owned(),
+            );
             let trait_leaf = clause.trait_name.as_str().to_owned();
             let plan_name = if target.is_empty() {
                 format!("satisfies::{trait_leaf}")
