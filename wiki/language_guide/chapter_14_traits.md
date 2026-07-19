@@ -237,6 +237,25 @@ trait ManagedCounter {
 Composition should stay transparent. Expanding `ManagedCounter` should produce
 a plain list of required machine signatures.
 
+Header composition is the generic-capable spelling of the same graph:
+
+```omega
+trait Calling<C> {
+}
+
+boundary trait TimerInterrupt:
+    InterruptService + Calling<X86InterruptConvention>
+{
+}
+```
+
+`requires InterruptService;` and `: InterruptService` normalize to the same
+requirement edge. The referenced trait determines the edge's role: a boundary
+parent contributes service reach, while an ordinary parent such as
+`Calling<C>` contributes policy/contract identity and no service reach. An
+ordinary trait therefore cannot inherit a boundary parent; the child must also
+be a `boundary trait`.
+
 This avoids making traits magic. They are named requirement sets.
 
 ## Versioned Data

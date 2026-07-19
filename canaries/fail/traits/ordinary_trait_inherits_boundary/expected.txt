@@ -1,0 +1,1 @@
+ordinary trait `HiddenDevice` cannot inherit boundary service `Device`; declare the child as `boundary trait`

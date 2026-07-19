@@ -1,0 +1,11 @@
+trait Policy<C> {
+}
+
+trait Broken: Policy {
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

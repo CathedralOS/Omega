@@ -2,6 +2,7 @@ use crate::data::lower_type_parameters;
 use crate::domain::lower_proof_facts;
 use crate::lowerer::Lowerer;
 use crate::state::lower_state_signature_node;
+use crate::type_reference::lower_child_type_references;
 use omega_core::arena::HandleSpan;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::SymbolHandle;
@@ -19,7 +20,12 @@ pub(crate) fn lower_trait_definition(
     let type_parameters =
         lower_type_parameters(lowerer, syntax_trees, trait_definition.type_parameters)?;
     let invariants = lower_proof_facts(lowerer, syntax_trees, trait_definition.invariants)?;
-    let requires = lower_trait_requirements(lowerer, syntax_trees, trait_definition.requires);
+    let requires = lower_trait_requirements(
+        lowerer,
+        syntax_trees,
+        trait_definition.parents,
+        trait_definition.requires,
+    )?;
     let machines =
         lower_trait_machine_signatures(lowerer, syntax_trees, trait_definition.machines)?;
 
@@ -39,9 +45,41 @@ pub(crate) fn lower_trait_definition(
 fn lower_trait_requirements(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
+    parents: HandleSpan<syntax::types::TypeReferenceHandle>,
     requires: HandleSpan<syntax::identifier::Identifier>,
-) -> HandleSpan<TraitRequirement> {
+) -> Result<HandleSpan<TraitRequirement>, Diagnostic> {
     let mut span = HandleSpan::empty();
+
+    for parent_handle in syntax_trees.type_references.type_reference_handles(parents) {
+        let (name, arguments) = match syntax_trees.type_references.type_reference(*parent_handle) {
+            syntax::types::TypeReferenceNode::Named(name) => (name, HandleSpan::empty()),
+            syntax::types::TypeReferenceNode::Generic {
+                base_name,
+                arguments,
+            } => (
+                base_name,
+                lower_child_type_references(lowerer, syntax_trees, *arguments)?,
+            ),
+            _ => {
+                return Err(Diagnostic::error(
+                    "a trait parent must be a named trait, optionally with generic arguments",
+                ));
+            }
+        };
+        lowerer
+            .symbol_resolved_trees
+            .tables
+            .declarations
+            .trait_requirements
+            .append_to_span(
+                &mut span,
+                TraitRequirement {
+                    symbol: SymbolHandle::invalid(),
+                    name: crate::name::lower_name(name),
+                    arguments,
+                },
+            );
+    }
 
     for required_trait in syntax_trees.items.identifier_path_members(requires) {
         lowerer
@@ -54,11 +92,12 @@ fn lower_trait_requirements(
                 TraitRequirement {
                     symbol: SymbolHandle::invalid(),
                     name: crate::name::lower_name(required_trait),
+                    arguments: HandleSpan::empty(),
                 },
             );
     }
 
-    span
+    Ok(span)
 }
 
 fn lower_trait_machine_signatures(

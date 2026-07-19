@@ -1,0 +1,1 @@
+trait `Broken` parent `Policy` expects 1 generic argument(s), got 0

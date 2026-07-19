@@ -1,15 +1,69 @@
 use super::shared::trait_definition_by_symbol;
+use crate::symbols::TopLevelSymbols;
+use crate::type_references::{
+    TypeReferenceOwner, validate_type_reference_handle_with_type_parameters,
+};
 use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::SymbolHandle;
 use omega_typed_trees::TypedTrees;
 use omega_typed_trees::trait_definition::TraitDefinition;
 
-pub(crate) fn validate_trait_requirements(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>) {
+pub(crate) fn validate_trait_requirements(
+    program: &TypedTrees,
+    symbols: &TopLevelSymbols<'_>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
     for trait_definition in program.traits() {
+        let mut seen = Vec::new();
         for requirement in program.trait_requirements(trait_definition) {
-            if trait_definition_by_symbol(program, requirement.symbol).is_none() {
+            let Some(required_trait) = trait_definition_by_symbol(program, requirement.symbol)
+            else {
                 diagnostics.push(Diagnostic::error(format!(
                     "trait `{}` requires unknown trait `{}`",
+                    trait_definition.name, requirement.name
+                )));
+                continue;
+            };
+
+            if seen.contains(&requirement.symbol) {
+                diagnostics.push(Diagnostic::error(format!(
+                    "trait `{}` names parent `{}` more than once",
+                    trait_definition.name, requirement.name
+                )));
+            } else {
+                seen.push(requirement.symbol);
+            }
+
+            let expected = program.trait_type_parameters(required_trait).len();
+            let actual = requirement.arguments.len();
+            if expected != actual {
+                diagnostics.push(Diagnostic::error(format!(
+                    "trait `{}` parent `{}` expects {expected} generic argument(s), got {actual}",
+                    trait_definition.name, requirement.name
+                )));
+            }
+
+            for argument in program
+                .type_reference_table
+                .type_reference_handles(requirement.arguments)
+            {
+                validate_type_reference_handle_with_type_parameters(
+                    program,
+                    *argument,
+                    symbols,
+                    diagnostics,
+                    TypeReferenceOwner::TraitParent {
+                        trait_name: trait_definition.name.as_str(),
+                        parent: requirement.name.as_str(),
+                        generic_depth: 0,
+                    },
+                    program.trait_type_parameters(trait_definition),
+                );
+            }
+
+            if !trait_definition.is_boundary && required_trait.is_boundary {
+                diagnostics.push(Diagnostic::error(format!(
+                    "ordinary trait `{}` cannot inherit boundary service `{}`; declare the child as `boundary trait`",
                     trait_definition.name, requirement.name
                 )));
             }

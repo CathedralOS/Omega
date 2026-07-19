@@ -33,6 +33,9 @@ pub struct DataConformance {
 pub struct TraitRequirement {
     pub symbol: SymbolHandle,
     pub name: DiagnosticName,
+    /// Generic arguments authored on a header parent (`Policy<C>`). Empty for
+    /// the body-level `requires Policy;` form.
+    pub arguments: HandleSpan<crate::types::TypeReference>,
 }
 
 impl Default for TraitRequirement {
@@ -40,6 +43,7 @@ impl Default for TraitRequirement {
         Self {
             symbol: SymbolHandle::invalid(),
             name: DiagnosticName::default(),
+            arguments: HandleSpan::empty(),
         }
     }
 }

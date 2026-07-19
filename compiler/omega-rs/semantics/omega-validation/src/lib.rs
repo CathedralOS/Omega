@@ -81,7 +81,7 @@ pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
     validate_domain_definitions(program, &symbols, &fact_plan, &mut diagnostics);
     validate_invariant_definitions(program, &fact_plan, &mut diagnostics);
     validate_callable_state_signatures(program, &symbols, &mut diagnostics);
-    validate_trait_requirements(program, &mut diagnostics);
+    validate_trait_requirements(program, &symbols, &mut diagnostics);
     validate_data_conformances(program, &symbols, &mut diagnostics);
     validate_data_field_types(program, &symbols, &mut diagnostics);
     // Math roster N1: recursive data is legal and PROOF-ONLY (computed, never

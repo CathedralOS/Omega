@@ -346,6 +346,7 @@ impl SyntaxTrees {
             is_boundary: trait_definition.is_boundary,
             name: trait_definition.name.clone(),
             type_parameters: self.copy_type_parameter_span(other, trait_definition.type_parameters),
+            parents: self.copy_type_reference_handle_span(other, trait_definition.parents),
             invariants: self.copy_domain_fact_span(other, trait_definition.invariants),
             requires: self.copy_item_identifier_span(other, trait_definition.requires),
             machines: self.copy_state_signature_handle_span(other, trait_definition.machines),
@@ -803,12 +804,10 @@ impl SyntaxTrees {
         statement: &StatementNode,
     ) -> StatementNode {
         match statement {
-            StatementNode::AssemblyFact(fact) => {
-                StatementNode::AssemblyFact(TableAssemblyFact {
-                    kind: fact.kind,
-                    expression: self.copy_expression_handle(other, fact.expression),
-                })
-            }
+            StatementNode::AssemblyFact(fact) => StatementNode::AssemblyFact(TableAssemblyFact {
+                kind: fact.kind,
+                expression: self.copy_expression_handle(other, fact.expression),
+            }),
             StatementNode::Assignment(assignment) => StatementNode::Assignment(TableAssignment {
                 target: self.copy_expression_handle(other, assignment.target),
                 value: self.copy_expression_handle(other, assignment.value),

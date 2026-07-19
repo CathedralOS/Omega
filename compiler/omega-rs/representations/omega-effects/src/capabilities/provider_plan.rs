@@ -129,28 +129,59 @@ impl ServiceSchema {
         if !trait_definition.is_boundary {
             return None;
         }
-        let methods = program
-            .trait_machine_signatures(trait_definition)
-            .iter()
-            .map(|signature| ServiceMethod {
-                name: signature.name.as_str().to_owned(),
-                parameter_count: program
-                    .state_signature_parameters(signature)
-                    .iter()
-                    .filter(|parameter| !parameter.is_self)
-                    .count(),
-                has_result: signature.return_type.is_valid(),
-                effects: program
-                    .state_signature_effects(signature)
-                    .iter()
-                    .map(|effect| effect.as_str().to_owned())
-                    .collect(),
-            })
-            .collect();
+        let mut methods = Vec::new();
+        let mut visited = Vec::new();
+        collect_service_methods(program, trait_definition, &mut visited, &mut methods);
         Some(Self {
             trait_name: trait_definition.name.as_str().to_owned(),
             methods,
         })
+    }
+}
+
+fn collect_service_methods(
+    program: &omega_typed_trees::TypedTrees,
+    trait_definition: &omega_typed_trees::trait_definition::TraitDefinition,
+    visited: &mut Vec<omega_core::symbols::SymbolHandle>,
+    methods: &mut Vec<ServiceMethod>,
+) {
+    if visited.contains(&trait_definition.symbol) {
+        return;
+    }
+    visited.push(trait_definition.symbol);
+
+    for requirement in program.trait_requirements(trait_definition) {
+        let Some(parent) = program
+            .traits()
+            .iter()
+            .find(|candidate| candidate.symbol == requirement.symbol)
+        else {
+            continue;
+        };
+        collect_service_methods(program, parent, visited, methods);
+    }
+
+    for signature in program.trait_machine_signatures(trait_definition) {
+        if methods
+            .iter()
+            .any(|method| method.name == signature.name.as_str())
+        {
+            continue;
+        }
+        methods.push(ServiceMethod {
+            name: signature.name.as_str().to_owned(),
+            parameter_count: program
+                .state_signature_parameters(signature)
+                .iter()
+                .filter(|parameter| !parameter.is_self)
+                .count(),
+            has_result: signature.return_type.is_valid(),
+            effects: program
+                .state_signature_effects(signature)
+                .iter()
+                .map(|effect| effect.as_str().to_owned())
+                .collect(),
+        });
     }
 }
 

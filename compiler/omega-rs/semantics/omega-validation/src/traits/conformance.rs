@@ -53,6 +53,7 @@ pub(crate) fn validate_machine_trait_conformances(
             program,
             machine,
             trait_definition,
+            &[],
             diagnostics,
             &mut visited_traits,
         );
@@ -134,6 +135,7 @@ fn validate_machine_satisfies_trait(
     program: &TypedTrees,
     machine: &Machine,
     trait_definition: &TraitDefinition,
+    explicit_type_arguments: &[TypeReferenceHandle],
     diagnostics: &mut Vec<Diagnostic>,
     visited_traits: &mut Vec<SymbolHandle>,
 ) {
@@ -156,12 +158,13 @@ fn validate_machine_satisfies_trait(
             continue;
         };
 
-        validate_machine_state_satisfies_trait_signature(
+        validate_machine_state_satisfies_trait_signature_with_arguments(
             program,
             state_machine,
             state,
             trait_definition,
             requirement,
+            explicit_type_arguments,
             diagnostics,
         );
     }
@@ -175,6 +178,9 @@ fn validate_machine_satisfies_trait(
             program,
             machine,
             required_trait,
+            program
+                .type_reference_table
+                .type_reference_handles(requirement.arguments),
             diagnostics,
             visited_traits,
         );
@@ -224,6 +230,26 @@ pub(super) fn validate_machine_state_satisfies_trait_signature(
     requirement: &StateSignature,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    validate_machine_state_satisfies_trait_signature_with_arguments(
+        program,
+        machine,
+        state,
+        trait_definition,
+        requirement,
+        &[],
+        diagnostics,
+    );
+}
+
+fn validate_machine_state_satisfies_trait_signature_with_arguments(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    trait_definition: &TraitDefinition,
+    requirement: &StateSignature,
+    explicit_type_arguments: &[TypeReferenceHandle],
+    diagnostics: &mut Vec<Diagnostic>,
+) {
     let mut actual_parameters = program.state_parameters(state);
     let required_parameters = program.state_signature_parameters(requirement);
     // PRV4 self-forwarding adapters: a FREE machine satisfying a BOUNDARY
@@ -262,7 +288,15 @@ pub(super) fn validate_machine_state_satisfies_trait_signature(
     }
 
     let trait_type_parameters = program.trait_type_parameters(trait_definition);
-    let mut type_bindings = Vec::new();
+    let mut type_bindings = trait_type_parameters
+        .iter()
+        .zip(explicit_type_arguments.iter().copied())
+        .map(|(parameter, actual)| TraitTypeBinding {
+            parameter_symbol: parameter.symbol,
+            parameter_name: parameter.name.as_str().to_owned(),
+            actual,
+        })
+        .collect::<Vec<_>>();
 
     for (index, (actual, required)) in actual_parameters
         .iter()

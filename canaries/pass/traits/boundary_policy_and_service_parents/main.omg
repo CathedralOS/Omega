@@ -1,0 +1,17 @@
+trait Calling<C> {
+}
+
+data TestConvention {
+}
+
+boundary trait Readable {
+}
+
+boundary trait Filesystem: Readable + Calling<TestConvention> {
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

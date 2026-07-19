@@ -682,7 +682,24 @@ fn trait_definition_snapshot(
         requires: program
             .trait_requirements(trait_definition)
             .iter()
-            .map(|requirement| requirement.name.to_string())
+            .map(|requirement| {
+                let arguments = program
+                    .type_reference_table
+                    .type_reference_handles(requirement.arguments);
+                if arguments.is_empty() {
+                    requirement.name.to_string()
+                } else {
+                    format!(
+                        "{}<{}>",
+                        requirement.name,
+                        arguments
+                            .iter()
+                            .map(|argument| program.display_type_reference(*argument))
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    )
+                }
+            })
             .collect(),
         machines: program
             .trait_machine_signatures(trait_definition)

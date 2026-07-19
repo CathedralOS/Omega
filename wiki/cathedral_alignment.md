@@ -146,8 +146,9 @@ first physical-`Extent` mint): COMPLETE with positive firmware-return evidence a
 98-descriptor runtime-stride walk.
 
 **Milestone 3 — alive after firmware dies:** serial + idle COMPLETE; timer tick
-REMAINS. Its dependencies are parsed checked asm, generic `Calling<C>` trait
-composition, `CallPlan + StatePlan` entry derivation/final footprint validation,
+REMAINS. Generic `Calling<C>` trait composition is complete. Its remaining
+dependencies are checked-asm catalog work, `CallPlan + StatePlan` entry
+derivation/final footprint validation,
 fragmented IDT materialization, and the external-root ledger. TASKS.md records
 the agent-ready order.
 

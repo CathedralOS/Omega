@@ -542,22 +542,24 @@ than re-reading source attributes.
 
 ## Implementation order
 
-1. Implement the already-designed parsed `asm {}` frontend and the first
-   complete x86 instruction-contract catalog. No raw-byte shortcut.
-2. Implement ordinary generic trait-parent composition needed by `Calling<C>`.
-3. Extend programmable layouts to name-keyed fragmented placements and exact
+Ordinary generic trait-parent composition for `Calling<C>` is implemented.
+Remaining order:
+
+1. Complete the checked-assembly instruction-contract catalog needed by the
+   entry provider. No raw-byte shortcut.
+2. Extend programmable layouts to name-keyed fragmented placements and exact
    tiling validation.
-4. Implement the settled `Extent` carrier, conservation rules, source-loan /
+3. Implement the settled `Extent` carrier, conservation rules, source-loan /
    destination-authority mapping, and authority-origin validation.
-5. Implement `AccessPlan`, validation against `LayoutPlan`, sealed field-access
+4. Implement `AccessPlan`, validation against `LayoutPlan`, sealed field-access
    derivation, borrow-polarity checks, and exact volatile/atomic primitives.
-6. Split boundary entry planning into `CallPlan + StatePlan`; constrain codegen,
+5. Split boundary entry planning into `CallPlan + StatePlan`; constrain codegen,
    emit footprint evidence, and validate final artifacts.
-7. Add symbolic relocation sources, phase/constraint-aware materialization,
+6. Add symbolic relocation sources, phase/constraint-aware materialization,
    admitted-artifact validation, and scoped executable installation.
-8. Add the external-root ledger and IDT/timer vertical slice.
-9. Add external loans and DMA/hostile-IPC vertical slices.
-10. Add carry/runtime admission and the Arena-backed Cathedral task profile.
+7. Add the external-root ledger and IDT/timer vertical slice.
+8. Add external loans and DMA/hostile-IPC vertical slices.
+9. Add carry/runtime admission and the Arena-backed Cathedral task profile.
 
 ## Gauntlet
 
