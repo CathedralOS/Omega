@@ -158,7 +158,7 @@ dynamic descriptors retain satisfier/contract identity. Its backward-edge
 return policy and target realization are deliberately open in
 `OWNER_QUESTIONS.md`. After relocation, relaxation, veneers, thunks, and
 generated stubs, final validation checks the placed artifact against the CFI
-evidence. Installation consumes the linear placed realization; a content-bound
+evidence. Installation consumes the linear validated placement; a content-bound
 CFI certificate may remain reusable and reportable.
 
 ### Machine semantic contract

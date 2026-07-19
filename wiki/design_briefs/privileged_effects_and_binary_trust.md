@@ -1,7 +1,8 @@
 # Design Brief: Privileged Instructions And Binary Trust
 
-Current as of 2026-07-18. The instruction-contract rules are settled. The
-binary manifest, authority-token implementation, and trusting-trust/PCC layers
+Current as of 2026-07-18. The instruction-contract and admitted-executable
+installation rules are settled. Concrete manifest encoding, authority-token
+implementation, protected-return CFI, and trusting-trust/PCC engineering
 remain open.
 
 ## Core rule
@@ -53,6 +54,11 @@ service to reach it.
 Hardware can mediate some operations from an untrusted ring, but a native
 binary's self-reported manifest is still only a claim. Arbitrary machine code
 can omit the declaration and execute bytes directly when the CPU permits it.
+Omega therefore never converts raw bytes into host code. A prebuilt artifact
+must acquire the sealed `Artifact::AdmittedExecutable` fact through admission;
+installation then borrows that reusable artifact and consumes scoped linear
+placement authority. The final placed bytes are validated before the provider
+establishes execute permission.
 
 The sound baseline is source-distributed, host-compiled code:
 
@@ -62,9 +68,11 @@ The sound baseline is source-distributed, host-compiled code:
 4. the host treats the resulting binary as its artifact, not as an untrusted
    statement about itself.
 
-This remains conditional on trusting the compiler. Diverse compilation,
-bootstrap verification, and proof-carrying code are separate upgrades to that
-TCB story.
+This remains conditional on trusting the compiler or independently checking
+the admitted proof/certificate. Diverse compilation, bootstrap verification,
+and proof-carrying code are separate upgrades to that TCB story. Installation
+prevents injection; protected returns and final-artifact CFI remain a separate
+gate over all code, including the boot-admitted installer.
 
 ## Cathedral M3 slice
 
@@ -82,6 +90,7 @@ The first useful slice is:
 
 - concrete executable/component manifest encoding;
 - the first-class owns-the-machine authority type and attenuation rules;
-- how prebuilt third-party binaries can be admitted before PCC;
+- protected returns and the final-artifact CFI certificate;
+- admission policy for prebuilt third-party binaries without checkable PCC;
 - diverse compilation/trusting-trust defenses; and
 - proof-carrying code for checking an untrusted binary without rebuilding it.

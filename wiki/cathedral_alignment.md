@@ -155,7 +155,7 @@ the agent-ready order.
 placement (`CallPlan`) and interrupted-machine-state preservation (`StatePlan`)
 are independent facets of one evaluated requirement policy. The published plan
 identity is firewalled from per-provider emitted footprint evidence, which is
-validated at final realization.
+validated against the final placed artifact.
 
 ## IPC + scheduler alignment (2026-06-13)
 

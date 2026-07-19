@@ -679,6 +679,45 @@ ledger model is specified in
 Exact carrier APIs and validators remain open there; no separate interrupt or
 MMIO grammar is implied.
 
+### Admitted executable installation
+
+Omega has no operation that converts arbitrary bytes into host code and no
+general `ExecutableMemory` capability. Executable eligibility is a sealed
+admission fact over a reusable immutable artifact. A package cannot establish
+that fact for itself, and mutation invalidates it.
+
+Installation borrows the admitted artifact and consumes authority over one
+destination. Its normalized states are:
+
+```text
+CodePlacement (writable, non-executable)
+    -> materialize declared sections and relocations
+FrozenPlacement (readable, non-executable; no remaining writer)
+    -> validate the exact final bytes and footprint
+ValidatedPlacement
+    -> contracted installation and instruction-fetch visibility
+InstalledCode (readable, executable)
+```
+
+Each state is sealed: the only operation that can produce the next state
+requires the previous one. The artifact remains reusable; the linear placement
+authority prevents one destination from being spent twice. Validation evidence
+is bound to artifact identity, placement, and final content, so it cannot be
+transplanted to different bytes.
+
+The installation provider alone performs the target-specific permission
+transition, cache maintenance, ordering, and visibility work. Checked assembly
+and page-table APIs emit the same admitted-artifact and installation-authority
+obligations; neither is a raw bypass. A future fetcher requires visibility
+before entry, while replacement of possibly running code separately requires
+quiescence before retirement.
+
+Installation prevents code injection. It does not prove that transfers within
+installed code are legal. Sealed entry references cover much of the forward
+edge; protected returns and the final control-flow-integrity certificate remain
+the independent owner question in
+[`OWNER_QUESTIONS.md`](../../OWNER_QUESTIONS.md).
+
 ## Invariant Parameters
 
 Imported signatures should lean on invariant-parameterized types rather than

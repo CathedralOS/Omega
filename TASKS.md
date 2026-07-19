@@ -284,7 +284,7 @@ before the fix.
   ordinary permission context.
 - **EXI1–EXI5 — admitted executable installation.** Add reusable admitted
   artifact identity, extent-backed linear `CodePlacement`, materialization,
-  write freeze, final realization/footprint validation, scoped installation,
+  write freeze, final-byte/footprint validation, scoped installation,
   synchronous visibility, W^X reporting, and replacement/quiescence for live
   code. Use the minimal checked Omega container internally; PE/COFF is only a
   firmware envelope. No arbitrary byte-to-code path exists.
