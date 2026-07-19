@@ -4,7 +4,7 @@
 // the composition of the S4 min/max interval tracking with the narrowing check
 // AND that the backend actually stores the clamped value (300 -> 100) in the
 // narrower slot. Native must match the interpreter.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main { console: Console; x: i32; s: i8; }
 machine Main::main(&mut self) {
     self.x = 300;

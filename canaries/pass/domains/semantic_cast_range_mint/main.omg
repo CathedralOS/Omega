@@ -2,7 +2,7 @@
 // declared semantic domain when its DECLARED RANGE entails every domain
 // fact -- raw: i64 [0..=4096] entails self >= 0, so `raw as i64 in Km`
 // mints. Zero-cost; the value flows on. RUNS exit 70.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main { console: Console; }
 domain i64::Km {
     self >= 0;

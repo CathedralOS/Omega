@@ -3,7 +3,7 @@
 // SILENTLY as identity (the target resolved to no primitive, so the conversion was a
 // no-op and the value passed through with the wrong type; `42 as Bogus` ran to exit 42).
 // The cast target is now validated to be a scalar primitive.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Foo { a: i32; }
 data Main { console: Console; }
 machine Main::main(&mut self) {

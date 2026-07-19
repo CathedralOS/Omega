@@ -9,9 +9,7 @@
 // (index 15 only typechecks if 16 reached the range checker). Exits 70 only
 // when both reads are right.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

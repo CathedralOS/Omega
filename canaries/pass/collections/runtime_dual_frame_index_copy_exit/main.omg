@@ -1,9 +1,7 @@
 // DUAL-indexed copy with BOTH indices FRAME-resident params
 // (`self.arr[k] = self.arr[j]`): used to be a clean encoder error. Each side
 // now loads its index off its own frame-base relocation. arr[3]=arr[1]=77 -> 1.
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 data Main {
     console: Console;
     arr: [i32; 4];

@@ -7,9 +7,7 @@
 // twin). RUNTIME-index increments stay conservatively rejected for now -- the
 // operand hoist renames the element read (`__hoist_N`), so the guard cannot
 // match it (documented follow-up). ZII tallies[1]=0 -> +1 -> exit 1.
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 data Main {
     console: Console;
     tallies: [i32 [0..=16]; 4];

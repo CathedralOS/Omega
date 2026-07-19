@@ -9,9 +9,7 @@
 // machine, and transition-target calls). Same-class numeric args (`i8` field for
 // an `i32` param) are untouched.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

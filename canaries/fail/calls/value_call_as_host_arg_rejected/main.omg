@@ -11,9 +11,7 @@
 // cleanly rejected guards against any regressing into that silent-miscompile failure mode: if
 // a value-call as a direct host arg ever compiles, this test fails. Remove/repurpose when
 // direct computed host-call arguments are supported.
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

@@ -8,9 +8,7 @@
 // params (kept as-is even though the struct-literal ARG gap this exposed is
 // now FIXED -- pass/calls/struct_literal_transition_arg_exit pins delivery --
 // so this canary keeps a single face: the indexed element write).
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Exit {
     destination: u32;

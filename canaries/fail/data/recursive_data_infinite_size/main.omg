@@ -5,7 +5,7 @@
 // an internal symbol index. (Before N1 this canary pinned the layout-side
 // "no finite size" refusal; declaration itself now passes -- see
 // pass/data/proof_only_recursive_data_declared.)
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Node { value: i32; next: Node; } // Node is proof-only: recursive
 data Main { console: Console; n: Node; }
 machine Main::main(&mut self) { self.console.exit_process(0); }

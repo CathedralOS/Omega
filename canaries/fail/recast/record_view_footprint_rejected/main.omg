@@ -1,7 +1,7 @@
 // FAIL CANARY (rung C2 footprint): a 16-byte record view at offsets up
 // to 9 of a 24-byte region would read bytes 9..25 -- past the buffer;
 // refused at the declaration through the offset's enforced interval.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Desc { a: u32; b: u64; }
 data Main { console: Console; buf: [u8; 24]; k: u32 [0..=9]; out: i32; }
 machine Main::main(&mut self) {

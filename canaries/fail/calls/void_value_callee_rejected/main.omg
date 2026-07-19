@@ -1,7 +1,5 @@
 // V1: VOID callee in VALUE position -- `let r: i32 = self.act()`.
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 data Main {
     console: Console;
     n: i32;

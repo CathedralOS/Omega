@@ -9,9 +9,7 @@
 // The `ms` boundary arg lands in poll's `timeout` (x2) with x0=NULL, x1=nfds=0 synthesized
 // by the operand arm. A bounded 3× loop (guard-before-increment keystone) drives it.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 boundary trait Clock {
     machine sleep(milliseconds: u32);
 }

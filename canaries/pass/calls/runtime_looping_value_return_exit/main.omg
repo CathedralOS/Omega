@@ -7,9 +7,7 @@
 // dispatch keystone this returned 0 (n stayed at its init), so `n == 5` was false
 // and the program exited 71. With the keystone, count returns the slice length 5,
 // `n == 5` holds, and it exits 70.
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data M {}
 

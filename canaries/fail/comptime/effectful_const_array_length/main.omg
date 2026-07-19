@@ -3,9 +3,7 @@
 // read from the INFERRED TRANSITIVE effect plan). `loud_size` declares the
 // `process_exit` effect, so `[i64; loud_size()]` must reject naming the
 // machine and the effect -- never silently evaluate or fall back.
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

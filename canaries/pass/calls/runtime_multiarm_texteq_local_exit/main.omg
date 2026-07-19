@@ -15,7 +15,7 @@
 // order -- the terminal copy previously read the slot before the
 // initializer wrote it). Scalar flavor pinned separately by
 // calls/runtime_multiarm_same_named_locals_exit.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Store { name: String; alt: String; }
 machine Store::check(&mut self, idx: i32) -> bool {
     transition idx == 0 {

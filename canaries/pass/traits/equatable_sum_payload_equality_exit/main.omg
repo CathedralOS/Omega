@@ -6,9 +6,7 @@
 // (`self.a == Command::Move { dx: 3, dy: 5 }`) pins the single-arm form.
 // Exits 70 only when all four compares are right.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 trait Equatable {
     machine equals(&self, other: &Self) -> bool;

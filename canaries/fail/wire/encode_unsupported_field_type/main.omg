@@ -3,9 +3,7 @@
 // set -- here an f64 -- rejects the encode call with a clear diagnostic
 // instead of silently mis-encoding.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data SampleMessage {
     0: count: u32;

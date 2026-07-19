@@ -1,6 +1,6 @@
 // State-BODIED arms: the selected arm mutates a field BEFORE returning the
 // struct. exit 70 = vec right AND the side effect landed exactly once.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Vec2 { x: i32 in Wrapping; y: i32 in Wrapping; }
 data Main { console: Console; d: i32; hits: i32 in Wrapping; vec: Vec2; }
 machine Main::delta(&mut self, d: i32) -> Vec2 {

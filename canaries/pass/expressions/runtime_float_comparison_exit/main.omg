@@ -7,9 +7,7 @@
 // (where an integer bit-compare would be wrong) are also exercised. Exits 70
 // only if every comparison evaluates correctly.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

@@ -13,9 +13,7 @@
 // to apply the root-field member_index (array element index) when the suffix
 // is empty.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

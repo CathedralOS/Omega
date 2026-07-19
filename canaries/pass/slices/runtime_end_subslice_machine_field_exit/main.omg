@@ -7,9 +7,7 @@
 // indexed-address instruction has no index region). Undomained here to isolate
 // the Machine-region-END mechanism from the domain guard. Exits 70 (len == 3).
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Entry {
     value: i32;

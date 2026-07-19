@@ -7,7 +7,7 @@
 // `in Ascii` requirement. The literal also flows as a real `&[u8]` view, so
 // `measure("hi")` reads its slice length 2 at runtime.
 
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 
 domain [u8]::Ascii when ascii_only(self) {
 }

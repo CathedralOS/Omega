@@ -8,9 +8,7 @@
 // being guard subjects (the documented computed-index / indexed-read workarounds). The
 // shortest distance from cell 0 to cell 24 is exactly 16 (verified against a reference
 // BFS). Exits 70.
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

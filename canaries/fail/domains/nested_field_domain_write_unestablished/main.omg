@@ -7,9 +7,7 @@
 domain [u8]::Ascii when ascii_only(self) {
 }
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Inner {
     tag: &[u8] in Ascii;

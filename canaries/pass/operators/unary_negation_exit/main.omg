@@ -1,9 +1,7 @@
 // Unary minus: negative integer literals (`-5`, folded to a constant so they
 // work in guards) and negation of a non-literal (`-self.v`, lowered to `0 - v`).
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

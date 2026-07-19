@@ -2,9 +2,7 @@
 // `self.o.bogus.value` where Outer has no field `bogus`. Used to compile and
 // silently read a ZII 0; the nested walker attributes the failure to the first
 // missing hop on its resolved container.
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Inner {
     value: i32;

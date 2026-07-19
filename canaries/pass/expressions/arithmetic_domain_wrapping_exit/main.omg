@@ -7,7 +7,7 @@
 // `Saturating`/`Trapping` codegen and exact-by-default overflow ENFORCEMENT land
 // in later stages. See wiki/architecture/arithmetic_domains_implementation_map.md.
 
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 
 data Main {
     console: Console;

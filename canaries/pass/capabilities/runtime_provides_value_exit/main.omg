@@ -8,7 +8,7 @@
 // distinct rows; a missed substitution is an unresolved-name compile error,
 // never a wrong value. The wrong-target sibling is
 // fail/capabilities/provides_value_wrong_target_rejected.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 boundary trait Beeper { machine noop(); }
 data Main { console: Console; }
 local_unchecked provides Beeper {

@@ -15,7 +15,7 @@
 //      71 = wrong errno; 72 = unreachable guard shape.
 use omega::language::std::filesystem_host;
 
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 
 data Main {
     console: Console;

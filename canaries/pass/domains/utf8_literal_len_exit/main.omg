@@ -3,7 +3,7 @@
 // -- `measure("hello")` reads the slice length 5 through the domain. Verifies the
 // literal-as-`&[u8]` backend lowering before the corpus sweep relies on it.
 
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 
 domain [u8]::Utf8 when valid_utf8(self) {
 }

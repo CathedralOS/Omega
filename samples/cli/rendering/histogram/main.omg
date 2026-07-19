@@ -15,11 +15,7 @@
 //   samples = [2, 0, 2, 1, 2, 3, 0, 2]  ->  category 2 occurs 4 times.
 // The program exits with that count. Expected exit: 4.
 
-boundary trait Console {
-    machine write_line(text: String);
-    machine read_line(out_line: &mut String);
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

@@ -10,7 +10,7 @@
 // operand-position lowering uses, so write and operand sites cannot
 // disagree.
 // exits: 71 = outer op lowered plain (49); 99 = neither.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main { console: Console; }
 machine Main::main(&mut self) {
     let a: u8 in Saturating = (200 as u8 in Saturating);

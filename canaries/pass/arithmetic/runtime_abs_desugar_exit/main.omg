@@ -2,9 +2,7 @@
 // builtins, so abs needs zero new backend/interp machinery). abs(-70)=70,
 // abs(12)=12; exits 70 only when both hold. The argument is a place, so
 // the shared-subtree duplication is harmless (a call argument rejects).
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 data Main {
     console: Console;
     x: i32;

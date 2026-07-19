@@ -1,9 +1,7 @@
 // PLAN-LAID VALUE TYPES, the value-type gate: a policy whose plan is DYNAMIC
 // cannot appear in type position -- values need offsets, bytes need mints
 // (programmable_layouts.md section 5). The rejection must name the policy.
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data FieldKind { case Scalar; case Text; case Nested; case Repeated; }
 data SchemaField {

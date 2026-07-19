@@ -7,9 +7,7 @@
 // compiles. (Asserted by `version_chain_report_renders_missing_migration` in
 // the canary suite.)
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Counter {
     version v1 {

@@ -7,9 +7,7 @@
 //     reference, semantics)
 // Exits 70.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Inner {
     v: i32 in Trapping;

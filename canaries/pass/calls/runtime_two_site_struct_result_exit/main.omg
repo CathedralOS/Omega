@@ -1,6 +1,6 @@
 // PROBE 7 (std-free): two value calls to the same pure 16-byte-struct
 // callee. 70 = both delivered; 2 = second zeroed; 1 = first zeroed.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 
 data Pair [copy, zero_init] { a: u64; b: u64; }
 

@@ -1,6 +1,6 @@
 // Constructing a struct with an ARRAY value in a scalar field (`P { x: self.xs }`)
 // used to compile silently. The shape check now covers construction fields.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data P { x: i32; }
 data Main { console: Console; xs: [i32; 3]; }
 machine Main::main(&mut self) { let p: P = P { x: self.xs }; self.console.exit_process(0); }

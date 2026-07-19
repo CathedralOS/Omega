@@ -3,7 +3,7 @@
 // burden. The parameter arrives domain-VALID but with UNKNOWN field
 // values, so `count = 99` cannot prove `count <= len` and refuses
 // (before this rung the write bypassed the net entirely).
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Tally
 where
     count <= len,

@@ -5,9 +5,7 @@
 // b % b = 0 and collapsing the loop. The capture-aware binding skip keeps r in
 // its slot, so the swap is correct and gcd(48, 36) = 12 -> exit 70 (the old
 // fold exits 36 after one bogus step).
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 data Main {
     console: Console;
     a: i32 in Wrapping;

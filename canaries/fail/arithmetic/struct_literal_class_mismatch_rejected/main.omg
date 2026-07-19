@@ -7,9 +7,7 @@
 // cross-class store, for range-constrained AND plain fields alike. Same-class
 // numeric field values (`x: self.i8_field`) are untouched.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Point {
     x: i32 in Wrapping;

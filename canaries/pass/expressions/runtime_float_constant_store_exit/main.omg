@@ -5,9 +5,7 @@
 // constants (including 0.0 and a negative value) and exits 70 to confirm the
 // stores execute without faulting and codegen is clean (no stub/NoOp).
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

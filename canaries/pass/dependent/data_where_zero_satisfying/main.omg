@@ -2,7 +2,7 @@
 // (0 <= 0), so the type is zero-constructible -- born established, facts
 // standing. The facts store on the RESOLVED definition and stay INERT
 // until rung 3 wires entailment hypotheses + write obligations atomically.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data MemoryMap
 where
     count <= len,

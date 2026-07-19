@@ -3,7 +3,7 @@
 // through a callee. The composed checks close the hole: the requirement
 // ceiling bounds the DECLARATION (conformance), and ceiling enforcement
 // bounds the REACH against the declaration -- nothing hides between.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main { console: Console; }
 
 trait Meter {

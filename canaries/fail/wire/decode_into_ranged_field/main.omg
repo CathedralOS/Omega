@@ -1,9 +1,7 @@
 // HOSTILE PAYLOAD vs DECLARED RANGE: the value field is u32 [0..=100]; the
 // hand-crafted payload carries 200. If decode stores it, a "proven" fact is
 // violated by wire input.
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 data Msg {
     0: v: u32;
 }

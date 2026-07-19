@@ -4,9 +4,7 @@
 // reaching `exit_process(70)` proves both call forms obeyed the Win64 ABI (shadow
 // space, ecx arg from a constant and from a relocated storage scalar, clean return)
 // and continued. The runtime-arg form shares exit_process's single-u32-arg encoder.
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 boundary trait Clock { machine sleep(milliseconds: u32); }
 data Main { console: Console; clock: Clock; delay: u32 in Wrapping; }
 machine Main::main(&mut self) {

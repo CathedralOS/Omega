@@ -2,9 +2,7 @@
 // bytes that validate/encode makes true. Declaring it on OWNED STORED bytes
 // is a trivially-claimed membership -- at ZII the buffer is zeroes and holds
 // no valid encoding. Hold the value instead; encode at the edge.
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data CounterMessage {
     0: counter: u32;

@@ -4,9 +4,7 @@
 // a v1 era -- must be rejected, not silently treated as Counter's v1 (both
 // are era 0; an arm matcher keyed on era number alone would conflate them).
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Counter {
     version v1 {

@@ -2,7 +2,7 @@
 // rejected. `a` is `Wrapping` and `b` is `Saturating`, so `self.a + self.b` mixes
 // two different explicit domains -- illegal without an explicit `as` cast.
 
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 
 data Main {
     console: Console;

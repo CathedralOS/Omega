@@ -3,9 +3,7 @@
 // the fact before the copy -- the stability gate must drop the guard and the
 // store must reject (without the gate, `self.yv = 100; self.y = self.yv`
 // would "prove" through the stale guard).
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

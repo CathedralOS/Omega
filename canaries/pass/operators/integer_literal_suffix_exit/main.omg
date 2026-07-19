@@ -2,9 +2,7 @@
 // the literal's primitive type; the value must round-trip through storage and
 // compare equal to the same suffixed literal.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

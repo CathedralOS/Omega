@@ -1,7 +1,7 @@
 // FAIL CANARY: a mutual machine-call cycle without a joint `terminates by`
 // witness is rejected. Decision 23 permits only ranked, tail-position runtime
 // SCCs; this unranked pair remains illegal.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main { console: Console; }
 machine Main::scan_a(&mut self, n: u32 in Wrapping) -> u32 in Wrapping {
     transition n < 3 {

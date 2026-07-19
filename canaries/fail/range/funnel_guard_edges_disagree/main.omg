@@ -2,9 +2,7 @@
 // admits values outside `y: [0..=15]`, so the copy must reject (the proof
 // side accepts only equivalent guards; the validation join keeps the union
 // [0, 31], which does not fit either).
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

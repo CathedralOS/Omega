@@ -8,9 +8,7 @@
 // same out-of-bounds read prevented. The expected fragment tracks the
 // declaration-level diagnostic; types/range_under_non_exact_domain_rejected
 // pins the store-context flavor of the same rule.
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

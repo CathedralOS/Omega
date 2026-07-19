@@ -15,9 +15,7 @@
 //   flag true      -> 0x01
 // written = 8.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data CounterMessage {
     0: counter: u32;

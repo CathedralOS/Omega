@@ -1,6 +1,6 @@
 // COMPILE CANARY. A zero-excluding default domain gates the type, while an
 // explicit construction that proves the fact establishes an ordinary value.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Player
 where
     health >= 1,

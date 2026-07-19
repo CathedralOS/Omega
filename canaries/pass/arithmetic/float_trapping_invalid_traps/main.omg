@@ -1,7 +1,7 @@
 // PASS canary (F5), abort-style: Trapping 0.0/0.0 must trap as an invalid
 // float operation rather than silently carrying NaN.
 // exits: 7 = SAILED PAST the trap.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main { console: Console; z: f32 in Trapping; r: f32 in Trapping; }
 machine Main::main(&mut self) {
     self.r = self.z / self.z;

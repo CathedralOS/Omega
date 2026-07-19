@@ -1,6 +1,6 @@
 // N1 wire face: wire schemas serialize runtime bytes; a proof-only
 // mention has no encoding.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Nat { case Zero; case Succ(prev: Nat); }
 data Msg {
     0: n: Nat;

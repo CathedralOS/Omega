@@ -13,9 +13,7 @@ domain [u8; 4]::Utf8 when valid_utf8(self) {
 domain [u8; 16]::Utf8 when valid_utf8(self) {
 }
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

@@ -8,9 +8,7 @@
 // missed 2 != 4) exits 71. The compound guard proves both indices in [0, 5) so
 // the inner reads are in bounds; `Wrapping` on the pointers frees the +1/-1 from
 // an overflow obligation (the guard bounds them at runtime).
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 data Main {
     console: Console;
     arr: [i32; 5];

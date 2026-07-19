@@ -6,9 +6,7 @@
 // The 8th and final "value into a typed slot" position; now every store position
 // enforces the shared cross-class guard.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

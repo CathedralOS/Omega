@@ -9,9 +9,7 @@
 // each is guarded, so a dropped index (element 1 reading element 0) or a wrong
 // offset exits non-70.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Cell {
     value: i32;

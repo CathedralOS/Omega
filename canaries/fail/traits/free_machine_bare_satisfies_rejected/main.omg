@@ -3,7 +3,7 @@
 // requirement carries that name, the error must say so and spell the
 // explicit-path fix -- never fall through to whole-trait candidate lookup
 // (a free machine's candidate set is only itself).
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Peano { case Zero; case Succ(pred: Peano); }
 trait RingOps {
     machine add(a: Self, b: Self) -> Self;

@@ -7,9 +7,7 @@
 // both compares are right. Also the regression net for the boolean-folding
 // factor/distribute mutual recursion this shape first exposed.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data RoomEvent {
     consumed: bool;

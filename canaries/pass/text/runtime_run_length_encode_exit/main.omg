@@ -6,9 +6,7 @@
 // field (the resume idiom). The carrier index is guarded against `.len` directly, and the
 // count digit is computed into a field before the carrier write (a computed value can't be
 // the inline write source). Six output bytes checked -> exit 70.
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 domain [u8]::Utf8 when valid_utf8(self) {}
 domain [u8; 16]::Utf8 when valid_utf8(self) {}

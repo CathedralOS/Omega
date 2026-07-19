@@ -5,9 +5,7 @@
 // A later copy into `v` must forget that constant, or `self.v + 1` keeps folding
 // the stale literal instead of the copied value.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

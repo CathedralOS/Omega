@@ -4,7 +4,7 @@
 // (the arm-bound `prev`); the unchanged `n` proves nothing and the
 // refusal names the binding idiom.
 use omega::language::core::nat;
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main { console: Console; }
 machine Main::main(&mut self) { self.console.exit_process(70); }
 machine spin(n: Nat) -> Nat

@@ -8,11 +8,7 @@
 // the initializer is a mutating call. The guard-only sibling
 // (runtime_assignment_call_post_mutation_value_exit) keeps its slot either way
 // and stays green.
-boundary trait Console {
-    machine exit_process(code: i32)
-    effects
-        process_exit;
-}
+use omega::language::std::console;
 
 data Rng {
     seed: u64 in Wrapping;

@@ -4,7 +4,7 @@
 // stays refused is a COLLISION; this pins the machine-name leg: a free
 // const spelling a machine's callable name would make bare calls
 // ambiguous with the substituted literal.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 const helper: u32 = 7;
 data Main { console: Console; }
 machine helper() -> u32 {

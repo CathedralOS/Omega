@@ -10,9 +10,7 @@
 // A backend that emitted `sar` for the unsigned case would compute 0xFFFFFFFF
 // (4294967295) and take the `bad` arm. exit 70 = both correct; 71 = a misfire.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

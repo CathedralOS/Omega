@@ -7,7 +7,7 @@
 // since 2026-07-11 -- pass/calls/runtime_value_call_terminal_exit -- but
 // host calls stay manual: the receiver marks the boundary effect.)
 use omega::language::std::filesystem_host;
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Probe { host: FilesystemHost; fd: i32; }
 machine Probe::shutdown(&mut self, fd: i32) -> i32 {
     self.fd = fd;

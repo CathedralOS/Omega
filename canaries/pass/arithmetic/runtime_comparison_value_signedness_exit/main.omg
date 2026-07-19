@@ -4,9 +4,7 @@
 // value must compare as large (`3_000_000_000 > 5` is true). The compare runs at
 // the operand width with the matching signed/unsigned setcc.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

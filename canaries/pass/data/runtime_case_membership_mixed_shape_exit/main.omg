@@ -8,9 +8,7 @@
 // untouched, membership must still hit (rung 3, exit 73). Exits 70 when all
 // three are right.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Command {
     consumed: bool;

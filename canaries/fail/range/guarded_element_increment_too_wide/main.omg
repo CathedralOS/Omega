@@ -1,8 +1,6 @@
 // The guarded element increment's soundness twin: a `< 17` guard admits 16,
 // and 16 + 1 = 17 exceeds the element range [0..=16] -- must reject.
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 data Main {
     console: Console;
     tallies: [i32 [0..=16]; 4];

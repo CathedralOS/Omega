@@ -5,9 +5,7 @@
 // targets against the machine's top-level data fields; nested / local / versioned
 // targets are left to the writable-roots and version-access diagnostics.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

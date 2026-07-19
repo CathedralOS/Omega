@@ -4,9 +4,7 @@
 // and (b) discharges the prover's subslice bound obligations; the true arm
 // passes `self.arr[lo..hi]` as a slice ARGUMENT (frame-slot START + END feed
 // the seeded-then-shrunk descriptor). consume sees len 3 -> exit 3.
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

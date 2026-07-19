@@ -2,7 +2,7 @@
 // natural-coefficient polynomial matches. This drops the b*d term, so the
 // judge must remain fenced rather than treating distributivity as a wildcard.
 use omega::language::core::nat;
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main { console: Console; }
 machine Main::main(&mut self) { self.console.exit_process(70); }
 machine missing_term(a: Nat, b: Nat, c: Nat, d: Nat)

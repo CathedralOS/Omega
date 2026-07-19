@@ -3,9 +3,7 @@
 // the target's unsigned type, not the signed `idiv`/`sar` which would treat
 // 3_000_000_000 as negative and produce garbage.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

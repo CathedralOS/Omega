@@ -6,9 +6,7 @@
 // shape gate not having already erred (so a literal is not double-reported). This
 // closes the last sub-case of the transition-value-return position.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

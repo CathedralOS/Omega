@@ -10,9 +10,7 @@
 // This is the dungeon generation shape: `level.room_count = max(level.room_count,
 // self.cell_index(cell) + 1)`.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data CellId { case R00; case R01; case R02; case R03; }
 

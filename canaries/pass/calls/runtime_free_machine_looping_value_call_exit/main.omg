@@ -1,9 +1,7 @@
 // Free LOOPING machine in value position: `count` walks a slice through a
 // self-transition; the looped accumulator must be delivered back to `n`.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

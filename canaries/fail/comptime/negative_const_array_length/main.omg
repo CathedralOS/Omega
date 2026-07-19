@@ -2,9 +2,7 @@
 // be a NON-NEGATIVE integer. `shrunk_size` is perfectly effect-free but
 // evaluates to -5 (at its declared i32 width); the const site must reject
 // naming the machine and the offending value.
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

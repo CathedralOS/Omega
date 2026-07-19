@@ -1,9 +1,7 @@
 // The guarded element increment's STABILITY twin: a write into the SAME
 // collection (`tallies[2] = 5`) between the guard and the increment may alias
 // the guarded element (index-blind), so the fact drops and the store rejects.
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 data Main {
     console: Console;
     tallies: [i32 [0..=16]; 4];

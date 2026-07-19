@@ -4,9 +4,7 @@
 // comparison is done at the operand width with the matching signed/unsigned
 // conditional move.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

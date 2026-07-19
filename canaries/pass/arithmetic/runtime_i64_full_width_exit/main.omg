@@ -3,9 +3,7 @@
 // shares its low 32 bits with 1, so a comparison against 1 must be false -- a
 // 32-bit-truncated store/compare would wrongly match.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

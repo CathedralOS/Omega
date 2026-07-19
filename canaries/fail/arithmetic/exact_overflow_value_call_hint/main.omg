@@ -5,9 +5,7 @@
 // the operands' range" (which is unactionable at the call site). Locks the
 // value-call-aware overflow hint.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

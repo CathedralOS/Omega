@@ -1,6 +1,6 @@
 // RUN CANARY (exit 70) + interpreter differential. Trapping shifts accept a
 // runtime count and check it dynamically; an in-range count proceeds normally.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main { console: Console; count: u32; }
 machine Main::main(&mut self) {
     self.count = 3;

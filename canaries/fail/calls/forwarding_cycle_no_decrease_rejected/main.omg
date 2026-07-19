@@ -2,7 +2,7 @@
 // (`step(n, acc)` and `self.sum(n, acc)`), so the non-strict subgraph
 // IS the cycle -- no traversal decreases anything and the machine would
 // spin forever. The ranking witness stays unproven and refuses.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main { console: Console; }
 machine Main::sum(&mut self, n: u64 [0..=100], acc: u64 [0..=5050])
 terminates by n;

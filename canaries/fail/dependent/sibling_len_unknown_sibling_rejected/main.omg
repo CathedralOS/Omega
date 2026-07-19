@@ -1,7 +1,7 @@
 // FAIL CANARY (declaration gate): a sibling-length maximum naming no
 // slice/fixed-array parameter of the state refuses AT THE DECLARATION --
 // nothing could discharge or mint from a phantom sibling.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main { console: Console; buf: [u8; 8]; j: u64; out: i32; }
 machine Main::main(&mut self) {
     self.buf[5] = 7;

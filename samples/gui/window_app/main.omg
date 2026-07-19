@@ -13,10 +13,7 @@
 // GUI-subsystem app: the console surface is exit + a status line for terminal
 // runs (invisible from Finder). No stdin — a windowed app must never block on
 // a console.
-boundary trait Console {
-    machine write_line(text: String);
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 boundary trait Clock { machine sleep(milliseconds: u32); }
 boundary trait Input { machine key_state(virtual_key: u32) -> u64; }
 boundary trait Gui {

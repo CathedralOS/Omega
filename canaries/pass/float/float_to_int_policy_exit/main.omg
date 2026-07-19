@@ -1,6 +1,6 @@
 // F4: Saturating float-to-integer casts clamp at the TARGET width on both
 // native ISAs and in the interpreter; NaN maps to zero.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main {
     console: Console;
     huge: f64;

@@ -4,7 +4,7 @@
 // 2^-24, so exact `1 + x` rounds UP to 1 + 2^-23. This deliberately differs
 // from an explicitly f32-landed/runtime tree, whose operations round per-op.
 // Guards the validation argument landing (target params zipped with args).
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main { console: Console; expected: f32; }
 machine Main::main(&mut self) {
     self.expected = 1.00000011920928955078125;

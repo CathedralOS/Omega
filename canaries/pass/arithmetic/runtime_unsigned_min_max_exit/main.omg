@@ -5,7 +5,7 @@
 // pick five and min would pick big. Native lowers to MaxUnsigned/MinUnsigned for
 // the u64 fields; the interpreter takes the same u64 witness (eval_min_max).
 // Expected exit: 88
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main {
     console: Console;
     big: u64;

@@ -4,9 +4,7 @@
 // first; this pins the guard-position read path). The ZII container carries
 // era 0, so the `== 0` arm must win and exit 70.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Counter {
     version v1 {

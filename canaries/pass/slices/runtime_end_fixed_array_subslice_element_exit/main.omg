@@ -2,9 +2,7 @@
 // seeded-then-shrunk descriptor's POINTER must be the array's element-1
 // address, not just its length. `sub = self.arr[1..self.hi]` (elements
 // 20,30,40), then a guarded `sub[0]` read through the descriptor -> 20.
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

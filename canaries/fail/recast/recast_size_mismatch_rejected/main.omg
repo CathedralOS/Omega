@@ -2,7 +2,7 @@
 // and target shapes must agree on total size. `&i64 as &f32` (8 vs 4
 // bytes) refuses at the rung-A scalar judgment (omega-validation
 // recasts.rs).
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main { console: Console; x: i64; }
 machine Main::main(&mut self) {
     self.x = 3;

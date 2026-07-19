@@ -9,9 +9,7 @@ domain [u8]::Utf8 when valid_utf8(self) {
 // gets it from `relay`'s param assumption -- the case this canary pins. The
 // dispatch is on `go` (a plain bool), so `text` is never value-narrowed.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

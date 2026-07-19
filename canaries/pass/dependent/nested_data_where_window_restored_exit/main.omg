@@ -1,7 +1,7 @@
 // RUN CANARY (exit 70). Windows are tracked at the dependent-record root, not
 // only on a machine's direct fields: self.map's two writes restore Map before
 // the boundary call consumes Main.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Map
 where
     start <= end,

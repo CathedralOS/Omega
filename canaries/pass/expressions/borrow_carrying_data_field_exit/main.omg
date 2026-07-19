@@ -7,7 +7,7 @@
 //
 // self.cell.value = 70 -> m.body -> read_cell derefs c.value -> 70 -> exit 70.
 
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 
 data Cell { value: i32; }
 data Msg { body: &Cell; }

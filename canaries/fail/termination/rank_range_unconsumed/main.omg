@@ -4,7 +4,7 @@
 // on a plain descending view would need an invariant proof that does not
 // exist yet, so it is rejected with a directed message -- never silently
 // recorded as an unproven fact.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main { console: Console; }
 machine Main::countdown(&mut self, n: u64) -> u64
 terminates by n in 0..=100;

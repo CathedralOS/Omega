@@ -8,7 +8,7 @@
 // sibling arm into the caller's failure trailer and both false legs
 // answered true. Distinct exit codes name the first leg that misses.
 use omega::language::std::math;
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main { console: Console; }
 machine Main::main(&mut self) {
     transition { _ -> finite_leg(2.5, 0.0) }

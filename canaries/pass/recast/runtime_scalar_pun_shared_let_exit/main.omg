@@ -13,7 +13,7 @@
 // compiler-side blocker family continues at rungs B/C (interior +
 // runtime-offset recasts).
 // exits: 71 = float pun read wrong; 72 = sign pun read wrong.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main {
     console: Console;
     bits: i32;

@@ -2,7 +2,7 @@
 // rejected. The declared range a later narrowing trusts must hold at EVERY
 // write, not just construction/initialization -- assignment was the one write
 // position left unenforced (#63). `x` is [0..=100]; 9999 is outside it.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main { console: Console; x: i32 [0..=100]; }
 machine Main::main(&mut self) {
     self.x = 9999;

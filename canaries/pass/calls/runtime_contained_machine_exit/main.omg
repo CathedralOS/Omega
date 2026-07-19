@@ -11,9 +11,7 @@
 // several, use distinct types or direct field ops until the receiver field is threaded.
 // Exits 70.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Counter {
     value: i32 in Wrapping;

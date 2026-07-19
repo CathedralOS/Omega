@@ -7,7 +7,7 @@
 // runtime-indexed complement of the `self.i32 = true` field store and the
 // `self.a = [true, ..]` array-literal element checks.
 
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 
 data Main { console: Console; xs: [i32; 4]; i: i32 [0..=3]; }
 

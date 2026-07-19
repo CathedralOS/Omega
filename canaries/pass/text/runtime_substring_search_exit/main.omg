@@ -10,9 +10,7 @@
 // k < hlen`) loses the carrier-length connection and the bound cannot be proven. The
 // flat index `i + j` is formed into a field `k` (a computed index is refused in a
 // subscript), then bounds-guarded.
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 domain [u8]::Utf8 when valid_utf8(self) {}
 domain [u8; 16]::Utf8 when valid_utf8(self) {}

@@ -4,9 +4,7 @@
 // is built in a loop (base = 320) so the shifts run at runtime (not const-folded),
 // exercising the codegen. The differential oracle also checks native==interpreter.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

@@ -8,7 +8,7 @@
 // `demo_target2` resolve to no real target, so both implementations are inert
 // on every host (the provides wrong-target discipline, which is also what
 // makes this canary host-portable).
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 
 data Helper { seed: i32; }
 

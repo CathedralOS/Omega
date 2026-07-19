@@ -12,9 +12,7 @@
 // Interpreter: exits 70 (slot == 1 in try1 is correctly true).
 // Native x64:  exits 70 after the LocalStorage fold-block fix.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data S [copy, zero_init] {
     arr: [i32; 4];

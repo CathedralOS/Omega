@@ -3,9 +3,7 @@
 // silently read 0 (interp right). Now lowered via
 // CopyRuntimeFrameBaseIndexedToRuntimeFrame -- the LOAD counterpart of the
 // frame-base-indexed address computation. arr=[10,20,30], k=1 -> 20 -> exit 1.
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 data Main {
     console: Console;
     arr: [i32; 3];

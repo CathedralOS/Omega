@@ -4,9 +4,7 @@
 // silently NO-OP); the copy now lowers through
 // CopyRuntimeMachineIndexedToRuntimeMachineIndexed. b=[10,20,40] copies into
 // a=[0,0,0]; the sum of a afterwards is 70 (a no-op loop exits 0).
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

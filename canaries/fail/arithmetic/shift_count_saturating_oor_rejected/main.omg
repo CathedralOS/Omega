@@ -6,7 +6,7 @@
 // value-overflow clamp itself stays pinned by
 // pass/arithmetic/runtime_shl_saturating_exit and
 // runtime_shl_saturating_value_overflow_exit.)
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main { console: Console; }
 machine Main::main(&mut self) {
     let a: u32 in Saturating = (3 as u32 in Saturating);

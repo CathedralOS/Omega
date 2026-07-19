@@ -3,9 +3,7 @@
 // within the runtime-selected row. (The runtime-COLUMN case `grid[r][c]` is the rejected side; see
 // fail/collections/nested_runtime_indexed_write_rejected.) Fill both columns of both rows by runtime
 // row index, read back: sum 10+15+20+25 = 70.
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

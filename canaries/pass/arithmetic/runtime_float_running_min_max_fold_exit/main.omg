@@ -8,9 +8,7 @@
 //
 // Over [5, 2, 8, 3]: lo folds to 2, hi folds to 8, lo + hi = 10 -> exit 70.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

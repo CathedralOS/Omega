@@ -7,7 +7,7 @@
 // ENOENT first, so the arm-target-fetched errno must be 2, not ZII 0.
 // exit 70 = errno 2 via both depths; 71 = still-open file; 72/73 = wrong errno.
 use omega::language::std::filesystem_host;
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main { console: Console; host: FilesystemHost; fd: i32; a: i32; b: i32; }
 machine Main::e1(&mut self) -> i32 {
     let rc: i32 = self.host.errno();

@@ -1,9 +1,7 @@
 // The runtime-index guarded increment's INDEX-stability twin: `self.k` is
 // reassigned between the guard and the increment, so the guard's fact about
 // `tallies[k-at-entry]` must not apply to `tallies[k-now]` -- reject.
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 data Main {
     console: Console;
     tallies: [i32 [0..=16]; 4];

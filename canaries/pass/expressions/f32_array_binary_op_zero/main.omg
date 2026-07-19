@@ -10,9 +10,7 @@
 // `binary_value_operands_are_float` returned `false` and emitted integer
 // add instead of addss.  Fixed together with the f64 variant.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

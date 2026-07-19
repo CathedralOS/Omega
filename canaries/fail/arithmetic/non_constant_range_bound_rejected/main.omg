@@ -2,9 +2,7 @@
 // read): it cannot be enforced, so it used to silently behave unbounded --
 // a constraint the declaration claims but never checks. Rejected at the
 // declaration instead.
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

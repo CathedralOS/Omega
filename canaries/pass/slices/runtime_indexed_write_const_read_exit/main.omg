@@ -11,9 +11,7 @@
 // Here we write two runtime indices and read three const indices (two touched, one
 // untouched). All correct -> exit 70.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

@@ -5,7 +5,7 @@
 // -- here an i64 target, whose 8-byte slot would silently reinterpret the bit
 // pattern as negative -- must still reject at the literal-width gate
 // (omega-validation/src/literals.rs), naming the accepted alternative.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 
 data Main {
     console: Console;

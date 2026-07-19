@@ -3,7 +3,7 @@
 // ensures, with the law's op slots resolved through the carrier's own
 // conformances -- the op machine is named `plus`, NOT `add`, so the slot
 // rewrite is really exercised.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 
 data Peano {
     case Zero;

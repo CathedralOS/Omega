@@ -11,9 +11,7 @@ domain [u8]::Utf8 when valid_utf8(self) {
 // initializer write was silently dropped (ZII false -> native exit 71 while
 // the interpreter exited 70).
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Tag {
     name: &[u8] in Utf8;

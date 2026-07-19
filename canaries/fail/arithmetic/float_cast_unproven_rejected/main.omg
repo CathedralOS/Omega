@@ -3,7 +3,7 @@
 // field) is not provable today, and the out-of-range case was a pinned
 // THREE-WAY native divergence (x86 integer-indefinite vs aarch64/interp
 // saturation) -- rejecting is the ruling, policies are the escape.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main { console: Console; f: f64; r: i32; }
 machine Main::main(&mut self) {
     self.f = 100000000000000000000.0;

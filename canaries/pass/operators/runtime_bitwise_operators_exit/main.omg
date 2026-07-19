@@ -4,9 +4,7 @@
 // Precedence sits between comparison and the shifts (Rust-style), and infix `&`
 // is disambiguated from a prefix reference by position.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

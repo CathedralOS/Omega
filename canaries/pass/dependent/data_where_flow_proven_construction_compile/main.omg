@@ -1,6 +1,6 @@
 // COMPILE CANARY. Construction discharges against the ordered value
 // environment, not literals alone: local facts prove both a gate and coupling.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Span
 where
     start <= end,

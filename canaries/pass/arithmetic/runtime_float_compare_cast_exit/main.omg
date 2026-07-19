@@ -5,9 +5,7 @@
 // exactly representable so `==` checks are valid. The wrong branch exits 71; the
 // differential oracle also checks native==interpreter.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Vec2 {
     x: f64;

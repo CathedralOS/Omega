@@ -3,9 +3,7 @@
 // the bound does not hold on EVERY incoming edge, the meet must NOT carry it, so the
 // runtime-indexed read `arr[idx]` at the join must be REJECTED.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

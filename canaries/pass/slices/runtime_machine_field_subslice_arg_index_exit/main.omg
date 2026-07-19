@@ -7,9 +7,7 @@
 // interpreter was correct). Now the base case resolves a bare fixed array.
 // Exits 70 when the passed view has len 3 and data[i] reads the right bytes.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

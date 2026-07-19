@@ -1,6 +1,6 @@
 // Proves aarch64 SATURATING signed divide/modulo: normal cases + the TYPE_MIN/-1
 // corner (i32::MIN / -1 saturates to i32::MAX; i32::MIN % -1 == 0).
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main {
     console: Console;
     a: i32 in Saturating;

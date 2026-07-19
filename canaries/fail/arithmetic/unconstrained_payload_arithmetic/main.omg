@@ -1,7 +1,7 @@
 // FAIL canary: arithmetic on an UNCONSTRAINED case-payload binding carries the
 // decision-17 exact-arith obligation (the payload-binding hole is closed). With
 // no range refinement on `index`, `index + 1` is not provably in range.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Slot { case Found(index: i32); case Full; }
 data Main { console: Console; }
 machine Main::run(&mut self, s: Slot) {

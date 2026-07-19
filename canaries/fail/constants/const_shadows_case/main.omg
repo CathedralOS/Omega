@@ -1,7 +1,7 @@
 // FAIL canary (const-v0): `Type::NAME` must stay unambiguous against the case
 // constructors of the scope type -- const substitution would otherwise
 // silently shadow the case reference.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 
 data Verdict {
     case Unknown;

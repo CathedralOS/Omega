@@ -358,8 +358,9 @@ rows. Its friendly `write` and `write_line` members are ordinary checked Omega
 adapters over `write_byte`: they borrow the owned `String` through
 `as_view().bytes()` and walk the slice with a measured state machine. The raw
 byte operation remains the provider leaf. Legacy composite provider rows remain
-temporarily for inline Console declarations in the existing corpus; `TASKS.md`
-tracks that migration and their deletion.
+temporarily for deliberately nonstandard carrier and semantic-test declarations;
+the ordinary corpus now imports the standard package. `TASKS.md` tracks the
+remaining surface migrations and compatibility-row deletion.
 
 Domain requirements stay normal proof language. A filesystem boundary should
 not invent special "initialized" words when a domain is what it means:

@@ -2,9 +2,7 @@
 // transition exactly like the retired keyword did: the subject's tag selects
 // the matching arm, and the first case is the zero case.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Direction {
     case None;

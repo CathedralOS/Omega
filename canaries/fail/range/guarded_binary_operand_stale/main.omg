@@ -1,9 +1,7 @@
 // The operand-refold's STABILITY twin: a write to `dir` inside the guarded
 // state before the sum invalidates the edge fact -- the stability gate must
 // drop the guard and the ranged store must reject.
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

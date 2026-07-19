@@ -11,7 +11,7 @@
 // position; wild store under a write; the machine-target field store only
 // survived by an offset-0 accident). The encoder now uses x15, mirroring the
 // frame-indexed operand precedent. exit 73 = z false/dropped or tag wrong.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Msg { case Ping(x: i32); case Pong(y: i32, z: bool); }
 data Main { console: Console; name: String; }
 machine Main::mk(&mut self) -> Msg {

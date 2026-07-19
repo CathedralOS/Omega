@@ -5,9 +5,7 @@
 // optimal for the maximum set of mutually non-overlapping activities. Here six activities
 // (already sorted by end) yield 3: (0,2), (3,5), (5,8). A running `last_end` is the only
 // state; each start is read into a field before the comparison. Exits 70.
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

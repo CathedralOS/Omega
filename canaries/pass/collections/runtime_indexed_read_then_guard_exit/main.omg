@@ -6,9 +6,7 @@
 // nums[2] = 9, so after the read v = 9 and 9 > 5 is true -> exit 70. A dropped index would read
 // nums[0] = 1 -> 1 > 5 false -> 71, so this discriminates the correct runtime-indexed read. The
 // u32 index gives the non-negative lower bound; the `i < 3` guard gives the upper bound.
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

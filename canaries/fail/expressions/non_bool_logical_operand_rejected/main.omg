@@ -1,6 +1,6 @@
 // Logical `&&`/`||` require bool operands. `5 && 3` used to compile with C-style
 // int truthiness (`5 && 3` -> 1); Omega rejects int-in-bool (same as `!int`). Rejected
 // now. `bool && bool` and `(a == 1) && (b < 5)` stay valid.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main { console: Console; }
 machine Main::main(&mut self) { let a: i32 = 5; let b: i32 = 3; let r: bool = a && b; let n: i32 = r as i32; self.console.exit_process(n); }

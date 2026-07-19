@@ -17,10 +17,7 @@
 // main issues `SetLevel { level: 65 }`, so the controller settles at 65.
 // Expected exit: 65.
 
-boundary trait Console {
-    machine write_line(text: String);
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Command {
     case SetLevel(level: i32 [0..=100]);

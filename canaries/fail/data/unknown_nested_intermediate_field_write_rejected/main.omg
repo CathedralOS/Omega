@@ -1,9 +1,7 @@
 // The INTERMEDIATE-missing face of the unknown nested-field WRITE:
 // `self.o.bogus.value = 7` where Outer has no field `bogus`. Reported at
 // validation with the container attribution, like the read side.
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Inner {
     value: i32;

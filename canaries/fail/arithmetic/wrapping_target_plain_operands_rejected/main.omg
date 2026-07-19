@@ -3,9 +3,7 @@
 // Exact obligation, rejected with the operand-driven HINT (this canary locks
 // the hint). The fix the hint teaches: domain an operand/intermediate
 // (`let t: i32 in Wrapping = ...`) or re-tag inline (`x as i32 in Wrapping`).
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 data Main {
     console: Console;
     vals: [i32; 3];

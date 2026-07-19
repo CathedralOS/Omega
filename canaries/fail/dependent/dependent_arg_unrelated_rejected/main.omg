@@ -2,7 +2,7 @@
 // parameter with NO relating guard and no floor discharge refuses -- the
 // obligation `arg <= self.count` is the caller's, and nothing here proves
 // it (`j: u32` is unbounded above; count's declared minimum is 0).
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main { console: Console; items: [u8; 12]; count: u32 [0..=11]; j: u32; out: i32; }
 machine Main::main(&mut self) {
     self.count = 8;

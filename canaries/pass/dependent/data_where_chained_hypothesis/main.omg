@@ -2,7 +2,7 @@
 // mid <= capacity[0..=100] CHAIN through the unranged middle field, so a
 // read of count fits u32 [0..=100] (bound_source_interval falls back to
 // the co-field's own where-fact interval, depth-capped). RUNS exit 70.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Tally
 where
     count <= mid,

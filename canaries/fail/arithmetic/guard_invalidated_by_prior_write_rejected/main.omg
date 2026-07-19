@@ -4,7 +4,7 @@
 // increment would "prove" and store 101 into the [0..=100] field at runtime.
 // The stability gate must drop the guard and reject. (The keystone's
 // enforcement half -- a narrowing without its invalidation is the #40 trap.)
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main { console: Console; count: i32 [0..=100]; }
 machine Main::main(&mut self) {
     transition { _ -> head() }

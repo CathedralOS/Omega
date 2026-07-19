@@ -9,9 +9,7 @@
 // write reads a stale 0 -> exit 71). Exits 70 only when the callee saw the
 // real field values.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Pair {
     a: i32 in Wrapping;

@@ -9,9 +9,7 @@
 // a1: read r = arr[k + 1]        a2: operand r = acc + arr[k + 1]
 // a3: write arr[k + 1] = v       a4: reversed literal arr[1 + k]
 // a5: backward arr[k - 1] under a dominating guard
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 data Main {
     console: Console;
     arr: [i32 in Wrapping; 5];

@@ -5,9 +5,7 @@
 // locals (`Stats { sum: s, diff: d }`); the caller binds the returned struct with `let` and
 // reads its fields. The two fields are independent computations (a+b and a-b) so a swapped
 // or dropped field is caught: stats(7, 3) yields sum 10 and diff 4 -> exit 70.
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Stats {
     sum: i32 in Wrapping;

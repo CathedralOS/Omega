@@ -2,9 +2,7 @@
 // evaluated is a compile error AT the array-length position naming the
 // machine and the failure. `missing_size` does not exist anywhere in the
 // program.
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

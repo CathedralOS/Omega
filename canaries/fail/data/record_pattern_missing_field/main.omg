@@ -2,7 +2,7 @@
 // pattern spells only x/y -- adding a field to a data definition must
 // break every destructuring site until each decides bind-or-waive. The
 // refusal names the missing field.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Point {
     x: i32 [0..=100];
     y: i32 [0..=100];

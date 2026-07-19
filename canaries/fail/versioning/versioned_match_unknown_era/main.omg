@@ -2,9 +2,7 @@
 // DECLARED era shape. `Counter` declares only `v1`, so a `Counter::v9(x)`
 // arm is rejected with the declared-era list.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Counter {
     version v1 {

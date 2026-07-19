@@ -15,11 +15,7 @@
 //   program = [3, 4, -1, 5, -2]   // 3 4 + 5 *  ==  (3 + 4) * 5
 // The program exits with the value it computed. Expected exit: 35.
 
-boundary trait Console {
-    machine write_line(text: String);
-    machine read_line(out_line: &mut String);
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

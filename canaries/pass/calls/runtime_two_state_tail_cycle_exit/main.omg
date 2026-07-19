@@ -8,7 +8,7 @@
 // subgraph be acyclic -- every cycle traversal then crosses a strict
 // decrease. The all-forwarding twin refuses
 // (fail/calls/forwarding_cycle_no_decrease_rejected).
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main { console: Console; }
 machine Main::sum(&mut self, n: u64 [0..=100], acc: u64 [0..=5050])
 terminates by n;

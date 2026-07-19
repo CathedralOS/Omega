@@ -12,9 +12,7 @@
 // Interpreter: exits 70.
 // Native x64:  exits 70 after the float-literal materialization fix.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

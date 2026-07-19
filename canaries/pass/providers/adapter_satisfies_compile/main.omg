@@ -3,7 +3,7 @@
 // CheckedAdapter row (coverage counts it; its transitive effects refine
 // the requirement's declared ceiling: an effect-free body under an
 // effect-free requirement here).
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 boundary trait Echo {
     machine echo(x: i32) -> i32;
 }

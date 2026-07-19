@@ -4,7 +4,7 @@
 // the "no silent-anything" hole: overflow-capable arithmetic must either prove
 // its bounds or declare a domain. `self.p.x` is an unbounded i32, so `* 10`
 // may overflow and must be rejected.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Point { x: i32; y: i32; }
 data Main { console: Console; p: Point; out: i32; }
 machine Main::main(&mut self) {

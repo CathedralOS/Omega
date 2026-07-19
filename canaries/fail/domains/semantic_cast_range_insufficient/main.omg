@@ -1,7 +1,7 @@
 // The range-mint's negative twin: [-10..=4096] does NOT entail
 // self >= 0 (the value MAY satisfy it at runtime -- undischarged, not
 // false), so the staged fence stays.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main { console: Console; }
 domain i64::Km {
     self >= 0;

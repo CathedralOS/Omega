@@ -4,9 +4,7 @@
 // confirms the types are recognized, laid out (same width as the wrapped
 // primitive), and zero-initialized. Guard-ladder exit 70.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

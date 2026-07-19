@@ -11,9 +11,7 @@
 // value-operand gap for a computed value into an indexed target. The field hop is
 // the sound workaround.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 domain [u8]::Utf8 when valid_utf8(self) {}
 domain [u8; 5]::Utf8 when valid_utf8(self) {}

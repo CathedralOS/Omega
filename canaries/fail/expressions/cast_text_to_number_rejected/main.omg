@@ -1,6 +1,6 @@
 // Casting a `String` carrier to a numeric type (`s as i32`) silently reinterpreted
 // the carrier bytes as a number (ran to garbage, exit 0). `as` converts between
 // scalar types only; text is a `{len, bytes}` carrier, not a number. Rejected now.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main { console: Console; s: String; }
 machine Main::main(&mut self) { self.s = "abc"; let n: i32 = self.s as i32; self.console.exit_process(n); }

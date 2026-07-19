@@ -17,9 +17,7 @@
 // come from runtime machine state so nothing folds statically. Exits 70 only
 // when both callees saw the real field values.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Job {
     id: i32 in Wrapping;

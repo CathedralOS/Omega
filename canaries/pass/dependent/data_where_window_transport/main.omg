@@ -2,7 +2,7 @@
 // a window in the entry state; the transition carries it (a non-terminal
 // exit is not a consumption point any more) and the successor's write
 // restores the facts (1 <= 2) BEFORE the exit call. RUNS exit 70.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data MemoryMap
 where
     count <= len,

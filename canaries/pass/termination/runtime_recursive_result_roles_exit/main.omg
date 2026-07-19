@@ -6,7 +6,7 @@
 // live divergence -- see pending/calls/recursive_result_bind_first_arg.) Each countdown re-enters its own entry
 // (transition-arg self-recursion, measure-proved) and must deliver its
 // terminal 5 through the role's slot. Exit 70; distinct exits per role.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main { console: Console; }
 data Cnt { n: u64; }
 measure Cnt::Order(n: u64) -> u64 { n }

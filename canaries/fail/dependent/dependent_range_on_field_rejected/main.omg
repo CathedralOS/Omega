@@ -3,7 +3,7 @@
 // store-enforced at every write and ZII-gated, which needs the
 // relational store proof (a later rung); R1a serves STATE PARAMETERS
 // (entry-proved by the caller, immutable in the state).
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main { console: Console; count: u32 [0..=11]; cursor: u32 [0..=self.count]; }
 machine Main::main(&mut self) {
     self.console.exit_process(70);

@@ -5,9 +5,7 @@
 // LEAF arms (identical guards from different statements used to compare
 // `false` at `(Integer(0), Integer(0))`), and validation joins ALL incoming
 // edge envs per-place (interval union). sp=7 -> exit 7.
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

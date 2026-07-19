@@ -8,7 +8,7 @@
 // retracting the tail-call transform). Machine call cycles are banned;
 // repetition is a state transition. Cross-machine statement calls
 // (`self.other_machine(..)`) remain legal.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main { console: Console; acc: u32 in Wrapping; }
 machine Main::drip(&mut self, n: u32) {
     self.acc = self.acc + 1;

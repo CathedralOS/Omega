@@ -1,9 +1,7 @@
 // LAYOUTS L5: the grammar parameter of OmegaLayout is not spellable yet --
 // `Derived` is the default and the only implemented grammar; an explicit
 // `Packed` names the honest gap.
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data CounterMessage {
     0: counter: u32;

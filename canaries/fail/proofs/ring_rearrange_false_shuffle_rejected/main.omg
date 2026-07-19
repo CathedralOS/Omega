@@ -4,7 +4,7 @@
 // equality only; it never certifies inequality away) and the fence fires.
 use omega::language::core::nat;
 
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 
 machine bogus_shuffle(a: Nat, b: Nat, c: Nat) -> Nat
 terminates by a;

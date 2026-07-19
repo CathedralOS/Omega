@@ -3,9 +3,7 @@
 // we have primitives" -- the pointer-width-signed spelling dies with its
 // unsigned twin; this canary's original purpose was pinning that isize
 // reached layout at all).
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

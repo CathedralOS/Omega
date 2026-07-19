@@ -5,7 +5,7 @@
 // for these bytes and the `in NoNul` requirement is NOT discharged. The grant is
 // per-literal (it evaluates the bytes), not an unconditional name-based pass.
 
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 
 domain [u8]::NoNul when no_nul(self) {
 }

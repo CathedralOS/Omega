@@ -4,7 +4,7 @@
 // `target: [0..=100]`, so the argument must stay unproven. If the narrowing ever
 // admitted the range without folding it (or clamped it to the target), this
 // would falsely compile. MUST reject with the expected fragment.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Cmd { case Dim(amount: i32 [0..=10]); case Off; }
 data Main { console: Console; c: Cmd; }
 machine Main::main(&mut self) {

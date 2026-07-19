@@ -9,9 +9,7 @@
 // (f32 with a float-LITERAL operand, e.g. `x + 2.5`, is a separate remaining gap:
 // the literal still resolves to f64 bits. Field/var arithmetic is covered here.)
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

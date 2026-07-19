@@ -3,9 +3,7 @@
 // `-17 / 5 == -3` and `-17 % 5 == -2` rather than the garbage an unsigned `div`
 // would produce on a sign-extended value.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

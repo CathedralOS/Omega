@@ -7,7 +7,7 @@
 // from canaries/pending after sitting parked as a three-way divergence.
 // exits: 71 = neither clamped nor wrapped; 72 = wrapped (the old native
 // plain-shl behavior).
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main { console: Console; a: u8 in Saturating; b: u8 [0..=7]; r: u8 in Saturating; }
 machine Main::main(&mut self) {
     self.a = 17;

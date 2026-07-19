@@ -7,7 +7,7 @@
 // STATIC class's DefWindowProc) are what make a long-lived window draggable and closable -- the
 // standalone-app gap. The interpreter's virtual window system mints live handle tokens and
 // mirrors the same liveness answers. Exit 70. Differential.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 boundary trait Gui {
     machine window_create(class_name: [u8; 7], title: [u8; 6], style: u32, x: i32, y: i32, width: i32, height: i32) -> u64;
     machine msg_peek(message: [u64; 6]) -> u32;

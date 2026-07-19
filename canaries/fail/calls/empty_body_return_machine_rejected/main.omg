@@ -1,7 +1,5 @@
 // V2: value-returning machine with an EMPTY body -- `machine get -> i32 { }`.
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 data Main {
     console: Console;
 }

@@ -2,6 +2,6 @@
 // (`[[i32;2];2] = [[1,2],[3,4,5]]`) used to compile silently -- the length check
 // did not recurse into nested array elements, so the extra element was truncated
 // away. Now the check recurses to every nesting level.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main { console: Console; grid: [[i32; 2]; 2]; }
 machine Main::main(&mut self) { self.grid = [[1, 2], [3, 4, 5]]; self.console.exit_process(0); }

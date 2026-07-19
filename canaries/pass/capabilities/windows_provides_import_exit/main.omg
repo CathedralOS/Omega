@@ -9,7 +9,7 @@
 // LOCALS fail under multi-dispatch selection (the parked
 // pending/host/host_local_operand_dual_dispatch face -- catalog ops too).
 // NATIVE-ONLY: the interpreter has no provider for authored bindings.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 boundary trait Beeper { machine beep(value: i32) -> i32; }
 data Main { console: Console; beeper: Beeper; m: i32; v: i32; }
 windows_x64 provides Beeper {

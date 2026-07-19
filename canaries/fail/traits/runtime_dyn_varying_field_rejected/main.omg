@@ -7,9 +7,7 @@
 // unimplemented. This pins that the shape is REJECTED at compile time so it can
 // never regress into a silent miscompile. (Sound pattern today: guard on the
 // selector and call a concrete receiver per arm, i.e. two call sites.)
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 trait Shape {
     machine code(&mut self) -> i32;
 }

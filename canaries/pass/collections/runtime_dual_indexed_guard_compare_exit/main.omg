@@ -14,9 +14,7 @@
 // its head. The declared range type `[0..=3]` alone does NOT discharge the
 // bound across a state edge -- the index prover wants a flow constant or a
 // dominating guard (the same reason `array_max` guards `i < 6` before indexing).
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 data Main {
     console: Console;
     arr: [i32; 4];

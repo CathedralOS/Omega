@@ -1,6 +1,6 @@
 // PASS canary (F5), abort-style: Trapping float division by zero must trap.
 // exits: 7 = SAILED PAST the trap.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main { console: Console; a: f64 in Trapping; z: f64 in Trapping; r: f64 in Trapping; }
 machine Main::main(&mut self) {
     self.a = 5.0;

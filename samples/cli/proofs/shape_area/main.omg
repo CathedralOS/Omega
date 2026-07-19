@@ -7,11 +7,7 @@
 // on a stored enum field, payload-field extraction, and per-variant computation.
 // Expected exit: 42.
 
-boundary trait Console {
-    machine write_line(text: String);
-    machine read_line(out_line: &mut String);
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 // FULLY EXACT -- no overflow domain: each match arm passes its payload through a
 // guard hop (`radius < 101` etc.) into a compute state with a RANGED parameter, so

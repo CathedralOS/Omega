@@ -10,9 +10,7 @@
 // are runtime read-modify-write, not constant-folded), so a mis-selected arm exits
 // 71 instead of 70.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

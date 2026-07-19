@@ -7,9 +7,7 @@
 // (The nested mix `(a || b) && c` is a documented separate gap; flat logic works.)
 // With a = true, b = false, c = true. Exits 70.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

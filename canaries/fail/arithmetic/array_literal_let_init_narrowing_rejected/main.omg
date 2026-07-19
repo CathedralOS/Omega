@@ -4,9 +4,7 @@
 // assignment one in array_literal_element_narrowing_rejected); the same helper
 // also guards struct-field and call-argument array literals.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

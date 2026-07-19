@@ -3,9 +3,7 @@
 // invalidation fix: every later read of `self.v` must observe the prior write,
 // not the stale entry-value constant fold.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

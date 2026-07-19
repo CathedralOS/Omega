@@ -5,9 +5,7 @@
 // carrier byte READS used as arithmetic operands (the read-side complement of
 // runtime_number_to_decimal_exit's writes). Exits 70.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 domain [u8]::Utf8 when valid_utf8(self) {}
 domain [u8; 5]::Utf8 when valid_utf8(self) {}

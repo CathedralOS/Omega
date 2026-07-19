@@ -1,4 +1,4 @@
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main {
     console: Console;
     zero: f32 in Trapping;

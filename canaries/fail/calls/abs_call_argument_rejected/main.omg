@@ -1,6 +1,4 @@
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 machine pick(x: i32) -> i32 {
     transition {
         x > 0 -> 100

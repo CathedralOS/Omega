@@ -1,6 +1,6 @@
 // FAIL CANARY. The zeroed health field does not satisfy health >= 1, so the
 // attached data cannot be consumed before a write establishes the gate.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main
 where
     health >= 1,

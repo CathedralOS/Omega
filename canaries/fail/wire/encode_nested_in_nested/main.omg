@@ -4,9 +4,7 @@
 // second staging region mid-flight. A doubly-nested schema is rejected at
 // the encode call with a clear diagnostic.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Inner {
     0: value: i32;

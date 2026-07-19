@@ -5,9 +5,7 @@
 // covers it. Reads two runtime indices and self-checks. (Constant indices on a
 // slice already worked.)
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

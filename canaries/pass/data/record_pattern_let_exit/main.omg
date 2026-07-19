@@ -4,7 +4,7 @@
 // Unit-sentinel lets whose types flow through hoist inference. Ranged
 // fields keep the decision-17 exact-arithmetic obligation dischargeable.
 // Run-verified natively: 30 + 40 = 70.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Point {
     x: i32 [0..=100];
     y: i32 [0..=100];

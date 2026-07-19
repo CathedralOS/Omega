@@ -4,10 +4,7 @@
 // heuristic keyed on a literal segment. A write to a place already established
 // as text (here `self.line = "prefix "`) is now recognized as a text concat.
 
-boundary trait Console {
-    machine write_line(text: String);
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

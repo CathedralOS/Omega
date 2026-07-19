@@ -8,7 +8,7 @@
 // SPLICED-LIVE calls: the unique-recovery serve fails for `second`
 // (two same-family calls in the state) and the by-type compare blocks
 // it loudly (offset 4 vs first-match 0).
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Tally { count: i32 in Wrapping; }
 machine Tally::get(&mut self) -> i32 in Wrapping {
     transition true { true -> done(self.count) }

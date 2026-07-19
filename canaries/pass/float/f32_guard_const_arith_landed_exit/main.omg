@@ -13,7 +13,7 @@
 // engine (the engines diverged here before F2c: interp 71 / native 70 — and
 // native was only coincidentally right via compare-time narrowing, which
 // double-rounds on other shapes).
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main { console: Console; f: f32; }
 machine Main::main(&mut self) {
     self.f = 16777216.0;

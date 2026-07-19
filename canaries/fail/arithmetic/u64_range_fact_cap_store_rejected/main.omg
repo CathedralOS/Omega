@@ -6,7 +6,7 @@
 // exact bignum facts u64's range is the true [0, u64::MAX], which does
 // NOT fit, and the unguarded store refuses. The guarded-copy twin
 // (pass/arithmetic/runtime_u64_guarded_cap_store_exit) discharges.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main { console: Console; capped: u64 [0..=9223372036854775807]; }
 machine Main::main(&mut self) {
     let big_value: u64 = 18446744073709551615;

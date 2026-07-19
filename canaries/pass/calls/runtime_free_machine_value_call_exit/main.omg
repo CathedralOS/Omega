@@ -7,9 +7,7 @@
 // runtime storage write lowering"). Both targets and both arms (condition +
 // default) are exercised at runtime; exits 70 only when all are correct.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

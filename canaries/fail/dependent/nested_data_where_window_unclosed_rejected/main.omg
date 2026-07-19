@@ -1,6 +1,6 @@
 // FAIL CANARY. self.map.start opens Map's window and the call cannot consume
 // the enclosing machine while start=10/end=0 violates Map's default domain.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Map
 where
     start <= end,

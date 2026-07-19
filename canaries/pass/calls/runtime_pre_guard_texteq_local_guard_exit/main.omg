@@ -2,7 +2,7 @@
 // prelude: it must write `x` after arm_a is selected and before arm_a's nested
 // guard reads it. Text equality needs the frame-slot comparison writer on that
 // pre-guard path; a terminal-leaf write is too late.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Store { name: String; }
 machine Store::check(&mut self, idx: i32) -> bool {
     transition idx == 0 {

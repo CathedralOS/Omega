@@ -32,7 +32,9 @@ boundary trait Console {
     machine write_byte(byte: i32)
     effects
         stdout_io;
-    machine exit_process(return_code: i32);
+    machine exit_process(return_code: i32)
+    effects
+        process_exit;
 }
 
 // Friendly text output is checked Omega code over the byte-level boundary

@@ -9,9 +9,7 @@
 // index-15 write below typechecks only at length 16, and exits 70 only when
 // the value lands.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

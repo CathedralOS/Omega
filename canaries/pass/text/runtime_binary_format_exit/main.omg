@@ -4,9 +4,7 @@
 // and written to a carrier. The shift AMOUNT is a runtime value (7 - i), and the result
 // feeds a bitwise AND -- both in value position. 42 = 0b00101010, so the output bytes are
 // exactly "00101010". All eight checked -> exit 70.
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 domain [u8]::Utf8 when valid_utf8(self) {}
 domain [u8; 8]::Utf8 when valid_utf8(self) {}

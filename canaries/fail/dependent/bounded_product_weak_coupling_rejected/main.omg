@@ -3,7 +3,7 @@
 // leaves the store interval [0, 12] escaping the declared range --
 // refused at the store, never trusted by the index prover. (This exact
 // shape read pixels[12] out of bounds natively before the keystone.)
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main { console: Console; pixels: [u8; 12]; rows: u32; cols: u32; j: u32; k: u32; out: i32; }
 machine Main::main(&mut self) {
     self.rows = 3;

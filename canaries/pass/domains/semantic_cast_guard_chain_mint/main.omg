@@ -3,7 +3,7 @@
 // existing R1 machinery), and the mint inside qualify discharges from
 // those requires -- a RUNTIME value flows through a guard into a semantic
 // domain. RUNS exit 70.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main { console: Console; }
 domain i64::Km {
     self >= 0;

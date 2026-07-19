@@ -9,9 +9,7 @@
 // Before the fix: native exited 71 (the cast read garbage); the interpreter
 // always exited 70. See wiki/architecture/scalar_width_rederivation_smell.md.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

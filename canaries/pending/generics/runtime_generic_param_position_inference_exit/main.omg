@@ -10,7 +10,7 @@
 // substitution (a violating instantiation stays generic and is rejected by the decision-13 bound
 // diagnostic + the value-call fence -- see fail/generics/machine_bound_value_call_unchecked). The
 // call materializes natively: exit 70. Differential (native must match the interpreter).
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Light [copy] { weight: i32 in Wrapping; }
 data Main { console: Console; l: Light; }
 machine Main::weigh<T [copy]>(&self, x: &T) -> i32 { transition { _ -> 70 } }

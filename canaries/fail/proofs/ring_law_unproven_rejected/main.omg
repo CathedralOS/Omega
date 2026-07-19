@@ -1,5 +1,5 @@
 // NEGATIVE 1: the law satisfier proves NOTHING (no ensures) -> must error.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Peano { case Zero; case Succ(pred: Peano); }
 trait RingOps2 {
     machine add(a: Self, b: Self) -> Self;

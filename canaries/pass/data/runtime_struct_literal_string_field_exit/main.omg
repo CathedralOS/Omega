@@ -27,9 +27,7 @@ domain [u8]::Utf8 when valid_utf8(self) {
 // ("ok", not "hi") so it cannot accidentally ride the record literal's data
 // object.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data LabelMessage {
     0: count: u32;

@@ -11,7 +11,7 @@
 // as a frame source even when nested inside a binary accumulator, so the
 // argument-overlap detector stages the call. Interpreter was always correct.
 
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 
 data Summer {}
 

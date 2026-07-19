@@ -11,9 +11,7 @@
 // written in the sub-state `read` reached via `key < 4` (the forwarded-alias case).
 // Exits 70 only when BOTH writes reach the caller's `found`.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Item {
     key: i32;

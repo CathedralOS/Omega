@@ -6,9 +6,7 @@
 // both fixes: measure the machine, or spell unmeasured repetition as the
 // bare loop `-> countdown(..)` (constant stack, may legally diverge).
 // The measured twin RUNS: pass/calls/runtime_measured_tail_recursion_exit.
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 data Main {
     console: Console;
 }

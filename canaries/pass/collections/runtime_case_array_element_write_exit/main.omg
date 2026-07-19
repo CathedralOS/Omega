@@ -5,7 +5,7 @@
 // At{16,8} at [2] gives 24, exit 36. Native must match the interpreter (the
 // interpreter is the L0 build-time engine, so this also gates the structured
 // Plan work).
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data FieldPlan {
     case At(offset: i64, width: i64);
     case Skip;

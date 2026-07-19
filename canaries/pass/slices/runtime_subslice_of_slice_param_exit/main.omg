@@ -5,9 +5,7 @@
 // slice. This is the materialization that makes `terminates by … -> Slice::Length`
 // recursion (self.walk(entries[1..])) actually shrink and terminate.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Entry {
     value: i32;

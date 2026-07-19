@@ -3,9 +3,7 @@
 // one would silently drop the case part. Rejected loudly until case-aware
 // wire encoding lands.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data EventMessage {
     0: bonus: i32;

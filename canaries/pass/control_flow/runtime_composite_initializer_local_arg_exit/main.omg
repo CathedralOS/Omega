@@ -11,9 +11,7 @@
 //   - field-read let in binary: let af = a + 1      (a = self.v)      -> 42
 // Exits 70.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

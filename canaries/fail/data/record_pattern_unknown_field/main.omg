@@ -1,6 +1,6 @@
 // The typo fence: the pattern names `w`, which `Point` does not declare.
 // Waiving (`as _`) does not exempt the name from existing.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Point {
     x: i32 [0..=100];
     y: i32 [0..=100];

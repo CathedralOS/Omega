@@ -3,9 +3,7 @@
 // (this also discharges decision 12's "no &mut/out params" half of the
 // purity predicate). `sized(n: i32)` takes a parameter; the const site must
 // reject with the stage boundary spelled out.
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

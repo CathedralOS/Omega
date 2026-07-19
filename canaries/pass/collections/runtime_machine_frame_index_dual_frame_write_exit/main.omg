@@ -1,9 +1,7 @@
 // MACHINE-owned array WRITE where BOTH the source and the index are
 // FRAME-resident params (`self.put(1, 44) { self.arr[k] = v }`) -- the
 // three-relocation case (frame source, machine re-load, frame index). -> 1.
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 data Main {
     console: Console;
     arr: [i32; 4];

@@ -7,7 +7,7 @@
 // `in Wrapping` field used to refuse the whole container), and the layout
 // builder skips machines attached to generic TEMPLATE data even when they
 // declare no type params of their own.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Cell<T> {
     value: T;
     touched: i32 in Wrapping;

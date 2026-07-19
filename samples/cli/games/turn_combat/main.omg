@@ -9,11 +9,7 @@
 // monster (25 hp, 5 atk) and wins. Exits 1 if the hero wins, 2 if the monster wins.
 // Expected exit: 1.
 
-boundary trait Console {
-    machine write_line(text: String);
-    machine read_line(out_line: &mut String);
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Fighter {
     hp: i32 [-100..=100];

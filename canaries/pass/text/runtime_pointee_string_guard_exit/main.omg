@@ -12,9 +12,7 @@ domain [u8]::Utf8 when valid_utf8(self) {
 // slot's own raw bytes as if they were the text descriptor, an always-unequal
 // compare (the match regime took the false arm). Both the local-alias shape
 // and the called-machine `&mut Room` PARAMETER shape are covered.
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Room {
     label: &[u8] in Utf8;

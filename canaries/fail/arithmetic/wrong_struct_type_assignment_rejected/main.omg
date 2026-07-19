@@ -8,7 +8,7 @@
 // both sides resolve to concrete data types that differ (traits / generics /
 // primitives / computed values are skipped).
 
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 
 data Foo { a: i32 in Wrapping; }
 data Bar { b: i32 in Wrapping; }

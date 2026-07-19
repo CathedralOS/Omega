@@ -10,7 +10,7 @@
 // through std math (74). Guarded arms still fence -- the hoist is gated to
 // ALWAYS arms so an effectful callee cannot run for a not-taken arm.
 use omega::language::std::math;
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main { console: Console; }
 machine dbl(x: i32 [0..=1000]) -> i32 {
     transition { _ -> (x + x) }

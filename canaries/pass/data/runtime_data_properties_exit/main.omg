@@ -5,9 +5,7 @@
 // `Holder` declares `[copy, zero_init]` and stores a `Point`, which qualifies
 // only because `Point` declares the properties itself.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Point [copy, zero_init] {
     x: i32;

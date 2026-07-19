@@ -6,9 +6,7 @@
 // confusion or a first-arm fallthrough would take the current or v2 arm).
 // The bound v1 payload is the ZII shape (counter == 0), driving exit 70.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Counter {
     version v1 {

@@ -1,7 +1,7 @@
 // FAIL CANARY: a bool-tuple transition matrix MISSING a combination
 // ((false,false) absent) keeps the loud fall-through refusal -- the
 // exhaustiveness rewrite only fires for covering matrices.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main { console: Console; out: i32; }
 machine Main::main(&mut self) {
     let found: bool = true;

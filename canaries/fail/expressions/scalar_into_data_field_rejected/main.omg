@@ -4,7 +4,7 @@
 // (exit 0) with no diagnostic. This cross-shape case fell between the scalar-CLASS
 // gate (needs a primitive target) and the nominal gate (needs both sides to be
 // data names). Rejected at check now. Same-type struct stores stay valid.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Inner { v: i32; }
 data Main { console: Console; inner: Inner; }
 machine Main::main(&mut self) {

@@ -1,6 +1,6 @@
 // F4: Exact float-to-int accepts a declared finite range and a sole incoming
 // guard that proves non-NaN plus both range bounds.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main {
     console: Console;
     bounded: f64 [0.0..=100.0];

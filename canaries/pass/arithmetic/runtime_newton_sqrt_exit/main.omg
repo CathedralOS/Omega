@@ -4,9 +4,7 @@
 // from x = 1.0, six iterations on S = 2.0 converge to sqrt(2) ~= 1.41421356. Exercises f64
 // DIVISION (S/x and t/2.0) inside a loop and a two-sided float comparison against literals.
 // Checks 1.414 < x < 1.415 -> exit 70.
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

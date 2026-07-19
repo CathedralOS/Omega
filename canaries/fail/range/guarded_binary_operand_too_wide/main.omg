@@ -1,8 +1,6 @@
 // The operand-refold's soundness twin: guard `dir <= 2` makes the sum
 // [0..=8] + [0..=2] = [0..=10], which does NOT fit y: [0..=9] -> reject.
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

@@ -5,9 +5,7 @@
 // The differential oracle checks native==interpreter -- a boundary clamp that
 // disagrees would surface here.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

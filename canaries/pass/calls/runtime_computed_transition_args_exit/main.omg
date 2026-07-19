@@ -10,9 +10,7 @@
 // as args work; only a direct value-call arg drops (its sound workaround is to bind the call
 // result to a local/field first). Pinning the working shapes guards them against regressing
 // into that same failure mode.
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

@@ -3,9 +3,7 @@
 // end. Each element is read into a field first, then compared (the sound pattern for a runtime-
 // indexed comparison). arr = [3,7,12,18,5], target = 12 -> found at index 2; exits 70 iff the
 // search stops there. A wrong index, or failing to stop, would miss 2.
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

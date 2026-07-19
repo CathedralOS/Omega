@@ -1,9 +1,7 @@
 // A guard whose established range does NOT fit the target: [0..=20] into
 // y: [0..=9] must still reject -- the guard narrows the copy, but only to
 // its own bounds.
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

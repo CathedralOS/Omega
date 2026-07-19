@@ -17,9 +17,7 @@ domain [u8]::Utf8 when valid_utf8(self) {
 // written = 5; the canary checks the five bytes + the written count in-language
 // and exits 70 when byte-exact.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Blob {
     0: bytes: &[u8];

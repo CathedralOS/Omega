@@ -5,9 +5,7 @@
 // `i >= 0` is stale after the decrement, so the post-mutation read must not
 // prove. Regression guard exposed by the decreasing-counter loop invariant.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

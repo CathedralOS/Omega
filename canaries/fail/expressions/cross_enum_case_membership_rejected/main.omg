@@ -4,7 +4,7 @@
 // (confirmed miscompile, exit 1). The membership sibling of the cross-enum `==`
 // hole. Rejected at the case-membership lowering now. Same-enum membership
 // (`self.c in Color::Red`, incl. transition match-arm desugars) stays valid.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Color { case Red; case Green; }
 data Direction { case North; case South; }
 data Main { console: Console; c: Color; }

@@ -3,7 +3,7 @@
 // so i32 300 became (300 & 0xFF) == 44 and matched i8 44 -- TRUE arm, a confirmed
 // miscompile (44 != 300). Rejected at check now (decision-17 explicit-width
 // sibling of the out-of-range comparison literal). Convert one operand with `as`.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main { console: Console; small: i8; big: i32; }
 machine Main::main(&mut self) {
     self.small = 44;

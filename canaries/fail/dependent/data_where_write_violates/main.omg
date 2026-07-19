@@ -2,7 +2,7 @@
 // count = 9 while len still reads its ZII zero makes `count <= len`
 // FALSE at the post-write valuation (strict store-time semantics; ch11
 // windows are the future relaxation).
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data MemoryMap
 where
     count <= len,

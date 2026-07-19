@@ -4,7 +4,7 @@
 // an exact-arithmetic overflow (it would otherwise silently wrap to 44). Opt into
 // a domain (`u8 in Wrapping`/`Saturating`) or widen for a defined result.
 
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 
 data Main {
     console: Console;

@@ -8,9 +8,7 @@
 // Mirrors the dungeon find_room shape: a by-value struct param, `as_slice`, and an
 // indexed element copied through a `&mut out` alias inside a guarded sub-state.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Item {
     key: i32;

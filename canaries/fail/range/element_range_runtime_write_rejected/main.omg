@@ -1,9 +1,7 @@
 // Element-range WRITE enforcement (RUNTIME index): the element type governs the
 // target regardless of which element is written -- `self.cells[self.i] = 100`
 // must reject like the const-index face.
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;

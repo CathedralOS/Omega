@@ -13,7 +13,7 @@
 // with a negative dividend is a separate, deeper case -- see
 // guard-negative-i32-arithmetic memory.)
 
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 
 data Main {
     console: Console;

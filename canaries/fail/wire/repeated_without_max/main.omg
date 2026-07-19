@@ -4,9 +4,7 @@
 // (`[u32]`, no maximum) can never satisfy that, so it is a hard error at the
 // DECLARATION, like a schema cycle -- not a call-site rejection.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Telemetry {
     0: readings: [u32];

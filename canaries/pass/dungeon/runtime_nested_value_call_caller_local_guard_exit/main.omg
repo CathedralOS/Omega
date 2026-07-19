@@ -9,9 +9,7 @@
 // never carved, rendering empty descriptions). Exit 70 = the comparison value
 // is computed and the true arm dispatches (interpreter semantics); exit 71 =
 // the result-slot write was lost and the false arm ran.
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data RandomState {
     seed: u64 in Wrapping;

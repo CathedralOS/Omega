@@ -3,7 +3,7 @@
 // the inlined-callee flavor silently zeroed before the fence (the Main-state
 // flavor hit the emission backstop). Field/self/parameter receivers are the
 // supported forms.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 
 data Pair [copy, zero_init] { a: u64; b: u64; }
 

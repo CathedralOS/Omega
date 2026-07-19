@@ -1,6 +1,6 @@
 // FAIL CANARY. Without a default-domain upper bound, 70 + arbitrary i32 may
 // overflow; no standing fact may be fabricated from the field name alone.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main {
     console: Console;
     value: i32;

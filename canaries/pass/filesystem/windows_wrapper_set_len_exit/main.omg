@@ -8,7 +8,7 @@
 // not Ok; 75 wrong len.
 use omega::language::std::filesystem;
 use omega::language::std::filesystem_host;
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main { console: Console; fs: Filesystem; open_result: OpenResult; unit_result: UnitResult; meta_result: MetadataResult; rc: i32; }
 machine Main::main(&mut self) {
     self.open_result = self.fs.create("omega_setlen_probe.txt");

@@ -6,7 +6,7 @@
 // an aggregate-literal alias must not substitute into an indexed collection
 // position, the third fold layer), and a by-value param array through a
 // value machine. All value-validated.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main { console: Console; got: i32; }
 machine Main::pick(&self, m: [[i32; 3]; 2], i: u64 [0..=1], j: u64 [0..=2]) -> i32 {
     transition { _ -> (m[i][j]) }

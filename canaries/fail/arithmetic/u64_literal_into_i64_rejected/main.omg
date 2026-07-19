@@ -1,7 +1,7 @@
 // FAIL CANARY -- a u64-magnitude literal bound to an i64 local: the D14
 // gate names the literal and the accepted positions; an i64 slot would
 // silently reinterpret the bit pattern as -1.
-boundary trait Console { machine exit_process(return_code: i32); }
+use omega::language::std::console;
 data Main { console: Console; }
 machine Main::main(&mut self) {
     let wrong: i64 in Wrapping = 18446744073709551615;

@@ -3,9 +3,7 @@
 // runtime storage write lowering" blocker -- loud but MISLEADING (it reads as a
 // missing lowering, not a typo). The nested walker now reports the missing
 // member on its resolved container at validation, matching the read side.
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Inner {
     value: i32;

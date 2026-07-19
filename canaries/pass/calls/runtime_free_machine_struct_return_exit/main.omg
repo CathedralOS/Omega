@@ -10,9 +10,7 @@
 // Exits 70 only when all four returned fields are correct
 // (34+35+34+35 == 138); any dropped write reads 0 and falls to 71.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Pair {
     a: i32 in Wrapping;

@@ -4,9 +4,7 @@
 // nothing trait-shaped appears on the data declaration, and the call path is
 // unchanged at runtime.
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 trait Shape {
     machine code(&mut self) -> i32;

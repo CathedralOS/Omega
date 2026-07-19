@@ -1,9 +1,7 @@
 // The funnel agreement's soundness twin: one of the two edges into `push` is
 // UNGUARDED (`_ ->`), so no entry fact survives the join and the ranged copy
 // must reject.
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::std::console;
 
 data Main {
     console: Console;
